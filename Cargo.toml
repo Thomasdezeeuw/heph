@@ -3,3 +3,6 @@ name = "actor"
 version = "0.1.0"
 authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license = "MIT/Apache-2.0"
+
+[dependencies]
+futures = "0.1.16"
