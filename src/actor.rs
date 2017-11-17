@@ -84,3 +84,44 @@ pub trait Actor {
         self.pre_start();
     }
 }
+
+/// The trait that defines how to create a new actor.
+pub trait NewActor {
+    /// The type of the message the actor can handle, see
+    /// [`Actor.Message`].
+    ///
+    /// [`Actor.Message`]: trait.Actor.html#associatedtype.Message
+    type Message;
+
+    /// The type of error the actor can return to it's supervisor, see
+    /// [`Actor.Error`].
+    ///
+    /// [`Actor.Error`]: trait.Actor.html#associatedtype.Error
+    type Error;
+
+    /// The type of the future the actor will return when handling a message,
+    /// see [`Actor.Future`].
+    ///
+    /// [`Actor.Future`]: trait.Actor.html#associatedtype.Future
+    type Future: Future<Item = (), Error = Self::Error>;
+
+    /// The type of the actor, see [`Actor`].
+    ///
+    /// [`Actor`]: trait.Actor.html
+    type Actor = Actor<Message = Self::Message, Error = Self::Error, Future = Self::Future>;
+
+    /// The method that gets call to create a new actor.
+    fn new(&self) -> Self::Actor;
+
+    /// Reuse an already allocated actor. The default implementation will create
+    /// a new actor (by calling [`NewActor.new`]), swap the old and new actors
+    /// and drop the `old_actor`.
+    ///
+    /// This is a performance optimization to allow the allocations of an actor
+    /// to be reused.
+    ///
+    /// [`NewActor.new`]: trait.NewActor.html#method.new
+    fn reuse(&self, old_actor: &mut Self::Actor) {
+        mem::replace(old_actor, self.new());
+    }
+}
