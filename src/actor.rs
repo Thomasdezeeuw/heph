@@ -23,6 +23,7 @@ use futures::Future;
 /// The main actor trait, which defines how an actor handles messages.
 pub trait Actor {
     /// The message that actor can handle.
+    /// The user defined message that actor can handle.
     ///
     /// Use an enum to allow an actor to handle multiple types of messages.
     type Message;
@@ -115,7 +116,7 @@ pub trait NewActor {
     /// The type of the actor, see [`Actor`].
     ///
     /// [`Actor`]: trait.Actor.html
-    type Actor = Actor<Message = Self::Message, Error = Self::Error, Future = Self::Future>;
+    type Actor: Actor<Message = Self::Message, Error = Self::Error, Future = Self::Future>;
 
     /// The method that gets called to create a new actor.
     fn new(&self) -> Self::Actor;
