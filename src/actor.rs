@@ -171,46 +171,21 @@ impl<N, A> NewActor for ActorFactory<N>
 ///
 /// [`NewActor`]: trait.NewActor.html
 /// [`ActorFactory`]: struct.ActorFactory.html
-pub struct ActorReuseFactory<A, N, R> {
-    new_actor: N,
-    reuse: R,
-    _phantom: PhantomData<A>,
-}
+pub struct ActorReuseFactory<N, R>(pub N, pub R);
 
-impl<A, N, R> ActorReuseFactory<A, N, R> {
-    /// Create a new factory that implements [`NewActor`] by means of the
-    /// provided `new_actor` and the [reuse] function using `reuse`.
-    ///
-    /// [`NewActor`]: trait.NewActor.html
-    /// [reuse]: trait.NewActor.html#method.reuse
-    pub fn new(new_actor: N, reuse: R) -> ActorReuseFactory<A, N, R>
-        where A: Actor,
-              N: Fn() -> A,
-              R: Fn(&mut A),
-    {
-        ActorReuseFactory {
-            new_actor: new_actor,
-            reuse: reuse,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<A, N, R> NewActor for ActorReuseFactory<A, N, R>
-    where A: Actor,
-          N: Fn() -> A,
+impl<N, R, A> NewActor for ActorReuseFactory<N, R>
+    where N: Fn() -> A,
           R: Fn(&mut A),
+          A: Actor,
 {
     type Message = A::Message;
     type Error = A::Error;
     type Future = A::Future;
     type Actor = A;
-
     fn new(&self) -> Self::Actor {
-        (self.new_actor)()
+        (self.0)()
     }
-
     fn reuse(&self, old_actor: &mut Self::Actor) {
-        (self.reuse)(old_actor)
+        (self.1)(old_actor)
     }
 }
