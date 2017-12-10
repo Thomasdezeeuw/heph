@@ -16,14 +16,12 @@
 //! [`ActorReuseFactory`]: struct.ActorReuseFactory.html
 
 use std::mem;
-use std::marker::PhantomData;
 
 use futures::Future;
 
 /// The main actor trait, which defines how an actor handles messages.
 pub trait Actor {
-    /// The message that actor can handle.
-    /// The user defined message that actor can handle.
+    /// The user defined message that this actor can handle.
     ///
     /// Use an enum to allow an actor to handle multiple types of messages.
     type Message;
@@ -34,7 +32,6 @@ pub trait Actor {
     ///
     /// How to process non-terminal errors that happen during regular processing
     /// of messages is up to the user.
-    // TODO: give advance about how to handle non-terminal errors.
     type Error;
 
     /// The future returned by the actor to handle a message.
@@ -54,11 +51,6 @@ pub trait Actor {
     /// operation, e.g. a unqiue actor per request to handle the reading and
     /// writing of the request/response to a socket.
     fn handle(&mut self, message: Self::Message) -> Self::Future;
-
-    // TODO: determine and doc the actor's lifecycle.
-    //
-    // TODO: describe when an actor will be restarted; when it returns an actor
-    // and the supervisor says so.
 
     /// The method that will be called once the actor is created, but not yet
     /// has received it's first message.
