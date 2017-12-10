@@ -145,42 +145,18 @@ pub trait NewActor {
 /// [`NewActor`]: trait.NewActor.html
 /// [reuse]: trait.NewActor.html#method.reuse
 /// [`ActorReuseFactory`]: struct.ActorReuseFactory.html
-pub struct ActorFactory<A, N> {
-    new_actor: N,
-    _phantom: PhantomData<A>,
-}
+pub struct ActorFactory<N>(pub N);
 
-impl<A, N> ActorFactory<A, N> {
-    /// Create a new factory that implements [`NewActor`] by means of the
-    /// provided `new_actor`.
-    ///
-    /// [`NewActor`]: trait.NewActor.html
-    pub fn new(new_actor: N) -> ActorFactory<A, N>
-        where A: Actor,
-              N: Fn() -> A,
-    {
-        ActorFactory {
-            new_actor: new_actor,
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<A, N> NewActor for ActorFactory<A, N>
-    where A: Actor,
-          N: Fn() -> A,
+impl<N, A> NewActor for ActorFactory<N>
+    where N: Fn() -> A,
+          A: Actor,
 {
     type Message = A::Message;
     type Error = A::Error;
     type Future = A::Future;
     type Actor = A;
-
     fn new(&self) -> Self::Actor {
-        (self.new_actor)()
-    }
-
-    fn reuse(&self, old_actor: &mut Self::Actor) {
-        mem::replace(old_actor, (self.new_actor)());
+        (self.0)()
     }
 }
 
