@@ -197,7 +197,38 @@ impl<N, A> NewActor for ActorFactory<N>
 /// # Example
 ///
 /// ```
-/// // TODO: add example.
+/// # extern crate actor;
+/// # extern crate futures;
+/// # use actor::actor::{Actor, NewActor};
+/// # use futures::Future;
+/// use actor::actor::ActorReuseFactory;
+///
+/// // Our actor.
+/// struct MyActor;
+///
+/// # impl Actor for MyActor {
+/// #
+/// #    type Message = ();
+/// #    type Error = ();
+/// #    type Future = Box<Future<Item = (), Error = ()>>;
+/// #    fn handle(&mut self, _: ()) -> Self::Future { unimplemented!(); }
+/// # }
+/// #
+/// impl MyActor {
+///     fn new() -> MyActor { MyActor }
+///     fn reset(&mut self) { /* Reset our actor. */ }
+/// }
+///
+/// # fn use_new_actor<A: NewActor>(new_actor: A) { }
+/// #
+/// # fn main() {
+/// // Our `NewActor` implementation that returns `MyActor`.
+/// let new_actor = ActorReuseFactory(|| MyActor::new(), |actor: &mut MyActor| actor.reset());
+///
+/// // new_actor now implements the `NewActor` trait, including a custom reuse
+/// // function.
+/// # use_new_actor(new_actor);
+/// # }
 /// ```
 ///
 /// [`NewActor`]: trait.NewActor.html
