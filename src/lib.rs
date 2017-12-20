@@ -11,4 +11,13 @@ extern crate futures;
 
 pub mod actor;
 
-pub use actor::{Actor, NewActor};
+/// The actor prelude.
+///
+/// Useful traits and structs.
+///
+/// ```
+/// use actor::prelude::*;
+/// ```
+pub mod prelude {
+    pub use actor::{Actor, NewActor};
+}
