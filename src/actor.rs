@@ -168,9 +168,11 @@ pub trait NewActor {
 /// [`NewActor`]: trait.NewActor.html
 /// [reuse]: trait.NewActor.html#method.reuse
 /// [`ActorReuseFactory`]: struct.ActorReuseFactory.html
-pub struct ActorFactory<N>(pub N);
+pub struct ActorFactory<N, A>(pub N)
+    where N: Fn() -> A,
+          A: Actor;
 
-impl<N, A> NewActor for ActorFactory<N>
+impl<N, A> NewActor for ActorFactory<N, A>
     where N: Fn() -> A,
           A: Actor,
 {
