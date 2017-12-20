@@ -6,9 +6,10 @@
 // used, copied, modified, or distributed except according to those terms.
 
 //! All actors must implement the [`Actor`] trait, which defines how an actor
-//! handles messages. However the system needs a way to create these actors,
-//! which is defined in the [`NewActor`] trait. Helper structs are provided to
-//! easily implement this trait, see [`ActorFactory`] and [`ActorReuseFactory`].
+//! handles messages. However the system needs a way to create (and recreate)
+//! these actors, which is defined in the [`NewActor`] trait. Helper structs are
+//! provided to easily implement this trait, see [`ActorFactory`] and
+//! [`ActorReuseFactory`].
 //!
 //! [`Actor`]: trait.Actor.html
 //! [`NewActor`]: trait.NewActor.html
@@ -138,29 +139,21 @@ pub trait NewActor {
 /// # use futures::Future;
 /// use actor::actor::ActorFactory;
 ///
-/// // Our actor.
+/// // Our actor that implements the `Actor` trait.
 /// struct MyActor;
 ///
 /// # impl Actor for MyActor {
-/// #
 /// #    type Message = ();
 /// #    type Error = ();
 /// #    type Future = Box<Future<Item = (), Error = ()>>;
 /// #    fn handle(&mut self, _: ()) -> Self::Future { unimplemented!(); }
 /// # }
 /// #
-/// impl MyActor {
-///     fn new() -> MyActor { MyActor }
-///     fn reset(&mut self) { /* Reset our actor. */ }
-/// }
-///
-/// # fn use_new_actor<A: NewActor>(new_actor: A) { }
-/// #
 /// # fn main() {
-/// // Our NewActor implementation that returns `MyActor`.
+/// // Our `NewActor` implementation that returns our actor.
 /// let new_actor = ActorFactory(|| MyActor);
-///
-/// // new_actor now implements the `NewActor` trait.
+/// #
+/// # fn use_new_actor<A: NewActor>(new_actor: A) { }
 /// # use_new_actor(new_actor);
 /// # }
 /// ```
@@ -197,11 +190,10 @@ impl<N, A> NewActor for ActorFactory<N, A>
 /// # use futures::Future;
 /// use actor::actor::ActorReuseFactory;
 ///
-/// // Our actor.
+/// // Our actor that implements the `Actor` trait.
 /// struct MyActor;
 ///
 /// # impl Actor for MyActor {
-/// #
 /// #    type Message = ();
 /// #    type Error = ();
 /// #    type Future = Box<Future<Item = (), Error = ()>>;
@@ -209,18 +201,14 @@ impl<N, A> NewActor for ActorFactory<N, A>
 /// # }
 /// #
 /// impl MyActor {
-///     fn new() -> MyActor { MyActor }
 ///     fn reset(&mut self) { /* Reset our actor. */ }
 /// }
 ///
-/// # fn use_new_actor<A: NewActor>(new_actor: A) { }
-/// #
 /// # fn main() {
-/// // Our `NewActor` implementation that returns `MyActor`.
-/// let new_actor = ActorReuseFactory(|| MyActor::new(), |actor: &mut MyActor| actor.reset());
-///
-/// // new_actor now implements the `NewActor` trait, including a custom reuse
-/// // function.
+/// // Our `NewActor` implementation that returns our actor.
+/// let new_actor = ActorReuseFactory(|| MyActor, |actor| actor.reset());
+/// #
+/// # fn use_new_actor<A: NewActor>(new_actor: A) { }
 /// # use_new_actor(new_actor);
 /// # }
 /// ```
