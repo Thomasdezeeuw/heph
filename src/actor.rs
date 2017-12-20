@@ -227,9 +227,12 @@ impl<N, A> NewActor for ActorFactory<N, A>
 ///
 /// [`NewActor`]: trait.NewActor.html
 /// [`ActorFactory`]: struct.ActorFactory.html
-pub struct ActorReuseFactory<N, R>(pub N, pub R);
+pub struct ActorReuseFactory<N, R, A>(pub N, pub R)
+    where N: Fn() -> A,
+          R: Fn(&mut A),
+          A: Actor;
 
-impl<N, R, A> NewActor for ActorReuseFactory<N, R>
+impl<N, R, A> NewActor for ActorReuseFactory<N, R, A>
     where N: Fn() -> A,
           R: Fn(&mut A),
           A: Actor,
