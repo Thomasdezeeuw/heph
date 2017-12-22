@@ -88,39 +88,18 @@ pub trait Actor {
 
 /// The trait that defines how to create a new actor.
 pub trait NewActor {
-    /// The type of the message the actor can handle, see
-    /// [`Actor.Message`].
-    ///
-    /// [`Actor.Message`]: trait.Actor.html#associatedtype.Message
-    type Message;
-
-    /// The type of error the actor can return to it's supervisor, see
-    /// [`Actor.Error`].
-    ///
-    /// [`Actor.Error`]: trait.Actor.html#associatedtype.Error
-    type Error;
-
-    /// The type of the future the actor will return when handling a message,
-    /// see [`Actor.Future`].
-    ///
-    /// [`Actor.Future`]: trait.Actor.html#associatedtype.Future
-    type Future: Future<Item = (), Error = Self::Error>;
-
-    /// The type of the actor, see [`Actor`].
-    ///
-    /// [`Actor`]: trait.Actor.html
-    type Actor: Actor<Message = Self::Message, Error = Self::Error, Future = Self::Future>;
+    /// The type of the actor, see [`Actor`](trait.Actor.html).
+    type Actor: Actor;
 
     /// The method that gets called to create a new actor.
     fn new(&self) -> Self::Actor;
 
     /// Reuse an already allocated actor. The default implementation will create
-    /// a new actor (by calling [`new`]) and replace `old_actor` with it.
+    /// a new actor (by calling [`new`](trait.NewActor.html#tymethod.new)) and
+    /// replace `old_actor` with it.
     ///
     /// This is a performance optimization to allow the allocations of an actor
     /// to be reused.
-    ///
-    /// [`new`]: trait.NewActor.html#tymethod.new
     fn reuse(&self, old_actor: &mut Self::Actor) {
         mem::replace(old_actor, self.new());
     }
@@ -169,9 +148,6 @@ impl<N, A> NewActor for ActorFactory<N, A>
     where N: Fn() -> A,
           A: Actor,
 {
-    type Message = A::Message;
-    type Error = A::Error;
-    type Future = A::Future;
     type Actor = A;
     fn new(&self) -> Self::Actor {
         (self.0)()
@@ -224,9 +200,6 @@ impl<N, R, A> NewActor for ReusableActorFactory<N, R, A>
           R: Fn(&mut A),
           A: Actor,
 {
-    type Message = A::Message;
-    type Error = A::Error;
-    type Future = A::Future;
     type Actor = A;
     fn new(&self) -> Self::Actor {
         (self.0)()

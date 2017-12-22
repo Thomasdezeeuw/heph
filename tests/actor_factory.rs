@@ -72,7 +72,7 @@ fn actor_reuse_factory() {
 /// Creates a new actor, calls it once and makes sure the return value is ok.
 /// Then reuses the actor, calls it again, and returns it.
 fn test_new_actor<N, A, F, M>(new_actor: N) -> A
-    where N: NewActor<Message = M, Error = (), Future = F, Actor = A>,
+    where N: NewActor<Actor = A>,
           A: Actor<Message = M, Error = (), Future = F>,
           F: Future<Item = (), Error = ()>,
           M: Default,
