@@ -10,7 +10,7 @@ extern crate futures;
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use actor::actor::{Actor, NewActor, ActorFactory, ActorReuseFactory};
+use actor::actor::{Actor, NewActor, ActorFactory, ReusableActorFactory};
 use futures::future::{Future, FutureResult, ok};
 
 struct TestActor {
@@ -58,7 +58,7 @@ fn actor_factory() {
 #[test]
 fn actor_reuse_factory() {
     let called_new_count = AtomicUsize::new(0);
-    let new_actor = ActorReuseFactory(|| {
+    let new_actor = ReusableActorFactory(|| {
         called_new_count.fetch_add(1, Ordering::Relaxed);
         TestActor::new()
     }, |actor: &mut TestActor| actor.reset());

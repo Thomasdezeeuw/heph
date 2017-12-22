@@ -9,12 +9,12 @@
 //! handles messages. However the system needs a way to create (and recreate)
 //! these actors, which is defined in the [`NewActor`] trait. Helper structs are
 //! provided to easily implement this trait, see [`ActorFactory`] and
-//! [`ActorReuseFactory`].
+//! [`ReusableActorFactory`].
 //!
 //! [`Actor`]: trait.Actor.html
 //! [`NewActor`]: trait.NewActor.html
 //! [`ActorFactory`]: struct.ActorFactory.html
-//! [`ActorReuseFactory`]: struct.ActorReuseFactory.html
+//! [`ReusableActorFactory`]: struct.ReusableActorFactory.html
 
 use std::mem;
 
@@ -127,7 +127,7 @@ pub trait NewActor {
 }
 
 /// A contruct that allows [`NewActor`] to be implemented by means of a
-/// function. If a custom [reuse] function is needed see [`ActorReuseFactory`].
+/// function. If a custom [reuse] function is needed see [`ReusableActorFactory`].
 ///
 /// # Example
 ///
@@ -160,7 +160,7 @@ pub trait NewActor {
 ///
 /// [`NewActor`]: trait.NewActor.html
 /// [reuse]: trait.NewActor.html#method.reuse
-/// [`ActorReuseFactory`]: struct.ActorReuseFactory.html
+/// [`ReusableActorFactory`]: struct.ReusableActorFactory.html
 pub struct ActorFactory<N, A>(pub N)
     where N: Fn() -> A,
           A: Actor;
@@ -179,7 +179,7 @@ impl<N, A> NewActor for ActorFactory<N, A>
 }
 
 /// A contruct that allows [`NewActor`] to be implemented by means of a
-/// function, including the reuse of an actor. See [`ActorFactory`] for more.
+/// function, including the reuse of an actor.
 ///
 /// # Example
 ///
@@ -188,7 +188,7 @@ impl<N, A> NewActor for ActorFactory<N, A>
 /// # extern crate futures;
 /// # use actor::actor::{Actor, NewActor};
 /// # use futures::Future;
-/// use actor::actor::ActorReuseFactory;
+/// use actor::actor::ReusableActorFactory;
 ///
 /// // Our actor that implements the `Actor` trait.
 /// struct MyActor;
@@ -206,7 +206,7 @@ impl<N, A> NewActor for ActorFactory<N, A>
 ///
 /// # fn main() {
 /// // Our `NewActor` implementation that returns our actor.
-/// let new_actor = ActorReuseFactory(|| MyActor, |actor| actor.reset());
+/// let new_actor = ReusableActorFactory(|| MyActor, |actor| actor.reset());
 /// #
 /// # fn use_new_actor<A: NewActor>(new_actor: A) { }
 /// # use_new_actor(new_actor);
@@ -214,13 +214,12 @@ impl<N, A> NewActor for ActorFactory<N, A>
 /// ```
 ///
 /// [`NewActor`]: trait.NewActor.html
-/// [`ActorFactory`]: struct.ActorFactory.html
-pub struct ActorReuseFactory<N, R, A>(pub N, pub R)
+pub struct ReusableActorFactory<N, R, A>(pub N, pub R)
     where N: Fn() -> A,
           R: Fn(&mut A),
           A: Actor;
 
-impl<N, R, A> NewActor for ActorReuseFactory<N, R, A>
+impl<N, R, A> NewActor for ReusableActorFactory<N, R, A>
     where N: Fn() -> A,
           R: Fn(&mut A),
           A: Actor,
