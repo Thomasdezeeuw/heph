@@ -38,7 +38,8 @@ pub trait Actor {
     /// The future returned by the actor to handle a message.
     ///
     /// The returned item is discarded, while the returned error is passed to
-    /// the actor's supervisor.
+    /// the actor's supervisor, if any.
+    // TODO: link to supervisor.
     type Future: Future<Item = (), Error = Self::Error>;
 
     /// Handle a message, the core of this trait.
@@ -48,9 +49,8 @@ pub trait Actor {
     /// The returned future will be completed before another message is handled
     /// by this actor, effectively blocking this actor until the future is
     /// completed. If the returned future does any blocking operations, e.g.
-    /// I/O, it's recommended to make an actor specific to that blocking
-    /// operation, e.g. a unqiue actor per request to handle the reading and
-    /// writing of the request/response to a socket.
+    /// I/O, it's recommended to make an actor to handle that blocking
+    /// operation. For example a new actor per request to handle.
     fn handle(&mut self, message: Self::Message) -> Self::Future;
 
     /// The method that will be called once the actor is created, but not yet
@@ -60,9 +60,16 @@ pub trait Actor {
     fn pre_start(&mut self) { }
 
     /// The method that will be called after the actor received it's final
-    /// message, just before it's dropped.
+    /// message, just before the actor is dropped.
     ///
     /// The default is to do nothing.
+    ///
+    /// # Note
+    ///
+    /// Sending messages to other actors from this functions will have no
+    /// effect. This method is only called when the system is being shutdown,
+    /// save for a restart of the actor, and other actors will be (or are
+    /// already) stopped as well.
     fn post_stop(&mut self) { }
 
     /// The method that will be called once an actor will be restarted, but just
@@ -80,6 +87,12 @@ pub trait Actor {
     ///
     /// The default is to call the [`pre_start`] function.
     ///
+    /// # Note
+    ///
+    /// Contrary to the `post_stop` method, this method is allowed to send
+    /// messages to other actors since the actor is being restarted but the
+    /// system isn't shutting down.
+    ///
     /// [`pre_start`]: trait.Actor.html#method.pre_start
     fn post_restart(&mut self) {
         self.pre_start();
@@ -87,6 +100,12 @@ pub trait Actor {
 }
 
 /// The trait that defines how to create a new actor.
+///
+/// An easy way to implement this by means of a function is to use
+/// [`ActorFactory`] or [`ReusableActorFactory`].
+///
+/// [`ActorFactory`]: struct.ActorFactory.html
+/// [`ReusableActorFactory`]: struct.ReusableActorFactory.html
 pub trait NewActor {
     /// The type of the actor, see [`Actor`](trait.Actor.html).
     type Actor: Actor;
