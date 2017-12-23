@@ -10,6 +10,7 @@
 extern crate futures;
 
 pub mod actor;
+pub mod listener;
 
 /// The actor prelude.
 ///
