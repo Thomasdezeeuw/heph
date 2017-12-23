@@ -12,9 +12,7 @@ extern crate futures;
 pub mod actor;
 pub mod listener;
 
-/// The actor prelude.
-///
-/// Useful traits and structs.
+/// The actor prelude. All useful traits and structs in single module.
 ///
 /// ```
 /// use actor::prelude::*;
