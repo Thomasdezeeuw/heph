@@ -5,6 +5,8 @@
 // or http://opensource.org/licenses/MIT>, at your option. This file may not be
 // used, copied, modified, or distributed except according to those terms.
 
+//! The module with the [`Actor`] and [`NewActor`] trait definitions.
+//!
 //! All actors must implement the [`Actor`] trait, which defines how an actor
 //! handles messages. However the system needs a way to create (and recreate)
 //! these actors, which is defined in the [`NewActor`] trait. Helper structs are
