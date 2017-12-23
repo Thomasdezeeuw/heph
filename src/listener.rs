@@ -5,7 +5,7 @@
 // or http://opensource.org/licenses/MIT>, at your option. This file may not be
 // used, copied, modified, or distributed except according to those terms.
 
-use std::fmt;
+use std::io;
 
 use futures::Poll;
 
@@ -20,14 +20,9 @@ pub trait Listener {
     /// TCP listener.
     type Item;
 
-    /// The error type, often this will be the standard library's `io::Error`.
-    ///
-    /// The error type need to implement `Display` to allow it to be logged.
-    type Error: fmt::Display;
-
     /// Accept a new item, e.g. a new TCP connection. If no new items are ready
     /// `Async::NotReady` should be returned.
-    fn accept(&mut self) -> Poll<Self::Item, Self::Error>;
+    fn accept(&mut self) -> Poll<Self::Item, io::Error>;
 
     // TODO: how to notify when an item is ready?
 }
@@ -39,11 +34,6 @@ pub trait NewListener {
     /// The type of listener, see the trait documentation for more.
     type Listener: Listener;
 
-    /// The error type, often this will be the standard library's `io::Error`.
-    ///
-    /// The error type need to implement `Display` to allow it to be logged.
-    type Error: fmt::Display;
-
     /// Create a new listener for a thread.
-    fn new(&self) -> Result<Self::Listener, Self::Error>;
+    fn new(&self) -> Result<Self::Listener, io::Error>;
 }
