@@ -11,7 +11,7 @@ extern crate futures;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use actor::actor::{Actor, NewActor, ActorFactory, ReusableActorFactory};
-use futures::future::{Future, FutureResult, ok};
+use futures::future::{Future, IntoFuture, FutureResult, ok};
 
 struct TestActor {
     handle_call_count: usize,
@@ -78,8 +78,8 @@ fn test_new_actor<N, A, F, M>(new_actor: N) -> A
           M: Default,
 {
     let mut actor = new_actor.new();
-    assert!(actor.handle(Default::default()).wait().is_ok());
+    assert!(actor.handle(Default::default()).into_future().wait().is_ok());
     new_actor.reuse(&mut actor);
-    assert!(actor.handle(Default::default()).wait().is_ok());
+    assert!(actor.handle(Default::default()).into_future().wait().is_ok());
     actor
 }
