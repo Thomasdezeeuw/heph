@@ -18,7 +18,7 @@
 
 use std::mem;
 
-use futures::Future;
+use futures::IntoFuture;
 
 /// The main actor trait, which defines how an actor handles messages.
 pub trait Actor {
@@ -40,7 +40,7 @@ pub trait Actor {
     /// The returned item is discarded, while the returned error is passed to
     /// the actor's supervisor, if any.
     // TODO: link to supervisor.
-    type Future: Future<Item = (), Error = Self::Error>;
+    type Future: IntoFuture<Item = (), Error = Self::Error>;
 
     /// Handle a message, the core of this trait.
     ///
