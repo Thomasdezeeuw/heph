@@ -7,11 +7,17 @@
 
 #![feature(associated_type_defaults)]
 
+extern crate fnv;
 extern crate futures;
+#[macro_use]
+extern crate log;
+extern crate mio;
+extern crate tchannel;
 
 pub mod actor;
 pub mod listener;
 pub mod supervisor;
+pub mod system;
 
 /// The actor prelude. All useful traits and structs in single module.
 ///
