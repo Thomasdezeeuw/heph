@@ -8,6 +8,7 @@
 use std::io;
 
 use futures::Poll;
+use mio::event::Evented;
 
 /// The Listener trait.
 ///
@@ -15,7 +16,8 @@ use futures::Poll;
 /// event loop. This can be a new TCP connection coming in, or new UDP packet
 /// arriving, but it can also be bytes coming in through some I/O pipe (e.g.
 /// standard in).
-pub trait Listener {
+// TODO: Hide the Evented requirement?
+pub trait Listener: Evented {
     /// The type of item this listener will return, e.g. a TCP connection for a
     /// TCP listener.
     type Item;
@@ -24,7 +26,6 @@ pub trait Listener {
     /// `Async::NotReady` should be returned.
     fn accept(&mut self) -> Poll<Self::Item, io::Error>;
 
-    // TODO: how to notify when an item is ready?
 }
 
 /// The trait to create a new [`Listener`] for each thread.
