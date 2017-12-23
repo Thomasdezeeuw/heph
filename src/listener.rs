@@ -26,6 +26,7 @@ pub trait Listener: Evented {
     /// `Async::NotReady` should be returned.
     fn accept(&mut self) -> Poll<Self::Item, io::Error>;
 
+    // TODO: add start and stop methods?
 }
 
 /// The trait to create a new [`Listener`] for each thread.
