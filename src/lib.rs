@@ -11,6 +11,7 @@ extern crate futures;
 
 pub mod actor;
 pub mod listener;
+pub mod supervisor;
 
 /// The actor prelude. All useful traits and structs in single module.
 ///
