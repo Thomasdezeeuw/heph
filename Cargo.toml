@@ -5,4 +5,4 @@ authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license = "MIT/Apache-2.0"
 
 [dependencies]
-futures = "0.1.16"
+futures = { version = "0.1.17", default-features = false }
