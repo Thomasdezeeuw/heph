@@ -73,11 +73,11 @@ impl<'a> ActorSystem<'a> {
     /// This returns a reference to the actor, which can be used to send
     /// messages to it.
     // TODO: add supervisor to handle returned errors?
-    pub fn add_actor<N>(&mut self, new_actor: N) -> ActorRef<<N::Actor as Actor>::Message>
-        where N: NewActor + 'a,
+    pub fn add_actor<A>(&mut self, actor: A) -> ActorRef<A::Message>
+        where A: Actor + 'a,
     {
         let id = self.new_id();
-        let (actor_runner, actor_ref) = ActorRunner::new(new_actor, id);
+        let (actor_runner, actor_ref) = ActorRunner::new(actor, id);
         self.runners.insert(id, Box::new(actor_runner));
         actor_ref
     }

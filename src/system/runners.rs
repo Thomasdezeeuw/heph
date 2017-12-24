@@ -16,25 +16,19 @@ use super::{ActorRef, Runner, RunnerId, RunnerType};
 use super::super::actor::{Actor, NewActor};
 use super::super::listener::NewListener;
 
-// TODO: reduce the internal state for both runners.
-
-pub struct ActorRunner<N: NewActor> {
-    //new_actor: N,
-    actor: N::Actor,
-    queue: mpsc::Receiver<<N::Actor as Actor>::Message>,
+pub struct ActorRunner<A: Actor> {
+    actor: A,
+    queue: mpsc::Receiver<A::Message>,
     registration: Registration,
-    // lovely type signature.
-    current: Option<<<N::Actor as Actor>::Future as IntoFuture>::Future>,
+    current: Option<<A::Future as IntoFuture>::Future>,
 }
 
-impl<N: NewActor> ActorRunner<N> {
+impl<A: Actor> ActorRunner<A> {
     /// Create new actor runner.
-    pub fn new(new_actor: N, id: RunnerId) -> (ActorRunner<N>, ActorRef<<N::Actor as Actor>::Message>) {
+    pub fn new(actor: A, id: RunnerId) -> (ActorRunner<A>, ActorRef<A::Message>) {
         let (sender, receiver) = mpsc::channel();
         let (registration, set_readiness) = Registration::new2();
-        let actor = new_actor.new();
         let data = ActorRunner {
-            //new_actor,
             actor,
             queue: receiver,
             registration,
@@ -45,7 +39,7 @@ impl<N: NewActor> ActorRunner<N> {
     }
 }
 
-impl<N: NewActor> Runner for ActorRunner<N> {
+impl<A: Actor> Runner for ActorRunner<A> {
     fn runner_type(&self) -> RunnerType {
         RunnerType::Actor
     }
@@ -56,22 +50,19 @@ impl<N: NewActor> Runner for ActorRunner<N> {
     }
 
     fn run(&mut self) {
-        // Either grap the in progress future or try to receive a new message
-        // from the channel.
-        let mut future = if self.current.is_some() {
-            self.current.take().unwrap()
-        } else {
+        // Try to receive another message if no future is in progress.
+        if self.current.is_none() {
             let msg = match self.queue.try_receive() {
                 Ok(msg) => msg,
                 Err(_) => return, // No value, no need to run.
             };
 
-            self.actor.handle(msg).into_future()
+            self.current = Some(self.actor.handle(msg).into_future());
         };
 
-        match future.poll() {
             Ok(Async::Ready(())) => self.run(),
             Ok(Async::NotReady) => self.current = Some(future),
+        match self.current.as_mut().unwrap().poll() {
             Err(_) => {
                 // TODO: send error to the supervisor.
                 error!("error in handling of the actor");

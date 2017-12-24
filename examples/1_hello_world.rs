@@ -26,10 +26,7 @@ fn main() {
     let mut system = ActorSystem::default();
 
     // Add our printing actor.
-    // `ActorFactory` is helper struct that implements the `NewActor` trait. It
-    // is not important for this example, but it allows the system to create new
-    // actors when needed.
-    let mut print_actor_ref = system.add_actor(ActorFactory(|| PrintActor));
+    let mut print_actor_ref = system.add_actor(PrintActor);
 
     // Now we have an `ActorRef`, which we can use to send messages to the
     // actor. So we'll send our "Hello world" message.
