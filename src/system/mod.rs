@@ -40,7 +40,7 @@ trait Runner {
     /// item, for actors it will see if it can processes another message.
     ///
     /// This will only be called if the registration of the runner is notified.
-    fn run(&mut self);
+    fn run(&mut self) -> io::Result<()>;
 
     /// Stop the runner from further processing.
     // TODO: return an future that needed to be waited on? Or return a enum
@@ -127,7 +127,7 @@ impl<'a> ActorSystem<'a> {
                 match self.runners.get_mut(&runner_id) {
                     Some(runner) => {
                         trace!("running runner {}", runner_id);
-                        runner.run();
+                        runner.run()?;
                     },
                     None => warn!("got event with unknown token: {:?}", event),
                 }

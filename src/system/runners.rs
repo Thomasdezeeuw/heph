@@ -49,23 +49,29 @@ impl<A: Actor> Runner for ActorRunner<A> {
         &self.registration
     }
 
-    fn run(&mut self) {
+    fn run(&mut self) -> io::Result<()> {
         // Try to receive another message if no future is in progress.
         if self.current.is_none() {
             let msg = match self.queue.try_receive() {
                 Ok(msg) => msg,
-                Err(_) => return, // No value, no need to run.
+                Err(_) => return Ok(()), // No value, no need to run.
             };
 
             self.current = Some(self.actor.handle(msg).into_future());
         };
 
-            Ok(Async::Ready(())) => self.run(),
-            Ok(Async::NotReady) => self.current = Some(future),
         match self.current.as_mut().unwrap().poll() {
+            Ok(Async::Ready(())) => {
+                // Future is complete, but since we're here try to handle
+                // another one.
+                self.current = None;
+                self.run()
+            },
+            Ok(Async::NotReady) => Ok(()),
             Err(_) => {
                 // TODO: send error to the supervisor.
                 error!("error in handling of the actor");
+                Ok(())
             },
         }
     }
@@ -97,7 +103,7 @@ impl<N: NewListener> Runner for ListenerRunner<N> {
         &self.listener
     }
 
-    fn run(&mut self) {
+    fn run(&mut self) -> io::Result<()> {
         unimplemented!();
         // TODO:
         // 1. call accept
