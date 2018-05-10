@@ -5,11 +5,4 @@ authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license = "MIT"
 
 [dependencies]
-fnv = "1.0.6"
-futures = { version = "0.1.17", default-features = false, features = ["use_std"] }
-log = "0.4.0-rc.1"
-mio = "0.6.11"
-tchannel = { git = "https://github.com/Thomasdezeeuw/tchannel" }
-
-[dev-dependencies]
-std-logger = { version = "0.3.0-rc1", default-features = false, features = ["timestamp"] }
+futures-core = { version = "0.2.1" }
