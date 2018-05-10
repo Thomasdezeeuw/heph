@@ -1,5 +1,7 @@
 //! TODO: docs.
 
+#![feature(non_exhaustive)]
+
 #![warn(missing_debug_implementations,
         missing_docs,
         trivial_casts,
@@ -10,8 +12,11 @@
 )]
 
 extern crate futures_core;
+#[macro_use]
+extern crate log;
 
 pub mod actor;
+pub mod supervisor;
 
 /// The actor prelude. All useful traits and types in single module.
 ///
@@ -20,4 +25,5 @@ pub mod actor;
 /// ```
 pub mod prelude {
     pub use actor::{Actor, NewActor};
+    pub use supervisor::{Supervisor, RestartStrategy};
 }
