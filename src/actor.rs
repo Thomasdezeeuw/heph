@@ -193,6 +193,7 @@ pub trait NewActor<'n, 'a> {
 /// # use_new_actor(new_actor);
 /// # }
 /// ```
+#[derive(Debug)]
 pub struct ActorFactory<N, I, A>{
     new_actor: N,
     _phantom: PhantomData<(I, A)>,
@@ -275,6 +276,7 @@ pub fn actor_factory<'a, N, I, A>(new_actor: N) -> ActorFactory<N, I, A>
 /// # use_new_actor(new_actor);
 /// # }
 /// ```
+#[derive(Debug)]
 pub struct ReusableActorFactory<N, R, I, A> {
     new_actor: N,
     reuse_actor: R,
