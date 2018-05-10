@@ -2,7 +2,7 @@
 name = "actor"
 version = "0.1.0"
 authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
-license = "MIT/Apache-2.0"
+license = "MIT"
 
 [dependencies]
 fnv = "1.0.6"
