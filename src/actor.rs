@@ -141,7 +141,7 @@ pub trait NewActor<'n, 'a> {
     /// This is a performance optimization to allow the allocations of an actor
     /// to be reused.
     fn reuse(&'n mut self, old_actor: &mut Self::Actor, item: Self::Item) {
-        mem::replace(old_actor, self.new(item));
+        drop(mem::replace(old_actor, self.new(item)));
     }
 }
 
