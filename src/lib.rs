@@ -19,5 +19,5 @@ pub mod actor;
 /// use actor::prelude::*;
 /// ```
 pub mod prelude {
-    pub use actor::{Actor, NewActor, actor_factory, reusable_actor_factory};
+    pub use actor::{Actor, NewActor};
 }
