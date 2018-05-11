@@ -147,8 +147,8 @@ pub trait NewActor<'n, 'a> {
 
 // TODO: change factories to:
 // ```
-// pub struct ActorFactory<N>(pub N).
-// pub struct ReusableActorFactory<N, R>(pub N, pub R).
+// pub struct ActorFactory<N>(pub N)
+// pub struct ReusableActorFactory<N, R>(pub N, pub R)
 // ```
 // Currently doesn't work due to unused type parameter error in `NewActor`
 // implementations.
@@ -157,8 +157,8 @@ pub trait NewActor<'n, 'a> {
 /// function. If a custom [reuse] function is needed see
 /// [`ReusableActorFactory`].
 ///
-/// See the [`actor_factory`] function to create a `ActorFactory`. Alternatively
-/// the [`From`] implementation can be used.
+/// See the [`actor_factory`] function to create an `ActorFactory`.
+/// Alternatively the [`From`] implementation can be used.
 ///
 /// [`NewActor`]: trait.NewActor.html
 /// [reuse]: trait.NewActor.html#method.reuse
