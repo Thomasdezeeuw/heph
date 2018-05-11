@@ -1,13 +1,16 @@
 //! The module with the [`Actor`] and [`NewActor`] trait definitions.
 //!
 //! All actors must implement the [`Actor`] trait, which defines how an actor
-//! handles messages. However the system needs a way to create (and recreate)
-//! these actors, which is defined in the [`NewActor`] trait. Helper structs are
-//! provided to easily implement this trait, see [`ActorFactory`] and
-//! [`ReusableActorFactory`].
+//! handles messages. The easiest way to implement this trait is to use the
+//! [`ActorFn`] helper struct.
+//!
+//! However the system needs a way to create (and recreate) these actors, which
+//! is defined in the [`NewActor`] trait. Helper structs are provided to easily
+//! implement this trait, see [`ActorFactory`] and [`ReusableActorFactory`].
 //!
 //! [`Actor`]: trait.Actor.html
 //! [`NewActor`]: trait.NewActor.html
+//! [`ActorFn`]: struct.ActorFn.html
 //! [`ActorFactory`]: struct.ActorFactory.html
 //! [`ReusableActorFactory`]: struct.ReusableActorFactory.html
 
@@ -103,6 +106,87 @@ pub trait Actor<'a> {
     /// [`pre_start`]: trait.Actor.html#method.pre_start
     fn post_restart(&'a mut self) {
         self.pre_start();
+    }
+}
+
+// TODO: change ActorFn to:
+// ```
+// pub struct ActorFn<Fn>(pub Fn)
+// ```
+// Currently doesn't work due to unused type parameter error in `Actor`
+// implementations.
+
+/// Implement [`Actor`] by means of a function.
+///
+/// See the [`actor_fn`] function to create an `ActorFn`. Alternatively the
+/// [`From`] implementation can be used.
+///
+/// [`Actor`]: trait.Actor.html
+/// [`actor_fn`]: fn.actor_fn.html
+/// [`From`]: struct.ActorFn.html#impl-From<Fn>
+///
+/// # Example
+///
+/// ```
+/// # extern crate actor;
+/// # extern crate futures_core;
+/// # use actor::actor::{Actor, NewActor};
+/// # use futures_core::Future;
+/// use actor::actor::actor_fn;
+/// use futures_core::future::{ok, err};
+///
+/// # fn main() {
+/// // Our `Actor` implementation.
+/// let actor = actor_fn(|msg: bool| {
+///     // Here we use a `FutureResult` as future.
+///     if msg {
+///         ok(())
+///     } else {
+///         err("oops!")
+///     }
+/// });
+/// #
+/// # fn use_actor<'a, A: Actor<'a>>(actor: A) { }
+/// # use_actor(actor);
+/// # }
+/// ```
+#[derive(Debug)]
+pub struct ActorFn<Fn, M, F, E>{
+    func: Fn,
+    _phantom: PhantomData<(M, F, E)>,
+}
+
+impl<'a, Fn, M, F, E> Actor<'a> for ActorFn<Fn, M, F, E>
+    where Fn: FnMut(M) -> F,
+          F: Future<Item = (), Error = E> + 'a,
+{
+    type Message = M;
+    type Error = E;
+    type Future = F;
+    fn handle(&'a mut self, message: Self::Message) -> Self::Future {
+        (self.func)(message)
+    }
+}
+
+impl<Fn, M, F, E> From<Fn> for ActorFn<Fn, M, F, E>
+    where Fn: FnMut(M) -> F,
+          F: Future<Item = (), Error = E>,
+{
+    fn from(func: Fn) -> Self {
+        actor_fn(func)
+    }
+}
+
+/// Create a new [`ActorFn`].
+///
+/// [`ActorFn`]: struct.ActorFn.html
+pub fn actor_fn<Fn, M, F, E>(func: Fn) -> ActorFn<Fn, M, F, E>
+    where Fn: FnMut(M) -> F,
+          F: Future<Item = (), Error = E>,
+{
+    ActorFn {
+        func,
+        _phantom: PhantomData,
     }
 }
 
