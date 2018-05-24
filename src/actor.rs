@@ -151,12 +151,12 @@ pub trait Actor<'a> {
 /// # }
 /// ```
 #[derive(Debug)]
-pub struct ActorFn<Fn, M, F, E>{
+pub struct ActorFn<Fn, M> {
     func: Fn,
-    _phantom: PhantomData<(M, F, E)>,
+    _phantom: PhantomData<M>,
 }
 
-impl<'a, Fn, M, F, E> Actor<'a> for ActorFn<Fn, M, F, E>
+impl<'a, Fn, M, F, E> Actor<'a> for ActorFn<Fn, M>
     where Fn: FnMut(M) -> F,
           F: Future<Item = (), Error = E> + 'a,
 {
@@ -168,7 +168,7 @@ impl<'a, Fn, M, F, E> Actor<'a> for ActorFn<Fn, M, F, E>
     }
 }
 
-impl<Fn, M, F, E> From<Fn> for ActorFn<Fn, M, F, E>
+impl<Fn, M, F, E> From<Fn> for ActorFn<Fn, M>
     where Fn: FnMut(M) -> F,
           F: Future<Item = (), Error = E>,
 {
@@ -180,7 +180,7 @@ impl<Fn, M, F, E> From<Fn> for ActorFn<Fn, M, F, E>
 /// Create a new [`ActorFn`].
 ///
 /// [`ActorFn`]: struct.ActorFn.html
-pub fn actor_fn<Fn, M, F, E>(func: Fn) -> ActorFn<Fn, M, F, E>
+pub fn actor_fn<Fn, M, F, E>(func: Fn) -> ActorFn<Fn, M>
     where Fn: FnMut(M) -> F,
           F: Future<Item = (), Error = E>,
 {
