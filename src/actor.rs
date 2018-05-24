@@ -278,25 +278,25 @@ pub trait NewActor<'n, 'a> {
 /// # }
 /// ```
 #[derive(Debug)]
-pub struct ActorFactory<N, I, A>{
+pub struct ActorFactory<N, I> {
     new_actor: N,
-    _phantom: PhantomData<(I, A)>,
+    _phantom: PhantomData<I>,
 }
 
-impl<'n, 'a, N, I, A> NewActor<'n, 'a> for ActorFactory<N, I, A>
+impl<'n, 'a, N, I, A> NewActor<'n, 'a> for ActorFactory<N, I>
     where N: FnMut(I) -> A,
           A: Actor<'a> + 'a,
 {
     type Actor = A;
     type Item = I;
-    fn new(&'n mut self, item: I) -> A {
+    fn new(&'n mut self, item: Self::Item) -> Self::Actor {
         (self.new_actor)(item)
     }
 }
 
-impl<'a, N, I, A> From<N> for ActorFactory<N, I, A>
+impl<'a, N, I, A> From<N> for ActorFactory<N, I>
     where N: FnMut(I) -> A,
-          A: Actor<'a>,
+          A: Actor<'a> + 'a,
 {
     fn from(new_actor: N) -> Self {
         actor_factory(new_actor)
@@ -306,9 +306,9 @@ impl<'a, N, I, A> From<N> for ActorFactory<N, I, A>
 /// Create a new [`ActorFactory`].
 ///
 /// [`ActorFactory`]: struct.ActorFactory.html
-pub fn actor_factory<'a, N, I, A>(new_actor: N) -> ActorFactory<N, I, A>
+pub fn actor_factory<'a, N, I, A>(new_actor: N) -> ActorFactory<N, I>
     where N: FnMut(I) -> A,
-          A: Actor<'a>,
+          A: Actor<'a> + 'a,
 {
     ActorFactory {
         new_actor,
