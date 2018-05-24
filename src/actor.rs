@@ -361,28 +361,28 @@ pub fn actor_factory<'a, N, I, A>(new_actor: N) -> ActorFactory<N, I>
 /// # }
 /// ```
 #[derive(Debug)]
-pub struct ReusableActorFactory<N, R, I, A> {
+pub struct ReusableActorFactory<N, R, I> {
     new_actor: N,
     reuse_actor: R,
-    _phantom: PhantomData<(I, A)>,
+    _phantom: PhantomData<I>,
 }
 
-impl<'n, 'a, N, R, I, A> NewActor<'n, 'a> for ReusableActorFactory<N, R, I, A>
+impl<'n, 'a, N, R, I, A> NewActor<'n, 'a> for ReusableActorFactory<N, R, I>
     where N: FnMut(I) -> A,
           R: FnMut(&mut A, I),
           A: Actor<'a> + 'a,
 {
     type Actor = A;
     type Item = I;
-    fn new(&'n mut self, item: I) -> A {
+    fn new(&'n mut self, item: Self::Item) -> Self::Actor {
         (self.new_actor)(item)
     }
-    fn reuse(&'n mut self, old_actor: &mut A, item: I) {
+    fn reuse(&'n mut self, old_actor: &mut Self::Actor, item: Self::Item) {
         (self.reuse_actor)(old_actor, item)
     }
 }
 
-impl<'a, N, R, I, A> From<(N, R)> for ReusableActorFactory<N, R, I, A>
+impl<'a, N, R, I, A> From<(N, R)> for ReusableActorFactory<N, R, I>
     where N: FnMut(I) -> A,
           R: FnMut(&mut A, I),
           A: Actor<'a>,
@@ -395,7 +395,7 @@ impl<'a, N, R, I, A> From<(N, R)> for ReusableActorFactory<N, R, I, A>
 /// Create a new [`ReusableActorFactory`].
 ///
 /// [`ReusableActorFactory`]: struct.ReusableActorFactory.html
-pub fn reusable_actor_factory<'a, N, R, I, A>(new_actor: N, reuse_actor: R) -> ReusableActorFactory<N, R, I, A>
+pub fn reusable_actor_factory<'a, N, R, I, A>(new_actor: N, reuse_actor: R) -> ReusableActorFactory<N, R, I>
     where N: FnMut(I) -> A,
           R: FnMut(&mut A, I),
           A: Actor<'a>,
