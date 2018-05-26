@@ -1,6 +1,7 @@
 //! TODO: docs
 
 use actor::Actor;
+use initiator::Initiator;
 
 mod actor;
 
@@ -19,6 +20,13 @@ impl ActorSystem {
         where A: Actor<'a>,
     {
         unimplemented!("ActorSystem.add_actor");
+    }
+
+    /// Run the system with the provided `initiators`.
+    pub fn run<I>(self, initiators: &mut [I]) -> Result<(), RuntimeError>
+        where I: Initiator,
+    {
+        unimplemented!("ActorSystem.run");
     }
 }
 
