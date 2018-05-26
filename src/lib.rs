@@ -16,6 +16,7 @@ extern crate futures_core;
 extern crate log;
 
 pub mod actor;
+pub mod initiator;
 pub mod supervisor;
 pub mod system;
 
