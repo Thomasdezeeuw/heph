@@ -17,6 +17,7 @@ extern crate log;
 
 pub mod actor;
 pub mod supervisor;
+pub mod system;
 
 /// The actor prelude. All useful traits and types in single module.
 ///
