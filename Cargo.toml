@@ -7,3 +7,4 @@ license = "MIT"
 [dependencies]
 futures-core = { version = "0.2.1" }
 log = "0.4.1"
+num_cpus = "1.8.0"

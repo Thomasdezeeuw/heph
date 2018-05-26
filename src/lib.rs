@@ -14,6 +14,7 @@
 extern crate futures_core;
 #[macro_use]
 extern crate log;
+extern crate num_cpus;
 
 pub mod actor;
 pub mod initiator;

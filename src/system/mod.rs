@@ -4,8 +4,10 @@ use actor::Actor;
 use initiator::Initiator;
 
 mod actor;
+mod builder;
 
 pub use self::actor::{ActorRef, ActorOptions, Priority, SendError, SendErrorReason, PRIORITY_MIN};
+pub use self::builder::ActorSystemBuilder;
 
 use self::actor::{ActorId};
 
@@ -30,7 +32,11 @@ impl ActorSystem {
     }
 }
 
-// TODO: impl Default for `ActorSystem`.
+impl Default for ActorSystem {
+    fn default() -> ActorSystem {
+        ActorSystemBuilder::default().build()
+    }
+}
 
 /// Error returned by running an `ActorSystem`.
 #[derive(Debug)]
