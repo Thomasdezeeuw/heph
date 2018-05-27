@@ -18,6 +18,7 @@ pub struct ActorSystem {
 
 impl ActorSystem {
     /// Add a new actor to the system.
+    // TODO: keep this in sync with `ActorSystemRef.add_actor`.
     pub fn add_actor<'a, A>(&mut self, actor: A, options: ActorOptions) -> ActorRef<A>
         where A: Actor<'a>,
     {
@@ -56,7 +57,8 @@ impl ActorSystemRef {
     /// See [`ActorSystem.add_actor`].
     ///
     /// [`ActorSystem.add_actor`]: struct.ActorSystem.html#method.add_actor
-    pub fn add_actor<'a, A>(&mut self, actor: A) -> ActorRef<A>
+    // TODO: keep this in sync with `ActorSystem.add_actor`.
+    pub fn add_actor<'a, A>(&mut self, actor: A, options: ActorOptions) -> ActorRef<A>
         where A: Actor<'a>,
     {
         unimplemented!("ActorSystemRef.add_actor");
