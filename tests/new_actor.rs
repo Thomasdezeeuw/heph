@@ -9,7 +9,45 @@ mod util;
 
 use util::quick_poll;
 
-pub struct TestActor {
+struct SimpleActor;
+
+impl<'a> Actor<'a> for SimpleActor {
+    type Message = ();
+    type Error = ();
+    type Future = FutureResult<(), Self::Error>;
+    fn handle(&'a mut self, _: Self::Message) -> Self::Future {
+        ok(())
+    }
+}
+
+struct SimpleNewActor;
+
+impl<'n, 'a> NewActor<'n, 'a> for SimpleNewActor {
+    type Actor = SimpleActor;
+    type Item = ();
+    fn new(&'n mut self, _: Self::Item) -> Self::Actor {
+        SimpleActor
+    }
+}
+
+
+#[test]
+fn actor_does_not_need_new_actor_to_life() {
+    let mut actor = {
+        // The `NewActor` get dropped after this scope, but the returned actor
+        // should still be usable.
+        let mut new_actor = SimpleNewActor;
+        new_actor.new(())
+    };
+
+    let mut future = actor.handle(());
+    match quick_poll(&mut future) {
+        Ok(Async::Ready(())) =>{},
+        _ => panic!("expected the future to be ready, but isn't"),
+    }
+}
+
+struct TestActor {
     handle_call_count: usize,
     reset_called_count: usize,
 }
