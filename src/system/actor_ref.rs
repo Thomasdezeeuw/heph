@@ -6,32 +6,42 @@ use system::ActorId;
 
 use actor::Actor;
 
-/// A reference to an actor.
+// TODO: add examples on how to share the reference and how to send messages.
+
+/// A reference to an actor inside a running [`ActorSystem`].
 ///
-/// This reference can be used to send messages to it. To share this reference
-/// simply clone it.
-// TODO: add example on how to share the reference and how to send messages.
+/// This reference can be used to send messages to the actor. To share this
+/// reference simply clone it.
+///
+/// [`ActorSystem`]: struct.ActorSystem.html
 #[derive(Debug)]
 pub struct ActorRef<A> {
     id: ActorId,
     message_type: PhantomData<A>,
 }
 
-// TODO: implement Clone.
-
 impl<'a, A> ActorRef<A>
     where A: Actor<'a>,
 {
     /// Get the `ActorId`.
-    fn id(&self) -> ActorId {
+    pub(super) fn id(&self) -> ActorId {
         self.id
     }
 
     /// Send a message to the actor.
-    pub fn send<M>(&mut self, _msg: M) -> SendError<M>
+    pub fn send<M>(&mut self, _msg: M) -> Result<(), SendError<M>>
         where M: Into<A::Message>,
     {
         unimplemented!("ActorRef.send");
+    }
+}
+
+impl<A> Clone for ActorRef<A> {
+    fn clone(&self) -> ActorRef<A> {
+        ActorRef {
+            id: self.id,
+            message_type: PhantomData,
+        }
     }
 }
 
@@ -44,11 +54,13 @@ pub struct SendError<M> {
     pub reason: SendErrorReason,
 }
 
+// TODO: impl Error for `SendError`.
+
 /// The reason why sending a message failed.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[non_exhaustive]
 pub enum SendErrorReason {
-    /// The actor to which the message was meant to be sent is shutdown.
+    /// The actor, to which the message was meant to be sent, is shutdown.
     ActorShutdown,
     /// The system is shutting down.
     ///
