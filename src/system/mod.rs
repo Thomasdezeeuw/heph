@@ -10,7 +10,9 @@ mod scheduler;
 pub use self::actor::{ActorRef, ActorOptions, Priority, SendError, SendErrorReason, PRIORITY_MIN};
 pub use self::builder::ActorSystemBuilder;
 
-use self::actor::{ActorId};
+/// Unique id for each actor.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub(crate) struct ActorId(u64);
 
 /// The system that runs all actors.
 #[derive(Debug)]

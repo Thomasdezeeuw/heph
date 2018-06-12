@@ -2,11 +2,6 @@
 
 use std::marker::PhantomData;
 
-use actor::Actor;
-
-/// Unique id for each actor.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub(crate) struct ActorId(u64);
 
 /// Options for add an actor to the system.
 #[derive(Debug)]
@@ -15,7 +10,9 @@ pub struct ActorOptions {
     pub priority: Priority,
     _priv: (),
 }
+use system::ActorId;
 
+use actor::Actor;
 
 /// A reference to an actor.
 ///
