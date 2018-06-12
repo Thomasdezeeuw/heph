@@ -5,14 +5,17 @@ use initiator::Initiator;
 
 mod actor_ref;
 mod builder;
-mod scheduler;
 mod process;
+mod scheduler;
+
+pub mod error;
 pub mod options;
 
+pub use self::actor_ref::ActorRef;
+pub use self::builder::ActorSystemBuilder;
 pub use self::options::ActorOptions;
 
-pub use self::actor_ref::{ActorRef, SendError, SendErrorReason};
-pub use self::builder::ActorSystemBuilder;
+use self::error::RuntimeError;
 
 /// Unique id for each actor in an `ActorSystem`.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -44,11 +47,6 @@ impl Default for ActorSystem {
     fn default() -> ActorSystem {
         ActorSystemBuilder::default().build()
     }
-}
-
-/// Error returned by running an `ActorSystem`.
-#[derive(Debug)]
-pub struct RuntimeError {
 }
 
 /// A reference to an [`ActorSystem`].
