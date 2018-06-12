@@ -16,33 +16,6 @@ pub struct ActorOptions {
     _priv: (),
 }
 
-/// Priority for the actor in scheduling queue.
-///
-/// Lower is better.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct Priority(u8);
-
-/// Lowest priority possible priority.
-pub const PRIORITY_MIN: u8 = 19;
-
-// TODO: impl Ord and PartialOrd for `Priority`.
-
-impl Priority {
-    /// Create a new priority.
-    ///
-    /// # Panics
-    ///
-    /// This function panics if the `priority` value is higher then
-    /// [`PRIORITY_MIN`].
-    ///
-    /// [`PRIORITY_MIN`]: const.PRIORITY_MIN.html
-    fn new(priority: u8) -> Priority {
-        if priority > PRIORITY_MIN {
-            panic!("priority `{}` is invalid, it must be between 0..{}", priority, PRIORITY_MIN);
-        }
-        Priority(priority)
-    }
-}
 
 /// A reference to an actor.
 ///
