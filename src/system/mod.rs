@@ -5,6 +5,7 @@ use initiator::Initiator;
 
 mod actor;
 mod builder;
+mod scheduler;
 
 pub use self::actor::{ActorRef, ActorOptions, Priority, SendError, SendErrorReason, PRIORITY_MIN};
 pub use self::builder::ActorSystemBuilder;
