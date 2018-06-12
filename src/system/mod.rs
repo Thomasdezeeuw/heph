@@ -6,6 +6,7 @@ use initiator::Initiator;
 mod actor;
 mod builder;
 mod scheduler;
+mod process;
 pub mod options;
 
 pub use self::options::ActorOptions;
@@ -13,7 +14,7 @@ pub use self::options::ActorOptions;
 use self::actor::{ActorRef, SendError, SendErrorReason};
 pub use self::builder::ActorSystemBuilder;
 
-/// Unique id for each actor.
+/// Unique id for each actor in an `ActorSystem`.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 struct ActorId(u64);
 
