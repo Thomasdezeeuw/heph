@@ -23,7 +23,7 @@ impl<'a, A> ActorRef<A>
     where A: Actor<'a>,
 {
     /// Get the `ActorId`.
-    pub(crate) fn id(&self) -> ActorId {
+    fn id(&self) -> ActorId {
         self.id
     }
 

@@ -15,7 +15,7 @@ pub use self::builder::ActorSystemBuilder;
 
 /// Unique id for each actor.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub(crate) struct ActorId(u64);
+struct ActorId(u64);
 
 /// The system that runs all actors.
 #[derive(Debug)]
@@ -71,7 +71,7 @@ impl ActorSystemRef {
     }
 
     /// Queue an actor to run.
-    pub(crate) fn queue_actor(&mut self, id: ActorId) {
+    fn queue_actor(&mut self, id: ActorId) {
         unimplemented!("ActorSystemRef.queue_actor");
     }
 }
