@@ -1,4 +1,4 @@
-//! TODO: docs.
+//! Module containing the `ActorRef` and related types.
 
 use std::marker::PhantomData;
 
