@@ -2,14 +2,6 @@
 
 use std::marker::PhantomData;
 
-
-/// Options for add an actor to the system.
-#[derive(Debug)]
-pub struct ActorOptions {
-    /// Priority for the actor in scheduling queue.
-    pub priority: Priority,
-    _priv: (),
-}
 use system::ActorId;
 
 use actor::Actor;

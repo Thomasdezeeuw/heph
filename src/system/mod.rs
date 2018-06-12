@@ -6,8 +6,11 @@ use initiator::Initiator;
 mod actor;
 mod builder;
 mod scheduler;
+pub mod options;
 
-pub use self::actor::{ActorRef, ActorOptions, Priority, SendError, SendErrorReason, PRIORITY_MIN};
+pub use self::options::ActorOptions;
+
+use self::actor::{ActorRef, SendError, SendErrorReason};
 pub use self::builder::ActorSystemBuilder;
 
 /// Unique id for each actor.
