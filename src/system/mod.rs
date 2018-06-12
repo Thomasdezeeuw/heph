@@ -11,7 +11,7 @@ pub mod options;
 
 pub use self::options::ActorOptions;
 
-use self::actor_ref::{ActorRef, SendError, SendErrorReason};
+pub use self::actor_ref::{ActorRef, SendError, SendErrorReason};
 pub use self::builder::ActorSystemBuilder;
 
 /// Unique id for each actor in an `ActorSystem`.
