@@ -23,6 +23,15 @@ pub trait Process {
     fn priority(&self) -> Priority;
 }
 
+/// Internal process type.
+///
+/// The calls to the process are dynamically dispatched to erase the actual type
+/// of the process, this allows the process itself to have a generic type for
+/// the `Actor`. But also because the process itself moves around a lot its
+/// actually cheaper to allocate it on the heap and move around a fat pointer to
+/// it.
+pub type ProcessPtr = Box<dyn Process>;
+
 /// A process that represent an actor, it's mailbox and current execution.
 #[derive(Debug)]
 pub struct Process<'a, A>
