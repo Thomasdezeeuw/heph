@@ -7,7 +7,6 @@ use actor::Actor;
 use initiator::Initiator;
 
 mod actor_process;
-mod actor_ref;
 mod builder;
 mod process;
 mod scheduler;
@@ -15,7 +14,7 @@ mod scheduler;
 pub mod error;
 pub mod options;
 
-pub use self::actor_ref::ActorRef;
+pub use self::actor_process::ActorRef;
 pub use self::builder::ActorSystemBuilder;
 pub use self::options::ActorOptions;
 
