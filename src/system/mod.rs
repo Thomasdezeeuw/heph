@@ -47,12 +47,6 @@ impl ActorSystem {
     }
 }
 
-impl Default for ActorSystem {
-    fn default() -> ActorSystem {
-        ActorSystemBuilder::default().build()
-    }
-}
-
 /// A reference to an [`ActorSystem`].
 ///
 /// [`ActorSystem`]: struct.ActorSystem.html

@@ -1,7 +1,7 @@
 extern crate actor;
 extern crate futures_core;
 
-use actor::system::{ActorSystem, ActorOptions};
+use actor::system::{ActorSystemBuilder, ActorOptions};
 use actor::actor::Actor;
 use actor::initiator::NoInitiator;
 use futures_core::future::{FutureResult, ok};
@@ -33,7 +33,8 @@ fn main() {
     let actor = GreetingActor { message: "Hello" };
 
     // Create a new actor system, which will run the actors.
-    let mut actor_system = ActorSystem::default();
+    let mut actor_system = ActorSystemBuilder::default().build().
+        .expect("unable to build `ActorSystem`");
 
     // Add our actor to the actor system.
     let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default());
