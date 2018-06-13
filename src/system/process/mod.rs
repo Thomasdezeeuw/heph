@@ -9,6 +9,7 @@ use system::scheduler::Priority;
 pub struct ProcessId(usize);
 
 /// Generates unique process ids.
+#[derive(Debug)]
 pub struct ProcessIdGenerator {
     /// Current process id.
     current: usize,
