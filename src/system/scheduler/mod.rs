@@ -1,5 +1,7 @@
 //! Module containing the scheduler.
 
+use std::iter::FusedIterator;
+
 use system::process::ProcessPtr;
 
 mod priority;
@@ -35,4 +37,17 @@ impl<'a> Iterator for &'a mut Scheduler {
     fn next(&mut self) -> Option<Self::Item> {
         self.queue.pop()
     }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let length = self.queue.len();
+        (length, Some(length))
+    }
 }
+
+impl<'a> ExactSizeIterator for &'a mut Scheduler {
+    fn len(&self) -> usize {
+        self.queue.len()
+    }
+}
+
+impl<'a> FusedIterator for &'a mut Scheduler { }
