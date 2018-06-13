@@ -1,11 +1,10 @@
 //! Module containing the `ActorRef` and related types.
 
-use std::marker::PhantomData;
+use std::cell::RefCell;
+use std::rc::Rc;
 
+use system::actor_process::MailBox;
 use system::error::SendError;
-use system::process::ProcessId;
-
-use actor::Actor;
 
 // TODO: add examples on how to share the reference and how to send messages.
 
@@ -16,32 +15,23 @@ use actor::Actor;
 ///
 /// [`ActorSystem`]: struct.ActorSystem.html
 #[derive(Debug)]
-pub struct ActorRef<A> {
-    id: ProcessId,
-    message_type: PhantomData<A>,
+pub struct ActorRef<M> {
+    inbox: Rc<RefCell<MailBox<M>>>,
 }
 
-impl<'a, A> ActorRef<A>
-    where A: Actor<'a>,
-{
-    /// Get the `ProcessId`.
-    pub(super) fn id(&self) -> ProcessId {
-        self.id
-    }
-
+impl<M> ActorRef<M> {
     /// Send a message to the actor.
-    pub fn send<M>(&mut self, _msg: M) -> Result<(), SendError<M>>
-        where M: Into<A::Message>,
+    pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<M>>
+        where Msg: Into<M>,
     {
-        unimplemented!("ActorRef.send");
+        self.inbox.borrow_mut().deliver(msg.into())
     }
 }
 
-impl<A> Clone for ActorRef<A> {
-    fn clone(&self) -> ActorRef<A> {
+impl<M> Clone for ActorRef<M> {
+    fn clone(&self) -> ActorRef<M> {
         ActorRef {
-            id: self.id,
-            message_type: PhantomData,
+            inbox: Rc::clone(&self.inbox),
         }
     }
 }
