@@ -35,6 +35,17 @@ impl ProcessIdGenerator {
 /// The main implementation is the `ActorProcess`, which is implementation of
 /// this trait that revolves around an `Actor`.
 pub trait Process {
+
+    /// Get the process id.
+    ///
+    /// This must be the same as provided in `set_id`.
+    fn id(&self) -> ProcessId;
+
+    /// Get the priority of the process.
+    ///
+    /// Used in scheduling the process.
+    fn priority(&self) -> Priority;
+
     // TODO: provided a way to create a futures::task::Context, maybe by
     // providing an `ActorSystemRef`?
 
@@ -45,13 +56,7 @@ pub trait Process {
     /// - would block, and it made sure it's scheduled at a later point.
     fn run(&mut self);
 
-    /// Get the process id.
-    fn id(&self) -> ProcessId;
 
-    /// Get the priority of the process.
-    ///
-    /// Used in scheduling the process.
-    fn priority(&self) -> Priority;
 }
 
 /// Internal process type.
