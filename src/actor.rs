@@ -118,12 +118,10 @@ pub trait Actor<'a> {
 
 /// Implement [`Actor`] by means of a function.
 ///
-/// See the [`actor_fn`] function to create an `ActorFn`. Alternatively the
-/// [`From`] implementation can be used.
+/// See the [`actor_fn`] function to create an `ActorFn`.
 ///
 /// [`Actor`]: trait.Actor.html
 /// [`actor_fn`]: fn.actor_fn.html
-/// [`From`]: struct.ActorFn.html#impl-From<Fn>
 ///
 /// # Example
 ///
@@ -165,15 +163,6 @@ impl<'a, Fn, M, F, E> Actor<'a> for ActorFn<Fn, M>
     type Future = F;
     fn handle(&'a mut self, message: Self::Message) -> Self::Future {
         (self.func)(message)
-    }
-}
-
-impl<Fn, M, F, E> From<Fn> for ActorFn<Fn, M>
-    where Fn: FnMut(M) -> F,
-          F: Future<Item = (), Error = E>,
-{
-    fn from(func: Fn) -> Self {
-        actor_fn(func)
     }
 }
 
@@ -242,13 +231,11 @@ pub trait NewActor<'n, 'a> {
 /// [`ReusableActorFactory`].
 ///
 /// See the [`actor_factory`] function to create an `ActorFactory`.
-/// Alternatively the [`From`] implementation can be used.
 ///
 /// [`NewActor`]: trait.NewActor.html
 /// [reuse]: trait.NewActor.html#method.reuse
 /// [`ReusableActorFactory`]: struct.ReusableActorFactory.html
 /// [`actor_factory`]: fn.actor_factory.html
-/// [`From`]: struct.ActorFactory.html#impl-From<N>
 ///
 /// # Example
 ///
@@ -294,15 +281,6 @@ impl<'n, 'a, N, I, A> NewActor<'n, 'a> for ActorFactory<N, I>
     }
 }
 
-impl<'a, N, I, A> From<N> for ActorFactory<N, I>
-    where N: FnMut(I) -> A,
-          A: Actor<'a> + 'a,
-{
-    fn from(new_actor: N) -> Self {
-        actor_factory(new_actor)
-    }
-}
-
 /// Create a new [`ActorFactory`].
 ///
 /// [`ActorFactory`]: struct.ActorFactory.html
@@ -321,13 +299,11 @@ pub fn actor_factory<'a, N, I, A>(new_actor: N) -> ActorFactory<N, I>
 /// see [`ActorFactory`].
 ///
 /// See the [`reusable_actor_factory`] function to create a
-/// `ReusableActorFactory`. Alternatively the [`From`] implementation can be
-/// used.
+/// `ReusableActorFactory`.
 ///
 /// [`NewActor`]: trait.NewActor.html
 /// [`ActorFactory`]: struct.ActorFactory.html
 /// [`reusable_actor_factory`]: fn.reusable_actor_factory.html
-/// [`From`]: struct.ReusableActorFactory.html#impl-From<(N%2C R)>
 ///
 /// # Example
 ///
@@ -379,16 +355,6 @@ impl<'n, 'a, N, R, I, A> NewActor<'n, 'a> for ReusableActorFactory<N, R, I>
     }
     fn reuse(&'n mut self, old_actor: &mut Self::Actor, item: Self::Item) {
         (self.reuse_actor)(old_actor, item)
-    }
-}
-
-impl<'a, N, R, I, A> From<(N, R)> for ReusableActorFactory<N, R, I>
-    where N: FnMut(I) -> A,
-          R: FnMut(&mut A, I),
-          A: Actor<'a>,
-{
-    fn from(args: (N, R)) -> Self {
-        reusable_actor_factory(args.0, args.1)
     }
 }
 
