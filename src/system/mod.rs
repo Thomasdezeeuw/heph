@@ -3,6 +3,7 @@
 use std::io;
 
 use mio_st::poll::Poll;
+use mio_st::event::Events;
 
 use actor::Actor;
 use initiator::Initiator;
@@ -20,7 +21,6 @@ pub use self::builder::ActorSystemBuilder;
 pub use self::options::ActorOptions;
 
 use self::actor_process::ActorProcess;
-use self::error::RuntimeError;
 use self::scheduler::Scheduler;
 use self::process::{ProcessId, ProcessIdGenerator, ProcessPtr};
 
@@ -48,11 +48,27 @@ impl ActorSystem {
         Ok(actor_ref)
     }
 
-    /// Run the system with the provided `initiators`.
-    pub fn run<I>(self, initiators: &mut [I]) -> Result<(), RuntimeError>
+    /// Run the actor system.
+    pub fn run<I>(&mut self, _initiators: &mut [I]) -> io::Result<()>
         where I: Initiator,
     {
-        unimplemented!("ActorSystem.run");
+        // TODO: return RuntimeError.
+
+        // TODO: register initiatiors with Poll.
+
+        let mut events = Events::new();
+        self.poll.poll(&mut events, None)?;
+
+        for event in &mut events {
+            let pid = event.id().into();
+            self.scheduler.schedule(pid)
+                .expect("TODO: handle this error");
+        }
+
+        self.scheduler.run();
+        Ok(())
+
+        // TODO: loop above.
     }
 }
 
