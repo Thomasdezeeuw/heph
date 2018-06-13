@@ -3,6 +3,7 @@
 use actor::Actor;
 use initiator::Initiator;
 
+mod actor_process;
 mod actor_ref;
 mod builder;
 mod process;
