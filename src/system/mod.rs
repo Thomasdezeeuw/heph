@@ -1,5 +1,7 @@
 //! TODO: docs
 
+
+use mio_st::poll::Poll;
 use actor::Actor;
 use initiator::Initiator;
 
@@ -22,6 +24,7 @@ use self::process::ProcessId;
 /// The system that runs all actors.
 #[derive(Debug)]
 pub struct ActorSystem {
+    poll: Poll,
 }
 
 impl ActorSystem {

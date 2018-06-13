@@ -1,4 +1,9 @@
+//! Module containing a builder for `ActorSystem`.
+
+use std::io;
+
 use num_cpus;
+use mio_st::poll::Poll;
 
 use system::ActorSystem;
 
@@ -11,9 +16,10 @@ pub struct ActorSystemBuilder {
 }
 
 impl ActorSystemBuilder {
-    pub fn build(self) -> ActorSystem {
-        ActorSystem {
-        }
+    pub fn build(self) -> io::Result<ActorSystem> {
+        Ok(ActorSystem {
+            poll: Poll::new()?,
+        })
     }
 }
 
