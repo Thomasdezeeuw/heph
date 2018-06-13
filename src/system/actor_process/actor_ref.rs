@@ -1,10 +1,9 @@
-//! Module containing the `ActorRef` and related types.
+//! Module containing the `ActorRef`.
 
-use std::cell::RefCell;
 use std::rc::Rc;
 
-use system::actor_process::MailBox;
 use system::error::SendError;
+use super::SharedMailbox;
 
 // TODO: add examples on how to share the reference and how to send messages.
 
@@ -16,7 +15,8 @@ use system::error::SendError;
 /// [`ActorSystem`]: struct.ActorSystem.html
 #[derive(Debug)]
 pub struct ActorRef<M> {
-    inbox: Rc<RefCell<MailBox<M>>>,
+    /// The inbox of the `Actor`, owned by the `ActorProcess`.
+    inbox: SharedMailbox<M>,
 }
 
 impl<M> ActorRef<M> {
