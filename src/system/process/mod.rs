@@ -22,6 +22,9 @@ pub trait Process {
     /// - would block, and it made sure it's scheduled at a later point.
     fn run(&mut self);
 
+    /// Get the process id.
+    fn id(&self) -> ProcessId;
+
     /// Get the priority of the process.
     ///
     /// Used in scheduling the process.
