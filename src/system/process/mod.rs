@@ -76,7 +76,10 @@ pub enum ProcessCompletion {
 ///
 /// The calls to the process are dynamically dispatched to erase the actual type
 /// of the process, this allows the process itself to have a generic type for
-/// the `Actor`. But also because the process itself moves around a lot its
-/// actually cheaper to allocate it on the heap and move around a fat pointer to
-/// it.
+/// the `Actor` (see `ActorProcess`).
+///
+/// Another reason for the process to be boxed is because the process itself
+/// moves around a lot, it's actually cheaper to allocate it on the heap and
+/// move around a fat pointer to it, rather then moving the entire process
+/// structure around.
 pub type ProcessPtr = Box<dyn Process>;
