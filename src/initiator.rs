@@ -16,3 +16,15 @@ pub trait Initiator {
     /// Poll the `Initiator` for new events.
     fn poll(&mut self, system: &mut ActorSystemRef) -> io::Result<()>;
 }
+
+/// A helper struct to allow the actor system to be run without any initiators.
+///
+/// The `Initiator` implementation is effectively a no-op.
+#[derive(Debug)]
+pub struct NoInitiator;
+
+impl Initiator for NoInitiator {
+    fn poll(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
+        Ok(())
+    }
+}
