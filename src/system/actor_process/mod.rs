@@ -4,7 +4,7 @@ use std::io;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use mio_st::event::{EventedId, Ready};
+use mio_st::event::Ready;
 use mio_st::poll::{Poll, PollOpt};
 use mio_st::registration::Registration;
 
@@ -46,7 +46,7 @@ impl<'a, A> ActorProcess<'a, A>
     /// Create a new process.
     pub fn new(id: ProcessId, actor: A, options: ActorOptions, poll: &mut Poll) -> io::Result<ActorProcess<'a, A>> {
         let (mut registration, notifier) = Registration::new();
-        poll.register(&mut registration, EventedId(id.into()), Ready::READABLE, PollOpt::Edge)?;
+        poll.register(&mut registration, id.into(), Ready::READABLE, PollOpt::Edge)?;
 
         let inbox = Rc::new(RefCell::new(MailBox::new(notifier)));
 

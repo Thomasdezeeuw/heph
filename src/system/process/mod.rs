@@ -1,16 +1,27 @@
 //! Module containing process related types and implementation.
 
+use mio_st::event::EventedId;
+
 use system::scheduler::Priority;
 
 /// Process id, or pid, is an unique id for a process in an `ActorSystem`.
 ///
-/// This is also used as `EventedId` for mio.
+/// This id can only be created by [`ProcessIdGenerator`]. For convince this can
+/// converted into an `EventedId` as used by `mio-st`.
+///
+/// [`ProcessIdGenerator`]: struct.ProcessIdGenerator.html
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ProcessId(usize);
 
-impl Into<usize> for ProcessId {
-    fn into(self) -> usize {
-        self.0
+impl From<EventedId> for ProcessId {
+    fn from(id: EventedId) -> ProcessId {
+        ProcessId(id.0)
+    }
+}
+
+impl Into<EventedId> for ProcessId {
+    fn into(self) -> EventedId {
+        EventedId(self.0)
     }
 }
 
