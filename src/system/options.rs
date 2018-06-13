@@ -10,14 +10,15 @@ pub struct ActorOptions {
     /// Priority for the actor in scheduler.
     pub priority: Priority,
     /// Reserved for future expansion.
-    _priv: (),
+    #[doc(hidden)]
+    pub __private: (),
 }
 
 impl Default for ActorOptions {
     fn default() -> ActorOptions {
         ActorOptions {
             priority: Priority::default(),
-            _priv: (),
+            __private: (),
         }
     }
 }
