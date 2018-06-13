@@ -8,6 +8,28 @@ use system::scheduler::Priority;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ProcessId(usize);
 
+/// Generates unique process ids.
+pub struct ProcessIdGenerator {
+    /// Current process id.
+    current: usize,
+}
+
+impl ProcessIdGenerator {
+    /// Create a new pid generator.
+    pub fn new() -> ProcessIdGenerator {
+        ProcessIdGenerator {
+            current: 10,
+        }
+    }
+
+    /// Get the next unique process id.
+    pub fn next(&mut self) -> ProcessId {
+        let pid = self.current;
+        self.current += 1;
+        ProcessId(pid)
+    }
+}
+
 /// The trait that represents a process.
 ///
 /// The main implementation is the `ActorProcess`, which is implementation of
