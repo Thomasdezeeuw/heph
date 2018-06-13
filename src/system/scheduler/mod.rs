@@ -3,7 +3,7 @@
 use std::fmt;
 use std::collections::HashMap;
 
-use system::process::{ProcessCompletion, ProcessId, ProcessIdGenerator, ProcessPtr};
+use system::process::{ProcessCompletion, ProcessId, ProcessPtr};
 
 mod priority;
 
@@ -18,8 +18,6 @@ pub struct Scheduler {
     queue: Vec<ProcessPtr>,
     /// Inactive processes.
     inactive: HashMap<ProcessId, ProcessPtr>,
-    /// A generator for unique process ids.
-    pid_gen: ProcessIdGenerator,
 }
 
 impl Scheduler {
@@ -28,7 +26,6 @@ impl Scheduler {
         Scheduler {
             queue: Vec::new(),
             inactive: HashMap::new(),
-            pid_gen: ProcessIdGenerator::new(),
         }
     }
 
@@ -36,12 +33,8 @@ impl Scheduler {
     ///
     /// By default the process will be considered inactive and thus not
     /// scheduled. To schedule the process see `schedule`.
-    pub fn add_process(&mut self, mut process: ProcessPtr) -> ProcessId {
-        let pid = self.pid_gen.next();
-        process.set_id(pid);
-        debug_assert_eq!(process.id(), pid, "process failed to set process id");
+    pub fn add_process(&mut self, process: ProcessPtr) {
         self.add_inactive(process);
-        pid
     }
 
     /// Add the process to the inactive processes list.
