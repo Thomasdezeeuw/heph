@@ -1,3 +1,5 @@
+//! Module containing the `Mailbox`.
+
 use std::collections::VecDeque;
 
 use mio_st::event::Ready;
