@@ -2,8 +2,8 @@
 
 use std::marker::PhantomData;
 
-use system::ActorId;
 use system::error::SendError;
+use system::process::ProcessId;
 
 use actor::Actor;
 
@@ -17,15 +17,15 @@ use actor::Actor;
 /// [`ActorSystem`]: struct.ActorSystem.html
 #[derive(Debug)]
 pub struct ActorRef<A> {
-    id: ActorId,
+    id: ProcessId,
     message_type: PhantomData<A>,
 }
 
 impl<'a, A> ActorRef<A>
     where A: Actor<'a>,
 {
-    /// Get the `ActorId`.
-    pub(super) fn id(&self) -> ActorId {
+    /// Get the `ProcessId`.
+    pub(super) fn id(&self) -> ProcessId {
         self.id
     }
 

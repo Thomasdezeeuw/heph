@@ -2,8 +2,13 @@ use std::collections::VecDeque;
 use std::marker::PhantomData;
 
 use actor::Actor;
-use system::ActorId;
 use system::scheduler::Priority;
+
+/// Process id, or pid, is an unique id for each process in an `ActorSystem`.
+///
+/// This is also used as `EventedId` to mio.
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+pub struct ProcessId(u64);
 
 /// The trait that represents a process for the `ActorSystem`.
 pub trait Process {
@@ -38,7 +43,7 @@ pub struct Process<'a, A>
     where A: Actor<'a>,
 {
     /// Unique id in the `ActorSystem`.
-    id: ActorId,
+    id: ProcessId,
     /// Inbox of the actor.
     inbox: VecDeque<A::Message>,
     /// The actor.
@@ -51,8 +56,8 @@ impl<'a, A> Process<'a, A>
     where A: Actor<'a>,
 {
     /// Create a new process.
-    pub(super) fn new(id: ActorId, actor: A) -> Process<'a, A> {
         Process {
+    pub(super) fn new(id: ProcessId, actor: A, priority: Priority) -> ActorProcess<'a, A> {
             id,
             inbox: VecDeque::new(),
             actor,

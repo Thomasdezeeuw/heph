@@ -16,10 +16,7 @@ pub use self::builder::ActorSystemBuilder;
 pub use self::options::ActorOptions;
 
 use self::error::RuntimeError;
-
-/// Unique id for each actor in an `ActorSystem`.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-struct ActorId(u64);
+use self::process::ProcessId;
 
 /// The system that runs all actors.
 #[derive(Debug)]
@@ -69,8 +66,8 @@ impl ActorSystemRef {
         unimplemented!("ActorSystemRef.add_actor");
     }
 
-    /// Queue an actor to run.
-    fn queue_actor(&mut self, id: ActorId) {
-        unimplemented!("ActorSystemRef.queue_actor");
+    /// Queue an process to run.
+    fn queue_process(&mut self, _id: ProcessId) {
+        unimplemented!("ActorSystemRef.queue_process");
     }
 }
