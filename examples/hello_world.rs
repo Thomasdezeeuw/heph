@@ -33,11 +33,12 @@ fn main() {
     let actor = GreetingActor { message: "Hello" };
 
     // Create a new actor system, which will run the actors.
-    let mut actor_system = ActorSystemBuilder::default().build().
+    let mut actor_system = ActorSystemBuilder::default().build()
         .expect("unable to build `ActorSystem`");
 
     // Add our actor to the actor system.
-    let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default());
+    let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default())
+        .expect("unable to add actor to `ActorSystem`");
 
     // Send our actor a message.
     actor_ref.send("World".to_owned())
