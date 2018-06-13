@@ -1,11 +1,12 @@
 //! Options for adding an actor to the `ActorSystem`.
 
+use std::fmt;
+
 pub use system::scheduler::Priority;
 
 /// Options for adding an actor to the [`ActorSystem`].
 ///
 /// [`ActorSystem`]: ../struct.ActorSystem.html
-#[derive(Debug)]
 pub struct ActorOptions {
     /// Priority for the actor in scheduler.
     pub priority: Priority,
@@ -20,5 +21,13 @@ impl Default for ActorOptions {
             priority: Priority::default(),
             __private: (),
         }
+    }
+}
+
+impl fmt::Debug for ActorOptions {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ActorOptions")
+            .field("priority", &self.priority)
+            .finish()
     }
 }
