@@ -8,6 +8,12 @@ use system::scheduler::Priority;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ProcessId(usize);
 
+impl Into<usize> for ProcessId {
+    fn into(self) -> usize {
+        self.0
+    }
+}
+
 /// Generates unique process ids.
 #[derive(Debug)]
 pub struct ProcessIdGenerator {
