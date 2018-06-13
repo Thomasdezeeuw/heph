@@ -22,7 +22,7 @@ pub use self::options::ActorOptions;
 use self::actor_process::ActorProcess;
 use self::error::RuntimeError;
 use self::scheduler::Scheduler;
-use self::process::{ProcessIdGenerator, ProcessPtr};
+use self::process::{ProcessId, ProcessIdGenerator, ProcessPtr};
 
 /// The system that runs all actors.
 #[derive(Debug)]
