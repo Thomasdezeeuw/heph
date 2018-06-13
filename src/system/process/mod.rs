@@ -35,10 +35,6 @@ impl ProcessIdGenerator {
 /// The main implementation is the `ActorProcess`, which is implementation of
 /// this trait that revolves around an `Actor`.
 pub trait Process {
-    /// Set the process id of the process, this must later be returned by the
-    /// `id` method.
-    fn set_id(&mut self, pid: ProcessId);
-
     /// Get the process id.
     ///
     /// This must be the same as provided in `set_id`.
