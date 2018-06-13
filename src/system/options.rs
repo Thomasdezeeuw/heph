@@ -7,10 +7,32 @@ pub use system::scheduler::Priority;
 /// Options for adding an actor to the [`ActorSystem`].
 ///
 /// [`ActorSystem`]: ../struct.ActorSystem.html
+///
+/// # Examples
+///
+/// Using the default options.
+///
+/// ```
+/// use actor::system::ActorOptions;
+///
+/// let opts = ActorOptions::default();
+/// ```
+///
+/// Giving an actor a high priority.
+///
+/// ```
+/// use actor::system::options::{ActorOptions, Priority};
+///
+/// let opts = ActorOptions {
+///     priority: Priority::HIGH,
+///     .. Default::default()
+/// };
+/// ```
 pub struct ActorOptions {
-    /// Priority for the actor in scheduler.
+    /// Scheduling priority.
     pub priority: Priority,
-    /// Reserved for future expansion.
+    /// Reserved for future expansion. Use the `Default` implementation to set
+    /// this field, see example in struct documentation.
     #[doc(hidden)]
     pub __private: (),
 }
