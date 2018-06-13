@@ -2,6 +2,7 @@
 
 
 use mio_st::poll::Poll;
+
 use actor::Actor;
 use initiator::Initiator;
 
@@ -20,10 +21,12 @@ pub use self::options::ActorOptions;
 
 use self::error::RuntimeError;
 use self::process::ProcessId;
+use self::scheduler::Scheduler;
 
 /// The system that runs all actors.
 #[derive(Debug)]
 pub struct ActorSystem {
+    scheduler: Scheduler,
     poll: Poll,
 }
 
