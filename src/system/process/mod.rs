@@ -56,10 +56,20 @@ pub trait Process {
     ///
     /// If this function returns it is assumed that the process is:
     /// - done completely, i.e. it doesn't have to be run anymore, or
-    /// - would block, and it made sure it's scheduled at a later point.
-    fn run(&mut self);
+    /// - it would block, and itself made sure it's scheduled again at a later
+    ///   point.
+    fn run(&mut self) -> ProcessCompletion;
+}
 
+/// The result of running a `Process`.
+#[must_use]
+pub enum ProcessCompletion {
+    /// The process is complete.
+    Complete,
 
+    /// Process completion is pending, but for now no further process can be
+    /// made.
+    Pending,
 }
 
 /// Internal process type.
