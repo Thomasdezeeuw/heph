@@ -20,6 +20,13 @@ pub struct ActorRef<M> {
 }
 
 impl<M> ActorRef<M> {
+    /// Create a new `ActorRef` with a shared mailbox.
+    pub(super) fn new(inbox: SharedMailbox<M>) -> ActorRef<M> {
+        ActorRef {
+            inbox,
+        }
+    }
+
     /// Send a message to the actor.
     pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<M>>
         where Msg: Into<M>,
