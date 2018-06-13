@@ -8,7 +8,10 @@ use system::scheduler::Priority;
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ProcessId(usize);
 
-/// The trait that represents a process for the `ActorSystem`.
+/// The trait that represents a process.
+///
+/// The main implementation is the `ActorProcess`, which is implementation of
+/// this trait that revolves around an `Actor`.
 pub trait Process {
     // TODO: provided a way to create a futures::task::Context, maybe by
     // providing an `ActorSystemRef`?
