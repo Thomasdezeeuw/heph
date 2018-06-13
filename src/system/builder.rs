@@ -6,6 +6,7 @@ use num_cpus;
 use mio_st::poll::Poll;
 
 use system::ActorSystem;
+use system::process::ProcessIdGenerator;
 use system::scheduler::Scheduler;
 
 /// A builder pattern for an [`ActorSystem`].
@@ -20,6 +21,7 @@ impl ActorSystemBuilder {
     pub fn build(self) -> io::Result<ActorSystem> {
         Ok(ActorSystem {
             scheduler: Scheduler::new(),
+            pid_gen: ProcessIdGenerator::new(),
             poll: Poll::new()?,
         })
     }
