@@ -6,7 +6,7 @@ use system::scheduler::Priority;
 ///
 /// This is also used as `EventedId` to mio.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ProcessId(u64);
+pub struct ProcessId(usize);
 
 /// The trait that represents a process for the `ActorSystem`.
 pub trait Process {
