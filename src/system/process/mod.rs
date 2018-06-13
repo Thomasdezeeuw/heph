@@ -2,9 +2,9 @@
 
 use system::scheduler::Priority;
 
-/// Process id, or pid, is an unique id for each process in an `ActorSystem`.
+/// Process id, or pid, is an unique id for a process in an `ActorSystem`.
 ///
-/// This is also used as `EventedId` to mio.
+/// This is also used as `EventedId` for mio.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ProcessId(usize);
 
