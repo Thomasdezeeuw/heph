@@ -45,19 +45,19 @@ impl ActorSystem {
         self.inner.borrow_mut().add_actor(actor, options)
     }
 
+    /// Create a new reference to this actor system.
+    pub fn create_ref(&self) -> ActorSystemRef {
+        ActorSystemRef {
+            inner: Rc::downgrade(&self.inner),
+        }
+    }
+
     /// Run the actor system.
     pub fn run<I>(&mut self, initiators: &mut [I]) -> io::Result<()>
         where I: Initiator,
     {
         let system_ref = self.create_ref();
         self.inner.borrow_mut().run(initiators, system_ref)
-    }
-
-    /// Create a new reference to this actor system.
-    pub fn create_ref(&self) -> ActorSystemRef {
-        ActorSystemRef {
-            inner: Rc::downgrade(&self.inner),
-        }
     }
 }
 
