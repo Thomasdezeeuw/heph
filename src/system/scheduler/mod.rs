@@ -63,10 +63,10 @@ impl Scheduler {
     /// Run the scheduled processes.
     ///
     /// This loops over all currently scheduled processes and runs them.
-    pub fn run(&mut self, mut system_ref: ActorSystemRef) {
+    pub fn run(&mut self, system_ref: &mut ActorSystemRef) {
         loop {
             match self.queue.pop() {
-                Some(mut process) => match process.run(&mut system_ref) {
+                Some(mut process) => match process.run(system_ref) {
                     ProcessCompletion::Complete => drop(process),
                     ProcessCompletion::Pending => self.add_inactive(process),
                 },

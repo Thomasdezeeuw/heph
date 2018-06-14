@@ -3,6 +3,7 @@
 use std::io;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
+use std::time::Duration;
 
 use futures_core::task::{Context, LocalMap, Waker};
 use mio_st::event::Events;
@@ -160,25 +161,41 @@ impl ActorSystemInner {
         Ok(actor_ref)
     }
 
-    pub fn run<I>(&mut self, _initiators: &mut [I], system_ref: ActorSystemRef) -> io::Result<()>
+    pub fn run<I>(&mut self, initiators: &mut [I], mut system_ref: ActorSystemRef) -> io::Result<()>
         where I: Initiator,
     {
         // TODO: return RuntimeError.
 
-        // TODO: register initiators with Poll.
+        // Timeout for polling. None if there are any initiators, or 0 ms in
+        // case of no initiators so only user space events are handled and
+        // stopped otherwise.
+        let timeout = if initiators.is_empty() {
+            Some(Duration::from_millis(0))
+        } else {
+            None
+        };
 
         let mut events = Events::new();
-        self.poll.poll(&mut events, None)?;
 
-        for event in &mut events {
-            let pid = event.id().into();
-            self.scheduler.schedule(pid)
-                .expect("TODO: handle this error");
+        loop {
+            self.poll.poll(&mut events, timeout)?;
+
+            // Allow the system to be run without any initiators. In that case
+            // we will only handle user space events (e.g. sending messages) and
+            // will return after those are all handled.
+            if initiators.is_empty() && events.is_empty() {
+                return Ok(())
+            }
+
+            // Schedule any processes that we're notified off.
+            for event in &mut events {
+                let pid = event.id().into();
+                self.scheduler.schedule(pid)
+                    .expect("TODO: handle this error");
+            }
+
+            // Run all scheduled processes.
+            self.scheduler.run(&mut system_ref);
         }
-
-        self.scheduler.run(system_ref);
-        Ok(())
-
-        // TODO: loop above.
     }
 }
