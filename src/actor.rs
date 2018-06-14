@@ -62,51 +62,6 @@ pub trait Actor<'a> {
     /// I/O, it's recommended to make an actor to handle that blocking
     /// operation. For example a new actor per request to handle.
     fn handle(&'a mut self, message: Self::Message) -> Self::Future;
-
-    /// The method that will be called once the actor is created, but not yet
-    /// has received it's first message.
-    ///
-    /// The default is to do nothing.
-    fn pre_start(&'a mut self) { }
-
-    /// The method that will be called after the actor received it's final
-    /// message, just before the actor is dropped.
-    ///
-    /// The default is to do nothing.
-    ///
-    /// # Note
-    ///
-    /// Sending messages to other actors from this functions will have no
-    /// effect. This method is only called when the system is being shutdown,
-    /// save for a restart of the actor, and other actors will be (or are
-    /// already) stopped as well.
-    fn post_stop(&'a mut self) { }
-
-    /// The method that will be called once an actor will be restarted, but just
-    /// before actually stopping the actor.
-    ///
-    /// The default is to call the [`post_stop`] function.
-    ///
-    /// [`post_stop`]: trait.Actor.html#method.post_stop
-    fn pre_restart(&'a mut self) {
-        self.post_stop();
-    }
-
-    /// The method that will be called once an actor is restarted, but just
-    /// before it will accept it's first message.
-    ///
-    /// The default is to call the [`pre_start`] function.
-    ///
-    /// # Note
-    ///
-    /// Contrary to the `post_stop` method, this method is allowed to send
-    /// messages to other actors since the actor is being restarted but the
-    /// system isn't shutting down.
-    ///
-    /// [`pre_start`]: trait.Actor.html#method.pre_start
-    fn post_restart(&'a mut self) {
-        self.pre_start();
-    }
 }
 
 // TODO: change ActorFn to:
