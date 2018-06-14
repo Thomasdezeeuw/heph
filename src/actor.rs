@@ -17,51 +17,44 @@
 use std::marker::PhantomData;
 use std::mem;
 
-use futures_core::Future;
+use futures_core::{Future, Poll};
+use futures_core::task::Context;
 
 /// The main actor trait, which defines how an actor handles messages.
 ///
-/// # Lifetime `'a`
+/// The `Actor` trait is basically a special version of a `Future`, one which
+/// can be given more work. When a message arrives for the actor, the `handle`
+/// method will be called to allow the actor to process the message. But, just
+/// like with futures, it is possible that message can't be processed without
+/// blocking, something we don't want.
 ///
-/// The trait contains a lifetime `'a`, which is the lifetime for the object
-/// that implements the `Actor` trait. However is also used in the `Future` type
-/// to allow the future to reference the actor.
+/// To prevent an actor from blocking the process it should return
+/// `Async::NotReady`, just like a future. And just like a future it should make
+/// sure it's scheduled again at a later date, see the `Future` trait for more.
+/// Once the actor is scheduled again, this time `Future`'s `poll` method will be
+/// called, instead of `handle`.
 ///
-/// # Notes
+/// Once `Async::Ready` is returned the actor must ready to receive another
+/// message, `handle` will be called again and the entire process described
+/// above is repeated.
 ///
-/// When running into lifetime problems using a `Future` that references the
-/// actor try using the `'a` lifetime manually in the `handle` function.
-pub trait Actor<'a> {
+/// The main difference with a regular future is that the actor will be given
+/// more work (via a message) once the previous message is processed. Calling
+/// `poll` on a future after it returned `Async::Ready` causes undefined
+/// behaviour, the same is true for an actor. **However** `handle` should be
+/// callable when another message is ready for the actor, after which `poll`
+/// should also be callable (if `handle` didn't return `Async::Ready`).
+///
+/// In short an `Actor` is a `Future` which one can give more work, via
+/// messages.
+pub trait Actor: Future<Item = ()> {
     /// The user defined message that this actor can handle.
     ///
     /// Use an enum to allow an actor to handle multiple types of messages.
     type Message;
 
-    /// An error the actor can return to it's supervisor. This error will be
-    /// considered terminal for this actor and should **not** not be an error of
-    /// regular processing of a message.
-    ///
-    /// How to process non-terminal errors that happen during regular processing
-    /// of messages is up to the user.
-    type Error;
-
-    /// The future returned by the actor to handle a message.
-    ///
-    /// The returned item is discarded, while the returned error is passed to
-    /// the actor's supervisor, if any.
-    // TODO: link to supervisor.
-    type Future: Future<Item = (), Error = Self::Error> + 'a;
-
     /// Handle a message, the core of this trait.
-    ///
-    /// # Note
-    ///
-    /// The returned future will be completed before another message is handled
-    /// by this actor, effectively blocking this actor until the future is
-    /// completed. If the returned future does any blocking operations, e.g.
-    /// I/O, it's recommended to make an actor to handle that blocking
-    /// operation. For example a new actor per request to handle.
-    fn handle(&'a mut self, message: Self::Message) -> Self::Future;
+    fn handle(&mut self, ctx: &mut Context, message: Self::Message) -> Poll<(), Self::Error>;
 }
 
 // TODO: change ActorFn to:
@@ -141,16 +134,9 @@ pub fn actor_fn<Fn, M, F, E>(func: Fn) -> ActorFn<Fn, M>
 ///
 /// [`ActorFactory`]: struct.ActorFactory.html
 /// [`ReusableActorFactory`]: struct.ReusableActorFactory.html
-///
-/// # Lifetimes
-///
-/// This trait has two lifetimes `'n` and `'a`. `'n` is the lifetime for the
-/// object that implements the `NewActor` trait, while `'a` defines a separate
-/// lifetime for the object that implements the `Actor` trait. These lifetimes
-/// are not bound to each other.
-pub trait NewActor<'n, 'a> {
+pub trait NewActor {
     /// The type of the actor, see [`Actor`](trait.Actor.html).
-    type Actor: Actor<'a> + 'a;
+    type Actor: Actor;
 
     /// The initial item the actor will be created with.
     ///
@@ -158,7 +144,7 @@ pub trait NewActor<'n, 'a> {
     type Item;
 
     /// The method that gets called to create a new actor.
-    fn new(&'n mut self, item: Self::Item) -> Self::Actor;
+    fn new(&mut self, item: Self::Item) -> Self::Actor;
 
     /// Reuse an already allocated actor.
     ///
@@ -168,7 +154,7 @@ pub trait NewActor<'n, 'a> {
     ///
     /// This is a performance optimization to allow the allocations of an actor
     /// to be reused.
-    fn reuse(&'n mut self, old_actor: &mut Self::Actor, item: Self::Item) {
+    fn reuse(&mut self, old_actor: &mut Self::Actor, item: Self::Item) {
         drop(mem::replace(old_actor, self.new(item)));
     }
 }
