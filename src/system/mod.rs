@@ -60,24 +60,6 @@ impl ActorSystem {
     /// the [`NoInitiator`] helper can be used.
     ///
     /// [`NoInitiator`]: ../initiator/struct.NoInitiator.html
-    ///
-    /// # Examples
-    ///
-    /// Running without initiators.
-    ///
-    /// ```
-    /// use actor::system::ActorSystemBuilder;
-    /// use actor::initiator::NoInitiator;
-    ///
-    /// let mut actor_system = ActorSystemBuilder::default().build()
-    ///     .expect("failed to build actor system");
-    ///
-    /// // Add actors etc.
-    ///
-    /// // TODO: enable this.
-    /// //actor_system.run::<NoInitiator>(&mut [])
-    /// //    .expect("failed to run actor system");
-    /// ```
     pub fn run<I>(&mut self, initiators: &mut [I]) -> io::Result<()>
         where I: Initiator,
     {

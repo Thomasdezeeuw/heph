@@ -20,6 +20,23 @@ pub trait Initiator {
 /// A helper struct to allow the actor system to be run without any initiators.
 ///
 /// The `Initiator` implementation is effectively a no-op.
+///
+/// # Examples
+///
+/// Running without initiators.
+///
+/// ```
+/// use actor::system::ActorSystemBuilder;
+/// use actor::initiator::NoInitiator;
+///
+/// let mut actor_system = ActorSystemBuilder::default().build()
+///     .expect("failed to build actor system");
+///
+/// // Add actors etc.
+///
+/// actor_system.run::<NoInitiator>(&mut [])
+///     .expect("failed to run actor system");
+/// ```
 #[derive(Debug)]
 pub struct NoInitiator;
 
