@@ -77,17 +77,22 @@ pub trait Supervisor<E, A> {
 /// # use std::{fmt, io};
 /// # use actor::actor::Actor;
 /// # use actor::supervisor::Supervisor;
-/// # use futures_core::Future;
+/// # use futures_core::{Future, Poll};
+/// # use futures_core::task::Context;
 /// use actor::supervisor::{LogSupervisor, RestartStrategy};
 ///
 /// // Our actor that implements the `Actor` trait.
 /// struct MyActor;
 ///
-/// # impl<'a> Actor<'a> for MyActor {
-/// #    type Message = ();
-/// #    type Error = io::Error;
-/// #    type Future = Box<Future<Item = (), Error = io::Error>>;
-/// #    fn handle(&mut self, _: ()) -> Self::Future { unimplemented!(); }
+/// # impl Future for MyActor {
+/// #     type Item = ();
+/// #     type Error = ();
+/// #     fn poll(&mut self, _: &mut Context) -> Poll<(), ()> { unimplemented!(); }
+/// # }
+/// #
+/// # impl Actor for MyActor {
+/// #     type Message = String;
+/// #     fn handle(&mut self, _: &mut Context, _: String) -> Poll<(), ()> { unimplemented!(); }
 /// # }
 /// #
 /// # impl fmt::Display for MyActor {
@@ -98,7 +103,7 @@ pub trait Supervisor<E, A> {
 /// // Our `Supervisor` implementation that logs errors and restarts the actors.
 /// let supervisor = LogSupervisor(RestartStrategy::Restart);
 /// #
-/// # fn use_supervisor<S: Supervisor<io::Error, MyActor>>(supervisor: S) { }
+/// # fn use_supervisor<S: Supervisor<String, MyActor>>(supervisor: S) { }
 /// # use_supervisor(supervisor);
 /// # }
 /// ```
@@ -129,17 +134,22 @@ impl<E, A> Supervisor<E, A> for LogSupervisor
 /// # use std::{fmt, io};
 /// # use actor::actor::Actor;
 /// # use actor::supervisor::Supervisor;
-/// # use futures_core::Future;
+/// # use futures_core::{Future, Poll};
+/// # use futures_core::task::Context;
 /// use actor::supervisor::{NopSupervisor, RestartStrategy};
 ///
 /// // Our actor that implements the `Actor` trait.
 /// struct MyActor;
 ///
-/// # impl<'a> Actor<'a> for MyActor {
-/// #    type Message = ();
-/// #    type Error = io::Error;
-/// #    type Future = Box<Future<Item = (), Error = io::Error>>;
-/// #    fn handle(&mut self, _: ()) -> Self::Future { unimplemented!(); }
+/// # impl Future for MyActor {
+/// #     type Item = ();
+/// #     type Error = ();
+/// #     fn poll(&mut self, _: &mut Context) -> Poll<(), ()> { unimplemented!(); }
+/// # }
+/// #
+/// # impl Actor for MyActor {
+/// #     type Message = ();
+/// #     fn handle(&mut self, _: &mut Context, _: ()) -> Poll<(), ()> { unimplemented!(); }
 /// # }
 /// #
 /// # impl fmt::Display for MyActor {
@@ -151,7 +161,7 @@ impl<E, A> Supervisor<E, A> for LogSupervisor
 /// // system to stop the actor and not restart it.
 /// let supervisor = NopSupervisor(RestartStrategy::Stop);
 /// #
-/// # fn use_supervisor<S: Supervisor<io::Error, MyActor>>(supervisor: S) { }
+/// # fn use_supervisor<S: Supervisor<(), MyActor>>(supervisor: S) { }
 /// # use_supervisor(supervisor);
 /// # }
 /// ```
