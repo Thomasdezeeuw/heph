@@ -24,7 +24,7 @@ pub use self::options::ActorOptions;
 
 use self::actor_process::ActorProcess;
 use self::scheduler::Scheduler;
-use self::process::{ProcessIdGenerator, ProcessPtr};
+use self::process::ProcessIdGenerator;
 use self::error::{AddActorError, AddActorErrorReason};
 
 /// The system that runs all actors.
@@ -38,9 +38,9 @@ pub struct ActorSystem {
 impl ActorSystem {
     /// Add a new actor to the system.
     // TODO: keep this in sync with `ActorSystemRef.add_actor`.
-    // TODO: replace `'static` lifetime with `'a`.
+    // TODO: remove `'static` lifetime.
     pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A::Message>, AddActorError<A>>
-        where A: Actor<'static> + 'static,
+        where A: Actor + 'static,
     {
         self.inner.borrow_mut().add_actor(actor, options)
     }
@@ -104,9 +104,9 @@ impl ActorSystemRef {
     ///
     /// [`ActorSystem.add_actor`]: struct.ActorSystem.html#method.add_actor
     // TODO: keep this in sync with `ActorSystemRef.add_actor`.
-    // TODO: replace `'static` lifetime with `'a`.
+    // TODO: remove `'static` lifetime,
     pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A::Message>, AddActorError<A>>
-        where A: Actor<'static> + 'static,
+        where A: Actor + 'static,
     {
         match self.inner.upgrade() {
             Some(r) => r.borrow_mut().add_actor(actor, options),
@@ -136,7 +136,7 @@ struct ActorSystemInner {
 
 impl ActorSystemInner {
     pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A::Message>, AddActorError<A>>
-        where A: Actor<'static> + 'static,
+        where A: Actor + 'static,
     {
         // Create a new actor process.
         let pid = self.pid_gen.next();
@@ -147,7 +147,7 @@ impl ActorSystemInner {
         let actor_ref = process.create_ref();
 
         // Add the process to the scheduler, it will be consider inactive.
-        let process: ProcessPtr = Box::new(process);
+        let process = Box::new(process);
         self.scheduler.add_process(process);
 
         Ok(actor_ref)

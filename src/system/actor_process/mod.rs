@@ -26,8 +26,8 @@ type SharedMailbox<M> = Rc<RefCell<MailBox<M>>>;
 
 /// A process that represent an actor, it's mailbox and current execution.
 #[derive(Debug)]
-pub struct ActorProcess<'a, A>
-    where A: Actor<'a>,
+pub struct ActorProcess<A>
+    where A: Actor,
 {
     /// Unique id in the `ActorSystem`.
     id: ProcessId,
@@ -41,11 +41,11 @@ pub struct ActorProcess<'a, A>
     registration: Registration,
 }
 
-impl<'a, A> ActorProcess<'a, A>
-    where A: Actor<'a>,
+impl<A> ActorProcess<A>
+    where A: Actor,
 {
     /// Create a new process.
-    pub fn new(id: ProcessId, actor: A, options: ActorOptions, poll: &mut Poll) -> Result<ActorProcess<'a, A>, (A, io::Error)> {
+    pub fn new(id: ProcessId, actor: A, options: ActorOptions, poll: &mut Poll) -> Result<ActorProcess<A>, (A, io::Error)> {
         let (mut registration, notifier) = Registration::new();
         if let Err(err) = poll.register(&mut registration, id.into(), Ready::READABLE, PollOpt::Edge) {
             return Err((actor, err));
@@ -68,8 +68,8 @@ impl<'a, A> ActorProcess<'a, A>
     }
 }
 
-impl<'a, A> Process for ActorProcess<'a, A>
-    where A: Actor<'a> + 'a,
+impl<A> Process for ActorProcess<A>
+    where A: Actor,
 {
     fn id(&self) -> ProcessId {
         self.id
