@@ -24,7 +24,7 @@ pub use self::options::ActorOptions;
 
 use self::actor_process::ActorProcess;
 use self::scheduler::Scheduler;
-use self::process::{ProcessId, ProcessIdGenerator, ProcessPtr};
+use self::process::{ProcessIdGenerator, ProcessPtr};
 use self::error::{AddActorError, AddActorErrorReason};
 
 /// The system that runs all actors.
@@ -126,36 +126,39 @@ impl Clone for ActorSystemRef {
 /// Inside of the `ActorSystem`, to which `ActorSystemRef`s have a reference to.
 #[derive(Debug)]
 struct ActorSystemInner {
+    /// Scheduler that hold the processes, schedules and runs them.
     scheduler: Scheduler,
     /// A generator for unique process ids.
     pid_gen: ProcessIdGenerator,
+    /// System poller, used for event notifications to support non-block I/O.
     poll: Poll,
 }
 
 impl ActorSystemInner {
-    /// Add a new actor to the system.
-    // TODO: keep this in sync with `ActorSystemRef.add_actor`.
-    // TODO: replace `'static` lifetime with `'a`.
     pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A::Message>, AddActorError<A>>
         where A: Actor<'static> + 'static,
     {
-        // TODO: return a different error then an `io::Error`.
+        // Create a new actor process.
         let pid = self.pid_gen.next();
         let process = ActorProcess::new(pid, actor, options, &mut self.poll)
             .map_err(|(actor, err)| AddActorError::new(actor, AddActorErrorReason::RegisterFailed(err)))?;
+
+        // Create a reference to the actor, to be returned.
         let actor_ref = process.create_ref();
+
+        // Add the process to the scheduler, it will be consider inactive.
         let process: ProcessPtr = Box::new(process);
         self.scheduler.add_process(process);
+
         Ok(actor_ref)
     }
 
-    /// Run the actor system.
     pub fn run<I>(&mut self, _initiators: &mut [I], system_ref: ActorSystemRef) -> io::Result<()>
         where I: Initiator,
     {
         // TODO: return RuntimeError.
 
-        // TODO: register initiatiors with Poll.
+        // TODO: register initiators with Poll.
 
         let mut events = Events::new();
         self.poll.poll(&mut events, None)?;
