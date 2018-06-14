@@ -1,8 +1,7 @@
 //! Module containing the errors for the `ActorSystem`.
 
-use std::io;
-
-// TODO: impl Error for the errors below.
+use std::{fmt, io};
+use std::error::Error;
 
 /// Error when adding actors to the `ActorSystem`.
 #[derive(Debug)]
@@ -19,6 +18,29 @@ impl<A> AddActorError<A> {
         AddActorError {
             actor,
             reason,
+        }
+    }
+
+    fn desc() -> &'static str {
+        "unable to add actor"
+    }
+}
+
+impl<A> fmt::Display for AddActorError<A> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad(AddActorError::<()>::desc())
+    }
+}
+
+impl<A: fmt::Debug> Error for AddActorError<A> {
+    fn description(&self) -> &str {
+        AddActorError::<()>::desc()
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        match self.reason {
+            AddActorErrorReason::RegisterFailed(ref err) => Some(err),
+            _ => None,
         }
     }
 }
@@ -42,6 +64,24 @@ pub struct SendError<M> {
     pub reason: SendErrorReason,
 }
 
+impl<M> SendError<M> {
+    fn desc() -> &'static str {
+        "unable to send message"
+    }
+}
+
+impl<M> fmt::Display for SendError<M> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}: {}", SendError::<()>::desc(), self.reason)
+    }
+}
+
+impl<M: fmt::Debug> Error for SendError<M> {
+    fn description(&self) -> &str {
+        SendError::<()>::desc()
+    }
+}
+
 /// The reason why sending a message failed.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 #[non_exhaustive]
@@ -53,7 +93,28 @@ pub enum SendErrorReason {
     SystemShutdown,
 }
 
+impl fmt::Display for SendErrorReason {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            SendErrorReason::ActorShutdown => f.pad("actor is shutdown"),
+            SendErrorReason::SystemShutdown=> f.pad("system is shutdown"),
+        }
+    }
+}
+
 /// Error returned by running an `ActorSystem`.
 #[derive(Debug)]
 pub struct RuntimeError {
+}
+
+impl fmt::Display for RuntimeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.pad(self.description())
+    }
+}
+
+impl Error for RuntimeError {
+    fn description(&self) -> &str {
+        "error running actor system"
+    }
 }
