@@ -7,6 +7,7 @@ use mio_st::registration::Notifier;
 
 use system::error::{SendError, SendErrorReason};
 
+/// Mailbox that holds all messages for an `Actor`.
 #[derive(Debug)]
 pub struct MailBox<M> {
     /// The messages in the mailbox.
