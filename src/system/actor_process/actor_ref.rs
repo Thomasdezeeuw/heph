@@ -21,14 +21,13 @@ use super::SharedMailbox;
 /// # use actor::actor::actor_fn;
 /// # use actor::system::ActorSystemBuilder;
 /// # use actor::system::ActorOptions;
-/// # use futures_core::future::{FutureResult, ok};
 /// #
 /// // Create `ActorSystem` and `Actor`, etc.
 /// # let mut actor_system = ActorSystemBuilder::default().build().unwrap();
-/// # let actor = actor_fn(|_: ()| -> FutureResult<(), ()> { ok(()) });
+/// # let actor = actor_fn(|_: ()| -> Result<(), ()> { Ok(()) });
 ///
 /// let actor_ref = actor_system.add_actor(actor, ActorOptions::default())
-///     .expect("unable to add actor to actor system");
+///     .unwrap_or_else(|err| panic!("unable to add actor to actor system: {}", err));
 ///
 /// // To create another `ActorRef` we can simply clone the first one.
 /// let second_actor_ref = actor_ref.clone();
@@ -58,7 +57,6 @@ impl<M> ActorRef<M> {
     /// # use actor::actor::actor_fn;
     /// # use actor::system::ActorSystemBuilder;
     /// # use actor::system::ActorOptions;
-    /// # use futures_core::future::{FutureResult, ok};
     /// #
     /// // The message type for the actor.
     /// //
@@ -79,10 +77,10 @@ impl<M> ActorRef<M> {
     ///
     /// // Create `ActorSystem` and `Actor`, etc.
     /// # let mut actor_system = ActorSystemBuilder::default().build().unwrap();
-    /// # let actor = actor_fn(|_: Message| -> FutureResult<(), ()> { ok(()) });
+    /// # let actor = actor_fn(|_: Message| -> Result<(), ()> { Ok(()) });
     ///
     /// let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default())
-    ///     .expect("unable to add actor to actor system");
+    ///     .unwrap_or_else(|err| panic!("unable to add actor to actor system: {}", err));
     ///
     /// // Now we can use the reference to send the actor a message, without
     /// // having to use `Message` we can just use `String`.
