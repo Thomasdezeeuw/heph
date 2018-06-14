@@ -86,7 +86,11 @@ impl ActorSystem {
 
 /// A reference to an [`ActorSystem`].
 ///
+/// This reference can be shared by cloning it, a very cheap operation, just
+/// like [`ActorRef`].
+///
 /// [`ActorSystem`]: struct.ActorSystem.html
+/// [`ActorRef`]: struct.ActorRef.html
 #[derive(Debug)]
 pub struct ActorSystemRef {
     /// A non-owning reference to the actor system internals.
