@@ -9,15 +9,16 @@ use mio_st::poll::{Poll, PollOpt};
 use mio_st::registration::Registration;
 
 use actor::Actor;
+use system::ActorSystemRef;
 use system::options::ActorOptions;
-use system::scheduler::Priority;
 use system::process::{Process, ProcessId, ProcessCompletion};
+use system::scheduler::Priority;
 
-mod mailbox;
 mod actor_ref;
+mod mailbox;
 
-pub use self::mailbox::MailBox;
 pub use self::actor_ref::ActorRef;
+pub use self::mailbox::MailBox;
 
 /// The mailbox of an `Actor` that is shared between an `ActorProcess` and one
 /// or more `ActorRef`s.
@@ -78,7 +79,7 @@ impl<'a, A> Process for ActorProcess<'a, A>
         self.priority
     }
 
-    fn run(&mut self) -> ProcessCompletion {
+    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessCompletion {
         unimplemented!("ActorProcess.run");
     }
 }

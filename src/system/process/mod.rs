@@ -2,6 +2,7 @@
 
 use mio_st::event::EventedId;
 
+use system::ActorSystemRef;
 use system::scheduler::Priority;
 
 /// Process id, or pid, is an unique id for a process in an `ActorSystem`.
@@ -63,8 +64,7 @@ pub trait Process {
     /// Used in scheduling the process.
     fn priority(&self) -> Priority;
 
-    // TODO: provided a way to create a futures::task::Context, maybe by
-    // providing an `ActorSystemRef`?
+    // TODO: decide between `&mut ActorSystemRef` and `ActorSystemRef`.
 
     /// Run the process.
     ///
@@ -72,7 +72,7 @@ pub trait Process {
     /// - done completely, i.e. it doesn't have to be run anymore, or
     /// - it would block, and itself made sure it's scheduled again at a later
     ///   point.
-    fn run(&mut self) -> ProcessCompletion;
+    fn run(&mut self, &mut ActorSystemRef) -> ProcessCompletion;
 }
 
 /// The result of running a `Process`.

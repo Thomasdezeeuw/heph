@@ -3,6 +3,7 @@
 use std::fmt;
 use std::collections::HashMap;
 
+use system::ActorSystemRef;
 use system::process::{ProcessCompletion, ProcessId, ProcessPtr};
 
 mod priority;
@@ -62,10 +63,10 @@ impl Scheduler {
     /// Run the scheduled processes.
     ///
     /// This loops over all currently scheduled processes and runs them.
-    pub fn run(&mut self) {
+    pub fn run(&mut self, mut system_ref: ActorSystemRef) {
         loop {
             match self.queue.pop() {
-                Some(mut process) => match process.run() {
+                Some(mut process) => match process.run(&mut system_ref) {
                     ProcessCompletion::Complete => drop(process),
                     ProcessCompletion::Pending => self.add_inactive(process),
                 },
