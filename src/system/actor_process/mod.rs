@@ -44,9 +44,11 @@ impl<'a, A> ActorProcess<'a, A>
     where A: Actor<'a>,
 {
     /// Create a new process.
-    pub fn new(id: ProcessId, actor: A, options: ActorOptions, poll: &mut Poll) -> io::Result<ActorProcess<'a, A>> {
+    pub fn new(id: ProcessId, actor: A, options: ActorOptions, poll: &mut Poll) -> Result<ActorProcess<'a, A>, (A, io::Error)> {
         let (mut registration, notifier) = Registration::new();
-        poll.register(&mut registration, id.into(), Ready::READABLE, PollOpt::Edge)?;
+        if let Err(err) = poll.register(&mut registration, id.into(), Ready::READABLE, PollOpt::Edge) {
+            return Err((actor, err));
+        }
 
         let inbox = Rc::new(RefCell::new(MailBox::new(notifier)));
 

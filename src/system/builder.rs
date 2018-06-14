@@ -1,11 +1,13 @@
 //! Module containing a builder for `ActorSystem`.
 
 use std::io;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 use num_cpus;
 use mio_st::poll::Poll;
 
-use system::ActorSystem;
+use system::{ActorSystem, ActorSystemInner};
 use system::process::ProcessIdGenerator;
 use system::scheduler::Scheduler;
 
@@ -19,10 +21,14 @@ pub struct ActorSystemBuilder {
 
 impl ActorSystemBuilder {
     pub fn build(self) -> io::Result<ActorSystem> {
-        Ok(ActorSystem {
+        let inner = ActorSystemInner {
             scheduler: Scheduler::new(),
             pid_gen: ProcessIdGenerator::new(),
             poll: Poll::new()?,
+        };
+
+        Ok(ActorSystem {
+            inner: Rc::new(RefCell::new(inner)),
         })
     }
 }
