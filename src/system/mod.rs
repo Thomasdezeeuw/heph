@@ -109,10 +109,13 @@ impl ActorSystemRef {
             None => Err(AddActorError::new(actor, AddActorErrorReason::SystemShutdown)),
         }
     }
+}
 
-    /// Queue an process to run.
-    fn queue_process(&mut self, _id: ProcessId) {
-        unimplemented!("ActorSystemRef.queue_process");
+impl Clone for ActorSystemRef {
+    fn clone(&self) -> ActorSystemRef {
+        ActorSystemRef {
+            inner: Weak::clone(&self.inner),
+        }
     }
 }
 
