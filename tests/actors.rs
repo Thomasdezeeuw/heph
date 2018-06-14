@@ -41,20 +41,6 @@ impl<'a> Actor<'a> for TestActor {
 }
 
 #[test]
-fn actor_future_may_reference_actor() {
-    let mut actor = TestActor { value: 0 };
-
-    {
-        let mut future = actor.handle(TestMessage);
-        match quick_poll(&mut future) {
-            Ok(Async::Ready(())) =>{},
-            _ => panic!("expected the future to be ready, but isn't"),
-        }
-    }
-    assert_eq!(actor.value, 1);
-}
-
-#[test]
 fn test_actor_fn() {
     let mut actor_value = 0;
     {
