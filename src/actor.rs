@@ -17,7 +17,7 @@
 use std::marker::PhantomData;
 use std::mem;
 
-use futures_core::{Future, Poll};
+use futures_core::{Future, Async, Poll};
 use futures_core::task::Context;
 
 /// The main actor trait, which defines how an actor handles messages.
@@ -66,6 +66,10 @@ pub trait Actor: Future<Item = ()> {
 
 /// Implement [`Actor`] by means of a function.
 ///
+/// Note that this form of actor is very limited. It will have to handle message
+/// in a single function call, without being able to make use of the `Future`s
+/// ecosystem.
+///
 /// See the [`actor_fn`] function to create an `ActorFn`.
 ///
 /// [`Actor`]: trait.Actor.html
@@ -75,51 +79,50 @@ pub trait Actor: Future<Item = ()> {
 ///
 /// ```
 /// # extern crate actor;
-/// # extern crate futures_core;
-/// # use actor::actor::{Actor, NewActor};
-/// # use futures_core::Future;
-/// use actor::actor::actor_fn;
-/// use futures_core::future::{ok, err};
+/// use actor::actor::{Actor, actor_fn};
 ///
 /// # fn main() {
 /// // Our `Actor` implementation.
-/// let actor = actor_fn(|msg: bool| {
-///     // Here we use a `FutureResult` as future.
-///     if msg {
-///         ok(())
-///     } else {
-///         err("oops!")
-///     }
+/// let actor = actor_fn(|msg: String| -> Result<(), ()> {
+///     println!("got a message: {}", msg);
+///     Ok(())
 /// });
 /// #
-/// # fn use_actor<'a, A: Actor<'a>>(actor: A) { }
+/// # fn use_actor<A: Actor>(actor: A) { }
 /// # use_actor(actor);
 /// # }
 /// ```
 #[derive(Debug)]
-pub struct ActorFn<Fn, M> {
-    func: Fn,
+pub struct ActorFn<F, M> {
+    func: F,
     _phantom: PhantomData<M>,
 }
 
-impl<'a, Fn, M, F, E> Actor<'a> for ActorFn<Fn, M>
-    where Fn: FnMut(M) -> F,
-          F: Future<Item = (), Error = E> + 'a,
+impl<F, M, E> Future for ActorFn<F, M>
+    where F: FnMut(M) -> Result<(), E>,
+{
+    type Item = ();
+    type Error = E;
+    /// Call to poll will always return `Async::Ready`.
+    fn poll(&mut self, _: &mut Context) -> Poll<(), Self::Error> {
+        Ok(Async::Ready(()))
+    }
+}
+
+impl<F, M, E> Actor for ActorFn<F, M>
+    where F: FnMut(M) -> Result<(), E>,
 {
     type Message = M;
-    type Error = E;
-    type Future = F;
-    fn handle(&'a mut self, message: Self::Message) -> Self::Future {
-        (self.func)(message)
+    fn handle(&mut self, _: &mut Context, message: Self::Message) -> Poll<(), Self::Error> {
+        (self.func)(message).map(|_| Async::Ready(()))
     }
 }
 
 /// Create a new [`ActorFn`].
 ///
 /// [`ActorFn`]: struct.ActorFn.html
-pub fn actor_fn<Fn, M, F, E>(func: Fn) -> ActorFn<Fn, M>
-    where Fn: FnMut(M) -> F,
-          F: Future<Item = (), Error = E>,
+pub fn actor_fn<F, M, E>(func: F) -> ActorFn<F, M>
+    where F: FnMut(M) -> Result<(), E>,
 {
     ActorFn {
         func,
@@ -184,24 +187,29 @@ pub trait NewActor {
 /// # extern crate actor;
 /// # extern crate futures_core;
 /// # use actor::actor::{Actor, NewActor};
-/// # use futures_core::Future;
+/// # use futures_core::{Future, Poll};
+/// # use futures_core::task::Context;
 /// use actor::actor::actor_factory;
 ///
 /// // Our actor that implements the `Actor` trait.
 /// struct MyActor;
 ///
-/// # impl<'a> Actor<'a> for MyActor {
-/// #    type Message = ();
-/// #    type Error = ();
-/// #    type Future = Box<Future<Item = (), Error = ()>>;
-/// #    fn handle(&'a mut self, _: ()) -> Self::Future { unimplemented!(); }
+/// # impl Future for MyActor {
+/// #     type Item = ();
+/// #     type Error = ();
+/// #     fn poll(&mut self, _: &mut Context) -> Poll<(), ()> { unimplemented!(); }
 /// # }
 /// #
+/// # impl Actor for MyActor {
+/// #     type Message = String;
+/// #     fn handle(&mut self, _: &mut Context, _: String) -> Poll<(), ()> { unimplemented!(); }
+/// # }
+///
 /// # fn main() {
 /// // Our `NewActor` implementation that returns our actor.
 /// let new_actor = actor_factory(|_: ()| MyActor);
 /// #
-/// # fn use_new_actor<'n, 'a, A: NewActor<'n, 'a>>(new_actor: A) { }
+/// # fn use_new_actor<A: NewActor>(new_actor: A) { }
 /// # use_new_actor(new_actor);
 /// # }
 /// ```
@@ -211,13 +219,13 @@ pub struct ActorFactory<N, I> {
     _phantom: PhantomData<I>,
 }
 
-impl<'n, 'a, N, I, A> NewActor<'n, 'a> for ActorFactory<N, I>
+impl<N, I, A> NewActor for ActorFactory<N, I>
     where N: FnMut(I) -> A,
-          A: Actor<'a> + 'a,
+          A: Actor,
 {
     type Actor = A;
     type Item = I;
-    fn new(&'n mut self, item: Self::Item) -> Self::Actor {
+    fn new(&mut self, item: Self::Item) -> Self::Actor {
         (self.new_actor)(item)
     }
 }
@@ -227,7 +235,7 @@ impl<'n, 'a, N, I, A> NewActor<'n, 'a> for ActorFactory<N, I>
 /// [`ActorFactory`]: struct.ActorFactory.html
 pub fn actor_factory<'a, N, I, A>(new_actor: N) -> ActorFactory<N, I>
     where N: FnMut(I) -> A,
-          A: Actor<'a> + 'a,
+          A: Actor,
 {
     ActorFactory {
         new_actor,
@@ -252,17 +260,22 @@ pub fn actor_factory<'a, N, I, A>(new_actor: N) -> ActorFactory<N, I>
 /// # extern crate actor;
 /// # extern crate futures_core;
 /// # use actor::actor::{Actor, NewActor};
-/// # use futures_core::Future;
+/// # use futures_core::{Future, Poll};
+/// # use futures_core::task::Context;
 /// use actor::actor::reusable_actor_factory;
 ///
 /// // Our actor that implements the `Actor` trait.
 /// struct MyActor;
 ///
-/// # impl<'a> Actor<'a> for MyActor {
-/// #    type Message = ();
-/// #    type Error = ();
-/// #    type Future = Box<Future<Item = (), Error = ()>>;
-/// #    fn handle(&mut self, _: ()) -> Self::Future { unimplemented!(); }
+/// # impl Future for MyActor {
+/// #     type Item = ();
+/// #     type Error = ();
+/// #     fn poll(&mut self, _: &mut Context) -> Poll<(), ()> { unimplemented!(); }
+/// # }
+/// #
+/// # impl Actor for MyActor {
+/// #     type Message = String;
+/// #     fn handle(&mut self, _: &mut Context, _: String) -> Poll<(), ()> { unimplemented!(); }
 /// # }
 /// #
 /// impl MyActor {
@@ -273,7 +286,7 @@ pub fn actor_factory<'a, N, I, A>(new_actor: N) -> ActorFactory<N, I>
 /// // Our `NewActor` implementation that returns our actor.
 /// let new_actor = reusable_actor_factory(|_: ()| MyActor, |actor, _| actor.reset());
 /// #
-/// # fn use_new_actor<'n, 'a, A: NewActor<'n, 'a>>(new_actor: A) { }
+/// # fn use_new_actor<A: NewActor>(new_actor: A) { }
 /// # use_new_actor(new_actor);
 /// # }
 /// ```
@@ -284,17 +297,17 @@ pub struct ReusableActorFactory<N, R, I> {
     _phantom: PhantomData<I>,
 }
 
-impl<'n, 'a, N, R, I, A> NewActor<'n, 'a> for ReusableActorFactory<N, R, I>
+impl<N, R, I, A> NewActor for ReusableActorFactory<N, R, I>
     where N: FnMut(I) -> A,
           R: FnMut(&mut A, I),
-          A: Actor<'a> + 'a,
+          A: Actor,
 {
     type Actor = A;
     type Item = I;
-    fn new(&'n mut self, item: Self::Item) -> Self::Actor {
+    fn new(&mut self, item: Self::Item) -> Self::Actor {
         (self.new_actor)(item)
     }
-    fn reuse(&'n mut self, old_actor: &mut Self::Actor, item: Self::Item) {
+    fn reuse(&mut self, old_actor: &mut Self::Actor, item: Self::Item) {
         (self.reuse_actor)(old_actor, item)
     }
 }
@@ -302,10 +315,10 @@ impl<'n, 'a, N, R, I, A> NewActor<'n, 'a> for ReusableActorFactory<N, R, I>
 /// Create a new [`ReusableActorFactory`].
 ///
 /// [`ReusableActorFactory`]: struct.ReusableActorFactory.html
-pub fn reusable_actor_factory<'a, N, R, I, A>(new_actor: N, reuse_actor: R) -> ReusableActorFactory<N, R, I>
+pub fn reusable_actor_factory<N, R, I, A>(new_actor: N, reuse_actor: R) -> ReusableActorFactory<N, R, I>
     where N: FnMut(I) -> A,
           R: FnMut(&mut A, I),
-          A: Actor<'a>,
+          A: Actor,
 {
     ReusableActorFactory {
         new_actor,
