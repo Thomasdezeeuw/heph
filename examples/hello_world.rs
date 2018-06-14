@@ -4,27 +4,38 @@ extern crate futures_core;
 use actor::system::{ActorSystemBuilder, ActorOptions};
 use actor::actor::Actor;
 use actor::initiator::NoInitiator;
-use futures_core::future::{FutureResult, ok};
+use futures_core::{Future, Async, Poll};
+use futures_core::task::Context;
 
 // Our actor that will greet people and/or things.
+#[derive(Debug)]
 struct GreetingActor {
     message: &'static str,
 }
 
+impl Future for GreetingActor {
+    // The returned value, must always be empty.
+    type Item = ();
+    // The type of errors we can generate, in our cause none.
+    type Error = ();
+
+    // Since our `handle` implementation always returns `Async::Ready`, this
+    // will never be called.
+    fn poll(&mut self, _: &mut Context) -> Poll<(), Self::Error> {
+        Ok(Async::Ready(()))
+    }
+}
+
 // Our Actor implementation.
-impl<'a> Actor<'a> for GreetingActor {
+impl Actor for GreetingActor {
     // The type of message we can receive.
     type Message = String;
-    // The type of errors we can generate.
-    type Error = ();
-    // The type of the returned future.
-    type Future = FutureResult<(), ()>;
 
     // The function that will be called once a message is received.
-    fn handle(&'a mut self, name: Self::Message) -> Self::Future {
+    fn handle(&mut self, _: &mut Context, name: Self::Message) -> Poll<(), Self::Error> {
         // Print a greeting message.
         println!("{} {}", self.message, name);
-        ok(())
+        Ok(Async::Ready(()))
     }
 }
 
