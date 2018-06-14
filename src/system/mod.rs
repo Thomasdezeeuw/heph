@@ -4,8 +4,9 @@ use std::io;
 use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 
-use mio_st::poll::Poll;
+use futures_core::task::{Context, LocalMap, Waker};
 use mio_st::event::Events;
+use mio_st::poll::Poll;
 
 use actor::Actor;
 use initiator::Initiator;
@@ -112,6 +113,12 @@ impl ActorSystemRef {
             Some(r) => r.borrow_mut().add_actor(actor, options),
             None => Err(AddActorError::new(actor, AddActorErrorReason::SystemShutdown)),
         }
+    }
+
+    /// Create a new futures' execution `Context`.
+    pub(crate) fn create_context<'a>(&'a mut self, map: &'a mut LocalMap, waker: &'a Waker) -> Context<'a> {
+        // TODO: add executor.
+        Context::without_spawn(map, waker)
     }
 }
 
