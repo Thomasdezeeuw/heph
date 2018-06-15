@@ -1,0 +1,95 @@
+//! Tests for the `system` module.
+
+use std::cell::RefCell;
+use std::ops::AddAssign;
+use std::rc::Rc;
+
+use actor::actor::actor_fn;
+use actor::initiator::NoInitiator;
+use actor::system::{ActorSystemBuilder, ActorOptions};
+
+#[test]
+fn no_initiator_single_message_before_run() {
+    let actor_value = Rc::new(RefCell::new(0));
+    {
+        let mut actor_system = ActorSystemBuilder::default().build()
+            .expect("unable to build actor system");
+
+        let actor_value = Rc::clone(&actor_value);
+        let actor = actor_fn(move |value: usize| -> Result<(), ()> {
+            actor_value.borrow_mut().add_assign(value);
+            Ok(())
+        });
+
+        let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default())
+            .expect("unable to add actor to actor system");
+
+        actor_ref.send(1usize).expect("failed to send to actor");
+
+        actor_system.run::<NoInitiator>(&mut [])
+            .expect("unable to run actor system");
+    }
+    assert_eq!(*actor_value.borrow(), 1, "actor didn't receive message");
+}
+
+#[test]
+fn no_initiator_multiple_messages_before_run() {
+    let actor_value = Rc::new(RefCell::new(0));
+    {
+        let mut actor_system = ActorSystemBuilder::default().build()
+            .expect("unable to build actor system");
+
+        let actor_value = Rc::clone(&actor_value);
+        let actor = actor_fn(move |value: usize| -> Result<(), ()> {
+            actor_value.borrow_mut().add_assign(value);
+            Ok(())
+        });
+
+        let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default())
+            .expect("unable to add actor to actor system");
+
+        actor_ref.send(1usize).expect("failed to send to actor");
+        actor_ref.send(2usize).expect("failed to send to actor");
+        actor_ref.send(4usize).expect("failed to send to actor");
+
+        actor_system.run::<NoInitiator>(&mut [])
+            .expect("unable to run actor system");
+    }
+    assert_eq!(*actor_value.borrow(), 7, "actor didn't receive message");
+}
+
+#[test]
+fn no_initiator_run() {
+    let actor1_value = Rc::new(RefCell::new(0));
+    let actor2_value = Rc::new(RefCell::new(0));
+    {
+        let mut actor_system = ActorSystemBuilder::default().build()
+            .expect("unable to build actor system");
+
+        let actor1_value = Rc::clone(&actor1_value);
+        let actor1 = actor_fn(move |value: usize| -> Result<(), ()> {
+            actor1_value.borrow_mut().add_assign(value);
+            Ok(())
+        });
+        let mut actor1_ref = actor_system.add_actor(actor1, ActorOptions::default())
+            .expect("unable to add actor to actor system");
+
+        let actor2_value = Rc::clone(&actor2_value);
+        let actor2 = actor_fn(move |value: usize| -> Result<(), ()> {
+            actor2_value.borrow_mut().add_assign(value);
+            actor1_ref.send(value + 1).expect("failed to send to actor");
+            Ok(())
+        });
+        let mut actor2_ref = actor_system.add_actor(actor2, ActorOptions::default())
+            .expect("unable to add actor to actor system");
+
+        actor2_ref.send(1usize).expect("failed to send to actor");
+        actor2_ref.send(2usize).expect("failed to send to actor");
+        actor2_ref.send(4usize).expect("failed to send to actor");
+
+        actor_system.run::<NoInitiator>(&mut [])
+            .expect("unable to run actor system");
+    }
+    assert_eq!(*actor1_value.borrow(), 10, "actor1 didn't receive message");
+    assert_eq!(*actor2_value.borrow(), 7, "actor2 didn't receive message");
+}

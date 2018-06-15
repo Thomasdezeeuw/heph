@@ -172,8 +172,8 @@ impl ActorSystemInner {
             // Schedule any processes that we're notified off.
             for event in &mut events {
                 let pid = event.id().into();
-                self.scheduler.schedule(pid)
-                    .expect("TODO: handle this error");
+                // TODO: handle this error
+                let _ = self.scheduler.schedule(pid);
             }
 
             // Run all scheduled processes.
