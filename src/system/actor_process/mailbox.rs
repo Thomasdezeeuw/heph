@@ -30,11 +30,6 @@ impl<M> MailBox<M> {
         }
     }
 
-    /// Get the number of messages.
-    pub fn len(&self) -> usize {
-        self.messages.len()
-    }
-
     /// Deliver a new message to the mailbox.
     pub fn deliver(&mut self, msg: M) -> Result<(), SendError<M>> {
         match self.notifier.notify(Ready::READABLE) {
