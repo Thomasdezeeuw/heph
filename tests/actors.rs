@@ -4,7 +4,6 @@ extern crate futures_core;
 use actor::actor::actor_fn;
 use futures_core::Async;
 
-#[allow(dead_code)]
 mod util;
 
 use util::{quick_handle, quick_poll};
