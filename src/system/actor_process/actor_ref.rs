@@ -1,7 +1,9 @@
 //! Module containing the `ActorRef`.
 
 use std::rc::Rc;
+use std::marker::PhantomData;
 
+use actor::Actor;
 use system::error::SendError;
 use super::SharedMailbox;
 
@@ -33,16 +35,22 @@ use super::SharedMailbox;
 /// let second_actor_ref = actor_ref.clone();
 /// ```
 #[derive(Debug)]
-pub struct ActorRef<M> {
+pub struct ActorRef<A>
+    where A: Actor,
+{
     /// The inbox of the `Actor`, owned by the `ActorProcess`.
-    inbox: SharedMailbox<M>,
+    inbox: SharedMailbox<A::Message>,
+    _phantom: PhantomData<A>,
 }
 
-impl<M> ActorRef<M> {
+impl<A> ActorRef<A>
+    where A: Actor,
+{
     /// Create a new `ActorRef` with a shared mailbox.
-    pub(super) fn new(inbox: SharedMailbox<M>) -> ActorRef<M> {
+    pub(super) fn new(inbox: SharedMailbox<A::Message>) -> ActorRef<A> {
         ActorRef {
             inbox,
+            _phantom: PhantomData,
         }
     }
 
@@ -86,17 +94,20 @@ impl<M> ActorRef<M> {
     /// // having to use `Message` we can just use `String`.
     /// actor_ref.send("Hello world".to_owned());
     /// ```
-    pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<M>>
-        where Msg: Into<M>,
+    pub fn send<M>(&mut self, msg: M) -> Result<(), SendError<A::Message>>
+        where M: Into<A::Message>,
     {
         self.inbox.borrow_mut().deliver(msg.into())
     }
 }
 
-impl<M> Clone for ActorRef<M> {
-    fn clone(&self) -> ActorRef<M> {
+impl<A> Clone for ActorRef<A>
+    where A: Actor,
+{
+    fn clone(&self) -> ActorRef<A> {
         ActorRef {
             inbox: Rc::clone(&self.inbox),
+            _phantom: PhantomData,
         }
     }
 }

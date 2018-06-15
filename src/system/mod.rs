@@ -41,7 +41,7 @@ impl ActorSystem {
     /// Add a new actor to the system.
     // TODO: keep this in sync with `ActorSystemRef.add_actor`.
     // TODO: remove `'static` lifetime.
-    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A::Message>, AddActorError<A>>
+    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A>, AddActorError<A>>
         where A: Actor + 'static,
     {
         self.inner.borrow_mut().add_actor(actor, options)
@@ -89,7 +89,7 @@ impl ActorSystemRef {
     /// [`ActorSystem.add_actor`]: struct.ActorSystem.html#method.add_actor
     // TODO: keep this in sync with `ActorSystemRef.add_actor`.
     // TODO: remove `'static` lifetime,
-    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A::Message>, AddActorError<A>>
+    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A>, AddActorError<A>>
         where A: Actor + 'static,
     {
         match self.inner.upgrade() {
@@ -125,7 +125,7 @@ struct ActorSystemInner {
 }
 
 impl ActorSystemInner {
-    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A::Message>, AddActorError<A>>
+    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A>, AddActorError<A>>
         where A: Actor + 'static,
     {
         // Create a new actor process.
