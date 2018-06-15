@@ -94,10 +94,10 @@ impl<A> ActorRef<A>
     /// // having to use `Message` we can just use `String`.
     /// actor_ref.send("Hello world".to_owned());
     /// ```
-    pub fn send<M>(&mut self, msg: M) -> Result<(), SendError<A::Message>>
+    pub fn send<M>(&mut self, msg: M) -> Result<(), SendError<M>>
         where M: Into<A::Message>,
     {
-        self.inbox.borrow_mut().deliver(msg.into())
+        self.inbox.borrow_mut().deliver(msg)
     }
 }
 

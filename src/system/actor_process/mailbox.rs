@@ -31,10 +31,12 @@ impl<M> MailBox<M> {
     }
 
     /// Deliver a new message to the mailbox.
-    pub fn deliver(&mut self, msg: M) -> Result<(), SendError<M>> {
+    pub fn deliver<Msg>(&mut self, msg: Msg) -> Result<(), SendError<Msg>>
+        where Msg: Into<M>,
+    {
         match self.notifier.notify(Ready::READABLE) {
             Ok(()) => {
-                self.messages.push_back(msg);
+                self.messages.push_back(msg.into());
                 Ok(())
             },
             Err(_) => {
