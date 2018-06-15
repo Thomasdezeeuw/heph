@@ -219,7 +219,6 @@ pub trait NewActor {
 /// # use_new_actor(new_actor);
 /// # }
 /// ```
-#[derive(Debug)]
 pub struct ActorFactory<N, I> {
     new_actor: N,
     _phantom: PhantomData<I>,
@@ -233,6 +232,13 @@ impl<N, I, A> NewActor for ActorFactory<N, I>
     type Item = I;
     fn new(&mut self, item: Self::Item) -> Self::Actor {
         (self.new_actor)(item)
+    }
+}
+
+impl<N, I> fmt::Debug for ActorFactory<N, I> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ActorFactory")
+            .finish()
     }
 }
 
@@ -296,7 +302,6 @@ pub fn actor_factory<'a, N, I, A>(new_actor: N) -> ActorFactory<N, I>
 /// # use_new_actor(new_actor);
 /// # }
 /// ```
-#[derive(Debug)]
 pub struct ReusableActorFactory<N, R, I> {
     new_actor: N,
     reuse_actor: R,
@@ -315,6 +320,13 @@ impl<N, R, I, A> NewActor for ReusableActorFactory<N, R, I>
     }
     fn reuse(&mut self, old_actor: &mut Self::Actor, item: Self::Item) {
         (self.reuse_actor)(old_actor, item)
+    }
+}
+
+impl<N, R, I> fmt::Debug for ReusableActorFactory<N, R, I> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ReusableActorFactory")
+            .finish()
     }
 }
 
