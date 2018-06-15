@@ -23,11 +23,13 @@ pub trait Initiator {
 ///
 /// # Examples
 ///
-/// Running without initiators.
+/// Running the [`ActorSystem`] without initiators.
+///
+/// [`ActorSystem`]: ../system/struct.ActorSystem.html
 ///
 /// ```
-/// use actor::system::ActorSystemBuilder;
 /// use actor::initiator::NoInitiator;
+/// use actor::system::ActorSystemBuilder;
 ///
 /// let mut actor_system = ActorSystemBuilder::default().build()
 ///     .expect("failed to build actor system");
