@@ -29,6 +29,8 @@ impl Priority {
     /// Takes priority over other actors.
     pub const HIGH: Priority = Priority(5);
 
+    /* TODO: uncomment this code once the scheduler actually takes priority into
+     * account.
     /// Lowest priority possible priority.
     const MIN: u8 = 19;
 
@@ -52,6 +54,7 @@ impl Priority {
             self.0 += 1;
         }
     }
+    */
 }
 
 impl Default for Priority {
