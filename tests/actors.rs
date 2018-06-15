@@ -7,19 +7,26 @@ use futures_core::Async;
 #[allow(dead_code)]
 mod util;
 
-use util::quick_handle;
+use util::{quick_handle, quick_poll};
 
 #[test]
 fn test_actor_fn() {
     let mut actor_value = 0;
     {
-        let mut actor = actor_fn(|value: usize| -> Result<(), ()> {
+        let mut returned_ok = false;
+        let mut actor = actor_fn(|value: usize| {
             actor_value += value;
-            Ok(())
+            if !returned_ok {
+                returned_ok = true;
+                Ok(())
+            } else {
+                Err(())
+            }
         });
 
         assert_eq!(quick_handle(&mut actor, 1), Ok(Async::Ready(())));
-        assert_eq!(quick_handle(&mut actor, 10), Ok(Async::Ready(())));
+        assert_eq!(quick_handle(&mut actor, 10), Err(()));
+        assert_eq!(quick_poll(&mut actor), Ok(Async::Ready(())));
     }
     assert_eq!(actor_value, 11);
 }
