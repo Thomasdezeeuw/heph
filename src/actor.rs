@@ -14,8 +14,8 @@
 //! [`ActorFactory`]: struct.ActorFactory.html
 //! [`ReusableActorFactory`]: struct.ReusableActorFactory.html
 
+use std::{fmt, mem};
 use std::marker::PhantomData;
-use std::mem;
 
 use futures_core::{Future, Async, Poll};
 use futures_core::task::Context;
@@ -92,7 +92,6 @@ pub trait Actor: Future<Item = ()> {
 /// # use_actor(actor);
 /// # }
 /// ```
-#[derive(Debug)]
 pub struct ActorFn<F, M> {
     func: F,
     _phantom: PhantomData<M>,
@@ -103,7 +102,7 @@ impl<F, M, E> Future for ActorFn<F, M>
 {
     type Item = ();
     type Error = E;
-    /// Call to poll will always return `Async::Ready`.
+    /// Calls to poll will always return `Async::Ready`.
     fn poll(&mut self, _: &mut Context) -> Poll<(), Self::Error> {
         Ok(Async::Ready(()))
     }
@@ -114,7 +113,14 @@ impl<F, M, E> Actor for ActorFn<F, M>
 {
     type Message = M;
     fn handle(&mut self, _: &mut Context, message: Self::Message) -> Poll<(), Self::Error> {
-        (self.func)(message).map(|_| Async::Ready(()))
+        (self.func)(message).map(|()| Async::Ready(()))
+    }
+}
+
+impl<F, M> fmt::Debug for ActorFn<F, M> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ActorFn")
+            .finish()
     }
 }
 
