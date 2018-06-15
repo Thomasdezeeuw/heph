@@ -2,12 +2,6 @@
 
 #![feature(non_exhaustive)]
 
-#![allow(dead_code,
-         unused_imports,
-         unused_variables,
-)]
-
-/*
 #![warn(missing_debug_implementations,
         missing_docs,
         trivial_casts,
@@ -16,7 +10,6 @@
         unused_qualifications,
         unused_results,
 )]
-*/
 
 extern crate futures_core;
 #[macro_use]
