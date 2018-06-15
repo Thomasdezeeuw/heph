@@ -1,5 +1,6 @@
 //! Module containing the `ActorRef`.
 
+use std::fmt;
 use std::rc::Rc;
 use std::marker::PhantomData;
 
@@ -34,7 +35,6 @@ use super::SharedMailbox;
 /// // To create another `ActorRef` we can simply clone the first one.
 /// let second_actor_ref = actor_ref.clone();
 /// ```
-#[derive(Debug)]
 pub struct ActorRef<A>
     where A: Actor,
 {
@@ -109,5 +109,14 @@ impl<A> Clone for ActorRef<A>
             inbox: Rc::clone(&self.inbox),
             _phantom: PhantomData,
         }
+    }
+}
+
+impl<A> fmt::Debug for ActorRef<A>
+    where A: Actor,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("ActorRef")
+            .finish()
     }
 }
