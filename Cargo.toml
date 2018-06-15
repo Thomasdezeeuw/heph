@@ -3,6 +3,7 @@ name = "actor"
 version = "0.1.0"
 authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license = "MIT"
+autotests = false
 
 [dependencies]
 futures-core = { version = "0.2.1" }
@@ -11,3 +12,7 @@ num_cpus = "1.8.0"
 
 # Replace with published crate.
 mio-st = { path = '../mio-st' }
+
+[[test]]
+name = "test"
+path = "tests/test.rs"

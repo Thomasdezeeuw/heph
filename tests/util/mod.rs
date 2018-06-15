@@ -1,4 +1,3 @@
-#![allow(dead_code)]
 //! Module with utilities for testing.
 
 use std::sync::Arc;
