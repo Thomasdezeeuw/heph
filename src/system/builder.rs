@@ -20,6 +20,7 @@ pub struct ActorSystemBuilder {
 }
 
 impl ActorSystemBuilder {
+    /// Builder the `ActorSystem`.
     pub fn build(self) -> io::Result<ActorSystem> {
         let inner = ActorSystemInner {
             scheduler: Scheduler::new(),
