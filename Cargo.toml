@@ -6,8 +6,8 @@ license = "MIT"
 autotests = false
 
 [dependencies]
-futures-core = { version = "0.2.1" }
-log = "0.4.1"
+futures-core = "0.2.1"
+log = "0.4.2"
 num_cpus = "1.8.0"
 
 # Replace with published crate.
