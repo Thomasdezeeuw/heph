@@ -94,6 +94,7 @@ impl<A> Process for ActorProcess<A>
     }
 
     fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessCompletion {
+        debug!("running actor process with pid={}", self.id);
         // Create our future execution context.
         let waker = self.waker.waker();
         let mut ctx = system_ref.create_context(&mut self.map, &waker);

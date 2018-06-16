@@ -22,6 +22,8 @@ pub struct ActorSystemBuilder {
 impl ActorSystemBuilder {
     /// Builder the `ActorSystem`.
     pub fn build(self) -> io::Result<ActorSystem> {
+        debug!("building actor system with following configuration: n_processes={}",
+            self.n_processes);
         let inner = ActorSystemInner {
             scheduler: Scheduler::new(),
             pid_gen: ProcessIdGenerator::new(),

@@ -40,6 +40,7 @@ impl Scheduler {
 
     /// Add the process to the inactive processes list.
     fn add_inactive(&mut self, process: ProcessPtr) {
+        debug!("adding new process with pid={}", process.id());
         if !self.inactive.insert(process.id(), process).is_none() {
             panic!("overwritten a process in inactive map");
         }
@@ -49,6 +50,7 @@ impl Scheduler {
     ///
     /// This marks a process as active and moves it the scheduled queue.
     pub fn schedule(&mut self, pid: ProcessId) -> Result<(), ScheduleError> {
+        debug!("scheduling process with pid={}", pid);
         let process = self.inactive.remove(&pid);
         if let Some(process) = process {
             debug_assert_eq!(process.id(), pid, "process has different pid then expected");
@@ -64,6 +66,7 @@ impl Scheduler {
     ///
     /// This loops over all currently scheduled processes and runs them.
     pub fn run(&mut self, system_ref: &mut ActorSystemRef) {
+        debug!("running scheduled processes");
         loop {
             match self.queue.pop() {
                 Some(mut process) => match process.run(system_ref) {

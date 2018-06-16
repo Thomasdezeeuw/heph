@@ -130,6 +130,7 @@ impl ActorSystemInner {
     {
         // Create a new actor process.
         let pid = self.pid_gen.next();
+        debug!("adding actor with pid={} to actor system", pid);
         let process = ActorProcess::new(pid, actor, options, &mut self.poll)
             .map_err(|(actor, err)| AddActorError::new(actor, AddActorErrorReason::RegisterFailed(err)))?;
 
@@ -152,8 +153,10 @@ impl ActorSystemInner {
         // case of no initiators so only user space events are handled and
         // stopped otherwise.
         let timeout = if initiators.is_empty() {
+            debug!("actor system running without initiators, thus 0ms timeout");
             Some(Duration::from_millis(0))
         } else {
+            debug!("actor system running with initiators, thus with no timeout");
             None
         };
 
