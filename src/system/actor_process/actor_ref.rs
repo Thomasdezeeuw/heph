@@ -47,7 +47,7 @@ impl<A> ActorRef<A>
     where A: Actor,
 {
     /// Create a new `ActorRef` with a shared mailbox.
-    pub(super) fn new(inbox: SharedMailbox<A::Message>) -> ActorRef<A> {
+    pub(super) const fn new(inbox: SharedMailbox<A::Message>) -> ActorRef<A> {
         ActorRef {
             inbox,
             _phantom: PhantomData,

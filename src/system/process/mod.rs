@@ -35,7 +35,7 @@ pub struct ProcessIdGenerator {
 
 impl ProcessIdGenerator {
     /// Create a new pid generator.
-    pub fn new() -> ProcessIdGenerator {
+    pub const fn new() -> ProcessIdGenerator {
         ProcessIdGenerator {
             current: 10,
         }

@@ -38,7 +38,7 @@ impl<A> AddActorError<A> {
     const DESC: &'static str = "unable to add actor";
 
     /// Create a new `AddActorError`.
-    pub(super) fn new(actor: A, reason: AddActorErrorReason) -> AddActorError<A> {
+    pub(super) const fn new(actor: A, reason: AddActorErrorReason) -> AddActorError<A> {
         AddActorError {
             actor,
             reason,

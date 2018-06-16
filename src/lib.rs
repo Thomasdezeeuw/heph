@@ -1,6 +1,7 @@
 //! TODO: docs.
 
 #![feature(non_exhaustive)]
+#![feature(const_fn)]
 
 #![warn(missing_debug_implementations,
         missing_docs,

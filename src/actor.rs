@@ -127,7 +127,7 @@ impl<F, M> fmt::Debug for ActorFn<F, M> {
 /// Create a new [`ActorFn`].
 ///
 /// [`ActorFn`]: struct.ActorFn.html
-pub fn actor_fn<F, M, E>(func: F) -> ActorFn<F, M>
+pub const fn actor_fn<F, M, E>(func: F) -> ActorFn<F, M>
     where F: FnMut(M) -> Result<(), E>,
 {
     ActorFn {
@@ -245,7 +245,7 @@ impl<N, I> fmt::Debug for ActorFactory<N, I> {
 /// Create a new [`ActorFactory`].
 ///
 /// [`ActorFactory`]: struct.ActorFactory.html
-pub fn actor_factory<'a, N, I, A>(new_actor: N) -> ActorFactory<N, I>
+pub const fn actor_factory<'a, N, I, A>(new_actor: N) -> ActorFactory<N, I>
     where N: FnMut(I) -> A,
           A: Actor,
 {
@@ -333,7 +333,7 @@ impl<N, R, I> fmt::Debug for ReusableActorFactory<N, R, I> {
 /// Create a new [`ReusableActorFactory`].
 ///
 /// [`ReusableActorFactory`]: struct.ReusableActorFactory.html
-pub fn reusable_actor_factory<N, R, I, A>(new_actor: N, reuse_actor: R) -> ReusableActorFactory<N, R, I>
+pub const fn reusable_actor_factory<N, R, I, A>(new_actor: N, reuse_actor: R) -> ReusableActorFactory<N, R, I>
     where N: FnMut(I) -> A,
           R: FnMut(&mut A, I),
           A: Actor,
