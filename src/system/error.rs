@@ -4,6 +4,27 @@ use std::{fmt, io};
 use std::error::Error;
 
 /// Error when adding actors to the `ActorSystem`.
+///
+/// # Notes
+///
+/// When printing this error (using the `Display` implementation) the actor will
+/// not be printed.
+///
+/// # Examples
+///
+/// Printing the error doesn't print the actor.
+///
+/// ```
+/// use actor::system::error::{AddActorError, AddActorErrorReason};
+///
+/// let error = AddActorError {
+///     // Actor will be ignored in printing the error.
+///     actor: (),
+///     reason: AddActorErrorReason::SystemShutdown,
+/// };
+///
+/// assert_eq!(error.to_string(), "unable to add actor: actor system shutdown");
+/// ```
 #[derive(Debug)]
 pub struct AddActorError<A> {
     /// The actor that failed to be added to the system.
@@ -13,6 +34,9 @@ pub struct AddActorError<A> {
 }
 
 impl<A> AddActorError<A> {
+    /// Description for the error.
+    const DESC: &'static str = "unable to add actor";
+
     /// Create a new `AddActorError`.
     pub(super) fn new(actor: A, reason: AddActorErrorReason) -> AddActorError<A> {
         AddActorError {
@@ -20,21 +44,17 @@ impl<A> AddActorError<A> {
             reason,
         }
     }
-
-    fn desc() -> &'static str {
-        "unable to add actor"
-    }
 }
 
 impl<A> fmt::Display for AddActorError<A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.pad(AddActorError::<()>::desc())
+        write!(f, "{}: {}", AddActorError::<()>::DESC, &self.reason)
     }
 }
 
 impl<A: fmt::Debug> Error for AddActorError<A> {
     fn description(&self) -> &str {
-        AddActorError::<()>::desc()
+        AddActorError::<()>::DESC
     }
 
     fn cause(&self) -> Option<&Error> {
@@ -53,6 +73,16 @@ pub enum AddActorErrorReason {
     SystemShutdown,
     /// The actor failed to be registered with the system poller.
     RegisterFailed(io::Error),
+}
+
+impl fmt::Display for AddActorErrorReason {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::AddActorErrorReason::*;
+        match self {
+            SystemShutdown => f.pad("actor system shutdown"),
+            RegisterFailed(ref err) => err.fmt(f),
+        }
+    }
 }
 
 /// Error when sending messages goes wrong.
