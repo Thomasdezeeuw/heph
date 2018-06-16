@@ -86,7 +86,28 @@ impl fmt::Display for AddActorErrorReason {
 }
 
 /// Error when sending messages goes wrong.
-#[derive(Debug, Eq, PartialEq)]
+///
+/// # Notes
+///
+/// When printing this error (using the `Display` implementation) the message
+/// will not be printed.
+///
+/// # Examples
+///
+/// Printing the error doesn't print the message.
+///
+/// ```
+/// use actor::system::error::{SendError, SendErrorReason};
+///
+/// let error = SendError {
+///     // Message will be ignored in printing the error.
+///     message: (),
+///     reason: SendErrorReason::ActorShutdown,
+/// };
+///
+/// assert_eq!(error.to_string(), "unable to send message: actor shutdown");
+/// ```
+#[derive(Debug)]
 pub struct SendError<M> {
     /// The message that failed to send.
     pub message: M,
@@ -95,30 +116,28 @@ pub struct SendError<M> {
 }
 
 impl<M> SendError<M> {
-    fn desc() -> &'static str {
-        "unable to send message"
-    }
+    /// Description for the error.
+    const DESC: &'static str = "unable to send message";
 }
 
 impl<M> fmt::Display for SendError<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", SendError::<()>::desc(), self.reason)
+        write!(f, "{}: {}", SendError::<()>::DESC, &self.reason)
     }
 }
 
 impl<M: fmt::Debug> Error for SendError<M> {
     fn description(&self) -> &str {
-        SendError::<()>::desc()
+        SendError::<()>::DESC
     }
 }
 
 /// The reason why sending a message failed.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum SendErrorReason {
     /// The actor, to which the message was meant to be sent, is shutdown.
     ActorShutdown,
-
     /// The system is shutting down.
     SystemShutdown,
 }
@@ -126,8 +145,8 @@ pub enum SendErrorReason {
 impl fmt::Display for SendErrorReason {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SendErrorReason::ActorShutdown => f.pad("actor is shutdown"),
-            SendErrorReason::SystemShutdown=> f.pad("system is shutdown"),
+            SendErrorReason::ActorShutdown => f.pad("actor shutdown"),
+            SendErrorReason::SystemShutdown=> f.pad("actor system shutdown"),
         }
     }
 }
