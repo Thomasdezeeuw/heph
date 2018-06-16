@@ -31,4 +31,5 @@ pub mod system;
 pub mod prelude {
     pub use actor::{Actor, NewActor};
     pub use supervisor::{Supervisor, RestartStrategy};
+    pub use system::{ActorSystem, ActorSystemBuilder, ActorOptions, ActorRef};
 }
