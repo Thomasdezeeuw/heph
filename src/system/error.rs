@@ -3,6 +3,8 @@
 use std::{fmt, io};
 use std::error::Error;
 
+const ERR_SYSTEM_SHUTDOWN: &str = "actor system shutdown";
+
 /// Error when adding actors to the `ActorSystem`.
 ///
 /// # Notes
@@ -46,6 +48,16 @@ impl<A> AddActorError<A> {
     }
 }
 
+impl<A> Into<io::Error> for AddActorError<A> {
+    fn into(self) -> io::Error {
+        use self::AddActorErrorReason::*;
+        match self.reason {
+            SystemShutdown => io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN),
+            RegisterFailed(err) => err,
+        }
+    }
+}
+
 impl<A> fmt::Display for AddActorError<A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}: {}", AddActorError::<()>::DESC, &self.reason)
@@ -79,7 +91,7 @@ impl fmt::Display for AddActorErrorReason {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::AddActorErrorReason::*;
         match self {
-            SystemShutdown => f.pad("actor system shutdown"),
+            SystemShutdown => f.pad(ERR_SYSTEM_SHUTDOWN),
             RegisterFailed(ref err) => err.fmt(f),
         }
     }
@@ -146,7 +158,7 @@ impl fmt::Display for SendErrorReason {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             SendErrorReason::ActorShutdown => f.pad("actor shutdown"),
-            SendErrorReason::SystemShutdown=> f.pad("actor system shutdown"),
+            SendErrorReason::SystemShutdown=> f.pad(ERR_SYSTEM_SHUTDOWN),
         }
     }
 }
