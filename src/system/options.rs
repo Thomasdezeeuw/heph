@@ -28,6 +28,7 @@ pub use system::scheduler::Priority;
 ///     .. Default::default()
 /// };
 /// ```
+#[derive(Clone)]
 pub struct ActorOptions {
     /// Scheduling priority.
     pub priority: Priority,
