@@ -16,7 +16,7 @@ pub use self::priority::Priority;
 /// all scheduled processes.
 pub struct Scheduler {
     /// Active, scheduled processes.
-    queue: Vec<ProcessPtr>,
+    active: Vec<ProcessPtr>,
     /// Inactive processes.
     inactive: HashMap<ProcessId, ProcessPtr>,
 }
@@ -25,7 +25,7 @@ impl Scheduler {
     /// Create a new scheduler.
     pub fn new() -> Scheduler {
         Scheduler {
-            queue: Vec::new(),
+            active: Vec::new(),
             inactive: HashMap::new(),
         }
     }
@@ -55,7 +55,7 @@ impl Scheduler {
         if let Some(process) = process {
             debug_assert_eq!(process.id(), pid, "process has different pid then expected");
             // TODO: take priority of the process into account.
-            self.queue.push(process);
+            self.active.push(process);
             Ok(())
         } else {
             Err(ScheduleError)
@@ -68,7 +68,7 @@ impl Scheduler {
     pub fn run(&mut self, system_ref: &mut ActorSystemRef) {
         debug!("running scheduled processes");
         loop {
-            match self.queue.pop() {
+            match self.active.pop() {
                 Some(mut process) => match process.run(system_ref) {
                     ProcessCompletion::Complete => drop(process),
                     ProcessCompletion::Pending => self.add_inactive(process),
@@ -82,7 +82,7 @@ impl Scheduler {
 impl fmt::Debug for Scheduler {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("Scheduler")
-            .field("queue (length)", &self.queue.len())
+            .field("active (length)", &self.active.len())
             .field("inactive (length)", &self.inactive.len())
             .finish()
     }
