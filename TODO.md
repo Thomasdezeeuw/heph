@@ -44,6 +44,10 @@ the generated error to a supervisor.
 
 Create multiple process, see `f-test`.
 
+## (Possible) optimisations
+
+Consider using `repr(transparent)`.
+
 ## Timers
 
 `mio-st` has timers, expose them somehow. Likely via a future.
@@ -55,6 +59,10 @@ Enable Travis.
 ## Mutation testing
 
 Use https://github.com/llogiq/mutagen for mutation testing.
+
+## Traces
+
+Add a way to create traces on the running system to gain insight into it.
 
 
 # Ideas
