@@ -60,7 +60,7 @@ impl ActorSystem {
     /// the [`NoInitiator`] helper can be used.
     ///
     /// [`NoInitiator`]: ../initiator/struct.NoInitiator.html
-    pub fn run<I>(&mut self, initiators: &mut [I]) -> io::Result<()>
+    pub fn run<I>(self, initiators: &mut [I]) -> io::Result<()>
         where I: Initiator,
     {
         let system_ref = self.create_ref();
