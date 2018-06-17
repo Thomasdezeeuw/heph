@@ -3,7 +3,7 @@
 use std::{fmt, io};
 use std::error::Error;
 
-const ERR_SYSTEM_SHUTDOWN: &str = "actor system shutdown";
+pub(super) const ERR_SYSTEM_SHUTDOWN: &str = "actor system shutdown";
 
 /// Error when adding actors to the `ActorSystem`.
 ///

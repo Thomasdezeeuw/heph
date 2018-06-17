@@ -6,8 +6,8 @@ use std::rc::{Rc, Weak};
 use std::time::Duration;
 
 use futures_core::task::{Context, LocalMap, Waker};
-use mio_st::event::Events;
-use mio_st::poll::Poll;
+use mio_st::event::{Events, Evented, EventedId, Ready};
+use mio_st::poll::{Poll, PollOpt};
 
 use actor::Actor;
 use initiator::Initiator;
@@ -27,7 +27,7 @@ pub use self::options::ActorOptions;
 use self::actor_process::ActorProcess;
 use self::scheduler::Scheduler;
 use self::process::ProcessIdGenerator;
-use self::error::{AddActorError, AddActorErrorReason};
+use self::error::{AddActorError, AddActorErrorReason, ERR_SYSTEM_SHUTDOWN};
 
 /// The system that runs all actors.
 #[derive(Debug)]
@@ -95,6 +95,34 @@ impl ActorSystemRef {
         match self.inner.upgrade() {
             Some(r) => r.borrow_mut().add_actor(actor, options),
             None => Err(AddActorError::new(actor, AddActorErrorReason::SystemShutdown)),
+        }
+    }
+
+    pub(crate) fn poll_register<E>(&mut self, handle: &mut E, id: EventedId, interests: Ready, opt: PollOpt) -> io::Result<()>
+        where E: Evented + ?Sized
+    {
+        match self.inner.upgrade() {
+            Some(r) => r.borrow_mut().poll.register(handle, id, interests, opt),
+            None => Err(io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN)),
+        }
+    }
+
+    pub(crate) fn poll_reregister<E>(&mut self, handle: &mut E, id: EventedId, interests: Ready, opt: PollOpt) -> io::Result<()>
+        where E: Evented + ?Sized
+    {
+        match self.inner.upgrade() {
+            Some(r) => r.borrow_mut().poll.reregister(handle, id, interests, opt),
+            None => Err(io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN)),
+        }
+    }
+
+    pub(crate) fn poll_deregister<E>(&mut self, handle: &mut E) -> io::Result<()>
+    where
+        E: Evented + ?Sized,
+    {
+        match self.inner.upgrade() {
+            Some(r) => r.borrow_mut().poll.deregister(handle),
+            None => Err(io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN)),
         }
     }
 
