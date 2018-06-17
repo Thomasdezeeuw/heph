@@ -1,4 +1,4 @@
-//! The module with the [`Initiator`] trait definition.
+//! The module with the `Initiator` trait definition.
 
 use std::io;
 

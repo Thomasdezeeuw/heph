@@ -1,4 +1,4 @@
-//! The module with the [`Actor`] and [`NewActor`] trait definitions.
+//! The module with the `Actor` and `NewActor` trait definitions.
 //!
 //! All actors must implement the [`Actor`] trait, which defines how an actor
 //! handles messages. The easiest way to implement this trait is to use the

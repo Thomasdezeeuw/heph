@@ -1,6 +1,6 @@
-//! Module with the [`Supervisor`] trait definition.
+//! Module with the `Supervisor` trait definition.
 //!
-//! A `Supervisor` supervises one or more actors, hence the name. It is
+//! A [`Supervisor`] supervises one or more actors, hence the name. It is
 //! responsible for determining what to do next if an [`Actor`] encountered an
 //! error. Currently there are two [strategies] to deal with errors; restart the
 //! actor to deal with the remaining messages, or stop the actor and drop the
