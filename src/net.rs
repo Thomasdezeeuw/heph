@@ -86,9 +86,8 @@ impl<N, A> Initiator for TcpListener<N>
 
             // Create our actor and add it the system.
             let actor = self.new_actor.new((stream, addr));
-            match system_ref.add_actor_pid(actor, self.options.clone(), pid) {
-                Ok(_) => { /* Continue. */ },
-                Err(err) => return Err(err.into()),
+            if let Err(err) = system_ref.add_actor_pid(actor, self.options.clone(), pid) {
+                return Err(err.into());
             }
         }
     }
