@@ -8,7 +8,7 @@ use std::io;
 
 use actor::actor::{Actor, actor_factory};
 use actor::net::{TcpListener, TcpStream};
-use actor::system::{ActorSystemBuilder, ActorOptions};
+use actor::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
 use futures_core::{Future, Async, Poll};
 use futures_core::task::Context;
 use futures_io::{AsyncRead, AsyncWrite};
@@ -93,8 +93,11 @@ fn main() {
 
     // Create a new actor system, which will run the actor. We'll just use the
     // default options for the system.
-    let actor_system = ActorSystemBuilder::default().build()
+    let mut actor_system = ActorSystemBuilder::default().build()
         .expect("unable to build the actor system");
+
+    actor_system.add_initiator(listener, InitiatorOptions::default())
+        .expect("unable to add listener to actor system");
 
     // Run our actor system with out TCP listener as initiator.
     //

@@ -48,6 +48,23 @@ impl ActorSystem {
         self.inner.borrow_mut().add_actor(actor, options)
     }
 
+    /// Add a new initiator to the system.
+    // TODO: remove `'static` lifetime.
+    pub fn add_initiator<I>(&mut self, mut initiator: I, options: InitiatorOptions) -> Result<(), AddInitiatorError<I>>
+        where I: Initiator + 'static,
+    {
+        // Initialise the initiator.
+        let mut system_ref = self.create_ref();
+        if let Err(err) = initiator.init(&mut system_ref) {
+            return Err(AddInitiatorError {
+                initiator: initiator,
+                reason: AddInitiatorErrorReason::InitFailed(err),
+            });
+        }
+
+        self.inner.borrow_mut().add_initiator(initiator, options)
+    }
+
     /// Create a new reference to this actor system.
     pub fn create_ref(&self) -> ActorSystemRef {
         ActorSystemRef {
@@ -211,6 +228,21 @@ impl ActorSystemInner {
         self.scheduler.add_process(process);
 
         Ok(actor_ref)
+    }
+
+    fn add_initiator<I>(&mut self, initiator: I, _options: InitiatorOptions) -> Result<(), AddInitiatorError<I>>
+        where I: Initiator + 'static,
+    {
+        let pid = self.pid_gen.next();
+        debug!("adding initiator to actor system: pid={}", pid);
+
+        // Create a process for it.
+        let process = Box::new(InitiatorProcess::new(pid, initiator));
+
+        // And add it to the scheduler.
+        self.scheduler.add_process(process);
+        self.has_initiators = true;
+        Ok(())
     }
 
     /// Get the next unique `ProcessId`.
