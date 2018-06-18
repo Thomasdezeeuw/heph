@@ -13,3 +13,11 @@ system.
 
 The code can be found in `1_hello_world.rs` and run with `cargo run --example
 1_hello_world`, and it should print "Hello World".
+
+## Echo server
+
+The next actor will be a bit more complex; an echo server written using TCP.
+
+The code can be found in `2_tcp_server.rs` and run with `cargo run --example
+2_tcp_server`, running something like `echo "Hello world" | nc -v localhost
+8080` should then echo back (print) "Hello world".

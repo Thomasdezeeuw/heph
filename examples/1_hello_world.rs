@@ -4,8 +4,8 @@ extern crate futures_core;
 use actor::actor::Actor;
 use actor::initiator::NoInitiator;
 use actor::system::{ActorSystemBuilder, ActorOptions};
-use futures_core::task::Context;
 use futures_core::{Future, Async, Poll};
+use futures_core::task::Context;
 
 // Our actor that will greet people and/or things.
 #[derive(Debug)]
