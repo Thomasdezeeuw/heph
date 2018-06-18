@@ -248,16 +248,28 @@ impl fmt::Display for SendErrorReason {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum RuntimeError {
+    /// Error polling system poller.
+    Poll(io::Error),
 }
 
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.pad(self.description())
+        use self::RuntimeError::*;
+        match self {
+            Poll(ref err) => write!(f, "{}: {}", self.description(), err),
+        }
     }
 }
 
 impl Error for RuntimeError {
     fn description(&self) -> &str {
         "error running actor system"
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        use self::RuntimeError::*;
+        match self {
+            Poll(ref err) => Some(err),
+        }
     }
 }
