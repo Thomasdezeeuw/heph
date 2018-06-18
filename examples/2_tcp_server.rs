@@ -1,6 +1,7 @@
 #![feature(never_type)]
 
 extern crate actor;
+extern crate env_logger;
 extern crate futures_core;
 extern crate futures_io;
 
@@ -81,6 +82,9 @@ impl Actor for EchoActor {
 
 // Now our actor is ready lets put it to work.
 fn main() {
+    // Enable logging via the `RUST_LOG` environment variable.
+    env_logger::init();
+
     // Create a new actor factory, that implements the `NewActor` trait.
     let actor_factory = actor_factory(|(stream, _adress)| EchoActor { stream, buffer: vec![0; 1024] });
 

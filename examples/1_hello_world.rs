@@ -1,4 +1,5 @@
 extern crate actor;
+extern crate env_logger;
 extern crate futures_core;
 
 use actor::actor::Actor;
@@ -43,6 +44,9 @@ impl Actor for GreetingActor {
 
 // Now our actor is ready lets put it to work.
 fn main() {
+    // Enable logging via the `RUST_LOG` environment variable.
+    env_logger::init();
+
     // Create our actor.
     let actor = GreetingActor { message: "Hello" };
 
