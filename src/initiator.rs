@@ -4,9 +4,6 @@ use std::io;
 
 use system::ActorSystemRef;
 
-// TODO: Implement Initiator for TcpListener:
-// To create it it will take a `NewActor<Item = TcpStream>`. It calls `accept`
-// and will create a new actor for the connection and add it to the system.
 // TODO: maybe let Initator return a specialised error, other then `io::Error`?
 // E.g. `RuntimeError`.
 
