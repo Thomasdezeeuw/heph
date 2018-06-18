@@ -98,6 +98,16 @@ impl ActorSystemRef {
         }
     }
 
+    /// Get a new process id also to be used as `EventedId`.
+    ///
+    /// For example used in `add_actor_pid` or in registering a TCP listener.
+    pub(crate) fn get_new_pid(&mut self) -> ProcessId {
+        // TODO: return `Result` here.
+        let r = self.inner.upgrade().unwrap();
+        let mut inner = r.borrow_mut();
+        inner.pid_gen.next()
+    }
+
     pub(crate) fn poll_register<E>(&mut self, handle: &mut E, id: EventedId, interests: Ready, opt: PollOpt) -> io::Result<()>
         where E: Evented + ?Sized
     {
