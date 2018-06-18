@@ -120,6 +120,7 @@ impl ActorSystemRef {
         inner.pid_gen.next()
     }
 
+    /// Register an `Evented` handle, see `Poll.register`.
     pub(crate) fn poll_register<E>(&mut self, handle: &mut E, id: EventedId, interests: Ready, opt: PollOpt) -> io::Result<()>
         where E: Evented + ?Sized
     {
@@ -129,15 +130,7 @@ impl ActorSystemRef {
         }
     }
 
-    pub(crate) fn poll_reregister<E>(&mut self, handle: &mut E, id: EventedId, interests: Ready, opt: PollOpt) -> io::Result<()>
-        where E: Evented + ?Sized
-    {
-        match self.inner.upgrade() {
-            Some(r) => r.borrow_mut().poll.reregister(handle, id, interests, opt),
-            None => Err(io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN)),
-        }
-    }
-
+    /// Deregister an `Evented` handle, see `Poll.deregister`.
     pub(crate) fn poll_deregister<E>(&mut self, handle: &mut E) -> io::Result<()>
     where
         E: Evented + ?Sized,
