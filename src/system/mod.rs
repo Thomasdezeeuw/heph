@@ -26,7 +26,7 @@ pub use self::options::ActorOptions;
 
 use self::actor_process::ActorProcess;
 use self::scheduler::Scheduler;
-use self::process::ProcessIdGenerator;
+use self::process::{ProcessId, ProcessIdGenerator};
 use self::error::{AddActorError, AddActorErrorReason, ERR_SYSTEM_SHUTDOWN};
 
 /// The system that runs all actors.
@@ -94,6 +94,18 @@ impl ActorSystemRef {
     {
         match self.inner.upgrade() {
             Some(r) => r.borrow_mut().add_actor(actor, options),
+            None => Err(AddActorError::new(actor, AddActorErrorReason::SystemShutdown)),
+        }
+    }
+
+    /// Same as `add_actor` but used the provided `pid` as process id.
+    ///
+    /// Th
+    pub(crate) fn add_actor_pid<A>(&mut self, actor: A, options: ActorOptions, pid: ProcessId) -> Result<ActorRef<A>, AddActorError<A>>
+        where A: Actor + 'static,
+    {
+        match self.inner.upgrade() {
+            Some(r) => r.borrow_mut().add_actor_pid(actor, options, pid),
             None => Err(AddActorError::new(actor, AddActorErrorReason::SystemShutdown)),
         }
     }
@@ -166,9 +178,15 @@ impl ActorSystemInner {
     pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A>, AddActorError<A>>
         where A: Actor + 'static,
     {
-        // Create a new actor process.
         let pid = self.pid_gen.next();
+        self.add_actor_pid(actor, options, pid)
+    }
+
+    pub fn add_actor_pid<A>(&mut self, actor: A, options: ActorOptions, pid: ProcessId) -> Result<ActorRef<A>, AddActorError<A>>
+        where A: Actor + 'static,
+    {
         debug!("adding actor with pid={} to actor system", pid);
+        // Create a new actor process.
         let process = ActorProcess::new(pid, actor, options, &mut self.poll)
             .map_err(|(actor, err)| AddActorError::new(actor, AddActorErrorReason::RegisterFailed(err)))?;
 
