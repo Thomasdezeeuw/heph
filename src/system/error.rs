@@ -97,6 +97,87 @@ impl fmt::Display for AddActorErrorReason {
     }
 }
 
+/// Error when adding initiators to the `ActorSystem`.
+///
+/// # Notes
+///
+/// When printing this error (using the `Display` implementation) the initator will
+/// not be printed.
+///
+/// # Examples
+///
+/// Printing the error doesn't print the actor.
+///
+/// ```
+/// use std::io;
+///
+/// use actor::system::error::{AddInitiatorError, AddInitiatorErrorReason};
+///
+/// let error = AddInitiatorError {
+///     // Initiator will be ignored in printing the error.
+///     initiator: (),
+///     reason: AddInitiatorErrorReason::InitFailed(io::Error::new(io::ErrorKind::Other, "other error")),
+/// };
+///
+/// assert_eq!(error.to_string(), "unable to add initiator: other error");
+/// ```
+#[derive(Debug)]
+pub struct AddInitiatorError<I> {
+    /// The initiator that failed to be added to the system.
+    pub initiator: I,
+    /// The reason why the adding failed.
+    pub reason: AddInitiatorErrorReason,
+}
+
+impl<A> AddInitiatorError<A> {
+    /// Description for the error.
+    const DESC: &'static str = "unable to add initiator";
+}
+
+impl<A> Into<io::Error> for AddInitiatorError<A> {
+    fn into(self) -> io::Error {
+        use self::AddInitiatorErrorReason ::*;
+        match self.reason {
+            InitFailed(err) => err,
+        }
+    }
+}
+
+impl<A> fmt::Display for AddInitiatorError<A> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}: {}", AddInitiatorError::<()>::DESC, &self.reason)
+    }
+}
+
+impl<A: fmt::Debug> Error for AddInitiatorError<A> {
+    fn description(&self) -> &str {
+        AddInitiatorError::<()>::DESC
+    }
+
+    fn cause(&self) -> Option<&Error> {
+        match self.reason {
+            AddInitiatorErrorReason::InitFailed(ref err) => Some(err),
+        }
+    }
+}
+
+/// The reason why adding an initiator failed.
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum AddInitiatorErrorReason {
+    /// The initialisation of the initiator failed.
+    InitFailed(io::Error),
+}
+
+impl fmt::Display for AddInitiatorErrorReason  {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::AddInitiatorErrorReason ::*;
+        match self {
+            InitFailed(ref err) => err.fmt(f),
+        }
+    }
+}
+
 /// Error when sending messages goes wrong.
 ///
 /// # Notes
