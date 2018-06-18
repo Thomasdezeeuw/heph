@@ -54,3 +54,39 @@ impl fmt::Debug for ActorOptions {
             .finish()
     }
 }
+
+/// Options for adding an [`Initiator`] to the [`ActorSystem`].
+///
+/// [`ActorSystem`]: ../struct.ActorSystem.html
+/// [`Initiator`]: ../initiator/trait.Initiator.html
+///
+/// # Examples
+///
+/// Using the default options.
+///
+/// ```
+/// use actor::system::InitiatorOptions;
+///
+/// let opts = InitiatorOptions::default();
+/// ```
+pub struct InitiatorOptions {
+    /// Reserved for future expansion. Use the `Default` implementation to set
+    /// this field, see example in struct documentation.
+    #[doc(hidden)]
+    pub __private: (),
+}
+
+impl Default for InitiatorOptions {
+    fn default() -> InitiatorOptions {
+        InitiatorOptions  {
+            __private: (),
+        }
+    }
+}
+
+impl fmt::Debug for InitiatorOptions {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("InitiatorOptions")
+            .finish()
+    }
+}

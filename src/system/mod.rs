@@ -22,7 +22,7 @@ pub mod options;
 
 pub use self::actor_process::ActorRef;
 pub use self::builder::ActorSystemBuilder;
-pub use self::options::ActorOptions;
+pub use self::options::{ActorOptions, InitiatorOptions};
 
 use self::actor_process::ActorProcess;
 use self::scheduler::Scheduler;
