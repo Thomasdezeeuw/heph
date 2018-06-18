@@ -6,7 +6,6 @@ use std::ops::AddAssign;
 use std::rc::Rc;
 
 use actor::actor::{Actor, actor_fn};
-use actor::initiator::NoInitiator;
 use actor::system::{ActorSystemBuilder, ActorOptions};
 use futures_core::task::Context;
 use futures_core::{Future, Async, Poll};
@@ -29,7 +28,7 @@ fn no_initiator_single_message_before_run() {
 
         actor_ref.send(1usize).expect("failed to send to actor");
 
-        actor_system.run::<NoInitiator>(&mut [])
+        actor_system.run()
             .expect("unable to run actor system");
     }
     assert_eq!(*actor_value.borrow(), 1, "actor didn't receive message");
@@ -55,7 +54,7 @@ fn no_initiator_multiple_messages_before_run() {
         actor_ref.send(2usize).expect("failed to send to actor");
         actor_ref.send(4usize).expect("failed to send to actor");
 
-        actor_system.run::<NoInitiator>(&mut [])
+        actor_system.run()
             .expect("unable to run actor system");
     }
     assert_eq!(*actor_value.borrow(), 7, "actor didn't receive message");
@@ -90,7 +89,7 @@ fn no_initiator_run() {
         actor2_ref.send(2usize).expect("failed to send to actor");
         actor2_ref.send(4usize).expect("failed to send to actor");
 
-        actor_system.run::<NoInitiator>(&mut [])
+        actor_system.run()
             .expect("unable to run actor system");
     }
     assert_eq!(*actor1_value.borrow(), 10, "actor1 didn't receive message");
@@ -170,6 +169,6 @@ fn simple_actor_lifetime_test() {
     // Next message shouldn't arrive.
     actor_ref.send(()).expect("failed to send to actor");
 
-    actor_system.run::<NoInitiator>(&mut [])
+    actor_system.run()
         .expect("unable to run actor system");
 }

@@ -26,6 +26,7 @@ impl ActorSystemBuilder {
             self.n_processes);
         let inner = ActorSystemInner {
             scheduler: Scheduler::new(),
+            has_initiators: false,
             pid_gen: ProcessIdGenerator::new(),
             poll: Poll::new()?,
         };

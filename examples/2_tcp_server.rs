@@ -99,6 +99,5 @@ fn main() {
     // Run our actor system with out TCP listener as initiator.
     //
     // This will block for ever, or until the processes is stopped.
-    actor_system.run(&mut [listener])
-        .expect("unable to run actor system");
+    actor_system.run().expect("unable to run actor system");
 }

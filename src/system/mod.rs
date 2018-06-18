@@ -26,9 +26,10 @@ pub use self::builder::ActorSystemBuilder;
 pub use self::options::{ActorOptions, InitiatorOptions};
 
 use self::actor_process::ActorProcess;
-use self::scheduler::Scheduler;
+use self::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};
+use self::initiator_process::InitiatorProcess;
 use self::process::{ProcessId, ProcessIdGenerator};
-use self::error::{AddActorError, AddActorErrorReason, ERR_SYSTEM_SHUTDOWN};
+use self::scheduler::Scheduler;
 
 /// The system that runs all actors.
 #[derive(Debug)]
@@ -40,7 +41,6 @@ pub struct ActorSystem {
 
 impl ActorSystem {
     /// Add a new actor to the system.
-    // TODO: keep this in sync with `ActorSystemRef.add_actor`.
     // TODO: remove `'static` lifetime.
     pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A>, AddActorError<A>>
         where A: Actor + 'static,
@@ -61,11 +61,26 @@ impl ActorSystem {
     /// the [`NoInitiator`] helper can be used.
     ///
     /// [`NoInitiator`]: ../initiator/struct.NoInitiator.html
-    pub fn run<I>(self, initiators: &mut [I]) -> io::Result<()>
-        where I: Initiator,
-    {
-        let system_ref = self.create_ref();
-        self.inner.borrow_mut().run(initiators, system_ref)
+    pub fn run(self) -> Result<(), RuntimeError> {
+        let mut system_ref = self.create_ref();
+        debug!("running actor system");
+
+        loop {
+            debug!("polling system poll for events");
+            let n_events = self.inner.borrow_mut().poll()
+                .map_err(|err| RuntimeError::Poll(err))?;
+
+            // Allow the system to be run without any initiators. In that case
+            // we will only handle user space events (e.g. sending messages) and
+            // will return after those are all handled.
+            if !self.inner.borrow().has_initiators && n_events == 0 {
+                debug!("no events, no initiators stopping actor system");
+                return Ok(())
+            }
+
+            // Run all scheduled processes.
+            self.inner.borrow_mut().scheduler.run(&mut system_ref);
+        }
     }
 }
 
@@ -114,11 +129,11 @@ impl ActorSystemRef {
     /// Get a new process id also to be used as `EventedId`.
     ///
     /// For example used in `add_actor_pid` or in registering a TCP listener.
-    pub(crate) fn get_new_pid(&mut self) -> ProcessId {
+    pub(crate) fn next_pid(&mut self) -> ProcessId {
         // TODO: return `Result` here.
         let r = self.inner.upgrade().unwrap();
         let mut inner = r.borrow_mut();
-        inner.pid_gen.next()
+        inner.next_pid()
     }
 
     /// Register an `Evented` handle, see `Poll.register`.
@@ -162,6 +177,10 @@ impl Clone for ActorSystemRef {
 struct ActorSystemInner {
     /// Scheduler that hold the processes, schedules and runs them.
     scheduler: Scheduler,
+    /// Whether or not the system has initiators, this is used to allow the
+    /// system to run without them. Otherwise we would poll with no timeout,
+    /// waiting for ever.
+    has_initiators: bool,
     /// A generator for unique process ids.
     pid_gen: ProcessIdGenerator,
     /// System poller, used for event notifications to support non-block I/O.
@@ -179,7 +198,7 @@ impl ActorSystemInner {
     fn add_actor_pid<A>(&mut self, actor: A, options: ActorOptions, pid: ProcessId) -> Result<ActorRef<A>, AddActorError<A>>
         where A: Actor + 'static,
     {
-        debug!("adding actor with pid={} to actor system", pid);
+        debug!("adding actor to actor system: pid={}", pid);
         // Create a new actor process.
         let process = ActorProcess::new(pid, actor, options, &mut self.poll)
             .map_err(|(actor, err)| AddActorError::new(actor, AddActorErrorReason::RegisterFailed(err)))?;
@@ -194,43 +213,38 @@ impl ActorSystemInner {
         Ok(actor_ref)
     }
 
-    pub fn run<I>(&mut self, initiators: &mut [I], mut system_ref: ActorSystemRef) -> io::Result<()>
-        where I: Initiator,
-    {
-        // TODO: return RuntimeError.
+    /// Get the next unique `ProcessId`.
+    pub(crate) fn next_pid(&mut self) -> ProcessId {
+        self.pid_gen.next()
+    }
 
-        // Timeout for polling. None if there are any initiators, or 0 ms in
-        // case of no initiators so only user space events are handled and
-        // stopped otherwise.
-        let timeout = if initiators.is_empty() {
-            debug!("actor system running without initiators, thus 0ms timeout");
-            Some(Duration::from_millis(0))
-        } else {
-            debug!("actor system running with initiators, thus with no timeout");
-            None
-        };
-
+    /// Poll the system poll and schedule the notified processes, returns the
+    /// number of processes scheduled.
+    fn poll(&mut self) -> io::Result<usize> {
         let mut events = Events::new();
 
-        loop {
-            self.poll.poll(&mut events, timeout)?;
+        // In case of no initiators only user space events are handled and the
+        // system is stopped otherwise.
+        let timeout = if self.has_initiators {
+            None
+        } else {
+            Some(Duration::from_millis(0))
+        };
 
-            // Allow the system to be run without any initiators. In that case
-            // we will only handle user space events (e.g. sending messages) and
-            // will return after those are all handled.
-            if initiators.is_empty() && events.is_empty() {
-                return Ok(())
+        self.poll.poll(&mut events, timeout)?;
+
+        // Schedule any processes that we're notified off.
+        let n_scheduled = (&mut events).fold(0, |acc, event| {
+            let pid = event.id().into();
+            // TODO: handle this error
+            if let Err(_) = self.scheduler.schedule(pid) {
+                error!("unable to schedule process: pid={}", pid);
+                acc
+            } else {
+                acc + 1
             }
+        });
 
-            // Schedule any processes that we're notified off.
-            for event in &mut events {
-                let pid = event.id().into();
-                // TODO: handle this error
-                let _ = self.scheduler.schedule(pid);
-            }
-
-            // Run all scheduled processes.
-            self.scheduler.run(&mut system_ref);
-        }
+        Ok(n_scheduled)
     }
 }

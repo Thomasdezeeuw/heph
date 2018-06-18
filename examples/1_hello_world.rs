@@ -2,7 +2,6 @@ extern crate actor;
 extern crate futures_core;
 
 use actor::actor::Actor;
-use actor::initiator::NoInitiator;
 use actor::system::{ActorSystemBuilder, ActorOptions};
 use futures_core::{Future, Async, Poll};
 use futures_core::task::Context;
@@ -64,6 +63,5 @@ fn main() {
 
     // Run our actor system. This should cause "Hello World" to be printed and
     // then it should return.
-    actor_system.run::<NoInitiator>(&mut [])
-        .expect("unable to run actor system");
+    actor_system.run().expect("unable to run actor system");
 }

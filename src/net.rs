@@ -58,7 +58,9 @@ impl<N, A> Initiator for TcpListener<N>
     fn init(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()> {
         // Get a new process id, which we'll use as `EventedId` when
         // registering.
-        let pid = system_ref.get_new_pid();
+        // FIXME: this pid is never scheduled, as a new pid is used when adding
+        // this initiator to the scheduler.
+        let pid = system_ref.next_pid();
         system_ref.poll_register(&mut self.listener, pid.into(),
             Ready::READABLE, PollOpt::Edge)
     }
@@ -74,7 +76,7 @@ impl<N, A> Initiator for TcpListener<N>
             // Get a new process id and use it to register the stream and later
             // for add the actor to the system, this way the correct actor is
             // run when the connection is ready.
-            let pid = system_ref.get_new_pid();
+            let pid = system_ref.next_pid();
             system_ref.poll_register(&mut stream, pid.into(),
                 Ready::READABLE, PollOpt::Edge)?;
 
