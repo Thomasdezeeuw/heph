@@ -246,7 +246,8 @@ impl fmt::Display for SendErrorReason {
 
 /// Error returned by running an `ActorSystem`.
 #[derive(Debug)]
-pub struct RuntimeError {
+#[non_exhaustive]
+pub enum RuntimeError {
 }
 
 impl fmt::Display for RuntimeError {
