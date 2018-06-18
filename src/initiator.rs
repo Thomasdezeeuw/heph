@@ -27,38 +27,3 @@ pub trait Initiator {
     /// [`ActorSystemRef`]: ../system/struct.ActorSystemRef.html
     fn poll(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()>;
 }
-
-/// A helper struct to allow the actor system to be run without any initiators.
-///
-/// The `Initiator` implementation is effectively a no-op.
-///
-/// # Examples
-///
-/// Running the [`ActorSystem`] without initiators.
-///
-/// [`ActorSystem`]: ../system/struct.ActorSystem.html
-///
-/// ```
-/// use actor::initiator::NoInitiator;
-/// use actor::system::ActorSystemBuilder;
-///
-/// let mut actor_system = ActorSystemBuilder::default().build()
-///     .expect("failed to build actor system");
-///
-/// // Add actors etc.
-///
-/// actor_system.run::<NoInitiator>(&mut [])
-///     .expect("failed to run actor system");
-/// ```
-#[derive(Debug)]
-pub struct NoInitiator;
-
-impl Initiator for NoInitiator {
-    fn init(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
-        Ok(())
-    }
-
-    fn poll(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
-        Ok(())
-    }
-}
