@@ -20,7 +20,7 @@ pub trait Initiator {
     /// This will be called once when the actor system start running, by calling
     /// the [`ActorSystem.run`] method.
     ///
-    /// [`ActorSystem`]: ../system/struct.ActorSystem.html#method.run
+    /// [`ActorSystem.run`]: ../system/struct.ActorSystem.html#method.run
     fn init(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()>;
 
     /// Poll the `Initiator` for new events.
