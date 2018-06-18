@@ -13,6 +13,7 @@ use actor::Actor;
 use initiator::Initiator;
 
 mod actor_process;
+mod initiator_process;
 mod builder;
 mod process;
 mod scheduler;
