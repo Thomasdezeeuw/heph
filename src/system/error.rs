@@ -116,10 +116,10 @@ impl fmt::Display for AddActorErrorReason {
 /// let error = AddInitiatorError {
 ///     // Initiator will be ignored in printing the error.
 ///     initiator: (),
-///     reason: AddInitiatorErrorReason::InitFailed(io::Error::new(io::ErrorKind::Other, "other error")),
+///     reason: AddInitiatorErrorReason::InitFailed(io::ErrorKind::PermissionDenied.into()),
 /// };
 ///
-/// assert_eq!(error.to_string(), "unable to add initiator: other error");
+/// assert_eq!(error.to_string(), "unable to add initiator: permission denied");
 /// ```
 #[derive(Debug)]
 pub struct AddInitiatorError<I> {
