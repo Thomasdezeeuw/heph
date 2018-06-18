@@ -168,14 +168,14 @@ struct ActorSystemInner {
 }
 
 impl ActorSystemInner {
-    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A>, AddActorError<A>>
+    fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A>, AddActorError<A>>
         where A: Actor + 'static,
     {
         let pid = self.pid_gen.next();
         self.add_actor_pid(actor, options, pid)
     }
 
-    pub fn add_actor_pid<A>(&mut self, actor: A, options: ActorOptions, pid: ProcessId) -> Result<ActorRef<A>, AddActorError<A>>
+    fn add_actor_pid<A>(&mut self, actor: A, options: ActorOptions, pid: ProcessId) -> Result<ActorRef<A>, AddActorError<A>>
         where A: Actor + 'static,
     {
         debug!("adding actor with pid={} to actor system", pid);
