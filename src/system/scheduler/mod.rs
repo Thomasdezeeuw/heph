@@ -2,6 +2,7 @@
 
 use std::fmt;
 use std::collections::HashMap;
+use std::time::Instant;
 
 use system::ActorSystemRef;
 use system::process::{ProcessCompletion, ProcessId, ProcessPtr};
@@ -35,12 +36,12 @@ impl Scheduler {
     /// By default the process will be considered inactive and thus not
     /// scheduled. To schedule the process see `schedule`.
     pub fn add_process(&mut self, process: ProcessPtr) {
+        debug!("adding new process: pid={}", process.id());
         self.add_inactive(process);
     }
 
     /// Add the process to the inactive processes list.
     fn add_inactive(&mut self, process: ProcessPtr) {
-        debug!("adding new process with pid={}", process.id());
         if !self.inactive.insert(process.id(), process).is_none() {
             panic!("overwritten a process in inactive map");
         }
@@ -50,7 +51,7 @@ impl Scheduler {
     ///
     /// This marks a process as active and moves it the scheduled queue.
     pub fn schedule(&mut self, pid: ProcessId) -> Result<(), ScheduleError> {
-        debug!("scheduling process with pid={}", pid);
+        debug!("scheduling process: pid={}", pid);
         let process = self.inactive.remove(&pid);
         if let Some(process) = process {
             debug_assert_eq!(process.id(), pid, "process has different pid then expected");
@@ -69,9 +70,22 @@ impl Scheduler {
         debug!("running scheduled processes");
         loop {
             match self.active.pop() {
-                Some(mut process) => match process.run(system_ref) {
-                    ProcessCompletion::Complete => drop(process),
-                    ProcessCompletion::Pending => self.add_inactive(process),
+                Some(mut process) => {
+                    let pid = process.id();
+                    let start = Instant::now();
+                    trace!("running process: pid={}", pid);
+                    let res = process.run(system_ref);
+                    trace!("finished running process: pid={}, elapsed_time={:?}", pid, start.elapsed());
+                    match res {
+                        ProcessCompletion::Complete => {
+                            trace!("process complete, remote it: pid={}", pid);
+                            drop(process)
+                        },
+                        ProcessCompletion::Pending => {
+                            trace!("marking process as inactive: pid={}", pid);
+                            self.add_inactive(process)
+                        },
+                    }
                 },
                 None => return,
             }
