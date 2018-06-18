@@ -2,6 +2,22 @@
 
 Stuff left to do.
 
+ - TcpListener currently registers itself with a different id then the process
+   is created with, causing it to never be scheduled.
+ - Update to standard library's futures types.
+ - Create a new type `SupervisorRef` that can be used in `ActorOptions` to use
+   as supervisor, the supervisor itself must be added to the actor system.
+   Default value will be none, using the default supervisor (LogSupervisor).
+   Maybe remove NopSupervisor?
+ - Change Process type to only have a `run` method. Then create a new struct
+   ProcessData<P: Process> { priority: Priority, runtime: Duration, process: P },
+   which the Scheduler uses in `Box<ProcessData<dyn Process>>`. To at least
+   deduplicate the code.
+ - Initiator configuration: call init before or after fork?
+ - Use cpu core affinity after forking?
+ - For sending messages don't use `mio::Poll` notifications, just schedule the
+   process.
+
 ## Tests
 
 Most types should be `!Send`, make sure they are.
