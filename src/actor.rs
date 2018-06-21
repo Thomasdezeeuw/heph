@@ -245,7 +245,7 @@ impl<N, I> fmt::Debug for ActorFactory<N, I> {
 /// Create a new [`ActorFactory`].
 ///
 /// [`ActorFactory`]: struct.ActorFactory.html
-pub const fn actor_factory<'a, N, I, A>(new_actor: N) -> ActorFactory<N, I>
+pub const fn actor_factory<N, I, A>(new_actor: N) -> ActorFactory<N, I>
     where N: FnMut(I) -> A,
           A: Actor,
 {
