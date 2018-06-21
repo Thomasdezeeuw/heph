@@ -57,7 +57,7 @@ impl ActorSystem {
         let mut system_ref = self.create_ref();
         if let Err(err) = initiator.init(&mut system_ref) {
             return Err(AddInitiatorError {
-                initiator: initiator,
+                initiator,
                 reason: AddInitiatorErrorReason::InitFailed(err),
             });
         }
@@ -85,7 +85,7 @@ impl ActorSystem {
         loop {
             debug!("polling system poll for events");
             let n_events = self.inner.borrow_mut().poll()
-                .map_err(|err| RuntimeError::Poll(err))?;
+                .map_err(RuntimeError::Poll)?;
 
             // Allow the system to be run without any initiators. In that case
             // we will only handle user space events (e.g. sending messages) and

@@ -42,7 +42,7 @@ impl Scheduler {
 
     /// Add the process to the inactive processes list.
     fn add_inactive(&mut self, process: ProcessPtr) {
-        if !self.inactive.insert(process.id(), process).is_none() {
+        if self.inactive.insert(process.id(), process).is_some() {
             panic!("overwritten a process in inactive map");
         }
     }
