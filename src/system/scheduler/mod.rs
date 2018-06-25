@@ -5,11 +5,12 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 use system::ActorSystemRef;
-use system::process::{ProcessCompletion, ProcessId, ProcessPtr};
 
 mod priority;
+pub mod process;
 
 pub use self::priority::Priority;
+use self::process::{ProcessCompletion, ProcessId, ProcessPtr};
 
 /// The scheduler, responsible for scheduling and running processes.
 ///

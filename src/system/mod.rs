@@ -14,7 +14,6 @@ use initiator::Initiator;
 mod actor_process;
 mod initiator_process;
 mod builder;
-mod process;
 mod scheduler;
 
 pub mod error;
@@ -27,8 +26,10 @@ pub use self::options::{ActorOptions, InitiatorOptions};
 use self::actor_process::ActorProcess;
 use self::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};
 use self::initiator_process::InitiatorProcess;
-use self::process::{ProcessId, ProcessIdGenerator};
 use self::scheduler::Scheduler;
+use self::scheduler::process::{ProcessId, ProcessIdGenerator};
+
+pub use self::scheduler::process;
 
 /// The system that runs all actors.
 #[derive(Debug)]
