@@ -72,11 +72,6 @@ impl ActorSystem {
     }
 
     /// Run the actor system.
-    ///
-    /// The provided `initiators` are optional, if no initiators are required
-    /// the [`NoInitiator`] helper can be used.
-    ///
-    /// [`NoInitiator`]: ../initiator/struct.NoInitiator.html
     pub fn run(self) -> Result<(), RuntimeError> {
         let mut system_ref = self.create_ref();
         debug!("running actor system");
