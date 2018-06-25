@@ -1,33 +1,13 @@
 //! Module with utilities for testing.
 
-use std::sync::Arc;
+use std::task::Poll;
 
-use actor::actor::Actor;
-use futures_core::task::{Context, LocalMap, Waker, Wake};
-use futures_core::{Future, Async, Poll};
-
-/// Simple `Waker` implementation that does nothing.
-struct NopWaker;
-
-impl Wake for NopWaker {
-    fn wake(_: &Arc<Self>) { }
-}
+use actor::actor::{Actor, ActorContext, ActorResult, Status};
 
 /// Quickly call `handle` on the actor with the provided `msg`.
-pub fn quick_handle<A: Actor>(actor: &mut A, msg: A::Message) -> Poll<(), A::Error> {
-    let mut map = LocalMap::new();
-    let mut waker = Waker::from(Arc::new(NopWaker));
-    let mut ctx = Context::without_spawn(&mut map, &mut waker);
+pub fn quick_handle<A: Actor>(actor: &mut A, msg: A::Message) -> ActorResult<A::Error> {
+    let mut ctx = ActorContext{};
     actor.handle(&mut ctx, msg)
-}
-
-/// Quickly poll the `future`, with an empty map, no-op waker and without a
-/// spawner.
-pub fn quick_poll<F: Future>(future: &mut F) -> Poll<F::Item, F::Error> {
-    let mut map = LocalMap::new();
-    let mut waker = Waker::from(Arc::new(NopWaker));
-    let mut ctx = Context::without_spawn(&mut map, &mut waker);
-    future.poll(&mut ctx)
 }
 
 /// Simple testing actor.
@@ -51,18 +31,16 @@ impl TestActor {
 /// Increase the internal value of an `TestActor`.
 pub struct TestMessage(pub usize);
 
-impl Future for TestActor {
-    type Item = ();
-    type Error = ();
-    fn poll(&mut self, _: &mut Context) -> Poll<Self::Item, Self::Error> {
-        Ok(Async::Ready(()))
-    }
-}
-
 impl Actor for TestActor {
     type Message = TestMessage;
-    fn handle(&mut self, _: &mut Context, msg: Self::Message) -> Poll<(), Self::Error> {
+    type Error = ();
+
+    fn handle(&mut self, _: &mut ActorContext, msg: Self::Message) -> ActorResult<Self::Error> {
         self.value += msg.0;
-        Ok(Async::Ready(()))
+        Poll::Ready(Ok(Status::Ready))
+    }
+
+    fn poll(&mut self, _: &mut ActorContext) -> ActorResult<Self::Error> {
+        Poll::Ready(Ok(Status::Ready))
     }
 }

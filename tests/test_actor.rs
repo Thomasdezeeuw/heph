@@ -1,28 +1,28 @@
 //! Tests for the `actor` module.
 
-use actor::actor::{NewActor, actor_fn, actor_factory, reusable_actor_factory};
-use futures_core::Async;
+use std::task::Poll;
 
-use util::{TestActor, TestMessage, quick_handle, quick_poll};
+use actor::actor::{NewActor, Status, actor_fn, actor_factory, reusable_actor_factory};
+
+use util::{TestActor, TestMessage, quick_handle};
 
 #[test]
 fn test_actor_fn() {
     let mut actor_value = 0;
     {
         let mut returned_ok = false;
-        let mut actor = actor_fn(|value: usize| {
+        let mut actor = actor_fn(|_, value: usize| {
             actor_value += value;
             if !returned_ok {
                 returned_ok = true;
-                Ok(())
+                Ok(Status::Ready)
             } else {
                 Err(())
             }
         });
 
-        assert_eq!(quick_handle(&mut actor, 1), Ok(Async::Ready(())));
-        assert_eq!(quick_handle(&mut actor, 10), Err(()));
-        assert_eq!(quick_poll(&mut actor), Ok(Async::Ready(())));
+        assert_eq!(quick_handle(&mut actor, 1), Poll::Ready(Ok(Status::Ready)));
+        assert_eq!(quick_handle(&mut actor, 10), Poll::Ready(Err(())));
     }
     assert_eq!(actor_value, 11);
 }
@@ -37,10 +37,10 @@ fn test_actor_factory() {
         });
 
         let mut actor = factory.new(());
-        assert_eq!(quick_handle(&mut actor, TestMessage(2)), Ok(Async::Ready(())));
+        assert_eq!(quick_handle(&mut actor, TestMessage(2)), Poll::Ready(Ok(Status::Ready)));
 
         factory.reuse(&mut actor, ());
-        assert_eq!(quick_handle(&mut actor, TestMessage(4)), Ok(Async::Ready(())));
+        assert_eq!(quick_handle(&mut actor, TestMessage(4)), Poll::Ready(Ok(Status::Ready)));
         actor
     };
 
@@ -60,10 +60,10 @@ fn test_actor_reuse_factory() {
 
 
         let mut actor = factory.new(());
-        assert_eq!(quick_handle(&mut actor, TestMessage(2)), Ok(Async::Ready(())));
+        assert_eq!(quick_handle(&mut actor, TestMessage(2)), Poll::Ready(Ok(Status::Ready)));
 
         factory.reuse(&mut actor, ());
-        assert_eq!(quick_handle(&mut actor, TestMessage(4)), Ok(Async::Ready(())));
+        assert_eq!(quick_handle(&mut actor, TestMessage(4)), Poll::Ready(Ok(Status::Ready)));
         actor
     };
 
