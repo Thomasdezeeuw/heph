@@ -73,26 +73,23 @@ pub trait Supervisor<E, A> {
 ///
 /// ```
 /// # extern crate actor;
-/// # extern crate futures_core;
 /// # use std::{fmt, io};
-/// # use actor::actor::Actor;
+/// # use actor::actor::{Actor, ActorContext, ActorResult};
 /// # use actor::supervisor::Supervisor;
-/// # use futures_core::{Future, Poll};
-/// # use futures_core::task::Context;
 /// use actor::supervisor::{LogSupervisor, RestartStrategy};
 ///
 /// // Our actor that implements the `Actor` trait.
 /// struct MyActor;
 ///
-/// # impl Future for MyActor {
-/// #     type Item = ();
-/// #     type Error = ();
-/// #     fn poll(&mut self, _: &mut Context) -> Poll<(), ()> { unimplemented!(); }
-/// # }
-/// #
 /// # impl Actor for MyActor {
 /// #     type Message = String;
-/// #     fn handle(&mut self, _: &mut Context, _: String) -> Poll<(), ()> { unimplemented!(); }
+/// #     type Error = ();
+/// #     fn handle(&mut self, ctx: &mut ActorContext, msg: Self::Message) -> ActorResult<Self::Error> {
+/// #         unimplemented!();
+/// #     }
+/// #     fn poll(&mut self, _: &mut ActorContext) -> ActorResult<Self::Error> {
+/// #         unimplemented!();
+/// #     }
 /// # }
 /// #
 /// # impl fmt::Display for MyActor {
@@ -130,30 +127,23 @@ impl<E, A> Supervisor<E, A> for LogSupervisor
 ///
 /// ```
 /// # extern crate actor;
-/// # extern crate futures_core;
 /// # use std::{fmt, io};
-/// # use actor::actor::Actor;
+/// # use actor::actor::{Actor, ActorContext, ActorResult};
 /// # use actor::supervisor::Supervisor;
-/// # use futures_core::{Future, Poll};
-/// # use futures_core::task::Context;
 /// use actor::supervisor::{NopSupervisor, RestartStrategy};
 ///
 /// // Our actor that implements the `Actor` trait.
 /// struct MyActor;
 ///
-/// # impl Future for MyActor {
-/// #     type Item = ();
-/// #     type Error = ();
-/// #     fn poll(&mut self, _: &mut Context) -> Poll<(), ()> { unimplemented!(); }
-/// # }
-/// #
 /// # impl Actor for MyActor {
-/// #     type Message = ();
-/// #     fn handle(&mut self, _: &mut Context, _: ()) -> Poll<(), ()> { unimplemented!(); }
-/// # }
-/// #
-/// # impl fmt::Display for MyActor {
-/// #    fn fmt(&self, _: &mut fmt::Formatter) -> fmt::Result { Ok(()) }
+/// #     type Message = String;
+/// #     type Error = ();
+/// #     fn handle(&mut self, ctx: &mut ActorContext, msg: Self::Message) -> ActorResult<Self::Error> {
+/// #         unimplemented!();
+/// #     }
+/// #     fn poll(&mut self, _: &mut ActorContext) -> ActorResult<Self::Error> {
+/// #         unimplemented!();
+/// #     }
 /// # }
 /// #
 /// # fn main() {

@@ -1,3 +1,5 @@
+fn main() {}
+/*
 extern crate actor;
 extern crate env_logger;
 extern crate futures_core;
@@ -69,3 +71,4 @@ fn main() {
     // then it should return.
     actor_system.run().expect("unable to run actor system");
 }
+*/

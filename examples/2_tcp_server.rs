@@ -1,3 +1,5 @@
+fn main() {}
+/*
 #![feature(never_type)]
 
 extern crate actor;
@@ -108,3 +110,4 @@ fn main() {
     // This will block for ever, or until the processes is stopped.
     actor_system.run().expect("unable to run actor system");
 }
+*/

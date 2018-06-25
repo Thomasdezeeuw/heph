@@ -3,25 +3,22 @@
 use std::io;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::task::Poll;
 
-use futures_core::Async;
-use futures_core::task::LocalMap;
 use mio_st::event::Ready;
-use mio_st::poll::{Poll, PollOpt};
+use mio_st::poll::{Poll as MioPoll, PollOpt};
 use mio_st::registration::Registration;
 
-use actor::Actor;
+use actor::{Actor, ActorContext, ActorResult, Status};
 use system::ActorSystemRef;
 use system::options::ActorOptions;
 use system::process::{Process, ProcessId, ProcessCompletion};
 use system::scheduler::Priority;
 
 mod actor_ref;
-mod actor_waker;
 mod mailbox;
 
 pub use self::actor_ref::ActorRef;
-pub use self::actor_waker::ActorProcessWaker;
 pub use self::mailbox::MailBox;
 
 /// The mailbox of an `Actor` that is shared between an `ActorProcess` and one
@@ -42,10 +39,6 @@ pub struct ActorProcess<A>
     /// Whether or not the actor has returned `Async::Ready` and is ready to
     /// handle another message.
     ready_for_msg: bool,
-    /// Map with local data for the futures task system.
-    map: LocalMap,
-    /// Notifier to the `registration`, used in waking the process.
-    waker: ActorProcessWaker,
     /// Inbox of the actor.
     inbox: SharedMailbox<A::Message>,
     /// Registration needs to live as long as this process is alive.
@@ -56,7 +49,7 @@ impl<A> ActorProcess<A>
     where A: Actor,
 {
     /// Create a new process.
-    pub fn new(id: ProcessId, actor: A, options: ActorOptions, poll: &mut Poll) -> Result<ActorProcess<A>, (A, io::Error)> {
+    pub fn new(id: ProcessId, actor: A, options: ActorOptions, poll: &mut MioPoll) -> Result<ActorProcess<A>, (A, io::Error)> {
         let (mut registration, notifier) = Registration::new();
         if let Err(err) = poll.register(&mut registration, id.into(), Ready::READABLE, PollOpt::Edge) {
             return Err((actor, err));
@@ -69,8 +62,6 @@ impl<A> ActorProcess<A>
             priority: options.priority,
             actor,
             ready_for_msg: true,
-            map: LocalMap::new(),
-            waker: ActorProcessWaker::new(notifier),
             inbox,
             registration,
         })
@@ -93,44 +84,43 @@ impl<A> Process for ActorProcess<A>
         self.priority
     }
 
-    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessCompletion {
-        // Create our future execution context.
-        let waker = self.waker.waker();
-        let mut ctx = system_ref.create_context(&mut self.map, &waker);
+    fn run(&mut self, _system_ref: &mut ActorSystemRef) -> ProcessCompletion {
+        // Create our actor execution context.
+        let mut ctx = ActorContext{};
 
         loop {
             // First handle the message the actor is currently handling, if any.
             if !self.ready_for_msg {
-                match self.actor.poll(&mut ctx) {
-                    Ok(Async::Ready(())) => {
-                        self.ready_for_msg = true;
-                        // Continue to handle another message.
-                    },
-                    Ok(Async::Pending) => return ProcessCompletion::Pending,
-                    Err(_err) => {
-                        // TODO: send error to supervisor.
-                        return ProcessCompletion::Complete
-                    },
+                let res = self.actor.poll(&mut ctx);
+                if let Some(status) = check_result(res) {
+                    self.ready_for_msg = false;
+                    return status;
                 }
             }
 
-            if let Some(msg) = self.inbox.borrow_mut().receive() {
+            // Retrieve another message, if any.
+            let msg = match self.inbox.borrow_mut().receive() {
+                Some(msg) => msg,
+                None => return ProcessCompletion::Pending,
+            };
+
+            // And pass the message to the actor.
+            let res = self.actor.handle(&mut ctx, msg);
+            if let Some(status) = check_result(res) {
                 self.ready_for_msg = false;
-                match self.actor.handle(&mut ctx, msg) {
-                    Ok(Async::Ready(())) => {
-                        self.ready_for_msg = true;
-                        // Try to handle another message.
-                        continue
-                    },
-                    Ok(Async::Pending) => return ProcessCompletion::Pending,
-                    Err(_err) => {
-                        // TODO: send error to supervisor.
-                        return ProcessCompletion::Complete
-                    },
-                }
-            } else {
-                return ProcessCompletion::Pending
+                return status;
             }
         }
+    }
+}
+
+/// Check the result of a call to poll or handle of an actor.
+fn check_result<E>(result: ActorResult<E>) -> Option<ProcessCompletion> {
+    match result {
+        Poll::Ready(Ok(Status::Complete)) => Some(ProcessCompletion::Complete),
+        Poll::Ready(Ok(Status::Ready)) => None,
+        // TODO: send error to supervisor.
+        Poll::Ready(Err(_err)) => Some(ProcessCompletion::Complete),
+        Poll::Pending => Some(ProcessCompletion::Pending),
     }
 }

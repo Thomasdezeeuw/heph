@@ -6,8 +6,6 @@ license = "MIT"
 autotests = false
 
 [dependencies]
-futures-core = "0.2.1"
-futures-io = "0.2.1"
 log = "0.4.2"
 num_cpus = "1.8.0"
 

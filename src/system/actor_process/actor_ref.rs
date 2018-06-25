@@ -1,12 +1,12 @@
 //! Module containing the `ActorRef`.
 
 use std::fmt;
-use std::rc::Rc;
 use std::marker::PhantomData;
+use std::rc::Rc;
 
 use actor::Actor;
+use system::actor_process::SharedMailbox;
 use system::error::SendError;
-use super::SharedMailbox;
 
 /// A reference to an actor inside a running [`ActorSystem`].
 ///
@@ -19,15 +19,14 @@ use super::SharedMailbox;
 ///
 /// ```
 /// # extern crate actor;
-/// # extern crate futures_core;
 /// #
-/// # use actor::actor::actor_fn;
+/// # use actor::actor::{Status, actor_fn};
 /// # use actor::system::ActorSystemBuilder;
 /// # use actor::system::ActorOptions;
 /// #
 /// // Create `ActorSystem` and `Actor`, etc.
 /// # let mut actor_system = ActorSystemBuilder::default().build().unwrap();
-/// # let actor = actor_fn(|_: ()| -> Result<(), ()> { Ok(()) });
+/// # let actor = actor_fn(|_, _: ()| -> Result<Status, ()> { Ok(Status::Ready) });
 ///
 /// let actor_ref = actor_system.add_actor(actor, ActorOptions::default())
 ///     .unwrap_or_else(|err| panic!("unable to add actor to actor system: {}", err));
@@ -60,9 +59,8 @@ impl<A> ActorRef<A>
     ///
     /// ```
     /// # extern crate actor;
-    /// # extern crate futures_core;
     /// #
-    /// # use actor::actor::actor_fn;
+    /// # use actor::actor::{Status, actor_fn};
     /// # use actor::system::ActorSystemBuilder;
     /// # use actor::system::ActorOptions;
     /// #
@@ -85,7 +83,7 @@ impl<A> ActorRef<A>
     ///
     /// // Create `ActorSystem` and `Actor`, etc.
     /// # let mut actor_system = ActorSystemBuilder::default().build().unwrap();
-    /// # let actor = actor_fn(|_: Message| -> Result<(), ()> { Ok(()) });
+    /// # let actor = actor_fn(|_, _: Message| -> Result<Status, ()> { Ok(Status::Ready) });
     ///
     /// let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default())
     ///     .unwrap_or_else(|err| panic!("unable to add actor to actor system: {}", err));

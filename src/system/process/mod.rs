@@ -85,6 +85,7 @@ pub trait Process {
 
 /// The result of running a `Process`.
 #[must_use]
+#[derive(Copy, Clone, Debug)]
 pub enum ProcessCompletion {
     /// The process is complete.
     Complete,
