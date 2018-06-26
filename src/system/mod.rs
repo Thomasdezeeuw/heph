@@ -11,7 +11,7 @@ use mio_st::poll::Poll;
 
 use actor::Actor;
 use initiator::Initiator;
-use process::{ProcessId, ProcessCompletion, ActorProcess, InitiatorProcess};
+use process::{ProcessId, ProcessResult, ActorProcess, InitiatorProcess};
 use scheduler::{Scheduler, Priority, ProcessData, ScheduledProcess};
 
 mod builder;
@@ -180,9 +180,9 @@ impl ActorSystem {
 
         match self.inner.try_borrow_mut() {
             Ok(mut inner) => match result {
-                ProcessCompletion::Pending =>
+                ProcessResult::Pending =>
                     inner.scheduler.swap_process(pid, process).unwrap(),
-                ProcessCompletion::Complete =>
+                ProcessResult::Complete =>
                     inner.scheduler.remove_process(pid),
             },
             Err(_) => unreachable!("can't get scheduler, actor system already borrowed"),

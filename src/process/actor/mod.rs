@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::task::Poll;
 
 use actor::{Actor, ActorContext, ActorResult, Status};
-use process::{Process, ProcessId, ProcessCompletion};
+use process::{Process, ProcessId, ProcessResult};
 use system::ActorSystemRef;
 use system::options::ActorOptions;
 
@@ -51,7 +51,7 @@ impl<A> ActorProcess<A>
 impl<A> Process for ActorProcess<A>
     where A: Actor,
 {
-    fn run(&mut self, _system_ref: &mut ActorSystemRef) -> ProcessCompletion {
+    fn run(&mut self, _system_ref: &mut ActorSystemRef) -> ProcessResult {
         // Create our actor execution context.
         let mut ctx = ActorContext{};
 
@@ -68,7 +68,7 @@ impl<A> Process for ActorProcess<A>
             let msg = match self.inbox.try_borrow_mut() {
                 Ok(mut inbox) => match inbox.receive() {
                     Some(msg) => msg,
-                    None => return ProcessCompletion::Pending,
+                    None => return ProcessResult::Pending,
                 },
                 Err(_) => unreachable!("can't retrieve message, inbox already borrowed"),
             };
@@ -85,13 +85,13 @@ impl<A> Process for ActorProcess<A>
 /// Check the result of a call to poll or handle of an actor. If some is
 /// returned it should be returned by the function, otherwise the loop should
 /// continue.
-fn check_result<E>(result: ActorResult<E>) -> Option<ProcessCompletion> {
+fn check_result<E>(result: ActorResult<E>) -> Option<ProcessResult> {
     match result {
-        Poll::Ready(Ok(Status::Complete)) => Some(ProcessCompletion::Complete),
+        Poll::Ready(Ok(Status::Complete)) => Some(ProcessResult::Complete),
         Poll::Ready(Ok(Status::Ready)) => None,
         // TODO: send error to supervisor.
-        Poll::Ready(Err(_err)) => Some(ProcessCompletion::Complete),
-        Poll::Pending => Some(ProcessCompletion::Pending),
+        Poll::Ready(Err(_err)) => Some(ProcessResult::Complete),
+        Poll::Pending => Some(ProcessResult::Pending),
     }
 }
 

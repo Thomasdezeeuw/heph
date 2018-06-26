@@ -51,13 +51,13 @@ impl fmt::Display for ProcessId {
 /// by the `ActorSystem`.
 pub trait Process: fmt::Debug {
     /// Run the process.
-    fn run(&mut self, &mut ActorSystemRef) -> ProcessCompletion;
+    fn run(&mut self, &mut ActorSystemRef) -> ProcessResult;
 }
 
 /// The result of running a `Process`.
 #[must_use]
 #[derive(Copy, Clone, Debug)]
-pub enum ProcessCompletion {
+pub enum ProcessResult {
     /// The process is complete.
     Complete,
 
@@ -75,7 +75,7 @@ pub enum ProcessCompletion {
 pub struct EmptyProcess;
 
 impl Process for EmptyProcess {
-    fn run(&mut self, _: &mut ActorSystemRef) -> ProcessCompletion {
+    fn run(&mut self, _: &mut ActorSystemRef) -> ProcessResult {
         unreachable!("can't run empty process");
     }
 }

@@ -5,7 +5,7 @@ use std::collections::HashSet;
 
 use slab::{Slab, VacantEntry};
 
-use process::{Process, ProcessCompletion, ProcessId, EmptyProcess};
+use process::{Process, ProcessResult, ProcessId, EmptyProcess};
 use system::ActorSystemRef;
 
 mod priority;
@@ -126,7 +126,7 @@ pub trait ScheduledProcess: fmt::Debug {
     fn priority(&self) -> Priority;
 
     /// Run the process.
-    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessCompletion;
+    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult;
 }
 
 /// Container for a `Process` that holds the id and priority and implements
@@ -154,7 +154,7 @@ impl<P> ScheduledProcess for ProcessData<P>
         self.priority
     }
 
-    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessCompletion {
+    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
         self.process.run(system_ref)
     }
 }

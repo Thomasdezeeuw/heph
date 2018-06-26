@@ -3,7 +3,7 @@
 use std::fmt;
 
 use initiator::Initiator;
-use process::{Process, ProcessCompletion};
+use process::{Process, ProcessResult};
 use system::ActorSystemRef;
 
 /// A process that represent an initiator.
@@ -26,12 +26,12 @@ impl<I> InitiatorProcess<I>
 impl<I> Process for InitiatorProcess<I>
     where I: Initiator,
 {
-    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessCompletion {
+    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
         if let Err(err) = self.initiator.poll(system_ref) {
             error!("error polling initiator: {}", err);
-            ProcessCompletion::Complete
+            ProcessResult::Complete
         } else {
-            ProcessCompletion::Pending
+            ProcessResult::Pending
         }
     }
 }
