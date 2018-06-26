@@ -23,11 +23,11 @@ extern crate num_cpus;
 extern crate slab;
 
 pub mod actor;
+pub mod initiator;
 pub mod net;
 pub mod supervisor;
 pub mod system;
 
-mod initiator;
 mod process;
 mod scheduler;
 

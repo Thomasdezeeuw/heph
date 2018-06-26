@@ -12,21 +12,30 @@ use system::ActorSystemRef;
 
 /// The `Initiator` is responsible for initiating events in the actor system.
 ///
-/// This could be an TCP listener that will create a new event for each incoming
-/// connection.
+/// Implementations of this trait can be found [below]. This includes a TCP
+/// listener that will create a new actor for each incoming connection.
+///
+/// [below]: #implementors
+///
+/// # Notes
+///
+/// This trait is private and can only be implemented by internal types. It's
+/// only public for documentation purposes.
 pub trait Initiator {
     /// Initialise the initiator.
     ///
-    /// This will be called once when the actor system start running, by calling
-    /// the [`ActorSystem.run`] method.
+    /// This will be called once when the actor system starts running, by
+    /// calling the [`ActorSystem.run`] method.
     ///
     /// [`ActorSystem.run`]: ../system/struct.ActorSystem.html#method.run
+    #[doc(hidden)]
     fn init(&mut self, system_ref: &mut Poll, pid: ProcessId) -> io::Result<()>;
 
     /// Poll the `Initiator` for new events.
     ///
-    /// It gets an [`ActorSystemRef`] so it can actors to the system.
+    /// It gets an [`ActorSystemRef`] so it can add actors to the system.
     ///
     /// [`ActorSystemRef`]: ../system/struct.ActorSystemRef.html
+    #[doc(hidden)]
     fn poll(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()>;
 }
