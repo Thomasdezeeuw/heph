@@ -6,9 +6,9 @@ use std::rc::Rc;
 use std::task::Poll;
 
 use actor::{Actor, ActorContext, ActorResult, Status};
+use process::{Process, ProcessId, ProcessCompletion};
 use system::ActorSystemRef;
 use system::options::ActorOptions;
-use system::scheduler::process::{Process, ProcessId, ProcessCompletion};
 
 mod actor_ref;
 mod mailbox;

@@ -28,6 +28,7 @@ pub mod supervisor;
 pub mod system;
 
 mod initiator;
+mod process;
 
 /// The actor prelude. All useful traits and types in single module.
 ///

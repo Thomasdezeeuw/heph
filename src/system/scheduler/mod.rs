@@ -9,10 +9,9 @@ use slab::{Slab, VacantEntry};
 use system::ActorSystemRef;
 
 mod priority;
-pub mod process;
 
 pub use self::priority::Priority;
-pub use self::process::{Process, ProcessCompletion, ProcessId};
+pub use process::{Process, ProcessCompletion, ProcessId};
 
 /// The scheduler, responsible for scheduling and running processes.
 #[derive(Debug)]

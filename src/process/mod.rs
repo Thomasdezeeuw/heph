@@ -1,4 +1,4 @@
-//! Module containing process related types and implementation.
+//! Module containing the `Process` trait, related types and implementations.
 
 use std::fmt;
 
@@ -6,14 +6,14 @@ use mio_st::event::EventedId;
 
 use system::ActorSystemRef;
 
-/// Process id, or pid, is an unique id for a process in an `ActorSystem`.
+/// Process id, or pid for short, is an unique id for a process in an
+/// `ActorSystem`.
 ///
-/// This id can only be created by [`ProcessIdGenerator`]. For convince this can
-/// converted into an `EventedId` as used by `mio-st`.
-///
-/// [`ProcessIdGenerator`]: struct.ProcessIdGenerator.html
+/// This can only be created by the [`Scheduler`] and should be seen as an
+/// opaque type for the rest of the crate. For convince this can converted from
+/// and into an `EventedId` as used by `mio-st`.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ProcessId(pub(super) usize);
+pub struct ProcessId(pub usize);
 
 impl From<EventedId> for ProcessId {
     fn from(id: EventedId) -> ProcessId {
@@ -35,15 +35,11 @@ impl fmt::Display for ProcessId {
 
 /// The trait that represents a process.
 ///
-/// The main implementation is the `ActorProcess`, which is implementation of
-/// this trait that revolves around an `Actor`.
+/// This currently has two implementations;
+/// - the `ActorProcess`, which wraps an `Actor` to implement this trait, and
+/// - the `InitiatorProcess`, which wraps an `Initiator`.
 pub trait Process: fmt::Debug {
     /// Run the process.
-    ///
-    /// If this function returns it is assumed that the process is:
-    /// - done completely, i.e. it doesn't have to be run anymore, or
-    /// - it would block, and itself made sure it's scheduled again at a later
-    ///   point.
     fn run(&mut self, &mut ActorSystemRef) -> ProcessCompletion;
 }
 
@@ -55,6 +51,7 @@ pub enum ProcessCompletion {
     Complete,
 
     /// Process completion is pending, but for now no further process can be
-    /// made.
+    /// made without blocking. The process itself is responsible for scheduling
+    /// itself again.
     Pending,
 }

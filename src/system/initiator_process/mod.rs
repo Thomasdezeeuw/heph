@@ -3,8 +3,8 @@
 use std::fmt;
 
 use initiator::Initiator;
+use process::{Process, ProcessCompletion};
 use system::ActorSystemRef;
-use system::scheduler::process::{Process, ProcessCompletion};
 
 /// A process that represent an initiator.
 pub struct InitiatorProcess<I> {
