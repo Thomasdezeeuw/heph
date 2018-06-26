@@ -7,7 +7,7 @@ use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant};
 
 use mio_st::event::{Events, Evented};
-use mio_st::poll::Poll;
+use mio_st::poll::Poller;
 
 use actor::Actor;
 use initiator::Initiator;
@@ -132,7 +132,7 @@ impl ActorSystem {
     fn get_scheduled(&mut self, empty: HashSet<ProcessId>, events: &mut Events, timeout: Option<Duration>) -> Result<HashSet<ProcessId>, RuntimeError> {
         debug!("polling system poller for events");
         match self.inner.try_borrow_mut() {
-            Ok(mut inner) => match inner.poll.poll(events, timeout) {
+            Ok(mut inner) => match inner.poller.poll(events, timeout) {
                 Ok(()) => { /* Continue. */ },
                 Err(err) => return Err(RuntimeError::Poll(err)),
             },
@@ -226,10 +226,10 @@ impl ActorSystemRef {
 
     /// Add an actor that needs to be initialised.
     ///
-    /// This is used by the `Initiator`s to register with poll with the same
-    /// pid.
+    /// This is used by the `Initiator`s to register with the system poller with
+    /// using same pid.
     pub(crate) fn add_actor_setup<F, A>(&mut self, options: ActorOptions, f: F) -> io::Result<()>
-        where F: FnOnce(ProcessId, &mut Poll) -> io::Result<A>,
+        where F: FnOnce(ProcessId, &mut Poller) -> io::Result<A>,
               A: Actor + 'static,
     {
         let system_ref = self.clone();
@@ -243,14 +243,14 @@ impl ActorSystemRef {
     }
 
     /// Deregister an `Evented` handle, see `Poll.deregister`.
-    pub(crate) fn poll_deregister<E>(&mut self, handle: &mut E) -> io::Result<()>
+    pub(crate) fn poller_deregister<E>(&mut self, handle: &mut E) -> io::Result<()>
     where
         E: Evented + ?Sized,
     {
         match self.inner.upgrade() {
             Some(inner_ref) => match inner_ref.try_borrow_mut() {
-                Ok(mut inner) => inner.poll.deregister(handle),
-                Err(_) => unreachable!("can't deregister with poll, actor system already borrowed"),
+                Ok(mut inner) => inner.poller.deregister(handle),
+                Err(_) => unreachable!("can't deregister with system poller, actor system already borrowed"),
             },
             None => Err(io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN)),
         }
@@ -284,7 +284,7 @@ struct ActorSystemInner {
     /// Scheduler that hold the processes, schedules and runs them.
     scheduler: Scheduler,
     /// System poller, used for event notifications to support non-blocking I/O.
-    poll: Poll,
+    poller: Poller,
 }
 
 impl ActorSystemInner {
@@ -309,7 +309,7 @@ impl ActorSystemInner {
     }
 
     fn add_actor_setup<F, A>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<()>
-        where F: FnOnce(ProcessId, &mut Poll) -> io::Result<A>,
+        where F: FnOnce(ProcessId, &mut Poller) -> io::Result<A>,
               A: Actor + 'static,
     {
         // Setup adding a new process to the scheduler.
@@ -319,7 +319,7 @@ impl ActorSystemInner {
 
         // Create a new actor process.
         let priority = options.priority;
-        let actor = f(pid, &mut self.poll)?;
+        let actor = f(pid, &mut self.poller)?;
         let process = ActorProcess::new(pid, actor, options, system_ref);
 
         // Actually add the process.
@@ -340,7 +340,7 @@ impl ActorSystemInner {
         debug!("adding initiator to actor system: pid={}", pid);
 
         // Initialise the initiator.
-        if let Err(err) = initiator.init(&mut self.poll, pid) {
+        if let Err(err) = initiator.init(&mut self.poller, pid) {
             return Err(AddInitiatorError {
                 initiator,
                 reason: AddInitiatorErrorReason::InitFailed(err),

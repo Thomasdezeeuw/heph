@@ -2,7 +2,7 @@
 
 use std::io;
 
-use mio_st::poll::Poll;
+use mio_st::poll::Poller;
 
 use process::ProcessId;
 use system::ActorSystemRef;
@@ -29,7 +29,7 @@ pub trait Initiator {
     ///
     /// [`ActorSystem.run`]: ../system/struct.ActorSystem.html#method.run
     #[doc(hidden)]
-    fn init(&mut self, system_ref: &mut Poll, pid: ProcessId) -> io::Result<()>;
+    fn init(&mut self, poll: &mut Poller, pid: ProcessId) -> io::Result<()>;
 
     /// Poll the `Initiator` for new events.
     ///

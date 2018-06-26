@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use mio_st::event::Ready;
 use mio_st::net::TcpListener as MioTcpListener;
 use mio_st::net::TcpStream as MioTcpStream;
-use mio_st::poll::{Poll, PollOpt};
+use mio_st::poll::{Poller, PollOption};
 
 use actor::{Actor, NewActor};
 use initiator::Initiator;
@@ -53,9 +53,9 @@ impl<N, A> Initiator for TcpListener<N>
     where N: NewActor<Item = (TcpStream, SocketAddr), Actor = A>,
           A: Actor + 'static,
 {
-    fn init(&mut self, poll: &mut Poll, pid: ProcessId) -> io::Result<()> {
-        poll.register(&mut self.listener, pid.into(),
-            Ready::READABLE, PollOpt::Edge)
+    fn init(&mut self, poller: &mut Poller, pid: ProcessId) -> io::Result<()> {
+        poller.register(&mut self.listener, pid.into(),
+            Ready::READABLE, PollOption::Edge)
     }
 
     fn poll(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()> {
@@ -68,9 +68,9 @@ impl<N, A> Initiator for TcpListener<N>
             };
 
             let system_ref_clone = system_ref.clone();
-            let _ = system_ref.add_actor_setup(self.options.clone(), |pid, poll| {
-                poll.register(&mut stream, pid.into(),
-                    Ready::READABLE, PollOpt::Edge)?;
+            let _ = system_ref.add_actor_setup(self.options.clone(), |pid, poller| {
+                poller.register(&mut stream, pid.into(),
+                    Ready::READABLE, PollOption::Edge)?;
 
                 // Wrap the raw stream with our wrapper.
                 let stream = TcpStream {
@@ -175,7 +175,7 @@ impl AsyncWrite for TcpStream {
 
 impl Drop for TcpStream {
     fn drop(&mut self) {
-        if let Err(err) = self.system_ref.poll_deregister(&mut self.inner) {
+        if let Err(err) = self.system_ref.poller_deregister(&mut self.inner) {
             error!("error deregistering TcpStream from ActorSystem: {}", err);
         }
     }

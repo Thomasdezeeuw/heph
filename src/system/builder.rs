@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use num_cpus;
-use mio_st::poll::Poll;
+use mio_st::poll::Poller;
 
 use scheduler::Scheduler;
 use system::{ActorSystem, ActorSystemInner};
@@ -25,7 +25,7 @@ impl ActorSystemBuilder {
             self.n_processes);
         let inner = ActorSystemInner {
             scheduler: Scheduler::new(),
-            poll: Poll::new()?,
+            poller: Poller::new()?,
         };
 
         Ok(ActorSystem {
