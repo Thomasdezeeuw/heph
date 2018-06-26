@@ -2,7 +2,8 @@
 
 use std::collections::VecDeque;
 
-use system::{ActorSystemRef, ProcessId};
+use process::ProcessId;
+use system::ActorSystemRef;
 use system::error::{SendError, SendErrorReason};
 
 /// Mailbox that holds all messages for an `Actor`.

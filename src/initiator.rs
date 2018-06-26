@@ -4,8 +4,8 @@ use std::io;
 
 use mio_st::poll::Poll;
 
+use process::ProcessId;
 use system::ActorSystemRef;
-use system::ProcessId;
 
 // TODO: maybe let Initator return a specialised error, other then `io::Error`?
 // E.g. `RuntimeError`.

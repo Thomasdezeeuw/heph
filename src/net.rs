@@ -10,7 +10,8 @@ use mio_st::poll::{Poll, PollOpt};
 
 use actor::{Actor, NewActor};
 use initiator::Initiator;
-use system::{ActorSystemRef, ActorOptions, ProcessId};
+use process::ProcessId;
+use system::{ActorSystemRef, ActorOptions};
 
 /// A TCP listener that implements the [`Initiator`] trait.
 ///

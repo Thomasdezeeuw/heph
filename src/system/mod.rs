@@ -10,7 +10,7 @@ use mio_st::poll::Poll;
 
 use actor::Actor;
 use initiator::Initiator;
-use process::{ActorProcess, InitiatorProcess};
+use process::{ProcessId, ActorProcess, InitiatorProcess};
 
 mod builder;
 mod scheduler;
@@ -21,7 +21,6 @@ pub mod options;
 pub use process::ActorRef;
 pub use self::builder::ActorSystemBuilder;
 pub use self::options::{ActorOptions, InitiatorOptions};
-pub(crate) use self::scheduler::ProcessId;
 
 use self::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};
 use self::scheduler::{Scheduler, Priority};
