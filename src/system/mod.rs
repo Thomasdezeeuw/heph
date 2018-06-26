@@ -43,7 +43,10 @@ impl ActorSystem {
         where A: Actor + 'static,
     {
         let system_ref = self.create_ref();
-        self.inner.borrow_mut().add_actor(actor, options, system_ref)
+        match self.inner.try_borrow_mut() {
+            Ok(mut inner) => inner.add_actor(actor, options, system_ref),
+            Err(_) => unreachable!("can't add actor, actor system already borrowed"),
+        }
     }
 
     /// Add a new initiator to the system.
@@ -51,12 +54,15 @@ impl ActorSystem {
     pub fn add_initiator<I>(&mut self, initiator: I, options: InitiatorOptions) -> Result<(), AddInitiatorError<I>>
         where I: Initiator + 'static,
     {
-        match self.inner.borrow_mut().add_initiator(initiator, options) {
-            Ok(()) => {
-                self.has_initiators = true;
-                Ok(())
+        match self.inner.try_borrow_mut() {
+            Ok(mut inner) => match inner.add_initiator(initiator, options) {
+                Ok(()) => {
+                    self.has_initiators = true;
+                    Ok(())
+                },
+                err => err,
             },
-            err => err,
+            Err(_) => unreachable!("can't add initiator, actor system already borrowed"),
         }
     }
 
@@ -79,7 +85,10 @@ impl ActorSystem {
             Some(Duration::from_millis(0))
         };
 
-        let mut inner = self.inner.borrow_mut();
+        let mut inner = match self.inner.try_borrow_mut() {
+            Ok(inner) => inner,
+            Err(_) => unreachable!("can't run actor system, already borrowed"),
+        };
 
         let mut events = Events::new();
         let mut system_ref = self.create_ref();
@@ -134,7 +143,10 @@ impl ActorSystemRef {
     {
         let system_ref = self.clone();
         match self.inner.upgrade() {
-            Some(r) => Ok(r.borrow_mut().add_actor(actor, options, system_ref)),
+            Some(inner_ref) => match inner_ref.try_borrow_mut() {
+                Ok(mut inner) => Ok(inner.add_actor(actor, options, system_ref)),
+                Err(_) => unreachable!("can't add actor, actor system already borrowed"),
+            },
             None => Err(AddActorError::new(actor, AddActorErrorReason::SystemShutdown)),
         }
     }
@@ -149,7 +161,10 @@ impl ActorSystemRef {
     {
         let system_ref = self.clone();
         match self.inner.upgrade() {
-            Some(r) => r.borrow_mut().add_actor_pid(options, f, system_ref),
+            Some(inner_ref) => match inner_ref.try_borrow_mut() {
+                Ok(mut inner) => inner.add_actor_pid(options, f, system_ref),
+                Err(_) => unreachable!("can't add actor, actor system already borrowed"),
+            },
             None => Err(AddActorError::new((), AddActorErrorReason::SystemShutdown).into()),
         }
     }
@@ -160,7 +175,10 @@ impl ActorSystemRef {
         E: Evented + ?Sized,
     {
         match self.inner.upgrade() {
-            Some(r) => r.borrow_mut().poll.deregister(handle),
+            Some(inner_ref) => match inner_ref.try_borrow_mut() {
+                Ok(mut inner) => inner.poll.deregister(handle),
+                Err(_) => unreachable!("can't deregister with poll, actor system already borrowed"),
+            },
             None => Err(io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN)),
         }
     }
@@ -170,9 +188,9 @@ impl ActorSystemRef {
     /// If the system is shutdown it will return an error.
     pub(crate) fn schedule(&mut self, pid: ProcessId) -> Result<(), ()> {
         match self.inner.upgrade() {
-            Some(r) => {
-                r.borrow_mut().schedule(pid);
-                Ok(())
+            Some(inner_ref) => match inner_ref.try_borrow_mut() {
+                Ok(mut inner) => {inner.schedule(pid); Ok(()) },
+                Err(_) => unreachable!("can't schedule process, actor system already borrowed"),
             },
             None => Err(()),
         }
