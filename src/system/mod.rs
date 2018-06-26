@@ -55,8 +55,13 @@ impl ActorSystem {
     pub fn add_initiator<I>(&mut self, initiator: I, options: InitiatorOptions) -> Result<(), AddInitiatorError<I>>
         where I: Initiator + 'static,
     {
-        self.has_initiators = true;
-        self.inner.borrow_mut().add_initiator(initiator, options)
+        match self.inner.borrow_mut().add_initiator(initiator, options) {
+            Ok(()) => {
+                self.has_initiators = true;
+                Ok(())
+            },
+            err => err,
+        }
     }
 
     /// Create a new reference to this actor system.
@@ -68,7 +73,6 @@ impl ActorSystem {
 
     /// Run the actor system.
     pub fn run(self) -> Result<(), RuntimeError> {
-        let mut system_ref = self.create_ref();
         debug!("running actor system");
 
         // In case of no initiators only user space events are handled and the
@@ -79,6 +83,7 @@ impl ActorSystem {
             Some(Duration::from_millis(0))
         };
 
+        let mut system_ref = self.create_ref();
         loop {
             debug!("polling system poll for events");
             let n_events = self.inner.borrow_mut().poll(timeout)
