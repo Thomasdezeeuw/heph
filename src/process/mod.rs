@@ -46,6 +46,9 @@ impl fmt::Display for ProcessId {
 /// This currently has two implementations;
 /// - the `ActorProcess`, which wraps an `Actor` to implement this trait, and
 /// - the `InitiatorProcess`, which wraps an `Initiator`.
+///
+/// `EmptyProcess` also implements this, but it's just a placeholder to be used
+/// by the `ActorSystem`.
 pub trait Process: fmt::Debug {
     /// Run the process.
     fn run(&mut self, &mut ActorSystemRef) -> ProcessCompletion;
@@ -62,4 +65,17 @@ pub enum ProcessCompletion {
     /// made without blocking. The process itself is responsible for scheduling
     /// itself again.
     Pending,
+}
+
+/// Empty process used by the `ActorSystem` as a placeholder for an actual
+/// process.
+///
+/// See `ActorSystem.run` for the only usage of it.
+#[derive(Debug)]
+pub struct EmptyProcess;
+
+impl Process for EmptyProcess {
+    fn run(&mut self, _: &mut ActorSystemRef) -> ProcessCompletion {
+        unreachable!("can't run empty process");
+    }
 }

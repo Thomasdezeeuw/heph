@@ -1,12 +1,11 @@
 //! Module containing the `Scheduler` and related types.
 
-use std::fmt;
+use std::{fmt, mem};
 use std::collections::HashSet;
-use std::time::Instant;
 
 use slab::{Slab, VacantEntry};
 
-use process::{Process, ProcessCompletion, ProcessId};
+use process::{Process, ProcessCompletion, ProcessId, EmptyProcess};
 use system::ActorSystemRef;
 
 mod priority;
@@ -63,36 +62,32 @@ impl Scheduler {
         let _ = self.scheduled.insert(pid);
     }
 
-    /// Returns the number of processes currently scheduled.
-    pub fn scheduled(&self) -> usize {
-        self.scheduled.len()
+    /// Swaps the scheduled process set with an empty set.
+    pub fn swap_scheduled(&mut self, empty: HashSet<ProcessId>) -> HashSet<ProcessId> {
+        debug_assert!(empty.is_empty(), "scheduled set is not empty");
+        mem::replace(&mut self.scheduled, empty)
     }
 
-    /// Run all scheduled processes.
-    pub fn run(&mut self, system_ref: &mut ActorSystemRef) {
-        debug!("running all scheduled processes");
-        for pid in self.scheduled.drain() {
-            let completion = {
-                let process = match self.processes.get_mut(pid.0) {
-                    Some(process) => process,
-                    None => {
-                        debug!("process scheduled, but no longer alive: pid={}", pid);
-                        continue
-                    },
-                };
-
-                let start = Instant::now();
-                trace!("running process: pid={}", pid);
-                let res = process.run(system_ref);
-                trace!("finished running process: pid={}, elapsed_time={:?}", pid, start.elapsed());
-                res
-            };
-
-            if let ProcessCompletion::Complete = completion {
-                trace!("process completed, removing it: pid={}", pid);
-                drop(self.processes.remove(pid.0))
-            }
+    /// Swap the process with id `pid` with the provided process.
+    ///
+    /// Returns `Ok(process)` if it's found, `Err(empty)` otherwise.
+    ///
+    /// See `ProcessData::Running` for the empty process.
+    pub fn swap_process(&mut self, pid: ProcessId, process: Box<dyn ScheduledProcess>) ->
+        Result<Box<dyn ScheduledProcess>, Box<dyn ScheduledProcess>>
+    {
+        match self.processes.get_mut(pid.0) {
+            Some(p) => Ok(mem::replace(p, process)),
+            None => Err(process),
         }
+    }
+
+    /// Remove a process from the scheduler.
+    ///
+    /// Used by the `ActorSystem` to remove the empty process after the actual
+    /// process has completed running.
+    pub fn remove_process(&mut self, pid: ProcessId) -> Box<dyn ScheduledProcess> {
+        self.processes.remove(pid.0)
     }
 }
 
@@ -117,7 +112,7 @@ impl<'s> AddingProcess<'s> {
     {
         let pid = self.id();
         debug!("adding new process: pid={}", pid);
-        let process = Box::new(ProcessData { priority, process });
+        let process = Box::new(ProcessData{ priority, process });
         let _ = self.entry.insert(process);
     }
 }
@@ -126,7 +121,7 @@ impl<'s> AddingProcess<'s> {
 ///
 /// The only implementation is `ProcessData`, but using an trait object allows
 /// us to erase the actual type of the process.
-trait ScheduledProcess: fmt::Debug {
+pub trait ScheduledProcess: fmt::Debug {
     /// Get the priority of the process.
     fn priority(&self) -> Priority;
 
@@ -137,9 +132,19 @@ trait ScheduledProcess: fmt::Debug {
 /// Container for a `Process` that holds the id and priority and implements
 /// `ScheduledProcess`.
 #[derive(Debug)]
-struct ProcessData<P> {
+pub struct ProcessData<P> {
     priority: Priority,
     process: P,
+}
+
+impl ProcessData<EmptyProcess> {
+    /// Create an empty process that can **not** be run.
+    pub const fn empty() -> ProcessData<EmptyProcess> {
+        ProcessData {
+            priority: Priority::LOW,
+            process: EmptyProcess,
+        }
+    }
 }
 
 impl<P> ScheduledProcess for ProcessData<P>

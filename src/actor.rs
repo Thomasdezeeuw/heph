@@ -52,9 +52,9 @@ use std::task::Poll;
 /// `poll` on a future after it returned `Poll::Ready` causes undefined
 /// behaviour, the same is true for an actor. Calling either `handle` or `poll`
 /// after it returned `Status::Complete` is also undefined behaviour.
-/// **However** `handle` should be callable when the actor previously return
-/// `Status::Ready` and  another message is ready for the actor, after which
-/// `poll` should also be callable if `handle` didn't return `Async::Ready`.
+/// **However** `handle` should be callable when the actor previously returned
+/// `Status::Ready` and another message is ready for the actor. `poll` should
+/// always be called if it hasn't return `Poll::Ready` yet.
 ///
 /// In short an `Actor` is a `Future` which one can give more work, via
 /// messages.

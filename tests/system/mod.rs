@@ -56,7 +56,6 @@ fn no_initiator_multiple_messages_before_run() {
 }
 
 #[test]
-#[ignore]
 fn simple_message_passing() {
     let (actor1, value) = new_count_actor();
 

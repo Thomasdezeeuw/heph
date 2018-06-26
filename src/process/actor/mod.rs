@@ -37,7 +37,7 @@ impl<A> ActorProcess<A>
     pub fn new(pid: ProcessId, actor: A, _options: ActorOptions, system_ref: ActorSystemRef) -> ActorProcess<A> {
         ActorProcess {
             actor,
-            ready_for_msg: true,
+            ready_for_msg: false,
             inbox: Rc::new(RefCell::new(MailBox::new(pid, system_ref))),
         }
     }

@@ -2,16 +2,17 @@
 
 use std::io;
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::rc::{Rc, Weak};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use mio_st::event::{Events, Evented};
 use mio_st::poll::Poll;
 
 use actor::Actor;
 use initiator::Initiator;
-use process::{ProcessId, ActorProcess, InitiatorProcess};
-use scheduler::{Scheduler, Priority};
+use process::{ProcessId, ProcessCompletion, ActorProcess, InitiatorProcess};
+use scheduler::{Scheduler, Priority, ProcessData, ScheduledProcess};
 
 mod builder;
 
@@ -74,45 +75,117 @@ impl ActorSystem {
     }
 
     /// Run the actor system.
-    pub fn run(self) -> Result<(), RuntimeError> {
+    pub fn run(mut self) -> Result<(), RuntimeError> {
         debug!("running actor system");
 
-        // In case of no initiators only user space events are handled and the
-        // system is stopped otherwise.
-        let timeout = if self.has_initiators {
-            None
-        } else {
-            Some(Duration::from_millis(0))
-        };
-
-        let mut inner = match self.inner.try_borrow_mut() {
-            Ok(inner) => inner,
-            Err(_) => unreachable!("can't run actor system, already borrowed"),
-        };
-
+        // Timeout used in the system poller.
+        let timeout = self.determine_timeout();
+        // Empty set of events, to be filled by the system poller.
         let mut events = Events::new();
+
+        // Empty set of scheduled processes, to be filled by the scheduler.
+        let mut scheduled = HashSet::new();
+        // Empty process placeholder while we take owner ship, and remove, of a
+        // process we need to run.
+        let mut empty_process: Box<dyn ScheduledProcess> = Box::new(ProcessData::empty());
+
+        // System reference used in running the processes.
         let mut system_ref = self.create_ref();
+
         loop {
-            debug!("polling system poll for events");
-            inner.poll.poll(&mut events, timeout)
-                .map_err(RuntimeError::Poll)?;
+            // Get the scheduled processes.
+            scheduled = self.get_scheduled(scheduled, &mut events, timeout)?;
 
             // Allow the system to be run without any initiators. In that case
             // we will only handle user space events (e.g. sending messages) and
             // will return after those are all handled.
-            if !self.has_initiators && events.is_empty() && inner.scheduler.scheduled() == 0 {
+            if !self.has_initiators && scheduled.is_empty() {
                 debug!("no events, no initiators stopping actor system");
                 return Ok(())
             }
 
-            // Schedule any processes that we're notified off.
-            for event in &mut events {
-                let pid = event.id().into();
-                inner.scheduler.schedule(pid);
+            // Run each process.
+            for pid in scheduled.drain() {
+                empty_process = self.run_process(pid, empty_process, &mut system_ref);
             }
+        }
+    }
 
-            // Run all scheduled processes.
-            inner.scheduler.run(&mut system_ref);
+    /// In case of no initiators only user space events are handled and timeout
+    /// will be 0ms, otherwise it will be none.
+    fn determine_timeout(&self) -> Option<Duration> {
+        if self.has_initiators {
+            None
+        } else {
+            Some(Duration::from_millis(0))
+        }
+    }
+
+    /// Get the set of scheduled processes, replacing it with an empty set.
+    ///
+    /// This polls the system poller, swaps the scheduled processes in the
+    /// scheduler and schedules any processes based on the system poller events.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the actor system inside is already borrowed.
+    fn get_scheduled(&mut self, empty: HashSet<ProcessId>, events: &mut Events, timeout: Option<Duration>) -> Result<HashSet<ProcessId>, RuntimeError> {
+        debug!("polling system poller for events");
+        match self.inner.try_borrow_mut() {
+            Ok(mut inner) => match inner.poll.poll(events, timeout) {
+                Ok(()) => { /* Continue. */ },
+                Err(err) => return Err(RuntimeError::Poll(err)),
+            },
+            Err(_) => unreachable!("can't poll, actor system already borrowed"),
+        }
+
+        // Swap the set of scheduled processes with an empty set.
+        let mut scheduled = match self.inner.try_borrow_mut() {
+            Ok(mut inner) => inner.scheduler.swap_scheduled(empty),
+            Err(_) => unreachable!("can't get scheduled processes, actor system already borrowed"),
+        };
+
+        // Schedule any processes that we're notified off.
+        for event in events {
+            let pid = event.id().into();
+            let _ = scheduled.insert(pid);
+        }
+
+        Ok(scheduled)
+    }
+
+    /// Run a single process.
+    ///
+    /// It returns the `empty` process.
+    ///
+    /// # Panics
+    ///
+    /// Will panic if the actor system inside is already borrowed.
+    fn run_process(&mut self, pid: ProcessId, empty: Box<dyn ScheduledProcess>, system_ref: &mut ActorSystemRef) -> Box<dyn ScheduledProcess> {
+        let mut process = match self.inner.try_borrow_mut() {
+            Ok(mut inner) => match inner.scheduler.swap_process(pid, empty) {
+                Ok(process) => process,
+                Err(empty) => {
+                    debug!("process scheduled, but no longer alive: pid={}", pid);
+                    return empty;
+                },
+            },
+            Err(_) => unreachable!("can't swap processes, actor system already borrowed"),
+        };
+
+        let start = Instant::now();
+        trace!("running process: pid={}", pid);
+        let result = process.run(system_ref);
+        trace!("finished running process: pid={}, elapsed_time={:?}", pid, start.elapsed());
+
+        match self.inner.try_borrow_mut() {
+            Ok(mut inner) => match result {
+                ProcessCompletion::Pending =>
+                    inner.scheduler.swap_process(pid, process).unwrap(),
+                ProcessCompletion::Complete =>
+                    inner.scheduler.remove_process(pid),
+            },
+            Err(_) => unreachable!("can't get scheduler, actor system already borrowed"),
         }
     }
 }
