@@ -210,7 +210,7 @@ impl Clone for ActorSystemRef {
 struct ActorSystemInner {
     /// Scheduler that hold the processes, schedules and runs them.
     scheduler: Scheduler,
-    /// System poller, used for event notifications to support non-block I/O.
+    /// System poller, used for event notifications to support non-blocking I/O.
     poll: Poll,
 }
 
