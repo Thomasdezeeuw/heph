@@ -18,6 +18,8 @@ pub use self::initiator::InitiatorProcess;
 /// This can only be created by the [`Scheduler`] and should be seen as an
 /// opaque type for the rest of the crate. For convince this can converted from
 /// and into an `EventedId` as used by `mio-st`.
+///
+/// [`Scheduler`]: ../scheduler/struct.Scheduler.html
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 pub struct ProcessId(pub usize);
 
