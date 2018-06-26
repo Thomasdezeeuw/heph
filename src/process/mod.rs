@@ -6,8 +6,10 @@ use mio_st::event::EventedId;
 
 use system::ActorSystemRef;
 
+mod actor;
 mod initiator;
 
+pub use self::actor::{ActorProcess, ActorRef};
 pub use self::initiator::InitiatorProcess;
 
 /// Process id, or pid for short, is an unique id for a process in an

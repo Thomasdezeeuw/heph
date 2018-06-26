@@ -6,10 +6,10 @@ use std::marker::PhantomData;
 use std::rc::Weak;
 
 use actor::Actor;
-use system::actor_process::MailBox;
+use process::actor::MailBox;
 use system::error::{SendError, SendErrorReason};
 
-/// A reference to an actor inside a running [`ActorSystem`].
+/// A reference to an actor inside a [`ActorSystem`].
 ///
 /// This reference can be used to send messages to the actor. To share this
 /// reference simply clone it.
