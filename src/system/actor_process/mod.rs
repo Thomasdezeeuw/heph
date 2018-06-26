@@ -59,9 +59,9 @@ impl<A> ActorProcess<A>
         })
     }
 
-    /// Create a new `ActorRef` reference to this actor.
+    /// Create a new reference to this actor.
     pub fn create_ref(&self) -> ActorRef<A> {
-        ActorRef::new(Rc::clone(&self.inbox))
+        ActorRef::new(Rc::downgrade(&self.inbox))
     }
 }
 
