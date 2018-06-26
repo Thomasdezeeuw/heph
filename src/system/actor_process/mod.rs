@@ -58,22 +58,23 @@ impl<A> Process for ActorProcess<A>
         loop {
             // First handle the message the actor is currently handling, if any.
             if !self.ready_for_msg {
-                let res = self.actor.poll(&mut ctx);
-                if let Some(status) = check_result(res) {
+                if let Some(status) = check_result(self.actor.poll(&mut ctx)) {
                     self.ready_for_msg = false;
                     return status;
                 }
             }
 
             // Retrieve another message, if any.
-            let msg = match self.inbox.borrow_mut().receive() {
-                Some(msg) => msg,
-                None => return ProcessCompletion::Pending,
+            let msg = match self.inbox.try_borrow_mut() {
+                Ok(mut inbox) => match inbox.receive() {
+                    Some(msg) => msg,
+                    None => return ProcessCompletion::Pending,
+                },
+                Err(_) => unreachable!("can't retrieve message, inbox already borrowed"),
             };
 
             // And pass the message to the actor.
-            let res = self.actor.handle(&mut ctx, msg);
-            if let Some(status) = check_result(res) {
+            if let Some(status) = check_result(self.actor.handle(&mut ctx, msg)) {
                 self.ready_for_msg = false;
                 return status;
             }
@@ -81,7 +82,9 @@ impl<A> Process for ActorProcess<A>
     }
 }
 
-/// Check the result of a call to poll or handle of an actor.
+/// Check the result of a call to poll or handle of an actor. If some is
+/// returned it should be returned by the function, otherwise the loop should
+/// continue.
 fn check_result<E>(result: ActorResult<E>) -> Option<ProcessCompletion> {
     match result {
         Poll::Ready(Ok(Status::Complete)) => Some(ProcessCompletion::Complete),
@@ -96,8 +99,8 @@ impl<A> fmt::Debug for ActorProcess<A>
     where A: Actor,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO: add fields.
         f.debug_struct("ActorProcess")
+            .field("ready_for_msg", &self.ready_for_msg)
             .finish()
     }
 }

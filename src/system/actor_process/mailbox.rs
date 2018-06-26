@@ -1,4 +1,4 @@
-//! Module containing the `Mailbox`.
+//! Module containing the `Mailbox` for an actor.
 
 use std::collections::VecDeque;
 

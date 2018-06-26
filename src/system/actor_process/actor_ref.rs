@@ -95,7 +95,10 @@ impl<A> ActorRef<A>
         where M: Into<A::Message>,
     {
         match self.inbox.upgrade() {
-            Some(inbox) => inbox.borrow_mut().deliver(msg),
+            Some(inbox) => match inbox.try_borrow_mut() {
+                Ok(mut inbox) => inbox.deliver(msg),
+                Err(_) => unreachable!("can't send message, inbox already borrowed"),
+            },
             None => Err(SendError {
                 message: msg,
                 reason: SendErrorReason::ActorShutdown,
