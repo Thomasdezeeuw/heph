@@ -19,12 +19,14 @@
 extern crate log;
 extern crate mio_st;
 extern crate num_cpus;
+extern crate slab;
 
 pub mod actor;
-pub mod initiator;
 //pub mod net;
 pub mod supervisor;
 pub mod system;
+
+mod initiator;
 
 /// The actor prelude. All useful traits and types in single module.
 ///

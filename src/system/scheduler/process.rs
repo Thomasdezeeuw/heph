@@ -5,7 +5,6 @@ use std::fmt;
 use mio_st::event::EventedId;
 
 use system::ActorSystemRef;
-use system::scheduler::Priority;
 
 /// Process id, or pid, is an unique id for a process in an `ActorSystem`.
 ///
@@ -14,7 +13,7 @@ use system::scheduler::Priority;
 ///
 /// [`ProcessIdGenerator`]: struct.ProcessIdGenerator.html
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
-pub struct ProcessId(usize);
+pub struct ProcessId(pub(super) usize);
 
 impl From<EventedId> for ProcessId {
     fn from(id: EventedId) -> ProcessId {
@@ -34,46 +33,11 @@ impl fmt::Display for ProcessId {
     }
 }
 
-/// Generates unique process ids.
-#[derive(Debug)]
-pub struct ProcessIdGenerator {
-    /// Current process id.
-    current: usize,
-}
-
-impl ProcessIdGenerator {
-    /// Create a new pid generator.
-    pub const fn new() -> ProcessIdGenerator {
-        ProcessIdGenerator {
-            current: 10,
-        }
-    }
-
-    /// Get the next unique process id.
-    pub fn next(&mut self) -> ProcessId {
-        let pid = self.current;
-        self.current += 1;
-        ProcessId(pid)
-    }
-}
-
 /// The trait that represents a process.
 ///
 /// The main implementation is the `ActorProcess`, which is implementation of
 /// this trait that revolves around an `Actor`.
-pub trait Process {
-    /// Get the process id.
-    ///
-    /// This must be the same as provided in `set_id`.
-    fn id(&self) -> ProcessId;
-
-    /// Get the priority of the process.
-    ///
-    /// Used in scheduling the process.
-    fn priority(&self) -> Priority;
-
-    // TODO: decide between `&mut ActorSystemRef` and `ActorSystemRef`.
-
+pub trait Process: fmt::Debug {
     /// Run the process.
     ///
     /// If this function returns it is assumed that the process is:
@@ -94,15 +58,3 @@ pub enum ProcessCompletion {
     /// made.
     Pending,
 }
-
-/// Internal process type.
-///
-/// The calls to the process are dynamically dispatched to erase the actual type
-/// of the process, this allows the process itself to have a generic type for
-/// the `Actor` (see `ActorProcess`).
-///
-/// Another reason for the process to be boxed is because the process itself
-/// moves around a lot, it's actually cheaper to allocate it on the heap and
-/// move around a fat pointer to it, rather then moving the entire process
-/// structure around.
-pub type ProcessPtr = Box<dyn Process>;

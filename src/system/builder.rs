@@ -8,7 +8,6 @@ use num_cpus;
 use mio_st::poll::Poll;
 
 use system::{ActorSystem, ActorSystemInner};
-use system::process::ProcessIdGenerator;
 use system::scheduler::Scheduler;
 
 /// A builder pattern for an [`ActorSystem`].
@@ -27,7 +26,6 @@ impl ActorSystemBuilder {
         let inner = ActorSystemInner {
             scheduler: Scheduler::new(),
             has_initiators: false,
-            pid_gen: ProcessIdGenerator::new(),
             poll: Poll::new()?,
         };
 

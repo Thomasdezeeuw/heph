@@ -1,8 +1,10 @@
 //! Module containing the scheduler.
 
 use std::fmt;
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::time::Instant;
+
+use slab::{Slab, VacantEntry};
 
 use system::ActorSystemRef;
 
@@ -10,25 +12,28 @@ mod priority;
 pub mod process;
 
 pub use self::priority::Priority;
-use self::process::{ProcessCompletion, ProcessId, ProcessPtr};
+pub use self::process::{Process, ProcessCompletion, ProcessId};
 
 /// The scheduler, responsible for scheduling and running processes.
-///
-/// The scheduler implements the `Iterator` trait which can used iterate over
-/// all scheduled processes.
+#[derive(Debug)]
 pub struct Scheduler {
-    /// Active, scheduled processes.
-    active: Vec<ProcessPtr>,
-    /// Inactive processes.
-    inactive: HashMap<ProcessId, ProcessPtr>,
+    /// Which processes are scheduled to run, by process id.
+    ///
+    /// It could be that this contains ids for processes that are no longer in
+    /// the scheduler, we deal with that.
+    // TODO: use custom, simple hasher that just return the underlying usize as
+    // u64.
+    scheduled: HashSet<ProcessId>,
+    /// All processes in the scheduler.
+    processes: Slab<Box<dyn ScheduledProcess>>,
 }
 
 impl Scheduler {
     /// Create a new scheduler.
     pub fn new() -> Scheduler {
         Scheduler {
-            active: Vec::new(),
-            inactive: HashMap::new(),
+            scheduled: HashSet::new(),
+            processes: Slab::new(),
         }
     }
 
@@ -36,32 +41,24 @@ impl Scheduler {
     ///
     /// By default the process will be considered inactive and thus not
     /// scheduled. To schedule the process see `schedule`.
-    pub fn add_process(&mut self, process: ProcessPtr) {
-        debug!("adding new process: pid={}", process.id());
-        self.add_inactive(process);
-    }
-
-    /// Add the process to the inactive processes list.
-    fn add_inactive(&mut self, process: ProcessPtr) {
-        if self.inactive.insert(process.id(), process).is_some() {
-            panic!("overwritten a process in inactive map");
+    pub fn add_process<'p>(&'p mut self) -> AddingProcess<'p> {
+        AddingProcess {
+            entry: self.processes.vacant_entry(),
         }
     }
 
     /// Schedule a process.
     ///
-    /// This marks a process as active and moves it the scheduled queue.
-    pub fn schedule(&mut self, pid: ProcessId) -> Result<(), ScheduleError> {
+    /// This marks a process as active and will schedule it to run on the next
+    /// call to `run`.
+    ///
+    /// # Notes
+    ///
+    /// Called this with an invalid or outdated pid will be silently ignored.
+    pub fn schedule(&mut self, pid: ProcessId) {
         debug!("scheduling process: pid={}", pid);
-        let process = self.inactive.remove(&pid);
-        if let Some(process) = process {
-            debug_assert_eq!(process.id(), pid, "process has different pid then expected");
-            // TODO: take priority of the process into account.
-            self.active.push(process);
-            Ok(())
-        } else {
-            Err(ScheduleError)
-        }
+        // Don't care if it's already scheduled or not.
+        let _ = self.scheduled.insert(pid);
     }
 
     /// Run the scheduled processes.
@@ -69,46 +66,86 @@ impl Scheduler {
     /// This loops over all currently scheduled processes and runs them.
     pub fn run(&mut self, system_ref: &mut ActorSystemRef) {
         debug!("running scheduled processes");
-        loop {
-            match self.active.pop() {
-                Some(mut process) => {
-                    let pid = process.id();
-                    let start = Instant::now();
-                    trace!("running process: pid={}", pid);
-                    let res = process.run(system_ref);
-                    trace!("finished running process: pid={}, elapsed_time={:?}", pid, start.elapsed());
-                    match res {
-                        ProcessCompletion::Complete => {
-                            trace!("process complete, remote it: pid={}", pid);
-                            drop(process)
-                        },
-                        ProcessCompletion::Pending => {
-                            trace!("marking process as inactive: pid={}", pid);
-                            self.add_inactive(process)
-                        },
-                    }
-                },
-                None => return,
+        for pid in self.scheduled.drain() {
+            let res = {
+                let process = match self.processes.get_mut(pid.0) {
+                    Some(process) => process,
+                    None => {
+                        debug!("process scheduled, but no longer active: pid={}", pid);
+                        continue
+                    },
+                };
+
+                let start = Instant::now();
+                trace!("running process: pid={}", pid);
+                let res = process.run(system_ref);
+                trace!("finished running process: pid={}, elapsed_time={:?}", pid, start.elapsed());
+                res
+            };
+            if let ProcessCompletion::Complete = res {
+                trace!("process completed, removing it: pid={}", pid);
+                drop(self.processes.remove(pid.0))
+            } else {
+                trace!("marking process as inactive: pid={}", pid);
             }
         }
     }
 }
 
-impl fmt::Debug for Scheduler {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("Scheduler")
-            .field("active (length)", &self.active.len())
-            .field("inactive (length)", &self.inactive.len())
-            .finish()
+/// A handle to add a process to the scheduler.
+///
+/// This allows the `ProcessId`, or pid, to be determined before the process is
+/// actually added. This is used in registering with the system poller.
+pub struct AddingProcess<'s> {
+    /// A reference to the entry in which we'll add the process.
+    entry: VacantEntry<'s, Box<dyn ScheduledProcess>>,
+}
+
+impl<'s> AddingProcess<'s> {
+    /// Get the would be `ProcessId` for the process to be added.
+    pub fn id(&self) -> ProcessId {
+        ProcessId(self.entry.key())
+    }
+
+    /// Add a new process to the scheduler.
+    pub fn add<P>(self, process: P, priority: Priority)
+        where P: Process + 'static,
+    {
+        let pid = self.id();
+        debug!("adding new process: pid={}", pid);
+        let process = Box::new(ProcessData { priority, process });
+        let _ = self.entry.insert(process);
     }
 }
 
-/// Error returned by [scheduling] a process.
+/// A process that is scheduled in the `Scheduler`.
 ///
-/// This can mean one of two things:
-/// 1. provided `ProcessId` is incorrect, or
-/// 2. the process is already scheduled.
-///
-/// [scheduling]: struct.Scheduler.html#method.schedule
+/// The only implementation is `ProcessData`, but using traits allows us to use
+/// dynamic dispatch to erase the actual type of the process.
+trait ScheduledProcess: fmt::Debug {
+    /// Get the priority of the process.
+    fn priority(&self) -> Priority;
+
+    /// Run the process.
+    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessCompletion;
+}
+
+/// Container for a `Process` that holds the id and priority and implements
+/// `ScheduledProcess`.
 #[derive(Debug)]
-pub struct ScheduleError;
+struct ProcessData<P> {
+    priority: Priority,
+    process: P,
+}
+
+impl<P> ScheduledProcess for ProcessData<P>
+    where P: Process,
+{
+    fn priority(&self) -> Priority {
+        self.priority
+    }
+
+    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessCompletion {
+        self.process.run(system_ref)
+    }
+}

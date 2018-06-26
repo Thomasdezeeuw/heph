@@ -1,17 +1,13 @@
 //! Module containing the implementation of the `Process` trait for `Initiator`s.
 
+use std::fmt;
+
 use initiator::Initiator;
 use system::ActorSystemRef;
-use system::process::{Process, ProcessId, ProcessCompletion};
-use system::scheduler::Priority;
+use system::scheduler::process::{Process, ProcessCompletion};
 
 /// A process that represent an initiator.
-#[derive(Debug)]
 pub struct InitiatorProcess<I> {
-    /// Unique id in the `ActorSystem`.
-    id: ProcessId,
-    /// The priority of the process.
-    priority: Priority,
     /// The initiator.
     initiator: I,
 }
@@ -20,12 +16,8 @@ impl<I> InitiatorProcess<I>
     where I: Initiator,
 {
     /// Create a new process.
-    pub fn new(id: ProcessId, initiator: I) -> InitiatorProcess<I> {
+    pub const fn new(initiator: I) -> InitiatorProcess<I> {
         InitiatorProcess {
-            id,
-            // Give initiators a low priority to first handle old requests,
-            // before accepting new ones.
-            priority: Priority::LOW,
             initiator,
         }
     }
@@ -34,14 +26,6 @@ impl<I> InitiatorProcess<I>
 impl<I> Process for InitiatorProcess<I>
     where I: Initiator,
 {
-    fn id(&self) -> ProcessId {
-        self.id
-    }
-
-    fn priority(&self) -> Priority {
-        self.priority
-    }
-
     fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessCompletion {
         if let Err(err) = self.initiator.poll(system_ref) {
             error!("error polling initiator: {}", err);
@@ -49,5 +33,13 @@ impl<I> Process for InitiatorProcess<I>
         } else {
             ProcessCompletion::Pending
         }
+    }
+}
+
+impl<I> fmt::Debug for InitiatorProcess<I> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO: add fields.
+        f.debug_struct("InitiatorProcess")
+            .finish()
     }
 }

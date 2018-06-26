@@ -8,6 +8,7 @@ autotests = false
 [dependencies]
 log = "0.4.2"
 num_cpus = "1.8.0"
+slab = "0.4.0"
 
 # Replace with published crate.
 mio-st = { path = '../mio-st' }

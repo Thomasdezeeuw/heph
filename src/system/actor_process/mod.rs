@@ -1,6 +1,6 @@
 //! Module containing the implementation of the `Process` trait for `Actor`s.
 
-use std::io;
+use std::{fmt, io};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::task::Poll;
@@ -12,8 +12,7 @@ use mio_st::registration::Registration;
 use actor::{Actor, ActorContext, ActorResult, Status};
 use system::ActorSystemRef;
 use system::options::ActorOptions;
-use system::process::{Process, ProcessId, ProcessCompletion};
-use system::scheduler::Priority;
+use system::scheduler::process::{Process, ProcessId, ProcessCompletion};
 
 mod actor_ref;
 mod mailbox;
@@ -26,14 +25,9 @@ pub use self::mailbox::MailBox;
 type SharedMailbox<M> = Rc<RefCell<MailBox<M>>>;
 
 /// A process that represent an actor, it's mailbox and current execution.
-#[derive(Debug)]
 pub struct ActorProcess<A>
     where A: Actor,
 {
-    /// Unique id in the `ActorSystem`.
-    id: ProcessId,
-    /// The priority of the process.
-    priority: Priority,
     /// The actor.
     actor: A,
     /// Whether or not the actor has returned `Async::Ready` and is ready to
@@ -49,17 +43,15 @@ impl<A> ActorProcess<A>
     where A: Actor,
 {
     /// Create a new process.
-    pub fn new(id: ProcessId, actor: A, options: ActorOptions, poll: &mut MioPoll) -> Result<ActorProcess<A>, (A, io::Error)> {
+    pub fn new(pid: ProcessId, actor: A, _options: ActorOptions, poll: &mut MioPoll) -> Result<ActorProcess<A>, (A, io::Error)> {
         let (mut registration, notifier) = Registration::new();
-        if let Err(err) = poll.register(&mut registration, id.into(), Ready::READABLE, PollOpt::Edge) {
+        if let Err(err) = poll.register(&mut registration, pid.into(), Ready::READABLE, PollOpt::Edge) {
             return Err((actor, err));
         }
 
         let inbox = Rc::new(RefCell::new(MailBox::new(notifier.clone())));
 
         Ok(ActorProcess {
-            id,
-            priority: options.priority,
             actor,
             ready_for_msg: true,
             inbox,
@@ -76,14 +68,6 @@ impl<A> ActorProcess<A>
 impl<A> Process for ActorProcess<A>
     where A: Actor,
 {
-    fn id(&self) -> ProcessId {
-        self.id
-    }
-
-    fn priority(&self) -> Priority {
-        self.priority
-    }
-
     fn run(&mut self, _system_ref: &mut ActorSystemRef) -> ProcessCompletion {
         // Create our actor execution context.
         let mut ctx = ActorContext{};
@@ -111,6 +95,16 @@ impl<A> Process for ActorProcess<A>
                 return status;
             }
         }
+    }
+}
+
+impl<A> fmt::Debug for ActorProcess<A>
+    where A: Actor,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // TODO: add fields.
+        f.debug_struct("ActorProcess")
+            .finish()
     }
 }
 

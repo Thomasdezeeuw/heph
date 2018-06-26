@@ -2,7 +2,10 @@
 
 use std::io;
 
+use mio_st::poll::Poll;
+
 use system::ActorSystemRef;
+use system::ProcessId;
 
 // TODO: maybe let Initator return a specialised error, other then `io::Error`?
 // E.g. `RuntimeError`.
@@ -18,7 +21,7 @@ pub trait Initiator {
     /// the [`ActorSystem.run`] method.
     ///
     /// [`ActorSystem.run`]: ../system/struct.ActorSystem.html#method.run
-    fn init(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()>;
+    fn init(&mut self, system_ref: &mut Poll, pid: ProcessId) -> io::Result<()>;
 
     /// Poll the `Initiator` for new events.
     ///
