@@ -228,14 +228,14 @@ impl ActorSystemRef {
     ///
     /// This is used by the `Initiator`s to register with poll with the same
     /// pid.
-    pub(crate) fn add_actor_pid<F, A>(&mut self, options: ActorOptions, f: F) -> io::Result<()>
+    pub(crate) fn add_actor_setup<F, A>(&mut self, options: ActorOptions, f: F) -> io::Result<()>
         where F: FnOnce(ProcessId, &mut Poll) -> io::Result<A>,
               A: Actor + 'static,
     {
         let system_ref = self.clone();
         match self.inner.upgrade() {
             Some(inner_ref) => match inner_ref.try_borrow_mut() {
-                Ok(mut inner) => inner.add_actor_pid(options, f, system_ref),
+                Ok(mut inner) => inner.add_actor_setup(options, f, system_ref),
                 Err(_) => unreachable!("can't add actor, actor system already borrowed"),
             },
             None => Err(AddActorError::new((), AddActorErrorReason::SystemShutdown).into()),
@@ -308,7 +308,7 @@ impl ActorSystemInner {
         actor_ref
     }
 
-    fn add_actor_pid<F, A>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<()>
+    fn add_actor_setup<F, A>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<()>
         where F: FnOnce(ProcessId, &mut Poll) -> io::Result<A>,
               A: Actor + 'static,
     {

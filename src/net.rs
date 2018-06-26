@@ -33,7 +33,7 @@ pub struct TcpListener<N> {
 }
 
 // TODO: remove the static lifetime from `A`, it also needs to be removed from
-// the ActorSystem.add_actor_pid.
+// the ActorSystem.add_actor_setup.
 
 impl<N, A> TcpListener<N>
     where N: NewActor<Item = (TcpStream, SocketAddr), Actor = A>,
@@ -68,7 +68,7 @@ impl<N, A> Initiator for TcpListener<N>
             };
 
             let system_ref_clone = system_ref.clone();
-            let _ = system_ref.add_actor_pid(self.options.clone(), |pid, poll| {
+            let _ = system_ref.add_actor_setup(self.options.clone(), |pid, poll| {
                 poll.register(&mut stream, pid.into(),
                     Ready::READABLE, PollOpt::Edge)?;
 
