@@ -1,5 +1,8 @@
 # TODO
 
+1. Fix example 2.
+2. Write (much) more tests.
+
 Stuff left to do.
 
  - TcpListener currently registers itself with a different id then the process
@@ -39,6 +42,10 @@ implement `Initiator`.
 In general the `ActorSystem` needs more logging, mostly debug level. Maybe
 provide a default logging implementation (behind a feature flag) that does
 logging via the `log` crate.
+
+## Make Actor messages Clone
+
+This way if an actor crashes, the message can be delivered again.
 
 ## Improved scheduler
 
