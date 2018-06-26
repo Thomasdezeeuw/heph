@@ -7,8 +7,8 @@ use std::rc::Rc;
 use num_cpus;
 use mio_st::poll::Poll;
 
+use scheduler::Scheduler;
 use system::{ActorSystem, ActorSystemInner};
-use system::scheduler::Scheduler;
 
 /// A builder pattern for an [`ActorSystem`].
 ///

@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-pub use system::scheduler::Priority;
+pub use scheduler::Priority;
 
 /// Options for adding an actor to the [`ActorSystem`].
 ///

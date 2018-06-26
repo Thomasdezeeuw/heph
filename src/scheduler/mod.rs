@@ -1,4 +1,4 @@
-//! Module containing the scheduler.
+//! Module containing the `Scheduler` and related types.
 
 use std::fmt;
 use std::collections::HashSet;
@@ -6,12 +6,12 @@ use std::time::Instant;
 
 use slab::{Slab, VacantEntry};
 
+use process::{Process, ProcessCompletion, ProcessId};
 use system::ActorSystemRef;
 
 mod priority;
 
 pub use self::priority::Priority;
-pub use process::{Process, ProcessCompletion, ProcessId};
 
 /// The scheduler, responsible for scheduling and running processes.
 #[derive(Debug)]
@@ -19,7 +19,7 @@ pub struct Scheduler {
     /// Which processes are scheduled to run, by process id.
     ///
     /// It could be that this contains ids for processes that are no longer in
-    /// the scheduler, we deal with that.
+    /// the scheduler, we just ignore those.
     // TODO: use custom, simple hasher that just return the underlying usize as
     // u64.
     scheduled: HashSet<ProcessId>,
@@ -40,7 +40,10 @@ impl Scheduler {
     ///
     /// By default the process will be considered inactive and thus not
     /// scheduled. To schedule the process see `schedule`.
-    pub fn add_process<'p>(&'p mut self) -> AddingProcess<'p> {
+    ///
+    /// The API allows the `ProcessId` to be used before the process is actually
+    /// added to scheduler.
+    pub fn add_process<'s>(&'s mut self) -> AddingProcess<'s> {
         AddingProcess {
             entry: self.processes.vacant_entry(),
         }
@@ -53,29 +56,27 @@ impl Scheduler {
     ///
     /// # Notes
     ///
-    /// Called this with an invalid or outdated pid will be silently ignored.
+    /// Calling this with an invalid or outdated pid will be silently ignored.
     pub fn schedule(&mut self, pid: ProcessId) {
         debug!("scheduling process: pid={}", pid);
         // Don't care if it's already scheduled or not.
         let _ = self.scheduled.insert(pid);
     }
 
-    /// Returns the number of processes scheduled.
+    /// Returns the number of processes currently scheduled.
     pub fn scheduled(&self) -> usize {
         self.scheduled.len()
     }
 
-    /// Run the scheduled processes.
-    ///
-    /// This loops over all currently scheduled processes and runs them.
+    /// Run all scheduled processes.
     pub fn run(&mut self, system_ref: &mut ActorSystemRef) {
-        debug!("running scheduled processes");
+        debug!("running all scheduled processes");
         for pid in self.scheduled.drain() {
-            let res = {
+            let completion = {
                 let process = match self.processes.get_mut(pid.0) {
                     Some(process) => process,
                     None => {
-                        debug!("process scheduled, but no longer active: pid={}", pid);
+                        debug!("process scheduled, but no longer alive: pid={}", pid);
                         continue
                     },
                 };
@@ -86,11 +87,10 @@ impl Scheduler {
                 trace!("finished running process: pid={}, elapsed_time={:?}", pid, start.elapsed());
                 res
             };
-            if let ProcessCompletion::Complete = res {
+
+            if let ProcessCompletion::Complete = completion {
                 trace!("process completed, removing it: pid={}", pid);
                 drop(self.processes.remove(pid.0))
-            } else {
-                trace!("marking process as inactive: pid={}", pid);
             }
         }
     }
@@ -124,8 +124,8 @@ impl<'s> AddingProcess<'s> {
 
 /// A process that is scheduled in the `Scheduler`.
 ///
-/// The only implementation is `ProcessData`, but using traits allows us to use
-/// dynamic dispatch to erase the actual type of the process.
+/// The only implementation is `ProcessData`, but using an trait object allows
+/// us to erase the actual type of the process.
 trait ScheduledProcess: fmt::Debug {
     /// Get the priority of the process.
     fn priority(&self) -> Priority;

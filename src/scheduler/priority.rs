@@ -1,9 +1,9 @@
-//! Module contain the scheduler priority type.
+//! Module containing the scheduler `Priority` type.
 
 use std::cmp::Ordering;
 
 // TODO: Document the priorities more including the effects it has on
-// scheduling.
+// scheduling, once that is implemented.
 
 /// Priority for an actor in the scheduler.
 //
