@@ -38,7 +38,6 @@ impl<I> Process for InitiatorProcess<I>
 
 impl<I> fmt::Debug for InitiatorProcess<I> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        // TODO: add fields.
         f.debug_struct("InitiatorProcess")
             .finish()
     }
