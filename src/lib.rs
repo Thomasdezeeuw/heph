@@ -4,6 +4,7 @@
            const_fn,
            futures_api,
            non_exhaustive,
+           read_initializer,
 )]
 
 #![warn(missing_debug_implementations,
@@ -22,7 +23,7 @@ extern crate num_cpus;
 extern crate slab;
 
 pub mod actor;
-//pub mod net;
+pub mod net;
 pub mod supervisor;
 pub mod system;
 

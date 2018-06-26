@@ -1,19 +1,16 @@
 //! Network related types.
 
-use std::io::{self, ErrorKind, Read, Write};
-use std::net::{SocketAddr, Shutdown};
+use std::io::{self, ErrorKind, Initializer, Read, Write};
+use std::net::SocketAddr;
 
-use futures_core::task::Context;
-use futures_core::{Async, Poll};
-use futures_io::{AsyncRead, AsyncWrite};
 use mio_st::event::Ready;
 use mio_st::net::TcpListener as MioTcpListener;
 use mio_st::net::TcpStream as MioTcpStream;
-use mio_st::poll::PollOpt;
+use mio_st::poll::{Poll, PollOpt};
 
 use actor::{Actor, NewActor};
 use initiator::Initiator;
-use system::{ActorSystemRef, ActorOptions};
+use system::{ActorSystemRef, ActorOptions, ProcessId};
 
 /// A TCP listener that implements the [`Initiator`] trait.
 ///
@@ -55,13 +52,8 @@ impl<N, A> Initiator for TcpListener<N>
     where N: NewActor<Item = (TcpStream, SocketAddr), Actor = A>,
           A: Actor + 'static,
 {
-    fn init(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()> {
-        // Get a new process id, which we'll use as `EventedId` when
-        // registering.
-        // FIXME: this pid is never scheduled, as a new pid is used when adding
-        // this initiator to the scheduler.
-        let pid = system_ref.next_pid();
-        system_ref.poll_register(&mut self.listener, pid.into(),
+    fn init(&mut self, poll: &mut Poll, pid: ProcessId) -> io::Result<()> {
+        poll.register(&mut self.listener, pid.into(),
             Ready::READABLE, PollOpt::Edge)
     }
 
@@ -70,27 +62,24 @@ impl<N, A> Initiator for TcpListener<N>
             let (mut stream, addr) = match self.listener.accept() {
                 Ok(ok) => ok,
                 Err(ref err) if would_block(err) => return Ok(()),
+                Err(ref err) if interrupted(err) => continue, // Try again.
                 Err(err) => return Err(err),
             };
 
-            // Get a new process id and use it to register the stream and later
-            // for add the actor to the system, this way the correct actor is
-            // run when the connection is ready.
-            let pid = system_ref.next_pid();
-            system_ref.poll_register(&mut stream, pid.into(),
-                Ready::READABLE, PollOpt::Edge)?;
+            let system_ref_clone = system_ref.clone();
+            let _ = system_ref.add_actor_pid(self.options.clone(), |pid, poll| {
+                poll.register(&mut stream, pid.into(),
+                    Ready::READABLE, PollOpt::Edge)?;
 
-            // Wrap the raw stream with our wrapper.
-            let stream = TcpStream {
-                inner: stream,
-                system_ref: system_ref.clone(),
-            };
+                // Wrap the raw stream with our wrapper.
+                let stream = TcpStream {
+                    inner: stream,
+                    system_ref: system_ref_clone,
+                };
 
-            // Create our actor and add it the system.
-            let actor = self.new_actor.new((stream, addr));
-            if let Err(err) = system_ref.add_actor_pid(actor, self.options.clone(), pid) {
-                return Err(err.into());
-            }
+                // Create our actor and add it the system.
+                Ok(self.new_actor.new((stream, addr)))
+            })?;
         }
     }
 }
@@ -104,6 +93,30 @@ pub struct TcpStream {
     /// used to deregister itself when dropped.
     system_ref: ActorSystemRef,
 }
+
+impl Read for TcpStream {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner.read(buf)
+    }
+
+    unsafe fn initializer(&self) -> Initializer {
+        self.inner.initializer()
+    }
+}
+
+impl Write for TcpStream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.inner.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.inner.flush()
+    }
+}
+
+/*
+
+TODO: enable this once AsyncRead and AsyncWrite are available in futures v0.3.
 
 /// A macro to try an I/O function.
 ///
@@ -157,6 +170,7 @@ impl AsyncWrite for TcpStream {
         })
     }
 }
+*/
 
 impl Drop for TcpStream {
     fn drop(&mut self) {

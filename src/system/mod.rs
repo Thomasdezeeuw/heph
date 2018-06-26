@@ -115,6 +115,20 @@ impl ActorSystemRef {
         }
     }
 
+    /// Add an actor that needs to be initialised.
+    ///
+    /// This is used by the `Initiator`s to register with poll with the same
+    /// pid.
+    pub(crate) fn add_actor_pid<F, A>(&mut self, options: ActorOptions, f: F) -> io::Result<()>
+        where F: FnOnce(ProcessId, &mut Poll) -> io::Result<A>,
+              A: Actor + 'static,
+    {
+        match self.inner.upgrade() {
+            Some(r) => r.borrow_mut().add_actor_pid(options, f),
+            None => Err(AddActorError::new((), AddActorErrorReason::SystemShutdown).into()),
+        }
+    }
+
     /// Register an `Evented` handle, see `Poll.register`.
     pub(crate) fn poll_register<E>(&mut self, handle: &mut E, id: EventedId, interests: Ready, opt: PollOpt) -> io::Result<()>
         where E: Evented + ?Sized
@@ -178,6 +192,26 @@ impl ActorSystemInner {
         // Actually add the process.
         process_entry.add(process, priority);
         Ok(actor_ref)
+    }
+
+    fn add_actor_pid<F, A>(&mut self, options: ActorOptions, f: F) -> io::Result<()>
+        where F: FnOnce(ProcessId, &mut Poll) -> io::Result<A>,
+              A: Actor + 'static,
+    {
+        // Setup adding a new process to the scheduler.
+        let process_entry = self.scheduler.add_process();
+        let pid = process_entry.id();
+        debug!("adding actor to actor system: pid={}", pid);
+
+        // Create a new actor process.
+        let priority = options.priority;
+        let actor = f(pid, &mut self.poll)?;
+        let process = ActorProcess::new(pid, actor, options, &mut self.poll)
+            .map_err(|(_actor, err)| err)?;
+
+        // Actually add the process.
+        process_entry.add(process, priority);
+        Ok(())
     }
 
     fn add_initiator<I>(&mut self, mut initiator: I, _options: InitiatorOptions) -> Result<(), AddInitiatorError<I>>
