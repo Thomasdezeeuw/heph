@@ -83,22 +83,31 @@ impl ActorSystem {
             Some(Duration::from_millis(0))
         };
 
+        let mut inner = self.inner.borrow_mut();
+
+        let mut events = Events::new();
         let mut system_ref = self.create_ref();
         loop {
             debug!("polling system poll for events");
-            let n_events = self.inner.borrow_mut().poll(timeout)
+            inner.poll.poll(&mut events, timeout)
                 .map_err(RuntimeError::Poll)?;
 
             // Allow the system to be run without any initiators. In that case
             // we will only handle user space events (e.g. sending messages) and
             // will return after those are all handled.
-            if !self.has_initiators && n_events == 0 {
+            if !self.has_initiators && events.is_empty() {
                 debug!("no events, no initiators stopping actor system");
                 return Ok(())
             }
 
+            // Schedule any processes that we're notified off.
+            for event in &mut events {
+                let pid = event.id().into();
+                inner.scheduler.schedule(pid);
+            }
+
             // Run all scheduled processes.
-            self.inner.borrow_mut().scheduler.run(&mut system_ref);
+            inner.scheduler.run(&mut system_ref);
         }
     }
 }
@@ -253,21 +262,5 @@ impl ActorSystemInner {
         // possibly overload the system.
         process_entry.add(process, Priority::LOW);
         Ok(())
-    }
-
-    /// Poll the system poll and schedule the notified processes, returns the
-    /// number of processes scheduled.
-    fn poll(&mut self, timeout: Option<Duration>) -> io::Result<usize> {
-        let mut events = Events::new();
-        self.poll.poll(&mut events, timeout)?;
-
-        // Schedule any processes that we're notified off.
-        let n_scheduled = events.len();
-        for event in &mut events {
-            let pid = event.id().into();
-            self.scheduler.schedule(pid);
-        }
-
-        Ok(n_scheduled)
     }
 }
