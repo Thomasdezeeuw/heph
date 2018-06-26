@@ -2,9 +2,7 @@
 
 use std::collections::VecDeque;
 
-use mio_st::event::Ready;
-use mio_st::registration::Notifier;
-
+use system::{ActorSystemRef, ProcessId};
 use system::error::{SendError, SendErrorReason};
 
 /// Mailbox that holds all messages for an `Actor`.
@@ -12,38 +10,37 @@ use system::error::{SendError, SendErrorReason};
 pub struct MailBox<M> {
     /// The messages in the mailbox.
     messages: VecDeque<M>,
-    /// The notifier for the process.
-    notifier: Notifier,
+    /// The process id of the actor process to which this mailbox belongs.
+    pid: ProcessId,
+    /// A reference to the actor system.
+    system_ref: ActorSystemRef,
 }
 
 impl<M> MailBox<M> {
     /// Create a new mailbox.
-    ///
-    /// The `Notifier` must be registered with at least `READABLE` interest.
-    pub fn new(mut notifier: Notifier) -> MailBox<M> {
-        debug_assert!(notifier.interests().unwrap().is_readable(),
-            "notifier not registered with `READABLE` interest");
-
+    pub fn new(pid: ProcessId, system_ref: ActorSystemRef) -> MailBox<M> {
         MailBox {
             messages: VecDeque::new(),
-            notifier,
+            pid,
+            system_ref,
         }
     }
 
     /// Deliver a new message to the mailbox.
+    ///
+    /// This will schedule the actor to run.
     pub fn deliver<Msg>(&mut self, msg: Msg) -> Result<(), SendError<Msg>>
         where Msg: Into<M>,
     {
-        match self.notifier.notify(Ready::READABLE) {
+        match self.system_ref.schedule(self.pid) {
             Ok(()) => {
                 self.messages.push_back(msg.into());
                 Ok(())
             },
             Err(_) => {
-                // TODO: detect ActorSystem shutdown.
                 Err(SendError {
                     message: msg,
-                    reason: SendErrorReason::ActorShutdown,
+                    reason: SendErrorReason::SystemShutdown,
                 })
             },
         }

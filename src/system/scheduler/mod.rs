@@ -61,6 +61,11 @@ impl Scheduler {
         let _ = self.scheduled.insert(pid);
     }
 
+    /// Returns the number of processes scheduled.
+    pub fn scheduled(&self) -> usize {
+        self.scheduled.len()
+    }
+
     /// Run the scheduled processes.
     ///
     /// This loops over all currently scheduled processes and runs them.

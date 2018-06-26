@@ -5,8 +5,8 @@ use std::cell::RefCell;
 use std::rc::{Rc, Weak};
 use std::time::Duration;
 
-use mio_st::event::{Events, Evented, EventedId, Ready};
-use mio_st::poll::{Poll, PollOpt};
+use mio_st::event::{Events, Evented};
+use mio_st::poll::Poll;
 
 use actor::Actor;
 use initiator::Initiator;
@@ -47,7 +47,8 @@ impl ActorSystem {
     pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A>, AddActorError<A>>
         where A: Actor + 'static,
     {
-        self.inner.borrow_mut().add_actor(actor, options)
+        let system_ref = self.create_ref();
+        self.inner.borrow_mut().add_actor(actor, options, system_ref)
     }
 
     /// Add a new initiator to the system.
@@ -95,7 +96,7 @@ impl ActorSystem {
             // Allow the system to be run without any initiators. In that case
             // we will only handle user space events (e.g. sending messages) and
             // will return after those are all handled.
-            if !self.has_initiators && events.is_empty() {
+            if !self.has_initiators && events.is_empty() && inner.scheduler.scheduled() == 0 {
                 debug!("no events, no initiators stopping actor system");
                 return Ok(())
             }
@@ -136,8 +137,9 @@ impl ActorSystemRef {
     pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A>, AddActorError<A>>
         where A: Actor + 'static,
     {
+        let system_ref = self.clone();
         match self.inner.upgrade() {
-            Some(r) => r.borrow_mut().add_actor(actor, options),
+            Some(r) => r.borrow_mut().add_actor(actor, options, system_ref),
             None => Err(AddActorError::new(actor, AddActorErrorReason::SystemShutdown)),
         }
     }
@@ -150,19 +152,10 @@ impl ActorSystemRef {
         where F: FnOnce(ProcessId, &mut Poll) -> io::Result<A>,
               A: Actor + 'static,
     {
+        let system_ref = self.clone();
         match self.inner.upgrade() {
-            Some(r) => r.borrow_mut().add_actor_pid(options, f),
+            Some(r) => r.borrow_mut().add_actor_pid(options, f, system_ref),
             None => Err(AddActorError::new((), AddActorErrorReason::SystemShutdown).into()),
-        }
-    }
-
-    /// Register an `Evented` handle, see `Poll.register`.
-    pub(crate) fn poll_register<E>(&mut self, handle: &mut E, id: EventedId, interests: Ready, opt: PollOpt) -> io::Result<()>
-        where E: Evented + ?Sized
-    {
-        match self.inner.upgrade() {
-            Some(r) => r.borrow_mut().poll.register(handle, id, interests, opt),
-            None => Err(io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN)),
         }
     }
 
@@ -174,6 +167,19 @@ impl ActorSystemRef {
         match self.inner.upgrade() {
             Some(r) => r.borrow_mut().poll.deregister(handle),
             None => Err(io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN)),
+        }
+    }
+
+    /// Schedule the process with the provided `pid`.
+    ///
+    /// If the system is shutdown it will return an error.
+    pub(crate) fn schedule(&mut self, pid: ProcessId) -> Result<(), ()> {
+        match self.inner.upgrade() {
+            Some(r) => {
+                r.borrow_mut().schedule(pid);
+                Ok(())
+            },
+            None => Err(()),
         }
     }
 }
@@ -196,7 +202,7 @@ struct ActorSystemInner {
 }
 
 impl ActorSystemInner {
-    fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A>, AddActorError<A>>
+    fn add_actor<A>(&mut self, actor: A, options: ActorOptions, system_ref: ActorSystemRef) -> Result<ActorRef<A>, AddActorError<A>>
         where A: Actor + 'static,
     {
         // Setup adding a new process to the scheduler.
@@ -206,7 +212,7 @@ impl ActorSystemInner {
 
         // Create a new actor process.
         let priority = options.priority;
-        let process = ActorProcess::new(pid, actor, options, &mut self.poll)
+        let process = ActorProcess::new(pid, actor, options, system_ref)
             .map_err(|(actor, err)| AddActorError::new(actor, AddActorErrorReason::RegisterFailed(err)))?;
 
         // Create a reference to the actor, to be returned.
@@ -217,7 +223,7 @@ impl ActorSystemInner {
         Ok(actor_ref)
     }
 
-    fn add_actor_pid<F, A>(&mut self, options: ActorOptions, f: F) -> io::Result<()>
+    fn add_actor_pid<F, A>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<()>
         where F: FnOnce(ProcessId, &mut Poll) -> io::Result<A>,
               A: Actor + 'static,
     {
@@ -229,12 +235,16 @@ impl ActorSystemInner {
         // Create a new actor process.
         let priority = options.priority;
         let actor = f(pid, &mut self.poll)?;
-        let process = ActorProcess::new(pid, actor, options, &mut self.poll)
+        let process = ActorProcess::new(pid, actor, options, system_ref)
             .map_err(|(_actor, err)| err)?;
 
         // Actually add the process.
         process_entry.add(process, priority);
         Ok(())
+    }
+
+    fn schedule(&mut self, pid: ProcessId) {
+        self.scheduler.schedule(pid);
     }
 
     fn add_initiator<I>(&mut self, mut initiator: I, _options: InitiatorOptions) -> Result<(), AddInitiatorError<I>>
