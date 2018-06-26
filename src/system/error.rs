@@ -53,7 +53,6 @@ impl<A> Into<io::Error> for AddActorError<A> {
         use self::AddActorErrorReason::*;
         match self.reason {
             SystemShutdown => io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN),
-            RegisterFailed(err) => err,
         }
     }
 }
@@ -71,7 +70,6 @@ impl<A: fmt::Debug> Error for AddActorError<A> {
 
     fn cause(&self) -> Option<&Error> {
         match self.reason {
-            AddActorErrorReason::RegisterFailed(ref err) => Some(err),
             _ => None,
         }
     }
@@ -83,8 +81,6 @@ impl<A: fmt::Debug> Error for AddActorError<A> {
 pub enum AddActorErrorReason {
     /// The system is shutting down.
     SystemShutdown,
-    /// The actor failed to be registered with the system poller.
-    RegisterFailed(io::Error),
 }
 
 impl fmt::Display for AddActorErrorReason {
@@ -92,7 +88,6 @@ impl fmt::Display for AddActorErrorReason {
         use self::AddActorErrorReason::*;
         match self {
             SystemShutdown => f.pad(ERR_SYSTEM_SHUTDOWN),
-            RegisterFailed(ref err) => err.fmt(f),
         }
     }
 }

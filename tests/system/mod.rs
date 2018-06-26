@@ -29,8 +29,7 @@ fn no_initiator_single_message_before_run() {
 
     let mut actor_system = ActorSystemBuilder::default().build()
         .expect("unable to build actor system");
-    let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default())
-        .expect("unable to add actor to actor system");
+    let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default());
 
     actor_ref.send(1usize).expect("failed to send to actor");
 
@@ -45,8 +44,7 @@ fn no_initiator_multiple_messages_before_run() {
 
     let mut actor_system = ActorSystemBuilder::default().build()
         .expect("unable to build actor system");
-    let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default())
-        .expect("unable to add actor to actor system");
+    let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default());
 
     actor_ref.send(1usize).expect("failed to send to actor");
     actor_ref.send(2usize).expect("failed to send to actor");
@@ -64,16 +62,14 @@ fn simple_message_passing() {
 
     let mut actor_system = ActorSystemBuilder::default().build()
         .expect("unable to build actor system");
-    let mut actor1_ref = actor_system.add_actor(actor1, ActorOptions::default())
-        .expect("unable to add actor to actor system");
+    let mut actor1_ref = actor_system.add_actor(actor1, ActorOptions::default());
 
     let actor2 = actor_fn(move |_, value: usize| -> Result<Status, ()> {
         actor1_ref.send(value * 2).expect("failed to send to actor");
         Ok(Status::Ready)
     });
 
-    let mut actor2_ref = actor_system.add_actor(actor2, ActorOptions::default())
-        .expect("unable to add actor to actor system");
+    let mut actor2_ref = actor_system.add_actor(actor2, ActorOptions::default());
 
     actor2_ref.send(1usize).expect("failed to send to actor");
     actor2_ref.send(2usize).expect("failed to send to actor");

@@ -29,8 +29,7 @@ use system::error::{SendError, SendErrorReason};
 /// # let mut actor_system = ActorSystemBuilder::default().build().unwrap();
 /// # let actor = actor_fn(|_, _: ()| -> Result<Status, ()> { Ok(Status::Ready) });
 ///
-/// let actor_ref = actor_system.add_actor(actor, ActorOptions::default())
-///     .unwrap_or_else(|err| panic!("unable to add actor to actor system: {}", err));
+/// let actor_ref = actor_system.add_actor(actor, ActorOptions::default());
 ///
 /// // To create another `ActorRef` we can simply clone the first one.
 /// let second_actor_ref = actor_ref.clone();
@@ -86,8 +85,7 @@ impl<A> ActorRef<A>
     /// # let mut actor_system = ActorSystemBuilder::default().build().unwrap();
     /// # let actor = actor_fn(|_, _: Message| -> Result<Status, ()> { Ok(Status::Ready) });
     ///
-    /// let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default())
-    ///     .unwrap_or_else(|err| panic!("unable to add actor to actor system: {}", err));
+    /// let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default());
     ///
     /// // Now we can use the reference to send the actor a message, without
     /// // having to use `Message` we can just use `String`.

@@ -44,7 +44,7 @@ pub struct ActorSystem {
 impl ActorSystem {
     /// Add a new actor to the system.
     // TODO: remove `'static` lifetime.
-    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A>, AddActorError<A>>
+    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> ActorRef<A>
         where A: Actor + 'static,
     {
         let system_ref = self.create_ref();
@@ -139,7 +139,7 @@ impl ActorSystemRef {
     {
         let system_ref = self.clone();
         match self.inner.upgrade() {
-            Some(r) => r.borrow_mut().add_actor(actor, options, system_ref),
+            Some(r) => Ok(r.borrow_mut().add_actor(actor, options, system_ref)),
             None => Err(AddActorError::new(actor, AddActorErrorReason::SystemShutdown)),
         }
     }
@@ -202,7 +202,7 @@ struct ActorSystemInner {
 }
 
 impl ActorSystemInner {
-    fn add_actor<A>(&mut self, actor: A, options: ActorOptions, system_ref: ActorSystemRef) -> Result<ActorRef<A>, AddActorError<A>>
+    fn add_actor<A>(&mut self, actor: A, options: ActorOptions, system_ref: ActorSystemRef) -> ActorRef<A>
         where A: Actor + 'static,
     {
         // Setup adding a new process to the scheduler.
@@ -212,15 +212,14 @@ impl ActorSystemInner {
 
         // Create a new actor process.
         let priority = options.priority;
-        let process = ActorProcess::new(pid, actor, options, system_ref)
-            .map_err(|(actor, err)| AddActorError::new(actor, AddActorErrorReason::RegisterFailed(err)))?;
+        let process = ActorProcess::new(pid, actor, options, system_ref);
 
         // Create a reference to the actor, to be returned.
         let actor_ref = process.create_ref();
 
         // Actually add the process.
         process_entry.add(process, priority);
-        Ok(actor_ref)
+        actor_ref
     }
 
     fn add_actor_pid<F, A>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<()>
@@ -235,8 +234,7 @@ impl ActorSystemInner {
         // Create a new actor process.
         let priority = options.priority;
         let actor = f(pid, &mut self.poll)?;
-        let process = ActorProcess::new(pid, actor, options, system_ref)
-            .map_err(|(_actor, err)| err)?;
+        let process = ActorProcess::new(pid, actor, options, system_ref);
 
         // Actually add the process.
         process_entry.add(process, priority);

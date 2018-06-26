@@ -50,8 +50,7 @@ fn main() {
 
     // Add our actor to the actor system. For now we'll use the default options
     // here as well.
-    let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default())
-        .expect("unable to add actor to actor system");
+    let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default());
 
     // Send our actor a message via an `ActorRef`, which is a reference to the
     // actor inside the actor system.

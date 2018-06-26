@@ -1,6 +1,6 @@
 //! Module containing the implementation of the `Process` trait for `Actor`s.
 
-use std::{fmt, io};
+use std::fmt;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::task::Poll;
@@ -34,12 +34,12 @@ impl<A> ActorProcess<A>
     where A: Actor,
 {
     /// Create a new actor process.
-    pub fn new(pid: ProcessId, actor: A, _options: ActorOptions, system_ref: ActorSystemRef) -> Result<ActorProcess<A>, (A, io::Error)> {
-        Ok(ActorProcess {
+    pub fn new(pid: ProcessId, actor: A, _options: ActorOptions, system_ref: ActorSystemRef) -> ActorProcess<A> {
+        ActorProcess {
             actor,
             ready_for_msg: true,
             inbox: Rc::new(RefCell::new(MailBox::new(pid, system_ref))),
-        })
+        }
     }
 
     /// Create a new reference to this actor.
