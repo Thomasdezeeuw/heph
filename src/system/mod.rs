@@ -35,6 +35,10 @@ pub struct ActorSystem {
     /// Inside of the system, shared (via weak references) with
     /// `ActorSystemRef`s.
     inner: Rc<RefCell<ActorSystemInner>>,
+    /// Whether or not the system has initiators, this is used to allow the
+    /// system to run without them. Otherwise we would poll with no timeout,
+    /// waiting for ever.
+    has_initiators: bool,
 }
 
 impl ActorSystem {
@@ -51,6 +55,7 @@ impl ActorSystem {
     pub fn add_initiator<I>(&mut self, initiator: I, options: InitiatorOptions) -> Result<(), AddInitiatorError<I>>
         where I: Initiator + 'static,
     {
+        self.has_initiators = true;
         self.inner.borrow_mut().add_initiator(initiator, options)
     }
 
@@ -66,15 +71,23 @@ impl ActorSystem {
         let mut system_ref = self.create_ref();
         debug!("running actor system");
 
+        // In case of no initiators only user space events are handled and the
+        // system is stopped otherwise.
+        let timeout = if self.has_initiators {
+            None
+        } else {
+            Some(Duration::from_millis(0))
+        };
+
         loop {
             debug!("polling system poll for events");
-            let n_events = self.inner.borrow_mut().poll()
+            let n_events = self.inner.borrow_mut().poll(timeout)
                 .map_err(RuntimeError::Poll)?;
 
             // Allow the system to be run without any initiators. In that case
             // we will only handle user space events (e.g. sending messages) and
             // will return after those are all handled.
-            if !self.inner.borrow().has_initiators && n_events == 0 {
+            if !self.has_initiators && n_events == 0 {
                 debug!("no events, no initiators stopping actor system");
                 return Ok(())
             }
@@ -164,10 +177,6 @@ impl Clone for ActorSystemRef {
 struct ActorSystemInner {
     /// Scheduler that hold the processes, schedules and runs them.
     scheduler: Scheduler,
-    /// Whether or not the system has initiators, this is used to allow the
-    /// system to run without them. Otherwise we would poll with no timeout,
-    /// waiting for ever.
-    has_initiators: bool,
     /// System poller, used for event notifications to support non-block I/O.
     poll: Poll,
 }
@@ -238,21 +247,12 @@ impl ActorSystemInner {
         // progress are first handled before new requests are accepted and
         // possibly overload the system.
         process_entry.add(process, Priority::LOW);
-        self.has_initiators = true;
         Ok(())
     }
 
     /// Poll the system poll and schedule the notified processes, returns the
     /// number of processes scheduled.
-    fn poll(&mut self) -> io::Result<usize> {
-        // In case of no initiators only user space events are handled and the
-        // system is stopped otherwise.
-        let timeout = if self.has_initiators {
-            None
-        } else {
-            Some(Duration::from_millis(0))
-        };
-
+    fn poll(&mut self, timeout: Option<Duration>) -> io::Result<usize> {
         let mut events = Events::new();
         self.poll.poll(&mut events, timeout)?;
 

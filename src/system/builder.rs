@@ -25,12 +25,12 @@ impl ActorSystemBuilder {
             self.n_processes);
         let inner = ActorSystemInner {
             scheduler: Scheduler::new(),
-            has_initiators: false,
             poll: Poll::new()?,
         };
 
         Ok(ActorSystem {
             inner: Rc::new(RefCell::new(inner)),
+            has_initiators: false,
         })
     }
 }
