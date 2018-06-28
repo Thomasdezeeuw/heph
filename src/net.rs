@@ -55,7 +55,7 @@ impl<N, A> Initiator for TcpListener<N>
 {
     fn init(&mut self, poller: &mut Poller, pid: ProcessId) -> io::Result<()> {
         poller.register(&mut self.listener, pid.into(),
-            Ready::READABLE, PollOption::Edge)
+            Ready::READABLE | Ready::ERROR, PollOption::Edge)
     }
 
     fn poll(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()> {
@@ -70,7 +70,8 @@ impl<N, A> Initiator for TcpListener<N>
             let system_ref_clone = system_ref.clone();
             let _ = system_ref.add_actor_setup(self.options.clone(), |pid, poller| {
                 poller.register(&mut stream, pid.into(),
-                    Ready::READABLE, PollOption::Edge)?;
+                    Ready::READABLE | Ready::WRITABLE | Ready::ERROR | Ready::HUP,
+                    PollOption::Edge)?;
 
                 // Wrap the raw stream with our wrapper.
                 let stream = TcpStream {
