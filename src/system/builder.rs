@@ -52,7 +52,7 @@ impl ActorSystemBuilder {
 impl Default for ActorSystemBuilder {
     fn default() -> ActorSystemBuilder {
         ActorSystemBuilder {
-            n_processes: num_cpus::get(),
+            n_processes: 1,
         }
     }
 }
