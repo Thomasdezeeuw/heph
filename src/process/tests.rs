@@ -42,3 +42,61 @@ fn cant_run_empty_process() {
     let mut system_ref = system.create_ref();
     let _ = EmptyProcess.run(&mut system_ref);
 }
+
+struct SimpleInitiator {
+    called: Rc<RefCell<bool>>,
+}
+
+impl Initiator for SimpleInitiator {
+    fn init(&mut self, _: &mut Poller, _: ProcessId) -> io::Result<()> {
+        unreachable!();
+    }
+
+    fn poll(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
+        *self.called.borrow_mut() = true;
+        Ok(())
+    }
+}
+
+#[test]
+fn initiator_process() {
+    let system = ActorSystemBuilder::default().build()
+        .expect("can't build actor system");
+    let mut system_ref = system.create_ref();
+
+    let called = Rc::new(RefCell::new(false));
+    let mut process = InitiatorProcess::new(SimpleInitiator { called: Rc::clone(&called) });
+
+    // If Initiator returns an error it should return Pending.
+    if let ProcessResult::Complete = process.run(&mut system_ref) {
+        panic!("expected ProcessResult::Pending");
+    }
+
+    assert_eq!(*called.borrow(), true, "expected the process to be run");
+}
+
+struct ErroneousInitiator;
+
+impl Initiator for ErroneousInitiator {
+    fn init(&mut self, _: &mut Poller, _: ProcessId) -> io::Result<()> {
+        unreachable!();
+    }
+
+    fn poll(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
+        Err(io::ErrorKind::Other.into())
+    }
+}
+
+#[test]
+fn erroneous_initiator_process() {
+    let system = ActorSystemBuilder::default().build()
+        .expect("can't build actor system");
+    let mut system_ref = system.create_ref();
+
+    let mut process = InitiatorProcess::new(ErroneousInitiator);
+
+    // If Initiator returns an error it should return Complete.
+    if let ProcessResult::Pending = process.run(&mut system_ref) {
+        panic!("expected ProcessResult::Complete");
+    }
+}

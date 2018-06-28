@@ -1,4 +1,5 @@
-//! Module containing the implementation of the `Process` trait for `Initiator`s.
+//! Module containing the implementation of the `Process` trait for
+//! `Initiator`s.
 
 use std::fmt;
 
@@ -15,7 +16,7 @@ pub struct InitiatorProcess<I> {
 impl<I> InitiatorProcess<I>
     where I: Initiator,
 {
-    /// Create a new process.
+    /// Create a new `InitiatorProcess`.
     pub const fn new(initiator: I) -> InitiatorProcess<I> {
         InitiatorProcess {
             initiator,
@@ -28,7 +29,7 @@ impl<I> Process for InitiatorProcess<I>
 {
     fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
         if let Err(err) = self.initiator.poll(system_ref) {
-            error!("error polling initiator: {}", err);
+            error!("error polling initiator, removing it: {}", err);
             ProcessResult::Complete
         } else {
             ProcessResult::Pending
