@@ -25,13 +25,12 @@ impl Actor for GreetingActor {
     fn handle(&mut self, _: &mut ActorContext, name: Self::Message) -> ActorResult<Self::Error> {
         // Print a greeting message.
         println!("{} {}", self.message, name);
-        // And that is all we need to done, so we're done.
+        // And that is all we need to do, so we're done.
         Poll::Ready(Ok(Status::Ready))
     }
 
     fn poll(&mut self, _: &mut ActorContext) -> ActorResult<Self::Error> {
-        // This should never be called since we always return ready in `handle`.
-        unreachable!("GreetingActor.poll called");
+        Poll::Ready(Ok(Status::Ready))
     }
 }
 
