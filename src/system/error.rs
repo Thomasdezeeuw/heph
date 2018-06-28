@@ -195,7 +195,7 @@ impl fmt::Display for AddInitiatorErrorReason  {
 ///
 /// assert_eq!(error.to_string(), "unable to send message: actor shutdown");
 /// ```
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct SendError<M> {
     /// The message that failed to send.
     pub message: M,
@@ -221,7 +221,7 @@ impl<M: fmt::Debug> Error for SendError<M> {
 }
 
 /// The reason why sending a message failed.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum SendErrorReason {
     /// The actor, to which the message was meant to be sent, is shutdown.
