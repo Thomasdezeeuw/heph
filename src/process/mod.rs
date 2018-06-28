@@ -9,6 +9,9 @@ use system::ActorSystemRef;
 mod actor;
 mod initiator;
 
+#[cfg(test)]
+mod tests;
+
 pub use self::actor::{ActorProcess, ActorRef};
 pub use self::initiator::InitiatorProcess;
 
@@ -51,17 +54,27 @@ impl fmt::Display for ProcessId {
 /// by the `ActorSystem`.
 pub trait Process: fmt::Debug {
     /// Run the process.
+    ///
+    /// Once the process returns `ProcessResult::Complete` it will be remove
+    /// from the system and no longer run.
+    ///
+    /// If it returns `ProcessResult::Pending` it will be considered inactive
+    /// and the process itself must make sure its gets scheduled again.
     fn run(&mut self, &mut ActorSystemRef) -> ProcessResult;
 }
 
 /// The result of running a `Process`.
+///
+/// See [`Process.run`].
+///
+/// [`Process.run`]: trait.Process.html#method.run
 #[must_use]
 #[derive(Copy, Clone, Debug)]
 pub enum ProcessResult {
     /// The process is complete.
     Complete,
 
-    /// Process completion is pending, but for now no further process can be
+    /// Process completion is pending, but for now no further progress can be
     /// made without blocking. The process itself is responsible for scheduling
     /// itself again.
     Pending,
