@@ -12,6 +12,7 @@ use actor::net::{TcpListener, TcpStream};
 use actor::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
 
 /// Our actor that will print the ip.
+#[derive(Debug)]
 struct IpActor {
     /// The TCP connection.
     stream: TcpStream,
