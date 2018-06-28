@@ -19,6 +19,20 @@ pub struct ActorSystemBuilder {
 }
 
 impl ActorSystemBuilder {
+    /// Set the number of processes used, defaults to `1`.
+    ///
+    /// Most framework, or software in general, uses threads to make use of
+    /// multiple cores, but we use processes.
+    pub fn num_processes(&mut self, n_processes: usize) -> &mut Self {
+        self.n_processes = n_processes;
+        self
+    }
+
+    /// Set the number of processes to equal the number of cores.
+    pub fn processes_cores(&mut self) -> &mut Self {
+        self.num_processes(num_cpus::get())
+    }
+
     /// Builder the `ActorSystem`.
     pub fn build(self) -> io::Result<ActorSystem> {
         debug!("building actor system: n_processes={}",
