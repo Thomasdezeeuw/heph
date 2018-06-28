@@ -5,6 +5,7 @@
            futures_api,
            non_exhaustive,
            read_initializer,
+           never_type,
 )]
 
 #![warn(missing_debug_implementations,

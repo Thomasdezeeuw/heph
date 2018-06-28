@@ -69,7 +69,7 @@ pub trait Process: fmt::Debug {
 ///
 /// [`Process.run`]: trait.Process.html#method.run
 #[must_use]
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ProcessResult {
     /// The process is complete.
     Complete,

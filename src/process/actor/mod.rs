@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::task::Poll;
 
-use actor::{Actor, ActorContext, ActorResult, Status};
+use actor::{Actor, ActorContext, Status};
 use process::{Process, ProcessId, ProcessResult};
 use system::ActorSystemRef;
 use system::options::ActorOptions;
@@ -14,7 +14,8 @@ mod actor_ref;
 mod mailbox;
 
 pub use self::actor_ref::ActorRef;
-pub use self::mailbox::MailBox;
+
+use self::mailbox::MailBox;
 
 /// A process that represent an actor, it's mailbox and current execution.
 pub struct ActorProcess<A>
@@ -46,52 +47,79 @@ impl<A> ActorProcess<A>
     pub fn create_ref(&self) -> ActorRef<A> {
         ActorRef::new(Rc::downgrade(&self.inbox))
     }
+
+    /// Calls `Actor.poll`.
+    ///
+    /// If the return value is some that it should be returned, otherwise the
+    /// loop in `run` can continue.
+    ///
+    /// Assumes `ready_for_msg` to be false.
+    fn poll_actor(&mut self, ctx: &mut ActorContext) -> Option<ProcessResult> {
+        trace!("polling actor");
+        debug_assert!(!self.ready_for_msg);
+        match self.actor.poll(ctx) {
+            Poll::Ready(Ok(Status::Complete)) => Some(ProcessResult::Complete),
+            Poll::Ready(Ok(Status::Ready)) => {
+                self.ready_for_msg = true;
+                None
+            },
+            // TODO: send error to supervisor.
+            Poll::Ready(Err(_err)) => Some(ProcessResult::Complete),
+            Poll::Pending => Some(ProcessResult::Pending),
+        }
+    }
+
+    /// Tries to receive a message and deliver to the actor.
+    ///
+    /// Returned value is the same as in `poll_actor`.
+    ///
+    /// Assumes `ready_for_msg` to be true.
+    fn handle_msg(&mut self, ctx: &mut ActorContext) -> Option<ProcessResult> {
+        debug_assert!(self.ready_for_msg);
+        // Retrieve another message, if any.
+        let msg = match self.inbox.try_borrow_mut() {
+            Ok(mut inbox) => match inbox.receive() {
+                Some(msg) => msg,
+                None => return Some(ProcessResult::Pending),
+            },
+            Err(_) => unreachable!("can't retrieve message, inbox already borrowed"),
+        };
+
+        // And deliver the message to the actor.
+        trace!("delivering message to actor");
+        match self.actor.handle(ctx, msg) {
+            Poll::Ready(Ok(Status::Complete)) => Some(ProcessResult::Complete),
+            Poll::Ready(Ok(Status::Ready)) => None,
+            // TODO: send error to supervisor.
+            Poll::Ready(Err(_err)) => Some(ProcessResult::Complete),
+            Poll::Pending => {
+                self.ready_for_msg = false;
+                Some(ProcessResult::Pending)
+            },
+        }
+    }
 }
 
 impl<A> Process for ActorProcess<A>
     where A: Actor,
 {
     fn run(&mut self, _system_ref: &mut ActorSystemRef) -> ProcessResult {
+        trace!("running actor process");
         // Create our actor execution context.
         let mut ctx = ActorContext{};
 
         loop {
-            // First handle the message the actor is currently handling, if any.
-            if !self.ready_for_msg {
-                if let Some(status) = check_result(self.actor.poll(&mut ctx)) {
-                    self.ready_for_msg = false;
-                    return status;
-                }
-            }
-
-            // Retrieve another message, if any.
-            let msg = match self.inbox.try_borrow_mut() {
-                Ok(mut inbox) => match inbox.receive() {
-                    Some(msg) => msg,
-                    None => return ProcessResult::Pending,
+            match self.ready_for_msg {
+                true => match self.handle_msg(&mut ctx) {
+                    Some(result) => return result,
+                    None => { /* Continue. */ },
                 },
-                Err(_) => unreachable!("can't retrieve message, inbox already borrowed"),
-            };
-
-            // And pass the message to the actor.
-            if let Some(status) = check_result(self.actor.handle(&mut ctx, msg)) {
-                self.ready_for_msg = false;
-                return status;
+                false => match self.poll_actor(&mut ctx) {
+                    Some(result) => return result,
+                    None => { /* Continue. */ },
+                },
             }
         }
-    }
-}
-
-/// Check the result of a call to poll or handle of an actor. If some is
-/// returned it should be returned by the function, otherwise the loop should
-/// continue.
-fn check_result<E>(result: ActorResult<E>) -> Option<ProcessResult> {
-    match result {
-        Poll::Ready(Ok(Status::Complete)) => Some(ProcessResult::Complete),
-        Poll::Ready(Ok(Status::Ready)) => None,
-        // TODO: send error to supervisor.
-        Poll::Ready(Err(_err)) => Some(ProcessResult::Complete),
-        Poll::Pending => Some(ProcessResult::Pending),
     }
 }
 

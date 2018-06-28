@@ -1,4 +1,4 @@
-//! Module containing the `Mailbox` for an actor.
+//! Module containing the `Mailbox` for an `ActorProcess`.
 
 use std::collections::VecDeque;
 
@@ -34,16 +34,11 @@ impl<M> MailBox<M> {
         where Msg: Into<M>,
     {
         match self.system_ref.schedule(self.pid) {
-            Ok(()) => {
-                self.messages.push_back(msg.into());
-                Ok(())
-            },
-            Err(_) => {
-                Err(SendError {
-                    message: msg,
-                    reason: SendErrorReason::SystemShutdown,
-                })
-            },
+            Ok(()) => Ok(self.messages.push_back(msg.into())),
+            Err(()) => Err(SendError {
+                message: msg,
+                reason: SendErrorReason::SystemShutdown,
+            }),
         }
     }
 
