@@ -1,29 +1,32 @@
 # TODO
 
-1. Fix example 2.
-2. Write (much) more tests.
-
 Stuff left to do.
 
- - TcpListener currently registers itself with a different id then the process
-   is created with, causing it to never be scheduled.
- - Update to standard library's futures types.
  - Create a new type `SupervisorRef` that can be used in `ActorOptions` to use
    as supervisor, the supervisor itself must be added to the actor system.
    Default value will be none, using the default supervisor (LogSupervisor).
-   Maybe remove NopSupervisor?
- - Change Process type to only have a `run` method. Then create a new struct
-   ProcessData<P: Process> { priority: Priority, runtime: Duration, process: P },
-   which the Scheduler uses in `Box<ProcessData<dyn Process>>`. To at least
-   deduplicate the code.
  - Initiator configuration: call init before or after fork?
  - Use cpu core affinity after forking?
- - For sending messages don't use `mio::Poll` notifications, just schedule the
-   process.
+ - Write (unit) tests for each module.
 
 ## Tests
 
 Most types should be `!Send`, make sure they are.
+
+The following doesn't compile.
+
+```rust
+fn not_sync<T>() where T: !Sync { }
+fn not_send<T>() where T: !Send { }
+
+#[test]
+fn assertions() {
+    not_sync::<ActorRef>();
+    not_send::<ActorRef>();
+    not_sync::<ActorProcess>();
+    not_send::<ActorProcess>();
+}
+```
 
 ## Metrics/system messages
 
@@ -101,3 +104,8 @@ URLs, so an URL is only visited once.
 
 Accepts log over TCP and/or UDP and stores them in SQL database, e.g. Postgres.
 A single UDP packet using something like hmac for authentication.
+
+# Tests
+
+InitiatorProcess that returns an error; now we have 0 initiators -> actor system
+should stop.

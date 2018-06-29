@@ -19,7 +19,7 @@ pub struct Scheduler {
     ///
     /// It could be that this contains ids for processes that are no longer in
     /// the scheduler, we just ignore those.
-    // TODO: use custom, simple hasher that just return the underlying usize as
+    // TODO: use custom, simple hasher that just returns the underlying usize as
     // u64.
     scheduled: HashSet<ProcessId>,
     /// All processes in the scheduler.
