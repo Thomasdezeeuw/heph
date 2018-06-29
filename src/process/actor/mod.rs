@@ -109,15 +109,12 @@ impl<A> Process for ActorProcess<A>
         let mut ctx = ActorContext{};
 
         loop {
-            match self.ready_for_msg {
-                true => match self.handle_msg(&mut ctx) {
-                    Some(result) => return result,
-                    None => { /* Continue. */ },
-                },
-                false => match self.poll_actor(&mut ctx) {
-                    Some(result) => return result,
-                    None => { /* Continue. */ },
-                },
+            if self.ready_for_msg {
+                if let Some(result) = self.handle_msg(&mut ctx) {
+                    return result;
+                }
+            } else if let Some(result) = self.poll_actor(&mut ctx) {
+                return result;
             }
         }
     }

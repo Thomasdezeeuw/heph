@@ -34,7 +34,10 @@ impl<M> MailBox<M> {
         where Msg: Into<M>,
     {
         match self.system_ref.schedule(self.pid) {
-            Ok(()) => Ok(self.messages.push_back(msg.into())),
+            Ok(()) => {
+                self.messages.push_back(msg.into());
+                Ok(())
+            },
             Err(()) => Err(SendError {
                 message: msg,
                 reason: SendErrorReason::SystemShutdown,

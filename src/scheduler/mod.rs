@@ -42,7 +42,7 @@ impl Scheduler {
     ///
     /// The API allows the `ProcessId` to be used before the process is actually
     /// added to scheduler.
-    pub fn add_process<'s>(&'s mut self) -> AddingProcess<'s> {
+    pub fn add_process(&mut self) -> AddingProcess {
         AddingProcess {
             entry: self.processes.vacant_entry(),
         }
