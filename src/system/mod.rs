@@ -12,7 +12,7 @@ use mio_st::poll::Poller;
 
 use actor::Actor;
 use initiator::Initiator;
-use process::{ProcessId, ProcessResult, ActorProcess, InitiatorProcess};
+use process::{ProcessId, ProcessResult, ActorProcess, InitiatorProcess, TaskProcess};
 use scheduler::{Scheduler, Priority, ProcessData, ScheduledProcess};
 
 mod builder;
@@ -275,9 +275,14 @@ impl ActorSystemRef {
 }
 
 impl Executor for ActorSystemRef {
-    fn spawn_obj(&mut self, _task: TaskObj) -> Result<(), SpawnObjError> {
-        // TODO: implement a `Process` that runs the `TaskObj`.
-        unimplemented!("TaskExecutor.spawn_obj");
+    fn spawn_obj(&mut self, task: TaskObj) -> Result<(), SpawnObjError> {
+        match self.inner.upgrade() {
+            Some(inner_ref) => match inner_ref.try_borrow_mut() {
+                Ok(mut inner) => { inner.add_task(task, self.clone()); Ok(()) },
+                Err(_) => unreachable!("can't spawn task, actor system already borrowed"),
+            },
+            None => Err(SpawnObjError { kind: SpawnErrorKind::shutdown(), task }),
+        }
     }
 
     fn status(&self) -> Result<(), SpawnErrorKind> {
@@ -374,5 +379,20 @@ impl ActorSystemInner {
         // possibly overload the system.
         process_entry.add(process, Priority::LOW);
         Ok(())
+    }
+
+    fn add_task(&mut self, task: TaskObj, system_ref: ActorSystemRef) {
+        // Setup adding a new process to the scheduler.
+        let process_entry = self.scheduler.add_process();
+        let pid = process_entry.id();
+        debug!("adding task to actor system: pid={}", pid);
+
+        // Create a new task process.
+        let process = TaskProcess::new(pid, task, system_ref);
+
+        // Actually add the process.
+        // TODO: add an option to the `ActorSystemBuilder` to change the
+        // priority.
+        process_entry.add(process, Priority::NORMAL);
     }
 }
