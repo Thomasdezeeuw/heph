@@ -4,6 +4,7 @@ use std::io;
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::rc::{Rc, Weak};
+use std::task::{Executor, TaskObj, SpawnObjError, SpawnErrorKind};
 use std::time::{Duration, Instant};
 
 use mio_st::event::{Events, Evented};
@@ -266,6 +267,20 @@ impl ActorSystemRef {
                 Err(_) => unreachable!("can't schedule process, actor system already borrowed"),
             },
             None => Err(()),
+        }
+    }
+}
+
+impl Executor for ActorSystemRef {
+    fn spawn_obj(&mut self, _task: TaskObj) -> Result<(), SpawnObjError> {
+        // TODO: implement a `Process` that runs the `TaskObj`.
+        unimplemented!("TaskExecutor.spawn_obj");
+    }
+
+    fn status(&self) -> Result<(), SpawnErrorKind> {
+        match self.inner.upgrade() {
+            Some(_) => Ok(()),
+            None => Err(SpawnErrorKind::shutdown()),
         }
     }
 }
