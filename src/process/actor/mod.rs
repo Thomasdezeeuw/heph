@@ -3,12 +3,11 @@
 use std::fmt;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::sync::Arc;
-use std::task::{self, Poll, Wake, LocalWaker};
+use std::task::{Poll, LocalWaker};
 
 use actor::{Actor, ActorContext, Status};
 use process::{Process, ProcessId, ProcessResult};
-use system::ActorSystemRef;
+use system::{ActorSystemRef, Waker};
 use system::options::ActorOptions;
 
 mod actor_ref;
@@ -40,7 +39,7 @@ impl<A> ActorProcess<A>
     /// Create a new actor process.
     pub fn new(pid: ProcessId, actor: A, _options: ActorOptions, system_ref: ActorSystemRef) -> ActorProcess<A> {
         ActorProcess {
-            waker: ActorWaker::new(pid, system_ref.clone()),
+            waker: Waker::new(pid, system_ref.clone()),
             actor,
             ready_for_msg: false,
             inbox: Rc::new(RefCell::new(MailBox::new(pid, system_ref))),
@@ -133,31 +132,3 @@ impl<A> fmt::Debug for ActorProcess<A>
             .finish()
     }
 }
-
-#[derive(Debug)]
-pub struct ActorWaker {
-    /// The process to wake up.
-    pid: ProcessId,
-    /// Reference to the system to wake up the process.
-    system_ref: ActorSystemRef,
-}
-
-impl ActorWaker {
-    fn new(pid: ProcessId, system_ref: ActorSystemRef) -> LocalWaker {
-        let waker = ActorWaker { pid, system_ref };
-        unsafe { task::local_waker(Arc::new(waker)) }
-    }
-}
-
-impl Wake for ActorWaker {
-    fn wake(arc_self: &Arc<Self>) {
-        let mut system_ref = arc_self.system_ref.clone();
-        if let Err(()) = system_ref.schedule(arc_self.pid) {
-            error!("can't wake up actor, actor system shutdown");
-        }
-    }
-}
-
-// This is very unsafe.
-unsafe impl Sync for ActorWaker { }
-unsafe impl Send for ActorWaker { }

@@ -16,6 +16,7 @@ use process::{ProcessId, ProcessResult, ActorProcess, InitiatorProcess};
 use scheduler::{Scheduler, Priority, ProcessData, ScheduledProcess};
 
 mod builder;
+mod waker;
 
 pub mod error;
 pub mod options;
@@ -23,6 +24,8 @@ pub mod options;
 pub use process::ActorRef;
 pub use self::builder::ActorSystemBuilder;
 pub use self::options::{ActorOptions, InitiatorOptions};
+
+pub(crate) use self::waker::Waker;
 
 use self::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};
 
