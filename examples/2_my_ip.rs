@@ -3,11 +3,11 @@
 extern crate actor;
 extern crate env_logger;
 
-use std::io::{self, ErrorKind, Write};
+use std::io;
 use std::net::SocketAddr;
-use std::task::Poll;
 
 use actor::actor::{Actor, ActorContext, ActorResult, Status, actor_factory};
+use actor::io::AsyncWrite;
 use actor::net::{TcpListener, TcpStream};
 use actor::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
 
@@ -33,15 +33,11 @@ impl Actor for IpActor {
         unreachable!("EchoActor.poll called");
     }
 
-    // For actors used in an `Initator` this will likely be the starting point.
+    // For actors used in an `Initiator` this will likely be the starting point.
     fn poll(&mut self, ctx: &mut ActorContext) -> ActorResult<Self::Error> {
-        // TODO: use AsyncWrite once available.
-        match write!(self.stream, "{}", self.address.ip()) {
-            Ok(_) => Poll::Ready(Ok(Status::Complete)),
-            Err(ref err) if err.kind() == ErrorKind::WouldBlock => return Poll::Pending,
-            Err(ref err) if err.kind() == ErrorKind::Interrupted => self.poll(ctx), // Try again.
-            Err(err) => return Poll::Ready(Err(err)),
-        }
+        let ip = self.address.ip().to_string();
+        self.stream.poll_write(&mut ctx.task_ctx(), ip.as_bytes())
+            .map_ok(|_| Status::Complete)
     }
 }
 

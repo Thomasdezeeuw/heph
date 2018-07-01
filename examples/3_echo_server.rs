@@ -34,7 +34,7 @@ impl Actor for EchoActor {
         unreachable!("EchoActor.poll called");
     }
 
-    // For actors used in an `Initator` this will likely be the starting point.
+    // For actors used in an `Initiator` this will likely be the starting point.
     fn poll(&mut self, ctx: &mut ActorContext) -> ActorResult<Self::Error> {
         // TODO: use AsyncRead and AsyncWrite once available.
 
