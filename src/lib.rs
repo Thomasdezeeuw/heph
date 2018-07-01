@@ -25,6 +25,7 @@ extern crate slab;
 
 pub mod actor;
 pub mod initiator;
+pub mod io;
 pub mod net;
 pub mod supervisor;
 pub mod system;
