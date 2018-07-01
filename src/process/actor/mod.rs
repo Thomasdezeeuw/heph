@@ -3,7 +3,8 @@
 use std::fmt;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::task::Poll;
+use std::sync::Arc;
+use std::task::{self, Poll, Wake, LocalWaker};
 
 use actor::{Actor, ActorContext, Status};
 use process::{Process, ProcessId, ProcessResult};
@@ -26,6 +27,8 @@ pub struct ActorProcess<A>
     /// Whether or not the actor has returned `Poll::Ready` and is ready to
     /// handle another message.
     ready_for_msg: bool,
+    /// Waker used in the futures context.
+    waker: LocalWaker,
     /// Inbox of the actor, shared between an `ActorProcess` and zero or more
     /// `ActorRef`s.
     inbox: Rc<RefCell<MailBox<A::Message>>>,
@@ -37,6 +40,7 @@ impl<A> ActorProcess<A>
     /// Create a new actor process.
     pub fn new(pid: ProcessId, actor: A, _options: ActorOptions, system_ref: ActorSystemRef) -> ActorProcess<A> {
         ActorProcess {
+            waker: ActorWaker::new(pid, system_ref.clone()),
             actor,
             ready_for_msg: false,
             inbox: Rc::new(RefCell::new(MailBox::new(pid, system_ref))),
@@ -129,3 +133,31 @@ impl<A> fmt::Debug for ActorProcess<A>
             .finish()
     }
 }
+
+#[derive(Debug)]
+pub struct ActorWaker {
+    /// The process to wake up.
+    pid: ProcessId,
+    /// Reference to the system to wake up the process.
+    system_ref: ActorSystemRef,
+}
+
+impl ActorWaker {
+    fn new(pid: ProcessId, system_ref: ActorSystemRef) -> LocalWaker {
+        let waker = ActorWaker { pid, system_ref };
+        unsafe { task::local_waker(Arc::new(waker)) }
+    }
+}
+
+impl Wake for ActorWaker {
+    fn wake(arc_self: &Arc<Self>) {
+        let mut system_ref = arc_self.system_ref.clone();
+        if let Err(()) = system_ref.schedule(arc_self.pid) {
+            error!("can't wake up actor, actor system shutdown");
+        }
+    }
+}
+
+// This is very unsafe.
+unsafe impl Sync for ActorWaker { }
+unsafe impl Send for ActorWaker { }
