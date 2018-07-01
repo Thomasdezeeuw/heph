@@ -15,6 +15,7 @@ pub struct Waker {
 }
 
 impl Waker {
+    /// Create a new `LocalWaker` backed by a `Waker`.
     pub fn new(pid: ProcessId, system_ref: ActorSystemRef) -> LocalWaker {
         let waker = Waker { pid, system_ref };
         unsafe { task::local_waker(Arc::new(waker)) }

@@ -89,6 +89,7 @@ pub trait Actor {
 /// serves as a convenience to not having to write the entire type every time.
 ///
 /// [`Actor`]: trait.Actor.html
+// TODO: rename to AsyncActorResult, or ActorPollResult?
 pub type ActorResult<E> = Poll<Result<Status, E>>;
 
 /// The status of an actor.

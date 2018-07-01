@@ -3,9 +3,10 @@
 #![feature(arbitrary_self_types,
            const_fn,
            futures_api,
-           non_exhaustive,
-           read_initializer,
            never_type,
+           non_exhaustive,
+           pin,
+           read_initializer,
 )]
 
 #![warn(missing_debug_implementations,
