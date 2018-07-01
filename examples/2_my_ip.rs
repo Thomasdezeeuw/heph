@@ -55,7 +55,7 @@ fn main() {
     // Create our TCP listener, with an address to listen on, a way to create a
     // new `Actor` for each incoming connection and the options for each actor
     // (for which we'll use the default).
-    let address = "127.0.0.1:7891".parse().unwrap();
+    let address = "127.0.0.1:7890".parse().unwrap();
     let listener = TcpListener::bind(address, actor_factory, ActorOptions::default())
         .expect("unable to bind TCP listener");
 
