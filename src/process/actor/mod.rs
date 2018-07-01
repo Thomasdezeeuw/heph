@@ -107,10 +107,10 @@ impl<A> ActorProcess<A>
 impl<A> Process for ActorProcess<A>
     where A: Actor,
 {
-    fn run(&mut self, _system_ref: &mut ActorSystemRef) -> ProcessResult {
+    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
         trace!("running actor process");
         // Create our actor execution context.
-        let mut ctx = ActorContext{};
+        let mut ctx = ActorContext::new(self.waker.clone(), system_ref.clone());
 
         loop {
             if self.ready_for_msg {

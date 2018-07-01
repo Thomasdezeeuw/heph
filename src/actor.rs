@@ -16,7 +16,9 @@
 
 use std::{fmt, mem};
 use std::marker::PhantomData;
-use std::task::Poll;
+use std::task::{Poll, Context, LocalWaker};
+
+use system::ActorSystemRef;
 
 /// The main actor trait, which defines how an actor handles messages.
 ///
@@ -122,32 +124,24 @@ pub enum Status {
 /// the message or the system in which the actor is running.
 #[derive(Debug)]
 pub struct ActorContext {
+    waker: LocalWaker,
+    system_ref: ActorSystemRef,
 }
 
-/*
 impl ActorContext {
-    /// Get an actor reference to the current actor.
-    pub fn self_ref(&mut self) -> ActorRef {
-        unimplemented!("ActorContext::self_ref");
-    }
-
-    /// Get a reference to the sender of the message, only available if the
-    /// message is send by an actor and only in the `handle` method.
-    pub fn sender_ref(&mut self) -> Option<ActorRef> {
-        unimplemented!("ActorContext::sender_ref");
-    }
-
-    /// Get a reference to the running system.
-    pub fn system_ref(&mut self) -> ActorSystemRef {
-        unimplemented!("ActorContext::system_ref");
+    /// Create a new `ActorContext`.
+    pub(crate) fn new(waker: LocalWaker, system_ref: ActorSystemRef) -> ActorContext {
+        ActorContext {
+            waker,
+            system_ref,
+        }
     }
 
     /// Get a context for executing a future.
-    pub fn task_ctx(&mut self) -> &mut task::Context {
-        unimplemented!("ActorContext::task_ctx");
+    pub fn task_ctx<'a>(&'a mut self) -> Context<'a> {
+        Context::new(&self.waker, &mut self.system_ref)
     }
 }
-*/
 
 // TODO: change ActorFn to:
 // ```
