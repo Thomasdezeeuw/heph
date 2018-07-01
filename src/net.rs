@@ -2,14 +2,15 @@
 
 use std::io::{self, ErrorKind, Initializer, Read, Write};
 use std::net::SocketAddr;
+use std::task::{Context, Poll};
 
 use mio_st::event::Ready;
-use mio_st::net::TcpListener as MioTcpListener;
-use mio_st::net::TcpStream as MioTcpStream;
+use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use mio_st::poll::{Poller, PollOption};
 
 use actor::{Actor, NewActor};
 use initiator::Initiator;
+use io::{AsyncRead, AsyncWrite};
 use process::ProcessId;
 use system::{ActorSystemRef, ActorOptions};
 
@@ -96,88 +97,44 @@ pub struct TcpStream {
     system_ref: ActorSystemRef,
 }
 
-impl Read for TcpStream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.read(buf)
-    }
-
-    unsafe fn initializer(&self) -> Initializer {
-        self.inner.initializer()
-    }
-}
-
-impl Write for TcpStream {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.inner.write(buf)
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        self.inner.flush()
-    }
-}
-
-/*
-
-TODO: enable this once AsyncRead and AsyncWrite are available in futures v0.3.
-
 /// A macro to try an I/O function.
-///
-/// It runs the `$op` operation, expecting an `io::Result` on which it pattern
-/// matches to deal with the error accordingly. I.e. trying again, by using the
-/// `$retry` operation, if the returned error is of kind interrupted or
-/// returning `Async::Pending` if the is error is of kind would block.
-///
-/// The second variant allows for a special action to be taken in case of an OK
-/// result.
 macro_rules! try_io {
-    ($op:expr, $retry:expr) => (
-        match $op {
-            Ok(ok) => Ok(Async::Ready(ok)),
-            Err(ref err) if would_block(err) => Ok(Async::Pending),
-            Err(ref err) if interrupted(err) => $retry,
-            Err(err) => Err(err),
-        }
-    );
-    ($op:expr, $retry:expr, $ok_op:block) => (
-        match $op {
-            Ok(_) => $ok_op,
-            Err(ref err) if would_block(err) => Ok(Async::Pending),
-            Err(ref err) if interrupted(err) => $retry,
-            Err(err) => Err(err),
+    ($op:expr) => (
+        loop {
+            match $op {
+                Ok(ok) => return Poll::Ready(Ok(ok)),
+                Err(ref err) if would_block(err) => return Poll::Pending,
+                Err(ref err) if interrupted(err) => continue,
+                Err(err) => return Poll::Ready(Err(err)),
+            }
         }
     );
 }
 
 impl AsyncRead for TcpStream {
-    // TODO: add initializer.
+    unsafe fn initializer(&self) -> Initializer {
+        self.inner.initializer()
+    }
 
-    fn poll_read(&mut self, ctx: &mut Context, buf: &mut [u8]) -> Poll<usize, io::Error> {
-        try_io!(self.inner.read(buf), self.poll_read(ctx, buf))
+    fn poll_read(&mut self, _ctx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        try_io!(self.inner.read(buf))
     }
 }
 
 impl AsyncWrite for TcpStream {
-    fn poll_write(&mut self, ctx: &mut Context, buf: &[u8]) -> Poll<usize, io::Error> {
-        try_io!(self.inner.write(buf), self.poll_write(ctx, buf))
+    fn poll_write(&mut self, _ctx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
+        try_io!(self.inner.write(buf))
     }
 
-    fn poll_flush(&mut self, ctx: &mut Context) -> Poll<(), io::Error> {
-        try_io!(self.inner.flush(), self.poll_flush(ctx))
-    }
-
-    fn poll_close(&mut self, ctx: &mut Context) -> Poll<(), io::Error> {
-        // First flush the connection, next shut it down.
-        try_io!(self.poll_flush(ctx), self.poll_close(ctx), {
-            try_io!(self.inner.shutdown(Shutdown::Both), self.poll_close(ctx))
-        })
+    fn poll_flush(&mut self, _ctx: &mut Context) -> Poll<io::Result<()>> {
+        try_io!(self.inner.flush())
     }
 }
-*/
 
 impl Drop for TcpStream {
     fn drop(&mut self) {
         if let Err(err) = self.system_ref.poller_deregister(&mut self.inner) {
-            error!("error deregistering TcpStream from ActorSystem: {}", err);
+            error!("error deregistering TCP connection from actor system: {}", err);
         }
     }
 }
