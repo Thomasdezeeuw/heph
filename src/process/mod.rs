@@ -8,12 +8,14 @@ use system::ActorSystemRef;
 
 mod actor;
 mod initiator;
+mod task;
 
 #[cfg(test)]
 mod tests;
 
 pub use self::actor::{ActorProcess, ActorRef};
 pub use self::initiator::InitiatorProcess;
+pub use self::task::TaskProcess;
 
 /// Process id, or pid for short, is an unique id for a process in an
 /// `ActorSystem`.
