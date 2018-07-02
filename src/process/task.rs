@@ -1,7 +1,6 @@
 //! Module containing the implementation of the `Process` trait for
 //! `TaskObj`s.
 
-use std::fmt;
 use std::future::Future;
 use std::mem::PinMut;
 use std::task::{Context, LocalWaker, TaskObj, Poll};
@@ -10,6 +9,7 @@ use process::{Process, ProcessResult};
 use system::ActorSystemRef;
 
 /// A process that represent a `TaskObj`.
+#[derive(Debug)]
 pub struct TaskProcess {
     /// The underlying task.
     task: TaskObj,
@@ -34,12 +34,5 @@ impl Process for TaskProcess {
             Poll::Ready(()) => ProcessResult::Complete,
             Poll::Pending => ProcessResult::Pending,
         }
-    }
-}
-
-impl fmt::Debug for TaskProcess {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("TaskProcess")
-            .finish()
     }
 }
