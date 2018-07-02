@@ -131,7 +131,7 @@ pub struct ActorContext {
 
 impl ActorContext {
     /// Create a new `ActorContext`.
-    pub(crate) fn new(waker: LocalWaker, system_ref: ActorSystemRef) -> ActorContext {
+    pub(crate) const fn new(waker: LocalWaker, system_ref: ActorSystemRef) -> ActorContext {
         ActorContext {
             waker,
             system_ref,
