@@ -45,7 +45,7 @@ fn cant_run_empty_process() {
 }
 
 struct SimpleInitiator {
-    called: Rc<RefCell<bool>>,
+    called: Rc<RefCell<usize>>,
 }
 
 impl Initiator for SimpleInitiator {
@@ -54,8 +54,12 @@ impl Initiator for SimpleInitiator {
     }
 
     fn poll(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
-        *self.called.borrow_mut() = true;
-        Ok(())
+        *self.called.borrow_mut() += 1;
+        match *self.called.borrow() {
+            1 => Ok(()),
+            2 => Err(io::ErrorKind::Other.into()),
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -65,12 +69,16 @@ fn initiator_process() {
         .expect("can't build actor system");
     let mut system_ref = system.create_ref();
 
-    let called = Rc::new(RefCell::new(false));
+    let called = Rc::new(RefCell::new(0));
     let mut process = InitiatorProcess::new(SimpleInitiator { called: Rc::clone(&called) });
 
-    // If Initiator returns an error it should return Pending.
+    // Ok run.
     assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
-    assert_eq!(*called.borrow(), true, "expected the process to be run");
+    assert_eq!(*called.borrow(), 1, "expected the process to be run");
+
+    // Error run.
+    assert_eq!(process.run(&mut system_ref), ProcessResult::Complete);
+    assert_eq!(*called.borrow(), 2, "expected the process to be run");
 }
 
 struct ErroneousInitiator;
