@@ -6,8 +6,8 @@ use std::future::Future;
 use std::mem::PinMut;
 use std::task::{Context, LocalWaker, TaskObj, Poll};
 
-use process::{Process, ProcessId, ProcessResult};
-use system::{ActorSystemRef, Waker};
+use process::{Process, ProcessResult};
+use system::ActorSystemRef;
 
 /// A process that represent a `TaskObj`.
 pub struct TaskProcess {
@@ -19,8 +19,7 @@ pub struct TaskProcess {
 
 impl TaskProcess {
     /// Create a new `TaskProcess`.
-    pub fn new(pid: ProcessId, task: TaskObj, system_ref: ActorSystemRef) -> TaskProcess {
-        let waker = Waker::new(pid, system_ref);
+    pub const fn new(task: TaskObj, waker: LocalWaker) -> TaskProcess {
         TaskProcess {
             task,
             waker,

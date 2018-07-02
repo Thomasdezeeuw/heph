@@ -388,7 +388,8 @@ impl ActorSystemInner {
         debug!("adding task to actor system: pid={}", pid);
 
         // Create a new task process.
-        let process = TaskProcess::new(pid, task, system_ref);
+        let waker = Waker::new(pid, system_ref);
+        let process = TaskProcess::new(task, waker);
 
         // Actually add the process.
         // TODO: add an option to the `ActorSystemBuilder` to change the
