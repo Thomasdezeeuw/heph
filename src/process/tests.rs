@@ -188,6 +188,7 @@ impl Actor for HandleTestActor  {
 }
 
 #[test]
+#[ignore = "causes SIGILL on MacOS"]
 fn actor_process_poll_statusses() {
     let system = ActorSystemBuilder::default().build()
         .expect("can't build actor system");
