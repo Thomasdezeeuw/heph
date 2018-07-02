@@ -16,12 +16,7 @@ use system::{ActorSystemRef, ActorOptions};
 
 /// A TCP listener that implements the [`Initiator`] trait.
 ///
-/// For each accepted connection a new actor will be created by using the
-/// [`NewActor`] trait. The provided `options` to the `bind` method will be used
-/// in adding the newly created actor to the actor system.
-///
 /// [`Initiator`]: ../initiator/trait.Initiator.html
-/// [`NewActor`]: ../actor/trait.NewActor.html
 #[derive(Debug)]
 pub struct TcpListener<N> {
     /// The underlying TCP listener, backed by mio.
@@ -41,6 +36,13 @@ impl<N, A> TcpListener<N>
           A: Actor + 'static,
 {
     /// Bind a new TCP listener to the provided `address`.
+    ///
+    /// For each accepted connection a new actor will be created by using the
+    /// [`NewActor`] trait with the `TcpStream` and `SocketAddr`. The provided
+    /// `options` will be used in adding the newly created actor to the actor
+    /// system.
+    ///
+    /// [`NewActor`]: ../actor/trait.NewActor.html
     pub fn bind(address: SocketAddr, new_actor: N, options: ActorOptions) -> io::Result<TcpListener<N>> {
         Ok(TcpListener {
             listener: MioTcpListener::bind(address)?,
