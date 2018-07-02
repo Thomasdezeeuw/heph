@@ -1,15 +1,16 @@
-#![feature(futures_api, never_type)]
+#![feature(futures_api, never_type, read_initializer)]
 
 extern crate actor;
 extern crate env_logger;
 #[macro_use]
 extern crate log;
 
-use std::io::{self, ErrorKind, Read, Write};
+use std::io;
 use std::task::Poll;
 use std::net::SocketAddr;
 
 use actor::actor::{Actor, NewActor, ActorContext, ActorResult, Status};
+use actor::io::{AsyncRead, AsyncWrite};
 use actor::net::{TcpListener, TcpStream};
 use actor::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
 
@@ -36,46 +37,43 @@ impl Actor for EchoActor {
 
     // For actors used in an `Initiator` this will likely be the starting point.
     fn poll(&mut self, ctx: &mut ActorContext) -> ActorResult<Self::Error> {
-        // TODO: use AsyncRead and AsyncWrite once available.
-
         if self.buffer.is_empty() {
+            // Initialise the buffer, if required.
+            unsafe {
+                let cap = self.buffer.capacity();
+                self.buffer.set_len(cap);
+                self.stream.initializer().initialize(&mut self.buffer);
+            }
+
             // Try to read from stream.
-            // NOTE: do NOT use this in actual production code, this is a DOS
-            // attack waiting to happen. We only use this for simplicity sake.
-            match self.stream.read_to_end(&mut self.buffer) {
+            let r = self.stream.poll_read(&mut ctx.task_ctx(), &mut self.buffer);
+            match r {
                 // Read everything from the stream, so we're done.
-                Ok(0) => Poll::Ready(Ok(Status::Complete)),
+                Poll::Ready(Ok(0)) => Poll::Ready(Ok(Status::Complete)),
                 // Move to writing part.
-                Ok(_) => self.poll(ctx),
-                Err(ref err) if err.kind() == ErrorKind::WouldBlock => {
-                    if self.buffer.is_empty() {
-                        // Nothing it read, so we'll have to wait.
-                        Poll::Pending
-                    } else {
-                        // Echo back what we have now.
-                        self.poll(ctx)
-                    }
+                Poll::Ready(Ok(n)) => {
+                    unsafe { self.buffer.set_len(n) };
+                    self.poll(ctx)
                 },
-                // NOTE: `ErrorKind::Interrupted` is handled for us by
-                // `read_to_end`, otherwise we should handle it here.
-                Err(err) => Poll::Ready(Err(err)),
+                Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
+                Poll::Pending => Poll::Pending,
             }
         } else {
             // Try to echo back the buffer to the stream.
-            match self.stream.write(&self.buffer) {
-                Ok(n) if n == self.buffer.len() => {
+            match self.stream.poll_write(&mut ctx.task_ctx(), &self.buffer) {
+                Poll::Ready(Ok(n)) if n == self.buffer.len() => {
                     // Written the entire buffer, so try reading again.
                     self.buffer.truncate(0);
                     self.poll(ctx)
                 },
-                Ok(n) => {
+                Poll::Ready(Ok(n)) => {
                     // Not the entire buffer is written, we need to try again
                     // later.
                     self.buffer.drain(0..n);
                     Poll::Pending
                 },
-                Err(ref err) if err.kind() == ErrorKind::WouldBlock => Poll::Pending,
-                Err(err) => Poll::Ready(Err(err)),
+                Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
+                Poll::Pending => Poll::Pending,
             }
         }
     }
