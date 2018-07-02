@@ -10,7 +10,7 @@ use system::ActorSystemRef;
 
 /// A process that represent a `TaskObj`.
 ///
-/// It calls `poll` until it returns `Poll::Ready` after which it returns
+/// It calls `poll` until it returns `Poll::Ready` after which `run` returns
 /// `ProcessResult::Complete`.
 #[derive(Debug)]
 pub struct TaskProcess {

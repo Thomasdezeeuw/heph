@@ -2,8 +2,12 @@
 
 use std::io;
 use std::cell::RefCell;
+use std::future::Future;
+use std::mem::PinMut;
 use std::rc::Rc;
-use std::task::Poll;
+use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::task::{Context, Poll, local_waker, Wake};
 
 use mio_st::event::EventedId;
 use mio_st::poll::Poller;
@@ -281,4 +285,40 @@ fn actor_ref_send_errors() {
     assert_eq!(actor_ref.send(()).unwrap_err(),
         SendError { message: (), reason: SendErrorReason::ActorShutdown },
         "expected an actor system shutdown message");
+}
+*/
+
+struct TaskFuture {
+    called: Arc<AtomicUsize>,
+}
+
+impl Future for TaskFuture {
+    type Output = ();
+    fn poll(self: PinMut<Self>, _ctx: &mut Context) -> Poll<Self::Output> {
+        match self.called.fetch_add(1, Ordering::SeqCst) {
+            0 => Poll::Pending,
+            1 => Poll::Ready(()),
+            _ => unreachable!(),
+        }
+    }
+}
+
+#[test]
+fn task_process() {
+    let system = ActorSystemBuilder::default().build()
+        .expect("can't build actor system");
+    let mut system_ref = system.create_ref();
+
+    let called = Arc::new(AtomicUsize::new(0));
+    let task = Box::new(TaskFuture { called: Arc::clone(&called) }).into();
+    let waker = Waker::new(ProcessId(0), system_ref.clone());
+    let mut process = TaskProcess::new(task, waker);
+
+    // Pending run.
+    assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
+    assert_eq!(called.load(Ordering::SeqCst), 1, "expected the process to be run");
+
+    // Ready run.
+    assert_eq!(process.run(&mut system_ref), ProcessResult::Complete);
+    assert_eq!(called.load(Ordering::SeqCst), 2, "expected the process to be run a second time");
 }
