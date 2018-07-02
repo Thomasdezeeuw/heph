@@ -241,51 +241,6 @@ fn actor_process_poll_statusses() {
     }
 }
 
-#[test]
-fn actor_ref_clone() {
-    let system = ActorSystemBuilder::default().build()
-        .expect("can't build actor system");
-    let mut system_ref = system.create_ref();
-
-    let (actor, handle_called, poll_called) = SimpleActor::new();
-    let mut process = ActorProcess::new(ProcessId(0), actor,
-        ActorOptions::default(), system_ref.clone());
-    assert_eq!(*poll_called.borrow(), 0);
-
-    let mut actor_ref1 = process.create_ref();
-    actor_ref1.send(()).expect("unable to send message");
-    let mut actor_ref2 = actor_ref1.clone();
-    actor_ref2.send(()).expect("unable to send message");
-
-    if let ProcessResult::Complete = process.run(&mut system_ref) {
-        panic!("expected ProcessResult::Pending");
-    }
-    assert_eq!(*handle_called.borrow(), 2, "expected actor.handle to be called");
-}
-
-#[test]
-fn actor_ref_send_errors() {
-    let system = ActorSystemBuilder::default().build()
-        .expect("can't build actor system");
-    let system_ref = system.create_ref();
-
-    let (actor, _, _) = SimpleActor::new();
-    let process = ActorProcess::new(ProcessId(0), actor,
-        ActorOptions::default(), system_ref);
-
-    let mut actor_ref = process.create_ref();
-    actor_ref.send(()).expect("unable to send message");
-
-    drop(system);
-    assert_eq!(actor_ref.send(()).unwrap_err(),
-        SendError { message: (), reason: SendErrorReason::SystemShutdown },
-        "expected an actor system shutdown message");
-
-    drop(process);
-    assert_eq!(actor_ref.send(()).unwrap_err(),
-        SendError { message: (), reason: SendErrorReason::ActorShutdown },
-        "expected an actor system shutdown message");
-}
 */
 
 struct TaskFuture {
