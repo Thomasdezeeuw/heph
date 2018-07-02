@@ -46,7 +46,7 @@ impl<A> ActorRef<A>
     where A: Actor,
 {
     /// Create a new `ActorRef` with a shared mailbox.
-    pub(super) const fn new(inbox: Weak<RefCell<MailBox<A::Message>>>) -> ActorRef<A> {
+    pub const fn new(inbox: Weak<RefCell<MailBox<A::Message>>>) -> ActorRef<A> {
         ActorRef {
             inbox,
             _phantom: PhantomData,

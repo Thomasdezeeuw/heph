@@ -6,16 +6,14 @@ use std::rc::Rc;
 use std::task::{Poll, LocalWaker};
 
 use actor::{Actor, ActorContext, Status};
-use process::{Process, ProcessId, ProcessResult};
-use system::{ActorSystemRef, Waker};
-use system::options::ActorOptions;
+use process::{Process, ProcessResult};
+use system::ActorSystemRef;
 
 mod actor_ref;
 mod mailbox;
 
 pub use self::actor_ref::ActorRef;
-
-use self::mailbox::MailBox;
+pub use self::mailbox::MailBox;
 
 /// A process that represent an actor, it's mailbox and current execution.
 pub struct ActorProcess<A>
@@ -36,19 +34,14 @@ pub struct ActorProcess<A>
 impl<A> ActorProcess<A>
     where A: Actor,
 {
-    /// Create a new actor process.
-    pub fn new(pid: ProcessId, actor: A, _options: ActorOptions, system_ref: ActorSystemRef) -> ActorProcess<A> {
+    /// Create a new `ActorProcess`.
+    pub const fn new(actor: A, waker: LocalWaker, inbox: Rc<RefCell<MailBox<A::Message>>>) -> ActorProcess<A> {
         ActorProcess {
-            waker: Waker::new(pid, system_ref.clone()),
             actor,
             ready_for_msg: false,
-            inbox: Rc::new(RefCell::new(MailBox::new(pid, system_ref))),
+            waker,
+            inbox,
         }
-    }
-
-    /// Create a new reference to this actor.
-    pub fn create_ref(&self) -> ActorRef<A> {
-        ActorRef::new(Rc::downgrade(&self.inbox))
     }
 
     /// Calls `Actor.poll`.

@@ -12,7 +12,7 @@ use mio_st::poll::Poller;
 
 use actor::Actor;
 use initiator::Initiator;
-use process::{ProcessId, ProcessResult, ActorProcess, InitiatorProcess, TaskProcess};
+use process::{ProcessId, ProcessResult, ActorProcess, InitiatorProcess, TaskProcess, MailBox};
 use scheduler::{Scheduler, Priority, ProcessData, ScheduledProcess};
 
 mod builder;
@@ -25,9 +25,8 @@ pub use process::ActorRef;
 pub use self::builder::ActorSystemBuilder;
 pub use self::options::{ActorOptions, InitiatorOptions};
 
-pub(crate) use self::waker::Waker;
-
 use self::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};
+use self::waker::Waker;
 
 /// The system that runs all actors.
 #[derive(Debug)]
@@ -321,10 +320,12 @@ impl ActorSystemInner {
 
         // Create a new actor process.
         let priority = options.priority;
-        let process = ActorProcess::new(pid, actor, options, system_ref);
-
+        let waker = Waker::new(pid, system_ref.clone());
+        let mailbox = Rc::new(RefCell::new(MailBox::new(pid, system_ref)));
         // Create a reference to the actor, to be returned.
-        let actor_ref = process.create_ref();
+        let actor_ref = ActorRef::new(Rc::downgrade(&mailbox));
+        let process = ActorProcess::new(actor, waker, mailbox);
+
 
         // Actually add the process.
         process_entry.add(process, priority);
@@ -343,7 +344,9 @@ impl ActorSystemInner {
         // Create a new actor process.
         let priority = options.priority;
         let actor = f(pid, &mut self.poller)?;
-        let process = ActorProcess::new(pid, actor, options, system_ref);
+        let waker = Waker::new(pid, system_ref.clone());
+        let mailbox = Rc::new(RefCell::new(MailBox::new(pid, system_ref)));
+        let process = ActorProcess::new(actor, waker, mailbox);
 
         // Actually add the process.
         process_entry.add(process, priority);
