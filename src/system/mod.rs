@@ -182,9 +182,9 @@ impl ActorSystem {
         };
 
         let start = Instant::now();
-        trace!("running process: pid={}", pid);
+        debug!("running process: pid={}", pid);
         let result = process.run(system_ref);
-        trace!("finished running process: pid={}, elapsed_time={:?}", pid, start.elapsed());
+        debug!("finished running process: pid={}, elapsed_time={:?}", pid, start.elapsed());
 
         match self.inner.try_borrow_mut() {
             Ok(mut inner) => match result {
