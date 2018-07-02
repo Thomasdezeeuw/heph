@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use std::rc::Weak;
 
 use actor::Actor;
-use process::actor::MailBox;
+use system::MailBox;
 use system::error::{SendError, SendErrorReason};
 
 /// A reference to an actor inside a [`ActorSystem`].

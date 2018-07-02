@@ -7,13 +7,7 @@ use std::task::{Poll, LocalWaker};
 
 use actor::{Actor, ActorContext, Status};
 use process::{Process, ProcessResult};
-use system::ActorSystemRef;
-
-mod actor_ref;
-mod mailbox;
-
-pub use self::actor_ref::ActorRef;
-pub use self::mailbox::MailBox;
+use system::{ActorSystemRef, MailBox};
 
 /// A process that represent an actor, it's mailbox and current execution.
 pub struct ActorProcess<A>

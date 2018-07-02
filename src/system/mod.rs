@@ -12,18 +12,22 @@ use mio_st::poll::Poller;
 
 use actor::Actor;
 use initiator::Initiator;
-use process::{ProcessId, ProcessResult, ActorProcess, InitiatorProcess, TaskProcess, MailBox};
+use process::{ProcessId, ProcessResult, ActorProcess, InitiatorProcess, TaskProcess};
 use scheduler::{Scheduler, Priority, ProcessData, ScheduledProcess};
 
 mod builder;
 mod waker;
+mod actor_ref;
+mod mailbox;
 
 pub mod error;
 pub mod options;
 
-pub use process::ActorRef;
+pub use self::actor_ref::ActorRef;
 pub use self::builder::ActorSystemBuilder;
 pub use self::options::{ActorOptions, InitiatorOptions};
+
+pub(crate) use self::mailbox::MailBox;
 
 use self::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};
 use self::waker::Waker;

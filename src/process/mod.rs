@@ -13,7 +13,7 @@ mod task;
 #[cfg(test)]
 mod tests;
 
-pub use self::actor::{ActorProcess, ActorRef, MailBox};
+pub use self::actor::ActorProcess;
 pub use self::initiator::InitiatorProcess;
 pub use self::task::TaskProcess;
 
