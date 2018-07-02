@@ -27,10 +27,11 @@ pub use self::actor_ref::ActorRef;
 pub use self::builder::ActorSystemBuilder;
 pub use self::options::{ActorOptions, InitiatorOptions};
 
+// Both used by tests.
 pub(crate) use self::mailbox::MailBox;
+pub(crate) use self::waker::Waker;
 
 use self::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};
-use self::waker::Waker;
 
 /// The system that runs all actors.
 #[derive(Debug)]

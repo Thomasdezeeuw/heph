@@ -7,16 +7,15 @@ use std::mem::PinMut;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::task::{Context, Poll, local_waker, Wake};
+use std::task::{Context, Poll};
 
 use mio_st::event::EventedId;
 use mio_st::poll::Poller;
 
 use actor::{Actor, ActorContext, ActorResult, Status};
 use initiator::Initiator;
-use process::{ProcessId, EmptyProcess, Process, ProcessResult, ActorProcess, InitiatorProcess};
-use system::{ActorSystemBuilder, ActorSystemRef, ActorOptions};
-use system::error::{SendError, SendErrorReason};
+use process::{ProcessId, Process, ProcessResult, ActorProcess, EmptyProcess, InitiatorProcess, TaskProcess};
+use system::{ActorSystemBuilder, ActorSystemRef, ActorRef, MailBox, Waker};
 
 #[test]
 fn pid_to_evented_id() {
@@ -149,14 +148,18 @@ fn actor_process() {
     let mut system_ref = system.create_ref();
 
     let (actor, handle_called, poll_called) = SimpleActor::new();
-    let mut process = ActorProcess::new(ProcessId(0), actor,
-        ActorOptions::default(), system_ref.clone());
+
+    let pid = ProcessId(0);
+    let waker = Waker::new(pid, system_ref.clone());
+    let mailbox = Rc::new(RefCell::new(MailBox::new(pid, system_ref.clone())));
+    let mut actor_ref: ActorRef<SimpleActor> = ActorRef::new(Rc::downgrade(&mailbox));
+    let mut process = ActorProcess::new(actor, waker, mailbox);
+
     assert_eq!(*poll_called.borrow(), 0);
 
     assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
     assert_eq!(*poll_called.borrow(), 1, "expected actor.poll to be called");
 
-    let mut actor_ref = process.create_ref();
     actor_ref.send(())
         .expect("unable to send message");
 
@@ -206,6 +209,11 @@ fn actor_process_poll_statusses() {
         .expect("can't build actor system");
     let mut system_ref = system.create_ref();
 
+    let pid = ProcessId(0);
+    let waker = Waker::new(pid, system_ref.clone());
+    let mailbox = Rc::new(RefCell::new(MailBox::new(pid, system_ref.clone())));
+    let mut actor_ref: ActorRef<SimpleActor> = ActorRef::new(Rc::downgrade(&mailbox));
+
     let poll_tests = vec![
         (Poll::Ready(Ok(Status::Complete)), ProcessResult::Complete),
         // Handle should return `Status::Complete`.
@@ -216,8 +224,8 @@ fn actor_process_poll_statusses() {
 
     for test in poll_tests {
         let actor = PollTestActor { result: test.0 };
-        let mut process = ActorProcess::new(ProcessId(0), actor,
-            ActorOptions::default(), system_ref.clone());
+        let mut process = ActorProcess::new(actor, waker.clone(), mailbox.clone());
+
         assert_eq!(process.run(&mut system_ref), test.1, "handle returned: {:?}", test.0);
     }
 
@@ -232,16 +240,14 @@ fn actor_process_poll_statusses() {
 
     for test in handle_tests {
         let actor = HandleTestActor { result: test.0 };
-        let mut process = ActorProcess::new(ProcessId(0), actor,
-            ActorOptions::default(), system_ref.clone());
+        let mut process = ActorProcess::new(actor, waker.clone(), mailbox.clone());
+
         // Set `ready_for_msg` to true.
         assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
-        process.create_ref().send(()).unwrap();
+        actor_ref.send(()).unwrap();
         assert_eq!(process.run(&mut system_ref), test.1, "poll returned: {:?}", test.0);
     }
 }
-
-*/
 
 struct TaskFuture {
     called: Arc<AtomicUsize>,
