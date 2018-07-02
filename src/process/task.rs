@@ -9,6 +9,9 @@ use process::{Process, ProcessResult};
 use system::ActorSystemRef;
 
 /// A process that represent a `TaskObj`.
+///
+/// It calls `poll` until it returns `Poll::Ready` after which it returns
+/// `ProcessResult::Complete`.
 #[derive(Debug)]
 pub struct TaskProcess {
     /// The underlying task.

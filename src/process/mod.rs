@@ -48,9 +48,10 @@ impl fmt::Display for ProcessId {
 
 /// The trait that represents a process.
 ///
-/// This currently has two implementations;
-/// - the `ActorProcess`, which wraps an `Actor` to implement this trait, and
-/// - the `InitiatorProcess`, which wraps an `Initiator`.
+/// This currently has three implementations;
+/// - the `ActorProcess`, which wraps an `Actor` to implement this trait,
+/// - the `InitiatorProcess`, which wraps an `Initiator`, and
+/// - the `TaskProcess`, which wraps a `TaskObj`.
 ///
 /// `EmptyProcess` also implements this, but it's just a placeholder to be used
 /// by the `ActorSystem`.

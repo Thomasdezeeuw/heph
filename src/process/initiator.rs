@@ -7,7 +7,10 @@ use initiator::Initiator;
 use process::{Process, ProcessResult};
 use system::ActorSystemRef;
 
-/// A process that represent an initiator.
+/// A process that represents an `Initiator`.
+///
+/// It simply calls `poll` on the `Initiator` and only returns
+/// `ProcessResult::Complete` if `poll` returns an error, which it logs.
 pub struct InitiatorProcess<I> {
     /// The initiator.
     initiator: I,
@@ -17,6 +20,9 @@ impl<I> InitiatorProcess<I>
     where I: Initiator,
 {
     /// Create a new `InitiatorProcess`.
+    ///
+    /// The `initiator` must be initialised, i.e. `init` must have been called
+    /// before it's passed to this function.
     pub const fn new(initiator: I) -> InitiatorProcess<I> {
         InitiatorProcess {
             initiator,
