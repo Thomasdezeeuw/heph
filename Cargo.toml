@@ -3,7 +3,6 @@ name = "actor"
 version = "0.1.0"
 authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license = "MIT"
-autotests = false
 
 [dependencies]
 log = "0.4.2"
@@ -15,7 +14,3 @@ mio-st = { path = '../mio-st' }
 
 [dev-dependencies]
 env_logger = "0.5.10"
-
-[[test]]
-name = "test"
-path = "tests/test.rs"
