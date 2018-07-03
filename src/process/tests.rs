@@ -41,9 +41,7 @@ fn pid_display() {
 #[test]
 #[should_panic(expected = "can't run empty process")]
 fn cant_run_empty_process() {
-    let system = ActorSystemBuilder::default().build()
-        .expect("can't build actor system");
-    let mut system_ref = system.create_ref();
+    let mut system_ref = ActorSystemRef::test_ref();
     let _ = EmptyProcess.run(&mut system_ref);
 }
 
@@ -68,9 +66,7 @@ impl Initiator for SimpleInitiator {
 
 #[test]
 fn initiator_process() {
-    let system = ActorSystemBuilder::default().build()
-        .expect("can't build actor system");
-    let mut system_ref = system.create_ref();
+    let mut system_ref = ActorSystemRef::test_ref();
 
     let called = Rc::new(RefCell::new(0));
     let mut process = InitiatorProcess::new(SimpleInitiator { called: Rc::clone(&called) });
@@ -98,9 +94,7 @@ impl Initiator for ErroneousInitiator {
 
 #[test]
 fn erroneous_initiator_process() {
-    let system = ActorSystemBuilder::default().build()
-        .expect("can't build actor system");
-    let mut system_ref = system.create_ref();
+    let mut system_ref = ActorSystemRef::test_ref();
 
     let mut process = InitiatorProcess::new(ErroneousInitiator);
 
@@ -205,9 +199,7 @@ impl Actor for HandleTestActor  {
 #[test]
 #[ignore = "causes SIGILL on MacOS"]
 fn actor_process_poll_statusses() {
-    let system = ActorSystemBuilder::default().build()
-        .expect("can't build actor system");
-    let mut system_ref = system.create_ref();
+    let mut system_ref = ActorSystemRef::test_ref();
 
     let pid = ProcessId(0);
     let waker = Waker::new(pid, system_ref.clone());
@@ -266,9 +258,7 @@ impl Future for TaskFuture {
 
 #[test]
 fn task_process() {
-    let system = ActorSystemBuilder::default().build()
-        .expect("can't build actor system");
-    let mut system_ref = system.create_ref();
+    let mut system_ref = ActorSystemRef::test_ref();
 
     let called = Arc::new(AtomicUsize::new(0));
     let task = Box::new(TaskFuture { called: Arc::clone(&called) }).into();
