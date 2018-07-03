@@ -4,6 +4,12 @@ version = "0.1.0"
 authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license = "MIT"
 
+[features]
+default = []
+
+# Add facilities to be used when testing.
+test = []
+
 [dependencies]
 log = "0.4.2"
 num_cpus = "1.8.0"
