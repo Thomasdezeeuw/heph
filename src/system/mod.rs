@@ -212,6 +212,18 @@ pub struct ActorSystemRef {
 }
 
 impl ActorSystemRef {
+    /// Create a new `ActorSystemRef` that can be used in unit testing.
+    ///
+    /// # Notes
+    ///
+    /// All methods will always return a system shutdown error.
+    #[cfg(feature = "test")]
+    pub fn test_ref() -> ActorSystemRef  {
+        ActorSystemRef {
+            inner: Weak::new(),
+        }
+    }
+
     /// Add a new actor to the system.
     ///
     /// See [`ActorSystem.add_actor`].

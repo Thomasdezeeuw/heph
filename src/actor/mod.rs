@@ -138,6 +138,28 @@ impl ActorContext {
         }
     }
 
+    /// Create a new `ActorContext` that can be used in unit testing.
+    ///
+    /// # Notes
+    ///
+    /// The `Waker` implementation in the futures context is a noop.
+    #[cfg(feature = "test")]
+    pub fn test_ctx() -> ActorContext {
+        use ::std::sync::Arc;
+        use ::std::task::{local_waker, Wake};
+
+        struct Waker;
+
+        impl Wake for Waker {
+            fn wake(_arc_self: &Arc<Self>) { }
+        }
+
+        ActorContext {
+            waker: unsafe { local_waker(Arc::new(Waker)) },
+            system_ref: ActorSystemRef::test_ref(),
+        }
+    }
+
     /// Get a context for executing a future.
     pub fn task_ctx<'a>(&'a mut self) -> Context<'a> {
         Context::new(&self.waker, &mut self.system_ref)
