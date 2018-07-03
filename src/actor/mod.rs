@@ -20,6 +20,9 @@ use std::task::{Poll, Context, LocalWaker};
 
 use system::ActorSystemRef;
 
+#[cfg(all(test, feature = "test"))]
+mod tests;
+
 /// The main actor trait, which defines how an actor handles messages.
 ///
 /// The `Actor` trait is basically a special version of a `Future`, one which
