@@ -10,6 +10,7 @@ use std::cmp::Ordering;
 // The priority ranges from `Priority::MIN` to `Priority::MAX`, where `MAX` is
 // 0.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[repr(transparent)]
 pub struct Priority(u8);
 
 impl Priority {

@@ -26,6 +26,7 @@ pub use self::task::TaskProcess;
 ///
 /// [`Scheduler`]: ../scheduler/struct.Scheduler.html
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+#[repr(transparent)]
 pub struct ProcessId(pub usize);
 
 impl From<EventedId> for ProcessId {
