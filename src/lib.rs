@@ -9,13 +9,17 @@
            read_initializer,
 )]
 
-#![warn(missing_debug_implementations,
+#![warn(anonymous_parameters,
+        bare_trait_objects,
+        missing_debug_implementations,
         missing_docs,
         trivial_casts,
         trivial_numeric_casts,
+        unused_extern_crates,
         unused_import_braces,
         unused_qualifications,
         unused_results,
+        variant_size_differences,
 )]
 
 #[macro_use]

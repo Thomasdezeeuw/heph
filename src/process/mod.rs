@@ -64,7 +64,7 @@ pub trait Process: fmt::Debug {
     ///
     /// If it returns `ProcessResult::Pending` it will be considered inactive
     /// and the process itself must make sure its gets scheduled again.
-    fn run(&mut self, &mut ActorSystemRef) -> ProcessResult;
+    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult;
 }
 
 /// The result of running a `Process`.
