@@ -68,7 +68,7 @@ impl<A: fmt::Debug> Error for AddActorError<A> {
         AddActorError::<()>::DESC
     }
 
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         match self.reason {
             _ => None,
         }
@@ -149,7 +149,7 @@ impl<A: fmt::Debug> Error for AddInitiatorError<A> {
         AddInitiatorError::<()>::DESC
     }
 
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         match self.reason {
             AddInitiatorErrorReason::InitFailed(ref err) => Some(err),
         }
@@ -261,7 +261,7 @@ impl Error for RuntimeError {
         "error running actor system"
     }
 
-    fn cause(&self) -> Option<&Error> {
+    fn cause(&self) -> Option<&dyn Error> {
         use self::RuntimeError::*;
         match self {
             Poll(ref err) => Some(err),
