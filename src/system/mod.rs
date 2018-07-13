@@ -3,8 +3,9 @@
 use std::io;
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::future::FutureObj;
 use std::rc::{Rc, Weak};
-use std::task::{Executor, TaskObj, SpawnObjError, SpawnErrorKind};
+use std::task::{Executor, SpawnObjError, SpawnErrorKind};
 use std::time::{Duration, Instant};
 
 use mio_st::event::{Events, Evented};
@@ -291,7 +292,7 @@ impl ActorSystemRef {
 }
 
 impl Executor for ActorSystemRef {
-    fn spawn_obj(&mut self, task: TaskObj) -> Result<(), SpawnObjError> {
+    fn spawn_obj(&mut self, task: FutureObj<'static, ()>) -> Result<(), SpawnObjError> {
         match self.inner.upgrade() {
             Some(inner_ref) => match inner_ref.try_borrow_mut() {
                 Ok(mut inner) => { inner.add_task(task, self.clone()); Ok(()) },
@@ -401,7 +402,7 @@ impl ActorSystemInner {
         Ok(())
     }
 
-    fn add_task(&mut self, task: TaskObj, system_ref: ActorSystemRef) {
+    fn add_task(&mut self, task: FutureObj<'static, ()>, system_ref: ActorSystemRef) {
         // Setup adding a new process to the scheduler.
         let process_entry = self.scheduler.add_process();
         let pid = process_entry.id();

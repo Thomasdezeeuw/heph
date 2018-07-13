@@ -1,9 +1,9 @@
 //! Module containing the implementation of the `Process` trait for
 //! `TaskObj`s.
 
-use std::future::Future;
+use std::future::{Future, FutureObj};
 use std::mem::PinMut;
-use std::task::{Context, LocalWaker, TaskObj, Poll};
+use std::task::{Context, LocalWaker, Poll};
 
 use process::{Process, ProcessResult};
 use system::ActorSystemRef;
@@ -15,14 +15,14 @@ use system::ActorSystemRef;
 #[derive(Debug)]
 pub struct TaskProcess {
     /// The underlying task.
-    task: TaskObj,
+    task: FutureObj<'static, ()>,
     /// Waker used in the futures context.
     waker: LocalWaker,
 }
 
 impl TaskProcess {
     /// Create a new `TaskProcess`.
-    pub const fn new(task: TaskObj, waker: LocalWaker) -> TaskProcess {
+    pub const fn new(task: FutureObj<'static, ()>, waker: LocalWaker) -> TaskProcess {
         TaskProcess {
             task,
             waker,
