@@ -14,7 +14,7 @@ again quickly after, thus reducing the impact of badly behaving processes.
 
 Using this way of scheduling processes that do very little CPU intensive work
 and mostly do I/O (and thus go into a unready state very quickly) will be
-favoured in this algorithm. For which the framework is designed.
+favoured in this algorithm.
 
 Scheduling processes to be run is based on `ProcessId`. There are currently
 three sources of processes being scheduled;
@@ -46,62 +46,14 @@ be faster. However letting the system poller deal with it is easier to implement
 to the scheduler while a process is running.
 
 
-## Data structure requirements
+## Requirements
 
- - Scheduling of a process, based on `ProcessId`.
- - Scheduling a process while another process is running, or a process
-   scheduling itself.
+The following operations need to be supported, and need to be optimised for.
+
+ - Scheduling of a process, based on `ProcessId`, possibly while a process
+   (possibly itself) is running.
+ - Adding new processes while another process is running.
  - Getting the next process to run, based on the lowest fair\_runtime.
-
-
-### Potential API design
-
-TODO: implement this, or something that works.
-
-```rust
-// Ordering based on fair_runtime, priority (in that order).
-#[derive(Ord, PartialOrd)]
-struct ProcessData {
-	fair_runtime: Instant,
-	priority: Priority,
-}
-
-struct Scheduler {
-	// ...
-}
-
-impl Scheduler {
-	/// Schedule the process with the provided `pid`.
-	fn schedule(&mut self, pid: ProcessId) {
-		// ...
-	}
-
-	/// Get the next process to run.
-	fn next_process<'a>(&'a mut self) -> RunningProcess<'a> {
-		// ...
-	}
-}
-
-// TODO: improve name, the process still has to be run by calling `run`.
-struct RunningProcess<'a> {
-	process: &'a mut Process,
-	data: ProcessData,
-}
-
-impl<'a> RunningProcess<'a> {
-	/// Run the process.
-	fn run(self) {
-		let start = Instant::now();
-		self.process.run();
-		let runtime = start.elapsed();
-		let fair_runtime = runtime * self.data.priority;
-
-		// Update the fair_runtime of the process.
-		// ...
-		// TODO: how to remove the process from the scheduler?
-	}
-}
-```
 
 
 ## Priority
@@ -116,13 +68,15 @@ without the older requests being processed.
 ## Open questions
 
  - When to run a process vs. calling the system poller. Should this be an
-   option?
+   option? Maybe poll userspace events more often, would need to be added to
+   mio?
  - What data structure to use for the `Scheduler`, Linux' CFS uses a Red-black
    tree.
  - How to schedule a process, when sending message or using a futures' `Waker`,
    directly on the scheduler or via the system poller.
  - Can (very) long process overflow the `Duration` type, especially with the
-   priority multiplier?
+   priority multiplier? Thinking along the lines of processes that should be
+   able to run for year on end.
 
 
 ## Resources
