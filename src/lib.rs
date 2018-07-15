@@ -37,6 +37,7 @@ pub mod system;
 
 mod process;
 mod scheduler;
+mod util;
 
 /// The actor prelude. All useful traits and types in single module.
 ///
