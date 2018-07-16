@@ -28,6 +28,9 @@ extern crate mio_st;
 extern crate num_cpus;
 extern crate slab;
 
+#[cfg(test)]
+extern crate env_logger;
+
 pub mod actor;
 pub mod initiator;
 pub mod io;

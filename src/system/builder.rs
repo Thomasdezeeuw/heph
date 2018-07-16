@@ -37,13 +37,16 @@ impl ActorSystemBuilder {
     pub fn build(self) -> io::Result<ActorSystem> {
         debug!("building actor system: n_processes={}",
             self.n_processes);
+
+        let (scheduler, scheduler_ref) = Scheduler::new();
         let inner = ActorSystemInner {
-            scheduler: Scheduler::new(),
+            scheduler_ref,
             poller: Poller::new()?,
         };
 
         Ok(ActorSystem {
             inner: Rc::new(RefCell::new(inner)),
+            scheduler,
             has_initiators: false,
         })
     }

@@ -2,7 +2,9 @@
 
 use std::collections::VecDeque;
 
-use process::ProcessId;
+use mio_st::event::Ready;
+use mio_st::registration::Notifier;
+
 use system::ActorSystemRef;
 use system::error::{SendError, SendErrorReason};
 
@@ -11,36 +13,43 @@ use system::error::{SendError, SendErrorReason};
 pub struct MailBox<M> {
     /// The messages in the mailbox.
     messages: VecDeque<M>,
-    /// The process id of the actor process to which this mailbox belongs.
-    pid: ProcessId,
-    /// A reference to the actor system.
+    /// Actor specific notifier.
+    notifier: Notifier,
+    /// A reference to the actor system, used to check if it's still running.
     system_ref: ActorSystemRef,
 }
 
 impl<M> MailBox<M> {
     /// Create a new mailbox.
-    pub fn new(pid: ProcessId, system_ref: ActorSystemRef) -> MailBox<M> {
+    pub fn new(notifier: Notifier, system_ref: ActorSystemRef) -> MailBox<M> {
         MailBox {
             messages: VecDeque::new(),
-            pid,
+            notifier,
             system_ref,
         }
     }
 
     /// Deliver a new message to the mailbox.
     ///
-    /// This will schedule the actor to run.
+    /// This will also schedule the actor to run.
     pub fn deliver<Msg>(&mut self, msg: Msg) -> Result<(), SendError<Msg>>
         where Msg: Into<M>,
     {
-        match self.system_ref.schedule(self.pid) {
+        match self.notifier.notify(Ready::READABLE) {
             Ok(()) => {
-                self.messages.push_back(msg.into());
-                Ok(())
+                if self.system_ref.is_shutdown() {
+                    Err(SendError {
+                        message: msg,
+                        reason: SendErrorReason::SystemShutdown,
+                    })
+                } else {
+                    self.messages.push_back(msg.into());
+                    Ok(())
+                }
             },
-            Err(()) => Err(SendError {
+            Err(_) => Err(SendError {
                 message: msg,
-                reason: SendErrorReason::SystemShutdown,
+                reason: SendErrorReason::ActorShutdown,
             }),
         }
     }

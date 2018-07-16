@@ -9,12 +9,13 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 
-use mio_st::event::EventedId;
-use mio_st::poll::Poller;
+use mio_st::event::{EventedId, Ready};
+use mio_st::poll::{Poller, PollOption};
+use mio_st::registration::Registration;
 
 use actor::{Actor, ActorContext, ActorResult, Status};
 use initiator::Initiator;
-use process::{ProcessId, Process, ProcessResult, ActorProcess, EmptyProcess, InitiatorProcess, TaskProcess};
+use process::{ProcessId, Process, ProcessResult, ActorProcess, InitiatorProcess, TaskProcess};
 use system::{ActorSystemBuilder, ActorSystemRef, ActorRef, MailBox, Waker};
 
 #[test]
@@ -36,13 +37,6 @@ fn pid_display() {
     assert_eq!(ProcessId(0).to_string(), "0");
     assert_eq!(ProcessId(100).to_string(), "100");
     assert_eq!(ProcessId(8000).to_string(), "8000");
-}
-
-#[test]
-#[should_panic(expected = "can't run empty process")]
-fn cant_run_empty_process() {
-    let mut system_ref = ActorSystemRef::test_ref();
-    let _ = EmptyProcess.run(&mut system_ref);
 }
 
 struct SimpleInitiator {
@@ -144,10 +138,17 @@ fn actor_process() {
     let (actor, handle_called, poll_called) = SimpleActor::new();
 
     let pid = ProcessId(0);
-    let waker = Waker::new(pid, system_ref.clone());
-    let mailbox = Rc::new(RefCell::new(MailBox::new(pid, system_ref.clone())));
+    let (mut registration, notifier) = Registration::new();
+
+    let mut poller = Poller::new().unwrap();
+    poller.register(&mut registration, pid.into(),
+        Ready::READABLE, PollOption::Edge).unwrap();
+
+
+    let waker = Waker::new(notifier.clone());
+    let mailbox = Rc::new(RefCell::new(MailBox::new(notifier, system_ref.clone())));
     let mut actor_ref: ActorRef<SimpleActor> = ActorRef::new(Rc::downgrade(&mailbox));
-    let mut process = ActorProcess::new(actor, waker, mailbox);
+    let mut process = ActorProcess::new(actor, registration, waker, mailbox);
 
     assert_eq!(*poll_called.borrow(), 0);
 
@@ -201,9 +202,9 @@ impl Actor for HandleTestActor  {
 fn actor_process_poll_statusses() {
     let mut system_ref = ActorSystemRef::test_ref();
 
-    let pid = ProcessId(0);
-    let waker = Waker::new(pid, system_ref.clone());
-    let mailbox = Rc::new(RefCell::new(MailBox::new(pid, system_ref.clone())));
+    let (_, notifier) = Registration::new();
+    let waker = Waker::new(notifier.clone());
+    let mailbox = Rc::new(RefCell::new(MailBox::new(notifier, system_ref.clone())));
     let mut actor_ref: ActorRef<SimpleActor> = ActorRef::new(Rc::downgrade(&mailbox));
 
     let poll_tests = vec![
@@ -215,8 +216,9 @@ fn actor_process_poll_statusses() {
     ];
 
     for test in poll_tests {
+        let (registration, _) = Registration::new();
         let actor = PollTestActor { result: test.0 };
-        let mut process = ActorProcess::new(actor, waker.clone(), mailbox.clone());
+        let mut process = ActorProcess::new(actor, registration, waker.clone(), mailbox.clone());
 
         assert_eq!(process.run(&mut system_ref), test.1, "handle returned: {:?}", test.0);
     }
@@ -231,8 +233,9 @@ fn actor_process_poll_statusses() {
     ];
 
     for test in handle_tests {
+        let (registration, _) = Registration::new();
         let actor = HandleTestActor { result: test.0 };
-        let mut process = ActorProcess::new(actor, waker.clone(), mailbox.clone());
+        let mut process = ActorProcess::new(actor, registration, waker.clone(), mailbox.clone());
 
         // Set `ready_for_msg` to true.
         assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
@@ -262,8 +265,9 @@ fn task_process() {
 
     let called = Arc::new(AtomicUsize::new(0));
     let task = Box::new(TaskFuture { called: Arc::clone(&called) }).into();
-    let waker = Waker::new(ProcessId(0), system_ref.clone());
-    let mut process = TaskProcess::new(task, waker);
+    let (registration, notifier) = Registration::new();
+    let waker = Waker::new(notifier.clone());
+    let mut process = TaskProcess::new(task, registration, waker);
 
     // Pending run.
     assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);

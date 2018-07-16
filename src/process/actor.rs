@@ -5,6 +5,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::task::{Poll, LocalWaker};
 
+use mio_st::registration::Registration;
+
 use actor::{Actor, ActorContext, Status};
 use process::{Process, ProcessResult};
 use system::{ActorSystemRef, MailBox};
@@ -18,6 +20,8 @@ pub struct ActorProcess<A>
     /// Whether or not the actor has returned `Poll::Ready` and is ready to
     /// handle another message.
     ready_for_msg: bool,
+    /// Needs to stay alive for the duration of the actor.
+    _registration: Registration,
     /// Waker used in the futures context.
     waker: LocalWaker,
     /// Inbox of the actor, shared between an `ActorProcess` and zero or more
@@ -29,10 +33,11 @@ impl<A> ActorProcess<A>
     where A: Actor,
 {
     /// Create a new `ActorProcess`.
-    pub const fn new(actor: A, waker: LocalWaker, inbox: Rc<RefCell<MailBox<A::Message>>>) -> ActorProcess<A> {
+    pub fn new(actor: A, registration: Registration, waker: LocalWaker, inbox: Rc<RefCell<MailBox<A::Message>>>) -> ActorProcess<A> {
         ActorProcess {
             actor,
             ready_for_msg: false,
+            _registration: registration,
             waker,
             inbox,
         }

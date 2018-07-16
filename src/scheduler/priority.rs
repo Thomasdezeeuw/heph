@@ -2,6 +2,8 @@
 
 use std::cmp::Ordering;
 use std::num::NonZeroU8;
+use std::ops::Mul;
+use std::time::Duration;
 
 /// Priority for an actor in the scheduler.
 ///
@@ -61,5 +63,12 @@ impl PartialOrd for Priority {
 
     fn ge(&self, other: &Self) -> bool {
         other.0 >= self.0
+    }
+}
+
+impl Mul<Priority> for Duration {
+    type Output = Duration;
+    fn mul(self, rhs: Priority) -> Duration {
+        self * rhs.0.get() as u32
     }
 }

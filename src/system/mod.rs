@@ -2,19 +2,19 @@
 
 use std::io;
 use std::cell::RefCell;
-use std::collections::HashSet;
 use std::future::FutureObj;
 use std::rc::{Rc, Weak};
 use std::task::{Executor, SpawnObjError, SpawnErrorKind};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
-use mio_st::event::{Events, Evented};
-use mio_st::poll::Poller;
+use mio_st::event::{Events, Evented, Ready};
+use mio_st::poll::{Poller, PollOption};
+use mio_st::registration::Registration;
 
 use actor::Actor;
 use initiator::Initiator;
-use process::{ProcessId, ProcessResult, ActorProcess, InitiatorProcess, TaskProcess};
-use scheduler::{Scheduler, Priority, ProcessData, ScheduledProcess};
+use process::{ProcessId, ActorProcess, InitiatorProcess, TaskProcess};
+use scheduler::{Scheduler, SchedulerRef, Priority};
 
 mod builder;
 mod waker;
@@ -40,6 +40,8 @@ pub struct ActorSystem {
     /// Inside of the system, shared (via weak references) with
     /// `ActorSystemRef`s.
     inner: Rc<RefCell<ActorSystemInner>>,
+    /// Scheduler that hold the processes, schedules and runs them.
+    scheduler: Scheduler,
     /// Whether or not the system has initiators, this is used to allow the
     /// system to run without them. Otherwise we would poll with no timeout,
     /// waiting for ever.
@@ -54,7 +56,7 @@ impl ActorSystem {
     {
         let system_ref = self.create_ref();
         match self.inner.try_borrow_mut() {
-            Ok(mut inner) => inner.add_actor(actor, options, system_ref),
+            Ok(mut inner) => inner.add_actor(options, actor, system_ref),
             Err(_) => unreachable!("can't add actor, actor system already borrowed"),
         }
     }
@@ -91,32 +93,32 @@ impl ActorSystem {
         let timeout = self.determine_timeout();
         // Empty set of events, to be filled by the system poller.
         let mut events = Events::new();
-
-        // Empty set of scheduled processes, to be filled by the scheduler.
-        let mut scheduled = HashSet::new();
-        // Empty process placeholder while we take owner ship, and remove, of a
-        // process we need to run.
-        let mut empty_process: Box<dyn ScheduledProcess> = Box::new(ProcessData::empty());
-
         // System reference used in running the processes.
         let mut system_ref = self.create_ref();
 
+        // TODO: find a good balance between polling and running processes, the
+        // current one is not good.
         loop {
             // Get the scheduled processes.
-            scheduled = self.get_scheduled(scheduled, &mut events, timeout)?;
+            self.poll(&mut events, timeout)?;
 
             // Allow the system to be run without any initiators. In that case
             // we will only handle user space events (e.g. sending messages) and
             // will return after those are all handled.
-            if !self.has_initiators && scheduled.is_empty() {
+            // TODO: handle the case where all initiators are removed from the
+            // system (due to errors).
+            if !self.has_initiators && events.is_empty() {
                 debug!("no events, no initiators stopping actor system");
                 return Ok(())
             }
 
-            // Run each process.
-            for pid in scheduled.drain() {
-                empty_process = self.run_process(pid, empty_process, &mut system_ref);
+            // Schedule all processes with a notification.
+            for event in &mut events {
+                self.scheduler.schedule(event.id().into());
             }
+
+            // TODO: do something with if no process is run. Maybe return?
+            let _ = self.scheduler.run_next(&mut system_ref);
         }
     }
 
@@ -138,63 +140,14 @@ impl ActorSystem {
     /// # Panics
     ///
     /// Will panic if the actor system inside is already borrowed.
-    fn get_scheduled(&mut self, empty: HashSet<ProcessId>, events: &mut Events, timeout: Option<Duration>) -> Result<HashSet<ProcessId>, RuntimeError> {
+    fn poll(&mut self, events: &mut Events, timeout: Option<Duration>) -> Result<(), RuntimeError> {
         debug!("polling system poller for events");
         match self.inner.try_borrow_mut() {
-            Ok(mut inner) => match inner.poller.poll(events, timeout) {
-                Ok(()) => { /* Continue. */ },
-                Err(err) => return Err(RuntimeError::Poll(err)),
+            Ok(mut inner) => {
+                inner.poller.poll(events, timeout)
+                    .map_err(|err| RuntimeError::Poll(err))
             },
             Err(_) => unreachable!("can't poll, actor system already borrowed"),
-        }
-
-        // Swap the set of scheduled processes with an empty set.
-        let mut scheduled = match self.inner.try_borrow_mut() {
-            Ok(mut inner) => inner.scheduler.swap_scheduled(empty),
-            Err(_) => unreachable!("can't get scheduled processes, actor system already borrowed"),
-        };
-
-        // Schedule any processes that we're notified off.
-        for event in events {
-            let pid = event.id().into();
-            let _ = scheduled.insert(pid);
-        }
-
-        Ok(scheduled)
-    }
-
-    /// Run a single process.
-    ///
-    /// It returns the `empty` process.
-    ///
-    /// # Panics
-    ///
-    /// Will panic if the actor system inside is already borrowed.
-    fn run_process(&mut self, pid: ProcessId, empty: Box<dyn ScheduledProcess>, system_ref: &mut ActorSystemRef) -> Box<dyn ScheduledProcess> {
-        let mut process = match self.inner.try_borrow_mut() {
-            Ok(mut inner) => match inner.scheduler.swap_process(pid, empty) {
-                Ok(process) => process,
-                Err(empty) => {
-                    debug!("process scheduled, but no longer alive: pid={}", pid);
-                    return empty;
-                },
-            },
-            Err(_) => unreachable!("can't swap processes, actor system already borrowed"),
-        };
-
-        let start = Instant::now();
-        debug!("running process: pid={}", pid);
-        let result = process.run(system_ref);
-        debug!("finished running process: pid={}, elapsed_time={:?}", pid, start.elapsed());
-
-        match self.inner.try_borrow_mut() {
-            Ok(mut inner) => match result {
-                ProcessResult::Pending =>
-                    inner.scheduler.swap_process(pid, process).unwrap(),
-                ProcessResult::Complete =>
-                    inner.scheduler.remove_process(pid),
-            },
-            Err(_) => unreachable!("can't get scheduler, actor system already borrowed"),
         }
     }
 }
@@ -225,6 +178,14 @@ impl ActorSystemRef {
         }
     }
 
+    /// Whether or the system is shutdown.
+    pub(crate) fn is_shutdown(&self) -> bool {
+        match self.inner.upgrade() {
+            Some(_) => false,
+            None => true,
+        }
+    }
+
     /// Add a new actor to the system.
     ///
     /// See [`ActorSystem.add_actor`].
@@ -238,7 +199,7 @@ impl ActorSystemRef {
         let system_ref = self.clone();
         match self.inner.upgrade() {
             Some(inner_ref) => match inner_ref.try_borrow_mut() {
-                Ok(mut inner) => Ok(inner.add_actor(actor, options, system_ref)),
+                Ok(mut inner) => Ok(inner.add_actor(options, actor, system_ref)),
                 Err(_) => unreachable!("can't add actor, actor system already borrowed"),
             },
             None => Err(AddActorError::new(actor, AddActorErrorReason::SystemShutdown)),
@@ -256,7 +217,9 @@ impl ActorSystemRef {
         let system_ref = self.clone();
         match self.inner.upgrade() {
             Some(inner_ref) => match inner_ref.try_borrow_mut() {
-                Ok(mut inner) => inner.add_actor_setup(options, f, system_ref),
+                Ok(mut inner) =>
+                    inner.add_actor_setup(options, f, system_ref)
+                        .map(|_| ()),
                 Err(_) => unreachable!("can't add actor, actor system already borrowed"),
             },
             None => Err(AddActorError::new((), AddActorErrorReason::SystemShutdown).into()),
@@ -276,26 +239,13 @@ impl ActorSystemRef {
             None => Err(io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN)),
         }
     }
-
-    /// Schedule the process with the provided `pid`.
-    ///
-    /// If the system is shutdown it will return an error.
-    pub(crate) fn schedule(&mut self, pid: ProcessId) -> Result<(), ()> {
-        match self.inner.upgrade() {
-            Some(inner_ref) => match inner_ref.try_borrow_mut() {
-                Ok(mut inner) => {inner.schedule(pid); Ok(()) },
-                Err(_) => unreachable!("can't schedule process, actor system already borrowed"),
-            },
-            None => Err(()),
-        }
-    }
 }
 
 impl Executor for ActorSystemRef {
     fn spawn_obj(&mut self, task: FutureObj<'static, ()>) -> Result<(), SpawnObjError> {
         match self.inner.upgrade() {
             Some(inner_ref) => match inner_ref.try_borrow_mut() {
-                Ok(mut inner) => { inner.add_task(task, self.clone()); Ok(()) },
+                Ok(mut inner) => { inner.add_task(task); Ok(()) },
                 Err(_) => unreachable!("can't spawn task, actor system already borrowed"),
             },
             None => Err(SpawnObjError { kind: SpawnErrorKind::shutdown(), task }),
@@ -321,65 +271,53 @@ impl Clone for ActorSystemRef {
 /// Inside of the `ActorSystem`, to which `ActorSystemRef`s have a reference to.
 #[derive(Debug)]
 struct ActorSystemInner {
-    /// Scheduler that hold the processes, schedules and runs them.
-    scheduler: Scheduler,
+    // Scheduler that hold the processes, schedules and runs them.
+    //scheduler: Scheduler,
+    scheduler_ref: SchedulerRef,
     /// System poller, used for event notifications to support non-blocking I/O.
     poller: Poller,
 }
 
 impl ActorSystemInner {
-    fn add_actor<A>(&mut self, actor: A, options: ActorOptions, system_ref: ActorSystemRef) -> ActorRef<A>
+    fn add_actor<A>(&mut self, options: ActorOptions, actor: A, system_ref: ActorSystemRef) -> ActorRef<A>
         where A: Actor + 'static,
     {
-        // Setup adding a new process to the scheduler.
-        let process_entry = self.scheduler.add_process();
-        let pid = process_entry.id();
-        debug!("adding actor to actor system: pid={}", pid);
-
-        // Create a new actor process.
-        let priority = options.priority;
-        let waker = Waker::new(pid, system_ref.clone());
-        let mailbox = Rc::new(RefCell::new(MailBox::new(pid, system_ref)));
-        // Create a reference to the actor, to be returned.
-        let actor_ref = ActorRef::new(Rc::downgrade(&mailbox));
-        let process = ActorProcess::new(actor, waker, mailbox);
-
-
-        // Actually add the process.
-        process_entry.add(process, priority);
-        actor_ref
+        self.add_actor_setup(options, move |_, _| Ok(actor), system_ref)
+            .unwrap()
     }
 
-    fn add_actor_setup<F, A>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<()>
+    fn add_actor_setup<F, A>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<ActorRef<A>>
         where F: FnOnce(ProcessId, &mut Poller) -> io::Result<A>,
               A: Actor + 'static,
     {
         // Setup adding a new process to the scheduler.
-        let process_entry = self.scheduler.add_process();
+        let process_entry = self.scheduler_ref.add_process();
         let pid = process_entry.id();
         debug!("adding actor to actor system: pid={}", pid);
 
+        let actor = f(pid, &mut self.poller)?;
+
+        let (mut registration, notifier) = Registration::new();
+        self.poller.register(&mut registration, pid.into(), Ready::READABLE, PollOption::Edge)?;
+
         // Create a new actor process.
         let priority = options.priority;
-        let actor = f(pid, &mut self.poller)?;
-        let waker = Waker::new(pid, system_ref.clone());
-        let mailbox = Rc::new(RefCell::new(MailBox::new(pid, system_ref)));
-        let process = ActorProcess::new(actor, waker, mailbox);
+        let waker = Waker::new(notifier.clone());
+        let mailbox = Rc::new(RefCell::new(MailBox::new(notifier, system_ref)));
+        // Create a reference to the actor, to be returned.
+        let actor_ref = ActorRef::new(Rc::downgrade(&mailbox));
+        let process = ActorProcess::new(actor, registration, waker, mailbox);
 
         // Actually add the process.
         process_entry.add(process, priority);
-        Ok(())
-    }
-
-    fn schedule(&mut self, pid: ProcessId) {
-        self.scheduler.schedule(pid);
+        Ok(actor_ref)
     }
 
     fn add_initiator<I>(&mut self, mut initiator: I, _options: InitiatorOptions) -> Result<(), AddInitiatorError<I>>
         where I: Initiator + 'static,
     {
         // Setup adding a new process to the scheduler.
-        let process_entry = self.scheduler.add_process();
+        let process_entry = self.scheduler_ref.add_process();
         let pid = process_entry.id();
         debug!("adding initiator to actor system: pid={}", pid);
 
@@ -402,15 +340,19 @@ impl ActorSystemInner {
         Ok(())
     }
 
-    fn add_task(&mut self, task: FutureObj<'static, ()>, system_ref: ActorSystemRef) {
+    fn add_task(&mut self, task: FutureObj<'static, ()>) {
         // Setup adding a new process to the scheduler.
-        let process_entry = self.scheduler.add_process();
+        let process_entry = self.scheduler_ref.add_process();
         let pid = process_entry.id();
         debug!("adding task to actor system: pid={}", pid);
 
+        let (mut registration, notifier) = Registration::new();
+        self.poller.register(&mut registration, pid.into(), Ready::READABLE, PollOption::Edge)
+            .unwrap(); // Only returns an error in case of double register.
+
         // Create a new task process.
-        let waker = Waker::new(pid, system_ref);
-        let process = TaskProcess::new(task, waker);
+        let waker = Waker::new(notifier);
+        let process = TaskProcess::new(task, registration, waker);
 
         // Actually add the process.
         // TODO: add an option to the `ActorSystemBuilder` to change the

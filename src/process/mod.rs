@@ -83,16 +83,3 @@ pub enum ProcessResult {
     /// itself again.
     Pending,
 }
-
-/// Empty process used by the `ActorSystem` as a placeholder for an actual
-/// process.
-///
-/// See `ActorSystem.run` for the only usage of it.
-#[derive(Debug)]
-pub struct EmptyProcess;
-
-impl Process for EmptyProcess {
-    fn run(&mut self, _: &mut ActorSystemRef) -> ProcessResult {
-        unreachable!("can't run empty process");
-    }
-}
