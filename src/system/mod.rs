@@ -303,9 +303,9 @@ impl ActorSystemInner {
         // Create a new actor process.
         let priority = options.priority;
         let waker = Waker::new(notifier.clone());
-        let mailbox = Rc::new(RefCell::new(MailBox::new(notifier, system_ref)));
+        let mailbox = Shared::new(MailBox::new(notifier, system_ref));
         // Create a reference to the actor, to be returned.
-        let actor_ref = ActorRef::new(Rc::downgrade(&mailbox));
+        let actor_ref = ActorRef::new(mailbox.downgrade());
         let process = ActorProcess::new(actor, registration, waker, mailbox);
 
         // Actually add the process.

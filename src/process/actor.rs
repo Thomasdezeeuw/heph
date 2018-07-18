@@ -1,8 +1,6 @@
 //! Module containing the implementation of the `Process` trait for `Actor`s.
 
 use std::fmt;
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::task::{Poll, LocalWaker};
 
 use mio_st::registration::Registration;
@@ -10,6 +8,7 @@ use mio_st::registration::Registration;
 use actor::{Actor, ActorContext, Status};
 use process::{Process, ProcessResult};
 use system::{ActorSystemRef, MailBox};
+use util::Shared;
 
 /// A process that represent an actor, it's mailbox and current execution.
 pub struct ActorProcess<A>
@@ -26,14 +25,14 @@ pub struct ActorProcess<A>
     waker: LocalWaker,
     /// Inbox of the actor, shared between an `ActorProcess` and zero or more
     /// `ActorRef`s.
-    inbox: Rc<RefCell<MailBox<A::Message>>>,
+    inbox: Shared<MailBox<A::Message>>,
 }
 
 impl<A> ActorProcess<A>
     where A: Actor,
 {
     /// Create a new `ActorProcess`.
-    pub fn new(actor: A, registration: Registration, waker: LocalWaker, inbox: Rc<RefCell<MailBox<A::Message>>>) -> ActorProcess<A> {
+    pub(crate) fn new(actor: A, registration: Registration, waker: LocalWaker, inbox: Shared<MailBox<A::Message>>) -> ActorProcess<A> {
         ActorProcess {
             actor,
             ready_for_msg: false,
@@ -72,12 +71,9 @@ impl<A> ActorProcess<A>
     fn handle_msg(&mut self, ctx: &mut ActorContext) -> Option<ProcessResult> {
         debug_assert!(self.ready_for_msg);
         // Retrieve another message, if any.
-        let msg = match self.inbox.try_borrow_mut() {
-            Ok(mut inbox) => match inbox.receive() {
-                Some(msg) => msg,
-                None => return Some(ProcessResult::Pending),
-            },
-            Err(_) => unreachable!("can't retrieve message, inbox already borrowed"),
+        let msg = match self.inbox.borrow_mut().receive() {
+            Some(msg) => msg,
+            None => return Some(ProcessResult::Pending),
         };
 
         // And deliver the message to the actor.

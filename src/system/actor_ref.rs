@@ -1,13 +1,12 @@
 //! Module containing the `ActorRef`.
 
 use std::fmt;
-use std::cell::RefCell;
 use std::marker::PhantomData;
-use std::rc::Weak;
 
 use actor::Actor;
 use system::MailBox;
 use system::error::{SendError, SendErrorReason};
+use util::WeakShared;
 
 /// A reference to an actor inside a [`ActorSystem`].
 ///
@@ -38,7 +37,7 @@ pub struct ActorRef<A>
     where A: Actor,
 {
     /// The inbox of the `Actor`, owned by the `ActorProcess`.
-    inbox: Weak<RefCell<MailBox<A::Message>>>,
+    inbox: WeakShared<MailBox<A::Message>>,
     _phantom: PhantomData<A>,
 }
 
@@ -46,7 +45,7 @@ impl<A> ActorRef<A>
     where A: Actor,
 {
     /// Create a new `ActorRef` with a shared mailbox.
-    pub const fn new(inbox: Weak<RefCell<MailBox<A::Message>>>) -> ActorRef<A> {
+    pub(crate) const fn new(inbox: WeakShared<MailBox<A::Message>>) -> ActorRef<A> {
         ActorRef {
             inbox,
             _phantom: PhantomData,
@@ -95,10 +94,7 @@ impl<A> ActorRef<A>
         where M: Into<A::Message>,
     {
         match self.inbox.upgrade() {
-            Some(inbox) => match inbox.try_borrow_mut() {
-                Ok(mut inbox) => inbox.deliver(msg),
-                Err(_) => unreachable!("can't send message, inbox already borrowed"),
-            },
+            Some(mut inbox) => inbox.borrow_mut().deliver(msg),
             None => Err(SendError {
                 message: msg,
                 reason: SendErrorReason::ActorShutdown,
@@ -112,7 +108,7 @@ impl<A> Clone for ActorRef<A>
 {
     fn clone(&self) -> ActorRef<A> {
         ActorRef {
-            inbox: Weak::clone(&self.inbox),
+            inbox: self.inbox.clone(),
             _phantom: PhantomData,
         }
     }
