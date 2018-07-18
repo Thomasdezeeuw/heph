@@ -1,14 +1,13 @@
 //! Module containing a builder for `ActorSystem`.
 
 use std::io;
-use std::cell::RefCell;
-use std::rc::Rc;
 
 use num_cpus;
 use mio_st::poll::Poller;
 
 use scheduler::Scheduler;
 use system::{ActorSystem, ActorSystemInner};
+use util::Shared;
 
 /// A builder pattern for an [`ActorSystem`].
 ///
@@ -45,7 +44,7 @@ impl ActorSystemBuilder {
         };
 
         Ok(ActorSystem {
-            inner: Rc::new(RefCell::new(inner)),
+            inner: Shared::new(inner),
             scheduler,
             has_initiators: false,
         })

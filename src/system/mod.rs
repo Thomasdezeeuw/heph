@@ -1,9 +1,7 @@
 //! TODO: docs
 
 use std::io;
-use std::cell::RefCell;
 use std::future::FutureObj;
-use std::rc::{Rc, Weak};
 use std::task::{Executor, SpawnObjError, SpawnErrorKind};
 use std::time::Duration;
 
@@ -15,6 +13,7 @@ use actor::Actor;
 use initiator::Initiator;
 use process::{ProcessId, ActorProcess, InitiatorProcess, TaskProcess};
 use scheduler::{Scheduler, SchedulerRef, Priority};
+use util::{Shared, WeakShared};
 
 mod builder;
 mod waker;
@@ -39,7 +38,7 @@ use self::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInit
 pub struct ActorSystem {
     /// Inside of the system, shared (via weak references) with
     /// `ActorSystemRef`s.
-    inner: Rc<RefCell<ActorSystemInner>>,
+    inner: Shared<ActorSystemInner>,
     /// Scheduler that hold the processes, schedules and runs them.
     scheduler: Scheduler,
     /// Whether or not the system has initiators, this is used to allow the
@@ -55,10 +54,7 @@ impl ActorSystem {
         where A: Actor + 'static,
     {
         let system_ref = self.create_ref();
-        match self.inner.try_borrow_mut() {
-            Ok(mut inner) => inner.add_actor(options, actor, system_ref),
-            Err(_) => unreachable!("can't add actor, actor system already borrowed"),
-        }
+        self.inner.borrow_mut().add_actor(options, actor, system_ref)
     }
 
     /// Add a new initiator to the system.
@@ -66,22 +62,19 @@ impl ActorSystem {
     pub fn add_initiator<I>(&mut self, initiator: I, options: InitiatorOptions) -> Result<(), AddInitiatorError<I>>
         where I: Initiator + 'static,
     {
-        match self.inner.try_borrow_mut() {
-            Ok(mut inner) => match inner.add_initiator(initiator, options) {
-                Ok(()) => {
-                    self.has_initiators = true;
-                    Ok(())
-                },
-                err => err,
+        match self.inner.borrow_mut().add_initiator(initiator, options) {
+            Ok(()) => {
+                self.has_initiators = true;
+                Ok(())
             },
-            Err(_) => unreachable!("can't add initiator, actor system already borrowed"),
+            err => err,
         }
     }
 
     /// Create a new reference to this actor system.
     pub fn create_ref(&self) -> ActorSystemRef {
         ActorSystemRef {
-            inner: Rc::downgrade(&self.inner),
+            inner: self.inner.downgrade(),
         }
     }
 
@@ -142,13 +135,8 @@ impl ActorSystem {
     /// Will panic if the actor system inside is already borrowed.
     fn poll(&mut self, events: &mut Events, timeout: Option<Duration>) -> Result<(), RuntimeError> {
         debug!("polling system poller for events");
-        match self.inner.try_borrow_mut() {
-            Ok(mut inner) => {
-                inner.poller.poll(events, timeout)
-                    .map_err(|err| RuntimeError::Poll(err))
-            },
-            Err(_) => unreachable!("can't poll, actor system already borrowed"),
-        }
+        self.inner.borrow_mut().poller.poll(events, timeout)
+            .map_err(|err| RuntimeError::Poll(err))
     }
 }
 
@@ -162,7 +150,7 @@ impl ActorSystem {
 #[derive(Debug)]
 pub struct ActorSystemRef {
     /// A non-owning reference to the actor system internals.
-    inner: Weak<RefCell<ActorSystemInner>>,
+    inner: WeakShared<ActorSystemInner>,
 }
 
 impl ActorSystemRef {
@@ -174,7 +162,7 @@ impl ActorSystemRef {
     #[cfg(feature = "test")]
     pub fn test_ref() -> ActorSystemRef  {
         ActorSystemRef {
-            inner: Weak::new(),
+            inner: WeakShared::new(),
         }
     }
 
@@ -198,10 +186,7 @@ impl ActorSystemRef {
     {
         let system_ref = self.clone();
         match self.inner.upgrade() {
-            Some(inner_ref) => match inner_ref.try_borrow_mut() {
-                Ok(mut inner) => Ok(inner.add_actor(options, actor, system_ref)),
-                Err(_) => unreachable!("can't add actor, actor system already borrowed"),
-            },
+            Some(mut inner) => Ok(inner.borrow_mut().add_actor(options, actor, system_ref)),
             None => Err(AddActorError::new(actor, AddActorErrorReason::SystemShutdown)),
         }
     }
@@ -216,12 +201,8 @@ impl ActorSystemRef {
     {
         let system_ref = self.clone();
         match self.inner.upgrade() {
-            Some(inner_ref) => match inner_ref.try_borrow_mut() {
-                Ok(mut inner) =>
-                    inner.add_actor_setup(options, f, system_ref)
-                        .map(|_| ()),
-                Err(_) => unreachable!("can't add actor, actor system already borrowed"),
-            },
+            Some(mut inner) => inner.borrow_mut().add_actor_setup(options, f, system_ref)
+                .map(|_| ()),
             None => Err(AddActorError::new((), AddActorErrorReason::SystemShutdown).into()),
         }
     }
@@ -232,10 +213,7 @@ impl ActorSystemRef {
         E: Evented + ?Sized,
     {
         match self.inner.upgrade() {
-            Some(inner_ref) => match inner_ref.try_borrow_mut() {
-                Ok(mut inner) => inner.poller.deregister(handle),
-                Err(_) => unreachable!("can't deregister with system poller, actor system already borrowed"),
-            },
+            Some(mut inner) => inner.borrow_mut().poller.deregister(handle),
             None => Err(io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN)),
         }
     }
@@ -244,9 +222,9 @@ impl ActorSystemRef {
 impl Executor for ActorSystemRef {
     fn spawn_obj(&mut self, task: FutureObj<'static, ()>) -> Result<(), SpawnObjError> {
         match self.inner.upgrade() {
-            Some(inner_ref) => match inner_ref.try_borrow_mut() {
-                Ok(mut inner) => { inner.add_task(task); Ok(()) },
-                Err(_) => unreachable!("can't spawn task, actor system already borrowed"),
+            Some(mut inner) => {
+                inner.borrow_mut().add_task(task);
+                Ok(())
             },
             None => Err(SpawnObjError { kind: SpawnErrorKind::shutdown(), task }),
         }
@@ -263,7 +241,7 @@ impl Executor for ActorSystemRef {
 impl Clone for ActorSystemRef {
     fn clone(&self) -> ActorSystemRef {
         ActorSystemRef {
-            inner: Weak::clone(&self.inner),
+            inner: self.inner.clone(),
         }
     }
 }
