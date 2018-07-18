@@ -28,7 +28,7 @@ extern crate mio_st;
 extern crate num_cpus;
 extern crate slab;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "test"))]
 extern crate env_logger;
 
 pub mod actor;
