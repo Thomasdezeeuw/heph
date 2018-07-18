@@ -1,6 +1,8 @@
 //! Module with utilities used throughout the crate.
 
-use std::cell::{RefCell, Ref, RefMut};
+use std::cell::{RefCell, RefMut};
+#[cfg(feature = "test")]
+use std::cell::Ref;
 use std::rc::{Rc, Weak};
 
 /// A `Rc<RefCell<T>>` with some easy to use methods.
@@ -19,6 +21,7 @@ impl<T> Shared<T> {
     }
 
     /// Borrow the value, i.e. `&T`.
+    #[cfg(feature = "test")]
     pub fn borrow(&self) -> Ref<T> {
         match self.inner.try_borrow() {
             Ok(inner) => inner,
@@ -59,6 +62,7 @@ pub(crate) struct WeakShared<T> {
 
 impl<T> WeakShared<T> {
     /// Create a new, empty shared value.
+    #[cfg(feature = "test")]
     pub fn new() -> WeakShared<T> {
         WeakShared {
             inner: Weak::new(),
