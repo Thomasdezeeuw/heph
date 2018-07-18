@@ -164,7 +164,7 @@ impl ActorContext {
     }
 
     /// Get a context for executing a future.
-    pub fn task_ctx<'a>(&'a mut self) -> Context<'a> {
+    pub fn task_ctx(&mut self) -> Context {
         Context::new(&self.waker, &mut self.system_ref)
     }
 }

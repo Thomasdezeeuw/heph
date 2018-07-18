@@ -76,7 +76,6 @@ impl<A> ActorProcess<A>
             None => return Some(ProcessResult::Pending),
         };
 
-        // And deliver the message to the actor.
         trace!("delivering message to actor");
         match self.actor.handle(ctx, msg) {
             Poll::Ready(Ok(Status::Complete)) => Some(ProcessResult::Complete),

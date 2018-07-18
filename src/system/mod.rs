@@ -136,7 +136,7 @@ impl ActorSystem {
     fn poll(&mut self, events: &mut Events, timeout: Option<Duration>) -> Result<(), RuntimeError> {
         debug!("polling system poller for events");
         self.inner.borrow_mut().poller.poll(events, timeout)
-            .map_err(|err| RuntimeError::Poll(err))
+            .map_err(RuntimeError::Poll)
     }
 }
 
