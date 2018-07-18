@@ -17,6 +17,7 @@ use actor::{Actor, ActorContext, ActorResult, Status};
 use initiator::Initiator;
 use process::{ProcessId, Process, ProcessResult, ActorProcess, InitiatorProcess, TaskProcess};
 use system::{ActorSystemBuilder, ActorSystemRef, ActorRef, MailBox, Waker};
+use util::Shared;
 
 #[test]
 fn pid_to_evented_id() {
@@ -40,7 +41,7 @@ fn pid_display() {
 }
 
 struct SimpleInitiator {
-    called: Rc<RefCell<usize>>,
+    called: Shared<usize>,
 }
 
 impl Initiator for SimpleInitiator {
@@ -62,8 +63,8 @@ impl Initiator for SimpleInitiator {
 fn initiator_process() {
     let mut system_ref = ActorSystemRef::test_ref();
 
-    let called = Rc::new(RefCell::new(0));
-    let mut process = InitiatorProcess::new(SimpleInitiator { called: Rc::clone(&called) });
+    let called = Shared::new(0);
+    let mut process = InitiatorProcess::new(SimpleInitiator { called: called.clone() });
 
     // Ok run.
     assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
@@ -146,8 +147,8 @@ fn actor_process() {
 
 
     let waker = Waker::new(notifier.clone());
-    let mailbox = Rc::new(RefCell::new(MailBox::new(notifier, system_ref.clone())));
-    let mut actor_ref: ActorRef<SimpleActor> = ActorRef::new(Rc::downgrade(&mailbox));
+    let mailbox = Shared::new(MailBox::new(notifier, system_ref.clone()));
+    let mut actor_ref: ActorRef<SimpleActor> = ActorRef::new(mailbox.downgrade());
     let mut process = ActorProcess::new(actor, registration, waker, mailbox);
 
     assert_eq!(*poll_called.borrow(), 0);
@@ -204,8 +205,8 @@ fn actor_process_poll_statusses() {
 
     let (_, notifier) = Registration::new();
     let waker = Waker::new(notifier.clone());
-    let mailbox = Rc::new(RefCell::new(MailBox::new(notifier, system_ref.clone())));
-    let mut actor_ref: ActorRef<SimpleActor> = ActorRef::new(Rc::downgrade(&mailbox));
+    let mailbox = Shared::new(MailBox::new(notifier, system_ref.clone()));
+    let mut actor_ref: ActorRef<SimpleActor> = ActorRef::new(mailbox.downgrade());
 
     let poll_tests = vec![
         (Poll::Ready(Ok(Status::Complete)), ProcessResult::Complete),
