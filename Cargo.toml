@@ -1,8 +1,12 @@
+cargo-features = ["edition"]
+
 [package]
 name = "actor"
 version = "0.1.0"
 authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license = "MIT"
+
+edition = "2018"
 
 [features]
 default = []

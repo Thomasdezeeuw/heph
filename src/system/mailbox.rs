@@ -5,8 +5,8 @@ use std::collections::VecDeque;
 use mio_st::event::Ready;
 use mio_st::registration::Notifier;
 
-use system::ActorSystemRef;
-use system::error::{SendError, SendErrorReason};
+use crate::system::ActorSystemRef;
+use crate::system::error::{SendError, SendErrorReason};
 
 /// Mailbox that holds all messages for an `Actor`.
 #[derive(Debug)]

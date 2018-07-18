@@ -2,12 +2,12 @@
 
 use std::io;
 
-use num_cpus;
 use mio_st::poll::Poller;
+use num_cpus;
 
-use scheduler::Scheduler;
-use system::{ActorSystem, ActorSystemInner};
-use util::Shared;
+use crate::scheduler::Scheduler;
+use crate::system::{ActorSystem, ActorSystemInner};
+use crate::util::Shared;
 
 /// A builder pattern for an [`ActorSystem`].
 ///

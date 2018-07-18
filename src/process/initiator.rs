@@ -3,9 +3,9 @@
 
 use std::fmt;
 
-use initiator::Initiator;
-use process::{Process, ProcessResult};
-use system::ActorSystemRef;
+use crate::initiator::Initiator;
+use crate::process::{Process, ProcessResult};
+use crate::system::ActorSystemRef;
 
 /// A process that represents an `Initiator`.
 ///

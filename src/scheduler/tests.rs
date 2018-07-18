@@ -7,10 +7,10 @@ use std::time::Duration;
 
 use env_logger;
 
-use process::{ProcessId, Process, ProcessResult};
-use scheduler::{Scheduler, ProcessState, ProcessData, Priority};
-use system::ActorSystemRef;
-use util::Shared;
+use crate::process::{ProcessId, Process, ProcessResult};
+use crate::scheduler::{Scheduler, ProcessState, ProcessData, Priority};
+use crate::system::ActorSystemRef;
+use crate::util::Shared;
 
 #[derive(Debug)]
 pub struct EmptyProcess;

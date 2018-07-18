@@ -13,11 +13,11 @@ use mio_st::event::{EventedId, Ready};
 use mio_st::poll::{Poller, PollOption};
 use mio_st::registration::Registration;
 
-use actor::{Actor, ActorContext, ActorResult, Status};
-use initiator::Initiator;
-use process::{ProcessId, Process, ProcessResult, ActorProcess, InitiatorProcess, TaskProcess};
-use system::{ActorSystemBuilder, ActorSystemRef, ActorRef, MailBox, Waker};
-use util::Shared;
+use crate::actor::{Actor, ActorContext, ActorResult, Status};
+use crate::initiator::Initiator;
+use crate::process::{ProcessId, Process, ProcessResult, ActorProcess, InitiatorProcess, TaskProcess};
+use crate::system::{ActorSystemBuilder, ActorSystemRef, ActorRef, MailBox, Waker};
+use crate::util::Shared;
 
 #[test]
 fn pid_to_evented_id() {

@@ -9,11 +9,11 @@ use mio_st::event::{Events, Evented, Ready};
 use mio_st::poll::{Poller, PollOption};
 use mio_st::registration::Registration;
 
-use actor::Actor;
-use initiator::Initiator;
-use process::{ProcessId, ActorProcess, InitiatorProcess, TaskProcess};
-use scheduler::{Scheduler, SchedulerRef, Priority};
-use util::{Shared, WeakShared};
+use crate::actor::Actor;
+use crate::initiator::Initiator;
+use crate::process::{ProcessId, ActorProcess, InitiatorProcess, TaskProcess};
+use crate::scheduler::{Scheduler, SchedulerRef, Priority};
+use crate::util::{Shared, WeakShared};
 
 mod builder;
 mod waker;

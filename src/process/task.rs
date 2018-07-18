@@ -7,8 +7,8 @@ use std::task::{Context, LocalWaker, Poll};
 
 use mio_st::registration::Registration;
 
-use process::{Process, ProcessResult};
-use system::ActorSystemRef;
+use crate::process::{Process, ProcessResult};
+use crate::system::ActorSystemRef;
 
 /// A process that represent a `TaskObj`.
 ///

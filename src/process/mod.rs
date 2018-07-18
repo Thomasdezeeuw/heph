@@ -4,7 +4,7 @@ use std::fmt;
 
 use mio_st::event::EventedId;
 
-use system::ActorSystemRef;
+use crate::system::ActorSystemRef;
 
 mod actor;
 mod initiator;

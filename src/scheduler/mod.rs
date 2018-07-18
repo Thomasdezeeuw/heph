@@ -8,9 +8,9 @@ use std::time::{Duration, Instant};
 
 use slab::Slab;
 
-use process::{Process, ProcessResult, ProcessId};
-use system::ActorSystemRef;
-use util::Shared;
+use crate::process::{Process, ProcessResult, ProcessId};
+use crate::system::ActorSystemRef;
+use crate::util::Shared;
 
 mod priority;
 

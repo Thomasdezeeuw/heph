@@ -18,7 +18,7 @@ use std::{fmt, mem};
 use std::marker::PhantomData;
 use std::task::{Poll, Context, LocalWaker};
 
-use system::ActorSystemRef;
+use crate::system::ActorSystemRef;
 
 #[cfg(all(test, feature = "test"))]
 mod tests;

@@ -7,6 +7,7 @@
            non_exhaustive,
            pin,
            read_initializer,
+           rust_2018_preview,
 )]
 
 #![warn(anonymous_parameters,
@@ -24,9 +25,6 @@
 
 #[macro_use]
 extern crate log;
-extern crate mio_st;
-extern crate num_cpus;
-extern crate slab;
 
 #[cfg(all(test, feature = "test"))]
 extern crate env_logger;
@@ -48,7 +46,7 @@ mod util;
 /// use actor::prelude::*;
 /// ```
 pub mod prelude {
-    pub use actor::{Actor, NewActor};
-    pub use supervisor::{Supervisor, RestartStrategy};
-    pub use system::{ActorSystem, ActorSystemBuilder, ActorOptions, ActorRef};
+    pub use crate::actor::{Actor, NewActor};
+    pub use crate::supervisor::{Supervisor, RestartStrategy};
+    pub use crate::system::{ActorSystem, ActorSystemBuilder, ActorOptions, ActorRef};
 }

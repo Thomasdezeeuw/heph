@@ -1,6 +1,6 @@
 use std::task::Poll;
 
-use actor::{Actor, NewActor, ActorContext, ActorResult, Status, actor_fn, actor_factory, reusable_actor_factory};
+use crate::actor::{Actor, NewActor, ActorContext, ActorResult, Status, actor_fn, actor_factory, reusable_actor_factory};
 
 #[test]
 fn test_actor_fn() {

@@ -16,7 +16,7 @@
 
 use std::fmt::Display;
 
-use actor::Actor;
+use crate::actor::Actor;
 
 /// The supervisor trait supervises one or more [`Actor`]s.
 ///

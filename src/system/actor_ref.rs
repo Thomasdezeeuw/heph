@@ -3,10 +3,10 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use actor::Actor;
-use system::MailBox;
-use system::error::{SendError, SendErrorReason};
-use util::WeakShared;
+use crate::actor::Actor;
+use crate::system::MailBox;
+use crate::system::error::{SendError, SendErrorReason};
+use crate::util::WeakShared;
 
 /// A reference to an actor inside a [`ActorSystem`].
 ///

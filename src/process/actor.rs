@@ -5,10 +5,10 @@ use std::task::{Poll, LocalWaker};
 
 use mio_st::registration::Registration;
 
-use actor::{Actor, ActorContext, Status};
-use process::{Process, ProcessResult};
-use system::{ActorSystemRef, MailBox};
-use util::Shared;
+use crate::actor::{Actor, ActorContext, Status};
+use crate::process::{Process, ProcessResult};
+use crate::system::{ActorSystemRef, MailBox};
+use crate::util::Shared;
 
 /// A process that represent an actor, it's mailbox and current execution.
 pub struct ActorProcess<A>
