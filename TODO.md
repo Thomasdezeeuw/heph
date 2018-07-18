@@ -2,31 +2,17 @@
 
 Stuff left to do.
 
+ - Remove `'static` lifetime from actors/initiators, starting in the scheduler.
+
+ - Implement TcpStream.connect.
+ - Add examples to TcpListener and TcpStream (connect).
+ - implement Executor for ActorSystemRef.
  - Create a new type `SupervisorRef` that can be used in `ActorOptions` to use
    as supervisor, the supervisor itself must be added to the actor system.
    Default value will be none, using the default supervisor (LogSupervisor).
  - Initiator configuration: call init before or after fork?
  - Use cpu core affinity after forking?
  - Write (unit) tests for each module.
-
-## Tests
-
-Most types should be `!Send`, make sure they are.
-
-The following doesn't compile.
-
-```rust
-fn not_sync<T>() where T: !Sync { }
-fn not_send<T>() where T: !Send { }
-
-#[test]
-fn assertions() {
-    not_sync::<ActorRef>();
-    not_send::<ActorRef>();
-    not_sync::<ActorProcess>();
-    not_send::<ActorProcess>();
-}
-```
 
 ## Metrics/system messages
 
@@ -35,10 +21,15 @@ be expanded to allow for system message like metrics.
 
 ## net module
 
-With at least TcpListener and TcpStream. Prefer to use the standard library
-types, rather then a wrapper around it, see mio-st net module. Use the
-`NewActor` trait to create an `Actor` per incoming connection. Let `TcpListener`
-implement `Initiator`.
+Add UDP types.
+
+Add TcpStream.connect.
+
+Document TcpStream.
+
+Add examples to:
+ - TcpListener,
+ - TcpStream.
 
 ## More logging
 
@@ -107,5 +98,13 @@ A single UDP packet using something like hmac for authentication.
 
 # Tests
 
-InitiatorProcess that returns an error; now we have 0 initiators -> actor system
-should stop.
+What needs (more) testing.
+
+ - The actor module.
+ - The scheduler module.
+ - The system module.
+ - The net module.
+ - Most types should be `!Send`, make sure they are.
+ - If an InitiatorProcess returns an error; now we have 0 initiators -> actor
+   system should stop, returning `Ok(())`.
+ - TaskProcess: usage of the provided `task::Context`.
