@@ -63,7 +63,7 @@ impl Scheduler {
     ///
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub fn schedule(&mut self, pid: ProcessId) {
-        debug!("scheduling process: pid={}", pid);
+        trace!("scheduling process: pid={}", pid);
         match self.processes.borrow_mut().get_mut(pid.0) {
             Some(ref mut process) if !process.is_active() => {
                 self.active.push(process.mark_active());
@@ -85,7 +85,6 @@ impl Scheduler {
         };
 
         let pid = process.id();
-        debug!("running process: pid={}", pid);
         match process.run(system_ref) {
             ProcessResult::Complete => {
                 let process_state = self.processes.borrow_mut().remove(pid.0);
@@ -253,13 +252,13 @@ impl ProcessData {
 
     /// Runtime the process updating it's fair runtime.
     pub fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
-        debug!("running process: pid={}", self.id);
+        trace!("running process: pid={}", self.id);
 
         let start = Instant::now();
         let result = self.process.run(system_ref);
         let elapsed = start.elapsed();
 
-        debug!("finished running process: pid={}, elapsed_time={:?}", self.id, elapsed);
+        trace!("finished running process: pid={}, elapsed_time={:?}", self.id, elapsed);
 
         self.update_runtime(elapsed);
         result

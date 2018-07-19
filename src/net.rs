@@ -69,6 +69,7 @@ impl<N, A> Initiator for TcpListener<N>
                 Err(ref err) if interrupted(err) => continue, // Try again.
                 Err(err) => return Err(err),
             };
+            debug!("accepted connection from: {}", addr);
 
             let system_ref_clone = system_ref.clone();
             system_ref.add_actor_setup(self.options.clone(), |pid, poller| {
