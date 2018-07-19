@@ -66,6 +66,7 @@ fn main() {
     // And run the system.
     //
     // Because the actor system now has an initiator this will never return,
-    // until it receive a stopping signal, e.g. `SIGINT`.
-    actor_system.run().expect("unable to run actor system");
+    // until it receives a stopping signal, e.g. `SIGINT` (press CTRL+C).
+    actor_system.run()
+        .expect("unable to run actor system");
 }

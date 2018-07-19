@@ -115,5 +115,6 @@ fn main() {
     actor_system.add_initiator(listener, InitiatorOptions::default())
         .expect("unable to add listener to actor system");
 
-    actor_system.run().expect("unable to run actor system");
+    actor_system.run()
+        .expect("unable to run actor system");
 }

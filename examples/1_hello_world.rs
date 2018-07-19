@@ -58,5 +58,6 @@ fn main() {
 
     // Run our actor system. This should cause "Hello World" to be printed and
     // then it should return.
-    actor_system.run().expect("unable to run actor system");
+    actor_system.run()
+        .expect("unable to run actor system");
 }

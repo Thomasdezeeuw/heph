@@ -26,5 +26,6 @@ fn main() {
     actor_ref.send("World".to_owned())
         .expect("unable to send message");
 
-    actor_system.run().expect("unable to run actor system");
+    actor_system.run()
+        .expect("unable to run actor system");
 }
