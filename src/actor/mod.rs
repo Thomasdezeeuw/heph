@@ -37,11 +37,13 @@ use std::pin::Pin;
 use std::task::{LocalWaker, Poll};
 
 mod context;
+mod group;
 
 #[cfg(all(test, feature = "test"))]
 mod tests;
 
 pub use self::context::ActorContext;
+pub use self::group::{ActorGroup, GroupMessage};
 
 /// The trait that defines how to create a new actor.
 ///
