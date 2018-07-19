@@ -73,9 +73,6 @@ Consider using `repr(transparent)`.
 
 Enable Travis.
 
-## Mutation testing
-
-Use https://github.com/llogiq/mutagen for mutation testing.
 
 ## Traces
 
@@ -108,3 +105,10 @@ What needs (more) testing.
  - If an InitiatorProcess returns an error; now we have 0 initiators -> actor
    system should stop, returning `Ok(())`.
  - TaskProcess: usage of the provided `task::Context`.
+ - Look at https://github.com/burntsushi/quickcheck.
+ - Look at https://github.com/AltSysrq/proptest.
+ - Look at https://github.com/llogiq/mutagen.
+
+# Benchmarks
+
+Look at https://github.com/japaric/criterion.rs.
