@@ -113,6 +113,7 @@ pub type ActorResult<E> = Poll<Result<Status, E>>;
 /// [`Actor`]: trait.Actor.html
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[must_use]
+// TODO: rename ActorStatus?
 pub enum Status {
     /// The actor has completed all its work and is ready to shutdown.
     Complete,
