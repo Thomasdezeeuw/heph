@@ -156,16 +156,16 @@ fn scheduler() {
         scheduler.schedule(ProcessId(id));
     }
     for _ in 0..3 {
-        let _ = scheduler.run_next(&mut system_ref);
+        let _ = scheduler.run_process(&mut system_ref);
     }
 
     // Only a single process left, which is inactive.
-    assert_eq!(scheduler.run_next(&mut system_ref), false);
+    assert_eq!(scheduler.run_process(&mut system_ref), false);
 
     // Active and run the last process, which also completes.
     scheduler.schedule(ProcessId(0));
-    assert_eq!(scheduler.run_next(&mut system_ref), true);
-    assert_eq!(scheduler.run_next(&mut system_ref), false);
+    assert_eq!(scheduler.run_process(&mut system_ref), true);
+    assert_eq!(scheduler.run_process(&mut system_ref), false);
 
     assert_eq!(*run_order.borrow(), vec![2, 1, 0, 10]);
 }

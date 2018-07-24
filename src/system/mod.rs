@@ -41,9 +41,9 @@ pub struct ActorSystem {
     inner: Shared<ActorSystemInner>,
     /// Scheduler that hold the processes, schedules and runs them.
     scheduler: Scheduler,
-    /// Whether or not the system has initiators, this is used to allow the
-    /// system to run without them. Otherwise we would poll with no timeout,
-    /// waiting for ever.
+    /// Whether or not the system has initiators.
+    // FIXME: This is currently required mostly for tests and example 1 and 1b.
+    // Try to remove it.
     has_initiators: bool,
 }
 
@@ -82,46 +82,27 @@ impl ActorSystem {
     pub fn run(mut self) -> Result<(), RuntimeError> {
         debug!("running actor system");
 
-        // Timeout used in the system poller.
-        let timeout = self.determine_timeout();
         // Empty set of events, to be filled by the system poller.
         let mut events = Events::new();
         // System reference used in running the processes.
         let mut system_ref = self.create_ref();
 
-        // TODO: find a good balance between polling and running processes, the
-        // current one is not good.
+        // TODO: find a good balance between polling, polling user space events
+        // only and running processes, the current one is not good. It leans far
+        // to much to polling.
         loop {
             // Get the scheduled processes.
-            self.poll(&mut events, timeout)?;
-
-            // Allow the system to be run without any initiators. In that case
-            // we will only handle user space events (e.g. sending messages) and
-            // will return after those are all handled.
-            // TODO: handle the case where all initiators are removed from the
-            // system (due to errors).
-            if !self.has_initiators && events.is_empty() {
-                debug!("no events, no initiators stopping actor system");
-                return Ok(())
-            }
+            self.poll(&mut events)?;
 
             // Schedule all processes with a notification.
             for event in &mut events {
                 self.scheduler.schedule(event.id().into());
             }
 
-            // TODO: do something with if no process is run. Maybe return?
-            let _ = self.scheduler.run_next(&mut system_ref);
-        }
-    }
-
-    /// In case of no initiators only user space events are handled and timeout
-    /// will be 0ms, otherwise it will be none.
-    fn determine_timeout(&self) -> Option<Duration> {
-        if self.has_initiators {
-            None
-        } else {
-            Some(Duration::from_millis(0))
+            if !self.scheduler.run_process(&mut system_ref) && events.is_empty() {
+                debug!("no events, no processes to run, stopping actor system");
+                return Ok(())
+            }
         }
     }
 
@@ -133,8 +114,14 @@ impl ActorSystem {
     /// # Panics
     ///
     /// Will panic if the actor system inside is already borrowed.
-    fn poll(&mut self, events: &mut Events, timeout: Option<Duration>) -> Result<(), RuntimeError> {
-        debug!("polling system poller for events");
+    fn poll(&mut self, events: &mut Events) -> Result<(), RuntimeError> {
+        let timeout = if !self.has_initiators || self.scheduler.process_ready() {
+            Some(Duration::from_millis(0))
+        } else {
+            None
+        };
+
+        trace!("polling system poller for events");
         self.inner.borrow_mut().poller.poll(events, timeout)
             .map_err(RuntimeError::Poll)
     }

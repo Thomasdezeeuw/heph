@@ -72,10 +72,15 @@ impl Scheduler {
         }
     }
 
+    /// Check if a process is ready for running.
+    pub fn process_ready(&self) -> bool {
+        !self.active.is_empty()
+    }
+
     /// Run the next active process.
     ///
     /// Returns `true` if a process was run, `false` otherwise.
-    pub fn run_next(&mut self, system_ref: &mut ActorSystemRef) -> bool {
+    pub fn run_process(&mut self, system_ref: &mut ActorSystemRef) -> bool {
         let mut process = match self.active.pop() {
             Some(mut process) => process,
             None => {
