@@ -16,7 +16,7 @@ use mio_st::registration::Registration;
 use crate::actor::{Actor, ActorContext, ActorResult, Status};
 use crate::initiator::Initiator;
 use crate::process::{ProcessId, Process, ProcessResult, ActorProcess, InitiatorProcess, TaskProcess};
-use crate::system::{ActorSystemBuilder, ActorSystemRef, ActorRef, MailBox, Waker};
+use crate::system::{ActorSystemBuilder, ActorSystemRef, ActorRef, MailBox, new_waker};
 use crate::util::Shared;
 
 #[test]
@@ -146,7 +146,7 @@ fn actor_process() {
         Ready::READABLE, PollOption::Edge).unwrap();
 
 
-    let waker = Waker::new(notifier.clone());
+    let waker = new_waker(notifier.clone());
     let mailbox = Shared::new(MailBox::new(notifier, system_ref.clone()));
     let mut actor_ref: ActorRef<SimpleActor> = ActorRef::new(mailbox.downgrade());
     let mut process = ActorProcess::new(actor, registration, waker, mailbox);
@@ -204,7 +204,7 @@ fn actor_process_poll_statusses() {
     let mut system_ref = ActorSystemRef::test_ref();
 
     let (_, notifier) = Registration::new();
-    let waker = Waker::new(notifier.clone());
+    let waker = new_waker(notifier.clone());
     let mailbox = Shared::new(MailBox::new(notifier, system_ref.clone()));
     let mut actor_ref: ActorRef<SimpleActor> = ActorRef::new(mailbox.downgrade());
 
@@ -267,7 +267,7 @@ fn task_process() {
     let called = Arc::new(AtomicUsize::new(0));
     let task = Box::new(TaskFuture { called: Arc::clone(&called) }).into();
     let (registration, notifier) = Registration::new();
-    let waker = Waker::new(notifier.clone());
+    let waker = new_waker(notifier.clone());
     let mut process = TaskProcess::new(task, registration, waker);
 
     // Pending run.

@@ -29,7 +29,7 @@ pub use self::options::{ActorOptions, InitiatorOptions};
 
 // Both used by tests.
 pub(crate) use self::mailbox::MailBox;
-pub(crate) use self::waker::Waker;
+pub(crate) use self::waker::new_waker;
 
 use self::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};
 
@@ -280,7 +280,7 @@ impl ActorSystemInner {
 
         // Create a new actor process.
         let priority = options.priority;
-        let waker = Waker::new(notifier.clone());
+        let waker = new_waker(notifier.clone());
         let mailbox = Shared::new(MailBox::new(notifier, system_ref));
         // Create a reference to the actor, to be returned.
         let actor_ref = ActorRef::new(mailbox.downgrade());
@@ -329,7 +329,7 @@ impl ActorSystemInner {
             .unwrap(); // Only returns an error in case of double register.
 
         // Create a new task process.
-        let waker = Waker::new(notifier);
+        let waker = new_waker(notifier);
         let process = TaskProcess::new(task, registration, waker);
 
         // Actually add the process.
