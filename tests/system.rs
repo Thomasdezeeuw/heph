@@ -166,13 +166,13 @@ enum TestSendActor1 {
     /// Ready to receive first message (handled in handle).
     ReadyMsg1,
     /// Ready to send the second message (handled in poll).
-    SendMsg2(ActorRef<TestSendActor2>),
+    SendMsg2(ActorRef<()>),
     /// All done.
     Done,
 }
 
 impl Actor for TestSendActor1 {
-    type Message = ActorRef<TestSendActor2>;
+    type Message = ActorRef<()>;
     type Error = ();
 
     fn handle(&mut self, ctx: &mut ActorContext, mut msg: Self::Message) -> ActorResult<Self::Error> {

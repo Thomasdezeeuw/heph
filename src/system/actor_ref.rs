@@ -1,9 +1,7 @@
 //! Module containing the `ActorRef`.
 
 use std::fmt;
-use std::marker::PhantomData;
 
-use crate::actor::Actor;
 use crate::system::MailBox;
 use crate::system::error::{SendError, SendErrorReason};
 use crate::util::WeakShared;
@@ -26,29 +24,27 @@ use crate::util::WeakShared;
 /// #
 /// // Create `ActorSystem` and `Actor`, etc.
 /// # let mut actor_system = ActorSystemBuilder::default().build().unwrap();
-/// # let actor = actor_fn(|_, _: ()| -> Result<Status, ()> { Ok(Status::Ready) });
+/// # struct Message;
+/// # let actor = actor_fn(|_, _: Message| -> Result<Status, ()> { Ok(Status::Ready) });
 ///
-/// let actor_ref = actor_system.add_actor(actor, ActorOptions::default());
+/// let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default());
+///
+/// // Sending a message to the actor.
+/// actor_ref.send(Message);
 ///
 /// // To create another `ActorRef` we can simply clone the first one.
 /// let second_actor_ref = actor_ref.clone();
 /// ```
-pub struct ActorRef<A>
-    where A: Actor,
-{
+pub struct ActorRef<M> {
     /// The inbox of the `Actor`, owned by the `ActorProcess`.
-    inbox: WeakShared<MailBox<A::Message>>,
-    _phantom: PhantomData<A>,
+    inbox: WeakShared<MailBox<M>>,
 }
 
-impl<A> ActorRef<A>
-    where A: Actor,
-{
+impl<M> ActorRef<M> {
     /// Create a new `ActorRef` with a shared mailbox.
-    pub(crate) const fn new(inbox: WeakShared<MailBox<A::Message>>) -> ActorRef<A> {
+    pub(crate) const fn new(inbox: WeakShared<MailBox<M>>) -> ActorRef<M> {
         ActorRef {
             inbox,
-            _phantom: PhantomData,
         }
     }
 
@@ -84,14 +80,15 @@ impl<A> ActorRef<A>
     /// # let mut actor_system = ActorSystemBuilder::default().build().unwrap();
     /// # let actor = actor_fn(|_, _: Message| -> Result<Status, ()> { Ok(Status::Ready) });
     ///
+    /// // Add the actor to the system.
     /// let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default());
     ///
     /// // Now we can use the reference to send the actor a message, without
     /// // having to use `Message` we can just use `String`.
     /// actor_ref.send("Hello world".to_owned());
     /// ```
-    pub fn send<M>(&mut self, msg: M) -> Result<(), SendError<M>>
-        where M: Into<A::Message>,
+    pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<Msg>>
+        where Msg: Into<M>,
     {
         match self.inbox.upgrade() {
             Some(mut inbox) => inbox.borrow_mut().deliver(msg),
@@ -103,20 +100,15 @@ impl<A> ActorRef<A>
     }
 }
 
-impl<A> Clone for ActorRef<A>
-    where A: Actor,
-{
-    fn clone(&self) -> ActorRef<A> {
+impl<M> Clone for ActorRef<M> {
+    fn clone(&self) -> ActorRef<M> {
         ActorRef {
             inbox: self.inbox.clone(),
-            _phantom: PhantomData,
         }
     }
 }
 
-impl<A> fmt::Debug for ActorRef<A>
-    where A: Actor,
-{
+impl<M> fmt::Debug for ActorRef<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ActorRef")
             .finish()

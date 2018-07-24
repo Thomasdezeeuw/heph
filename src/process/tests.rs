@@ -148,7 +148,7 @@ fn actor_process() {
 
     let waker = new_waker(notifier.clone());
     let mailbox = Shared::new(MailBox::new(notifier, system_ref.clone()));
-    let mut actor_ref: ActorRef<SimpleActor> = ActorRef::new(mailbox.downgrade());
+    let mut actor_ref = ActorRef::new(mailbox.downgrade());
     let mut process = ActorProcess::new(actor, registration, waker, mailbox);
 
     assert_eq!(*poll_called.borrow(), 0);
@@ -206,7 +206,7 @@ fn actor_process_poll_statusses() {
     let (_, notifier) = Registration::new();
     let waker = new_waker(notifier.clone());
     let mailbox = Shared::new(MailBox::new(notifier, system_ref.clone()));
-    let mut actor_ref: ActorRef<SimpleActor> = ActorRef::new(mailbox.downgrade());
+    let mut actor_ref = ActorRef::new(mailbox.downgrade());
 
     let poll_tests = vec![
         (Poll::Ready(Ok(Status::Complete)), ProcessResult::Complete),

@@ -50,7 +50,7 @@ pub struct ActorSystem {
 impl ActorSystem {
     /// Add a new actor to the system.
     // TODO: remove `'static` lifetime.
-    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> ActorRef<A>
+    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> ActorRef<A::Message>
         where A: Actor + 'static,
     {
         let system_ref = self.create_ref();
@@ -168,7 +168,7 @@ impl ActorSystemRef {
     /// [`ActorSystem.add_actor`]: struct.ActorSystem.html#method.add_actor
     // TODO: keep this in sync with `ActorSystemRef.add_actor`.
     // TODO: remove `'static` lifetime,
-    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A>, AddActorError<A>>
+    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A::Message>, AddActorError<A>>
         where A: Actor + 'static,
     {
         let system_ref = self.clone();
@@ -244,14 +244,14 @@ struct ActorSystemInner {
 }
 
 impl ActorSystemInner {
-    fn add_actor<A>(&mut self, options: ActorOptions, actor: A, system_ref: ActorSystemRef) -> ActorRef<A>
+    fn add_actor<A>(&mut self, options: ActorOptions, actor: A, system_ref: ActorSystemRef) -> ActorRef<A::Message>
         where A: Actor + 'static,
     {
         self.add_actor_setup(options, move |_, _| Ok(actor), system_ref)
             .unwrap()
     }
 
-    fn add_actor_setup<F, A>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<ActorRef<A>>
+    fn add_actor_setup<F, A>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<ActorRef<A::Message>>
         where F: FnOnce(ProcessId, &mut Poller) -> io::Result<A>,
               A: Actor + 'static,
     {
