@@ -1,8 +1,10 @@
 //! Network related types.
 
-use std::io::{self, ErrorKind, Initializer, Read, Write};
+use std::io::{self, ErrorKind, Read, Write};
 use std::net::SocketAddr;
 use std::task::{Context, Poll};
+
+use futures_io::{AsyncRead, AsyncWrite, Initializer};
 
 use mio_st::event::Ready;
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
@@ -10,7 +12,6 @@ use mio_st::poll::{Poller, PollOption};
 
 use crate::actor::{Actor, NewActor};
 use crate::initiator::Initiator;
-use crate::io::{AsyncRead, AsyncWrite};
 use crate::process::ProcessId;
 use crate::system::{ActorSystemRef, ActorOptions};
 
@@ -116,7 +117,7 @@ macro_rules! try_io {
 
 impl AsyncRead for TcpStream {
     unsafe fn initializer(&self) -> Initializer {
-        self.inner.initializer()
+        Initializer::nop()
     }
 
     fn poll_read(&mut self, _ctx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
@@ -131,6 +132,10 @@ impl AsyncWrite for TcpStream {
 
     fn poll_flush(&mut self, _ctx: &mut Context) -> Poll<io::Result<()>> {
         try_io!(self.inner.flush())
+    }
+
+    fn poll_close(&mut self, ctx: &mut Context) -> Poll<io::Result<()>> {
+        self.poll_flush(ctx)
     }
 }
 

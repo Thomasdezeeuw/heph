@@ -31,7 +31,6 @@ extern crate env_logger;
 
 pub mod actor;
 pub mod initiator;
-pub mod io;
 pub mod net;
 pub mod supervisor;
 pub mod system;

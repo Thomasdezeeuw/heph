@@ -3,8 +3,9 @@
 use std::io;
 use std::net::SocketAddr;
 
+use futures_io::AsyncWrite;
+
 use actor::actor::{Actor, ActorContext, ActorResult, Status, actor_factory};
-use actor::io::AsyncWrite;
 use actor::net::{TcpListener, TcpStream};
 use actor::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
 

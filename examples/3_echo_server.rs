@@ -7,8 +7,9 @@ use std::io;
 use std::task::Poll;
 use std::net::SocketAddr;
 
+use futures_io::{AsyncRead, AsyncWrite};
+
 use actor::actor::{Actor, NewActor, ActorContext, ActorResult, Status};
-use actor::io::{AsyncRead, AsyncWrite};
 use actor::net::{TcpListener, TcpStream};
 use actor::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
 
