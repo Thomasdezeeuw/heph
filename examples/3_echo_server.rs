@@ -1,7 +1,5 @@
 #![feature(futures_api, never_type, read_initializer)]
 
-extern crate actor;
-extern crate env_logger;
 #[macro_use]
 extern crate log;
 

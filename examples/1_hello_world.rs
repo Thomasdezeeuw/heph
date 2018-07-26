@@ -1,8 +1,5 @@
 #![feature(futures_api, never_type)]
 
-extern crate actor;
-extern crate env_logger;
-
 use std::task::Poll;
 
 use actor::actor::{Actor, ActorContext, ActorResult, Status};

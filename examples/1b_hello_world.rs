@@ -1,8 +1,5 @@
 #![feature(never_type)]
 
-extern crate actor;
-extern crate env_logger;
-
 use actor::actor::{Status, actor_fn};
 use actor::system::{ActorSystemBuilder, ActorOptions};
 

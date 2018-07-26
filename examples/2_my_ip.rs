@@ -1,8 +1,5 @@
 #![feature(futures_api, never_type)]
 
-extern crate actor;
-extern crate env_logger;
-
 use std::io;
 use std::net::SocketAddr;
 

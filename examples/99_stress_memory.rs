@@ -4,9 +4,6 @@
 
 #![feature(never_type)]
 
-extern crate actor;
-extern crate env_logger;
-
 use std::thread;
 use std::time::Duration;
 
