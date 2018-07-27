@@ -118,6 +118,11 @@ impl SimpleActor {
 impl Actor for SimpleActor {
     type Message = ();
     type Error = !;
+    type Item = ();
+
+    fn new(_: Self::Item) -> Self {
+        unreachable!();
+    }
 
     fn handle(&mut self, _: &mut ActorContext, _: Self::Message) -> ActorResult<Self::Error> {
         *self.handle_called.borrow_mut() += 1;
@@ -171,6 +176,11 @@ struct PollTestActor {
 impl Actor for PollTestActor {
     type Message = ();
     type Error = ();
+    type Item = ActorResult<()>;
+
+    fn new(result: Self::Item) -> Self {
+        PollTestActor { result }
+    }
 
     fn handle(&mut self, _: &mut ActorContext, _: Self::Message) -> ActorResult<Self::Error> {
         unreachable!();
@@ -188,6 +198,11 @@ struct HandleTestActor {
 impl Actor for HandleTestActor  {
     type Message = ();
     type Error = ();
+    type Item = ActorResult<()>;
+
+    fn new(result: Self::Item) -> Self {
+        HandleTestActor { result }
+    }
 
     fn handle(&mut self, _: &mut ActorContext, _: Self::Message) -> ActorResult<Self::Error> {
         self.result
@@ -218,7 +233,7 @@ fn actor_process_poll_statusses() {
 
     for test in poll_tests {
         let (registration, _) = Registration::new();
-        let actor = PollTestActor { result: test.0 };
+        let actor = PollTestActor::new(test.0);
         let mut process = ActorProcess::new(actor, registration, waker.clone(), mailbox.clone());
 
         assert_eq!(process.run(&mut system_ref), test.1, "handle returned: {:?}", test.0);
@@ -235,7 +250,7 @@ fn actor_process_poll_statusses() {
 
     for test in handle_tests {
         let (registration, _) = Registration::new();
-        let actor = HandleTestActor { result: test.0 };
+        let actor = HandleTestActor::new(test.0);
         let mut process = ActorProcess::new(actor, registration, waker.clone(), mailbox.clone());
 
         // Set `ready_for_msg` to true.

@@ -9,7 +9,7 @@ use std::net::SocketAddr;
 
 use futures_io::{AsyncRead, AsyncWrite};
 
-use actor::actor::{Actor, NewActor, ActorContext, ActorResult, Status};
+use actor::actor::{Actor, ActorContext, ActorResult, Status};
 use actor::net::{TcpListener, TcpStream};
 use actor::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
 
@@ -28,6 +28,13 @@ impl Actor for EchoActor {
     // The type of errors we can generate. Since we're dealing with I/O, errors
     // are to be expected.
     type Error = io::Error;
+    // The items provided when creating this actor.
+    type Item = (TcpStream, SocketAddr);
+
+    fn new((stream, address): Self::Item) -> Self {
+        info!("Accepted connection from: {}", address);
+        EchoActor { stream, buffer: Vec::with_capacity(128) }
+    }
 
     fn handle(&mut self, _: &mut ActorContext, _: Self::Message) -> ActorResult<Self::Error> {
         // This actor doesn't receive messages and thus this is never called.
@@ -78,34 +85,15 @@ impl Actor for EchoActor {
     }
 }
 
-/// In example 2 we used the `actor_factory` function to implement `NewActor`,
-/// here we do it manually.
-#[derive(Debug)]
-struct NewEchoActor {
-    buffer_size: usize,
-}
-
-impl NewActor for NewEchoActor {
-    type Actor = EchoActor;
-    type Item = (TcpStream, SocketAddr);
-
-    fn new(&mut self, (stream, address): Self::Item) -> Self::Actor {
-        info!("Accepted connection from: {}", address);
-        EchoActor { stream, buffer: Vec::with_capacity(self.buffer_size) }
-    }
-}
-
 fn main() {
     // Enable logging via the `RUST_LOG` environment variable.
     env_logger::init();
-
-    let actor_factory = NewEchoActor { buffer_size: 128 };
 
     // The remainder of the example, setting up and running the actor system, is
     // the same as example 2.
 
     let address = "127.0.0.1:7890".parse().unwrap();
-    let listener = TcpListener::bind(address, actor_factory, ActorOptions::default())
+    let listener = TcpListener::<EchoActor>::bind(address, ActorOptions::default())
         .expect("unable to bind TCP listener");
 
     let mut actor_system = ActorSystemBuilder::default().build()

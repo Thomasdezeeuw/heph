@@ -17,6 +17,12 @@ impl Actor for GreetingActor {
     type Message = String;
     // We never return an error.
     type Error = !;
+    // The item provided when creating this actor.
+    type Item = &'static str;
+
+    fn new(message: Self::Item) -> Self {
+        GreetingActor { message }
+    }
 
     // The function that will be called once a message is received for the actor.
     fn handle(&mut self, _: &mut ActorContext, name: Self::Message) -> ActorResult<Self::Error> {
@@ -37,7 +43,7 @@ fn main() {
     env_logger::init();
 
     // Create our actor.
-    let actor = GreetingActor { message: "Hello" };
+    let actor = GreetingActor::new("Hello");
 
     // Create a new actor system, which will run the actor. We'll just use the
     // default options for the system.

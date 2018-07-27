@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 
 use futures_io::AsyncWrite;
 
-use actor::actor::{Actor, ActorContext, ActorResult, Status, actor_factory};
+use actor::actor::{Actor, ActorContext, ActorResult, Status};
 use actor::net::{TcpListener, TcpStream};
 use actor::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
 
@@ -25,6 +25,12 @@ impl Actor for IpActor {
     // The type of errors we can generate. Since we're dealing with I/O, errors
     // are to be expected.
     type Error = io::Error;
+    // The items provided when creating this actor.
+    type Item = (TcpStream, SocketAddr);
+
+    fn new((stream, address): Self::Item) -> Self {
+        IpActor { stream, address }
+    }
 
     fn handle(&mut self, _: &mut ActorContext, _: Self::Message) -> ActorResult<Self::Error> {
         // This actor doesn't receive messages and thus this is never called.
@@ -43,14 +49,14 @@ fn main() {
     // Enable logging via the `RUST_LOG` environment variable.
     env_logger::init();
 
-    // Create a new actor factory, that implements the `NewActor` trait.
-    let actor_factory = actor_factory(|(stream, address)| IpActor { stream, address } );
-
-    // Create our TCP listener, with an address to listen on, a way to create a
-    // new `Actor` for each incoming connection and the options for each actor
-    // (for which we'll use the default).
+    // Create our TCP listener, with an address to listen on and the options for
+    // each actor (for which we'll use the default).
+    //
+    // We also need to define what Actor we want to used in the type signature,
+    // in this example our `IpActor`. A new `Actor` for each incoming
+    // connection.
     let address = "127.0.0.1:7890".parse().unwrap();
-    let listener = TcpListener::bind(address, actor_factory, ActorOptions::default())
+    let listener = TcpListener::<IpActor>::bind(address, ActorOptions::default())
         .expect("unable to bind TCP listener");
 
     // Create a new actor system, same as in example 1.

@@ -103,6 +103,11 @@ enum TestLifetimeActor {
 impl Actor for TestLifetimeActor {
     type Message = ();
     type Error = ();
+    type Item = ();
+
+    fn new(_: Self::Item) -> Self {
+        TestLifetimeActor::Init
+    }
 
     fn handle(&mut self, ctx: &mut ActorContext, _: Self::Message) -> ActorResult<Self::Error> {
         use self::TestLifetimeActor::*;
@@ -142,7 +147,7 @@ impl Actor for TestLifetimeActor {
 
 #[test]
 fn simple_actor_lifetime_test() {
-    let actor = TestLifetimeActor::Init;
+    let actor = TestLifetimeActor::new(());
 
     let mut actor_system = ActorSystemBuilder::default().build()
         .expect("unable to build actor system");
@@ -174,6 +179,11 @@ enum TestSendActor1 {
 impl Actor for TestSendActor1 {
     type Message = ActorRef<()>;
     type Error = ();
+    type Item = ();
+
+    fn new(_: Self::Item) -> Self {
+        TestSendActor1::Init
+    }
 
     fn handle(&mut self, ctx: &mut ActorContext, mut msg: Self::Message) -> ActorResult<Self::Error> {
         use self::TestSendActor1::*;
@@ -224,6 +234,11 @@ enum TestSendActor2 {
 impl Actor for TestSendActor2 {
     type Message = ();
     type Error = ();
+    type Item = ();
+
+    fn new(_: Self::Item) -> Self {
+        TestSendActor2::Init
+    }
 
     fn handle(&mut self, _ctx: &mut ActorContext, _msg: Self::Message) -> ActorResult<Self::Error> {
         use self::TestSendActor2::*;
@@ -258,8 +273,8 @@ impl Actor for TestSendActor2 {
 
 #[test]
 fn two_actors_test() {
-    let actor1 = TestSendActor1::Init;
-    let actor2 = TestSendActor2::Init;
+    let actor1 = TestSendActor1::new(());
+    let actor2 = TestSendActor2::new(());
 
     let mut actor_system = ActorSystemBuilder::default().build()
         .expect("unable to build actor system");

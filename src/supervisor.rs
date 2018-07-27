@@ -78,7 +78,9 @@ pub enum RestartStrategy {
 /// # impl Actor for MyActor {
 /// #     type Message = ();
 /// #     type Error = String;
-/// #     fn handle(&mut self, ctx: &mut ActorContext, msg: Self::Message) -> ActorResult<Self::Error> {
+/// #     type Item = ();
+/// #     fn new(_: Self::Item) -> Self { unimplemented!(); }
+/// #     fn handle(&mut self, _: &mut ActorContext, _: Self::Message) -> ActorResult<Self::Error> {
 /// #         unimplemented!();
 /// #     }
 /// #     fn poll(&mut self, _: &mut ActorContext) -> ActorResult<Self::Error> {
