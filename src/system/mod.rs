@@ -271,7 +271,7 @@ impl ActorSystemInner {
         let mailbox = Shared::new(MailBox::new(notifier, system_ref));
         // Create a reference to the actor, to be returned.
         let actor_ref = ActorRef::new(mailbox.downgrade());
-        let process = ActorProcess::new(actor, registration, waker, mailbox);
+        let process = ActorProcess::new(pid, actor, registration, waker, mailbox);
 
         // Actually add the process.
         process_entry.add(process, priority);

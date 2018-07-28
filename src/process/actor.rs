@@ -6,7 +6,7 @@ use std::task::{Poll, LocalWaker};
 use mio_st::registration::Registration;
 
 use crate::actor::{Actor, ActorContext, Status};
-use crate::process::{Process, ProcessResult};
+use crate::process::{Process, ProcessId, ProcessResult};
 use crate::system::{ActorSystemRef, MailBox};
 use crate::util::Shared;
 
@@ -14,6 +14,8 @@ use crate::util::Shared;
 pub struct ActorProcess<A>
     where A: Actor,
 {
+    /// Id for this process.
+    pid: ProcessId,
     /// The actor.
     actor: A,
     /// Whether or not the actor has returned `Poll::Ready` and is ready to
@@ -32,8 +34,9 @@ impl<A> ActorProcess<A>
     where A: Actor,
 {
     /// Create a new `ActorProcess`.
-    pub(crate) fn new(actor: A, registration: Registration, waker: LocalWaker, inbox: Shared<MailBox<A::Message>>) -> ActorProcess<A> {
+    pub(crate) fn new(pid: ProcessId, actor: A, registration: Registration, waker: LocalWaker, inbox: Shared<MailBox<A::Message>>) -> ActorProcess<A> {
         ActorProcess {
+            pid,
             actor,
             ready_for_msg: false,
             _registration: registration,
@@ -96,7 +99,7 @@ impl<A> Process for ActorProcess<A>
     fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
         trace!("running actor process");
         // Create our actor execution context.
-        let mut ctx = ActorContext::new(self.waker.clone(), system_ref.clone());
+        let mut ctx = ActorContext::new(self.pid, self.waker.clone(), system_ref.clone());
 
         loop {
             if self.ready_for_msg {

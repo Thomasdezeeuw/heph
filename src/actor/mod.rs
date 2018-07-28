@@ -13,6 +13,7 @@ use std::{fmt, mem};
 use std::marker::PhantomData;
 use std::task::{Poll, Context, LocalWaker};
 
+use crate::process::ProcessId;
 use crate::system::ActorSystemRef;
 
 #[cfg(all(test, feature = "test"))]
@@ -141,14 +142,16 @@ pub enum Status {
 /// the message or the system in which the actor is running.
 #[derive(Debug)]
 pub struct ActorContext {
+    pid: ProcessId,
     waker: LocalWaker,
     system_ref: ActorSystemRef,
 }
 
 impl ActorContext {
     /// Create a new `ActorContext`.
-    pub(crate) const fn new(waker: LocalWaker, system_ref: ActorSystemRef) -> ActorContext {
+    pub(crate) const fn new(pid: ProcessId, waker: LocalWaker, system_ref: ActorSystemRef) -> ActorContext {
         ActorContext {
+            pid,
             waker,
             system_ref,
         }
@@ -171,6 +174,7 @@ impl ActorContext {
         }
 
         ActorContext {
+            pid: ProcessId(0),
             waker: unsafe { local_waker(Arc::new(Waker)) },
             system_ref: ActorSystemRef::test_ref(),
         }
@@ -179,6 +183,11 @@ impl ActorContext {
     /// Get a context for executing a future.
     pub fn task_ctx(&mut self) -> Context {
         Context::new(&self.waker, &mut self.system_ref)
+    }
+
+    /// Get the pid of this actor.
+    pub(crate) fn pid(&self) -> ProcessId {
+        self.pid
     }
 }
 
