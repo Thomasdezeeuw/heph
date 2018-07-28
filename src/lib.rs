@@ -34,6 +34,7 @@ pub mod net;
 pub mod system;
 pub mod timer;
 
+mod actor_ref;
 mod mailbox;
 mod process;
 mod scheduler;

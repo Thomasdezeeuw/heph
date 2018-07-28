@@ -20,11 +20,11 @@ use crate::util::{Shared, WeakShared};
 use crate::waker::new_waker;
 
 mod builder;
-mod actor_ref;
 
 pub mod options;
 
-pub use self::actor_ref::ActorRef;
+pub use crate::actor_ref::ActorRef;
+
 pub use self::builder::ActorSystemBuilder;
 pub use self::options::{ActorOptions, InitiatorOptions};
 
