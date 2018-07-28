@@ -189,6 +189,11 @@ impl ActorContext {
     pub(crate) fn pid(&self) -> ProcessId {
         self.pid
     }
+
+    /// Get a mutable reference to an actor system ref.
+    pub(crate) fn system_ref(&mut self) -> &mut ActorSystemRef {
+        &mut self.system_ref
+    }
 }
 
 // TODO: change ActorFn to:
