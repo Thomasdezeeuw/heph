@@ -11,7 +11,7 @@ use mio_st::event::Ready;
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use mio_st::poll::{Poller, PollOption};
 
-use crate::actor::Actor;
+use crate::actor::{Actor, ActorContext};
 use crate::initiator::Initiator;
 use crate::process::ProcessId;
 use crate::system::{ActorSystemRef, ActorOptions};
@@ -96,6 +96,24 @@ pub struct TcpStream {
     /// A reference to the actor system in which this connection is located,
     /// used to deregister itself when dropped.
     system_ref: ActorSystemRef,
+}
+
+impl TcpStream {
+    /// Create a new TCP stream.
+    ///
+    /// Create a new TCP stream and issue a non-blocking connect to the
+    /// specified `address`.
+    pub fn connect(ctx: &mut ActorContext, address: SocketAddr) -> io::Result<TcpStream> {
+        let mut stream = MioTcpStream::connect(address)?;
+        let mut system_ref = ctx.system_ref().clone();
+        system_ref.poller_register(&mut stream, ctx.pid().into(),
+            Ready::READABLE | Ready::WRITABLE | Ready::ERROR | Ready::HUP,
+            PollOption::Edge)?;
+        Ok(TcpStream {
+            inner: stream,
+            system_ref,
+        })
+    }
 }
 
 /// A macro to try an I/O function.

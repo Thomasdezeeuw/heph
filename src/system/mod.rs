@@ -5,7 +5,7 @@ use std::future::FutureObj;
 use std::task::{Executor, SpawnObjError, SpawnErrorKind};
 use std::time::Duration;
 
-use mio_st::event::{Events, Evented, Ready};
+use mio_st::event::{Events, Evented, EventedId, Ready};
 use mio_st::poll::{Poller, PollOption};
 use mio_st::registration::Registration;
 
@@ -191,6 +191,17 @@ impl ActorSystemRef {
             Some(mut inner) => inner.borrow_mut().add_actor_setup(options, f, system_ref)
                 .map(|_| ()),
             None => Err(AddActorError::new((), AddActorErrorReason::SystemShutdown).into()),
+        }
+    }
+
+    /// Register an `Evented` handle, see `Poll.register`.
+    pub(crate) fn poller_register<E>(&mut self, handle: &mut E, id: EventedId, interests: Ready, opt: PollOption) -> io::Result<()>
+    where
+        E: Evented + ?Sized,
+    {
+        match self.inner.upgrade() {
+            Some(mut inner) => inner.borrow_mut().poller.register(handle, id, interests, opt),
+            None => Err(io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN)),
         }
     }
 

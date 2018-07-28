@@ -154,7 +154,7 @@ fn actor_process() {
     let waker = new_waker(notifier.clone());
     let mailbox = Shared::new(MailBox::new(notifier, system_ref.clone()));
     let mut actor_ref = ActorRef::new(mailbox.downgrade());
-    let mut process = ActorProcess::new(actor, registration, waker, mailbox);
+    let mut process = ActorProcess::new(pid, actor, registration, waker, mailbox);
 
     assert_eq!(*poll_called.borrow(), 0);
 
@@ -218,6 +218,7 @@ impl Actor for HandleTestActor  {
 fn actor_process_poll_statusses() {
     let mut system_ref = ActorSystemRef::test_ref();
 
+    let pid = ProcessId(0);
     let (_, notifier) = Registration::new();
     let waker = new_waker(notifier.clone());
     let mailbox = Shared::new(MailBox::new(notifier, system_ref.clone()));
@@ -234,7 +235,7 @@ fn actor_process_poll_statusses() {
     for test in poll_tests {
         let (registration, _) = Registration::new();
         let actor = PollTestActor::new(test.0);
-        let mut process = ActorProcess::new(actor, registration, waker.clone(), mailbox.clone());
+        let mut process = ActorProcess::new(pid, actor, registration, waker.clone(), mailbox.clone());
 
         assert_eq!(process.run(&mut system_ref), test.1, "handle returned: {:?}", test.0);
     }
@@ -251,7 +252,7 @@ fn actor_process_poll_statusses() {
     for test in handle_tests {
         let (registration, _) = Registration::new();
         let actor = HandleTestActor::new(test.0);
-        let mut process = ActorProcess::new(actor, registration, waker.clone(), mailbox.clone());
+        let mut process = ActorProcess::new(pid, actor, registration, waker.clone(), mailbox.clone());
 
         // Set `ready_for_msg` to true.
         assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
