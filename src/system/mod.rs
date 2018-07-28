@@ -23,7 +23,7 @@ mod builder;
 
 pub mod options;
 
-pub use crate::actor_ref::ActorRef;
+pub use crate::actor_ref::LocalActorRef as ActorRef;
 
 pub use self::builder::ActorSystemBuilder;
 pub use self::options::{ActorOptions, InitiatorOptions};

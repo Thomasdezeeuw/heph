@@ -1,132 +1,106 @@
-//! Module containing the `ActorRef`.
+//! Module containing actor references.
+//!
+//! Actor references come in three flavours:
+//! - [`LocalActorRef`]: reference to an actor running on the same thread,
+//! - [`MachineLocalActorRef`]: reference to an actor running on the same
+//!   machine, possibly on another thread, and
+//! - [`RemoteActorRef`]: reference to an actor running on a different machine.
+//!
+//! These three flavours are combined into an more generic [`ActorRef`] type.
+//!
+//! ## Sending messages
+//!
+//! All flavours of actor references have a `send` message which all return
+//! `Result<(), SendError<Msg>>`. None of these methods block, even the remote
+//! actor reference, but the method doesn't provided a lot of guarantees. What
+//! `send` does is add the message to the queue of messages for the actor,
+//! asynchronously.
+//!
+//! In case of the local actor reference this can be done directly. But for
+//! machine local actor references the message must first be send across thread
+//! bounds before being added to the actor's message queue. Remote actor
+//! references even need to send this message across a network, a lot can go
+//! wrong here.
+//!
+//! This means that even if `send` return `Ok` it doesn't mean the message is
+//! received and handled by the actor. It could be that a remote actor is no
+//! longer available, or that even a local actor crashes before the message is
+//! handled.
+//!
+//! [`LocalActorRef`]: struct.LocalActorRef.html
+//! [`MachineLocalActorRef`]: struct.MachineLocalActorRef.html
+//! [`RemoteActorRef`]: struct.RemoteActorRef.html
+//! [`ActorRef`]: enum.ActorRef.html
 
 use std::fmt;
 
-use crate::error::{SendError, SendErrorReason};
-use crate::mailbox::MailBox;
-use crate::util::WeakShared;
+use crate::error::SendError;
 
-/// A reference to an actor inside a [`ActorSystem`].
+mod local;
+mod machine;
+mod remote;
+
+pub use self::local::LocalActorRef;
+pub use self::machine::MachineLocalActorRef;
+pub use self::remote::RemoteActorRef;
+
+/// A reference to an actor.
 ///
-/// This reference can be used to send messages to the actor. To share this
-/// reference simply clone it.
+/// This reference can be used to send messages to the actor running on the same
+/// thread, on another thread or even on another machine.
 ///
-/// [`ActorSystem`]: struct.ActorSystem.html
-///
-/// # Examples
-///
-/// Cloning an actor reference.
-///
-// FIXME: causes an iternal compiler error.
-/// ```ignore
-/// #![feature(async_await, await_macro, futures_api, never_type)]
-///
-/// use actor::actor::{ActorContext, actor_factory};
-/// use actor::system::{ActorSystemBuilder, ActorOptions};
-///
-/// async fn actor(mut ctx: ActorContext<String>, _: ()) -> Result<(), !> {
-///     loop {
-///         let msg = await!(ctx.receive());
-///         println!("got message: {}", msg);
-///     }
-/// }
-///
-/// // Create `ActorSystem` and add our actor to it.
-/// let mut actor_system = ActorSystemBuilder::default().build().unwrap();
-/// let new_actor = actor_factory(actor);
-/// let mut actor_ref = actor_system.add_actor(new_actor, (), ActorOptions::default());
-///
-/// // Send a message to the actor.
-/// actor_ref.send("Hello".to_owned());
-///
-/// // To create another `ActorRef` we can simply clone the first one.
-/// let mut second_actor_ref = actor_ref.clone();
-/// second_actor_ref.send("World".to_owned());
-/// ```
-pub struct ActorRef<M> {
-    /// The inbox of the `Actor`, owned by the `ActorContext`.
-    inbox: WeakShared<MailBox<M>>,
+/// This `ActorRef` can be created by using the `From` implementation on one of
+/// the flavours of actor reference.
+pub enum ActorRef<M> {
+    /// A reference to a local actor, running on the same thread.
+    Local(LocalActorRef<M>),
+    /// A reference to an actor running on the same machine.
+    Machine(MachineLocalActorRef<M>),
+    /// A reference to a remote actor, running on a different machine.
+    Remote(RemoteActorRef<M>),
 }
 
 impl<M> ActorRef<M> {
-    /// Create a new `ActorRef` with a shared mailbox.
-    pub(crate) const fn new(inbox: WeakShared<MailBox<M>>) -> ActorRef<M> {
-        ActorRef {
-            inbox,
-        }
-    }
-
-    /// Send a message to the actor.
-    ///
-    /// # Examples
-    ///
-    /// Using an enum as message type.
-    ///
-    // FIXME: causes an iternal compiler error.
-    /// ```ignore
-    /// #![feature(async_await, await_macro, futures_api, never_type)]
-    ///
-    /// use actor::actor::{ActorContext, actor_factory};
-    /// use actor::system::{ActorSystemBuilder, ActorOptions};
-    ///
-    /// async fn actor(mut ctx: ActorContext<Message>, _: ()) -> Result<(), !> {
-    ///     loop {
-    ///         let msg = await!(ctx.receive());
-    ///         println!("got message: {:?}", msg);
-    ///     }
-    /// }
-    ///
-    /// // The message type for the actor.
-    /// //
-    /// // Using an enum we can allow a single actor to handle multiple types of
-    /// // messages.
-    /// #[derive(Debug)]
-    /// enum Message {
-    ///     String(String),
-    ///     Number(usize),
-    /// }
-    ///
-    /// // Implementing `From` for the message allows us to just pass a
-    /// // `String`, rather then a `Message::String`.
-    /// impl From<String> for Message {
-    ///     fn from(str: String) -> Message {
-    ///         Message::String(str)
-    ///     }
-    /// }
-    ///
-    /// // Create `ActorSystem` and add our actor to it.
-    /// let mut actor_system = ActorSystemBuilder::default().build().unwrap();
-    /// let new_actor = actor_factory(actor);
-    /// let mut actor_ref = actor_system.add_actor(new_actor, (), ActorOptions::default());
-    ///
-    /// // Now we can use the reference to send the actor a message, without
-    /// // having to use `Message` we can just use `String`.
-    /// actor_ref.send("Hello world".to_owned());
-    /// ```
-    pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<Msg>>
+    /// TODO: docs.
+    pub fn send<'r, Msg>(&'r mut self, msg: Msg) -> Result<(), SendError<Msg>>
         where Msg: Into<M>,
     {
-        match self.inbox.upgrade() {
-            Some(mut inbox) => inbox.borrow_mut().deliver(msg),
-            None => Err(SendError {
-                message: msg,
-                reason: SendErrorReason::ActorShutdown,
-            }),
+        use self::ActorRef::*;
+        match self {
+            Local(ref mut actor_ref) => actor_ref.send(msg),
+            Machine(ref mut actor_ref) => actor_ref.send(msg),
+            Remote(ref mut actor_ref) => actor_ref.send(msg),
         }
     }
 }
 
-impl<M> Clone for ActorRef<M> {
-    fn clone(&self) -> ActorRef<M> {
-        ActorRef {
-            inbox: self.inbox.clone(),
-        }
+impl<M> From<LocalActorRef<M>> for ActorRef<M> {
+    fn from(actor_ref: LocalActorRef<M>) -> ActorRef<M> {
+        ActorRef::Local(actor_ref)
+    }
+}
+
+impl<M> From<MachineLocalActorRef<M>> for ActorRef<M> {
+    fn from(actor_ref: MachineLocalActorRef<M>) -> ActorRef<M> {
+        ActorRef::Machine(actor_ref)
+    }
+}
+
+impl<M> From<RemoteActorRef<M>> for ActorRef<M> {
+    fn from(actor_ref: RemoteActorRef<M>) -> ActorRef<M> {
+        ActorRef::Remote(actor_ref)
     }
 }
 
 impl<M> fmt::Debug for ActorRef<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ActorRef")
+        use self::ActorRef::*;
+        f.debug_tuple("ActorRef")
+            .field(match self {
+                Local(ref actor_ref) => actor_ref,
+                Machine(ref actor_ref) => actor_ref,
+                Remote(ref actor_ref) => actor_ref,
+            })
             .finish()
     }
 }

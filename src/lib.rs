@@ -27,6 +27,7 @@
 extern crate env_logger;
 
 pub mod actor;
+pub mod actor_ref;
 pub mod error;
 pub mod initiator;
 pub mod net;
@@ -34,7 +35,6 @@ pub mod net;
 pub mod system;
 pub mod timer;
 
-mod actor_ref;
 mod mailbox;
 mod process;
 mod scheduler;
