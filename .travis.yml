@@ -1,0 +1,18 @@
+sudo: false
+cache: cargo
+os:
+  - linux
+  - osx
+language: rust
+env:
+  - RUST_BACKTRACE=1
+rust:
+  - nightly
+matrix:
+  fast_finish: true
+script:
+  - cargo --version
+  - rustc --version
+  - cargo build --verbose
+  - cargo test --verbose
+  - cargo test --features test --verbose
