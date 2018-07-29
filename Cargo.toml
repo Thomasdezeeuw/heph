@@ -21,7 +21,7 @@ num_cpus = "1.8.0"
 slab = "0.4.0"
 
 # Replace with published crate.
-mio-st = { path = '../mio-st' }
+mio-st = { git = "ssh://git@github.com/Thomasdezeeuw/mio-st.git" }
 
 [dev-dependencies]
 env_logger = "0.5.10"
