@@ -224,7 +224,10 @@ impl Executor for ActorSystemRef {
                 inner.borrow_mut().add_task(task);
                 Ok(())
             },
-            None => Err(SpawnObjError { kind: SpawnErrorKind::shutdown(), task }),
+            None => Err(SpawnObjError {
+                kind: SpawnErrorKind::shutdown(),
+                future: task
+            }),
         }
     }
 
