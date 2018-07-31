@@ -1,62 +1,45 @@
-#![feature(futures_api, never_type)]
+#![feature(async_await, await_macro, futures_api, never_type)]
 
-use std::task::Poll;
+use std::borrow::Cow;
 
-use actor::actor::{Actor, ActorContext, ActorResult, Status};
+use actor::actor::{ActorContext, actor_factory};
 use actor::system::{ActorSystemBuilder, ActorOptions};
 
-// Our actor that will greet people and/or things.
-#[derive(Debug)]
-struct GreetingActor {
-    message: &'static str,
+/// The type of message our actor can receive.
+type ActorMessage = Cow<'static, str>;
+
+/// Our greeter actor.
+///
+/// This function actually implements the `NewActor` trait required by
+/// `TcpListener` (see main). This is the reason why we write the strange
+/// `(stream, address)` form in the arguments.
+async fn greeter_actor(mut ctx: ActorContext<ActorMessage>, message: &'static str) -> Result<(), !> {
+    // Try to receive a name and print it.
+    let name = await!(ctx.receive());
+    println!("{} {}", message, name);
+    Ok(())
 }
 
-// Our `Actor` implementation.
-impl Actor for GreetingActor {
-    // The type of message we can handle.
-    type Message = String;
-    // We never return an error.
-    type Error = !;
-    // The item provided when creating this actor.
-    type Item = &'static str;
-
-    fn new(message: Self::Item) -> Self {
-        GreetingActor { message }
-    }
-
-    // The function that will be called once a message is received for the actor.
-    fn handle(&mut self, _: &mut ActorContext, name: Self::Message) -> ActorResult<Self::Error> {
-        // Print a greeting message.
-        println!("{} {}", self.message, name);
-        // And that is all we need to do, so we're done.
-        Poll::Ready(Ok(Status::Ready))
-    }
-
-    fn poll(&mut self, _: &mut ActorContext) -> ActorResult<Self::Error> {
-        Poll::Ready(Ok(Status::Ready))
-    }
-}
-
-// Now our actor is ready lets put it to work.
 fn main() {
     // Enable logging via the `RUST_LOG` environment variable.
     env_logger::init();
-
-    // Create our actor.
-    let actor = GreetingActor::new("Hello");
 
     // Create a new actor system, which will run the actor. We'll just use the
     // default options for the system.
     let mut actor_system = ActorSystemBuilder::default().build()
         .expect("unable to build the actor system");
 
-    // Add our actor to the actor system. For now we'll use the default options
-    // here as well.
-    let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default());
+    // Create a new actor factory. This is used to create a new actor on each
+    // thread, although we'll only start a single thread.
+    let new_actor = actor_factory(greeter_actor);
+    // Add our actor to the actor system, along with the starting item, in our
+    // case a message for the greeter. We'll use the default options here as
+    // well.
+    let mut actor_ref = actor_system.add_actor(new_actor, "Hello", ActorOptions::default());
 
     // Send our actor a message via an `ActorRef`, which is a reference to the
     // actor inside the actor system.
-    actor_ref.send("World".to_owned())
+    actor_ref.send("World")
         .expect("unable to send message");
 
     // Run our actor system. This should cause "Hello World" to be printed and

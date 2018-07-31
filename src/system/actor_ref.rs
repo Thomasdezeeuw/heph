@@ -15,25 +15,33 @@ use crate::util::WeakShared;
 ///
 /// # Examples
 ///
-/// ```
-/// # extern crate actor;
-/// #
-/// # use actor::actor::{Status, actor_fn};
-/// # use actor::system::ActorSystemBuilder;
-/// # use actor::system::ActorOptions;
-/// #
-/// // Create `ActorSystem` and `Actor`, etc.
-/// # let mut actor_system = ActorSystemBuilder::default().build().unwrap();
-/// # struct Message;
-/// # let actor = actor_fn(|_, _: Message| -> Result<Status, ()> { Ok(Status::Ready) });
+/// Cloning an actor reference.
 ///
-/// let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default());
+// FIXME: causes an iternal compiler error.
+/// ```ignore
+/// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
-/// // Sending a message to the actor.
-/// actor_ref.send(Message);
+/// use actor::actor::{ActorContext, actor_factory};
+/// use actor::system::{ActorSystemBuilder, ActorOptions};
+///
+/// async fn actor(mut ctx: ActorContext<String>, _: ()) -> Result<(), !> {
+///     loop {
+///         let msg = await!(ctx.receive());
+///         println!("got message: {}", msg);
+///     }
+/// }
+///
+/// // Create `ActorSystem` and add our actor to it.
+/// let mut actor_system = ActorSystemBuilder::default().build().unwrap();
+/// let new_actor = actor_factory(actor);
+/// let mut actor_ref = actor_system.add_actor(new_actor, (), ActorOptions::default());
+///
+/// // Send a message to the actor.
+/// actor_ref.send("Hello".to_owned());
 ///
 /// // To create another `ActorRef` we can simply clone the first one.
-/// let second_actor_ref = actor_ref.clone();
+/// let mut second_actor_ref = actor_ref.clone();
+/// second_actor_ref.send("World".to_owned());
 /// ```
 pub struct ActorRef<M> {
     /// The inbox of the `Actor`, owned by the `ActorProcess`.
@@ -52,17 +60,27 @@ impl<M> ActorRef<M> {
     ///
     /// # Examples
     ///
-    /// ```
-    /// # extern crate actor;
-    /// #
-    /// # use actor::actor::{Status, actor_fn};
-    /// # use actor::system::ActorSystemBuilder;
-    /// # use actor::system::ActorOptions;
-    /// #
+    /// Using an enum as message type.
+    ///
+    // FIXME: causes an iternal compiler error.
+    /// ```ignore
+    /// #![feature(async_await, await_macro, futures_api, never_type)]
+    ///
+    /// use actor::actor::{ActorContext, actor_factory};
+    /// use actor::system::{ActorSystemBuilder, ActorOptions};
+    ///
+    /// async fn actor(mut ctx: ActorContext<Message>, _: ()) -> Result<(), !> {
+    ///     loop {
+    ///         let msg = await!(ctx.receive());
+    ///         println!("got message: {:?}", msg);
+    ///     }
+    /// }
+    ///
     /// // The message type for the actor.
     /// //
     /// // Using an enum we can allow a single actor to handle multiple types of
     /// // messages.
+    /// #[derive(Debug)]
     /// enum Message {
     ///     String(String),
     ///     Number(usize),
@@ -76,12 +94,10 @@ impl<M> ActorRef<M> {
     ///     }
     /// }
     ///
-    /// // Create `ActorSystem` and `Actor`, etc.
-    /// # let mut actor_system = ActorSystemBuilder::default().build().unwrap();
-    /// # let actor = actor_fn(|_, _: Message| -> Result<Status, ()> { Ok(Status::Ready) });
-    ///
-    /// // Add the actor to the system.
-    /// let mut actor_ref = actor_system.add_actor(actor, ActorOptions::default());
+    /// // Create `ActorSystem` and add our actor to it.
+    /// let mut actor_system = ActorSystemBuilder::default().build().unwrap();
+    /// let new_actor = actor_factory(actor);
+    /// let mut actor_ref = actor_system.add_actor(new_actor, (), ActorOptions::default());
     ///
     /// // Now we can use the reference to send the actor a message, without
     /// // having to use `Message` we can just use `String`.

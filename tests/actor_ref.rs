@@ -1,27 +1,33 @@
+#![feature(async_await, await_macro, futures_api, never_type)]
+
 extern crate actor;
 
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use actor::actor::{Status, actor_fn};
-use actor::system::{ActorSystemBuilder, ActorOptions};
+use actor::actor::{ActorContext, actor_factory};
+use actor::system::{ActorRef, ActorSystemBuilder, ActorOptions};
 use actor::system::error::{SendError, SendErrorReason};
+
+async fn count_actor(mut ctx: ActorContext<i32>, total: Rc<RefCell<i32>>) -> Result<(), !> {
+    loop {
+        let value = await!(ctx.receive());
+        *total.borrow_mut() += value;
+    }
+}
 
 #[test]
 fn actor_ref_clone() {
     // TODO: remove the RefCell once the actors don't have a 'static lifetime.
-    let actor_value = Rc::new(RefCell::new(0));
+    let total = Rc::new(RefCell::new(0));
     {
         let mut system = ActorSystemBuilder::default().build()
             .expect("can't build actor system");
 
-        let actor_value = actor_value.clone();
-        let actor = actor_fn(move |_, value: i32| -> Result<Status, ()> {
-            *actor_value.borrow_mut() += value;
-            Ok(Status::Ready)
-        });
+        let new_actor = actor_factory(count_actor);
+        let mut actor_ref1 = system.add_actor(new_actor, total.clone(),
+            ActorOptions::default());
 
-        let mut actor_ref1 = system.add_actor(actor, ActorOptions::default());
         actor_ref1.send(2).expect("unable to send message");
 
         let mut actor_ref2 = actor_ref1.clone();
@@ -30,41 +36,38 @@ fn actor_ref_clone() {
         assert!(system.run().is_ok());
     }
 
-    assert_eq!(*actor_value.borrow(), 6, "expected actor to be run");
+    assert_eq!(*total.borrow(), 6, "expected actor to be run");
+}
+
+async fn single_receive_actor(mut ctx: ActorContext<()>, _: ()) -> Result<(), !> {
+    let _ = await!(ctx.receive());
+    Ok(())
+}
+
+async fn sending_actor(_ctx: ActorContext<()>, mut actor_ref: ActorRef<()>) -> Result<(), !> {
+    actor_ref.send(()).expect("unable to send first message");
+    assert_eq!(actor_ref.send(()), Err(SendError { message: (), reason: SendErrorReason::ActorShutdown }));
+    Ok(())
 }
 
 #[test]
 fn actor_ref_send_error() {
-    let mut system = ActorSystemBuilder::default().build()
-        .expect("can't build actor system");
+    let mut _actor_ref = {
+        let mut system = ActorSystemBuilder::default().build()
+            .expect("can't build actor system");
 
-    let actor1 = actor_fn(|_, _: ()| -> Result<Status, ()> {
-        Ok(Status::Complete)
-    });
+        let actor1 = actor_factory(single_receive_actor);
+        let actor1_ref = system.add_actor(actor1, (), ActorOptions::default());
 
-    let mut actor1_ref = system.add_actor(actor1, ActorOptions::default());
+        let actor2 = actor_factory(sending_actor);
+        let actor2_ref = system.add_actor(actor2, actor1_ref, ActorOptions::default());
 
-    let mut state = 0;
-    let actor2 = actor_fn(move |_, _: ()| -> Result<Status, ()> {
-        state += 1;
-        match state {
-            1 => {
-                // First message should stop the actor.
-                actor1_ref.send(()).expect("unable to send message");
-            },
-            2 => {
-                // Now the actor is shutdown we should receive an error.
-                assert_eq!(actor1_ref.send(()).unwrap_err(),
-                    SendError { message: (), reason: SendErrorReason::ActorShutdown },
-                    "expected an actor system shutdown message");
-            },
-            _ => unreachable!(),
-        }
+        system.run().expect("unexpected error running actor system");
 
-        Ok(Status::Ready)
-    });
+        actor2_ref
+    };
 
-    let mut actor2_ref = system.add_actor(actor2, ActorOptions::default());
-    actor2_ref.send(()).expect("unable to send message");
-    actor2_ref.send(()).expect("unable to send message");
+    // FIXME: currently this returns ActorShutdown, which is technically correct
+    // but not what we want.
+    //assert_eq!(actor_ref.send(()), Err(SendError { message: (), reason: SendErrorReason::SystemShutdown }));
 }

@@ -1,283 +1,239 @@
-//! The module with the `Actor` trait definition.
+//! The module with the `NewActor` and `Actor` trait definitions.
 //!
-//! All actors must implement the [`Actor`] trait, which defines how an actor
-//! handles messages. The easiest way to implement this trait is to use the
-//! [`ActorFn`] helper struct.
+//! All actors must implement the [`Actor`] trait, which defines how an actor is
+//! run. The [`NewActor`] defines how an actor is created. The easiest way to
+//! implement these traits is to use async functions, see the example directory.
 //!
+//! [`NewActor`]: trait.NewActor.html
 //! [`Actor`]: trait.Actor.html
-//! [`ActorFn`]: struct.ActorFn.html
-//! [`ActorFactory`]: struct.ActorFactory.html
-//! [`ReusableActorFactory`]: struct.ReusableActorFactory.html
 
-use std::{fmt, mem};
+use std::fmt;
+use std::future::Future;
 use std::marker::PhantomData;
-use std::task::{Poll, Context, LocalWaker};
+use std::mem::PinMut;
+use std::task::{Context, Poll};
 
-use crate::process::ProcessId;
-use crate::system::ActorSystemRef;
+mod context;
 
-#[cfg(all(test, feature = "test"))]
-mod tests;
+pub use self::context::ActorContext;
 
-/// The main actor trait, which defines how an actor handles messages.
+/// The trait that defines how to create a new actor.
 ///
-/// The `Actor` trait is basically a special version of a `Future`, one which
-/// can be given more work. When a message arrives for the actor, the `handle`
-/// method will be called to allow the actor to process the message. But, just
-/// like with futures, it is possible that message can't be processed without
-/// blocking, something we don't want.
+/// # Examples
 ///
-/// To prevent an actor from blocking the process it should return
-/// `Poll::Pending`, just like a future. And just like a future it should make
-/// sure it's scheduled again at a later date, see the `Future` trait for more.
-/// Once the actor is scheduled again, this time the `poll` method will be
-/// called, instead of `handle`, to continue handling the same message.
+/// The easiest way to implement this as well as an [`Actor`] is to use async
+/// functions.
 ///
-// TODO: the text references to futures for scheduling, maybe explain that here?
+/// ```rust
+/// #![feature(async_await, await_macro, futures_api)]
 ///
-/// Once an actor is done handling a message it must decide whether it wants to
-/// handle another message. To indicate the actor is done handing an message it
-/// must return `Poll::Ready`. Actors that only handle a single message or item,
-/// e.g. actor that handle a single connection, should return `Status::Complete`
-/// to indicate that the actor has completed its tasks and can be removed from
-/// the actor system. If however the actor needs to handle multiple message it
-/// needs to return `Status::Ready` to indicate the actor is ready to handle
-/// more message, which leaves it usable in the actor system.
+/// use actor::actor::{ActorContext, actor_factory};
 ///
-/// If the actor returned `Status::Ready` it can receive another message,
-/// `handle` will be called again and the entire process described above is
-/// repeated.
+/// // Having a async function like the following:
+/// async fn greeter_actor(mut ctx: ActorContext<String>, message: String) -> Result<(), ()> {
+///     loop {
+///         let name = await!(ctx.receive());
+///         println!("{} {}", message, name);
+///     }
+/// }
 ///
-/// The main difference with a regular future is that the actor will be given
-/// more work (via a message) once the previous message is processed. Calling
-/// `poll` on a future after it returned `Poll::Ready` causes undefined
-/// behaviour, the same is true for an actor. Calling either `handle` or `poll`
-/// after it returned `Status::Complete` is also undefined behaviour.
-/// **However** `handle` should be callable when the actor previously returned
-/// `Status::Ready` and another message is ready for the actor. `poll` should
-/// always be called if it hasn't return `Poll::Ready` yet.
-///
-/// In short an `Actor` is a `Future` which one can give more work, via
-/// messages.
-pub trait Actor: Sized {
-    /// The user defined message that this actor can handle.
+/// // `NewActor` can be implemented using the `actor_factory`.
+/// let new_actor = actor_factory(greeter_actor);
+/// ```
+pub trait NewActor {
+    /// The type of messages the actor can receive.
     ///
-    /// Use an enum to allow an actor to handle multiple types of messages.
-    // TODO: say something about implementing `From` for the message, i.e.
-    // provide an example.
+    /// Using an enum allows an actor to handle multiple types of messages.
+    ///
+    /// # Examples
+    ///
+    /// Here is an example of using an enum as message type.
+    ///
+    // TODO: renable, currently causes a compiler panic.
+    /// ```ignore
+    /// #![feature(async_await, await_macro, futures_api, never_type)]
+    ///
+    /// use actor::actor::{ActorContext, actor_factory};
+    /// use actor::system::{ActorSystemBuilder, ActorOptions};
+    ///
+    /// // The message type for the actor.
+    /// #[derive(Debug)]
+    /// enum Message {
+    ///     String(String),
+    ///     Number(usize),
+    /// }
+    ///
+    /// // Implementing `From` for the message allows us to just pass a
+    /// // `String`, rather then a `Message::String`. See sending of the message
+    /// // below.
+    /// impl From<String> for Message {
+    ///     fn from(str: String) -> Message {
+    ///         Message::String(str)
+    ///     }
+    /// }
+    ///
+    /// // Our actor.
+    /// async fn actor(mut ctx: ActorContext<Message>, item: ()) -> Result<(), !> {
+    ///     loop {
+    ///         let msg = await!(ctx.receive());
+    ///         println!("received message: {:?}", msg);
+    ///     }
+    /// }
+    ///
+    /// // Create `ActorSystem`.
+    /// let mut actor_system = ActorSystemBuilder::default().build().unwrap();
+    ///
+    /// // Add the actor to the system.
+    /// let new_actor = actor_factory(actor);
+    /// let mut actor_ref = actor_system.add_actor(new_actor, (), ActorOptions::default());
+    ///
+    /// // Now we can use the reference to send the actor a message, without
+    /// // having to use `Message` we can just use `String`.
+    /// actor_ref.send("Hello world".to_owned());
+    /// ```
     type Message;
 
+    /// The initial item the actor will be created with.
+    ///
+    /// This could for example be a TCP connection the actor is responsible for.
+    /// See [`TcpListener`] for an example usage of this.
+    ///
+    /// [`TcpListener`]: ../net/struct.TcpListener.html
+    // TODO: the name `Item` a too generic name.
+    type Item;
+
+    /// The type of the actor.
+    ///
+    /// See [`Actor`] for more.
+    ///
+    /// [`Actor`]: trait.Actor.html
+    type Actor: Actor;
+
+    /// Create a new `Actor`.
+    fn new(&mut self, ctx: ActorContext<Self::Message>, item: Self::Item) -> Self::Actor;
+}
+
+/// The main actor trait.
+///
+/// Effectively an `Actor` is a `Future` which returns a `Result<(), Error>`,
+/// where `Error` is defined on the trait. That is why there is a blanket
+/// implementation for all `Future`s with that `Output`.
+///
+/// Because this is basically a `Future` it also shares it's runtime
+/// characteristics, including it's unsafety. Please read the `Future`
+/// documentation when implementing this by hand.
+pub trait Actor {
     /// An error the actor can return to it's supervisor. This error will be
     /// considered terminal for this actor and should **not** not be an error of
     /// regular processing of a message.
     ///
     /// How to process non-terminal errors that happen during regular processing
-    /// of messages is up to the user.
+    /// of messages is up to the actor.
     type Error;
 
-    /// The initial item the actor will be created with.
+    /// Try to poll this actor.
     ///
-    /// The could for example be a TCP connection the actor is responsible for.
-    // TODO: the name `Item` a too generic name.
-    type Item;
-
-    /// Create a new `Actor`.
-    fn new(item: Self::Item) -> Self;
-
-    /// Handle a message, the core of this trait.
-    fn handle(&mut self, ctx: &mut ActorContext, msg: Self::Message) -> ActorResult<Self::Error>;
-
-    /// Poll the actor to complete it's work on the current message.
-    fn poll(&mut self, ctx: &mut ActorContext) -> ActorResult<Self::Error>;
-
-    /// Restart the actor.
+    /// This is basically the same as calling `Future::poll`.
     ///
-    /// The default implementation will create a new actor (by calling
-    /// [`new`](#tymethod.new)) and replace `self` with it.
-    fn restart(&mut self, item: Self::Item) {
-        drop(mem::replace(self, Self::new(item)));
-    }
-}
-
-/// The return type for various methods in the [`Actor`] trait.
-///
-/// This is returned by the `handle` and `poll` methods of the `Actor` trait. It
-/// serves as a convenience to not having to write the entire type every time.
-///
-/// [`Actor`]: trait.Actor.html
-// TODO: rename to AsyncActorResult, or ActorPollResult?
-pub type ActorResult<E> = Poll<Result<Status, E>>;
-
-/// The status of an actor.
-///
-/// See the [`Actor`] trait for more.
-///
-/// # Difference with `Poll`
-///
-/// The `Actor` trait used both `Poll` and this `Status` in the return type.
-/// `Poll` is used as an indicator regarding the handling of a single message,
-/// while `Status` is the indicator used regarding the entire actor. So if an
-/// actor is not done handling a message (and `poll` should be called in the
-/// future) it should return `Poll::Pending`. Once the message is handled it
-/// should return `Poll::Ready` along with a status. `Status::Complete` should
-/// be returned if the actor is done handling message and should be removed from
-/// the actor system, while `Status::Ready` should be returned otherwise.
-///
-/// [`Actor`]: trait.Actor.html
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[must_use]
-// TODO: rename ActorStatus?
-pub enum Status {
-    /// The actor has completed all its work and is ready to shutdown.
-    Complete,
-
-    /// The actor has not yet completed all its work and is **not** ready to
-    /// shutdown.
-    Ready,
-}
-
-/// The context in which an actor is executed.
-///
-/// This can be used to get references to the actor itself, a possible sender of
-/// the message or the system in which the actor is running.
-#[derive(Debug)]
-pub struct ActorContext {
-    pid: ProcessId,
-    waker: LocalWaker,
-    system_ref: ActorSystemRef,
-}
-
-impl ActorContext {
-    /// Create a new `ActorContext`.
-    pub(crate) const fn new(pid: ProcessId, waker: LocalWaker, system_ref: ActorSystemRef) -> ActorContext {
-        ActorContext {
-            pid,
-            waker,
-            system_ref,
-        }
-    }
-
-    /// Create a new `ActorContext` that can be used in unit testing.
+    /// # Panics
     ///
-    /// # Notes
-    ///
-    /// The `Waker` implementation in the futures context is a noop.
-    #[cfg(feature = "test")]
-    pub fn test_ctx() -> ActorContext {
-        use ::std::sync::Arc;
-        use ::std::task::{local_waker, Wake};
+    /// Just like with futures polling this after it returned `Poll::Ready` may
+    /// cause undefined behaviour, including but not limited to panicking.
+    fn try_poll(self: PinMut<Self>, ctx: &mut Context) -> Poll<Result<(), Self::Error>>;
+}
 
-        struct Waker;
+impl<T, E> Actor for T where T: Future<Output = Result<(), E>> {
+    type Error = E;
 
-        impl Wake for Waker {
-            fn wake(_arc_self: &Arc<Self>) { }
-        }
-
-        ActorContext {
-            pid: ProcessId(0),
-            waker: unsafe { local_waker(Arc::new(Waker)) },
-            system_ref: ActorSystemRef::test_ref(),
-        }
-    }
-
-    /// Get a context for executing a future.
-    pub fn task_ctx(&mut self) -> Context {
-        Context::new(&self.waker, &mut self.system_ref)
-    }
-
-    /// Get the pid of this actor.
-    pub(crate) fn pid(&self) -> ProcessId {
-        self.pid
-    }
-
-    /// Get a mutable reference to an actor system ref.
-    pub(crate) fn system_ref(&mut self) -> &mut ActorSystemRef {
-        &mut self.system_ref
+    fn try_poll(self: PinMut<Self>, ctx: &mut Context) -> Poll<Result<(), Self::Error>> {
+        self.poll(ctx)
     }
 }
 
-// TODO: change ActorFn to:
-// ```
-// pub struct ActorFn<Fn>(pub Fn)
-// ```
-// Currently doesn't work due to unused type parameter error in `Actor`
-// implementations.
-
-/// Implement [`Actor`] by means of a function.
+/// The implementation behind [`actor_factory`].
 ///
-/// Note that this form of actor is very limited. It will have to handle message
-/// in a single function call, without being able to make use of the `Future`s
-/// ecosystem.
-///
-/// See the [`actor_fn`] function to create an `ActorFn`.
-///
-/// [`Actor`]: trait.Actor.html
-/// [`actor_fn`]: fn.actor_fn.html
-///
-/// # Example
-///
-/// ```
-/// # extern crate actor;
-/// use actor::actor::{Actor, ActorContext, Status, actor_fn};
-///
-/// # fn main() {
-/// // Our `Actor` implementation that prints a single message it receives and
-/// // shuts down.
-/// let actor = actor_fn(|_: &mut ActorContext, msg: String| -> Result<Status, ()> {
-///     println!("got a message: {}", msg);
-///     Ok(Status::Ready)
-/// });
-/// #
-/// # fn use_actor<A: Actor>(actor: A) { }
-/// # use_actor(actor);
-/// # }
-/// ```
-pub struct ActorFn<F, M> {
-    func: F,
-    _phantom: PhantomData<M>,
+/// [`actor_factory`]: fn.actor_factory.html
+pub struct ActorFactory<N, M, I, A> {
+    new_actor: N,
+    _phantom: PhantomData<(M, I, A)>,
 }
 
-impl<F, M, E> Actor for ActorFn<F, M>
-    where F: FnMut(&mut ActorContext, M) -> Result<Status, E>,
+impl<N, M, I, A> NewActor for ActorFactory<N, M, I, A>
+    where N: FnMut(ActorContext<M>, I) -> A,
+          A: Actor,
 {
     type Message = M;
-    type Error = E;
-    type Item = !;
+    type Item = I;
+    type Actor = A;
 
-    /// This is not implemented.
-    fn new(_: Self::Item) -> Self {
-        // FIXME: this isn't pretty.
-        unreachable!("ActorFn can't be created using Actor::new");
-    }
-
-    fn handle(&mut self, ctx: &mut ActorContext, msg: Self::Message) -> ActorResult<Self::Error> {
-        Poll::Ready((self.func)(ctx, msg))
-    }
-
-    fn poll(&mut self, _: &mut ActorContext) -> ActorResult<Self::Error> {
-        Poll::Ready(Ok(Status::Ready))
-    }
-
-    /// This is a no-op.
-    fn restart(&mut self, _: Self::Item) {
+    fn new(&mut self, ctx: ActorContext<Self::Message>, item: Self::Item) -> Self::Actor {
+        (self.new_actor)(ctx, item)
     }
 }
 
-impl<F, M> fmt::Debug for ActorFn<F, M> {
+impl<N, M, I, A> Copy for ActorFactory<N, M, I, A>
+    where N: Copy,
+{
+}
+
+impl<N, M, I, A> Clone for ActorFactory<N, M, I, A>
+    where N: Clone + Copy,
+{
+    fn clone(&self) -> ActorFactory<N, M, I, A> {
+        *self
+    }
+}
+
+impl<N, M, I, A> fmt::Debug for ActorFactory<N, M, I, A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ActorFn")
+        f.debug_struct("ActorFactory")
             .finish()
     }
 }
 
-/// Create a new [`ActorFn`].
-///
-/// [`ActorFn`]: struct.ActorFn.html
-pub const fn actor_fn<F, M, E>(func: F) -> ActorFn<F, M>
-    where F: FnMut(&mut ActorContext, M) -> Result<Status, E>,
+unsafe impl<N, M, I, A> Send for ActorFactory<N, M, I, A>
+    where N: Send,
 {
-    ActorFn {
-        func,
+}
+
+unsafe impl<N, M, I, A> Sync for ActorFactory<N, M, I, A>
+    where N: Sync,
+{
+}
+
+/// Implement [`NewActor`] by means of a function.
+///
+/// This easiest, and recommended, way to use this is via async function, see
+/// the example below.
+///
+/// [`NewActor`]: trait.NewActor.html
+///
+/// # Example
+///
+/// Using an async function.
+///
+/// ```
+/// #![feature(async_await, await_macro, futures_api, never_type)]
+///
+/// use actor::actor::{ActorContext, actor_factory};
+///
+/// async fn actor(mut ctx: ActorContext<()>, item: ()) -> Result<(), !> {
+///     println!("Hello from the actor!");
+///     Ok(())
+/// }
+///
+/// // Our `NewActor` implementation that returns our actor.
+/// let new_actor = actor_factory(actor);
+/// #
+/// # fn use_new_actor<N: actor::actor::NewActor>(new_actor: N) { }
+/// # use_new_actor(new_actor);
+/// ```
+pub const fn actor_factory<N, M, I, A>(new_actor: N) -> ActorFactory<N, M, I, A>
+    where N: FnMut(ActorContext<M>, I) -> A,
+          A: Actor,
+{
+    ActorFactory {
+        new_actor,
         _phantom: PhantomData,
     }
 }

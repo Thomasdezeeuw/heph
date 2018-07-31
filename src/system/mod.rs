@@ -9,7 +9,7 @@ use mio_st::event::{Events, Evented, EventedId, Ready};
 use mio_st::poll::{Poller, PollOption};
 use mio_st::registration::Registration;
 
-use crate::actor::Actor;
+use crate::actor::{Actor, ActorContext, NewActor};
 use crate::initiator::Initiator;
 use crate::process::{ProcessId, ActorProcess, InitiatorProcess, TaskProcess};
 use crate::scheduler::{Scheduler, SchedulerRef, Priority};
@@ -50,11 +50,12 @@ pub struct ActorSystem {
 impl ActorSystem {
     /// Add a new actor to the system.
     // TODO: remove `'static` lifetime.
-    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> ActorRef<A::Message>
-        where A: Actor + 'static,
+    pub fn add_actor<N, I, A>(&mut self, new_actor: N, item: I, options: ActorOptions) -> ActorRef<N::Message>
+        where N: NewActor<Item = I, Actor = A>,
+              A: Actor + 'static,
     {
         let system_ref = self.create_ref();
-        self.inner.borrow_mut().add_actor(options, actor, system_ref)
+        self.inner.borrow_mut().add_actor(options, new_actor, item, system_ref)
     }
 
     /// Add a new initiator to the system.
@@ -161,6 +162,7 @@ impl ActorSystemRef {
         }
     }
 
+    /*
     /// Add a new actor to the system.
     ///
     /// See [`ActorSystem.add_actor`].
@@ -177,13 +179,14 @@ impl ActorSystemRef {
             None => Err(AddActorError::new(actor, AddActorErrorReason::SystemShutdown)),
         }
     }
+    */
 
     /// Add an actor that needs to be initialised.
     ///
     /// This is used by the `Initiator`s to register with the system poller with
     /// using same pid.
-    pub(crate) fn add_actor_setup<F, A>(&mut self, options: ActorOptions, f: F) -> io::Result<()>
-        where F: FnOnce(ProcessId, &mut Poller) -> io::Result<A>,
+    pub(crate) fn add_actor_setup<F, A, M>(&mut self, options: ActorOptions, f: F) -> io::Result<()>
+        where F: FnOnce(ActorContext<M>, ProcessId, &mut Poller) -> io::Result<A>,
               A: Actor + 'static,
     {
         let system_ref = self.clone();
@@ -258,15 +261,16 @@ struct ActorSystemInner {
 }
 
 impl ActorSystemInner {
-    fn add_actor<A>(&mut self, options: ActorOptions, actor: A, system_ref: ActorSystemRef) -> ActorRef<A::Message>
-        where A: Actor + 'static,
+    fn add_actor<N, I, A>(&mut self, options: ActorOptions, mut new_actor: N, item: I, system_ref: ActorSystemRef) -> ActorRef<N::Message>
+        where N: NewActor<Item = I, Actor = A>,
+              A: Actor + 'static,
     {
-        self.add_actor_setup(options, move |_, _| Ok(actor), system_ref)
+        self.add_actor_setup(options, move |ctx, _, _| Ok(new_actor.new(ctx, item)), system_ref)
             .unwrap()
     }
 
-    fn add_actor_setup<F, A>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<ActorRef<A::Message>>
-        where F: FnOnce(ProcessId, &mut Poller) -> io::Result<A>,
+    fn add_actor_setup<F, A, M>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<ActorRef<M>>
+        where F: FnOnce(ActorContext<M>, ProcessId, &mut Poller) -> io::Result<A>,
               A: Actor + 'static,
     {
         // Setup adding a new process to the scheduler.
@@ -274,21 +278,23 @@ impl ActorSystemInner {
         let pid = process_entry.id();
         debug!("adding actor to actor system: pid={}", pid);
 
-        let actor = f(pid, &mut self.poller)?;
-
+        // Create a user space registration for the actor. Used in the mailbox
+        // and for futures' `Waker`.
         let (mut registration, notifier) = Registration::new();
         self.poller.register(&mut registration, pid.into(), Ready::READABLE, PollOption::Edge)?;
 
-        // Create a new actor process.
-        let priority = options.priority;
+        // Create our waker, mailbox and actor reference.
         let waker = new_waker(notifier.clone());
-        let mailbox = Shared::new(MailBox::new(notifier, system_ref));
-        // Create a reference to the actor, to be returned.
+        let mailbox = Shared::new(MailBox::new(notifier, system_ref.clone()));
         let actor_ref = ActorRef::new(mailbox.downgrade());
-        let process = ActorProcess::new(pid, actor, registration, waker, mailbox);
 
-        // Actually add the process.
-        process_entry.add(process, priority);
+        // Create the actor context and create an actor with it.
+        let ctx = ActorContext::new(pid, system_ref, mailbox);
+        let actor = f(ctx, pid, &mut self.poller)?;
+
+        // Create an actor process and add finally add it to the scheduler.
+        let process = ActorProcess::new(actor, registration, waker);
+        process_entry.add(process, options.priority);
         Ok(actor_ref)
     }
 

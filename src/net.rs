@@ -1,7 +1,7 @@
 //! Network related types.
 
-use std::io::{self, ErrorKind, Read, Write};
 use std::marker::PhantomData;
+use std::io::{self, ErrorKind, Read, Write};
 use std::net::SocketAddr;
 use std::task::{Context, Poll};
 
@@ -11,7 +11,7 @@ use mio_st::event::Ready;
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use mio_st::poll::{Poller, PollOption};
 
-use crate::actor::{Actor, ActorContext};
+use crate::actor::{NewActor, ActorContext};
 use crate::initiator::Initiator;
 use crate::process::ProcessId;
 use crate::system::{ActorSystemRef, ActorOptions};
@@ -20,13 +20,13 @@ use crate::system::{ActorSystemRef, ActorOptions};
 ///
 /// [`Initiator`]: ../initiator/trait.Initiator.html
 #[derive(Debug)]
-pub struct TcpListener<A> {
+pub struct TcpListener<N> {
     /// The underlying TCP listener, backed by mio.
     listener: MioTcpListener,
     /// Options used to add the actor to the actor system.
     options: ActorOptions,
     /// NewActor used to create an actor for each connection.
-    actor: PhantomData<A>,
+    new_actor: N,
     /// Don't implement `Send` or `Sync`.
     _phantom: PhantomData<*mut ()>,
 }
@@ -34,8 +34,8 @@ pub struct TcpListener<A> {
 // TODO: remove the static lifetime from `A`, it also needs to be removed from
 // the ActorSystem.add_actor_setup.
 
-impl<A> TcpListener<A>
-    where A: Actor<Item = (TcpStream, SocketAddr)> + 'static,
+impl<N> TcpListener<N>
+    where N: NewActor<Item = (TcpStream, SocketAddr)> + 'static + Clone,
 {
     /// Bind a new TCP listener to the provided `address`.
     ///
@@ -44,19 +44,19 @@ impl<A> TcpListener<A>
     /// provided `options` will be used in adding the newly created actor to the
     /// actor system.
     ///
-    /// [`Actor::new`]: ../actor/trait.Actor.html#tymethod.new
-    pub fn bind(address: SocketAddr, options: ActorOptions) -> io::Result<TcpListener<A>> {
+    /// [`NewActor::new`]: ../actor/trait.NewActor.html#tymethod.new
+    pub fn bind(address: SocketAddr, new_actor: N, options: ActorOptions) -> io::Result<TcpListener<N>> {
         Ok(TcpListener {
             listener: MioTcpListener::bind(address)?,
             options,
-            actor: PhantomData,
+            new_actor,
             _phantom: PhantomData,
         })
     }
 }
 
-impl<A> Initiator for TcpListener<A>
-    where A: Actor<Item = (TcpStream, SocketAddr)> + 'static,
+impl<N> Initiator for TcpListener<N>
+    where N: NewActor<Item = (TcpStream, SocketAddr)> + 'static,
 {
     fn init(&mut self, poller: &mut Poller, pid: ProcessId) -> io::Result<()> {
         poller.register(&mut self.listener, pid.into(),
@@ -74,7 +74,7 @@ impl<A> Initiator for TcpListener<A>
             debug!("accepted connection from: {}", addr);
 
             let system_ref_clone = system_ref.clone();
-            system_ref.add_actor_setup(self.options.clone(), |pid, poller| {
+            system_ref.add_actor_setup(self.options.clone(), |ctx, pid, poller| {
                 poller.register(&mut stream, pid.into(),
                     Ready::READABLE | Ready::WRITABLE | Ready::ERROR | Ready::HUP,
                     PollOption::Edge)?;
@@ -86,7 +86,7 @@ impl<A> Initiator for TcpListener<A>
                 };
 
                 // Create our actor and add it the system.
-                Ok(A::new((stream, addr)))
+                Ok(self.new_actor.new(ctx, (stream, addr)))
             })?;
         }
     }
@@ -107,7 +107,7 @@ impl TcpStream {
     ///
     /// Create a new TCP stream and issue a non-blocking connect to the
     /// specified `address`.
-    pub fn connect(ctx: &mut ActorContext, address: SocketAddr) -> io::Result<TcpStream> {
+    pub fn connect<M>(ctx: &mut ActorContext<M>, address: SocketAddr) -> io::Result<TcpStream> {
         let mut stream = MioTcpStream::connect(address)?;
         let mut system_ref = ctx.system_ref().clone();
         system_ref.poller_register(&mut stream, ctx.pid().into(),

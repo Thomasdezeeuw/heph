@@ -1,22 +1,19 @@
 //! Tests for the process module.
 
 use std::io;
-use std::cell::RefCell;
 use std::future::Future;
 use std::mem::PinMut;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 
-use mio_st::event::{EventedId, Ready};
-use mio_st::poll::{Poller, PollOption};
+use mio_st::event::EventedId;
+use mio_st::poll::Poller;
 use mio_st::registration::Registration;
 
-use crate::actor::{Actor, ActorContext, ActorResult, Status};
 use crate::initiator::Initiator;
-use crate::process::{ProcessId, Process, ProcessResult, ActorProcess, InitiatorProcess, TaskProcess};
-use crate::system::{ActorSystemBuilder, ActorSystemRef, ActorRef, MailBox, new_waker};
+use crate::process::{ProcessId, Process, ProcessResult, InitiatorProcess, TaskProcess};
+use crate::system::{ActorSystemRef, new_waker};
 use crate::util::Shared;
 
 #[test]
@@ -95,170 +92,6 @@ fn erroneous_initiator_process() {
 
     // If Initiator returns an error it should return Complete.
     assert_eq!(process.run(&mut system_ref), ProcessResult::Complete);
-}
-
-struct SimpleActor {
-    handle_called: Rc<RefCell<usize>>,
-    poll_called: Rc<RefCell<usize>>,
-}
-
-impl SimpleActor {
-    /// Returns (actor, handle called, poll called).
-    fn new() -> (SimpleActor, Rc<RefCell<usize>>, Rc<RefCell<usize>>) {
-        let handle_called = Rc::new(RefCell::new(0));
-        let poll_called = Rc::new(RefCell::new(0));
-        let actor = SimpleActor {
-            handle_called: Rc::clone(&handle_called),
-            poll_called: Rc::clone(&poll_called)
-        };
-        (actor, handle_called, poll_called)
-    }
-}
-
-impl Actor for SimpleActor {
-    type Message = ();
-    type Error = !;
-    type Item = ();
-
-    fn new(_: Self::Item) -> Self {
-        unreachable!();
-    }
-
-    fn handle(&mut self, _: &mut ActorContext, _: Self::Message) -> ActorResult<Self::Error> {
-        *self.handle_called.borrow_mut() += 1;
-        Poll::Ready(Ok(Status::Ready))
-    }
-
-    fn poll(&mut self, _: &mut ActorContext) -> ActorResult<Self::Error> {
-        *self.poll_called.borrow_mut() += 1;
-        Poll::Ready(Ok(Status::Ready))
-    }
-}
-
-#[test]
-fn actor_process() {
-    let system = ActorSystemBuilder::default().build()
-        .expect("can't build actor system");
-    let mut system_ref = system.create_ref();
-
-    let (actor, handle_called, poll_called) = SimpleActor::new();
-
-    let pid = ProcessId(0);
-    let (mut registration, notifier) = Registration::new();
-
-    let mut poller = Poller::new().unwrap();
-    poller.register(&mut registration, pid.into(),
-        Ready::READABLE, PollOption::Edge).unwrap();
-
-
-    let waker = new_waker(notifier.clone());
-    let mailbox = Shared::new(MailBox::new(notifier, system_ref.clone()));
-    let mut actor_ref = ActorRef::new(mailbox.downgrade());
-    let mut process = ActorProcess::new(pid, actor, registration, waker, mailbox);
-
-    assert_eq!(*poll_called.borrow(), 0);
-
-    assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
-    assert_eq!(*poll_called.borrow(), 1, "expected actor.poll to be called");
-
-    actor_ref.send(())
-        .expect("unable to send message");
-
-    assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
-    assert_eq!(*handle_called.borrow(), 1, "expected actor.handle to be called");
-    assert_eq!(*poll_called.borrow(), 1);
-}
-
-struct PollTestActor {
-    result: ActorResult<()>,
-}
-
-impl Actor for PollTestActor {
-    type Message = ();
-    type Error = ();
-    type Item = ActorResult<()>;
-
-    fn new(result: Self::Item) -> Self {
-        PollTestActor { result }
-    }
-
-    fn handle(&mut self, _: &mut ActorContext, _: Self::Message) -> ActorResult<Self::Error> {
-        unreachable!();
-    }
-
-    fn poll(&mut self, _: &mut ActorContext) -> ActorResult<Self::Error> {
-        self.result
-    }
-}
-
-struct HandleTestActor {
-    result: ActorResult<()>,
-}
-
-impl Actor for HandleTestActor  {
-    type Message = ();
-    type Error = ();
-    type Item = ActorResult<()>;
-
-    fn new(result: Self::Item) -> Self {
-        HandleTestActor { result }
-    }
-
-    fn handle(&mut self, _: &mut ActorContext, _: Self::Message) -> ActorResult<Self::Error> {
-        self.result
-    }
-
-    fn poll(&mut self, _: &mut ActorContext) -> ActorResult<Self::Error> {
-        Poll::Ready(Ok(Status::Ready))
-    }
-}
-
-#[test]
-#[ignore = "causes SIGILL on MacOS"]
-fn actor_process_poll_statusses() {
-    let mut system_ref = ActorSystemRef::test_ref();
-
-    let pid = ProcessId(0);
-    let (_, notifier) = Registration::new();
-    let waker = new_waker(notifier.clone());
-    let mailbox = Shared::new(MailBox::new(notifier, system_ref.clone()));
-    let mut actor_ref = ActorRef::new(mailbox.downgrade());
-
-    let poll_tests = vec![
-        (Poll::Ready(Ok(Status::Complete)), ProcessResult::Complete),
-        // Handle should return `Status::Complete`.
-        (Poll::Ready(Ok(Status::Ready)), ProcessResult::Pending),
-        (Poll::Ready(Err(())), ProcessResult::Complete),
-        (Poll::Pending, ProcessResult::Pending),
-    ];
-
-    for test in poll_tests {
-        let (registration, _) = Registration::new();
-        let actor = PollTestActor::new(test.0);
-        let mut process = ActorProcess::new(pid, actor, registration, waker.clone(), mailbox.clone());
-
-        assert_eq!(process.run(&mut system_ref), test.1, "handle returned: {:?}", test.0);
-    }
-
-    let handle_tests = vec![
-        (Poll::Ready(Ok(Status::Complete)), ProcessResult::Complete),
-        // After the first message try to get anther one should return
-        // `ProcessResult::Pending`.
-        (Poll::Ready(Ok(Status::Ready)), ProcessResult::Pending),
-        (Poll::Ready(Err(())), ProcessResult::Complete),
-        (Poll::Pending, ProcessResult::Pending),
-    ];
-
-    for test in handle_tests {
-        let (registration, _) = Registration::new();
-        let actor = HandleTestActor::new(test.0);
-        let mut process = ActorProcess::new(pid, actor, registration, waker.clone(), mailbox.clone());
-
-        // Set `ready_for_msg` to true.
-        assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
-        actor_ref.send(()).unwrap();
-        assert_eq!(process.run(&mut system_ref), test.1, "poll returned: {:?}", test.0);
-    }
 }
 
 struct TaskFuture {

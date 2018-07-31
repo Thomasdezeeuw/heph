@@ -1,47 +1,40 @@
-#![feature(futures_api, never_type)]
+#![feature(async_await, await_macro, futures_api, never_type)]
 
-use std::io;
 use std::net::SocketAddr;
 
-use futures_io::AsyncWrite;
+use futures_util::AsyncWriteExt;
+use log::{error, info, log};
 
-use actor::actor::{Actor, ActorContext, ActorResult, Status};
+use actor::actor::{ActorContext, actor_factory};
 use actor::net::{TcpListener, TcpStream};
 use actor::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
 
-/// Our actor that will print the ip.
-#[derive(Debug)]
-struct IpActor {
-    /// The TCP connection.
-    stream: TcpStream,
-    /// The address of the connected connection.
-    address: SocketAddr,
-}
+/// Our connection actor.
+///
+/// This function actually implements the `NewActor` trait required by
+/// `TcpListener` (see main). This is the reason why we write the strange
+/// `(stream, address)` form in the arguments.
+async fn conn_actor(_ctx: ActorContext<!>, (mut stream, address): (TcpStream, SocketAddr)) -> Result<(), !> {
+    info!("accepted connection: address={}", address);
 
-// Our `Actor` implementation.
-impl Actor for IpActor {
-    // The type of message we can handle, in our case we don't receive messages.
-    type Message = !;
-    // The type of errors we can generate. Since we're dealing with I/O, errors
-    // are to be expected.
-    type Error = io::Error;
-    // The items provided when creating this actor.
-    type Item = (TcpStream, SocketAddr);
+    // This will allocate a new string which isn't the most efficient way to do
+    // this, but it's the easiest so we'll keep this for sake of example.
+    let ip = address.ip().to_string();
 
-    fn new((stream, address): Self::Item) -> Self {
-        IpActor { stream, address }
-    }
+    match await!(stream.write_all(ip.as_bytes())) {
+        Ok(()) => Ok(()),
+        Err(err) => {
+            // TODO: maybe we should return the error to the supervisor, let it
+            // log and say there we can't do much.
+            error!("error writing ip: {}, address={}", err, address);
 
-    fn handle(&mut self, _: &mut ActorContext, _: Self::Message) -> ActorResult<Self::Error> {
-        // This actor doesn't receive messages and thus this is never called.
-        unreachable!("EchoActor.poll called");
-    }
-
-    // For actors used in an `Initiator` this will likely be the starting point.
-    fn poll(&mut self, ctx: &mut ActorContext) -> ActorResult<Self::Error> {
-        let ip = self.address.ip().to_string();
-        self.stream.poll_write(&mut ctx.task_ctx(), ip.as_bytes())
-            .map_ok(|_| Status::Complete)
+            // This seems odd, even though we've encountered an error we're
+            // returned Ok. We do this because any error returned would be send
+            // to the supervisor, but it won't be able to improve the situation
+            // either. All we can do is drop the connection and let the user try
+            // again.
+            Ok(())
+        },
     }
 }
 
@@ -49,14 +42,12 @@ fn main() {
     // Enable logging via the `RUST_LOG` environment variable.
     env_logger::init();
 
-    // Create our TCP listener, with an address to listen on and the options for
-    // each actor (for which we'll use the default).
-    //
-    // We also need to define what Actor we want to used in the type signature,
-    // in this example our `IpActor`. A new `Actor` for each incoming
-    // connection.
+    // Create our TCP listener, with an address to listen, a way to create a new
+    // actor for each incoming connections and the options for each actor (for
+    // which we'll use the default).
     let address = "127.0.0.1:7890".parse().unwrap();
-    let listener = TcpListener::<IpActor>::bind(address, ActorOptions::default())
+    let new_actor = actor_factory(conn_actor);
+    let listener = TcpListener::bind(address, new_actor, ActorOptions::default())
         .expect("unable to bind TCP listener");
 
     // Create a new actor system, same as in example 1.

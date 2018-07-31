@@ -46,7 +46,7 @@ mod util;
 /// use actor::prelude::*;
 /// ```
 pub mod prelude {
-    pub use crate::actor::Actor;
+    pub use crate::actor::{Actor, NewActor};
     //pub use crate::supervisor::{Supervisor, RestartStrategy};
     pub use crate::system::{ActorSystem, ActorSystemBuilder, ActorOptions, ActorRef};
 }
