@@ -25,7 +25,10 @@ pub struct TcpListener<A> {
     listener: MioTcpListener,
     /// Options used to add the actor to the actor system.
     options: ActorOptions,
+    /// NewActor used to create an actor for each connection.
     actor: PhantomData<A>,
+    /// Don't implement `Send` or `Sync`.
+    _phantom: PhantomData<*mut ()>,
 }
 
 // TODO: remove the static lifetime from `A`, it also needs to be removed from
@@ -37,9 +40,9 @@ impl<A> TcpListener<A>
     /// Bind a new TCP listener to the provided `address`.
     ///
     /// For each accepted connection a new actor will be created by using the
-    /// [`Actor::new`] method with an `TcpStream` and `SocketAddr`. The provided
-    /// `options` will be used in adding the newly created actor to the actor
-    /// system.
+    /// [`NewActor::new`] method with a `TcpStream` and `SocketAddr`. The
+    /// provided `options` will be used in adding the newly created actor to the
+    /// actor system.
     ///
     /// [`Actor::new`]: ../actor/trait.Actor.html#tymethod.new
     pub fn bind(address: SocketAddr, options: ActorOptions) -> io::Result<TcpListener<A>> {
@@ -47,6 +50,7 @@ impl<A> TcpListener<A>
             listener: MioTcpListener::bind(address)?,
             options,
             actor: PhantomData,
+            _phantom: PhantomData,
         })
     }
 }
