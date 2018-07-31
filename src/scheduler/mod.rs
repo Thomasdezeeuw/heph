@@ -82,7 +82,7 @@ impl Scheduler {
     /// Returns `true` if a process was run, `false` otherwise.
     pub fn run_process(&mut self, system_ref: &mut ActorSystemRef) -> bool {
         let mut process = match self.active.pop() {
-            Some(mut process) => process,
+            Some(process) => process,
             None => {
                 debug!("no processes left to run");
                 return false;
