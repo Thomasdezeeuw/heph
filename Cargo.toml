@@ -15,7 +15,7 @@ default = []
 test = []
 
 [dependencies]
-futures-io-preview = "0.3.0-alpha.1"
+futures-io-preview = "0.3.0-alpha.2"
 log = "0.4.2"
 num_cpus = "1.8.0"
 slab = "0.4.0"
