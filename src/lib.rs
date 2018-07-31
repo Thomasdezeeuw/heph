@@ -34,6 +34,7 @@ pub mod initiator;
 pub mod net;
 pub mod supervisor;
 pub mod system;
+pub mod timer;
 
 mod process;
 mod scheduler;
