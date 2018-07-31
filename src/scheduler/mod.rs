@@ -64,11 +64,10 @@ impl Scheduler {
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub fn schedule(&mut self, pid: ProcessId) {
         trace!("scheduling process: pid={}", pid);
-        match self.processes.borrow_mut().get_mut(pid.0) {
-            Some(ref mut process) if !process.is_active() => {
+        if let Some(ref mut process) = self.processes.borrow_mut().get_mut(pid.0) {
+            if !process.is_active() {
                 self.active.push(process.mark_active());
-            },
-            _ => {},
+            }
         }
     }
 
