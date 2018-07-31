@@ -5,7 +5,7 @@ use std::mem::PinMut;
 use std::task::{Context, Poll};
 
 use crate::process::ProcessId;
-use crate::system::{ActorSystemRef, MailBox};
+use crate::system::{ActorRef, ActorSystemRef, MailBox};
 use crate::util::Shared;
 
 /// The context in which an actor is executed.
@@ -98,6 +98,11 @@ impl<M> ActorContext<M> {
         ReceiveFuture {
             inbox: &mut self.inbox,
         }
+    }
+
+    /// Returns an actor reference of itself.
+    pub fn myself(&mut self) -> ActorRef<M> {
+        ActorRef::new(self.inbox.downgrade())
     }
 
     /// Get the pid of this actor.
