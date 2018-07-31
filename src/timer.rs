@@ -1,13 +1,18 @@
 //! Module with time related utilities.
 //!
-//! This module provides two types [`Timer`] and [`Deadline`], both of which
-//! implement `Future`. The difference is that `Timer` is a stand-alone future
-//! that returns [`DeadlinePassed`] and `Deadline` wraps another `Future` and
-//! checks the deadline each time it's polled, it returns `Result<T,
-//! DeadlinePassed>`.
+//! This module provides three types [`Timer`] and [`Deadline`], both of which
+//! implement `Future`, and [`Interval`].
+//!
+//! `Timer` is a stand-alone future that returns [`DeadlinePassed`],
+//! while `Deadline` wraps another `Future` and checks the deadline each time
+//! it's polled, it returns `Result<T, DeadlinePassed>`.
+//!
+//! `Interval` implements `Stream` which yields an item after the deadline has
+//! passed each interval.
 //!
 //! [`Timer`]: struct.Timer.html
 //! [`Deadline`]: struct.Deadline.html
+//! [`Interval`]: struct.Interval.html
 //! [`DeadlinePassed`]: struct.DeadlinePassed.html
 
 use std::task::{Context, Poll};
@@ -15,11 +20,14 @@ use std::future::Future;
 use std::mem::PinMut;
 use std::time::{Duration, Instant};
 
-use mio_st::timer::Timer as MioTimer;
-use mio_st::poll::PollOption;
+use futures_core::stream::Stream;
 use mio_st::event::Ready;
+use mio_st::poll::PollOption;
+use mio_st::timer::Timer as MioTimer;
 
 use crate::actor::ActorContext;
+use crate::process::ProcessId;
+use crate::system::ActorSystemRef;
 
 /// Type returned when the deadline has passed.
 ///
@@ -198,6 +206,94 @@ impl<Fut> Future for Deadline<Fut>
             let this = unsafe { PinMut::get_mut_unchecked(self) };
             let future = unsafe { PinMut::new_unchecked(&mut this.fut) };
             future.poll(ctx).map(|output| Ok(output))
+        }
+    }
+}
+
+/// A stream that yields an item after a delay has passed.
+///
+/// This stream will never return `None`, it will always set another deadline
+/// and yield another item after the deadline is expired.
+///
+/// # Notes
+///
+/// The next deadline will always will be send after it returned `Poll::Ready`.
+/// This means that if the interval is very short and the stream is not polled
+/// often enough it's possible that actual time between returned value becomes
+/// bigger then the specified interval.
+///
+/// # Examples
+///
+/// The following example will print hello world every second.
+///
+/// ```
+/// #![feature(async_await, await_macro, futures_api, pin, never_type)]
+///
+/// use std::time::Duration;
+///
+/// use actor::actor::{ActorContext, actor_factory};
+/// use actor::timer::Interval;
+/// use futures_util::future::ready;
+/// use futures_util::stream::StreamExt;
+///
+/// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
+///     let interval = Interval::new(&mut ctx, Duration::from_secs(1));
+///     await!(interval.for_each(|_| {
+///         println!("Hello world");
+///         ready(())
+///     }));
+///
+///     Ok(())
+/// }
+/// ```
+#[derive(Debug)]
+pub struct Interval {
+    interval: Duration,
+    deadline: Instant,
+    pid: ProcessId,
+    system_ref: ActorSystemRef,
+}
+
+impl Interval {
+    /// Create a new interval.
+    pub fn new<M>(ctx: &mut ActorContext<M>, interval: Duration) -> Interval {
+        let deadline = Instant::now() + interval;
+        let pid = ctx.pid();
+        let mut system_ref = ctx.system_ref().clone();
+
+        let mut timer = MioTimer::deadline(deadline);
+        system_ref.poller_register(&mut timer, pid.into(), Ready::TIMER,
+            PollOption::Oneshot).unwrap();
+        // It's safe to drop `timer` here.
+
+        Interval {
+            interval,
+            deadline,
+            pid,
+            system_ref,
+        }
+    }
+}
+
+impl Stream for Interval {
+    type Item = DeadlinePassed;
+
+    fn poll_next(self: PinMut<Self>, _ctx: &mut Context) -> Poll<Option<Self::Item>> {
+        if self.deadline <= Instant::now() {
+            // Determine the next deadline.
+            let next_deadline = Instant::now() + self.interval;
+            let this = unsafe { PinMut::get_mut_unchecked(self) };
+            this.deadline = next_deadline;
+
+            // Schedule another timer.
+            let mut timer = MioTimer::deadline(next_deadline);
+            this.system_ref.poller_register(&mut timer, this.pid.into(), Ready::TIMER,
+                PollOption::Oneshot).unwrap();
+            // It's safe to drop `timer` here.
+
+            Poll::Ready(Some(DeadlinePassed))
+        } else {
+            Poll::Pending
         }
     }
 }
