@@ -13,8 +13,9 @@ use mio_st::registration::Registration;
 
 use crate::initiator::Initiator;
 use crate::process::{ProcessId, Process, ProcessResult, InitiatorProcess, TaskProcess};
-use crate::system::{ActorSystemRef, new_waker};
+use crate::system::ActorSystemRef;
 use crate::util::Shared;
+use crate::waker::new_waker;
 
 #[test]
 fn pid_to_evented_id() {

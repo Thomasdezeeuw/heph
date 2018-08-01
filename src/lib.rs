@@ -37,6 +37,7 @@ mod mailbox;
 mod process;
 mod scheduler;
 mod util;
+mod waker;
 
 /// The actor prelude. All useful traits and types in single module.
 ///

@@ -16,9 +16,9 @@ use crate::mailbox::MailBox;
 use crate::process::{ProcessId, ActorProcess, InitiatorProcess, TaskProcess};
 use crate::scheduler::{Scheduler, SchedulerRef, Priority};
 use crate::util::{Shared, WeakShared};
+use crate::waker::new_waker;
 
 mod builder;
-mod waker;
 mod actor_ref;
 
 pub mod error;
@@ -27,9 +27,6 @@ pub mod options;
 pub use self::actor_ref::ActorRef;
 pub use self::builder::ActorSystemBuilder;
 pub use self::options::{ActorOptions, InitiatorOptions};
-
-// Both used by tests.
-pub(crate) use self::waker::new_waker;
 
 use self::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};
 
