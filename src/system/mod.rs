@@ -155,7 +155,6 @@ impl ActorSystemRef {
         }
     }
 
-    /*
     /// Add a new actor to the system.
     ///
     /// See [`ActorSystem.add_actor`].
@@ -163,16 +162,16 @@ impl ActorSystemRef {
     /// [`ActorSystem.add_actor`]: struct.ActorSystem.html#method.add_actor
     // TODO: keep this in sync with `ActorSystemRef.add_actor`.
     // TODO: remove `'static` lifetime,
-    pub fn add_actor<A>(&mut self, actor: A, options: ActorOptions) -> Result<ActorRef<A::Message>, AddActorError<A>>
-        where A: Actor + 'static,
+    pub fn add_actor<N, I, A>(&mut self, new_actor: N, item: I, options: ActorOptions) -> Result<ActorRef<N::Message>, AddActorError<N>>
+        where N: NewActor<Item = I, Actor = A>,
+              A: Actor + 'static,
     {
         let system_ref = self.clone();
         match self.inner.upgrade() {
-            Some(mut inner) => Ok(inner.borrow_mut().add_actor(options, actor, system_ref)),
-            None => Err(AddActorError::new(actor, AddActorErrorReason::SystemShutdown)),
+            Some(mut inner) => Ok(inner.borrow_mut().add_actor(options, new_actor, item, system_ref)),
+            None => Err(AddActorError::new(new_actor, AddActorErrorReason::SystemShutdown)),
         }
     }
-    */
 
     /// Add an actor that needs to be initialised.
     ///

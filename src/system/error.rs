@@ -21,34 +21,34 @@ pub(super) const ERR_SYSTEM_SHUTDOWN: &str = "actor system shutdown";
 ///
 /// let error = AddActorError {
 ///     // Actor will be ignored in printing the error.
-///     actor: (),
+///     new_actor: (),
 ///     reason: AddActorErrorReason::SystemShutdown,
 /// };
 ///
 /// assert_eq!(error.to_string(), "unable to add actor: actor system shutdown");
 /// ```
 #[derive(Debug)]
-pub struct AddActorError<A> {
-    /// The actor that failed to be added to the system.
-    pub actor: A,
+pub struct AddActorError<N> {
+    /// The `NewActor` that failed to be added to the system.
+    pub new_actor: N,
     /// The reason why the adding failed.
     pub reason: AddActorErrorReason,
 }
 
-impl<A> AddActorError<A> {
+impl<N> AddActorError<N> {
     /// Description for the error.
     const DESC: &'static str = "unable to add actor";
 
     /// Create a new `AddActorError`.
-    pub(super) const fn new(actor: A, reason: AddActorErrorReason) -> AddActorError<A> {
+    pub(super) const fn new(new_actor: N, reason: AddActorErrorReason) -> AddActorError<N> {
         AddActorError {
-            actor,
+            new_actor,
             reason,
         }
     }
 }
 
-impl<A> Into<io::Error> for AddActorError<A> {
+impl<N> Into<io::Error> for AddActorError<N> {
     fn into(self) -> io::Error {
         use self::AddActorErrorReason::*;
         match self.reason {
@@ -57,13 +57,13 @@ impl<A> Into<io::Error> for AddActorError<A> {
     }
 }
 
-impl<A> fmt::Display for AddActorError<A> {
+impl<N> fmt::Display for AddActorError<N> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}: {}", AddActorError::<()>::DESC, &self.reason)
     }
 }
 
-impl<A: fmt::Debug> Error for AddActorError<A> {
+impl<N: fmt::Debug> Error for AddActorError<N> {
     fn description(&self) -> &str {
         AddActorError::<()>::DESC
     }
