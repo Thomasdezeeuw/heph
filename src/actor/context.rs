@@ -4,8 +4,9 @@ use std::future::Future;
 use std::mem::PinMut;
 use std::task::{Context, Poll};
 
+use crate::mailbox::MailBox;
 use crate::process::ProcessId;
-use crate::system::{ActorRef, ActorSystemRef, MailBox};
+use crate::system::{ActorRef, ActorSystemRef};
 use crate::util::Shared;
 
 /// The context in which an actor is executed.

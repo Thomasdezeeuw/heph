@@ -12,6 +12,7 @@ use mio_st::registration::Registration;
 
 use crate::actor::{Actor, ActorContext, NewActor};
 use crate::initiator::Initiator;
+use crate::mailbox::MailBox;
 use crate::process::{ProcessId, ActorProcess, InitiatorProcess, TaskProcess};
 use crate::scheduler::{Scheduler, SchedulerRef, Priority};
 use crate::util::{Shared, WeakShared};
@@ -19,7 +20,6 @@ use crate::util::{Shared, WeakShared};
 mod builder;
 mod waker;
 mod actor_ref;
-mod mailbox;
 
 pub mod error;
 pub mod options;
@@ -29,7 +29,6 @@ pub use self::builder::ActorSystemBuilder;
 pub use self::options::{ActorOptions, InitiatorOptions};
 
 // Both used by tests.
-pub(crate) use self::mailbox::MailBox;
 pub(crate) use self::waker::new_waker;
 
 use self::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};

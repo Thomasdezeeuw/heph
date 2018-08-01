@@ -33,6 +33,7 @@ pub mod net;
 pub mod system;
 pub mod timer;
 
+mod mailbox;
 mod process;
 mod scheduler;
 mod util;
