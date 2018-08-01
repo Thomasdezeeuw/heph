@@ -94,12 +94,8 @@ impl Timer {
 
     /// Create a new timer with a specific deadline.
     pub fn deadline<M>(ctx: &mut ActorContext<M>, deadline: Instant) -> Timer {
-        let id = ctx.pid().into();
-        let system_ref = ctx.system_ref();
-        let mut timer = MioTimer::deadline(deadline);
-        system_ref.poller_register(&mut timer, id, Ready::TIMER,
-            PollOption::Oneshot).unwrap();
-        // It's safe to drop `timer` here.
+        let pid = ctx.pid();
+        set_timer(ctx.system_ref(), pid, deadline);
         Timer {
             deadline,
         }
@@ -181,12 +177,8 @@ impl<Fut> Deadline<Fut> {
 
     /// Create a new deadline with a specific deadline.
     pub fn deadline<M>(ctx: &mut ActorContext<M>, deadline: Instant, fut: Fut) -> Deadline<Fut> {
-        let id = ctx.pid().into();
-        let system_ref = ctx.system_ref();
-        let mut timer = MioTimer::deadline(deadline);
-        system_ref.poller_register(&mut timer, id, Ready::TIMER,
-            PollOption::Oneshot).unwrap();
-        // It's safe to drop `timer` here.
+        let pid = ctx.pid();
+        set_timer(ctx.system_ref(), pid, deadline);
         Deadline {
             deadline,
             fut,
@@ -258,14 +250,9 @@ impl Interval {
     /// Create a new interval.
     pub fn new<M>(ctx: &mut ActorContext<M>, interval: Duration) -> Interval {
         let deadline = Instant::now() + interval;
-        let pid = ctx.pid();
         let mut system_ref = ctx.system_ref().clone();
-
-        let mut timer = MioTimer::deadline(deadline);
-        system_ref.poller_register(&mut timer, pid.into(), Ready::TIMER,
-            PollOption::Oneshot).unwrap();
-        // It's safe to drop `timer` here.
-
+        let pid = ctx.pid();
+        set_timer(&mut system_ref, pid, deadline);
         Interval {
             interval,
             deadline,
@@ -285,15 +272,18 @@ impl Stream for Interval {
             let this = unsafe { PinMut::get_mut_unchecked(self) };
             this.deadline = next_deadline;
 
-            // Schedule another timer.
-            let mut timer = MioTimer::deadline(next_deadline);
-            this.system_ref.poller_register(&mut timer, this.pid.into(), Ready::TIMER,
-                PollOption::Oneshot).unwrap();
-            // It's safe to drop `timer` here.
-
+            set_timer(&mut this.system_ref, this.pid, next_deadline);
             Poll::Ready(Some(DeadlinePassed))
         } else {
             Poll::Pending
         }
     }
+}
+
+/// Notify the provided `pid` on the provided `deadline`.
+fn set_timer(system_ref: &mut ActorSystemRef, pid: ProcessId, deadline: Instant) {
+    let mut timer = MioTimer::deadline(deadline);
+    system_ref.poller_register(&mut timer, pid.into(), Ready::TIMER,
+        PollOption::Oneshot).unwrap();
+    // We don't need to keep timer, it's safe to drop it here.
 }
