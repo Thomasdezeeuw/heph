@@ -6,6 +6,7 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::time::{Duration, Instant};
 
+use log::{debug, trace, log};
 use slab::Slab;
 
 use crate::process::{Process, ProcessResult, ProcessId};

@@ -2,6 +2,7 @@
 
 use std::io;
 
+use log::{debug, log};
 use mio_st::poll::Poller;
 use num_cpus;
 

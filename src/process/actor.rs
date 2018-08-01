@@ -4,6 +4,7 @@ use std::fmt;
 use std::mem::PinMut;
 use std::task::{Context, Poll, LocalWaker};
 
+use log::{trace, log};
 use mio_st::registration::Registration;
 
 use crate::actor::Actor;

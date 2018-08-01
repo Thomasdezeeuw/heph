@@ -6,6 +6,7 @@ use std::net::SocketAddr;
 use std::task::{Context, Poll};
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
+use log::{debug, error, log};
 
 use mio_st::event::Ready;
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};

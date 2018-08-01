@@ -23,9 +23,6 @@
         variant_size_differences,
 )]
 
-#[macro_use]
-extern crate log;
-
 #[cfg(all(test, feature = "test"))]
 extern crate env_logger;
 

@@ -5,6 +5,7 @@ use std::future::FutureObj;
 use std::task::{Executor, SpawnObjError, SpawnErrorKind};
 use std::time::Duration;
 
+use log::{debug, trace, log};
 use mio_st::event::{Events, Evented, EventedId, Ready};
 use mio_st::poll::{Poller, PollOption};
 use mio_st::registration::Registration;
