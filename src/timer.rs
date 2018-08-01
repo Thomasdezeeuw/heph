@@ -205,7 +205,7 @@ impl<Fut> Future for Deadline<Fut>
         } else {
             let this = unsafe { PinMut::get_mut_unchecked(self) };
             let future = unsafe { PinMut::new_unchecked(&mut this.fut) };
-            future.poll(ctx).map(|output| Ok(output))
+            future.poll(ctx).map(Ok)
         }
     }
 }
