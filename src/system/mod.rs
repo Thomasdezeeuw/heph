@@ -155,14 +155,6 @@ impl ActorSystemRef {
         }
     }
 
-    /// Whether or the system is shutdown.
-    pub(crate) fn is_shutdown(&self) -> bool {
-        match self.inner.upgrade() {
-            Some(_) => false,
-            None => true,
-        }
-    }
-
     /*
     /// Add a new actor to the system.
     ///
@@ -286,7 +278,7 @@ impl ActorSystemInner {
 
         // Create our waker, mailbox and actor reference.
         let waker = new_waker(notifier.clone());
-        let mailbox = Shared::new(MailBox::new(notifier, system_ref.clone()));
+        let mailbox = Shared::new(MailBox::new(notifier));
         let actor_ref = ActorRef::new(mailbox.downgrade());
 
         // Create the actor context and create an actor with it.
