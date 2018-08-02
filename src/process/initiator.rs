@@ -14,7 +14,6 @@ use crate::system::ActorSystemRef;
 /// It simply calls `poll` on the `Initiator` and only returns
 /// `ProcessResult::Complete` if `poll` returns an error, which it logs.
 pub struct InitiatorProcess<I> {
-    /// The initiator.
     initiator: I,
 }
 

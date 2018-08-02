@@ -53,9 +53,6 @@ impl fmt::Display for ProcessId {
 /// - the `ActorProcess`, which wraps an `Actor` to implement this trait,
 /// - the `InitiatorProcess`, which wraps an `Initiator`, and
 /// - the `TaskProcess`, which wraps a `TaskObj`.
-///
-/// `EmptyProcess` also implements this, but it's just a placeholder to be used
-/// by the `ActorSystem`.
 pub trait Process: fmt::Debug {
     /// Run the process.
     ///

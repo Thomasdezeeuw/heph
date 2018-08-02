@@ -44,7 +44,7 @@ use crate::util::WeakShared;
 /// second_actor_ref.send("World".to_owned());
 /// ```
 pub struct ActorRef<M> {
-    /// The inbox of the `Actor`, owned by the `ActorProcess`.
+    /// The inbox of the `Actor`, owned by the `ActorContext`.
     inbox: WeakShared<MailBox<M>>,
 }
 

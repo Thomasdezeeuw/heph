@@ -84,7 +84,7 @@ impl Scheduler {
         let mut process = match self.active.pop() {
             Some(process) => process,
             None => {
-                debug!("no processes left to run");
+                debug!("no active processes left to run");
                 return false;
             },
         };

@@ -1,7 +1,7 @@
 //! Network related types.
 
-use std::marker::PhantomData;
 use std::io::{self, ErrorKind, Read, Write};
+use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::task::{Context, Poll};
 
