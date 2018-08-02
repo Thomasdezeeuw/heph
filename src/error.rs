@@ -1,9 +1,9 @@
-//! Module containing the errors for the `ActorSystem`.
+//! Module containing all errors types.
 
 use std::{fmt, io};
 use std::error::Error;
 
-pub(super) const ERR_SYSTEM_SHUTDOWN: &str = "actor system shutdown";
+pub(crate) const ERR_SYSTEM_SHUTDOWN: &str = "actor system shutdown";
 
 /// Error when adding actors to the `ActorSystem`.
 ///
@@ -40,7 +40,7 @@ impl<N> AddActorError<N> {
     const DESC: &'static str = "unable to add actor";
 
     /// Create a new `AddActorError`.
-    pub(super) const fn new(new_actor: N, reason: AddActorErrorReason) -> AddActorError<N> {
+    pub(crate) const fn new(new_actor: N, reason: AddActorErrorReason) -> AddActorError<N> {
         AddActorError {
             new_actor,
             reason,
@@ -67,19 +67,13 @@ impl<N: fmt::Debug> Error for AddActorError<N> {
     fn description(&self) -> &str {
         AddActorError::<()>::DESC
     }
-
-    fn cause(&self) -> Option<&dyn Error> {
-        match self.reason {
-            _ => None,
-        }
-    }
 }
 
 /// The reason why adding an actor failed.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum AddActorErrorReason {
-    /// The system is shutting down.
+    /// The system is shutdown.
     SystemShutdown,
 }
 
@@ -96,8 +90,8 @@ impl fmt::Display for AddActorErrorReason {
 ///
 /// # Notes
 ///
-/// When printing this error (using the `Display` implementation) the initator will
-/// not be printed.
+/// When printing this error (using the `Display` implementation) the initator
+/// will not be printed.
 ///
 /// # Examples
 ///
@@ -226,7 +220,7 @@ impl<M: fmt::Debug> Error for SendError<M> {
 pub enum SendErrorReason {
     /// The actor, to which the message was meant to be sent, is shutdown.
     ActorShutdown,
-    /// The system is shutting down.
+    /// The system is shutdown.
     SystemShutdown,
 }
 
@@ -243,22 +237,27 @@ impl fmt::Display for SendErrorReason {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum RuntimeError {
-    /// Error polling system poller.
+    /// Error polling the system poller.
     Poll(io::Error),
+}
+
+impl RuntimeError {
+    /// Description for the error.
+    const DESC: &'static str = "error running actor system";
 }
 
 impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::RuntimeError::*;
         match self {
-            Poll(ref err) => write!(f, "{}: {}", self.description(), err),
+            Poll(ref err) => write!(f, "{}: {}", RuntimeError::DESC, err),
         }
     }
 }
 
 impl Error for RuntimeError {
     fn description(&self) -> &str {
-        "error running actor system"
+        RuntimeError::DESC
     }
 
     fn cause(&self) -> Option<&dyn Error> {
