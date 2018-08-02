@@ -6,8 +6,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use actor::actor::{ActorContext, actor_factory};
+use actor::error::{SendError, SendErrorReason};
 use actor::system::{ActorRef, ActorSystemBuilder, ActorOptions};
-use actor::system::error::{SendError, SendErrorReason};
 
 async fn count_actor(mut ctx: ActorContext<i32>, total: Rc<RefCell<i32>>) -> Result<(), !> {
     loop {

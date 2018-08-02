@@ -3,7 +3,7 @@
 use std::fmt;
 
 use crate::system::MailBox;
-use crate::system::error::{SendError, SendErrorReason};
+use crate::error::{SendError, SendErrorReason};
 use crate::util::WeakShared;
 
 /// A reference to an actor inside a [`ActorSystem`].

@@ -11,6 +11,7 @@ use mio_st::poll::{Poller, PollOption};
 use mio_st::registration::Registration;
 
 use crate::actor::{Actor, ActorContext, NewActor};
+use crate::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};
 use crate::initiator::Initiator;
 use crate::mailbox::MailBox;
 use crate::process::{ProcessId, ActorProcess, InitiatorProcess, TaskProcess};
@@ -21,14 +22,11 @@ use crate::waker::new_waker;
 mod builder;
 mod actor_ref;
 
-pub mod error;
 pub mod options;
 
 pub use self::actor_ref::ActorRef;
 pub use self::builder::ActorSystemBuilder;
 pub use self::options::{ActorOptions, InitiatorOptions};
-
-use self::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};
 
 /// The system that runs all actors.
 #[derive(Debug)]

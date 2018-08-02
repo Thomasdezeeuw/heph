@@ -17,7 +17,7 @@ pub(super) const ERR_SYSTEM_SHUTDOWN: &str = "actor system shutdown";
 /// Printing the error doesn't print the actor.
 ///
 /// ```
-/// use actor::system::error::{AddActorError, AddActorErrorReason};
+/// use actor::error::{AddActorError, AddActorErrorReason};
 ///
 /// let error = AddActorError {
 ///     // Actor will be ignored in printing the error.
@@ -106,7 +106,7 @@ impl fmt::Display for AddActorErrorReason {
 /// ```
 /// use std::io;
 ///
-/// use actor::system::error::{AddInitiatorError, AddInitiatorErrorReason};
+/// use actor::error::{AddInitiatorError, AddInitiatorErrorReason};
 ///
 /// let error = AddInitiatorError {
 ///     // Initiator will be ignored in printing the error.
@@ -185,7 +185,7 @@ impl fmt::Display for AddInitiatorErrorReason  {
 /// Printing the error doesn't print the message.
 ///
 /// ```
-/// use actor::system::error::{SendError, SendErrorReason};
+/// use actor::error::{SendError, SendErrorReason};
 ///
 /// let error = SendError {
 ///     // Message will be ignored in printing the error.
