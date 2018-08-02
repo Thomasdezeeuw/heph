@@ -80,7 +80,7 @@ pub trait NewActor {
     ///     }
     /// }
     ///
-    /// // Create `ActorSystem`.
+    /// // Create an `ActorSystem`.
     /// let mut actor_system = ActorSystemBuilder::default().build().unwrap();
     ///
     /// // Add the actor to the system.
@@ -96,10 +96,11 @@ pub trait NewActor {
     /// The initial item the actor will be created with.
     ///
     /// This could for example be a TCP connection the actor is responsible for.
-    /// See [`TcpListener`] for an example usage of this.
+    /// See [`TcpListener`] for an example usage of this. Some actors don't need
+    /// a starting item, those actors can use `()`.
     ///
     /// [`TcpListener`]: ../net/struct.TcpListener.html
-    // TODO: the name `Item` a too generic name.
+    // TODO: the name `Item` is too generic, improve it.
     type Item;
 
     /// The type of the actor.
@@ -117,11 +118,14 @@ pub trait NewActor {
 ///
 /// Effectively an `Actor` is a `Future` which returns a `Result<(), Error>`,
 /// where `Error` is defined on the trait. That is why there is a blanket
-/// implementation for all `Future`s with that `Output`.
+/// implementation for all `Future`s with a `Result<(), Error>` as `Output`
+/// type.
 ///
-/// Because this is basically a `Future` it also shares it's runtime
-/// characteristics, including it's unsafety. Please read the `Future`
-/// documentation when implementing this by hand.
+/// # Panics
+///
+/// Because this is basically a `Future` it also shares it's characteristics,
+/// including it's unsafety. Please read the `Future` documentation when
+/// implementing this by hand.
 pub trait Actor {
     /// An error the actor can return to it's supervisor. This error will be
     /// considered terminal for this actor and should **not** not be an error of
@@ -137,7 +141,7 @@ pub trait Actor {
     ///
     /// # Panics
     ///
-    /// Just like with futures polling this after it returned `Poll::Ready` may
+    /// Just like with futures polling an after it returned `Poll::Ready` may
     /// cause undefined behaviour, including but not limited to panicking.
     fn try_poll(self: PinMut<Self>, ctx: &mut Context) -> Poll<Result<(), Self::Error>>;
 }

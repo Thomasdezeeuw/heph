@@ -18,11 +18,11 @@ pub struct ActorContext<M> {
     /// Process id of the actor, used as `EventedId` in registering things, e.g.
     /// a `TcpStream`, with the system poller.
     pid: ProcessId,
-    /// A reference to the actor system, used by the used to get access to the
-    /// system poller.
+    /// A reference to the actor system, used to get access to the system
+    /// poller.
     system_ref: ActorSystemRef,
     /// Inbox of the actor, shared between this and zero or more `ActorRef`s.
-    /// It's owned by the context, the actor reference only have a weak
+    /// It's owned by the context, the actor references only have a weak
     /// reference.
     inbox: Shared<MailBox<M>>,
 }
@@ -39,8 +39,8 @@ impl<M> ActorContext<M> {
 
     /// Receive a message.
     ///
-    /// Note that this will block forever if the actor doesn't receive any
-    /// messages. See the examples below for a way to deal with this.
+    /// This future only returns once a message is ready. See the examples below
+    /// for a way to deal with this.
     ///
     /// # Example
     ///
@@ -73,7 +73,7 @@ impl<M> ActorContext<M> {
     ///
     /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
     ///     loop {
-    ///         // Create future timer, this will be ready once the timeout has
+    ///         // Create a timer, this will be ready once the timeout has
     ///         // passed.
     ///         let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100));
     ///         // Create a future to receive a message.
@@ -81,7 +81,7 @@ impl<M> ActorContext<M> {
     ///
     ///         // Now let them race!
     ///         // This is basically a match statement for futures, whichever
-    ///         // future returns first will be the winner and we'll take that
+    ///         // future is ready first will be the winner and we'll take that
     ///         // branch.
     ///         let msg = select! {
     ///             msg => msg,
