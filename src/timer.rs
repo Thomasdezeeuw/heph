@@ -1,11 +1,11 @@
 //! Module with time related utilities.
 //!
-//! This module provides three types [`Timer`] and [`Deadline`], both of which
-//! implement `Future`, and [`Interval`].
+//! This module provides three types [`Timer`], [`Deadline`] and [`Interval`].
 //!
-//! `Timer` is a stand-alone future that returns [`DeadlinePassed`],
-//! while `Deadline` wraps another `Future` and checks the deadline each time
-//! it's polled, it returns `Result<T, DeadlinePassed>`.
+//! `Timer` is a stand-alone future that returns [`DeadlinePassed`] once the
+//! deadline has passed. `Deadline` wraps another `Future` and checks the
+//! deadline each time it's polled, it returns `Err(DeadlinePassed)` once the
+//! deadline has passed.
 //!
 //! `Interval` implements `Stream` which yields an item after the deadline has
 //! passed each interval.
@@ -15,9 +15,9 @@
 //! [`Interval`]: struct.Interval.html
 //! [`DeadlinePassed`]: struct.DeadlinePassed.html
 
-use std::task::{Context, Poll};
 use std::future::Future;
 use std::mem::PinMut;
+use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use futures_core::stream::Stream;
@@ -30,10 +30,6 @@ use crate::process::ProcessId;
 use crate::system::ActorSystemRef;
 
 /// Type returned when the deadline has passed.
-///
-/// See [`Timer`].
-///
-/// [`Timer`]: struct.Timer.html
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct DeadlinePassed;
 
@@ -44,7 +40,8 @@ pub struct DeadlinePassed;
 ///
 /// # Examples
 ///
-/// Using the `select!` macro to add a timeout to receiving a message.
+/// Using the `select!` macro to add a timeout to receiving a message. Also see
+/// `Deadline` for an alternative approach.
 ///
 /// ```
 /// #![feature(async_await, await_macro, futures_api, pin, never_type)]
@@ -57,8 +54,7 @@ pub struct DeadlinePassed;
 ///
 /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
 ///     loop {
-///         // Create future timer, this will be ready once the timeout has
-///         // passed.
+///         // Create a timer, this will be ready once the timeout has passed.
 ///         let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100));
 ///         // Create a future to receive a message.
 ///         let mut msg = ctx.receive();
@@ -122,7 +118,7 @@ impl Future for Timer {
 ///
 /// # Examples
 ///
-/// Using the `select!` macro to add a timeout to receiving a message.
+/// Receiving a message with a maximum timeout.
 ///
 /// ```
 /// #![feature(async_await, await_macro, futures_api, pin, never_type)]
@@ -143,7 +139,7 @@ impl Future for Timer {
 /// # impl Future for OtherFuture {
 /// #     type Output = ();
 /// #     fn poll(self: PinMut<Self>, ctx: &mut Context) -> Poll<Self::Output> {
-/// #         unimplemented!();
+/// #         Poll::Pending
 /// #     }
 /// # }
 /// #
@@ -151,10 +147,7 @@ impl Future for Timer {
 ///     // OtherFuture is a type the implements `Future`.
 ///     let future = OtherFuture;
 ///     // Create our deadline.
-///     let deadline_future = Deadline::timeout(&mut ctx, Duration::from_millis(100), future);
-///
-///     // Sleep a bit to fake work.
-///     sleep(Duration::from_millis(100));
+///     let deadline_future = Deadline::timeout(&mut ctx, Duration::from_millis(20), future);
 ///
 ///     let result = await!(deadline_future);
 ///     assert_eq!(result, Err(DeadlinePassed));
@@ -205,14 +198,14 @@ impl<Fut> Future for Deadline<Fut>
 /// A stream that yields an item after a delay has passed.
 ///
 /// This stream will never return `None`, it will always set another deadline
-/// and yield another item after the deadline is expired.
+/// and yield another item after the deadline has passed.
 ///
 /// # Notes
 ///
-/// The next deadline will always will be send after it returned `Poll::Ready`.
+/// The next deadline will always will be set after this returns `Poll::Ready`.
 /// This means that if the interval is very short and the stream is not polled
-/// often enough it's possible that actual time between returned value becomes
-/// bigger then the specified interval.
+/// often enough it's possible that actual time between yielding two values can
+/// become bigger then the specified interval.
 ///
 /// # Examples
 ///
