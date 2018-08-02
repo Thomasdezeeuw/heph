@@ -1,10 +1,10 @@
-//! Options for adding an actor to the `ActorSystem`.
+//! Options for adding an actor or initiator to an `ActorSystem`.
 
 use std::fmt;
 
 pub use crate::scheduler::Priority;
 
-/// Options for adding an actor to the [`ActorSystem`].
+/// Options for adding an actor to an [`ActorSystem`].
 ///
 /// [`ActorSystem`]: ../struct.ActorSystem.html
 ///
@@ -55,7 +55,7 @@ impl fmt::Debug for ActorOptions {
     }
 }
 
-/// Options for adding an [`Initiator`] to the [`ActorSystem`].
+/// Options for adding an [`Initiator`] to an [`ActorSystem`].
 ///
 /// [`ActorSystem`]: ../struct.ActorSystem.html
 /// [`Initiator`]: ../initiator/trait.Initiator.html
