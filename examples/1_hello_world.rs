@@ -28,8 +28,8 @@ fn main() {
 
     // By default actor don't do anything when adding to the actor system. We
     // need to wake them, for example by sending them a message.
-    // Send our actor a message via an `ActorRef`, which is a reference to the
-    // actor inside the actor system.
+    // Send our actor a message via an `LocalActorRef`, which is a reference to
+    // the actor inside the actor system.
     actor_ref.send("World")
         .expect("unable to send message");
 

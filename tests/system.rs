@@ -4,7 +4,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use heph::actor::{ActorContext, actor_factory};
-use heph::system::{ActorRef, ActorSystemBuilder, ActorOptions};
+use heph::actor_ref::LocalActorRef;
+use heph::system::{ActorSystemBuilder, ActorOptions};
 
 async fn count_actor(mut ctx: ActorContext<i32>, total: Rc<RefCell<i32>>) -> Result<(), !> {
     loop {
@@ -51,7 +52,7 @@ fn no_initiator_multiple_messages_before_run() {
     assert_eq!(*total.borrow(), 6, "expected actor to be run");
 }
 
-async fn relay_actor(mut ctx: ActorContext<i32>, mut actor_ref: ActorRef<i32>) -> Result<(), !> {
+async fn relay_actor(mut ctx: ActorContext<i32>, mut actor_ref: LocalActorRef<i32>) -> Result<(), !> {
     loop {
         let value = await!(ctx.receive());
         actor_ref.send(value).expect("unable to relay message");

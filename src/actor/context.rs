@@ -4,9 +4,10 @@ use std::future::Future;
 use std::mem::PinMut;
 use std::task::{Context, Poll};
 
+use crate::actor_ref::LocalActorRef;
 use crate::mailbox::MailBox;
 use crate::process::ProcessId;
-use crate::system::{ActorRef, ActorSystemRef};
+use crate::system::ActorSystemRef;
 use crate::util::Shared;
 
 /// The context in which an actor is executed.
@@ -21,9 +22,9 @@ pub struct ActorContext<M> {
     /// A reference to the actor system, used to get access to the system
     /// poller.
     system_ref: ActorSystemRef,
-    /// Inbox of the actor, shared between this and zero or more `ActorRef`s.
-    /// It's owned by the context, the actor references only have a weak
-    /// reference.
+    /// Inbox of the actor, shared between this and zero or more
+    /// `LocalActorRef`s. It's owned by the context, the actor references only
+    /// have a weak reference.
     inbox: Shared<MailBox<M>>,
 }
 
@@ -102,8 +103,8 @@ impl<M> ActorContext<M> {
     }
 
     /// Returns an actor reference of itself.
-    pub fn myself(&mut self) -> ActorRef<M> {
-        ActorRef::new(self.inbox.downgrade())
+    pub fn myself(&mut self) -> LocalActorRef<M> {
+        LocalActorRef::new(self.inbox.downgrade())
     }
 
     /// Get the pid of this actor.

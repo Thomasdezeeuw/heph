@@ -11,6 +11,7 @@ use mio_st::poll::{Poller, PollOption};
 use mio_st::registration::Registration;
 
 use crate::actor::{Actor, ActorContext, NewActor};
+use crate::actor_ref::LocalActorRef;
 use crate::error::{AddActorError, AddActorErrorReason, AddInitiatorError, AddInitiatorErrorReason, RuntimeError, ERR_SYSTEM_SHUTDOWN};
 use crate::initiator::Initiator;
 use crate::mailbox::MailBox;
@@ -22,8 +23,6 @@ use crate::waker::new_waker;
 mod builder;
 
 pub mod options;
-
-pub use crate::actor_ref::LocalActorRef as ActorRef;
 
 pub use self::builder::ActorSystemBuilder;
 pub use self::options::{ActorOptions, InitiatorOptions};
@@ -45,7 +44,7 @@ pub struct ActorSystem {
 impl ActorSystem {
     /// Add a new actor to the system.
     // TODO: remove `'static` lifetime.
-    pub fn add_actor<N, I, A>(&mut self, new_actor: N, item: I, options: ActorOptions) -> ActorRef<N::Message>
+    pub fn add_actor<N, I, A>(&mut self, new_actor: N, item: I, options: ActorOptions) -> LocalActorRef<N::Message>
         where N: NewActor<Item = I, Actor = A>,
               A: Actor + 'static,
     {
@@ -125,11 +124,9 @@ impl ActorSystem {
 
 /// A reference to an [`ActorSystem`].
 ///
-/// This reference can be shared by cloning it, a very cheap operation, just
-/// like [`ActorRef`].
+/// This reference can be shared by cloning it, a very cheap operation.
 ///
 /// [`ActorSystem`]: struct.ActorSystem.html
-/// [`ActorRef`]: struct.ActorRef.html
 #[derive(Debug)]
 pub struct ActorSystemRef {
     /// A non-owning reference to the actor system internals.
@@ -156,7 +153,7 @@ impl ActorSystemRef {
     /// [`ActorSystem.add_actor`]: struct.ActorSystem.html#method.add_actor
     // TODO: keep this in sync with `ActorSystemRef.add_actor`.
     // TODO: remove `'static` lifetime,
-    pub fn add_actor<N, I, A>(&mut self, new_actor: N, item: I, options: ActorOptions) -> Result<ActorRef<N::Message>, AddActorError<N>>
+    pub fn add_actor<N, I, A>(&mut self, new_actor: N, item: I, options: ActorOptions) -> Result<LocalActorRef<N::Message>, AddActorError<N>>
         where N: NewActor<Item = I, Actor = A>,
               A: Actor + 'static,
     {
@@ -247,7 +244,7 @@ struct ActorSystemInner {
 }
 
 impl ActorSystemInner {
-    fn add_actor<N, I, A>(&mut self, options: ActorOptions, mut new_actor: N, item: I, system_ref: ActorSystemRef) -> ActorRef<N::Message>
+    fn add_actor<N, I, A>(&mut self, options: ActorOptions, mut new_actor: N, item: I, system_ref: ActorSystemRef) -> LocalActorRef<N::Message>
         where N: NewActor<Item = I, Actor = A>,
               A: Actor + 'static,
     {
@@ -255,7 +252,7 @@ impl ActorSystemInner {
             .unwrap()
     }
 
-    fn add_actor_setup<F, A, M>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<ActorRef<M>>
+    fn add_actor_setup<F, A, M>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<LocalActorRef<M>>
         where F: FnOnce(ActorContext<M>, ProcessId, &mut Poller) -> io::Result<A>,
               A: Actor + 'static,
     {
@@ -272,7 +269,7 @@ impl ActorSystemInner {
         // Create our waker, mailbox and actor reference.
         let waker = new_waker(notifier.clone());
         let mailbox = Shared::new(MailBox::new(notifier));
-        let actor_ref = ActorRef::new(mailbox.downgrade());
+        let actor_ref = LocalActorRef::new(mailbox.downgrade());
 
         // Create the actor context and create an actor with it.
         let ctx = ActorContext::new(pid, system_ref, mailbox);

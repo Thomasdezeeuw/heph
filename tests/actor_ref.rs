@@ -4,8 +4,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use heph::actor::{ActorContext, actor_factory};
+use heph::actor_ref::LocalActorRef;
 use heph::error::{SendError, SendErrorReason};
-use heph::system::{ActorRef, ActorSystemBuilder, ActorOptions};
+use heph::system::{ActorSystemBuilder, ActorOptions};
 
 async fn count_actor(mut ctx: ActorContext<i32>, total: Rc<RefCell<i32>>) -> Result<(), !> {
     loop {
@@ -42,7 +43,7 @@ async fn single_receive_actor(mut ctx: ActorContext<()>, _: ()) -> Result<(), !>
     Ok(())
 }
 
-async fn sending_actor(_ctx: ActorContext<()>, mut actor_ref: ActorRef<()>) -> Result<(), !> {
+async fn sending_actor(_ctx: ActorContext<()>, mut actor_ref: LocalActorRef<()>) -> Result<(), !> {
     actor_ref.send(()).expect("unable to send first message");
     assert_eq!(actor_ref.send(()), Err(SendError { message: (), reason: SendErrorReason::ActorShutdown }));
     Ok(())
