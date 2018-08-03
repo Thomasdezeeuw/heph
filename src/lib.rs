@@ -43,7 +43,7 @@ mod waker;
 /// The actor prelude. All useful traits and types in single module.
 ///
 /// ```
-/// use actor::prelude::*;
+/// use heph::prelude::*;
 /// ```
 pub mod prelude {
     pub use crate::actor::{Actor, NewActor};

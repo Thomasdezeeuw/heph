@@ -1,13 +1,11 @@
 #![feature(async_await, await_macro, futures_api, never_type)]
 
-extern crate actor;
-
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use actor::actor::{ActorContext, actor_factory};
-use actor::error::{SendError, SendErrorReason};
-use actor::system::{ActorRef, ActorSystemBuilder, ActorOptions};
+use heph::actor::{ActorContext, actor_factory};
+use heph::error::{SendError, SendErrorReason};
+use heph::system::{ActorRef, ActorSystemBuilder, ActorOptions};
 
 async fn count_actor(mut ctx: ActorContext<i32>, total: Rc<RefCell<i32>>) -> Result<(), !> {
     loop {

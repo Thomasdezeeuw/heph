@@ -5,9 +5,9 @@ use std::net::SocketAddr;
 use futures_util::AsyncReadExt;
 use log::{error, info, log};
 
-use actor::actor::{ActorContext, actor_factory};
-use actor::net::{TcpListener, TcpStream};
-use actor::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
+use heph::actor::{ActorContext, actor_factory};
+use heph::net::{TcpListener, TcpStream};
+use heph::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
 
 /// Our actor.
 async fn echo_actor(_ctx: ActorContext<!>, (stream, address): (TcpStream, SocketAddr)) -> Result<(), !> {

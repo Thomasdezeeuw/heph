@@ -2,8 +2,8 @@
 
 use std::borrow::Cow;
 
-use actor::actor::{ActorContext, actor_factory};
-use actor::system::{ActorSystemBuilder, ActorOptions};
+use heph::actor::{ActorContext, actor_factory};
+use heph::system::{ActorSystemBuilder, ActorOptions};
 
 /// The type of message our actor can receive.
 type ActorMessage = Cow<'static, str>;

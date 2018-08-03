@@ -13,7 +13,7 @@ pub use crate::scheduler::Priority;
 /// Using the default options.
 ///
 /// ```
-/// use actor::system::ActorOptions;
+/// use heph::system::ActorOptions;
 ///
 /// let opts = ActorOptions::default();
 /// ```
@@ -21,7 +21,7 @@ pub use crate::scheduler::Priority;
 /// Giving an actor a high priority.
 ///
 /// ```
-/// use actor::system::options::{ActorOptions, Priority};
+/// use heph::system::options::{ActorOptions, Priority};
 ///
 /// let opts = ActorOptions {
 ///     priority: Priority::HIGH,
@@ -65,7 +65,7 @@ impl fmt::Debug for ActorOptions {
 /// Using the default options.
 ///
 /// ```
-/// use actor::system::InitiatorOptions;
+/// use heph::system::InitiatorOptions;
 ///
 /// let opts = InitiatorOptions::default();
 /// ```

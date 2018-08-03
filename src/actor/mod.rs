@@ -27,7 +27,7 @@ pub use self::context::ActorContext;
 /// ```rust
 /// #![feature(async_await, await_macro, futures_api)]
 ///
-/// use actor::actor::{ActorContext, actor_factory};
+/// use heph::actor::{ActorContext, actor_factory};
 ///
 /// // Having a async function like the following:
 /// async fn greeter_actor(mut ctx: ActorContext<String>, message: String) -> Result<(), ()> {
@@ -219,7 +219,7 @@ unsafe impl<N, M, I, A> Sync for ActorFactory<N, M, I, A>
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
-/// use actor::actor::{ActorContext, actor_factory};
+/// use heph::actor::{ActorContext, actor_factory};
 ///
 /// async fn actor(mut ctx: ActorContext<()>, item: ()) -> Result<(), !> {
 ///     println!("Hello from the actor!");
@@ -229,7 +229,7 @@ unsafe impl<N, M, I, A> Sync for ActorFactory<N, M, I, A>
 /// // Our `NewActor` implementation that returns our actor.
 /// let new_actor = actor_factory(actor);
 /// #
-/// # fn use_new_actor<N: actor::actor::NewActor>(new_actor: N) { }
+/// # fn use_new_actor<N: heph::actor::NewActor>(new_actor: N) { }
 /// # use_new_actor(new_actor);
 /// ```
 pub const fn actor_factory<N, M, I, A>(new_actor: N) -> ActorFactory<N, M, I, A>

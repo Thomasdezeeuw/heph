@@ -5,9 +5,9 @@ use std::net::SocketAddr;
 use futures_util::AsyncWriteExt;
 use log::{error, info, log};
 
-use actor::actor::{ActorContext, actor_factory};
-use actor::net::{TcpListener, TcpStream};
-use actor::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
+use heph::actor::{ActorContext, actor_factory};
+use heph::net::{TcpListener, TcpStream};
+use heph::system::{ActorSystemBuilder, ActorOptions, InitiatorOptions};
 
 /// Our connection actor.
 ///

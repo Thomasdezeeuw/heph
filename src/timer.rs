@@ -48,8 +48,8 @@ pub struct DeadlinePassed;
 ///
 /// use std::time::Duration;
 ///
-/// use actor::actor::{ActorContext, actor_factory};
-/// use actor::timer::Timer;
+/// use heph::actor::{ActorContext, actor_factory};
+/// use heph::timer::Timer;
 /// use futures_util::select;
 ///
 /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
@@ -130,8 +130,8 @@ impl Future for Timer {
 /// use std::thread::sleep;
 /// use std::time::Duration;
 ///
-/// use actor::actor::{ActorContext, actor_factory};
-/// use actor::timer::{DeadlinePassed, Deadline};
+/// use heph::actor::{ActorContext, actor_factory};
+/// use heph::timer::{DeadlinePassed, Deadline};
 /// use futures_util::select;
 ///
 /// # struct OtherFuture;
@@ -216,8 +216,8 @@ impl<Fut> Future for Deadline<Fut>
 ///
 /// use std::time::Duration;
 ///
-/// use actor::actor::{ActorContext, actor_factory};
-/// use actor::timer::Interval;
+/// use heph::actor::{ActorContext, actor_factory};
+/// use heph::timer::Interval;
 /// use futures_util::future::ready;
 /// use futures_util::stream::StreamExt;
 ///

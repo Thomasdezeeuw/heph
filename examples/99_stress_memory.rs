@@ -7,8 +7,8 @@
 use std::thread;
 use std::time::Duration;
 
-use actor::actor::{ActorContext, actor_factory};
-use actor::system::{ActorSystemBuilder, ActorOptions};
+use heph::actor::{ActorContext, actor_factory};
+use heph::system::{ActorSystemBuilder, ActorOptions};
 
 /// Our "actor", but it doesn't do much.
 async fn actor(_: ActorContext<!>, _: ()) -> Result<(), !> {

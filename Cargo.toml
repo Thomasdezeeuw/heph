@@ -1,7 +1,7 @@
 cargo-features = ["edition"]
 
 [package]
-name = "actor"
+name = "heph"
 version = "0.1.0"
 authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license = "MIT"
