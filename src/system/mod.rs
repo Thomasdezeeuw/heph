@@ -87,20 +87,9 @@ impl ActorSystem {
 
         // TODO: find a good balance between polling, polling user space events
         // only and running processes, the current one is not good. It leans far
-        // to much to polling.
+        // too much to polling.
         loop {
-            // Get the scheduled processes.
-            self.poll(&mut events)?;
-
-            // Schedule all processes with a notification.
-            for event in &mut events {
-                self.scheduler.schedule(event.id().into());
-            }
-
-            trace!("receiving waker events");
-            while let Some(pid) = self.waker_notifications.try_recv() {
-                self.scheduler.schedule(pid);
-            }
+            self.schedule_processes(&mut events)?;
 
             if !self.scheduler.run_process(&mut system_ref) && events.is_empty() {
                 debug!("no events, no processes to run, stopping actor system");
@@ -109,15 +98,11 @@ impl ActorSystem {
         }
     }
 
-    /// Get the set of scheduled processes, replacing it with an empty set.
+    /// Schedule processes.
     ///
-    /// This polls the system poller, swaps the scheduled processes in the
-    /// scheduler and schedules any processes based on the system poller events.
-    ///
-    /// # Panics
-    ///
-    /// Will panic if the actor system inside is already borrowed.
-    fn poll(&mut self, events: &mut Events) -> Result<(), RuntimeError> {
+    /// This polls the system poller and the waker notifications and schedules
+    /// the processes notified.
+    fn schedule_processes(&mut self, events: &mut Events) -> Result<(), RuntimeError> {
         let timeout = if !self.has_initiators || self.scheduler.process_ready() {
             Some(Duration::from_millis(0))
         } else {
@@ -126,7 +111,19 @@ impl ActorSystem {
 
         trace!("polling system poller for events");
         self.inner.borrow_mut().poller.poll(events, timeout)
-            .map_err(RuntimeError::Poll)
+            .map_err(RuntimeError::Poll)?;
+
+        // Schedule all processes with a notification.
+        for event in events {
+            self.scheduler.schedule(event.id().into());
+        }
+
+        trace!("receiving waker events");
+        while let Some(pid) = self.waker_notifications.try_recv() {
+            self.scheduler.schedule(pid);
+        }
+
+        Ok(())
     }
 }
 
