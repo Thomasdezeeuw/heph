@@ -5,8 +5,6 @@ use std::future::{Future, FutureObj};
 use std::mem::PinMut;
 use std::task::{Context, LocalWaker, Poll};
 
-use mio_st::registration::Registration;
-
 use crate::process::{Process, ProcessResult};
 use crate::system::ActorSystemRef;
 
@@ -18,18 +16,15 @@ use crate::system::ActorSystemRef;
 pub struct TaskProcess {
     /// The underlying task.
     task: FutureObj<'static, ()>,
-    /// Needs to stay alive for the duration of the task.
-    registration: Registration,
     /// Waker used in the futures context.
     waker: LocalWaker,
 }
 
 impl TaskProcess {
     /// Create a new `TaskProcess`.
-    pub const fn new(task: FutureObj<'static, ()>, registration: Registration, waker: LocalWaker) -> TaskProcess {
+    pub const fn new(task: FutureObj<'static, ()>, waker: LocalWaker) -> TaskProcess {
         TaskProcess {
             task,
-            registration,
             waker,
         }
     }

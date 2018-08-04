@@ -7,9 +7,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{Context, Poll};
 
+use crossbeam_channel as channel;
 use mio_st::event::EventedId;
 use mio_st::poll::Poller;
-use mio_st::registration::Registration;
 
 use crate::initiator::Initiator;
 use crate::process::{ProcessId, Process, ProcessResult, InitiatorProcess, TaskProcess};
@@ -116,9 +116,9 @@ fn task_process() {
 
     let called = Arc::new(AtomicUsize::new(0));
     let task = Box::new(TaskFuture { called: Arc::clone(&called) }).into();
-    let (registration, notifier) = Registration::new();
-    let waker = new_waker(notifier.clone());
-    let mut process = TaskProcess::new(task, registration, waker);
+    let (send, _recv) = channel::unbounded();
+    let waker = new_waker(ProcessId(0), send);
+    let mut process = TaskProcess::new(task, waker);
 
     // Pending run.
     assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);

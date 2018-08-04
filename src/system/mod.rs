@@ -5,6 +5,7 @@ use std::future::FutureObj;
 use std::task::{Executor, SpawnObjError, SpawnErrorKind};
 use std::time::Duration;
 
+use crossbeam_channel::{Receiver, Sender};
 use log::{debug, trace, log};
 use mio_st::event::{Events, Evented, EventedId, Ready};
 use mio_st::poll::{Poller, PollOption};
@@ -39,6 +40,8 @@ pub struct ActorSystem {
     // FIXME: This is currently required mostly for tests and example 1 and 1b.
     // Try to remove it.
     has_initiators: bool,
+    /// Receiving side of the channel for `Waker` notifications.
+    waker_notifications: Receiver<ProcessId>,
 }
 
 impl ActorSystem {
@@ -92,6 +95,11 @@ impl ActorSystem {
             // Schedule all processes with a notification.
             for event in &mut events {
                 self.scheduler.schedule(event.id().into());
+            }
+
+            trace!("receiving waker events");
+            while let Some(pid) = self.waker_notifications.try_recv() {
+                self.scheduler.schedule(pid);
             }
 
             if !self.scheduler.run_process(&mut system_ref) && events.is_empty() {
@@ -236,11 +244,12 @@ impl Clone for ActorSystemRef {
 /// Inside of the `ActorSystem`, to which `ActorSystemRef`s have a reference to.
 #[derive(Debug)]
 struct ActorSystemInner {
-    // Scheduler that hold the processes, schedules and runs them.
-    //scheduler: Scheduler,
+    /// A reference to the scheduler to add new processes to.
     scheduler_ref: SchedulerRef,
     /// System poller, used for event notifications to support non-blocking I/O.
     poller: Poller,
+    /// Sending side of the channel for `Waker` notifications.
+    waker_notifications: Sender<ProcessId>,
 }
 
 impl ActorSystemInner {
@@ -267,7 +276,7 @@ impl ActorSystemInner {
         self.poller.register(&mut registration, pid.into(), Ready::READABLE, PollOption::Edge)?;
 
         // Create our waker, mailbox and actor reference.
-        let waker = new_waker(notifier.clone());
+        let waker = new_waker(pid, self.waker_notifications.clone());
         let mailbox = Shared::new(MailBox::new(notifier));
         let actor_ref = LocalActorRef::new(mailbox.downgrade());
 
@@ -314,13 +323,9 @@ impl ActorSystemInner {
         let pid = process_entry.id();
         debug!("adding task to actor system: pid={}", pid);
 
-        let (mut registration, notifier) = Registration::new();
-        self.poller.register(&mut registration, pid.into(), Ready::READABLE, PollOption::Edge)
-            .unwrap(); // Only returns an error in case of double register.
-
         // Create a new task process.
-        let waker = new_waker(notifier);
-        let process = TaskProcess::new(task, registration, waker);
+        let waker = new_waker(pid, self.waker_notifications.clone());
+        let process = TaskProcess::new(task, waker);
 
         // Actually add the process.
         // TODO: add an option to the `ActorSystemBuilder` to change the

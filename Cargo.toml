@@ -15,6 +15,7 @@ default = []
 test = []
 
 [dependencies]
+crossbeam-channel    = "0.2.4"
 futures-core-preview = "0.3.0-alpha.2"
 futures-io-preview   = "0.3.0-alpha.2"
 log                  = "0.4.2"

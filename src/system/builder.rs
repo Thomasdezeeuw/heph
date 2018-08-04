@@ -2,6 +2,7 @@
 
 use std::io;
 
+use crossbeam_channel as channel;
 use log::{debug, log};
 use mio_st::poll::Poller;
 use num_cpus;
@@ -38,16 +39,19 @@ impl ActorSystemBuilder {
         debug!("building actor system: n_processes={}",
             self.n_processes);
 
+        let (send, recv) = channel::unbounded();
         let (scheduler, scheduler_ref) = Scheduler::new();
         let inner = ActorSystemInner {
             scheduler_ref,
             poller: Poller::new()?,
+            waker_notifications: send,
         };
 
         Ok(ActorSystem {
             inner: Shared::new(inner),
             scheduler,
             has_initiators: false,
+            waker_notifications: recv,
         })
     }
 }
