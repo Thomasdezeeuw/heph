@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use mio_st::event::Ready;
 use mio_st::registration::Notifier;
 
-use crate::error::{SendError, SendErrorReason};
+use crate::error::{SendError, ErrorReason};
 
 /// Mailbox that holds all messages for an `Actor`.
 #[derive(Debug)]
@@ -38,7 +38,7 @@ impl<M> MailBox<M> {
             },
             Err(_) => Err(SendError {
                 message: msg,
-                reason: SendErrorReason::ActorShutdown,
+                reason: ErrorReason::ActorShutdown,
             }),
         }
     }

@@ -3,7 +3,7 @@
 use std::fmt;
 
 use crate::actor_ref::MachineLocalActorRef;
-use crate::error::{SendError, SendErrorReason};
+use crate::error::{SendError, ErrorReason};
 use crate::mailbox::MailBox;
 use crate::util::WeakShared;
 
@@ -77,7 +77,7 @@ impl<M> LocalActorRef<M> {
             Some(mut inbox) => inbox.borrow_mut().deliver(msg),
             None => Err(SendError {
                 message: msg,
-                reason: SendErrorReason::ActorShutdown,
+                reason: ErrorReason::ActorShutdown,
             }),
         }
     }

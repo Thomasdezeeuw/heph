@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use heph::actor::{ActorContext, actor_factory};
 use heph::actor_ref::LocalActorRef;
-use heph::error::{SendError, SendErrorReason};
+use heph::error::{SendError, ErrorReason};
 use heph::system::{ActorSystemBuilder, ActorOptions};
 
 async fn count_actor(mut ctx: ActorContext<i32>, total: Rc<RefCell<i32>>) -> Result<(), !> {
@@ -45,7 +45,7 @@ async fn single_receive_actor(mut ctx: ActorContext<()>, _: ()) -> Result<(), !>
 
 async fn sending_actor(_ctx: ActorContext<()>, mut actor_ref: LocalActorRef<()>) -> Result<(), !> {
     actor_ref.send(()).expect("unable to send first message");
-    assert_eq!(actor_ref.send(()), Err(SendError { message: (), reason: SendErrorReason::ActorShutdown }));
+    assert_eq!(actor_ref.send(()), Err(SendError { message: (), reason: ErrorReason::ActorShutdown }));
     Ok(())
 }
 
@@ -68,5 +68,5 @@ fn actor_ref_send_error() {
 
     // FIXME: currently this returns ActorShutdown, which is technically correct
     // but not what we want.
-    //assert_eq!(actor_ref.send(()), Err(SendError { message: (), reason: SendErrorReason::SystemShutdown }));
+    //assert_eq!(actor_ref.send(()), Err(SendError { message: (), reason: ErrorReason::SystemShutdown }));
 }

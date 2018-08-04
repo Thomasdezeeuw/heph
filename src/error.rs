@@ -179,12 +179,12 @@ impl fmt::Display for AddInitiatorErrorReason  {
 /// Printing the error doesn't print the message.
 ///
 /// ```
-/// use heph::error::{SendError, SendErrorReason};
+/// use heph::error::{SendError, ErrorReason};
 ///
 /// let error = SendError {
 ///     // Message will be ignored in printing the error.
 ///     message: (),
-///     reason: SendErrorReason::ActorShutdown,
+///     reason: ErrorReason::ActorShutdown,
 /// };
 ///
 /// assert_eq!(error.to_string(), "unable to send message: actor shutdown");
@@ -194,7 +194,7 @@ pub struct SendError<M> {
     /// The message that failed to send.
     pub message: M,
     /// The reason why the sending failed.
-    pub reason: SendErrorReason,
+    pub reason: ErrorReason,
 }
 
 impl<M> SendError<M> {
@@ -214,21 +214,23 @@ impl<M: fmt::Debug> Error for SendError<M> {
     }
 }
 
-/// The reason why sending a message failed.
+/// Generic error detail.
+///
+/// The reason why an operation failed.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
-pub enum SendErrorReason {
-    /// The actor, to which the message was meant to be sent, is shutdown.
+pub enum ErrorReason {
+    /// The relevant actor is shutdown.
     ActorShutdown,
     /// The system is shutdown.
     SystemShutdown,
 }
 
-impl fmt::Display for SendErrorReason {
+impl fmt::Display for ErrorReason {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            SendErrorReason::ActorShutdown => f.pad("actor shutdown"),
-            SendErrorReason::SystemShutdown=> f.pad(ERR_SYSTEM_SHUTDOWN),
+            ErrorReason::ActorShutdown => f.pad("actor shutdown"),
+            ErrorReason::SystemShutdown=> f.pad(ERR_SYSTEM_SHUTDOWN),
         }
     }
 }
