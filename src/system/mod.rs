@@ -209,6 +209,14 @@ impl ActorSystemRef {
             None => Err(io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN)),
         }
     }
+
+    /// Get an sending end of the notification channel.
+    ///
+    /// Returns `None` if the system is shutdown.
+    pub(crate) fn get_notification_sender(&mut self) -> Option<Sender<ProcessId>> {
+        self.inner.upgrade()
+            .map(|mut inner| inner.borrow_mut().waker_notifications.clone())
+    }
 }
 
 impl Executor for ActorSystemRef {
@@ -277,7 +285,7 @@ impl ActorSystemInner {
 
         // Create our waker, mailbox and actor reference.
         let waker = new_waker(pid, self.waker_notifications.clone());
-        let mailbox = Shared::new(MailBox::new(notifier));
+        let mailbox = Shared::new(MailBox::new(pid, notifier));
         let actor_ref = LocalActorRef::new(mailbox.downgrade());
 
         // Create the actor context and create an actor with it.
