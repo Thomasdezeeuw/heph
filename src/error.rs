@@ -3,171 +3,74 @@
 use std::{fmt, io};
 use std::error::Error;
 
-pub(crate) const ERR_SYSTEM_SHUTDOWN: &str = "actor system shutdown";
-
-/// Error when adding actors to the `ActorSystem`.
-///
-/// # Notes
-///
-/// When printing this error (using the `Display` implementation) the actor will
-/// not be printed.
-///
-/// # Examples
-///
-/// Printing the error doesn't print the actor.
-///
-/// ```
-/// use heph::error::{AddActorError, AddActorErrorReason};
-///
-/// let error = AddActorError {
-///     // Actor will be ignored in printing the error.
-///     new_actor: (),
-///     reason: AddActorErrorReason::SystemShutdown,
-/// };
-///
-/// assert_eq!(error.to_string(), "unable to add actor: actor system shutdown");
-/// ```
+/// Error returned when the actor is shutdown.
 #[derive(Debug)]
-pub struct AddActorError<N> {
-    /// The `NewActor` that failed to be added to the system.
-    pub new_actor: N,
-    /// The reason why the adding failed.
-    pub reason: AddActorErrorReason,
-}
+pub struct ActorShutdown;
 
-impl<N> AddActorError<N> {
-    /// Description for the error.
-    const DESC: &'static str = "unable to add actor";
-
-    /// Create a new `AddActorError`.
-    pub(crate) const fn new(new_actor: N, reason: AddActorErrorReason) -> AddActorError<N> {
-        AddActorError {
-            new_actor,
-            reason,
-        }
+impl From<ActorShutdown> for io::Error {
+    fn from(err: ActorShutdown) -> io::Error {
+        io::Error::new(io::ErrorKind::Other, err.description())
     }
 }
 
-impl<N> Into<io::Error> for AddActorError<N> {
-    fn into(self) -> io::Error {
-        use self::AddActorErrorReason::*;
-        match self.reason {
-            SystemShutdown => io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN),
-        }
-    }
-}
-
-impl<N> fmt::Display for AddActorError<N> {
+impl fmt::Display for ActorShutdown {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", AddActorError::<()>::DESC, &self.reason)
+        f.pad(self.description())
     }
 }
 
-impl<N: fmt::Debug> Error for AddActorError<N> {
+impl Error for ActorShutdown {
     fn description(&self) -> &str {
-        AddActorError::<()>::DESC
+        "actor shutdown"
     }
 }
 
-/// The reason why adding an actor failed.
+/// Error returned by running an `ActorSystem`.
 #[derive(Debug)]
-#[non_exhaustive]
-pub enum AddActorErrorReason {
-    /// The system is shutdown.
-    SystemShutdown,
+pub enum RuntimeError {
+    /// Error polling the system poller.
+    Poll(io::Error),
+    /// Error return by initialising an initiator.
+    Initiator(io::Error),
+    /// Error returned by user defined setup function.
+    Setup(io::Error),
+    /// Panic in a worker thread.
+    Panic(String),
 }
 
-impl fmt::Display for AddActorErrorReason {
+impl fmt::Display for RuntimeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::AddActorErrorReason::*;
+        use self::RuntimeError::*;
         match self {
-            SystemShutdown => f.pad(ERR_SYSTEM_SHUTDOWN),
+            Poll(ref err) => write!(f, "{}: error polling system poller: {}",
+                self.description(), err),
+            Initiator(ref err) => write!(f, "{}: error initialising initiator: {}",
+                self.description(), err),
+            Setup(ref err) => write!(f, "{}: error running setup function: {}",
+                self.description(), err),
+            Panic(ref msg) => write!(f, "{}: caught panic worker thread: {}",
+                self.description(), msg),
         }
     }
 }
 
-/// Error when adding initiators to the `ActorSystem`.
-///
-/// # Notes
-///
-/// When printing this error (using the `Display` implementation) the initator
-/// will not be printed.
-///
-/// # Examples
-///
-/// Printing the error doesn't print the actor.
-///
-/// ```
-/// use std::io;
-///
-/// use heph::error::{AddInitiatorError, AddInitiatorErrorReason};
-///
-/// let error = AddInitiatorError {
-///     // Initiator will be ignored in printing the error.
-///     initiator: (),
-///     reason: AddInitiatorErrorReason::InitFailed(io::ErrorKind::PermissionDenied.into()),
-/// };
-///
-/// assert_eq!(error.to_string(), "unable to add initiator: permission denied");
-/// ```
-#[derive(Debug)]
-pub struct AddInitiatorError<I> {
-    /// The initiator that failed to be added to the system.
-    pub initiator: I,
-    /// The reason why the adding failed.
-    pub reason: AddInitiatorErrorReason,
-}
-
-impl<A> AddInitiatorError<A> {
-    /// Description for the error.
-    const DESC: &'static str = "unable to add initiator";
-}
-
-impl<A> Into<io::Error> for AddInitiatorError<A> {
-    fn into(self) -> io::Error {
-        use self::AddInitiatorErrorReason ::*;
-        match self.reason {
-            InitFailed(err) => err,
-        }
-    }
-}
-
-impl<A> fmt::Display for AddInitiatorError<A> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", AddInitiatorError::<()>::DESC, &self.reason)
-    }
-}
-
-impl<A: fmt::Debug> Error for AddInitiatorError<A> {
+impl Error for RuntimeError {
     fn description(&self) -> &str {
-        AddInitiatorError::<()>::DESC
+        "error running actor system"
     }
 
     fn cause(&self) -> Option<&dyn Error> {
-        match self.reason {
-            AddInitiatorErrorReason::InitFailed(ref err) => Some(err),
-        }
-    }
-}
-
-/// The reason why adding an initiator failed.
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum AddInitiatorErrorReason {
-    /// The initialisation of the initiator failed.
-    InitFailed(io::Error),
-}
-
-impl fmt::Display for AddInitiatorErrorReason  {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::AddInitiatorErrorReason ::*;
+        use self::RuntimeError::*;
         match self {
-            InitFailed(ref err) => err.fmt(f),
+            Poll(ref err) | Initiator(ref err) | Setup(ref err) => Some(err),
+            Panic(_) => None,
         }
     }
 }
 
-/// Error when sending messages goes wrong.
+/// Error when sending a message.
+///
+/// The cause is that the actor is shutdown.
 ///
 /// # Notes
 ///
@@ -179,12 +82,11 @@ impl fmt::Display for AddInitiatorErrorReason  {
 /// Printing the error doesn't print the message.
 ///
 /// ```
-/// use heph::error::{SendError, ErrorReason};
+/// use heph::error::SendError;
 ///
 /// let error = SendError {
 ///     // Message will be ignored in printing the error.
 ///     message: (),
-///     reason: ErrorReason::ActorShutdown,
 /// };
 ///
 /// assert_eq!(error.to_string(), "unable to send message: actor shutdown");
@@ -193,79 +95,22 @@ impl fmt::Display for AddInitiatorErrorReason  {
 pub struct SendError<M> {
     /// The message that failed to send.
     pub message: M,
-    /// The reason why the sending failed.
-    pub reason: ErrorReason,
 }
 
-impl<M> SendError<M> {
-    /// Description for the error.
-    const DESC: &'static str = "unable to send message";
+impl<M: fmt::Debug> From<SendError<M>> for io::Error {
+    fn from(err: SendError<M>) -> io::Error {
+        io::Error::new(io::ErrorKind::Other, err.description())
+    }
 }
 
-impl<M> fmt::Display for SendError<M> {
+impl<M: fmt::Debug> fmt::Display for SendError<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", SendError::<()>::DESC, &self.reason)
+        f.pad(self.description())
     }
 }
 
 impl<M: fmt::Debug> Error for SendError<M> {
     fn description(&self) -> &str {
-        SendError::<()>::DESC
-    }
-}
-
-/// Generic error detail.
-///
-/// The reason why an operation failed.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[non_exhaustive]
-pub enum ErrorReason {
-    /// The relevant actor is shutdown.
-    ActorShutdown,
-    /// The system is shutdown.
-    SystemShutdown,
-}
-
-impl fmt::Display for ErrorReason {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ErrorReason::ActorShutdown => f.pad("actor shutdown"),
-            ErrorReason::SystemShutdown=> f.pad(ERR_SYSTEM_SHUTDOWN),
-        }
-    }
-}
-
-/// Error returned by running an `ActorSystem`.
-#[derive(Debug)]
-#[non_exhaustive]
-pub enum RuntimeError {
-    /// Error polling the system poller.
-    Poll(io::Error),
-}
-
-impl RuntimeError {
-    /// Description for the error.
-    const DESC: &'static str = "error running actor system";
-}
-
-impl fmt::Display for RuntimeError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::RuntimeError::*;
-        match self {
-            Poll(ref err) => write!(f, "{}: {}", RuntimeError::DESC, err),
-        }
-    }
-}
-
-impl Error for RuntimeError {
-    fn description(&self) -> &str {
-        RuntimeError::DESC
-    }
-
-    fn cause(&self) -> Option<&dyn Error> {
-        use self::RuntimeError::*;
-        match self {
-            Poll(ref err) => Some(err),
-        }
+        "unable to send message: actor shutdown"
     }
 }

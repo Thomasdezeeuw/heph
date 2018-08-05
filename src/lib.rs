@@ -50,5 +50,5 @@ pub mod prelude {
     pub use crate::actor::{Actor, NewActor};
     pub use crate::actor_ref::{ActorRef, LocalActorRef};
     //pub use crate::supervisor::{Supervisor, RestartStrategy};
-    pub use crate::system::{ActorSystem, ActorSystemBuilder, ActorOptions};
+    pub use crate::system::{ActorSystem, ActorOptions};
 }

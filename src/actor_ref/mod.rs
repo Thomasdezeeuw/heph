@@ -39,7 +39,7 @@
 //! #![feature(async_await, await_macro, futures_api)]
 //!
 //! use heph::actor::{ActorContext, actor_factory};
-//! use heph::system::{ActorSystemBuilder, ActorOptions};
+//! use heph::system::{ActorSystem, ActorOptions};
 //!
 //! /// Our actor.
 //! async fn actor(mut ctx: ActorContext<String>, _: ()) -> Result<(), ()> {
@@ -49,20 +49,18 @@
 //! }
 //!
 //! // Add the actor to the system.
-//! let mut actor_system = ActorSystemBuilder::default().build().unwrap();
-//! let new_actor = actor_factory(actor);
-//! let mut actor_ref = actor_system.add_actor(new_actor, (), ActorOptions::default());
+//! let actor_system = ActorSystem::new()
+//!     .with_setup(|mut system_ref| {
+//!         // Add the actor to the actor system.
+//!         let new_actor = actor_factory(actor);
+//!         let mut actor_ref = system_ref.add_actor(new_actor, (), ActorOptions::default());
 //!
-//! // Now we can use the reference to send the actor a message, without
-//! // having to use `Message` we can just use `String`.
-//! actor_ref.send("Hello world".to_owned());
-//!
-//! // To create another `ActorRef` we can simply clone the first one.
-//! let mut second_actor_ref = actor_ref.clone();
-//! // A now we use that one to send messages as well.
-//! second_actor_ref.send("Byte world".to_owned());
-//! #
-//! # actor_system.run().unwrap();
+//!         // Now we can use the reference to send the actor a message.
+//!         actor_ref.send("Hello world".to_owned())?;
+//!         Ok(())
+//!     })
+//!     .run()
+//!     .unwrap();
 //! ```
 //!
 //! ## Sharing actor reference
@@ -76,33 +74,34 @@
 //! #![feature(async_await, await_macro, futures_api)]
 //!
 //! use heph::actor::{ActorContext, actor_factory};
-//! use heph::system::{ActorSystemBuilder, ActorOptions};
+//! use heph::system::{ActorSystem, ActorOptions};
 //!
 //! /// Our actor.
 //! async fn actor(mut ctx: ActorContext<String>, _: ()) -> Result<(), ()> {
-//!     let msg1 = await!(ctx.receive());
-//!     println!("got first message: {}", msg1);
+//!     let msg = await!(ctx.receive());
+//!     println!("got first message: {}", msg);
 //!
-//!     let msg2 = await!(ctx.receive());
-//!     println!("got second message: {}", msg2);
+//!     let msg = await!(ctx.receive());
+//!     println!("got second message: {}", msg);
 //!     Ok(())
 //! }
 //!
 //! // Add the actor to the system.
-//! let mut actor_system = ActorSystemBuilder::default().build().unwrap();
-//! let new_actor = actor_factory(actor);
-//! let mut actor_ref = actor_system.add_actor(new_actor, (), ActorOptions::default());
+//! let actor_system = ActorSystem::new()
+//!     .with_setup(|mut system_ref| {
+//!         let new_actor = actor_factory(actor);
+//!         let mut actor_ref = system_ref.add_actor(new_actor, (), ActorOptions::default());
 //!
-//! // Now we can use the reference to send the actor a message, without
-//! // having to use `Message` we can just use `String`.
-//! actor_ref.send("Hello world".to_owned());
+//!         // To create another `ActorRef` we can simply clone the first one.
+//!         let mut second_actor_ref = actor_ref.clone();
 //!
-//! // To create another `ActorRef` we can simply clone the first one.
-//! let mut second_actor_ref = actor_ref.clone();
-//! // A now we use that one to send messages as well.
-//! second_actor_ref.send("Byte world".to_owned());
-//! #
-//! # actor_system.run().unwrap();
+//!         // Now we can use both references to send a messsage.
+//!         actor_ref.send("Hello world".to_owned())?;
+//!         second_actor_ref.send("Byte world".to_owned())?;
+//!         Ok(())
+//!     })
+//!     .run()
+//!     .unwrap();
 //! ```
 
 use std::fmt;

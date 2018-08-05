@@ -8,7 +8,7 @@ use std::thread;
 use std::time::Duration;
 
 use heph::actor::{ActorContext, actor_factory};
-use heph::system::{ActorSystemBuilder, ActorOptions};
+use heph::system::{ActorSystem, ActorOptions};
 
 /// Our "actor", but it doesn't do much.
 async fn actor(_: ActorContext<!>, _: ()) -> Result<(), !> {
@@ -16,14 +16,18 @@ async fn actor(_: ActorContext<!>, _: ()) -> Result<(), !> {
 }
 
 fn main() {
-    let mut actor_system = ActorSystemBuilder::default().build()
-        .expect("unable to build the actor system");
+    ActorSystem::new()
+        .with_setup(|mut system_ref| {
+            for _ in 0..10_000_000 {
+                let new_actor = actor_factory(actor);
+                let _ = system_ref.add_actor(new_actor, (), ActorOptions::default());
+            }
 
-    for _ in 0..10_000_000 {
-        let new_actor = actor_factory(actor);
-        let _ = actor_system.add_actor(new_actor, (), ActorOptions::default());
-    }
+            println!("Running, check the memory usage!");
+            thread::sleep(Duration::from_secs(100));
 
-    println!("Running, check the memory usage!");
-    thread::sleep(Duration::from_secs(100));
+            Ok(())
+        })
+        .run()
+        .expect("unable to run actor system");
 }

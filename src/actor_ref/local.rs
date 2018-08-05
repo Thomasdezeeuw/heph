@@ -3,7 +3,7 @@
 use std::fmt;
 
 use crate::actor_ref::MachineLocalActorRef;
-use crate::error::{SendError, ErrorReason};
+use crate::error::{ActorShutdown, SendError};
 use crate::mailbox::MailBox;
 use crate::system::ActorSystemRef;
 use crate::util::WeakShared;
@@ -38,10 +38,7 @@ impl<M> LocalActorRef<M> {
     {
         match self.inbox.upgrade() {
             Some(mut inbox) => inbox.borrow_mut().deliver(msg),
-            None => Err(SendError {
-                message: msg,
-                reason: ErrorReason::ActorShutdown,
-            }),
+            None => Err(SendError { message: msg }),
         }
     }
 
@@ -49,17 +46,13 @@ impl<M> LocalActorRef<M> {
     ///
     /// This allows the actor reference to be send across threads, however
     /// operations on it are more expensive.
-    pub fn upgrade(self, system_ref: &mut ActorSystemRef) -> Result<MachineLocalActorRef<M>, ErrorReason> {
+    pub fn upgrade(self, system_ref: &mut ActorSystemRef) -> Result<MachineLocalActorRef<M>, ActorShutdown> {
         let (pid, sender) = match self.inbox.upgrade() {
             Some(mut inbox) => inbox.borrow_mut().upgrade_ref(),
-            None => return Err(ErrorReason::ActorShutdown),
+            None => return Err(ActorShutdown),
         };
 
-        let notification_sender = match system_ref.get_notification_sender() {
-            Some(s) => s,
-            None => return Err(ErrorReason::SystemShutdown),
-        };
-
+        let notification_sender = system_ref.get_notification_sender();
         let waker = new_waker(pid, notification_sender);
         Ok(MachineLocalActorRef::new(sender, waker.into()))
     }

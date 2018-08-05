@@ -7,7 +7,7 @@ use mio_st::event::Ready;
 use mio_st::registration::Notifier;
 
 use crate::process::ProcessId;
-use crate::error::{SendError, ErrorReason};
+use crate::error::SendError;
 
 /// Mailbox that holds all messages for an `Actor`.
 #[derive(Debug)]
@@ -46,10 +46,7 @@ impl<M> MailBox<M> {
                 self.messages.push_back(msg.into());
                 Ok(())
             },
-            Err(_) => Err(SendError {
-                message: msg,
-                reason: ErrorReason::ActorShutdown,
-            }),
+            Err(_) => Err(SendError { message: msg }),
         }
     }
 
