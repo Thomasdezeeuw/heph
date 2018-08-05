@@ -1,7 +1,6 @@
 //! Network related types.
 
 use std::io::{self, ErrorKind, Read, Write};
-use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::task::{Context, Poll};
 
@@ -28,15 +27,13 @@ pub struct TcpListener<N> {
     options: ActorOptions,
     /// NewActor used to create an actor for each connection.
     new_actor: N,
-    /// Don't implement `Send` or `Sync`.
-    _phantom: PhantomData<*mut ()>,
 }
 
 // TODO: remove the static lifetime from `A`, it also needs to be removed from
 // the ActorSystem.add_actor_setup.
 
 impl<N> TcpListener<N>
-    where N: NewActor<Item = (TcpStream, SocketAddr)> + 'static + Clone,
+    where N: NewActor<Item = (TcpStream, SocketAddr)> + 'static + Clone + Send,
 {
     /// Bind a new TCP listener to the provided `address`.
     ///
@@ -51,17 +48,24 @@ impl<N> TcpListener<N>
             listener: MioTcpListener::bind(address)?,
             options,
             new_actor,
-            _phantom: PhantomData,
         })
     }
 }
 
 impl<N> Initiator for TcpListener<N>
-    where N: NewActor<Item = (TcpStream, SocketAddr)> + 'static,
+    where N: NewActor<Item = (TcpStream, SocketAddr)> + 'static + Clone + Send,
 {
     fn init(&mut self, poller: &mut Poller, pid: ProcessId) -> io::Result<()> {
         poller.register(&mut self.listener, pid.into(),
             Ready::READABLE | Ready::ERROR, PollOption::Edge)
+    }
+
+    fn clone_threaded(&mut self) -> io::Result<Self> {
+        Ok(TcpListener {
+            listener: self.listener.try_clone()?,
+            options: self.options.clone(),
+            new_actor: self.new_actor.clone(),
+        })
     }
 
     fn poll(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()> {
