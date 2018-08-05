@@ -40,17 +40,16 @@ pub struct DeadlinePassed;
 ///
 /// # Examples
 ///
-/// Using the `select!` macro to add a timeout to receiving a message. Also see
-/// `Deadline` for an alternative approach.
+/// Using the `select!` macro to add a timeout to receiving a message.
 ///
 /// ```
 /// #![feature(async_await, await_macro, futures_api, pin, never_type)]
 ///
 /// use std::time::Duration;
 ///
+/// use futures_util::select;
 /// use heph::actor::{ActorContext, actor_factory};
 /// use heph::timer::Timer;
-/// use futures_util::select;
 ///
 /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
 ///     loop {
@@ -118,7 +117,7 @@ impl Future for Timer {
 ///
 /// # Examples
 ///
-/// Receiving a message with a maximum timeout.
+/// Setting a timeout for a future.
 ///
 /// ```
 /// #![feature(async_await, await_macro, futures_api, pin, never_type)]
@@ -130,9 +129,9 @@ impl Future for Timer {
 /// use std::thread::sleep;
 /// use std::time::Duration;
 ///
+/// use futures_util::select;
 /// use heph::actor::{ActorContext, actor_factory};
 /// use heph::timer::{DeadlinePassed, Deadline};
-/// use futures_util::select;
 ///
 /// # struct OtherFuture;
 /// #
@@ -216,10 +215,10 @@ impl<Fut> Future for Deadline<Fut>
 ///
 /// use std::time::Duration;
 ///
-/// use heph::actor::{ActorContext, actor_factory};
-/// use heph::timer::Interval;
 /// use futures_util::future::ready;
 /// use futures_util::stream::StreamExt;
+/// use heph::actor::{ActorContext, actor_factory};
+/// use heph::timer::Interval;
 ///
 /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
 ///     let interval = Interval::new(&mut ctx, Duration::from_secs(1));
