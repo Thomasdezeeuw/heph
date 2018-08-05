@@ -3,7 +3,7 @@
 use std::io;
 use std::future::FutureObj;
 use std::task::{Executor, SpawnObjError, SpawnErrorKind};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossbeam_channel::{Receiver, Sender};
 use log::{debug, trace, log};
@@ -213,6 +213,12 @@ impl ActorSystemRef {
     pub(crate) fn get_notification_sender(&mut self) -> Option<Sender<ProcessId>> {
         self.inner.upgrade()
             .map(|mut inner| inner.borrow_mut().waker_notifications.clone())
+    }
+
+    pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) -> io::Result<()> {
+        self.inner.upgrade()
+            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, ERR_SYSTEM_SHUTDOWN))
+            .and_then(|mut inner| inner.borrow_mut().poller.add_deadline(pid.into(), deadline))
     }
 }
 

@@ -21,9 +21,6 @@ use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
 use futures_core::stream::Stream;
-use mio_st::event::Ready;
-use mio_st::poll::PollOption;
-use mio_st::timer::Timer as MioTimer;
 
 use crate::actor::ActorContext;
 use crate::process::ProcessId;
@@ -274,8 +271,6 @@ impl Stream for Interval {
 
 /// Notify the provided `pid` on the provided `deadline`.
 fn set_timer(system_ref: &mut ActorSystemRef, pid: ProcessId, deadline: Instant) {
-    let mut timer = MioTimer::deadline(deadline);
-    system_ref.poller_register(&mut timer, pid.into(), Ready::TIMER,
-        PollOption::Oneshot).unwrap();
-    // We don't need to keep timer, it's safe to drop it here.
+    // FIXME: return the error.
+    system_ref.add_deadline(pid.into(), deadline).unwrap();
 }
