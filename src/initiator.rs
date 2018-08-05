@@ -41,3 +41,19 @@ pub trait Initiator: Sized + Send {
     #[doc(hidden)]
     fn poll(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()>;
 }
+
+/// This is by `ActorSystemBuilder` when no initiators are used.
+#[doc(hidden)]
+impl Initiator for ! {
+    fn clone_threaded(&self) -> io::Result<Self> {
+        *self
+    }
+
+    fn init(&mut self, _poll: &mut Poller, _pid: ProcessId) -> io::Result<()> {
+        *self
+    }
+
+    fn poll(&mut self, _system_ref: &mut ActorSystemRef) -> io::Result<()> {
+        *self
+    }
+}
