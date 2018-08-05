@@ -69,6 +69,7 @@ impl fmt::Debug for ActorOptions {
 ///
 /// let opts = InitiatorOptions::default();
 /// ```
+#[derive(Clone)]
 pub struct InitiatorOptions {
     /// Reserved for future expansion. Use the `Default` implementation to set
     /// this field, see example in struct documentation.
