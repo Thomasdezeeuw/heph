@@ -56,18 +56,18 @@ impl<N> Initiator for TcpListener<N>
     where N: NewActor<Item = (TcpStream, SocketAddr)> + 'static + Clone + Send,
 {
     #[doc(hidden)]
-    fn init(&mut self, poller: &mut Poller, pid: ProcessId) -> io::Result<()> {
-        poller.register(&mut self.listener, pid.into(),
-            Ready::READABLE | Ready::ERROR, PollOption::Edge)
-    }
-
-    #[doc(hidden)]
-    fn clone_threaded(&mut self) -> io::Result<Self> {
+    fn clone_threaded(&self) -> io::Result<Self> {
         Ok(TcpListener {
             listener: self.listener.try_clone()?,
             options: self.options.clone(),
             new_actor: self.new_actor.clone(),
         })
+    }
+
+    #[doc(hidden)]
+    fn init(&mut self, poller: &mut Poller, pid: ProcessId) -> io::Result<()> {
+        poller.register(&mut self.listener, pid.into(),
+            Ready::READABLE | Ready::ERROR, PollOption::Edge)
     }
 
     #[doc(hidden)]

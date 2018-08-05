@@ -22,16 +22,16 @@ use crate::system::ActorSystemRef;
 /// This trait is private and can only be implemented by internal types. It's
 /// only public for documentation purposes.
 pub trait Initiator: Sized + Send {
-    /// Initialise the initiator.
-    ///
-    /// This will be called once the initiator is added to the actor system.
-    /// Only after which `clone_threaded` is called.
-    #[doc(hidden)]
-    fn init(&mut self, poll: &mut Poller, pid: ProcessId) -> io::Result<()>;
-
     /// Create a clone of itself to be send to another thread.
     #[doc(hidden)]
-    fn clone_threaded(&mut self) -> io::Result<Self>;
+    fn clone_threaded(&self) -> io::Result<Self>;
+
+    /// Initialise the initiator.
+    ///
+    /// This will be called after `clone_threaded` is called, on the thread the
+    /// initiator needs to run.
+    #[doc(hidden)]
+    fn init(&mut self, poll: &mut Poller, pid: ProcessId) -> io::Result<()>;
 
     /// Poll the `Initiator` for new events.
     ///
