@@ -16,48 +16,9 @@ use crate::waker::new_waker;
 /// reference can be [upgraded] to a [`MachineLocalActorRef`] which is allowed
 /// to be send across thread bounds.
 ///
-/// As with all actor references it can be used to send messages to the actor.
-/// To share this reference simply clone it. For more see [`ActorRef`].
-///
 /// [`ActorSystem`]: ../system/struct.ActorSystem.html
 /// [upgraded]: #method.upgrade
 /// [`MachineLocalActorRef`]: struct.MachineLocalActorRef.html
-/// [`ActorRef`]: enum.ActorRef.html
-///
-/// # Examples
-///
-/// ```
-/// #![feature(async_await, await_macro, futures_api)]
-///
-/// use heph::actor::{ActorContext, actor_factory};
-/// use heph::system::{ActorSystemBuilder, ActorOptions};
-///
-/// /// Our actor.
-/// async fn actor(mut ctx: ActorContext<String>, _: ()) -> Result<(), ()> {
-///     let msg1 = await!(ctx.receive());
-///     println!("got first message: {}", msg1);
-///     let msg2 = await!(ctx.receive());
-///
-///     println!("got second message: {}", msg2);
-///     Ok(())
-/// }
-///
-/// // Add the actor to the system.
-/// let mut actor_system = ActorSystemBuilder::default().build().unwrap();
-/// let new_actor = actor_factory(actor);
-/// let mut actor_ref = actor_system.add_actor(new_actor, (), ActorOptions::default());
-///
-/// // Now we can use the reference to send the actor a message, without
-/// // having to use `Message` we can just use `String`.
-/// actor_ref.send("Hello world".to_owned());
-///
-/// // To create another `ActorRef` we can simply clone the first one.
-/// let mut second_actor_ref = actor_ref.clone();
-/// // A now we use that one to send messages as well.
-/// second_actor_ref.send("Byte world".to_owned());
-/// #
-/// # actor_system.run().unwrap();
-/// ```
 pub struct LocalActorRef<M> {
     /// The inbox of the `Actor`, owned by the `ActorProcess`.
     inbox: WeakShared<MailBox<M>>,
