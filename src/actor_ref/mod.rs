@@ -135,7 +135,7 @@ pub enum ActorRef<M> {
 
 impl<M> ActorRef<M> {
     /// TODO: docs.
-    pub fn send<'r, Msg>(&'r mut self, msg: Msg) -> Result<(), SendError<Msg>>
+    pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<Msg>>
         where Msg: Into<M>,
     {
         use self::ActorRef::*;

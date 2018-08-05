@@ -62,6 +62,6 @@ impl<M> MailBox<M> {
 
     /// Used by `LocalActorRef` to upgrade to `MachineLocalActorRef`.
     pub(crate) fn upgrade_ref(&mut self) -> (ProcessId, Sender<M>) {
-        (self.pid, self.messages2.get_or_insert_with(|| channel::unbounded()).0.clone())
+        (self.pid, self.messages2.get_or_insert_with(channel::unbounded).0.clone())
     }
 }
