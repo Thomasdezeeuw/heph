@@ -15,9 +15,6 @@ use crate::util::Shared;
 
 mod priority;
 
-#[cfg(all(test, feature = "test"))]
-mod tests;
-
 pub use self::priority::Priority;
 
 // TODO: add lifetime to `Scheduler`, to no longer require `Actor`s and
