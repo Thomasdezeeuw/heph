@@ -49,12 +49,11 @@ pub trait NewActor {
     ///
     /// Here is an example of using an enum as message type.
     ///
-    // TODO: renable, currently causes a compiler panic.
-    /// ```ignore
+    /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
-    /// use actor::actor::{ActorContext, actor_factory};
-    /// use actor::system::{ActorSystemBuilder, ActorOptions};
+    /// use heph::actor::{ActorContext, actor_factory};
+    /// use heph::system::{ActorSystem, ActorOptions};
     ///
     /// // The message type for the actor.
     /// #[derive(Debug)]
@@ -81,15 +80,19 @@ pub trait NewActor {
     /// }
     ///
     /// // Create an `ActorSystem`.
-    /// let mut actor_system = ActorSystemBuilder::default().build().unwrap();
+    /// let mut actor_system = ActorSystem::new()
+    ///     .with_setup(|mut system_ref| {
+    ///         // Add the actor to the system.
+    ///         let new_actor = actor_factory(actor);
+    ///         let mut actor_ref = system_ref.add_actor(new_actor, (), ActorOptions::default());
     ///
-    /// // Add the actor to the system.
-    /// let new_actor = actor_factory(actor);
-    /// let mut actor_ref = actor_system.add_actor(new_actor, (), ActorOptions::default());
+    ///         // Now we can use the reference to send the actor a message, without
+    ///         // having to use `Message` we can just use `String`.
+    ///         actor_ref.send("Hello world".to_owned());
+    ///         Ok(())
+    ///     })
+    ///     .run().unwrap();
     ///
-    /// // Now we can use the reference to send the actor a message, without
-    /// // having to use `Message` we can just use `String`.
-    /// actor_ref.send("Hello world".to_owned());
     /// ```
     type Message;
 
