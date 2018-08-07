@@ -23,9 +23,6 @@
         variant_size_differences,
 )]
 
-#[cfg(all(test, feature = "test"))]
-extern crate env_logger;
-
 pub mod actor;
 pub mod actor_ref;
 pub mod error;

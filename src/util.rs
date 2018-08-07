@@ -50,14 +50,6 @@ pub(crate) struct WeakShared<T> {
 }
 
 impl<T> WeakShared<T> {
-    /// Create a new, empty shared value.
-    #[cfg(feature = "test")]
-    pub fn new() -> WeakShared<T> {
-        WeakShared {
-            inner: Weak::new(),
-        }
-    }
-
     /// See `Weak.upgrade`.
     pub fn upgrade(&self) -> Option<Shared<T>> {
         self.inner.upgrade()
