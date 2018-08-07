@@ -1,4 +1,4 @@
-//! Options for adding an actor or initiator to an `ActorSystem`.
+//! Options for adding an `Actor` or `Initiator` to an `ActorSystem`.
 
 use std::fmt;
 
@@ -58,7 +58,7 @@ impl fmt::Debug for ActorOptions {
 /// Options for adding an [`Initiator`] to an [`ActorSystem`].
 ///
 /// [`ActorSystem`]: ../struct.ActorSystem.html
-/// [`Initiator`]: ../initiator/trait.Initiator.html
+/// [`Initiator`]: ../../initiator/trait.Initiator.html
 ///
 /// # Examples
 ///
