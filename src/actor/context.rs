@@ -107,14 +107,14 @@ impl<M> ActorContext<M> {
         LocalActorRef::new(self.inbox.downgrade())
     }
 
+    /// Get a reference to the actor system this actor is running in.
+    pub fn system_ref(&mut self) -> &mut ActorSystemRef {
+        &mut self.system_ref
+    }
+
     /// Get the pid of this actor.
     pub(crate) fn pid(&self) -> ProcessId {
         self.pid
-    }
-
-    /// Get the reference to the actor system.
-    pub(crate) fn system_ref(&mut self) -> &mut ActorSystemRef {
-        &mut self.system_ref
     }
 }
 
