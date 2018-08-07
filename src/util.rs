@@ -1,6 +1,6 @@
 //! Module with utilities used throughout the crate.
 
-use std::cell::{RefCell, Ref, RefMut};
+use std::cell::{RefCell, RefMut};
 use std::rc::{Rc, Weak};
 
 /// A `Rc<RefCell<T>>` with some easy to use methods.
@@ -15,15 +15,6 @@ impl<T> Shared<T> {
     pub fn new(value: T) -> Shared<T> {
         Shared {
             inner: Rc::new(RefCell::new(value)),
-        }
-    }
-
-    /// Borrow the value, i.e. `&T`.
-    #[allow(dead_code)]
-    pub fn borrow(&self) -> Ref<T> {
-        match self.inner.try_borrow() {
-            Ok(inner) => inner,
-            Err(_) => unreachable!("tried to borrow an already borrowed Shared"),
         }
     }
 
