@@ -272,5 +272,5 @@ impl Stream for Interval {
 /// Notify the provided `pid` on the provided `deadline`.
 fn set_timer(system_ref: &mut ActorSystemRef, pid: ProcessId, deadline: Instant) {
     // FIXME: return the error.
-    system_ref.add_deadline(pid.into(), deadline).unwrap();
+    system_ref.add_deadline(pid, deadline).unwrap();
 }

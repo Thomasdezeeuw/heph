@@ -306,7 +306,7 @@ fn run_system<I, S>(initiators: Vec<(I, InitiatorOptions)>,  setup: Option<S>) -
     // Run optional setup.
     if let Some(setup) = setup {
         let system_ref = actor_system.create_ref();
-        setup.setup(system_ref).map_err(|err| RuntimeError::Setup(err))?;
+        setup.setup(system_ref).map_err(RuntimeError::Setup)?;
     }
 
     // All setup is done, so we're ready to run the event loop.
