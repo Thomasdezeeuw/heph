@@ -26,5 +26,6 @@ slab                 = "0.4.0"
 mio-st = { git = "ssh://git@github.com/Thomasdezeeuw/mio-st.git" }
 
 [dev-dependencies]
-env_logger = "0.5.10"
-futures-util-preview = "0.3.0-alpha.1"
+env_logger           = "0.5.10"
+futures-util-preview = "0.3.0-alpha.2"
+lazy_static          = "1.1.0"
