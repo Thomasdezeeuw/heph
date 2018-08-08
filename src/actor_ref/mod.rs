@@ -15,11 +15,10 @@
 //!
 //! ## Sending messages
 //!
-//! All flavours of actor references have a `send` message which all return
-//! `Result<(), SendError<Msg>>`. None of these methods block, even the remote
-//! actor reference, but the method doesn't provided a lot of guarantees. What
-//! `send` does is add the message to the queue of messages for the actor,
-//! asynchronously.
+//! All flavours of actor references have a `send` method. These methods don't
+//! block, even on the remote actor reference, but the method doesn't provided a
+//! lot of guarantees. What `send` does is add the message to the queue of
+//! messages for the actor, asynchronously.
 //!
 //! In case of the local actor reference this can be done directly. But for
 //! machine local actor references the message must first be send across thread
@@ -27,10 +26,14 @@
 //! references even need to send this message across a network, a lot can go
 //! wrong here.
 //!
-//! This means that even if `send` return `Ok` it doesn't mean the message is
+//! This means that even if `send` returns `Ok` it doesn't mean the message is
 //! received and handled by the actor. It could be that a remote actor is no
 //! longer available, or that even a local actor crashes before the message is
 //! handled.
+//!
+//! If guarantees are needed that a message is handled the receiving actor
+//! should send back an acknowledgment that the message is received and handled
+//! correctly.
 //!
 //! The following example shows how messages can be send. It uses a
 //! `LocalActorRef` but it's the same for all flavours.
@@ -48,22 +51,21 @@
 //!     Ok(())
 //! }
 //!
-//! // Add the actor to the system.
-//! let actor_system = ActorSystem::new()
+//! ActorSystem::new()
 //!     .with_setup(|mut system_ref| {
 //!         // Add the actor to the actor system.
 //!         let new_actor = actor_factory(actor);
 //!         let mut actor_ref = system_ref.add_actor(new_actor, (), ActorOptions::default());
 //!
 //!         // Now we can use the reference to send the actor a message.
-//!         actor_ref.send("Hello world".to_owned())?;
+//!         actor_ref.send("Hello world".to_owned());
 //!         Ok(())
 //!     })
 //!     .run()
 //!     .unwrap();
 //! ```
 //!
-//! ## Sharing actor reference
+//! ## Sharing actor references
 //!
 //! All actor references can be cloned to be shared.
 //!
@@ -86,8 +88,7 @@
 //!     Ok(())
 //! }
 //!
-//! // Add the actor to the system.
-//! let actor_system = ActorSystem::new()
+//! ActorSystem::new()
 //!     .with_setup(|mut system_ref| {
 //!         let new_actor = actor_factory(actor);
 //!         let mut actor_ref = system_ref.add_actor(new_actor, (), ActorOptions::default());
@@ -133,7 +134,7 @@ pub enum ActorRef<M> {
 }
 
 impl<M> ActorRef<M> {
-    /// TODO: docs.
+    /// Send a message to the actor.
     pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<Msg>>
         where Msg: Into<M>,
     {
