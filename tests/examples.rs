@@ -3,11 +3,12 @@
 
 use std::io::{Read, Write};
 use std::net::{TcpStream, SocketAddr};
+use std::ops::{Deref, DerefMut};
+use std::panic;
 use std::process::{Command, Child, Stdio};
 use std::sync::Mutex;
 use std::thread::sleep;
 use std::time::Duration;
-use std::panic;
 
 use lazy_static::lazy_static;
 
@@ -84,19 +85,48 @@ sequential_test! {
     }
 }
 
+/// Wrapper around a `command::Child` that kills the process when dropped, even
+/// if the test failed. Sometimes the child command would survive the test when
+/// running then in a loop (e.g. with `cargo watch`). This caused problems when
+/// trying to bind to the same port again.
+struct ChildCommand {
+    inner: Child,
+}
+
+impl Deref for ChildCommand {
+    type Target = Child;
+
+    fn deref(&self) -> &Child {
+        &self.inner
+    }
+}
+
+impl DerefMut for ChildCommand {
+    fn deref_mut(&mut self) -> &mut Child {
+        &mut self.inner
+    }
+}
+
+impl Drop for ChildCommand {
+    fn drop(&mut self) {
+        let _ = self.inner.kill();
+    }
+}
+
 /// Run the example with the given name.
-fn run_example(name: &'static str) -> Child {
+fn run_example(name: &'static str) -> ChildCommand {
     Command::new("cargo")
         .args(&["run", "--example", name])
         .stdin(Stdio::null())
         .stderr(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
+        .map(|inner| ChildCommand { inner })
         .expect("unable to run example")
 }
 
 /// Read the standard output of the child command.
-fn read_output(mut child: Child) -> String {
+fn read_output(mut child: ChildCommand) -> String {
     child.wait().expect("error running example");
 
     let mut stdout = child.stdout.take().unwrap();
