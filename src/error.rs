@@ -25,7 +25,9 @@ impl Error for ActorShutdown {
     }
 }
 
-/// Error returned by running an `ActorSystem`.
+/// Error returned by running an [`ActorSystem`].
+///
+/// [`ActorSystem`]: ../system/struct.ActorSystem.html
 #[derive(Debug)]
 pub enum RuntimeError {
     /// Error polling the system poller.
