@@ -8,6 +8,8 @@ use crossbeam_channel::Sender;
 use crate::process::ProcessId;
 
 /// Create a new `LocalWaker`.
+///
+/// The implementation will send `ProcessId` into the `sender` channel.
 pub fn new_waker(pid: ProcessId, sender: Sender<ProcessId>) -> LocalWaker {
     let waker = Arc::new(Waker {
         pid,
@@ -16,6 +18,9 @@ pub fn new_waker(pid: ProcessId, sender: Sender<ProcessId>) -> LocalWaker {
     local_waker_from_nonlocal(waker)
 }
 
+/// The implementation behind [`new_waker`].
+///
+/// [`new_waker`]: fn.new_waker.html
 #[derive(Debug)]
 struct Waker {
     pid: ProcessId,
