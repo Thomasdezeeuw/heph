@@ -18,7 +18,47 @@ use crate::system::{ActorSystemRef, ActorOptions};
 
 /// A TCP listener that implements the [`Initiator`] trait.
 ///
+/// This listener will accept TCP connections and for each incoming connection
+/// create an actor, via the [`NewActor`] trait.
+///
 /// [`Initiator`]: ../initiator/trait.Initiator.html
+/// [`NewActor`]: ../actor/trait.NewActor.html
+///
+/// # Example
+///
+/// The following example is a TCP server that writes "Hello World" to the
+/// connection.
+///
+/// ```
+/// #![feature(async_await, await_macro, futures_api, never_type)]
+///
+/// use std::io;
+/// use std::net::SocketAddr;
+///
+/// use futures_util::AsyncWriteExt;
+///
+/// use heph::actor::{ActorContext, actor_factory};
+/// use heph::net::{TcpListener, TcpStream};
+/// use heph::system::{ActorSystem, ActorOptions, InitiatorOptions};
+///
+/// async fn conn_actor(_ctx: ActorContext<!>, (mut stream, address): (TcpStream, SocketAddr)) -> io::Result<()> {
+///     await!(stream.write_all(b"Hello World"))
+/// }
+///
+/// // The address to listen on.
+/// let address = "127.0.0.1:7890".parse().unwrap();
+///
+/// // Create our TCP listener. We'll use the default actor options.
+/// let new_actor = actor_factory(conn_actor);
+/// let listener = TcpListener::bind(address, new_actor, ActorOptions::default())
+///     .expect("unable to bind TCP listener");
+///
+/// // We create our actor system.
+/// ActorSystem::new()
+///     // We add our TCP listener, using the default options.
+///     .with_initiator(listener, InitiatorOptions::default())
+///     # ; // We don't actually want to run this.
+/// ```
 #[derive(Debug)]
 pub struct TcpListener<N> {
     /// The underlying TCP listener, backed by mio.
@@ -28,9 +68,6 @@ pub struct TcpListener<N> {
     /// NewActor used to create an actor for each connection.
     new_actor: N,
 }
-
-// TODO: remove the static lifetime from `A`, it also needs to be removed from
-// the ActorSystem.add_actor_setup.
 
 impl<N> TcpListener<N>
     where N: NewActor<Item = (TcpStream, SocketAddr)> + 'static + Clone + Send,
@@ -100,10 +137,10 @@ impl<N> Initiator for TcpListener<N>
     }
 }
 
-/// TODO: docs.
+/// A non-blocking TCP stream between a local socket and a remote socket.
 #[derive(Debug)]
 pub struct TcpStream {
-    /// Underlying TCP connection.
+    /// Underlying TCP connection, backed by mio.
     inner: MioTcpStream,
     /// A reference to the actor system in which this connection is located,
     /// used to deregister itself when dropped.
