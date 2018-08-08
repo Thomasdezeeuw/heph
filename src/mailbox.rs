@@ -1,4 +1,4 @@
-//! Module containing the `Mailbox` for an `ActorProcess`.
+//! Module containing the `Mailbox` for an actor.
 
 use std::collections::VecDeque;
 
@@ -6,10 +6,10 @@ use crossbeam_channel::{self as channel, Receiver, Sender};
 use mio_st::event::Ready;
 use mio_st::registration::Notifier;
 
-use crate::process::ProcessId;
 use crate::error::SendError;
+use crate::process::ProcessId;
 
-/// Mailbox that holds all messages for an `Actor`.
+/// Mailbox that holds all messages for an actor.
 #[derive(Debug)]
 pub struct MailBox<M> {
     /// Process id of the actor.
