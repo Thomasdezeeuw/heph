@@ -77,17 +77,17 @@ pub struct Timer {
 }
 
 impl Timer {
-    /// Create a new timer.
+    /// Create a new timer, based on a timeout.
     ///
     /// Same as calling `Timer::deadline(ctx, Instant::now() + timeout)`.
     pub fn timeout<M>(ctx: &mut ActorContext<M>, timeout: Duration) -> Timer {
         Timer::deadline(ctx, Instant::now() + timeout)
     }
 
-    /// Create a new timer with a specific deadline.
+    /// Create a new `Timer`.
     pub fn deadline<M>(ctx: &mut ActorContext<M>, deadline: Instant) -> Timer {
         let pid = ctx.pid();
-        set_timer(ctx.system_ref(), pid, deadline);
+        set_deadline(ctx.system_ref(), pid, deadline);
         Timer {
             deadline,
         }
@@ -140,12 +140,14 @@ impl Future for Timer {
 /// # }
 /// #
 /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
-///     // OtherFuture is a type the implements `Future`.
+///     // `OtherFuture` is a type that implements `Future`.
 ///     let future = OtherFuture;
 ///     // Create our deadline.
 ///     let deadline_future = Deadline::timeout(&mut ctx, Duration::from_millis(20), future);
 ///
+///     // Now we await the results.
 ///     let result = await!(deadline_future);
+///     // However the other future is rather slow, so the timeout will pass.
 ///     assert_eq!(result, Err(DeadlinePassed));
 ///     Ok(())
 /// }
@@ -157,17 +159,17 @@ pub struct Deadline<Fut> {
 }
 
 impl<Fut> Deadline<Fut> {
-    /// Create a new deadline.
+    /// Create a new deadline based on a timeout.
     ///
     /// Same as calling `Deadline::deadline(ctx, Instant::now() + timeout, fut)`.
     pub fn timeout<M>(ctx: &mut ActorContext<M>, timeout: Duration, fut: Fut) -> Deadline<Fut> {
         Deadline::deadline(ctx, Instant::now() + timeout, fut)
     }
 
-    /// Create a new deadline with a specific deadline.
+    /// Create a new `Deadline`.
     pub fn deadline<M>(ctx: &mut ActorContext<M>, deadline: Instant, fut: Fut) -> Deadline<Fut> {
         let pid = ctx.pid();
-        set_timer(ctx.system_ref(), pid, deadline);
+        set_deadline(ctx.system_ref(), pid, deadline);
         Deadline {
             deadline,
             fut,
@@ -236,12 +238,12 @@ pub struct Interval {
 }
 
 impl Interval {
-    /// Create a new interval.
+    /// Create a new `Interval`.
     pub fn new<M>(ctx: &mut ActorContext<M>, interval: Duration) -> Interval {
         let deadline = Instant::now() + interval;
         let mut system_ref = ctx.system_ref().clone();
         let pid = ctx.pid();
-        set_timer(&mut system_ref, pid, deadline);
+        set_deadline(&mut system_ref, pid, deadline);
         Interval {
             interval,
             deadline,
@@ -261,7 +263,7 @@ impl Stream for Interval {
             let this = unsafe { PinMut::get_mut_unchecked(self) };
             this.deadline = next_deadline;
 
-            set_timer(&mut this.system_ref, this.pid, next_deadline);
+            set_deadline(&mut this.system_ref, this.pid, next_deadline);
             Poll::Ready(Some(DeadlinePassed))
         } else {
             Poll::Pending
@@ -269,8 +271,9 @@ impl Stream for Interval {
     }
 }
 
-/// Notify the provided `pid` on the provided `deadline`.
-fn set_timer(system_ref: &mut ActorSystemRef, pid: ProcessId, deadline: Instant) {
-    // FIXME: return the error.
+/// Notify the provided `pid` when the provided `deadline` has passed.
+fn set_deadline(system_ref: &mut ActorSystemRef, pid: ProcessId, deadline: Instant) {
+    // It's safe to unwrap here since the `ProcessId` turned `EventedId` is
+    // valid.
     system_ref.add_deadline(pid, deadline).unwrap();
 }
