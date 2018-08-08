@@ -5,6 +5,11 @@ use std::num::NonZeroU8;
 use std::ops::Mul;
 use std::time::Duration;
 
+// NOTE: the `Priority` type is public in the system module. Because of this it
+// talks only about actors, rather the processes, because in the public
+// documentation process is never mentioned. Effectively actor can be replaced
+// with process in the documentation below.
+
 /// Priority for an actor in the scheduler.
 ///
 /// Actors with a higher priority will be scheduled to run more often and
@@ -66,6 +71,10 @@ impl PartialOrd for Priority {
     }
 }
 
+/// Implementation detail.
+///
+/// Used to calculate the `fair_runtime` more easily.
+#[doc(hidden)]
 impl Mul<Priority> for Duration {
     type Output = Duration;
     fn mul(self, rhs: Priority) -> Duration {

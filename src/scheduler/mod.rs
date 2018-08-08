@@ -17,9 +17,6 @@ mod priority;
 
 pub use self::priority::Priority;
 
-// TODO: add lifetime to `Scheduler`, to no longer require `Actor`s and
-// `Initiator`s to have a `'static` life.
-
 // TODO: benchmark boxing `ProcessData` and then inlining `Process`. Thus
 // erasing the generic type of `ProcessData<P>` into `Box<dyn
 // ScheduledProcess>`.
@@ -129,15 +126,15 @@ impl SchedulerRef {
 
 /// A handle to add a process to the scheduler.
 ///
-/// This allows the `ProcessId`, or pid, to be determined before the process is
-/// actually added. This is used in registering with the system poller.
+/// This allows the `ProcessId` to be determined before the process is actually
+/// added. This is used in registering with the system poller.
 pub struct AddingProcess<'s> {
     id: ProcessId,
     processes: RefMut<'s, Slab<ProcessState>>,
 }
 
 impl<'s> AddingProcess<'s> {
-    /// Get the would be `ProcessId` for the process to be added.
+    /// Get the would be `ProcessId` for the process.
     pub fn id(&self) -> ProcessId {
         self.id
     }
@@ -203,7 +200,7 @@ impl ProcessState {
 /// Structure that holds a process and it's data.
 ///
 /// Equality is implemented based on the `ProcessId`. Ordering however is based
-/// on the `fair_runtime` (Duration) and `Priority` in that order.
+/// on the `fair_runtime` (Duration) and `Priority`, in that order.
 #[derive(Debug)]
 pub struct ProcessData {
     id: ProcessId,
@@ -235,7 +232,7 @@ impl PartialOrd for ProcessData {
 }
 
 impl ProcessData {
-    /// Create new process data.
+    /// Create new `ProcessData`.
     pub fn new<P>(id: ProcessId, priority: Priority, process: P) -> ProcessData
         where P: Process + 'static,
     {
@@ -252,7 +249,7 @@ impl ProcessData {
         self.id
     }
 
-    /// Runtime the process updating it's fair runtime.
+    /// Run the process and update it's fair runtime.
     pub fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
         trace!("running process: pid={}", self.id);
 
