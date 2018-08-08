@@ -9,17 +9,14 @@ use crate::initiator::Initiator;
 use crate::process::{Process, ProcessResult};
 use crate::system::ActorSystemRef;
 
-/// A process that represents an `Initiator`.
+/// A process that represents an [`Initiator`].
 ///
-/// It simply calls `poll` on the `Initiator` and only returns
-/// `ProcessResult::Complete` if `poll` returns an error, which it logs.
+/// [`Initiator`]: ../../initiator/trait.Initiator.html
 pub struct InitiatorProcess<I> {
     initiator: I,
 }
 
-impl<I> InitiatorProcess<I>
-    where I: Initiator,
-{
+impl<I> InitiatorProcess<I> {
     /// Create a new `InitiatorProcess`.
     ///
     /// The `initiator` must be initialised, i.e. `init` must have been called

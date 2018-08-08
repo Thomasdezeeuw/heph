@@ -1,5 +1,5 @@
 //! Module containing the implementation of the `Process` trait for
-//! `TaskObj`s.
+//! `FutureObj`s.
 
 use std::future::{Future, FutureObj};
 use std::mem::PinMut;
@@ -8,10 +8,7 @@ use std::task::{Context, LocalWaker, Poll};
 use crate::process::{Process, ProcessResult};
 use crate::system::ActorSystemRef;
 
-/// A process that represent a `TaskObj`.
-///
-/// It calls `poll` until it returns `Poll::Ready` after which `run` returns
-/// `ProcessResult::Complete`.
+/// A process that represent a `FutureObj` (used to be `TaskObj`).
 #[derive(Debug)]
 pub struct TaskProcess {
     /// The underlying task.

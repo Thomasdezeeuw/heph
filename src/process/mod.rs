@@ -14,12 +14,11 @@ pub use self::actor::ActorProcess;
 pub use self::initiator::InitiatorProcess;
 pub use self::task::TaskProcess;
 
-/// Process id, or pid for short, is an unique id for a process in an
-/// `ActorSystem`.
+/// Process id, or pid for short, is an id for a process in an `ActorSystem`.
 ///
 /// This can only be created by the [`Scheduler`] and should be seen as an
 /// opaque type for the rest of the crate. For convince this can converted from
-/// and into an `EventedId` as used by `mio-st`.
+/// and into an `EventedId` as used by mio.
 ///
 /// [`Scheduler`]: ../scheduler/struct.Scheduler.html
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
@@ -49,7 +48,7 @@ impl fmt::Display for ProcessId {
 /// This currently has three implementations;
 /// - the `ActorProcess`, which wraps an `Actor` to implement this trait,
 /// - the `InitiatorProcess`, which wraps an `Initiator`, and
-/// - the `TaskProcess`, which wraps a `TaskObj`.
+/// - the `TaskProcess`, which wraps a `FutureObj` (used to called `TaskObj`).
 pub trait Process: fmt::Debug {
     /// Run the process.
     ///
@@ -65,7 +64,7 @@ pub trait Process: fmt::Debug {
 ///
 /// See [`Process.run`].
 ///
-/// [`Process.run`]: trait.Process.html#method.run
+/// [`Process.run`]: trait.Process.html#tymethod.run
 #[must_use]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ProcessResult {

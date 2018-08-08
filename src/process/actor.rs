@@ -11,21 +11,20 @@ use crate::actor::Actor;
 use crate::process::{Process, ProcessResult};
 use crate::system::ActorSystemRef;
 
-/// A process that represent an actor, it's mailbox and current execution.
-pub struct ActorProcess<A>
-    where A: Actor,
-{
+/// A process that represent an [`Actor`].
+///
+/// [`Actor`]: ../../actor/trait.Actor.html
+pub struct ActorProcess<A> {
     /// The actor.
     actor: A,
     /// Waker used in the futures context.
     waker: LocalWaker,
-    /// Needs to stay alive for the duration of the actor.
+    /// Needs to stay alive as long as the actor is alive. Used in the actor's
+    /// `MailBox` to wake the actor.
     _registration: Registration,
 }
 
-impl<A> ActorProcess<A>
-    where A: Actor,
-{
+impl<A> ActorProcess<A> {
     /// Create a new `ActorProcess`.
     pub(crate) fn new(actor: A, registration: Registration, waker: LocalWaker) -> ActorProcess<A> {
         ActorProcess {
@@ -59,9 +58,7 @@ impl<A> Process for ActorProcess<A>
     }
 }
 
-impl<A> fmt::Debug for ActorProcess<A>
-    where A: Actor,
-{
+impl<A> fmt::Debug for ActorProcess<A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ActorProcess")
             .finish()
