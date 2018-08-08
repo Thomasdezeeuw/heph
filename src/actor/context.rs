@@ -12,8 +12,8 @@ use crate::util::Shared;
 
 /// The context in which an actor is executed.
 ///
-/// This context can be used for a number of things including receiving
-/// messages.
+/// This context can be used for a number of things including receiving messages
+/// and getting access to the actor system.
 #[derive(Debug)]
 pub struct ActorContext<M> {
     /// Process id of the actor, used as `EventedId` in registering things, e.g.
@@ -40,8 +40,7 @@ impl<M> ActorContext<M> {
 
     /// Receive a message.
     ///
-    /// This future only returns once a message is ready. See the examples below
-    /// for a way to deal with this.
+    /// This returns a future that will complete once a message is ready.
     ///
     /// # Example
     ///
@@ -84,15 +83,13 @@ impl<M> ActorContext<M> {
     ///         // This is basically a match statement for futures, whichever
     ///         // future is ready first will be the winner and we'll take that
     ///         // branch.
-    ///         let msg = select! {
-    ///             msg => msg,
+    ///         select! {
+    ///             msg => println!("Got a message: {}", msg),
     ///             timeout => {
     ///                 println!("Getting impatient!");
     ///                 continue;
     ///             },
     ///         };
-    ///
-    ///         println!("Got a message: {}", msg);
     ///     }
     /// }
     /// ```
@@ -102,7 +99,7 @@ impl<M> ActorContext<M> {
         }
     }
 
-    /// Returns an actor reference of itself.
+    /// Returns an actor reference that references itself.
     pub fn myself(&mut self) -> LocalActorRef<M> {
         LocalActorRef::new(self.inbox.downgrade())
     }
@@ -118,6 +115,9 @@ impl<M> ActorContext<M> {
     }
 }
 
+/// The implementation behind [`ActorContext.receive`].
+///
+/// [`ActorContext.receive`]: struct.ActorContext.html#method.receive
 #[derive(Debug)]
 struct ReceiveFuture<'ctx, M: 'ctx> {
     inbox: &'ctx mut Shared<MailBox<M>>,

@@ -2,10 +2,33 @@
 //!
 //! All actors must implement the [`Actor`] trait, which defines how an actor is
 //! run. The [`NewActor`] defines how an actor is created. The easiest way to
-//! implement these traits is to use async functions, see the example directory.
+//! implement these traits is to use async functions, see the example below.
 //!
 //! [`NewActor`]: trait.NewActor.html
 //! [`Actor`]: trait.Actor.html
+//!
+//! # Example
+//!
+//! Using an asynchronous function to implement the `NewActor` and `Actor`
+//! traits.
+//!
+//! ```
+//! #![feature(async_await, futures_api)]
+//!
+//! use heph::actor::{ActorContext, actor_factory};
+//!
+//! async fn actor(mut ctx: ActorContext<()>, item: ()) -> Result<(), ()> {
+//!     println!("Actor is running!");
+//!     Ok(())
+//! }
+//!
+//! // Our `NewActor` implementation that returns an `Actor` that runs the
+//! // `actor` function.
+//! let new_actor = actor_factory(actor);
+//! #
+//! # fn use_new_actor<N: heph::actor::NewActor>(new_actor: N) { }
+//! # use_new_actor(new_actor);
+//! ```
 
 use std::fmt;
 use std::future::Future;
@@ -21,8 +44,7 @@ pub use self::context::ActorContext;
 ///
 /// # Examples
 ///
-/// The easiest way to implement this as well as an [`Actor`] is to use async
-/// functions.
+/// The easiest way to implement this is by using an async function.
 ///
 /// ```rust
 /// #![feature(async_await, await_macro, futures_api)]
@@ -63,8 +85,8 @@ pub trait NewActor {
     /// }
     ///
     /// // Implementing `From` for the message allows us to just pass a
-    /// // `String`, rather then a `Message::String`. See sending of the message
-    /// // below.
+    /// // `String`, rather then a `Message::String`. See sending of the
+    /// // message below.
     /// impl From<String> for Message {
     ///     fn from(str: String) -> Message {
     ///         Message::String(str)
@@ -79,8 +101,8 @@ pub trait NewActor {
     ///     }
     /// }
     ///
-    /// // Create an `ActorSystem`.
-    /// let mut actor_system = ActorSystem::new()
+    /// // Create and run an `ActorSystem`.
+    /// ActorSystem::new()
     ///     .with_setup(|mut system_ref| {
     ///         // Add the actor to the system.
     ///         let new_actor = actor_factory(actor);
@@ -91,8 +113,8 @@ pub trait NewActor {
     ///         actor_ref.send("Hello world".to_owned());
     ///         Ok(())
     ///     })
-    ///     .run().unwrap();
-    ///
+    ///     .run()
+    ///     .unwrap();
     /// ```
     type Message;
 
@@ -123,6 +145,11 @@ pub trait NewActor {
 /// where `Error` is defined on the trait. That is why there is a blanket
 /// implementation for all `Future`s with a `Result<(), Error>` as `Output`
 /// type.
+///
+/// The easiest way to implement this by using an async function, see the
+/// [module level] documentation.
+///
+/// [module level]: index.html
 ///
 /// # Panics
 ///
@@ -220,7 +247,7 @@ unsafe impl<N, M, I, A> Sync for ActorFactory<N, M, I, A>
 /// Using an async function.
 ///
 /// ```
-/// #![feature(async_await, await_macro, futures_api, never_type)]
+/// #![feature(async_await, futures_api, never_type)]
 ///
 /// use heph::actor::{ActorContext, actor_factory};
 ///
