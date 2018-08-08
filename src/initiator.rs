@@ -7,9 +7,6 @@ use mio_st::poll::Poller;
 use crate::process::ProcessId;
 use crate::system::ActorSystemRef;
 
-// TODO: maybe let Initator return a specialised error, other then `io::Error`?
-// E.g. `RuntimeError`.
-
 /// The `Initiator` is responsible for initiating events in the actor system.
 ///
 /// Implementations of this trait can be found [below]. This includes a TCP
@@ -29,20 +26,16 @@ pub trait Initiator: Sized + Send {
     /// Initialise the initiator.
     ///
     /// This will be called after `clone_threaded` is called, on the thread the
-    /// initiator needs to run.
+    /// initiator needs to run on.
     #[doc(hidden)]
     fn init(&mut self, poll: &mut Poller, pid: ProcessId) -> io::Result<()>;
 
     /// Poll the `Initiator` for new events.
-    ///
-    /// It gets an [`ActorSystemRef`] so it can add actors to the system.
-    ///
-    /// [`ActorSystemRef`]: ../system/struct.ActorSystemRef.html
     #[doc(hidden)]
     fn poll(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()>;
 }
 
-/// This is by `ActorSystemBuilder` when no initiators are used.
+/// This is used by `ActorSystemBuilder` when no initiators are used.
 #[doc(hidden)]
 impl Initiator for ! {
     fn clone_threaded(&self) -> io::Result<Self> {
