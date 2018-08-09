@@ -1,4 +1,19 @@
-//! TODO: docs
+//! Module with the actor system and related types.
+//!
+//! The module has two types and a submodule:
+//!
+//! - [`ActorSystem`]: is the actor system, used to run all actors.
+//! - [`ActorSystemRef`]: is a reference to the actor system, used to get access
+//!   to the actor system's internal, often via the [`ActorContext`], e.g. see
+//!   [`TcpStream.connect`].
+//!
+//! See [`ActorSystem`] for documentation on how to run an actor system. For
+//! more examples see the examples directory in the source code.
+//!
+//! [`ActorSystem`]: struct.ActorSystem.html
+//! [`ActorSystemRef`]: struct.ActorSystemRef.html
+//! [`ActorContext`]: ../actor/struct.ActorContext.html
+//! [`TcpStream.connect`]: ../net/struct.TcpStream.html#method.connect
 
 use std::{fmt, io};
 use std::future::FutureObj;
@@ -29,9 +44,9 @@ pub use self::options::{ActorOptions, InitiatorOptions};
 
 /// The system that runs all actors.
 ///
-/// This system implements a builder pattern to build and run an `ActorSystem`.
-/// It has two generic parameters `I` and `S`, the types of the initiator(s) and
-/// a setup function. Both types are optional, which is represented by `!` (the
+/// This type implements a builder pattern to build and run an actor system. It
+/// has two generic parameters `I` and `S`, the types of the initiator(s) and a
+/// setup function. Both types are optional, which is represented by `!` (the
 /// never type).
 ///
 /// ## Usage
@@ -56,7 +71,7 @@ pub use self::options::{ActorOptions, InitiatorOptions};
 /// [`use_all_cores`].
 ///
 /// Finally after setting all the configuration options the system can be
-/// [`run`]. This will spawn a number of threads to actually run the system in.
+/// [`run`]. This will spawn a number of threads to actually run the system.
 ///
 /// [`new`]: #method.new
 /// [`Initiator`]: ../initiator/trait.Initiator.html
@@ -87,8 +102,8 @@ pub use self::options::{ActorOptions, InitiatorOptions};
 ///     Ok(())
 /// }
 ///
-/// // The setup function that add the `greeter_actor` to the system and sends
-/// // it an message. This is run twice (see `main`).
+/// // This setup function will on run on each created thread. In the case of
+/// // this example we create 2 threads (see `main`).
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///     // Add the actor to the system.
 ///     let new_actor = actor_factory(greeter_actor);
@@ -102,10 +117,13 @@ pub use self::options::{ActorOptions, InitiatorOptions};
 /// }
 ///
 /// fn main() {
-///     // Build and run the `ActorSystem`.
+///     // Build a new `ActorSystem`.
 ///     ActorSystem::new()
+///         // Start two worker threads.
 ///         .num_threads(2)
+///         // On each worker thread run our setup function.
 ///         .with_setup(setup)
+///         // And run the system.
 ///         .run()
 ///         .expect("unable to run actor system");
 /// }
@@ -184,7 +202,7 @@ impl<I, S> ActorSystem<I, S> {
         self.num_threads(num_cpus::get())
     }
 
-    /// Add a another initiator to the system.
+    /// Add another initiator to the system.
     ///
     /// First [`with_initiator`] must be called.
     ///
@@ -460,10 +478,6 @@ pub struct ActorSystemRef {
 
 impl ActorSystemRef {
     /// Add a new actor to the system.
-    ///
-    /// See [`ActorSystem.add_actor`].
-    ///
-    /// [`ActorSystem.add_actor`]: struct.ActorSystem.html#method.add_actor
     pub fn add_actor<N, I, A>(&mut self, new_actor: N, item: I, options: ActorOptions) -> LocalActorRef<N::Message>
         where N: NewActor<Item = I, Actor = A>,
               A: Actor + 'static,
@@ -502,8 +516,6 @@ impl ActorSystemRef {
     }
 
     /// Get a clone of the sending end of the notification channel.
-    ///
-    /// Returns `None` if the system is shutdown.
     pub(crate) fn get_notification_sender(&mut self) -> Sender<ProcessId> {
         self.internal.borrow_mut().waker_notifications.clone()
     }
