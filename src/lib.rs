@@ -1,4 +1,62 @@
-//! TODO: docs.
+//! Heph derived from Hephaestus, is the Greek god of blacksmiths, metalworking,
+//! carpenters, craftsmen, artisans, sculptors, metallurgy, fire, and volcanoes.
+//! <sup>[1]</sup> Well this crate has very little to do with Greek gods, but I
+//! needed a name.
+//!
+//!
+//! ## About
+//!
+//! Heph is an actor <sup>[2]</sup> framework based on asynchronous functions.
+//! Such an asynchronous function looks like this:
+//!
+//! ```rust
+//! # #![feature(async_await, await_macro, futures_api, never_type)]
+//! #
+//! # use heph::actor::ActorContext;
+//! #
+//! async fn print_actor(mut ctx: ActorContext<String>, _: ()) -> Result<(), !> {
+//!     // Receive a message.
+//!     let msg = await!(ctx.receive());
+//!     // Print the message.
+//!     println!("got a message: {}", msg);
+//!     // And we're done.
+//!     Ok(())
+//! }
+//! ```
+//!
+//! Heph uses an event-driven, non-blocking I/O, share nothing design. But what
+//! do all those buzzwords actually mean?
+//!
+//!  - *Event-driven*: Heph does nothing by itself, it must first get an event
+//!    before it starts doing anything. For example when using an `TcpListener`
+//!    it waits on a notification from the OS saying the `TcpListener` is ready
+//!    before trying to accepted connections.
+//!  - *Non-blocking I/O*: normal I/O operations need to wait (block) until the
+//!    operation can complete. Using non-blocking, or asynchronous, I/O means
+//!    that rather then waiting for the operation to complete we'll do some
+//!    other, more useful, work and try the operation later.
+//!  - *Share nothing*: a lot of application share data across multiple threads.
+//!    To do this safely we need to protect it from data races, via a [`Mutex`]
+//!    or by using [atomic] operations. Heph is designed to not share any data.
+//!    Each actor is responsible for its own memory and cannot access memory
+//!    owned by other actors. Instead communication is done via sending
+//!    messages, see the actor model <sup>[2]</sup>.
+//!
+//! [`Mutex`]: https://doc.rust-lang.org/std/sync/struct.Mutex.html
+//! [atomic]: https://doc.rust-lang.org/std/sync/atomic/index.html
+//!
+//!
+//! ## Getting started
+//!
+//! The easiest way to get start with Heph is looking at the examples in the
+//! examples directory of the source code. Or by looking through the API
+//! documentation, starting with [`ActorSystem`].
+//!
+//! [`ActorSystem`]: system/struct.ActorSystem.html
+//!
+//! [1]: https://en.wikipedia.org/wiki/Hephaestus
+//! [2]: https://en.wikipedia.org/wiki/Actor_model
+
 
 #![feature(arbitrary_self_types,
            const_fn,

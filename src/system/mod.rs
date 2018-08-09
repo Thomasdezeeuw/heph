@@ -228,7 +228,7 @@ impl<I, S> ActorSystem<I, S>
 
         let handles = self.start_threads()?;
 
-        // TODO: handle errors better. Currently at long as the first thread
+        // TODO: handle errors better. Currently as long as the first thread
         // keeps running and all other threads crash we'll keep running. Not an
         // ideal situation.
         for handle in handles {

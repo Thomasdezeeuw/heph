@@ -29,29 +29,29 @@ For more examples see the [examples] directory.
 
 ## Design
 
-Heph uses an event-driven, non-blocking I/O, share nothing design. But lets
-convert that sentence into English first:
+Heph uses an event-driven, non-blocking I/O, share nothing design. But what do
+all those buzzwords actually mean?
 
- - Event-drivent: Heph does nothing by itself, it must first get an event before
-   it starts doing anything. For example when using an `TcpListener` it waits on
-   a notification from the OS saying the `TcpListener` is ready before trying to
-   accepted connections.
- - Non-blocking I/O: normal I/O operations need to wait (block) until the
+ - *Event-driven*: Heph does nothing by itself, it must first get an event
+   before it starts doing anything. For example when using an `TcpListener` it
+   waits on a notification from the OS saying the `TcpListener` is ready before
+   trying to accepted connections.
+ - *Non-blocking I/O*: normal I/O operations need to wait (block) until the
    operation can complete. Using non-blocking, or asynchronous, I/O means that
    rather then waiting for the operation to complete we'll do some other more
    useful work and try the operation later.
- - Share nothing: a lot of application share data across multiple threads. To do
-   this safely we need to protect it from data races, via a [`Mutex`] or
-   [atomic] operations. Heph is designed to not share any data. Each actor is
-   responsible for its own memory and cannot access memory owned by other
-   actors. Instead communication is done via sending messages, see actor model
-   <sup>[2]</sup>.
+ - *Share nothing*: a lot of application share data across multiple threads. To
+   do this safely we need to protect it from data races, via a [`Mutex`] or
+   by using [atomic] operations. Heph is designed to not share any data. Each
+   actor is responsible for its own memory and cannot access memory owned by
+   other actors. Instead communication is done via sending messages, see actor
+   model <sup>[2]</sup>.
 
 [`Mutex`]: https://doc.rust-lang.org/std/sync/struct.Mutex.html
 [atomic]: https://doc.rust-lang.org/std/sync/atomic/index.html
 
 
-## Usage
+## Getting started
 
 First Heph needs to be added as a dependency.
 
