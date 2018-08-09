@@ -40,7 +40,7 @@
 //!    or by using [atomic] operations. Heph is designed to not share any data.
 //!    Each actor is responsible for its own memory and cannot access memory
 //!    owned by other actors. Instead communication is done via sending
-//!    messages, see the actor model <sup>[2]</sup>.
+//!    messages, see the actor model. <sup>[2]</sup>
 //!
 //! [`Mutex`]: https://doc.rust-lang.org/std/sync/struct.Mutex.html
 //! [atomic]: https://doc.rust-lang.org/std/sync/atomic/index.html
