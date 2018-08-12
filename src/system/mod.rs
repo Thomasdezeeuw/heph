@@ -331,8 +331,10 @@ fn run_system<I, S>(initiators: Vec<(I, InitiatorOptions)>,  setup: Option<S>) -
 }
 
 /// The system that runs all processes.
+///
+/// This `pub(crate)` because it's used in the test module.
 #[derive(Debug)]
-struct RunningActorSystem {
+pub(crate) struct RunningActorSystem {
     /// Inside of the system, shared with zero or more `ActorSystemRef`s.
     internal: Shared<ActorSystemInternal>,
     /// Scheduler that hold the processes, schedules and runs them.

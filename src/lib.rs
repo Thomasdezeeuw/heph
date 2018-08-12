@@ -54,9 +54,14 @@
 //!
 //! [`ActorSystem`]: system/struct.ActorSystem.html
 //!
+//!
+//! ## Features
+//!
+//! This crate has a single optional feature: `test`. This feature will enable
+//! the `test` module which adds testing facilities.
+//!
 //! [1]: https://en.wikipedia.org/wiki/Hephaestus
 //! [2]: https://en.wikipedia.org/wiki/Actor_model
-
 
 #![feature(arbitrary_self_types,
            const_fn,
@@ -88,6 +93,9 @@ pub mod initiator;
 pub mod net;
 pub mod system;
 pub mod timer;
+
+#[cfg(feature = "test")]
+pub mod test;
 
 mod mailbox;
 mod process;
