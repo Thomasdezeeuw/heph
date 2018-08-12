@@ -4,7 +4,6 @@ use std::collections::VecDeque;
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
 
-use crate::error::SendError;
 use crate::process::ProcessId;
 use crate::system::ActorSystemRef;
 
@@ -37,12 +36,9 @@ impl<M> MailBox<M> {
     /// Deliver a new message to the mailbox.
     ///
     /// This will also schedule the actor to run.
-    pub fn deliver<Msg>(&mut self, msg: Msg) -> Result<(), SendError<Msg>>
-        where Msg: Into<M>,
-    {
+    pub fn deliver(&mut self, msg: M) {
         self.system_ref.notify(self.pid);
-        self.messages.push_back(msg.into());
-        Ok(())
+        self.messages.push_back(msg);
     }
 
     /// Receive a delivered message, if any.

@@ -37,7 +37,10 @@ impl<M> LocalActorRef<M> {
         where Msg: Into<M>,
     {
         match self.inbox.upgrade() {
-            Some(mut inbox) => inbox.borrow_mut().deliver(msg),
+            Some(mut inbox) => {
+                inbox.borrow_mut().deliver(msg.into());
+                Ok(())
+            },
             None => Err(SendError { message: msg }),
         }
     }
