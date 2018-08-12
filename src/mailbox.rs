@@ -3,21 +3,20 @@
 use std::collections::VecDeque;
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
-use mio_st::event::Ready;
-use mio_st::registration::Notifier;
 
 use crate::error::SendError;
 use crate::process::ProcessId;
+use crate::system::ActorSystemRef;
 
 /// Mailbox that holds all messages for an actor.
 #[derive(Debug)]
 pub struct MailBox<M> {
     /// Process id of the actor.
     pid: ProcessId,
+    /// Reference to the actor system, used to notify the actor.
+    system_ref: ActorSystemRef,
     /// The messages in the mailbox.
     messages: VecDeque<M>,
-    /// Actor specific notifier.
-    notifier: Notifier,
     /// This is an alternative source of messages, send across thread bounds,
     /// used by `MachineLocalActorRef`s to send messages. This defaults to
     /// `None` and is only set to `Some` if `upgrade_ref` is called.
@@ -26,11 +25,11 @@ pub struct MailBox<M> {
 
 impl<M> MailBox<M> {
     /// Create a new mailbox.
-    pub fn new(pid: ProcessId, notifier: Notifier) -> MailBox<M> {
+    pub fn new(pid: ProcessId, system_ref: ActorSystemRef) -> MailBox<M> {
         MailBox {
             pid,
+            system_ref,
             messages: VecDeque::new(),
-            notifier,
             messages2: None,
         }
     }
@@ -41,13 +40,9 @@ impl<M> MailBox<M> {
     pub fn deliver<Msg>(&mut self, msg: Msg) -> Result<(), SendError<Msg>>
         where Msg: Into<M>,
     {
-        match self.notifier.notify(Ready::READABLE) {
-            Ok(()) => {
-                self.messages.push_back(msg.into());
-                Ok(())
-            },
-            Err(_) => Err(SendError { message: msg }),
-        }
+        self.system_ref.notify(self.pid);
+        self.messages.push_back(msg.into());
+        Ok(())
     }
 
     /// Receive a delivered message, if any.
@@ -58,7 +53,7 @@ impl<M> MailBox<M> {
     }
 
     /// Used by `LocalActorRef` to upgrade to `MachineLocalActorRef`.
-    pub(crate) fn upgrade_ref(&mut self) -> (ProcessId, Sender<M>) {
+    pub fn upgrade_ref(&mut self) -> (ProcessId, Sender<M>) {
         (self.pid, self.messages2.get_or_insert_with(channel::unbounded).0.clone())
     }
 }

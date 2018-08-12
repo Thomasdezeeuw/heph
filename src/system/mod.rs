@@ -26,7 +26,6 @@ use crossbeam_channel::{self as channel, Receiver, Sender};
 use log::{debug, trace, log};
 use mio_st::event::{Evented, Events, EventedId, Ready};
 use mio_st::poll::{Poller, PollOption};
-use mio_st::registration::Registration;
 
 use crate::actor::{Actor, ActorContext, NewActor};
 use crate::actor_ref::LocalActorRef;
@@ -526,6 +525,11 @@ impl ActorSystemRef {
     pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) -> io::Result<()> {
         self.internal.borrow_mut().poller.add_deadline(pid.into(), deadline)
     }
+
+    pub(crate) fn notify(&mut self, pid: ProcessId) {
+        self.internal.borrow_mut().poller.notify(pid.into(), Ready::READABLE)
+            .unwrap();
+    }
 }
 
 /// This is not a part of the stable API, but an implementation detail. Use the
@@ -581,14 +585,9 @@ impl ActorSystemInternal {
         let pid = process_entry.id();
         debug!("adding actor to actor system: pid={}", pid);
 
-        // Create a user space registration for the actor. Used in the mailbox
-        // and for futures' `Waker`.
-        let (mut registration, notifier) = Registration::new();
-        self.poller.register(&mut registration, pid.into(), Ready::READABLE, PollOption::Edge)?;
-
         // Create our waker, mailbox and actor reference.
         let waker = new_waker(pid, self.waker_notifications.clone());
-        let mailbox = Shared::new(MailBox::new(pid, notifier));
+        let mailbox = Shared::new(MailBox::new(pid, system_ref.clone()));
         let actor_ref = LocalActorRef::new(mailbox.downgrade());
 
         // Create the actor context and create an actor with it.
@@ -596,7 +595,7 @@ impl ActorSystemInternal {
         let actor = f(ctx, pid, &mut self.poller)?;
 
         // Create an actor process and add finally add it to the scheduler.
-        let process = ActorProcess::new(actor, registration, waker);
+        let process = ActorProcess::new(actor, waker);
         process_entry.add(process, options.priority);
         Ok(actor_ref)
     }

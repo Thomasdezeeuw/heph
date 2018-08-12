@@ -5,7 +5,6 @@ use std::mem::PinMut;
 use std::task::{Context, Poll, LocalWaker};
 
 use log::{trace, log};
-use mio_st::registration::Registration;
 
 use crate::actor::Actor;
 use crate::process::{Process, ProcessResult};
@@ -19,18 +18,14 @@ pub struct ActorProcess<A> {
     actor: A,
     /// Waker used in the futures context.
     waker: LocalWaker,
-    /// Needs to stay alive as long as the actor is alive. Used in the actor's
-    /// `MailBox` to wake the actor.
-    _registration: Registration,
 }
 
 impl<A> ActorProcess<A> {
     /// Create a new `ActorProcess`.
-    pub(crate) fn new(actor: A, registration: Registration, waker: LocalWaker) -> ActorProcess<A> {
+    pub(crate) fn new(actor: A, waker: LocalWaker) -> ActorProcess<A> {
         ActorProcess {
             actor,
             waker,
-            _registration: registration,
         }
     }
 }
