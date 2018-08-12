@@ -87,7 +87,7 @@ impl Timer {
     /// Create a new `Timer`.
     pub fn deadline<M>(ctx: &mut ActorContext<M>, deadline: Instant) -> Timer {
         let pid = ctx.pid();
-        set_deadline(ctx.system_ref(), pid, deadline);
+        ctx.system_ref().add_deadline(pid, deadline);
         Timer {
             deadline,
         }
@@ -169,7 +169,7 @@ impl<Fut> Deadline<Fut> {
     /// Create a new `Deadline`.
     pub fn deadline<M>(ctx: &mut ActorContext<M>, deadline: Instant, fut: Fut) -> Deadline<Fut> {
         let pid = ctx.pid();
-        set_deadline(ctx.system_ref(), pid, deadline);
+        ctx.system_ref().add_deadline(pid, deadline);
         Deadline {
             deadline,
             fut,
@@ -243,7 +243,7 @@ impl Interval {
         let deadline = Instant::now() + interval;
         let mut system_ref = ctx.system_ref().clone();
         let pid = ctx.pid();
-        set_deadline(&mut system_ref, pid, deadline);
+        system_ref.add_deadline(pid, deadline);
         Interval {
             interval,
             deadline,
@@ -262,18 +262,10 @@ impl Stream for Interval {
             let next_deadline = Instant::now() + self.interval;
             let this = unsafe { PinMut::get_mut_unchecked(self) };
             this.deadline = next_deadline;
-
-            set_deadline(&mut this.system_ref, this.pid, next_deadline);
+            this.system_ref.add_deadline(this.pid, next_deadline);
             Poll::Ready(Some(DeadlinePassed))
         } else {
             Poll::Pending
         }
     }
-}
-
-/// Notify the provided `pid` when the provided `deadline` has passed.
-fn set_deadline(system_ref: &mut ActorSystemRef, pid: ProcessId, deadline: Instant) {
-    // It's safe to unwrap here since the `ProcessId` turned `EventedId` is
-    // valid.
-    system_ref.add_deadline(pid, deadline).unwrap();
 }

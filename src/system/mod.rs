@@ -522,8 +522,9 @@ impl ActorSystemRef {
     /// Add a deadline to the system poller.
     ///
     /// This is used in the `timer` crate.
-    pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) -> io::Result<()> {
+    pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         self.internal.borrow_mut().poller.add_deadline(pid.into(), deadline)
+            .unwrap();
     }
 
     pub(crate) fn notify(&mut self, pid: ProcessId) {
