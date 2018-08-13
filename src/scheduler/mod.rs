@@ -15,6 +15,9 @@ use crate::util::Shared;
 
 mod priority;
 
+#[cfg(test)]
+mod tests;
+
 pub use self::priority::Priority;
 
 // TODO: benchmark boxing `ProcessData` and then inlining `Process`. Thus
