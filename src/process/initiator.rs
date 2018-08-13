@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use log::{error, log};
+use log::{error, trace, log};
 
 use crate::initiator::Initiator;
 use crate::process::{Process, ProcessResult};
@@ -32,8 +32,10 @@ impl<I> Process for InitiatorProcess<I>
     where I: Initiator,
 {
     fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
+        trace!("running initiator process");
+
         if let Err(err) = self.initiator.poll(system_ref) {
-            error!("error polling initiator, removing it: {}", err);
+            error!("error polling initiator: {}", err);
             ProcessResult::Complete
         } else {
             ProcessResult::Pending

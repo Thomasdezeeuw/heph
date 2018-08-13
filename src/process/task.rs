@@ -5,6 +5,8 @@ use std::future::{Future, FutureObj};
 use std::mem::PinMut;
 use std::task::{Context, LocalWaker, Poll};
 
+use log::{trace, log};
+
 use crate::process::{Process, ProcessResult};
 use crate::system::ActorSystemRef;
 
@@ -29,6 +31,8 @@ impl TaskProcess {
 
 impl Process for TaskProcess {
     fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
+        trace!("running task process");
+
         let mut ctx = Context::new(&self.waker, system_ref);
         match PinMut::new(&mut self.task).poll(&mut ctx) {
             Poll::Ready(()) => ProcessResult::Complete,
