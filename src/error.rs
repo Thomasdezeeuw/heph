@@ -72,7 +72,10 @@ impl Error for RuntimeError {
 
 /// Error when sending a message.
 ///
-/// The cause is that the actor is shutdown.
+/// This is essentially the same error as [`ActorShutdown`], but allows the
+/// message to be retrieved.
+///
+/// [`ActorShutdown`: struct.ActorShutdown.html
 ///
 /// # Notes
 ///
@@ -107,12 +110,16 @@ impl<M: fmt::Debug> From<SendError<M>> for io::Error {
 
 impl<M: fmt::Debug> fmt::Display for SendError<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.pad(self.description())
+        write!(f, "{}: {}", self.description(), ActorShutdown.description())
     }
 }
 
 impl<M: fmt::Debug> Error for SendError<M> {
     fn description(&self) -> &str {
-        "unable to send message: actor shutdown"
+        "unable to send message"
+    }
+
+    fn cause(&self) -> Option<&dyn Error> {
+        Some(&ActorShutdown)
     }
 }
