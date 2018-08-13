@@ -4,7 +4,7 @@ use std::{fmt, io};
 use std::error::Error;
 
 /// Error returned when the actor is shutdown.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct ActorShutdown;
 
 impl From<ActorShutdown> for io::Error {
