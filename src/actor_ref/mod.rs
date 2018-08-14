@@ -113,6 +113,9 @@ mod local;
 mod machine;
 mod remote;
 
+#[cfg(test)]
+mod tests;
+
 pub use self::local::LocalActorRef;
 pub use self::machine::MachineLocalActorRef;
 pub use self::remote::RemoteActorRef;
