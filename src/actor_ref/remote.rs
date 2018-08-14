@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use crate::error::SendError;
 
 /// This is currently not implemented.
-pub struct RemoteActorRef<M>{
+pub struct RemoteActorRef<M> {
     _phantom: PhantomData<M>,
 }
 

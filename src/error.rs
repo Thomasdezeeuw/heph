@@ -1,7 +1,7 @@
 //! Module containing all errors types.
 
-use std::{fmt, io};
 use std::error::Error;
+use std::{fmt, io};
 
 /// Error returned when the actor is shutdown.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

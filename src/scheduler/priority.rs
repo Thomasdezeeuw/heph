@@ -77,6 +77,7 @@ impl PartialOrd for Priority {
 #[doc(hidden)]
 impl Mul<Priority> for Duration {
     type Output = Duration;
+
     fn mul(self, rhs: Priority) -> Duration {
         self * u32::from(rhs.0.get())
     }

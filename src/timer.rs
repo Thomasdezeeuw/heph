@@ -45,7 +45,7 @@ pub struct DeadlinePassed;
 /// use std::time::Duration;
 ///
 /// use futures_util::select;
-/// use heph::actor::{ActorContext, actor_factory};
+/// use heph::actor::{actor_factory, ActorContext};
 /// use heph::timer::Timer;
 ///
 /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
@@ -216,7 +216,7 @@ impl<Fut> Future for Deadline<Fut>
 ///
 /// use futures_util::future::ready;
 /// use futures_util::stream::StreamExt;
-/// use heph::actor::{ActorContext, actor_factory};
+/// use heph::actor::{actor_factory, ActorContext};
 /// use heph::timer::Interval;
 ///
 /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {

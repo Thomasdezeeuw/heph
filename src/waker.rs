@@ -1,7 +1,7 @@
 //! Module containing the futures `Wake` implementation.
 
-use std::task::{LocalWaker, Wake, local_waker_from_nonlocal};
 use std::sync::Arc;
+use std::task::{local_waker_from_nonlocal, LocalWaker, Wake};
 
 use crossbeam_channel::Sender;
 
@@ -13,7 +13,7 @@ use crate::process::ProcessId;
 pub fn new_waker(pid: ProcessId, sender: Sender<ProcessId>) -> LocalWaker {
     let waker = Arc::new(Waker {
         pid,
-        sender
+        sender,
     });
     local_waker_from_nonlocal(waker)
 }

@@ -1,14 +1,14 @@
 //! Tests for the scheduler.
 
-use std::mem;
 use std::cmp::Ordering;
+use std::mem;
 use std::thread::sleep;
 use std::time::Duration;
 
 use env_logger;
 
-use crate::process::{ProcessId, Process, ProcessResult};
-use crate::scheduler::{Scheduler, ProcessState, ProcessData, Priority};
+use crate::process::{Process, ProcessId, ProcessResult};
+use crate::scheduler::{Priority, ProcessData, ProcessState, Scheduler};
 use crate::system::ActorSystemRef;
 use crate::test;
 use crate::util::Shared;
@@ -126,7 +126,7 @@ impl Process for TestProcess {
                 self.id = ProcessId(10);
                 ProcessResult::Pending
             },
-            _ => ProcessResult::Complete
+            _ => ProcessResult::Complete,
         }
     }
 }
@@ -153,11 +153,11 @@ fn scheduler() {
     }
 
     // Schedule and run all processes.
-    for id in 0..3 {
+    for id in 0 .. 3 {
         scheduler.schedule(ProcessId(id));
     }
     assert!(scheduler.process_ready());
-    for _ in 0..3 {
+    for _ in 0 .. 3 {
         let process_ran = scheduler.run_process(&mut system_ref);
         assert!(process_ran);
     }

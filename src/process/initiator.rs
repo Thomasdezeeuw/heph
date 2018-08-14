@@ -3,7 +3,7 @@
 
 use std::fmt;
 
-use log::{error, trace, log};
+use log::{error, log, trace};
 
 use crate::initiator::Initiator;
 use crate::process::{Process, ProcessResult};

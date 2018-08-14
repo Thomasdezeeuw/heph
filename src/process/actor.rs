@@ -2,9 +2,9 @@
 
 use std::fmt;
 use std::mem::PinMut;
-use std::task::{Context, Poll, LocalWaker};
+use std::task::{Context, LocalWaker, Poll};
 
-use log::{trace, log};
+use log::{log, trace};
 
 use crate::actor::Actor;
 use crate::process::{Process, ProcessResult};

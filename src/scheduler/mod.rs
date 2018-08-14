@@ -1,15 +1,15 @@
 //! Module containing the `Scheduler` and related types.
 
-use std::mem;
 use std::cell::RefMut;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+use std::mem;
 use std::time::{Duration, Instant};
 
-use log::{debug, trace, log};
+use log::{debug, log, trace};
 use slab::Slab;
 
-use crate::process::{Process, ProcessResult, ProcessId};
+use crate::process::{Process, ProcessId, ProcessResult};
 use crate::system::ActorSystemRef;
 use crate::util::Shared;
 
@@ -213,7 +213,7 @@ pub struct ProcessData {
     process: Box<dyn Process>,
 }
 
-impl Eq for ProcessData { }
+impl Eq for ProcessData {}
 
 impl PartialEq for ProcessData {
     fn eq(&self, other: &Self) -> bool {

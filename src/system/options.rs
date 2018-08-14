@@ -79,7 +79,7 @@ pub struct InitiatorOptions {
 
 impl Default for InitiatorOptions {
     fn default() -> InitiatorOptions {
-        InitiatorOptions  {
+        InitiatorOptions {
             __private: (),
         }
     }

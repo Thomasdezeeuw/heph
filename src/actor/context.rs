@@ -49,7 +49,7 @@ impl<M> ActorContext<M> {
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
-    /// use heph::actor::{ActorContext, actor_factory};
+    /// use heph::actor::{actor_factory, ActorContext};
     ///
     /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
     ///     loop {
@@ -67,9 +67,9 @@ impl<M> ActorContext<M> {
     ///
     /// use std::time::Duration;
     ///
-    /// use heph::actor::{ActorContext, actor_factory};
-    /// use heph::timer::Timer;
     /// use futures_util::select;
+    /// use heph::actor::{actor_factory, ActorContext};
+    /// use heph::timer::Timer;
     ///
     /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
     ///     loop {

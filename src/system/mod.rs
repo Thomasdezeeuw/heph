@@ -15,25 +15,25 @@
 //! [`ActorContext`]: ../actor/struct.ActorContext.html
 //! [`TcpStream.connect`]: ../net/struct.TcpStream.html#method.connect
 
-use std::{fmt, io};
 use std::future::FutureObj;
-use std::task::{Executor, SpawnObjError, SpawnErrorKind};
+use std::task::{Executor, SpawnErrorKind, SpawnObjError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
+use std::{fmt, io};
 
-use num_cpus;
 use crossbeam_channel::{self as channel, Receiver, Sender};
-use log::{debug, trace, log};
-use mio_st::event::{Evented, Events, EventedId, Ready};
-use mio_st::poll::{Poller, PollOption};
+use log::{debug, log, trace};
+use mio_st::event::{Evented, EventedId, Events, Ready};
+use mio_st::poll::{PollOption, Poller};
+use num_cpus;
 
 use crate::actor::{Actor, ActorContext, NewActor};
 use crate::actor_ref::LocalActorRef;
 use crate::error::RuntimeError;
 use crate::initiator::Initiator;
 use crate::mailbox::MailBox;
-use crate::process::{ProcessId, ActorProcess, InitiatorProcess, TaskProcess};
-use crate::scheduler::{Scheduler, SchedulerRef, Priority};
+use crate::process::{ActorProcess, InitiatorProcess, ProcessId, TaskProcess};
+use crate::scheduler::{Priority, Scheduler, SchedulerRef};
 use crate::util::Shared;
 use crate::waker::new_waker;
 
@@ -91,8 +91,8 @@ pub use self::options::{ActorOptions, InitiatorOptions};
 ///
 /// use std::io;
 ///
-/// use heph::actor::{ActorContext, actor_factory};
-/// use heph::system::{ActorSystem, ActorSystemRef, ActorOptions};
+/// use heph::actor::{actor_factory, ActorContext};
+/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
 ///
 /// /// Our actor that greets people.
 /// async fn greeter_actor(mut ctx: ActorContext<&'static str>, message: &'static str) -> Result<(), !> {
@@ -426,7 +426,7 @@ impl RunningActorSystem {
 
             if !self.scheduler.run_process(&mut system_ref) && events.is_empty() {
                 debug!("no events, no processes to run, stopping actor system");
-                return Ok(())
+                return Ok(());
             }
         }
     }

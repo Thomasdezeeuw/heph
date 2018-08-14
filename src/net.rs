@@ -9,12 +9,12 @@ use log::{debug, error, log};
 
 use mio_st::event::Ready;
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
-use mio_st::poll::{Poller, PollOption};
+use mio_st::poll::{PollOption, Poller};
 
-use crate::actor::{NewActor, ActorContext};
+use crate::actor::{ActorContext, NewActor};
 use crate::initiator::Initiator;
 use crate::process::ProcessId;
-use crate::system::{ActorSystemRef, ActorOptions};
+use crate::system::{ActorOptions, ActorSystemRef};
 
 /// A TCP listener that implements the [`Initiator`] trait.
 ///
@@ -37,9 +37,9 @@ use crate::system::{ActorSystemRef, ActorOptions};
 ///
 /// use futures_util::AsyncWriteExt;
 ///
-/// use heph::actor::{ActorContext, actor_factory};
+/// use heph::actor::{actor_factory, ActorContext};
 /// use heph::net::{TcpListener, TcpStream};
-/// use heph::system::{ActorSystem, ActorOptions, InitiatorOptions};
+/// use heph::system::{ActorOptions, ActorSystem, InitiatorOptions};
 ///
 /// async fn conn_actor(_ctx: ActorContext<!>, (mut stream, address): (TcpStream, SocketAddr)) -> io::Result<()> {
 ///     await!(stream.write_all(b"Hello World"))
@@ -167,7 +167,7 @@ impl TcpStream {
 
 /// A macro to try an I/O function.
 macro_rules! try_io {
-    ($op:expr) => (
+    ($op:expr) => {
         loop {
             match $op {
                 Ok(ok) => return Poll::Ready(Ok(ok)),
@@ -176,7 +176,7 @@ macro_rules! try_io {
                 Err(err) => return Poll::Ready(Err(err)),
             }
         }
-    );
+    };
 }
 
 impl AsyncRead for TcpStream {

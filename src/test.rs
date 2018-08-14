@@ -29,9 +29,7 @@ thread_local! {
 
 /// Get a reference to the testing actor system.
 pub fn system_ref() -> ActorSystemRef {
-    TEST_SYSTEM.with(|system| {
-        system.borrow().create_ref()
-    })
+    TEST_SYSTEM.with(|system| system.borrow().create_ref())
 }
 
 /// Initialise an actor.

@@ -49,7 +49,7 @@ pub use self::context::ActorContext;
 /// ```rust
 /// #![feature(async_await, await_macro, futures_api)]
 ///
-/// use heph::actor::{ActorContext, actor_factory};
+/// use heph::actor::{actor_factory, ActorContext};
 ///
 /// // Having a async function like the following:
 /// async fn greeter_actor(mut ctx: ActorContext<String>, message: String) -> Result<(), ()> {
@@ -74,8 +74,8 @@ pub trait NewActor {
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
-    /// use heph::actor::{ActorContext, actor_factory};
-    /// use heph::system::{ActorSystem, ActorOptions};
+    /// use heph::actor::{actor_factory, ActorContext};
+    /// use heph::system::{ActorOptions, ActorSystem};
     ///
     /// // The message type for the actor.
     /// #[derive(Debug)]
@@ -196,9 +196,9 @@ impl<N, M, I, A> NewActor for ActorFactory<N, M, I, A>
     where N: FnMut(ActorContext<M>, I) -> A,
           A: Actor,
 {
-    type Message = M;
-    type Item = I;
     type Actor = A;
+    type Item = I;
+    type Message = M;
 
     fn new(&mut self, ctx: ActorContext<Self::Message>, item: Self::Item) -> Self::Actor {
         (self.new_actor)(ctx, item)
@@ -225,15 +225,9 @@ impl<N, M, I, A> fmt::Debug for ActorFactory<N, M, I, A> {
     }
 }
 
-unsafe impl<N, M, I, A> Send for ActorFactory<N, M, I, A>
-    where N: Send,
-{
-}
+unsafe impl<N, M, I, A> Send for ActorFactory<N, M, I, A> where N: Send {}
 
-unsafe impl<N, M, I, A> Sync for ActorFactory<N, M, I, A>
-    where N: Sync,
-{
-}
+unsafe impl<N, M, I, A> Sync for ActorFactory<N, M, I, A> where N: Sync {}
 
 /// Implement [`NewActor`] by means of a function.
 ///

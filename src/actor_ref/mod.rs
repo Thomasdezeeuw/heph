@@ -41,8 +41,8 @@
 //! ```
 //! #![feature(async_await, await_macro, futures_api)]
 //!
-//! use heph::actor::{ActorContext, actor_factory};
-//! use heph::system::{ActorSystem, ActorOptions};
+//! use heph::actor::{actor_factory, ActorContext};
+//! use heph::system::{ActorOptions, ActorSystem};
 //!
 //! /// Our actor.
 //! async fn actor(mut ctx: ActorContext<String>, _: ()) -> Result<(), ()> {
@@ -75,8 +75,8 @@
 //! ```
 //! #![feature(async_await, await_macro, futures_api)]
 //!
-//! use heph::actor::{ActorContext, actor_factory};
-//! use heph::system::{ActorSystem, ActorOptions};
+//! use heph::actor::{actor_factory, ActorContext};
+//! use heph::system::{ActorOptions, ActorSystem};
 //!
 //! /// Our actor.
 //! async fn actor(mut ctx: ActorContext<String>, _: ()) -> Result<(), ()> {

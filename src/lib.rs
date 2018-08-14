@@ -111,7 +111,7 @@ mod waker;
 /// use heph::prelude::*;
 /// ```
 pub mod prelude {
-    pub use crate::actor::{ActorContext, Actor, NewActor, actor_factory};
+    pub use crate::actor::{actor_factory, Actor, ActorContext, NewActor};
     pub use crate::actor_ref::{ActorRef, LocalActorRef};
-    pub use crate::system::{ActorSystem, ActorSystemRef, ActorOptions, InitiatorOptions};
+    pub use crate::system::{ActorOptions, ActorSystem, ActorSystemRef, InitiatorOptions};
 }

@@ -5,7 +5,7 @@ use std::future::{Future, FutureObj};
 use std::mem::PinMut;
 use std::task::{Context, LocalWaker, Poll};
 
-use log::{trace, log};
+use log::{log, trace};
 
 use crate::process::{Process, ProcessResult};
 use crate::system::ActorSystemRef;

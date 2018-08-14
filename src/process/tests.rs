@@ -3,17 +3,17 @@
 use std::future::Future;
 use std::io;
 use std::mem::PinMut;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
+use crossbeam_channel as channel;
 use mio_st::event::EventedId;
 use mio_st::poll::Poller;
-use crossbeam_channel as channel;
 
-use crate::actor::{ActorContext, actor_factory};
+use crate::actor::{actor_factory, ActorContext};
 use crate::initiator::Initiator;
-use crate::process::{ActorProcess, InitiatorProcess, TaskProcess, ProcessId, ProcessResult, Process};
+use crate::process::{ActorProcess, InitiatorProcess, Process, ProcessId, ProcessResult, TaskProcess};
 use crate::system::ActorSystemRef;
 use crate::test;
 use crate::waker::new_waker;
@@ -143,6 +143,7 @@ struct TaskFuture {
 
 impl Future for TaskFuture {
     type Output = ();
+
     fn poll(self: PinMut<Self>, _ctx: &mut Context) -> Poll<Self::Output> {
         match self.called.fetch_add(1, Ordering::Relaxed) {
             0 => Poll::Pending,
