@@ -141,7 +141,7 @@ impl<M> ActorRef<M> {
         use self::ActorRef::*;
         match self {
             Local(ref mut actor_ref) => actor_ref.send(msg),
-            Machine(ref mut actor_ref) => actor_ref.send(msg),
+            Machine(ref mut actor_ref) => { actor_ref.send(msg); Ok(()) },
             Remote(ref mut actor_ref) => actor_ref.send(msg),
         }
     }

@@ -5,8 +5,6 @@ use std::task::Waker;
 
 use crossbeam_channel::Sender;
 
-use crate::error::SendError;
-
 /// A reference to an actor that can send messages across thread bounds.
 ///
 /// This works the same as other actor references, see the [actor_ref module]
@@ -37,12 +35,15 @@ impl<M> MachineLocalActorRef<M> {
     }
 
     /// Send a message to the actor.
-    pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<Msg>>
+    ///
+    /// Compared to `LocalActorRef` this doesn't return an error as this
+    /// reference is not capable of determining whether or not the actor is
+    /// still alive.
+    pub fn send<Msg>(&mut self, msg: Msg)
         where Msg: Into<M>,
     {
         self.sender.send(msg.into());
         self.waker.wake();
-        Ok(())
     }
 }
 
