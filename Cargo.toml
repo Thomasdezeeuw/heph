@@ -15,8 +15,8 @@ test = []
 
 [dependencies]
 crossbeam-channel    = "0.2.4"
-futures-core-preview = "0.3.0-alpha.2"
-futures-io-preview   = "0.3.0-alpha.2"
+futures-core-preview = "0.3.0-alpha.3"
+futures-io-preview   = "0.3.0-alpha.3"
 log                  = "0.4.2"
 num_cpus             = "1.8.0"
 slab                 = "0.4.0"
@@ -26,5 +26,5 @@ mio-st = { git = "ssh://git@github.com/Thomasdezeeuw/mio-st.git" }
 
 [dev-dependencies]
 env_logger           = "0.5.10"
-futures-util-preview = "0.3.0-alpha.2"
+futures-util-preview = "0.3.0-alpha.3"
 lazy_static          = "1.1.0"

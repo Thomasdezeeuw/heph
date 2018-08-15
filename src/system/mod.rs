@@ -16,7 +16,7 @@
 //! [`TcpStream.connect`]: ../net/struct.TcpStream.html#method.connect
 
 use std::future::FutureObj;
-use std::task::{Executor, SpawnErrorKind, SpawnObjError};
+use std::task::{Spawn, SpawnErrorKind, SpawnObjError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use std::{fmt, io};
@@ -536,9 +536,9 @@ impl ActorSystemRef {
 }
 
 /// This is not a part of the stable API, but an implementation detail. Use the
-/// `Executor` on the `task::Context` instead.
+/// `Spawn` on the `task::Context` instead.
 #[doc(hidden)]
-impl Executor for ActorSystemRef {
+impl Spawn for ActorSystemRef {
     fn spawn_obj(&mut self, task: FutureObj<'static, ()>) -> Result<(), SpawnObjError> {
         self.internal.borrow_mut().add_task(task);
         Ok(())
