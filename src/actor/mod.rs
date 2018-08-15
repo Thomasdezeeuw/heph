@@ -38,6 +38,9 @@ use std::task::{Context, Poll};
 
 mod context;
 
+#[cfg(test)]
+mod tests;
+
 pub use self::context::ActorContext;
 
 /// The trait that defines how to create a new actor.
