@@ -53,7 +53,19 @@ all those buzzwords actually mean?
 
 ## Getting started
 
-First Heph needs to be added as a dependency.
+First you'll need a recent nightly compiler, see the [rust-toolchain] file for
+which nightly is required. The easiest way to install and manage different rust
+installations is via [rustup]. The following command will install a nightly
+compiler via rustup.
+
+```bash
+rustup install nightly # Install the latests nightly compiler.
+
+# Optional:
+rustup default nightly # Set the nightly compiler as default.
+```
+
+Second Heph needs to be added as a dependency.
 
 ```toml
 [dependencies]
@@ -70,6 +82,8 @@ extern crate heph;
 Now you're ready to starting writing your application! Next you can look at some
 [examples], or look at the [API documentation].
 
+[rust-toolchain]: rust-toolchain
+[rustup]: https://rustup.rs
 [API documentation]: https://docs.rs/heph
 
 
