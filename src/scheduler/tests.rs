@@ -78,6 +78,8 @@ impl Process for SleepyProcess {
 
 #[test]
 fn process_data() {
+    const SLEEP_MARGIN: Duration = Duration::from_millis(5);
+
     let sleep = Duration::from_millis(1);
     let pid = ProcessId(0);
 
@@ -93,7 +95,7 @@ fn process_data() {
         assert_eq!(process_data.run(&mut system_ref), ProcessResult::Pending);
         // Roughly check that the fair runtime is set correctly.
         assert!(process_data.fair_runtime > sleep * priority);
-        assert!(process_data.fair_runtime < sleep * priority + Duration::from_millis(10));
+        assert!(process_data.fair_runtime < sleep * priority + (SLEEP_MARGIN * priority));
     }
 }
 
