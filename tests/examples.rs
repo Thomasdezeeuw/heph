@@ -40,9 +40,7 @@ macro_rules! sequential_test {
 
 sequential_test! {
     fn example_1_hello_world() {
-        let child = run_example("1_hello_world");
-
-        let output = read_output(child);
+        let output = run_example_output("1_hello_world");
         assert_eq!(output, "Hello World\n");
     }
 }
@@ -50,7 +48,6 @@ sequential_test! {
 sequential_test! {
     fn example_2_my_ip() {
         let mut child = run_example("2_my_ip");
-        build_time_sleep();
 
         let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
         let mut stream = TcpStream::connect(address).expect("unable to connect");
@@ -68,7 +65,6 @@ sequential_test! {
 sequential_test! {
     fn example_3_echo_server() {
         let mut child = run_example("3_echo_server");
-        build_time_sleep();
 
         let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
         let mut stream = TcpStream::connect(address).expect("unable to connect");
@@ -113,10 +109,39 @@ impl Drop for ChildCommand {
     }
 }
 
-/// Run the example with the given name.
+/// Run an example and return it's output.
+fn run_example_output(name: &'static str) -> String {
+    build_example(name);
+    let child = start_example(name);
+    read_output(child)
+}
+
+/// Run an example, not waiting for it to complete, but it does wait for it to
+/// be build.
 fn run_example(name: &'static str) -> ChildCommand {
-    Command::new("cargo")
-        .args(&["run", "--example", name])
+    build_example(name);
+    let child = start_example(name);
+    setup_sleep();
+    child
+}
+
+/// Build the example with the given name.
+fn build_example(name: &'static str) {
+    let output = Command::new("cargo")
+        .args(&["build", "--example", name])
+        .output()
+        .expect("unable to build example");
+
+    if !output.status.success() {
+        panic!("failed to build example: {}\n\n{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr));
+    }
+}
+
+/// Start and already build example
+fn start_example(name: &'static str) -> ChildCommand {
+    Command::new(format!("target/debug/examples/{}", name))
         .stdin(Stdio::null())
         .stderr(Stdio::piped())
         .stdout(Stdio::piped())
@@ -135,8 +160,7 @@ fn read_output(mut child: ChildCommand) -> String {
     output
 }
 
-/// Sleep for a while to give Cargo the time to build and run the example.
-fn build_time_sleep() {
-    // Give the program some time to build and start serving requests.
-    sleep(Duration::from_millis(500));
+/// Sleep for a while to give the example a chance to setup.
+fn setup_sleep() {
+    sleep(Duration::from_millis(100));
 }
