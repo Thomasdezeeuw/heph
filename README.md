@@ -53,10 +53,9 @@ all those buzzwords actually mean?
 
 ## Getting started
 
-First you'll need a recent nightly compiler, see the [rust-toolchain] file for
-which nightly is required. The easiest way to install and manage different rust
-installations is via [rustup]. The following command will install a nightly
-compiler via rustup.
+First you'll need a recent nightly compiler. The easiest way to install and
+manage different rust installations is via [rustup]. The following command will
+install a nightly compiler via rustup.
 
 ```bash
 rustup install nightly # Install the latests nightly compiler.
