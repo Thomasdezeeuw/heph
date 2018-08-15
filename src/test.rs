@@ -13,6 +13,9 @@
 //! TODO: doc how to enable the features only in development/testing.
 
 use std::cell::RefCell;
+use std::future::Future;
+use std::mem::PinMut;
+use std::task::{Context, Poll};
 
 use crate::actor::{ActorContext, NewActor};
 use crate::actor_ref::LocalActorRef;
@@ -20,6 +23,7 @@ use crate::mailbox::MailBox;
 use crate::process::ProcessId;
 use crate::system::{ActorSystemRef, RunningActorSystem};
 use crate::util::Shared;
+use crate::waker::new_waker;
 
 thread_local! {
     /// Per thread active, but not running, actor system.
@@ -48,4 +52,19 @@ pub fn init_actor<N>(mut new_actor: N, item: N::Item) -> (N::Actor, LocalActorRe
     (actor, actor_ref)
 }
 
-// TODO: provide a way to run actor, or provide a `task::Context`.
+/// Poll a future, letting the task `Context` be provided by the actor system.
+///
+/// # Notes
+///
+/// Wake notifications will be ignored. If this is required run an end to end
+/// test with a completely functional actor system instead.
+pub fn poll_future<Fut>(future: &mut PinMut<Fut>) -> Poll<Fut::Output>
+    where Fut: Future,
+{
+    let pid = ProcessId(0);
+    let mut system_ref = system_ref();
+    let waker_notifications = system_ref.get_notification_sender();
+    let waker = new_waker(pid, waker_notifications.clone());
+    let mut task_ctx = Context::new(&waker, &mut system_ref);
+    Future::poll(future.reborrow(), &mut task_ctx)
+}
