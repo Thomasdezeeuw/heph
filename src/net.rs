@@ -70,7 +70,7 @@ pub struct TcpListener<N> {
 }
 
 impl<N> TcpListener<N>
-    where N: NewActor<Item = (TcpStream, SocketAddr)> + 'static + Clone + Send,
+    where N: NewActor<StartItem = (TcpStream, SocketAddr)> + 'static + Clone + Send,
 {
     /// Bind a new TCP listener to the provided `address`.
     ///
@@ -90,7 +90,7 @@ impl<N> TcpListener<N>
 }
 
 impl<N> Initiator for TcpListener<N>
-    where N: NewActor<Item = (TcpStream, SocketAddr)> + 'static + Clone + Send,
+    where N: NewActor<StartItem = (TcpStream, SocketAddr)> + 'static + Clone + Send,
 {
     #[doc(hidden)]
     fn clone_threaded(&self) -> io::Result<Self> {

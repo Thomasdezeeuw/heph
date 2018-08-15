@@ -121,15 +121,14 @@ pub trait NewActor {
     /// ```
     type Message;
 
-    /// The initial item the actor will be created with.
+    /// The initial item the actor will be started with.
     ///
     /// This could for example be a TCP connection the actor is responsible for.
     /// See [`TcpListener`] for an example usage of this. Some actors don't need
     /// a starting item, those actors can use `()`.
     ///
     /// [`TcpListener`]: ../net/struct.TcpListener.html
-    // TODO: the name `Item` is too generic, improve it.
-    type Item;
+    type StartItem;
 
     /// The type of the actor.
     ///
@@ -139,7 +138,7 @@ pub trait NewActor {
     type Actor: Actor;
 
     /// Create a new `Actor`.
-    fn new(&mut self, ctx: ActorContext<Self::Message>, item: Self::Item) -> Self::Actor;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, item: Self::StartItem) -> Self::Actor;
 }
 
 /// The main actor trait.
@@ -200,10 +199,10 @@ impl<N, M, I, A> NewActor for ActorFactory<N, M, I, A>
           A: Actor,
 {
     type Actor = A;
-    type Item = I;
+    type StartItem = I;
     type Message = M;
 
-    fn new(&mut self, ctx: ActorContext<Self::Message>, item: Self::Item) -> Self::Actor {
+    fn new(&mut self, ctx: ActorContext<Self::Message>, item: Self::StartItem) -> Self::Actor {
         (self.new_actor)(ctx, item)
     }
 }

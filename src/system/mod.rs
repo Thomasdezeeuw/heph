@@ -480,7 +480,7 @@ pub struct ActorSystemRef {
 impl ActorSystemRef {
     /// Add a new actor to the system.
     pub fn add_actor<N, I, A>(&mut self, new_actor: N, item: I, options: ActorOptions) -> LocalActorRef<N::Message>
-        where N: NewActor<Item = I, Actor = A>,
+        where N: NewActor<StartItem = I, Actor = A>,
               A: Actor + 'static,
     {
         let system_ref = self.clone();
@@ -572,7 +572,7 @@ impl ActorSystemInternal {
     }
 
     pub fn add_actor<N, I, A>(&mut self, options: ActorOptions, mut new_actor: N, item: I, system_ref: ActorSystemRef) -> LocalActorRef<N::Message>
-        where N: NewActor<Item = I, Actor = A>,
+        where N: NewActor<StartItem = I, Actor = A>,
               A: Actor + 'static,
     {
         self.add_actor_setup(options, move |ctx, _, _| Ok(new_actor.new(ctx, item)), system_ref)
