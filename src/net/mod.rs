@@ -89,6 +89,23 @@ impl<N> TcpListener<N>
     }
 }
 
+impl<N> TcpListener<N> {
+    /// Returns the local socket address of this listener.
+    pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
+        self.listener.local_addr()
+    }
+
+    /// Sets the value for the `IP_TTL` option on this socket.
+    pub fn set_ttl(&mut self, ttl: u32) -> io::Result<()> {
+        self.listener.set_ttl(ttl)
+    }
+
+    /// Gets the value of the `IP_TTL` option for this socket.
+    pub fn ttl(&mut self) -> io::Result<u32> {
+        self.listener.ttl()
+    }
+}
+
 impl<N> Initiator for TcpListener<N>
     where N: NewActor<StartItem = (TcpStream, SocketAddr)> + 'static + Clone + Send,
 {
