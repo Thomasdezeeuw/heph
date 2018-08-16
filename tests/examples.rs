@@ -162,5 +162,5 @@ fn read_output(mut child: ChildCommand) -> String {
 
 /// Sleep for a while to give the example a chance to setup.
 fn setup_sleep() {
-    sleep(Duration::from_millis(50));
+    sleep(Duration::from_millis(100));
 }
