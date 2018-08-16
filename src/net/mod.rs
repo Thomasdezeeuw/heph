@@ -1,8 +1,9 @@
 //! Network related types.
 
 use std::io::{self, ErrorKind, Read, Write};
-use std::net::SocketAddr;
+use std::net::{Shutdown, SocketAddr};
 use std::task::{Context, Poll};
+use std::time::Duration;
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
 use log::{debug, error, log};
@@ -165,8 +166,6 @@ pub struct TcpStream {
 }
 
 impl TcpStream {
-    /// Create a new TCP stream.
-    ///
     /// Create a new TCP stream and issue a non-blocking connect to the
     /// specified `address`.
     pub fn connect<M>(ctx: &mut ActorContext<M>, address: SocketAddr) -> io::Result<TcpStream> {
@@ -179,6 +178,91 @@ impl TcpStream {
             inner: stream,
             system_ref,
         })
+    }
+
+    /// Returns the socket address of the remote peer of this TCP connection.
+    pub fn peer_addr(&mut self) -> io::Result<SocketAddr> {
+        self.inner.peer_addr()
+    }
+
+    /// Returns the socket address of the local half of this TCP connection.
+    pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
+        self.inner.local_addr()
+    }
+
+    /// Sets the value for the `IP_TTL` option on this socket.
+    pub fn set_ttl(&mut self, ttl: u32) -> io::Result<()> {
+        self.inner.set_ttl(ttl)
+    }
+
+    /// Gets the value of the `IP_TTL` option for this socket.
+    pub fn ttl(&mut self) -> io::Result<u32> {
+        self.inner.ttl()
+    }
+
+    /// Sets whether keepalive messages are enabled to be sent on this socket.
+    ///
+    /// On Unix, this option will set the `SO_KEEPALIVE` as well as the
+    /// `TCP_KEEPALIVE` or `TCP_KEEPIDLE` option (depending on your platform).
+    ///
+    /// If `None` is specified then keepalive messages are disabled, otherwise
+    /// the duration specified will be the time to remain idle before sending a
+    /// TCP keepalive probe.
+    ///
+    /// Some platforms specify this value in seconds, so sub-second
+    /// specifications may be omitted.
+    pub fn set_keepalive(&mut self, keepalive: Option<Duration>) -> io::Result<()> {
+        self.inner.set_keepalive(keepalive)
+    }
+
+    /// Returns whether keepalive messages are enabled on this socket, and if so
+    /// the duration of time between them.
+    ///
+    /// For more information about this option, see [`set_keepalive`].
+    ///
+    /// [`set_keepalive`]: #method.set_keepalive
+    pub fn keepalive(&mut self) -> io::Result<Option<Duration>> {
+        self.inner.keepalive()
+    }
+
+    /// Sets the value of the `TCP_NODELAY` option on this socket.
+    pub fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        self.inner.set_nodelay(nodelay)
+    }
+
+    /// Gets the value of the `TCP_NODELAY` option on this socket.
+    pub fn nodelay(&mut self) -> io::Result<bool> {
+        self.inner.nodelay()
+    }
+
+    /// Receives data on the socket from the remote address to which it is
+    /// connected, without removing that data from the queue. On success,
+    /// returns the number of bytes peeked.
+    ///
+    /// Successive calls return the same data. This is accomplished by passing
+    /// `MSG_PEEK` as a flag to the underlying recv system call.
+    pub fn peek(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.inner.peek(buf)
+    }
+
+    /// Shuts down the read, write, or both halves of this connection.
+    ///
+    /// This function will cause all pending and future I/O on the specified
+    /// portions to return immediately with an appropriate value (see the
+    /// documentation of [`Shutdown`]).
+    ///
+    /// [`Shutdown`]: https://doc.rust-lang.org/nightly/std/net/enum.Shutdown.html
+    pub fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
+        self.inner.shutdown(how)
+    }
+
+    /// Get the value of the `SO_ERROR` option on this socket.
+    ///
+    /// This will retrieve the stored error in the underlying socket, clearing
+    /// the field in the process. This can be useful for checking errors between
+    /// calls.
+    pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
+        self.inner.take_error()
     }
 }
 
