@@ -138,7 +138,7 @@ pub trait NewActor {
     type Actor: Actor;
 
     /// Create a new `Actor`.
-    fn new(&mut self, ctx: ActorContext<Self::Message>, item: Self::StartItem) -> Self::Actor;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, start_item: Self::StartItem) -> Self::Actor;
 }
 
 /// The main actor trait.
