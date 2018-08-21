@@ -186,8 +186,7 @@ impl<Fut> Future for Deadline<Fut>
         if self.deadline <= Instant::now() {
             Poll::Ready(Err(DeadlinePassed))
         } else {
-            let this = unsafe { PinMut::get_mut_unchecked(self) };
-            let future = unsafe { PinMut::new_unchecked(&mut this.fut) };
+            let future = unsafe { PinMut::map_unchecked(self, |this| &mut this.fut) };
             future.poll(ctx).map(Ok)
         }
     }
