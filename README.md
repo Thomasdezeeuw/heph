@@ -1,6 +1,11 @@
 # Heph
 
-Heph derived from Hephaestus, is the Greek god of blacksmiths, metalworking,
+[![Build Status](https://travis-ci.org/Thomasdezeeuw/heph.svg?branch=master)](https://travis-ci.org/Thomasdezeeuw/heph)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Crates.io](https://img.shields.io/crates/v/heph.svg)](https://crates.io/crates/heph)
+[![Docs](https://docs.rs/heph/badge.svg)](https://docs.rs/heph)
+
+Heph, derived from Hephaestus, is the Greek god of blacksmiths, metalworking,
 carpenters, craftsmen, artisans, sculptors, metallurgy, fire, and volcanoes.
 <sup>[1]</sup> Well this crate has very little to do with Greek gods, but I
 needed a name.

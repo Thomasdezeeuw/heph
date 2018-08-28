@@ -7,6 +7,9 @@ authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license = "MIT"
 edition = "2018"
 
+[badges]
+travis-ci = { repository = "Thomasdezeeuw/heph" }
+
 [features]
 default = []
 
