@@ -2,9 +2,15 @@ cargo-features = ["edition"]
 
 [package]
 name = "heph"
+description = """
+Heph is an actor framework based on asynchronous functions.
+"""
 version = "0.1.0"
 authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license = "MIT"
+repository = "https://github.com/Thomasdezeeuw/heph"
+readme = "README.md"
+keywords = ["actor", "framework", "async", "functions"]
 edition = "2018"
 
 [badges]
