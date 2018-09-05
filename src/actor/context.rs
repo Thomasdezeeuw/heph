@@ -4,10 +4,12 @@ use std::future::Future;
 use std::mem::PinMut;
 use std::task::{Context, Poll};
 
+use crate::actor::{Actor, NewActor};
 use crate::actor_ref::LocalActorRef;
 use crate::mailbox::MailBox;
 use crate::process::ProcessId;
-use crate::system::ActorSystemRef;
+use crate::supervisor::SupervisorMessage;
+use crate::system::{ActorOptions, ActorSystemRef};
 use crate::util::Shared;
 
 /// The context in which an actor is executed.
@@ -112,6 +114,23 @@ impl<M> ActorContext<M> {
     /// Get the pid of this actor.
     pub(crate) fn pid(&self) -> ProcessId {
         self.pid
+    }
+}
+
+impl<M> ActorContext<M> {
+    /// Spawn a new actor.
+    ///
+    /// This will add a new actor to the actor system, using the calling actor
+    /// as supervisor for the newly spawned actor.
+    ///
+    /// This method is only available if the calling actor is also a supervisor.
+    pub fn spawn<N, I, A>(&mut self, new_actor: N, item: I, options: ActorOptions) -> LocalActorRef<N::Message>
+        where N: NewActor<StartItem = I, Actor = A>,
+              A: Actor + 'static,
+              M: From<SupervisorMessage<A::Error>>,
+    {
+        // TODO: set itself as supervisor.
+        self.system_ref.add_actor(new_actor, item, options)
     }
 }
 
