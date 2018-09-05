@@ -73,7 +73,6 @@ pub trait Process: fmt::Debug {
 pub enum ProcessResult {
     /// The process is complete.
     Complete,
-
     /// Process completion is pending, but for now no further progress can be
     /// made without blocking. The process itself is responsible for scheduling
     /// itself again.
