@@ -201,6 +201,16 @@ impl<I, S> ActorSystem<I, S> {
         self.num_threads(num_cpus::get())
     }
 
+    /// Enable logging.
+    ///
+    /// See the [`log`] module for more information.
+    ///
+    /// [`log`]: ../log/index.html
+    pub fn enable_logging(self) -> Self {
+        std_logger::init();
+        self
+    }
+
     /// Add another initiator to the system.
     ///
     /// First [`with_initiator`] must be called.

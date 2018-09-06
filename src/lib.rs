@@ -92,6 +92,7 @@ pub mod actor;
 pub mod actor_ref;
 pub mod error;
 pub mod initiator;
+pub mod log;
 pub mod net;
 pub mod supervisor;
 pub mod system;

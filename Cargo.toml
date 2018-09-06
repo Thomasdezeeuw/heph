@@ -29,6 +29,7 @@ futures-io-preview   = "0.3.0-alpha.3"
 log                  = "0.4.2"
 num_cpus             = "1.8.0"
 slab                 = "0.4.0"
+std-logger           = "0.3.1"
 
 # Replace with published crate.
 mio-st = { git = "ssh://git@github.com/Thomasdezeeuw/mio-st.git" }
