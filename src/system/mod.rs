@@ -153,7 +153,7 @@ impl<I> ActorSystem<I, !> {
     /// This function will be run on each thread the actor system creates. Only
     /// a single setup function can be added to the actor system.
     pub fn with_setup<S>(self, setup: S) -> ActorSystem<I, S>
-        where S: Fn(ActorSystemRef) -> io::Result<()> + Send + Clone + 'static,
+        where S: FnOnce(ActorSystemRef) -> io::Result<()> + Send + Clone + 'static,
     {
         ActorSystem {
             threads: self.threads,
@@ -285,20 +285,20 @@ mod hack {
     use super::ActorSystemRef;
 
     pub trait SetupFn {
-        fn setup(&self, system_ref: ActorSystemRef) -> io::Result<()>;
+        fn setup(self, system_ref: ActorSystemRef) -> io::Result<()>;
     }
 
     impl<T> SetupFn for T
-        where T: Fn(ActorSystemRef) -> io::Result<()>
+        where T: FnOnce(ActorSystemRef) -> io::Result<()>
     {
-        fn setup(&self, system_ref: ActorSystemRef) -> io::Result<()> {
+        fn setup(self, system_ref: ActorSystemRef) -> io::Result<()> {
             (self)(system_ref)
         }
     }
 
     impl SetupFn for ! {
-        fn setup(&self, _: ActorSystemRef) -> io::Result<()> {
-            *self
+        fn setup(self, _: ActorSystemRef) -> io::Result<()> {
+            self
         }
     }
 }
