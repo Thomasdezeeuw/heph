@@ -35,9 +35,6 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> io::Result<()> {
 }
 
 fn main() {
-    // Enable logging via the `RUST_LOG` environment variable.
-    env_logger::init();
-
     // First we create our actor system with the default options.
     ActorSystem::new()
         // We add a setup function which adds our greeter actor.

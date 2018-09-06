@@ -30,9 +30,6 @@ async fn conn_actor(_ctx: ActorContext<!>, (mut stream, address): (TcpStream, So
 }
 
 fn main() {
-    // Enable logging via the `RUST_LOG` environment variable.
-    env_logger::init();
-
     // Create our TCP listener, with an address to listen, a way to create a new
     // actor for each incoming connections and the options for each actor (for
     // which we'll use the default).
@@ -47,6 +44,8 @@ fn main() {
         .with_initiator(listener, InitiatorOptions::default())
         // We'll create a thread per available cpu core.
         .use_all_cores()
+        // Enable logging.
+        .enable_logging()
         // And finally we run it.
         .run()
         .expect("unable to run actor system");
