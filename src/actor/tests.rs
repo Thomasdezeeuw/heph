@@ -1,6 +1,6 @@
 //! Tests for the actor module.
 
-use std::mem::PinMut;
+use std::pin::PinMut;
 use std::task::Poll;
 
 use crate::actor::ActorContext;

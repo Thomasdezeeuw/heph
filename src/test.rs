@@ -14,7 +14,7 @@
 
 use std::cell::RefCell;
 use std::future::Future;
-use std::mem::PinMut;
+use std::pin::PinMut;
 use std::task::{Context, Poll};
 
 use crate::actor::{ActorContext, NewActor};

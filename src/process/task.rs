@@ -2,7 +2,7 @@
 //! `FutureObj`s.
 
 use std::future::{Future, FutureObj};
-use std::mem::PinMut;
+use std::pin::PinMut;
 use std::task::{Context, LocalWaker, Poll};
 
 use log::{log, trace};

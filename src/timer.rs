@@ -16,7 +16,7 @@
 //! [`DeadlinePassed`]: struct.DeadlinePassed.html
 
 use std::future::Future;
-use std::mem::PinMut;
+use std::pin::PinMut;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 
@@ -121,7 +121,7 @@ impl Future for Timer {
 /// # #![feature(arbitrary_self_types)]
 ///
 /// # use std::future::Future;
-/// # use std::mem::PinMut;
+/// # use std::pin::PinMut;
 /// # use std::task::{Context, Poll};
 /// use std::thread::sleep;
 /// use std::time::Duration;

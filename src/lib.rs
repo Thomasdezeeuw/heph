@@ -72,7 +72,6 @@
            non_exhaustive,
            pin,
            read_initializer,
-           rust_2018_preview,
 )]
 
 #![warn(anonymous_parameters,

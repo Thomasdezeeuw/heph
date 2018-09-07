@@ -1,7 +1,7 @@
 //! Module containing the implementation of the `Process` trait for `Actor`s.
 
 use std::fmt;
-use std::mem::PinMut;
+use std::pin::PinMut;
 use std::task::{Context, LocalWaker, Poll};
 
 use log::{log, trace};

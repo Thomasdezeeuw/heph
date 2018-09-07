@@ -1,7 +1,7 @@
 //! Module containing the `ActorContext` and related types.
 
 use std::future::Future;
-use std::mem::PinMut;
+use std::pin::PinMut;
 use std::task::{Context, Poll};
 
 use crate::actor::{Actor, NewActor};

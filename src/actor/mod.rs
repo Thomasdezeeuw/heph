@@ -33,7 +33,7 @@
 use std::fmt;
 use std::future::Future;
 use std::marker::PhantomData;
-use std::mem::PinMut;
+use std::pin::PinMut;
 use std::task::{Context, Poll};
 
 mod context;
