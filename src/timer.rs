@@ -77,20 +77,20 @@ pub struct Timer {
 }
 
 impl Timer {
-    /// Create a new timer, based on a timeout.
-    ///
-    /// Same as calling `Timer::deadline(ctx, Instant::now() + timeout)`.
-    pub fn timeout<M>(ctx: &mut ActorContext<M>, timeout: Duration) -> Timer {
-        Timer::deadline(ctx, Instant::now() + timeout)
-    }
-
     /// Create a new `Timer`.
-    pub fn deadline<M>(ctx: &mut ActorContext<M>, deadline: Instant) -> Timer {
+    pub fn new<M>(ctx: &mut ActorContext<M>, deadline: Instant) -> Timer {
         let pid = ctx.pid();
         ctx.system_ref().add_deadline(pid, deadline);
         Timer {
             deadline,
         }
+    }
+
+    /// Create a new timer, based on a timeout.
+    ///
+    /// Same as calling `Timer::new(&mut ctx, Instant::now() + timeout)`.
+    pub fn timeout<M>(ctx: &mut ActorContext<M>, timeout: Duration) -> Timer {
+        Timer::new(ctx, Instant::now() + timeout)
     }
 }
 
@@ -159,21 +159,21 @@ pub struct Deadline<Fut> {
 }
 
 impl<Fut> Deadline<Fut> {
-    /// Create a new deadline based on a timeout.
-    ///
-    /// Same as calling `Deadline::deadline(ctx, Instant::now() + timeout, fut)`.
-    pub fn timeout<M>(ctx: &mut ActorContext<M>, timeout: Duration, fut: Fut) -> Deadline<Fut> {
-        Deadline::deadline(ctx, Instant::now() + timeout, fut)
-    }
-
     /// Create a new `Deadline`.
-    pub fn deadline<M>(ctx: &mut ActorContext<M>, deadline: Instant, fut: Fut) -> Deadline<Fut> {
+    pub fn new<M>(ctx: &mut ActorContext<M>, deadline: Instant, fut: Fut) -> Deadline<Fut> {
         let pid = ctx.pid();
         ctx.system_ref().add_deadline(pid, deadline);
         Deadline {
             deadline,
             fut,
         }
+    }
+
+    /// Create a new deadline based on a timeout.
+    ///
+    /// Same as calling `Deadline::new(&mut ctx, Instant::now() + timeout, fut)`.
+    pub fn timeout<M>(ctx: &mut ActorContext<M>, timeout: Duration, fut: Fut) -> Deadline<Fut> {
+        Deadline::new(ctx, Instant::now() + timeout, fut)
     }
 }
 
