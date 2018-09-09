@@ -250,7 +250,7 @@ impl<I, S> ActorSystem<I, S>
                             None => "unkown panic message".to_owned(),
                         },
                     };
-                    RuntimeError::Panic(msg)
+                    RuntimeError::panic(msg)
                 })
                 .and_then(|res| res)?;
         }
@@ -267,7 +267,7 @@ impl<I, S> ActorSystem<I, S>
             let initiators = self.initiators.iter().map(|(initiator, options)| {
                 initiator.clone_threaded()
                     .map(|i| (i, options.clone()))
-                    .map_err(RuntimeError::Initiator)
+                    .map_err(RuntimeError::initiator)
             })
             .collect::<Result<_, RuntimeError>>()?;
 
@@ -333,7 +333,7 @@ fn run_system<I, S>(initiators: Vec<(I, InitiatorOptions)>,  setup: Option<S>) -
     // Run optional setup.
     if let Some(setup) = setup {
         let system_ref = actor_system.create_ref();
-        setup.setup(system_ref).map_err(RuntimeError::Setup)?;
+        setup.setup(system_ref).map_err(RuntimeError::setup)?;
     }
 
     // All setup is done, so we're ready to run the event loop.
@@ -365,7 +365,7 @@ impl RunningActorSystem {
         // Scheduler for scheduling and running processes.
         let (scheduler, scheduler_ref) = Scheduler::new();
         // System poller for event notifications.
-        let poller = Poller::new().map_err(RuntimeError::Poll)?;
+        let poller = Poller::new().map_err(RuntimeError::poll)?;
 
         // Internals of the running actor system.
         let internal = ActorSystemInternal::new(scheduler_ref, poller, waker_send);
@@ -399,7 +399,7 @@ impl RunningActorSystem {
 
         // Initialise the initiator.
         trace!("initialising initiator: pid={}", pid);
-        initiator.init(poller, pid).map_err(RuntimeError::Initiator)?;
+        initiator.init(poller, pid).map_err(RuntimeError::initiator)?;
 
         // Create a new initiator process.
         let process = InitiatorProcess::new(initiator);
@@ -449,7 +449,7 @@ impl RunningActorSystem {
         trace!("polling system poller for events");
         let timeout = self.determine_timeout();
         self.internal.borrow_mut().poller.poll(events, timeout)
-            .map_err(RuntimeError::Poll)?;
+            .map_err(RuntimeError::poll)?;
 
         // Schedule all processes with a notification.
         for event in events {
