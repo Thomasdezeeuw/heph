@@ -157,7 +157,7 @@ pub trait NewActor {
 ///
 /// Because this is basically a `Future` it also shares it's characteristics,
 /// including it's unsafety. Please read the `Future` documentation when
-/// implementing this by hand.
+/// implementing or using this by hand.
 pub trait Actor {
     /// An error the actor can return to it's supervisor. This error will be
     /// considered terminal for this actor and should **not** not be an error of
@@ -227,14 +227,16 @@ impl<N, M, I, A> fmt::Debug for ActorFactory<N, M, I, A> {
     }
 }
 
+// This is safe because we only really own `N`.
 unsafe impl<N, M, I, A> Send for ActorFactory<N, M, I, A> where N: Send {}
 
+// This is safe because we only really own `N`.
 unsafe impl<N, M, I, A> Sync for ActorFactory<N, M, I, A> where N: Sync {}
 
 /// Implement [`NewActor`] by means of a function.
 ///
-/// This easiest, and recommended, way to use this is via async function, see
-/// the example below.
+/// The easiest and recommended way to use this is via async functions, see the
+/// example below.
 ///
 /// [`NewActor`]: trait.NewActor.html
 ///
