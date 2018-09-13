@@ -30,7 +30,7 @@
 //!  - *Event-driven*: Heph does nothing by itself, it must first get an event
 //!    before it starts doing anything. For example when using an `TcpListener`
 //!    it waits on a notification from the OS saying the `TcpListener` is ready
-//!    before trying to accepted connections.
+//!    before trying to accept connections.
 //!  - *Non-blocking I/O*: normal I/O operations need to wait (block) until the
 //!    operation can complete. Using non-blocking, or asynchronous, I/O means
 //!    that rather then waiting for the operation to complete we'll do some
@@ -40,10 +40,11 @@
 //!    or by using [atomic] operations. Heph is designed to not share any data.
 //!    Each actor is responsible for its own memory and cannot access memory
 //!    owned by other actors. Instead communication is done via sending
-//!    messages, see the actor model. <sup>[2]</sup>
+//!    messages, see the [actor model].
 //!
 //! [`Mutex`]: https://doc.rust-lang.org/std/sync/struct.Mutex.html
 //! [atomic]: https://doc.rust-lang.org/std/sync/atomic/index.html
+//! [actor model]: https://en.wikipedia.org/wiki/Actor_model
 //!
 //!
 //! ## Getting started

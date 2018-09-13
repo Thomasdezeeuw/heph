@@ -109,7 +109,7 @@ impl Future for Timer {
 /// A future that represents a deadline.
 ///
 /// When this future is polled it first checks if the deadline has passed, if so
-/// it returns `Poll::Ready(Err(DeadlinePassed))`. Otherwise this will call the
+/// it returns `Poll::Ready(Err(DeadlinePassed))`. Otherwise this will poll the
 /// provided future.
 ///
 /// # Examples

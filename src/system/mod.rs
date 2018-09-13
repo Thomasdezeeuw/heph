@@ -84,7 +84,8 @@ pub use self::options::{ActorOptions, InitiatorOptions};
 /// ## Examples
 ///
 /// This simple Hello World example show how to run an `ActorSystem` and add how
-/// start a single actor on each thread. This should print "Hello World" twice.
+/// start a single actor on each thread. This should print "Hello World" twice
+/// (once on each thread started).
 ///
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
@@ -109,8 +110,7 @@ pub use self::options::{ActorOptions, InitiatorOptions};
 ///     let mut actor_ref = system_ref.add_actor(new_actor, "Hello", ActorOptions::default());
 ///
 ///     // Send a message to the actor.
-///     actor_ref.send("World")
-///         .expect("unable to send message");
+///     actor_ref.send("World").expect("unable to send message");
 ///
 ///     Ok(())
 /// }

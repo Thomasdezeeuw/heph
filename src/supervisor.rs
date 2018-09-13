@@ -2,9 +2,9 @@
 //!
 //! # Supervisor
 //!
-//! A supervisor is regular which can (also) receive a [`SupervisorMessage`].
-//! This allows the actor to spawn other actors, making itself the supervisor of
-//! the spawned actor, via [`ActorContext.spawn`].
+//! A supervisor is regular actor which can (also) receive a
+//! [`SupervisorMessage`]. This allows the actor to spawn other actors, making
+//! itself the supervisor of the spawned actor, via [`ActorContext.spawn`].
 //!
 //! An actor can be a supervisor only, meaning the type of [message] will only
 //! be `SupervisorMessage` and the supervisor itself won't do any computation.
@@ -28,7 +28,7 @@
 pub enum SupervisorMessage<E> {
     /// Actor stopped normally, i.e. it returned `Ok(())`.
     Done,
-    /// Actor encountered an error, i.e. it returned an `Err(E)`.
+    /// Actor encountered an error, i.e. it returned `Err(E)`.
     Error(E, ApplyStrategy),
 }
 
