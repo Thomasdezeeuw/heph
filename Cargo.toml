@@ -1,18 +1,21 @@
 [package]
-name = "heph"
+name        = "heph"
+version     = "0.1.0"
+authors     = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
+license     = "MIT"
 description = """
 Heph is an actor framework based on asynchronous functions.
 """
-version = "0.1.0"
-authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
-license = "MIT"
-repository = "https://github.com/Thomasdezeeuw/heph"
-readme = "README.md"
-keywords = ["actor", "framework", "async", "functions"]
-edition = "2018"
+readme        = "README.md"
+repository    = "https://github.com/Thomasdezeeuw/heph"
+documentation = "https://docs.rs/heph"
+keywords      = ["actor", "framework", "async", "functions"]
+categories    = ["asynchronous", "web-programming"]
+include       = ["Cargo.toml", "src/**/*.rs", "LICENSE"]
+edition       = "2018"
 
 [badges]
-travis-ci = { repository = "Thomasdezeeuw/heph" }
+travis-ci = { repository = "https://github.com/Thomasdezeeuw/heph", branch = "master" }
 
 [features]
 default = []
