@@ -25,12 +25,10 @@ crossbeam-channel    = "0.2.4"
 futures-core-preview = "0.3.0-alpha.6"
 futures-io-preview   = "0.3.0-alpha.6"
 log                  = "0.4.2"
+mio-st               = "0.1.0"
 num_cpus             = "1.8.0"
 slab                 = "0.4.0"
 std-logger           = "0.3.1"
-
-# Replace with published crate.
-mio-st = { git = "ssh://git@github.com/Thomasdezeeuw/mio-st.git" }
 
 [dev-dependencies]
 env_logger           = "0.5.10"
