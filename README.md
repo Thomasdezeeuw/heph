@@ -105,5 +105,49 @@ Unless you explicitly state otherwise, any contribution intentionally submitted
 for inclusion in the work by you shall be licensed as above, without any
 additional terms or conditions.
 
+
+## Inspiration
+
+Heph is inspired by a number of other frameworks and languages. The greatest
+inspiration is the [Erlang] programming language. From Erlang the concept of
+processes, or rather a function as a process, is borrowed. In line with the
+actor model the processes (actors) can't access each others memory, instead
+message passing is used.
+
+Another inspiration is the [Akka] framework for Scala and Java. Where Erlang is
+a functional language Akka is implemented in/for Scala and Java, languages more
+in line with Rust (both being object oriented, but having functional aspects). A
+lot of the API is inspired by the API provided in Akka, but there are a number
+of big differences. The main one being that Akka's actor are untyped (or at
+least can be), where Heph actors are strongly typed (just like Rust in general).
+
+The final inspiration I would like to mention is [Nginx], Nginx is a HTTP and
+reverse proxy server. The architecture used in Nginx is running a single master
+process (not a thread) that coordinates a number of workers processes (again not
+threads), each with there own polling instance (epoll/kqueue etc.) which all
+share the same TCP listeners. In early stages of development of Heph the idea
+was to start a new process per cpu core, must like Nginx. This would allow all
+atomic and locking operations to be dropped, later however this was changed to
+start threads instead to reduce the complexity when working with other
+libraries. In this design for example it wouldn't be possible to work with any
+libraries that started threads because then we could introduce data races,
+something that Rust tries very hard to avoid. Still most of the architecture was
+inspired by the one used in Nginx.
+
+[Erlang]: https://www.erlang.org
+[Akka]: https://akka.io
+[Nginx]: https://nginx.org
+
+
+### Building blocks
+
+Besides the inspiration gained from the work of others, Heph is also build on
+top of the work of others. Three major components used in Heph are the futures
+task system (to be part of the standard library), asynchronous functions and
+[Mio] (or rather a specialised fork [mio-st]).
+
+[Mio]: https://github.com/carllerche/mio
+[mio-st]: https://github.com/Thomasdezeeuw/mio-st
+
 [1]: https://en.wikipedia.org/wiki/Hephaestus
 [2]: https://en.wikipedia.org/wiki/Actor_model
