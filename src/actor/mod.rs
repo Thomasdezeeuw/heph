@@ -39,6 +39,8 @@ mod context;
 #[cfg(all(test, feature = "test"))]
 mod tests;
 
+pub mod messages;
+
 pub use self::context::{ActorContext, ReceiveMessage};
 
 /// The trait that defines how to create a new actor.
