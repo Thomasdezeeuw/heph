@@ -113,7 +113,7 @@ mod local;
 mod machine;
 mod remote;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "test"))]
 mod tests;
 
 pub use self::local::LocalActorRef;

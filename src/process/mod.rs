@@ -10,7 +10,7 @@ mod actor;
 mod initiator;
 mod task;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "test"))]
 mod tests;
 
 pub use self::actor::ActorProcess;

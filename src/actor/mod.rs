@@ -38,7 +38,7 @@ use std::task::{Context, Poll};
 
 mod context;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "test"))]
 mod tests;
 
 pub use self::context::ActorContext;

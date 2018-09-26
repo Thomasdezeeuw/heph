@@ -15,7 +15,7 @@ use crate::util::Shared;
 
 mod priority;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "test"))]
 mod tests;
 
 pub use self::priority::Priority;
