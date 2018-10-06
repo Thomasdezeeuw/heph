@@ -2,7 +2,7 @@
 
 use std::io::{self, ErrorKind, Read, Write};
 use std::net::{Shutdown, SocketAddr};
-use std::task::{Context, Poll};
+use std::task::{LocalWaker, Poll};
 use std::time::Duration;
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
@@ -285,22 +285,22 @@ impl AsyncRead for TcpStream {
         Initializer::nop()
     }
 
-    fn poll_read(&mut self, _ctx: &mut Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(&mut self, _waker: &LocalWaker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         try_io!(self.inner.read(buf))
     }
 }
 
 impl AsyncWrite for TcpStream {
-    fn poll_write(&mut self, _ctx: &mut Context, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(&mut self, _waker: &LocalWaker, buf: &[u8]) -> Poll<io::Result<usize>> {
         try_io!(self.inner.write(buf))
     }
 
-    fn poll_flush(&mut self, _ctx: &mut Context) -> Poll<io::Result<()>> {
+    fn poll_flush(&mut self, _waker: &LocalWaker) -> Poll<io::Result<()>> {
         try_io!(self.inner.flush())
     }
 
-    fn poll_close(&mut self, ctx: &mut Context) -> Poll<io::Result<()>> {
-        self.poll_flush(ctx)
+    fn poll_close(&mut self, waker: &LocalWaker) -> Poll<io::Result<()>> {
+        self.poll_flush(waker)
     }
 }
 

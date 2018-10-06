@@ -15,8 +15,6 @@
 //! [`ActorContext`]: ../actor/struct.ActorContext.html
 //! [`TcpStream.connect`]: ../net/struct.TcpStream.html#method.connect
 
-use std::future::FutureObj;
-use std::task::{Spawn, SpawnErrorKind, SpawnObjError};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use std::{fmt, io};
@@ -32,7 +30,7 @@ use crate::actor_ref::LocalActorRef;
 use crate::error::RuntimeError;
 use crate::initiator::Initiator;
 use crate::mailbox::MailBox;
-use crate::process::{ActorProcess, InitiatorProcess, ProcessId, TaskProcess};
+use crate::process::{ActorProcess, InitiatorProcess, ProcessId};
 use crate::scheduler::{Priority, Scheduler, SchedulerRef};
 use crate::util::Shared;
 use crate::waker::new_waker;
@@ -545,20 +543,6 @@ impl ActorSystemRef {
     }
 }
 
-/// This is not a part of the stable API, but an implementation detail. Use the
-/// `Spawn` on the `task::Context` instead.
-#[doc(hidden)]
-impl Spawn for ActorSystemRef {
-    fn spawn_obj(&mut self, task: FutureObj<'static, ()>) -> Result<(), SpawnObjError> {
-        self.internal.borrow_mut().add_task(task);
-        Ok(())
-    }
-
-    fn status(&self) -> Result<(), SpawnErrorKind> {
-        Ok(())
-    }
-}
-
 /// Internals of the `RunningActorSystem`, to which `ActorSystemRef`s have a
 /// reference.
 #[derive(Debug)]
@@ -611,19 +595,5 @@ impl ActorSystemInternal {
         let process = ActorProcess::new(actor, waker);
         process_entry.add(process, options.priority);
         Ok(actor_ref)
-    }
-
-    pub fn add_task(&mut self, task: FutureObj<'static, ()>) {
-        // Setup adding a new process to the scheduler.
-        let process_entry = self.scheduler_ref.add_process();
-        let pid = process_entry.id();
-        debug!("adding task to actor system: pid={}", pid);
-
-        // Create a new task process.
-        let waker = new_waker(pid, self.waker_notifications.clone());
-        let process = TaskProcess::new(task, waker);
-
-        // Actually add the process.
-        process_entry.add(process, Priority::NORMAL);
     }
 }

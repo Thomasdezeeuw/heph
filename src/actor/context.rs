@@ -1,8 +1,8 @@
 //! Module containing the `ActorContext` and related types.
 
 use std::future::Future;
-use std::pin::PinMut;
-use std::task::{Context, Poll};
+use std::pin::Pin;
+use std::task::{LocalWaker, Poll};
 
 use crate::actor::{Actor, NewActor};
 use crate::actor_ref::LocalActorRef;
@@ -145,7 +145,7 @@ struct ReceiveFuture<'ctx, M: 'ctx> {
 impl<'ctx, M> Future for ReceiveFuture<'ctx, M> {
     type Output = M;
 
-    fn poll(mut self: PinMut<Self>, _ctx: &mut Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Self::Output> {
         match self.inbox.borrow_mut().receive() {
             Some(msg) => Poll::Ready(msg),
             None => Poll::Pending,

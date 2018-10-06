@@ -14,8 +14,8 @@
 
 use std::cell::RefCell;
 use std::future::Future;
-use std::pin::PinMut;
-use std::task::{Context, Poll};
+use std::pin::Pin;
+use std::task::Poll;
 
 use crate::actor::{ActorContext, NewActor};
 use crate::actor_ref::LocalActorRef;
@@ -58,13 +58,12 @@ pub fn init_actor<N>(mut new_actor: N, item: N::StartItem) -> (N::Actor, LocalAc
 ///
 /// Wake notifications will be ignored. If this is required run an end to end
 /// test with a completely functional actor system instead.
-pub fn poll_future<Fut>(future: &mut PinMut<Fut>) -> Poll<Fut::Output>
+pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
     where Fut: Future,
 {
     let pid = ProcessId(0);
     let mut system_ref = system_ref();
     let waker_notifications = system_ref.get_notification_sender();
     let waker = new_waker(pid, waker_notifications.clone());
-    let mut task_ctx = Context::new(&waker, &mut system_ref);
-    Future::poll(future.reborrow(), &mut task_ctx)
+    Future::poll(future, &waker)
 }

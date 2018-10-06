@@ -1,6 +1,6 @@
 //! Tests for the actor module.
 
-use std::pin::PinMut;
+use std::pin::Pin;
 use std::task::Poll;
 
 use crate::actor::ActorContext;
@@ -21,10 +21,9 @@ fn test_actor_context() {
 
     // Initially the mailbox should be empty.
     let mut recv_future = ctx.receive();
-    let mut recv_future = PinMut::new(&mut recv_future);
-    assert_eq!(test::poll_future(&mut recv_future), Poll::Pending);
+    assert_eq!(test::poll_future(Pin::new(&mut recv_future)), Poll::Pending);
 
     // Send my self a message, and we should be able to retrieve it.
     self_ref.send(()).unwrap();
-    assert_eq!(test::poll_future(&mut recv_future), Poll::Ready(()));
+    assert_eq!(test::poll_future(Pin::new(&mut recv_future)), Poll::Ready(()));
 }

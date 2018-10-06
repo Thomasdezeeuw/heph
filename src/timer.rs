@@ -16,8 +16,8 @@
 //! [`DeadlinePassed`]: struct.DeadlinePassed.html
 
 use std::future::Future;
-use std::pin::PinMut;
-use std::task::{Context, Poll};
+use std::pin::Pin;
+use std::task::{LocalWaker, Poll};
 use std::time::{Duration, Instant};
 
 use futures_core::stream::Stream;
@@ -97,7 +97,7 @@ impl Timer {
 impl Future for Timer {
     type Output = DeadlinePassed;
 
-    fn poll(self: PinMut<Self>, _ctx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Self::Output> {
         if self.deadline <= Instant::now() {
             Poll::Ready(DeadlinePassed)
         } else {
@@ -121,8 +121,8 @@ impl Future for Timer {
 /// # #![feature(arbitrary_self_types)]
 ///
 /// # use std::future::Future;
-/// # use std::pin::PinMut;
-/// # use std::task::{Context, Poll};
+/// # use std::pin::Pin;
+/// # use std::task::{LocalWaker, Poll};
 /// use std::thread::sleep;
 /// use std::time::Duration;
 ///
@@ -134,7 +134,7 @@ impl Future for Timer {
 /// #
 /// # impl Future for OtherFuture {
 /// #     type Output = ();
-/// #     fn poll(self: PinMut<Self>, ctx: &mut Context) -> Poll<Self::Output> {
+/// #     fn poll(self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Self::Output> {
 /// #         Poll::Pending
 /// #     }
 /// # }
@@ -182,12 +182,12 @@ impl<Fut> Future for Deadline<Fut>
 {
     type Output = Result<Fut::Output, DeadlinePassed>;
 
-    fn poll(self: PinMut<Self>, ctx: &mut Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Self::Output> {
         if self.deadline <= Instant::now() {
             Poll::Ready(Err(DeadlinePassed))
         } else {
-            let future = unsafe { PinMut::map_unchecked(self, |this| &mut this.fut) };
-            future.poll(ctx).map(Ok)
+            let future = unsafe { Pin::map_unchecked_mut(self, |this| &mut this.fut) };
+            future.poll(waker).map(Ok)
         }
     }
 }
@@ -255,11 +255,11 @@ impl Interval {
 impl Stream for Interval {
     type Item = DeadlinePassed;
 
-    fn poll_next(self: PinMut<Self>, _ctx: &mut Context) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Option<Self::Item>> {
         if self.deadline <= Instant::now() {
             // Determine the next deadline.
             let next_deadline = Instant::now() + self.interval;
-            let this = unsafe { PinMut::get_mut_unchecked(self) };
+            let this = Pin::get_mut(self);
             this.deadline = next_deadline;
             this.system_ref.add_deadline(this.pid, next_deadline);
             Poll::Ready(Some(DeadlinePassed))

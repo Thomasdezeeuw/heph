@@ -33,8 +33,8 @@
 use std::fmt;
 use std::future::Future;
 use std::marker::PhantomData;
-use std::pin::PinMut;
-use std::task::{Context, Poll};
+use std::pin::Pin;
+use std::task::{LocalWaker, Poll};
 
 mod context;
 
@@ -175,14 +175,14 @@ pub trait Actor {
     ///
     /// Just like with futures polling an after it returned `Poll::Ready` may
     /// cause undefined behaviour, including but not limited to panicking.
-    fn try_poll(self: PinMut<Self>, ctx: &mut Context) -> Poll<Result<(), Self::Error>>;
+    fn try_poll(self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Result<(), Self::Error>>;
 }
 
 impl<T, E> Actor for T where T: Future<Output = Result<(), E>> {
     type Error = E;
 
-    fn try_poll(self: PinMut<Self>, ctx: &mut Context) -> Poll<Result<(), Self::Error>> {
-        self.poll(ctx)
+    fn try_poll(self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Result<(), Self::Error>> {
+        self.poll(waker)
     }
 }
 

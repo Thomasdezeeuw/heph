@@ -1,8 +1,8 @@
 //! Module containing the implementation of the `Process` trait for `Actor`s.
 
 use std::fmt;
-use std::pin::PinMut;
-use std::task::{Context, LocalWaker, Poll};
+use std::pin::Pin;
+use std::task::{LocalWaker, Poll};
 
 use log::{log, trace};
 
@@ -33,16 +33,15 @@ impl<A> ActorProcess<A> {
 impl<A> Process for ActorProcess<A>
     where A: Actor,
 {
-    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
+    fn run(&mut self, _system_ref: &mut ActorSystemRef) -> ProcessResult {
         trace!("running actor process");
 
         // FIXME: Currently this is safe because `ProcessData` in the scheduler
         // module boxes each process, but this needs improvement. Maybe go the
         // future route: `self: PinMut<Self>`.
-        let actor = unsafe { PinMut::new_unchecked(&mut self.actor) };
-        let mut ctx = Context::new(&self.waker, system_ref);
+        let actor = unsafe { Pin::new_unchecked(&mut self.actor) };
 
-        match actor.try_poll(&mut ctx) {
+        match actor.try_poll(&self.waker) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
             Poll::Ready(Err(_err)) => {
                 // TODO: send error to supervisor.

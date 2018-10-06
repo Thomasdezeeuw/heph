@@ -1,11 +1,8 @@
 //! Unit tests for the process module.
 
-use std::future::Future;
 use std::io;
-use std::pin::PinMut;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::task::{Context, Poll};
 
 use crossbeam_channel as channel;
 use mio_st::event::EventedId;
@@ -13,7 +10,7 @@ use mio_st::poll::Poller;
 
 use crate::actor::{actor_factory, ActorContext};
 use crate::initiator::Initiator;
-use crate::process::{ActorProcess, InitiatorProcess, Process, ProcessId, ProcessResult, TaskProcess};
+use crate::process::{ActorProcess, InitiatorProcess, Process, ProcessId, ProcessResult};
 use crate::system::ActorSystemRef;
 use crate::test;
 use crate::waker::new_waker;
@@ -133,46 +130,6 @@ fn initiator_process() {
     assert_eq!(called.load(Ordering::Relaxed), 1);
 
     // Error run.
-    assert_eq!(process.run(&mut system_ref), ProcessResult::Complete);
-    assert_eq!(called.load(Ordering::Relaxed), 2);
-}
-
-struct TaskFuture {
-    called: Arc<AtomicUsize>,
-}
-
-impl Future for TaskFuture {
-    type Output = ();
-
-    fn poll(self: PinMut<Self>, _ctx: &mut Context) -> Poll<Self::Output> {
-        match self.called.fetch_add(1, Ordering::Relaxed) {
-            0 => Poll::Pending,
-            1 => Poll::Ready(()),
-            _ => unreachable!(),
-        }
-    }
-}
-
-#[test]
-fn task_process() {
-    // Create the task.
-    let called = Arc::new(AtomicUsize::new(0));
-    let task = Box::new(TaskFuture { called: Arc::clone(&called) }).into();
-
-    // Create the waker.
-    let pid = ProcessId(0);
-    let (sender, _) = channel::unbounded();
-    let waker = new_waker(pid, sender);
-
-    // Finally create our process.
-    let mut process = TaskProcess::new(task, waker);
-
-    // Pending run.
-    let mut system_ref = test::system_ref();
-    assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
-    assert_eq!(called.load(Ordering::Relaxed), 1);
-
-    // Ready run.
     assert_eq!(process.run(&mut system_ref), ProcessResult::Complete);
     assert_eq!(called.load(Ordering::Relaxed), 2);
 }
