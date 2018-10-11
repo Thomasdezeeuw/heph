@@ -487,12 +487,12 @@ pub struct ActorSystemRef {
 
 impl ActorSystemRef {
     /// Add a new actor to the system.
-    pub fn add_actor<N, I, A>(&mut self, new_actor: N, item: I, options: ActorOptions) -> LocalActorRef<N::Message>
-        where N: NewActor<StartItem = I, Actor = A>,
+    pub fn add_actor<N, Arg, A>(&mut self, new_actor: N, arg: Arg, options: ActorOptions) -> LocalActorRef<N::Message>
+        where N: NewActor<Argument = Arg, Actor = A>,
               A: Actor + 'static,
     {
         let system_ref = self.clone();
-        self.internal.borrow_mut().add_actor(options, new_actor, item, system_ref)
+        self.internal.borrow_mut().add_actor(options, new_actor, arg, system_ref)
     }
 
     /// Add an actor that needs to be initialised.
@@ -565,11 +565,11 @@ impl ActorSystemInternal {
         }
     }
 
-    pub fn add_actor<N, I, A>(&mut self, options: ActorOptions, mut new_actor: N, item: I, system_ref: ActorSystemRef) -> LocalActorRef<N::Message>
-        where N: NewActor<StartItem = I, Actor = A>,
+    pub fn add_actor<N, Arg, A>(&mut self, options: ActorOptions, mut new_actor: N, arg: Arg, system_ref: ActorSystemRef) -> LocalActorRef<N::Message>
+        where N: NewActor<Argument = Arg, Actor = A>,
               A: Actor + 'static,
     {
-        self.add_actor_setup(options, move |ctx, _, _| Ok(new_actor.new(ctx, item)), system_ref)
+        self.add_actor_setup(options, move |ctx, _, _| Ok(new_actor.new(ctx, arg)), system_ref)
             .unwrap() // Safe because the function doesn't return an error.
     }
 
