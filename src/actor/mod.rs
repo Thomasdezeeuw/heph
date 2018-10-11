@@ -121,14 +121,15 @@ pub trait NewActor {
     /// ```
     type Message;
 
-    /// The initial item the actor will be started with.
+    /// The argument(s) passed to the actor.
     ///
     /// This could for example be a TCP connection the actor is responsible for.
-    /// See [`TcpListener`] for an example usage of this. Some actors don't need
-    /// a starting item, those actors can use `()`.
+    /// See [`TcpListener`] for an example usage of this. To supply multiple
+    /// arguments to an actor a tuple can be used. Some actors don't need
+    /// arguments, those actors can use `()` the empty tuple.
     ///
     /// [`TcpListener`]: ../net/struct.TcpListener.html
-    type StartItem;
+    type Argument;
 
     /// The type of the actor.
     ///
@@ -138,7 +139,7 @@ pub trait NewActor {
     type Actor: Actor;
 
     /// Create a new `Actor`.
-    fn new(&mut self, ctx: ActorContext<Self::Message>, start_item: Self::StartItem) -> Self::Actor;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor;
 }
 
 /// The main actor trait.
@@ -189,38 +190,38 @@ impl<T, E> Actor for T where T: Future<Output = Result<(), E>> {
 /// The implementation behind [`actor_factory`].
 ///
 /// [`actor_factory`]: fn.actor_factory.html
-pub struct ActorFactory<N, M, I, A> {
+pub struct ActorFactory<N, M, Arg, A> {
     new_actor: N,
-    _phantom: PhantomData<(M, I, A)>,
+    _phantom: PhantomData<(M, Arg, A)>,
 }
 
-impl<N, M, I, A> NewActor for ActorFactory<N, M, I, A>
-    where N: FnMut(ActorContext<M>, I) -> A,
+impl<N, M, Arg, A> NewActor for ActorFactory<N, M, Arg, A>
+    where N: FnMut(ActorContext<M>, Arg) -> A,
           A: Actor,
 {
     type Actor = A;
-    type StartItem = I;
+    type Argument = Arg;
     type Message = M;
 
-    fn new(&mut self, ctx: ActorContext<Self::Message>, item: Self::StartItem) -> Self::Actor {
+    fn new(&mut self, ctx: ActorContext<Self::Message>, item: Self::Argument) -> Self::Actor {
         (self.new_actor)(ctx, item)
     }
 }
 
-impl<N, M, I, A> Copy for ActorFactory<N, M, I, A>
+impl<N, M, Arg, A> Copy for ActorFactory<N, M, Arg, A>
     where N: Copy,
 {
 }
 
-impl<N, M, I, A> Clone for ActorFactory<N, M, I, A>
+impl<N, M, Arg, A> Clone for ActorFactory<N, M, Arg, A>
     where N: Clone + Copy,
 {
-    fn clone(&self) -> ActorFactory<N, M, I, A> {
+    fn clone(&self) -> ActorFactory<N, M, Arg, A> {
         *self
     }
 }
 
-impl<N, M, I, A> fmt::Debug for ActorFactory<N, M, I, A> {
+impl<N, M, Arg, A> fmt::Debug for ActorFactory<N, M, Arg, A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ActorFactory")
             .finish()
@@ -228,10 +229,10 @@ impl<N, M, I, A> fmt::Debug for ActorFactory<N, M, I, A> {
 }
 
 // This is safe because we only really own `N`.
-unsafe impl<N, M, I, A> Send for ActorFactory<N, M, I, A> where N: Send {}
+unsafe impl<N, M, Arg, A> Send for ActorFactory<N, M, Arg, A> where N: Send {}
 
 // This is safe because we only really own `N`.
-unsafe impl<N, M, I, A> Sync for ActorFactory<N, M, I, A> where N: Sync {}
+unsafe impl<N, M, Arg, A> Sync for ActorFactory<N, M, Arg, A> where N: Sync {}
 
 /// Implement [`NewActor`] by means of a function.
 ///
@@ -260,8 +261,8 @@ unsafe impl<N, M, I, A> Sync for ActorFactory<N, M, I, A> where N: Sync {}
 /// # fn use_new_actor<N: heph::actor::NewActor>(new_actor: N) { }
 /// # use_new_actor(new_actor);
 /// ```
-pub const fn actor_factory<N, M, I, A>(new_actor: N) -> ActorFactory<N, M, I, A>
-    where N: FnMut(ActorContext<M>, I) -> A,
+pub const fn actor_factory<N, M, Arg, A>(new_actor: N) -> ActorFactory<N, M, Arg, A>
+    where N: FnMut(ActorContext<M>, Arg) -> A,
           A: Actor,
 {
     ActorFactory {

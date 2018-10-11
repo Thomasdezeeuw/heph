@@ -124,13 +124,13 @@ impl<M> ActorContext<M> {
     /// as supervisor for the newly spawned actor.
     ///
     /// This method is only available if the calling actor is also a supervisor.
-    pub fn spawn<N, I, A>(&mut self, new_actor: N, item: I, options: ActorOptions) -> LocalActorRef<N::Message>
-        where N: NewActor<StartItem = I, Actor = A>,
+    pub fn spawn<N, Arg, A>(&mut self, new_actor: N, arg: Arg, options: ActorOptions) -> LocalActorRef<N::Message>
+        where N: NewActor<Argument = Arg, Actor = A>,
               A: Actor + 'static,
               M: From<SupervisorMessage<A::Error>>,
     {
         // TODO: set itself as supervisor.
-        self.system_ref.add_actor(new_actor, item, options)
+        self.system_ref.add_actor(new_actor, arg, options)
     }
 }
 

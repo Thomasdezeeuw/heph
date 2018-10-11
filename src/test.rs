@@ -37,7 +37,7 @@ pub fn system_ref() -> ActorSystemRef {
 }
 
 /// Initialise an actor.
-pub fn init_actor<N>(mut new_actor: N, item: N::StartItem) -> (N::Actor, LocalActorRef<N::Message>)
+pub fn init_actor<N>(mut new_actor: N, arg: N::Argument) -> (N::Actor, LocalActorRef<N::Message>)
     where N: NewActor,
 {
     let system_ref = system_ref();
@@ -47,7 +47,7 @@ pub fn init_actor<N>(mut new_actor: N, item: N::StartItem) -> (N::Actor, LocalAc
     let actor_ref = LocalActorRef::new(inbox.downgrade());
 
     let ctx = ActorContext::new(pid, system_ref, inbox);
-    let actor = new_actor.new(ctx, item);
+    let actor = new_actor.new(ctx, arg);
 
     (actor, actor_ref)
 }
