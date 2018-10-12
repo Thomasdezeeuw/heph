@@ -203,9 +203,15 @@ impl<I, S> ActorSystem<I, S> {
     ///
     /// See the [`log`] module for more information.
     ///
+    /// # Panics
+    ///
+    /// This will panic if logging is already enabled by calling
+    /// [`log::init`].
+    ///
     /// [`log`]: ../log/index.html
+    /// [`log::init`]: ../log/fn.init.html
     pub fn enable_logging(self) -> Self {
-        std_logger::init();
+        crate::log::init();
         self
     }
 

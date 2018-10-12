@@ -12,12 +12,25 @@
 //! constant can be used, which is re-exported from the `std-logger` crate.
 //!
 //! To enable logging use the [`enable_logging`] method on the `ActorSystem`
-//! struct.
+//! struct, or by calling [`init`].
 //!
 //! [`log`]: ../../log/index.html
 //! [`std-logger`]: ../../std_logger/index.html
 //! [`enable_logging`]: ../system/struct.ActorSystem.html#method.enable_logging
+//! [`init`]: fn.init.html
 
 pub use log::{debug, error, info, log, log_enabled, trace, warn};
 
 pub use std_logger::REQUEST_TARGET;
+
+/// Initialise logging.
+///
+/// This is whats get called when using [`ActorSystem.enable_logging`]. This is
+/// made public here so it can be called before the [`ActorSystem`] is created
+/// and ran.
+///
+/// [`ActorSystem.enable_logging`]: ../system/struct.ActorSystem.html#method.enable_logging
+/// [`ActorSystem`]: ../system/struct.ActorSystem.html
+pub fn init() {
+    std_logger::init();
+}
