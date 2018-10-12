@@ -24,15 +24,17 @@ async fn echo_actor(_ctx: ActorContext<!>, (stream, address): (TcpStream, Socket
 // The remainder of the example, setting up and running the actor system, is
 // the same as example 2.
 fn main() {
+    heph::log::init();
+
     let address = "127.0.0.1:7890".parse().unwrap();
     let new_actor = actor_factory(echo_actor);
     let listener = TcpListener::bind(address, new_actor, ActorOptions::default())
         .expect("unable to bind TCP listener");
+    info!("listening: address={}", address);
 
     ActorSystem::new()
         .with_initiator(listener, InitiatorOptions::default())
         .use_all_cores()
-        .enable_logging()
         .run()
         .expect("unable to run actor system");
 }
