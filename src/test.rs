@@ -15,9 +15,9 @@
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
-use std::task::Poll;
+use std::task::{LocalWaker, Poll};
 
-use crate::actor::{ActorContext, NewActor};
+use crate::actor::{Actor, ActorContext, NewActor};
 use crate::actor_ref::LocalActorRef;
 use crate::mailbox::MailBox;
 use crate::process::ProcessId;
@@ -63,9 +63,30 @@ pub fn init_actor<N>(mut new_actor: N, arg: N::Argument) -> (N::Actor, LocalActo
 pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
     where Fut: Future,
 {
+    let waker = test_waker();
+    Future::poll(future, &waker)
+}
+
+/// Poll an actor.
+///
+/// This is effectively the same function as [`poll_future`], but instead polls
+/// an actors. The `LocalWaker` be provided by the *test* actor system.
+///
+/// # Notes
+///
+/// Wake notifications will be ignored. If this is required run an end to end
+/// test with a completely functional actor system instead.
+pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
+    where A: Actor,
+{
+    let waker = test_waker();
+    A::try_poll(actor, &waker)
+}
+
+/// Create a test `LocalWaker`, with pid 0.
+fn test_waker() -> LocalWaker {
     let pid = ProcessId(0);
     let mut system_ref = system_ref();
     let waker_notifications = system_ref.get_notification_sender();
-    let waker = new_waker(pid, waker_notifications.clone());
-    Future::poll(future, &waker)
+    new_waker(pid, waker_notifications.clone())
 }
