@@ -52,7 +52,9 @@ pub fn init_actor<N>(mut new_actor: N, arg: N::Argument) -> (N::Actor, LocalActo
     (actor, actor_ref)
 }
 
-/// Poll a future, letting the task `Context` be provided by the actor system.
+/// Poll a future.
+///
+/// The `LocalWaker` be provided by the *test* actor system.
 ///
 /// # Notes
 ///
