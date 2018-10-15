@@ -34,11 +34,15 @@ impl<M> MachineLocalActorRef<M> {
         }
     }
 
-    /// Send a message to the actor.
+    /// Asynchronously send a message to the actor.
     ///
     /// Compared to `LocalActorRef` this doesn't return an error as this
     /// reference is not capable of determining whether or not the actor is
     /// still alive.
+    ///
+    /// See [Sending messages] for more details.
+    ///
+    /// [Sending messages]: index.html#sending-messages
     pub fn send<Msg>(&mut self, msg: Msg)
         where Msg: Into<M>,
     {
