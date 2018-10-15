@@ -32,7 +32,16 @@ impl<M> LocalActorRef<M> {
         }
     }
 
-    /// Send a message to the actor.
+    /// Asynchronously send a message to the actor.
+    ///
+    /// This is the only kind of actor reference that can detect if the message
+    /// can not be handled, while trying to send the message. Note that this
+    /// **not** mean that if this method returns `Ok` the message is guaranteed
+    /// to be handled by the actor.
+    ///
+    /// See [Sending messages] for more details.
+    ///
+    /// [Sending messages]: index.html#sending-messages
     pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<Msg>>
         where Msg: Into<M>,
     {
