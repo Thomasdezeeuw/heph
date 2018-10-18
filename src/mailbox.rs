@@ -73,6 +73,17 @@ impl<M> MailBox<M> {
         }
     }
 
+    /// Peek a delivered message, if any.
+    pub fn peek<S>(&mut self, selector: &mut S) -> Option<M>
+        where S: MessageSelector<M>,
+              M: Clone,
+    {
+        self.receive_remote_messages();
+        let messages = self.messages.iter().enumerate();
+        selector.select(Messages{ inner: messages })
+            .and_then(|selection| self.messages.get(selection.0).cloned())
+    }
+
     /// Used by local actor reference to upgrade to a machine local actor
     /// reference.
     pub fn upgrade_ref(&mut self) -> (ProcessId, Sender<M>) {
