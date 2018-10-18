@@ -223,6 +223,34 @@ impl<M> Context<M> {
         }
     }
 
+    /// Peek at the next message.
+    pub fn peek_next<'ctx>(&'ctx mut self) -> PeekMessage<'ctx, M>
+        where M: Clone,
+    {
+        PeekMessage {
+            inbox: &mut self.inbox,
+            selector: First,
+        }
+    }
+
+    /// Peek a message.
+    ///
+    /// This returns a future that will complete once a message is ready. The
+    /// message will be cloned, which means that the next call to [`receive`] or
+    /// [`peek`] will return the same message.
+    ///
+    /// [`receive`]: Context::receive
+    /// [`peek`]: Context::peek
+    pub fn peek<'ctx, S>(&'ctx mut self, selector: S) -> PeekMessage<'ctx, M, S>
+        where S: MessageSelector<M>,
+              M: Clone,
+    {
+        PeekMessage {
+            inbox: &mut self.inbox,
+            selector,
+        }
+    }
+
     /// Returns a reference to this actor.
     pub fn actor_ref(&mut self) -> ActorRef<M> {
         ActorRef::new_local(self.inbox.downgrade())
@@ -263,6 +291,38 @@ impl<'ctx, M, S> Future for ReceiveMessage<'ctx, M, S>
             ref mut selector,
         } = self.deref_mut();
         match inbox.borrow_mut().receive(selector) {
+            Some(msg) => Poll::Ready(msg),
+            // Wakeup notifications are done when adding to the mailbox.
+            None => Poll::Pending,
+        }
+    }
+}
+
+/// Future to peek a single message.
+///
+/// The implementation behind [`actor::Context::peek`] and
+/// [`actor::Context::peek_next`].
+///
+/// [`actor::Context::peek`]: crate::actor::Context::peek
+/// [`actor::Context::peek_next`]: crate::actor::Context::peek_next
+#[derive(Debug)]
+pub struct PeekMessage<'ctx, M: 'ctx + Clone, S = First> {
+    inbox: &'ctx mut Shared<MailBox<M>>,
+    selector: S,
+}
+
+impl<'ctx, M, S> Future for PeekMessage<'ctx, M, S>
+    where S: MessageSelector<M> + Unpin,
+          M: Clone,
+{
+    type Output = M;
+
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
+        let PeekMessage {
+            ref mut inbox,
+            ref mut selector,
+        } = self.deref_mut();
+        match inbox.borrow_mut().peek(selector) {
             Some(msg) => Poll::Ready(msg),
             // Wakeup notifications are done when adding to the mailbox.
             None => Poll::Pending,
