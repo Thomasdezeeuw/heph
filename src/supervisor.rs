@@ -1,97 +1,90 @@
-//! The module with the supervisor related types.
+//! The module with the supervisor, and related, types.
 //!
 //! # Supervisor
 //!
-//! A supervisor is regular actor which can (also) receive a
-//! [`SupervisorMessage`]. This allows the actor to spawn other actors, making
-//! itself the supervisor of the spawned actor, via [`ActorContext.spawn`].
+//! A supervisor supervises an actor and handles its errors. A supervisor
+//! generally does two things; logging and deciding whether to stop or restart
+//! the actor. Its advised to keep a supervisor small and simple.
 //!
-//! An actor can be a supervisor only, meaning the type of [message] will only
-//! be `SupervisorMessage` and the supervisor itself won't do any computation.
-//! This is recommended in most cases since its important for a supervisor to
-//! respond quickly to failures of spawned actors.
+//! When encountering an error it usually means someone has to be notified (to
+//! fix it), something often done via logging.
 //!
-//! Alternatively actors can spawn other actors to split the computational load
-//! while also doing computational work itself. In this case the message type
-//! would be an enum with one of the variants being `SupervisorMessage`, which
-//! requires the message to implement `From<SupervisorMessage>`. This allows the
-//! actor to be a regular actor while also supervising other spawned actors.
+//! Next the supervisor needs to decide if the actor needs to be [stopped] or
+//! [restarted]. If the supervisor decides to restart the actor it needs to
+//! provide the argument to create a new actor (used in calling the
+//! [`NewActor.new`] method).
 //!
-//! [`SupervisorMessage`]: enum.SupervisorMessage.html
-//! [`ActorContext.spawn`]: ../actor/struct.ActorContext.html#method.spawn
-//! [message]: ../actor/trait.NewActor.html#associatedtype.Message
+//! The restarted actor will have the same message inbox as the old (stopped)
+//! actor. Note however that if an actor retrieved a message from its inbox, and
+//! returned an error when processing it, the new (restarted) actor won't
+//! retrieve that message again (messages aren't cloned after all).
+//!
+//! # Restarting or stopping?
+//!
+//! Sometimes just restarting an actor is the easiest way to deal with errors.
+//! Starting the actor from a clean slate will often allow it to continue
+//! processing. However this is not possible in all cases, for example when a
+//! new argument can't be provided (think actors started by a [`TcpListener`]).
+//! In those cases the supervisor should still log the error encountered.
+//!
+//! # Examples
+//!
+//! TODO: add example.
+//!
+//! [stopped]: enum.SupervisorStrategy.html#variant.Stop
+//! [restarted]: enum.SupervisorStrategy.html#variant.Restart
+//! [`NewActor.new`]: ../actor/trait.NewActor.html#tymethod.new
+//! [`TcpListener`]: ../net/struct.TcpListener.html
 
-/// Message type for supervisors.
+/// The supervisor trait.
 ///
-/// This informs the supervisor of the stopping of a spawned actor.
+/// For more information about supervisors see the [module documentation], here
+/// only the design of the trait is discussed.
+///
+/// The trait is designed to be generic to the error (`E`) and argument used in
+/// (re)starting the actor (`Arg`). This means that the same type can implement
+/// supervisor for a number of different actors. But a word of caution,
+/// supervisors should be small and simple, which means that most times having a
+/// different supervisor for each actor is a good thing.
+///
+/// [module documentation]: index.html
+pub trait Supervisor<E, Arg> {
+    /// Decide what happens to the actor that returned `error`.
+    fn decide(&mut self, error: E) -> SupervisorStrategy<Arg>;
+}
+
+/// The strategy to use when handling an error from an actor.
+///
+/// See the [module documentation] for deciding on whether to restart an or not.
+///
+/// [module documentation]: index.html#restarting-or-stopping
 #[derive(Debug)]
-pub enum SupervisorMessage<E> {
-    /// Actor stopped normally, i.e. it returned `Ok(())`.
-    Done,
-    /// Actor encountered an error, i.e. it returned `Err(E)`.
-    Error(E, ApplyStrategy),
-}
-
-// TODO: make `ApplyStrategy` `!Send` and `!Sync`.
-
-/// A special reference to an actor that returned an error to apply a strategy
-/// to.
-///
-/// This special reference allows the supervisor to deal with a failure from an
-/// actor. For example it could restart it, or decide to stop it.
-///
-/// The default is to stop the actor, nothing has to be done for this it will
-/// happen automatically once this is dropped.
-#[derive(Debug)]
-pub struct ApplyStrategy {
-    strategy: Option<SupervisorStrategy>,
-}
-
-impl ApplyStrategy {
-    /// Apply the strategy to the actor.
-    pub fn apply(mut self, strategy: SupervisorStrategy) {
-        self.strategy = Some(strategy);
-        // The actual usage of the strategy is done in the drop implementation.
-        // This way if this is dropped without setting a strategy the actor will
-        // still be stopped.
-    }
-}
-
-impl Drop for ApplyStrategy {
-    fn drop(&mut self) {
-        // TODO: actually do something with the strategy.
-    }
-}
-
-/// The strategy to use when handling an actor's error.
-///
-/// The strategy comes in a number of flavours but basically two chooses have to
-/// be made:
-/// - To stop or to restart the actor?
-/// - And to apply the strategy to just the erroneous actor, or the entire tree.
-///
-/// # Restarting or stopping?
-///
-/// Sometime just restarting an actor is the easiest way to deal with errors.
-/// Starting the actor from a clean slate will allow it to continue processing.
-/// However not in all cases is this possible.
-///
-/// # Apply to entire tree or only erroneous actor?
-///
-/// When the strategy is applied to the entire tree it means that all the
-/// actors that the erroneous actor spawned will also be stopped/restarted.
-///
-/// For example we have actor A that spawns actors A1 and A2. If actor A returns
-/// an error and the entire tree is stopped, it means that actors A1 and A2 will
-/// also be stopped.
-#[derive(Debug)]
-pub enum SupervisorStrategy {
-    /// Restart just the actor.
-    RestartActor,
-    /// Restart the entire actor tree.
-    RestartTree,
-    /// Stop just the actor.
+pub enum SupervisorStrategy<Arg> {
+    /// Restart the actor with the provided argument `Arg`.
+    Restart(Arg),
+    /// Stop the actor.
     Stop,
-    /// Stop the entire actor tree.
-    StopTree,
+}
+
+/// Implementation behind [`supervisor`].
+///
+/// [`supervisor`]: fn.supervisor.html
+#[derive(Debug)]
+pub struct FnSupervisor<F>(F);
+
+impl<F, E, Arg> Supervisor<E, Arg> for FnSupervisor<F>
+    where F: FnMut(E) -> SupervisorStrategy<Arg>,
+{
+    fn decide(&mut self, error: E) -> SupervisorStrategy<Arg> {
+        (self.0)(error)
+    }
+}
+
+/// Create a new supervisor from a function.
+///
+/// # Example
+///
+/// TODO: add example.
+pub const fn supervisor<F>(f: F) -> FnSupervisor<F> {
+    FnSupervisor(f)
 }
