@@ -46,10 +46,9 @@ impl fmt::Display for ProcessId {
 
 /// The trait that represents a process.
 ///
-/// This currently has three implementations;
-/// - the `ActorProcess`, which wraps an `Actor` to implement this trait,
-/// - the `InitiatorProcess`, which wraps an `Initiator`, and
-/// - the `TaskProcess`, which wraps a `FutureObj` (used to called `TaskObj`).
+/// This currently has two implementations;
+/// - the `ActorProcess`, which wraps an `Actor` to implement this trait, and
+/// - the `InitiatorProcess`, which wraps an `Initiator`.
 pub trait Process: fmt::Debug {
     /// Run the process.
     ///
