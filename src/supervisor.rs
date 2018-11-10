@@ -47,6 +47,9 @@
 /// supervisors should be small and simple, which means that most times having a
 /// different supervisor for each actor is a good thing.
 ///
+/// Supervisor is implemented for any function that takes an error `E` and
+/// returns `SupervisorStrategy<Arg>` automatically.
+///
 /// [module documentation]: index.html
 pub trait Supervisor<E, Arg> {
     /// Decide what happens to the actor that returned `error`.
@@ -66,25 +69,10 @@ pub enum SupervisorStrategy<Arg> {
     Stop,
 }
 
-/// Implementation behind [`supervisor`].
-///
-/// [`supervisor`]: fn.supervisor.html
-#[derive(Debug)]
-pub struct FnSupervisor<F>(F);
-
-impl<F, E, Arg> Supervisor<E, Arg> for FnSupervisor<F>
+impl<F, E, Arg> Supervisor<E, Arg> for F
     where F: FnMut(E) -> SupervisorStrategy<Arg>,
 {
     fn decide(&mut self, error: E) -> SupervisorStrategy<Arg> {
-        (self.0)(error)
+        (self)(error)
     }
-}
-
-/// Create a new supervisor from a function.
-///
-/// # Example
-///
-/// TODO: add example.
-pub const fn supervisor<F>(f: F) -> FnSupervisor<F> {
-    FnSupervisor(f)
 }
