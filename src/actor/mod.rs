@@ -193,33 +193,33 @@ impl<Fut, E> Actor for Fut
 /// The implementation behind [`actor_factory`].
 ///
 /// [`actor_factory`]: fn.actor_factory.html
-pub struct ActorFactory<NA, M, Arg, A> {
+pub struct ActorFactory<NA, M, Arg> {
     new_actor: NA,
-    _phantom: PhantomData<(M, Arg, A)>,
+    _phantom: PhantomData<(M, Arg)>,
 }
 
-impl<NA, M, Arg, A> NewActor for ActorFactory<NA, M, Arg, A>
+impl<NA, M, Arg, A> NewActor for ActorFactory<NA, M, Arg>
     where NA: FnMut(ActorContext<M>, Arg) -> A,
           A: Actor,
 {
-    type Actor = A;
-    type Argument = Arg;
     type Message = M;
+    type Argument = Arg;
+    type Actor = A;
 
     fn new(&mut self, ctx: ActorContext<Self::Message>, item: Self::Argument) -> Self::Actor {
         (self.new_actor)(ctx, item)
     }
 }
 
-impl<NA, M, Arg, A> Copy for ActorFactory<NA, M, Arg, A>
+impl<NA, M, Arg> Copy for ActorFactory<NA, M, Arg>
     where NA: Copy,
 {
 }
 
-impl<NA, M, Arg, A> Clone for ActorFactory<NA, M, Arg, A>
+impl<NA, M, Arg> Clone for ActorFactory<NA, M, Arg>
     where NA: Clone,
 {
-    fn clone(&self) -> ActorFactory<NA, M, Arg, A> {
+    fn clone(&self) -> ActorFactory<NA, M, Arg> {
         ActorFactory {
             new_actor: self.new_actor.clone(),
             _phantom: PhantomData,
@@ -227,7 +227,7 @@ impl<NA, M, Arg, A> Clone for ActorFactory<NA, M, Arg, A>
     }
 }
 
-impl<NA, M, Arg, A> fmt::Debug for ActorFactory<NA, M, Arg, A> {
+impl<NA, M, Arg> fmt::Debug for ActorFactory<NA, M, Arg> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ActorFactory")
             .finish()
@@ -235,13 +235,13 @@ impl<NA, M, Arg, A> fmt::Debug for ActorFactory<NA, M, Arg, A> {
 }
 
 // This is safe because we only really own `NA`.
-unsafe impl<NA, M, Arg, A> Send for ActorFactory<NA, M, Arg, A>
+unsafe impl<NA, M, Arg> Send for ActorFactory<NA, M, Arg>
     where NA: Send
 {
 }
 
 // This is safe because we only really own `NA`.
-unsafe impl<NA, M, Arg, A> Sync for ActorFactory<NA, M, Arg, A>
+unsafe impl<NA, M, Arg> Sync for ActorFactory<NA, M, Arg>
     where NA: Sync
 {
 }
@@ -273,7 +273,7 @@ unsafe impl<NA, M, Arg, A> Sync for ActorFactory<NA, M, Arg, A>
 /// # fn use_new_actor<NA: heph::actor::NewActor>(new_actor: NA) { }
 /// # use_new_actor(new_actor);
 /// ```
-pub const fn actor_factory<NA, M, Arg, A>(new_actor: NA) -> ActorFactory<NA, M, Arg, A>
+pub const fn actor_factory<NA, M, Arg, A>(new_actor: NA) -> ActorFactory<NA, M, Arg>
     where NA: FnMut(ActorContext<M>, Arg) -> A,
           A: Actor,
 {
