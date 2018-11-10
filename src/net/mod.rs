@@ -12,9 +12,10 @@ use mio_st::event::Ready;
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use mio_st::poll::{PollOption, Poller};
 
-use crate::actor::{ActorContext, NewActor};
+use crate::actor::{ActorContext, Actor, NewActor};
 use crate::initiator::Initiator;
 use crate::process::ProcessId;
+use crate::supervisor::Supervisor;
 use crate::system::{ActorOptions, ActorSystemRef};
 
 /// A TCP listener that implements the [`Initiator`] trait.
@@ -39,11 +40,18 @@ use crate::system::{ActorOptions, ActorSystemRef};
 /// use futures_util::AsyncWriteExt;
 ///
 /// use heph::actor::{actor_factory, ActorContext};
+/// use heph::log::{error, log};
 /// use heph::net::{TcpListener, TcpStream};
+/// use heph::supervisor::SupervisorStrategy;
 /// use heph::system::{ActorOptions, ActorSystem, InitiatorOptions};
 ///
 /// async fn conn_actor(_ctx: ActorContext<!>, (mut stream, address): (TcpStream, SocketAddr)) -> io::Result<()> {
 ///     await!(stream.write_all(b"Hello World"))
+/// }
+///
+/// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
+///     error!("error handling connection: {}", err);
+///     SupervisorStrategy::Stop
 /// }
 ///
 /// // The address to listen on.
@@ -51,7 +59,7 @@ use crate::system::{ActorOptions, ActorSystemRef};
 ///
 /// // Create our TCP listener. We'll use the default actor options.
 /// let new_actor = actor_factory(conn_actor);
-/// let listener = TcpListener::bind(address, new_actor, ActorOptions::default())
+/// let listener = TcpListener::bind(address, conn_supervisor, new_actor, ActorOptions::default())
 ///     .expect("unable to bind TCP listener");
 ///
 /// // We create our actor system.
@@ -61,17 +69,20 @@ use crate::system::{ActorOptions, ActorSystemRef};
 ///     # ; // We don't actually want to run this.
 /// ```
 #[derive(Debug)]
-pub struct TcpListener<N> {
+pub struct TcpListener<N, S> {
     /// The underlying TCP listener, backed by mio.
     listener: MioTcpListener,
-    /// Options used to add the actor to the actor system.
-    options: ActorOptions,
+    /// Supervisor for all actors created by `NewActor`.
+    supervisor: S,
     /// NewActor used to create an actor for each connection.
     new_actor: N,
+    /// Options used to add the actor to the actor system.
+    options: ActorOptions,
 }
 
-impl<N> TcpListener<N>
-    where N: NewActor<Argument = (TcpStream, SocketAddr)> + 'static + Clone + Send,
+impl<N, S> TcpListener<N, S>
+    where N: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
+          S: Supervisor<<N::Actor as Actor>::Error, N::Argument> + Clone + Send + 'static,
 {
     /// Bind a new TCP listener to the provided `address`.
     ///
@@ -81,16 +92,17 @@ impl<N> TcpListener<N>
     /// actor system.
     ///
     /// [`NewActor::new`]: ../actor/trait.NewActor.html#tymethod.new
-    pub fn bind(address: SocketAddr, new_actor: N, options: ActorOptions) -> io::Result<TcpListener<N>> {
+    pub fn bind(address: SocketAddr, supervisor: S, new_actor: N, options: ActorOptions) -> io::Result<TcpListener<N, S>> {
         Ok(TcpListener {
             listener: MioTcpListener::bind(address)?,
-            options,
+            supervisor,
             new_actor,
+            options,
         })
     }
 }
 
-impl<N> TcpListener<N> {
+impl<N, S> TcpListener<N, S> {
     /// Returns the local socket address of this listener.
     pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
         self.listener.local_addr()
@@ -107,8 +119,9 @@ impl<N> TcpListener<N> {
     }
 }
 
-impl<N> Initiator for TcpListener<N>
-    where N: NewActor<Argument = (TcpStream, SocketAddr)> + 'static + Clone + Send,
+impl<N, S> Initiator for TcpListener<N, S>
+    where N: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
+          S: Supervisor<<N::Actor as Actor>::Error, N::Argument> + Clone + Send + 'static,
 {
     #[doc(hidden)]
     fn clone_threaded(&self) -> io::Result<Self> {
@@ -116,6 +129,7 @@ impl<N> Initiator for TcpListener<N>
             listener: self.listener.try_clone()?,
             options: self.options.clone(),
             new_actor: self.new_actor.clone(),
+            supervisor: self.supervisor.clone(),
         })
     }
 
@@ -137,7 +151,7 @@ impl<N> Initiator for TcpListener<N>
             debug!("accepted connection from: {}", addr);
 
             let system_ref_clone = system_ref.clone();
-            system_ref.add_actor_setup(self.options.clone(), |ctx, pid, poller| {
+            let _ = system_ref.add_actor_setup(self.supervisor.clone(), self.new_actor.clone(), |pid, poller| {
                 poller.register(&mut stream, pid.into(),
                     Ready::READABLE | Ready::WRITABLE | Ready::ERROR | Ready::HUP,
                     PollOption::Edge)?;
@@ -148,9 +162,9 @@ impl<N> Initiator for TcpListener<N>
                     system_ref: system_ref_clone,
                 };
 
-                // Create our actor and add it the system.
-                Ok(self.new_actor.new(ctx, (stream, addr)))
-            })?;
+                // Return the arguments used to create the actor.
+                Ok((stream, addr))
+            }, self.options.clone())?;
         }
     }
 }
