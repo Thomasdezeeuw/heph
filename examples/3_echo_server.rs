@@ -4,7 +4,7 @@ use std::io;
 use std::net::SocketAddr;
 
 use futures_util::{AsyncReadExt, TryFutureExt};
-use log::{error, info, log};
+use log::{error, info};
 
 use heph::actor::{ActorContext, actor_factory};
 use heph::log::REQUEST_TARGET;

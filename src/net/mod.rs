@@ -6,7 +6,7 @@ use std::task::{LocalWaker, Poll};
 use std::time::Duration;
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
-use log::{debug, error, log};
+use log::{debug, error};
 
 use mio_st::event::Ready;
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
