@@ -27,7 +27,6 @@ use num_cpus;
 
 use crate::actor::{Actor, ActorContext, NewActor};
 use crate::actor_ref::LocalActorRef;
-use crate::error::RuntimeError;
 use crate::initiator::Initiator;
 use crate::mailbox::MailBox;
 use crate::process::{ActorProcess, InitiatorProcess, ProcessId};
@@ -36,9 +35,12 @@ use crate::supervisor::Supervisor;
 use crate::util::Shared;
 use crate::waker::new_waker;
 
+mod error;
+
 pub mod options;
 
 pub use self::options::{ActorOptions, InitiatorOptions};
+pub use self::error::RuntimeError;
 
 /// The system that runs all actors.
 ///
