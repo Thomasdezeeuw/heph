@@ -21,7 +21,7 @@ fn main() {
         .with_setup(|mut system_ref| {
             for _ in 0..10_000_000 {
                 let new_actor = actor_factory(actor);
-                let _ = system_ref.add_actor(NoopSupervisor, new_actor, (), ActorOptions::default());
+                let _ = system_ref.spawn(NoopSupervisor, new_actor, (), ActorOptions::default());
             }
 
             println!("Running, check the memory usage!");

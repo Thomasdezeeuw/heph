@@ -107,7 +107,7 @@ pub use self::options::{ActorOptions, InitiatorOptions};
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///     // Add the actor to the system.
 ///     let new_actor = actor_factory(greeter_actor);
-///     let mut actor_ref = system_ref.add_actor(NoopSupervisor, new_actor, "Hello", ActorOptions::default());
+///     let mut actor_ref = system_ref.spawn(NoopSupervisor, new_actor, "Hello", ActorOptions::default());
 ///
 ///     // Send a message to the actor.
 ///     actor_ref.send("World").expect("unable to send message");
@@ -494,14 +494,14 @@ pub struct ActorSystemRef {
 }
 
 impl ActorSystemRef {
-    /// Add a new actor to the system.
+    /// Spawn an actor on the actor system.
     ///
     /// Actors can never be unsupervised, so when adding an actor we need a good
     /// number of arguments. Starting with the `supervisor` of the actor, next
     /// is the way to create the actor, this is `new_actor`, and the `arg`ument
     /// to create it. Finally it also needs `options` for actor and the place
     /// inside the actor system.
-    pub fn add_actor<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> LocalActorRef<NA::Message>
+    pub fn spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> LocalActorRef<NA::Message>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
               NA::Actor: 'static,

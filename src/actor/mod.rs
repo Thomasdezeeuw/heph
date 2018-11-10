@@ -110,7 +110,7 @@ pub trait NewActor {
     ///     .with_setup(|mut system_ref| {
     ///         // Add the actor to the system.
     ///         let new_actor = actor_factory(actor);
-    ///         let mut actor_ref = system_ref.add_actor(NoopSupervisor, new_actor, (), ActorOptions::default());
+    ///         let mut actor_ref = system_ref.spawn(NoopSupervisor, new_actor, (), ActorOptions::default());
     ///
     ///         // Now we can use the reference to send the actor a message, without
     ///         // having to use `Message` we can just use `String`.

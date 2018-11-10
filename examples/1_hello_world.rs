@@ -28,7 +28,7 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // Along with the supervisor we'll also supply the argument to start the
     // actor, in our case the greeting message.
     // We'll use the default actor options here.
-    let mut actor_ref = system_ref.add_actor(NoopSupervisor, new_actor, "Hello", ActorOptions::default());
+    let mut actor_ref = system_ref.spawn(NoopSupervisor, new_actor, "Hello", ActorOptions::default());
 
     // By default actor don't do anything when added to the actor system. We
     // need to wake them, for example by sending them a message.
