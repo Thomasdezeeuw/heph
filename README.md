@@ -91,6 +91,14 @@ Now you're ready to starting writing your application! Next you can look at some
 [API documentation]: https://docs.rs/heph
 
 
+## Platform support
+
+The main target platform is Linux, as a production target. But we also support
+macOS, but only as development target (e.g. develop on macOS and run Linux in
+production). Other BSDs are also supported (kqueue is fully supported), however
+no tests are run on these platforms.
+
+
 ## License
 
 Licensed under the MIT license ([LICENSE] or
