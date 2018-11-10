@@ -37,8 +37,8 @@ pub fn system_ref() -> ActorSystemRef {
 }
 
 /// Initialise an actor.
-pub fn init_actor<N>(mut new_actor: N, arg: N::Argument) -> (N::Actor, LocalActorRef<N::Message>)
-    where N: NewActor,
+pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> (NA::Actor, LocalActorRef<NA::Message>)
+    where NA: NewActor,
 {
     let system_ref = system_ref();
     let pid = ProcessId(0);

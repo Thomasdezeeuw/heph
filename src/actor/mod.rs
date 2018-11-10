@@ -26,7 +26,7 @@
 //! // `actor` function.
 //! let new_actor = actor_factory(actor);
 //! #
-//! # fn use_new_actor<N: heph::actor::NewActor>(new_actor: N) { }
+//! # fn use_new_actor<NA: heph::actor::NewActor>(new_actor: NA) { }
 //! # use_new_actor(new_actor);
 //! ```
 
@@ -180,7 +180,9 @@ pub trait Actor {
     fn try_poll(self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Result<(), Self::Error>>;
 }
 
-impl<T, E> Actor for T where T: Future<Output = Result<(), E>> {
+impl<Fut, E> Actor for Fut
+    where Fut: Future<Output = Result<(), E>>
+{
     type Error = E;
 
     fn try_poll(self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Result<(), Self::Error>> {
@@ -191,13 +193,13 @@ impl<T, E> Actor for T where T: Future<Output = Result<(), E>> {
 /// The implementation behind [`actor_factory`].
 ///
 /// [`actor_factory`]: fn.actor_factory.html
-pub struct ActorFactory<N, M, Arg, A> {
-    new_actor: N,
+pub struct ActorFactory<NA, M, Arg, A> {
+    new_actor: NA,
     _phantom: PhantomData<(M, Arg, A)>,
 }
 
-impl<N, M, Arg, A> NewActor for ActorFactory<N, M, Arg, A>
-    where N: FnMut(ActorContext<M>, Arg) -> A,
+impl<NA, M, Arg, A> NewActor for ActorFactory<NA, M, Arg, A>
+    where NA: FnMut(ActorContext<M>, Arg) -> A,
           A: Actor,
 {
     type Actor = A;
@@ -209,31 +211,40 @@ impl<N, M, Arg, A> NewActor for ActorFactory<N, M, Arg, A>
     }
 }
 
-impl<N, M, Arg, A> Copy for ActorFactory<N, M, Arg, A>
-    where N: Copy,
+impl<NA, M, Arg, A> Copy for ActorFactory<NA, M, Arg, A>
+    where NA: Copy,
 {
 }
 
-impl<N, M, Arg, A> Clone for ActorFactory<N, M, Arg, A>
-    where N: Clone + Copy,
+impl<NA, M, Arg, A> Clone for ActorFactory<NA, M, Arg, A>
+    where NA: Clone,
 {
-    fn clone(&self) -> ActorFactory<N, M, Arg, A> {
-        *self
+    fn clone(&self) -> ActorFactory<NA, M, Arg, A> {
+        ActorFactory {
+            new_actor: self.new_actor.clone(),
+            _phantom: PhantomData,
+        }
     }
 }
 
-impl<N, M, Arg, A> fmt::Debug for ActorFactory<N, M, Arg, A> {
+impl<NA, M, Arg, A> fmt::Debug for ActorFactory<NA, M, Arg, A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ActorFactory")
             .finish()
     }
 }
 
-// This is safe because we only really own `N`.
-unsafe impl<N, M, Arg, A> Send for ActorFactory<N, M, Arg, A> where N: Send {}
+// This is safe because we only really own `NA`.
+unsafe impl<NA, M, Arg, A> Send for ActorFactory<NA, M, Arg, A>
+    where NA: Send
+{
+}
 
-// This is safe because we only really own `N`.
-unsafe impl<N, M, Arg, A> Sync for ActorFactory<N, M, Arg, A> where N: Sync {}
+// This is safe because we only really own `NA`.
+unsafe impl<NA, M, Arg, A> Sync for ActorFactory<NA, M, Arg, A>
+    where NA: Sync
+{
+}
 
 /// Implement [`NewActor`] by means of a function.
 ///
@@ -259,11 +270,11 @@ unsafe impl<N, M, Arg, A> Sync for ActorFactory<N, M, Arg, A> where N: Sync {}
 /// // Our `NewActor` implementation that returns our actor.
 /// let new_actor = actor_factory(actor);
 /// #
-/// # fn use_new_actor<N: heph::actor::NewActor>(new_actor: N) { }
+/// # fn use_new_actor<NA: heph::actor::NewActor>(new_actor: NA) { }
 /// # use_new_actor(new_actor);
 /// ```
-pub const fn actor_factory<N, M, Arg, A>(new_actor: N) -> ActorFactory<N, M, Arg, A>
-    where N: FnMut(ActorContext<M>, Arg) -> A,
+pub const fn actor_factory<NA, M, Arg, A>(new_actor: NA) -> ActorFactory<NA, M, Arg, A>
+    where NA: FnMut(ActorContext<M>, Arg) -> A,
           A: Actor,
 {
     ActorFactory {

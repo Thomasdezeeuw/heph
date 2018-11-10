@@ -17,25 +17,25 @@ use crate::util::Shared;
 /// A process that represent an [`Actor`].
 ///
 /// [`Actor`]: ../../actor/trait.Actor.html
-pub struct ActorProcess<S, N: NewActor, A> {
+pub struct ActorProcess<S, NA: NewActor, A> {
     /// The id of this process.
     pid: ProcessId,
     /// Supervisor of the actor.
     supervisor: S,
     /// `NewActor` used to restart the actor.
-    new_actor: N,
+    new_actor: NA,
     /// The actor.
     actor: A,
     /// The inbox of the actor, used in create a new `ActorContext` if the actor
     /// is restarted.
-    inbox: Shared<MailBox<N::Message>>,
+    inbox: Shared<MailBox<NA::Message>>,
     /// Waker used in the futures context.
     waker: LocalWaker,
 }
 
-impl<S, N: NewActor, A> ActorProcess<S, N, A> {
+impl<S, NA: NewActor, A> ActorProcess<S, NA, A> {
     /// Create a new `ActorProcess`.
-    pub(crate) fn new(pid: ProcessId, supervisor: S, new_actor: N, actor: A, inbox: Shared<MailBox<N::Message>>, waker: LocalWaker) -> ActorProcess<S, N, A> {
+    pub(crate) fn new(pid: ProcessId, supervisor: S, new_actor: NA, actor: A, inbox: Shared<MailBox<NA::Message>>, waker: LocalWaker) -> ActorProcess<S, NA, A> {
         ActorProcess {
             pid,
             supervisor,
@@ -47,10 +47,10 @@ impl<S, N: NewActor, A> ActorProcess<S, N, A> {
     }
 }
 
-impl<S, N, A> Process for ActorProcess<S, N, A>
-    where S: Supervisor<A::Error, N::Argument>,
+impl<S, NA, A> Process for ActorProcess<S, NA, A>
+    where S: Supervisor<A::Error, NA::Argument>,
           A: Actor,
-          N: NewActor<Actor = A>,
+          NA: NewActor<Actor = A>,
 {
     fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
         trace!("running actor process");
@@ -81,7 +81,7 @@ impl<S, N, A> Process for ActorProcess<S, N, A>
     }
 }
 
-impl<S, N: NewActor, A> fmt::Debug for ActorProcess<S, N, A> {
+impl<S, NA: NewActor, A> fmt::Debug for ActorProcess<S, NA, A> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ActorProcess")
             .finish()

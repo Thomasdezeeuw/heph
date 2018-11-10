@@ -69,20 +69,20 @@ use crate::system::{ActorOptions, ActorSystemRef};
 ///     # ; // We don't actually want to run this.
 /// ```
 #[derive(Debug)]
-pub struct TcpListener<N, S> {
+pub struct TcpListener<NA, S> {
     /// The underlying TCP listener, backed by mio.
     listener: MioTcpListener,
     /// Supervisor for all actors created by `NewActor`.
     supervisor: S,
     /// NewActor used to create an actor for each connection.
-    new_actor: N,
+    new_actor: NA,
     /// Options used to add the actor to the actor system.
     options: ActorOptions,
 }
 
-impl<N, S> TcpListener<N, S>
-    where N: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
-          S: Supervisor<<N::Actor as Actor>::Error, N::Argument> + Clone + Send + 'static,
+impl<NA, S> TcpListener<NA, S>
+    where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
+          S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
 {
     /// Bind a new TCP listener to the provided `address`.
     ///
@@ -92,7 +92,7 @@ impl<N, S> TcpListener<N, S>
     /// actor system.
     ///
     /// [`NewActor::new`]: ../actor/trait.NewActor.html#tymethod.new
-    pub fn bind(address: SocketAddr, supervisor: S, new_actor: N, options: ActorOptions) -> io::Result<TcpListener<N, S>> {
+    pub fn bind(address: SocketAddr, supervisor: S, new_actor: NA, options: ActorOptions) -> io::Result<TcpListener<NA, S>> {
         Ok(TcpListener {
             listener: MioTcpListener::bind(address)?,
             supervisor,
@@ -102,7 +102,7 @@ impl<N, S> TcpListener<N, S>
     }
 }
 
-impl<N, S> TcpListener<N, S> {
+impl<NA, S> TcpListener<NA, S> {
     /// Returns the local socket address of this listener.
     pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
         self.listener.local_addr()
@@ -119,9 +119,9 @@ impl<N, S> TcpListener<N, S> {
     }
 }
 
-impl<N, S> Initiator for TcpListener<N, S>
-    where N: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
-          S: Supervisor<<N::Actor as Actor>::Error, N::Argument> + Clone + Send + 'static,
+impl<NA, S> Initiator for TcpListener<NA, S>
+    where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
+          S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
 {
     #[doc(hidden)]
     fn clone_threaded(&self) -> io::Result<Self> {
