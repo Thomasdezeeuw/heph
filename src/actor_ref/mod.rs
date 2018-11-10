@@ -109,8 +109,7 @@
 
 use std::fmt;
 
-use crate::error::SendError;
-
+mod error;
 mod local;
 mod machine;
 mod remote;
@@ -118,6 +117,7 @@ mod remote;
 #[cfg(all(test, feature = "test"))]
 mod tests;
 
+pub use self::error::{SendError, ActorShutdown};
 pub use self::local::LocalActorRef;
 pub use self::machine::MachineLocalActorRef;
 pub use self::remote::RemoteActorRef;

@@ -3,7 +3,7 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use crate::error::SendError;
+use crate::actor_ref::SendError;
 
 /// This is currently not implemented.
 pub struct RemoteActorRef<M> {

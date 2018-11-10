@@ -2,8 +2,7 @@
 
 use std::fmt;
 
-use crate::actor_ref::MachineLocalActorRef;
-use crate::error::{ActorShutdown, SendError};
+use crate::actor_ref::{MachineLocalActorRef, SendError, ActorShutdown};
 use crate::mailbox::MailBox;
 use crate::system::ActorSystemRef;
 use crate::util::WeakShared;
