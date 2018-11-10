@@ -4,10 +4,11 @@ use std::io;
 use std::net::SocketAddr;
 
 use futures_util::AsyncWriteExt;
-use log::{info, log};
+use log::{error, info, log};
 
 use heph::actor::{ActorContext, actor_factory};
 use heph::net::{TcpListener, TcpStream};
+use heph::supervisor::SupervisorStrategy;
 use heph::system::{ActorSystem, ActorOptions, InitiatorOptions};
 
 /// Our connection actor. This get called each type we accept an new connection.
@@ -29,6 +30,15 @@ async fn conn_actor(_ctx: ActorContext<!>, (mut stream, address): (TcpStream, So
     await!(stream.write_all(ip.as_bytes()))
 }
 
+/// Our connection actor supervisor.
+///
+/// Since we can't create a new TCP connection all this supervisor does is log
+/// the error and signal to stop the actor.
+fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
+    error!("error handling connection: {}", err);
+    SupervisorStrategy::Stop
+}
+
 fn main() {
     // Enable logging.
     heph::log::init();
@@ -38,7 +48,7 @@ fn main() {
     // which we'll use the default).
     let address = "127.0.0.1:7890".parse().unwrap();
     let new_actor = actor_factory(conn_actor);
-    let listener = TcpListener::bind(address, new_actor, ActorOptions::default())
+    let listener = TcpListener::bind(address, conn_supervisor, new_actor, ActorOptions::default())
         .expect("unable to bind TCP listener");
     info!("listening: address={}", address);
 
