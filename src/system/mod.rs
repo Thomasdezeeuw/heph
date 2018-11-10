@@ -306,8 +306,8 @@ mod hack {
         fn setup(self, system_ref: ActorSystemRef) -> io::Result<()>;
     }
 
-    impl<T> SetupFn for T
-        where T: FnOnce(ActorSystemRef) -> io::Result<()>
+    impl<F> SetupFn for F
+        where F: FnOnce(ActorSystemRef) -> io::Result<()>
     {
         fn setup(self, system_ref: ActorSystemRef) -> io::Result<()> {
             (self)(system_ref)
