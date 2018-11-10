@@ -77,3 +77,21 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
         (self)(error)
     }
 }
+
+/// No-op supervisor for actors without an error.
+///
+/// This supervisor does nothing and can't actually be called, it only serves as
+/// a type for actors with `!` (the never type) as error type.
+///
+/// # Example
+///
+/// TODO: add example, also see example 1_hello_world.
+#[derive(Copy, Clone, Debug)]
+pub struct NoopSupervisor;
+
+impl<Arg> Supervisor<!, Arg> for NoopSupervisor {
+    fn decide(&mut self, _error: !) -> SupervisorStrategy<Arg> {
+        // This can't be called.
+        SupervisorStrategy::Stop
+    }
+}
