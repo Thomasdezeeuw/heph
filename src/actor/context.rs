@@ -93,7 +93,7 @@ impl<M> ActorContext<M> {
     ///     }
     /// }
     /// ```
-    pub fn receive<'ctx>(&'ctx mut self) -> impl Future<Output = M> + 'ctx {
+    pub fn receive<'ctx>(&'ctx mut self) -> ReceiveFuture<'ctx, M> {
         ReceiveFuture {
             inbox: &mut self.inbox,
         }
@@ -119,7 +119,7 @@ impl<M> ActorContext<M> {
 ///
 /// [`ActorContext.receive`]: struct.ActorContext.html#method.receive
 #[derive(Debug)]
-struct ReceiveFuture<'ctx, M: 'ctx> {
+pub struct ReceiveFuture<'ctx, M: 'ctx> {
     inbox: &'ctx mut Shared<MailBox<M>>,
 }
 
@@ -129,6 +129,7 @@ impl<'ctx, M> Future for ReceiveFuture<'ctx, M> {
     fn poll(mut self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Self::Output> {
         match self.inbox.borrow_mut().receive() {
             Some(msg) => Poll::Ready(msg),
+            // Wakeup Notifications are done when adding to the mailbox.
             None => Poll::Pending,
         }
     }
