@@ -39,13 +39,14 @@
 //! `LocalActorRef` but it's the same for all flavours.
 //!
 //! ```
-//! #![feature(async_await, await_macro, futures_api)]
+//! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
 //! use heph::actor::{actor_factory, ActorContext};
+//! use heph::supervisor::NoopSupervisor;
 //! use heph::system::{ActorOptions, ActorSystem};
 //!
 //! /// Our actor.
-//! async fn actor(mut ctx: ActorContext<String>, _: ()) -> Result<(), ()> {
+//! async fn actor(mut ctx: ActorContext<String>, _: ()) -> Result<(), !> {
 //!     let msg = await!(ctx.receive());
 //!     println!("got message: {}", msg);
 //!     Ok(())
@@ -55,7 +56,7 @@
 //!     .with_setup(|mut system_ref| {
 //!         // Add the actor to the actor system.
 //!         let new_actor = actor_factory(actor);
-//!         let mut actor_ref = system_ref.add_actor(new_actor, (), ActorOptions::default());
+//!         let mut actor_ref = system_ref.add_actor(NoopSupervisor, new_actor, (), ActorOptions::default());
 //!
 //!         // Now we can use the reference to send the actor a message.
 //!         actor_ref.send("Hello world".to_owned());
@@ -73,13 +74,14 @@
 //! to the same actor.
 //!
 //! ```
-//! #![feature(async_await, await_macro, futures_api)]
+//! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
 //! use heph::actor::{actor_factory, ActorContext};
+//! use heph::supervisor::NoopSupervisor;
 //! use heph::system::{ActorOptions, ActorSystem};
 //!
 //! /// Our actor.
-//! async fn actor(mut ctx: ActorContext<String>, _: ()) -> Result<(), ()> {
+//! async fn actor(mut ctx: ActorContext<String>, _: ()) -> Result<(), !> {
 //!     let msg = await!(ctx.receive());
 //!     println!("got first message: {}", msg);
 //!
@@ -91,7 +93,7 @@
 //! ActorSystem::new()
 //!     .with_setup(|mut system_ref| {
 //!         let new_actor = actor_factory(actor);
-//!         let mut actor_ref = system_ref.add_actor(new_actor, (), ActorOptions::default());
+//!         let mut actor_ref = system_ref.add_actor(NoopSupervisor, new_actor, (), ActorOptions::default());
 //!
 //!         // To create another `ActorRef` we can simply clone the first one.
 //!         let mut second_actor_ref = actor_ref.clone();

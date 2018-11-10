@@ -11,6 +11,7 @@ use mio_st::poll::Poller;
 use crate::actor::{actor_factory, ActorContext};
 use crate::initiator::Initiator;
 use crate::process::{ActorProcess, InitiatorProcess, Process, ProcessId, ProcessResult};
+use crate::supervisor::{NoopSupervisor, SupervisorStrategy};
 use crate::system::ActorSystemRef;
 use crate::test;
 use crate::waker::new_waker;
@@ -44,7 +45,7 @@ struct Error;
 #[derive(Debug)]
 struct Message;
 
-async fn ok_actor(mut ctx: ActorContext<Message>, _: ()) -> Result<(), Error> {
+async fn ok_actor(mut ctx: ActorContext<Message>, _: ()) -> Result<(), !> {
     let _msg = await!(ctx.receive());
     Ok(())
 }
@@ -61,7 +62,8 @@ fn actor_process() {
     let waker = new_waker(pid, sender);
 
     // Finally create our process.
-    let mut process = ActorProcess::new(actor, waker);
+    let inbox = actor_ref.get_inbox().unwrap();
+    let mut process = ActorProcess::new(pid, NoopSupervisor, new_actor, actor, inbox, waker);
 
     // Actor should return `Poll::Pending`, because no message is ready.
     let mut system_ref = test::system_ref();
@@ -72,7 +74,10 @@ fn actor_process() {
     assert_eq!(process.run(&mut system_ref), ProcessResult::Complete);
 }
 
-async fn error_actor(_ctx: ActorContext<Message>, _: ()) -> Result<(), Error> {
+async fn error_actor(ctx: ActorContext<Message>, _: ()) -> Result<(), Error> {
+    // We can't use `_ctx`, we need the context to live just long enough to get
+    // a reference to the inbox from the `ActorReference` in the test.
+    drop(ctx);
     Err(Error)
 }
 
@@ -80,7 +85,7 @@ async fn error_actor(_ctx: ActorContext<Message>, _: ()) -> Result<(), Error> {
 fn erroneous_actor_process() {
     // Create our actor.
     let new_actor = actor_factory(error_actor);
-    let (actor, _) = test::init_actor(new_actor, ());
+    let (actor, mut actor_ref) = test::init_actor(new_actor, ());
 
     // Create the waker.
     let pid = ProcessId(0);
@@ -88,7 +93,9 @@ fn erroneous_actor_process() {
     let waker = new_waker(pid, sender);
 
     // Finally create our process.
-    let mut process = ActorProcess::new(actor, waker);
+    let inbox = actor_ref.get_inbox().unwrap();
+    let supervisor = |_err: Error | SupervisorStrategy::Stop;
+    let mut process = ActorProcess::new(pid, supervisor, new_actor, actor, inbox, waker);
 
     // Actor should return Err.
     let mut system_ref = test::system_ref();
