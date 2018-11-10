@@ -62,6 +62,7 @@ pub trait Supervisor<E, Arg> {
 ///
 /// [module documentation]: index.html#restarting-or-stopping
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum SupervisorStrategy<Arg> {
     /// Restart the actor with the provided argument `Arg`.
     Restart(Arg),
