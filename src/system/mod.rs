@@ -32,6 +32,7 @@ use crate::initiator::Initiator;
 use crate::mailbox::MailBox;
 use crate::process::{ActorProcess, InitiatorProcess, ProcessId};
 use crate::scheduler::{Priority, Scheduler, SchedulerRef};
+use crate::supervisor::Supervisor;
 use crate::util::Shared;
 use crate::waker::new_waker;
 
@@ -91,6 +92,7 @@ pub use self::options::{ActorOptions, InitiatorOptions};
 /// use std::io;
 ///
 /// use heph::actor::{actor_factory, ActorContext};
+/// use heph::supervisor::NoopSupervisor;
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
 ///
 /// /// Our actor that greets people.
@@ -105,7 +107,7 @@ pub use self::options::{ActorOptions, InitiatorOptions};
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///     // Add the actor to the system.
 ///     let new_actor = actor_factory(greeter_actor);
-///     let mut actor_ref = system_ref.add_actor(new_actor, "Hello", ActorOptions::default());
+///     let mut actor_ref = system_ref.add_actor(NoopSupervisor, new_actor, "Hello", ActorOptions::default());
 ///
 ///     // Send a message to the actor.
 ///     actor_ref.send("World").expect("unable to send message");
@@ -493,25 +495,38 @@ pub struct ActorSystemRef {
 
 impl ActorSystemRef {
     /// Add a new actor to the system.
-    pub fn add_actor<N, Arg, A>(&mut self, new_actor: N, arg: Arg, options: ActorOptions) -> LocalActorRef<N::Message>
-        where N: NewActor<Argument = Arg, Actor = A>,
-              A: Actor + 'static,
+    ///
+    /// Actors can never be unsupervised, so when adding an actor we need a good
+    /// number of arguments. Starting with the `supervisor` of the actor, next
+    /// is the way to create the actor, this is `new_actor`, and the `arg`ument
+    /// to create it. Finally it also needs `options` for actor and the place
+    /// inside the actor system.
+    pub fn add_actor<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> LocalActorRef<NA::Message>
+        where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
+              NA: NewActor + 'static,
+              NA::Actor: 'static,
     {
-        let system_ref = self.clone();
-        self.internal.borrow_mut().add_actor(options, new_actor, arg, system_ref)
+        self.add_actor_setup(supervisor, new_actor, |_, _| Ok(arg), options)
+            .unwrap() // Safe because the argument function doesn't return an error.
     }
 
     /// Add an actor that needs to be initialised.
     ///
     /// This is used by the `Initiator`s to register with the system poller with
     /// using same pid.
-    pub(crate) fn add_actor_setup<F, A, M>(&mut self, options: ActorOptions, f: F) -> io::Result<()>
-        where F: FnOnce(ActorContext<M>, ProcessId, &mut Poller) -> io::Result<A>,
-              A: Actor + 'static,
+    ///
+    /// Just like `add_actor` this required a `supervisor`, `new_actor` and
+    /// `options`. The only difference being rather then passing an argument
+    /// directly this function requires a function to create the argument, which
+    /// allows the caller to do any required setup work.
+    pub(crate) fn add_actor_setup<S, NA, ArgFn>(&mut self, supervisor: S, new_actor: NA, arg_fn: ArgFn, options: ActorOptions) -> io::Result<LocalActorRef<NA::Message>>
+        where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
+              NA: NewActor + 'static,
+              ArgFn: FnOnce(ProcessId, &mut Poller) -> io::Result<NA::Argument>,
+              NA::Actor: 'static,
     {
         let system_ref = self.clone();
-        self.internal.borrow_mut().add_actor_setup(options, f, system_ref)
-            .map(|_| ())
+        self.internal.borrow_mut().add_actor(supervisor, new_actor, arg_fn, options, system_ref)
     }
 
     /// Register an `Evented` handle, see `Poll.register`.
@@ -571,17 +586,10 @@ impl ActorSystemInternal {
         }
     }
 
-    pub fn add_actor<N, Arg, A>(&mut self, options: ActorOptions, mut new_actor: N, arg: Arg, system_ref: ActorSystemRef) -> LocalActorRef<N::Message>
-        where N: NewActor<Argument = Arg, Actor = A>,
-              A: Actor + 'static,
-    {
-        self.add_actor_setup(options, move |ctx, _, _| Ok(new_actor.new(ctx, arg)), system_ref)
-            .unwrap() // Safe because the function doesn't return an error.
-    }
-
-    pub fn add_actor_setup<F, A, M>(&mut self, options: ActorOptions, f: F, system_ref: ActorSystemRef) -> io::Result<LocalActorRef<M>>
-        where F: FnOnce(ActorContext<M>, ProcessId, &mut Poller) -> io::Result<A>,
-              A: Actor + 'static,
+    pub fn add_actor<S, NA, ArgFn>(&mut self, supervisor: S, mut new_actor: NA, arg_fn: ArgFn, options: ActorOptions, system_ref: ActorSystemRef) -> io::Result<LocalActorRef<NA::Message>>
+        where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
+              NA: NewActor + 'static,
+              ArgFn: FnOnce(ProcessId, &mut Poller) -> io::Result<NA::Argument>,
     {
         // Setup adding a new process to the scheduler.
         let process_entry = self.scheduler_ref.add_process();
@@ -593,12 +601,14 @@ impl ActorSystemInternal {
         let mailbox = Shared::new(MailBox::new(pid, system_ref.clone()));
         let actor_ref = LocalActorRef::new(mailbox.downgrade());
 
-        // Create the actor context and create an actor with it.
-        let ctx = ActorContext::new(pid, system_ref, mailbox);
-        let actor = f(ctx, pid, &mut self.poller)?;
+        // Create the actor context, the argument for the actor and create an
+        // actor with both.
+        let ctx = ActorContext::new(pid, system_ref, mailbox.clone());
+        let arg = arg_fn(pid, &mut self.poller)?;
+        let actor = new_actor.new(ctx, arg);
 
         // Create an actor process and add finally add it to the scheduler.
-        let process = ActorProcess::new(actor, waker);
+        let process = ActorProcess::new(pid, supervisor, new_actor, actor, mailbox, waker);
         process_entry.add(process, options.priority);
         Ok(actor_ref)
     }

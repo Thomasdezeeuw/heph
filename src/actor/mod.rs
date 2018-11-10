@@ -78,6 +78,7 @@ pub trait NewActor {
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
     /// use heph::actor::{actor_factory, ActorContext};
+    /// use heph::supervisor::NoopSupervisor;
     /// use heph::system::{ActorOptions, ActorSystem};
     ///
     /// // The message type for the actor.
@@ -109,7 +110,7 @@ pub trait NewActor {
     ///     .with_setup(|mut system_ref| {
     ///         // Add the actor to the system.
     ///         let new_actor = actor_factory(actor);
-    ///         let mut actor_ref = system_ref.add_actor(new_actor, (), ActorOptions::default());
+    ///         let mut actor_ref = system_ref.add_actor(NoopSupervisor, new_actor, (), ActorOptions::default());
     ///
     ///         // Now we can use the reference to send the actor a message, without
     ///         // having to use `Message` we can just use `String`.

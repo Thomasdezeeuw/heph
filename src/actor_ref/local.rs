@@ -9,6 +9,9 @@ use crate::system::ActorSystemRef;
 use crate::util::WeakShared;
 use crate::waker::new_waker;
 
+#[cfg(all(test, feature = "test"))]
+use crate::util::Shared;
+
 /// A reference to a local actor inside a [`ActorSystem`].
 ///
 /// This is a reference to an actor running on the same thread as this reference
@@ -67,6 +70,12 @@ impl<M> LocalActorRef<M> {
         let notification_sender = system_ref.get_notification_sender();
         let waker = new_waker(pid, notification_sender);
         Ok(MachineLocalActorRef::new(sender, waker.into()))
+    }
+
+    /// Get access to the internal inbox, used in testing.
+    #[cfg(all(test, feature = "test"))]
+    pub(crate) fn get_inbox(&mut self) -> Option<Shared<MailBox<M>>> {
+        self.inbox.upgrade()
     }
 }
 
