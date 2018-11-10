@@ -99,6 +99,15 @@ production). Other BSDs are also supported (kqueue is fully supported), however
 no tests are run on these platforms.
 
 
+## Stability
+
+Currently this project is *unstable*. Since the crate depends on many
+experimental or Nightly only Rust features, such as async function. So it can
+only be compiled using a Nightly version of the rust compiler. Furthermore the
+since the crate itself is < v1, meaning the API is far from stable as well. In
+fact improvements to the API are very welcome!
+
+
 ## License
 
 Licensed under the MIT license ([LICENSE] or
