@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 use std::{fmt, io};
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
-use log::{debug, log, trace};
+use log::{debug, trace};
 use mio_st::event::{Evented, EventedId, Events, Ready};
 use mio_st::poll::{PollOption, Poller};
 use num_cpus;

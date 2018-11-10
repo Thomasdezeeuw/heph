@@ -6,7 +6,7 @@ use std::collections::BinaryHeap;
 use std::mem;
 use std::time::{Duration, Instant};
 
-use log::{debug, log, trace};
+use log::{debug, trace};
 use slab::Slab;
 
 use crate::process::{Process, ProcessId, ProcessResult};

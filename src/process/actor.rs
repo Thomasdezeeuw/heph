@@ -5,7 +5,7 @@ use std::mem::{drop, replace};
 use std::pin::Pin;
 use std::task::{LocalWaker, Poll};
 
-use log::{log, trace};
+use log::trace;
 
 use crate::actor::{Actor, NewActor, ActorContext};
 use crate::mailbox::MailBox;
