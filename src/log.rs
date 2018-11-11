@@ -19,8 +19,10 @@
 //! [`enable_logging`]: ../system/struct.ActorSystem.html#method.enable_logging
 //! [`init`]: fn.init.html
 
+#[doc(no_inline)]
 pub use log::{debug, error, info, log, log_enabled, trace, warn};
 
+#[doc(no_inline)]
 pub use std_logger::REQUEST_TARGET;
 
 /// Initialise logging.
