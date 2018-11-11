@@ -365,6 +365,13 @@ pub(crate) struct RunningActorSystem {
     waker_notifications: Receiver<ProcessId>,
 }
 
+/// Number of processes to run before polling.
+///
+/// This number is chosen arbitrarily, if you can improve it please do.
+// TODO: find a good balance between polling, polling user space events only and
+// running processes.
+const RUN_POLL_RATIO: usize = 32;
+
 impl RunningActorSystem {
     /// Create a new running actor system.
     pub fn new() -> Result<RunningActorSystem, RuntimeError> {
@@ -436,15 +443,21 @@ impl RunningActorSystem {
         // System reference used in running the processes.
         let mut system_ref = self.create_ref();
 
-        // TODO: find a good balance between polling, polling user space events
-        // only and running processes, the current one is not good. It leans too
-        // much to polling.
         loop {
             self.schedule_processes(&mut events)?;
 
-            if !self.scheduler.run_process(&mut system_ref) && events.is_empty() {
-                debug!("no events, no processes to run, stopping actor system");
-                return Ok(());
+            for _ in 0..RUN_POLL_RATIO {
+                if !self.scheduler.run_process(&mut system_ref) {
+                    if events.is_empty() {
+                        // This is here to support actor system without
+                        // initiators, e.g. example 1.
+                        debug!("no events, no processes to run, stopping actor system");
+                        return Ok(());
+                    } else {
+                        // No processes to run, try polling again.
+                        break;
+                    }
+                }
             }
         }
     }
