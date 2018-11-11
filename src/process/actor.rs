@@ -17,7 +17,7 @@ use crate::util::Shared;
 /// A process that represent an [`Actor`].
 ///
 /// [`Actor`]: ../../actor/trait.Actor.html
-pub struct ActorProcess<S, NA: NewActor, A> {
+pub struct ActorProcess<S, NA: NewActor> {
     /// The id of this process.
     pid: ProcessId,
     /// Supervisor of the actor.
@@ -25,7 +25,7 @@ pub struct ActorProcess<S, NA: NewActor, A> {
     /// `NewActor` used to restart the actor.
     new_actor: NA,
     /// The actor.
-    actor: A,
+    actor: NA::Actor,
     /// The inbox of the actor, used in create a new `ActorContext` if the actor
     /// is restarted.
     inbox: Shared<MailBox<NA::Message>>,
@@ -33,9 +33,9 @@ pub struct ActorProcess<S, NA: NewActor, A> {
     waker: LocalWaker,
 }
 
-impl<S, NA: NewActor, A> ActorProcess<S, NA, A> {
+impl<S, NA: NewActor> ActorProcess<S, NA> {
     /// Create a new `ActorProcess`.
-    pub(crate) fn new(pid: ProcessId, supervisor: S, new_actor: NA, actor: A, inbox: Shared<MailBox<NA::Message>>, waker: LocalWaker) -> ActorProcess<S, NA, A> {
+    pub(crate) fn new(pid: ProcessId, supervisor: S, new_actor: NA, actor: NA::Actor, inbox: Shared<MailBox<NA::Message>>, waker: LocalWaker) -> ActorProcess<S, NA> {
         ActorProcess {
             pid,
             supervisor,
@@ -47,10 +47,9 @@ impl<S, NA: NewActor, A> ActorProcess<S, NA, A> {
     }
 }
 
-impl<S, NA, A> Process for ActorProcess<S, NA, A>
-    where S: Supervisor<A::Error, NA::Argument>,
-          A: Actor,
-          NA: NewActor<Actor = A>,
+impl<S, NA> Process for ActorProcess<S, NA>
+    where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument>,
+          NA: NewActor,
 {
     fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
         trace!("running actor process");
@@ -81,7 +80,7 @@ impl<S, NA, A> Process for ActorProcess<S, NA, A>
     }
 }
 
-impl<S, NA: NewActor, A> fmt::Debug for ActorProcess<S, NA, A> {
+impl<S, NA: NewActor> fmt::Debug for ActorProcess<S, NA> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ActorProcess")
             .finish()
