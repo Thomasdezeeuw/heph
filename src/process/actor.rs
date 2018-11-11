@@ -67,10 +67,12 @@ impl<S, NA> Process for ActorProcess<S, NA>
                         // Create a new actor.
                         let ctx = ActorContext::new(self.pid, system_ref.clone(), self.inbox.clone());
                         let actor = self.new_actor.new(ctx, arg);
+                        // FIXME: this might be invalid, since the actor is
+                        // moved before it is dropped.
                         drop(replace(&mut self.actor, actor));
                         // Run the actor, just in case progress can be made
                         // already.
-                        return self.run(system_ref);
+                        self.run(system_ref)
                     },
                     SupervisorStrategy::Stop => ProcessResult::Complete,
                 }
