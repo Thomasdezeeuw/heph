@@ -26,6 +26,10 @@ The next example will be a bit more complex; an echo server written using TCP.
 However using all the utilities that `futures-util` has to offer this is
 actually not that hard either.
 
+One special feature this example uses is the "Actor Registry". The actor
+registry allows an actor to be registered and for another actor to look up the
+first actor and get a actor reference.
+
 The code can be found in `3_echo_server.rs` and run with `cargo run --example
 3_echo_server`, running something like `echo "Hello world" | nc -v localhost
 7890` should then echo back (print) "Hello world".
