@@ -14,13 +14,17 @@
 //! [`ActorSystemRef`]: struct.ActorSystemRef.html
 //! [`ActorContext`]: ../actor/struct.ActorContext.html
 //! [`TcpStream.connect`]: ../net/struct.TcpStream.html#method.connect
+//!
+//! # Actor Registry
+//!
+//! TODO.
 
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use std::{fmt, io};
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
-use log::{debug, trace};
+use log::{debug, trace, warn};
 use mio_st::event::{Evented, EventedId, Events, Ready};
 use mio_st::poll::{PollOption, Poller};
 use num_cpus;
@@ -36,6 +40,9 @@ use crate::util::Shared;
 use crate::waker::new_waker;
 
 mod error;
+mod registry;
+
+use self::registry::ActorRegistry;
 
 pub mod options;
 
@@ -544,6 +551,105 @@ impl ActorSystemRef {
         self.internal.borrow_mut().add_actor(supervisor, new_actor, arg_fn, options, system_ref)
     }
 
+    /// Lookup an actor in the [Actor Registry].
+    ///
+    /// This looks up an actor in Actor Registry and returns an actor reference
+    /// to that actor, if found. For more information, as well as possible
+    /// gotchas of the design, see [Actor Registry].
+    ///
+    /// Note: when using asynchronous functions as actors you'll likely need
+    /// [`lookup_val`].
+    ///
+    /// [Actor Registry]: ./index.html#actor-registry
+    /// [`lookup_val`]: #method.lookup_val
+    pub fn lookup<NA>(&mut self) -> Option<LocalActorRef<NA::Message>>
+        where NA: NewActor + 'static,
+    {
+        self.internal.borrow_mut().registry.lookup::<NA>()
+    }
+
+    /// Lookup an actor in the [Actor Registry], of which the type is hard to
+    /// get.
+    ///
+    /// Actors can be implemented as an asynchronous function, of which it hard
+    /// to get type, i.e. `system_ref.lookup::<my_actor>()` wil not work. This
+    /// is because `my_actor` is not a type (it is a [function] ([pointer])) and
+    /// doesn't implement [`NewActor`] directly.
+    ///
+    /// This function is a work around for that problem, although it isn't
+    /// pretty. See the example below for usage.
+    ///
+    /// Note: the argument provided is completely ignored and only used to
+    /// determine the type of the argument.
+    ///
+    /// [Actor Registry]: ./index.html#actor-registry
+    /// [function]: https://doc.rust-lang.org/std/keyword.fn.html
+    /// [pointer]: https://doc.rust-lang.org/std/primitive.fn.html
+    /// [`NewActor`]: ../actor/trait.NewActor.html
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(async_await, await_macro, futures_api, never_type)]
+    ///
+    /// use std::io;
+    ///
+    /// use heph::actor::{actor_factory, ActorContext};
+    /// use heph::supervisor::NoopSupervisor;
+    /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+    ///
+    /// /// Our actor implemented as an asynchronous function.
+    /// async fn actor(mut ctx: ActorContext<()>, arg: ()) -> Result<(), !> {
+    ///     // ...
+    ///     # Ok(())
+    /// }
+    ///
+    /// /// Setup function used in starting the `ActorSystem`.
+    /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
+    ///     // Add the actor to the system, enabling registering of the actor.
+    ///     let new_actor = actor_factory(actor);
+    ///     let actor_ref1 = system_ref.spawn(NoopSupervisor, new_actor, (),
+    ///         ActorOptions { register: true, .. ActorOptions::default() });
+    ///
+    ///     // Unfortunately this won't compile. :(
+    ///     //let actor_ref2 = system_ref.lookup::<actor>();
+    ///
+    ///     // This won't work either, since `actor` doesn't actually
+    ///     // implemented `NewActor`, that why we need the `actor_factory`
+    ///     // helper.
+    ///     //let actor_ref2 = system_ref.lookup_val(&actor);
+    ///
+    ///     // This will work.
+    ///     // Note that `new_actor` is of type `ActorFactory<actor>`.
+    ///     let actor_ref2 = system_ref.lookup_val(&new_actor)
+    ///         .unwrap();
+    ///
+    ///     // The actor reference should be the same.
+    ///     assert_eq!(actor_ref1, actor_ref2);
+    ///     Ok(())
+    /// }
+    ///
+    /// fn main() {
+    ///     ActorSystem::new()
+    /// #       .num_threads(1)
+    ///         .with_setup(setup)
+    ///         .run()
+    ///         .expect("unable to run actor system");
+    /// }
+    /// ```
+    pub fn lookup_val<NA>(&mut self, _: &NA) -> Option<LocalActorRef<NA::Message>>
+        where NA: NewActor + 'static,
+    {
+        self.lookup::<NA>()
+    }
+
+    /// Deregister an actor.
+    pub(crate) fn deregister<NA>(&mut self)
+        where NA: NewActor + 'static,
+    {
+        let _ = self.internal.borrow_mut().registry.deregister::<NA>();
+    }
+
     /// Register an `Evented` handle, see `Poll.register`.
     pub(crate) fn poller_register<E>(&mut self, handle: &mut E, id: EventedId, interests: Ready, opt: PollOption) -> io::Result<()>
     where
@@ -589,6 +695,8 @@ pub(crate) struct ActorSystemInternal {
     poller: Poller,
     /// Sending side of the channel for `Waker` notifications.
     waker_notifications: Sender<ProcessId>,
+    /// Actor registrations.
+    registry: ActorRegistry,
 }
 
 impl ActorSystemInternal {
@@ -598,6 +706,7 @@ impl ActorSystemInternal {
             scheduler_ref,
             poller,
             waker_notifications,
+            registry: ActorRegistry::new(),
         }
     }
 
@@ -625,6 +734,13 @@ impl ActorSystemInternal {
         // Create an actor process and add finally add it to the scheduler.
         let process = ActorProcess::new(pid, supervisor, new_actor, actor, mailbox, waker);
         process_entry.add(process, options.priority);
+
+        if options.register {
+            if self.registry.register::<NA>(actor_ref.clone()).is_some() {
+                warn!("overwritten previously registered actor in actor registry");
+            }
+        }
+
         Ok(actor_ref)
     }
 }
