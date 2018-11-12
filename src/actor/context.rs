@@ -120,7 +120,7 @@ impl<M> ActorContext<M> {
 ///
 /// [`ActorContext.receive`]: struct.ActorContext.html#method.receive
 #[derive(Debug)]
-pub struct ReceiveFuture<'ctx, M: 'ctx> {
+pub struct ReceiveFuture<'ctx, M> {
     inbox: &'ctx mut Shared<MailBox<M>>,
 }
 
