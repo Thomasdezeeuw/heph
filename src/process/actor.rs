@@ -70,7 +70,7 @@ impl<S, NA: NewActor> ActorProcess<S, NA> {
 
 impl<S, NA> Process for ActorProcess<S, NA>
     where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument>,
-          NA: NewActor,
+          NA: NewActor + 'static,
 {
     fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult {
         trace!("running actor process");
@@ -82,7 +82,7 @@ impl<S, NA> Process for ActorProcess<S, NA>
         // The actor does need to be called with `Pin`. So we're undoing the
         // previous operation, still making sure that the actor is not moved.
         let pinned_actor = unsafe { Pin::new_unchecked(&mut this.actor) };
-        match pinned_actor.try_poll(&this.waker) {
+        let result = match pinned_actor.try_poll(&this.waker) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
             Poll::Ready(Err(err)) => {
                 match this.supervisor.decide(err) {
@@ -100,7 +100,14 @@ impl<S, NA> Process for ActorProcess<S, NA>
                 }
             },
             Poll::Pending => ProcessResult::Pending,
+        };
+
+        // Normally this should go in the `Drop` implementation, but we don't
+        // have access to a system ref there, so we need to do it here.
+        if let ProcessResult::Complete = result {
+            system_ref.deregister::<NA>();
         }
+        result
     }
 }
 
