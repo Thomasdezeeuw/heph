@@ -32,6 +32,10 @@ pub use crate::scheduler::Priority;
 pub struct ActorOptions {
     /// Scheduling priority.
     pub priority: Priority,
+    /// Register the actor in the [Actor Registry], defaults to false.
+    ///
+    /// [Actor Registry]: ../index.html#actor-registry
+    pub register: bool,
     /// Reserved for future expansion. Use the `Default` implementation to set
     /// this field, see example in struct documentation.
     #[doc(hidden)]
@@ -42,6 +46,7 @@ impl Default for ActorOptions {
     fn default() -> ActorOptions {
         ActorOptions {
             priority: Priority::default(),
+            register: false,
             __private: (),
         }
     }
@@ -51,6 +56,7 @@ impl fmt::Debug for ActorOptions {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ActorOptions")
             .field("priority", &self.priority)
+            .field("register", &self.register)
             .finish()
     }
 }
