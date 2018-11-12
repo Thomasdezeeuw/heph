@@ -106,7 +106,7 @@ impl<M> ActorContext<M> {
     }
 
     /// Get a reference to the actor system this actor is running in.
-    pub(crate) fn system_ref(&mut self) -> &mut ActorSystemRef {
+    pub fn system_ref(&mut self) -> &mut ActorSystemRef {
         &mut self.system_ref
     }
 
