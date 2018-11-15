@@ -23,6 +23,8 @@ use crate::util::Shared;
 /// [`MachineLocalActorRef`]: struct.MachineLocalActorRef.html
 pub struct LocalActorRef<M> {
     /// The inbox of the `Actor`, owned by the `ActorProcess`.
+    ///
+    /// Note: if this representation changes it will break the Actor Registry!
     inbox: WeakShared<MailBox<M>>,
 }
 

@@ -59,6 +59,7 @@ impl<T> Clone for Shared<T> {
 #[derive(Debug)]
 #[repr(transparent)]
 pub(crate) struct WeakShared<T> {
+    /// Note: if this representation changes it will break the Actor Registry!
     inner: Weak<RefCell<T>>,
 }
 
