@@ -66,9 +66,10 @@ sequential_tests! {
         const SEND: &'static [u8] = b"Hello World";
         stream.write(SEND).unwrap();
 
-        let mut output = [0; 11];
-        stream.read(&mut output).unwrap();
-        assert_eq!(output, SEND, "should be `Hello World`");
+        let mut output = [0; 12];
+        let n = stream.read(&mut output).unwrap();
+        assert_eq!(n, 11);
+        assert_eq!(&output[0..n], SEND, "should be `Hello World`");
     }
 }
 
