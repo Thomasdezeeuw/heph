@@ -73,6 +73,7 @@
            non_exhaustive,
            pin,
            read_initializer,
+           weak_ptr_eq,
 )]
 
 #![warn(anonymous_parameters,

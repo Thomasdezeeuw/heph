@@ -69,6 +69,10 @@ impl<T> WeakShared<T> {
         self.inner.upgrade()
             .map(|inner| Shared { inner })
     }
+
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        Weak::ptr_eq(&self.inner, &other.inner)
+    }
 }
 
 impl<T> Clone for WeakShared<T> {
