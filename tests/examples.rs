@@ -46,7 +46,7 @@ sequential_tests! {
     }
 
     fn example_2_my_ip() {
-        let mut child = run_example("2_my_ip");
+        let _child = run_example("2_my_ip");
 
         let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
         let mut stream = TcpStream::connect(address).expect("unable to connect");
@@ -55,13 +55,10 @@ sequential_tests! {
         stream.read_to_string(&mut output)
             .expect("unable to to read from stream");
         assert_eq!(output, "127.0.0.1");
-
-        child.kill().expect("can't kill child process");
-        child.wait().unwrap();
     }
 
     fn example_3_echo_server() {
-        let mut child = run_example("3_echo_server");
+        let _child = run_example("3_echo_server");
 
         let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
         let mut stream = TcpStream::connect(address).expect("unable to connect");
@@ -72,9 +69,6 @@ sequential_tests! {
         let mut output = [0; 11];
         stream.read(&mut output).unwrap();
         assert_eq!(output, SEND, "should be `Hello World`");
-
-        child.kill().expect("can't kill child process");
-        child.wait().unwrap();
     }
 }
 
@@ -103,6 +97,7 @@ impl DerefMut for ChildCommand {
 impl Drop for ChildCommand {
     fn drop(&mut self) {
         let _ = self.inner.kill();
+        self.inner.wait().expect("can't wait on child process");
     }
 }
 
