@@ -49,7 +49,7 @@ sequential_tests! {
         let _child = run_example("2_my_ip");
 
         let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
-        let mut stream = TcpStream::connect(address).expect("unable to connect");
+        let mut stream = tcp_retry_connect(address);
 
         let mut output = String::new();
         stream.read_to_string(&mut output)
@@ -61,7 +61,7 @@ sequential_tests! {
         let _child = run_example("3_echo_server");
 
         let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
-        let mut stream = TcpStream::connect(address).expect("unable to connect");
+        let mut stream = tcp_retry_connect(address);
 
         const SEND: &'static [u8] = b"Hello World";
         stream.write(SEND).unwrap();
@@ -113,9 +113,7 @@ fn run_example_output(name: &'static str) -> String {
 /// be build.
 fn run_example(name: &'static str) -> ChildCommand {
     build_example(name);
-    let child = start_example(name);
-    setup_sleep();
-    child
+    start_example(name)
 }
 
 /// Build the example with the given name.
@@ -153,7 +151,12 @@ fn read_output(mut child: ChildCommand) -> String {
     output
 }
 
-/// Sleep for a while to give the example a chance to setup.
-fn setup_sleep() {
-    sleep(Duration::from_millis(100));
+fn tcp_retry_connect(address: SocketAddr) -> TcpStream {
+    for _ in 0..10 {
+        if let Ok(stream) = TcpStream::connect(address) {
+            return stream;
+        }
+        sleep(Duration::from_millis(5));
+    }
+    panic!("failed to connect to address");
 }
