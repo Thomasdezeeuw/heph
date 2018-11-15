@@ -17,15 +17,15 @@ use lazy_static::lazy_static;
 // for the full execution of the example, this is for example the case in
 // example 2 which needs to send a request to the running example.
 
-lazy_static! {
-    /// A global lock for testing sequentially, see `sequential_test` macro.
-    static ref SEQUENTIAL_TEST_MUTEX: Mutex<()> = Mutex::new(());
-}
+/// Macro to crate a sequential tests.
+macro_rules! sequential_tests {
+    ($(fn $name:ident() $body:block)+) => {
+        lazy_static! {
+            /// A global lock for testing sequentially.
+            static ref SEQUENTIAL_TEST_MUTEX: Mutex<()> = Mutex::new(());
+        }
 
-/// Macro to crate a sequential test, that locks `SEQUENTIAL_TEST_MUTEX` while
-/// testing.
-macro_rules! sequential_test {
-    (fn $name:ident() $body:block) => {
+        $(
         #[test]
         fn $name() {
             let guard = SEQUENTIAL_TEST_MUTEX.lock().unwrap();
@@ -35,17 +35,16 @@ macro_rules! sequential_test {
                 panic::resume_unwind(err);
             }
         }
+        )+
     };
 }
 
-sequential_test! {
+sequential_tests! {
     fn example_1_hello_world() {
         let output = run_example_output("1_hello_world");
         assert_eq!(output, "Hello World\n");
     }
-}
 
-sequential_test! {
     fn example_2_my_ip() {
         let mut child = run_example("2_my_ip");
 
@@ -60,9 +59,7 @@ sequential_test! {
         child.kill().expect("can't kill child process");
         child.wait().unwrap();
     }
-}
 
-sequential_test! {
     fn example_3_echo_server() {
         let mut child = run_example("3_echo_server");
 
