@@ -88,6 +88,12 @@ impl<M> Clone for LocalActorRef<M> {
     }
 }
 
+impl<M> PartialEq for LocalActorRef<M> {
+    fn eq(&self, other: &LocalActorRef<M>) -> bool {
+        self.inbox.ptr_eq(&other.inbox)
+    }
+}
+
 impl<M> fmt::Debug for LocalActorRef<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("LocalActorRef")
