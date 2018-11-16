@@ -143,6 +143,72 @@ pub trait NewActor {
     fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor;
 }
 
+impl<M, A> NewActor for fn(ActorContext<M>) -> A
+    where A: Actor,
+{
+    type Message = M;
+    type Argument = ();
+    type Actor = A;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, _arg: Self::Argument) -> Self::Actor {
+        (self)(ctx)
+    }
+}
+
+impl<M, Arg, A> NewActor for fn(ActorContext<M>, Arg) -> A
+    where A: Actor,
+{
+    type Message = M;
+    type Argument = Arg;
+    type Actor = A;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor {
+        (self)(ctx, arg)
+    }
+}
+
+impl<M, Arg1, Arg2, A> NewActor for fn(ActorContext<M>, Arg1, Arg2) -> A
+    where A: Actor,
+{
+    type Message = M;
+    type Argument = (Arg1, Arg2);
+    type Actor = A;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor {
+        (self)(ctx, arg.0, arg.1)
+    }
+}
+
+impl<M, Arg1, Arg2, Arg3, A> NewActor for fn(ActorContext<M>, Arg1, Arg2, Arg3) -> A
+    where A: Actor,
+{
+    type Message = M;
+    type Argument = (Arg1, Arg2, Arg3);
+    type Actor = A;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor {
+        (self)(ctx, arg.0, arg.1, arg.2)
+    }
+}
+
+impl<M, Arg1, Arg2, Arg3, Arg4, A> NewActor for fn(ActorContext<M>, Arg1, Arg2, Arg3, Arg4) -> A
+    where A: Actor,
+{
+    type Message = M;
+    type Argument = (Arg1, Arg2, Arg3, Arg4);
+    type Actor = A;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor {
+        (self)(ctx, arg.0, arg.1, arg.2, arg.3)
+    }
+}
+
+impl<M, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor for fn(ActorContext<M>, Arg1, Arg2, Arg3, Arg4, Arg5) -> A
+    where A: Actor,
+{
+    type Message = M;
+    type Argument = (Arg1, Arg2, Arg3, Arg4, Arg5);
+    type Actor = A;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor {
+        (self)(ctx, arg.0, arg.1, arg.2, arg.3, arg.4)
+    }
+}
+
 /// The main actor trait.
 ///
 /// Effectively an `Actor` is a `Future` which returns a `Result<(), Error>`,
