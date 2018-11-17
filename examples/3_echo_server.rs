@@ -6,14 +6,14 @@ use std::net::SocketAddr;
 use futures_util::{AsyncReadExt, TryFutureExt};
 use log::{error, info};
 
-use heph::actor::{ActorContext, actor_factory};
+use heph::actor::ActorContext;
 use heph::log::REQUEST_TARGET;
 use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::SupervisorStrategy;
 use heph::system::{ActorSystem, ActorOptions, InitiatorOptions};
 
 /// Our actor.
-async fn echo_actor(_ctx: ActorContext<!>, (stream, address): (TcpStream, SocketAddr)) -> io::Result<()> {
+async fn echo_actor(_ctx: ActorContext<!>, stream: TcpStream, address: SocketAddr) -> io::Result<()> {
     // Here we use a special request target to mark this log as a request. This
     // will cause it to be printed to standard out, rather then standard error.
     info!(target: REQUEST_TARGET, "accepted connection: address={}", address);
@@ -34,8 +34,7 @@ fn main() {
     heph::log::init();
 
     let address = "127.0.0.1:7890".parse().unwrap();
-    let new_actor = actor_factory(echo_actor);
-    let listener = TcpListener::bind(address, echo_supervisor, new_actor, ActorOptions::default())
+    let listener = TcpListener::bind(address, echo_supervisor, echo_actor as fn(_, _, _) -> _, ActorOptions::default())
         .expect("unable to bind TCP listener");
     info!("listening: address={}", address);
 

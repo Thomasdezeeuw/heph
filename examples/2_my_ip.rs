@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use futures_util::AsyncWriteExt;
 use log::{error, info};
 
-use heph::actor::{ActorContext, actor_factory};
+use heph::actor::ActorContext;
 use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::SupervisorStrategy;
 use heph::system::{ActorSystem, ActorOptions, InitiatorOptions};
@@ -19,7 +19,7 @@ use heph::system::{ActorSystem, ActorOptions, InitiatorOptions};
 /// This function actually implements the `NewActor` trait required by
 /// `TcpListener` (see main). This is the reason why we use a tuple
 /// `(stream, address)` as a single argument.
-async fn conn_actor(_ctx: ActorContext<!>, (mut stream, address): (TcpStream, SocketAddr)) -> io::Result<()> {
+async fn conn_actor(_ctx: ActorContext<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
     info!("accepted connection: address={}", address);
 
     // This will allocate a new string which isn't the most efficient way to do
@@ -47,8 +47,7 @@ fn main() {
     // actor for each incoming connections and the options for each actor (for
     // which we'll use the default).
     let address = "127.0.0.1:7890".parse().unwrap();
-    let new_actor = actor_factory(conn_actor);
-    let listener = TcpListener::bind(address, conn_supervisor, new_actor, ActorOptions::default())
+    let listener = TcpListener::bind(address, conn_supervisor, conn_actor as fn(_, _, _) -> _, ActorOptions::default())
         .expect("unable to bind TCP listener");
     info!("listening: address={}", address);
 
