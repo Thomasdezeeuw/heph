@@ -213,27 +213,6 @@ pub struct ProcessData {
     process: Box<dyn Process>,
 }
 
-impl Eq for ProcessData {}
-
-impl PartialEq for ProcessData {
-    fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
-    }
-}
-
-impl Ord for ProcessData {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other.fair_runtime.cmp(&self.fair_runtime)
-            .then_with(|| self.priority.cmp(&other.priority))
-    }
-}
-
-impl PartialOrd for ProcessData {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(&other))
-    }
-}
-
 impl ProcessData {
     /// Create new `ProcessData`.
     pub fn new<P>(id: ProcessId, priority: Priority, process: P) -> ProcessData
@@ -269,5 +248,26 @@ impl ProcessData {
     /// Update the runtime of the process.
     fn update_runtime(&mut self, elapsed: Duration) {
         self.fair_runtime += elapsed * self.priority
+    }
+}
+
+impl Eq for ProcessData {}
+
+impl PartialEq for ProcessData {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Ord for ProcessData {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.fair_runtime.cmp(&self.fair_runtime)
+            .then_with(|| self.priority.cmp(&other.priority))
+    }
+}
+
+impl PartialOrd for ProcessData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(&other))
     }
 }
