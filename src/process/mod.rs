@@ -1,6 +1,7 @@
 //! Module containing the `Process` trait, related types and implementations.
 
 use std::fmt;
+use std::pin::Pin;
 
 use mio_st::event::EventedId;
 
@@ -57,7 +58,7 @@ pub trait Process: fmt::Debug {
     ///
     /// If it returns `ProcessResult::Pending` it will be considered inactive
     /// and the process itself must make sure its gets scheduled again.
-    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult;
+    fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult;
 }
 
 /// The result of running a `Process`.

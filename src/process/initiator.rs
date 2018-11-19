@@ -2,6 +2,7 @@
 //! `Initiator`s.
 
 use std::fmt;
+use std::pin::Pin;
 
 use log::{error, trace};
 
@@ -31,10 +32,12 @@ impl<I> InitiatorProcess<I> {
 impl<I> Process for InitiatorProcess<I>
     where I: Initiator,
 {
-    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
+    fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult {
         trace!("running initiator process");
 
-        if let Err(err) = self.initiator.poll(system_ref) {
+        // This is safe because we're not moving the initiator.
+        let this = unsafe { Pin::get_mut_unchecked(self) };
+        if let Err(err) = this.initiator.poll(system_ref) {
             error!("error polling initiator: {}", err);
             ProcessResult::Complete
         } else {

@@ -1,8 +1,9 @@
 //! Module containing the implementation of the `Process` trait for `Actor`s.
 
-use std::fmt;
-use std::mem::{drop, replace};
+use std::{fmt, ptr};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
+use std::process::abort;
 use std::task::{LocalWaker, Poll};
 
 use log::trace;
@@ -45,34 +46,55 @@ impl<S, NA: NewActor> ActorProcess<S, NA> {
             waker,
         }
     }
+
+    // Replace the actor, dropping the old one.
+    fn swap_actor(&mut self, actor: NA::Actor) {
+        // We can't call `drop(mem::replace(&mut sel.actor, actor));`, because
+        // that would move the actor to stack before dropping it. That is not
+        // allowed when pinned, so we need to drop the actor in place. However
+        // when the actor's Drop implementation panics it could be that that the
+        // actor is dropped again when `ActorProcess` is dropped, causing a
+        // double free. So we need to catch any panics and abort, as that is the
+        // only safe option left. If we don't have any panics we can just
+        // overwrite the old actor.
+        let res = catch_unwind(AssertUnwindSafe(|| {
+            unsafe { ptr::drop_in_place(&mut self.actor); }
+        }));
+
+        match res {
+            Ok(()) => unsafe { ptr::write(&mut self.actor, actor); },
+            Err(_) => abort(),
+        }
+    }
 }
 
 impl<S, NA> Process for ActorProcess<S, NA>
     where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument>,
           NA: NewActor,
 {
-    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
+    fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult {
         trace!("running actor process");
 
-        // FIXME: Currently this is safe because `ProcessData` in the scheduler
-        // module boxes each process, but this needs improvement. Maybe go the
-        // future route: `self: PinMut<Self>`.
-        let actor = unsafe { Pin::new_unchecked(&mut self.actor) };
+        // The only thing in `ActorProcess` that is `!Unpin` is the actor. So
+        // this is safe as long as we don't move the actor.
+        let this = unsafe { Pin::get_mut_unchecked(self) };
 
-        match actor.try_poll(&self.waker) {
+        // The actor does need to be called with `Pin`. So we're undoing the
+        // previous operation, still making sure that the actor is not moved.
+        let pinned_actor = unsafe { Pin::new_unchecked(&mut this.actor) };
+        match pinned_actor.try_poll(&this.waker) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
             Poll::Ready(Err(err)) => {
-                match self.supervisor.decide(err) {
+                match this.supervisor.decide(err) {
                     SupervisorStrategy::Restart(arg) => {
                         // Create a new actor.
-                        let ctx = ActorContext::new(self.pid, system_ref.clone(), self.inbox.clone());
-                        let actor = self.new_actor.new(ctx, arg);
-                        // FIXME: this might be invalid, since the actor is
-                        // moved before it is dropped.
-                        drop(replace(&mut self.actor, actor));
+                        let ctx = ActorContext::new(this.pid, system_ref.clone(), this.inbox.clone());
+                        let actor = this.new_actor.new(ctx, arg);
+                        // Swap the old actor with the new one.
+                        this.swap_actor(actor);
                         // Run the actor, just in case progress can be made
                         // already.
-                        self.run(system_ref)
+                        return unsafe { Pin::new_unchecked(this) }.run(system_ref);
                     },
                     SupervisorStrategy::Stop => ProcessResult::Complete,
                 }
