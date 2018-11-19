@@ -4,6 +4,7 @@ use std::cell::RefMut;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::mem;
+use std::pin::Pin;
 use std::time::{Duration, Instant};
 
 use log::{debug, trace};
@@ -210,7 +211,7 @@ pub struct ProcessData {
     /// Runtime of this process * Priority, see the `update_runtime` method.
     fair_runtime: Duration,
     priority: Priority,
-    process: Box<dyn Process>,
+    process: Pin<Box<dyn Process + 'static>>,
 }
 
 impl ProcessData {
@@ -222,7 +223,7 @@ impl ProcessData {
             id,
             fair_runtime: Duration::from_millis(0),
             priority,
-            process: Box::new(process),
+            process: Box::pinned(process),
         }
     }
 
@@ -236,7 +237,7 @@ impl ProcessData {
         trace!("running process: pid={}", self.id);
 
         let start = Instant::now();
-        let result = self.process.run(system_ref);
+        let result = self.process.as_mut().run(system_ref);
         let elapsed = start.elapsed();
 
         trace!("finished running process: pid={}, elapsed_time={:?}", self.id, elapsed);

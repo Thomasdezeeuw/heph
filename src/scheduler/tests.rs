@@ -2,6 +2,7 @@
 
 use std::cmp::Ordering;
 use std::mem;
+use std::pin::Pin;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -26,7 +27,7 @@ fn size_assertions() {
 pub struct EmptyProcess;
 
 impl Process for EmptyProcess {
-    fn run(&mut self, _: &mut ActorSystemRef) -> ProcessResult {
+    fn run(self: Pin<&mut Self>, _: &mut ActorSystemRef) -> ProcessResult {
         unreachable!();
     }
 }
@@ -70,7 +71,7 @@ fn process_data_order() {
 struct SleepyProcess(Duration);
 
 impl Process for SleepyProcess {
-    fn run(&mut self, _: &mut ActorSystemRef) -> ProcessResult {
+    fn run(self: Pin<&mut Self>, _: &mut ActorSystemRef) -> ProcessResult {
         sleep(self.0);
         ProcessResult::Pending
     }
@@ -121,8 +122,9 @@ struct TestProcess {
 }
 
 impl Process for TestProcess {
-    fn run(&mut self, _: &mut ActorSystemRef) -> ProcessResult {
-        self.order.borrow_mut().push(self.id.0);
+    fn run(mut self: Pin<&mut Self>, _: &mut ActorSystemRef) -> ProcessResult {
+        let id = self.id.0;
+        self.order.borrow_mut().push(id);
         match self.id.0 {
             0 => {
                 self.id = ProcessId(10);

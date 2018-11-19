@@ -1,8 +1,9 @@
 //! Unit tests for the process module.
 
 use std::io;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use crossbeam_channel as channel;
 use mio_st::event::EventedId;
@@ -63,15 +64,16 @@ fn actor_process() {
 
     // Finally create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let mut process = ActorProcess::new(pid, NoopSupervisor, new_actor, actor, inbox, waker);
+    let process = ActorProcess::new(pid, NoopSupervisor, new_actor, actor, inbox, waker);
+    let mut process = Box::pinned(process);
 
     // Actor should return `Poll::Pending`, because no message is ready.
     let mut system_ref = test::system_ref();
-    assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
+    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
 
     // Send the message and the actor should return Ok.
     actor_ref.send(Message).unwrap();
-    assert_eq!(process.run(&mut system_ref), ProcessResult::Complete);
+    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
 }
 
 async fn error_actor(ctx: ActorContext<Message>, _: ()) -> Result<(), Error> {
@@ -95,11 +97,12 @@ fn erroneous_actor_process() {
     // Finally create our process.
     let inbox = actor_ref.get_inbox().unwrap();
     let supervisor = |_err: Error | SupervisorStrategy::Stop;
-    let mut process = ActorProcess::new(pid, supervisor, new_actor, actor, inbox, waker);
+    let process = ActorProcess::new(pid, supervisor, new_actor, actor, inbox, waker);
+    let mut process = Box::pinned(process);
 
     // Actor should return Err.
     let mut system_ref = test::system_ref();
-    assert_eq!(process.run(&mut system_ref), ProcessResult::Complete);
+    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
 }
 
 struct SimpleInitiator {
@@ -130,13 +133,14 @@ fn initiator_process() {
     let mut process = InitiatorProcess::new(SimpleInitiator {
         called: Arc::clone(&called),
     });
+    let mut process = Pin::new(&mut process);
 
     // Ok run.
     let mut system_ref = test::system_ref();
-    assert_eq!(process.run(&mut system_ref), ProcessResult::Pending);
+    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
     assert_eq!(called.load(Ordering::Relaxed), 1);
 
     // Error run.
-    assert_eq!(process.run(&mut system_ref), ProcessResult::Complete);
+    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
     assert_eq!(called.load(Ordering::Relaxed), 2);
 }
