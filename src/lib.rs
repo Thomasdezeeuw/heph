@@ -90,6 +90,7 @@
 
 pub mod actor;
 pub mod actor_ref;
+pub mod channel;
 pub mod initiator;
 pub mod log;
 pub mod net;
