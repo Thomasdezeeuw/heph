@@ -26,6 +26,11 @@ impl<T> Shared<T> {
         }
     }
 
+    /// See `Rc::strong_count`.
+    pub fn strong_count(&self) -> usize {
+        Rc::strong_count(&self.inner)
+    }
+
     /// See `Rc::downgrade`.
     pub fn downgrade(&self) -> WeakShared<T> {
         WeakShared {
