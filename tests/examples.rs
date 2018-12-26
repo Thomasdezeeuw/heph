@@ -156,7 +156,7 @@ fn tcp_retry_connect(address: SocketAddr) -> TcpStream {
         if let Ok(stream) = TcpStream::connect(address) {
             return stream;
         }
-        sleep(Duration::from_millis(5));
+        sleep(Duration::from_millis(10));
     }
     panic!("failed to connect to address");
 }
