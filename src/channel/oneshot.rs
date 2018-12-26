@@ -87,12 +87,17 @@ impl<T> Sender<T> {
             return Err(NoReceiver(value));
         }
 
-        let mut inner = self.inner.borrow_mut();
-        inner.value = Some(value);
-        if let Some(ref waker) = inner.waker {
+        self.inner.borrow_mut().value = Some(value);
+        // No need to wake, that happens when the sender is dropped.
+        Ok(())
+    }
+}
+
+impl<T> Drop for Sender<T> {
+    fn drop(&mut self) {
+        if let Some(ref waker) = self.inner.borrow_mut().waker {
             waker.wake();
         }
-        Ok(())
     }
 }
 
@@ -170,6 +175,21 @@ mod tests {
         sender.send(()).unwrap();
         assert_eq!(count.get(), 0);
         assert_eq!(receiver.as_mut().poll(&waker), Poll::Ready(Ok(())));
+    }
+
+    #[test]
+    fn wake_when_sender_is_dropped() {
+        let (sender, receiver) = oneshot::<()>();
+        let mut receiver = Box::pinned(receiver);
+        let (waker, count) = new_count_waker();
+
+        assert_eq!(count.get(), 0);
+        assert_eq!(receiver.as_mut().poll(&waker), Poll::Pending);
+        assert_eq!(count.get(), 0);
+
+        drop(sender);
+        assert_eq!(count.get(), 1);
+        assert_eq!(receiver.as_mut().poll(&waker), Poll::Ready(Err(NoValue)));
     }
 
     #[test]
