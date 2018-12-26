@@ -151,7 +151,7 @@ mod tests {
     use crate::test::new_count_waker;
 
     #[test]
-    fn sending_wakes_waker() {
+    fn sending_wakes_receiver() {
         let (sender, receiver) = oneshot();
         let mut receiver = Box::pinned(receiver);
         let (waker, count) = new_count_waker();
