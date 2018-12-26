@@ -135,10 +135,10 @@ impl<'r, T: Unpin> Future for ReceiveOne<'r, T> {
 /// Inside of the bounded channel, shared by 1 `Sender` and 1 `Receiver`.
 #[derive(Debug)]
 struct ChannelInner<T> {
-    /// Values added by `Sender.send` and removed by `Receiver.poll`.
+    /// Values added by `Sender.send` and removed by `Receiver.try_receive`.
     values: VecDeque<T>,
-    /// Waker set by calling `Receiver.poll` and awoken by `Sender.send`, if
-    /// set.
+    /// Waker set by calling `Receiver.poll_next` or `ReceiveOne.poll` and
+    /// awoken by `Sender.send`, if set.
     waker: Option<LocalWaker>,
 }
 
@@ -172,9 +172,8 @@ mod tests {
     use crate::channel::{bounded, NoValue};
     use crate::test::new_count_waker;
 
-
     #[test]
-    fn sending_wakes_waker() {
+    fn sending_wakes_receiver() {
         let (mut sender, receiver) = bounded(1);
         let mut receiver = Box::pinned(receiver);
         let (waker, count) = new_count_waker();
