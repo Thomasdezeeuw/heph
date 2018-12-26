@@ -41,7 +41,7 @@ impl<T> Sender<T> {
 
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
-        if let Some(ref waker) = self.inner.borrow_mut().waker {
+        if let Some(ref waker) = self.inner.borrow().waker {
             waker.wake();
         }
     }

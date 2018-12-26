@@ -142,7 +142,7 @@ fn scheduler() {
     let mut system_ref = test::system_ref();
 
     // In which order the processes have been run.
-    let mut run_order = Shared::new(Vec::new());
+    let run_order = Shared::new(Vec::new());
 
     let (mut scheduler, mut scheduler_ref) = Scheduler::new();
 
@@ -177,5 +177,5 @@ fn scheduler() {
     assert_eq!(scheduler.run_process(&mut system_ref), false);
     assert!(!scheduler.process_ready());
 
-    assert_eq!(*run_order.borrow_mut(), vec![2, 1, 0, 10]);
+    assert_eq!(*run_order.borrow(), vec![2, 1, 0, 10]);
 }

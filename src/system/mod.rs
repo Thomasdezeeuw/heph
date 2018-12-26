@@ -562,7 +562,7 @@ impl ActorSystemRef {
 
     /// Get a clone of the sending end of the notification channel.
     pub(crate) fn get_notification_sender(&mut self) -> Sender<ProcessId> {
-        self.internal.borrow_mut().waker_notifications.clone()
+        self.internal.borrow().waker_notifications.clone()
     }
 
     /// Add a deadline to the system poller.
