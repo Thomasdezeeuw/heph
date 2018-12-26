@@ -83,13 +83,18 @@ impl<T> Sender<T> {
     /// If the receiving half of the channel was dropped, before a value could
     /// be send across the channel, a `NoReceiver` error is returned.
     pub fn send(mut self, value: T) -> Result<(), NoReceiver<T>> {
-        if self.inner.strong_count() == 1 {
+        if !self.is_connected() {
             return Err(NoReceiver(value));
         }
 
         self.inner.borrow_mut().value = Some(value);
         // No need to wake, that happens when the sender is dropped.
         Ok(())
+    }
+
+    /// Whether or not the receiving half is still connected.
+    pub fn is_connected(&mut self) -> bool {
+        self.inner.strong_count() >= 2
     }
 }
 

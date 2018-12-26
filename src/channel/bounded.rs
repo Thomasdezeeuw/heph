@@ -25,7 +25,7 @@ impl<T> Sender<T> {
     /// If the receiving half of the channel was dropped or if the channel is
     /// full an error is returned.
     pub fn send(&mut self, value: T) -> Result<(), SendError<T>> {
-        if self.inner.strong_count() == 1 {
+        if !self.is_connected() {
             return Err(SendError::NoReceiver(value));
         }
 
@@ -39,6 +39,11 @@ impl<T> Sender<T> {
             waker.wake();
         }
         Ok(())
+    }
+
+    /// Whether or not the receiving half is still connected.
+    pub fn is_connected(&mut self) -> bool {
+        self.inner.strong_count() >= 2
     }
 }
 
