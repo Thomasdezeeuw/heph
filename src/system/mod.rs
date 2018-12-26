@@ -572,7 +572,7 @@ impl ActorSystemRef {
     /// get.
     ///
     /// Actors can be implemented as an asynchronous function, of which it hard
-    /// to get type, i.e. `system_ref.lookup::<my_actor>()` wil not work. This
+    /// to get type, e.g. `system_ref.lookup::<my_actor>()` will not work. This
     /// is because `my_actor` is not a type (it is a [function] ([pointer])) and
     /// doesn't implement [`NewActor`] directly.
     ///
@@ -594,12 +594,12 @@ impl ActorSystemRef {
     ///
     /// use std::io;
     ///
-    /// use heph::actor::{actor_factory, ActorContext};
+    /// use heph::actor::ActorContext;
     /// use heph::supervisor::NoopSupervisor;
     /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
     ///
     /// /// Our actor implemented as an asynchronous function.
-    /// async fn actor(mut ctx: ActorContext<()>, arg: ()) -> Result<(), !> {
+    /// async fn actor(mut ctx: ActorContext<()>) -> Result<(), !> {
     ///     // ...
     ///     # Ok(())
     /// }
@@ -607,21 +607,14 @@ impl ActorSystemRef {
     /// /// Setup function used in starting the `ActorSystem`.
     /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     ///     // Add the actor to the system, enabling registering of the actor.
-    ///     let new_actor = actor_factory(actor);
-    ///     let actor_ref1 = system_ref.spawn(NoopSupervisor, new_actor, (),
-    ///         ActorOptions { register: true, .. ActorOptions::default() });
+    ///     let actor_ref1 = system_ref.spawn(NoopSupervisor, actor as fn(_) -> _,
+    ///         (), ActorOptions { register: true, .. ActorOptions::default() });
     ///
     ///     // Unfortunately this won't compile. :(
     ///     //let actor_ref2 = system_ref.lookup::<actor>();
     ///
-    ///     // This won't work either, since `actor` doesn't actually
-    ///     // implemented `NewActor`, that why we need the `actor_factory`
-    ///     // helper.
-    ///     //let actor_ref2 = system_ref.lookup_val(&actor);
-    ///
     ///     // This will work.
-    ///     // Note that `new_actor` is of type `ActorFactory<actor>`.
-    ///     let actor_ref2 = system_ref.lookup_val(&new_actor)
+    ///     let actor_ref2 = system_ref.lookup_val(&(actor as fn(_) -> _))
     ///         .unwrap();
     ///
     ///     // The actor reference should be the same.

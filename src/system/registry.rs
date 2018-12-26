@@ -17,7 +17,7 @@ pub struct ActorRegistry {
     /// But since `M` is different for each value we can't store in a `HashMap`
     /// without using tricks.
     ///
-    /// Dropping the actor reference are also problematic, since don't know the
+    /// Dropping the actor registry is also problematic, since don't know the
     /// type of each actor reference and when dropping is not possible to
     /// determine the type. So our only option is leaking the memory, which
     /// isn't that bad. Seeing how the actor system is likely shutting down
@@ -26,7 +26,7 @@ pub struct ActorRegistry {
     /// weak reference.
     ///
     /// See the `into_value`, `from_value` and `from_value_ref` functions below
-    /// for more detail.
+    /// for more details.
     inner: HashMap<TypeId, *mut ()>,
 }
 
@@ -73,19 +73,20 @@ impl ActorRegistry {
 fn into_value<NA>(actor_ref: LocalActorRef<NA::Message>) -> *mut ()
     where NA: NewActor + 'static,
 {
-    // This is sort of safe.
-    // `LocalActorRef<M>`, no the type of `M`, is represented as
+    // This is sort of safe. `LocalActorRef<M>` is represented as
     // `Weak<RefCell<MailBox<M>>>`, and any `Weak` type is just a pointer under
-    // the hood. So this transmutes from a pointer to a pointer and should be
-    // safe(-ish).
+    // the hood. So this transmutes from a pointer to another pointer and should
+    // be safe(-ish).
     unsafe { mem::transmute(actor_ref) }
 }
 
 /// Convert a value coming from the hash map into a typed actor reference. This
 /// is the reverse of `into_value`.
 ///
-/// This function is unsafe because the caller needs to ensure the type is
-/// correct, **if the type is not correct this will cause undefined behaviour**.
+/// # Unsafety
+///
+/// The caller needs to ensure the type is correct, **if the type is not correct
+/// this will cause undefined behaviour**.
 #[inline]
 unsafe fn from_value<NA>(value: *mut ()) -> LocalActorRef<NA::Message>
     where NA: NewActor + 'static,
@@ -94,10 +95,12 @@ unsafe fn from_value<NA>(value: *mut ()) -> LocalActorRef<NA::Message>
     mem::transmute(value)
 }
 
-/// Convert a value coming from the hash map into an cloned actor reference.
+/// Convert a value coming from the hash map into a cloned actor reference.
 ///
-/// This function is unsafe because the caller needs to ensure the type is
-/// correct, **if the type is not correct this will cause undefined behaviour**.
+/// # Unsafety
+///
+/// The caller needs to ensure the type is correct, **if the type is not correct
+/// this will cause undefined behaviour**.
 #[inline]
 unsafe fn from_value_ref<NA>(value_ref: &*mut ()) -> LocalActorRef<NA::Message>
     where NA: NewActor + 'static,
