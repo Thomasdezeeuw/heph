@@ -67,6 +67,7 @@ impl<M> ActorContext<M> {
     ///
     /// use std::time::Duration;
     ///
+    /// use futures_util::future::FutureExt;
     /// use futures_util::select;
     /// use heph::actor::{actor_factory, ActorContext};
     /// use heph::timer::Timer;
@@ -75,17 +76,17 @@ impl<M> ActorContext<M> {
     ///     loop {
     ///         // Create a timer, this will be ready once the timeout has
     ///         // passed.
-    ///         let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100));
+    ///         let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100)).fuse();
     ///         // Create a future to receive a message.
-    ///         let mut msg = ctx.receive();
+    ///         let mut msg_future = ctx.receive().fuse();
     ///
     ///         // Now let them race!
     ///         // This is basically a match statement for futures, whichever
     ///         // future is ready first will be the winner and we'll take that
     ///         // branch.
     ///         select! {
-    ///             msg => println!("Got a message: {}", msg),
-    ///             timeout => {
+    ///             msg = msg_future => println!("Got a message: {}", msg),
+    ///             _ = timeout => {
     ///                 println!("Getting impatient!");
     ///                 continue;
     ///             },
