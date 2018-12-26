@@ -24,7 +24,7 @@ use std::time::{Duration, Instant};
 use std::{fmt, io};
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
-use log::{debug, trace, warn};
+use log::{debug, trace};
 use mio_st::event::{Evented, EventedId, Events, Ready};
 use mio_st::poll::{PollOption, Poller};
 use num_cpus;
@@ -737,7 +737,7 @@ impl ActorSystemInternal {
 
         if options.register {
             if self.registry.register::<NA>(actor_ref.clone()).is_some() {
-                warn!("overwritten previously registered actor in actor registry");
+                panic!("can't overwrite a previously registered actor in the Actor Registry");
             }
         }
 
