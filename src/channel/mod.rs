@@ -16,10 +16,13 @@
 //! `channel` function that can be used to create the `Sender` and `Receiver`
 //! halves of the channel. Alternatively the [`oneshot`], [`bounded`] and
 //! [`unbounded`] functions can be used to create the two halves. Each `Sender`
-//! has a `send` method, which sends a value across the channel. Each `Receiver`
-//! either implements `Future` or `Stream` to receive values from the channel.
-//! The bounded and unbounded flavours also have a `receive_one` method that
-//! returns a `Future` that receives a single value from the channel.
+//! has a `send` method, which sends a value across the channel. `Sender` also
+//! has a `is_connected` method to check if the other half is still connected,
+//! useful before doing an expensive computation and then sending the result
+//! into an disconnected channel. Each `Receiver` either implements `Future` or
+//! `Stream` to receive values from the channel. The bounded and unbounded
+//! flavours also have a `receive_one` method that returns a `Future` that
+//! receives a single value from the channel.
 //!
 //! [`crossbeam_channels`]: https://crates.io/crates/crossbeam-channel
 //! [`std::sync::mpsc`]: https://doc.rust-lang.org/nightly/std/sync/mpsc/index.html
