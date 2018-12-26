@@ -44,6 +44,7 @@ pub struct DeadlinePassed;
 ///
 /// use std::time::Duration;
 ///
+/// use futures_util::future::FutureExt;
 /// use futures_util::select;
 /// use heph::actor::{actor_factory, ActorContext};
 /// use heph::timer::Timer;
@@ -51,17 +52,17 @@ pub struct DeadlinePassed;
 /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
 ///     loop {
 ///         // Create a timer, this will be ready once the timeout has passed.
-///         let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100));
+///         let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100)).fuse();
 ///         // Create a future to receive a message.
-///         let mut msg = ctx.receive();
+///         let mut msg_future = ctx.receive().fuse();
 ///
 ///         // Now let them race!
 ///         // This is basically a match statement for futures, whichever
 ///         // future returns first will be the winner and we'll take that
 ///         // branch.
 ///         let msg = select! {
-///             msg => msg,
-///             timeout => {
+///             msg = msg_future => msg,
+///             _ = timeout => {
 ///                 println!("Getting impatient!");
 ///                 continue;
 ///             },
