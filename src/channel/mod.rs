@@ -10,6 +10,7 @@
 
 use std::pin::Unpin;
 
+pub mod bounded;
 pub mod oneshot;
 
 /// Receiving half of the channel was dropped.
@@ -26,6 +27,15 @@ pub struct NoReceiver<T>(pub T);
 /// all send values were received.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct NoValue;
+
+/// Create a new bounded channel.
+///
+/// See the [`bounded`] module for more information.
+///
+/// [`bounded`]: bounded/index.html
+pub fn bounded<T: Unpin>(capacity: usize) -> (bounded::Sender<T>, bounded::Receiver<T>) {
+    bounded::channel(capacity)
+}
 
 /// Create a new oneshot channel.
 ///
