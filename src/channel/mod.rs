@@ -12,6 +12,7 @@ use std::pin::Unpin;
 
 pub mod bounded;
 pub mod oneshot;
+pub mod unbounded;
 
 /// Receiving half of the channel was dropped.
 ///
@@ -44,4 +45,13 @@ pub fn bounded<T: Unpin>(capacity: usize) -> (bounded::Sender<T>, bounded::Recei
 /// [`oneshot`]: oneshot/index.html
 pub fn oneshot<T: Unpin>() -> (oneshot::Sender<T>, oneshot::Receiver<T>) {
     oneshot::channel()
+}
+
+/// Create a new unbounded channel.
+///
+/// See the [`unbounded`] module for more information.
+///
+/// [`unbounded`]: unbounded/index.html
+pub fn unbounded<T: Unpin>() -> (unbounded::Sender<T>, unbounded::Receiver<T>) {
+    unbounded::channel()
 }
