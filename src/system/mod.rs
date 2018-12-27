@@ -4,7 +4,7 @@
 //!
 //! - [`ActorSystem`]: is the actor system, used to run all actors.
 //! - [`ActorSystemRef`]: is a reference to the actor system, used to get access
-//!   to the actor system's internal, often via the [`ActorContext`], e.g. see
+//!   to the actor system's internals, often via the [`ActorContext`], e.g. see
 //!   [`TcpStream.connect`].
 //!
 //! See [`ActorSystem`] for documentation on how to run an actor system. For
@@ -17,7 +17,43 @@
 //!
 //! # Actor Registry
 //!
-//! TODO.
+//! The Actor Registry is a fairly simple concept, it maps [`NewActor`]s to
+//! [`LocalActorRef`]s.
+//!
+//! First an actor must be registered with the Actor Registry. This is done by
+//! setting the [register] option to `true` in the [`ActorOptions`] passed to
+//! [`spawn`] or an [`Initiator`] that spawns actors, e.g. [`TcpListener`]. Note
+//! that an actor registration must be unique **per actor type**, that is type
+//! in the Rust's type system. It is not possible to register two actors with
+//! the same type.
+//!
+//! After the actor is registered it can be looked up. This can be done using
+//! the [`lookup`] method on [`ActorSystemRef`], or if the type can't be typed
+//! (which is the case when using asynchronous functions, see the methods
+//! description for more info) [`lookup_val`] can be used instead. Both methods
+//! will do the same thing; return a [`LocalActorRef`], which can be used to
+//! communicate with the actor.
+//!
+//! ## Actor Registry Notes
+//!
+//! As the Actor Registry maps to `LocalActorRef`s each registry is **thread
+//! local**. Example 3 (in the examples directory of the repo) shows this
+//! possible gotcha in practice.
+//!
+//! Another thing to note is that the actor registration is **unique per actor
+//! type** (within each thread). This means that two actors with the same type
+//! cannot be registered at the same time, the second registration of the same
+//! type will panic.
+//!
+//! [`NewActor`]: ../actor/trait.NewActor.html
+//! [`LocalActorRef`]: ../actor_ref/struct.LocalActorRef.html
+//! [register]: ./options/struct.ActorOptions.html#structfield.register
+//! [`ActorOptions`]: ./options/struct.ActorOptions.html
+//! [`spawn`]: ./struct.ActorSystemRef.html#method.spawn
+//! [`Initiator`]: ../initiator/trait.Initiator.html
+//! [`TcpListener`]: ../net/struct.TcpListener.html#method.bind
+//! [`lookup`]: struct.ActorSystemRef.html#method.lookup
+//! [`lookup_val`]: struct.ActorSystemRef.html#method.lookup_val
 
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -573,8 +609,8 @@ impl ActorSystemRef {
     ///
     /// Actors can be implemented as an asynchronous function, of which it hard
     /// to get type, e.g. `system_ref.lookup::<my_actor>()` will not work. This
-    /// is because `my_actor` is not a type (it is a [function] ([pointer])) and
-    /// doesn't implement [`NewActor`] directly.
+    /// is because `my_actor` is not a type (it is a [function]) and doesn't
+    /// implement [`NewActor`] directly, only function pointers do.
     ///
     /// This function is a work around for that problem, although it isn't
     /// pretty. See the example below for usage.
@@ -584,7 +620,6 @@ impl ActorSystemRef {
     ///
     /// [Actor Registry]: ./index.html#actor-registry
     /// [function]: https://doc.rust-lang.org/std/keyword.fn.html
-    /// [pointer]: https://doc.rust-lang.org/std/primitive.fn.html
     /// [`NewActor`]: ../actor/trait.NewActor.html
     ///
     /// # Examples
