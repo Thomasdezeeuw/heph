@@ -1,11 +1,11 @@
 //! TCP related types.
 
-use std::io::{self, ErrorKind, Read, Write};
+use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::task::{LocalWaker, Poll};
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
-use log::{debug, error};
+use log::debug;
 
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use mio_st::poll::{PollOption, Poller};
@@ -149,16 +149,12 @@ impl<NA, S> Initiator for TcpListener<NA, S>
             };
             debug!("accepted connection from: {}", addr);
 
-            let system_ref_clone = system_ref.clone();
             let _ = system_ref.add_actor_setup(self.supervisor.clone(), self.new_actor.clone(), |pid, poller| {
                 poller.register(&mut stream, pid.into(),
                     MioTcpStream::INTERESTS, PollOption::Edge)?;
 
                 // Wrap the raw stream with our wrapper.
-                let stream = TcpStream {
-                    inner: stream,
-                    system_ref: system_ref_clone,
-                };
+                let stream = TcpStream { inner: stream };
 
                 // Return the arguments used to create the actor.
                 Ok((stream, addr))
@@ -172,9 +168,6 @@ impl<NA, S> Initiator for TcpListener<NA, S>
 pub struct TcpStream {
     /// Underlying TCP connection, backed by mio.
     inner: MioTcpStream,
-    /// A reference to the actor system in which this connection is located,
-    /// used to deregister itself when dropped.
-    system_ref: ActorSystemRef,
 }
 
 impl TcpStream {
@@ -182,13 +175,10 @@ impl TcpStream {
     /// specified `address`.
     pub fn connect<M>(ctx: &mut ActorContext<M>, address: SocketAddr) -> io::Result<TcpStream> {
         let mut stream = MioTcpStream::connect(address)?;
-        let mut system_ref = ctx.system_ref().clone();
-        system_ref.poller_register(&mut stream, ctx.pid().into(),
+        let pid = ctx.pid();
+        ctx.system_ref().poller_register(&mut stream, pid.into(),
             MioTcpStream::INTERESTS, PollOption::Edge)?;
-        Ok(TcpStream {
-            inner: stream,
-            system_ref,
-        })
+        Ok(TcpStream { inner: stream })
     }
 
     /// Returns the socket address of the remote peer of this TCP connection.
@@ -287,13 +277,5 @@ impl AsyncWrite for TcpStream {
 
     fn poll_close(&mut self, waker: &LocalWaker) -> Poll<io::Result<()>> {
         self.poll_flush(waker)
-    }
-}
-
-impl Drop for TcpStream {
-    fn drop(&mut self) {
-        if let Err(err) = self.system_ref.poller_deregister(&mut self.inner) {
-            error!("error deregistering TCP connection from actor system: {}", err);
-        }
     }
 }
