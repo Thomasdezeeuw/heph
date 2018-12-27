@@ -687,14 +687,6 @@ impl ActorSystemRef {
         self.internal.borrow_mut().poller.register(handle, id, interests, opt)
     }
 
-    /// Deregister an `Evented` handle, see `Poll.deregister`.
-    pub(crate) fn poller_deregister<E>(&mut self, handle: &mut E) -> io::Result<()>
-    where
-        E: Evented + ?Sized,
-    {
-        self.internal.borrow_mut().poller.deregister(handle)
-    }
-
     /// Get a clone of the sending end of the notification channel.
     pub(crate) fn get_notification_sender(&mut self) -> Sender<ProcessId> {
         self.internal.borrow().waker_notifications.clone()
