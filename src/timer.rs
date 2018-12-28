@@ -39,7 +39,7 @@ pub struct DeadlinePassed;
 ///
 /// Using the `select!` macro to add a timeout to receiving a message.
 ///
-/// ```
+/// ```ignore
 /// #![feature(async_await, await_macro, futures_api, pin, never_type)]
 ///
 /// use std::time::Duration;

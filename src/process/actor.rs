@@ -77,12 +77,12 @@ impl<S, NA> Process for ActorProcess<S, NA>
 
         // The only thing in `ActorProcess` that is `!Unpin` is the actor. So
         // this is safe as long as we don't move the actor.
-        let this = unsafe { Pin::get_mut_unchecked(self) };
+        let this = unsafe { Pin::get_unchecked_mut(self) };
 
         // The actor does need to be called with `Pin`. So we're undoing the
         // previous operation, still making sure that the actor is not moved.
         let pinned_actor = unsafe { Pin::new_unchecked(&mut this.actor) };
-        let result = match pinned_actor.try_poll(&this.waker) {
+        let result = match Actor::try_poll(pinned_actor, &this.waker) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
             Poll::Ready(Err(err)) => {
                 match this.supervisor.decide(err) {

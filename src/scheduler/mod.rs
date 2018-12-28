@@ -223,7 +223,7 @@ impl ProcessData {
             id,
             fair_runtime: Duration::from_millis(0),
             priority,
-            process: Box::pinned(process),
+            process: Box::pin(process),
         }
     }
 

@@ -47,7 +47,7 @@
 //! [unbounded]: unbounded/index.html
 //! [bounded]: bounded/index.html
 
-use std::pin::Unpin;
+use std::marker::Unpin;
 
 pub mod bounded;
 pub mod oneshot;

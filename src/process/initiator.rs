@@ -36,7 +36,7 @@ impl<I> Process for InitiatorProcess<I>
         trace!("running initiator process");
 
         // This is safe because we're not moving the initiator.
-        let this = unsafe { Pin::get_mut_unchecked(self) };
+        let this = unsafe { Pin::get_unchecked_mut(self) };
         if let Err(err) = this.initiator.poll(system_ref) {
             error!("error polling initiator: {}", err);
             ProcessResult::Complete
