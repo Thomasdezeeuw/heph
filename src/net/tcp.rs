@@ -170,6 +170,21 @@ pub struct TcpStream {
     inner: MioTcpStream,
 }
 
+/// A macro to try an I/O function.
+// TODO: this is duplicated in the UDP module.
+macro_rules! try_io {
+    ($op:expr) => {
+        loop {
+            match $op {
+                Ok(ok) => return Poll::Ready(Ok(ok)),
+                Err(ref err) if would_block(err) => return Poll::Pending,
+                Err(ref err) if interrupted(err) => continue,
+                Err(err) => return Poll::Ready(Err(err)),
+            }
+        }
+    };
+}
+
 impl TcpStream {
     /// Create a new TCP stream and issue a non-blocking connect to the
     /// specified `address`.
@@ -213,12 +228,10 @@ impl TcpStream {
 
     /// Receives data on the socket from the remote address to which it is
     /// connected, without removing that data from the queue. On success,
-    /// returns the number of bytes peeked.
-    ///
-    /// Successive calls return the same data. This is accomplished by passing
-    /// `MSG_PEEK` as a flag to the underlying recv system call.
-    pub fn peek(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.peek(buf)
+    /// returns the number of bytes peeked. Successive calls return the same
+    /// data.
+    pub fn poll_peek(&mut self, _waker: &LocalWaker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+        try_io!(self.inner.peek(buf))
     }
 
     /// Shuts down the read, write, or both halves of this connection.
@@ -240,21 +253,6 @@ impl TcpStream {
     pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
         self.inner.take_error()
     }
-}
-
-/// A macro to try an I/O function.
-// TODO: this is duplicated in the UDP module.
-macro_rules! try_io {
-    ($op:expr) => {
-        loop {
-            match $op {
-                Ok(ok) => return Poll::Ready(Ok(ok)),
-                Err(ref err) if would_block(err) => return Poll::Pending,
-                Err(ref err) if interrupted(err) => continue,
-                Err(err) => return Poll::Ready(Err(err)),
-            }
-        }
-    };
 }
 
 impl AsyncRead for TcpStream {
