@@ -62,7 +62,7 @@ impl<M> ActorContext<M> {
     /// Same as the example above, but this actor will only wait for a limited
     /// amount of time.
     ///
-    /// ```
+    /// ```ignore
     /// #![feature(async_await, await_macro, futures_api, pin, never_type)]
     ///
     /// use std::time::Duration;

@@ -65,7 +65,7 @@ fn actor_process() {
     // Finally create our process.
     let inbox = actor_ref.get_inbox().unwrap();
     let process = ActorProcess::new(pid, NoopSupervisor, new_actor, actor, inbox, waker);
-    let mut process = Box::pinned(process);
+    let mut process = Box::pin(process);
 
     // Actor should return `Poll::Pending`, because no message is ready.
     let mut system_ref = test::system_ref();
@@ -98,7 +98,7 @@ fn erroneous_actor_process() {
     let inbox = actor_ref.get_inbox().unwrap();
     let supervisor = |_err: Error | SupervisorStrategy::Stop;
     let process = ActorProcess::new(pid, supervisor, new_actor, actor, inbox, waker);
-    let mut process = Box::pinned(process);
+    let mut process = Box::pin(process);
 
     // Actor should return Err.
     let mut system_ref = test::system_ref();

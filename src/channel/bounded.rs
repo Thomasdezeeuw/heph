@@ -5,7 +5,8 @@
 
 use std::collections::VecDeque;
 use std::future::Future;
-use std::pin::{Pin, Unpin};
+use std::marker::Unpin;
+use std::pin::Pin;
 use std::task::{Poll, LocalWaker};
 
 use futures_core::stream::Stream;
@@ -180,7 +181,7 @@ mod tests {
     #[test]
     fn sending_wakes_receiver() {
         let (mut sender, receiver) = bounded(1);
-        let mut receiver = Box::pinned(receiver);
+        let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
 
         assert_eq!(count.get(), 0);
@@ -195,7 +196,7 @@ mod tests {
     #[test]
     fn sending_ok_with_no_waker() {
         let (mut sender, receiver) = bounded(1);
-        let mut receiver = Box::pinned(receiver);
+        let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
 
         assert_eq!(count.get(), 0);
@@ -207,7 +208,7 @@ mod tests {
     #[test]
     fn wake_when_sender_is_dropped() {
         let (sender, receiver) = bounded::<()>(1);
-        let mut receiver = Box::pinned(receiver);
+        let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
 
         assert_eq!(count.get(), 0);
@@ -222,7 +223,7 @@ mod tests {
     #[test]
     fn receive_stream_after_sender_drop() {
         let (mut sender, receiver) = bounded(2);
-        let mut receiver = Box::pinned(receiver);
+        let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
 
         assert_eq!(count.get(), 0);
@@ -276,7 +277,7 @@ mod tests {
     #[test]
     fn sending_no_capacity() {
         let (mut sender, receiver) = bounded(1);
-        let mut receiver = Box::pinned(receiver);
+        let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
 
         assert_eq!(count.get(), 0);
@@ -307,7 +308,7 @@ mod tests {
     #[test]
     fn no_sender() {
         let (sender, receiver) = bounded::<()>(1);
-        let mut receiver = Box::pinned(receiver);
+        let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
 
         drop(sender);

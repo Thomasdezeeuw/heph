@@ -25,8 +25,8 @@ test = []
 
 [dependencies]
 crossbeam-channel    = "0.2.4"
-futures-core-preview = "0.3.0-alpha.10"
-futures-io-preview   = "0.3.0-alpha.10"
+futures-core-preview = "0.3.0-alpha.11"
+futures-io-preview   = "0.3.0-alpha.11"
 log                  = "0.4.6"
 mio-st               = "0.1.0"
 num_cpus             = "1.8.0"
@@ -35,5 +35,5 @@ std-logger           = "0.3.1"
 
 [dev-dependencies]
 env_logger           = "0.5.10"
-futures-util-preview = "0.3.0-alpha.10"
+futures-util-preview = "0.3.0-alpha.11"
 lazy_static          = "1.1.0"
