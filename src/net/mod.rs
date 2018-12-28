@@ -214,31 +214,6 @@ impl TcpStream {
         self.inner.ttl()
     }
 
-    /// Sets whether keepalive messages are enabled to be sent on this socket.
-    ///
-    /// On Unix, this option will set the `SO_KEEPALIVE` as well as the
-    /// `TCP_KEEPALIVE` or `TCP_KEEPIDLE` option (depending on your platform).
-    ///
-    /// If `None` is specified then keepalive messages are disabled, otherwise
-    /// the duration specified will be the time to remain idle before sending a
-    /// TCP keepalive probe.
-    ///
-    /// Some platforms specify this value in seconds, so sub-second
-    /// specifications may be omitted.
-    pub fn set_keepalive(&mut self, keepalive: Option<Duration>) -> io::Result<()> {
-        self.inner.set_keepalive(keepalive)
-    }
-
-    /// Returns whether keepalive messages are enabled on this socket, and if so
-    /// the duration of time between them.
-    ///
-    /// For more information about this option, see [`set_keepalive`].
-    ///
-    /// [`set_keepalive`]: #method.set_keepalive
-    pub fn keepalive(&mut self) -> io::Result<Option<Duration>> {
-        self.inner.keepalive()
-    }
-
     /// Sets the value of the `TCP_NODELAY` option on this socket.
     pub fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
         self.inner.set_nodelay(nodelay)
