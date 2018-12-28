@@ -3,12 +3,10 @@
 use std::io::{self, ErrorKind, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::task::{LocalWaker, Poll};
-use std::time::Duration;
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
 use log::{debug, error};
 
-use mio_st::event::Ready;
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use mio_st::poll::{PollOption, Poller};
 
@@ -136,7 +134,7 @@ impl<NA, S> Initiator for TcpListener<NA, S>
     #[doc(hidden)]
     fn init(&mut self, poller: &mut Poller, pid: ProcessId) -> io::Result<()> {
         poller.register(&mut self.listener, pid.into(),
-            Ready::READABLE | Ready::ERROR, PollOption::Edge)
+            MioTcpListener::INTERESTS, PollOption::Edge)
     }
 
     #[doc(hidden)]
@@ -153,8 +151,7 @@ impl<NA, S> Initiator for TcpListener<NA, S>
             let system_ref_clone = system_ref.clone();
             let _ = system_ref.add_actor_setup(self.supervisor.clone(), self.new_actor.clone(), |pid, poller| {
                 poller.register(&mut stream, pid.into(),
-                    Ready::READABLE | Ready::WRITABLE | Ready::ERROR | Ready::HUP,
-                    PollOption::Edge)?;
+                    MioTcpStream::INTERESTS, PollOption::Edge)?;
 
                 // Wrap the raw stream with our wrapper.
                 let stream = TcpStream {
@@ -186,8 +183,7 @@ impl TcpStream {
         let mut stream = MioTcpStream::connect(address)?;
         let mut system_ref = ctx.system_ref().clone();
         system_ref.poller_register(&mut stream, ctx.pid().into(),
-            Ready::READABLE | Ready::WRITABLE | Ready::ERROR | Ready::HUP,
-            PollOption::Edge)?;
+            MioTcpStream::INTERESTS, PollOption::Edge)?;
         Ok(TcpStream {
             inner: stream,
             system_ref,

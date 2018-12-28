@@ -62,7 +62,7 @@ use std::{fmt, io};
 use crossbeam_channel::{self as channel, Receiver, Sender};
 use log::{debug, trace};
 use mio_st::event::{Evented, EventedId, Events, Ready};
-use mio_st::poll::{PollOption, Poller};
+use mio_st::poll::{Interests, PollOption, Poller};
 use num_cpus;
 
 use crate::actor::{Actor, ActorContext, NewActor};
@@ -487,11 +487,11 @@ impl RunningActorSystem {
         let mut system_ref = self.create_ref();
 
         loop {
-            self.schedule_processes(&mut events)?;
+            let n_events = self.schedule_processes(&mut events)?;
 
             for _ in 0..RUN_POLL_RATIO {
                 if !self.scheduler.run_process(&mut system_ref) {
-                    if events.is_empty() {
+                    if n_events == 0 {
                         // This is here to support actor system without
                         // initiators, e.g. example 1.
                         debug!("no events, no processes to run, stopping actor system");
@@ -509,13 +509,14 @@ impl RunningActorSystem {
     ///
     /// This polls the system poller and the waker notifications and schedules
     /// the processes notified.
-    fn schedule_processes(&mut self, events: &mut Events) -> Result<(), RuntimeError> {
+    fn schedule_processes(&mut self, events: &mut Events) -> Result<usize, RuntimeError> {
         trace!("polling system poller for events");
         let timeout = self.determine_timeout();
         self.internal.borrow_mut().poller.poll(events, timeout)
             .map_err(RuntimeError::poll)?;
 
         // Schedule all processes with a notification.
+        let n_events = events.len();
         for event in events {
             self.scheduler.schedule(event.id().into());
         }
@@ -525,7 +526,7 @@ impl RunningActorSystem {
             self.scheduler.schedule(pid);
         }
 
-        Ok(())
+        Ok(n_events)
     }
 
     /// Determine the timeout used in the system poller.
@@ -679,7 +680,7 @@ impl ActorSystemRef {
     }
 
     /// Register an `Evented` handle, see `Poll.register`.
-    pub(crate) fn poller_register<E>(&mut self, handle: &mut E, id: EventedId, interests: Ready, opt: PollOption) -> io::Result<()>
+    pub(crate) fn poller_register<E>(&mut self, handle: &mut E, id: EventedId, interests: Interests, opt: PollOption) -> io::Result<()>
     where
         E: Evented + ?Sized,
     {
@@ -703,13 +704,11 @@ impl ActorSystemRef {
     ///
     /// This is used in the `timer` crate.
     pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.internal.borrow_mut().poller.add_deadline(pid.into(), deadline)
-            .unwrap();
+        self.internal.borrow_mut().poller.add_deadline(pid.into(), deadline);
     }
 
     pub(crate) fn notify(&mut self, pid: ProcessId) {
-        self.internal.borrow_mut().poller.notify(pid.into(), Ready::READABLE)
-            .unwrap();
+        self.internal.borrow_mut().poller.notify(pid.into(), Ready::READABLE);
     }
 }
 
