@@ -3,8 +3,10 @@
 use std::io;
 
 mod tcp;
+mod udp;
 
 pub use self::tcp::{TcpStream, TcpListener};
+pub use self::udp::{ConnectedUdpSocket, UdpSocket};
 
 /// Whether or not the error is a would block error.
 pub(crate) fn would_block(err: &io::Error) -> bool {
