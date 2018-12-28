@@ -243,6 +243,7 @@ impl TcpStream {
 }
 
 /// A macro to try an I/O function.
+// TODO: this is duplicated in the UDP module.
 macro_rules! try_io {
     ($op:expr) => {
         loop {
