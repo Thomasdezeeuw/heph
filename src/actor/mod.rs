@@ -39,7 +39,7 @@ mod context;
 #[cfg(all(test, feature = "test"))]
 mod tests;
 
-pub use self::context::{ActorContext, ReceiveFuture};
+pub use self::context::{ActorContext, ReceiveMessage};
 
 /// The trait that defines how to create a new actor.
 ///

@@ -94,8 +94,8 @@ impl<M> ActorContext<M> {
     ///     }
     /// }
     /// ```
-    pub fn receive<'ctx>(&'ctx mut self) -> ReceiveFuture<'ctx, M> {
-        ReceiveFuture {
+    pub fn receive<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
+        ReceiveMessage {
             inbox: &mut self.inbox,
         }
     }
@@ -120,11 +120,11 @@ impl<M> ActorContext<M> {
 ///
 /// [`ActorContext.receive`]: struct.ActorContext.html#method.receive
 #[derive(Debug)]
-pub struct ReceiveFuture<'ctx, M> {
+pub struct ReceiveMessage<'ctx, M> {
     inbox: &'ctx mut Shared<MailBox<M>>,
 }
 
-impl<'ctx, M> Future for ReceiveFuture<'ctx, M> {
+impl<'ctx, M> Future for ReceiveMessage<'ctx, M> {
     type Output = M;
 
     fn poll(mut self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Self::Output> {
