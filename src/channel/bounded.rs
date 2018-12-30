@@ -43,7 +43,7 @@ impl<T> Sender<T> {
     }
 
     /// Whether or not the receiving half is still connected.
-    pub fn is_connected(&mut self) -> bool {
+    pub fn is_connected(&self) -> bool {
         self.inner.strong_count() >= 2
     }
 }
