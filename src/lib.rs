@@ -9,7 +9,7 @@
 //! Heph is an actor <sup>[2]</sup> framework based on asynchronous functions.
 //! Such an asynchronous function looks like this:
 //!
-//! ```rust
+//! ```
 //! # #![feature(async_await, await_macro, futures_api, never_type)]
 //! #
 //! # use heph::actor::ActorContext;
