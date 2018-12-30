@@ -51,7 +51,7 @@ impl<M> ActorContext<M> {
     ///
     /// use heph::actor::{actor_factory, ActorContext};
     ///
-    /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: ActorContext<String>, _arg: ()) -> Result<(), !> {
     ///     loop {
     ///         let msg = await!(ctx.receive());
     ///         println!("Got a message: {}", msg);
@@ -72,7 +72,7 @@ impl<M> ActorContext<M> {
     /// use heph::actor::{actor_factory, ActorContext};
     /// use heph::timer::Timer;
     ///
-    /// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: ActorContext<String>, _arg: ()) -> Result<(), !> {
     ///     loop {
     ///         // Create a timer, this will be ready once the timeout has
     ///         // passed.

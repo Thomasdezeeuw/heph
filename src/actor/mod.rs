@@ -17,7 +17,7 @@
 //!
 //! use heph::actor::{ActorContext, actor_factory};
 //!
-//! async fn actor(mut ctx: ActorContext<()>, item: ()) -> Result<(), ()> {
+//! async fn actor(mut ctx: ActorContext<()>, _arg: ()) -> Result<(), ()> {
 //!     println!("Actor is running!");
 //!     Ok(())
 //! }
@@ -98,7 +98,7 @@ pub trait NewActor {
     /// }
     ///
     /// // Our actor.
-    /// async fn actor(mut ctx: ActorContext<Message>, item: ()) -> Result<(), !> {
+    /// async fn actor(mut ctx: ActorContext<Message>, _arg: ()) -> Result<(), !> {
     ///     loop {
     ///         let msg = await!(ctx.receive());
     ///         println!("received message: {:?}", msg);
@@ -272,8 +272,8 @@ impl<NA, M, Arg, A> NewActor for ActorFactory<NA, M, Arg>
     type Argument = Arg;
     type Actor = A;
 
-    fn new(&mut self, ctx: ActorContext<Self::Message>, item: Self::Argument) -> Self::Actor {
-        (self.new_actor)(ctx, item)
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor {
+        (self.new_actor)(ctx, arg)
     }
 }
 
@@ -328,7 +328,7 @@ unsafe impl<NA, M, Arg> Sync for ActorFactory<NA, M, Arg>
 ///
 /// use heph::actor::{ActorContext, actor_factory};
 ///
-/// async fn actor(mut ctx: ActorContext<()>, item: ()) -> Result<(), !> {
+/// async fn actor(mut ctx: ActorContext<()>, _arg: ()) -> Result<(), !> {
 ///     println!("Hello from the actor!");
 ///     Ok(())
 /// }
