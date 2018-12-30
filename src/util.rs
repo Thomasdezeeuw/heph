@@ -66,8 +66,7 @@ pub(crate) struct WeakShared<T> {
 impl<T> WeakShared<T> {
     /// See `Weak.upgrade`.
     pub fn upgrade(&self) -> Option<Shared<T>> {
-        self.inner.upgrade()
-            .map(|inner| Shared { inner })
+        self.inner.upgrade().map(|inner| Shared { inner })
     }
 
     pub fn ptr_eq(&self, other: &Self) -> bool {

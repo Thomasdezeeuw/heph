@@ -17,7 +17,7 @@ Heph is an actor <sup>[2]</sup> framework based on asynchronous functions. Such
 an asynchronous function looks like this:
 
 ```rust
-async fn print_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
     // Receive a message.
     let msg = await!(ctx.receive());
     // Print the message.
