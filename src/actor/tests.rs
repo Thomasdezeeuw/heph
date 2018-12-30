@@ -17,13 +17,13 @@ fn test_actor_context() {
     let mut ctx = ActorContext::new(pid, system_ref, inbox);
 
     assert_eq!(ctx.pid(), pid);
-    let mut self_ref = ctx.myself();
+    let mut actor_ref = ctx.actor_ref();
 
     // Initially the mailbox should be empty.
     let mut recv_future = ctx.receive();
     assert_eq!(test::poll_future(Pin::new(&mut recv_future)), Poll::Pending);
 
     // Send my self a message, and we should be able to retrieve it.
-    self_ref.send(()).unwrap();
+    actor_ref.send(()).unwrap();
     assert_eq!(test::poll_future(Pin::new(&mut recv_future)), Poll::Ready(()));
 }

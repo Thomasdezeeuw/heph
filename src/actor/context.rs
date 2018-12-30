@@ -13,7 +13,7 @@ use crate::util::Shared;
 /// The context in which an actor is executed.
 ///
 /// This context can be used for a number of things including receiving
-/// messages and spawning new actors.
+/// messages and getting access to the actor system.
 #[derive(Debug)]
 pub struct ActorContext<M> {
     /// Process id of the actor, used as `EventedId` in registering things, e.g.
@@ -100,8 +100,8 @@ impl<M> ActorContext<M> {
         }
     }
 
-    /// Returns an actor reference that references itself.
-    pub fn myself(&mut self) -> LocalActorRef<M> {
+    /// Returns an actor reference to this actor.
+    pub fn actor_ref(&mut self) -> LocalActorRef<M> {
         LocalActorRef::new(self.inbox.downgrade())
     }
 
