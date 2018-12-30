@@ -11,7 +11,7 @@
 //! ```
 //! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
-//! use heph::actor::{ActorContext, actor_factory};
+//! use heph::actor::ActorContext;
 //! use heph::actor_ref::LocalActorRef;
 //! use heph::channel::oneshot;
 //!

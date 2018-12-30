@@ -49,9 +49,9 @@ impl<M> ActorContext<M> {
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
-    /// use heph::actor::{actor_factory, ActorContext};
+    /// use heph::actor::ActorContext;
     ///
-    /// async fn print_actor(mut ctx: ActorContext<String>, _arg: ()) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
     ///     loop {
     ///         let msg = await!(ctx.receive());
     ///         println!("Got a message: {}", msg);
@@ -69,10 +69,10 @@ impl<M> ActorContext<M> {
     ///
     /// use futures_util::future::FutureExt;
     /// use futures_util::select;
-    /// use heph::actor::{actor_factory, ActorContext};
+    /// use heph::actor::ActorContext;
     /// use heph::timer::Timer;
     ///
-    /// async fn print_actor(mut ctx: ActorContext<String>, _arg: ()) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
     ///     loop {
     ///         // Create a timer, this will be ready once the timeout has
     ///         // passed.

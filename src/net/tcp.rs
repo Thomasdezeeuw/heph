@@ -38,13 +38,13 @@ use crate::system::{ActorOptions, ActorSystemRef};
 ///
 /// use futures_util::AsyncWriteExt;
 ///
-/// use heph::actor::{actor_factory, ActorContext};
+/// use heph::actor::ActorContext;
 /// use heph::log::{error, log};
 /// use heph::net::{TcpListener, TcpStream};
 /// use heph::supervisor::SupervisorStrategy;
 /// use heph::system::{ActorOptions, ActorSystem, InitiatorOptions};
 ///
-/// async fn conn_actor(_ctx: ActorContext<!>, (mut stream, address): (TcpStream, SocketAddr)) -> io::Result<()> {
+/// async fn conn_actor(_ctx: ActorContext<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 ///     await!(stream.write_all(b"Hello World"))
 /// }
 ///
@@ -57,7 +57,7 @@ use crate::system::{ActorOptions, ActorSystemRef};
 /// let address = "127.0.0.1:7890".parse().unwrap();
 ///
 /// // Create our TCP listener. We'll use the default actor options.
-/// let new_actor = actor_factory(conn_actor);
+/// let new_actor = conn_actor as fn(_, _, _) -> _;
 /// let listener = TcpListener::bind(address, conn_supervisor, new_actor, ActorOptions::default())
 ///     .expect("unable to bind TCP listener");
 ///

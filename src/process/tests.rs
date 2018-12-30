@@ -9,7 +9,7 @@ use crossbeam_channel as channel;
 use mio_st::event::EventedId;
 use mio_st::poll::Poller;
 
-use crate::actor::{actor_factory, ActorContext};
+use crate::actor::ActorContext;
 use crate::initiator::Initiator;
 use crate::process::{ActorProcess, InitiatorProcess, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoopSupervisor, SupervisorStrategy};
@@ -46,7 +46,7 @@ struct Error;
 #[derive(Debug)]
 struct Message;
 
-async fn ok_actor(mut ctx: ActorContext<Message>, _: ()) -> Result<(), !> {
+async fn ok_actor(mut ctx: ActorContext<Message>) -> Result<(), !> {
     let _msg = await!(ctx.receive());
     Ok(())
 }
@@ -54,7 +54,8 @@ async fn ok_actor(mut ctx: ActorContext<Message>, _: ()) -> Result<(), !> {
 #[test]
 fn actor_process() {
     // Create our actor.
-    let new_actor = actor_factory(ok_actor);
+    #[allow(trivial_casts)]
+    let new_actor = ok_actor as fn(_) -> _;
     let (actor, mut actor_ref) = test::init_actor(new_actor, ());
 
     // Create the waker.
@@ -76,7 +77,7 @@ fn actor_process() {
     assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
 }
 
-async fn error_actor(ctx: ActorContext<Message>, _: ()) -> Result<(), Error> {
+async fn error_actor(ctx: ActorContext<Message>) -> Result<(), Error> {
     // We can't use `_ctx`, we need the context to live just long enough to get
     // a reference to the inbox from the `ActorReference` in the test.
     drop(ctx);
@@ -86,7 +87,8 @@ async fn error_actor(ctx: ActorContext<Message>, _: ()) -> Result<(), Error> {
 #[test]
 fn erroneous_actor_process() {
     // Create our actor.
-    let new_actor = actor_factory(error_actor);
+    #[allow(trivial_casts)]
+    let new_actor = error_actor as fn(_) -> _;
     let (actor, mut actor_ref) = test::init_actor(new_actor, ());
 
     // Create the waker.
