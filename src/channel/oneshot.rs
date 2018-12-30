@@ -17,26 +17,30 @@
 //!
 //! /// Type representing a database connection.
 //! #[derive(Debug)]
-//! struct Conn;
+//! struct DbConn;
 //!
-//! impl Conn {
+//! impl DbConn {
 //!     /// Setup a new database connection.
-//!     fn new() -> Conn { Conn }
+//!     fn new() -> DbConn { DbConn }
 //! }
 //!
 //! /// Message type for database connection pool actor.
-//! enum ConnMsg {
+//! enum DbConnMsg {
 //!     /// Request a connection to database, which will be send across the one
 //!     /// shot channel as response.
-//!     Get(oneshot::Sender<Conn>),
+//!     Get(oneshot::Sender<DbConn>),
 //! }
 //!
 //! /// Actor that manages a pool of database connections.
-//! async fn db_conn_actor(mut ctx: ActorContext<ConnMsg>, mut pool: Vec<Conn>) -> Result<(), !> {
+//! async fn db_manager(mut ctx: ActorContext<DbConnMsg>, mut pool: Vec<DbConn>) -> Result<(), !> {
 //!     loop {
 //!         match await!(ctx.receive()) {
-//!             ConnMsg::Get(sender) => {
-//!                 let conn = pool.pop().unwrap_or(Conn::new());
+//!             DbConnMsg::Get(sender) => {
+//!                 // Get a database connection from the pool, or create a new
+//!                 // one.
+//!                 let conn = pool.pop().unwrap_or(DbConn::new());
+//!                 // Attempt to send the database connection the requesting
+//!                 // actor.
 //!                 if let Err(err) = sender.send(conn) {
 //!                     // Receiving actor is no longer interested. So we can
 //!                     // put the connection back into the pool.
@@ -49,17 +53,19 @@
 //! }
 //!
 //! /// Our actor that uses a database connection.
-//! async fn actor(mut ctx: ActorContext<()>, mut db_actor: LocalActorRef<ConnMsg>) -> Result<(), ()> {
+//! async fn actor(mut ctx: ActorContext<()>, mut db_manager: LocalActorRef<DbConnMsg>) -> Result<(), ()> {
 //!     // Create a new one shot channel.
-//!     let (sender, receiver) = oneshot::channel();
+//!     let (sender, receiver) = oneshot();
 //!     // Send a get request to the database connection actor.
-//!     db_actor.send(ConnMsg::Get(sender)).map_err(|_| ())?;
+//!     db_manager.send(DbConnMsg::Get(sender)).map_err(|_| ())?;
 //!
-//!     // Wait for the connection to be returned.
-//!     let conn = await!(receiver);
+//!     // Wait for the database connection to be returned.
+//!     // Note that you might want to add a timeout for this, see the `timer`
+//!     // module.
+//!     let db_conn = await!(receiver);
 //!
 //!     // Use the database connection here.
-//! #   drop(conn);
+//! #   drop(db_conn);
 //!     Ok(())
 //! }
 //! ```
