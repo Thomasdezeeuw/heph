@@ -3,8 +3,6 @@
 use std::fmt;
 use std::marker::PhantomData;
 
-use crate::actor_ref::SendError;
-
 /// This is currently not implemented.
 pub struct RemoteActorRef<M> {
     _phantom: PhantomData<M>,
@@ -12,7 +10,7 @@ pub struct RemoteActorRef<M> {
 
 impl<M> RemoteActorRef<M> {
     /// This is currently not implemented.
-    pub fn send<Msg>(&mut self, _msg: Msg) -> Result<(), SendError<Msg>>
+    pub fn send<Msg>(&mut self, _msg: Msg)
         where Msg: Into<M>,
     {
         unimplemented!("RemoteActorRef.send");
