@@ -49,7 +49,7 @@ pub struct DeadlinePassed;
 /// use heph::actor::{actor_factory, ActorContext};
 /// use heph::timer::Timer;
 ///
-/// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
+/// async fn print_actor(mut ctx: ActorContext<String>, _arg: ()) -> Result<(), !> {
 ///     loop {
 ///         // Create a timer, this will be ready once the timeout has passed.
 ///         let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100)).fuse();
@@ -140,7 +140,7 @@ impl Future for Timer {
 /// #     }
 /// # }
 /// #
-/// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
+/// async fn print_actor(mut ctx: ActorContext<String>, _arg: ()) -> Result<(), !> {
 ///     // `OtherFuture` is a type that implements `Future`.
 ///     let future = OtherFuture;
 ///     // Create our deadline.
@@ -219,7 +219,7 @@ impl<Fut> Future for Deadline<Fut>
 /// use heph::actor::{actor_factory, ActorContext};
 /// use heph::timer::Interval;
 ///
-/// async fn print_actor(mut ctx: ActorContext<String>, item: ()) -> Result<(), !> {
+/// async fn print_actor(mut ctx: ActorContext<String>, _arg: ()) -> Result<(), !> {
 ///     let interval = Interval::new(&mut ctx, Duration::from_secs(1));
 ///     await!(interval.for_each(|_| {
 ///         println!("Hello world");
