@@ -9,7 +9,7 @@ use log::{error, info};
 use heph::actor::ActorContext;
 use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::SupervisorStrategy;
-use heph::system::{ActorSystem, ActorOptions, InitiatorOptions};
+use heph::system::{ActorSystem, ActorOptions, InitiatorOptions, RuntimeError};
 
 /// Our connection actor. This get called each type we accept an new connection.
 ///
@@ -39,7 +39,7 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)
     SupervisorStrategy::Stop
 }
 
-fn main() {
+fn main() -> Result<(), RuntimeError> {
     // Enable logging.
     heph::log::init();
 
@@ -59,5 +59,4 @@ fn main() {
         .use_all_cores()
         // And finally we run it.
         .run()
-        .expect("unable to run actor system");
 }

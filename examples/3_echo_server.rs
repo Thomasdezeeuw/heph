@@ -11,7 +11,7 @@ use heph::actor::ActorContext;
 use heph::log::REQUEST_TARGET;
 use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::{SupervisorStrategy, NoopSupervisor};
-use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, InitiatorOptions};
+use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, InitiatorOptions, RuntimeError};
 
 /// This is our setup function that will add the count actor to the actor
 /// system, much like the `add_greeter_actor` in example 1.
@@ -82,7 +82,7 @@ fn echo_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)
 // Main is mostly the same as example 2, only here we add a setup function
 // (already seen in example 1) and set the number of threads to 2 to indicate
 // the 1 actor per thread problem quicker (hopefully).
-fn main() {
+fn main() -> Result<(), RuntimeError> {
     heph::log::init();
 
     let address = "127.0.0.1:7890".parse().unwrap();
@@ -95,5 +95,4 @@ fn main() {
         .with_initiator(listener, InitiatorOptions::default())
         .num_threads(2)
         .run()
-        .expect("unable to run actor system");
 }
