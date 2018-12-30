@@ -37,39 +37,22 @@ pub struct DeadlinePassed;
 ///
 /// # Examples
 ///
-/// Using the `select!` macro to add a timeout to receiving a message.
-///
-/// ```ignore
+/// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
 /// use std::time::Duration;
 ///
-/// use futures_util::future::FutureExt;
-/// use futures_util::select;
 /// use heph::actor::ActorContext;
 /// use heph::timer::Timer;
 ///
-/// async fn print_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
-///     loop {
-///         // Create a timer, this will be ready once the timeout has passed.
-///         let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100)).fuse();
-///         // Create a future to receive a message.
-///         let mut msg_future = ctx.receive().fuse();
+/// async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+///     // Create a timer, this will be ready once the timeout has passed.
+///     let timeout = Timer::timeout(&mut ctx, Duration::from_secs(1));
 ///
-///         // Now let them race!
-///         // This is basically a match statement for futures, whichever
-///         // future returns first will be the winner and we'll take that
-///         // branch.
-///         let msg = select! {
-///             msg = msg_future => msg,
-///             _ = timeout => {
-///                 println!("Getting impatient!");
-///                 continue;
-///             },
-///         };
-///
-///         println!("Got a message: {}", msg);
-///     }
+///     // Wait for the timer to pass.
+///     await!(timeout);
+///     println!("One second has passed!");
+///     Ok(())
 /// }
 /// ```
 #[derive(Debug)]
@@ -144,7 +127,7 @@ impl Future for Timer {
 /// #     }
 /// # }
 /// #
-/// async fn print_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+/// async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
 ///     // `OtherFuture` is a type that implements `Future`.
 ///     let future = OtherFuture;
 ///     // Create our deadline.
@@ -202,7 +185,7 @@ impl<Fut> Future for Deadline<Fut>
     }
 }
 
-/// A stream that yields an item after a delay has passed.
+/// A stream that yields an item after an interval has passed.
 ///
 /// This stream will never return `None`, it will always set another deadline
 /// and yield another item after the deadline has passed.
@@ -216,7 +199,7 @@ impl<Fut> Future for Deadline<Fut>
 ///
 /// # Examples
 ///
-/// The following example will print hello world every second.
+/// The following example will print hello world (roughly) every second.
 ///
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
@@ -228,13 +211,12 @@ impl<Fut> Future for Deadline<Fut>
 /// use heph::actor::ActorContext;
 /// use heph::timer::Interval;
 ///
-/// async fn print_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+/// async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
 ///     let interval = Interval::new(&mut ctx, Duration::from_secs(1));
 ///     await!(interval.for_each(|_| {
 ///         println!("Hello world");
 ///         ready(())
 ///     }));
-///
 ///     Ok(())
 /// }
 /// ```
