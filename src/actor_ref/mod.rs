@@ -17,8 +17,8 @@
 //!
 //! All flavours of actor references have a `send` method. These methods don't
 //! block, even on the remote actor reference, but the method doesn't provided a
-//! lot of guarantees. What `send` does is add the message to the queue of
-//! messages for the actor, asynchronously.
+//! lot of guarantees. What `send` does is asynchronously adding the message to
+//! the queue of messages for the actor.
 //!
 //! In case of the local actor reference this can be done directly. But for
 //! machine local actor references the message must first be send across thread
@@ -26,15 +26,10 @@
 //! references even need to send this message across a network, a lot can go
 //! wrong here.
 //!
-//! This means that even if `send` returns `Ok` it doesn't mean the message is
-//! received and handled by the actor. It could be that a remote actor is no
-//! longer available, or that even a local actor crashes before the message is
-//! handled.
-//!
-//! If guarantees are needed that a message is handled the receiving actor
-//! should send back an acknowledgment that the message is received and handled
-//! correctly. This can for example be done by using the [request-response
-//! pattern].
+//! If guarantees are needed that a message is received or processed the
+//! receiving actor should send back an acknowledgment that the message is
+//! received and/or processed correctly. This can for example be done by using
+//! the [request-response pattern].
 //!
 //! The following example shows how messages can be send. It uses a
 //! `LocalActorRef` but it's the same for all flavours.
@@ -46,7 +41,7 @@
 //!
 //! use heph::actor::ActorContext;
 //! use heph::supervisor::NoopSupervisor;
-//! use heph::system::{ActorOptions, ActorSystem};
+//! use heph::system::{ActorOptions, ActorSystem, RuntimeError};
 //!
 //! /// Our actor.
 //! async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
@@ -55,8 +50,8 @@
 //!     Ok(())
 //! }
 //!
-//! ActorSystem::new()
-//!     .with_setup(|mut system_ref| {
+//! fn main() -> Result<(), RuntimeError> {
+//!     ActorSystem::new().with_setup(|mut system_ref| {
 //!         // Add the actor to the actor system.
 //!         let new_actor = actor as fn (_) -> _;
 //!         let mut actor_ref = system_ref.spawn(NoopSupervisor, new_actor, (), ActorOptions::default());
@@ -66,48 +61,49 @@
 //!         Ok(())
 //!     })
 //!     .run()
-//!     .unwrap();
+//! }
 //! ```
 //!
 //! ## Sharing actor references
 //!
-//! All actor references can be cloned to be shared.
+//! All actor references can be cloned, which is the easiest way to share them.
 //!
 //! The example below shows how an `LocalActorRef` is cloned to send a message
-//! to the same actor.
+//! to the same actor, the same can be done with all flavours of actor
+//! references.
 //!
 //! ```
 //! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
 //! use heph::actor::ActorContext;
 //! use heph::supervisor::NoopSupervisor;
-//! use heph::system::{ActorOptions, ActorSystem};
+//! use heph::system::{ActorOptions, ActorSystem, RuntimeError};
 //!
 //! /// Our actor.
 //! async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
 //!     let msg = await!(ctx.receive());
-//!     println!("got first message: {}", msg);
+//!     println!("First message: {}", msg);
 //!
 //!     let msg = await!(ctx.receive());
-//!     println!("got second message: {}", msg);
+//!     println!("Second message: {}", msg);
 //!     Ok(())
 //! }
 //!
-//! ActorSystem::new()
-//!     .with_setup(|mut system_ref| {
+//! fn main() -> Result<(), RuntimeError> {
+//!      ActorSystem::new().with_setup(|mut system_ref| {
 //!         let new_actor = actor as fn (_) -> _;
 //!         let mut actor_ref = system_ref.spawn(NoopSupervisor, new_actor, (), ActorOptions::default());
 //!
-//!         // To create another `ActorRef` we can simply clone the first one.
+//!         // To create another actor reference we can simply clone the first one.
 //!         let mut second_actor_ref = actor_ref.clone();
 //!
 //!         // Now we can use both references to send a messsage.
 //!         actor_ref.send("Hello world".to_owned())?;
-//!         second_actor_ref.send("Byte world".to_owned())?;
+//!         second_actor_ref.send("Bye world".to_owned())?;
 //!         Ok(())
 //!     })
 //!     .run()
-//!     .unwrap();
+//! }
 //! ```
 
 use std::fmt;
@@ -128,10 +124,11 @@ pub use self::remote::RemoteActorRef;
 /// A reference to an actor.
 ///
 /// This reference can be used to send messages to the actor running on the same
-/// thread, on another thread or even on another machine.
+/// thread, on the same machine, or even on a remote machine.
 ///
 /// This `ActorRef` can be created by using the `From` implementation on one of
 /// the flavours of actor reference.
+#[non_exhaustive]
 pub enum ActorRef<M> {
     /// A reference to a local actor, running on the same thread.
     Local(LocalActorRef<M>),
@@ -142,7 +139,11 @@ pub enum ActorRef<M> {
 }
 
 impl<M> ActorRef<M> {
-    /// Send a message to the actor.
+    /// Asynchronously send a message to the actor.
+    ///
+    /// See [Sending messages] for more details.
+    ///
+    /// [Sending messages]: index.html#sending-messages
     pub fn send<Msg>(&mut self, msg: Msg)
         where Msg: Into<M>,
     {

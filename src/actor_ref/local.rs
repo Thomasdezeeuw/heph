@@ -14,9 +14,9 @@ use crate::util::Shared;
 /// A reference to a local actor inside a [`ActorSystem`].
 ///
 /// This is a reference to an actor running on the same thread as this reference
-/// is on. This type does not implement `Send` or `Sync`, if this is needed this
-/// reference can be [upgraded] to a [`MachineLocalActorRef`] which is allowed
-/// to be send across thread bounds.
+/// is located on. This type does not implement `Send` or `Sync`, if this is
+/// needed this reference can be [upgraded] to a [`MachineLocalActorRef`] which
+/// is allowed to be send across thread bounds.
 ///
 /// [`ActorSystem`]: ../system/struct.ActorSystem.html
 /// [upgraded]: #method.upgrade
