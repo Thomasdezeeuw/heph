@@ -14,8 +14,8 @@ use crossbeam_channel::Sender;
 ///
 /// # Notes
 ///
-/// This reference uses much slower operations then `LocalActorRef`, **if at all
-/// possible prefer to use** `LocalActorRef`.
+/// This reference uses much more expensive operations then `LocalActorRef`,
+/// **if at all possible prefer to use** `LocalActorRef`.
 pub struct MachineLocalActorRef<M> {
     /// Sending side of the channel to messages to.
     sender: Sender<M>,

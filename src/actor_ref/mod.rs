@@ -33,10 +33,13 @@
 //!
 //! If guarantees are needed that a message is handled the receiving actor
 //! should send back an acknowledgment that the message is received and handled
-//! correctly.
+//! correctly. This can for example be done by using the [request-response
+//! pattern].
 //!
 //! The following example shows how messages can be send. It uses a
 //! `LocalActorRef` but it's the same for all flavours.
+//!
+//! [request-response pattern]: ../channel/oneshot/index.html#request-response-pattern
 //!
 //! ```
 //! #![feature(async_await, await_macro, futures_api, never_type)]
