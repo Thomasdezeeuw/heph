@@ -9,14 +9,14 @@ use std::time::Duration;
 
 use heph::actor::ActorContext;
 use heph::supervisor::NoopSupervisor;
-use heph::system::{ActorSystem, ActorOptions};
+use heph::system::{ActorSystem, ActorOptions, RuntimeError};
 
 /// Our "actor", but it doesn't do much.
 async fn actor(_: ActorContext<!>) -> Result<(), !> {
     Ok(())
 }
 
-fn main() {
+fn main() -> Result<(), RuntimeError> {
     ActorSystem::new()
         .with_setup(|mut system_ref| {
             for _ in 0..10_000_000 {
@@ -29,5 +29,4 @@ fn main() {
             Ok(())
         })
         .run()
-        .expect("unable to run actor system");
 }

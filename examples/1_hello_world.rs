@@ -4,7 +4,7 @@ use std::io;
 
 use heph::actor::ActorContext;
 use heph::supervisor::NoopSupervisor;
-use heph::system::{ActorSystem, ActorSystemRef, ActorOptions};
+use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, RuntimeError};
 
 /// Our greeter actor.
 ///
@@ -30,18 +30,16 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // need to wake them, for example by sending them a message.
     // So we'll send our actor a message via an `LocalActorRef`, which is a
     // reference to the actor inside the actor system.
-    actor_ref.send("World")
-        .expect("unable to send message");
+    actor_ref.send("World")?;
 
     Ok(())
 }
 
-fn main() {
+fn main() -> Result<(), RuntimeError> {
     // First we create our actor system with the default options.
     ActorSystem::new()
         // We add a setup function which adds our greeter actor.
         .with_setup(add_greeter_actor)
         // And finally we run it.
         .run()
-        .expect("unable to run actor system");
 }

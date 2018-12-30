@@ -138,7 +138,7 @@ pub use self::error::RuntimeError;
 ///
 /// use heph::actor::ActorContext;
 /// use heph::supervisor::NoopSupervisor;
-/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 ///
 /// /// Our actor that greets people.
 /// async fn greeter_actor(mut ctx: ActorContext<&'static str>, message: &'static str) -> Result<(), !> {
@@ -155,12 +155,11 @@ pub use self::error::RuntimeError;
 ///     let mut actor_ref = system_ref.spawn(NoopSupervisor, new_actor, "Hello", ActorOptions::default());
 ///
 ///     // Send a message to the actor.
-///     actor_ref.send("World").expect("unable to send message");
-///
+///     actor_ref.send("World")?;
 ///     Ok(())
 /// }
 ///
-/// fn main() {
+/// fn main() -> Result<(), RuntimeError> {
 ///     // Build a new `ActorSystem`.
 ///     ActorSystem::new()
 ///         // Start two worker threads.
@@ -169,7 +168,6 @@ pub use self::error::RuntimeError;
 ///         .with_setup(setup)
 ///         // And run the system.
 ///         .run()
-///         .expect("unable to run actor system");
 /// }
 /// ```
 pub struct ActorSystem<I = !, S = !> {
@@ -632,7 +630,7 @@ impl ActorSystemRef {
     ///
     /// use heph::actor::ActorContext;
     /// use heph::supervisor::NoopSupervisor;
-    /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+    /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
     ///
     /// /// Our actor implemented as an asynchronous function.
     /// async fn actor(mut ctx: ActorContext<()>) -> Result<(), !> {
@@ -658,12 +656,11 @@ impl ActorSystemRef {
     ///     Ok(())
     /// }
     ///
-    /// fn main() {
+    /// fn main() -> Result<(), RuntimeError> {
     ///     ActorSystem::new()
     /// #       .num_threads(1)
     ///         .with_setup(setup)
     ///         .run()
-    ///         .expect("unable to run actor system");
     /// }
     /// ```
     pub fn lookup_val<NA>(&mut self, _: &NA) -> Option<LocalActorRef<NA::Message>>
