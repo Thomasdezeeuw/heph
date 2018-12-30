@@ -136,7 +136,7 @@ pub use self::error::RuntimeError;
 ///
 /// use std::io;
 ///
-/// use heph::actor::{actor_factory, ActorContext};
+/// use heph::actor::ActorContext;
 /// use heph::supervisor::NoopSupervisor;
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
 ///
@@ -151,7 +151,7 @@ pub use self::error::RuntimeError;
 /// // this example we create 2 threads (see `main`).
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///     // Add the actor to the system.
-///     let new_actor = actor_factory(greeter_actor);
+///     let new_actor = greeter_actor as fn(_, _) -> _;
 ///     let mut actor_ref = system_ref.spawn(NoopSupervisor, new_actor, "Hello", ActorOptions::default());
 ///
 ///     // Send a message to the actor.

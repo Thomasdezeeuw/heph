@@ -15,24 +15,22 @@
 //! ```
 //! #![feature(async_await, futures_api)]
 //!
-//! use heph::actor::{ActorContext, actor_factory};
+//! use heph::actor::ActorContext;
 //!
-//! async fn actor(mut ctx: ActorContext<()>, _arg: ()) -> Result<(), ()> {
+//! async fn actor(mut ctx: ActorContext<()>) -> Result<(), ()> {
 //!     println!("Actor is running!");
 //!     Ok(())
 //! }
 //!
-//! // Our `NewActor` implementation that returns an `Actor` that runs the
-//! // `actor` function.
-//! let new_actor = actor_factory(actor);
+//! // Unfortunately `actor` doesn't yet implement `NewActor`, it first needs to
+//! // casts in a function pointer, which does implement `NewActor`.
+//! let new_actor = actor as fn(_) -> _;
 //! #
 //! # fn use_new_actor<NA: heph::actor::NewActor>(new_actor: NA) { }
 //! # use_new_actor(new_actor);
 //! ```
 
-use std::fmt;
 use std::future::Future;
-use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{LocalWaker, Poll};
 
@@ -52,7 +50,7 @@ pub use self::context::{ActorContext, ReceiveFuture};
 /// ```
 /// #![feature(async_await, await_macro, futures_api)]
 ///
-/// use heph::actor::{actor_factory, ActorContext};
+/// use heph::actor::ActorContext;
 ///
 /// // Having a async function like the following:
 /// async fn greeter_actor(mut ctx: ActorContext<String>, message: String) -> Result<(), ()> {
@@ -62,8 +60,9 @@ pub use self::context::{ActorContext, ReceiveFuture};
 ///     }
 /// }
 ///
-/// // `NewActor` can be implemented using the `actor_factory`.
-/// let new_actor = actor_factory(greeter_actor);
+/// // Cast our async function into a function pointer which implements
+/// // `NewActor`.
+/// let new_actor = greeter_actor as fn(_, _) -> _;
 /// ```
 pub trait NewActor {
     /// The type of messages the actor can receive.
@@ -77,7 +76,7 @@ pub trait NewActor {
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
-    /// use heph::actor::{actor_factory, ActorContext};
+    /// use heph::actor::ActorContext;
     /// use heph::supervisor::NoopSupervisor;
     /// use heph::system::{ActorOptions, ActorSystem};
     ///
@@ -98,7 +97,7 @@ pub trait NewActor {
     /// }
     ///
     /// // Our actor.
-    /// async fn actor(mut ctx: ActorContext<Message>, _arg: ()) -> Result<(), !> {
+    /// async fn actor(mut ctx: ActorContext<Message>) -> Result<(), !> {
     ///     loop {
     ///         let msg = await!(ctx.receive());
     ///         println!("received message: {:?}", msg);
@@ -109,7 +108,7 @@ pub trait NewActor {
     /// ActorSystem::new()
     ///     .with_setup(|mut system_ref| {
     ///         // Add the actor to the system.
-    ///         let new_actor = actor_factory(actor);
+    ///         let new_actor = actor as fn(_) -> _;
     ///         let mut actor_ref = system_ref.spawn(NoopSupervisor, new_actor, (), ActorOptions::default());
     ///
     ///         // Now we can use the reference to send the actor a message, without
@@ -253,98 +252,5 @@ impl<Fut, E> Actor for Fut
 
     fn try_poll(self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Result<(), Self::Error>> {
         self.poll(waker)
-    }
-}
-
-/// The implementation behind [`actor_factory`].
-///
-/// [`actor_factory`]: fn.actor_factory.html
-pub struct ActorFactory<NA, M, Arg> {
-    new_actor: NA,
-    _phantom: PhantomData<(M, Arg)>,
-}
-
-impl<NA, M, Arg, A> NewActor for ActorFactory<NA, M, Arg>
-    where NA: FnMut(ActorContext<M>, Arg) -> A,
-          A: Actor,
-{
-    type Message = M;
-    type Argument = Arg;
-    type Actor = A;
-
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor {
-        (self.new_actor)(ctx, arg)
-    }
-}
-
-impl<NA, M, Arg> Copy for ActorFactory<NA, M, Arg>
-    where NA: Copy,
-{
-}
-
-impl<NA, M, Arg> Clone for ActorFactory<NA, M, Arg>
-    where NA: Clone,
-{
-    fn clone(&self) -> ActorFactory<NA, M, Arg> {
-        ActorFactory {
-            new_actor: self.new_actor.clone(),
-            _phantom: PhantomData,
-        }
-    }
-}
-
-impl<NA, M, Arg> fmt::Debug for ActorFactory<NA, M, Arg> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("ActorFactory")
-            .finish()
-    }
-}
-
-// This is safe because we only really own `NA`.
-unsafe impl<NA, M, Arg> Send for ActorFactory<NA, M, Arg>
-    where NA: Send
-{
-}
-
-// This is safe because we only really own `NA`.
-unsafe impl<NA, M, Arg> Sync for ActorFactory<NA, M, Arg>
-    where NA: Sync
-{
-}
-
-/// Implement [`NewActor`] by means of a function.
-///
-/// The easiest and recommended way to use this is via async functions, see the
-/// example below.
-///
-/// [`NewActor`]: trait.NewActor.html
-///
-/// # Example
-///
-/// Using an async function.
-///
-/// ```
-/// #![feature(async_await, futures_api, never_type)]
-///
-/// use heph::actor::{ActorContext, actor_factory};
-///
-/// async fn actor(mut ctx: ActorContext<()>, _arg: ()) -> Result<(), !> {
-///     println!("Hello from the actor!");
-///     Ok(())
-/// }
-///
-/// // Our `NewActor` implementation that returns our actor.
-/// let new_actor = actor_factory(actor);
-/// #
-/// # fn use_new_actor<NA: heph::actor::NewActor>(new_actor: NA) { }
-/// # use_new_actor(new_actor);
-/// ```
-pub const fn actor_factory<NA, M, Arg, A>(new_actor: NA) -> ActorFactory<NA, M, Arg>
-    where NA: FnMut(ActorContext<M>, Arg) -> A,
-          A: Actor,
-{
-    ActorFactory {
-        new_actor,
-        _phantom: PhantomData,
     }
 }

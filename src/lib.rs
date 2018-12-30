@@ -116,7 +116,7 @@ mod waker;
 /// ```
 pub mod prelude {
     #[doc(no_inline)]
-    pub use crate::actor::{actor_factory, Actor, ActorContext, NewActor};
+    pub use crate::actor::{Actor, ActorContext, NewActor};
     #[doc(no_inline)]
     pub use crate::actor_ref::{ActorRef, LocalActorRef};
     #[doc(no_inline)]
