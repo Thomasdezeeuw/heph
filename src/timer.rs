@@ -93,6 +93,11 @@ impl Timer {
     pub fn timeout<M>(ctx: &mut ActorContext<M>, timeout: Duration) -> Timer {
         Timer::new(ctx, Instant::now() + timeout)
     }
+
+    /// Returns the deadline set for this `Timer`.
+    pub fn deadline(&self) -> Instant {
+        self.deadline
+    }
 }
 
 impl Future for Timer {
@@ -175,6 +180,11 @@ impl<Fut> Deadline<Fut> {
     pub fn timeout<M>(ctx: &mut ActorContext<M>, timeout: Duration, fut: Fut) -> Deadline<Fut> {
         Deadline::new(ctx, Instant::now() + timeout, fut)
     }
+
+    /// Returns the deadline set for this `Deadline`.
+    pub fn deadline(&self) -> Instant {
+        self.deadline
+    }
 }
 
 impl<Fut> Future for Deadline<Fut>
@@ -249,6 +259,11 @@ impl Interval {
             pid,
             system_ref,
         }
+    }
+
+    /// Returns the next deadline for this `Interval`.
+    pub fn next_deadline(&self) -> Instant {
+        self.deadline
     }
 }
 
