@@ -49,7 +49,7 @@ pub use self::context::{ActorContext, ReceiveFuture};
 ///
 /// The easiest way to implement this is by using an async function.
 ///
-/// ```rust
+/// ```
 /// #![feature(async_await, await_macro, futures_api)]
 ///
 /// use heph::actor::{actor_factory, ActorContext};
