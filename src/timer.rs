@@ -40,7 +40,7 @@ pub struct DeadlinePassed;
 /// Using the `select!` macro to add a timeout to receiving a message.
 ///
 /// ```ignore
-/// #![feature(async_await, await_macro, futures_api, pin, never_type)]
+/// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
 /// use std::time::Duration;
 ///
@@ -118,8 +118,7 @@ impl Future for Timer {
 /// Setting a timeout for a future.
 ///
 /// ```
-/// #![feature(async_await, await_macro, futures_api, pin, never_type)]
-/// # #![feature(arbitrary_self_types)]
+/// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
 /// # use std::future::Future;
 /// # use std::pin::Pin;
@@ -210,7 +209,7 @@ impl<Fut> Future for Deadline<Fut>
 /// The following example will print hello world every second.
 ///
 /// ```
-/// #![feature(async_await, await_macro, futures_api, pin, never_type)]
+/// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
 /// use std::time::Duration;
 ///
