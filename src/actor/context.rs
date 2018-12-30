@@ -13,7 +13,7 @@ use crate::util::Shared;
 /// The context in which an actor is executed.
 ///
 /// This context can be used for a number of things including receiving
-/// messages and getting access to the actor system.
+/// messages and getting access to the running actor system.
 #[derive(Debug)]
 pub struct ActorContext<M> {
     /// Process id of the actor, used as `EventedId` in registering things, e.g.
@@ -44,7 +44,7 @@ impl<M> ActorContext<M> {
     ///
     /// # Example
     ///
-    /// An actor that receives messages and print them in a loop.
+    /// An actor that receives messages and prints them in a loop.
     ///
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
