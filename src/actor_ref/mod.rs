@@ -140,13 +140,13 @@ pub enum ActorRef<M> {
 
 impl<M> ActorRef<M> {
     /// Send a message to the actor.
-    pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<Msg>>
+    pub fn send<Msg>(&mut self, msg: Msg)
         where Msg: Into<M>,
     {
         use self::ActorRef::*;
         match self {
-            Local(ref mut actor_ref) => actor_ref.send(msg),
-            Machine(ref mut actor_ref) => { actor_ref.send(msg); Ok(()) },
+            Local(ref mut actor_ref) => { let _ = actor_ref.send(msg); },
+            Machine(ref mut actor_ref) => actor_ref.send(msg),
             Remote(ref mut actor_ref) => actor_ref.send(msg),
         }
     }
