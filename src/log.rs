@@ -8,8 +8,9 @@
 //!
 //! The actual logging implementation comes from the [`std-logger`] crate. By
 //! default logs are written to standard error and requests log are written to
-//! standard out. To mark a log messages as a request log the `REQUEST_TARGET`
-//! constant can be used, which is re-exported from the `std-logger` crate.
+//! standard out. To mark a log message as a request message the
+//! `REQUEST_TARGET` constant can be used, which is re-exported from the
+//! `std-logger` crate.
 //!
 //! To enable logging use the [`enable_logging`] method on the `ActorSystem`
 //! struct, or by calling [`init`].
