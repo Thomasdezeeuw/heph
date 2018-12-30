@@ -39,9 +39,9 @@ impl<M> LocalActorRef<M> {
     /// Asynchronously send a message to the actor.
     ///
     /// This is the only kind of actor reference that can detect if the message
-    /// can not be handled, while trying to send the message. Note that this
-    /// **not** mean that if this method returns `Ok` the message is guaranteed
-    /// to be handled by the actor.
+    /// can not be delivered, while trying to send the message. Note that this
+    /// does **not** mean that if this method returns `Ok` the message is
+    /// guaranteed to be handled by the actor.
     ///
     /// See [Sending messages] for more details.
     ///
