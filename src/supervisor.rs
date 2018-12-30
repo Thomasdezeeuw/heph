@@ -29,7 +29,40 @@
 //!
 //! # Examples
 //!
-//! TODO: add example.
+//! Supervisor that logs the errors of a badly behaving actor and stops it.
+//!
+//! ```
+//! #![feature(async_await, await_macro, futures_api)]
+//!
+//! use std::io;
+//!
+//! use heph::actor::ActorContext;
+//! use heph::log::error;
+//! use heph::supervisor::SupervisorStrategy;
+//! use heph::system::{ActorSystem, ActorOptions, RuntimeError};
+//!
+//! struct Error;
+//!
+//! /// Our badly behaving actor.
+//! async fn bad_actor(mut ctx: ActorContext<&'static str>) -> Result<(), Error> {
+//!     Err(Error)
+//! }
+//!
+//! /// Supervisor that gets called if, well when in this example, the actor
+//! /// returns an error.
+//! fn supervisor(error: Error) -> SupervisorStrategy<()> {
+//!     error!("Actor encountered an error!");
+//!     SupervisorStrategy::Stop
+//! }
+//!
+//! fn main() -> Result<(), RuntimeError> {
+//!     ActorSystem::new().with_setup(|mut system_ref| {
+//!         system_ref.spawn(supervisor, bad_actor as fn(_) -> _, (), ActorOptions::default());
+//!         Ok(())
+//!     })
+//!     .run()
+//! }
+//! ```
 //!
 //! [stopped]: enum.SupervisorStrategy.html#variant.Stop
 //! [restarted]: enum.SupervisorStrategy.html#variant.Restart
@@ -42,12 +75,12 @@
 /// only the design of the trait is discussed.
 ///
 /// The trait is designed to be generic to the error (`E`) and argument used in
-/// (re)starting the actor (`Arg`). This means that the same type can implement
-/// supervisor for a number of different actors. But a word of caution,
-/// supervisors should be small and simple, which means that most times having a
-/// different supervisor for each actor is a good thing.
+/// restarting the actor (`Arg`). This means that the same type can implement
+/// supervision for a number of different actors. But a word of caution,
+/// supervisors should generally be small and simple, which means that having a
+/// different supervisor for each actor is often a good thing.
 ///
-/// Supervisor is implemented for any function that takes an error `E` and
+/// `Supervisor` is implemented for any function that takes an error `E` and
 /// returns `SupervisorStrategy<Arg>` automatically.
 ///
 /// [module documentation]: index.html
@@ -78,14 +111,35 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
     }
 }
 
-/// No-op supervisor for actors without an error.
+/// No-op supervisor for actors that never return an error.
 ///
-/// This supervisor does nothing and can't actually be called, it only serves as
-/// a type for actors with `!` (the never type) as error type.
+/// This supervisor does nothing and can't actually be called, it can only serve
+/// as supervisor for actors with the never type (`!`) as error type.
 ///
 /// # Example
 ///
-/// TODO: add example, also see example 1_hello_world.
+/// ```
+/// #![feature(async_await, await_macro, futures_api, never_type)]
+///
+/// use std::io;
+///
+/// use heph::actor::ActorContext;
+/// use heph::supervisor::NoopSupervisor;
+/// use heph::system::{ActorSystem, ActorOptions, RuntimeError};
+///
+/// /// Our actor that never returns an error.
+/// async fn actor(mut ctx: ActorContext<&'static str>) -> Result<(), !> {
+///     Ok(())
+/// }
+///
+/// fn main() -> Result<(), RuntimeError> {
+///     ActorSystem::new().with_setup(|mut system_ref| {
+///         system_ref.spawn(NoopSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
+///         Ok(())
+///     })
+///     .run()
+/// }
+/// ```
 #[derive(Copy, Clone, Debug)]
 pub struct NoopSupervisor;
 
