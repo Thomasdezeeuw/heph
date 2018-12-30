@@ -10,7 +10,13 @@
 //! shouldn't be enabled by default, and shouldn't end up in your production
 //! binary.
 //!
-//! TODO: doc how to enable the features only in development/testing.
+//! It is possible to only enable the test feature when testing by adding the
+//! following to `Cargo.toml`.
+//!
+//! ```toml
+//! [dev-dependencies.heph]
+//! features = ["test"]
+//! ```
 
 use std::cell::RefCell;
 use std::future::Future;
