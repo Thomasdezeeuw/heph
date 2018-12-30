@@ -18,6 +18,12 @@
 //! features = ["test"]
 //! ```
 
+// The `new_count_waker` and related code is only used in testing, causing a
+// dead_code warning. For now we'll have to allow it, I opened a PR to merge it
+// into futures-test, a better place for it, see
+// https://github.com/rust-lang-nursery/futures-rs/issues/1384.
+#![allow(dead_code)]
+
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
@@ -39,7 +45,7 @@ thread_local! {
         RefCell::new(RunningActorSystem::new().unwrap());
 }
 
-/// Get a reference to the testing actor system.
+/// Get a reference to the *test* actor system.
 pub fn system_ref() -> ActorSystemRef {
     TEST_SYSTEM.with(|system| system.borrow().create_ref())
 }
@@ -88,7 +94,7 @@ pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
     where A: Actor,
 {
     let waker = test_waker();
-    A::try_poll(actor, &waker)
+    Actor::try_poll(actor, &waker)
 }
 
 /// Create a test `LocalWaker`, with pid 0.
@@ -107,7 +113,7 @@ pub(crate) fn new_count_waker() -> (LocalWaker, AwokenCount) {
 
 /// Number of times the waker was awoken.
 ///
-/// See [`new_waker`].
+/// See [`new_count_waker`].
 pub(crate) struct AwokenCount {
     inner: Arc<WakerInner>,
 }
