@@ -43,7 +43,7 @@ impl<M> MailBox<M> {
 
     /// Receive a delivered message, if any.
     pub fn receive(&mut self) -> Option<M> {
-        self.messages2.as_mut()
+        self.messages2.as_ref()
             .and_then(|(_, recv)| recv.try_recv())
             .or_else(|| self.messages.pop_front())
     }
