@@ -20,7 +20,7 @@ use std::pin::Pin;
 use std::task::{LocalWaker, Poll};
 use std::time::{Duration, Instant};
 
-use futures_core::stream::Stream;
+use futures_core::stream::{Stream, FusedStream};
 
 use crate::actor::ActorContext;
 use crate::process::ProcessId;
@@ -266,5 +266,11 @@ impl Stream for Interval {
         } else {
             Poll::Pending
         }
+    }
+}
+
+impl FusedStream for Interval {
+    fn is_terminated(&self) -> bool {
+        false
     }
 }
