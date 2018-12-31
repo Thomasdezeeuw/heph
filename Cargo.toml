@@ -1,26 +1,24 @@
 [package]
-name        = "heph"
-version     = "0.2.0-dev"
-authors     = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
-license     = "MIT"
-description = """
-Heph is an actor framework based on asynchronous functions.
-"""
-readme        = "README.md"
-repository    = "https://github.com/Thomasdezeeuw/heph"
+name          = "heph"
+description   = "Heph is an actor framework based on asynchronous functions."
+version       = "0.2.0-dev"
+authors       = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
+license       = "MIT"
 documentation = "https://docs.rs/heph"
+repository    = "https://github.com/Thomasdezeeuw/heph"
+readme        = "README.md"
 keywords      = ["actor", "framework", "async", "functions"]
 categories    = ["asynchronous", "web-programming"]
-include       = ["Cargo.toml", "src/**/*.rs", "LICENSE"]
+include       = ["Cargo.toml", "src/**/*.rs", "README.md", "LICENSE"]
 edition       = "2018"
 
 [badges]
-travis-ci = { repository = "https://github.com/Thomasdezeeuw/heph", branch = "master" }
+travis-ci = { repository = "Thomasdezeeuw/heph", branch = "master" }
 
 [features]
 default = []
 
-# The feature that enables the `test` module.
+# Feature that enables the `test` module.
 test = []
 
 [dependencies]
