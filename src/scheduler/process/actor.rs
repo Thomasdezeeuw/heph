@@ -37,7 +37,10 @@ pub struct ActorProcess<S, NA: NewActor> {
 
 impl<S, NA: NewActor> ActorProcess<S, NA> {
     /// Create a new `ActorProcess`.
-    pub(crate) const fn new(id: ProcessId, priority: Priority, supervisor: S, new_actor: NA, actor: NA::Actor, inbox: Shared<MailBox<NA::Message>>, waker: LocalWaker) -> ActorProcess<S, NA> {
+    pub(crate) const fn new(id: ProcessId, priority: Priority, supervisor: S,
+        new_actor: NA, actor: NA::Actor, inbox: Shared<MailBox<NA::Message>>,
+        waker: LocalWaker
+    ) -> ActorProcess<S, NA> {
         ActorProcess {
             id,
             priority,
@@ -94,16 +97,17 @@ impl<S, NA> Process for ActorProcess<S, NA>
             },
             Poll::Pending => ProcessResult::Pending,
         };
-        let elapsed = start.elapsed();
-
-        trace!("finished running actor process: pid={}, elapsed_time={:?}", this.id, elapsed);
-        this.runtime += elapsed;
 
         // Normally this should go in the `Drop` implementation, but we don't
         // have access to a system ref there, so we need to do it here.
         if let ProcessResult::Complete = result {
             system_ref.deregister::<NA>();
         }
+
+        let elapsed = start.elapsed();
+        trace!("finished running actor process: pid={}, elapsed_time={:?}", this.id, elapsed);
+        this.runtime += elapsed;
+
         result
     }
 }
