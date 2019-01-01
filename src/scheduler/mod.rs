@@ -1,7 +1,6 @@
 //! Module containing the `Scheduler` and related types.
 
 use std::cell::RefMut;
-use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::mem;
 use std::pin::Pin;
@@ -20,15 +19,11 @@ mod tests;
 
 pub use self::priority::Priority;
 
-// TODO: benchmark boxing `ProcessData` and then inlining `Process`. Thus
-// erasing the generic type of `ProcessData<P>` into `Box<dyn
-// ScheduledProcess>`.
-
 /// The scheduler, responsible for scheduling and running processes.
 #[derive(Debug)]
 pub struct Scheduler {
     /// Active processes.
-    active: BinaryHeap<Box<ProcessData>>,
+    active: BinaryHeap<Pin<Box<dyn Process>>>,
     /// All* processes in the scheduler.
     ///
     /// *Actually active processes are in the active list above, but still have
@@ -87,7 +82,7 @@ impl Scheduler {
         };
 
         let pid = process.id();
-        match process.run(system_ref) {
+        match process.as_mut().run(system_ref) {
             ProcessResult::Complete => {
                 let process_state = self.processes.borrow_mut().remove(pid.0);
                 debug_assert!(process_state.is_active(), "removed an inactive process");
@@ -116,7 +111,7 @@ impl SchedulerRef {
     /// By default the process will be considered inactive and thus not
     /// scheduled. To schedule the process see `Scheduler.schedule`.
     ///
-    /// The API allows the `ProcessId` to be used before the process is actually
+    /// This API allows the `ProcessId` to be used before the process is actually
     /// added to scheduler.
     pub fn add_process(&mut self) -> AddingProcess {
         let processes = self.processes.borrow_mut();
@@ -148,7 +143,7 @@ impl<'s> AddingProcess<'s> {
     {
         let pid = self.id;
         debug!("adding new process: pid={}", pid);
-        let process = Box::new(ProcessData::new(process));
+        let process = Box::pin(process);
         let actual_pid = self.processes.insert(ProcessState::Inactive(process));
         debug_assert_eq!(actual_pid, pid.0);
     }
@@ -161,7 +156,7 @@ enum ProcessState {
     /// processes.
     Active,
     /// Process is currently inactive.
-    Inactive(Box<ProcessData>),
+    Inactive(Pin<Box<dyn Process>>),
 }
 
 impl ProcessState {
@@ -178,7 +173,7 @@ impl ProcessState {
     /// # Panics
     ///
     /// Panics if the process was already active.
-    fn mark_active(&mut self) -> Box<ProcessData> {
+    fn mark_active(&mut self) -> Pin<Box<dyn Process>> {
         match mem::replace(self, ProcessState::Active) {
             ProcessState::Active =>
                 unreachable!("tried to mark an active process as active"),
@@ -191,62 +186,11 @@ impl ProcessState {
     /// # Panics
     ///
     /// Panics if the process was already inactive.
-    fn mark_inactive(&mut self, process: Box<ProcessData>) {
+    fn mark_inactive(&mut self, process: Pin<Box<dyn Process>>) {
         match mem::replace(self, ProcessState::Inactive(process)) {
             ProcessState::Active => {},
             ProcessState::Inactive(_) =>
                 unreachable!("tried to mark an inactive process as inactive"),
         }
-    }
-}
-
-/// Structure that holds a process and it's data.
-///
-/// Equality is implemented based on the `ProcessId`. Ordering however is based
-/// on the `fair_runtime` (Duration) and `Priority`, in that order.
-#[derive(Debug)]
-pub struct ProcessData {
-    process: Pin<Box<dyn Process + 'static>>,
-}
-
-impl ProcessData {
-    /// Create new `ProcessData`.
-    pub fn new<P>(process: P) -> ProcessData
-        where P: Process + 'static,
-    {
-        ProcessData {
-            process: Box::pin(process),
-        }
-    }
-
-    /// The process id of this process.
-    pub fn id(&self) -> ProcessId {
-        self.process.id()
-    }
-
-    /// Run the process and update it's fair runtime.
-    pub fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
-        self.process.as_mut().run(system_ref)
-    }
-}
-
-impl Eq for ProcessData {}
-
-impl PartialEq for ProcessData {
-    fn eq(&self, other: &Self) -> bool {
-        self.id() == other.id()
-    }
-}
-
-impl Ord for ProcessData {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other.process.fair_runtime().cmp(&self.process.fair_runtime())
-            .then_with(|| self.process.priority().cmp(&other.process.priority()))
-    }
-}
-
-impl PartialOrd for ProcessData {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(&other))
     }
 }
