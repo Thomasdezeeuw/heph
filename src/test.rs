@@ -34,7 +34,7 @@ use std::task::{LocalWaker, Wake, Poll, local_waker_from_nonlocal};
 use crate::actor::{Actor, ActorContext, NewActor};
 use crate::actor_ref::LocalActorRef;
 use crate::mailbox::MailBox;
-use crate::process::ProcessId;
+use crate::scheduler::ProcessId;
 use crate::system::{ActorSystemRef, RunningActorSystem};
 use crate::util::Shared;
 use crate::waker::new_waker;

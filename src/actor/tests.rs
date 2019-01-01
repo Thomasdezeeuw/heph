@@ -5,7 +5,7 @@ use std::task::Poll;
 
 use crate::actor::ActorContext;
 use crate::mailbox::MailBox;
-use crate::process::ProcessId;
+use crate::scheduler::ProcessId;
 use crate::test;
 use crate::util::Shared;
 

@@ -5,7 +5,7 @@ use std::task::{local_waker_from_nonlocal, LocalWaker, Wake};
 
 use crossbeam_channel::Sender;
 
-use crate::process::ProcessId;
+use crate::scheduler::ProcessId;
 
 /// Create a new `LocalWaker`.
 ///

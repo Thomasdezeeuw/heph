@@ -12,17 +12,19 @@ use slab::Slab;
 use crate::actor::{Actor, NewActor};
 use crate::initiator::Initiator;
 use crate::mailbox::MailBox;
-use crate::process::{ActorProcess, Process, ProcessId, ProcessResult, InitiatorProcess};
 use crate::supervisor::Supervisor;
 use crate::system::ActorSystemRef;
 use crate::util::Shared;
 
-mod priority;
+mod process;
 
 #[cfg(all(test, feature = "test"))]
 mod tests;
 
-pub use self::priority::Priority;
+use self::process::{ActorProcess, Process, ProcessResult, InitiatorProcess};
+
+pub use self::process::Priority;
+pub use self::process::ProcessId;
 
 /// The scheduler, responsible for scheduling and running processes.
 #[derive(Debug)]

@@ -8,8 +8,7 @@ use std::time::{Duration, Instant};
 use log::{error, trace};
 
 use crate::initiator::Initiator;
-use crate::process::{Process, ProcessId, ProcessResult};
-use crate::scheduler::Priority;
+use crate::scheduler::process::{Priority, Process, ProcessId, ProcessResult};
 use crate::system::ActorSystemRef;
 
 /// A process that represents an [`Initiator`].

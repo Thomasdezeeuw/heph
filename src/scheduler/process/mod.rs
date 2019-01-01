@@ -7,17 +7,18 @@ use std::time::Duration;
 
 use mio_st::event::EventedId;
 
-use crate::scheduler::Priority;
 use crate::system::ActorSystemRef;
 
 mod actor;
 mod initiator;
+mod priority;
 
 #[cfg(all(test, feature = "test"))]
 mod tests;
 
 pub use self::actor::ActorProcess;
 pub use self::initiator::InitiatorProcess;
+pub use self::priority::Priority;
 
 /// Process id, or pid for short, is an id for a process in an `ActorSystem`.
 ///
