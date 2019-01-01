@@ -1,5 +1,6 @@
 //! Module containing the `Process` trait, related types and implementations.
 
+use std::cmp::Ordering;
 use std::fmt;
 use std::pin::Pin;
 use std::time::Duration;
@@ -73,6 +74,27 @@ pub trait Process: fmt::Debug {
     /// If it returns `ProcessResult::Pending` it will be considered inactive
     /// and the process itself must make sure its gets scheduled again.
     fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult;
+}
+
+impl Eq for dyn Process {}
+
+impl PartialEq for dyn Process {
+    fn eq(&self, other: &Self) -> bool {
+        self.id() == other.id()
+    }
+}
+
+impl Ord for dyn Process {
+    fn cmp(&self, other: &Self) -> Ordering {
+        other.fair_runtime().cmp(&self.fair_runtime())
+            .then_with(|| self.priority().cmp(&other.priority()))
+    }
+}
+
+impl PartialOrd for dyn Process {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 /// The result of running a `Process`.
