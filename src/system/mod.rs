@@ -69,7 +69,7 @@ use crate::actor::{Actor, ActorContext, NewActor};
 use crate::actor_ref::LocalActorRef;
 use crate::initiator::Initiator;
 use crate::mailbox::MailBox;
-use crate::process::{ActorProcess, InitiatorProcess, ProcessId};
+use crate::process::{ActorProcess, ProcessId};
 use crate::scheduler::{Scheduler, SchedulerRef};
 use crate::supervisor::Supervisor;
 use crate::util::Shared;
@@ -457,11 +457,8 @@ impl RunningActorSystem {
         trace!("initialising initiator: pid={}", pid);
         initiator.init(poller, pid).map_err(RuntimeError::initiator)?;
 
-        // Create a new initiator process.
-        let process = InitiatorProcess::new(pid, initiator);
-
         // Add the process to the scheduler.
-        process_entry.add(process);
+        process_entry.add_initiator(initiator);
         Ok(())
     }
 
