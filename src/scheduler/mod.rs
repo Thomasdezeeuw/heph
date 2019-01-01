@@ -4,12 +4,16 @@ use std::cell::RefMut;
 use std::collections::BinaryHeap;
 use std::mem;
 use std::pin::Pin;
+use std::task::LocalWaker;
 
 use log::{debug, trace};
 use slab::Slab;
 
+use crate::actor::{Actor, NewActor};
 use crate::initiator::Initiator;
-use crate::process::{Process, ProcessId, ProcessResult, InitiatorProcess};
+use crate::mailbox::MailBox;
+use crate::process::{ActorProcess, Process, ProcessId, ProcessResult, InitiatorProcess};
+use crate::supervisor::Supervisor;
 use crate::system::ActorSystemRef;
 use crate::util::Shared;
 
@@ -138,23 +142,30 @@ impl<'s> AddingProcess<'s> {
         self.id
     }
 
-    /// Add a new inactive process to the scheduler.
-    pub fn add<P>(mut self, process: P)
-        where P: Process + 'static,
+    /// Add a new inactive actor process to the scheduler.
+    pub fn add_actor<S, NA>(self, priority: Priority, supervisor: S,
+        new_actor: NA, actor: NA::Actor, mailbox: Shared<MailBox<NA::Message>>,
+        waker: LocalWaker
+    )
+        where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
+              NA: NewActor + 'static,
+
     {
-        let pid = self.id;
-        debug!("adding new process: pid={}", pid);
-        let process = Box::pin(process);
-        let actual_pid = self.processes.insert(ProcessState::Inactive(process));
-        debug_assert_eq!(actual_pid, pid.0);
+        debug!("adding new actor process: pid={}", self.id);
+        let process = Box::pin(ActorProcess::new(self.id, priority, supervisor, new_actor, actor, mailbox, waker));
+        self.add_process(process)
     }
 
     /// Add a new inactive initiator process to the scheduler.
-    pub fn add_initiator<I>(mut self, initiator: I)
+    pub fn add_initiator<I>(self, initiator: I)
         where I: Initiator + 'static,
     {
         debug!("adding new initiator process: pid={}", self.id);
         let process = Box::pin(InitiatorProcess::new(self.id, initiator));
+        self.add_process(process)
+    }
+
+    fn add_process(mut self, process: Pin<Box<dyn Process>>) {
         let actual_pid = self.processes.insert(ProcessState::Inactive(process));
         debug_assert_eq!(actual_pid, self.id.0);
     }
