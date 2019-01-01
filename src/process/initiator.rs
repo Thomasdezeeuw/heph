@@ -43,14 +43,14 @@ impl<I> Process for InitiatorProcess<I>
     }
 
     fn priority(&self) -> Priority {
-        Priority::LOW
-    }
-
-    fn fair_runtime(&self) -> Duration {
         // Initiators always have a low priority, this way requests in progress
         // are first handled before new requests are accepted and possibly
         // overload the system.
-        self.runtime * Priority::LOW
+        Priority::LOW
+    }
+
+    fn runtime(&self) -> Duration {
+        self.runtime
     }
 
     fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult {
