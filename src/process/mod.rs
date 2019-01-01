@@ -60,11 +60,8 @@ pub trait Process: fmt::Debug {
     /// Get the priority of the process.
     fn priority(&self) -> Priority;
 
-    /// Get the fair runtime of this process.
-    ///
-    /// The fair runtime is time the process actually ran * the process'
-    /// `Priority`.
-    fn fair_runtime(&self) -> Duration;
+    /// Get the total time this process has run.
+    fn runtime(&self) -> Duration;
 
     /// Run the process.
     ///
@@ -86,7 +83,8 @@ impl PartialEq for dyn Process {
 
 impl Ord for dyn Process {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.fair_runtime().cmp(&self.fair_runtime())
+        (other.runtime() * self.priority())
+            .cmp(&(self.runtime() * self.priority()))
             .then_with(|| self.priority().cmp(&other.priority()))
     }
 }

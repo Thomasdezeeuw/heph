@@ -64,8 +64,8 @@ impl<S, NA> Process for ActorProcess<S, NA>
         self.priority
     }
 
-    fn fair_runtime(&self) -> Duration {
-        self.runtime * self.priority
+    fn runtime(&self) -> Duration {
+        self.runtime
     }
 
     fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult {
