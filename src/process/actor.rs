@@ -10,9 +10,9 @@ use log::trace;
 use crate::actor::{Actor, NewActor, ActorContext};
 use crate::mailbox::MailBox;
 use crate::process::{Process, ProcessId, ProcessResult};
+use crate::scheduler::Priority;
 use crate::supervisor::{Supervisor, SupervisorStrategy};
 use crate::system::ActorSystemRef;
-use crate::scheduler::Priority;
 use crate::util::Shared;
 
 /// A process that represent an [`Actor`].
@@ -58,6 +58,10 @@ impl<S, NA> Process for ActorProcess<S, NA>
 {
     fn id(&self) -> ProcessId {
         self.id
+    }
+
+    fn priority(&self) -> Priority {
+        self.priority
     }
 
     fn fair_runtime(&self) -> Duration {
