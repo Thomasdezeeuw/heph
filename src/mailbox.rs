@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
 
-use crate::process::ProcessId;
+use crate::scheduler::ProcessId;
 use crate::system::ActorSystemRef;
 
 /// Mailbox that holds all messages for an actor.

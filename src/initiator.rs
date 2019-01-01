@@ -4,7 +4,7 @@ use std::io;
 
 use mio_st::poll::Poller;
 
-use crate::process::ProcessId;
+use crate::scheduler::ProcessId;
 use crate::system::ActorSystemRef;
 
 /// The `Initiator` is responsible for initiating events in the actor system.

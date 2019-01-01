@@ -6,7 +6,7 @@ use std::task::{LocalWaker, Poll};
 
 use crate::actor_ref::LocalActorRef;
 use crate::mailbox::MailBox;
-use crate::process::ProcessId;
+use crate::scheduler::ProcessId;
 use crate::system::ActorSystemRef;
 use crate::util::Shared;
 

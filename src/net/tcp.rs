@@ -13,7 +13,7 @@ use mio_st::poll::{PollOption, Poller};
 use crate::actor::{ActorContext, Actor, NewActor};
 use crate::initiator::Initiator;
 use crate::net::{interrupted, would_block};
-use crate::process::ProcessId;
+use crate::scheduler::ProcessId;
 use crate::supervisor::Supervisor;
 use crate::system::{ActorOptions, ActorSystemRef};
 

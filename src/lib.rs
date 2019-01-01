@@ -104,7 +104,6 @@ pub mod test;
 compile_error!("please enable the `test` feature when testing, call `cargo test --features test`");
 
 mod mailbox;
-mod process;
 mod scheduler;
 mod util;
 mod waker;
