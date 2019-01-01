@@ -149,7 +149,7 @@ impl<'s> AddingProcess<'s> {
     {
         let pid = self.id;
         debug!("adding new process: pid={}", pid);
-        let process = Box::new(ProcessData::new(pid, priority, process));
+        let process = Box::new(ProcessData::new(priority, process));
         let actual_pid = self.processes.insert(ProcessState::Inactive(process));
         debug_assert_eq!(actual_pid, pid.0);
     }
@@ -207,7 +207,6 @@ impl ProcessState {
 /// on the `fair_runtime` (Duration) and `Priority`, in that order.
 #[derive(Debug)]
 pub struct ProcessData {
-    id: ProcessId,
     /// Runtime of this process * Priority, see the `update_runtime` method.
     fair_runtime: Duration,
     priority: Priority,
@@ -216,11 +215,10 @@ pub struct ProcessData {
 
 impl ProcessData {
     /// Create new `ProcessData`.
-    pub fn new<P>(id: ProcessId, priority: Priority, process: P) -> ProcessData
+    pub fn new<P>(priority: Priority, process: P) -> ProcessData
         where P: Process + 'static,
     {
         ProcessData {
-            id,
             fair_runtime: Duration::from_millis(0),
             priority,
             process: Box::pin(process),
@@ -229,18 +227,19 @@ impl ProcessData {
 
     /// The process id of this process.
     pub fn id(&self) -> ProcessId {
-        self.id
+        self.process.id()
     }
 
     /// Run the process and update it's fair runtime.
     pub fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
-        trace!("running process: pid={}", self.id);
+        let pid = self.id();
+        trace!("running process: pid={}", pid);
 
         let start = Instant::now();
         let result = self.process.as_mut().run(system_ref);
         let elapsed = start.elapsed();
 
-        trace!("finished running process: pid={}, elapsed_time={:?}", self.id, elapsed);
+        trace!("finished running process: pid={}, elapsed_time={:?}", pid, elapsed);
 
         self.update_runtime(elapsed);
         result
@@ -256,7 +255,7 @@ impl Eq for ProcessData {}
 
 impl PartialEq for ProcessData {
     fn eq(&self, other: &Self) -> bool {
-        self.id == other.id
+        self.id() == other.id()
     }
 }
 

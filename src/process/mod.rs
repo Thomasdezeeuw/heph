@@ -51,6 +51,9 @@ impl fmt::Display for ProcessId {
 /// - the `ActorProcess`, which wraps an `Actor` to implement this trait, and
 /// - the `InitiatorProcess`, which wraps an `Initiator`.
 pub trait Process: fmt::Debug {
+    /// Get the id of the process.
+    fn id(&self) -> ProcessId;
+
     /// Run the process.
     ///
     /// Once the process returns `ProcessResult::Complete` it will be remove

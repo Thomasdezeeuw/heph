@@ -458,7 +458,7 @@ impl RunningActorSystem {
         initiator.init(poller, pid).map_err(RuntimeError::initiator)?;
 
         // Create a new initiator process.
-        let process = InitiatorProcess::new(initiator);
+        let process = InitiatorProcess::new(pid, initiator);
 
         // Add the process to the scheduler.
         // Initiators will always have a low priority this way requests in

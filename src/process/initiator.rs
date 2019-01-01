@@ -7,13 +7,14 @@ use std::pin::Pin;
 use log::{error, trace};
 
 use crate::initiator::Initiator;
-use crate::process::{Process, ProcessResult};
+use crate::process::{Process, ProcessId, ProcessResult};
 use crate::system::ActorSystemRef;
 
 /// A process that represents an [`Initiator`].
 ///
 /// [`Initiator`]: ../../initiator/trait.Initiator.html
 pub struct InitiatorProcess<I> {
+    id: ProcessId,
     initiator: I,
 }
 
@@ -22,8 +23,9 @@ impl<I> InitiatorProcess<I> {
     ///
     /// The `initiator` must be initialised, i.e. `init` must have been called
     /// before it's passed to this function.
-    pub const fn new(initiator: I) -> InitiatorProcess<I> {
+    pub const fn new(id: ProcessId, initiator: I) -> InitiatorProcess<I> {
         InitiatorProcess {
+            id,
             initiator,
         }
     }
@@ -32,6 +34,10 @@ impl<I> InitiatorProcess<I> {
 impl<I> Process for InitiatorProcess<I>
     where I: Initiator,
 {
+    fn id(&self) -> ProcessId {
+        self.id
+    }
+
     fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult {
         trace!("running initiator process");
 
@@ -49,6 +55,7 @@ impl<I> Process for InitiatorProcess<I>
 impl<I> fmt::Debug for InitiatorProcess<I> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("InitiatorProcess")
+            .field("id", &self.id)
             .finish()
     }
 }

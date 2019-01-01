@@ -18,7 +18,7 @@ use crate::util::Shared;
 /// [`Actor`]: ../../actor/trait.Actor.html
 pub struct ActorProcess<S, NA: NewActor> {
     /// The id of this process.
-    pid: ProcessId,
+    id: ProcessId,
     /// Supervisor of the actor.
     supervisor: S,
     /// `NewActor` used to restart the actor.
@@ -34,9 +34,9 @@ pub struct ActorProcess<S, NA: NewActor> {
 
 impl<S, NA: NewActor> ActorProcess<S, NA> {
     /// Create a new `ActorProcess`.
-    pub(crate) fn new(pid: ProcessId, supervisor: S, new_actor: NA, actor: NA::Actor, inbox: Shared<MailBox<NA::Message>>, waker: LocalWaker) -> ActorProcess<S, NA> {
+    pub(crate) const fn new(id: ProcessId, supervisor: S, new_actor: NA, actor: NA::Actor, inbox: Shared<MailBox<NA::Message>>, waker: LocalWaker) -> ActorProcess<S, NA> {
         ActorProcess {
-            pid,
+            id,
             supervisor,
             new_actor,
             inbox,
@@ -50,6 +50,10 @@ impl<S, NA> Process for ActorProcess<S, NA>
     where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument>,
           NA: NewActor + 'static,
 {
+    fn id(&self) -> ProcessId {
+        self.id
+    }
+
     fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult {
         trace!("running actor process");
 
@@ -65,7 +69,7 @@ impl<S, NA> Process for ActorProcess<S, NA>
                 match this.supervisor.decide(err) {
                     SupervisorStrategy::Restart(arg) => {
                         // Create a new actor.
-                        let ctx = ActorContext::new(this.pid, system_ref.clone(), this.inbox.clone());
+                        let ctx = ActorContext::new(this.id, system_ref.clone(), this.inbox.clone());
                         this.actor = this.new_actor.new(ctx, arg);
                         // Run the actor, just in case progress can be made
                         // already.
@@ -89,6 +93,7 @@ impl<S, NA> Process for ActorProcess<S, NA>
 impl<S, NA: NewActor> fmt::Debug for ActorProcess<S, NA> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ActorProcess")
+            .field("id", &self.id)
             .finish()
     }
 }
