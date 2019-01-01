@@ -70,7 +70,7 @@ use crate::actor_ref::LocalActorRef;
 use crate::initiator::Initiator;
 use crate::mailbox::MailBox;
 use crate::process::{ActorProcess, InitiatorProcess, ProcessId};
-use crate::scheduler::{Priority, Scheduler, SchedulerRef};
+use crate::scheduler::{Scheduler, SchedulerRef};
 use crate::supervisor::Supervisor;
 use crate::util::Shared;
 use crate::waker::new_waker;
@@ -461,10 +461,7 @@ impl RunningActorSystem {
         let process = InitiatorProcess::new(pid, initiator);
 
         // Add the process to the scheduler.
-        // Initiators will always have a low priority this way requests in
-        // progress are first handled before new requests are accepted and
-        // possibly overload the system.
-        process_entry.add(process, Priority::LOW);
+        process_entry.add(process);
         Ok(())
     }
 
@@ -749,7 +746,7 @@ impl ActorSystemInternal {
 
         // Create an actor process and add finally add it to the scheduler.
         let process = ActorProcess::new(pid, options.priority, supervisor, new_actor, actor, mailbox, waker);
-        process_entry.add(process, options.priority);
+        process_entry.add(process);
 
         if options.register {
             if self.registry.register::<NA>(actor_ref.clone()).is_some() {

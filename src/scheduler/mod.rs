@@ -5,7 +5,6 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::mem;
 use std::pin::Pin;
-use std::time::{Duration, Instant};
 
 use log::{debug, trace};
 use slab::Slab;
@@ -144,12 +143,12 @@ impl<'s> AddingProcess<'s> {
     }
 
     /// Add a new inactive process to the scheduler.
-    pub fn add<P>(mut self, process: P, priority: Priority)
+    pub fn add<P>(mut self, process: P)
         where P: Process + 'static,
     {
         let pid = self.id;
         debug!("adding new process: pid={}", pid);
-        let process = Box::new(ProcessData::new(priority, process));
+        let process = Box::new(ProcessData::new(process));
         let actual_pid = self.processes.insert(ProcessState::Inactive(process));
         debug_assert_eq!(actual_pid, pid.0);
     }
@@ -207,20 +206,15 @@ impl ProcessState {
 /// on the `fair_runtime` (Duration) and `Priority`, in that order.
 #[derive(Debug)]
 pub struct ProcessData {
-    /// Runtime of this process * Priority, see the `update_runtime` method.
-    fair_runtime: Duration,
-    priority: Priority,
     process: Pin<Box<dyn Process + 'static>>,
 }
 
 impl ProcessData {
     /// Create new `ProcessData`.
-    pub fn new<P>(priority: Priority, process: P) -> ProcessData
+    pub fn new<P>(process: P) -> ProcessData
         where P: Process + 'static,
     {
         ProcessData {
-            fair_runtime: Duration::from_millis(0),
-            priority,
             process: Box::pin(process),
         }
     }
@@ -232,22 +226,7 @@ impl ProcessData {
 
     /// Run the process and update it's fair runtime.
     pub fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
-        let pid = self.id();
-        trace!("running process: pid={}", pid);
-
-        let start = Instant::now();
-        let result = self.process.as_mut().run(system_ref);
-        let elapsed = start.elapsed();
-
-        trace!("finished running process: pid={}, elapsed_time={:?}", pid, elapsed);
-
-        self.update_runtime(elapsed);
-        result
-    }
-
-    /// Update the runtime of the process.
-    fn update_runtime(&mut self, elapsed: Duration) {
-        self.fair_runtime += elapsed * self.priority
+        self.process.as_mut().run(system_ref)
     }
 }
 
@@ -261,8 +240,8 @@ impl PartialEq for ProcessData {
 
 impl Ord for ProcessData {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.fair_runtime.cmp(&self.fair_runtime)
-            .then_with(|| self.priority.cmp(&other.priority))
+        other.process.fair_runtime().cmp(&self.process.fair_runtime())
+            .then_with(|| self.process.priority().cmp(&other.process.priority()))
     }
 }
 
