@@ -3,11 +3,13 @@
 
 use std::fmt;
 use std::pin::Pin;
+use std::time::{Duration, Instant};
 
 use log::{error, trace};
 
 use crate::initiator::Initiator;
 use crate::process::{Process, ProcessId, ProcessResult};
+use crate::scheduler::Priority;
 use crate::system::ActorSystemRef;
 
 /// A process that represents an [`Initiator`].
@@ -16,6 +18,7 @@ use crate::system::ActorSystemRef;
 pub struct InitiatorProcess<I> {
     id: ProcessId,
     initiator: I,
+    runtime: Duration,
 }
 
 impl<I> InitiatorProcess<I> {
@@ -27,6 +30,7 @@ impl<I> InitiatorProcess<I> {
         InitiatorProcess {
             id,
             initiator,
+            runtime: Duration::from_millis(0),
         }
     }
 }
@@ -38,17 +42,30 @@ impl<I> Process for InitiatorProcess<I>
         self.id
     }
 
-    fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult {
-        trace!("running initiator process");
+    fn fair_runtime(&self) -> Duration {
+        // Initiators always have a low priority, this way requests in progress
+        // are first handled before new requests are accepted and possibly
+        // overload the system.
+        self.runtime * Priority::LOW
+    }
 
+    fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult {
+        trace!("running initiator process: pid={}", self.id);
+
+        let start = Instant::now();
         // This is safe because we're not moving the initiator.
         let this = unsafe { Pin::get_unchecked_mut(self) };
-        if let Err(err) = this.initiator.poll(system_ref) {
+        let result = if let Err(err) = this.initiator.poll(system_ref) {
             error!("error polling initiator: {}", err);
             ProcessResult::Complete
         } else {
             ProcessResult::Pending
-        }
+        };
+        let elapsed = start.elapsed();
+
+        trace!("finished running initiator process: pid={}, elapsed_time={:?}", this.id, elapsed);
+        this.runtime += elapsed;
+        result
     }
 }
 
@@ -56,6 +73,7 @@ impl<I> fmt::Debug for InitiatorProcess<I> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("InitiatorProcess")
             .field("id", &self.id)
+            .field("runtime", &self.runtime)
             .finish()
     }
 }

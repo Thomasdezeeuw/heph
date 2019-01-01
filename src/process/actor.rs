@@ -3,6 +3,7 @@
 use std::fmt;
 use std::pin::Pin;
 use std::task::{LocalWaker, Poll};
+use std::time::{Duration, Instant};
 
 use log::trace;
 
@@ -11,6 +12,7 @@ use crate::mailbox::MailBox;
 use crate::process::{Process, ProcessId, ProcessResult};
 use crate::supervisor::{Supervisor, SupervisorStrategy};
 use crate::system::ActorSystemRef;
+use crate::scheduler::Priority;
 use crate::util::Shared;
 
 /// A process that represent an [`Actor`].
@@ -19,6 +21,7 @@ use crate::util::Shared;
 pub struct ActorProcess<S, NA: NewActor> {
     /// The id of this process.
     id: ProcessId,
+    priority: Priority,
     /// Supervisor of the actor.
     supervisor: S,
     /// `NewActor` used to restart the actor.
@@ -30,18 +33,21 @@ pub struct ActorProcess<S, NA: NewActor> {
     inbox: Shared<MailBox<NA::Message>>,
     /// Waker used in the futures context.
     waker: LocalWaker,
+    runtime: Duration,
 }
 
 impl<S, NA: NewActor> ActorProcess<S, NA> {
     /// Create a new `ActorProcess`.
-    pub(crate) const fn new(id: ProcessId, supervisor: S, new_actor: NA, actor: NA::Actor, inbox: Shared<MailBox<NA::Message>>, waker: LocalWaker) -> ActorProcess<S, NA> {
+    pub(crate) const fn new(id: ProcessId, priority: Priority, supervisor: S, new_actor: NA, actor: NA::Actor, inbox: Shared<MailBox<NA::Message>>, waker: LocalWaker) -> ActorProcess<S, NA> {
         ActorProcess {
             id,
+            priority,
             supervisor,
             new_actor,
             inbox,
             actor,
             waker,
+            runtime: Duration::from_millis(0),
         }
     }
 }
@@ -54,8 +60,13 @@ impl<S, NA> Process for ActorProcess<S, NA>
         self.id
     }
 
+    fn fair_runtime(&self) -> Duration {
+        self.runtime * self.priority
+    }
+
     fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult {
-        trace!("running actor process");
+        trace!("running actor process: pid={}", self.id);
+        let start = Instant::now();
 
         // This is safe because we're not moving any values out.
         let this = unsafe { Pin::get_unchecked_mut(self) };
@@ -80,6 +91,10 @@ impl<S, NA> Process for ActorProcess<S, NA>
             },
             Poll::Pending => ProcessResult::Pending,
         };
+        let elapsed = start.elapsed();
+
+        trace!("finished running actor process: pid={}, elapsed_time={:?}", this.id, elapsed);
+        this.runtime += elapsed;
 
         // Normally this should go in the `Drop` implementation, but we don't
         // have access to a system ref there, so we need to do it here.
@@ -94,6 +109,8 @@ impl<S, NA: NewActor> fmt::Debug for ActorProcess<S, NA> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ActorProcess")
             .field("id", &self.id)
+            .field("priority", &self.priority)
+            .field("runtime", &self.runtime)
             .finish()
     }
 }
