@@ -120,11 +120,9 @@ impl SchedulerRef {
     ///
     /// This API allows the `ProcessId` to be used before the process is actually
     /// added to scheduler.
-    pub fn add_process(&mut self) -> AddingProcess {
-        let processes = self.processes.borrow_mut();
+    pub fn add_process<'s>(&'s mut self) -> AddingProcess<'s> {
         AddingProcess {
-            id: ProcessId(processes.len()),
-            processes,
+            processes: self.processes.borrow_mut()
         }
     }
 }
@@ -134,14 +132,13 @@ impl SchedulerRef {
 /// This allows the `ProcessId` to be determined before the process is actually
 /// added. This is used in registering with the system poller.
 pub struct AddingProcess<'s> {
-    id: ProcessId,
     processes: RefMut<'s, Slab<ProcessState>>,
 }
 
 impl<'s> AddingProcess<'s> {
     /// Get the would be `ProcessId` for the process.
-    pub fn id(&self) -> ProcessId {
-        self.id
+    pub fn pid(&self) -> ProcessId {
+        ProcessId(self.processes.len())
     }
 
     /// Add a new inactive actor process to the scheduler.
@@ -151,25 +148,28 @@ impl<'s> AddingProcess<'s> {
     )
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
-
     {
-        debug!("adding new actor process: pid={}", self.id);
-        let process = Box::pin(ActorProcess::new(self.id, priority, supervisor, new_actor, actor, mailbox, waker));
-        self.add_process(process)
+        let pid = self.pid();
+        debug!("adding new actor process: pid={}", pid);
+        let process = Box::pin(ActorProcess::new(pid, priority, supervisor,
+            new_actor, actor, mailbox, waker));
+        self.add_process(pid, process)
     }
 
     /// Add a new inactive initiator process to the scheduler.
     pub fn add_initiator<I>(self, initiator: I)
         where I: Initiator + 'static,
     {
-        debug!("adding new initiator process: pid={}", self.id);
-        let process = Box::pin(InitiatorProcess::new(self.id, initiator));
-        self.add_process(process)
+        let pid = self.pid();
+        debug!("adding new initiator process: pid={}", pid);
+        let process = Box::pin(InitiatorProcess::new(pid, initiator));
+        self.add_process(pid, process)
     }
 
-    fn add_process(mut self, process: Pin<Box<dyn Process>>) {
+    /// Add a new process to the scheduler.
+    fn add_process(mut self, pid: ProcessId, process: Pin<Box<dyn Process>>) {
         let actual_pid = self.processes.insert(ProcessState::Inactive(process));
-        debug_assert_eq!(actual_pid, self.id.0);
+        debug_assert_eq!(actual_pid, pid.0);
     }
 }
 
