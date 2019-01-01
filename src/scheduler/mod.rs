@@ -8,7 +8,8 @@ use std::pin::Pin;
 use log::{debug, trace};
 use slab::Slab;
 
-use crate::process::{Process, ProcessId, ProcessResult};
+use crate::initiator::Initiator;
+use crate::process::{Process, ProcessId, ProcessResult, InitiatorProcess};
 use crate::system::ActorSystemRef;
 use crate::util::Shared;
 
@@ -146,6 +147,16 @@ impl<'s> AddingProcess<'s> {
         let process = Box::pin(process);
         let actual_pid = self.processes.insert(ProcessState::Inactive(process));
         debug_assert_eq!(actual_pid, pid.0);
+    }
+
+    /// Add a new inactive initiator process to the scheduler.
+    pub fn add_initiator<I>(mut self, initiator: I)
+        where I: Initiator + 'static,
+    {
+        debug!("adding new initiator process: pid={}", self.id);
+        let process = Box::pin(InitiatorProcess::new(self.id, initiator));
+        let actual_pid = self.processes.insert(ProcessState::Inactive(process));
+        debug_assert_eq!(actual_pid, self.id.0);
     }
 }
 
