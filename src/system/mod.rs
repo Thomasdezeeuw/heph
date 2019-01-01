@@ -449,7 +449,7 @@ impl RunningActorSystem {
 
         // Setup adding a new process to the scheduler.
         let process_entry = scheduler_ref.add_process();
-        let pid = process_entry.id();
+        let pid = process_entry.pid();
         trace!("adding initiator to scheduler: pid={}", pid);
 
         // Initialise the initiator.
@@ -726,7 +726,7 @@ impl ActorSystemInternal {
     {
         // Setup adding a new process to the scheduler.
         let process_entry = self.scheduler_ref.add_process();
-        let pid = process_entry.id();
+        let pid = process_entry.pid();
         debug!("adding actor to actor system: pid={}", pid);
 
         // Create our waker, mailbox and actor reference.
