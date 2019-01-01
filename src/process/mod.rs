@@ -6,6 +6,7 @@ use std::time::Duration;
 
 use mio_st::event::EventedId;
 
+use crate::scheduler::Priority;
 use crate::system::ActorSystemRef;
 
 mod actor;
@@ -54,6 +55,9 @@ impl fmt::Display for ProcessId {
 pub trait Process: fmt::Debug {
     /// Get the id of the process.
     fn id(&self) -> ProcessId;
+
+    /// Get the priority of the process.
+    fn priority(&self) -> Priority;
 
     /// Get the fair runtime of this process.
     ///

@@ -42,6 +42,10 @@ impl<I> Process for InitiatorProcess<I>
         self.id
     }
 
+    fn priority(&self) -> Priority {
+        Priority::LOW
+    }
+
     fn fair_runtime(&self) -> Duration {
         // Initiators always have a low priority, this way requests in progress
         // are first handled before new requests are accepted and possibly
