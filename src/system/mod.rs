@@ -69,7 +69,7 @@ use crate::actor::{Actor, ActorContext, NewActor};
 use crate::actor_ref::LocalActorRef;
 use crate::initiator::Initiator;
 use crate::mailbox::MailBox;
-use crate::process::{ActorProcess, ProcessId};
+use crate::process::ProcessId;
 use crate::scheduler::{Scheduler, SchedulerRef};
 use crate::supervisor::Supervisor;
 use crate::util::Shared;
@@ -741,9 +741,8 @@ impl ActorSystemInternal {
         let arg = arg_fn(pid, &mut self.poller)?;
         let actor = new_actor.new(ctx, arg);
 
-        // Create an actor process and add finally add it to the scheduler.
-        let process = ActorProcess::new(pid, options.priority, supervisor, new_actor, actor, mailbox, waker);
-        process_entry.add(process);
+        // Add the actor to the scheduler.
+        process_entry.add_actor(options.priority, supervisor, new_actor, actor, mailbox, waker);
 
         if options.register {
             if self.registry.register::<NA>(actor_ref.clone()).is_some() {

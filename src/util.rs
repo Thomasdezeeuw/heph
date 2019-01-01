@@ -6,7 +6,7 @@ use std::rc::{Rc, Weak};
 /// A `Rc<RefCell<T>>` with some easy to use methods.
 #[derive(Debug)]
 #[repr(transparent)]
-pub(crate) struct Shared<T> {
+pub struct Shared<T> {
     inner: Rc<RefCell<T>>,
 }
 
@@ -58,7 +58,7 @@ impl<T> Clone for Shared<T> {
 /// A `Weak<RefCell<T>>` with some easy to use methods.
 #[derive(Debug)]
 #[repr(transparent)]
-pub(crate) struct WeakShared<T> {
+pub struct WeakShared<T> {
     /// Note: if this representation changes it will break the Actor Registry!
     inner: Weak<RefCell<T>>,
 }
