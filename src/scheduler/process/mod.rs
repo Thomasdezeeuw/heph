@@ -20,14 +20,16 @@ pub use self::actor::ActorProcess;
 pub use self::initiator::InitiatorProcess;
 pub use self::priority::Priority;
 
-/// Process id, or pid for short, is an id for a process in an `ActorSystem`.
+/// Process id, or pid for short, is an identifier for a process in an
+/// [`ActorSystem`].
 ///
 /// This can only be created by the [`Scheduler`] and should be seen as an
 /// opaque type for the rest of the crate. For convince this can converted from
 /// and into an `EventedId` as used by mio.
 ///
-/// [`Scheduler`]: ../scheduler/struct.Scheduler.html
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
+/// [`Scheduler`]: ../struct.Scheduler.html
+/// [`ActorSystem`]: ../../system/struct.ActorSystem.html
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(transparent)]
 pub struct ProcessId(pub usize);
 
@@ -84,7 +86,7 @@ impl PartialEq for dyn Process {
 
 impl Ord for dyn Process {
     fn cmp(&self, other: &Self) -> Ordering {
-        (other.runtime() * self.priority())
+        (other.runtime() * other.priority())
             .cmp(&(self.runtime() * self.priority()))
             .then_with(|| self.priority().cmp(&other.priority()))
     }

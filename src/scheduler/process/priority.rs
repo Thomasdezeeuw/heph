@@ -15,7 +15,7 @@ use std::time::Duration;
 /// Actors with a higher priority will be scheduled to run more often and
 /// quicker (after they return `Poll::Pending`) then actors with a lower
 /// priority.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(transparent)]
 pub struct Priority(NonZeroU8);
 
@@ -71,9 +71,7 @@ impl PartialOrd for Priority {
     }
 }
 
-/// Implementation detail.
-///
-/// Used to calculate the `fair_runtime` more easily.
+/// Implementation detail, please ignore.
 #[doc(hidden)]
 impl Mul<Priority> for Duration {
     type Output = Duration;
