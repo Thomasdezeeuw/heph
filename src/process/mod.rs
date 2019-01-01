@@ -2,6 +2,7 @@
 
 use std::fmt;
 use std::pin::Pin;
+use std::time::Duration;
 
 use mio_st::event::EventedId;
 
@@ -53,6 +54,12 @@ impl fmt::Display for ProcessId {
 pub trait Process: fmt::Debug {
     /// Get the id of the process.
     fn id(&self) -> ProcessId;
+
+    /// Get the fair runtime of this process.
+    ///
+    /// The fair runtime is time the process actually ran * the process'
+    /// `Priority`.
+    fn fair_runtime(&self) -> Duration;
 
     /// Run the process.
     ///

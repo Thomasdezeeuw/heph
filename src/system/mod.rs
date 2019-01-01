@@ -748,7 +748,7 @@ impl ActorSystemInternal {
         let actor = new_actor.new(ctx, arg);
 
         // Create an actor process and add finally add it to the scheduler.
-        let process = ActorProcess::new(pid, supervisor, new_actor, actor, mailbox, waker);
+        let process = ActorProcess::new(pid, options.priority, supervisor, new_actor, actor, mailbox, waker);
         process_entry.add(process, options.priority);
 
         if options.register {
