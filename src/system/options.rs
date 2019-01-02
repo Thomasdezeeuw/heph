@@ -36,6 +36,13 @@ pub struct ActorOptions {
     ///
     /// [Actor Registry]: ../index.html#actor-registry
     pub register: bool,
+    /// This option will schedule the actor to be run when added to the actor
+    /// system, defaults to false.
+    ///
+    /// By default actors added to the actor system will wait for an external
+    /// notification before they start running. This can happen for example by a
+    /// message send to them, or a `TcpStream` becoming ready to read or write.
+    pub schedule: bool,
     /// Reserved for future expansion. Use the `Default` implementation to set
     /// this field, see example in struct documentation.
     #[doc(hidden)]
@@ -47,6 +54,7 @@ impl Default for ActorOptions {
         ActorOptions {
             priority: Priority::default(),
             register: false,
+            schedule: false,
             __private: (),
         }
     }
@@ -57,6 +65,7 @@ impl fmt::Debug for ActorOptions {
         f.debug_struct("ActorOptions")
             .field("priority", &self.priority)
             .field("register", &self.register)
+            .field("schedule", &self.schedule)
             .finish()
     }
 }
