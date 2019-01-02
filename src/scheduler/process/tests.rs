@@ -19,7 +19,7 @@ use crate::initiator::Initiator;
 use crate::scheduler::process::{ActorProcess, InitiatorProcess, Priority, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoopSupervisor, SupervisorStrategy};
 use crate::system::ActorSystemRef;
-use crate::test;
+use crate::test::{init_actor, system_ref};
 use crate::waker::new_waker;
 
 #[test]
@@ -155,7 +155,7 @@ fn actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = ok_actor as fn(_) -> _;
-    let (actor, mut actor_ref) = test::init_actor(new_actor, ());
+    let (actor, mut actor_ref) = init_actor(new_actor, ());
 
     // Create the waker.
     let pid = ProcessId(0);
@@ -174,7 +174,7 @@ fn actor_process() {
 
     // Actor should return `Poll::Pending` in the first call, since no message
     // is available.
-    let mut system_ref = test::system_ref();
+    let mut system_ref = system_ref();
     assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
 
     // Runtime must be increased after each call to run.
@@ -201,7 +201,7 @@ fn erroneous_actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = error_actor as fn(_, _) -> _;
-    let (actor, mut actor_ref) = test::init_actor(new_actor, true);
+    let (actor, mut actor_ref) = init_actor(new_actor, true);
 
     // Create the waker.
     let pid = ProcessId(0);
@@ -219,7 +219,7 @@ fn erroneous_actor_process() {
     assert_eq!(process.runtime(), Duration::from_millis(0));
 
     // Actor should return Err.
-    let mut system_ref = test::system_ref();
+    let mut system_ref = system_ref();
     assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
     assert!(process.runtime() > Duration::from_millis(0));
 }
@@ -229,7 +229,7 @@ fn restarting_erroneous_actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = error_actor as fn(_, _) -> _;
-    let (actor, mut actor_ref) = test::init_actor(new_actor, true);
+    let (actor, mut actor_ref) = init_actor(new_actor, true);
 
     // Create the waker.
     let pid = ProcessId(0);
@@ -256,7 +256,7 @@ fn restarting_erroneous_actor_process() {
     // In the first call to run the actor should return an error. Then it should
     // be restarted. The restarted actor waits for a message, returning
     // `Poll::Pending`.
-    let mut system_ref = test::system_ref();
+    let mut system_ref = system_ref();
     assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
     // Runtime must be increased after each call to run.
     let runtime_after_1_run = process.runtime();
@@ -283,7 +283,7 @@ fn actor_process_runtime_increase() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = sleepy_actor as fn(_, _) -> _;
-    let (actor, mut actor_ref) = test::init_actor(new_actor, SLEEP_TIME);
+    let (actor, mut actor_ref) = init_actor(new_actor, SLEEP_TIME);
 
     // Create the waker.
     let pid = ProcessId(0);
@@ -301,12 +301,12 @@ fn actor_process_runtime_increase() {
     assert_eq!(process.runtime(), Duration::from_millis(0));
 
     // Runtime must increase after running.
-    let mut system_ref = test::system_ref();
+    let mut system_ref = system_ref();
     assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
     assert!(process.runtime() >= SLEEP_TIME);
 }
 
-struct SimpleInitiator {
+pub struct SimpleInitiator {
     called: Arc<AtomicUsize>,
 }
 
@@ -340,7 +340,7 @@ fn initiator_process() {
     assert_eq!(process.runtime(), Duration::from_millis(0));
 
     // Ok run.
-    let mut system_ref = test::system_ref();
+    let mut system_ref = system_ref();
     assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
     assert_eq!(called.load(atomic::Ordering::SeqCst), 1);
     // Runtime must be increased.
@@ -382,7 +382,7 @@ fn initiator_process_runtime_increase() {
     assert_eq!(process.priority(), Priority::LOW);
     assert_eq!(process.runtime(), Duration::from_millis(0));
 
-    let mut system_ref = test::system_ref();
+    let mut system_ref = system_ref();
     assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
     assert!(process.runtime() >= SLEEP_TIME);
 }
