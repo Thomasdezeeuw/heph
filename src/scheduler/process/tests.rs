@@ -7,6 +7,7 @@ use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicBool, AtomicUsize};
+use std::thread::sleep;
 use std::time::Duration;
 
 use crossbeam_channel as channel;
@@ -269,6 +270,42 @@ fn restarting_erroneous_actor_process() {
     assert!(process.runtime() > runtime_after_1_run);
 }
 
+async fn sleepy_actor(ctx: ActorContext<()>, sleep_time: Duration) -> Result<(), !> {
+    sleep(sleep_time);
+    drop(ctx);
+    Ok(())
+}
+
+#[test]
+fn actor_process_runtime_increase() {
+    const SLEEP_TIME: Duration = Duration::from_millis(10);
+
+    // Create our actor.
+    #[allow(trivial_casts)]
+    let new_actor = sleepy_actor as fn(_, _) -> _;
+    let (actor, mut actor_ref) = test::init_actor(new_actor, SLEEP_TIME);
+
+    // Create the waker.
+    let pid = ProcessId(0);
+    let (sender, _) = channel::unbounded();
+    let waker = new_waker(pid, sender);
+
+    // Create our process.
+    let inbox = actor_ref.get_inbox().unwrap();
+    let process = ActorProcess::new(pid, Priority::NORMAL, NoopSupervisor,
+        new_actor, actor, inbox, waker);
+    let mut process = Box::pin(process);
+
+    assert_eq!(process.id(), ProcessId(0));
+    assert_eq!(process.priority(), Priority::NORMAL);
+    assert_eq!(process.runtime(), Duration::from_millis(0));
+
+    // Runtime must increase after running.
+    let mut system_ref = test::system_ref();
+    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
+    assert!(process.runtime() >= SLEEP_TIME);
+}
+
 struct SimpleInitiator {
     called: Arc<AtomicUsize>,
 }
@@ -314,4 +351,38 @@ fn initiator_process() {
     assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
     assert_eq!(called.load(atomic::Ordering::SeqCst), 2);
     assert!(process.runtime() > runtime_after_1_run);
+}
+
+struct SleepyInitiator(Duration);
+
+impl Initiator for SleepyInitiator {
+    fn clone_threaded(&self) -> io::Result<Self> {
+        unreachable!();
+    }
+
+    fn init(&mut self, _: &mut Poller, _: ProcessId) -> io::Result<()> {
+        unreachable!();
+    }
+
+    fn poll(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
+        sleep(self.0);
+        Ok(())
+    }
+}
+
+#[test]
+fn initiator_process_runtime_increase() {
+    const SLEEP_TIME: Duration = Duration::from_millis(10);
+
+    let initiator = SleepyInitiator(SLEEP_TIME);
+    let mut process = InitiatorProcess::new(ProcessId(0), initiator);
+    let mut process = Pin::new(&mut process);
+
+    assert_eq!(process.id(), ProcessId(0));
+    assert_eq!(process.priority(), Priority::LOW);
+    assert_eq!(process.runtime(), Duration::from_millis(0));
+
+    let mut system_ref = test::system_ref();
+    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
+    assert!(process.runtime() >= SLEEP_TIME);
 }
