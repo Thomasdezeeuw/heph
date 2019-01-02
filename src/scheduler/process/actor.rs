@@ -74,20 +74,20 @@ impl<S, NA> Process for ActorProcess<S, NA>
         trace!("running actor process: pid={}", self.id);
         let start = Instant::now();
 
-        // This is safe because we're not moving any values out.
+        // This is safe because we're not moving any values.
         let this = unsafe { Pin::get_unchecked_mut(self) };
 
         // The actor need to be called with `Pin`. So we're undoing the previous
         // operation, still making sure that the actor is not moved.
-        let pinned_actor = unsafe { Pin::new_unchecked(&mut this.actor) };
-        let result = match Actor::try_poll(pinned_actor, &this.waker) {
+        let mut pinned_actor = unsafe { Pin::new_unchecked(&mut this.actor) };
+        let result = match Actor::try_poll(pinned_actor.as_mut(), &this.waker) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
             Poll::Ready(Err(err)) => {
                 match this.supervisor.decide(err) {
                     SupervisorStrategy::Restart(arg) => {
                         // Create a new actor.
                         let ctx = ActorContext::new(this.id, system_ref.clone(), this.inbox.clone());
-                        this.actor = this.new_actor.new(ctx, arg);
+                        pinned_actor.set(this.new_actor.new(ctx, arg));
                         // Run the actor, just in case progress can be made
                         // already.
                         return unsafe { Pin::new_unchecked(this) }.run(system_ref);
