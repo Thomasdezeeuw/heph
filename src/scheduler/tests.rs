@@ -1,18 +1,26 @@
 //! Tests for the scheduler.
 
-use std::cmp::Ordering;
-use std::mem;
+// TODO: test not moving Actor inside ActorProcess, depends on
+// https://github.com/rust-lang-nursery/futures-rs/issues/1385.
+
+use std::{io, mem};
 use std::pin::Pin;
-use std::thread::sleep;
+use std::sync::Arc;
+use std::sync::atomic::{self, AtomicUsize};
 use std::time::Duration;
 
-use env_logger;
+use crossbeam_channel as channel;
+use mio_st::poll::Poller;
 
-use crate::process::{Process, ProcessId, ProcessResult};
-use crate::scheduler::{Priority, ProcessData, ProcessState, Scheduler};
+use crate::actor::ActorContext;
+use crate::initiator::Initiator;
+use crate::scheduler::process::{Process, ProcessId, ProcessResult};
+use crate::scheduler::{Priority, ProcessState, Scheduler};
+use crate::supervisor::NoopSupervisor;
 use crate::system::ActorSystemRef;
-use crate::test;
+use crate::test::{init_actor, system_ref};
 use crate::util::Shared;
+use crate::waker::new_waker;
 
 fn assert_size<T>(expected: usize) {
     assert_eq!(mem::size_of::<T>(), expected);
@@ -20,162 +28,266 @@ fn assert_size<T>(expected: usize) {
 
 #[test]
 fn size_assertions() {
-    assert_size::<ProcessState>(mem::size_of::<Box<ProcessData>>());
-}
-
-#[derive(Debug)]
-pub struct EmptyProcess;
-
-impl Process for EmptyProcess {
-    fn run(self: Pin<&mut Self>, _: &mut ActorSystemRef) -> ProcessResult {
-        unreachable!();
-    }
-}
-
-#[test]
-fn process_data_equality() {
-    let pid = ProcessId(0);
-    let left = ProcessData::new(pid, Priority::LOW, EmptyProcess);
-    let right = ProcessData::new(pid, Priority::HIGH, EmptyProcess);
-    // Equality solely based on the process id.
-    assert_eq!(left, right);
-}
-
-#[test]
-fn process_data_order() {
-    let pid = ProcessId(0);
-
-    // Same fair_runtime and priority.
-    let mut left = ProcessData::new(pid, Priority::NORMAL, EmptyProcess);
-    let right = ProcessData::new(pid, Priority::NORMAL, EmptyProcess);
-    assert_eq!(left.cmp(&right), Ordering::Equal);
-
-    // Different fair_runtime
-    left.fair_runtime += Duration::from_millis(1);
-    assert_eq!(left.cmp(&right), Ordering::Less);
-    assert_eq!(right.cmp(&left), Ordering::Greater);
-
-    // Same fair_runtime, left has a higher priority.
-    let left = ProcessData::new(pid, Priority::HIGH, EmptyProcess);
-    let right = ProcessData::new(pid, Priority::NORMAL, EmptyProcess);
-    assert_eq!(left.cmp(&right), Ordering::Greater);
-
-    // Different fair_runtime, left has a higher priority.
-    let mut left = ProcessData::new(pid, Priority::HIGH, EmptyProcess);
-    left.fair_runtime += Duration::from_millis(1);
-    let right = ProcessData::new(pid, Priority::NORMAL, EmptyProcess);
-    assert_eq!(left.cmp(&right), Ordering::Less);
-}
-
-#[derive(Debug)]
-struct SleepyProcess(Duration);
-
-impl Process for SleepyProcess {
-    fn run(self: Pin<&mut Self>, _: &mut ActorSystemRef) -> ProcessResult {
-        sleep(self.0);
-        ProcessResult::Pending
-    }
-}
-
-#[test]
-fn process_data() {
-    const SLEEP_MARGIN: Duration = Duration::from_millis(5);
-
-    let sleep = Duration::from_millis(1);
-    let pid = ProcessId(0);
-
-    let mut system_ref = test::system_ref();
-
-    let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
-    for priority in priorities.into_iter() {
-        let priority = *priority;
-        let mut process_data = ProcessData::new(pid, priority, SleepyProcess(sleep));
-
-        assert_eq!(process_data.id(), pid);
-
-        assert_eq!(process_data.run(&mut system_ref), ProcessResult::Pending);
-        // Roughly check that the fair runtime is set correctly.
-        assert!(process_data.fair_runtime > sleep * priority);
-        assert!(process_data.fair_runtime < sleep * priority + (SLEEP_MARGIN * priority));
-    }
-}
-
-#[test]
-fn process_state() {
-    let process_data = ProcessData::new(ProcessId(0), Priority::NORMAL, EmptyProcess);
-
-    let mut process_state = ProcessState::Active;
-    assert!(process_state.is_active());
-
-    process_state.mark_inactive(Box::new(process_data));
-    assert!(!process_state.is_active());
-
-    let process_data = process_state.mark_active();
-    assert!(process_state.is_active());
-    assert_eq!(process_data.id(), ProcessId(0));
+    assert_size::<ProcessState>(mem::size_of::<Pin<Box<dyn Process>>>());
 }
 
 #[derive(Debug)]
 struct TestProcess {
     id: ProcessId,
-    order: Shared<Vec<usize>>,
+    priority: Priority,
+    result: ProcessResult,
+}
+
+impl TestProcess {
+    fn new(id: ProcessId, priority: Priority, result: ProcessResult) -> Pin<Box<dyn Process>> {
+        Box::pin(TestProcess { id, priority, result })
+    }
 }
 
 impl Process for TestProcess {
-    fn run(mut self: Pin<&mut Self>, _: &mut ActorSystemRef) -> ProcessResult {
-        let id = self.id.0;
-        self.order.borrow_mut().push(id);
-        match self.id.0 {
-            0 => {
-                self.id = ProcessId(10);
-                ProcessResult::Pending
-            },
-            _ => ProcessResult::Complete,
+    fn id(&self) -> ProcessId {
+        self.id
+    }
+
+    fn priority(&self) -> Priority {
+        self.priority
+    }
+
+    fn runtime(&self) -> Duration {
+        Duration::from_millis(0)
+    }
+
+    fn run(self: Pin<&mut Self>, _system_ref: &mut ActorSystemRef) -> ProcessResult {
+        self.result
+    }
+}
+
+#[test]
+fn process_state() {
+    let mut process_state = ProcessState::Active;
+    assert!(process_state.is_active());
+
+    let process = TestProcess::new(ProcessId(0), Priority::NORMAL, ProcessResult::Complete);
+    process_state.mark_inactive(process);
+    assert!(!process_state.is_active());
+
+    let process = process_state.mark_active();
+    assert!(process_state.is_active());
+    assert_eq!(process.id(), ProcessId(0));
+    assert_eq!(process.priority(), Priority::NORMAL);
+}
+
+#[test]
+fn scheduler() {
+    let (mut scheduler, mut scheduler_ref) = Scheduler::new();
+    let mut system_ref = system_ref();
+
+    // Shouldn't run any process yet, since none are added.
+    assert!(!scheduler.process_ready());
+    assert!(!scheduler.run_process(&mut system_ref));
+
+    // Scheduling an unknown process should do nothing.
+    scheduler.schedule(ProcessId(0));
+    assert!(!scheduler.process_ready());
+    assert!(!scheduler.run_process(&mut system_ref));
+
+    // Add a process to the scheduler.
+    let pid = ProcessId(0);
+    let process = TestProcess::new(pid, Priority::NORMAL, ProcessResult::Complete);
+    let process_entry = scheduler_ref.add_process();
+    assert_eq!(process_entry.pid(), pid);
+    process_entry.add_process(pid, process);
+
+    // Newly added processes aren't ready by default.
+    assert!(!scheduler.process_ready());
+    assert!(!scheduler.run_process(&mut system_ref));
+
+    // After scheduling the process should be ready to run.
+    scheduler.schedule(pid);
+    assert!(scheduler.process_ready());
+    assert!(scheduler.run_process(&mut system_ref));
+    // After the process is run, and returned `ProcessResult::Complete`, it
+    // should be removed.
+    assert!(!scheduler.process_ready());
+    assert!(!scheduler.run_process(&mut system_ref));
+
+    // Since the previous process was completed it should be removed, which
+    // means the pid will be reused.
+    let process = TestProcess::new(pid, Priority::NORMAL, ProcessResult::Pending);
+    let process_entry = scheduler_ref.add_process();
+    assert_eq!(process_entry.pid(), pid);
+    process_entry.add_process(pid, process);
+
+    // Again newly added processes aren't ready by default.
+    assert!(!scheduler.process_ready());
+    assert!(!scheduler.run_process(&mut system_ref));
+
+    // After scheduling the process should be ready to run.
+    scheduler.schedule(pid);
+    assert!(scheduler.process_ready());
+    assert!(scheduler.run_process(&mut system_ref));
+    // Even though the process was not completed it is no longer ready to run.
+    assert!(!scheduler.process_ready());
+    assert!(!scheduler.run_process(&mut system_ref));
+}
+
+#[derive(Debug)]
+struct OrderTestProcess {
+    id: ProcessId,
+    priority: Priority,
+    runtime: Duration,
+    order: Shared<Vec<usize>>,
+}
+
+impl OrderTestProcess {
+    fn new(id: ProcessId, priority: Priority, order: Shared<Vec<usize>>) -> Pin<Box<dyn Process>> {
+        Box::pin(OrderTestProcess { id, priority, runtime: Duration::from_millis(0), order })
+    }
+}
+
+impl Process for OrderTestProcess {
+    fn id(&self) -> ProcessId {
+        self.id
+    }
+
+    fn priority(&self) -> Priority {
+        self.priority
+    }
+
+    fn runtime(&self) -> Duration {
+        self.runtime
+    }
+
+    fn run(mut self: Pin<&mut Self>, _system_ref: &mut ActorSystemRef) -> ProcessResult {
+        let pid = self.id;
+        self.order.borrow_mut().push(pid.0);
+        self.runtime += Duration::from_millis(10);
+        ProcessResult::Pending
+    }
+}
+
+#[test]
+fn scheduler_run_order() {
+    let (mut scheduler, mut scheduler_ref) = Scheduler::new();
+    let mut system_ref = system_ref();
+
+    // The order in which the processes have been run.
+    let run_order = Shared::new(Vec::new());
+
+    // Add our processes.
+    let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
+    for priority in priorities.iter() {
+        let process_entry = scheduler_ref.add_process();
+        let pid = process_entry.pid();
+        let process = OrderTestProcess::new(pid, *priority, run_order.clone());
+        process_entry.add_process(pid, process);
+    }
+
+    // Schedule all processes.
+    for pid in 0..3 {
+        scheduler.schedule(ProcessId(pid));
+    }
+    assert!(scheduler.process_ready());
+
+    // Run all processes, should be in order of priority (since there runtimes
+    // are equal).
+    for _ in 0..3 {
+        assert!(scheduler.run_process(&mut system_ref));
+    }
+    assert!(!scheduler.process_ready());
+    assert_eq!(*run_order.borrow(), vec![2, 1, 0]);
+}
+
+async fn actor(mut ctx: ActorContext<()>) -> Result<(), !> {
+    let _msg = await!(ctx.receive());
+    Ok(())
+}
+
+#[test]
+fn actor_process() {
+    let (mut scheduler, mut scheduler_ref) = Scheduler::new();
+    let mut system_ref = system_ref();
+
+    // Create our actor.
+    #[allow(trivial_casts)]
+    let new_actor = actor as fn(_) -> _;
+    let (actor, mut actor_ref) = init_actor(new_actor, ());
+
+    // Create the waker.
+    let pid = ProcessId(0);
+    let (sender, _) = channel::unbounded();
+    let waker = new_waker(pid, sender);
+
+    // Add the actor to the scheduler.
+    let process_entry = scheduler_ref.add_process();
+    let inbox = actor_ref.get_inbox().unwrap();
+    process_entry.add_actor(Priority::NORMAL, NoopSupervisor, new_actor, actor,
+        inbox, waker);
+
+    // Schedule and run, should return Pending and become inactive.
+    scheduler.schedule(ProcessId(0));
+    assert!(scheduler.run_process(&mut system_ref));
+    assert!(!scheduler.process_ready());
+
+    // Send a message to the actor, schedule and run again. This time it should
+    // complete.
+    actor_ref.send(()).unwrap();
+    scheduler.schedule(ProcessId(0));
+    assert!(scheduler.run_process(&mut system_ref));
+
+    // Now no processes should be ready.
+    scheduler.schedule(ProcessId(0));
+    assert!(!scheduler.process_ready());
+    assert!(!scheduler.run_process(&mut system_ref));
+}
+
+pub struct SimpleInitiator {
+    called: Arc<AtomicUsize>,
+}
+
+impl Initiator for SimpleInitiator {
+    fn clone_threaded(&self) -> io::Result<Self> {
+        unreachable!();
+    }
+
+    fn init(&mut self, _: &mut Poller, _: ProcessId) -> io::Result<()> {
+        unreachable!();
+    }
+
+    fn poll(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
+        match self.called.fetch_add(1, atomic::Ordering::SeqCst) {
+            0 => Ok(()),
+            1 => Err(io::ErrorKind::Other.into()),
+            _ => unreachable!(),
         }
     }
 }
 
 #[test]
-fn scheduler() {
-    env_logger::init();
-
-    let mut system_ref = test::system_ref();
-
-    // In which order the processes have been run.
-    let run_order = Shared::new(Vec::new());
-
+fn adding_initiator_process() {
     let (mut scheduler, mut scheduler_ref) = Scheduler::new();
+    let mut system_ref = system_ref();
 
-    // Add our processes.
-    let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
-    for priority in priorities.iter() {
-        let priority = *priority;
-        let process_entry = scheduler_ref.add_process();
-        let id = process_entry.id();
-        let process = TestProcess { id, order: run_order.clone() };
-        process_entry.add(process, priority);
-    }
+    // Add the initiator to the scheduler.
+    let called = Arc::new(AtomicUsize::new(0));
+    let initiator = SimpleInitiator { called: Arc::clone(&called) };
+    let process_entry = scheduler_ref.add_process();
+    process_entry.add_initiator(initiator);
 
-    // Schedule and run all processes.
-    for id in 0 .. 3 {
-        scheduler.schedule(ProcessId(id));
-    }
-    assert!(scheduler.process_ready());
-    for _ in 0 .. 3 {
-        let process_ran = scheduler.run_process(&mut system_ref);
-        assert!(process_ran);
-    }
-
-    // Only a single process left, which is inactive.
-    assert_eq!(scheduler.run_process(&mut system_ref), false);
-    assert!(!scheduler.process_ready());
-
-    // Active and run the last process, which also completes.
+    // Schedule and run, should return Ok and become inactive.
     scheduler.schedule(ProcessId(0));
-    assert!(scheduler.process_ready());
-    assert_eq!(scheduler.run_process(&mut system_ref), true);
-    assert_eq!(scheduler.run_process(&mut system_ref), false);
+    assert!(scheduler.run_process(&mut system_ref));
+    assert_eq!(called.load(atomic::Ordering::SeqCst), 1);
     assert!(!scheduler.process_ready());
 
-    assert_eq!(*run_order.borrow(), vec![2, 1, 0, 10]);
+    // Schedule and run again, should return an error this time and be removed.
+    scheduler.schedule(ProcessId(0));
+    assert!(scheduler.run_process(&mut system_ref));
+    assert_eq!(called.load(atomic::Ordering::SeqCst), 2);
+
+    // Now no processes should be ready.
+    scheduler.schedule(ProcessId(0));
+    assert!(!scheduler.process_ready());
+    assert!(!scheduler.run_process(&mut system_ref));
+    assert_eq!(called.load(atomic::Ordering::SeqCst), 2);
 }
