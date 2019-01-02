@@ -748,6 +748,9 @@ impl ActorSystemInternal {
                 panic!("can't overwrite a previously registered actor in the Actor Registry");
             }
         }
+        if options.schedule {
+            self.waker_notifications.send(pid);
+        }
 
         Ok(actor_ref)
     }
