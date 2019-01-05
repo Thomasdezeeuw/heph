@@ -29,7 +29,7 @@ log                  = "0.4.6"
 mio-st               = "0.2.1"
 num_cpus             = "1.8.0"
 slab                 = "0.4.0"
-std-logger           = "0.3.1"
+std-logger           = "0.3.2"
 
 [dev-dependencies]
 # Replace with released version.
