@@ -136,7 +136,7 @@ pub use self::error::RuntimeError;
 /// use std::io;
 ///
 /// use heph::actor::ActorContext;
-/// use heph::supervisor::NoopSupervisor;
+/// use heph::supervisor::NoSupervisor;
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 ///
 /// /// Our actor that greets people.
@@ -151,7 +151,7 @@ pub use self::error::RuntimeError;
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///     // Add the actor to the system.
 ///     let new_actor = greeter_actor as fn(_, _) -> _;
-///     let mut actor_ref = system_ref.spawn(NoopSupervisor, new_actor, "Hello", ActorOptions::default());
+///     let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, "Hello", ActorOptions::default());
 ///
 ///     // Send a message to the actor.
 ///     actor_ref.send("World")?;
@@ -622,7 +622,7 @@ impl ActorSystemRef {
     /// use std::io;
     ///
     /// use heph::actor::ActorContext;
-    /// use heph::supervisor::NoopSupervisor;
+    /// use heph::supervisor::NoSupervisor;
     /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
     ///
     /// /// Our actor implemented as an asynchronous function.
@@ -634,7 +634,7 @@ impl ActorSystemRef {
     /// /// Setup function used in starting the `ActorSystem`.
     /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     ///     // Add the actor to the system, enabling registering of the actor.
-    ///     let actor_ref1 = system_ref.spawn(NoopSupervisor, actor as fn(_) -> _,
+    ///     let actor_ref1 = system_ref.spawn(NoSupervisor, actor as fn(_) -> _,
     ///         (), ActorOptions { register: true, .. ActorOptions::default() });
     ///
     ///     // Unfortunately this won't compile. :(

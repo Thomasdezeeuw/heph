@@ -40,7 +40,7 @@
 //! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
 //! use heph::actor::ActorContext;
-//! use heph::supervisor::NoopSupervisor;
+//! use heph::supervisor::NoSupervisor;
 //! use heph::system::{ActorOptions, ActorSystem, RuntimeError};
 //!
 //! /// Our actor.
@@ -54,7 +54,7 @@
 //!     ActorSystem::new().with_setup(|mut system_ref| {
 //!         // Add the actor to the actor system.
 //!         let new_actor = actor as fn (_) -> _;
-//!         let mut actor_ref = system_ref.spawn(NoopSupervisor, new_actor, (), ActorOptions::default());
+//!         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
 //!
 //!         // Now we can use the reference to send the actor a message.
 //!         actor_ref.send("Hello world".to_owned());
@@ -76,7 +76,7 @@
 //! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
 //! use heph::actor::ActorContext;
-//! use heph::supervisor::NoopSupervisor;
+//! use heph::supervisor::NoSupervisor;
 //! use heph::system::{ActorOptions, ActorSystem, RuntimeError};
 //!
 //! /// Our actor.
@@ -92,7 +92,7 @@
 //! fn main() -> Result<(), RuntimeError> {
 //!      ActorSystem::new().with_setup(|mut system_ref| {
 //!         let new_actor = actor as fn (_) -> _;
-//!         let mut actor_ref = system_ref.spawn(NoopSupervisor, new_actor, (), ActorOptions::default());
+//!         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
 //!
 //!         // To create another actor reference we can simply clone the first one.
 //!         let mut second_actor_ref = actor_ref.clone();

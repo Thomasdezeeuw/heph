@@ -8,7 +8,7 @@ use std::thread;
 use std::time::Duration;
 
 use heph::actor::ActorContext;
-use heph::supervisor::NoopSupervisor;
+use heph::supervisor::NoSupervisor;
 use heph::system::{ActorSystem, ActorOptions, RuntimeError};
 
 /// Our "actor", but it doesn't do much.
@@ -20,7 +20,7 @@ fn main() -> Result<(), RuntimeError> {
     ActorSystem::new()
         .with_setup(|mut system_ref| {
             for _ in 0..10_000_000 {
-                let _ = system_ref.spawn(NoopSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
+                let _ = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
             }
 
             println!("Running, check the memory usage!");

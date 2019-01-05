@@ -3,7 +3,7 @@
 use std::io;
 
 use heph::actor::ActorContext;
-use heph::supervisor::NoopSupervisor;
+use heph::supervisor::NoSupervisor;
 use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, RuntimeError};
 
 /// Our greeter actor.
@@ -20,11 +20,11 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // Add our `greeter_actor` to the actor system.
     // All actors need supervision, however our actor doesn't return an error
     // (it uses `!` as error type), because of this we'll use the
-    // `NoopSupervisor`, which is a no-op supervisor.
+    // `NoSupervisor`, which is a no-op supervisor.
     // Along with the supervisor we'll also supply the argument to start the
     // actor, in our case this is `()` since our actor doesn't accept arguments.
     // We'll use the default actor options here.
-    let mut actor_ref = system_ref.spawn(NoopSupervisor, greeter_actor as fn(_) -> _, (), ActorOptions::default());
+    let mut actor_ref = system_ref.spawn(NoSupervisor, greeter_actor as fn(_) -> _, (), ActorOptions::default());
 
     // By default actors don't do anything when added to the actor system. We
     // need to wake them, for example by sending them a message.
