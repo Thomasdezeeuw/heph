@@ -101,7 +101,7 @@ impl<S, NA> Process for ActorProcess<S, NA>
         }
 
         let elapsed = start.elapsed();
-        trace!("finished running actor process: pid={}, elapsed_time={:?}", this.id, elapsed);
+        trace!("finished running actor process: pid={}, elapsed_time={:?}, result={:?}", this.id, elapsed, result);
         this.runtime += elapsed;
 
         result
