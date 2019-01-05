@@ -65,10 +65,11 @@ impl<I> Process for InitiatorProcess<I>
                 ProcessResult::Complete
             },
         };
-        let elapsed = start.elapsed();
 
-        trace!("finished running initiator process: pid={}, elapsed_time={:?}", this.id, elapsed);
+        let elapsed = start.elapsed();
+        trace!("finished running initiator process: pid={}, elapsed_time={:?}, result={:?}", this.id, elapsed, result);
         this.runtime += elapsed;
+
         result
     }
 }
