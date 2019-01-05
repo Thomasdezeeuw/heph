@@ -10,9 +10,11 @@ use std::sync::atomic::{self, AtomicUsize};
 use std::time::Duration;
 
 use crossbeam_channel as channel;
+use futures_test::future::{AssertUnmoved, FutureTestExt};
+use futures_util::future::{empty, Empty};
 use mio_st::poll::Poller;
 
-use crate::actor::ActorContext;
+use crate::actor::{ActorContext, NewActor};
 use crate::initiator::Initiator;
 use crate::scheduler::process::{Process, ProcessId, ProcessResult};
 use crate::scheduler::{Priority, ProcessState, Scheduler};
@@ -239,6 +241,50 @@ fn actor_process() {
     scheduler.schedule(ProcessId(0));
     assert!(!scheduler.process_ready());
     assert!(!scheduler.run_process(&mut system_ref));
+}
+
+struct TestNewActor;
+
+impl NewActor for TestNewActor {
+    type Message = ();
+    type Argument = ();
+    type Actor = AssertUnmoved<Empty<Result<(), !>>>;
+
+    fn new(&mut self, ctx: ActorContext<Self::Message>, _arg: Self::Argument) -> Self::Actor {
+        // In the test we need the access to the inbox, to achieve that we can't
+        // drop the context, so we forget about it here leaking the inbox.
+        mem::forget(ctx);
+        empty().assert_unmoved()
+    }
+}
+
+#[test]
+fn assert_actor_unmoved() {
+    let (mut scheduler, mut scheduler_ref) = Scheduler::new();
+    let mut system_ref = system_ref();
+
+    // Create our actor.
+    let (actor, mut actor_ref) = init_actor(TestNewActor, ());
+
+    // Create the waker.
+    let pid = ProcessId(0);
+    let (sender, _) = channel::unbounded();
+    let waker = new_waker(pid, sender);
+
+    // Add the actor to the scheduler.
+    let process_entry = scheduler_ref.add_process();
+    let inbox = actor_ref.get_inbox().unwrap();
+    process_entry.add_actor(Priority::NORMAL, NoopSupervisor, TestNewActor,
+        actor, inbox, waker);
+
+    // Schedule and run the process multiple times, ensure it's not moved in the
+    // process.
+    scheduler.schedule(ProcessId(0));
+    assert!(scheduler.run_process(&mut system_ref));
+    scheduler.schedule(ProcessId(0));
+    assert!(scheduler.run_process(&mut system_ref));
+    scheduler.schedule(ProcessId(0));
+    assert!(scheduler.run_process(&mut system_ref));
 }
 
 pub struct SimpleInitiator {
