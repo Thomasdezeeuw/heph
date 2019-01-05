@@ -3,7 +3,7 @@
 use std::io;
 
 use heph::actor::ActorContext;
-use heph::supervisor::NoopSupervisor;
+use heph::supervisor::NoSupervisor;
 use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, RuntimeError};
 
 /// Our greeter actor.
@@ -19,7 +19,7 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // to run when added to the actor system. This is needed because otherwise
     // is never run, since it doesn't receive any external events to schedule
     // the actor such as sending it a message in example 1.
-    system_ref.spawn(NoopSupervisor, greeter_actor as fn(_) -> _, (),
+    system_ref.spawn(NoSupervisor, greeter_actor as fn(_) -> _, (),
         ActorOptions {
             schedule: true,
             .. ActorOptions::default()

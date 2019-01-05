@@ -18,7 +18,7 @@ use crate::actor::{ActorContext, NewActor};
 use crate::initiator::Initiator;
 use crate::scheduler::process::{Process, ProcessId, ProcessResult};
 use crate::scheduler::{Priority, ProcessState, Scheduler};
-use crate::supervisor::NoopSupervisor;
+use crate::supervisor::NoSupervisor;
 use crate::system::ActorSystemRef;
 use crate::test::{init_actor, system_ref};
 use crate::util::Shared;
@@ -223,7 +223,7 @@ fn actor_process() {
     // Add the actor to the scheduler.
     let process_entry = scheduler_ref.add_process();
     let inbox = actor_ref.get_inbox().unwrap();
-    process_entry.add_actor(Priority::NORMAL, NoopSupervisor, new_actor, actor,
+    process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor,
         inbox, waker);
 
     // Schedule and run, should return Pending and become inactive.
@@ -274,7 +274,7 @@ fn assert_actor_unmoved() {
     // Add the actor to the scheduler.
     let process_entry = scheduler_ref.add_process();
     let inbox = actor_ref.get_inbox().unwrap();
-    process_entry.add_actor(Priority::NORMAL, NoopSupervisor, TestNewActor,
+    process_entry.add_actor(Priority::NORMAL, NoSupervisor, TestNewActor,
         actor, inbox, waker);
 
     // Schedule and run the process multiple times, ensure it's not moved in the

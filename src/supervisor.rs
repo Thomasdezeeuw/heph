@@ -111,7 +111,7 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
     }
 }
 
-/// No-op supervisor for actors that never return an error.
+/// A supervisor implementation for actors that never return an error.
 ///
 /// This supervisor does nothing and can't actually be called, it can only serve
 /// as supervisor for actors with the never type (`!`) as error type.
@@ -124,7 +124,7 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 /// use std::io;
 ///
 /// use heph::actor::ActorContext;
-/// use heph::supervisor::NoopSupervisor;
+/// use heph::supervisor::NoSupervisor;
 /// use heph::system::{ActorSystem, ActorOptions, RuntimeError};
 ///
 /// /// Our actor that never returns an error.
@@ -134,16 +134,16 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 ///
 /// fn main() -> Result<(), RuntimeError> {
 ///     ActorSystem::new().with_setup(|mut system_ref| {
-///         system_ref.spawn(NoopSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
+///         system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
 ///         Ok(())
 ///     })
 ///     .run()
 /// }
 /// ```
 #[derive(Copy, Clone, Debug)]
-pub struct NoopSupervisor;
+pub struct NoSupervisor;
 
-impl<Arg> Supervisor<!, Arg> for NoopSupervisor {
+impl<Arg> Supervisor<!, Arg> for NoSupervisor {
     fn decide(&mut self, _error: !) -> SupervisorStrategy<Arg> {
         // This can't be called.
         SupervisorStrategy::Stop

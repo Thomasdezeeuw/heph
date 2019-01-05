@@ -10,14 +10,14 @@ use log::{error, info};
 use heph::actor::ActorContext;
 use heph::log::REQUEST_TARGET;
 use heph::net::{TcpListener, TcpStream};
-use heph::supervisor::{SupervisorStrategy, NoopSupervisor};
+use heph::supervisor::{SupervisorStrategy, NoSupervisor};
 use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, InitiatorOptions, RuntimeError};
 
 /// This is our setup function that will add the count actor to the actor
 /// system, much like the `add_greeter_actor` in example 1.
 fn add_count_actor(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // Just like in example 1 we'll add our actor to the system.
-    system_ref.spawn(NoopSupervisor, count_actor as fn(_) -> _, (),
+    system_ref.spawn(NoSupervisor, count_actor as fn(_) -> _, (),
         ActorOptions {
             // But this example we'll use the `register` option. This registers
             // the actor in the actor registry and allows it to be looked up,

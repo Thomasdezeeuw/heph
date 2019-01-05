@@ -20,7 +20,7 @@ use mio_st::poll::Poller;
 use crate::actor::{ActorContext, NewActor};
 use crate::initiator::Initiator;
 use crate::scheduler::process::{ActorProcess, InitiatorProcess, Priority, Process, ProcessId, ProcessResult};
-use crate::supervisor::{NoopSupervisor, SupervisorStrategy};
+use crate::supervisor::{NoSupervisor, SupervisorStrategy};
 use crate::system::ActorSystemRef;
 use crate::test::{init_actor, system_ref};
 use crate::waker::new_waker;
@@ -167,7 +167,7 @@ fn actor_process() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(pid, Priority::NORMAL, NoopSupervisor,
+    let process = ActorProcess::new(pid, Priority::NORMAL, NoSupervisor,
         new_actor, actor, inbox, waker);
     let mut process = Box::pin(process);
 
@@ -295,7 +295,7 @@ fn actor_process_runtime_increase() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(pid, Priority::NORMAL, NoopSupervisor,
+    let process = ActorProcess::new(pid, Priority::NORMAL, NoSupervisor,
         new_actor, actor, inbox, waker);
     let mut process = Box::pin(process);
 
@@ -336,7 +336,7 @@ fn actor_process_assert_actor_unmoved() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(pid, Priority::NORMAL, NoopSupervisor,
+    let process = ActorProcess::new(pid, Priority::NORMAL, NoSupervisor,
         TestAssertUnmovedNewActor, actor, inbox, waker);
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
