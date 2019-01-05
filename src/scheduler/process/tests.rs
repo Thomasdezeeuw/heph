@@ -4,6 +4,7 @@
 
 use std::cmp::Ordering;
 use std::io;
+use std::mem::forget;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{self, AtomicBool, AtomicUsize};
@@ -11,10 +12,12 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use crossbeam_channel as channel;
+use futures_test::future::{AssertUnmoved, FutureTestExt};
+use futures_util::future::{empty, Empty};
 use mio_st::event::EventedId;
 use mio_st::poll::Poller;
 
-use crate::actor::ActorContext;
+use crate::actor::{ActorContext, NewActor};
 use crate::initiator::Initiator;
 use crate::scheduler::process::{ActorProcess, InitiatorProcess, Priority, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoopSupervisor, SupervisorStrategy};
@@ -304,6 +307,49 @@ fn actor_process_runtime_increase() {
     let mut system_ref = system_ref();
     assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
     assert!(process.runtime() >= SLEEP_TIME);
+}
+
+struct TestAssertUnmovedNewActor;
+
+impl NewActor for TestAssertUnmovedNewActor {
+    type Message = ();
+    type Argument = ();
+    type Actor = AssertUnmoved<Empty<Result<(), !>>>;
+
+    fn new(&mut self, ctx: ActorContext<Self::Message>, _arg: Self::Argument) -> Self::Actor {
+        // In the test we need the access to the inbox, to achieve that we can't
+        // drop the context, so we forget about it here leaking the inbox.
+        forget(ctx);
+        empty().assert_unmoved()
+    }
+}
+
+#[test]
+fn actor_process_assert_actor_unmoved() {
+    // Create our actor.
+    let (actor, mut actor_ref) = init_actor(TestAssertUnmovedNewActor , ());
+
+    // Create the waker.
+    let pid = ProcessId(0);
+    let (sender, _) = channel::unbounded();
+    let waker = new_waker(pid, sender);
+
+    // Create our process.
+    let inbox = actor_ref.get_inbox().unwrap();
+    let process = ActorProcess::new(pid, Priority::NORMAL, NoopSupervisor,
+        TestAssertUnmovedNewActor, actor, inbox, waker);
+    let mut process: Pin<Box<dyn Process>> = Box::pin(process);
+
+    assert_eq!(process.id(), ProcessId(0));
+    assert_eq!(process.priority(), Priority::NORMAL);
+    assert_eq!(process.runtime(), Duration::from_millis(0));
+
+    // All we do is run it a couple of times, it should panic if the actor is
+    // moved.
+    let mut system_ref = system_ref();
+    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
+    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
+    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
 }
 
 pub struct SimpleInitiator {

@@ -33,5 +33,7 @@ std-logger           = "0.3.1"
 
 [dev-dependencies]
 env_logger           = "0.5.10"
+# Replace with released version.
+futures-test-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "8479bd26d5cafefb91c0d2d0f949cdad38c1dde2", features = ["std"] }
 futures-util-preview = "0.3.0-alpha.11"
 lazy_static          = "1.1.0"
