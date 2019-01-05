@@ -223,7 +223,7 @@ impl<S> ActorSystem<!, S> {
 }
 
 impl<I, S> ActorSystem<I, S> {
-    /// Set the number of threads used, defaults to `1`.
+    /// Set the number of worker threads to use, defaults to `1`.
     ///
     /// Most applications would want to use [`use_all_cores`] which sets the
     /// number of threads equal to the number of cpu cores.
@@ -234,7 +234,7 @@ impl<I, S> ActorSystem<I, S> {
         self
     }
 
-    /// Set the number of threads equal to the number of cpu cores.
+    /// Set the number of worker threads equal to the number of cpu cores.
     ///
     /// See [`num_threads`].
     ///
@@ -281,7 +281,7 @@ impl<I, S> ActorSystem<I, S>
     ///
     /// [`num_threads`]: #method.num_threads
     pub fn run(mut self) -> Result<(), RuntimeError> {
-        debug!("running actor system: threads={}", self.threads);
+        debug!("running actor system: worker_threads={}", self.threads);
 
         let handles = self.start_threads()?;
 
@@ -450,7 +450,6 @@ impl RunningActorSystem {
         // Setup adding a new process to the scheduler.
         let process_entry = scheduler_ref.add_process();
         let pid = process_entry.pid();
-        trace!("adding initiator to scheduler: pid={}", pid);
 
         // Initialise the initiator.
         trace!("initialising initiator: pid={}", pid);
