@@ -18,21 +18,17 @@ use crate::util::Shared;
 ///
 /// [`Actor`]: ../../actor/trait.Actor.html
 pub struct ActorProcess<S, NA: NewActor> {
-    /// The id of this process.
     id: ProcessId,
     priority: Priority,
-    /// Supervisor of the actor.
+    runtime: Duration,
     supervisor: S,
-    /// `NewActor` used to restart the actor.
     new_actor: NA,
-    /// The actor.
     actor: NA::Actor,
     /// The inbox of the actor, used in create a new `ActorContext` if the actor
     /// is restarted.
     inbox: Shared<MailBox<NA::Message>>,
     /// Waker used in the futures context.
     waker: LocalWaker,
-    runtime: Duration,
 }
 
 impl<S, NA: NewActor> ActorProcess<S, NA> {
@@ -44,12 +40,12 @@ impl<S, NA: NewActor> ActorProcess<S, NA> {
         ActorProcess {
             id,
             priority,
+            runtime: Duration::from_millis(0),
             supervisor,
             new_actor,
-            inbox,
             actor,
+            inbox,
             waker,
-            runtime: Duration::from_millis(0),
         }
     }
 }
@@ -78,7 +74,7 @@ impl<S, NA> Process for ActorProcess<S, NA>
         let this = unsafe { Pin::get_unchecked_mut(self) };
 
         // The actor need to be called with `Pin`. So we're undoing the previous
-        // operation, still making sure that the actor is not moved.
+        // operation, still ensuring that the actor is not moved.
         let mut pinned_actor = unsafe { Pin::new_unchecked(&mut this.actor) };
         let result = match Actor::try_poll(pinned_actor.as_mut(), &this.waker) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
