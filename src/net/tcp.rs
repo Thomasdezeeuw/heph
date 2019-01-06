@@ -1,5 +1,7 @@
 //! TCP related types.
 
+// TODO: add a setup function to `NewTcpListener` to set options on TcpListener.
+
 use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::task::{LocalWaker, Poll};
@@ -11,7 +13,7 @@ use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use mio_st::poll::{PollOption, Poller};
 
 use crate::actor::{ActorContext, Actor, NewActor};
-use crate::initiator::Initiator;
+use crate::initiator::{Initiator, NewInitiator};
 use crate::net::{interrupted, would_block};
 use crate::scheduler::ProcessId;
 use crate::supervisor::Supervisor;
@@ -58,8 +60,7 @@ use crate::system::{ActorOptions, ActorSystemRef};
 ///
 /// // Create our TCP listener. We'll use the default actor options.
 /// let new_actor = conn_actor as fn(_, _, _) -> _;
-/// let listener = TcpListener::bind(address, conn_supervisor, new_actor, ActorOptions::default())
-///     .expect("unable to bind TCP listener");
+/// let listener = TcpListener::new(address, conn_supervisor, new_actor, ActorOptions::default());
 ///
 /// // We create our actor system.
 /// ActorSystem::new()
@@ -83,15 +84,21 @@ impl<NA, S> TcpListener<NA, S>
     where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
           S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
 {
-    /// Bind a new TCP listener to the provided `address`.
+    /// Create a new TCP listener.
     ///
     /// For each accepted connection a new actor will be created by using the
-    /// [`NewActor::new`] method with a `TcpStream` and `SocketAddr`. The
-    /// provided `options` will be used in adding the newly created actor to the
-    /// actor system.
+    /// [`NewActor::new`] method, with a `TcpStream` and `SocketAddr` as
+    /// argument. The provided `options` will be used in adding the newly
+    /// created actor to the actor system. The supervisor `S` will be used as
+    /// supervisor.
     ///
     /// [`NewActor::new`]: ../actor/trait.NewActor.html#tymethod.new
-    pub fn bind(address: SocketAddr, supervisor: S, new_actor: NA, options: ActorOptions) -> io::Result<TcpListener<NA, S>> {
+    pub fn new(address: SocketAddr, supervisor: S, new_actor: NA, options: ActorOptions) -> NewTcpListener<NA, S> {
+        NewTcpListener { address, supervisor, new_actor, options }
+    }
+
+    /// Bind a new TCP listener to the provided `address`.
+    fn bind(address: SocketAddr, supervisor: S, new_actor: NA, options: ActorOptions) -> io::Result<TcpListener<NA, S>> {
         Ok(TcpListener {
             listener: MioTcpListener::bind(address)?,
             supervisor,
@@ -101,6 +108,7 @@ impl<NA, S> TcpListener<NA, S>
     }
 }
 
+/* These options can't currently be set.
 impl<NA, S> TcpListener<NA, S> {
     /// Returns the local socket address of this listener.
     pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
@@ -117,28 +125,12 @@ impl<NA, S> TcpListener<NA, S> {
         self.listener.ttl()
     }
 }
+*/
 
 impl<NA, S> Initiator for TcpListener<NA, S>
-    where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
-          S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
+    where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
+          S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + 'static,
 {
-    #[doc(hidden)]
-    fn clone_threaded(&self) -> io::Result<Self> {
-        Ok(TcpListener {
-            listener: self.listener.try_clone()?,
-            options: self.options.clone(),
-            new_actor: self.new_actor.clone(),
-            supervisor: self.supervisor.clone(),
-        })
-    }
-
-    #[doc(hidden)]
-    fn init(&mut self, poller: &mut Poller, pid: ProcessId) -> io::Result<()> {
-        poller.register(&mut self.listener, pid.into(),
-            MioTcpListener::INTERESTS, PollOption::Edge)
-    }
-
-    #[doc(hidden)]
     fn poll(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()> {
         loop {
             let (mut stream, addr) = match self.listener.accept() {
@@ -160,6 +152,38 @@ impl<NA, S> Initiator for TcpListener<NA, S>
                 Ok((stream, addr))
             }, self.options.clone())?;
         }
+    }
+}
+
+/// `NewTcpListener` is an intermediate representation of `TcpListener` that
+/// implements [`NewInitiator`].
+///
+/// It can be created by calling [`TcpListener::new`].
+///
+/// [`NewInitiator`]: ../initiator/trait.NewInitiator.html
+/// [`TcpListener::new`]: struct.TcpListener.html#method.new
+#[derive(Debug, Clone)]
+pub struct NewTcpListener<NA, S> {
+    address: SocketAddr,
+    supervisor: S,
+    new_actor: NA,
+    options: ActorOptions,
+}
+
+impl<NA, S> NewInitiator for NewTcpListener<NA, S>
+    where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
+          S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
+{
+    type Initiator = TcpListener<NA, S>;
+
+    fn new(self) -> io::Result<Self::Initiator> {
+        unreachable!("NewTcpListener::new can't be called directly");
+    }
+
+    fn new_internal(self, poller: &mut Poller, pid: ProcessId) -> io::Result<Self::Initiator> {
+        let mut listener = TcpListener::bind(self.address, self.supervisor, self.new_actor, self.options)?;
+        poller.register(&mut listener.listener, pid.into(), MioTcpListener::INTERESTS, PollOption::Edge)?;
+        Ok(listener)
     }
 }
 

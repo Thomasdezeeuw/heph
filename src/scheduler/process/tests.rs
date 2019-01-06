@@ -15,7 +15,6 @@ use crossbeam_channel as channel;
 use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{empty, Empty};
 use mio_st::event::EventedId;
-use mio_st::poll::Poller;
 
 use crate::actor::{ActorContext, NewActor};
 use crate::initiator::Initiator;
@@ -357,14 +356,6 @@ pub struct SimpleInitiator {
 }
 
 impl Initiator for SimpleInitiator {
-    fn clone_threaded(&self) -> io::Result<Self> {
-        unreachable!();
-    }
-
-    fn init(&mut self, _: &mut Poller, _: ProcessId) -> io::Result<()> {
-        unreachable!();
-    }
-
     fn poll(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
         match self.called.fetch_add(1, atomic::Ordering::SeqCst) {
             0 => Ok(()),
@@ -402,14 +393,6 @@ fn initiator_process() {
 struct SleepyInitiator(Duration);
 
 impl Initiator for SleepyInitiator {
-    fn clone_threaded(&self) -> io::Result<Self> {
-        unreachable!();
-    }
-
-    fn init(&mut self, _: &mut Poller, _: ProcessId) -> io::Result<()> {
-        unreachable!();
-    }
-
     fn poll(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
         sleep(self.0);
         Ok(())

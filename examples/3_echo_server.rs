@@ -86,8 +86,7 @@ fn main() -> Result<(), RuntimeError> {
     heph::log::init();
 
     let address = "127.0.0.1:7890".parse().unwrap();
-    let listener = TcpListener::bind(address, echo_supervisor, echo_actor as fn(_, _, _) -> _, ActorOptions::default())
-        .expect("unable to bind TCP listener");
+    let listener = TcpListener::new(address, echo_supervisor, echo_actor as fn(_, _, _) -> _, ActorOptions::default());
     info!("listening: address={}", address);
 
     ActorSystem::new()
