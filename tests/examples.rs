@@ -17,7 +17,7 @@ use lazy_static::lazy_static;
 // for the full execution of the example, this is for example the case in
 // example 2 which needs to send a request to the running example.
 
-/// Macro to crate a sequential tests.
+/// Macro to create a group of sequential tests.
 macro_rules! sequential_tests {
     ($(fn $name:ident() $body:block)+) => {
         lazy_static! {
