@@ -1,9 +1,9 @@
 //! Logging related types.
 //!
-//! Logging in Heph is done via the [`log`] crate, must like the entire Rust
+//! Logging in Heph is done via the [`log`] crate, much like the entire Rust
 //! ecosystem does (or should). However the log crate doesn't provide an actual
 //! logging implementation, it only defines macros for it. Those macros are
-//! re-exported here, which means that the macros in the log crate can also be
+//! re-exported here, which means that the macros in the `log` crate can also be
 //! used.
 //!
 //! The actual logging implementation comes from the [`std-logger`] crate. By

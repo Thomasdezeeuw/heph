@@ -10,7 +10,8 @@ use crate::system::ActorSystemRef;
 /// Mailbox that holds all messages for an actor.
 #[derive(Debug)]
 pub struct MailBox<M> {
-    /// Process id of the actor.
+    /// Process id of the actor, used to notify the actor when receiving
+    /// message.
     pid: ProcessId,
     /// Reference to the actor system, used to notify the actor.
     system_ref: ActorSystemRef,
@@ -18,7 +19,7 @@ pub struct MailBox<M> {
     messages: VecDeque<M>,
     /// This is an alternative source of messages, send across thread bounds,
     /// used by `MachineLocalActorRef`s to send messages. This defaults to
-    /// `None` and is only set to `Some` if `upgrade_ref` is called.
+    /// `None` and is only set to `Some` the first time `upgrade_ref` is called.
     messages2: Option<(Sender<M>, Receiver<M>)>,
 }
 
