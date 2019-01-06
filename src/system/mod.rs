@@ -67,7 +67,7 @@ use num_cpus;
 
 use crate::actor::{Actor, ActorContext, NewActor};
 use crate::actor_ref::LocalActorRef;
-use crate::initiator::Initiator;
+use crate::initiator::NewInitiator;
 use crate::mailbox::MailBox;
 use crate::scheduler::{ProcessId, Scheduler, SchedulerRef};
 use crate::supervisor::Supervisor;
@@ -212,7 +212,7 @@ impl<S> ActorSystem<!, S> {
     ///
     /// [`add_initiator`]: #method.add_initiator
     pub fn with_initiator<I>(self, initiator: I, options: InitiatorOptions) -> ActorSystem<I, S>
-        where I: Initiator + 'static,
+        where I: NewInitiator + 'static,
     {
         ActorSystem {
             threads: self.threads,
@@ -272,7 +272,7 @@ impl<I, S> ActorSystem<I, S> {
 
 impl<I, S> ActorSystem<I, S>
     where S: SetupFn  + Send + Clone + 'static,
-          I: Initiator + 'static,
+          I: NewInitiator + 'static,
 {
     /// Run the system.
     ///
@@ -312,12 +312,7 @@ impl<I, S> ActorSystem<I, S>
             // Clone the setup and the initiators, using the special clone
             // method.
             let setup = self.setup.clone();
-            let initiators = self.initiators.iter().map(|(initiator, options)| {
-                initiator.clone_threaded()
-                    .map(|i| (i, options.clone()))
-                    .map_err(RuntimeError::initiator)
-            })
-            .collect::<Result<_, RuntimeError>>()?;
+            let initiators = self.initiators.clone();
 
             // Spawn the thread.
             Ok(thread::spawn(move || run_system(initiators, setup)))
@@ -369,7 +364,7 @@ use self::hack::SetupFn;
 /// This is the entry point for the worker threads.
 fn run_system<I, S>(initiators: Vec<(I, InitiatorOptions)>,  setup: Option<S>) -> Result<(), RuntimeError>
     where S: SetupFn,
-          I: Initiator + 'static,
+          I: NewInitiator + 'static,
 {
     let mut actor_system = RunningActorSystem::new()?;
 
@@ -435,8 +430,8 @@ impl RunningActorSystem {
     }
 
     /// Add an `Initiator` to the system.
-    pub fn add_initiator<I>(&mut self, mut initiator: I, _options: InitiatorOptions) -> Result<(), RuntimeError>
-        where I: Initiator + 'static,
+    pub fn add_initiator<I>(&mut self, initiator: I, _options: InitiatorOptions) -> Result<(), RuntimeError>
+        where I: NewInitiator + 'static,
     {
         // Make sure we call `Poller.poll` without a timeout.
         self.has_initiators = true;
@@ -453,7 +448,8 @@ impl RunningActorSystem {
 
         // Initialise the initiator.
         trace!("initialising initiator: pid={}", pid);
-        initiator.init(poller, pid).map_err(RuntimeError::initiator)?;
+        let initiator = initiator.new_internal(poller, pid)
+            .map_err(RuntimeError::initiator)?;
 
         // Add the process to the scheduler.
         process_entry.add_initiator(initiator);

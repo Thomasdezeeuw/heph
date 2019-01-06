@@ -13,11 +13,16 @@
 //! [connecting] to a remote address. It implements the `AsyncRead` and
 //! `AsyncWrite` trait to work nicely with futures.
 //!
+//! There is also the `NewTcpListener` type, which is an intermediate
+//! representation of a `TcpListener` that implements the [`NewInitiator`]
+//! trait.
+//!
 //! [`TcpListener`]: struct.TcpListener.html
 //! [`Initiator`]: ../initiator/trait.Initiator.html
 //! [added]: ../system/struct.ActorSystem.html#method.with_initiator
 //! [`TcpStream`]: struct.TcpStream.html
 //! [connecting]: struct.TcpStream.html#method.connect
+//! [`NewInitiator`]: ../initiator/trait.NewInitiator.html
 //!
 //! # User Datagram Protocol (UDP)
 //!
@@ -52,7 +57,7 @@ use std::io;
 mod tcp;
 mod udp;
 
-pub use self::tcp::{TcpStream, TcpListener};
+pub use self::tcp::{NewTcpListener, TcpListener, TcpStream};
 pub use self::udp::{ConnectedUdpSocket, UdpSocket};
 
 /// Whether or not the error is a would block error.
