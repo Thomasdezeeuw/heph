@@ -107,6 +107,7 @@
 //! ```
 
 use std::fmt;
+use std::ops::ShlAssign;
 
 mod error;
 mod local;
@@ -171,6 +172,14 @@ impl<M> From<MachineLocalActorRef<M>> for ActorRef<M> {
 impl<M> From<RemoteActorRef<M>> for ActorRef<M> {
     fn from(actor_ref: RemoteActorRef<M>) -> ActorRef<M> {
         ActorRef::Remote(actor_ref)
+    }
+}
+
+impl<M, Msg> ShlAssign<Msg> for ActorRef<M>
+    where Msg: Into<M>
+{
+    fn shl_assign(&mut self, msg: Msg) {
+        self.send(msg);
     }
 }
 
