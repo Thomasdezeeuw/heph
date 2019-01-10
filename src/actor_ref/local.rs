@@ -88,6 +88,8 @@ impl<M> Clone for LocalActorRef<M> {
     }
 }
 
+impl<M> Eq for LocalActorRef<M> { }
+
 impl<M> PartialEq for LocalActorRef<M> {
     fn eq(&self, other: &LocalActorRef<M>) -> bool {
         self.inbox.ptr_eq(&other.inbox)
