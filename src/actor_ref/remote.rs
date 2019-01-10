@@ -2,6 +2,7 @@
 
 use std::fmt;
 use std::marker::PhantomData;
+use std::ops::ShlAssign;
 
 /// This is currently not implemented.
 pub struct RemoteActorRef<M> {
@@ -14,6 +15,14 @@ impl<M> RemoteActorRef<M> {
         where Msg: Into<M>,
     {
         unimplemented!("RemoteActorRef.send");
+    }
+}
+
+impl<M, Msg> ShlAssign<Msg> for RemoteActorRef<M>
+    where Msg: Into<M>
+{
+    fn shl_assign(&mut self, msg: Msg) {
+        self.send(msg);
     }
 }
 

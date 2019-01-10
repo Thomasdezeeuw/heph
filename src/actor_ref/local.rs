@@ -1,6 +1,7 @@
 //! Module containing the `LocalActorRef`.
 
 use std::fmt;
+use std::ops::ShlAssign;
 
 use crate::actor_ref::{MachineLocalActorRef, SendError, ActorShutdown};
 use crate::mailbox::MailBox;
@@ -77,6 +78,14 @@ impl<M> LocalActorRef<M> {
     #[cfg(all(test, feature = "test"))]
     pub(crate) fn get_inbox(&mut self) -> Option<Shared<MailBox<M>>> {
         self.inbox.upgrade()
+    }
+}
+
+impl<M, Msg> ShlAssign<Msg> for LocalActorRef<M>
+    where Msg: Into<M>
+{
+    fn shl_assign(&mut self, msg: Msg) {
+        let _ = self.send(msg);
     }
 }
 

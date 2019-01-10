@@ -1,6 +1,7 @@
 //! Module containing the `MachineLocalActorRef`.
 
 use std::fmt;
+use std::ops::ShlAssign;
 use std::task::Waker;
 
 use crossbeam_channel::Sender;
@@ -48,6 +49,14 @@ impl<M> MachineLocalActorRef<M> {
     {
         self.sender.send(msg.into());
         self.waker.wake();
+    }
+}
+
+impl<M, Msg> ShlAssign<Msg> for MachineLocalActorRef<M>
+    where Msg: Into<M>
+{
+    fn shl_assign(&mut self, msg: Msg) {
+        self.send(msg);
     }
 }
 
