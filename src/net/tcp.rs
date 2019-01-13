@@ -18,12 +18,11 @@ use crate::net::{interrupted, would_block};
 use crate::supervisor::Supervisor;
 use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 
-/// A TCP listener that implements the [`Initiator`] trait.
+/// A TCP listener.
 ///
 /// This listener will accept TCP connections and for each incoming connection
 /// create an actor, via the [`NewActor`] trait.
 ///
-/// [`Initiator`]: ../initiator/trait.Initiator.html
 /// [`NewActor`]: ../actor/trait.NewActor.html
 ///
 /// # Example

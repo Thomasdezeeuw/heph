@@ -10,14 +10,12 @@ use mio_st::event::EventedId;
 use crate::system::ActorSystemRef;
 
 mod actor;
-mod initiator;
 mod priority;
 
 #[cfg(all(test, feature = "test"))]
 mod tests;
 
 pub use self::actor::ActorProcess;
-pub use self::initiator::InitiatorProcess;
 pub use self::priority::Priority;
 
 /// Process id, or pid for short, is an identifier for a process in an
@@ -53,9 +51,8 @@ impl fmt::Display for ProcessId {
 
 /// The trait that represents a process.
 ///
-/// This currently has two implementations;
-/// - the `ActorProcess`, which wraps an `Actor` to implement this trait, and
-/// - the `InitiatorProcess`, which wraps an `Initiator`.
+/// This currently has a single implementations;
+/// - the `ActorProcess`, which wraps an `Actor` to implement this trait.
 pub trait Process: fmt::Debug {
     /// Get the id of the process.
     fn id(&self) -> ProcessId;

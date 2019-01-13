@@ -3,11 +3,10 @@
 // TODO: test deregistration of actor in Actor Registry.
 
 use std::cmp::Ordering;
-use std::io;
 use std::mem::forget;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::{self, AtomicBool, AtomicUsize};
+use std::sync::atomic::{self, AtomicBool};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -17,8 +16,7 @@ use futures_util::future::{empty, Empty};
 use mio_st::event::EventedId;
 
 use crate::actor::{ActorContext, NewActor};
-use crate::initiator::Initiator;
-use crate::scheduler::process::{ActorProcess, InitiatorProcess, Priority, Process, ProcessId, ProcessResult};
+use crate::scheduler::process::{ActorProcess, Priority, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoSupervisor, SupervisorStrategy};
 use crate::system::ActorSystemRef;
 use crate::test::{init_actor, system_ref};
@@ -350,69 +348,4 @@ fn actor_process_assert_actor_unmoved() {
     assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
     assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
     assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
-}
-
-pub struct SimpleInitiator {
-    called: Arc<AtomicUsize>,
-}
-
-impl Initiator for SimpleInitiator {
-    fn poll(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
-        match self.called.fetch_add(1, atomic::Ordering::SeqCst) {
-            0 => Ok(()),
-            1 => Err(io::ErrorKind::Other.into()),
-            _ => unreachable!(),
-        }
-    }
-}
-
-#[test]
-fn initiator_process() {
-    let called = Arc::new(AtomicUsize::new(0));
-    let initiator = SimpleInitiator { called: Arc::clone(&called) };
-    let mut process = InitiatorProcess::new(ProcessId(0), initiator);
-    let mut process = Pin::new(&mut process);
-
-    assert_eq!(process.id(), ProcessId(0));
-    assert_eq!(process.priority(), Priority::LOW);
-    assert_eq!(process.runtime(), Duration::from_millis(0));
-
-    // Ok run.
-    let mut system_ref = system_ref();
-    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
-    assert_eq!(called.load(atomic::Ordering::SeqCst), 1);
-    // Runtime must be increased.
-    let runtime_after_1_run = process.runtime();
-    assert!(runtime_after_1_run > Duration::from_millis(0));
-
-    // Error run.
-    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
-    assert_eq!(called.load(atomic::Ordering::SeqCst), 2);
-    assert!(process.runtime() > runtime_after_1_run);
-}
-
-struct SleepyInitiator(Duration);
-
-impl Initiator for SleepyInitiator {
-    fn poll(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
-        sleep(self.0);
-        Ok(())
-    }
-}
-
-#[test]
-fn initiator_process_runtime_increase() {
-    const SLEEP_TIME: Duration = Duration::from_millis(10);
-
-    let initiator = SleepyInitiator(SLEEP_TIME);
-    let mut process = InitiatorProcess::new(ProcessId(0), initiator);
-    let mut process = Pin::new(&mut process);
-
-    assert_eq!(process.id(), ProcessId(0));
-    assert_eq!(process.priority(), Priority::LOW);
-    assert_eq!(process.runtime(), Duration::from_millis(0));
-
-    let mut system_ref = system_ref();
-    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
-    assert!(process.runtime() >= SLEEP_TIME);
 }

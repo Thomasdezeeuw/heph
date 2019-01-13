@@ -22,10 +22,9 @@
 //!
 //! First an actor must be registered with the Actor Registry. This is done by
 //! setting the [register] option to `true` in the [`ActorOptions`] passed to
-//! [`spawn`] or an [`Initiator`] that spawns actors, e.g. [`TcpListener`]. Note
-//! that an actor registration must be unique **per actor type**, that is type
-//! in the Rust's type system. It is not possible to register two actors with
-//! the same type.
+//! [`spawn`]. Note that an actor registration must be unique **per actor
+//! type**, that is type in the Rust's type system. It is not possible to
+//! register two actors with the same type.
 //!
 //! After the actor is registered it can be looked up. This can be done using
 //! the [`lookup`] method on [`ActorSystemRef`], or if the type can't be typed
@@ -50,8 +49,6 @@
 //! [register]: ./options/struct.ActorOptions.html#structfield.register
 //! [`ActorOptions`]: ./options/struct.ActorOptions.html
 //! [`spawn`]: ./struct.ActorSystemRef.html#method.spawn
-//! [`Initiator`]: ../initiator/trait.Initiator.html
-//! [`TcpListener`]: ../net/struct.TcpListener.html#method.bind
 //! [`lookup`]: struct.ActorSystemRef.html#method.lookup
 //! [`lookup_val`]: struct.ActorSystemRef.html#method.lookup_val
 
@@ -69,7 +66,6 @@ use num_cpus;
 
 use crate::actor::{Actor, ActorContext, NewActor};
 use crate::actor_ref::LocalActorRef;
-use crate::initiator::NewInitiator;
 use crate::mailbox::MailBox;
 use crate::scheduler::{ProcessId, Scheduler, SchedulerRef};
 use crate::supervisor::Supervisor;
@@ -83,44 +79,36 @@ use self::registry::ActorRegistry;
 
 pub mod options;
 
-pub use self::options::{ActorOptions, InitiatorOptions};
 pub use self::error::RuntimeError;
+pub use self::options::ActorOptions;
 
 /// The system that runs all actors.
 ///
 /// This type implements a builder pattern to build and run an actor system. It
-/// has two generic parameters `I` and `S`, the types of the initiator(s) and a
-/// setup function. Both types are optional, which is represented by `!` (the
-/// never type).
+/// has a single generic parameter `S`, the type of the setup function. The
+/// setup function is optional, which is represented by `!` (the never type).
 ///
 /// ## Usage
 ///
 /// Building an actor system starts with calling [`new`], this will create a new
-/// system without initiators or a setup function.
+/// system without a setup function, using a single worker thread.
 ///
-/// An optional [`Initiator`] can be added using the [`with_initiator`] method,
-/// this will change the generic parameter from `!` to `I` (the type of the
-/// `Initiator`). This method can only be called once, to add more `Initiator`s
-/// the [`add_initiator`] method can be used.
+/// An optional setup function can be added. This setup function will be called
+/// on each thread the actor system starts, and thus has to be `Clone` and
+/// `Send`. This can be done by calling [`with_setup`]. This will change the `S`
+/// parameter from `!` to an actual type. Only a single setup function can be
+/// used per actor system.
 ///
-/// An optional setup function can also be added. This setup function will be
-/// called on each thread the actor system starts, and thus has to be `Clone`
-/// and `Send`. This can be done by calling [`with_setup`]. This will changes
-/// the `S` parameter from `!` to an actual type. Only a single setup function
-/// can be used.
-///
-/// Now both generic parameter are optionally defined we also have some more
+/// Now that the generic parameter is optionally defined we also have some more
 /// configuration options. One such option is the number of threads the system
 /// uses, this can configured with the [`num_threads`] method, or
 /// [`use_all_cores`].
 ///
 /// Finally after setting all the configuration options the system can be
-/// [`run`]. This will spawn a number of threads to actually run the system.
+/// [`run`]. This will spawn a number of worker threads to actually run the
+/// system.
 ///
 /// [`new`]: #method.new
-/// [`Initiator`]: ../initiator/trait.Initiator.html
-/// [`with_initiator`]: #method.with_initiator
-/// [`add_initiator`]: #method.add_initiator
 /// [`with_setup`]: #method.with_setup
 /// [`num_threads`]: #method.num_threads
 /// [`use_all_cores`]: #method.use_all_cores
@@ -174,60 +162,39 @@ pub use self::error::RuntimeError;
 ///         .run()
 /// }
 /// ```
-pub struct ActorSystem<I = !, S = !> {
+pub struct ActorSystem<S = !> {
     /// Number of threads to create.
     threads: usize,
-    /// The initiators to be added to the system.
-    initiators: Vec<(I, InitiatorOptions)>,
     /// Optional setup function.
     setup: Option<S>,
 }
 
 impl ActorSystem {
     /// Create a new actor system with the default configuration.
-    pub fn new() -> ActorSystem<!, !> {
+    pub fn new() -> ActorSystem<!> {
         ActorSystem {
             threads: 1,
-            initiators: Vec::new(),
             setup: None,
         }
     }
 }
 
-impl<I> ActorSystem<I, !> {
+impl ActorSystem<!> {
     /// Add a setup function.
     ///
     /// This function will be run on each thread the actor system creates. Only
     /// a single setup function can be added to the actor system.
-    pub fn with_setup<S>(self, setup: S) -> ActorSystem<I, S>
+    pub fn with_setup<S>(self, setup: S) -> ActorSystem<S>
         where S: FnOnce(ActorSystemRef) -> io::Result<()> + Send + Clone + 'static,
     {
         ActorSystem {
             threads: self.threads,
-            initiators: self.initiators,
             setup: Some(setup),
         }
     }
 }
 
-impl<S> ActorSystem<!, S> {
-    /// Add a new initiator to the system, setting the type in the process.
-    ///
-    /// To add more initiators the [`add_initiator`] method can be used.
-    ///
-    /// [`add_initiator`]: #method.add_initiator
-    pub fn with_initiator<I>(self, initiator: I, options: InitiatorOptions) -> ActorSystem<I, S>
-        where I: NewInitiator + 'static,
-    {
-        ActorSystem {
-            threads: self.threads,
-            initiators: vec![(initiator, options)],
-            setup: self.setup,
-        }
-    }
-}
-
-impl<I, S> ActorSystem<I, S> {
+impl<S> ActorSystem<S> {
     /// Set the number of worker threads to use, defaults to `1`.
     ///
     /// Most applications would want to use [`use_all_cores`] which sets the
@@ -263,21 +230,10 @@ impl<I, S> ActorSystem<I, S> {
         crate::log::init();
         self
     }
-
-    /// Add another initiator to the system.
-    ///
-    /// First [`with_initiator`] must be called.
-    ///
-    /// [`with_initiator`]: #method.with_initiator
-    pub fn add_initiator(mut self, initiator: I, options: InitiatorOptions) -> Self {
-        self.initiators.push((initiator, options));
-        self
-    }
 }
 
-impl<I, S> ActorSystem<I, S>
+impl<S> ActorSystem<S>
     where S: SetupFn  + Send + Clone + 'static,
-          I: NewInitiator + 'static,
 {
     /// Run the system.
     ///
@@ -314,24 +270,19 @@ impl<I, S> ActorSystem<I, S>
     /// Start the threads for the actor system.
     fn start_threads(&mut self) -> Result<Vec<JoinHandle<Result<(), RuntimeError>>>, RuntimeError> {
         (0..self.threads).map(|_| {
-            // Clone the setup and the initiators, using the special clone
-            // method.
-            let setup = self.setup.clone();
-            let initiators = self.initiators.clone();
-
             // Spawn the thread.
-            Ok(thread::spawn(move || run_system(initiators, setup)))
+            let setup = self.setup.clone();
+            Ok(thread::spawn(move || run_system(setup)))
         })
         .collect()
     }
 }
 
-impl<I, S> fmt::Debug for ActorSystem<I, S> {
+impl<S> fmt::Debug for ActorSystem<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ActorSystem")
             .field("threads", &self.threads)
             .field("setup", if self.setup.is_some() { &"Some" } else { &"None" })
-            .field("initiators (length)", &self.initiators.len())
             .finish()
     }
 }
@@ -363,20 +314,13 @@ mod hack {
 
 use self::hack::SetupFn;
 
-/// Run the actor system, with the provided `initiators` and optional `setup`
-/// function.
+/// Run the actor system, with the optional `setup` function.
 ///
 /// This is the entry point for the worker threads.
-fn run_system<I, S>(initiators: Vec<(I, InitiatorOptions)>,  setup: Option<S>) -> Result<(), RuntimeError>
+fn run_system<S>(setup: Option<S>) -> Result<(), RuntimeError>
     where S: SetupFn,
-          I: NewInitiator + 'static,
 {
-    let mut actor_system = RunningActorSystem::new()?;
-
-    // Add all initiators to the actor system.
-    for (initiator, options) in initiators {
-        actor_system.add_initiator(initiator, options)?;
-    }
+    let actor_system = RunningActorSystem::new()?;
 
     // Run optional setup.
     if let Some(setup) = setup {
@@ -432,31 +376,6 @@ impl RunningActorSystem {
             scheduler,
             waker_notifications: waker_recv,
         })
-    }
-
-    /// Add an `Initiator` to the system.
-    pub fn add_initiator<I>(&mut self, initiator: I, _options: InitiatorOptions) -> Result<(), RuntimeError>
-        where I: NewInitiator + 'static,
-    {
-        let ActorSystemInternal {
-            ref scheduler_ref,
-            ref poller,
-            ..
-        } = &*self.internal;
-
-        // Setup adding a new process to the scheduler.
-        let mut scheduler_ref = scheduler_ref.borrow_mut();
-        let process_entry = scheduler_ref.add_process();
-        let pid = process_entry.pid();
-
-        // Initialise the initiator.
-        trace!("initialising initiator: pid={}", pid);
-        let initiator = initiator.new_internal(&mut *poller.borrow_mut(), pid)
-            .map_err(RuntimeError::initiator)?;
-
-        // Add the process to the scheduler.
-        process_entry.add_initiator(initiator);
-        Ok(())
     }
 
     /// Create a new reference to this actor system.
@@ -558,9 +477,6 @@ impl ActorSystemRef {
     }
 
     /// Add an actor that needs to be initialised.
-    ///
-    /// This is used by the `Initiator`s to register with the system poller with
-    /// using same pid.
     ///
     /// Just like `add_actor` this required a `supervisor`, `new_actor` and
     /// `options`. The only difference being rather then passing an argument
@@ -693,7 +609,6 @@ impl ActorSystemRef {
     ///
     /// fn main() -> Result<(), RuntimeError> {
     ///     ActorSystem::new()
-    /// #       .num_threads(1)
     ///         .with_setup(setup)
     ///         .run()
     /// }

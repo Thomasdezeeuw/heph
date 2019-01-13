@@ -5,8 +5,7 @@
 //! For TCP two types are provided: a listener and a stream (connection).
 //!
 //! The [`TcpListener`] listens for incoming connections and accepts them
-//! starting a new actor for each accepted connection. `TcpListener` implements
-//! the [`Initiator`] trait which allows it to be [added] to the actor system.
+//! starting a new actor for each accepted connection.
 //!
 //! [`TcpStream`] on the other hand represent a single TCP connection. It can
 //! either be a connection accepted by the `TcpListener`, or one started by
@@ -14,15 +13,13 @@
 //! `AsyncWrite` trait to work nicely with futures.
 //!
 //! There is also the `NewTcpListener` type, which is an intermediate
-//! representation of a `TcpListener` that implements the [`NewInitiator`]
+//! representation of a `TcpListener` that implements the [`NewActor`]
 //! trait.
 //!
 //! [`TcpListener`]: struct.TcpListener.html
-//! [`Initiator`]: ../initiator/trait.Initiator.html
-//! [added]: ../system/struct.ActorSystem.html#method.with_initiator
 //! [`TcpStream`]: struct.TcpStream.html
 //! [connecting]: struct.TcpStream.html#method.connect
-//! [`NewInitiator`]: ../initiator/trait.NewInitiator.html
+//! [`NewActor`]: ../actor/trait.NewActor.html
 //!
 //! # User Datagram Protocol (UDP)
 //!

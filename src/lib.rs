@@ -90,7 +90,6 @@
 pub mod actor;
 pub mod actor_ref;
 pub mod channel;
-pub mod initiator;
 pub mod log;
 pub mod net;
 pub mod supervisor;
@@ -119,5 +118,5 @@ pub mod prelude {
     #[doc(no_inline)]
     pub use crate::actor_ref::{ActorRef, LocalActorRef};
     #[doc(no_inline)]
-    pub use crate::system::{ActorOptions, ActorSystem, ActorSystemRef, InitiatorOptions};
+    pub use crate::system::{ActorOptions, ActorSystem, ActorSystemRef};
 }
