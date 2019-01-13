@@ -71,9 +71,11 @@ impl Scheduler {
         }
     }
 
-    /// Check if a process is ready for running.
-    pub fn process_ready(&self) -> bool {
-        !self.active.is_empty()
+    /// Check if any processes are present in the scheduler.
+    ///
+    /// Used by the actor system to determine whether to stop running.
+    pub fn is_empty(&self) -> bool {
+        self.processes.borrow().is_empty()
     }
 
     /// Run the next active process.
