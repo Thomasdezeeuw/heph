@@ -55,6 +55,8 @@
 //! [`lookup`]: struct.ActorSystemRef.html#method.lookup
 //! [`lookup_val`]: struct.ActorSystemRef.html#method.lookup_val
 
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use std::{fmt, io};
@@ -392,7 +394,7 @@ fn run_system<I, S>(initiators: Vec<(I, InitiatorOptions)>,  setup: Option<S>) -
 #[derive(Debug)]
 pub(crate) struct RunningActorSystem {
     /// Inside of the system, shared with zero or more `ActorSystemRef`s.
-    internal: Shared<ActorSystemInternal>,
+    internal: Rc<ActorSystemInternal>,
     /// Scheduler that hold the processes, schedules and runs them.
     scheduler: Scheduler,
     /// Whether or not the system has initiators.
@@ -421,11 +423,16 @@ impl RunningActorSystem {
         let poller = Poller::new().map_err(RuntimeError::poll)?;
 
         // Internals of the running actor system.
-        let internal = ActorSystemInternal::new(scheduler_ref, poller, waker_send);
+        let internal = ActorSystemInternal {
+            scheduler_ref: RefCell::new(scheduler_ref),
+            poller: RefCell::new(poller),
+            waker_notifications: waker_send,
+            registry: RefCell::new(ActorRegistry::new()),
+        };
 
         // The actor system we're going to run.
         Ok(RunningActorSystem {
-            internal: Shared::new(internal),
+            internal: Rc::new(internal),
             scheduler,
             has_initiators: false,
             waker_notifications: waker_recv,
@@ -440,18 +447,19 @@ impl RunningActorSystem {
         self.has_initiators = true;
 
         let ActorSystemInternal {
-            ref mut scheduler_ref,
-            ref mut poller,
+            ref scheduler_ref,
+            ref poller,
             ..
-        } = *self.internal.borrow_mut();
+        } = &*self.internal;
 
         // Setup adding a new process to the scheduler.
+        let mut scheduler_ref = scheduler_ref.borrow_mut();
         let process_entry = scheduler_ref.add_process();
         let pid = process_entry.pid();
 
         // Initialise the initiator.
         trace!("initialising initiator: pid={}", pid);
-        let initiator = initiator.new_internal(poller, pid)
+        let initiator = initiator.new_internal(&mut *poller.borrow_mut(), pid)
             .map_err(RuntimeError::initiator)?;
 
         // Add the process to the scheduler.
@@ -501,7 +509,7 @@ impl RunningActorSystem {
     fn schedule_processes(&mut self, events: &mut Events) -> Result<usize, RuntimeError> {
         trace!("polling system poller for events");
         let timeout = self.determine_timeout();
-        self.internal.borrow_mut().poller.poll(events, timeout)
+        self.internal.poller.borrow_mut().poll(events, timeout)
             .map_err(RuntimeError::poll)?;
 
         // Schedule all processes with a notification.
@@ -538,7 +546,7 @@ impl RunningActorSystem {
 #[derive(Clone, Debug)]
 pub struct ActorSystemRef {
     /// A shared reference to the actor system's internals.
-    internal: Shared<ActorSystemInternal>,
+    internal: Rc<ActorSystemInternal>,
 }
 
 impl ActorSystemRef {
@@ -571,15 +579,53 @@ impl ActorSystemRef {
     /// directly this function requires a function to create the argument, which
     /// allows the caller to do any required setup work.
     pub(crate) fn add_actor_setup<S, NA, ArgFn, ArgFnE>(&mut self, supervisor: S,
-        new_actor: NA, arg_fn: ArgFn, options: ActorOptions
+        mut new_actor: NA, arg_fn: ArgFn, options: ActorOptions
     ) -> Result<LocalActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
               ArgFn: FnOnce(ProcessId, &mut Poller) -> Result<NA::Argument, ArgFnE>,
               NA::Actor: 'static,
     {
-        let system_ref = self.clone();
-        self.internal.borrow_mut().add_actor(supervisor, new_actor, arg_fn, options, system_ref)
+        let ActorSystemInternal {
+            ref scheduler_ref,
+            ref poller,
+            ref waker_notifications,
+            ref registry,
+        } = &*self.internal;
+
+        // Setup adding a new process to the scheduler.
+        let mut scheduler_ref = scheduler_ref.borrow_mut();
+        let process_entry = scheduler_ref.add_process();
+        let pid = process_entry.pid();
+        debug!("adding actor to actor system: pid={}", pid);
+
+        // Create our waker, mailbox and actor reference.
+        let waker = new_waker(pid, waker_notifications.clone());
+        let mailbox = Shared::new(MailBox::new(pid, self.clone()));
+        let actor_ref = LocalActorRef::new(mailbox.downgrade());
+
+        // Create the actor context, the argument for the actor and create the
+        // actor with both.
+        let ctx = ActorContext::new(pid, self.clone(), mailbox.clone());
+        let arg = arg_fn(pid, &mut poller.borrow_mut())
+            .map_err(|err| AddActorError::ArgFn(err))?;
+        let actor = new_actor.new(ctx, arg)
+            .map_err(|err| AddActorError::NewActor(err))?;
+
+        // Add the actor to the scheduler.
+        process_entry.add_actor(options.priority, supervisor, new_actor, actor,
+            mailbox, waker);
+
+        if options.register {
+            if registry.borrow_mut().register::<NA>(actor_ref.clone()).is_some() {
+                panic!("can't overwrite a previously registered actor in the Actor Registry");
+            }
+        }
+        if options.schedule {
+            waker_notifications.send(pid);
+        }
+
+        Ok(actor_ref)
     }
 
     /// Lookup an actor in the [Actor Registry].
@@ -596,7 +642,7 @@ impl ActorSystemRef {
     pub fn lookup<NA>(&mut self) -> Option<LocalActorRef<NA::Message>>
         where NA: NewActor + 'static,
     {
-        self.internal.borrow_mut().registry.lookup::<NA>()
+        self.internal.registry.borrow_mut().lookup::<NA>()
     }
 
     /// Lookup an actor in the [Actor Registry], of which the type is hard to
@@ -666,11 +712,11 @@ impl ActorSystemRef {
         self.lookup::<NA>()
     }
 
-    /// Deregister an actor.
+    /// Deregister an actor from the Actor Registry.
     pub(crate) fn deregister<NA>(&mut self)
         where NA: NewActor + 'static,
     {
-        let _ = self.internal.borrow_mut().registry.deregister::<NA>();
+        let _ = self.internal.registry.borrow_mut().deregister::<NA>();
     }
 
     /// Register an `Evented` handle, see `Poll.register`.
@@ -678,89 +724,23 @@ impl ActorSystemRef {
     where
         E: Evented + ?Sized,
     {
-        self.internal.borrow_mut().poller.register(handle, id, interests, opt)
+        self.internal.poller.borrow_mut().register(handle, id, interests, opt)
     }
 
     /// Get a clone of the sending end of the notification channel.
     pub(crate) fn get_notification_sender(&mut self) -> Sender<ProcessId> {
-        self.internal.borrow().waker_notifications.clone()
+        self.internal.waker_notifications.clone()
     }
 
     /// Add a deadline to the system poller.
     ///
     /// This is used in the `timer` crate.
     pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.internal.borrow_mut().poller.add_deadline(pid.into(), deadline);
+        self.internal.poller.borrow_mut().add_deadline(pid.into(), deadline);
     }
 
     pub(crate) fn notify(&mut self, pid: ProcessId) {
-        self.internal.borrow_mut().poller.notify(pid.into(), Ready::READABLE);
-    }
-}
-
-/// Internals of the `RunningActorSystem`, to which `ActorSystemRef`s have a
-/// reference.
-#[derive(Debug)]
-pub(crate) struct ActorSystemInternal {
-    /// A reference to the scheduler to add new processes to.
-    scheduler_ref: SchedulerRef,
-    /// System poller, used for event notifications to support non-blocking I/O.
-    poller: Poller,
-    /// Sending side of the channel for `Waker` notifications.
-    waker_notifications: Sender<ProcessId>,
-    /// Actor registrations.
-    registry: ActorRegistry,
-}
-
-impl ActorSystemInternal {
-    /// Create new actor system internals.
-    pub fn new(scheduler_ref: SchedulerRef, poller: Poller, waker_notifications: Sender<ProcessId>) -> ActorSystemInternal {
-        ActorSystemInternal {
-            scheduler_ref,
-            poller,
-            waker_notifications,
-            registry: ActorRegistry::new(),
-        }
-    }
-
-    pub fn add_actor<S, NA, ArgFn, ArgFnE>(&mut self, supervisor: S, mut new_actor: NA,
-        arg_fn: ArgFn, options: ActorOptions, system_ref: ActorSystemRef
-    ) -> Result<LocalActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
-        where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
-              NA: NewActor + 'static,
-              ArgFn: FnOnce(ProcessId, &mut Poller) -> Result<NA::Argument, ArgFnE>,
-    {
-        // Setup adding a new process to the scheduler.
-        let process_entry = self.scheduler_ref.add_process();
-        let pid = process_entry.pid();
-        debug!("adding actor to actor system: pid={}", pid);
-
-        // Create our waker, mailbox and actor reference.
-        let waker = new_waker(pid, self.waker_notifications.clone());
-        let mailbox = Shared::new(MailBox::new(pid, system_ref.clone()));
-        let actor_ref = LocalActorRef::new(mailbox.downgrade());
-
-        // Create the actor context, the argument for the actor and create an
-        // actor with both.
-        let ctx = ActorContext::new(pid, system_ref, mailbox.clone());
-        let arg = arg_fn(pid, &mut self.poller)
-            .map_err(|err| AddActorError::ArgFn(err))?;
-        let actor = new_actor.new(ctx, arg)
-            .map_err(|err| AddActorError::NewActor(err))?;
-
-        // Add the actor to the scheduler.
-        process_entry.add_actor(options.priority, supervisor, new_actor, actor, mailbox, waker);
-
-        if options.register {
-            if self.registry.register::<NA>(actor_ref.clone()).is_some() {
-                panic!("can't overwrite a previously registered actor in the Actor Registry");
-            }
-        }
-        if options.schedule {
-            self.waker_notifications.send(pid);
-        }
-
-        Ok(actor_ref)
+        self.internal.poller.borrow_mut().notify(pid.into(), Ready::READABLE);
     }
 }
 
@@ -770,4 +750,18 @@ pub(crate) enum AddActorError<NewActorE, ArgFnE> {
     NewActor(NewActorE),
     /// Calling the argument function resulted in an error.
     ArgFn(ArgFnE),
+}
+
+/// Internals of the `RunningActorSystem`, to which `ActorSystemRef`s have a
+/// reference.
+#[derive(Debug)]
+pub(crate) struct ActorSystemInternal {
+    /// A reference to the scheduler to add new processes to.
+    scheduler_ref: RefCell<SchedulerRef>,
+    /// System poller, used for event notifications to support non-blocking I/O.
+    poller: RefCell<Poller>,
+    /// Sending side of the channel for `Waker` notifications.
+    waker_notifications: Sender<ProcessId>,
+    /// Actor registrations.
+    registry: RefCell<ActorRegistry>,
 }
