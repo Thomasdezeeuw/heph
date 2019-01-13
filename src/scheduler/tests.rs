@@ -1,12 +1,7 @@
 //! Tests for the scheduler.
 
-// TODO: test not moving Actor inside ActorProcess, depends on
-// https://github.com/rust-lang-nursery/futures-rs/issues/1385.
-
-use std::{io, mem};
+use std::mem;
 use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::atomic::{self, AtomicUsize};
 use std::time::Duration;
 
 use crossbeam_channel as channel;
@@ -14,7 +9,6 @@ use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{empty, Empty};
 
 use crate::actor::{ActorContext, NewActor};
-use crate::initiator::Initiator;
 use crate::scheduler::process::{Process, ProcessId, ProcessResult};
 use crate::scheduler::{Priority, ProcessState, Scheduler};
 use crate::supervisor::NoSupervisor;
@@ -284,46 +278,4 @@ fn assert_actor_unmoved() {
     assert!(scheduler.run_process(&mut system_ref));
     scheduler.schedule(ProcessId(0));
     assert!(scheduler.run_process(&mut system_ref));
-}
-
-pub struct SimpleInitiator {
-    called: Arc<AtomicUsize>,
-}
-
-impl Initiator for SimpleInitiator {
-    fn poll(&mut self, _: &mut ActorSystemRef) -> io::Result<()> {
-        match self.called.fetch_add(1, atomic::Ordering::SeqCst) {
-            0 => Ok(()),
-            1 => Err(io::ErrorKind::Other.into()),
-            _ => unreachable!(),
-        }
-    }
-}
-
-#[test]
-fn adding_initiator_process() {
-    let (mut scheduler, mut scheduler_ref) = Scheduler::new();
-    let mut system_ref = system_ref();
-
-    // Add the initiator to the scheduler.
-    let called = Arc::new(AtomicUsize::new(0));
-    let initiator = SimpleInitiator { called: Arc::clone(&called) };
-    let process_entry = scheduler_ref.add_process();
-    process_entry.add_initiator(initiator);
-    assert!(!scheduler.is_empty());
-
-    // Schedule and run, should return Ok and become inactive.
-    scheduler.schedule(ProcessId(0));
-    assert!(scheduler.run_process(&mut system_ref));
-    assert_eq!(called.load(atomic::Ordering::SeqCst), 1);
-
-    // Schedule and run again, should return an error this time and be removed.
-    scheduler.schedule(ProcessId(0));
-    assert!(scheduler.run_process(&mut system_ref));
-    assert_eq!(called.load(atomic::Ordering::SeqCst), 2);
-
-    // Now no processes should be ready.
-    scheduler.schedule(ProcessId(0));
-    assert!(!scheduler.run_process(&mut system_ref));
-    assert_eq!(called.load(atomic::Ordering::SeqCst), 2);
 }

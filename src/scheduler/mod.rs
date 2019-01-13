@@ -10,7 +10,6 @@ use log::{debug, trace};
 use slab::Slab;
 
 use crate::actor::{Actor, NewActor};
-use crate::initiator::Initiator;
 use crate::mailbox::MailBox;
 use crate::supervisor::Supervisor;
 use crate::system::ActorSystemRef;
@@ -21,7 +20,7 @@ mod process;
 #[cfg(all(test, feature = "test"))]
 mod tests;
 
-use self::process::{ActorProcess, Process, ProcessResult, InitiatorProcess};
+use self::process::{ActorProcess, Process, ProcessResult};
 
 pub use self::process::Priority;
 pub use self::process::ProcessId;
@@ -155,16 +154,6 @@ impl<'s> AddingProcess<'s> {
         debug!("adding new actor process: pid={}", pid);
         let process = Box::pin(ActorProcess::new(pid, priority, supervisor,
             new_actor, actor, mailbox, waker));
-        self.add_process(pid, process)
-    }
-
-    /// Add a new inactive initiator process to the scheduler.
-    pub fn add_initiator<I>(self, initiator: I)
-        where I: Initiator + 'static,
-    {
-        let pid = self.pid();
-        debug!("adding new initiator process: pid={}", pid);
-        let process = Box::pin(InitiatorProcess::new(pid, initiator));
         self.add_process(pid, process)
     }
 

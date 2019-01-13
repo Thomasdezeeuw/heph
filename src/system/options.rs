@@ -1,4 +1,4 @@
-//! Options for adding an `Actor` or `Initiator` to an `ActorSystem`.
+//! Options for adding an `Actor` to an `ActorSystem`.
 
 use std::fmt;
 
@@ -66,43 +66,6 @@ impl fmt::Debug for ActorOptions {
             .field("priority", &self.priority)
             .field("register", &self.register)
             .field("schedule", &self.schedule)
-            .finish()
-    }
-}
-
-/// Options for adding an [`Initiator`] to an [`ActorSystem`].
-///
-/// [`ActorSystem`]: ../struct.ActorSystem.html
-/// [`Initiator`]: ../../initiator/trait.Initiator.html
-///
-/// # Examples
-///
-/// Using the default options.
-///
-/// ```
-/// use heph::system::InitiatorOptions;
-///
-/// let opts = InitiatorOptions::default();
-/// ```
-#[derive(Clone)]
-pub struct InitiatorOptions {
-    /// Reserved for future expansion. Use the `Default` implementation to set
-    /// this field, see example in struct documentation.
-    #[doc(hidden)]
-    pub __private: (),
-}
-
-impl Default for InitiatorOptions {
-    fn default() -> InitiatorOptions {
-        InitiatorOptions {
-            __private: (),
-        }
-    }
-}
-
-impl fmt::Debug for InitiatorOptions {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("InitiatorOptions")
             .finish()
     }
 }
