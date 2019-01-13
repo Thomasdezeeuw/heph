@@ -4,18 +4,17 @@
 
 use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr};
+use std::pin::Pin;
 use std::task::{LocalWaker, Poll};
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
-use log::{error, debug};
+use log::debug;
 
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
-use mio_st::poll::{PollOption, Poller};
+use mio_st::poll::PollOption;
 
 use crate::actor::{ActorContext, Actor, NewActor};
-use crate::initiator::{Initiator, NewInitiator};
 use crate::net::{interrupted, would_block};
-use crate::scheduler::ProcessId;
 use crate::supervisor::Supervisor;
 use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 
@@ -44,32 +43,58 @@ use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 /// use heph::log::{error, log};
 /// use heph::net::{TcpListener, TcpStream};
 /// use heph::supervisor::SupervisorStrategy;
-/// use heph::system::{ActorOptions, ActorSystem, InitiatorOptions};
+/// use heph::system::options::Priority;
+/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
 ///
+/// # // Don't actually want to run the actor system.
+/// # return;
+///
+/// // Create and run the actor system.
+/// ActorSystem::new()
+///     .with_setup(setup)
+///     .run();
+///
+/// /// In this setup function we'll add the TcpListener to the actor system.
+/// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
+///     // Create our TCP listener. We'll use the default actor options.
+///     let new_actor = conn_actor as fn(_, _, _) -> _;
+///     let listener = TcpListener::new(conn_supervisor, new_actor, ActorOptions::default());
+///
+///     // The address to listen on.
+///     let address = "127.0.0.1:7890".parse().unwrap();
+///     system_ref.spawn(listener_supervisor, listener, address, ActorOptions {
+///         // We advice to give the TCP listener a low priority to prioritise
+///         // handling of ongoing requests over accepting new requests possibly
+///         // overloading the system.
+///         priority: Priority::LOW,
+///         .. Default::default()
+///     })?;
+///
+///     Ok(())
+/// }
+///
+/// /// Supervisor for the TCP listener.
+/// fn listener_supervisor(err: io::Error) -> SupervisorStrategy<(SocketAddr)> {
+///     error!("error accepting connection: {}", err);
+///     SupervisorStrategy::Stop
+/// }
+///
+/// /// The actor responsible for a single TCP stream.
 /// async fn conn_actor(_ctx: ActorContext<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 ///     await!(stream.write_all(b"Hello World"))
 /// }
 ///
+/// /// `conn_actor`'s supervisor.
 /// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
 ///     error!("error handling connection: {}", err);
 ///     SupervisorStrategy::Stop
 /// }
-///
-/// // The address to listen on.
-/// let address = "127.0.0.1:7890".parse().unwrap();
-///
-/// // Create our TCP listener. We'll use the default actor options.
-/// let new_actor = conn_actor as fn(_, _, _) -> _;
-/// let listener = TcpListener::new(address, conn_supervisor, new_actor, ActorOptions::default());
-///
-/// // We create our actor system.
-/// ActorSystem::new()
-///     // We add our TCP listener, using the default options.
-///     .with_initiator(listener, InitiatorOptions::default())
-///     # ; // We don't actually want to run this.
 /// ```
 #[derive(Debug)]
 pub struct TcpListener<NA, S> {
+    /// Reference to the actor system used to add new actors to handle accepted
+    /// connections.
+    system_ref: ActorSystemRef,
     /// The underlying TCP listener, backed by mio.
     listener: MioTcpListener,
     /// Supervisor for all actors created by `NewActor`.
@@ -92,19 +117,12 @@ impl<NA, S> TcpListener<NA, S>
     /// created actor to the actor system. The supervisor `S` will be used as
     /// supervisor.
     ///
+    /// Note in the function call we'll not yet bound to the port, this will
+    /// happen in `NewTcpListener`'s `NewActor` implementation.
+    ///
     /// [`NewActor::new`]: ../actor/trait.NewActor.html#tymethod.new
-    pub fn new(address: SocketAddr, supervisor: S, new_actor: NA, options: ActorOptions) -> NewTcpListener<NA, S> {
-        NewTcpListener { address, supervisor, new_actor, options }
-    }
-
-    /// Bind a new TCP listener to the provided `address`.
-    fn bind(address: SocketAddr, supervisor: S, new_actor: NA, options: ActorOptions) -> io::Result<TcpListener<NA, S>> {
-        Ok(TcpListener {
-            listener: MioTcpListener::bind(address)?,
-            supervisor,
-            new_actor,
-            options,
-        })
+    pub fn new(supervisor: S, new_actor: NA, options: ActorOptions) -> NewTcpListener<NA, S> {
+        NewTcpListener { supervisor, new_actor, options }
     }
 }
 
@@ -127,22 +145,34 @@ impl<NA, S> TcpListener<NA, S> {
 }
 */
 
-impl<NA, S> Initiator for TcpListener<NA, S>
+impl<NA, S> Actor for TcpListener<NA, S>
     where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
           S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + 'static,
 {
-    fn poll(&mut self, system_ref: &mut ActorSystemRef) -> io::Result<()> {
+    type Error = io::Error;
+
+    fn try_poll(self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Result<(), Self::Error>> {
+        // This is safe because only the ActorSystemRef and MioTcpListener are
+        // mutably borrowed and both are `Unpin`.
+        let &mut TcpListener {
+            ref mut system_ref,
+            ref mut listener,
+            ref supervisor,
+            ref new_actor,
+            ref options,
+        } = unsafe { self.get_unchecked_mut() };
+
         loop {
-            let (mut stream, addr) = match self.listener.accept() {
+            let (mut stream, addr) = match listener.accept() {
                 Ok(ok) => ok,
-                Err(ref err) if would_block(err) => return Ok(()),
+                Err(ref err) if would_block(err) => return Poll::Pending,
                 Err(ref err) if interrupted(err) => continue, // Try again.
-                Err(err) => return Err(err),
+                Err(err) => return Poll::Ready(Err(err)),
             };
             debug!("accepted connection from: {}", addr);
 
-            let res = system_ref.add_actor_setup(self.supervisor.clone(), self.new_actor.clone(), |pid, poller| {
-                poller.register(&mut stream, pid.into(),
+            let res = system_ref.add_actor_setup(supervisor.clone(), new_actor.clone(), |pid, system_ref| {
+                system_ref.poller_register(&mut stream, pid.into(),
                     MioTcpStream::INTERESTS, PollOption::Edge)?;
 
                 // Wrap the raw stream with our wrapper.
@@ -150,54 +180,54 @@ impl<NA, S> Initiator for TcpListener<NA, S>
 
                 // Return the arguments used to create the actor.
                 Ok((stream, addr))
-            }, self.options.clone());
+            }, options.clone());
 
             match res {
                 Ok(_) => {},
-                Err(AddActorError::NewActor(err)) => {
-                    error!("error creating new actor: {}", err);
-                    // Can't use `err` directly here since it doesn't
-                    // implement any of the required traits.
-                    return Err(io::Error::new(io::ErrorKind::Other, err.to_string()));
-                },
-                Err(AddActorError::ArgFn(err)) => {
-                    error!("error registering TCP stream: {}", err);
-                    return Err(err);
-                },
+                // Can't use `err` directly here since it doesn't implement any
+                // of the required traits.
+                Err(AddActorError::NewActor(err)) =>
+                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err.to_string()))),
+                Err(AddActorError::ArgFn(err)) => return Poll::Ready(Err(err)),
             }
         }
     }
 }
 
-/// `NewTcpListener` is an intermediate representation of `TcpListener` that
-/// implements [`NewInitiator`].
+/// `NewTcpListener` is an implementation of [`NewActor`] for `TcpListener`.
 ///
 /// It can be created by calling [`TcpListener::new`].
 ///
-/// [`NewInitiator`]: ../initiator/trait.NewInitiator.html
+/// [`NewActor`]: ../actor/trait.NewActor.html
 /// [`TcpListener::new`]: struct.TcpListener.html#method.new
 #[derive(Debug, Clone)]
 pub struct NewTcpListener<NA, S> {
-    address: SocketAddr,
     supervisor: S,
     new_actor: NA,
     options: ActorOptions,
 }
 
-impl<NA, S> NewInitiator for NewTcpListener<NA, S>
+impl<NA, S> NewActor for NewTcpListener<NA, S>
     where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
           S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
 {
-    type Initiator = TcpListener<NA, S>;
+    type Message = !;
+    type Argument = SocketAddr;
+    type Actor = TcpListener<NA, S>;
+    type Error = io::Error;
 
-    fn new(self) -> io::Result<Self::Initiator> {
-        unreachable!("NewTcpListener::new can't be called directly");
-    }
+    fn new(&mut self, mut ctx: ActorContext<Self::Message>, address: Self::Argument) -> Result<Self::Actor, Self::Error> {
+        let mut system_ref = ctx.system_ref().clone();
+        let mut listener = MioTcpListener::bind(address)?;
+        system_ref.poller_register(&mut listener, ctx.pid().into(), MioTcpListener::INTERESTS, PollOption::Edge)?;
 
-    fn new_internal(self, poller: &mut Poller, pid: ProcessId) -> io::Result<Self::Initiator> {
-        let mut listener = TcpListener::bind(self.address, self.supervisor, self.new_actor, self.options)?;
-        poller.register(&mut listener.listener, pid.into(), MioTcpListener::INTERESTS, PollOption::Edge)?;
-        Ok(listener)
+        Ok(TcpListener {
+            system_ref,
+            listener,
+            supervisor: self.supervisor.clone(),
+            new_actor: self.new_actor.clone(),
+            options: self.options.clone(),
+        })
     }
 }
 

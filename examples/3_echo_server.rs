@@ -11,24 +11,51 @@ use heph::actor::ActorContext;
 use heph::log::REQUEST_TARGET;
 use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::{SupervisorStrategy, NoSupervisor};
-use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, InitiatorOptions, RuntimeError};
+use heph::system::options::Priority;
+use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, RuntimeError};
 
-/// This is our setup function that will add the count actor to the actor
-/// system, much like the `add_greeter_actor` in example 1.
-fn add_count_actor(mut system_ref: ActorSystemRef) -> io::Result<()> {
+// Main is mostly the same as example 2, only here we add a setup function
+// (already seen in example 1) and set the number of threads to 2 to indicate
+// the 1 actor per thread problem quicker (hopefully).
+fn main() -> Result<(), RuntimeError> {
+    heph::log::init();
+
+    ActorSystem::new()
+        .with_setup(setup)
+        .num_threads(2)
+        .run()
+}
+
+/// This is our setup function that will add the TCP listener to the actor
+/// system, much like in example 2, and add the count actor to the actor system,
+/// much like the `add_greeter_actor` in example 1.
+fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
+    // Just like in example 2 we'll add our TCP listener.
+    let listener = TcpListener::new(echo_supervisor, echo_actor as fn(_, _, _) -> _, ActorOptions::default());
+    let address = "127.0.0.1:7890".parse().unwrap();
+    system_ref.spawn(listener_supervisor, listener, address, ActorOptions {
+        priority: Priority::LOW,
+        .. Default::default()
+    })?;
+
     // Just like in example 1 we'll add our actor to the system.
-    system_ref.spawn(NoSupervisor, count_actor as fn(_) -> _, (),
-        ActorOptions {
-            // But this example we'll use the `register` option. This registers
-            // the actor in the actor registry and allows it to be looked up,
-            // see the `echo_actor` below.
-            //
-            // Note: this registry is per thread!
-            register: true,
-            .. Default::default()
-        }).unwrap();
+    system_ref.spawn(NoSupervisor, count_actor as fn(_) -> _, (), ActorOptions {
+        // But this example we'll use the `register` option. This registers
+        // the actor in the actor registry and allows it to be looked up,
+        // see the `echo_actor` below.
+        //
+        // Note: this registry is per thread!
+        register: true,
+        .. Default::default()
+    }).unwrap();
 
     Ok(())
+}
+
+/// Our supervisor for the TCP listener. Same as in example 2.
+fn listener_supervisor(err: io::Error) -> SupervisorStrategy<(SocketAddr)> {
+    error!("error accepting connection: {}", err);
+    SupervisorStrategy::Stop
 }
 
 /// Message type used by `count_actor`.
@@ -77,21 +104,4 @@ async fn echo_actor(mut ctx: ActorContext<!>, stream: TcpStream, address: Socket
 fn echo_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
     error!("error handling connection: {}", err);
     SupervisorStrategy::Stop
-}
-
-// Main is mostly the same as example 2, only here we add a setup function
-// (already seen in example 1) and set the number of threads to 2 to indicate
-// the 1 actor per thread problem quicker (hopefully).
-fn main() -> Result<(), RuntimeError> {
-    heph::log::init();
-
-    let address = "127.0.0.1:7890".parse().unwrap();
-    let listener = TcpListener::new(address, echo_supervisor, echo_actor as fn(_, _, _) -> _, ActorOptions::default());
-    info!("listening: address={}", address);
-
-    ActorSystem::new()
-        .with_setup(add_count_actor)
-        .with_initiator(listener, InitiatorOptions::default())
-        .num_threads(2)
-        .run()
 }

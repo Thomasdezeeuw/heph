@@ -9,7 +9,57 @@ use log::{error, info};
 use heph::actor::ActorContext;
 use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::SupervisorStrategy;
-use heph::system::{ActorSystem, ActorOptions, InitiatorOptions, RuntimeError};
+use heph::system::options::Priority;
+use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, RuntimeError};
+
+fn main() -> Result<(), RuntimeError> {
+    // Enable logging.
+    heph::log::init();
+
+    // First we create our actor system.
+    ActorSystem::new()
+        // Next we add our setup function that will add the TCP listener.
+        .with_setup(setup)
+        // We'll create a worker thread per available cpu core.
+        //.use_all_cores()
+        .num_threads(1)
+        // And finally we run it.
+        .run()
+}
+
+/// Our setup function that will add the TCP listener to the actor system.
+fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
+    // Create our TCP listener. This TCP listener will create a new actor, in
+    // our case `conn_actor`, for each incoming TCP stream. This will actor will
+    // need supervision which is done by `conn_supervisor` in this example. And
+    // as each actor will need to be added to the actor system it needs the
+    // `ActorOptions` to add it, we'll use the defaults options here.
+    let listener = TcpListener::new(conn_supervisor, conn_actor as fn(_, _, _) -> _, ActorOptions::default());
+
+    // As a TCP listener is just another actor we need to spawn it like any
+    // other actor, for which we'll need an address as argument. And as any
+    // other actor it needs supervision, thus we provide `listener_supervisor`
+    // as supervisor.
+    let address = "127.0.0.1:7890".parse().unwrap();
+    system_ref.spawn(listener_supervisor, listener, address, ActorOptions {
+        // We'll give our listener a low priority to prioritise handling of
+        // ongoing requests over accepting new requests possibly overloading the
+        // system.
+        priority: Priority::LOW,
+        .. Default::default()
+    })?;
+
+    Ok(())
+}
+
+/// Our supervisor for the TCP listener.
+///
+/// In this example we'll log the error and then stop the actor, but we could
+/// restart it by providing another address.
+fn listener_supervisor(err: io::Error) -> SupervisorStrategy<(SocketAddr)> {
+    error!("error accepting connection: {}", err);
+    SupervisorStrategy::Stop
+}
 
 /// Our connection actor. This get called each type we accept an new connection.
 ///
@@ -37,25 +87,4 @@ async fn conn_actor(_ctx: ActorContext<!>, mut stream: TcpStream, address: Socke
 fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
     error!("error handling connection: {}", err);
     SupervisorStrategy::Stop
-}
-
-fn main() -> Result<(), RuntimeError> {
-    // Enable logging.
-    heph::log::init();
-
-    // Create our TCP listener, with an address to listen, a way to create a new
-    // actor for each incoming connections and the options for each actor (for
-    // which we'll use the default).
-    let address = "127.0.0.1:7890".parse().unwrap();
-    let listener = TcpListener::new(address, conn_supervisor, conn_actor as fn(_, _, _) -> _, ActorOptions::default());
-    info!("listening: address={}", address);
-
-    // First we create our actor system.
-    ActorSystem::new()
-        // Next we add our TCP listener.
-        .with_initiator(listener, InitiatorOptions::default())
-        // We'll create a thread per available cpu core.
-        .use_all_cores()
-        // And finally we run it.
-        .run()
 }
