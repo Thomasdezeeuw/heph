@@ -23,7 +23,7 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> io::Result<()> {
         ActorOptions {
             schedule: true,
             .. ActorOptions::default()
-        });
+        }).unwrap();
 
     Ok(())
 }

@@ -54,7 +54,10 @@
 //!     ActorSystem::new().with_setup(|mut system_ref| {
 //!         // Add the actor to the actor system.
 //!         let new_actor = actor as fn (_) -> _;
-//!         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
+//!         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default())
+//!             // This is safe because the `NewActor` implementation for
+//!             // asynchronous functions never returns an error.
+//!             .unwrap();
 //!
 //!         // Now we can use the reference to send the actor a message.
 //!         actor_ref.send("Hello world".to_owned());
@@ -92,7 +95,10 @@
 //! fn main() -> Result<(), RuntimeError> {
 //!      ActorSystem::new().with_setup(|mut system_ref| {
 //!         let new_actor = actor as fn (_) -> _;
-//!         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
+//!         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default())
+//!             // This is safe because the `NewActor` implementation for
+//!             // asynchronous functions never returns an error.
+//!             .unwrap();
 //!
 //!         // To create another actor reference we can simply clone the first one.
 //!         let mut second_actor_ref = actor_ref.clone();

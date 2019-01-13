@@ -26,7 +26,7 @@ fn add_count_actor(mut system_ref: ActorSystemRef) -> io::Result<()> {
             // Note: this registry is per thread!
             register: true,
             .. Default::default()
-        });
+        }).unwrap();
 
     Ok(())
 }

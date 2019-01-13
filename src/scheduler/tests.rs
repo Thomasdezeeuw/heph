@@ -212,7 +212,7 @@ fn actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = actor as fn(_) -> _;
-    let (actor, mut actor_ref) = init_actor(new_actor, ());
+    let (actor, mut actor_ref) = init_actor(new_actor, ()).unwrap();
 
     // Create the waker.
     let pid = ProcessId(0);
@@ -248,12 +248,13 @@ impl NewActor for TestNewActor {
     type Message = ();
     type Argument = ();
     type Actor = AssertUnmoved<Empty<Result<(), !>>>;
+    type Error = !;
 
-    fn new(&mut self, ctx: ActorContext<Self::Message>, _arg: Self::Argument) -> Self::Actor {
+    fn new(&mut self, ctx: ActorContext<Self::Message>, _arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
         // In the test we need the access to the inbox, to achieve that we can't
         // drop the context, so we forget about it here leaking the inbox.
         mem::forget(ctx);
-        empty().assert_unmoved()
+        Ok(empty().assert_unmoved())
     }
 }
 
@@ -263,7 +264,7 @@ fn assert_actor_unmoved() {
     let mut system_ref = system_ref();
 
     // Create our actor.
-    let (actor, mut actor_ref) = init_actor(TestNewActor, ());
+    let (actor, mut actor_ref) = init_actor(TestNewActor, ()).unwrap();
 
     // Create the waker.
     let pid = ProcessId(0);

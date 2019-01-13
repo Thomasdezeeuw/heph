@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::task::{LocalWaker, Poll};
 use std::time::{Duration, Instant};
 
-use log::trace;
+use log::{error, trace};
 
 use crate::actor::{Actor, NewActor, ActorContext};
 use crate::mailbox::MailBox;
@@ -83,10 +83,20 @@ impl<S, NA> Process for ActorProcess<S, NA>
                     SupervisorStrategy::Restart(arg) => {
                         // Create a new actor.
                         let ctx = ActorContext::new(this.id, system_ref.clone(), this.inbox.clone());
-                        pinned_actor.set(this.new_actor.new(ctx, arg));
-                        // Run the actor, just in case progress can be made
-                        // already.
-                        return unsafe { Pin::new_unchecked(this) }.run(system_ref);
+                        match this.new_actor.new(ctx, arg) {
+                            Ok(actor) => {
+                                pinned_actor.set(actor);
+                                // Run the actor, just in case progress can be
+                                // made already.
+                                return unsafe { Pin::new_unchecked(this) }.run(system_ref);
+                            },
+                            Err(err) => {
+                                // New actor can't be created, so all we can do
+                                // is log and mark the process as complete.
+                                error!("error creating new actor: {}", err);
+                                ProcessResult::Complete
+                            },
+                        }
                     },
                     SupervisorStrategy::Stop => ProcessResult::Complete,
                 }
