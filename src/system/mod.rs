@@ -470,14 +470,20 @@ impl RunningActorSystem {
     pub fn run_event_loop(mut self) -> Result<(), RuntimeError> {
         debug!("running actor system's event loop");
 
+        // The schedule field in `ActorOptions` will send a waker notification,
+        // so we need to check for those any schedule any actors that start
+        // scheduled.
+        while let Some(pid) = self.waker_notifications.try_recv() {
+            self.scheduler.schedule(pid);
+        }
+
         // Empty set of events, to be filled by the system poller.
         let mut events = Events::new();
         // System reference used in running the processes.
         let mut system_ref = self.create_ref();
 
         loop {
-            self.schedule_processes(&mut events)?;
-
+            // First run any processes that are ready, only after that we poll.
             for _ in 0..RUN_POLL_RATIO {
                 if !self.scheduler.run_process(&mut system_ref) {
                     if self.scheduler.is_empty() {
@@ -490,6 +496,8 @@ impl RunningActorSystem {
                     }
                 }
             }
+
+            self.schedule_processes(&mut events)?;
         }
     }
 
@@ -658,15 +666,18 @@ impl ActorSystemRef {
     /// /// Our actor implemented as an asynchronous function.
     /// async fn actor(mut ctx: ActorContext<()>) -> Result<(), !> {
     ///     // ...
-    ///     # Ok(())
+    /// #   Ok(())
     /// }
     ///
     /// /// Setup function used in starting the `ActorSystem`.
     /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     ///     // Add the actor to the system, enabling registering of the actor.
-    ///     let actor_ref1 = system_ref.spawn(NoSupervisor, actor as fn(_) -> _,
-    ///         (), ActorOptions { register: true, .. ActorOptions::default() })
-    ///         .unwrap();
+    ///     let mut actor_ref1 = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
+    ///         register: true,
+    ///         .. ActorOptions::default()
+    ///     }).unwrap();
+    /// #   // Actually run the actor, so the example can run.
+    /// #   actor_ref1.send(()).unwrap();
     ///
     ///     // Unfortunately this won't compile. :(
     ///     //let actor_ref2 = system_ref.lookup::<actor>();

@@ -32,32 +32,36 @@
 //! Supervisor that logs the errors of a badly behaving actor and stops it.
 //!
 //! ```
-//! #![feature(async_await, await_macro, futures_api)]
+//! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
 //! use std::io;
 //!
 //! use heph::actor::ActorContext;
-//! use heph::log::error;
+//! use heph::log::{self, error};
 //! use heph::supervisor::SupervisorStrategy;
 //! use heph::system::{ActorSystem, ActorOptions, RuntimeError};
 //!
 //! struct Error;
 //!
 //! /// Our badly behaving actor.
-//! async fn bad_actor(mut ctx: ActorContext<&'static str>) -> Result<(), Error> {
+//! async fn bad_actor(_ctx: ActorContext<!>) -> Result<(), Error> {
 //!     Err(Error)
 //! }
 //!
-//! /// Supervisor that gets called if, well when in this example, the actor
-//! /// returns an error.
+//! /// Supervisor that gets called if the actor returns an error.
 //! fn supervisor(error: Error) -> SupervisorStrategy<()> {
 //!     error!("Actor encountered an error!");
 //!     SupervisorStrategy::Stop
 //! }
 //!
 //! fn main() -> Result<(), RuntimeError> {
+//!     log::init();
+//!
 //!     ActorSystem::new().with_setup(|mut system_ref| {
-//!         system_ref.spawn(supervisor, bad_actor as fn(_) -> _, (), ActorOptions::default());
+//!         system_ref.spawn(supervisor, bad_actor as fn(_) -> _, (), ActorOptions {
+//!             schedule: true,
+//!             .. ActorOptions::default()
+//!         });
 //!         Ok(())
 //!     })
 //!     .run()
@@ -134,7 +138,10 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 ///
 /// fn main() -> Result<(), RuntimeError> {
 ///     ActorSystem::new().with_setup(|mut system_ref| {
-///         system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
+///         system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
+///             schedule: true,
+///             .. ActorOptions::default()
+///         });
 ///         Ok(())
 ///     })
 ///     .run()
