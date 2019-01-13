@@ -58,7 +58,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::thread::{self, JoinHandle};
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::{fmt, io};
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
@@ -397,10 +397,6 @@ pub(crate) struct RunningActorSystem {
     internal: Rc<ActorSystemInternal>,
     /// Scheduler that hold the processes, schedules and runs them.
     scheduler: Scheduler,
-    /// Whether or not the system has initiators.
-    // FIXME: This is currently required mostly for tests and example 1. Try to
-    // remove it.
-    has_initiators: bool,
     /// Receiving side of the channel for `Waker` notifications.
     waker_notifications: Receiver<ProcessId>,
 }
@@ -434,7 +430,6 @@ impl RunningActorSystem {
         Ok(RunningActorSystem {
             internal: Rc::new(internal),
             scheduler,
-            has_initiators: false,
             waker_notifications: waker_recv,
         })
     }
@@ -443,9 +438,6 @@ impl RunningActorSystem {
     pub fn add_initiator<I>(&mut self, initiator: I, _options: InitiatorOptions) -> Result<(), RuntimeError>
         where I: NewInitiator + 'static,
     {
-        // Make sure we call `Poller.poll` without a timeout.
-        self.has_initiators = true;
-
         let ActorSystemInternal {
             ref scheduler_ref,
             ref poller,
@@ -484,17 +476,16 @@ impl RunningActorSystem {
         let mut system_ref = self.create_ref();
 
         loop {
-            let n_events = self.schedule_processes(&mut events)?;
+            self.schedule_processes(&mut events)?;
 
             for _ in 0..RUN_POLL_RATIO {
                 if !self.scheduler.run_process(&mut system_ref) {
-                    if n_events == 0 {
-                        // This is here to support actor system without
-                        // initiators, e.g. example 1.
-                        debug!("no events, no processes to run, stopping actor system");
-                        return Ok(());
+                    if self.scheduler.is_empty() {
+                        // No processes left to run, so we're done.
+                        debug!("no processes to run, stopping actor system");
+                        return Ok(())
                     } else {
-                        // No processes to run, try polling again.
+                        // No processes ready to run, try polling again.
                         break;
                     }
                 }
@@ -506,14 +497,12 @@ impl RunningActorSystem {
     ///
     /// This polls the system poller and the waker notifications and schedules
     /// the processes notified.
-    fn schedule_processes(&mut self, events: &mut Events) -> Result<usize, RuntimeError> {
+    fn schedule_processes(&mut self, events: &mut Events) -> Result<(), RuntimeError> {
         trace!("polling system poller for events");
-        let timeout = self.determine_timeout();
-        self.internal.poller.borrow_mut().poll(events, timeout)
+        self.internal.poller.borrow_mut().poll(events, None)
             .map_err(RuntimeError::poll)?;
 
         // Schedule all processes with a notification.
-        let n_events = events.len();
         for event in events {
             self.scheduler.schedule(event.id().into());
         }
@@ -523,16 +512,7 @@ impl RunningActorSystem {
             self.scheduler.schedule(pid);
         }
 
-        Ok(n_events)
-    }
-
-    /// Determine the timeout used in the system poller.
-    fn determine_timeout(&self) -> Option<Duration> {
-        if !self.has_initiators || self.scheduler.process_ready() {
-            Some(Duration::from_millis(0))
-        } else {
-            None
-        }
+        Ok(())
     }
 }
 

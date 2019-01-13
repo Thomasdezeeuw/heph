@@ -84,12 +84,12 @@ fn scheduler() {
     let mut system_ref = system_ref();
 
     // Shouldn't run any process yet, since none are added.
-    assert!(!scheduler.process_ready());
+    assert!(scheduler.is_empty());
     assert!(!scheduler.run_process(&mut system_ref));
 
     // Scheduling an unknown process should do nothing.
     scheduler.schedule(ProcessId(0));
-    assert!(!scheduler.process_ready());
+    assert!(scheduler.is_empty());
     assert!(!scheduler.run_process(&mut system_ref));
 
     // Add a process to the scheduler.
@@ -100,17 +100,16 @@ fn scheduler() {
     process_entry.add_process(pid, process);
 
     // Newly added processes aren't ready by default.
-    assert!(!scheduler.process_ready());
+    assert!(!scheduler.is_empty());
     assert!(!scheduler.run_process(&mut system_ref));
 
     // After scheduling the process should be ready to run.
     scheduler.schedule(pid);
-    assert!(scheduler.process_ready());
     assert!(scheduler.run_process(&mut system_ref));
     // After the process is run, and returned `ProcessResult::Complete`, it
     // should be removed.
-    assert!(!scheduler.process_ready());
     assert!(!scheduler.run_process(&mut system_ref));
+    assert!(scheduler.is_empty());
 
     // Since the previous process was completed it should be removed, which
     // means the pid will be reused.
@@ -120,16 +119,15 @@ fn scheduler() {
     process_entry.add_process(pid, process);
 
     // Again newly added processes aren't ready by default.
-    assert!(!scheduler.process_ready());
+    assert!(!scheduler.is_empty());
     assert!(!scheduler.run_process(&mut system_ref));
 
     // After scheduling the process should be ready to run.
     scheduler.schedule(pid);
-    assert!(scheduler.process_ready());
     assert!(scheduler.run_process(&mut system_ref));
     // Even though the process was not completed it is no longer ready to run.
-    assert!(!scheduler.process_ready());
     assert!(!scheduler.run_process(&mut system_ref));
+    assert!(!scheduler.is_empty());
 }
 
 #[derive(Debug)]
@@ -188,14 +186,14 @@ fn scheduler_run_order() {
     for pid in 0..3 {
         scheduler.schedule(ProcessId(pid));
     }
-    assert!(scheduler.process_ready());
+    assert!(!scheduler.is_empty());
 
     // Run all processes, should be in order of priority (since there runtimes
     // are equal).
     for _ in 0..3 {
         assert!(scheduler.run_process(&mut system_ref));
     }
-    assert!(!scheduler.process_ready());
+    assert!(!scheduler.is_empty());
     assert_eq!(*run_order.borrow(), vec![2, 1, 0]);
 }
 
@@ -227,19 +225,20 @@ fn actor_process() {
 
     // Schedule and run, should return Pending and become inactive.
     scheduler.schedule(ProcessId(0));
+    assert!(!scheduler.is_empty());
     assert!(scheduler.run_process(&mut system_ref));
-    assert!(!scheduler.process_ready());
 
     // Send a message to the actor, schedule and run again. This time it should
     // complete.
     actor_ref.send(()).unwrap();
     scheduler.schedule(ProcessId(0));
     assert!(scheduler.run_process(&mut system_ref));
+    assert!(scheduler.is_empty());
 
     // Now no processes should be ready.
     scheduler.schedule(ProcessId(0));
-    assert!(!scheduler.process_ready());
     assert!(!scheduler.run_process(&mut system_ref));
+    assert!(scheduler.is_empty());
 }
 
 struct TestNewActor;
@@ -311,12 +310,12 @@ fn adding_initiator_process() {
     let initiator = SimpleInitiator { called: Arc::clone(&called) };
     let process_entry = scheduler_ref.add_process();
     process_entry.add_initiator(initiator);
+    assert!(!scheduler.is_empty());
 
     // Schedule and run, should return Ok and become inactive.
     scheduler.schedule(ProcessId(0));
     assert!(scheduler.run_process(&mut system_ref));
     assert_eq!(called.load(atomic::Ordering::SeqCst), 1);
-    assert!(!scheduler.process_ready());
 
     // Schedule and run again, should return an error this time and be removed.
     scheduler.schedule(ProcessId(0));
@@ -325,7 +324,6 @@ fn adding_initiator_process() {
 
     // Now no processes should be ready.
     scheduler.schedule(ProcessId(0));
-    assert!(!scheduler.process_ready());
     assert!(!scheduler.run_process(&mut system_ref));
     assert_eq!(called.load(atomic::Ordering::SeqCst), 2);
 }
