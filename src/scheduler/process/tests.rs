@@ -157,7 +157,7 @@ fn actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = ok_actor as fn(_) -> _;
-    let (actor, mut actor_ref) = init_actor(new_actor, ());
+    let (actor, mut actor_ref) = init_actor(new_actor, ()).unwrap();
 
     // Create the waker.
     let pid = ProcessId(0);
@@ -203,7 +203,7 @@ fn erroneous_actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = error_actor as fn(_, _) -> _;
-    let (actor, mut actor_ref) = init_actor(new_actor, true);
+    let (actor, mut actor_ref) = init_actor(new_actor, true).unwrap();
 
     // Create the waker.
     let pid = ProcessId(0);
@@ -231,7 +231,7 @@ fn restarting_erroneous_actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = error_actor as fn(_, _) -> _;
-    let (actor, mut actor_ref) = init_actor(new_actor, true);
+    let (actor, mut actor_ref) = init_actor(new_actor, true).unwrap();
 
     // Create the waker.
     let pid = ProcessId(0);
@@ -285,7 +285,7 @@ fn actor_process_runtime_increase() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = sleepy_actor as fn(_, _) -> _;
-    let (actor, mut actor_ref) = init_actor(new_actor, SLEEP_TIME);
+    let (actor, mut actor_ref) = init_actor(new_actor, SLEEP_TIME).unwrap();
 
     // Create the waker.
     let pid = ProcessId(0);
@@ -314,19 +314,20 @@ impl NewActor for TestAssertUnmovedNewActor {
     type Message = ();
     type Argument = ();
     type Actor = AssertUnmoved<Empty<Result<(), !>>>;
+    type Error = !;
 
-    fn new(&mut self, ctx: ActorContext<Self::Message>, _arg: Self::Argument) -> Self::Actor {
+    fn new(&mut self, ctx: ActorContext<Self::Message>, _arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
         // In the test we need the access to the inbox, to achieve that we can't
         // drop the context, so we forget about it here leaking the inbox.
         forget(ctx);
-        empty().assert_unmoved()
+        Ok(empty().assert_unmoved())
     }
 }
 
 #[test]
 fn actor_process_assert_actor_unmoved() {
     // Create our actor.
-    let (actor, mut actor_ref) = init_actor(TestAssertUnmovedNewActor , ());
+    let (actor, mut actor_ref) = init_actor(TestAssertUnmovedNewActor , ()).unwrap();
 
     // Create the waker.
     let pid = ProcessId(0);

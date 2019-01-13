@@ -7,7 +7,7 @@ use std::net::{Shutdown, SocketAddr};
 use std::task::{LocalWaker, Poll};
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
-use log::debug;
+use log::{error, debug};
 
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use mio_st::poll::{PollOption, Poller};
@@ -17,7 +17,7 @@ use crate::initiator::{Initiator, NewInitiator};
 use crate::net::{interrupted, would_block};
 use crate::scheduler::ProcessId;
 use crate::supervisor::Supervisor;
-use crate::system::{ActorOptions, ActorSystemRef};
+use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 
 /// A TCP listener that implements the [`Initiator`] trait.
 ///
@@ -141,7 +141,7 @@ impl<NA, S> Initiator for TcpListener<NA, S>
             };
             debug!("accepted connection from: {}", addr);
 
-            let _ = system_ref.add_actor_setup(self.supervisor.clone(), self.new_actor.clone(), |pid, poller| {
+            let res = system_ref.add_actor_setup(self.supervisor.clone(), self.new_actor.clone(), |pid, poller| {
                 poller.register(&mut stream, pid.into(),
                     MioTcpStream::INTERESTS, PollOption::Edge)?;
 
@@ -150,7 +150,21 @@ impl<NA, S> Initiator for TcpListener<NA, S>
 
                 // Return the arguments used to create the actor.
                 Ok((stream, addr))
-            }, self.options.clone())?;
+            }, self.options.clone());
+
+            match res {
+                Ok(_) => {},
+                Err(AddActorError::NewActor(err)) => {
+                    error!("error creating new actor: {}", err);
+                    // Can't use `err` directly here since it doesn't
+                    // implement any of the required traits.
+                    return Err(io::Error::new(io::ErrorKind::Other, err.to_string()));
+                },
+                Err(AddActorError::ArgFn(err)) => {
+                    error!("error registering TCP stream: {}", err);
+                    return Err(err);
+                },
+            }
         }
     }
 }

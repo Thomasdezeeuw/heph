@@ -51,7 +51,7 @@ pub fn system_ref() -> ActorSystemRef {
 }
 
 /// Initialise an actor.
-pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> (NA::Actor, LocalActorRef<NA::Message>)
+pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> Result<(NA::Actor, LocalActorRef<NA::Message>), NA::Error>
     where NA: NewActor,
 {
     let system_ref = system_ref();
@@ -61,9 +61,9 @@ pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> (NA::Actor, Local
     let actor_ref = LocalActorRef::new(inbox.downgrade());
 
     let ctx = ActorContext::new(pid, system_ref, inbox);
-    let actor = new_actor.new(ctx, arg);
+    let actor = new_actor.new(ctx, arg)?;
 
-    (actor, actor_ref)
+    Ok((actor, actor_ref))
 }
 
 /// Poll a future.

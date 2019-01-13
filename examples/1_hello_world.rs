@@ -24,7 +24,10 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // Along with the supervisor we'll also supply the argument to start the
     // actor, in our case this is `()` since our actor doesn't accept arguments.
     // We'll use the default actor options here.
-    let mut actor_ref = system_ref.spawn(NoSupervisor, greeter_actor as fn(_) -> _, (), ActorOptions::default());
+    let mut actor_ref = system_ref.spawn(NoSupervisor, greeter_actor as fn(_) -> _, (), ActorOptions::default())
+        // This is safe because asynchronous functions never return an error
+        // when creating the actor.
+        .unwrap();
 
     // By default actors don't do anything when added to the actor system. We
     // need to wake them, for example by sending them a message.

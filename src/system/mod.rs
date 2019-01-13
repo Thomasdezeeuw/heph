@@ -151,7 +151,10 @@ pub use self::error::RuntimeError;
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///     // Add the actor to the system.
 ///     let new_actor = greeter_actor as fn(_, _) -> _;
-///     let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, "Hello", ActorOptions::default());
+///     let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, "Hello", ActorOptions::default())
+///         // This is safe because the `NewActor` implementation for
+///         // asynchronous functions never returns an error.
+///         .unwrap();
 ///
 ///     // Send a message to the actor.
 ///     actor_ref.send("World")?;
@@ -546,13 +549,16 @@ impl ActorSystemRef {
     /// is the way to create the actor, this is `new_actor`, and the `arg`ument
     /// to create it. Finally it also needs `options` for actor and the place
     /// inside the actor system.
-    pub fn spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> LocalActorRef<NA::Message>
+    pub fn spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> Result<LocalActorRef<NA::Message>, NA::Error>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
               NA::Actor: 'static,
     {
         self.add_actor_setup(supervisor, new_actor, |_, _| Ok(arg), options)
-            .unwrap() // Safe because the argument function doesn't return an error.
+            .map_err(|err| match err {
+                AddActorError::NewActor(err) => err,
+                AddActorError::<_, !>::ArgFn(_) => unreachable!(),
+            })
     }
 
     /// Add an actor that needs to be initialised.
@@ -564,10 +570,12 @@ impl ActorSystemRef {
     /// `options`. The only difference being rather then passing an argument
     /// directly this function requires a function to create the argument, which
     /// allows the caller to do any required setup work.
-    pub(crate) fn add_actor_setup<S, NA, ArgFn>(&mut self, supervisor: S, new_actor: NA, arg_fn: ArgFn, options: ActorOptions) -> io::Result<LocalActorRef<NA::Message>>
+    pub(crate) fn add_actor_setup<S, NA, ArgFn, ArgFnE>(&mut self, supervisor: S,
+        new_actor: NA, arg_fn: ArgFn, options: ActorOptions
+    ) -> Result<LocalActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
-              ArgFn: FnOnce(ProcessId, &mut Poller) -> io::Result<NA::Argument>,
+              ArgFn: FnOnce(ProcessId, &mut Poller) -> Result<NA::Argument, ArgFnE>,
               NA::Actor: 'static,
     {
         let system_ref = self.clone();
@@ -630,7 +638,8 @@ impl ActorSystemRef {
     /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     ///     // Add the actor to the system, enabling registering of the actor.
     ///     let actor_ref1 = system_ref.spawn(NoSupervisor, actor as fn(_) -> _,
-    ///         (), ActorOptions { register: true, .. ActorOptions::default() });
+    ///         (), ActorOptions { register: true, .. ActorOptions::default() })
+    ///         .unwrap();
     ///
     ///     // Unfortunately this won't compile. :(
     ///     //let actor_ref2 = system_ref.lookup::<actor>();
@@ -714,10 +723,12 @@ impl ActorSystemInternal {
         }
     }
 
-    pub fn add_actor<S, NA, ArgFn>(&mut self, supervisor: S, mut new_actor: NA, arg_fn: ArgFn, options: ActorOptions, system_ref: ActorSystemRef) -> io::Result<LocalActorRef<NA::Message>>
+    pub fn add_actor<S, NA, ArgFn, ArgFnE>(&mut self, supervisor: S, mut new_actor: NA,
+        arg_fn: ArgFn, options: ActorOptions, system_ref: ActorSystemRef
+    ) -> Result<LocalActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
-              ArgFn: FnOnce(ProcessId, &mut Poller) -> io::Result<NA::Argument>,
+              ArgFn: FnOnce(ProcessId, &mut Poller) -> Result<NA::Argument, ArgFnE>,
     {
         // Setup adding a new process to the scheduler.
         let process_entry = self.scheduler_ref.add_process();
@@ -732,8 +743,10 @@ impl ActorSystemInternal {
         // Create the actor context, the argument for the actor and create an
         // actor with both.
         let ctx = ActorContext::new(pid, system_ref, mailbox.clone());
-        let arg = arg_fn(pid, &mut self.poller)?;
-        let actor = new_actor.new(ctx, arg);
+        let arg = arg_fn(pid, &mut self.poller)
+            .map_err(|err| AddActorError::ArgFn(err))?;
+        let actor = new_actor.new(ctx, arg)
+            .map_err(|err| AddActorError::NewActor(err))?;
 
         // Add the actor to the scheduler.
         process_entry.add_actor(options.priority, supervisor, new_actor, actor, mailbox, waker);
@@ -749,4 +762,12 @@ impl ActorSystemInternal {
 
         Ok(actor_ref)
     }
+}
+
+/// Internal error returned by adding a new actor to the actor system.
+pub(crate) enum AddActorError<NewActorE, ArgFnE> {
+    /// Calling new actor resulted in an error.
+    NewActor(NewActorE),
+    /// Calling the argument function resulted in an error.
+    ArgFn(ArgFnE),
 }

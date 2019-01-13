@@ -30,6 +30,7 @@
 //! # use_new_actor(new_actor);
 //! ```
 
+use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{LocalWaker, Poll};
@@ -111,7 +112,10 @@ pub trait NewActor {
     ///     ActorSystem::new().with_setup(|mut system_ref| {
     ///         // Add the actor to the system.
     ///         let new_actor = actor as fn(_) -> _;
-    ///         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
+    ///         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default())
+    ///             // This is safe because the `NewActor` implementation for
+    ///             // asynchronous functions never returns an error.
+    ///             .unwrap();
     ///
     ///         // Now we can use the reference to send the actor a message,
     ///         // without having to use `Message` we can just use `String`.
@@ -152,10 +156,19 @@ pub trait NewActor {
     /// [`Actor`]: trait.Actor.html
     type Actor: Actor;
 
+    /// The type of error.
+    ///
+    /// The error type must implement `fmt::Display` to it can be used to log
+    /// errors, for example when restarting actors.
+    ///
+    /// Note that if creating an actor is always successful the never type (`!`)
+    /// can be used. This is for example the case of asynchronous functions.
+    type Error: fmt::Display;
+
     /// Create a new [`Actor`].
     ///
     /// [`Actor`]: trait.Actor.html
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error>;
 }
 
 impl<M, A> NewActor for fn(ctx: ActorContext<M>) -> A
@@ -164,8 +177,9 @@ impl<M, A> NewActor for fn(ctx: ActorContext<M>) -> A
     type Message = M;
     type Argument = ();
     type Actor = A;
-    fn new(&mut self, ctx: ActorContext<Self::Message>, _arg: Self::Argument) -> Self::Actor {
-        (self)(ctx)
+    type Error = !;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, _arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+        Ok((self)(ctx))
     }
 }
 
@@ -175,8 +189,9 @@ impl<M, Arg, A> NewActor for fn(ctx: ActorContext<M>, arg: Arg) -> A
     type Message = M;
     type Argument = Arg;
     type Actor = A;
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor {
-        (self)(ctx, arg)
+    type Error = !;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+        Ok((self)(ctx, arg))
     }
 }
 
@@ -186,8 +201,9 @@ impl<M, Arg1, Arg2, A> NewActor for fn(ctx: ActorContext<M>, arg1: Arg1, arg2: A
     type Message = M;
     type Argument = (Arg1, Arg2);
     type Actor = A;
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor {
-        (self)(ctx, arg.0, arg.1)
+    type Error = !;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+        Ok((self)(ctx, arg.0, arg.1))
     }
 }
 
@@ -197,8 +213,9 @@ impl<M, Arg1, Arg2, Arg3, A> NewActor for fn(ctx: ActorContext<M>, arg1: Arg1, a
     type Message = M;
     type Argument = (Arg1, Arg2, Arg3);
     type Actor = A;
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor {
-        (self)(ctx, arg.0, arg.1, arg.2)
+    type Error = !;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+        Ok((self)(ctx, arg.0, arg.1, arg.2))
     }
 }
 
@@ -208,8 +225,9 @@ impl<M, Arg1, Arg2, Arg3, Arg4, A> NewActor for fn(ctx: ActorContext<M>, arg1: A
     type Message = M;
     type Argument = (Arg1, Arg2, Arg3, Arg4);
     type Actor = A;
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor {
-        (self)(ctx, arg.0, arg.1, arg.2, arg.3)
+    type Error = !;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+        Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3))
     }
 }
 
@@ -219,8 +237,9 @@ impl<M, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor for fn(ctx: ActorContext<M>, a
     type Message = M;
     type Argument = (Arg1, Arg2, Arg3, Arg4, Arg5);
     type Actor = A;
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Self::Actor {
-        (self)(ctx, arg.0, arg.1, arg.2, arg.3, arg.4)
+    type Error = !;
+    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+        Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3, arg.4))
     }
 }
 
