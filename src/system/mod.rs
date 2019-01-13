@@ -563,14 +563,14 @@ impl ActorSystemRef {
     ) -> Result<LocalActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
-              ArgFn: FnOnce(ProcessId, &mut Poller) -> Result<NA::Argument, ArgFnE>,
+              ArgFn: FnOnce(ProcessId, &mut ActorSystemRef) -> Result<NA::Argument, ArgFnE>,
               NA::Actor: 'static,
     {
         let ActorSystemInternal {
             ref scheduler_ref,
-            ref poller,
             ref waker_notifications,
             ref registry,
+            ..
         } = &*self.internal;
 
         // Setup adding a new process to the scheduler.
@@ -584,11 +584,12 @@ impl ActorSystemRef {
         let mailbox = Shared::new(MailBox::new(pid, self.clone()));
         let actor_ref = LocalActorRef::new(mailbox.downgrade());
 
-        // Create the actor context, the argument for the actor and create the
+        // Create the argument for the actor, the actor context and create the
         // actor with both.
-        let ctx = ActorContext::new(pid, self.clone(), mailbox.clone());
-        let arg = arg_fn(pid, &mut poller.borrow_mut())
+        let mut system_ref = self.clone();
+        let arg = arg_fn(pid, &mut system_ref)
             .map_err(|err| AddActorError::ArgFn(err))?;
+        let ctx = ActorContext::new(pid, system_ref, mailbox.clone());
         let actor = new_actor.new(ctx, arg)
             .map_err(|err| AddActorError::NewActor(err))?;
 
