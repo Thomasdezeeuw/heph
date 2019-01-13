@@ -60,6 +60,7 @@ pub use self::context::{ActorContext, ReceiveMessage};
 ///     loop {
 ///         let name = await!(ctx.receive());
 ///         println!("{} {}", message, name);
+/// #       return Ok(());
 ///     }
 /// }
 ///
@@ -104,6 +105,7 @@ pub trait NewActor {
     ///     loop {
     ///         let msg = await!(ctx.receive());
     ///         println!("received message: {:?}", msg);
+    /// #       return Ok(());
     ///     }
     /// }
     ///
