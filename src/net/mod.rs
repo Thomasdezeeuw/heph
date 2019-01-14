@@ -54,7 +54,7 @@ use std::io;
 mod tcp;
 mod udp;
 
-pub use self::tcp::{NewTcpListener, TcpListener, TcpStream};
+pub use self::tcp::{NewTcpListener, TcpListener, TcpListenerError, TcpStream};
 pub use self::udp::{ConnectedUdpSocket, UdpSocket};
 
 /// Whether or not the error is a would block error.

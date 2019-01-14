@@ -8,7 +8,7 @@ use futures_util::{AsyncReadExt, TryFutureExt};
 
 use heph::actor::ActorContext;
 use heph::log::{self, error, info};
-use heph::net::{TcpListener, TcpStream};
+use heph::net::{TcpListener, TcpListenerError, TcpStream};
 use heph::supervisor::{SupervisorStrategy, NoSupervisor};
 use heph::system::options::Priority;
 use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, RuntimeError};
@@ -53,7 +53,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 }
 
 /// Our supervisor for the TCP listener, same as in example 2.
-fn listener_supervisor(err: io::Error) -> SupervisorStrategy<(SocketAddr)> {
+fn listener_supervisor(err: TcpListenerError<!>) -> SupervisorStrategy<(SocketAddr)> {
     error!("error in TCP listener: {}", err);
     SupervisorStrategy::Stop
 }

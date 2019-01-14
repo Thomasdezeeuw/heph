@@ -1,5 +1,6 @@
 //! TCP related types.
 
+use std::fmt;
 use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::pin::Pin;
@@ -38,7 +39,7 @@ use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 ///
 /// use heph::actor::ActorContext;
 /// use heph::log::{error, log};
-/// use heph::net::{TcpListener, TcpStream};
+/// use heph::net::{TcpListener, TcpListenerError, TcpStream};
 /// use heph::supervisor::SupervisorStrategy;
 /// use heph::system::options::Priority;
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
@@ -71,7 +72,7 @@ use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 /// }
 ///
 /// /// Supervisor for the TCP listener.
-/// fn listener_supervisor(err: io::Error) -> SupervisorStrategy<(SocketAddr)> {
+/// fn listener_supervisor(err: TcpListenerError<!>) -> SupervisorStrategy<(SocketAddr)> {
 ///     error!("error accepting connection: {}", err);
 ///     SupervisorStrategy::Stop
 /// }
@@ -144,7 +145,7 @@ impl<NA, S> Actor for TcpListener<NA, S>
     where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
           S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + 'static,
 {
-    type Error = io::Error;
+    type Error = TcpListenerError<NA::Error>;
 
     fn try_poll(self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Result<(), Self::Error>> {
         // This is safe because only the ActorSystemRef and MioTcpListener are
@@ -162,7 +163,7 @@ impl<NA, S> Actor for TcpListener<NA, S>
                 Ok(ok) => ok,
                 Err(ref err) if would_block(err) => return Poll::Pending,
                 Err(ref err) if interrupted(err) => continue, // Try again.
-                Err(err) => return Poll::Ready(Err(err)),
+                Err(err) => return Poll::Ready(Err(TcpListenerError::Accept(err))),
             };
             debug!("accepted connection from: {}", addr);
 
@@ -178,13 +179,39 @@ impl<NA, S> Actor for TcpListener<NA, S>
             }, options.clone());
 
             match res {
-                Ok(_) => {},
-                // Can't use `err` directly here since it doesn't implement any
-                // of the required traits.
-                Err(AddActorError::NewActor(err)) =>
-                    return Poll::Ready(Err(io::Error::new(io::ErrorKind::Other, err.to_string()))),
-                Err(AddActorError::ArgFn(err)) => return Poll::Ready(Err(err)),
+                Ok(_) => {}, // Continue.
+                Err(err) => return Poll::Ready(Err(err.into())),
             }
+        }
+    }
+}
+
+/// Error returned by [`TcpListener`].
+///
+/// [`TcpListener`]: struct.TcpListener.html
+#[derive(Debug)]
+pub enum TcpListenerError<E> {
+    /// Error accepting TCP stream.
+    Accept(io::Error),
+    /// Error creating new actor to handle the TCP stream.
+    NewActor(E),
+}
+
+impl<E> From<AddActorError<E, io::Error>> for TcpListenerError<E> {
+    fn from(err: AddActorError<E, io::Error>) -> TcpListenerError<E> {
+        match err {
+            AddActorError::NewActor(err) => TcpListenerError::NewActor(err),
+            AddActorError::ArgFn(err) => TcpListenerError::Accept(err),
+        }
+    }
+}
+
+impl<E: fmt::Display> fmt::Display for TcpListenerError<E> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use self::TcpListenerError::*;
+        match self {
+            Accept(ref err) => write!(f, "error accepting TCP stream: {}", err),
+            NewActor(ref err) => write!(f, "error creating new actor: {}", err),
         }
     }
 }
