@@ -26,7 +26,7 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
     // We'll use the default actor options here, other examples expand on the
     // options available.
     let actor = greeter_actor as fn(_) -> _;
-    let mut actor_ref = system_ref.spawn(NoSupervisor, actor, (), ActorOptions::default())
+    let mut actor_ref = system_ref.try_spawn(NoSupervisor, actor, (), ActorOptions::default())
         // If the creation of the actor fails it will return an error, however
         // asynchronous functions never return an error when creating the actor,
         // so it is safe to unwrap the error here.

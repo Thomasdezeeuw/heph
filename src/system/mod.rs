@@ -22,7 +22,7 @@
 //!
 //! First an actor must be registered with the Actor Registry. This is done by
 //! setting the [register] option to `true` in the [`ActorOptions`] passed to
-//! [`spawn`]. Note that an actor registration must be unique **per actor
+//! [`try_spawn`]. Note that an actor registration must be unique **per actor
 //! type**, that is type in the Rust's type system. It is not possible to
 //! register two actors with the same type.
 //!
@@ -48,7 +48,7 @@
 //! [`LocalActorRef`]: ../actor_ref/struct.LocalActorRef.html
 //! [register]: ./options/struct.ActorOptions.html#structfield.register
 //! [`ActorOptions`]: ./options/struct.ActorOptions.html
-//! [`spawn`]: ./struct.ActorSystemRef.html#method.spawn
+//! [`try_spawn`]: ./struct.ActorSystemRef.html#method.try_spawn
 //! [`lookup`]: struct.ActorSystemRef.html#method.lookup
 //! [`lookup_val`]: struct.ActorSystemRef.html#method.lookup_val
 
@@ -141,7 +141,7 @@ pub use self::options::ActorOptions;
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
 ///     // Add the actor to the system.
 ///     let new_actor = greeter_actor as fn(_, _) -> _;
-///     let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, "Hello", ActorOptions::default())
+///     let mut actor_ref = system_ref.try_spawn(NoSupervisor, new_actor, "Hello", ActorOptions::default())
 ///         // This is safe because the `NewActor` implementation for
 ///         // asynchronous functions never returns an error.
 ///         .unwrap();
@@ -470,7 +470,7 @@ impl ActorSystemRef {
     /// is the way to create the actor, this is `new_actor`, and the `arg`ument
     /// to create it. Finally it also needs `options` for actor and the place
     /// inside the actor system.
-    pub fn spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> Result<LocalActorRef<NA::Message>, NA::Error>
+    pub fn try_spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> Result<LocalActorRef<NA::Message>, NA::Error>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
               NA::Actor: 'static,
@@ -594,7 +594,7 @@ impl ActorSystemRef {
     /// /// Setup function used in starting the `ActorSystem`.
     /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
     ///     // Add the actor to the system, enabling registering of the actor.
-    ///     let mut actor_ref1 = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
+    ///     let mut actor_ref1 = system_ref.try_spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
     ///         register: true,
     ///         .. ActorOptions::default()
     ///     }).unwrap();

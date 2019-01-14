@@ -114,7 +114,7 @@ pub trait NewActor {
     ///     ActorSystem::new().with_setup(|mut system_ref| {
     ///         // Add the actor to the system.
     ///         let new_actor = actor as fn(_) -> _;
-    ///         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default())
+    ///         let mut actor_ref = system_ref.try_spawn(NoSupervisor, new_actor, (), ActorOptions::default())
     ///             // This is safe because the `NewActor` implementation for
     ///             // asynchronous functions never returns an error.
     ///             .unwrap();
@@ -142,12 +142,12 @@ pub trait NewActor {
     ///
     /// When using async functions as `NewActor` implementations the arguments
     /// are passed regularly, i.e. not in the form of a tuple, however they must
-    /// be passed as a tuple to the [`spawn`] method. See there
+    /// be passed as a tuple to the [`try_spawn`] method. See there
     /// [implementations] below.
     ///
     /// [`TcpListener`]: ../net/struct.TcpListener.html
     /// [`new`]: #tymethod.new
-    /// [`spawn`]: ../system/struct.ActorSystemRef.html#method.spawn
+    /// [`try_spawn`]: ../system/struct.ActorSystemRef.html#method.try_spawn
     /// [implementations]: #foreign-impls
     type Argument;
 

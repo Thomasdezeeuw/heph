@@ -61,7 +61,7 @@ use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 ///
 ///     // The address to listen on.
 ///     let address = "127.0.0.1:7890".parse().unwrap();
-///     system_ref.spawn(listener_supervisor, listener, address, ActorOptions {
+///     system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions {
 ///         // We advice to give the TCP listener a low priority to prioritise
 ///         // handling of ongoing requests over accepting new requests possibly
 ///         // overloading the system.

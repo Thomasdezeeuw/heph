@@ -58,7 +58,7 @@
 //!     log::init();
 //!
 //!     ActorSystem::new().with_setup(|mut system_ref| {
-//!         system_ref.spawn(supervisor, bad_actor as fn(_) -> _, (), ActorOptions {
+//!         system_ref.try_spawn(supervisor, bad_actor as fn(_) -> _, (), ActorOptions {
 //!             schedule: true,
 //!             .. ActorOptions::default()
 //!         });
@@ -138,7 +138,7 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 ///
 /// fn main() -> Result<(), RuntimeError> {
 ///     ActorSystem::new().with_setup(|mut system_ref| {
-///         system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
+///         system_ref.try_spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
 ///             schedule: true,
 ///             .. ActorOptions::default()
 ///         });

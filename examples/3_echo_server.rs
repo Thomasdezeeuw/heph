@@ -31,7 +31,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     let actor = echo_actor as fn(_, _, _) -> _;
     let listener = TcpListener::new(echo_supervisor, actor, ActorOptions::default());
     let address = "127.0.0.1:7890".parse().unwrap();
-    system_ref.spawn(listener_supervisor, listener, address, ActorOptions {
+    system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions {
         priority: Priority::LOW,
         .. Default::default()
     })?;
@@ -39,7 +39,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // In this example we'll use the Actor Registry. This also actors to be
     // lookup dynamically at runtime, see the `echo_actor` for an example of
     // that.
-    system_ref.spawn(NoSupervisor, count_actor as fn(_) -> _, (), ActorOptions {
+    system_ref.try_spawn(NoSupervisor, count_actor as fn(_) -> _, (), ActorOptions {
         // To add the actor to the Actor Registry we simply set the `register`
         // option. This registers the actor in the Actor Registry and allows it
         // to be looked up, see the `echo_actor` below.
