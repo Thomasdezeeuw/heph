@@ -29,9 +29,9 @@
 //! After the actor is registered it can be looked up. This can be done using
 //! the [`lookup`] method on [`ActorSystemRef`], or if the type can't be typed
 //! (which is the case when using asynchronous functions, see the methods
-//! description for more info) [`lookup_val`] can be used instead. Both methods
-//! will do the same thing; return a [`LocalActorRef`], which can be used to
-//! communicate with the actor.
+//! description for more info) [`lookup_actor`] can be used instead. Both
+//! methods will do the same thing; return a [`LocalActorRef`], which can be
+//! used to communicate with the actor.
 //!
 //! ## Actor Registry Notes
 //!
@@ -50,7 +50,7 @@
 //! [`ActorOptions`]: ./options/struct.ActorOptions.html
 //! [`try_spawn`]: ./struct.ActorSystemRef.html#method.try_spawn
 //! [`lookup`]: struct.ActorSystemRef.html#method.lookup
-//! [`lookup_val`]: struct.ActorSystemRef.html#method.lookup_val
+//! [`lookup_actor`]: struct.ActorSystemRef.html#method.lookup_actor
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -544,10 +544,10 @@ impl ActorSystemRef {
     /// gotchas of the design, see [Actor Registry].
     ///
     /// Note: when using asynchronous functions as actors you'll likely need
-    /// [`lookup_val`].
+    /// [`lookup_actor`].
     ///
     /// [Actor Registry]: ./index.html#actor-registry
-    /// [`lookup_val`]: #method.lookup_val
+    /// [`lookup_actor`]: #method.lookup_actor
     pub fn lookup<NA>(&mut self) -> Option<LocalActorRef<NA::Message>>
         where NA: NewActor + 'static,
     {
@@ -594,16 +594,15 @@ impl ActorSystemRef {
     ///     // Add the actor to the system, enabling registering of the actor.
     ///     let mut actor_ref1 = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
     ///         register: true,
+    /// #       schedule: true, // Run the actor, so the example runs.
     ///         .. ActorOptions::default()
     ///     });
-    /// #   // Actually run the actor, so the example can run.
-    /// #   actor_ref1.send(()).unwrap();
     ///
     ///     // Unfortunately this won't compile. :(
     ///     //let actor_ref2 = system_ref.lookup::<actor>();
     ///
     ///     // This will work.
-    ///     let actor_ref2 = system_ref.lookup_val(&(actor as fn(_) -> _))
+    ///     let actor_ref2 = system_ref.lookup_actor(&(actor as fn(_) -> _))
     ///         .unwrap();
     ///
     ///     // The actor reference should be the same.
@@ -617,7 +616,7 @@ impl ActorSystemRef {
     ///         .run()
     /// }
     /// ```
-    pub fn lookup_val<NA>(&mut self, _: &NA) -> Option<LocalActorRef<NA::Message>>
+    pub fn lookup_actor<NA>(&mut self, _: &NA) -> Option<LocalActorRef<NA::Message>>
         where NA: NewActor + 'static,
     {
         self.lookup::<NA>()
