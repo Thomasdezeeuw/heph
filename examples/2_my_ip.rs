@@ -7,7 +7,7 @@ use futures_util::AsyncWriteExt;
 
 use heph::actor::ActorContext;
 use heph::log::{self, error, info};
-use heph::net::{TcpListener, TcpStream};
+use heph::net::{TcpListener, TcpListenerError, TcpStream};
 use heph::supervisor::SupervisorStrategy;
 use heph::system::options::Priority;
 use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, RuntimeError};
@@ -59,7 +59,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///
 /// In this example we'll log the error and then stop the actor, but we could
 /// restart it by providing another address.
-fn listener_supervisor(err: io::Error) -> SupervisorStrategy<(SocketAddr)> {
+fn listener_supervisor(err: TcpListenerError<!>) -> SupervisorStrategy<(SocketAddr)> {
     error!("error in TCP listener: {}", err);
     SupervisorStrategy::Stop
 }
