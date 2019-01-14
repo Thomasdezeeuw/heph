@@ -7,64 +7,67 @@ use std::{fmt, io};
 ///
 /// [`ActorSystem`]: ../system/struct.ActorSystem.html
 #[derive(Debug)]
-pub struct RuntimeError {
-    inner: RuntimeErrorInner,
+pub struct RuntimeError<SetupError = !> {
+    inner: RuntimeErrorInner<SetupError>,
 }
 
 /// Inside of `RuntimeError` error.
 #[derive(Debug)]
-pub(crate) enum RuntimeErrorInner {
+pub(crate) enum RuntimeErrorInner<SetupError> {
     /// Error polling the system poller.
     Poll(io::Error),
     /// Error returned by user defined setup function.
-    Setup(io::Error),
+    Setup(SetupError),
     /// Panic in a worker thread.
     Panic(String),
 }
 
-impl RuntimeError {
-    pub(crate) fn poll(err: io::Error) -> RuntimeError {
+impl<SetupError> RuntimeError<SetupError> {
+    const DESC: &'static str = "error running actor system";
+
+    pub(crate) fn poll(err: io::Error) -> RuntimeError<SetupError> {
         RuntimeError {
             inner: RuntimeErrorInner::Poll(err),
         }
     }
 
-    pub(crate) fn setup(err: io::Error) -> RuntimeError {
+    pub(crate) fn setup(err: SetupError) -> RuntimeError<SetupError> {
         RuntimeError {
             inner: RuntimeErrorInner::Setup(err),
         }
     }
 
-    pub(crate) fn panic(err: String) -> RuntimeError {
+    pub(crate) fn panic(err: String) -> RuntimeError<SetupError> {
         RuntimeError {
             inner: RuntimeErrorInner::Panic(err),
         }
     }
 }
 
-impl fmt::Display for RuntimeError {
+impl<SetupError: fmt::Display> fmt::Display for RuntimeError<SetupError> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::RuntimeErrorInner::*;
         match self.inner {
             Poll(ref err) => write!(f, "{}: error polling system poller: {}",
-                self.description(), err),
+                Self::DESC, err),
             Setup(ref err) => write!(f, "{}: error running setup function: {}",
-                self.description(), err),
+                Self::DESC, err),
             Panic(ref msg) => write!(f, "{}: caught panic worker thread: {}",
-                self.description(), msg),
+                Self::DESC, msg),
         }
     }
 }
 
-impl Error for RuntimeError {
+impl<SetupError: Error + fmt::Display> Error for RuntimeError<SetupError> {
     fn description(&self) -> &str {
-        "error running actor system"
+        Self::DESC
     }
 
     fn cause(&self) -> Option<&dyn Error> {
         use self::RuntimeErrorInner::*;
         match self.inner {
-            Poll(ref err) | Setup(ref err) => Some(err),
+            Poll(ref err) => Some(err),
+            Setup(ref err) => Some(err),
             Panic(_) => None,
         }
     }

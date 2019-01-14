@@ -5,20 +5,17 @@ use std::default::Default;
 use std::net::SocketAddr;
 
 use futures_util::{AsyncReadExt, TryFutureExt};
-use log::{error, info};
 
 use heph::actor::ActorContext;
-use heph::log::REQUEST_TARGET;
+use heph::log::{self, error, info};
 use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::{SupervisorStrategy, NoSupervisor};
 use heph::system::options::Priority;
 use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, RuntimeError};
 
-// Main is mostly the same as example 2, only here we add a setup function
-// (already seen in example 1) and set the number of threads to 2 to indicate
-// the 1 actor per thread problem quicker (hopefully).
-fn main() -> Result<(), RuntimeError> {
-    heph::log::init();
+// Main is mostly the same as example 2, but we only use 2 worker threads.
+fn main() -> Result<(), RuntimeError<io::Error>> {
+    log::init();
 
     ActorSystem::new()
         .with_setup(setup)
@@ -30,19 +27,22 @@ fn main() -> Result<(), RuntimeError> {
 /// system, much like in example 2, and add the count actor to the actor system,
 /// much like the `add_greeter_actor` in example 1.
 fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
-    // Just like in example 2 we'll add our TCP listener.
-    let listener = TcpListener::new(echo_supervisor, echo_actor as fn(_, _, _) -> _, ActorOptions::default());
+    // Just like in example 2 we'll add our TCP listener to the system.
+    let actor = echo_actor as fn(_, _, _) -> _;
+    let listener = TcpListener::new(echo_supervisor, actor, ActorOptions::default());
     let address = "127.0.0.1:7890".parse().unwrap();
     system_ref.spawn(listener_supervisor, listener, address, ActorOptions {
         priority: Priority::LOW,
         .. Default::default()
     })?;
 
-    // Just like in example 1 we'll add our actor to the system.
+    // In this example we'll use the Actor Registry. This also actors to be
+    // lookup dynamically at runtime, see the `echo_actor` for an example of
+    // that.
     system_ref.spawn(NoSupervisor, count_actor as fn(_) -> _, (), ActorOptions {
-        // But this example we'll use the `register` option. This registers
-        // the actor in the actor registry and allows it to be looked up,
-        // see the `echo_actor` below.
+        // To add the actor to the Actor Registry we simply set the `register`
+        // option. This registers the actor in the Actor Registry and allows it
+        // to be looked up, see the `echo_actor` below.
         //
         // Note: this registry is per thread!
         register: true,
@@ -52,16 +52,16 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     Ok(())
 }
 
-/// Our supervisor for the TCP listener. Same as in example 2.
+/// Our supervisor for the TCP listener, same as in example 2.
 fn listener_supervisor(err: io::Error) -> SupervisorStrategy<(SocketAddr)> {
-    error!("error accepting connection: {}", err);
+    error!("error in TCP listener: {}", err);
     SupervisorStrategy::Stop
 }
 
 /// Message type used by `count_actor`.
 struct Add;
 
-/// Our actor that receives addition messages and it to the total count.
+/// Our actor that receives `Add`ition messages and it to the total count.
 ///
 /// Note: that 1 actor per thread is started in the setup function. Which means
 /// that if you run this example it could display a total count of 1 twice. This
@@ -77,18 +77,28 @@ async fn count_actor(mut ctx: ActorContext<Add>) -> Result<(), !> {
     }
 }
 
+/// Our supervisor for the connection actor, same as in example 2.
+fn echo_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
+    error!("error handling connection: {}", err);
+    SupervisorStrategy::Stop
+}
+
 /// Our actor that handles the incoming TCP connections.
 async fn echo_actor(mut ctx: ActorContext<!>, stream: TcpStream, address: SocketAddr) -> io::Result<()> {
     // Here we use a special request target to mark this log as a request. This
     // will cause it to be printed to standard out, rather then standard error.
-    info!(target: REQUEST_TARGET, "accepted connection: address={}", address);
+    info!(target: log::REQUEST_TARGET, "accepted connection: address={}", address);
 
     // Next we'll lookup the `count_actor` in the registry.
     //
-    // Unfortunately functions can be passed as a type, i.e. we can't call
+    // Unfortunately functions can't be passed as a type, thus we can't call
     // `loopup::<count_actor>()`. To overcome this we need actually pass a
     // reference to get the type information and pass that to the
-    // `loopup_untyped` function.
+    // `lookup_untyped` function.
+    //
+    // Both `lookup` and `lookup_untyped` do the same thing; look up a
+    // registered actor in the Actor Registry and return an actor reference to
+    // that actor.
     if let Some(mut count_actor_ref) = ctx.system_ref().lookup_val(&(count_actor as fn(_) -> _)) {
         // If we can find the actor we'll send it a message to add to the total.
         let _ = count_actor_ref.send(Add);
@@ -96,12 +106,8 @@ async fn echo_actor(mut ctx: ActorContext<!>, stream: TcpStream, address: Socket
     // If we can't find the count actor, we can continue our work without
     // sending a message.
 
+    // Here we'll split the TCP stream and copy every thing back, this is part
+    // of the `AsyncReadExt` trait.
     let (mut read, mut write) = stream.split();
     await!(read.copy_into(&mut write).map_ok(|_| ()))
-}
-
-// Our supervisor, same as in example 2.
-fn echo_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-    error!("error handling connection: {}", err);
-    SupervisorStrategy::Stop
 }

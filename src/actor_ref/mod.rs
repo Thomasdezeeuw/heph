@@ -104,8 +104,8 @@
 //!         let mut second_actor_ref = actor_ref.clone();
 //!
 //!         // Now we can use both references to send a messsage.
-//!         actor_ref.send("Hello world".to_owned())?;
-//!         second_actor_ref.send("Bye world".to_owned())?;
+//!         actor_ref.send("Hello world".to_owned()).unwrap();
+//!         second_actor_ref.send("Bye world".to_owned()).unwrap();
 //!         Ok(())
 //!     })
 //!     .run()

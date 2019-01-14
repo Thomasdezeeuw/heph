@@ -1,48 +1,58 @@
 #![feature(async_await, await_macro, futures_api, never_type)]
 
-use std::io;
-
 use heph::actor::ActorContext;
 use heph::supervisor::NoSupervisor;
 use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, RuntimeError};
 
-/// Our greeter actor.
-///
-/// We'll receive a single message, print it then the actor is done.
-async fn greeter_actor(mut ctx: ActorContext<&'static str>) -> Result<(), !> {
-    let name = await!(ctx.receive());
-    println!("Hello {}", name);
-    Ok(())
+fn main() -> Result<(), RuntimeError> {
+    // First we create our actor system.
+    ActorSystem::new()
+        // We add a setup function, which adds our greeter actor.
+        .with_setup(add_greeter_actor)
+        // And then we run it.
+        .run()
 }
 
 /// The is the setup function used in the actor system.
-fn add_greeter_actor(mut system_ref: ActorSystemRef) -> io::Result<()> {
+fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
     // Add our `greeter_actor` to the actor system.
     // All actors need supervision, however our actor doesn't return an error
-    // (it uses `!` as error type), because of this we'll use the
-    // `NoSupervisor`, which is a no-op supervisor.
+    // (it uses `!`, the never type, as error), because of this we'll use the
+    // `NoSupervisor`, which is a supervisor that does nothing and can't be
+    // called.
     // Along with the supervisor we'll also supply the argument to start the
-    // actor, in our case this is `()` since our actor doesn't accept arguments.
-    // We'll use the default actor options here.
-    let mut actor_ref = system_ref.spawn(NoSupervisor, greeter_actor as fn(_) -> _, (), ActorOptions::default())
-        // This is safe because asynchronous functions never return an error
-        // when creating the actor.
+    // actor, in our case this is `()` since our actor doesn't accept any
+    // arguments.
+    // We'll use the default actor options here, other examples expand on the
+    // options available.
+    let actor = greeter_actor as fn(_) -> _;
+    let mut actor_ref = system_ref.spawn(NoSupervisor, actor, (), ActorOptions::default())
+        // If the creation of the actor fails it will return an error, however
+        // asynchronous functions never return an error when creating the actor,
+        // so it is safe to unwrap the error here.
         .unwrap();
 
     // By default actors don't do anything when added to the actor system. We
-    // need to wake them, for example by sending them a message.
-    // So we'll send our actor a message via an `LocalActorRef`, which is a
+    // need to wake them, for example by sending them a message. If we didn't
+    // send this message the system would run forever, without ever making
+    // progress (try this by commenting out the send below!).
+    // So we'll send our actor a message via an actor reference, which is a
     // reference to the actor inside the actor system.
-    actor_ref.send("World")?;
+    actor_ref.send("World")
+        // We can safely unwrap the result here as we just added the actor to
+        // the system, so we're sure it's still present.
+        .unwrap();
 
     Ok(())
 }
 
-fn main() -> Result<(), RuntimeError> {
-    // First we create our actor system with the default options.
-    ActorSystem::new()
-        // We add a setup function which adds our greeter actor.
-        .with_setup(add_greeter_actor)
-        // And finally we run it.
-        .run()
+/// Our greeter actor.
+///
+/// We'll receive a single message and print it.
+async fn greeter_actor(mut ctx: ActorContext<&'static str>) -> Result<(), !> {
+    // All actors have an actor context, which give the actor access to its
+    // inbox, from which we can `receive` a message.
+    let name = await!(ctx.receive());
+    println!("Hello {}", name);
+    Ok(())
 }

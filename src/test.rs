@@ -42,7 +42,7 @@ use crate::waker::new_waker;
 thread_local! {
     /// Per thread active, but not running, actor system.
     static TEST_SYSTEM: RefCell<RunningActorSystem> =
-        RefCell::new(RunningActorSystem::new().unwrap());
+        RefCell::new(RunningActorSystem::new::<!>().unwrap());
 }
 
 /// Get a reference to the *test* actor system.
