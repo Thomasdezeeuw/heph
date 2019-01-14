@@ -92,14 +92,13 @@ async fn echo_actor(mut ctx: ActorContext<!>, stream: TcpStream, address: Socket
     // Next we'll lookup the `count_actor` in the registry.
     //
     // Unfortunately functions can't be passed as a type, thus we can't call
-    // `loopup::<count_actor>()`. To overcome this we need actually pass a
+    // `lookup::<count_actor>()`. To overcome this we need actually pass a
     // reference to get the type information and pass that to the
-    // `lookup_untyped` function.
+    // `lookup_actor` function.
     //
-    // Both `lookup` and `lookup_untyped` do the same thing; look up a
-    // registered actor in the Actor Registry and return an actor reference to
-    // that actor.
-    if let Some(mut count_actor_ref) = ctx.system_ref().lookup_val(&(count_actor as fn(_) -> _)) {
+    // Both `lookup` and `lookup_actor` do the same thing; look up a registered
+    // actor in the Actor Registry and return an actor reference to that actor.
+    if let Some(mut count_actor_ref) = ctx.system_ref().lookup_actor(&(count_actor as fn(_) -> _)) {
         // If we can find the actor we'll send it a message to add to the total.
         let _ = count_actor_ref.send(Add);
     }
