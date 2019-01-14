@@ -89,7 +89,7 @@ use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 /// }
 /// ```
 #[derive(Debug)]
-pub struct TcpListener<NA, S> {
+pub struct TcpListener<S, NA> {
     /// Reference to the actor system used to add new actors to handle accepted
     /// connections.
     system_ref: ActorSystemRef,
@@ -103,9 +103,9 @@ pub struct TcpListener<NA, S> {
     options: ActorOptions,
 }
 
-impl<NA, S> TcpListener<NA, S>
-    where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
-          S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
+impl<S, NA> TcpListener<S, NA>
+    where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
+          NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
 {
     /// Create a new TCP listener.
     ///
@@ -119,12 +119,12 @@ impl<NA, S> TcpListener<NA, S>
     /// happen in `NewTcpListener`'s `NewActor` implementation.
     ///
     /// [`NewActor::new`]: ../actor/trait.NewActor.html#tymethod.new
-    pub fn new(supervisor: S, new_actor: NA, options: ActorOptions) -> NewTcpListener<NA, S> {
+    pub fn new(supervisor: S, new_actor: NA, options: ActorOptions) -> NewTcpListener<S, NA> {
         NewTcpListener { supervisor, new_actor, options }
     }
 }
 
-impl<NA, S> TcpListener<NA, S> {
+impl<S, NA> TcpListener<S, NA> {
     /// Returns the local socket address of this listener.
     pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
         self.listener.local_addr()
@@ -141,9 +141,9 @@ impl<NA, S> TcpListener<NA, S> {
     }
 }
 
-impl<NA, S> Actor for TcpListener<NA, S>
-    where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
-          S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + 'static,
+impl<S, NA> Actor for TcpListener<S, NA>
+    where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + 'static,
+          NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
 {
     type Error = TcpListenerError<NA::Error>;
 
@@ -223,19 +223,19 @@ impl<E: fmt::Display> fmt::Display for TcpListenerError<E> {
 /// [`NewActor`]: ../actor/trait.NewActor.html
 /// [`TcpListener::new`]: struct.TcpListener.html#method.new
 #[derive(Debug, Clone)]
-pub struct NewTcpListener<NA, S> {
+pub struct NewTcpListener<S, NA> {
     supervisor: S,
     new_actor: NA,
     options: ActorOptions,
 }
 
-impl<NA, S> NewActor for NewTcpListener<NA, S>
-    where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
-          S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
+impl<S, NA> NewActor for NewTcpListener<S, NA>
+    where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
+          NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
 {
     type Message = !;
     type Argument = SocketAddr;
-    type Actor = TcpListener<NA, S>;
+    type Actor = TcpListener<S, NA>;
     type Error = io::Error;
 
     fn new(&mut self, mut ctx: ActorContext<Self::Message>, address: Self::Argument) -> Result<Self::Actor, Self::Error> {
