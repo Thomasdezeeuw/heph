@@ -45,6 +45,11 @@ sequential_tests! {
         assert_eq!(output, "Hello World\n");
     }
 
+    fn example_1b_hello_world() {
+        let output = run_example_output("1b_hello_world");
+        assert_eq!(output, "Hello World\n");
+    }
+
     fn example_2_my_ip() {
         let _child = run_example("2_my_ip");
 
