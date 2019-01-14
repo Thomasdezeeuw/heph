@@ -1,7 +1,5 @@
 //! TCP related types.
 
-// TODO: add a setup function to `NewTcpListener` to set options on TcpListener.
-
 use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::pin::Pin;
@@ -125,7 +123,6 @@ impl<NA, S> TcpListener<NA, S>
     }
 }
 
-/* These options can't currently be set.
 impl<NA, S> TcpListener<NA, S> {
     /// Returns the local socket address of this listener.
     pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
@@ -142,7 +139,6 @@ impl<NA, S> TcpListener<NA, S> {
         self.listener.ttl()
     }
 }
-*/
 
 impl<NA, S> Actor for TcpListener<NA, S>
     where NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
