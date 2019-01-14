@@ -138,7 +138,7 @@ pub use self::options::ActorOptions;
 ///
 /// // This setup function will on run on each created thread. In the case of
 /// // this example we create 2 threads (see `main`).
-/// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
+/// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
 ///     // Add the actor to the system.
 ///     let new_actor = greeter_actor as fn(_, _) -> _;
 ///     let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, "Hello", ActorOptions::default())
@@ -147,7 +147,7 @@ pub use self::options::ActorOptions;
 ///         .unwrap();
 ///
 ///     // Send a message to the actor.
-///     actor_ref.send("World")?;
+///     actor_ref.send("World").unwrap();
 ///     Ok(())
 /// }
 ///
@@ -184,8 +184,9 @@ impl ActorSystem<!> {
     ///
     /// This function will be run on each thread the actor system creates. Only
     /// a single setup function can be added to the actor system.
-    pub fn with_setup<S>(self, setup: S) -> ActorSystem<S>
-        where S: FnOnce(ActorSystemRef) -> io::Result<()> + Send + Clone + 'static,
+    pub fn with_setup<F, E>(self, setup: F) -> ActorSystem<F>
+        where F: FnOnce(ActorSystemRef) -> Result<(), E> + Send + Clone + 'static,
+              E: Send,
     {
         ActorSystem {
             threads: self.threads,
@@ -233,7 +234,7 @@ impl<S> ActorSystem<S> {
 }
 
 impl<S> ActorSystem<S>
-    where S: SetupFn  + Send + Clone + 'static,
+    where S: SetupFn,
 {
     /// Run the system.
     ///
@@ -241,7 +242,7 @@ impl<S> ActorSystem<S>
     /// system.
     ///
     /// [`num_threads`]: #method.num_threads
-    pub fn run(mut self) -> Result<(), RuntimeError> {
+    pub fn run(mut self) -> Result<(), RuntimeError<S::Error>> {
         debug!("running actor system: worker_threads={}", self.threads);
 
         let handles = self.start_threads()?;
@@ -268,7 +269,7 @@ impl<S> ActorSystem<S>
     }
 
     /// Start the threads for the actor system.
-    fn start_threads(&mut self) -> Result<Vec<JoinHandle<Result<(), RuntimeError>>>, RuntimeError> {
+    fn start_threads(&mut self) -> Result<Vec<JoinHandle<Result<(), RuntimeError<S::Error>>>>, RuntimeError<S::Error>> {
         (0..self.threads).map(|_| {
             // Spawn the thread.
             let setup = self.setup.clone();
@@ -287,26 +288,31 @@ impl<S> fmt::Debug for ActorSystem<S> {
     }
 }
 
-/// A hack to allow us to call `ActorSystem<I, !>.run`.
+/// A hack to allow us to call `ActorSystem<!>.run`.
 mod hack {
-    use std::io;
-
     use super::ActorSystemRef;
 
-    pub trait SetupFn {
-        fn setup(self, system_ref: ActorSystemRef) -> io::Result<()>;
+    pub trait SetupFn: Send + Clone + 'static{
+        type Error: Send;
+
+        fn setup(self, system_ref: ActorSystemRef) -> Result<(), Self::Error>;
     }
 
-    impl<F> SetupFn for F
-        where F: FnOnce(ActorSystemRef) -> io::Result<()>
+    impl<F, E> SetupFn for F
+        where F: FnOnce(ActorSystemRef) -> Result<(), E> + Send + Clone + 'static,
+              E: Send,
     {
-        fn setup(self, system_ref: ActorSystemRef) -> io::Result<()> {
+        type Error = E;
+
+        fn setup(self, system_ref: ActorSystemRef) -> Result<(), Self::Error> {
             (self)(system_ref)
         }
     }
 
     impl SetupFn for ! {
-        fn setup(self, _: ActorSystemRef) -> io::Result<()> {
+        type Error = !;
+
+        fn setup(self, _: ActorSystemRef) -> Result<(), Self::Error> {
             self
         }
     }
@@ -317,7 +323,7 @@ use self::hack::SetupFn;
 /// Run the actor system, with the optional `setup` function.
 ///
 /// This is the entry point for the worker threads.
-fn run_system<S>(setup: Option<S>) -> Result<(), RuntimeError>
+fn run_system<S>(setup: Option<S>) -> Result<(), RuntimeError<S::Error>>
     where S: SetupFn,
 {
     let actor_system = RunningActorSystem::new()?;
@@ -354,7 +360,7 @@ const RUN_POLL_RATIO: usize = 32;
 
 impl RunningActorSystem {
     /// Create a new running actor system.
-    pub fn new() -> Result<RunningActorSystem, RuntimeError> {
+    pub fn new<E>() -> Result<RunningActorSystem, RuntimeError<E>> {
         // Channel used in the `Waker` implementation.
         let (waker_send, waker_recv) = channel::unbounded();
         // Scheduler for scheduling and running processes.
@@ -386,7 +392,7 @@ impl RunningActorSystem {
     }
 
     /// Run the actor system's event loop.
-    pub fn run_event_loop(mut self) -> Result<(), RuntimeError> {
+    pub fn run_event_loop<E>(mut self) -> Result<(), RuntimeError<E>> {
         debug!("running actor system's event loop");
 
         // The schedule field in `ActorOptions` will send a waker notification,
@@ -424,7 +430,7 @@ impl RunningActorSystem {
     ///
     /// This polls the system poller and the waker notifications and schedules
     /// the processes notified.
-    fn schedule_processes(&mut self, events: &mut Events) -> Result<(), RuntimeError> {
+    fn schedule_processes<E>(&mut self, events: &mut Events) -> Result<(), RuntimeError<E>> {
         trace!("polling system poller for events");
         self.internal.poller.borrow_mut().poll(events, None)
             .map_err(RuntimeError::poll)?;
@@ -586,7 +592,7 @@ impl ActorSystemRef {
     /// }
     ///
     /// /// Setup function used in starting the `ActorSystem`.
-    /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
+    /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
     ///     // Add the actor to the system, enabling registering of the actor.
     ///     let mut actor_ref1 = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
     ///         register: true,
