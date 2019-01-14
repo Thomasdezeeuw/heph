@@ -655,6 +655,7 @@ impl ActorSystemRef {
 }
 
 /// Internal error returned by adding a new actor to the actor system.
+#[derive(Debug)]
 pub(crate) enum AddActorError<NewActorE, ArgFnE> {
     /// Calling new actor resulted in an error.
     NewActor(NewActorE),
