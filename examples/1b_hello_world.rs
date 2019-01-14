@@ -21,13 +21,10 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
     // that don't have any (initial) external wakers, for example our
     // `greeter_actor`.
     let actor = greeter_actor as fn(_) -> _;
-    system_ref.try_spawn(NoSupervisor, actor, (), ActorOptions {
+    system_ref.spawn(NoSupervisor, actor, (), ActorOptions {
         schedule: true,
         .. ActorOptions::default()
-    })
-        // Since we're using an asynchronous function as actor this is safe, see
-        // example 1.
-        .unwrap();
+    });
 
     Ok(())
 }
