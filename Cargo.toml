@@ -23,8 +23,8 @@ test = []
 
 [dependencies]
 crossbeam-channel    = "0.2.4"
-futures-core-preview = "0.3.0-alpha.11"
-futures-io-preview   = "0.3.0-alpha.11"
+futures-core-preview = "0.3.0-alpha.12"
+futures-io-preview   = "0.3.0-alpha.12"
 log                  = "0.4.6"
 mio-st               = "0.2.1"
 num_cpus             = "1.8.0"
@@ -33,6 +33,6 @@ std-logger           = "0.3.2"
 
 [dev-dependencies]
 # Replace with released version.
-futures-test-preview = { git = "https://github.com/rust-lang-nursery/futures-rs", rev = "8479bd26d5cafefb91c0d2d0f949cdad38c1dde2", features = ["std"] }
-futures-util-preview = "0.3.0-alpha.11"
+futures-test-preview = "0.3.0-alpha.12"
+futures-util-preview = "0.3.0-alpha.12"
 lazy_static          = "1.1.0"
