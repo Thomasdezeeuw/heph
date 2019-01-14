@@ -41,6 +41,20 @@
 //! use heph::supervisor::SupervisorStrategy;
 //! use heph::system::{ActorSystem, ActorOptions, RuntimeError};
 //!
+//! fn main() -> Result<(), RuntimeError> {
+//!     // Enable logging so we can see the error message.
+//!     log::init();
+//!
+//!     ActorSystem::new().with_setup(|mut system_ref| {
+//!         system_ref.spawn(supervisor, bad_actor as fn(_) -> _, (), ActorOptions {
+//!             schedule: true,
+//!             .. ActorOptions::default()
+//!         });
+//!         Ok(())
+//!     })
+//!     .run()
+//! }
+//!
 //! struct Error;
 //!
 //! /// Our badly behaving actor.
@@ -52,19 +66,6 @@
 //! fn supervisor(error: Error) -> SupervisorStrategy<()> {
 //!     error!("Actor encountered an error!");
 //!     SupervisorStrategy::Stop
-//! }
-//!
-//! fn main() -> Result<(), RuntimeError> {
-//!     log::init();
-//!
-//!     ActorSystem::new().with_setup(|mut system_ref| {
-//!         system_ref.spawn(supervisor, bad_actor as fn(_) -> _, (), ActorOptions {
-//!             schedule: true,
-//!             .. ActorOptions::default()
-//!         });
-//!         Ok(())
-//!     })
-//!     .run()
 //! }
 //! ```
 //!
@@ -131,11 +132,6 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 /// use heph::supervisor::NoSupervisor;
 /// use heph::system::{ActorSystem, ActorOptions, RuntimeError};
 ///
-/// /// Our actor that never returns an error.
-/// async fn actor(mut ctx: ActorContext<&'static str>) -> Result<(), !> {
-///     Ok(())
-/// }
-///
 /// fn main() -> Result<(), RuntimeError> {
 ///     ActorSystem::new().with_setup(|mut system_ref| {
 ///         system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
@@ -145,6 +141,11 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 ///         Ok(())
 ///     })
 ///     .run()
+/// }
+///
+/// /// Our actor that never returns an error.
+/// async fn actor(mut ctx: ActorContext<&'static str>) -> Result<(), !> {
+///     Ok(())
 /// }
 /// ```
 #[derive(Copy, Clone, Debug)]
