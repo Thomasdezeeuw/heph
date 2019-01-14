@@ -173,10 +173,10 @@ mod tests {
     use std::task::Poll;
 
     use futures_core::stream::Stream;
+    use futures_test::task::new_count_waker;
 
     use crate::channel::bounded::SendError;
     use crate::channel::{bounded, NoValue};
-    use crate::test::new_count_waker;
 
     #[test]
     fn sending_wakes_receiver() {
@@ -184,12 +184,12 @@ mod tests {
         let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
 
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Pending);
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
 
         sender.send(()).unwrap();
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(Some(())));
     }
 
@@ -199,9 +199,9 @@ mod tests {
         let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
 
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         sender.send(()).unwrap();
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(Some(())));
     }
 
@@ -211,12 +211,12 @@ mod tests {
         let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
 
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Pending);
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
 
         drop(sender);
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(None));
     }
 
@@ -226,12 +226,12 @@ mod tests {
         let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
 
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         sender.send(1).unwrap();
         sender.send(2).unwrap();
         drop(sender);
 
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(Some(1)));
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(Some(2)));
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(None));
@@ -242,17 +242,17 @@ mod tests {
         let (mut sender, mut receiver) = bounded(2);
         let (waker, count) = new_count_waker();
 
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         sender.send(1).unwrap();
 
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Ready(Ok(1)));
         assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Pending);
 
         sender.send(2).unwrap();
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         drop(sender);
-        assert_eq!(count.get(), 2);
+        assert_eq!(count, 2);
 
         assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Ready(Ok(2)));
         assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Ready(Err(NoValue)));
@@ -263,12 +263,12 @@ mod tests {
         let (mut sender, mut receiver) = bounded(2);
         let (waker, count) = new_count_waker();
 
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         sender.send(1).unwrap();
         sender.send(2).unwrap();
         drop(sender);
 
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Ready(Ok(1)));
         assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Ready(Ok(2)));
         assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Ready(Err(NoValue)));
@@ -280,21 +280,21 @@ mod tests {
         let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
 
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         sender.send(1).unwrap();
         assert_eq!(sender.send(2), Err(SendError::NoCapacity(2)));
 
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(Some(1)));
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Pending);
 
         sender.send(2).unwrap();
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(Some(2)));
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Pending);
 
         drop(sender);
-        assert_eq!(count.get(), 2);
+        assert_eq!(count, 2);
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(None));
     }
 
@@ -312,7 +312,7 @@ mod tests {
         let (waker, count) = new_count_waker();
 
         drop(sender);
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(None));
     }
 }

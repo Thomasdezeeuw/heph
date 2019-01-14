@@ -18,18 +18,10 @@
 //! features = ["test"]
 //! ```
 
-// The `new_count_waker` and related code is only used in testing, causing a
-// dead_code warning. For now we'll have to allow it, I opened a PR to merge it
-// into futures-test, a better place for it, see
-// https://github.com/rust-lang-nursery/futures-rs/issues/1384.
-#![allow(dead_code)]
-
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::task::{LocalWaker, Wake, Poll, local_waker_from_nonlocal};
+use std::task::{LocalWaker, Poll};
 
 use crate::actor::{Actor, ActorContext, NewActor};
 use crate::actor_ref::LocalActorRef;
@@ -103,34 +95,4 @@ fn test_waker() -> LocalWaker {
     let mut system_ref = system_ref();
     let waker_notifications = system_ref.get_notification_sender();
     new_waker(pid, waker_notifications.clone())
-}
-
-/// Create a new `LocalWaker` that counts the number of times it's awoken.
-pub(crate) fn new_count_waker() -> (LocalWaker, AwokenCount) {
-    let inner = Arc::new(WakerInner { count: AtomicUsize::new(0) });
-    (local_waker_from_nonlocal(inner.clone()), AwokenCount { inner })
-}
-
-/// Number of times the waker was awoken.
-///
-/// See [`new_count_waker`].
-pub(crate) struct AwokenCount {
-    inner: Arc<WakerInner>,
-}
-
-impl AwokenCount {
-    /// Get the number of times the waker was awoken.
-    pub fn get(&self) -> usize {
-        self.inner.count.load(Ordering::SeqCst)
-    }
-}
-
-struct WakerInner {
-    count: AtomicUsize,
-}
-
-impl Wake for WakerInner {
-    fn wake(arc_self: &Arc<Self>) {
-        let _ = arc_self.count.fetch_add(1, Ordering::SeqCst);
-    }
 }
