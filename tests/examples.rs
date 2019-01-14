@@ -57,8 +57,8 @@ sequential_tests! {
         assert_eq!(output, "127.0.0.1");
     }
 
-    fn example_3_echo_server() {
-        let _child = run_example("3_echo_server");
+    fn example_3_actor_registry() {
+        let _child = run_example("3_actor_registry");
 
         let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
         let mut stream = tcp_retry_connect(address);
