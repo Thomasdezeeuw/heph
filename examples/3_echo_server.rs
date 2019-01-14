@@ -39,7 +39,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // In this example we'll use the Actor Registry. This also actors to be
     // lookup dynamically at runtime, see the `echo_actor` for an example of
     // that.
-    system_ref.try_spawn(NoSupervisor, count_actor as fn(_) -> _, (), ActorOptions {
+    system_ref.spawn(NoSupervisor, count_actor as fn(_) -> _, (), ActorOptions {
         // To add the actor to the Actor Registry we simply set the `register`
         // option. This registers the actor in the Actor Registry and allows it
         // to be looked up, see the `echo_actor` below.
@@ -47,7 +47,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
         // Note: this registry is per thread!
         register: true,
         .. Default::default()
-    }).unwrap();
+    });
 
     Ok(())
 }

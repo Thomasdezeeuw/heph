@@ -114,14 +114,11 @@ pub trait NewActor {
     ///     ActorSystem::new().with_setup(|mut system_ref| {
     ///         // Add the actor to the system.
     ///         let new_actor = actor as fn(_) -> _;
-    ///         let mut actor_ref = system_ref.try_spawn(NoSupervisor, new_actor, (), ActorOptions::default())
-    ///             // This is safe because the `NewActor` implementation for
-    ///             // asynchronous functions never returns an error.
-    ///             .unwrap();
+    ///         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
     ///
     ///         // Now we can use the reference to send the actor a message,
     ///         // without having to use `Message` we can just use `String`.
-    ///         actor_ref.send("Hello world".to_owned());
+    ///         actor_ref.send("Hello world".to_owned()).unwrap();
     ///         Ok(())
     ///     })
     ///     .run()
