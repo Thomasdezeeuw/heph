@@ -212,22 +212,6 @@ impl<S> ActorSystem<S> {
     pub fn use_all_cores(self) -> Self {
         self.num_threads(num_cpus::get())
     }
-
-    /// Enable logging.
-    ///
-    /// See the [`log`] module for more information.
-    ///
-    /// # Panics
-    ///
-    /// This will panic if logging is already enabled by calling
-    /// [`log::init`].
-    ///
-    /// [`log`]: ../log/index.html
-    /// [`log::init`]: ../log/fn.init.html
-    pub fn enable_logging(self) -> Self {
-        crate::log::init();
-        self
-    }
 }
 
 impl<S> ActorSystem<S>
