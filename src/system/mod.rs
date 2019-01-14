@@ -129,11 +129,15 @@ pub use self::options::ActorOptions;
 /// use heph::supervisor::NoSupervisor;
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 ///
-/// /// Our actor that greets people.
-/// async fn greeter_actor(mut ctx: ActorContext<&'static str>, message: &'static str) -> Result<(), !> {
-///     let name = await!(ctx.receive());
-///     println!("{} {}", message, name);
-///     Ok(())
+/// fn main() -> Result<(), RuntimeError> {
+///     // Build a new `ActorSystem`.
+///     ActorSystem::new()
+///         // Start two worker threads.
+///         .num_threads(2)
+///         // On each worker thread run our setup function.
+///         .with_setup(setup)
+///         // And run the system.
+///         .run()
 /// }
 ///
 /// // This setup function will on run on each created thread. In the case of
@@ -148,15 +152,11 @@ pub use self::options::ActorOptions;
 ///     Ok(())
 /// }
 ///
-/// fn main() -> Result<(), RuntimeError> {
-///     // Build a new `ActorSystem`.
-///     ActorSystem::new()
-///         // Start two worker threads.
-///         .num_threads(2)
-///         // On each worker thread run our setup function.
-///         .with_setup(setup)
-///         // And run the system.
-///         .run()
+/// /// Our actor that greets people.
+/// async fn greeter_actor(mut ctx: ActorContext<&'static str>, message: &'static str) -> Result<(), !> {
+///     let name = await!(ctx.receive());
+///     println!("{} {}", message, name);
+///     Ok(())
 /// }
 /// ```
 pub struct ActorSystem<S = !> {
@@ -583,10 +583,10 @@ impl ActorSystemRef {
     /// use heph::supervisor::NoSupervisor;
     /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
     ///
-    /// /// Our actor implemented as an asynchronous function.
-    /// async fn actor(mut ctx: ActorContext<()>) -> Result<(), !> {
-    ///     // ...
-    /// #   Ok(())
+    /// fn main() -> Result<(), RuntimeError> {
+    ///     ActorSystem::new()
+    ///         .with_setup(setup)
+    ///         .run()
     /// }
     ///
     /// /// Setup function used in starting the `ActorSystem`.
@@ -610,10 +610,10 @@ impl ActorSystemRef {
     ///     Ok(())
     /// }
     ///
-    /// fn main() -> Result<(), RuntimeError> {
-    ///     ActorSystem::new()
-    ///         .with_setup(setup)
-    ///         .run()
+    /// /// Our actor implemented as an asynchronous function.
+    /// async fn actor(mut ctx: ActorContext<()>) -> Result<(), !> {
+    ///     // ...
+    /// #   Ok(())
     /// }
     /// ```
     pub fn lookup_actor<NA>(&mut self, _: &NA) -> Option<LocalActorRef<NA::Message>>

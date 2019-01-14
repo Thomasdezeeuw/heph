@@ -60,7 +60,6 @@ pub use self::context::{ActorContext, ReceiveMessage};
 ///     loop {
 ///         let name = await!(ctx.receive());
 ///         println!("{} {}", message, name);
-/// #       return Ok(());
 ///     }
 /// }
 ///
@@ -83,6 +82,21 @@ pub trait NewActor {
     /// use heph::actor::ActorContext;
     /// use heph::supervisor::NoSupervisor;
     /// use heph::system::{ActorOptions, ActorSystem, RuntimeError};
+    ///
+    /// fn main() -> Result<(), RuntimeError> {
+    ///     // Create and run the actor system.
+    ///     ActorSystem::new().with_setup(|mut system_ref| {
+    ///         // Add the actor to the system.
+    ///         let new_actor = actor as fn(_) -> _;
+    ///         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
+    ///
+    ///         // Now we can use the reference to send the actor a message,
+    ///         // without having to use `Message` we can just use `String`.
+    ///         actor_ref.send("Hello world".to_owned()).unwrap();
+    ///         Ok(())
+    ///     })
+    ///     .run()
+    /// }
     ///
     /// /// The message type for the actor.
     /// #[derive(Debug)]
@@ -107,21 +121,6 @@ pub trait NewActor {
     ///         println!("received message: {:?}", msg);
     /// #       return Ok(());
     ///     }
-    /// }
-    ///
-    /// fn main() -> Result<(), RuntimeError> {
-    ///     // Create and run the actor system.
-    ///     ActorSystem::new().with_setup(|mut system_ref| {
-    ///         // Add the actor to the system.
-    ///         let new_actor = actor as fn(_) -> _;
-    ///         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
-    ///
-    ///         // Now we can use the reference to send the actor a message,
-    ///         // without having to use `Message` we can just use `String`.
-    ///         actor_ref.send("Hello world".to_owned()).unwrap();
-    ///         Ok(())
-    ///     })
-    ///     .run()
     /// }
     /// ```
     type Message;

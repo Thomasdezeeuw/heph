@@ -43,13 +43,6 @@
 //! use heph::supervisor::NoSupervisor;
 //! use heph::system::{ActorOptions, ActorSystem, RuntimeError};
 //!
-//! /// Our actor.
-//! async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
-//!     let msg = await!(ctx.receive());
-//!     println!("got message: {}", msg);
-//!     Ok(())
-//! }
-//!
 //! fn main() -> Result<(), RuntimeError> {
 //!     ActorSystem::new().with_setup(|mut system_ref| {
 //!         // Add the actor to the actor system.
@@ -57,10 +50,17 @@
 //!         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
 //!
 //!         // Now we can use the reference to send the actor a message.
-//!         actor_ref.send("Hello world".to_owned());
+//!         actor_ref.send("Hello world".to_owned()).unwrap();
 //!         Ok(())
 //!     })
 //!     .run()
+//! }
+//!
+//! /// Our actor.
+//! async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+//!     let msg = await!(ctx.receive());
+//!     println!("got message: {}", msg);
+//!     Ok(())
 //! }
 //! ```
 //!
@@ -79,16 +79,6 @@
 //! use heph::supervisor::NoSupervisor;
 //! use heph::system::{ActorOptions, ActorSystem, RuntimeError};
 //!
-//! /// Our actor.
-//! async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
-//!     let msg = await!(ctx.receive());
-//!     println!("First message: {}", msg);
-//!
-//!     let msg = await!(ctx.receive());
-//!     println!("Second message: {}", msg);
-//!     Ok(())
-//! }
-//!
 //! fn main() -> Result<(), RuntimeError> {
 //!      ActorSystem::new().with_setup(|mut system_ref| {
 //!         let new_actor = actor as fn (_) -> _;
@@ -103,6 +93,16 @@
 //!         Ok(())
 //!     })
 //!     .run()
+//! }
+//!
+//! /// Our actor.
+//! async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+//!     let msg = await!(ctx.receive());
+//!     println!("First message: {}", msg);
+//!
+//!     let msg = await!(ctx.receive());
+//!     println!("Second message: {}", msg);
+//!     Ok(())
 //! }
 //! ```
 
