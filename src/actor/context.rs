@@ -25,7 +25,10 @@ pub struct ActorContext<M> {
     /// Inbox of the actor, shared between this and zero or more
     /// `LocalActorRef`s. It's owned by the context, the actor references only
     /// have a weak reference.
-    inbox: Shared<MailBox<M>>,
+    ///
+    /// This field is public because it is used by `TcpListener`, as we don't
+    /// need entire context there.
+    pub(crate) inbox: Shared<MailBox<M>>,
 }
 
 impl<M> ActorContext<M> {
