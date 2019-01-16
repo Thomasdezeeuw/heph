@@ -55,7 +55,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::thread::{self, JoinHandle};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{fmt, io};
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
@@ -376,20 +376,14 @@ impl RunningActorSystem {
     pub fn run_event_loop<E>(mut self) -> Result<(), RuntimeError<E>> {
         debug!("running actor system's event loop");
 
-        // The schedule field in `ActorOptions` will send a waker notification,
-        // so we need to check for those any schedule any actors that start
-        // scheduled.
-        while let Some(pid) = self.waker_notifications.try_recv() {
-            self.scheduler.schedule(pid);
-        }
-
         // Empty set of events, to be filled by the system poller.
         let mut events = Events::new();
         // System reference used in running the processes.
         let mut system_ref = self.create_ref();
 
         loop {
-            // First run any processes that are ready, only after that we poll.
+            self.schedule_processes(&mut events)?;
+
             for _ in 0..RUN_POLL_RATIO {
                 if !self.scheduler.run_process(&mut system_ref) {
                     if self.scheduler.is_empty() {
@@ -402,8 +396,6 @@ impl RunningActorSystem {
                     }
                 }
             }
-
-            self.schedule_processes(&mut events)?;
         }
     }
 
@@ -412,18 +404,23 @@ impl RunningActorSystem {
     /// This polls the system poller and the waker notifications and schedules
     /// the processes notified.
     fn schedule_processes<E>(&mut self, events: &mut Events) -> Result<(), RuntimeError<E>> {
+        // We start with receiving waker events, which we use to determine the
+        // timeout used when polling.
+        trace!("receiving waker events");
+        let mut scheduled = false;
+        while let Some(pid) = self.waker_notifications.try_recv() {
+            scheduled = true;
+            self.scheduler.schedule(pid);
+        }
+
         trace!("polling system poller for events");
-        self.internal.poller.borrow_mut().poll(events, None)
+        let timeout = if scheduled { Some(Duration::from_millis(0)) } else { None };
+        self.internal.poller.borrow_mut().poll(events, timeout)
             .map_err(RuntimeError::poll)?;
 
         // Schedule all processes with a notification.
         for event in events {
             self.scheduler.schedule(event.id().into());
-        }
-
-        trace!("receiving waker events");
-        while let Some(pid) = self.waker_notifications.try_recv() {
-            self.scheduler.schedule(pid);
         }
 
         Ok(())
