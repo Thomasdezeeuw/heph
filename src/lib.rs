@@ -36,13 +36,12 @@
 //!    that rather then waiting for the operation to complete we'll do some
 //!    other, more useful, work and try the operation later.
 //!  - *Share nothing*: a lot of application share data across multiple threads.
-//!    To do this safely we need to protect it from data races, via a [`Mutex`]
-//!    or by using [atomic] operations. Heph is designed to not share any data.
-//!    Each actor is responsible for its own memory and cannot access memory
-//!    owned by other actors. Instead communication is done via sending
-//!    messages, see the [actor model].
+//!  To do this safely we need to protect it from data races, via a
+//!  [`Mutex`](std::sync::Mutex) or by using [atomic] operations. Heph is
+//!  designed to not share any data. Each actor is responsible for its own
+//!  memory and cannot access memory owned by other actors. Instead
+//!  communication is done via sending messages, see the [actor model].
 //!
-//! [`Mutex`]: https://doc.rust-lang.org/std/sync/struct.Mutex.html
 //! [atomic]: https://doc.rust-lang.org/std/sync/atomic/index.html
 //! [actor model]: https://en.wikipedia.org/wiki/Actor_model
 //!
@@ -51,9 +50,7 @@
 //!
 //! The easiest way to get start with Heph is looking at the examples in the
 //! examples directory of the source code. Or by looking through the API
-//! documentation, starting with [`ActorSystem`].
-//!
-//! [`ActorSystem`]: system/struct.ActorSystem.html
+//! documentation, starting with [`ActorSystem`](system::ActorSystem).
 //!
 //!
 //! ## Features
