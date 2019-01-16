@@ -12,10 +12,13 @@ use log::debug;
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use mio_st::poll::PollOption;
 
+use crate::actor::messages::Terminate;
 use crate::actor::{ActorContext, Actor, NewActor};
+use crate::mailbox::MailBox;
 use crate::net::{interrupted, would_block};
 use crate::supervisor::Supervisor;
 use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
+use crate::util::Shared;
 
 /// A TCP listener.
 ///
@@ -24,7 +27,12 @@ use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 ///
 /// [`NewActor`]: ../actor/trait.NewActor.html
 ///
-/// # Example
+/// # Graceful shutdown
+///
+/// Graceful shutdown of the TCP listener is done by sending it a
+/// [`Terminate`](Terminate) message, see below for an example.
+///
+/// # Examples
 ///
 /// The following example is a TCP server that writes "Hello World" to the
 /// connection.
@@ -77,15 +85,75 @@ use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 ///     SupervisorStrategy::Stop
 /// }
 ///
+/// /// `conn_actor`'s supervisor.
+/// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
+///     error!("error handling connection: {}", err);
+///     SupervisorStrategy::Stop
+/// }
+///
 /// /// The actor responsible for a single TCP stream.
 /// async fn conn_actor(_ctx: ActorContext<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 ///     await!(stream.write_all(b"Hello World"))
+/// }
+/// ```
+///
+/// The next example shows how the TCP listener can gracefully be shutdown by
+/// sending it a [`Terminate`](Terminate) message.
+///
+/// ```
+/// #![feature(async_await, await_macro, futures_api, never_type)]
+///
+/// use std::io;
+/// use std::net::SocketAddr;
+///
+/// use futures_util::AsyncWriteExt;
+///
+/// use heph::actor::ActorContext;
+/// use heph::actor::messages::Terminate;
+/// use heph::log::{error, log};
+/// use heph::net::{TcpListener, TcpListenerError, TcpStream};
+/// use heph::supervisor::SupervisorStrategy;
+/// use heph::system::options::Priority;
+/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+///
+/// // Create and run the actor system.
+/// ActorSystem::new()
+///     .with_setup(setup)
+///     .run();
+///
+/// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
+///     // Adding the TCP listener is the same as in the example above.
+///     let new_actor = conn_actor as fn(_, _, _) -> _;
+///     let listener = TcpListener::new(conn_supervisor, new_actor, ActorOptions::default());
+///     let address = "127.0.0.1:7890".parse().unwrap();
+///     let mut listener_ref = system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions {
+///         priority: Priority::LOW,
+///         .. Default::default()
+///     })?;
+///
+///     // Because the listener is just another actor we can send it messages.
+///     // Here we'll send it a terminate message so it will gracefully
+///     // shutdown.
+///     listener_ref.send(Terminate);
+///
+///     Ok(())
+/// }
+///
+/// /// Supervisor for the TCP listener.
+/// fn listener_supervisor(err: TcpListenerError<!>) -> SupervisorStrategy<(SocketAddr)> {
+///     error!("error accepting connection: {}", err);
+///     SupervisorStrategy::Stop
 /// }
 ///
 /// /// `conn_actor`'s supervisor.
 /// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
 ///     error!("error handling connection: {}", err);
 ///     SupervisorStrategy::Stop
+/// }
+///
+/// /// The actor responsible for a single TCP stream.
+/// async fn conn_actor(_ctx: ActorContext<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+///     await!(stream.write_all(b"Hello World"))
 /// }
 /// ```
 #[derive(Debug)]
@@ -101,6 +169,8 @@ pub struct TcpListener<S, NA> {
     new_actor: NA,
     /// Options used to add the actor to the actor system.
     options: ActorOptions,
+    /// The inbox of the listener.
+    inbox: Shared<MailBox<TcpListenerMessage>>,
 }
 
 impl<S, NA> TcpListener<S, NA>
@@ -148,16 +218,26 @@ impl<S, NA> Actor for TcpListener<S, NA>
     type Error = TcpListenerError<NA::Error>;
 
     fn try_poll(self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Result<(), Self::Error>> {
-        // This is safe because only the ActorSystemRef and MioTcpListener are
-        // mutably borrowed and both are `Unpin`.
+        // This is safe because only the `ActorSystemRef`, `MioTcpListener` and
+        // the `MailBox` are mutably borrowed and all are `Unpin`.
         let &mut TcpListener {
             ref mut system_ref,
             ref mut listener,
             ref supervisor,
             ref new_actor,
             ref options,
+            ref mut inbox,
         } = unsafe { self.get_unchecked_mut() };
 
+        // Start with receiving any send messages.
+        while let Some(msg) = inbox.borrow_mut().receive() {
+            use self::TcpListenerMessageInner::*;
+            match msg.inner {
+                Terminate => return Poll::Ready(Ok(())),
+            }
+        }
+
+        // Next start accepting streams.
         loop {
             let (mut stream, addr) = match listener.accept() {
                 Ok(ok) => ok,
@@ -184,6 +264,29 @@ impl<S, NA> Actor for TcpListener<S, NA>
             }
         }
     }
+}
+
+/// The message type used by [`TcpListener`](TcpListener).
+///
+/// The message implements [`From`](From)<[`Terminate`](Terminate)> for the
+/// message, allowing for graceful shutdown.
+#[derive(Debug)]
+pub struct TcpListenerMessage {
+    inner: TcpListenerMessageInner,
+}
+
+impl From<Terminate> for TcpListenerMessage {
+    fn from(_msg: Terminate) -> TcpListenerMessage {
+        TcpListenerMessage {
+            inner: TcpListenerMessageInner::Terminate,
+        }
+    }
+}
+
+/// Internal message type for the TCP listener.
+#[derive(Debug)]
+enum TcpListenerMessageInner {
+    Terminate,
 }
 
 /// Error returned by [`TcpListener`].
@@ -233,7 +336,7 @@ impl<S, NA> NewActor for NewTcpListener<S, NA>
     where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
           NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
 {
-    type Message = !;
+    type Message = TcpListenerMessage;
     type Argument = SocketAddr;
     type Actor = TcpListener<S, NA>;
     type Error = io::Error;
@@ -249,6 +352,7 @@ impl<S, NA> NewActor for NewTcpListener<S, NA>
             supervisor: self.supervisor.clone(),
             new_actor: self.new_actor.clone(),
             options: self.options.clone(),
+            inbox: ctx.inbox,
         })
     }
 }
