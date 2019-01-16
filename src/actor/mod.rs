@@ -1,11 +1,9 @@
 //! The module with the `NewActor` and `Actor` trait definitions.
 //!
-//! All actors must implement the [`Actor`] trait, which defines how an actor is
-//! run. The [`NewActor`] defines how an actor is created. The easiest way to
-//! implement these traits is to use async functions, see the example below.
-//!
-//! [`NewActor`]: trait.NewActor.html
-//! [`Actor`]: trait.Actor.html
+//! All actors must implement the [`Actor`](actor::Actor) trait, which defines
+//! how an actor is run. The [`NewActor`](actor::NewActor) defines how an actor
+//! is created. The easiest way to implement these traits is to use async
+//! functions, see the example below.
 //!
 //! # Example
 //!
@@ -48,7 +46,7 @@ pub use self::context::{ActorContext, ReceiveMessage};
 ///
 /// # Examples
 ///
-/// The easiest way to implement this is by using an async function.
+/// The easiest way to implement this is by using an asynchronous function.
 ///
 /// ```
 /// #![feature(async_await, await_macro, futures_api)]
@@ -130,28 +128,22 @@ pub trait NewActor {
     /// The arguments passed to the actor are much like arguments passed to a
     /// regular function. This could for example be a TCP connection the actor
     /// is responsible for. In most cases the arguments are in the form of a
-    /// tuple. For example [`TcpListener`] requires a `NewActor` where
-    /// `NewActor::Argument` is of type `(TcpStream, SocketAddr)`. A tuple is
-    /// also used for actors that don't accept any arguments (except for the
-    /// `ActorContext`, see [`new`] below), in that case  we use the empty tuple
-    /// (`()`).
+    /// tuple. For example [`TcpListener`](crate::net::TcpListener) requires a
+    /// `NewActor` where `NewActor::Argument` is a tuple `(TcpStream,
+    /// SocketAddr)`. A tuple is also used for actors that don't accept any
+    /// arguments (except for the `ActorContext`, see [`new`](NewActor::new)
+    /// below), in that case  we use the empty tuple (`()`).
     ///
     /// When using async functions as `NewActor` implementations the arguments
     /// are passed regularly, i.e. not in the form of a tuple, however they must
-    /// be passed as a tuple to the [`try_spawn`] method. See there
-    /// [implementations] below.
-    ///
-    /// [`TcpListener`]: ../net/struct.TcpListener.html
-    /// [`new`]: #tymethod.new
-    /// [`try_spawn`]: ../system/struct.ActorSystemRef.html#method.try_spawn
-    /// [implementations]: #foreign-impls
+    /// be passed as a tuple to the
+    /// [`try_spawn`](crate::system::ActorSystemRef::try_spawn) method. See
+    /// there [implementations](#foreign-impls) below.
     type Argument;
 
     /// The type of the actor.
     ///
-    /// See [`Actor`] for more.
-    ///
-    /// [`Actor`]: trait.Actor.html
+    /// See [`Actor`](Actor) for more.
     type Actor: Actor;
 
     /// The type of error.
@@ -163,9 +155,7 @@ pub trait NewActor {
     /// can be used. This is for example the case of asynchronous functions.
     type Error: fmt::Display;
 
-    /// Create a new [`Actor`].
-    ///
-    /// [`Actor`]: trait.Actor.html
+    /// Create a new [`Actor`](Actor).
     fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error>;
 }
 
@@ -241,12 +231,12 @@ impl<M, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor for fn(ctx: ActorContext<M>, a
     }
 }
 
-/// The main `Actor` trait.
+/// The `Actor` trait defines how the actor is run.
 ///
-/// Effectively an `Actor` is a `Future` which returns a `Result<(), Error>`,
-/// where `Error` is defined on the trait. That is why there is a blanket
-/// implementation for all `Future`s with a `Result<(), Error>` as `Output`
-/// type.
+/// Effectively an `Actor` is a [`Future`](Future) which returns a `Result<(),
+/// Error>`, where `Error` is defined on the trait. That is why there is a
+/// blanket implementation for all `Future`s with a `Result<(), Error>` as
+/// `Output` type.
 ///
 /// The easiest way to implement this by using an async function, see the
 /// [module level] documentation.
@@ -255,28 +245,28 @@ impl<M, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor for fn(ctx: ActorContext<M>, a
 ///
 /// # Panics
 ///
-/// Because this is basically a `Future` it also shares it's characteristics,
-/// including it's unsafety. Please read the `Future` documentation when
-/// implementing or using this by hand.
+/// Because this is basically a [`Future`](Future) it also shares it's
+/// characteristics, including it's unsafety. Please read the `Future`
+/// documentation when implementing or using this by hand.
 pub trait Actor {
-    /// An error the actor can return to it's [supervisor]. This error will be
+    /// An error the actor can return to it's
+    /// [supervisor](crate::supervisor::Supervisor). This error will be
     /// considered terminal for this actor and should **not** be an error of
     /// regular processing of a message.
     ///
     /// How to process non-terminal errors that happen during regular processing
     /// of messages is up to the actor.
-    ///
-    /// [supervisor]: ../supervisor/trait.Supervisor.html
     type Error;
 
     /// Try to poll this actor.
     ///
-    /// This is basically the same as calling `Future::poll`.
+    /// This is basically the same as calling [`Future::poll`](Future::poll).
     ///
     /// # Panics
     ///
-    /// Just like with futures polling after it returned `Poll::Ready` may cause
-    /// undefined behaviour, including but not limited to panicking.
+    /// Just like with futures polling after it returned
+    /// [`Poll::Ready`](Poll::Ready) may cause undefined behaviour, including
+    /// but not limited to panicking.
     fn try_poll(self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Result<(), Self::Error>>;
 }
 
