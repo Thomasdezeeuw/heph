@@ -29,6 +29,7 @@ struct Waker {
 
 impl Wake for Waker {
     fn wake(arc_self: &Arc<Self>) {
-        arc_self.sender.send(arc_self.pid);
+        // We can't do anything if we encounter an error.
+        let _ = arc_self.sender.send(arc_self.pid);
     }
 }

@@ -408,7 +408,7 @@ impl RunningActorSystem {
         // timeout used when polling.
         trace!("receiving waker events");
         let mut scheduled = false;
-        while let Some(pid) = self.waker_notifications.try_recv() {
+        while let Some(pid) = self.waker_notifications.try_recv().ok() {
             scheduled = true;
             self.scheduler.schedule(pid);
         }
@@ -528,7 +528,8 @@ impl ActorSystemRef {
             }
         }
         if options.schedule {
-            waker_notifications.send(pid);
+            // Can't handle the error here.
+            let _ = waker_notifications.send(pid);
         }
 
         Ok(actor_ref)

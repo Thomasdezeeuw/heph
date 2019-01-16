@@ -47,7 +47,7 @@ impl<M> MachineLocalActorRef<M> {
     pub fn send<Msg>(&mut self, msg: Msg)
         where Msg: Into<M>,
     {
-        self.sender.send(msg.into());
+        let _ = self.sender.send(msg.into());
         self.waker.wake();
     }
 }
