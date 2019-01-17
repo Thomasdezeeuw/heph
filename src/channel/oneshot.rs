@@ -73,7 +73,7 @@
 use std::future::Future;
 use std::marker::Unpin;
 use std::pin::Pin;
-use std::task::{Poll, LocalWaker};
+use std::task::{LocalWaker, Poll};
 
 use crate::channel::{NoReceiver, NoValue};
 use crate::util::Shared;
@@ -161,7 +161,7 @@ mod tests {
 
     use futures_test::task::new_count_waker;
 
-    use crate::channel::{NoReceiver, NoValue, oneshot};
+    use crate::channel::{oneshot, NoReceiver, NoValue};
 
     #[test]
     fn sending_wakes_receiver() {

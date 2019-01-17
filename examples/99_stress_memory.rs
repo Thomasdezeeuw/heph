@@ -9,14 +9,13 @@ use std::time::Duration;
 
 use heph::actor::ActorContext;
 use heph::supervisor::NoSupervisor;
-use heph::system::{ActorSystem, ActorOptions, RuntimeError};
+use heph::system::{ActorOptions, ActorSystem, RuntimeError};
 
 fn main() -> Result<(), RuntimeError> {
     ActorSystem::new()
         .with_setup(|mut system_ref| {
-            for _ in 0..10_000_000 {
-                system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
-                    ActorOptions::default());
+            for _ in 0 .. 10_000_000 {
+                system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
             }
 
             println!("Running, check the memory usage!");

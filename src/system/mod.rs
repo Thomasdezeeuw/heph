@@ -273,7 +273,7 @@ impl<S> fmt::Debug for ActorSystem<S> {
 mod hack {
     use super::ActorSystemRef;
 
-    pub trait SetupFn: Send + Clone + 'static{
+    pub trait SetupFn: Send + Clone + 'static {
         type Error: Send;
 
         fn setup(self, system_ref: ActorSystemRef) -> Result<(), Self::Error>;
@@ -384,12 +384,12 @@ impl RunningActorSystem {
         loop {
             self.schedule_processes(&mut events)?;
 
-            for _ in 0..RUN_POLL_RATIO {
+            for _ in 0 .. RUN_POLL_RATIO {
                 if !self.scheduler.run_process(&mut system_ref) {
                     if self.scheduler.is_empty() {
                         // No processes left to run, so we're done.
                         debug!("no processes to run, stopping actor system");
-                        return Ok(())
+                        return Ok(());
                     } else {
                         // No processes ready to run, try polling again.
                         break;

@@ -117,7 +117,7 @@ mod remote;
 #[cfg(all(test, feature = "test"))]
 mod tests;
 
-pub use self::error::{SendError, ActorShutdown};
+pub use self::error::{ActorShutdown, SendError};
 pub use self::local::LocalActorRef;
 pub use self::machine::MachineLocalActorRef;
 pub use self::remote::RemoteActorRef;

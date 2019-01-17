@@ -18,8 +18,8 @@
 //! ```
 //! #![feature(async_await, futures_api, never_type)]
 //!
-//! use heph::actor::ActorContext;
 //! use heph::actor::messages::Ack;
+//! use heph::actor::ActorContext;
 //!
 //! #[derive(Debug, Eq, PartialEq)]
 //! struct OK;

@@ -5,8 +5,8 @@
 use std::cmp::Ordering;
 use std::mem::forget;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::sync::atomic::{self, AtomicBool};
+use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -325,7 +325,7 @@ impl NewActor for TestAssertUnmovedNewActor {
 #[test]
 fn actor_process_assert_actor_unmoved() {
     // Create our actor.
-    let (actor, mut actor_ref) = init_actor(TestAssertUnmovedNewActor , ()).unwrap();
+    let (actor, mut actor_ref) = init_actor(TestAssertUnmovedNewActor, ()).unwrap();
 
     // Create the waker.
     let pid = ProcessId(0);

@@ -2,7 +2,7 @@
 
 use heph::actor::ActorContext;
 use heph::supervisor::NoSupervisor;
-use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, RuntimeError};
+use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 
 // The creation and running of the actor system is the same as in example 1.
 fn main() -> Result<(), RuntimeError> {

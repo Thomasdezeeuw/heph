@@ -123,7 +123,7 @@ impl SchedulerRef {
     /// added to scheduler.
     pub fn add_process<'s>(&'s mut self) -> AddingProcess<'s> {
         AddingProcess {
-            processes: self.processes.borrow_mut()
+            processes: self.processes.borrow_mut(),
         }
     }
 }

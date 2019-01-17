@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::future::Future;
 use std::marker::Unpin;
 use std::pin::Pin;
-use std::task::{Poll, LocalWaker};
+use std::task::{LocalWaker, Poll};
 
 use futures_core::stream::Stream;
 
@@ -114,7 +114,7 @@ impl<'r, T: Unpin> Future for ReceiveOne<'r, T> {
                 this.inner.inner.borrow_mut().waker = Some(lw.clone());
                 Poll::Pending
             },
-            Err(err) => Poll::Ready(Err(err))
+            Err(err) => Poll::Ready(Err(err)),
         }
     }
 }

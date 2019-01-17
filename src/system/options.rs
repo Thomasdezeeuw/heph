@@ -25,7 +25,7 @@ pub use crate::scheduler::Priority;
 ///
 /// let opts = ActorOptions {
 ///     priority: Priority::HIGH,
-///     .. Default::default()
+///     ..Default::default()
 /// };
 /// ```
 #[derive(Clone)]
