@@ -3,7 +3,7 @@
 use std::fmt;
 use std::ops::ShlAssign;
 
-use crate::actor_ref::{MachineLocalActorRef, SendError, ActorShutdown};
+use crate::actor_ref::{ActorShutdown, MachineLocalActorRef, SendError};
 use crate::mailbox::MailBox;
 use crate::system::ActorSystemRef;
 use crate::util::WeakShared;
@@ -97,7 +97,7 @@ impl<M> Clone for LocalActorRef<M> {
     }
 }
 
-impl<M> Eq for LocalActorRef<M> { }
+impl<M> Eq for LocalActorRef<M> {}
 
 impl<M> PartialEq for LocalActorRef<M> {
     fn eq(&self, other: &LocalActorRef<M>) -> bool {

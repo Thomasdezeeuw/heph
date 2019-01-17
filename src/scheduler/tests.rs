@@ -177,14 +177,14 @@ fn scheduler_run_order() {
     }
 
     // Schedule all processes.
-    for pid in 0..3 {
+    for pid in 0 .. 3 {
         scheduler.schedule(ProcessId(pid));
     }
     assert!(!scheduler.is_empty());
 
     // Run all processes, should be in order of priority (since there runtimes
     // are equal).
-    for _ in 0..3 {
+    for _ in 0 .. 3 {
         assert!(scheduler.run_process(&mut system_ref));
     }
     assert!(!scheduler.is_empty());

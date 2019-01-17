@@ -1,6 +1,6 @@
 //! Module with utilities used throughout the crate.
 
-use std::cell::{RefCell, Ref, RefMut};
+use std::cell::{Ref, RefCell, RefMut};
 use std::rc::{Rc, Weak};
 
 /// A `Rc<RefCell<T>>` with some easy to use methods.

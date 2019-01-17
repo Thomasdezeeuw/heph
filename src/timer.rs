@@ -15,7 +15,7 @@ use std::pin::Pin;
 use std::task::{LocalWaker, Poll};
 use std::time::{Duration, Instant};
 
-use futures_core::stream::{Stream, FusedStream};
+use futures_core::stream::{FusedStream, Stream};
 
 use crate::actor::ActorContext;
 use crate::scheduler::ProcessId;

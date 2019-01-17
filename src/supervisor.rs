@@ -41,7 +41,7 @@
 //! use heph::actor::ActorContext;
 //! use heph::log::{self, error};
 //! use heph::supervisor::SupervisorStrategy;
-//! use heph::system::{ActorSystem, ActorOptions, RuntimeError};
+//! use heph::system::{ActorOptions, ActorSystem, RuntimeError};
 //!
 //! fn main() -> Result<(), RuntimeError> {
 //!     // Enable logging so we can see the error message.
@@ -129,7 +129,7 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 ///
 /// use heph::actor::ActorContext;
 /// use heph::supervisor::NoSupervisor;
-/// use heph::system::{ActorSystem, ActorOptions, RuntimeError};
+/// use heph::system::{ActorOptions, ActorSystem, RuntimeError};
 ///
 /// fn main() -> Result<(), RuntimeError> {
 ///     ActorSystem::new().with_setup(|mut system_ref| {

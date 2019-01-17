@@ -1,7 +1,7 @@
 //! Module containing actor reference error types.
 
-use std::{fmt, io};
 use std::error::Error;
+use std::{fmt, io};
 
 /// Error returned when sending a message.
 ///

@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use log::{error, trace};
 
-use crate::actor::{Actor, NewActor, ActorContext};
+use crate::actor::{Actor, ActorContext, NewActor};
 use crate::mailbox::MailBox;
 use crate::scheduler::process::{Priority, Process, ProcessId, ProcessResult};
 use crate::supervisor::{Supervisor, SupervisorStrategy};

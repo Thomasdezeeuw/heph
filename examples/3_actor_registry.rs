@@ -1,7 +1,7 @@
 #![feature(async_await, await_macro, futures_api, never_type)]
 
-use std::io;
 use std::default::Default;
+use std::io;
 use std::net::SocketAddr;
 
 use futures_util::{AsyncReadExt, TryFutureExt};
@@ -9,9 +9,9 @@ use futures_util::{AsyncReadExt, TryFutureExt};
 use heph::actor::ActorContext;
 use heph::log::{self, error, info};
 use heph::net::{TcpListener, TcpListenerError, TcpStream};
-use heph::supervisor::{SupervisorStrategy, NoSupervisor};
+use heph::supervisor::{NoSupervisor, SupervisorStrategy};
 use heph::system::options::Priority;
-use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, RuntimeError};
+use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 
 // Main is mostly the same as example 2, but we only use 2 worker threads.
 fn main() -> Result<(), RuntimeError<io::Error>> {

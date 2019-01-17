@@ -2,10 +2,10 @@
 //! directory.
 
 use std::io::{Read, Write};
-use std::net::{TcpStream, SocketAddr};
+use std::net::{SocketAddr, TcpStream};
 use std::ops::{Deref, DerefMut};
 use std::panic;
-use std::process::{Command, Child, Stdio};
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::thread::sleep;
 use std::time::Duration;
@@ -157,7 +157,7 @@ fn read_output(mut child: ChildCommand) -> String {
 }
 
 fn tcp_retry_connect(address: SocketAddr) -> TcpStream {
-    for _ in 0..10 {
+    for _ in 0 .. 10 {
         if let Ok(stream) = TcpStream::connect(address) {
             return stream;
         }

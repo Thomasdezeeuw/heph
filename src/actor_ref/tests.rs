@@ -1,6 +1,6 @@
 //! Tests for the actor references.
 
-use crate::actor_ref::{LocalActorRef, SendError, ActorShutdown};
+use crate::actor_ref::{ActorShutdown, LocalActorRef, SendError};
 use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
 use crate::test;

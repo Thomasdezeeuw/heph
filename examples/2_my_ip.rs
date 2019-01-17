@@ -10,7 +10,7 @@ use heph::log::{self, error, info};
 use heph::net::{TcpListener, TcpListenerError, TcpStream};
 use heph::supervisor::SupervisorStrategy;
 use heph::system::options::Priority;
-use heph::system::{ActorSystem, ActorSystemRef, ActorOptions, RuntimeError};
+use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 
 fn main() -> Result<(), RuntimeError<io::Error>> {
     // For this example we'll enable logging, this give us a bit more insight

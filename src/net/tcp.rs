@@ -13,7 +13,7 @@ use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use mio_st::poll::PollOption;
 
 use crate::actor::messages::Terminate;
-use crate::actor::{ActorContext, Actor, NewActor};
+use crate::actor::{Actor, ActorContext, NewActor};
 use crate::mailbox::MailBox;
 use crate::net::{interrupted, would_block};
 use crate::supervisor::Supervisor;
