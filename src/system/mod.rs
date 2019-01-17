@@ -513,10 +513,10 @@ impl ActorSystemRef {
         // actor with both.
         let mut system_ref = self.clone();
         let arg = arg_fn(pid, &mut system_ref)
-            .map_err(|err| AddActorError::ArgFn(err))?;
+            .map_err(AddActorError::ArgFn)?;
         let ctx = ActorContext::new(pid, system_ref, mailbox.clone());
         let actor = new_actor.new(ctx, arg)
-            .map_err(|err| AddActorError::NewActor(err))?;
+            .map_err(AddActorError::NewActor)?;
 
         // Add the actor to the scheduler.
         process_entry.add_actor(options.priority, supervisor, new_actor, actor,
