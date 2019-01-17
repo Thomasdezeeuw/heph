@@ -189,7 +189,9 @@ impl<S, NA> TcpListener<S, NA>
     /// happen in `NewTcpListener`'s `NewActor` implementation.
     ///
     /// [`NewActor::new`]: ../actor/trait.NewActor.html#tymethod.new
-    pub fn new(supervisor: S, new_actor: NA, options: ActorOptions) -> NewTcpListener<S, NA> {
+    pub fn new(supervisor: S, new_actor: NA, options: ActorOptions) ->
+        impl NewActor<Message = TcpListenerMessage, Argument = SocketAddr, Actor = TcpListener<S, NA>, Error = io::Error>
+    {
         NewTcpListener { supervisor, new_actor, options }
     }
 }
@@ -326,7 +328,7 @@ impl<E: fmt::Display> fmt::Display for TcpListenerError<E> {
 /// [`NewActor`]: ../actor/trait.NewActor.html
 /// [`TcpListener::new`]: struct.TcpListener.html#method.new
 #[derive(Debug, Clone)]
-pub struct NewTcpListener<S, NA> {
+struct NewTcpListener<S, NA> {
     supervisor: S,
     new_actor: NA,
     options: ActorOptions,
