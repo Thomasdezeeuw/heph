@@ -111,7 +111,6 @@ compile_error!("please enable the `test` feature when testing, call `cargo test 
 mod mailbox;
 mod scheduler;
 mod util;
-mod waker;
 
 #[doc(no_inline)]
 pub use crate::actor::{Actor, Context, NewActor};
