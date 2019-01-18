@@ -2,9 +2,9 @@
 
 use std::mem;
 use std::pin::Pin;
+use std::task::{Waker, RawWaker, RawWakerVTable};
 use std::time::Duration;
 
-use crossbeam_channel as channel;
 use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{empty, Empty};
 
@@ -15,10 +15,29 @@ use crate::supervisor::NoSupervisor;
 use crate::system::ActorSystemRef;
 use crate::test::{init_actor, system_ref};
 use crate::util::Shared;
-use crate::waker::new_waker;
 
 fn assert_size<T>(expected: usize) {
     assert_eq!(mem::size_of::<T>(), expected);
+}
+
+// Also used in the process tests.
+pub fn nop_waker() -> Waker {
+    let data = 0 as *const ();
+    let raw_waker = RawWaker::new(data, NOP_WAKER_VTABLE);
+    unsafe { Waker::new_unchecked(raw_waker) }
+}
+
+static NOP_WAKER_VTABLE: &RawWakerVTable = &RawWakerVTable {
+    clone: clone_wake_data,
+    wake,
+    drop,
+};
+
+unsafe fn clone_wake_data(data: *const ()) -> RawWaker {
+    RawWaker::new(data, NOP_WAKER_VTABLE)
+}
+
+unsafe fn wake(_data: *const ()) {
 }
 
 #[test]
@@ -206,16 +225,11 @@ fn actor_process() {
     let new_actor = actor as fn(_) -> _;
     let (actor, mut actor_ref) = init_actor(new_actor, ()).unwrap();
 
-    // Create the waker.
-    let pid = ProcessId(0);
-    let (sender, _) = channel::unbounded();
-    let waker = new_waker(pid, sender);
-
     // Add the actor to the scheduler.
     let process_entry = scheduler_ref.add_process();
     let inbox = actor_ref.get_inbox().unwrap();
     process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor,
-        inbox, waker);
+        inbox, nop_waker());
 
     // Schedule and run, should return Pending and become inactive.
     scheduler.schedule(ProcessId(0));
@@ -259,16 +273,11 @@ fn assert_actor_unmoved() {
     // Create our actor.
     let (actor, mut actor_ref) = init_actor(TestNewActor, ()).unwrap();
 
-    // Create the waker.
-    let pid = ProcessId(0);
-    let (sender, _) = channel::unbounded();
-    let waker = new_waker(pid, sender);
-
     // Add the actor to the scheduler.
     let process_entry = scheduler_ref.add_process();
     let inbox = actor_ref.get_inbox().unwrap();
     process_entry.add_actor(Priority::NORMAL, NoSupervisor, TestNewActor,
-        actor, inbox, waker);
+        actor, inbox, nop_waker());
 
     // Schedule and run the process multiple times, ensure it's not moved in the
     // process.

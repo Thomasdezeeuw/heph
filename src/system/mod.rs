@@ -48,14 +48,14 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::thread;
-use std::time::{Duration, Instant};
-use std::{fmt, io};
+use std::task::Waker;
+use std::time::Instant;
+use std::{fmt, io, thread};
 
-use crossbeam_channel::{self as channel, Receiver, Sender};
+use crossbeam_channel::{self as channel, Receiver};
 use log::{debug, trace};
 use mio_st::event::{Evented, EventedId, Events, Ready};
-use mio_st::poll::{Interests, PollOption, Poller};
+use mio_st::poll::{Awakener, Interests, PollOption, Poller};
 use num_cpus;
 
 use crate::actor::{Actor, Context, NewActor};
@@ -64,10 +64,10 @@ use crate::mailbox::MailBox;
 use crate::scheduler::{ProcessId, Scheduler, SchedulerRef};
 use crate::supervisor::Supervisor;
 use crate::util::Shared;
-use crate::waker::new_waker;
 
 mod error;
 mod registry;
+mod waker;
 
 use self::registry::ActorRegistry;
 
@@ -75,6 +75,8 @@ pub mod options;
 
 pub use self::error::RuntimeError;
 pub use self::options::ActorOptions;
+
+use waker::{MAX_THREADS, WakerId, new_waker, init_waker};
 
 /// The system that runs all actors.
 ///
@@ -188,6 +190,9 @@ impl<S> ActorSystem<S> {
     /// Most applications would want to use [`ActorSystem::use_all_cores`] which
     /// sets the number of threads equal to the number of CPU cores.
     pub fn num_threads(mut self, n: usize) -> Self {
+        if n > MAX_THREADS {
+            panic!("Can't create {} worker threads, {} is the maximum", n, MAX_THREADS);
+        }
         self.threads = n;
         self
     }
@@ -319,21 +324,28 @@ pub(crate) struct RunningActorSystem {
 // running processes.
 const RUN_POLL_RATIO: usize = 32;
 
+/// Id used for the awakener.
+const AWAKENER_ID: EventedId = EventedId(usize::max_value());
+
 impl RunningActorSystem {
     /// Create a new running actor system.
     pub fn new<E>() -> Result<RunningActorSystem, RuntimeError<E>> {
         // Channel used in the `Waker` implementation.
-        let (waker_send, waker_recv) = channel::unbounded();
+        let (waker_sender, waker_recv) = channel::unbounded();
         // Scheduler for scheduling and running processes.
         let (scheduler, scheduler_ref) = Scheduler::new();
         // System poller for event notifications.
-        let poller = Poller::new().map_err(RuntimeError::poll)?;
+        let mut poller = Poller::new().map_err(RuntimeError::poll)?;
+        let awakener = Awakener::new(&mut poller, AWAKENER_ID)
+            .map_err(RuntimeError::poll)?;
+
+        let waker_id = init_waker(awakener, waker_sender);
 
         // Internals of the running actor system.
         let internal = ActorSystemInternal {
+            waker_id,
             scheduler_ref: RefCell::new(scheduler_ref),
             poller: RefCell::new(poller),
-            waker_notifications: waker_send,
             registry: RefCell::new(ActorRegistry::new()),
         };
 
@@ -384,22 +396,20 @@ impl RunningActorSystem {
     /// This polls the system poller and the waker notifications and schedules
     /// the processes notified.
     fn schedule_processes<E>(&mut self, events: &mut Events) -> Result<(), RuntimeError<E>> {
-        // We start with receiving waker events, which we use to determine the
-        // timeout used when polling.
-        trace!("receiving waker events");
-        let mut scheduled = false;
-        while let Some(pid) = self.waker_notifications.try_recv().ok() {
-            scheduled = true;
-            self.scheduler.schedule(pid);
-        }
-
         trace!("polling system poller for events");
-        let timeout = if scheduled { Some(Duration::from_millis(0)) } else { None };
-        self.internal.poller.borrow_mut().poll(events, timeout)
+        self.internal.poller.borrow_mut().poll(events, None)
             .map_err(RuntimeError::poll)?;
 
         // Schedule all processes with a notification.
         for event in events {
+            if event.id() == AWAKENER_ID {
+                trace!("receiving waker events");
+                while let Some(pid) = self.waker_notifications.try_recv().ok() {
+                    self.scheduler.schedule(pid);
+                }
+                continue;
+            }
+
             self.scheduler.schedule(event.id().into());
         }
 
@@ -468,8 +478,8 @@ impl ActorSystemRef {
               NA::Actor: 'static,
     {
         let ActorSystemInternal {
+            waker_id,
             ref scheduler_ref,
-            ref waker_notifications,
             ref registry,
             ..
         } = &*self.internal;
@@ -490,17 +500,17 @@ impl ActorSystemRef {
         let ctx = Context::new(pid, system_ref, mailbox.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
+        let waker = new_waker(*waker_id, pid);
+        if options.schedule {
+            waker.wake()
+        }
+
         // Add the actor to the scheduler.
-        let waker = new_waker(pid, waker_notifications.clone());
         process_entry.add_actor(options.priority, supervisor, new_actor, actor,
             mailbox, waker);
 
         if options.register && registry.borrow_mut().register::<NA>(actor_ref.clone()).is_some() {
             panic!("can't overwrite a previously registered actor in the Actor Registry");
-        }
-        if options.schedule {
-            // Can't handle the error here.
-            let _ = waker_notifications.send(pid);
         }
 
         Ok(actor_ref)
@@ -604,8 +614,8 @@ impl ActorSystemRef {
     }
 
     /// Get a clone of the sending end of the notification channel.
-    pub(crate) fn get_notification_sender(&mut self) -> Sender<ProcessId> {
-        self.internal.waker_notifications.clone()
+    pub(crate) fn new_waker(&self, pid: ProcessId) -> Waker {
+        new_waker(self.internal.waker_id, pid)
     }
 
     /// Add a deadline to the system poller.
@@ -633,12 +643,12 @@ pub(crate) enum AddActorError<NewActorE, ArgFnE> {
 /// reference.
 #[derive(Debug)]
 pub(crate) struct ActorSystemInternal {
+    /// Waker id used to create a `Waker`.
+    waker_id: WakerId,
     /// A reference to the scheduler to add new processes to.
     scheduler_ref: RefCell<SchedulerRef>,
     /// System poller, used for event notifications to support non-blocking I/O.
     poller: RefCell<Poller>,
-    /// Sending side of the channel for `Waker` notifications.
-    waker_notifications: Sender<ProcessId>,
     /// Actor registrations.
     registry: RefCell<ActorRegistry>,
 }

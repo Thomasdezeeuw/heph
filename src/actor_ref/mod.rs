@@ -118,7 +118,6 @@ use std::fmt;
 use std::ops::ShlAssign;
 
 use crate::system::ActorSystemRef;
-use crate::waker::new_waker;
 
 mod error;
 
@@ -189,8 +188,7 @@ impl<M> ActorRef<M, Local> {
             None => return Err(ActorShutdown),
         };
 
-        let notification_sender = system_ref.get_notification_sender();
-        let waker = new_waker(pid, notification_sender);
+        let waker = system_ref.new_waker(pid);
         Ok(ActorRef::<M, Machine>::new(sender, waker.into()))
     }
 }

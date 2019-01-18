@@ -5,22 +5,21 @@
 use std::cmp::Ordering;
 use std::mem::forget;
 use std::pin::Pin;
-use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
+use std::sync::atomic::{self, AtomicBool};
 use std::thread::sleep;
 use std::time::Duration;
 
-use crossbeam_channel as channel;
 use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{empty, Empty};
 use mio_st::event::EventedId;
 
 use crate::actor::{Context, NewActor};
 use crate::scheduler::process::{ActorProcess, Priority, Process, ProcessId, ProcessResult};
+use crate::scheduler::tests::nop_waker;
 use crate::supervisor::{NoSupervisor, SupervisorStrategy};
 use crate::system::ActorSystemRef;
 use crate::test::{init_actor, system_ref};
-use crate::waker::new_waker;
 
 #[test]
 fn pid() {
@@ -157,15 +156,10 @@ fn actor_process() {
     let new_actor = ok_actor as fn(_) -> _;
     let (actor, mut actor_ref) = init_actor(new_actor, ()).unwrap();
 
-    // Create the waker.
-    let pid = ProcessId(0);
-    let (sender, _) = channel::unbounded();
-    let waker = new_waker(pid, sender);
-
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(pid, Priority::NORMAL, NoSupervisor,
-        new_actor, actor, inbox, waker);
+    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, NoSupervisor,
+        new_actor, actor, inbox, nop_waker());
     let mut process = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -203,15 +197,10 @@ fn erroneous_actor_process() {
     let new_actor = error_actor as fn(_, _) -> _;
     let (actor, mut actor_ref) = init_actor(new_actor, true).unwrap();
 
-    // Create the waker.
-    let pid = ProcessId(0);
-    let (sender, _) = channel::unbounded();
-    let waker = new_waker(pid, sender);
-
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(pid, Priority::NORMAL,
-        |_err| SupervisorStrategy::Stop, new_actor, actor, inbox, waker);
+    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL,
+        |_err| SupervisorStrategy::Stop, new_actor, actor, inbox, nop_waker());
     let mut process = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -231,11 +220,6 @@ fn restarting_erroneous_actor_process() {
     let new_actor = error_actor as fn(_, _) -> _;
     let (actor, mut actor_ref) = init_actor(new_actor, true).unwrap();
 
-    // Create the waker.
-    let pid = ProcessId(0);
-    let (sender, _) = channel::unbounded();
-    let waker = new_waker(pid, sender);
-
     let supervisor_check = Arc::new(AtomicBool::new(false));
     let supervisor_called = Arc::clone(&supervisor_check);
     let supervisor = move |_err| {
@@ -245,8 +229,8 @@ fn restarting_erroneous_actor_process() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(pid, Priority::NORMAL, supervisor, new_actor,
-        actor, inbox, waker);
+    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, supervisor, new_actor,
+        actor, inbox, nop_waker());
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -285,15 +269,10 @@ fn actor_process_runtime_increase() {
     let new_actor = sleepy_actor as fn(_, _) -> _;
     let (actor, mut actor_ref) = init_actor(new_actor, SLEEP_TIME).unwrap();
 
-    // Create the waker.
-    let pid = ProcessId(0);
-    let (sender, _) = channel::unbounded();
-    let waker = new_waker(pid, sender);
-
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(pid, Priority::NORMAL, NoSupervisor,
-        new_actor, actor, inbox, waker);
+    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, NoSupervisor,
+        new_actor, actor, inbox, nop_waker());
     let mut process = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -327,15 +306,10 @@ fn actor_process_assert_actor_unmoved() {
     // Create our actor.
     let (actor, mut actor_ref) = init_actor(TestAssertUnmovedNewActor, ()).unwrap();
 
-    // Create the waker.
-    let pid = ProcessId(0);
-    let (sender, _) = channel::unbounded();
-    let waker = new_waker(pid, sender);
-
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(pid, Priority::NORMAL, NoSupervisor,
-        TestAssertUnmovedNewActor, actor, inbox, waker);
+    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, NoSupervisor,
+        TestAssertUnmovedNewActor, actor, inbox, nop_waker());
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));

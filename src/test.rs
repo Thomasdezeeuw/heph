@@ -20,7 +20,7 @@
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{LocalWaker, Poll};
+use std::task::{Waker, Poll};
 
 use crate::actor::{Actor, Context, NewActor};
 use crate::actor_ref::{ActorRef, Local};
@@ -28,7 +28,6 @@ use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
 use crate::system::{ActorSystemRef, RunningActorSystem};
 use crate::util::Shared;
-use crate::waker::new_waker;
 
 thread_local! {
     /// Per thread active, but not running, actor system.
@@ -89,9 +88,7 @@ pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
 }
 
 /// Create a test [`LocalWaker`], with pid 0.
-fn test_waker() -> LocalWaker {
+fn test_waker() -> Waker {
     let pid = ProcessId(0);
-    let mut system_ref = system_ref();
-    let waker_notifications = system_ref.get_notification_sender();
-    new_waker(pid, waker_notifications.clone())
+    system_ref().new_waker(pid)
 }
