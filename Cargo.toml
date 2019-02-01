@@ -32,7 +32,6 @@ slab                 = "0.4.0"
 std-logger           = "0.3.2"
 
 [dev-dependencies]
-# Replace with released version.
 futures-test-preview = "0.3.0-alpha.12"
 futures-util-preview = "0.3.0-alpha.12"
 lazy_static          = "1.1.0"
