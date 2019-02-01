@@ -500,20 +500,18 @@ impl ActorSystemRef {
         let pid = process_entry.pid();
         debug!("adding actor to actor system: pid={}", pid);
 
-        // Create our waker, mailbox and actor reference.
-        let waker = new_waker(pid, waker_notifications.clone());
+        // Create our actor argument, running any setup required by the caller.
+        let mut system_ref = self.clone();
+        let arg = arg_fn(pid, &mut system_ref).map_err(AddActorError::ArgFn)?;
+
+        // Create our actor context and our actor with it.
         let mailbox = Shared::new(MailBox::new(pid, self.clone()));
         let actor_ref = LocalActorRef::new(mailbox.downgrade());
-
-        // Create the argument for the actor, the actor context and create the
-        // actor with both.
-        let mut system_ref = self.clone();
-        let arg = arg_fn(pid, &mut system_ref)
-            .map_err(AddActorError::ArgFn)?;
         let ctx = ActorContext::new(pid, system_ref, mailbox.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         // Add the actor to the scheduler.
+        let waker = new_waker(pid, waker_notifications.clone());
         process_entry.add_actor(options.priority, supervisor, new_actor, actor,
             mailbox, waker);
 
@@ -650,7 +648,7 @@ impl ActorSystemRef {
 /// Internal error returned by adding a new actor to the actor system.
 #[derive(Debug)]
 pub(crate) enum AddActorError<NewActorE, ArgFnE> {
-    /// Calling new actor resulted in an error.
+    /// Calling `NewActor::new` actor resulted in an error.
     NewActor(NewActorE),
     /// Calling the argument function resulted in an error.
     ArgFn(ArgFnE),
