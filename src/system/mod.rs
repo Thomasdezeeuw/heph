@@ -449,7 +449,7 @@ impl ActorSystemRef {
               NA: NewActor + 'static,
               NA::Actor: 'static,
     {
-        self.add_actor_setup(supervisor, new_actor, |_, _| Ok(arg), options)
+        self.try_spawn_setup(supervisor, new_actor, |_, _| Ok(arg), options)
             .map_err(|err| match err {
                 AddActorError::NewActor(err) => err,
                 AddActorError::<_, !>::ArgFn(_) => unreachable!(),
@@ -469,17 +469,17 @@ impl ActorSystemRef {
               NA: NewActor<Error = !> + 'static,
               NA::Actor: 'static,
     {
-        self.add_actor_setup(supervisor, new_actor, |_, _| Ok(arg), options)
+        self.try_spawn_setup(supervisor, new_actor, |_, _| Ok(arg), options)
             .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
     }
 
-    /// Add an actor that needs to be initialised.
+    /// Spawn an actor that needs to be initialised.
     ///
-    /// Just like `add_actor` this required a `supervisor`, `new_actor` and
+    /// Just like `try_spawn` this requires a `supervisor`, `new_actor` and
     /// `options`. The only difference being rather then passing an argument
     /// directly this function requires a function to create the argument, which
     /// allows the caller to do any required setup work.
-    pub(crate) fn add_actor_setup<S, NA, ArgFn, ArgFnE>(&mut self, supervisor: S,
+    pub(crate) fn try_spawn_setup<S, NA, ArgFn, ArgFnE>(&mut self, supervisor: S,
         mut new_actor: NA, arg_fn: ArgFn, options: ActorOptions
     ) -> Result<LocalActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
