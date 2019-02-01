@@ -249,7 +249,7 @@ impl<S, NA> Actor for TcpListener<S, NA>
             };
             debug!("accepted connection from: {}", addr);
 
-            let res = system_ref.add_actor_setup(supervisor.clone(), new_actor.clone(), |pid, system_ref| {
+            let res = system_ref.try_spawn_setup(supervisor.clone(), new_actor.clone(), |pid, system_ref| {
                 system_ref.poller_register(&mut stream, pid.into(),
                     MioTcpStream::INTERESTS, PollOption::Edge)?;
 
