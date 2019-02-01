@@ -179,8 +179,8 @@ impl ActorSystem {
 impl ActorSystem<!> {
     /// Add a setup function.
     ///
-    /// This function will be run on each thread the actor system creates. Only
-    /// a single setup function can be added to the actor system.
+    /// This function will be run on each worker thread the actor system
+    /// creates. Only a single setup function can be added to the actor system.
     pub fn with_setup<F, E>(self, setup: F) -> ActorSystem<F>
         where F: FnOnce(ActorSystemRef) -> Result<(), E> + Send + Clone + 'static,
               E: Send,
@@ -196,7 +196,7 @@ impl<S> ActorSystem<S> {
     /// Set the number of worker threads to use, defaults to `1`.
     ///
     /// Most applications would want to use [`use_all_cores`] which sets the
-    /// number of threads equal to the number of cpu cores.
+    /// number of threads equal to the number of CPU cores.
     ///
     /// [`use_all_cores`]: #method.use_all_cores
     pub fn num_threads(mut self, n: usize) -> Self {
@@ -204,7 +204,7 @@ impl<S> ActorSystem<S> {
         self
     }
 
-    /// Set the number of worker threads equal to the number of cpu cores.
+    /// Set the number of worker threads equal to the number of CPU cores.
     ///
     /// See [`num_threads`].
     ///
@@ -219,8 +219,8 @@ impl<S> ActorSystem<S>
 {
     /// Run the system.
     ///
-    /// This will spawn a number of threads (see [`num_threads`]) to run the
-    /// system.
+    /// This will spawn a number of worker threads (see [`num_threads`]) to run
+    /// the system.
     ///
     /// [`num_threads`]: #method.num_threads
     pub fn run(mut self) -> Result<(), RuntimeError<S::Error>> {
@@ -301,7 +301,7 @@ mod hack {
 
 use self::hack::SetupFn;
 
-/// Run the actor system, with the optional `setup` function.
+/// Run the actor system, with an optional `setup` function.
 ///
 /// This is the entry point for the worker threads.
 fn run_system<S>(setup: Option<S>) -> Result<(), RuntimeError<S::Error>>
