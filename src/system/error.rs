@@ -14,6 +14,8 @@ pub struct RuntimeError<SetupError = !> {
 /// Inside of `RuntimeError` error.
 #[derive(Debug)]
 pub(crate) enum RuntimeErrorInner<SetupError> {
+    /// Error starting worker thread.
+    StartThread(io::Error),
     /// Error polling the system poller.
     Poll(io::Error),
     /// Error returned by user defined setup function.
@@ -24,6 +26,12 @@ pub(crate) enum RuntimeErrorInner<SetupError> {
 
 impl<SetupError> RuntimeError<SetupError> {
     const DESC: &'static str = "error running actor system";
+
+    pub(crate) fn start_thread(err: io::Error) -> RuntimeError<SetupError> {
+        RuntimeError {
+            inner: RuntimeErrorInner::StartThread(err),
+        }
+    }
 
     pub(crate) fn poll(err: io::Error) -> RuntimeError<SetupError> {
         RuntimeError {
@@ -48,6 +56,8 @@ impl<SetupError: fmt::Display> fmt::Display for RuntimeError<SetupError> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::RuntimeErrorInner::*;
         match self.inner {
+            StartThread(ref err) => write!(f, "{}: error starting worker thread: {}",
+                Self::DESC, err),
             Poll(ref err) => write!(f, "{}: error polling system poller: {}",
                 Self::DESC, err),
             Setup(ref err) => write!(f, "{}: error running setup function: {}",
@@ -66,7 +76,7 @@ impl<SetupError: Error + fmt::Display> Error for RuntimeError<SetupError> {
     fn cause(&self) -> Option<&dyn Error> {
         use self::RuntimeErrorInner::*;
         match self.inner {
-            Poll(ref err) => Some(err),
+            StartThread(ref err) | Poll(ref err) => Some(err),
             Setup(ref err) => Some(err),
             Panic(_) => None,
         }
