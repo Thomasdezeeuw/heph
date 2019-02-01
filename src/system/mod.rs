@@ -54,7 +54,7 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::thread::{self, JoinHandle};
+use std::thread;
 use std::time::{Duration, Instant};
 use std::{fmt, io};
 
@@ -174,9 +174,7 @@ impl ActorSystem {
             setup: None,
         }
     }
-}
 
-impl ActorSystem<!> {
     /// Add a setup function.
     ///
     /// This function will be run on each worker thread the actor system
@@ -223,10 +221,18 @@ impl<S> ActorSystem<S>
     /// the system.
     ///
     /// [`num_threads`]: #method.num_threads
-    pub fn run(mut self) -> Result<(), RuntimeError<S::Error>> {
+    pub fn run(self) -> Result<(), RuntimeError<S::Error>> {
         debug!("running actor system: worker_threads={}", self.threads);
 
-        let handles = self.start_threads()?;
+        let mut handles = Vec::with_capacity(self.threads);
+        for id in 0..self.threads {
+            let setup = self.setup.clone();
+            let handle = thread::Builder::new()
+                .name(format!("heph_worker{}", id))
+                .spawn(move || run_system(setup))
+                .map_err(RuntimeError::start_thread)?;
+            handles.push(handle)
+        }
 
         // TODO: handle errors better. Currently as long as the first thread
         // keeps running and all other threads crash we'll keep running. Not an
@@ -247,16 +253,6 @@ impl<S> ActorSystem<S>
         }
 
         Ok(())
-    }
-
-    /// Start the threads for the actor system.
-    fn start_threads(&mut self) -> Result<Vec<JoinHandle<Result<(), RuntimeError<S::Error>>>>, RuntimeError<S::Error>> {
-        (0..self.threads).map(|_| {
-            // Spawn the thread.
-            let setup = self.setup.clone();
-            Ok(thread::spawn(move || run_system(setup)))
-        })
-        .collect()
     }
 }
 
@@ -515,8 +511,7 @@ impl ActorSystemRef {
         let arg = arg_fn(pid, &mut system_ref)
             .map_err(AddActorError::ArgFn)?;
         let ctx = ActorContext::new(pid, system_ref, mailbox.clone());
-        let actor = new_actor.new(ctx, arg)
-            .map_err(AddActorError::NewActor)?;
+        let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         // Add the actor to the scheduler.
         process_entry.add_actor(options.priority, supervisor, new_actor, actor,
