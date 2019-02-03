@@ -1,4 +1,4 @@
-//! Module containing the `Mailbox` for an actor.
+//! Module containing the `MailBox` for an actor.
 
 use std::collections::VecDeque;
 
@@ -44,9 +44,24 @@ impl<M> MailBox<M> {
 
     /// Receive a delivered message, if any.
     pub fn receive(&mut self) -> Option<M> {
-        self.messages2.as_ref()
-            .and_then(|(_, recv)| recv.try_recv().ok())
-            .or_else(|| self.messages.pop_front())
+        self.receive_remote_messages();
+        self.messages.pop_front()
+    }
+
+    /// Receive all remote messages, if any, and add them to the message queue.
+    ///
+    /// This is done in an attempt to make the receiving of the two sources of
+    /// message a bit more fair.
+    fn receive_remote_messages(&mut self) {
+        if let Some((_, recv)) = self.messages2.as_ref() {
+            loop {
+                if let Ok(msg) = recv.try_recv() {
+                    self.messages.push_back(msg);
+                } else {
+                    return;
+                }
+            }
+        }
     }
 
     /// Used by `LocalActorRef` to upgrade to `MachineLocalActorRef`.
