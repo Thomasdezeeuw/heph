@@ -43,8 +43,8 @@ impl<M> MailBox<M> {
         self.messages.push_back(msg);
     }
 
-    /// Receive a delivered message, if any.
-    pub fn receive(&mut self) -> Option<M> {
+    /// Receive the next message, if any.
+    pub fn receive_next(&mut self) -> Option<M> {
         self.receive_remote_messages();
         self.messages.pop_front()
     }

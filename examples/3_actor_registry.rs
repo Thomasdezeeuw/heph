@@ -70,7 +70,7 @@ struct Add;
 async fn count_actor(mut ctx: ActorContext<Add>) -> Result<(), !> {
     let mut total = 0;
     loop {
-        let _msg = await!(ctx.receive());
+        let _msg = await!(ctx.receive_next());
         total += 1;
 
         println!("Total count: {}", total);

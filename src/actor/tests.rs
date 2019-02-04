@@ -20,7 +20,7 @@ fn test_actor_context() {
     let mut actor_ref = ctx.actor_ref();
 
     // Initially the mailbox should be empty.
-    let mut recv_future = ctx.receive();
+    let mut recv_future = ctx.receive_next();
     assert_eq!(test::poll_future(Pin::new(&mut recv_future)), Poll::Pending);
 
     // Send my self a message, and we should be able to retrieve it.

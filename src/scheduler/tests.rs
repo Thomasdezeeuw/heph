@@ -192,7 +192,7 @@ fn scheduler_run_order() {
 }
 
 async fn actor(mut ctx: ActorContext<()>) -> Result<(), !> {
-    let _msg = await!(ctx.receive());
+    let _msg = await!(ctx.receive_next());
     Ok(())
 }
 

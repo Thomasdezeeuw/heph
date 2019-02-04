@@ -56,7 +56,7 @@ pub use self::context::{ActorContext, ReceiveMessage};
 /// // Having a async function like the following:
 /// async fn greeter_actor(mut ctx: ActorContext<String>, message: String) -> Result<(), ()> {
 ///     loop {
-///         let name = await!(ctx.receive());
+///         let name = await!(ctx.receive_next());
 ///         println!("{} {}", message, name);
 ///     }
 /// }
@@ -115,7 +115,7 @@ pub trait NewActor {
     /// /// Our actor implementation that prints all messages it receives.
     /// async fn actor(mut ctx: ActorContext<Message>) -> Result<(), !> {
     ///     loop {
-    ///         let msg = await!(ctx.receive());
+    ///         let msg = await!(ctx.receive_next());
     ///         println!("received message: {:?}", msg);
     /// #       return Ok(());
     ///     }

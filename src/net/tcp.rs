@@ -232,7 +232,7 @@ impl<S, NA> Actor for TcpListener<S, NA>
         } = unsafe { self.get_unchecked_mut() };
 
         // Start with receiving any send messages.
-        while let Some(msg) = inbox.borrow_mut().receive() {
+        while let Some(msg) = inbox.borrow_mut().receive_next() {
             use self::TcpListenerMessageInner::*;
             match msg.inner {
                 Terminate => return Poll::Ready(Ok(())),

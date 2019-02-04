@@ -57,7 +57,7 @@ impl<M> ActorContext<M> {
     /// use heph::actor::ActorContext;
     ///
     /// async fn greeter_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
-    ///     if let Some(name) = ctx.try_receive() {
+    ///     if let Some(name) = ctx.try_receive_next() {
     ///         println!("Hello: {}", name);
     ///     } else {
     ///         println!("Hello world");
@@ -65,8 +65,8 @@ impl<M> ActorContext<M> {
     ///     Ok(())
     /// }
     /// ```
-    pub fn try_receive(&mut self) -> Option<M> {
-        self.inbox.borrow_mut().receive()
+    pub fn try_receive_next(&mut self) -> Option<M> {
+        self.inbox.borrow_mut().receive_next()
     }
 
     /// Receive a message.
@@ -84,7 +84,7 @@ impl<M> ActorContext<M> {
     ///
     /// async fn print_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
     ///     loop {
-    ///         let msg = await!(ctx.receive());
+    ///         let msg = await!(ctx.receive_next());
     ///         println!("Got a message: {}", msg);
     ///     }
     /// }
@@ -109,7 +109,7 @@ impl<M> ActorContext<M> {
     ///         // passed.
     ///         let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100)).fuse();
     ///         // Create a future to receive a message.
-    ///         let mut msg_future = ctx.receive().fuse();
+    ///         let mut msg_future = ctx.receive_next().fuse();
     ///
     ///         // Now let them race!
     ///         // This is basically a match statement for futures, whichever
@@ -125,7 +125,7 @@ impl<M> ActorContext<M> {
     ///     }
     /// }
     /// ```
-    pub fn receive<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
+    pub fn receive_next<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
         ReceiveMessage {
             inbox: &mut self.inbox,
         }
@@ -159,9 +159,9 @@ impl<'ctx, M> Future for ReceiveMessage<'ctx, M> {
     type Output = M;
 
     fn poll(mut self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Self::Output> {
-        match self.inbox.borrow_mut().receive() {
+        match self.inbox.borrow_mut().receive_next() {
             Some(msg) => Poll::Ready(msg),
-            // Wakeup Notifications are done when adding to the mailbox.
+            // Wakeup notifications are done when adding to the mailbox.
             None => Poll::Pending,
         }
     }
