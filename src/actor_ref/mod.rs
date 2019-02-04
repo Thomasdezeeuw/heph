@@ -1,23 +1,25 @@
 //! Module containing actor references.
 //!
-//! Actor references come in three flavours:
-//! - [`LocalActorRef`]: reference to an actor running on the same thread,
-//! - [`MachineLocalActorRef`]: reference to an actor running on the same
-//!   machine, possibly on another thread, and
-//! - [`RemoteActorRef`]: reference to an actor running on a different machine.
+//! An actor reference is a generic reference to an actor that can run on the
+//! same thread, another thread on the same machine or even running remotely.
 //!
-//! These three flavours are combined into an more generic [`ActorRef`] type.
+//! Currently there are two types of actor references.
 //!
-//! [`LocalActorRef`]: struct.LocalActorRef.html
-//! [`MachineLocalActorRef`]: struct.MachineLocalActorRef.html
-//! [`RemoteActorRef`]: struct.RemoteActorRef.html
-//! [`ActorRef`]: enum.ActorRef.html
+//! - [`Local`] (`ActorRef<M, Local>`): reference to an actor running on the
+//!   same thread. This is the least expensive reference and should always be
+//!   preferred, that is why it is also the default.
+//! - [`Machine`] (`ActorRef<M, Machine>`): reference to an actor running on the
+//!   same machine, possibly on another thread. This implements [`Send`] and
+//!   [`Sync`], which the local actor reference does not.
+//!
+//! [`Local`]: crate::actor_ref::Local
+//! [`Machine`]: crate::actor_ref::Machine
 //!
 //! ## Sending messages
 //!
-//! All flavours of actor references have a `send` method. These methods don't
+//! All types of actor references have a [`send`] method. These methods don't
 //! block, even on the remote actor reference, but the method doesn't provided a
-//! lot of guarantees. What `send` does is asynchronously adding the message to
+//! lot of guarantees. What [`send`] does is asynchronously add the message to
 //! the queue of messages for the actor.
 //!
 //! In case of the local actor reference this can be done directly. But for
@@ -31,10 +33,13 @@
 //! received and/or processed correctly. This can for example be done by using
 //! the [request-response pattern].
 //!
-//! The following example shows how messages can be send. It uses a
-//! `LocalActorRef` but it's the same for all flavours.
+//! Other then the [`send`] method the `<<=` operator can be used to send
+//! messages, which does the same thing as `send` but with nicer syntax. The
+//! following example shows how messages can be send using this operator. It
+//! uses a local actor reference but it's the same for all flavours.
 //!
 //! [request-response pattern]: ../channel/oneshot/index.html#request-response-pattern
+//! [`send`]: crate::actor_ref::ActorRef::send
 //!
 //! ```
 //! #![feature(async_await, await_macro, futures_api, never_type)]
@@ -50,7 +55,10 @@
 //!         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
 //!
 //!         // Now we can use the reference to send the actor a message.
-//!         actor_ref.send("Hello world".to_owned()).unwrap();
+//!         actor_ref <<= "Hello world".to_owned();
+//!         // Above is the same as:
+//!         // let _ = actor_ref.send("Hello world".to_owned());
+//!
 //!         Ok(())
 //!     })
 //!     .run()
@@ -68,9 +76,8 @@
 //!
 //! All actor references can be cloned, which is the easiest way to share them.
 //!
-//! The example below shows how an `LocalActorRef` is cloned to send a message
-//! to the same actor, the same can be done with all flavours of actor
-//! references.
+//! The example below shows how an local actor reference is cloned to send a
+//! message to the same actor, but it is the same for all types of references.
 //!
 //! ```
 //! #![feature(async_await, await_macro, futures_api, never_type)]
@@ -87,9 +94,10 @@
 //!         // To create another actor reference we can simply clone the first one.
 //!         let mut second_actor_ref = actor_ref.clone();
 //!
-//!         // Now we can use both references to send a messsage.
-//!         actor_ref.send("Hello world".to_owned()).unwrap();
-//!         second_actor_ref.send("Bye world".to_owned()).unwrap();
+//!         // Now we can use both references to send a message.
+//!         actor_ref <<= "Hello world".to_owned();
+//!         second_actor_ref <<= "Bye world".to_owned();
+//!
 //!         Ok(())
 //!     })
 //!     .run()
@@ -109,89 +117,123 @@
 use std::fmt;
 use std::ops::ShlAssign;
 
+use crate::system::ActorSystemRef;
+use crate::waker::new_waker;
+
 mod error;
-mod local;
-mod machine;
-mod remote;
 
 #[cfg(all(test, feature = "test"))]
 mod tests;
 
+pub mod local;
+pub mod machine;
+
 pub use self::error::{ActorShutdown, SendError};
-pub use self::local::LocalActorRef;
-pub use self::machine::MachineLocalActorRef;
-pub use self::remote::RemoteActorRef;
+pub use self::local::{LocalActorRef, Local};
+pub use self::machine::{MachineLocalActorRef, Machine};
 
 /// A reference to an actor.
 ///
-/// This reference can be used to send messages to the actor running on the same
-/// thread, on the same machine, or even on a remote machine.
+/// This reference can be used to send messages to an actor, for more details
+/// see the [module] documentation.
 ///
-/// This `ActorRef` can be created by using the `From` implementation on one of
-/// the flavours of actor reference.
-#[non_exhaustive]
-pub enum ActorRef<M> {
-    /// A reference to a local actor, running on the same thread.
-    Local(LocalActorRef<M>),
-    /// A reference to an actor running on the same machine.
-    Machine(MachineLocalActorRef<M>),
-    /// A reference to a remote actor, running on a different machine.
-    Remote(RemoteActorRef<M>),
+/// `ActorRef` is effectively just a container that wraps the actual
+/// implementation defined by the [`ActorRefType`].
+///
+/// [module]: crate::actor_ref
+#[repr(transparent)]
+pub struct ActorRef<M, T: ActorRefType<M> = Local> {
+    data: T::Data,
 }
 
-impl<M> ActorRef<M> {
+/// Trait that defines the type of actor reference.
+///
+/// This trait allows for different types of actor reference to use the same
+/// `ActorRef` struct, which allows for easier usage.
+pub trait ActorRefType<M> {
+    /// Data required by the actor reference.
+    type Data: Sized;
+
+    /// Implementation behind [`ActorRef::send`].
+    fn send(data: &mut Self::Data, msg: M) -> Result<(), SendError<M>>;
+}
+
+impl<M, T> ActorRef<M, T>
+    where T: ActorRefType<M>,
+{
     /// Asynchronously send a message to the actor.
+    ///
+    /// Some types of actor references can detect errors in sending a message,
+    /// however not all actor references can. This means that even if this
+    /// methods returns `Ok` it does **not** means that the message is
+    /// guaranteed to be handled by the actor.
     ///
     /// See [Sending messages] for more details.
     ///
     /// [Sending messages]: index.html#sending-messages
-    pub fn send<Msg>(&mut self, msg: Msg)
+    pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<M>>
         where Msg: Into<M>,
     {
-        use self::ActorRef::*;
-        match self {
-            Local(ref mut actor_ref) => { let _ = actor_ref.send(msg); },
-            Machine(ref mut actor_ref) => actor_ref.send(msg),
-            Remote(ref mut actor_ref) => actor_ref.send(msg),
+        T::send(&mut self.data, msg.into())
+    }
+}
+
+impl<M> ActorRef<M, Local> {
+    /// Upgrade a local actor reference to a machine local reference.
+    ///
+    /// This allows the actor reference to be send across threads, however
+    /// operations on it are more expensive.
+    pub fn upgrade(self, system_ref: &mut ActorSystemRef) -> Result<ActorRef<M, Machine>, ActorShutdown> {
+        let (pid, sender) = match self.data.inbox.upgrade() {
+            Some(mut inbox) => inbox.borrow_mut().upgrade_ref(),
+            None => return Err(ActorShutdown),
+        };
+
+        let notification_sender = system_ref.get_notification_sender();
+        let waker = new_waker(pid, notification_sender);
+        Ok(ActorRef::<M, Machine>::new(sender, waker.into()))
+    }
+}
+
+impl<M, Msg, T> ShlAssign<Msg> for ActorRef<M, T>
+    where T: ActorRefType<M>,
+          Msg: Into<M>,
+{
+    fn shl_assign(&mut self, msg: Msg) {
+        let _ = self.send(msg);
+    }
+}
+
+impl<M, T> Clone for ActorRef<M, T>
+    where T: ActorRefType<M>,
+          T::Data: Clone,
+{
+    fn clone(&self) -> ActorRef<M, T> {
+        ActorRef {
+            data: self.data.clone(),
         }
     }
 }
 
-impl<M> From<LocalActorRef<M>> for ActorRef<M> {
-    fn from(actor_ref: LocalActorRef<M>) -> ActorRef<M> {
-        ActorRef::Local(actor_ref)
-    }
-}
+impl<M, T> Eq for ActorRef<M, T>
+    where T: ActorRefType<M>,
+          T::Data: Eq,
+{}
 
-impl<M> From<MachineLocalActorRef<M>> for ActorRef<M> {
-    fn from(actor_ref: MachineLocalActorRef<M>) -> ActorRef<M> {
-        ActorRef::Machine(actor_ref)
-    }
-}
-
-impl<M> From<RemoteActorRef<M>> for ActorRef<M> {
-    fn from(actor_ref: RemoteActorRef<M>) -> ActorRef<M> {
-        ActorRef::Remote(actor_ref)
-    }
-}
-
-impl<M, Msg> ShlAssign<Msg> for ActorRef<M>
-    where Msg: Into<M>
+impl<M, T> PartialEq for ActorRef<M, T>
+    where T: ActorRefType<M>,
+          T::Data: PartialEq,
 {
-    fn shl_assign(&mut self, msg: Msg) {
-        self.send(msg);
+    fn eq(&self, other: &ActorRef<M, T>) -> bool {
+        self.data.eq(&other.data)
     }
 }
 
-impl<M> fmt::Debug for ActorRef<M> {
+impl<M, T> fmt::Debug for ActorRef<M, T>
+    where T: ActorRefType<M>,
+          T::Data: fmt::Debug,
+{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use self::ActorRef::*;
-        f.debug_tuple("ActorRef")
-            .field(match self {
-                Local(ref actor_ref) => actor_ref,
-                Machine(ref actor_ref) => actor_ref,
-                Remote(ref actor_ref) => actor_ref,
-            })
-            .finish()
+        self.data.fmt(f)
     }
 }

@@ -46,7 +46,7 @@ fn machine_local_actor_ref() {
         .upgrade(&mut system_ref).unwrap();
 
     // Send a message.
-    actor_ref.send(());
+    actor_ref.send(()).unwrap();
     assert_eq!(mailbox.borrow_mut().receive(), Some(()));
 
     // After the mailbox is dropped the local reference should return an error
