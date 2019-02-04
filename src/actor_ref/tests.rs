@@ -112,3 +112,29 @@ fn machine_local_actor_ref() {
     drop(mailbox);
     assert_eq!(local_actor_ref.upgrade(&mut system_ref).unwrap_err(), ActorShutdown);
 }
+
+#[test]
+fn local_and_machine_actor_ref() {
+    // Create our mailbox.
+    let pid = ProcessId(0);
+    let mut system_ref = test::system_ref();
+    let mut mailbox = Shared::new(MailBox::new(pid, system_ref.clone()));
+    assert_eq!(mailbox.borrow_mut().receive(), None);
+
+    // Create our actor reference.
+    let mut local_actor_ref = LocalActorRef::new(mailbox.downgrade());
+    let mut machine_actor_ref = local_actor_ref.clone().upgrade(&mut system_ref).unwrap();
+
+    // Send a number messages via both the local and machine references.
+    local_actor_ref <<= 1;
+    machine_actor_ref <<= 2;
+    machine_actor_ref <<= 3;
+    local_actor_ref <<= 4;
+    // On the first call to receive all the non-local messages are appended to
+    // the local messages. Which means that local message are queue before the
+    // non-local messages.
+    assert_eq!(mailbox.borrow_mut().receive(), Some(1));
+    assert_eq!(mailbox.borrow_mut().receive(), Some(4));
+    assert_eq!(mailbox.borrow_mut().receive(), Some(2));
+    assert_eq!(mailbox.borrow_mut().receive(), Some(3));
+}
