@@ -100,7 +100,7 @@ async fn echo_actor(mut ctx: ActorContext<!>, stream: TcpStream, address: Socket
     // actor in the Actor Registry and return an actor reference to that actor.
     if let Some(mut count_actor_ref) = ctx.system_ref().lookup_actor(&(count_actor as fn(_) -> _)) {
         // If we can find the actor we'll send it a message to add to the total.
-        let _ = count_actor_ref.send(Add);
+        count_actor_ref <<= Add;
     }
     // If we can't find the count actor, we can continue our work without
     // sending a message.
