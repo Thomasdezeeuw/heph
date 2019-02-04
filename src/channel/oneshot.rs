@@ -34,7 +34,7 @@
 //! /// Actor that manages a pool of database connections.
 //! async fn db_manager(mut ctx: ActorContext<DbConnMsg>, mut pool: Vec<DbConn>) -> Result<(), !> {
 //!     loop {
-//!         match await!(ctx.receive()) {
+//!         match await!(ctx.receive_next()) {
 //!             DbConnMsg::Get(sender) => {
 //!                 // Get a database connection from the pool, or create a new
 //!                 // one.

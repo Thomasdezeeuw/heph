@@ -154,7 +154,7 @@ pub use self::options::ActorOptions;
 ///
 /// /// Our actor that greets people.
 /// async fn greeter_actor(mut ctx: ActorContext<&'static str>, message: &'static str) -> Result<(), !> {
-///     let name = await!(ctx.receive());
+///     let name = await!(ctx.receive_next());
 ///     println!("{} {}", message, name);
 ///     Ok(())
 /// }

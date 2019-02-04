@@ -16,7 +16,7 @@
 //! #
 //! async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
 //!     // Receive a message.
-//!     let msg = await!(ctx.receive());
+//!     let msg = await!(ctx.receive_next());
 //!     // Print the message.
 //!     println!("got a message: {}", msg);
 //!     // And we're done.
