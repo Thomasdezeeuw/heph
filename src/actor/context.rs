@@ -41,11 +41,39 @@ impl<M> ActorContext<M> {
         }
     }
 
+    /// Attempt to receive a message.
+    ///
+    /// This will attempt to receive a message if one is available. If the actor
+    /// wants to wait until a message is received [`ActorContext::receive`] can
+    /// be used, which returns a `Future<Output = M>`.
+    ///
+    /// # Examples
+    ///
+    /// An actor that receives a name to greet or greets the entire world.
+    ///
+    /// ```
+    /// #![feature(async_await, futures_api, never_type)]
+    ///
+    /// use heph::actor::ActorContext;
+    ///
+    /// async fn greeter_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+    ///     if let Some(name) = ctx.try_receive() {
+    ///         println!("Hello: {}", name);
+    ///     } else {
+    ///         println!("Hello world");
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn try_receive(&mut self) -> Option<M> {
+        self.inbox.borrow_mut().receive()
+    }
+
     /// Receive a message.
     ///
     /// This returns a future that will complete once a message is ready.
     ///
-    /// # Example
+    /// # Examples
     ///
     /// An actor that receives messages and prints them in a loop.
     ///
