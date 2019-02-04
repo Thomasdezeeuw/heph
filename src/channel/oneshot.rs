@@ -12,7 +12,7 @@
 //! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
 //! use heph::actor::ActorContext;
-//! use heph::actor_ref::LocalActorRef;
+//! use heph::actor_ref::ActorRef;
 //! use heph::channel::oneshot;
 //!
 //! /// Type representing a database connection.
@@ -53,7 +53,7 @@
 //! }
 //!
 //! /// Our actor that uses a database connection.
-//! async fn actor(mut ctx: ActorContext<()>, mut db_manager: LocalActorRef<DbConnMsg>) -> Result<(), ()> {
+//! async fn actor(mut ctx: ActorContext<()>, mut db_manager: ActorRef<DbConnMsg>) -> Result<(), ()> {
 //!     // Create a new one shot channel.
 //!     let (sender, receiver) = oneshot();
 //!     // Send a get request to the database connection actor.

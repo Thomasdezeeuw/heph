@@ -18,8 +18,9 @@ pub struct MailBox<M> {
     /// The messages in the mailbox.
     messages: VecDeque<M>,
     /// This is an alternative source of messages, send across thread bounds,
-    /// used by `MachineLocalActorRef`s to send messages. This defaults to
-    /// `None` and is only set to `Some` the first time `upgrade_ref` is called.
+    /// used by machine local actor references to send messages. This defaults
+    /// to `None` and is only set to `Some` the first time `upgrade_ref` is
+    /// called.
     messages2: Option<(Sender<M>, Receiver<M>)>,
 }
 
@@ -64,7 +65,8 @@ impl<M> MailBox<M> {
         }
     }
 
-    /// Used by `LocalActorRef` to upgrade to `MachineLocalActorRef`.
+    /// Used by local actor reference to upgrade to a machine local actor
+    /// reference.
     pub fn upgrade_ref(&mut self) -> (ProcessId, Sender<M>) {
         (self.pid, self.messages2.get_or_insert_with(channel::unbounded).0.clone())
     }

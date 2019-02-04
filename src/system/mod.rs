@@ -18,7 +18,7 @@
 //! # Actor Registry
 //!
 //! The Actor Registry is a fairly simple concept, it maps [`NewActor`]s to
-//! [`LocalActorRef`]s.
+//! [`ActorRef`]s.
 //!
 //! First an actor must be registered with the Actor Registry. This is done by
 //! setting the [register] option to `true` in the [`ActorOptions`] passed to
@@ -30,14 +30,14 @@
 //! the [`lookup`] method on [`ActorSystemRef`], or if the type can't be typed
 //! (which is the case when using asynchronous functions, see the methods
 //! description for more info) [`lookup_actor`] can be used instead. Both
-//! methods will do the same thing; return a [`LocalActorRef`], which can be
-//! used to communicate with the actor.
+//! methods will do the same thing; return a [`ActorRef`], which can be used to
+//! communicate with the actor.
 //!
 //! ## Actor Registry Notes
 //!
-//! As the Actor Registry maps to `LocalActorRef`s each registry is **thread
-//! local**. Example 3 (in the examples directory of the repo) shows this
-//! possible gotcha in practice.
+//! As the Actor Registry maps to `ActorRef`s each registry is **thread local**.
+//! Example 3 (in the examples directory of the repo) shows this possible gotcha
+//! in practice.
 //!
 //! Another thing to note is that the actor registration is **unique per actor
 //! type** (within each thread). This means that two actors with the same type
@@ -45,7 +45,7 @@
 //! type will panic.
 //!
 //! [`NewActor`]: ../actor/trait.NewActor.html
-//! [`LocalActorRef`]: ../actor_ref/struct.LocalActorRef.html
+//! [`ActorRef`]: crate::actor_ref::ActorRef
 //! [register]: ./options/struct.ActorOptions.html#structfield.register
 //! [`ActorOptions`]: ./options/struct.ActorOptions.html
 //! [`try_spawn`]: ./struct.ActorSystemRef.html#method.try_spawn
@@ -65,7 +65,7 @@ use mio_st::poll::{Interests, PollOption, Poller};
 use num_cpus;
 
 use crate::actor::{Actor, ActorContext, NewActor};
-use crate::actor_ref::LocalActorRef;
+use crate::actor_ref::{ActorRef, Local};
 use crate::mailbox::MailBox;
 use crate::scheduler::{ProcessId, Scheduler, SchedulerRef};
 use crate::supervisor::Supervisor;
@@ -444,7 +444,7 @@ impl ActorSystemRef {
     /// is the way to create the actor, this is `new_actor`, and the `arg`ument
     /// to create it. Finally it also needs `options` for actor and the place
     /// inside the actor system.
-    pub fn try_spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> Result<LocalActorRef<NA::Message>, NA::Error>
+    pub fn try_spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> Result<ActorRef<NA::Message>, NA::Error>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
               NA::Actor: 'static,
@@ -464,7 +464,7 @@ impl ActorSystemRef {
     /// See [`try_spawn`] for more information.
     ///
     /// [`try_spawn`]: struct.ActorSystemRef.html#method.try_spawn
-    pub fn spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> LocalActorRef<NA::Message>
+    pub fn spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> ActorRef<NA::Message>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor<Error = !> + 'static,
               NA::Actor: 'static,
@@ -481,7 +481,7 @@ impl ActorSystemRef {
     /// allows the caller to do any required setup work.
     pub(crate) fn try_spawn_setup<S, NA, ArgFn, ArgFnE>(&mut self, supervisor: S,
         mut new_actor: NA, arg_fn: ArgFn, options: ActorOptions
-    ) -> Result<LocalActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
               ArgFn: FnOnce(ProcessId, &mut ActorSystemRef) -> Result<NA::Argument, ArgFnE>,
@@ -506,7 +506,7 @@ impl ActorSystemRef {
 
         // Create our actor context and our actor with it.
         let mailbox = Shared::new(MailBox::new(pid, self.clone()));
-        let actor_ref = LocalActorRef::new(mailbox.downgrade());
+        let actor_ref = ActorRef::<NA::Message, Local>::new(mailbox.downgrade());
         let ctx = ActorContext::new(pid, system_ref, mailbox.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
@@ -539,7 +539,7 @@ impl ActorSystemRef {
     ///
     /// [Actor Registry]: ./index.html#actor-registry
     /// [`lookup_actor`]: #method.lookup_actor
-    pub fn lookup<NA>(&mut self) -> Option<LocalActorRef<NA::Message>>
+    pub fn lookup<NA>(&mut self) -> Option<ActorRef<NA::Message>>
         where NA: NewActor + 'static,
     {
         self.internal.registry.borrow_mut().lookup::<NA>()
@@ -607,7 +607,7 @@ impl ActorSystemRef {
     /// #   Ok(())
     /// }
     /// ```
-    pub fn lookup_actor<NA>(&mut self, _: &NA) -> Option<LocalActorRef<NA::Message>>
+    pub fn lookup_actor<NA>(&mut self, _: &NA) -> Option<ActorRef<NA::Message>>
         where NA: NewActor + 'static,
     {
         self.lookup::<NA>()

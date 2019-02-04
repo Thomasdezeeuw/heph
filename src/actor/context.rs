@@ -4,7 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{LocalWaker, Poll};
 
-use crate::actor_ref::LocalActorRef;
+use crate::actor_ref::{ActorRef, Local};
 use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
 use crate::system::ActorSystemRef;
@@ -22,9 +22,9 @@ pub struct ActorContext<M> {
     /// A reference to the actor system, used to get access to the system
     /// poller.
     system_ref: ActorSystemRef,
-    /// Inbox of the actor, shared between this and zero or more
-    /// `LocalActorRef`s. It's owned by the context, the actor references only
-    /// have a weak reference.
+    /// Inbox of the actor, shared between this and zero or more actor
+    /// references. It's owned by the context, the actor references only have a
+    /// weak reference.
     ///
     /// This field is public because it is used by `TcpListener`, as we don't
     /// need entire context there.
@@ -104,8 +104,8 @@ impl<M> ActorContext<M> {
     }
 
     /// Returns an actor reference to this actor.
-    pub fn actor_ref(&mut self) -> LocalActorRef<M> {
-        LocalActorRef::new(self.inbox.downgrade())
+    pub fn actor_ref(&mut self) -> ActorRef<M> {
+        ActorRef::<M, Local>::new(self.inbox.downgrade())
     }
 
     /// Get a reference to the actor system this actor is running in.
