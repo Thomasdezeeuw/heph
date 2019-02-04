@@ -1,19 +1,14 @@
 //! Module containing actor reference error types.
 
 use std::error::Error;
-use std::{fmt, io};
+use std::fmt;
 
 /// Error returned when sending a message.
 ///
-/// This is essentially the same error as [`ActorShutdown`], but allows the
-/// message to be retrieved.
-///
-/// [`ActorShutdown`]: struct.ActorShutdown.html
-///
 /// # Notes
 ///
-/// When printing this error (using the `Display` implementation) the message
-/// will not be printed.
+/// When printing this error (using either the `Display` or `Debug`
+/// implementation) the message will not be printed.
 ///
 /// # Examples
 ///
@@ -27,33 +22,30 @@ use std::{fmt, io};
 ///     message: (),
 /// };
 ///
-/// assert_eq!(error.to_string(), "unable to send message: actor shutdown");
+/// assert_eq!(error.to_string(), "unable to send message");
 /// ```
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 pub struct SendError<M> {
-    /// The message that failed to send.
+    /// The message that failed to be send.
     pub message: M,
 }
 
-impl<M: fmt::Debug> From<SendError<M>> for io::Error {
-    fn from(err: SendError<M>) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, err.description())
-    }
-}
-
-impl<M: fmt::Debug> fmt::Display for SendError<M> {
+impl<M> fmt::Debug for SendError<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}: {}", self.description(), ActorShutdown.description())
+        f.debug_struct("SendError")
+            .finish()
     }
 }
 
-impl<M: fmt::Debug> Error for SendError<M> {
+impl<M> fmt::Display for SendError<M> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.description())
+    }
+}
+
+impl<M> Error for SendError<M> {
     fn description(&self) -> &str {
         "unable to send message"
-    }
-
-    fn cause(&self) -> Option<&dyn Error> {
-        Some(&ActorShutdown)
     }
 }
 
@@ -62,12 +54,6 @@ impl<M: fmt::Debug> Error for SendError<M> {
 /// This is only possible to detect on local references.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct ActorShutdown;
-
-impl From<ActorShutdown> for io::Error {
-    fn from(err: ActorShutdown) -> io::Error {
-        io::Error::new(io::ErrorKind::Other, err.description())
-    }
-}
 
 impl fmt::Display for ActorShutdown {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
