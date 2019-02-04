@@ -33,11 +33,10 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
     // send this message the system would run forever, without ever making
     // progress (try this by commenting out the send below!).
     // So we'll send our actor a message via an actor reference, which is a
-    // reference to the actor inside the actor system.
-    actor_ref.send("World")
-        // We can safely unwrap the result here as we just added the actor to
-        // the system, so we're sure it's still present.
-        .unwrap();
+    // reference to the actor inside the actor system. This can be done in two
+    // ways, by calling the `send` method or using the `<<=` operator (both do
+    // the same thing).
+    actor_ref <<= "World";
 
     Ok(())
 }
