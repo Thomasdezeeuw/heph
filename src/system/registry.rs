@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::mem;
 
 use crate::actor::NewActor;
-use crate::actor_ref::LocalActorRef;
+use crate::actor_ref::ActorRef;
 
 /// The actor registry holds local actor references based on the type of the
 /// actor. This allows actors to be looked up based on there types, maintaining
@@ -13,8 +13,8 @@ use crate::actor_ref::LocalActorRef;
 #[derive(Debug)]
 pub struct ActorRegistry {
     /// The type signature below is not accurate. The actual stored type is
-    /// `LocalLocalActorRef<M>`, where `M` is different based on each `TypeId`.
-    /// But since `M` is different for each value we can't store in a `HashMap`
+    /// `ActorRef<M, >`, where `M` is different based on each `TypeId`. But
+    /// since `M` is different for each value we can't store in a `HashMap`
     /// without using tricks.
     ///
     /// Dropping the actor registry is also problematic, since don't know the
@@ -39,7 +39,7 @@ impl ActorRegistry {
     }
 
     /// Register an actor.
-    pub fn register<NA>(&mut self, actor_ref: LocalActorRef<NA::Message>) -> Option<LocalActorRef<NA::Message>>
+    pub fn register<NA>(&mut self, actor_ref: ActorRef<NA::Message>) -> Option<ActorRef<NA::Message>>
         where NA: NewActor + 'static,
     {
         let key = TypeId::of::<NA>();
@@ -49,7 +49,7 @@ impl ActorRegistry {
     }
 
     /// Deregister an actor.
-    pub fn deregister<NA>(&mut self) -> Option<LocalActorRef<NA::Message>>
+    pub fn deregister<NA>(&mut self) -> Option<ActorRef<NA::Message>>
         where NA: NewActor + 'static,
     {
         let key = TypeId::of::<NA>();
@@ -58,7 +58,7 @@ impl ActorRegistry {
     }
 
     /// Lookup an actor.
-    pub fn lookup<NA>(&mut self) -> Option<LocalActorRef<NA::Message>>
+    pub fn lookup<NA>(&mut self) -> Option<ActorRef<NA::Message>>
         where NA: NewActor + 'static,
     {
         let key = TypeId::of::<NA>();
@@ -70,10 +70,10 @@ impl ActorRegistry {
 /// Convert a local actor reference into a value that can be inserted into
 /// the hash map.
 #[inline]
-fn into_value<NA>(actor_ref: LocalActorRef<NA::Message>) -> *mut ()
+fn into_value<NA>(actor_ref: ActorRef<NA::Message>) -> *mut ()
     where NA: NewActor + 'static,
 {
-    // This is sort of safe. `LocalActorRef<M>` is represented as
+    // This is sort of safe. `ActorRef<M, Local>` is represented as
     // `Weak<RefCell<MailBox<M>>>`, and any `Weak` type is just a pointer under
     // the hood. So this transmutes from a pointer to another pointer and should
     // be safe(-ish).
@@ -88,7 +88,7 @@ fn into_value<NA>(actor_ref: LocalActorRef<NA::Message>) -> *mut ()
 /// The caller needs to ensure the type is correct, **if the type is not correct
 /// this will cause undefined behaviour**.
 #[inline]
-unsafe fn from_value<NA>(value: *mut ()) -> LocalActorRef<NA::Message>
+unsafe fn from_value<NA>(value: *mut ()) -> ActorRef<NA::Message>
     where NA: NewActor + 'static,
 {
     // See `into_value` for comments about safety.
@@ -102,10 +102,10 @@ unsafe fn from_value<NA>(value: *mut ()) -> LocalActorRef<NA::Message>
 /// The caller needs to ensure the type is correct, **if the type is not correct
 /// this will cause undefined behaviour**.
 #[inline]
-unsafe fn from_value_ref<NA>(value_ref: &*mut ()) -> LocalActorRef<NA::Message>
+unsafe fn from_value_ref<NA>(value_ref: &*mut ()) -> ActorRef<NA::Message>
     where NA: NewActor + 'static,
 {
     // See `into_value` for comments about safety.
-    let actor_ref_ref: &LocalActorRef<NA::Message> = mem::transmute(value_ref);
+    let actor_ref_ref: &ActorRef<NA::Message> = mem::transmute(value_ref);
     actor_ref_ref.clone()
 }
