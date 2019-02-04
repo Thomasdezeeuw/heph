@@ -113,7 +113,7 @@ pub mod prelude {
     #[doc(no_inline)]
     pub use crate::actor::{Actor, ActorContext, NewActor};
     #[doc(no_inline)]
-    pub use crate::actor_ref::{ActorRef, LocalActorRef};
+    pub use crate::actor_ref::ActorRef;
     #[doc(no_inline)]
     pub use crate::system::{ActorOptions, ActorSystem, ActorSystemRef};
 }
