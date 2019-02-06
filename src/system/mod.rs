@@ -148,7 +148,7 @@ pub use self::options::ActorOptions;
 ///     let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, "Hello", ActorOptions::default());
 ///
 ///     // Send a message to the actor.
-///     actor_ref.send("World").unwrap();
+///     actor_ref <<= "World";
 ///     Ok(())
 /// }
 ///

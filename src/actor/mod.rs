@@ -90,7 +90,7 @@ pub trait NewActor {
     ///
     ///         // Now we can use the reference to send the actor a message,
     ///         // without having to use `Message` we can just use `String`.
-    ///         actor_ref.send("Hello world".to_owned()).unwrap();
+    ///         actor_ref <<= "Hello world".to_owned();
     ///         Ok(())
     ///     })
     ///     .run()
