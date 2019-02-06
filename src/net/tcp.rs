@@ -134,7 +134,7 @@ use crate::util::Shared;
 ///     // Because the listener is just another actor we can send it messages.
 ///     // Here we'll send it a terminate message so it will gracefully
 ///     // shutdown.
-///     listener_ref.send(Terminate);
+///     listener_ref <<= Terminate;
 ///
 ///     Ok(())
 /// }

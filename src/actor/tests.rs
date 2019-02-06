@@ -24,6 +24,6 @@ fn test_actor_context() {
     assert_eq!(test::poll_future(Pin::new(&mut recv_future)), Poll::Pending);
 
     // Send my self a message, and we should be able to retrieve it.
-    actor_ref.send(()).unwrap();
+    actor_ref <<= ();
     assert_eq!(test::poll_future(Pin::new(&mut recv_future)), Poll::Ready(()));
 }
