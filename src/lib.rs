@@ -84,6 +84,9 @@
         variant_size_differences,
 )]
 
+// Disallow warnings when running tests.
+#![cfg_attr(test, deny(warnings))]
+
 pub mod actor;
 pub mod actor_ref;
 pub mod channel;
