@@ -107,6 +107,9 @@ impl<M> MailBox<M> {
 ///         messages.next().map(|(selection, _)| selection)
 ///     }
 /// }
+///
+/// # // Use `First` to silence dead code warning.
+/// # drop(First);
 /// ```
 ///
 /// The following example selects the message with the highest priority.
@@ -115,6 +118,7 @@ impl<M> MailBox<M> {
 /// use heph::actor::message_select::{Messages, MessageSelector, MessageSelection};
 ///
 /// struct Message {
+/// #   #[allow(dead_code)]
 ///     msg: String,
 ///     priority: usize,
 /// }
@@ -122,12 +126,15 @@ impl<M> MailBox<M> {
 /// struct MyMessageSelector;
 ///
 /// impl MessageSelector<Message> for MyMessageSelector {
-///     fn select<'m>(&mut self, mut messages: Messages<'m, Message>) -> Option<MessageSelection> {
+///     fn select<'m>(&mut self, messages: Messages<'m, Message>) -> Option<MessageSelection> {
 ///         messages
 ///             .max_by_key(|(_, msg)| msg.priority)
 ///             .map(|(selection, _)| selection)
 ///     }
 /// }
+///
+/// # // Use `MyMessageSelector` to silence dead code warning.
+/// # drop(MyMessageSelector);
 /// ```
 pub trait MessageSelector<M> {
     /// Select what message to receive.

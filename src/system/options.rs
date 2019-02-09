@@ -16,6 +16,8 @@ pub use crate::scheduler::Priority;
 /// use heph::system::ActorOptions;
 ///
 /// let opts = ActorOptions::default();
+///
+/// # drop(opts); // Silence unused variable warning.
 /// ```
 ///
 /// Giving an actor a high priority.
@@ -27,6 +29,8 @@ pub use crate::scheduler::Priority;
 ///     priority: Priority::HIGH,
 ///     ..Default::default()
 /// };
+///
+/// # drop(opts); // Silence unused variable warning.
 /// ```
 #[derive(Clone)]
 pub struct ActorOptions {

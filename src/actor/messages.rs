@@ -55,10 +55,14 @@
 //!     }
 //! }
 //!
-//! async fn coordinator(mut ctx: ActorContext<Message>) -> Result<(), !> {
+//! async fn coordinator(ctx: ActorContext<Message>) -> Result<(), !> {
 //!     // Do coordinator stuff ...
+//! #   drop(ctx); // Silence dead code warnings.
 //!     # Ok(())
 //! }
+//!
+//! # // Use the `coordinator` function to silence dead code warning.
+//! # drop(coordinator);
 //! ```
 
 /// An acknowledgement.

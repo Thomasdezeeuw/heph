@@ -68,6 +68,9 @@ impl<M> ActorContext<M> {
     ///     }
     ///     Ok(())
     /// }
+    ///
+    /// # // Use the `greeter_actor` function to silence dead code warning.
+    /// # drop(greeter_actor);
     /// ```
     pub fn try_receive_next(&mut self) -> Option<M> {
         self.inbox.borrow_mut().receive_next()
@@ -118,6 +121,12 @@ impl<M> ActorContext<M> {
     ///     }
     ///     Ok(())
     /// }
+    ///
+    /// # // Use the actor and all message variants to silence dead code
+    /// # // warnings.
+    /// # drop(actor);
+    /// # drop(Message::Priority("".to_owned()));
+    /// # drop(Message::Normal("".to_owned()));
     /// ```
     pub fn try_receive<S>(&mut self, mut selector: S) -> Option<M>
         where S: MessageSelector<M>,
@@ -143,6 +152,9 @@ impl<M> ActorContext<M> {
     ///     println!("Got a message: {}", msg);
     ///     Ok(())
     /// }
+    ///
+    /// # // Use the `print_actor` function to silence dead code warning.
+    /// # drop(print_actor);
     /// ```
     ///
     /// Same as the example above, but this actor will only wait for a limited
@@ -176,6 +188,9 @@ impl<M> ActorContext<M> {
     ///
     ///     Ok(())
     /// }
+    ///
+    /// # // Use the `print_actor` function to silence dead code warning.
+    /// # drop(print_actor);
     /// ```
     pub fn receive_next<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
         ReceiveMessage {

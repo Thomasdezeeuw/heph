@@ -15,7 +15,8 @@
 //!
 //! use heph::actor::{ActorContext, NewActor};
 //!
-//! async fn actor(mut ctx: ActorContext<()>) -> Result<(), ()> {
+//! async fn actor(ctx: ActorContext<()>) -> Result<(), ()> {
+//! #   drop(ctx); // Use `ctx` to silence dead code warnings.
 //!     println!("Actor is running!");
 //!     Ok(())
 //! }
@@ -95,6 +96,7 @@ pub trait NewActor {
     /// #[derive(Debug)]
     /// enum Message {
     ///     String(String),
+    /// #   #[allow(dead_code)]
     ///     Number(usize),
     /// }
     ///

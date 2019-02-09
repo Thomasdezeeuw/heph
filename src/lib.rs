@@ -22,6 +22,8 @@
 //!     // And we're done.
 //!     Ok(())
 //! }
+//!
+//! # drop(actor); // Silence dead code warnings.
 //! ```
 //!
 //! Heph uses an event-driven, non-blocking I/O, share nothing design. But what
@@ -113,6 +115,7 @@ mod waker;
 /// The prelude. All useful traits and types in a single module.
 ///
 /// ```
+/// # #[allow(unused_imports)]
 /// use heph::prelude::*;
 /// ```
 pub mod prelude {

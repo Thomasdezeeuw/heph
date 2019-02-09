@@ -123,8 +123,6 @@ pub use self::options::ActorOptions;
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
-/// use std::io;
-///
 /// use heph::actor::ActorContext;
 /// use heph::supervisor::NoSupervisor;
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
@@ -568,8 +566,6 @@ impl ActorSystemRef {
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
-    /// use std::io;
-    ///
     /// use heph::actor::ActorContext;
     /// use heph::supervisor::NoSupervisor;
     /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
@@ -583,7 +579,7 @@ impl ActorSystemRef {
     /// /// Setup function used in starting the `ActorSystem`.
     /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
     ///     // Add the actor to the system, enabling registering of the actor.
-    ///     let mut actor_ref1 = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
+    ///     let actor_ref1 = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
     ///         register: true,
     /// #       schedule: true, // Run the actor, so the example runs.
     ///         .. ActorOptions::default()
@@ -602,8 +598,9 @@ impl ActorSystemRef {
     /// }
     ///
     /// /// Our actor implemented as an asynchronous function.
-    /// async fn actor(mut ctx: ActorContext<()>) -> Result<(), !> {
+    /// async fn actor(ctx: ActorContext<()>) -> Result<(), !> {
     ///     // ...
+    /// #   drop(ctx); // Silence dead code warnings.
     /// #   Ok(())
     /// }
     /// ```

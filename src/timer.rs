@@ -49,6 +49,9 @@ pub struct DeadlinePassed;
 ///     println!("One second has passed!");
 ///     Ok(())
 /// }
+///
+/// # // Use the `actor` function to silence dead code warning.
+/// # drop(actor);
 /// ```
 #[derive(Debug)]
 pub struct Timer {
@@ -106,10 +109,8 @@ impl Future for Timer {
 /// # use std::future::Future;
 /// # use std::pin::Pin;
 /// # use std::task::{LocalWaker, Poll};
-/// use std::thread::sleep;
 /// use std::time::Duration;
 ///
-/// use futures_util::select;
 /// use heph::actor::ActorContext;
 /// use heph::timer::{DeadlinePassed, Deadline};
 ///
@@ -134,6 +135,9 @@ impl Future for Timer {
 ///     assert_eq!(result, Err(DeadlinePassed));
 ///     Ok(())
 /// }
+///
+/// # // Use the `actor` function to silence dead code warning.
+/// # drop(actor);
 /// ```
 #[derive(Debug)]
 pub struct Deadline<Fut> {
@@ -214,6 +218,9 @@ impl<Fut> Future for Deadline<Fut>
 ///     }));
 ///     Ok(())
 /// }
+///
+/// # // Use the `actor` function to silence dead code warning.
+/// # drop(actor);
 /// ```
 #[derive(Debug)]
 pub struct Interval {
