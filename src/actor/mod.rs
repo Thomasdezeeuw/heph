@@ -2,7 +2,7 @@
 //!
 //! All actors must implement the [`Actor`](actor::Actor) trait, which defines
 //! how an actor is run. The [`NewActor`](actor::NewActor) defines how an actor
-//! is created. The easiest way to implement these traits is to use async
+//! is created. The easiest way to implement these traits is to use asynchronous
 //! functions, see the example below.
 //!
 //! # Example
@@ -13,7 +13,7 @@
 //! ```
 //! #![feature(async_await, futures_api)]
 //!
-//! use heph::actor::ActorContext;
+//! use heph::actor::{ActorContext, NewActor};
 //!
 //! async fn actor(mut ctx: ActorContext<()>) -> Result<(), ()> {
 //!     println!("Actor is running!");
@@ -22,10 +22,12 @@
 //!
 //! // Unfortunately `actor` doesn't yet implement `NewActor`, it first needs to
 //! // be cast into a function pointer, which does implement `NewActor`.
-//! let new_actor = actor as fn(_) -> _;
-//! #
-//! # fn use_new_actor<NA: heph::actor::NewActor>(new_actor: NA) { }
-//! # use_new_actor(new_actor);
+//! use_actor(actor as fn(_) -> _);
+//!
+//! fn use_actor<NA>(new_actor: NA) where NA: NewActor {
+//!     // Do stuff with the actor ...
+//! #   drop(new_actor);
+//! }
 //! ```
 
 use std::fmt;
@@ -42,29 +44,12 @@ pub mod messages;
 
 pub use self::context::{ActorContext, ReceiveMessage};
 
-/// The trait that defines how to create a new actor.
+/// The trait that defines how to create a new [`Actor`].
 ///
-/// # Examples
+/// The easiest way to implement this by using an asynchronous function, see the
+/// [module level] documentation.
 ///
-/// The easiest way to implement this is by using an asynchronous function.
-///
-/// ```
-/// #![feature(async_await, await_macro, futures_api)]
-///
-/// use heph::actor::ActorContext;
-///
-/// // Having a async function like the following:
-/// async fn greeter_actor(mut ctx: ActorContext<String>, message: String) -> Result<(), ()> {
-///     loop {
-///         let name = await!(ctx.receive_next());
-///         println!("{} {}", message, name);
-///     }
-/// }
-///
-/// // Cast our async function into a function pointer which implements
-/// // `NewActor`.
-/// let new_actor = greeter_actor as fn(_, _) -> _;
-/// ```
+/// [module level]: crate::actor
 pub trait NewActor {
     /// The type of messages the actor can receive.
     ///
@@ -86,10 +71,12 @@ pub trait NewActor {
     ///     ActorSystem::new().with_setup(|mut system_ref| {
     ///         // Add the actor to the system.
     ///         let new_actor = actor as fn(_) -> _;
-    ///         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
+    ///         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (),
+    ///             ActorOptions::default());
     ///
-    ///         // Now we can use the reference to send the actor a message,
-    ///         // without having to use `Message` we can just use `String`.
+    ///         // Now we can use the reference to send the actor a message. We
+    ///         // don't have to use `Message` we can just use `String`, because
+    ///         // `Message` implements `From<String>`.
     ///         actor_ref <<= "Hello world".to_owned();
     ///         Ok(())
     ///     })
@@ -105,7 +92,7 @@ pub trait NewActor {
     ///
     /// // Implementing `From` for the message allows us to just pass a
     /// // `String`, rather then a `Message::String`. See sending of the
-    /// // message below.
+    /// // message in the `main` function.
     /// impl From<String> for Message {
     ///     fn from(str: String) -> Message {
     ///         Message::String(str)
@@ -114,11 +101,9 @@ pub trait NewActor {
     ///
     /// /// Our actor implementation that prints all messages it receives.
     /// async fn actor(mut ctx: ActorContext<Message>) -> Result<(), !> {
-    ///     loop {
-    ///         let msg = await!(ctx.receive_next());
-    ///         println!("received message: {:?}", msg);
-    /// #       return Ok(());
-    ///     }
+    ///     let msg = await!(ctx.receive_next());
+    ///     println!("received message: {:?}", msg);
+    ///     Ok(())
     /// }
     /// ```
     type Message;
@@ -126,19 +111,22 @@ pub trait NewActor {
     /// The argument(s) passed to the actor.
     ///
     /// The arguments passed to the actor are much like arguments passed to a
-    /// regular function. This could for example be a TCP connection the actor
-    /// is responsible for. In most cases the arguments are in the form of a
-    /// tuple. For example [`TcpListener`](crate::net::TcpListener) requires a
-    /// `NewActor` where `NewActor::Argument` is a tuple `(TcpStream,
-    /// SocketAddr)`. A tuple is also used for actors that don't accept any
-    /// arguments (except for the `ActorContext`, see [`new`](NewActor::new)
-    /// below), in that case  we use the empty tuple (`()`).
+    /// regular function. If more then one argument is needed the arguments can
+    /// be in the form of a tuple, e.g. `(123, "Hello")`. For example
+    /// [`TcpListener`] requires a `NewActor` where the argument  is a tuple
+    /// `(TcpStream, SocketAddr)`.
     ///
-    /// When using async functions as `NewActor` implementations the arguments
-    /// are passed regularly, i.e. not in the form of a tuple, however they must
-    /// be passed as a tuple to the
-    /// [`try_spawn`](crate::system::ActorSystemRef::try_spawn) method. See
-    /// there [implementations](#foreign-impls) below.
+    /// An empty tuple can be used for actors that don't accept any arguments
+    /// (except for the `ActorContext`, see [`new`] below).
+    ///
+    /// When using asynchronous functions arguments are passed regularly, i.e.
+    /// not in the form of a tuple, however they do have be passed as a tuple to
+    /// the [`try_spawn`] method. See there [implementations] below.
+    ///
+    /// [`TcpListener`]: crate::net::TcpListener
+    /// [`new`]: NewActor::new
+    /// [`try_spawn`]: crate::system::ActorSystemRef::try_spawn
+    /// [implementations]: #foreign-impls
     type Argument;
 
     /// The type of the actor.
@@ -148,11 +136,12 @@ pub trait NewActor {
 
     /// The type of error.
     ///
-    /// The error type must implement `fmt::Display` to it can be used to log
+    /// The error type must implement [`fmt::Display`] to it can be used to log
     /// errors, for example when restarting actors.
     ///
     /// Note that if creating an actor is always successful the never type (`!`)
-    /// can be used. This is for example the case of asynchronous functions.
+    /// can be used. Asynchronous functions for example use the never type as
+    /// error.
     type Error: fmt::Display;
 
     /// Create a new [`Actor`](Actor).
@@ -233,40 +222,40 @@ impl<M, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor for fn(ctx: ActorContext<M>, a
 
 /// The `Actor` trait defines how the actor is run.
 ///
-/// Effectively an `Actor` is a [`Future`](Future) which returns a `Result<(),
-/// Error>`, where `Error` is defined on the trait. That is why there is a
-/// blanket implementation for all `Future`s with a `Result<(), Error>` as
-/// `Output` type.
+/// Effectively an `Actor` is a [`Future`] which returns a `Result<(), Error>`,
+/// where `Error` is defined on the trait. That is why there is a blanket
+/// implementation for all `Future`s with a `Result<(), Error>` as `Output`
+/// type.
 ///
 /// The easiest way to implement this by using an async function, see the
 /// [module level] documentation.
 ///
-/// [module level]: index.html
+/// [module level]: crate::actor
 ///
 /// # Panics
 ///
-/// Because this is basically a [`Future`](Future) it also shares it's
-/// characteristics, including it's unsafety. Please read the `Future`
-/// documentation when implementing or using this by hand.
+/// Because this is basically a [`Future`] it also shares it's characteristics,
+/// including it's unsafety. Please read the [`Future`] documentation when
+/// implementing or using this by hand.
 pub trait Actor {
-    /// An error the actor can return to it's
-    /// [supervisor](crate::supervisor::Supervisor). This error will be
+    /// An error the actor can return to its [supervisor]. This error will be
     /// considered terminal for this actor and should **not** be an error of
     /// regular processing of a message.
     ///
     /// How to process non-terminal errors that happen during regular processing
     /// of messages is up to the actor.
+    ///
+    /// [supervisor]: crate::supervisor
     type Error;
 
     /// Try to poll this actor.
     ///
-    /// This is basically the same as calling [`Future::poll`](Future::poll).
+    /// This is basically the same as calling [`Future::poll`].
     ///
     /// # Panics
     ///
-    /// Just like with futures polling after it returned
-    /// [`Poll::Ready`](Poll::Ready) may cause undefined behaviour, including
-    /// but not limited to panicking.
+    /// Just like with [`Future`]s polling after it returned [`Poll::Ready`] may
+    /// cause undefined behaviour, including but not limited to panicking.
     fn try_poll(self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Result<(), Self::Error>>;
 }
 
