@@ -111,3 +111,12 @@ mod mailbox;
 mod scheduler;
 mod util;
 mod waker;
+
+#[doc(no_inline)]
+pub use crate::actor::{Actor, ActorContext, NewActor};
+#[doc(no_inline)]
+pub use crate::actor_ref::ActorRef;
+#[doc(no_inline)]
+pub use crate::supervisor::{Supervisor, SupervisorStrategy};
+#[doc(no_inline)]
+pub use crate::system::{ActorOptions, ActorSystem, ActorSystemRef};
