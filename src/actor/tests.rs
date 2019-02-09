@@ -3,7 +3,7 @@
 use std::pin::Pin;
 use std::task::Poll;
 
-use crate::actor::ActorContext;
+use crate::actor::Context;
 use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
 use crate::test;
@@ -14,7 +14,7 @@ fn test_actor_context() {
     let pid = ProcessId(0);
     let system_ref = test::system_ref();
     let inbox = Shared::new(MailBox::new(pid, system_ref.clone()));
-    let mut ctx = ActorContext::new(pid, system_ref, inbox);
+    let mut ctx = Context::new(pid, system_ref, inbox);
 
     assert_eq!(ctx.pid(), pid);
     let mut actor_ref = ctx.actor_ref();

@@ -19,7 +19,7 @@
 //! #![feature(async_await, futures_api, never_type)]
 //!
 //! use heph::actor::messages::Ack;
-//! use heph::actor::ActorContext;
+//! use heph::actor::Context;
 //!
 //! #[derive(Debug, Eq, PartialEq)]
 //! struct OK;
@@ -55,7 +55,7 @@
 //!     }
 //! }
 //!
-//! async fn coordinator(ctx: ActorContext<Message>) -> Result<(), !> {
+//! async fn coordinator(ctx: Context<Message>) -> Result<(), !> {
 //!     // Do coordinator stuff ...
 //! #   drop(ctx); // Silence dead code warnings.
 //!     # Ok(())

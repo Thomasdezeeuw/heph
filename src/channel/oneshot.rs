@@ -11,7 +11,7 @@
 //! ```
 //! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
-//! use heph::actor::ActorContext;
+//! use heph::actor::Context;
 //! use heph::actor_ref::ActorRef;
 //! use heph::channel::oneshot;
 //!
@@ -32,7 +32,7 @@
 //! }
 //!
 //! /// Actor that manages a pool of database connections.
-//! async fn db_manager(mut ctx: ActorContext<DbConnMsg>, mut pool: Vec<DbConn>) -> Result<(), !> {
+//! async fn db_manager(mut ctx: Context<DbConnMsg>, mut pool: Vec<DbConn>) -> Result<(), !> {
 //!     loop {
 //! #       #[allow(unreachable_patterns)]
 //!         match await!(ctx.receive_next()) {
@@ -54,7 +54,7 @@
 //! }
 //!
 //! /// Our actor that uses a database connection.
-//! async fn actor(ctx: ActorContext<()>, mut db_manager: ActorRef<DbConnMsg>) -> Result<(), ()> {
+//! async fn actor(ctx: Context<()>, mut db_manager: ActorRef<DbConnMsg>) -> Result<(), ()> {
 //!     // Create a new one shot channel.
 //!     let (sender, receiver) = oneshot();
 //!     // Send a get request to the database connection actor.

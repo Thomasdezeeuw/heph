@@ -199,9 +199,9 @@ impl<F, M> MessageSelector<M> for F
 
 /// A [`MessageSelector`] implementation that selects the first message.
 ///
-/// Used by [`ActorContext::receive_next`].
+/// Used by [`Context::receive_next`].
 ///
-/// [`ActorContext::receive_next`]: crate::actor::ActorContext::receive_next
+/// [`Context::receive_next`]: crate::actor::Context::receive_next
 #[derive(Debug)]
 pub struct First;
 

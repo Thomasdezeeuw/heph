@@ -44,7 +44,7 @@
 //! ```
 //! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
-//! use heph::actor::ActorContext;
+//! use heph::actor::Context;
 //! use heph::supervisor::NoSupervisor;
 //! use heph::system::{ActorOptions, ActorSystem, RuntimeError};
 //!
@@ -65,7 +65,7 @@
 //! }
 //!
 //! /// Our actor.
-//! async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+//! async fn actor(mut ctx: Context<String>) -> Result<(), !> {
 //!     let msg = await!(ctx.receive_next());
 //!     println!("got message: {}", msg);
 //!     Ok(())
@@ -82,7 +82,7 @@
 //! ```
 //! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
-//! use heph::actor::ActorContext;
+//! use heph::actor::Context;
 //! use heph::supervisor::NoSupervisor;
 //! use heph::system::{ActorOptions, ActorSystem, RuntimeError};
 //!
@@ -104,7 +104,7 @@
 //! }
 //!
 //! /// Our actor.
-//! async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+//! async fn actor(mut ctx: Context<String>) -> Result<(), !> {
 //!     let msg = await!(ctx.receive_next());
 //!     println!("First message: {}", msg);
 //!

@@ -12,9 +12,9 @@
 //! ```
 //! # #![feature(async_await, await_macro, futures_api, never_type)]
 //! #
-//! # use heph::actor::ActorContext;
+//! # use heph::actor::Context;
 //! #
-//! async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+//! async fn actor(mut ctx: Context<String>) -> Result<(), !> {
 //!     // Receive a message.
 //!     let msg = await!(ctx.receive_next());
 //!     // Print the message.
@@ -113,7 +113,7 @@ mod util;
 mod waker;
 
 #[doc(no_inline)]
-pub use crate::actor::{Actor, ActorContext, NewActor};
+pub use crate::actor::{Actor, Context, NewActor};
 #[doc(no_inline)]
 pub use crate::actor_ref::ActorRef;
 #[doc(no_inline)]

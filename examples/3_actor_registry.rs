@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 
 use futures_util::{AsyncReadExt, TryFutureExt};
 
-use heph::actor::ActorContext;
+use heph::actor::Context;
 use heph::log::{self, error, info};
 use heph::net::{TcpListener, TcpListenerError, TcpStream};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
@@ -67,7 +67,7 @@ struct Add;
 /// that if you run this example it could display a total count of 1 twice. This
 /// means that thread 1 handled the first request and thread 2 handled the
 /// second, be careful of this when implementing a counter this way.
-async fn count_actor(mut ctx: ActorContext<Add>) -> Result<(), !> {
+async fn count_actor(mut ctx: Context<Add>) -> Result<(), !> {
     let mut total = 0;
     loop {
         let _msg = await!(ctx.receive_next());
@@ -84,7 +84,7 @@ fn echo_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)
 }
 
 /// Our actor that handles the incoming TCP connections.
-async fn echo_actor(mut ctx: ActorContext<!>, stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+async fn echo_actor(mut ctx: Context<!>, stream: TcpStream, address: SocketAddr) -> io::Result<()> {
     // Here we use a special request target to mark this log as a request. This
     // will cause it to be printed to standard out, rather then standard error.
     info!(target: log::REQUEST_TARGET, "accepted connection: address={}", address);

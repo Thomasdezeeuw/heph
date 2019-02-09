@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 
 use futures_core::stream::{FusedStream, Stream};
 
-use crate::actor::ActorContext;
+use crate::actor::Context;
 use crate::scheduler::ProcessId;
 use crate::system::ActorSystemRef;
 
@@ -37,10 +37,10 @@ pub struct DeadlinePassed;
 ///
 /// use std::time::Duration;
 ///
-/// use heph::actor::ActorContext;
+/// use heph::actor::Context;
 /// use heph::timer::Timer;
 ///
-/// async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+/// async fn actor(mut ctx: Context<String>) -> Result<(), !> {
 ///     // Create a timer, this will be ready once the timeout has passed.
 ///     let timeout = Timer::timeout(&mut ctx, Duration::from_secs(1));
 ///
@@ -60,7 +60,7 @@ pub struct Timer {
 
 impl Timer {
     /// Create a new `Timer`.
-    pub fn new<M>(ctx: &mut ActorContext<M>, deadline: Instant) -> Timer {
+    pub fn new<M>(ctx: &mut Context<M>, deadline: Instant) -> Timer {
         let pid = ctx.pid();
         ctx.system_ref().add_deadline(pid, deadline);
         Timer {
@@ -71,7 +71,7 @@ impl Timer {
     /// Create a new timer, based on a timeout.
     ///
     /// Same as calling `Timer::new(&mut ctx, Instant::now() + timeout)`.
-    pub fn timeout<M>(ctx: &mut ActorContext<M>, timeout: Duration) -> Timer {
+    pub fn timeout<M>(ctx: &mut Context<M>, timeout: Duration) -> Timer {
         Timer::new(ctx, Instant::now() + timeout)
     }
 
@@ -111,7 +111,7 @@ impl Future for Timer {
 /// # use std::task::{LocalWaker, Poll};
 /// use std::time::Duration;
 ///
-/// use heph::actor::ActorContext;
+/// use heph::actor::Context;
 /// use heph::timer::{DeadlinePassed, Deadline};
 ///
 /// # struct OtherFuture;
@@ -123,7 +123,7 @@ impl Future for Timer {
 /// #     }
 /// # }
 /// #
-/// async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+/// async fn actor(mut ctx: Context<String>) -> Result<(), !> {
 ///     // `OtherFuture` is a type that implements `Future`.
 ///     let future = OtherFuture;
 ///     // Create our deadline.
@@ -147,7 +147,7 @@ pub struct Deadline<Fut> {
 
 impl<Fut> Deadline<Fut> {
     /// Create a new `Deadline`.
-    pub fn new<M>(ctx: &mut ActorContext<M>, deadline: Instant, fut: Fut) -> Deadline<Fut> {
+    pub fn new<M>(ctx: &mut Context<M>, deadline: Instant, fut: Fut) -> Deadline<Fut> {
         let pid = ctx.pid();
         ctx.system_ref().add_deadline(pid, deadline);
         Deadline {
@@ -159,7 +159,7 @@ impl<Fut> Deadline<Fut> {
     /// Create a new deadline based on a timeout.
     ///
     /// Same as calling `Deadline::new(&mut ctx, Instant::now() + timeout, fut)`.
-    pub fn timeout<M>(ctx: &mut ActorContext<M>, timeout: Duration, fut: Fut) -> Deadline<Fut> {
+    pub fn timeout<M>(ctx: &mut Context<M>, timeout: Duration, fut: Fut) -> Deadline<Fut> {
         Deadline::new(ctx, Instant::now() + timeout, fut)
     }
 
@@ -207,10 +207,10 @@ impl<Fut> Future for Deadline<Fut>
 ///
 /// use futures_util::future::ready;
 /// use futures_util::stream::StreamExt;
-/// use heph::actor::ActorContext;
+/// use heph::actor::Context;
 /// use heph::timer::Interval;
 ///
-/// async fn actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+/// async fn actor(mut ctx: Context<String>) -> Result<(), !> {
 ///     let interval = Interval::new(&mut ctx, Duration::from_secs(1));
 ///     await!(interval.for_each(|_| {
 ///         println!("Hello world");
@@ -232,7 +232,7 @@ pub struct Interval {
 
 impl Interval {
     /// Create a new `Interval`.
-    pub fn new<M>(ctx: &mut ActorContext<M>, interval: Duration) -> Interval {
+    pub fn new<M>(ctx: &mut Context<M>, interval: Duration) -> Interval {
         let deadline = Instant::now() + interval;
         let mut system_ref = ctx.system_ref().clone();
         let pid = ctx.pid();

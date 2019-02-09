@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 
 use log::{error, trace};
 
-use crate::actor::{Actor, ActorContext, NewActor};
+use crate::actor::{Actor, Context, NewActor};
 use crate::mailbox::MailBox;
 use crate::scheduler::process::{Priority, Process, ProcessId, ProcessResult};
 use crate::supervisor::{Supervisor, SupervisorStrategy};
@@ -24,7 +24,7 @@ pub struct ActorProcess<S, NA: NewActor> {
     supervisor: S,
     new_actor: NA,
     actor: NA::Actor,
-    /// The inbox of the actor, used in create a new `ActorContext` if the actor
+    /// The inbox of the actor, used in create a new `Context` if the actor
     /// is restarted.
     inbox: Shared<MailBox<NA::Message>>,
     /// Waker used in the futures context.
@@ -82,7 +82,7 @@ impl<S, NA> Process for ActorProcess<S, NA>
                 match this.supervisor.decide(err) {
                     SupervisorStrategy::Restart(arg) => {
                         // Create a new actor.
-                        let ctx = ActorContext::new(this.id, system_ref.clone(), this.inbox.clone());
+                        let ctx = Context::new(this.id, system_ref.clone(), this.inbox.clone());
                         match this.new_actor.new(ctx, arg) {
                             Ok(actor) => {
                                 pinned_actor.set(actor);
