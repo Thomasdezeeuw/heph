@@ -9,19 +9,16 @@ use crate::util::WeakShared;
 #[cfg(all(test, feature = "test"))]
 use crate::util::Shared;
 
-/// A reference to a local actor inside a [`ActorSystem`].
+/// Local actor reference.
 ///
 /// This is a reference to an actor running on the same thread as this reference
 /// is located on. This type does not implement `Send` or `Sync`, if this is
-/// needed this reference can be [upgraded] to a [`MachineLocalActorRef`] which
-/// is allowed to be send across thread bounds.
+/// needed this reference can be [upgraded] to a [machine local actor reference]
+/// which is allowed to be send across thread bounds.
 ///
 /// [`ActorSystem`]: crate::system::ActorSystem
 /// [upgraded]: crate::actor_ref::ActorRef::upgrade
-/// [`MachineLocalActorRef`]: crate::actor_ref::MachineLocalActorRef
-pub type LocalActorRef<M> = ActorRef<M, Local>;
-
-/// Local actor reference.
+/// [machine local actor reference]: crate::actor_ref::Machine
 #[allow(missing_debug_implementations)]
 pub enum Local { }
 

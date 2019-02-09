@@ -129,8 +129,8 @@ pub mod local;
 pub mod machine;
 
 pub use self::error::{ActorShutdown, SendError};
-pub use self::local::{LocalActorRef, Local};
-pub use self::machine::{MachineLocalActorRef, Machine};
+pub use self::local::Local;
+pub use self::machine::Machine;
 
 /// A reference to an actor.
 ///

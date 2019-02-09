@@ -2,11 +2,13 @@
 
 use std::mem::size_of;
 
-use crate::actor_ref::{ActorShutdown, ActorRef, ActorRefType, LocalActorRef, Local, Machine, SendError};
+use crate::actor_ref::{ActorShutdown, ActorRef, ActorRefType, Local, Machine, SendError};
 use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
 use crate::test;
 use crate::util::Shared;
+
+type LocalActorRef<M> = ActorRef<M, Local>;
 
 // FIXME: add a test that local actor reference is !Send and !Sync. Below
 // doesn't work. :(

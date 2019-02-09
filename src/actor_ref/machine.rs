@@ -7,17 +7,16 @@ use crossbeam_channel::Sender;
 
 use crate::actor_ref::{ActorRef, ActorRefType, SendError};
 
+/// Machine local actor reference.
+///
 /// A reference to an actor that can send messages across thread bounds.
 ///
 /// # Notes
 ///
 /// This reference uses much more expensive operations then the local actor
-/// reference, **if at all possible prefer to use** [`LocalActorRef`].
+/// reference, **if at all possible prefer to use** [local actor reference]s.
 ///
-/// [`LocalActorRef`]: crate::actor_ref::LocalActorRef
-pub type MachineLocalActorRef<M> = ActorRef<M, Machine>;
-
-/// Machine local actor reference.
+/// [local actor reference]: crate::actor_ref::Local
 #[allow(missing_debug_implementations)]
 pub enum Machine { }
 
@@ -59,10 +58,10 @@ impl<M> fmt::Debug for MachineData<M> {
 }
 
 impl<M> ActorRef<M, Machine> {
-    /// Create a new `MachineLocalActorRef`.
+    /// Create a new machine local actor reference.
     ///
     /// The `Waker` must wake the same actor the `Sender` is sending to.
-    pub(crate) fn new(sender: Sender<M>, waker: Waker) -> MachineLocalActorRef<M> {
+    pub(crate) fn new(sender: Sender<M>, waker: Waker) -> ActorRef<M, Machine> {
         ActorRef {
             data: MachineData {
                 sender,
