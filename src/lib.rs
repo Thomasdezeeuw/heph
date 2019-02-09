@@ -87,6 +87,9 @@
 // Disallow warnings when running tests.
 #![cfg_attr(test, deny(warnings))]
 
+// Disallow warnings in examples, we want to set a good example after all.
+#![doc(test(attr(deny(warnings))))]
+
 pub mod actor;
 pub mod actor_ref;
 pub mod channel;
