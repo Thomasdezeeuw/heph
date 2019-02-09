@@ -1,6 +1,8 @@
 //! Module containing the `MailBox` for an actor.
 
 use std::collections::VecDeque;
+use std::collections::vec_deque;
+use std::iter::{Enumerate, FusedIterator};
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
 
@@ -49,6 +51,16 @@ impl<M> MailBox<M> {
         self.messages.pop_front()
     }
 
+    /// Receive a delivered message, if any.
+    pub fn receive<S>(&mut self, selector: &mut S) -> Option<M>
+        where S: MessageSelector<M>,
+    {
+        self.receive_remote_messages();
+        let messages = self.messages.iter().enumerate();
+        selector.select(Messages{ inner: messages })
+            .and_then(|selection| self.messages.remove(selection.0))
+    }
+
     /// Receive all remote messages, if any, and add them to the message queue.
     ///
     /// This is done in an attempt to make the receiving of the two sources of
@@ -69,5 +81,125 @@ impl<M> MailBox<M> {
     /// reference.
     pub fn upgrade_ref(&mut self) -> (ProcessId, Sender<M>) {
         (self.pid, self.messages2.get_or_insert_with(channel::unbounded).0.clone())
+    }
+}
+
+// Below is re-exported in the `actor::context` module.
+
+/// Trait that defines how to select what message to receive.
+///
+/// Implementations get passed an iterator that iterates over
+/// [`MessageSelection`]s and references to messages. `MessageSelection` is the
+/// type used to indicate what message to actually receive.
+///
+/// # Examples
+///
+/// The simplest possible implementation simply returns the first message, the
+/// example below is the implementation behind [`First`].
+///
+/// ```
+/// use heph::actor::message_select::{Messages, MessageSelector, MessageSelection};
+///
+/// struct First;
+///
+/// impl<M> MessageSelector<M> for First {
+///     fn select<'m>(&mut self, mut messages: Messages<'m, M>) -> Option<MessageSelection> {
+///         messages.next().map(|(selection, _)| selection)
+///     }
+/// }
+/// ```
+///
+/// The following example selects the message with the highest priority.
+///
+/// ```
+/// use heph::actor::message_select::{Messages, MessageSelector, MessageSelection};
+///
+/// struct Message {
+///     msg: String,
+///     priority: usize,
+/// }
+///
+/// struct MyMessageSelector;
+///
+/// impl MessageSelector<Message> for MyMessageSelector {
+///     fn select<'m>(&mut self, mut messages: Messages<'m, Message>) -> Option<MessageSelection> {
+///         messages
+///             .max_by_key(|(_, msg)| msg.priority)
+///             .map(|(selection, _)| selection)
+///     }
+/// }
+/// ```
+pub trait MessageSelector<M> {
+    /// Select what message to receive.
+    fn select<'m>(&mut self, messages: Messages<'m, M>) -> Option<MessageSelection>;
+}
+
+/// The type used to indicate what message to select.
+#[derive(Copy, Clone, Debug)]
+#[repr(transparent)]
+pub struct MessageSelection(usize);
+
+/// All message currently queued for an actor.
+///
+/// This is used by [`MessageSelector`] to select a message to receive next.
+/// This implements [`Iterator`], iterating over [`MessageSelection`] and a
+/// reference to the message.
+#[derive(Debug)]
+pub struct Messages<'m, M> {
+    inner: Enumerate<vec_deque::Iter<'m, M>>,
+}
+
+impl<'m, M> Iterator for Messages<'m, M> {
+    type Item = (MessageSelection, &'m M);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner.next()
+            .map(|(idx, msg)| (MessageSelection(idx), msg))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        self.inner.size_hint()
+    }
+}
+
+impl<'m, M> DoubleEndedIterator for Messages<'m, M> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        self.inner.next_back()
+            .map(|(idx, msg)| (MessageSelection(idx), msg))
+    }
+}
+
+impl<'m, M> ExactSizeIterator for Messages<'m, M> {
+    fn len(&self) -> usize {
+        self.inner.len()
+    }
+}
+
+impl<'m, M> FusedIterator for Messages<'m, M> { }
+
+impl<F, M> MessageSelector<M> for F
+    where F: FnMut(&M) -> bool,
+{
+    fn select<'m>(&mut self, messages: Messages<'m, M>) -> Option<MessageSelection> {
+        for (idx, msg) in messages {
+            if (self)(msg) {
+                return Some(idx);
+            }
+        }
+        None
+    }
+}
+
+/// A [`MessageSelector`] implementation that selects the first message.
+///
+/// Used by [`ActorContext::receive_next`].
+///
+/// [`ActorContext::receive_next`]: crate::actor::ActorContext::receive_next
+#[derive(Debug)]
+pub struct First;
+
+impl<M> MessageSelector<M> for First {
+    fn select<'m>(&mut self, mut messages: Messages<'m, M>) -> Option<MessageSelection> {
+        messages.next().map(|(selection, _)| selection)
     }
 }

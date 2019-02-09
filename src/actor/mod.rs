@@ -42,6 +42,14 @@ mod tests;
 
 pub mod messages;
 
+pub mod message_select {
+    //! Module containing the `MessageSelector` trait and related types.
+
+    #[doc(inline)]
+    pub use crate::actor::context::{First, MessageSelection, MessageSelector, Messages};
+}
+
+#[doc(inline)]
 pub use self::context::{ActorContext, ReceiveMessage};
 
 /// The trait that defines how to create a new [`Actor`].

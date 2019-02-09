@@ -1,6 +1,7 @@
 //! Module containing the `ActorContext` and related types.
 
 use std::future::Future;
+use std::ops::DerefMut;
 use std::pin::Pin;
 use std::task::{LocalWaker, Poll};
 
@@ -9,6 +10,8 @@ use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
 use crate::system::ActorSystemRef;
 use crate::util::Shared;
+
+pub use crate::mailbox::{First, MessageSelection, Messages, MessageSelector};
 
 /// The context in which an actor is executed.
 ///
@@ -70,6 +73,58 @@ impl<M> ActorContext<M> {
         self.inbox.borrow_mut().receive_next()
     }
 
+    /// Attempt to receive a specific message.
+    ///
+    /// This will attempt to receive a message using message selection, if one
+    /// is available. If the actor wants to wait until a message is received
+    /// [`ActorContext::receive`] can be used, which returns a `Future<Output =
+    /// M>`.
+    ///
+    /// # Examples
+    ///
+    /// In this example the actor first handles priority messages and only after
+    /// all of those are handled it will handle normal messages.
+    ///
+    /// ```
+    /// #![feature(async_await, futures_api, never_type)]
+    ///
+    /// use heph::actor::ActorContext;
+    ///
+    /// #[derive(Debug)]
+    /// enum Message {
+    ///     Priority(String),
+    ///     Normal(String),
+    /// }
+    ///
+    /// impl Message {
+    ///     /// Whether or not the message is a priority message.
+    ///     fn is_priority(&self) -> bool {
+    ///         match self {
+    ///             Message::Priority(_) => true,
+    ///             _ => false,
+    ///         }
+    ///     }
+    /// }
+    ///
+    /// async fn actor(mut ctx: ActorContext<Message>) -> Result<(), !> {
+    ///     // First we handle priority messages.
+    ///     while let Some(priority_msg) = ctx.try_receive(Message::is_priority) {
+    ///         println!("Priority message: {:?}", priority_msg);
+    ///     }
+    ///
+    ///     // After that we handle normal messages.
+    ///     while let Some(msg) = ctx.try_receive_next() {
+    ///         println!("Normal message: {:?}", msg);
+    ///     }
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn try_receive<S>(&mut self, mut selector: S) -> Option<M>
+        where S: MessageSelector<M>,
+    {
+        self.inbox.borrow_mut().receive(&mut selector)
+    }
+
     /// Receive the next message.
     ///
     /// This returns a [`Future`] that will complete once a message is ready.
@@ -125,6 +180,24 @@ impl<M> ActorContext<M> {
     pub fn receive_next<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
         ReceiveMessage {
             inbox: &mut self.inbox,
+            selector: First,
+        }
+    }
+
+    /// Receive a message.
+    ///
+    /// This returns a [`Future`] that will complete once a message is ready.
+    ///
+    /// See [`ActorContext::try_receive`] and [`MessageSelector`] for examples
+    /// on how to use the message selector and see
+    /// [`ActorContext::receive_next`] for an example that uses the same
+    /// `Future` this method returns.
+    pub fn receive<'ctx, S>(&'ctx mut self, selector: S) -> ReceiveMessage<'ctx, M, S>
+        where S: MessageSelector<M>,
+    {
+        ReceiveMessage {
+            inbox: &mut self.inbox,
+            selector,
         }
     }
 
@@ -144,19 +217,27 @@ impl<M> ActorContext<M> {
     }
 }
 
-/// The implementation behind [`ActorContext.receive`].
+/// Future to receive a single message.
 ///
-/// [`ActorContext.receive`]: struct.ActorContext.html#method.receive
+/// The implementation behind [`ActorContext::receive`] and
+/// [`ActorContext::receive_next`].
 #[derive(Debug)]
-pub struct ReceiveMessage<'ctx, M> {
+pub struct ReceiveMessage<'ctx, M, S = First> {
     inbox: &'ctx mut Shared<MailBox<M>>,
+    selector: S,
 }
 
-impl<'ctx, M> Future for ReceiveMessage<'ctx, M> {
+impl<'ctx, M, S> Future for ReceiveMessage<'ctx, M, S>
+    where S: MessageSelector<M> + Unpin,
+{
     type Output = M;
 
     fn poll(mut self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Self::Output> {
-        match self.inbox.borrow_mut().receive_next() {
+        let ReceiveMessage {
+            ref mut inbox,
+            ref mut selector,
+        } = self.deref_mut();
+        match inbox.borrow_mut().receive(selector) {
             Some(msg) => Poll::Ready(msg),
             // Wakeup notifications are done when adding to the mailbox.
             None => Poll::Pending,
