@@ -41,15 +41,16 @@ impl<M> ActorContext<M> {
         }
     }
 
-    /// Attempt to receive a message.
+    /// Attempt to receive the next message.
     ///
-    /// This will attempt to receive a message if one is available. If the actor
-    /// wants to wait until a message is received [`ActorContext::receive`] can
-    /// be used, which returns a `Future<Output = M>`.
+    /// This will attempt to receive next message if one is available. If the
+    /// actor wants to wait until a message is received
+    /// [`ActorContext::receive_next`] can be used, which returns a
+    /// `Future<Output = M>`.
     ///
     /// # Examples
     ///
-    /// An actor that receives a name to greet or greets the entire world.
+    /// An actor that receives a name to greet, or greets the entire world.
     ///
     /// ```
     /// #![feature(async_await, futures_api, never_type)]
@@ -69,13 +70,13 @@ impl<M> ActorContext<M> {
         self.inbox.borrow_mut().receive_next()
     }
 
-    /// Receive a message.
+    /// Receive the next message.
     ///
-    /// This returns a future that will complete once a message is ready.
+    /// This returns a [`Future`] that will complete once a message is ready.
     ///
     /// # Examples
     ///
-    /// An actor that receives messages and prints them in a loop.
+    /// An actor that await a message and prints it.
     ///
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
@@ -83,10 +84,9 @@ impl<M> ActorContext<M> {
     /// use heph::actor::ActorContext;
     ///
     /// async fn print_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
-    ///     loop {
-    ///         let msg = await!(ctx.receive_next());
-    ///         println!("Got a message: {}", msg);
-    ///     }
+    ///     let msg = await!(ctx.receive_next());
+    ///     println!("Got a message: {}", msg);
+    ///     Ok(())
     /// }
     /// ```
     ///
@@ -104,25 +104,22 @@ impl<M> ActorContext<M> {
     /// use heph::timer::Timer;
     ///
     /// async fn print_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
-    ///     loop {
-    ///         // Create a timer, this will be ready once the timeout has
-    ///         // passed.
-    ///         let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100)).fuse();
-    ///         // Create a future to receive a message.
-    ///         let mut msg_future = ctx.receive_next().fuse();
+    ///     // Create a timer, this will be ready once the timeout has
+    ///     // passed.
+    ///     let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100)).fuse();
+    ///     // Create a future to receive a message.
+    ///     let mut msg_future = ctx.receive_next().fuse();
     ///
-    ///         // Now let them race!
-    ///         // This is basically a match statement for futures, whichever
-    ///         // future is ready first will be the winner and we'll take that
-    ///         // branch.
-    ///         select! {
-    ///             msg = msg_future => println!("Got a message: {}", msg),
-    ///             _ = timeout => {
-    ///                 println!("Getting impatient!");
-    ///                 continue;
-    ///             },
-    ///         };
-    ///     }
+    ///     // Now let them race!
+    ///     // This is basically a match statement for futures, whichever
+    ///     // future is ready first will be the winner and we'll take that
+    ///     // branch.
+    ///     select! {
+    ///         msg = msg_future => println!("Got a message: {}", msg),
+    ///         _ = timeout => println!("No message"),
+    ///     };
+    ///
+    ///     Ok(())
     /// }
     /// ```
     pub fn receive_next<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
@@ -131,7 +128,7 @@ impl<M> ActorContext<M> {
         }
     }
 
-    /// Returns an actor reference to this actor.
+    /// Returns a reference to this actor.
     pub fn actor_ref(&mut self) -> ActorRef<M> {
         ActorRef::<M, Local>::new(self.inbox.downgrade())
     }
