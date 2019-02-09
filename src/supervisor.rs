@@ -36,8 +36,6 @@
 //! ```
 //! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
-//! use std::io;
-//!
 //! use heph::actor::ActorContext;
 //! use heph::log::{self, error};
 //! use heph::supervisor::SupervisorStrategy;
@@ -61,7 +59,8 @@
 //! struct Error;
 //!
 //! /// Supervisor that gets called if the actor returns an error.
-//! fn supervisor(error: Error) -> SupervisorStrategy<()> {
+//! fn supervisor(err: Error) -> SupervisorStrategy<()> {
+//! #   drop(err); // Silence dead code warnings.
 //!     error!("Actor encountered an error!");
 //!     SupervisorStrategy::Stop
 //! }
@@ -125,8 +124,6 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
-/// use std::io;
-///
 /// use heph::actor::ActorContext;
 /// use heph::supervisor::NoSupervisor;
 /// use heph::system::{ActorOptions, ActorSystem, RuntimeError};
@@ -143,7 +140,8 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 /// }
 ///
 /// /// Our actor that never returns an error.
-/// async fn actor(mut ctx: ActorContext<&'static str>) -> Result<(), !> {
+/// async fn actor(ctx: ActorContext<&'static str>) -> Result<(), !> {
+/// #   drop(ctx); // Silence dead code warnings.
 ///     Ok(())
 /// }
 /// ```

@@ -39,6 +39,7 @@ use crate::util::Shared;
 ///
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
+/// # #![allow(unreachable_code)]
 ///
 /// use std::io;
 /// use std::net::SocketAddr;
@@ -46,7 +47,7 @@ use crate::util::Shared;
 /// use futures_util::AsyncWriteExt;
 ///
 /// use heph::actor::ActorContext;
-/// use heph::log::{error, log};
+/// use heph::log::error;
 /// use heph::net::{TcpListener, TcpListenerError, TcpStream};
 /// use heph::supervisor::SupervisorStrategy;
 /// use heph::system::options::Priority;
@@ -58,7 +59,8 @@ use crate::util::Shared;
 /// // Create and run the actor system.
 /// ActorSystem::new()
 ///     .with_setup(setup)
-///     .run();
+///     .run()
+///     .unwrap();
 ///
 /// /// In this setup function we'll add the TcpListener to the actor system.
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
@@ -93,6 +95,7 @@ use crate::util::Shared;
 ///
 /// /// The actor responsible for a single TCP stream.
 /// async fn conn_actor(_ctx: ActorContext<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+/// #   drop(address); // Silence dead code warnings.
 ///     await!(stream.write_all(b"Hello World"))
 /// }
 /// ```
@@ -110,7 +113,7 @@ use crate::util::Shared;
 ///
 /// use heph::actor::ActorContext;
 /// use heph::actor::messages::Terminate;
-/// use heph::log::{error, log};
+/// use heph::log::error;
 /// use heph::net::{TcpListener, TcpListenerError, TcpStream};
 /// use heph::supervisor::SupervisorStrategy;
 /// use heph::system::options::Priority;
@@ -119,7 +122,8 @@ use crate::util::Shared;
 /// // Create and run the actor system.
 /// ActorSystem::new()
 ///     .with_setup(setup)
-///     .run();
+///     .run()
+///     .unwrap();
 ///
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///     // Adding the TCP listener is the same as in the example above.
@@ -153,6 +157,7 @@ use crate::util::Shared;
 ///
 /// /// The actor responsible for a single TCP stream.
 /// async fn conn_actor(_ctx: ActorContext<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+/// #   drop(address); // Silence dead code warnings.
 ///     await!(stream.write_all(b"Hello World"))
 /// }
 /// ```

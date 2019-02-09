@@ -34,6 +34,7 @@
 //! /// Actor that manages a pool of database connections.
 //! async fn db_manager(mut ctx: ActorContext<DbConnMsg>, mut pool: Vec<DbConn>) -> Result<(), !> {
 //!     loop {
+//! #       #[allow(unreachable_patterns)]
 //!         match await!(ctx.receive_next()) {
 //!             DbConnMsg::Get(sender) => {
 //!                 // Get a database connection from the pool, or create a new
@@ -53,7 +54,7 @@
 //! }
 //!
 //! /// Our actor that uses a database connection.
-//! async fn actor(mut ctx: ActorContext<()>, mut db_manager: ActorRef<DbConnMsg>) -> Result<(), ()> {
+//! async fn actor(ctx: ActorContext<()>, mut db_manager: ActorRef<DbConnMsg>) -> Result<(), ()> {
 //!     // Create a new one shot channel.
 //!     let (sender, receiver) = oneshot();
 //!     // Send a get request to the database connection actor.
@@ -66,8 +67,11 @@
 //!
 //!     // Use the database connection here.
 //! #   drop(db_conn);
+//! #   drop(ctx); // Silence dead code warnings.
 //!     Ok(())
 //! }
+//!
+//! # drop((actor, db_manager)); // Silence dead code warnings.
 //! ```
 
 use std::future::Future;
