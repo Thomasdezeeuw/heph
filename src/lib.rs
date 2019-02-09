@@ -111,18 +111,3 @@ mod mailbox;
 mod scheduler;
 mod util;
 mod waker;
-
-/// The prelude. All useful traits and types in a single module.
-///
-/// ```
-/// # #[allow(unused_imports)]
-/// use heph::prelude::*;
-/// ```
-pub mod prelude {
-    #[doc(no_inline)]
-    pub use crate::actor::{Actor, ActorContext, NewActor};
-    #[doc(no_inline)]
-    pub use crate::actor_ref::ActorRef;
-    #[doc(no_inline)]
-    pub use crate::system::{ActorOptions, ActorSystem, ActorSystemRef};
-}
