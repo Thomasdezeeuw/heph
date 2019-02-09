@@ -7,7 +7,7 @@
 use std::thread;
 use std::time::Duration;
 
-use heph::actor::ActorContext;
+use heph::actor::Context;
 use heph::supervisor::NoSupervisor;
 use heph::system::{ActorOptions, ActorSystem, RuntimeError};
 
@@ -27,6 +27,6 @@ fn main() -> Result<(), RuntimeError> {
 }
 
 /// Our "actor", but it doesn't do much.
-async fn actor(_: ActorContext<!>) -> Result<(), !> {
+async fn actor(_: Context<!>) -> Result<(), !> {
     Ok(())
 }

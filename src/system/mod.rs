@@ -4,7 +4,7 @@
 //!
 //! - [`ActorSystem`]: is the actor system, used to run all actors.
 //! - [`ActorSystemRef`]: is a reference to the actor system, used to get access
-//!   to the actor system's internals, often via the [`ActorContext`], e.g. see
+//!   to the actor system's internals, often via the [`Context`], e.g. see
 //!   [`TcpStream.connect`].
 //!
 //! See [`ActorSystem`] for documentation on how to run an actor system. For
@@ -12,7 +12,7 @@
 //!
 //! [`ActorSystem`]: struct.ActorSystem.html
 //! [`ActorSystemRef`]: struct.ActorSystemRef.html
-//! [`ActorContext`]: ../actor/struct.ActorContext.html
+//! [`Context`]: ../actor/struct.Context.html
 //! [`TcpStream.connect`]: ../net/struct.TcpStream.html#method.connect
 //!
 //! # Actor Registry
@@ -64,7 +64,7 @@ use mio_st::event::{Evented, EventedId, Events, Ready};
 use mio_st::poll::{Interests, PollOption, Poller};
 use num_cpus;
 
-use crate::actor::{Actor, ActorContext, NewActor};
+use crate::actor::{Actor, Context, NewActor};
 use crate::actor_ref::{ActorRef, Local};
 use crate::mailbox::MailBox;
 use crate::scheduler::{ProcessId, Scheduler, SchedulerRef};
@@ -123,7 +123,7 @@ pub use self::options::ActorOptions;
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
-/// use heph::actor::ActorContext;
+/// use heph::actor::Context;
 /// use heph::supervisor::NoSupervisor;
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 ///
@@ -151,7 +151,7 @@ pub use self::options::ActorOptions;
 /// }
 ///
 /// /// Our actor that greets people.
-/// async fn greeter_actor(mut ctx: ActorContext<&'static str>, message: &'static str) -> Result<(), !> {
+/// async fn greeter_actor(mut ctx: Context<&'static str>, message: &'static str) -> Result<(), !> {
 ///     let name = await!(ctx.receive_next());
 ///     println!("{} {}", message, name);
 ///     Ok(())
@@ -505,7 +505,7 @@ impl ActorSystemRef {
         // Create our actor context and our actor with it.
         let mailbox = Shared::new(MailBox::new(pid, self.clone()));
         let actor_ref = ActorRef::<NA::Message, Local>::new(mailbox.downgrade());
-        let ctx = ActorContext::new(pid, system_ref, mailbox.clone());
+        let ctx = Context::new(pid, system_ref, mailbox.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         // Add the actor to the scheduler.
@@ -566,7 +566,7 @@ impl ActorSystemRef {
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
-    /// use heph::actor::ActorContext;
+    /// use heph::actor::Context;
     /// use heph::supervisor::NoSupervisor;
     /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
     ///
@@ -598,7 +598,7 @@ impl ActorSystemRef {
     /// }
     ///
     /// /// Our actor implemented as an asynchronous function.
-    /// async fn actor(ctx: ActorContext<()>) -> Result<(), !> {
+    /// async fn actor(ctx: Context<()>) -> Result<(), !> {
     ///     // ...
     /// #   drop(ctx); // Silence dead code warnings.
     /// #   Ok(())

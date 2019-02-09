@@ -1,4 +1,4 @@
-//! Module containing the `ActorContext` and related types.
+//! Module containing the `Context` and related types.
 
 use std::future::Future;
 use std::ops::DerefMut;
@@ -18,7 +18,7 @@ pub use crate::mailbox::{First, MessageSelection, Messages, MessageSelector};
 /// This context can be used for a number of things including receiving
 /// messages and getting access to the running actor system.
 #[derive(Debug)]
-pub struct ActorContext<M> {
+pub struct Context<M> {
     /// Process id of the actor, used as `EventedId` in registering things, e.g.
     /// a `TcpStream`, with the system poller.
     pid: ProcessId,
@@ -34,10 +34,10 @@ pub struct ActorContext<M> {
     pub(crate) inbox: Shared<MailBox<M>>,
 }
 
-impl<M> ActorContext<M> {
-    /// Create a new `ActorContext`.
-    pub(crate) const fn new(pid: ProcessId, system_ref: ActorSystemRef, inbox: Shared<MailBox<M>>) -> ActorContext<M> {
-        ActorContext {
+impl<M> Context<M> {
+    /// Create a new `Context`.
+    pub(crate) const fn new(pid: ProcessId, system_ref: ActorSystemRef, inbox: Shared<MailBox<M>>) -> Context<M> {
+        Context {
             pid,
             system_ref,
             inbox,
@@ -48,8 +48,8 @@ impl<M> ActorContext<M> {
     ///
     /// This will attempt to receive next message if one is available. If the
     /// actor wants to wait until a message is received
-    /// [`ActorContext::receive_next`] can be used, which returns a
-    /// `Future<Output = M>`.
+    /// [`Context::receive_next`] can be used, which returns a `Future<Output =
+    /// M>`.
     ///
     /// # Examples
     ///
@@ -58,9 +58,9 @@ impl<M> ActorContext<M> {
     /// ```
     /// #![feature(async_await, futures_api, never_type)]
     ///
-    /// use heph::actor::ActorContext;
+    /// use heph::actor::Context;
     ///
-    /// async fn greeter_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+    /// async fn greeter_actor(mut ctx: Context<String>) -> Result<(), !> {
     ///     if let Some(name) = ctx.try_receive_next() {
     ///         println!("Hello: {}", name);
     ///     } else {
@@ -80,8 +80,7 @@ impl<M> ActorContext<M> {
     ///
     /// This will attempt to receive a message using message selection, if one
     /// is available. If the actor wants to wait until a message is received
-    /// [`ActorContext::receive`] can be used, which returns a `Future<Output =
-    /// M>`.
+    /// [`Context::receive`] can be used, which returns a `Future<Output = M>`.
     ///
     /// # Examples
     ///
@@ -91,7 +90,7 @@ impl<M> ActorContext<M> {
     /// ```
     /// #![feature(async_await, futures_api, never_type)]
     ///
-    /// use heph::actor::ActorContext;
+    /// use heph::actor::Context;
     ///
     /// #[derive(Debug)]
     /// enum Message {
@@ -109,7 +108,7 @@ impl<M> ActorContext<M> {
     ///     }
     /// }
     ///
-    /// async fn actor(mut ctx: ActorContext<Message>) -> Result<(), !> {
+    /// async fn actor(mut ctx: Context<Message>) -> Result<(), !> {
     ///     // First we handle priority messages.
     ///     while let Some(priority_msg) = ctx.try_receive(Message::is_priority) {
     ///         println!("Priority message: {:?}", priority_msg);
@@ -145,9 +144,9 @@ impl<M> ActorContext<M> {
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
-    /// use heph::actor::ActorContext;
+    /// use heph::actor::Context;
     ///
-    /// async fn print_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: Context<String>) -> Result<(), !> {
     ///     let msg = await!(ctx.receive_next());
     ///     println!("Got a message: {}", msg);
     ///     Ok(())
@@ -167,10 +166,10 @@ impl<M> ActorContext<M> {
     ///
     /// use futures_util::future::FutureExt;
     /// use futures_util::select;
-    /// use heph::actor::ActorContext;
+    /// use heph::actor::Context;
     /// use heph::timer::Timer;
     ///
-    /// async fn print_actor(mut ctx: ActorContext<String>) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: Context<String>) -> Result<(), !> {
     ///     // Create a timer, this will be ready once the timeout has
     ///     // passed.
     ///     let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100)).fuse();
@@ -203,10 +202,9 @@ impl<M> ActorContext<M> {
     ///
     /// This returns a [`Future`] that will complete once a message is ready.
     ///
-    /// See [`ActorContext::try_receive`] and [`MessageSelector`] for examples
-    /// on how to use the message selector and see
-    /// [`ActorContext::receive_next`] for an example that uses the same
-    /// `Future` this method returns.
+    /// See [`Context::try_receive`] and [`MessageSelector`] for examples on how
+    /// to use the message selector and see [`Context::receive_next`] for an
+    /// example that uses the same `Future` this method returns.
     pub fn receive<'ctx, S>(&'ctx mut self, selector: S) -> ReceiveMessage<'ctx, M, S>
         where S: MessageSelector<M>,
     {
@@ -234,8 +232,8 @@ impl<M> ActorContext<M> {
 
 /// Future to receive a single message.
 ///
-/// The implementation behind [`ActorContext::receive`] and
-/// [`ActorContext::receive_next`].
+/// The implementation behind [`Context::receive`] and
+/// [`Context::receive_next`].
 #[derive(Debug)]
 pub struct ReceiveMessage<'ctx, M, S = First> {
     inbox: &'ctx mut Shared<MailBox<M>>,

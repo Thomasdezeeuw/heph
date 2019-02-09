@@ -13,9 +13,9 @@
 //! ```
 //! #![feature(async_await, futures_api)]
 //!
-//! use heph::actor::{ActorContext, NewActor};
+//! use heph::actor::{Context, NewActor};
 //!
-//! async fn actor(ctx: ActorContext<()>) -> Result<(), ()> {
+//! async fn actor(ctx: Context<()>) -> Result<(), ()> {
 //! #   drop(ctx); // Use `ctx` to silence dead code warnings.
 //!     println!("Actor is running!");
 //!     Ok(())
@@ -51,7 +51,7 @@ pub mod message_select {
 }
 
 #[doc(inline)]
-pub use self::context::{ActorContext, ReceiveMessage};
+pub use self::context::{Context, ReceiveMessage};
 
 /// The trait that defines how to create a new [`Actor`].
 ///
@@ -71,7 +71,7 @@ pub trait NewActor {
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
-    /// use heph::actor::ActorContext;
+    /// use heph::actor::Context;
     /// use heph::supervisor::NoSupervisor;
     /// use heph::system::{ActorOptions, ActorSystem, RuntimeError};
     ///
@@ -110,7 +110,7 @@ pub trait NewActor {
     /// }
     ///
     /// /// Our actor implementation that prints all messages it receives.
-    /// async fn actor(mut ctx: ActorContext<Message>) -> Result<(), !> {
+    /// async fn actor(mut ctx: Context<Message>) -> Result<(), !> {
     ///     let msg = await!(ctx.receive_next());
     ///     println!("received message: {:?}", msg);
     ///     Ok(())
@@ -127,7 +127,7 @@ pub trait NewActor {
     /// `(TcpStream, SocketAddr)`.
     ///
     /// An empty tuple can be used for actors that don't accept any arguments
-    /// (except for the `ActorContext`, see [`new`] below).
+    /// (except for the `Context`, see [`new`] below).
     ///
     /// When using asynchronous functions arguments are passed regularly, i.e.
     /// not in the form of a tuple, however they do have be passed as a tuple to
@@ -155,77 +155,77 @@ pub trait NewActor {
     type Error: fmt::Display;
 
     /// Create a new [`Actor`](Actor).
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error>;
+    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error>;
 }
 
-impl<M, A> NewActor for fn(ctx: ActorContext<M>) -> A
+impl<M, A> NewActor for fn(ctx: Context<M>) -> A
     where A: Actor,
 {
     type Message = M;
     type Argument = ();
     type Actor = A;
     type Error = !;
-    fn new(&mut self, ctx: ActorContext<Self::Message>, _arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(&mut self, ctx: Context<Self::Message>, _arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx))
     }
 }
 
-impl<M, Arg, A> NewActor for fn(ctx: ActorContext<M>, arg: Arg) -> A
+impl<M, Arg, A> NewActor for fn(ctx: Context<M>, arg: Arg) -> A
     where A: Actor,
 {
     type Message = M;
     type Argument = Arg;
     type Actor = A;
     type Error = !;
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg))
     }
 }
 
-impl<M, Arg1, Arg2, A> NewActor for fn(ctx: ActorContext<M>, arg1: Arg1, arg2: Arg2) -> A
+impl<M, Arg1, Arg2, A> NewActor for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2) -> A
     where A: Actor,
 {
     type Message = M;
     type Argument = (Arg1, Arg2);
     type Actor = A;
     type Error = !;
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1))
     }
 }
 
-impl<M, Arg1, Arg2, Arg3, A> NewActor for fn(ctx: ActorContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3) -> A
+impl<M, Arg1, Arg2, Arg3, A> NewActor for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3) -> A
     where A: Actor,
 {
     type Message = M;
     type Argument = (Arg1, Arg2, Arg3);
     type Actor = A;
     type Error = !;
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1, arg.2))
     }
 }
 
-impl<M, Arg1, Arg2, Arg3, Arg4, A> NewActor for fn(ctx: ActorContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4) -> A
+impl<M, Arg1, Arg2, Arg3, Arg4, A> NewActor for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4) -> A
     where A: Actor,
 {
     type Message = M;
     type Argument = (Arg1, Arg2, Arg3, Arg4);
     type Actor = A;
     type Error = !;
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3))
     }
 }
 
-impl<M, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor for fn(ctx: ActorContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5) -> A
+impl<M, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5) -> A
     where A: Actor,
 {
     type Message = M;
     type Argument = (Arg1, Arg2, Arg3, Arg4, Arg5);
     type Actor = A;
     type Error = !;
-    fn new(&mut self, ctx: ActorContext<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3, arg.4))
     }
 }

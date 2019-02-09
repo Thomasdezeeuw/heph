@@ -7,7 +7,7 @@ use std::task::{LocalWaker, Poll};
 use mio_st::net::{ConnectedUdpSocket as MioConnectedUdpSocket, UdpSocket as MioUdpSocket};
 use mio_st::poll::PollOption;
 
-use crate::actor::ActorContext;
+use crate::actor::Context;
 use crate::net::{interrupted, would_block};
 
 /// A macro to try an I/O function.
@@ -42,7 +42,7 @@ impl ConnectedUdpSocket {
     ///
     /// This method first binds a UDP socket to the `local` address, then
     /// connects that socket to `remote` address.
-    pub fn connect<M>(ctx: &mut ActorContext<M>, local: SocketAddr, remote: SocketAddr) -> io::Result<ConnectedUdpSocket> {
+    pub fn connect<M>(ctx: &mut Context<M>, local: SocketAddr, remote: SocketAddr) -> io::Result<ConnectedUdpSocket> {
         let mut socket = MioConnectedUdpSocket::connect(local, remote)?;
         let pid = ctx.pid();
         ctx.system_ref().poller_register(&mut socket, pid.into(),
@@ -97,7 +97,7 @@ pub struct UdpSocket {
 
 impl UdpSocket {
     /// Create a UDP socket binding to the `address`.
-    pub fn bind<M>(ctx: &mut ActorContext<M>, address: SocketAddr) -> io::Result<UdpSocket> {
+    pub fn bind<M>(ctx: &mut Context<M>, address: SocketAddr) -> io::Result<UdpSocket> {
         let mut socket = MioUdpSocket::bind(address)?;
         let pid = ctx.pid();
         ctx.system_ref().poller_register(&mut socket, pid.into(),

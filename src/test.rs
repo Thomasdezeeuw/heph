@@ -23,7 +23,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{LocalWaker, Poll};
 
-use crate::actor::{Actor, ActorContext, NewActor};
+use crate::actor::{Actor, Context, NewActor};
 use crate::actor_ref::{ActorRef, Local};
 use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
@@ -52,7 +52,7 @@ pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> Result<(NA::Actor
     let inbox = Shared::new(MailBox::new(pid, system_ref.clone()));
     let actor_ref = ActorRef::<NA::Message, Local>::new(inbox.downgrade());
 
-    let ctx = ActorContext::new(pid, system_ref, inbox);
+    let ctx = Context::new(pid, system_ref, inbox);
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, actor_ref))
