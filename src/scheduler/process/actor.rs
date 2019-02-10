@@ -15,8 +15,6 @@ use crate::system::ActorSystemRef;
 use crate::util::Shared;
 
 /// A process that represent an [`Actor`].
-///
-/// [`Actor`]: ../../actor/trait.Actor.html
 pub struct ActorProcess<S, NA: NewActor> {
     id: ProcessId,
     priority: Priority,

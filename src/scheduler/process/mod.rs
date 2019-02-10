@@ -23,10 +23,10 @@ pub use self::priority::Priority;
 ///
 /// This can only be created by the [`Scheduler`] and should be seen as an
 /// opaque type for the rest of the crate. For convince this can converted from
-/// and into an `EventedId` as used by mio.
+/// and into an [`EventedId`] as used by mio.
 ///
-/// [`Scheduler`]: ../struct.Scheduler.html
-/// [`ActorSystem`]: ../../system/struct.ActorSystem.html
+/// [`ActorSystem`]: crate::system::ActorSystem
+/// [`Scheduler`]: crate::scheduler::Scheduler
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(transparent)]
 pub struct ProcessId(pub usize);
@@ -97,9 +97,7 @@ impl PartialOrd for dyn Process {
 
 /// The result of running a `Process`.
 ///
-/// See [`Process.run`].
-///
-/// [`Process.run`]: trait.Process.html#tymethod.run
+/// See [`Process::run`].
 #[must_use]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ProcessResult {
