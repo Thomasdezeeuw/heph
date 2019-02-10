@@ -9,11 +9,10 @@
 //! When encountering an error it usually means someone has to be notified (to
 //! fix it), something often done via logging.
 //!
-//! Next the supervisor needs to decide if the actor needs to be
-//! [stopped](supervisor::SupervisorStrategy::Stop) or
-//! [restarted](supervisor::SupervisorStrategy::Restart). If the supervisor decides to
-//! restart the actor it needs to provide the argument to create a new actor
-//! (used in calling the [`NewActor::new`](actor::NewActor::new) method).
+//! Next the supervisor needs to decide if the actor needs to be [stopped] or
+//! [restarted]. If the supervisor decides to restart the actor it needs to
+//! provide the argument to create a new actor (used in calling the
+//! [`NewActor::new`] method).
 //!
 //! The restarted actor will have the same message inbox as the old (stopped)
 //! actor. Note however that if an actor retrieved a message from its inbox, and
@@ -25,9 +24,12 @@
 //! Sometimes just restarting an actor is the easiest way to deal with errors.
 //! Starting the actor from a clean slate will often allow it to continue
 //! processing. However this is not possible in all cases, for example when a
-//! new argument can't be provided (think actors started by a
-//! [`TcpListener`](net::TcpListener)). In those cases the supervisor should
-//! still log the error encountered.
+//! new argument can't be provided (think actors started by a [`TcpListener`]).
+//! In those cases the supervisor should still log the error encountered.
+//!
+//! [stopped]: crate::supervisor::SupervisorStrategy::Stop
+//! [restarted]: crate::supervisor::SupervisorStrategy::Restart
+//! [`TcpListener`]: crate::net::TcpListener
 //!
 //! # Examples
 //!
@@ -85,7 +87,7 @@
 /// `Supervisor` is implemented for any function that takes an error `E` and
 /// returns `SupervisorStrategy<Arg>` automatically.
 ///
-/// [module documentation]: index.html
+/// [module documentation]: crate::supervisor
 pub trait Supervisor<E, Arg> {
     /// Decide what happens to the actor that returned `error`.
     fn decide(&mut self, error: E) -> SupervisorStrategy<Arg>;
