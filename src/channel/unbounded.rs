@@ -94,10 +94,7 @@ impl<T: Unpin> Stream for Receiver<T> {
 
 /// Future that receives a single value from [`Receiver`].
 ///
-/// See [`Receiver.receive_one`].
-///
-/// [`Receiver`]: struct.Receiver.html
-/// [`Receiver.receive_one`]: struct.Receiver.html#method.receive_one
+/// See [`Receiver::receive_one`].
 #[derive(Debug)]
 pub struct ReceiveOne<'r, T> {
     inner: &'r mut Receiver<T>,
