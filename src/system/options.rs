@@ -6,7 +6,7 @@ pub use crate::scheduler::Priority;
 
 /// Options for adding an actor to an [`ActorSystem`].
 ///
-/// [`ActorSystem`]: ../struct.ActorSystem.html
+/// [`ActorSystem`]: crate::system::ActorSystem
 ///
 /// # Examples
 ///

@@ -5,15 +5,12 @@
 //! - [`ActorSystem`]: is the actor system, used to run all actors.
 //! - [`ActorSystemRef`]: is a reference to the actor system, used to get access
 //!   to the actor system's internals, often via the [`Context`], e.g. see
-//!   [`TcpStream.connect`].
+//!   [`TcpStream::connect`].
 //!
 //! See [`ActorSystem`] for documentation on how to run an actor system. For
 //! more examples see the examples directory in the source code.
 //!
-//! [`ActorSystem`]: struct.ActorSystem.html
-//! [`ActorSystemRef`]: struct.ActorSystemRef.html
-//! [`Context`]: ../actor/struct.Context.html
-//! [`TcpStream.connect`]: ../net/struct.TcpStream.html#method.connect
+//! [`TcpStream::connect`]: crate::net::TcpStream::connect
 //!
 //! # Actor Registry
 //!
@@ -44,13 +41,10 @@
 //! cannot be registered at the same time, the second registration of the same
 //! type will panic.
 //!
-//! [`NewActor`]: ../actor/trait.NewActor.html
-//! [`ActorRef`]: crate::actor_ref::ActorRef
-//! [register]: ./options/struct.ActorOptions.html#structfield.register
-//! [`ActorOptions`]: ./options/struct.ActorOptions.html
-//! [`try_spawn`]: ./struct.ActorSystemRef.html#method.try_spawn
-//! [`lookup`]: struct.ActorSystemRef.html#method.lookup
-//! [`lookup_actor`]: struct.ActorSystemRef.html#method.lookup_actor
+//! [register]: crate::system::options::ActorOptions::register
+//! [`try_spawn`]: ActorSystemRef::try_spawn
+//! [`lookup`]: ActorSystemRef::lookup
+//! [`lookup_actor`]: ActorSystemRef::lookup_actor
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -108,11 +102,11 @@ pub use self::options::ActorOptions;
 /// [`run`]. This will spawn a number of worker threads to actually run the
 /// system.
 ///
-/// [`new`]: #method.new
-/// [`with_setup`]: #method.with_setup
-/// [`num_threads`]: #method.num_threads
-/// [`use_all_cores`]: #method.use_all_cores
-/// [`run`]: #method.run
+/// [`new`]: ActorSystem::new
+/// [`with_setup`]: ActorSystem::with_setup
+/// [`num_threads`]: ActorSystem::num_threads
+/// [`use_all_cores`]: ActorSystem::use_all_cores
+/// [`run`]: ActorSystem::run
 ///
 /// ## Examples
 ///
@@ -191,10 +185,8 @@ impl ActorSystem {
 impl<S> ActorSystem<S> {
     /// Set the number of worker threads to use, defaults to `1`.
     ///
-    /// Most applications would want to use [`use_all_cores`] which sets the
-    /// number of threads equal to the number of CPU cores.
-    ///
-    /// [`use_all_cores`]: #method.use_all_cores
+    /// Most applications would want to use [`ActorSystem::use_all_cores`] which
+    /// sets the number of threads equal to the number of CPU cores.
     pub fn num_threads(mut self, n: usize) -> Self {
         self.threads = n;
         self
@@ -202,9 +194,7 @@ impl<S> ActorSystem<S> {
 
     /// Set the number of worker threads equal to the number of CPU cores.
     ///
-    /// See [`num_threads`].
-    ///
-    /// [`num_threads`]: #method.num_threads
+    /// See [`ActorSystem::num_threads`].
     pub fn use_all_cores(self) -> Self {
         self.num_threads(num_cpus::get())
     }
@@ -215,10 +205,8 @@ impl<S> ActorSystem<S>
 {
     /// Run the system.
     ///
-    /// This will spawn a number of worker threads (see [`num_threads`]) to run
-    /// the system.
-    ///
-    /// [`num_threads`]: #method.num_threads
+    /// This will spawn a number of worker threads (see
+    /// [`ActorSystem::num_threads`]) to run the system.
     pub fn run(self) -> Result<(), RuntimeError<S::Error>> {
         debug!("running actor system: worker_threads={}", self.threads);
 
@@ -426,8 +414,6 @@ impl RunningActorSystem {
 /// This reference refers to the thread-local actor system, and thus can't be
 /// shared across thread bounds. To share this reference (within the same
 /// thread) it can be cloned.
-///
-/// [`ActorSystem`]: struct.ActorSystem.html
 #[derive(Clone, Debug)]
 pub struct ActorSystemRef {
     /// A shared reference to the actor system's internals.
@@ -459,9 +445,7 @@ impl ActorSystemRef {
     /// This is a convenience method for `NewActor` implementations that never
     /// return an error, such as asynchronous functions.
     ///
-    /// See [`try_spawn`] for more information.
-    ///
-    /// [`try_spawn`]: struct.ActorSystemRef.html#method.try_spawn
+    /// See [`ActorSystemRef::try_spawn`] for more information.
     pub fn spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> ActorRef<NA::Message>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor<Error = !> + 'static,
@@ -533,10 +517,9 @@ impl ActorSystemRef {
     /// gotchas of the design, see [Actor Registry].
     ///
     /// Note: when using asynchronous functions as actors you'll likely need
-    /// [`lookup_actor`].
+    /// [`ActorSystemRef::lookup_actor`].
     ///
     /// [Actor Registry]: ./index.html#actor-registry
-    /// [`lookup_actor`]: #method.lookup_actor
     pub fn lookup<NA>(&mut self) -> Option<ActorRef<NA::Message>>
         where NA: NewActor + 'static,
     {
@@ -559,7 +542,6 @@ impl ActorSystemRef {
     ///
     /// [Actor Registry]: ./index.html#actor-registry
     /// [function]: https://doc.rust-lang.org/std/keyword.fn.html
-    /// [`NewActor`]: ../actor/trait.NewActor.html
     ///
     /// # Examples
     ///

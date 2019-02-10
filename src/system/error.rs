@@ -5,7 +5,7 @@ use std::{fmt, io};
 
 /// Error returned by running an [`ActorSystem`].
 ///
-/// [`ActorSystem`]: ../system/struct.ActorSystem.html
+/// [`ActorSystem`]: crate::system::ActorSystem
 #[derive(Debug)]
 pub struct RuntimeError<SetupError = !> {
     inner: RuntimeErrorInner<SetupError>,
