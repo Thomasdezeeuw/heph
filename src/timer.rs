@@ -7,8 +7,10 @@
 //! - [`Deadline`](timer::Deadline) wraps another `Future` and checks the
 //!   deadline each time it's polled, it returns `Err(DeadlinePassed)` once the
 //!   deadline has passed.
-//! - [`Interval`](timer::Interval) implements `Stream` which yields an item
+//! - [`Interval`](timer::Interval) implements [`Stream`] which yields an item
 //!   after the deadline has passed each interval.
+//!
+//! [`Stream`]: futures_core::stream::Stream
 
 use std::future::Future;
 use std::pin::Pin;
@@ -25,10 +27,10 @@ use crate::system::ActorSystemRef;
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct DeadlinePassed;
 
-/// A future that represents a timer.
+/// A [`Future`] that represents a timer.
 ///
-/// If this future returns `Poll::Ready(DeadlinePassed)` it means that the
-/// deadline has passed. If it returns `Poll::Pending` it's not yet passed.
+/// If this future returns [`Poll::Ready`]`(`[`DeadlinePassed`]`)` it means that the
+/// deadline has passed. If it returns [`Poll::Pending`] it's not yet passed.
 ///
 /// # Examples
 ///
@@ -93,11 +95,11 @@ impl Future for Timer {
     }
 }
 
-/// A future that represents a deadline.
+/// A [`Future`] that wraps another future setting a deadline for it.
 ///
 /// When this future is polled it first checks if the deadline has passed, if so
-/// it returns `Poll::Ready(Err(DeadlinePassed))`. Otherwise this will poll the
-/// provided future.
+/// it returns [`Poll::Ready`]`(Err(`[`DeadlinePassed`]`))`. Otherwise this will
+/// poll the future it wraps.
 ///
 /// # Examples
 ///
@@ -142,25 +144,25 @@ impl Future for Timer {
 #[derive(Debug)]
 pub struct Deadline<Fut> {
     deadline: Instant,
-    fut: Fut,
+    future: Fut,
 }
 
 impl<Fut> Deadline<Fut> {
     /// Create a new `Deadline`.
-    pub fn new<M>(ctx: &mut Context<M>, deadline: Instant, fut: Fut) -> Deadline<Fut> {
+    pub fn new<M>(ctx: &mut Context<M>, deadline: Instant, future: Fut) -> Deadline<Fut> {
         let pid = ctx.pid();
         ctx.system_ref().add_deadline(pid, deadline);
         Deadline {
             deadline,
-            fut,
+            future,
         }
     }
 
     /// Create a new deadline based on a timeout.
     ///
-    /// Same as calling `Deadline::new(&mut ctx, Instant::now() + timeout, fut)`.
-    pub fn timeout<M>(ctx: &mut Context<M>, timeout: Duration, fut: Fut) -> Deadline<Fut> {
-        Deadline::new(ctx, Instant::now() + timeout, fut)
+    /// Same as calling `Deadline::new(&mut ctx, Instant::now() + timeout, future)`.
+    pub fn timeout<M>(ctx: &mut Context<M>, timeout: Duration, future: Fut) -> Deadline<Fut> {
+        Deadline::new(ctx, Instant::now() + timeout, future)
     }
 
     /// Returns the deadline set for this `Deadline`.
@@ -178,16 +180,21 @@ impl<Fut> Future for Deadline<Fut>
         if self.deadline <= Instant::now() {
             Poll::Ready(Err(DeadlinePassed))
         } else {
-            let future = unsafe { Pin::map_unchecked_mut(self, |this| &mut this.fut) };
+            let future = unsafe {
+                // This is safe because we're not moving the future.
+                Pin::map_unchecked_mut(self, |this| &mut this.future)
+            };
             future.poll(waker).map(Ok)
         }
     }
 }
 
-/// A stream that yields an item after an interval has passed.
+/// A [`Stream`] that yields an item after an interval has passed.
 ///
 /// This stream will never return `None`, it will always set another deadline
 /// and yield another item after the deadline has passed.
+///
+/// [`Stream`]: futures_core::stream::Stream
 ///
 /// # Notes
 ///
