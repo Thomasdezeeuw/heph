@@ -12,14 +12,9 @@
 //! [connecting] to a remote address. It implements the `AsyncRead` and
 //! `AsyncWrite` trait to work nicely with futures.
 //!
-//! There is also the `NewTcpListener` type, which is an intermediate
-//! representation of a `TcpListener` that implements the [`NewActor`]
-//! trait.
-//!
-//! [`TcpListener`]: struct.TcpListener.html
-//! [`TcpStream`]: struct.TcpStream.html
-//! [connecting]: struct.TcpStream.html#method.connect
-//! [`NewActor`]: ../actor/trait.NewActor.html
+//! [`TcpListener`]: crate::net::TcpListener
+//! [connecting]: crate::net::TcpStream::connect
+//! [`TcpStream`]: crate::net::TcpStream
 //!
 //! # User Datagram Protocol (UDP)
 //!
@@ -42,12 +37,12 @@
 //! sending to any remote address and [`poll_recv_from`] to receive packets from
 //! any address.
 //!
-//! [`ConnectedUdpSocket`]: struct.ConnectedUdpSocket.html
-//! [`poll_send`]: struct.ConnectedUdpSocket.html#method.poll_send
-//! [`poll_recv`]: struct.ConnectedUdpSocket.html#method.poll_recv
-//! [`poll_send_to`]: struct.UdpSocket.html#method.poll_send_to
-//! [`UdpSocket`]: struct.UdpSocket.html
-//! [`poll_recv_from`]: struct.UdpSocket.html#method.poll_recv_from
+//! [`ConnectedUdpSocket`]: crate::net::ConnectedUdpSocket
+//! [`poll_send`]: crate::net::ConnectedUdpSocket::poll_send
+//! [`poll_recv`]: crate::net::ConnectedUdpSocket::poll_recv
+//! [`poll_send_to`]: crate::net::UdpSocket::poll_send_to
+//! [`UdpSocket`]: crate::net::UdpSocket
+//! [`poll_recv_from`]: crate::net::UdpSocket::poll_recv_from
 
 use std::io;
 
