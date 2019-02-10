@@ -47,7 +47,7 @@ pub mod message_select {
     //! Module containing the `MessageSelector` trait and related types.
 
     #[doc(inline)]
-    pub use crate::actor::context::{First, MessageSelection, MessageSelector, Messages};
+    pub use crate::actor::context::{First, MessageSelection, MessageSelector, Messages, Priority};
 }
 
 #[doc(inline)]

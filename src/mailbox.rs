@@ -210,3 +210,58 @@ impl<M> MessageSelector<M> for First {
         messages.next().map(|(selection, _)| selection)
     }
 }
+
+/// Select a message with the highest priority.
+///
+/// # Examples
+///
+/// ```
+/// #![feature(async_await, await_macro, futures_api, never_type)]
+///
+/// use heph::actor::message_select::Priority;
+/// use heph::supervisor::NoSupervisor;
+/// use heph::{Context, ActorOptions, ActorSystem, ActorSystemRef};
+///
+/// ActorSystem::new()
+///     .with_setup(setup)
+///     .run()
+///     .unwrap();
+///
+/// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
+///     let mut actor_ref = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
+///         ActorOptions::default());
+///
+///     // We'll send our actor two messages, one normal one and a priority one.
+///     actor_ref <<= Message { priority: 1, msg: "Normal message".to_owned() };
+///     actor_ref <<= Message { priority: 100, msg: "Priority message".to_owned() };
+///     Ok(())
+/// }
+///
+/// struct Message {
+///     priority: usize,
+///     msg: String,
+/// }
+///
+/// async fn actor(mut ctx: Context<Message>) -> Result<(), !> {
+///     // As both messages are ready this will receive the priority message.
+///     let msg = await!(ctx.receive(Priority(|msg: &Message| msg.priority)));
+///     println!("Got message: {}", msg.msg);
+///     Ok(())
+/// }
+///
+/// # // Use the `actor` function to silence dead code warning.
+/// # drop(actor);
+/// ```
+#[derive(Debug)]
+pub struct Priority<F>(pub F);
+
+impl<F, P, M> MessageSelector<M> for Priority<F>
+    where F: FnMut(&M) -> P,
+          P: Ord,
+{
+    fn select<'m>(&mut self, messages: Messages<'m, M>) -> Option<MessageSelection> {
+        messages
+            .max_by_key(|(_, msg)| (self.0)(msg))
+            .map(|(selection, _)| selection)
+    }
+}
