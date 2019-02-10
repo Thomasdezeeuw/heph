@@ -13,8 +13,10 @@ use std::time::Duration;
 /// Priority for an actor in the scheduler.
 ///
 /// Actors with a higher priority will be scheduled to run more often and
-/// quicker (after they return `Poll::Pending`) then actors with a lower
+/// quicker (after they return [`Poll::Pending`]) then actors with a lower
 /// priority.
+///
+/// [`Poll::Pending`]: std::task::Poll::Pending
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(transparent)]
 pub struct Priority(NonZeroU8);
