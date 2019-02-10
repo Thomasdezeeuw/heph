@@ -29,8 +29,6 @@ macro_rules! try_io {
 ///
 /// This works much like the [`UdpSocket`] however it can only send to and
 /// receive from a single remote address.
-///
-/// [`UdpSocket`]: struct.UdpSocket.html
 #[derive(Debug)]
 pub struct ConnectedUdpSocket {
     /// Underlying UDP socket, backed by mio.

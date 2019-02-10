@@ -25,12 +25,10 @@ use crate::util::Shared;
 /// This listener will accept TCP connections and for each incoming connection
 /// create an actor, via the [`NewActor`] trait.
 ///
-/// [`NewActor`]: ../actor/trait.NewActor.html
-///
 /// # Graceful shutdown
 ///
-/// Graceful shutdown of the TCP listener is done by sending it a
-/// [`Terminate`](Terminate) message, see below for an example.
+/// Graceful shutdown of the TCP listener is done by sending it a [`Terminate`]
+/// message, see below for an example.
 ///
 /// # Examples
 ///
@@ -101,7 +99,7 @@ use crate::util::Shared;
 /// ```
 ///
 /// The next example shows how the TCP listener can gracefully be shutdown by
-/// sending it a [`Terminate`](Terminate) message.
+/// sending it a [`Terminate`] message.
 ///
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
@@ -192,8 +190,6 @@ impl<S, NA> TcpListener<S, NA>
     ///
     /// Note in the function call we'll not yet bound to the port, this will
     /// happen in `NewTcpListener`'s `NewActor` implementation.
-    ///
-    /// [`NewActor::new`]: ../actor/trait.NewActor.html#tymethod.new
     pub fn new(supervisor: S, new_actor: NA, options: ActorOptions) ->
         impl NewActor<Message = TcpListenerMessage, Argument = SocketAddr, Actor = TcpListener<S, NA>, Error = io::Error>
     {
@@ -273,9 +269,9 @@ impl<S, NA> Actor for TcpListener<S, NA>
     }
 }
 
-/// The message type used by [`TcpListener`](TcpListener).
+/// The message type used by [`TcpListener`].
 ///
-/// The message implements [`From`](From)<[`Terminate`](Terminate)> for the
+/// The message implements [`From`]`<`[`Terminate`]`>` for the
 /// message, allowing for graceful shutdown.
 #[derive(Debug)]
 pub struct TcpListenerMessage {
@@ -297,8 +293,6 @@ enum TcpListenerMessageInner {
 }
 
 /// Error returned by [`TcpListener`].
-///
-/// [`TcpListener`]: struct.TcpListener.html
 #[derive(Debug)]
 pub enum TcpListenerError<E> {
     /// Error accepting TCP stream.
@@ -329,9 +323,6 @@ impl<E: fmt::Display> fmt::Display for TcpListenerError<E> {
 /// `NewTcpListener` is an implementation of [`NewActor`] for `TcpListener`.
 ///
 /// It can be created by calling [`TcpListener::new`].
-///
-/// [`NewActor`]: ../actor/trait.NewActor.html
-/// [`TcpListener::new`]: struct.TcpListener.html#method.new
 #[derive(Debug, Clone)]
 struct NewTcpListener<S, NA> {
     supervisor: S,
@@ -440,8 +431,6 @@ impl TcpStream {
     /// This function will cause all pending and future I/O on the specified
     /// portions to return immediately with an appropriate value (see the
     /// documentation of [`Shutdown`]).
-    ///
-    /// [`Shutdown`]: https://doc.rust-lang.org/nightly/std/net/enum.Shutdown.html
     pub fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
         self.inner.shutdown(how)
     }
