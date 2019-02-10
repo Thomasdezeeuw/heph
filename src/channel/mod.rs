@@ -22,14 +22,13 @@
 //! into an disconnected channel. Each `Receiver` either implements `Future` or
 //! `Stream` to receive values from the channel.
 //!
-//! [*One shot*]: fn.oneshot.html
-//! [*Bounded*]: fn.bounded.html
-//! [*Unbounded*]: fn.unbounded.html
-//! [`crossbeam_channels`]: https://crates.io/crates/crossbeam-channel
-//! [`std::sync::mpsc`]: https://doc.rust-lang.org/nightly/std/sync/mpsc/index.html
-//! [`oneshot`]: fn.oneshot.html
-//! [`bounded`]: fn.bounded.html
-//! [`unbounded`]: fn.unbounded.html
+//! [*One shot*]: crate::channel::oneshot()
+//! [*Bounded*]: crate::channel::bounded()
+//! [*Unbounded*]: crate::channel::unbounded()
+//! [`crossbeam_channels`]: crossbeam_channel
+//! [`oneshot`]: crate::channel::oneshot()
+//! [`bounded`]: crate::channel::bounded()
+//! [`unbounded`]: crate::channel::unbounded()
 //!
 //! # When to use which flavour
 //!
