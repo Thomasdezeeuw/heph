@@ -12,10 +12,10 @@
 //! `REQUEST_TARGET` constant can be used, which is re-exported from the
 //! `std-logger` crate.
 //!
-//! To enable logging call [`init`](log::init).
+//! To enable logging call [`init`].
 //!
-//! [`log`]: ../../log/index.html
-//! [`std-logger`]: ../../std_logger/index.html
+//! [`std-logger`]: std_logger
+//! [`init`]: crate::log::init
 
 #[doc(no_inline)]
 pub use log::{debug, error, info, log, log_enabled, trace, warn};
