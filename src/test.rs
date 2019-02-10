@@ -59,7 +59,7 @@ pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> Result<(NA::Actor
 
 /// Poll a future.
 ///
-/// The `LocalWaker` be provided by the *test* actor system.
+/// The [`LocalWaker`] be provided by the *test* actor system.
 ///
 /// # Notes
 ///
@@ -75,7 +75,7 @@ pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
 /// Poll an actor.
 ///
 /// This is effectively the same function as [`poll_future`], but instead polls
-/// an actors. The `LocalWaker` be provided by the *test* actor system.
+/// an actors. The [`LocalWaker`] be provided by the *test* actor system.
 ///
 /// # Notes
 ///
@@ -88,7 +88,7 @@ pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
     Actor::try_poll(actor, &waker)
 }
 
-/// Create a test `LocalWaker`, with pid 0.
+/// Create a test [`LocalWaker`], with pid 0.
 fn test_waker() -> LocalWaker {
     let pid = ProcessId(0);
     let mut system_ref = system_ref();
