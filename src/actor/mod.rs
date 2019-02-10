@@ -1,9 +1,12 @@
 //! The module with the `NewActor` and `Actor` trait definitions.
 //!
-//! All actors must implement the [`Actor`](actor::Actor) trait, which defines
-//! how an actor is run. The [`NewActor`](actor::NewActor) defines how an actor
-//! is created. The easiest way to implement these traits is to use asynchronous
-//! functions, see the example below.
+//! All actors must implement the [`Actor`] trait, which defines how an actor is
+//! run. The [`NewActor`] defines how an actor is created. The easiest way to
+//! implement these traits is to use asynchronous functions, see the example
+//! below.
+//!
+//! [`Actor`]: crate::actor::Actor
+//! [`NewActor`]: crate::actor::NewActor
 //!
 //! # Example
 //!
