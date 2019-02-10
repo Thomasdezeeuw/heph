@@ -19,8 +19,6 @@ pub fn new_waker(pid: ProcessId, sender: Sender<ProcessId>) -> LocalWaker {
 }
 
 /// The implementation behind [`new_waker`].
-///
-/// [`new_waker`]: fn.new_waker.html
 #[derive(Debug)]
 struct Waker {
     pid: ProcessId,
