@@ -1,8 +1,7 @@
-//! Module with testing facilities.
+//! Testing facilities.
 //!
 //! This module will lazily create an active, but not running, actor system per
-//! thread. This means that for example an `ActorSystemRef` can be created and
-//! used.
+//! thread.
 //!
 //! # Notes
 //!
