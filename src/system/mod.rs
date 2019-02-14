@@ -495,10 +495,8 @@ impl ActorSystemRef {
         process_entry.add_actor(options.priority, supervisor, new_actor, actor,
             mailbox, waker);
 
-        if options.register {
-            if registry.borrow_mut().register::<NA>(actor_ref.clone()).is_some() {
-                panic!("can't overwrite a previously registered actor in the Actor Registry");
-            }
+        if options.register && registry.borrow_mut().register::<NA>(actor_ref.clone()).is_some() {
+            panic!("can't overwrite a previously registered actor in the Actor Registry");
         }
         if options.schedule {
             // Can't handle the error here.
