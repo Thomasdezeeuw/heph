@@ -362,21 +362,6 @@ pub struct TcpStream {
     inner: MioTcpStream,
 }
 
-/// A macro to try an I/O function.
-// TODO: this is duplicated in the UDP module.
-macro_rules! try_io {
-    ($op:expr) => {
-        loop {
-            match $op {
-                Ok(ok) => return Poll::Ready(Ok(ok)),
-                Err(ref err) if would_block(err) => return Poll::Pending,
-                Err(ref err) if interrupted(err) => continue,
-                Err(err) => return Poll::Ready(Err(err)),
-            }
-        }
-    };
-}
-
 impl TcpStream {
     /// Create a new TCP stream and issue a non-blocking connect to the
     /// specified `address`.

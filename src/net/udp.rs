@@ -10,21 +10,6 @@ use mio_st::poll::PollOption;
 use crate::actor::Context;
 use crate::net::{interrupted, would_block};
 
-/// A macro to try an I/O function.
-// TODO: this is duplicated in the TCP module.
-macro_rules! try_io {
-    ($op:expr) => {
-        loop {
-            match $op {
-                Ok(ok) => return Poll::Ready(Ok(ok)),
-                Err(ref err) if would_block(err) => return Poll::Pending,
-                Err(ref err) if interrupted(err) => continue,
-                Err(err) => return Poll::Ready(Err(err)),
-            }
-        }
-    };
-}
-
 /// A connected User Datagram Protocol (UDP) socket.
 ///
 /// This works much like the [`UdpSocket`] however it can only send to and

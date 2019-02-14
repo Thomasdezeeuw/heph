@@ -46,6 +46,23 @@
 
 use std::io;
 
+/// A macro to try an I/O function.
+///
+/// Note that this is used in the tcp and udp modules and has to be defined
+/// before them, otherwise this would have been place below.
+macro_rules! try_io {
+    ($op:expr) => {
+        loop {
+            match $op {
+                Ok(ok) => return Poll::Ready(Ok(ok)),
+                Err(ref err) if would_block(err) => return Poll::Pending,
+                Err(ref err) if interrupted(err) => continue,
+                Err(err) => return Poll::Ready(Err(err)),
+            }
+        }
+    };
+}
+
 mod tcp;
 mod udp;
 
