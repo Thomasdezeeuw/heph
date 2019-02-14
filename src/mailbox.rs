@@ -67,12 +67,8 @@ impl<M> MailBox<M> {
     /// message a bit more fair.
     fn receive_remote_messages(&mut self) {
         if let Some((_, recv)) = self.messages2.as_ref() {
-            loop {
-                if let Ok(msg) = recv.try_recv() {
-                    self.messages.push_back(msg);
-                } else {
-                    return;
-                }
+            while let Ok(msg) = recv.try_recv() {
+                self.messages.push_back(msg);
             }
         }
     }
