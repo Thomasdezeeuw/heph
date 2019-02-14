@@ -1,34 +1,32 @@
 //! Module with the actor system and related types.
 //!
-//! The module has two types and a submodule:
+//! The module has two main types and a submodule:
 //!
-//! - [`ActorSystem`]: is the actor system, used to run all actors.
-//! - [`ActorSystemRef`]: is a reference to the actor system, used to get access
-//!   to the actor system's internals, often via the [`Context`], e.g. see
-//!   [`TcpStream::connect`].
+//! - [`ActorSystem`] is the actor system, used to run all actors.
+//! - [`ActorSystemRef`] is a reference to a running actor system, used for
+//!   example to spawn new actors or get access to the [Actor Registry].
 //!
 //! See [`ActorSystem`] for documentation on how to run an actor system. For
 //! more examples see the examples directory in the source code.
 //!
-//! [`TcpStream::connect`]: crate::net::TcpStream::connect
+//! [Actor Registry]: #actor-registry
 //!
 //! # Actor Registry
 //!
-//! The Actor Registry is a fairly simple concept, it maps [`NewActor`]s to
-//! [`ActorRef`]s.
+//! The Actor Registry is a fairly simple concept, it maps a [`NewActor`] type
+//! to an [`ActorRef`].
 //!
 //! First an actor must be registered with the Actor Registry. This is done by
-//! setting the [register] option to `true` in the [`ActorOptions`] passed to
-//! [`try_spawn`]. Note that an actor registration must be unique **per actor
-//! type**, that is type in the Rust's type system. It is not possible to
+//! setting the [register] option to `true` in the [`ActorOptions`] when
+//! [spawning] an actor. Note that an actor registration must be unique **per
+//! actor type**, that is type in the Rust's type system. It is not possible to
 //! register two actors with the same type.
 //!
 //! After the actor is registered it can be looked up. This can be done using
-//! the [`lookup`] method on [`ActorSystemRef`], or if the type can't be typed
-//! (which is the case when using asynchronous functions, see the methods
-//! description for more info) [`lookup_actor`] can be used instead. Both
-//! methods will do the same thing; return a [`ActorRef`], which can be used to
-//! communicate with the actor.
+//! the [`lookup`] method, or if the type can't be typed (which is the case when
+//! using asynchronous functions, see the methods description for more info)
+//! [`lookup_actor`] can be used instead. Both methods will do the same thing
+//! return an [`ActorRef`], which can be used to communicate with the actor.
 //!
 //! ## Actor Registry Notes
 //!
@@ -42,7 +40,7 @@
 //! type will panic.
 //!
 //! [register]: crate::system::options::ActorOptions::register
-//! [`try_spawn`]: ActorSystemRef::try_spawn
+//! [spawning]: ActorSystemRef::try_spawn
 //! [`lookup`]: ActorSystemRef::lookup
 //! [`lookup_actor`]: ActorSystemRef::lookup_actor
 
@@ -84,16 +82,19 @@ use waker::{MAX_THREADS, WakerId, new_waker, init_waker};
 /// has a single generic parameter `S`, the type of the setup function. The
 /// setup function is optional, which is represented by `!` (the never type).
 ///
+/// The actor system will start workers threads that will run all actors, these
+/// threads will run until all actors have returned.
+///
 /// ## Usage
 ///
 /// Building an actor system starts with calling [`new`], this will create a new
 /// system without a setup function, using a single worker thread.
 ///
 /// An optional setup function can be added. This setup function will be called
-/// on each thread the actor system starts, and thus has to be `Clone` and
-/// `Send`. This can be done by calling [`with_setup`]. This will change the `S`
-/// parameter from `!` to an actual type. Only a single setup function can be
-/// used per actor system.
+/// on each thread the actor system starts, and thus has to be [`Clone`] and
+/// [`Send`]. This can be done by calling [`with_setup`]. This will change the
+/// `S` parameter from `!` to an actual type. Only a single setup function can
+/// be used per actor system.
 ///
 /// Now that the generic parameter is optionally defined we also have some more
 /// configuration options. One such option is the number of threads the system
@@ -112,9 +113,9 @@ use waker::{MAX_THREADS, WakerId, new_waker, init_waker};
 ///
 /// ## Examples
 ///
-/// This simple Hello World example show how to run an `ActorSystem` and add how
-/// start a single actor on each thread. This should print "Hello World" twice
-/// (once on each thread started).
+/// This simple example shows how to run an `ActorSystem` and add how start a
+/// single actor on each thread. This should print "Hello World" twice (once on
+/// each worker thread started).
 ///
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
@@ -137,18 +138,34 @@ use waker::{MAX_THREADS, WakerId, new_waker, init_waker};
 /// // This setup function will on run on each created thread. In the case of
 /// // this example we create 2 threads (see `main`).
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
-///     // Add the actor to the system.
+///     // Asynchronous function don't yet implement the required `NewActor`
+///     // trait, but function pointers do.
 ///     let new_actor = greeter_actor as fn(_, _) -> _;
-///     let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, "Hello", ActorOptions::default());
+///     // Each actors needs to be supervised, but since our actor doesn't return
+///     // an error we can get away with our `NoSupervisor` which doesn't do
+///     // anything.
+///     let supervisor = NoSupervisor;
+///     // All actors start with one or more arguments, in our case it's message
+///     // used to greet people with. See `greeter_actor` below.
+///     let arg = "Hello";
+///     // Spawn the actor to run on our actor system.
+///     let mut actor_ref = system_ref.spawn(supervisor, new_actor, arg, ActorOptions::default());
 ///
-///     // Send a message to the actor.
+///     // Send a message to the actor we just spawned with it's `ActorRef`.
 ///     actor_ref <<= "World";
+///
 ///     Ok(())
 /// }
 ///
 /// /// Our actor that greets people.
 /// async fn greeter_actor(mut ctx: Context<&'static str>, message: &'static str) -> Result<(), !> {
+///     // `message` is the argument passed to `spawn` in the `setup` function
+///     // above, in this example it was "Hello".
+///
+///     // Using the context we use receive messages for this actor, so here
+///     // we'll receive the "World" message we send in the setup function.
 ///     let name = await!(ctx.receive_next());
+///     // This should print "Hello world"!
 ///     println!("{} {}", message, name);
 ///     Ok(())
 /// }
@@ -418,6 +435,9 @@ impl RunningActorSystem {
 }
 
 /// A reference to an [`ActorSystem`].
+///
+/// A reference to the running actor system can be accessed via the actor
+/// [`Context::system_ref`].
 ///
 /// This reference refers to the thread-local actor system, and thus can't be
 /// shared across thread bounds. To share this reference (within the same

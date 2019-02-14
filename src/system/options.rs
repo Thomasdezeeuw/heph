@@ -48,7 +48,7 @@ pub struct ActorOptions {
     /// message send to them, or a `TcpStream` becoming ready to read or write.
     pub schedule: bool,
     /// Reserved for future expansion. Use the `Default` implementation to set
-    /// this field, see examples in struct documentation.
+    /// this field, see examples in structure documentation.
     #[doc(hidden)]
     pub __private: (),
 }

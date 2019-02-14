@@ -62,7 +62,7 @@ impl<SetupError: fmt::Display> fmt::Display for RuntimeError<SetupError> {
                 Self::DESC, err),
             Setup(ref err) => write!(f, "{}: error running setup function: {}",
                 Self::DESC, err),
-            Panic(ref msg) => write!(f, "{}: caught panic worker thread: {}",
+            Panic(ref msg) => write!(f, "{}: panic in worker thread: {}",
                 Self::DESC, msg),
         }
     }
