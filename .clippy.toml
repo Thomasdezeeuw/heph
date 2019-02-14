@@ -1,2 +1,1 @@
-# TODO: set to 5 in the future.
-cyclomatic-complexity-threshold = 10
+cyclomatic-complexity-threshold = 5
