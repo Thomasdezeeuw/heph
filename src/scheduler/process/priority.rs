@@ -24,7 +24,7 @@ pub struct Priority(NonZeroU8);
 impl Priority {
     /// Low priority.
     ///
-    /// All actors have a higher priority then this actor.
+    /// Other actors have priority over this actor.
     pub const LOW: Priority = Priority(unsafe { NonZeroU8::new_unchecked(15) });
 
     /// Normal priority.
