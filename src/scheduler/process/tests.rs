@@ -45,21 +45,21 @@ fn pid_and_evented_id() {
 
 #[test]
 fn priority() {
-    assert!(Priority::HIGH > Priority::NORMAL);
-    assert!(Priority::NORMAL > Priority::LOW);
-    assert!(Priority::HIGH > Priority::LOW);
+    assert!(Priority::High > Priority::Normal);
+    assert!(Priority::Normal > Priority::Low);
+    assert!(Priority::High > Priority::Low);
 
-    assert_eq!(Priority::HIGH, Priority::HIGH);
-    assert_ne!(Priority::HIGH, Priority::NORMAL);
+    assert_eq!(Priority::High, Priority::High);
+    assert_ne!(Priority::High, Priority::Normal);
 
-    assert_eq!(Priority::default(), Priority::NORMAL);
+    assert_eq!(Priority::default(), Priority::Normal);
 }
 
 #[test]
 fn priority_duration_multiplication() {
-    let high = Duration::from_millis(1) * Priority::HIGH;
-    let normal = Duration::from_millis(1) * Priority::NORMAL;
-    let low = Duration::from_millis(1) * Priority::LOW;
+    let high = Duration::from_millis(1) * Priority::High;
+    let normal = Duration::from_millis(1) * Priority::Normal;
+    let low = Duration::from_millis(1) * Priority::Low;
 
     assert!(high < normal);
     assert!(normal < low);
@@ -89,11 +89,11 @@ impl Process for TestProcess {
 
 #[test]
 fn process_equality() {
-    let process1 = TestProcess(ProcessId(0), Priority::LOW, Duration::from_millis(0));
+    let process1 = TestProcess(ProcessId(0), Priority::Low, Duration::from_millis(0));
     let process1: &dyn Process = &process1;
-    let process2 = TestProcess(ProcessId(0), Priority::NORMAL, Duration::from_millis(0));
+    let process2 = TestProcess(ProcessId(0), Priority::Normal, Duration::from_millis(0));
     let process2: &dyn Process = &process2;
-    let process3 = TestProcess(ProcessId(1), Priority::HIGH, Duration::from_millis(0));
+    let process3 = TestProcess(ProcessId(1), Priority::High, Duration::from_millis(0));
     let process3: &dyn Process = &process3;
 
     // Equality is only based on id alone.
@@ -107,11 +107,11 @@ fn process_equality() {
 
 #[test]
 fn process_ordering() {
-    let process1 = TestProcess(ProcessId(0), Priority::NORMAL, Duration::from_millis(10));
+    let process1 = TestProcess(ProcessId(0), Priority::Normal, Duration::from_millis(10));
     let process1: &dyn Process = &process1;
-    let process2 = TestProcess(ProcessId(0), Priority::NORMAL, Duration::from_millis(11));
+    let process2 = TestProcess(ProcessId(0), Priority::Normal, Duration::from_millis(11));
     let process2: &dyn Process = &process2;
-    let process3 = TestProcess(ProcessId(0), Priority::HIGH, Duration::from_millis(10));
+    let process3 = TestProcess(ProcessId(0), Priority::High, Duration::from_millis(10));
     let process3: &dyn Process = &process3;
 
     // Ordering is based only on runtime and priority.
@@ -127,11 +127,11 @@ fn process_ordering() {
     assert_eq!(process3.cmp(process2), Ordering::Greater);
     assert_eq!(process3.cmp(process3), Ordering::Equal);
 
-    let process1 = TestProcess(ProcessId(0), Priority::LOW, Duration::from_millis(0));
+    let process1 = TestProcess(ProcessId(0), Priority::Low, Duration::from_millis(0));
     let process1: &dyn Process = &process1;
-    let process2 = TestProcess(ProcessId(0), Priority::NORMAL, Duration::from_millis(0));
+    let process2 = TestProcess(ProcessId(0), Priority::Normal, Duration::from_millis(0));
     let process2: &dyn Process = &process2;
-    let process3 = TestProcess(ProcessId(0), Priority::HIGH, Duration::from_millis(0));
+    let process3 = TestProcess(ProcessId(0), Priority::High, Duration::from_millis(0));
     let process3: &dyn Process = &process3;
 
     // If all the "fair runtimes" are equal we only compare based on the
@@ -157,12 +157,12 @@ fn actor_process() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, NoSupervisor,
+    let process = ActorProcess::new(ProcessId(0), Priority::Normal, NoSupervisor,
         new_actor, actor, inbox);
     let mut process = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
-    assert_eq!(process.priority(), Priority::NORMAL);
+    assert_eq!(process.priority(), Priority::Normal);
     assert_eq!(process.runtime(), Duration::from_millis(0));
 
     // Actor should return `Poll::Pending` in the first call, since no message
@@ -198,12 +198,12 @@ fn erroneous_actor_process() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL,
+    let process = ActorProcess::new(ProcessId(0), Priority::Normal,
         |_err| SupervisorStrategy::Stop, new_actor, actor, inbox);
     let mut process = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
-    assert_eq!(process.priority(), Priority::NORMAL);
+    assert_eq!(process.priority(), Priority::Normal);
     assert_eq!(process.runtime(), Duration::from_millis(0));
 
     // Actor should return Err.
@@ -228,12 +228,12 @@ fn restarting_erroneous_actor_process() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, supervisor,
+    let process = ActorProcess::new(ProcessId(0), Priority::Normal, supervisor,
         new_actor, actor, inbox);
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
-    assert_eq!(process.priority(), Priority::NORMAL);
+    assert_eq!(process.priority(), Priority::Normal);
     assert_eq!(process.runtime(), Duration::from_millis(0));
 
     // In the first call to run the actor should return an error. Then it should
@@ -270,12 +270,12 @@ fn actor_process_runtime_increase() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, NoSupervisor,
+    let process = ActorProcess::new(ProcessId(0), Priority::Normal, NoSupervisor,
         new_actor, actor, inbox);
     let mut process = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
-    assert_eq!(process.priority(), Priority::NORMAL);
+    assert_eq!(process.priority(), Priority::Normal);
     assert_eq!(process.runtime(), Duration::from_millis(0));
 
     // Runtime must increase after running.
@@ -307,12 +307,12 @@ fn actor_process_assert_actor_unmoved() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, NoSupervisor,
+    let process = ActorProcess::new(ProcessId(0), Priority::Normal, NoSupervisor,
         TestAssertUnmovedNewActor, actor, inbox);
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
-    assert_eq!(process.priority(), Priority::NORMAL);
+    assert_eq!(process.priority(), Priority::Normal);
     assert_eq!(process.runtime(), Duration::from_millis(0));
 
     // All we do is run it a couple of times, it should panic if the actor is

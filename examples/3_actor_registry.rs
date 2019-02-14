@@ -33,7 +33,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     let listener = TcpListener::new(echo_supervisor, actor, ActorOptions::default());
     let address = "127.0.0.1:7890".parse().unwrap();
     system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions {
-        priority: Priority::LOW,
+        priority: Priority::Low,
         .. Default::default()
     })?;
 

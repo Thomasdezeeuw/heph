@@ -1,7 +1,5 @@
-//! Module containing the scheduler `Priority` type.
+//! Module containing the `Priority` type.
 
-use std::cmp::Ordering;
-use std::num::NonZeroU8;
 use std::ops::Mul;
 use std::time::Duration;
 
@@ -17,59 +15,27 @@ use std::time::Duration;
 /// priority.
 ///
 /// [`Poll::Pending`]: std::task::Poll::Pending
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[repr(transparent)]
-pub struct Priority(NonZeroU8);
-
-impl Priority {
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[non_exhaustive]
+pub enum Priority {
     /// Low priority.
     ///
     /// Other actors have priority over this actor.
-    pub const LOW: Priority = Priority(unsafe { NonZeroU8::new_unchecked(15) });
-
+    Low,
     /// Normal priority.
     ///
     /// Most actors should run at this priority, hence its also the default
     /// priority.
-    pub const NORMAL: Priority = Priority(unsafe { NonZeroU8::new_unchecked(10) });
-
+    Normal,
     /// High priority.
     ///
     /// Takes priority over other actors.
-    pub const HIGH: Priority = Priority(unsafe { NonZeroU8::new_unchecked(5) });
+    High,
 }
 
 impl Default for Priority {
     fn default() -> Priority {
-        Priority::NORMAL
-    }
-}
-
-impl Ord for Priority {
-    fn cmp(&self, other: &Self) -> Ordering {
-        other.0.cmp(&self.0)
-    }
-}
-
-impl PartialOrd for Priority {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        other.0.partial_cmp(&self.0)
-    }
-
-    fn lt(&self, other: &Self) -> bool {
-        other.0 < self.0
-    }
-
-    fn le(&self, other: &Self) -> bool {
-        other.0 <= self.0
-    }
-
-    fn gt(&self, other: &Self) -> bool {
-        other.0 > self.0
-    }
-
-    fn ge(&self, other: &Self) -> bool {
-        other.0 >= self.0
+        Priority::Normal
     }
 }
 
@@ -79,6 +45,10 @@ impl Mul<Priority> for Duration {
     type Output = Duration;
 
     fn mul(self, rhs: Priority) -> Duration {
-        self * u32::from(rhs.0.get())
+        self * match rhs {
+            Priority::Low => 15,
+            Priority::Normal => 10,
+            Priority::High => 5,
+        }
     }
 }

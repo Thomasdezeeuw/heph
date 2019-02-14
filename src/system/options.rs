@@ -26,7 +26,7 @@ pub use crate::scheduler::Priority;
 /// use heph::system::options::{ActorOptions, Priority};
 ///
 /// let opts = ActorOptions {
-///     priority: Priority::HIGH,
+///     priority: Priority::High,
 ///     ..Default::default()
 /// };
 ///

@@ -73,7 +73,7 @@ use crate::util::Shared;
 ///         // We advice to give the TCP listener a low priority to prioritise
 ///         // handling of ongoing requests over accepting new requests possibly
 ///         // overloading the system.
-///         priority: Priority::LOW,
+///         priority: Priority::Low,
 ///         .. Default::default()
 ///     })?;
 ///
@@ -131,7 +131,7 @@ use crate::util::Shared;
 ///     let listener = TcpListener::new(conn_supervisor, new_actor, ActorOptions::default());
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     let mut listener_ref = system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions {
-///         priority: Priority::LOW,
+///         priority: Priority::Low,
 ///         .. Default::default()
 ///     })?;
 ///

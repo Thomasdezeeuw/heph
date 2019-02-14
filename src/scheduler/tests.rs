@@ -60,14 +60,14 @@ fn process_state() {
     let mut process_state = ProcessState::Active;
     assert!(process_state.is_active());
 
-    let process = TestProcess::new(ProcessId(0), Priority::NORMAL, ProcessResult::Complete);
+    let process = TestProcess::new(ProcessId(0), Priority::Normal, ProcessResult::Complete);
     process_state.mark_inactive(process);
     assert!(!process_state.is_active());
 
     let process = process_state.mark_active();
     assert!(process_state.is_active());
     assert_eq!(process.id(), ProcessId(0));
-    assert_eq!(process.priority(), Priority::NORMAL);
+    assert_eq!(process.priority(), Priority::Normal);
 }
 
 #[test]
@@ -86,7 +86,7 @@ fn scheduler() {
 
     // Add a process to the scheduler.
     let pid = ProcessId(0);
-    let process = TestProcess::new(pid, Priority::NORMAL, ProcessResult::Complete);
+    let process = TestProcess::new(pid, Priority::Normal, ProcessResult::Complete);
     let process_entry = scheduler_ref.add_process();
     assert_eq!(process_entry.pid(), pid);
     process_entry.add_process(pid, process);
@@ -105,7 +105,7 @@ fn scheduler() {
 
     // Since the previous process was completed it should be removed, which
     // means the pid will be reused.
-    let process = TestProcess::new(pid, Priority::NORMAL, ProcessResult::Pending);
+    let process = TestProcess::new(pid, Priority::Normal, ProcessResult::Pending);
     let process_entry = scheduler_ref.add_process();
     assert_eq!(process_entry.pid(), pid);
     process_entry.add_process(pid, process);
@@ -166,7 +166,7 @@ fn scheduler_run_order() {
     let run_order = Shared::new(Vec::new());
 
     // Add our processes.
-    let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
+    let priorities = [Priority::Low, Priority::Normal, Priority::High];
     for priority in priorities.iter() {
         let process_entry = scheduler_ref.add_process();
         let pid = process_entry.pid();
@@ -207,7 +207,7 @@ fn actor_process() {
     // Add the actor to the scheduler.
     let process_entry = scheduler_ref.add_process();
     let inbox = actor_ref.get_inbox().unwrap();
-    process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor,
+    process_entry.add_actor(Priority::Normal, NoSupervisor, new_actor, actor,
         inbox);
 
     // Schedule and run, should return Pending and become inactive.
@@ -255,7 +255,7 @@ fn assert_actor_unmoved() {
     // Add the actor to the scheduler.
     let process_entry = scheduler_ref.add_process();
     let inbox = actor_ref.get_inbox().unwrap();
-    process_entry.add_actor(Priority::NORMAL, NoSupervisor, TestNewActor,
+    process_entry.add_actor(Priority::Normal, NoSupervisor, TestNewActor,
         actor, inbox);
 
     // Schedule and run the process multiple times, ensure it's not moved in the

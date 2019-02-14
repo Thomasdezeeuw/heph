@@ -49,7 +49,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
         // We'll give our listener a low priority to prioritise handling of
         // ongoing requests over accepting new requests possibly overloading the
         // system.
-        priority: Priority::LOW,
+        priority: Priority::Low,
         .. Default::default()
     })?;
 
