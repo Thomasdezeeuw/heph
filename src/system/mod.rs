@@ -225,16 +225,14 @@ impl<S> ActorSystem<S>
         // ideal situation.
         for handle in handles {
             handle.join()
-                .map_err(|err| {
-                    let msg = match err.downcast_ref::<&'static str>() {
-                        Some(s) => (*s).to_owned(),
-                        None => match err.downcast_ref::<String>() {
-                            Some(s) => s.clone(),
-                            None => "unkown panic message".to_owned(),
-                        },
-                    };
-                    RuntimeError::panic(msg)
+                .map_err(|err| match err.downcast_ref::<&'static str>() {
+                    Some(s) => (*s).to_owned(),
+                    None => match err.downcast_ref::<String>() {
+                        Some(s) => s.clone(),
+                        None => "unkown panic message".to_owned(),
+                    },
                 })
+                .map_err(RuntimeError::panic)
                 .and_then(|res| res)?;
         }
 
