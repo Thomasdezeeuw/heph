@@ -238,7 +238,7 @@ impl<M, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor for fn(ctx: Context<M>, arg1: 
 /// Effectively an `Actor` is a [`Future`] which returns a `Result<(), Error>`,
 /// where `Error` is defined on the trait. That is why there is a blanket
 /// implementation for all `Future`s with a `Result<(), Error>` as `Output`
-/// type.
+/// type. There is also a blanket statement for `Future`s that return `()`.
 ///
 /// The easiest way to implement this by using an async function, see the
 /// [module level] documentation.
@@ -272,12 +272,51 @@ pub trait Actor {
     fn try_poll(self: Pin<&mut Self>, waker: &Waker) -> Poll<Result<(), Self::Error>>;
 }
 
-impl<Fut, E> Actor for Fut
-    where Fut: Future<Output = Result<(), E>>
+impl<Fut, O, E> Actor for Fut
+    where Fut: Future<Output = O>,
+          O: IntoResult<Error = E>,
 {
     type Error = E;
 
     fn try_poll(self: Pin<&mut Self>, waker: &Waker) -> Poll<Result<(), Self::Error>> {
-        self.poll(waker)
+        self.poll(waker).map(IntoResult::into_result)
+    }
+}
+
+use private::Private;
+
+/// This trait is an implementation detail to allow [`Actor`] to be implemented
+/// for [`Future`]s that return `()` and `Result<(), E>`.
+///
+/// This will be removed in the future if
+/// https://github.com/rust-lang/rfcs/pull/1672, or something like it is
+/// implemented.
+#[doc(hidden)]
+pub trait IntoResult: Private {
+    type Error;
+
+    fn into_result(self) -> Result<(), Self::Error>;
+}
+
+mod private {
+    pub trait Private { }
+
+    impl<E> Private for Result<(), E> { }
+    impl Private for () { }
+}
+
+impl<E> IntoResult for Result<(), E> {
+    type Error = E;
+
+    fn into_result(self) -> Result<(), E> {
+        self
+    }
+}
+
+impl IntoResult for () {
+    type Error = !;
+
+    fn into_result(self) -> Result<(), !> {
+        Ok(self)
     }
 }

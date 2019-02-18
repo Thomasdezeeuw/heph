@@ -62,7 +62,7 @@ use crate::actor::{Actor, Context, NewActor};
 use crate::actor_ref::{ActorRef, Local};
 use crate::mailbox::MailBox;
 use crate::scheduler::{ProcessId, Scheduler, SchedulerRef};
-use crate::supervisor::Supervisor;
+use crate::supervisor::{Supervisor, NoSupervisor};
 use crate::util::Shared;
 
 mod error;
@@ -460,6 +460,20 @@ impl ActorSystemRef {
               NA::Actor: 'static,
     {
         self.try_spawn_setup(supervisor, new_actor, |_, _| Ok(arg), options)
+            .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
+    }
+
+    /// Spawn an actor that doesn't return an error.
+    ///
+    /// This is a convenience method for `NewActor` and `Actor` implementations
+    /// that never return an error.
+    ///
+    /// See [`ActorSystemRef::try_spawn`] for more information.
+    pub fn spawn_unsupervised<NA>(&mut self, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> ActorRef<NA::Message>
+        where NA: NewActor<Error = !> + 'static,
+              NA::Actor: Actor<Error = !> + 'static,
+    {
+        self.try_spawn_setup(NoSupervisor, new_actor, |_, _| Ok(arg), options)
             .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
     }
 

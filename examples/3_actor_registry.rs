@@ -9,7 +9,7 @@ use futures_util::{AsyncReadExt, TryFutureExt};
 use heph::actor::Context;
 use heph::log::{self, error, info};
 use heph::net::{TcpListener, TcpListenerError, TcpStream};
-use heph::supervisor::{NoSupervisor, SupervisorStrategy};
+use heph::supervisor::SupervisorStrategy;
 use heph::system::options::Priority;
 use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 
@@ -39,7 +39,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // In this example we'll use the Actor Registry. This also actors to be
     // lookup dynamically at runtime, see the `echo_actor` for an example of
     // that.
-    system_ref.spawn(NoSupervisor, count_actor as fn(_) -> _, (), ActorOptions {
+    system_ref.spawn_unsupervised(count_actor as fn(_) -> _, (), ActorOptions {
         // To add the actor to the Actor Registry we simply set the `register`
         // option. This registers the actor in the Actor Registry and allows it
         // to be looked up, see the `echo_actor` below.
@@ -67,7 +67,7 @@ struct Add;
 /// that if you run this example it could display a total count of 1 twice. This
 /// means that thread 1 handled the first request and thread 2 handled the
 /// second, be careful of this when implementing a counter this way.
-async fn count_actor(mut ctx: Context<Add>) -> Result<(), !> {
+async fn count_actor(mut ctx: Context<Add>) {
     let mut total = 0;
     loop {
         let _msg = await!(ctx.receive_next());

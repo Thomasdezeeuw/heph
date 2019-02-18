@@ -1,7 +1,6 @@
 #![feature(async_await, await_macro, futures_api, never_type)]
 
 use heph::actor::Context;
-use heph::supervisor::NoSupervisor;
 use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 
 // The creation and running of the actor system is the same as in example 1.
@@ -21,7 +20,7 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
     // that don't have any (initial) external wakers, for example our
     // `greeter_actor`.
     let actor = greeter_actor as fn(_) -> _;
-    system_ref.spawn(NoSupervisor, actor, (), ActorOptions {
+    system_ref.spawn_unsupervised(actor, (), ActorOptions {
         schedule: true,
         .. ActorOptions::default()
     });
@@ -32,7 +31,6 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
 /// Our greeter actor.
 ///
 /// Note: this needs the `schedule` options when adding it to the actor system.
-async fn greeter_actor(_: Context<!>) -> Result<(), !> {
+async fn greeter_actor(_: Context<!>)  {
     println!("Hello World");
-    Ok(())
 }

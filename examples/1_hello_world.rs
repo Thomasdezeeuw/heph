@@ -1,7 +1,6 @@
 #![feature(async_await, await_macro, futures_api, never_type)]
 
 use heph::actor::Context;
-use heph::supervisor::NoSupervisor;
 use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 
 fn main() -> Result<(), RuntimeError> {
@@ -26,7 +25,7 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
     // We'll use the default actor options here, other examples expand on the
     // options available.
     let actor = greeter_actor as fn(_) -> _;
-    let mut actor_ref = system_ref.spawn(NoSupervisor, actor, (), ActorOptions::default());
+    let mut actor_ref = system_ref.spawn_unsupervised(actor, (), ActorOptions::default());
 
     // By default actors don't do anything when added to the actor system. We
     // need to wake them, for example by sending them a message. If we didn't
@@ -44,10 +43,9 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
 /// Our greeter actor.
 ///
 /// We'll receive a single message and print it.
-async fn greeter_actor(mut ctx: Context<&'static str>) -> Result<(), !> {
+async fn greeter_actor(mut ctx: Context<&'static str>) {
     // All actors have an actor context, which give the actor access to its
     // inbox, from which we can `receive` a message.
     let name = await!(ctx.receive_next());
     println!("Hello {}", name);
-    Ok(())
 }
