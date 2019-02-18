@@ -11,7 +11,7 @@ use crate::scheduler::ProcessId;
 use crate::system::ActorSystemRef;
 use crate::util::Shared;
 
-pub use crate::mailbox::{First, MessageSelection, Messages, MessageSelector, Priority};
+use crate::mailbox::{First, MessageSelector};
 
 /// The context in which an actor is executed.
 ///
