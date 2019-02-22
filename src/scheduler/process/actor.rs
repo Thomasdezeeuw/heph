@@ -2,7 +2,7 @@
 
 use std::fmt;
 use std::pin::Pin;
-use std::task::{LocalWaker, Poll};
+use std::task::{Waker, Poll};
 use std::time::{Duration, Instant};
 
 use log::{error, trace};
@@ -26,14 +26,14 @@ pub struct ActorProcess<S, NA: NewActor> {
     /// is restarted.
     inbox: Shared<MailBox<NA::Message>>,
     /// Waker used in the futures context.
-    waker: LocalWaker,
+    waker: Waker,
 }
 
 impl<S, NA: NewActor> ActorProcess<S, NA> {
     /// Create a new `ActorProcess`.
     pub(crate) const fn new(id: ProcessId, priority: Priority, supervisor: S,
         new_actor: NA, actor: NA::Actor, inbox: Shared<MailBox<NA::Message>>,
-        waker: LocalWaker
+        waker: Waker
     ) -> ActorProcess<S, NA> {
         ActorProcess {
             id,

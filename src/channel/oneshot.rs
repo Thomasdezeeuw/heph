@@ -77,7 +77,7 @@
 use std::future::Future;
 use std::marker::Unpin;
 use std::pin::Pin;
-use std::task::{LocalWaker, Poll};
+use std::task::{Waker, Poll};
 
 use crate::channel::{NoReceiver, NoValue};
 use crate::util::Shared;
@@ -126,7 +126,7 @@ pub struct Receiver<T> {
 impl<T: Unpin> Future for Receiver<T> {
     type Output = Result<T, NoValue>;
 
-    fn poll(self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, lw: &Waker) -> Poll<Self::Output> {
         let this = Pin::get_mut(self);
         if let Some(value) = this.inner.borrow_mut().value.take() {
             return Poll::Ready(Ok(value));
@@ -148,7 +148,7 @@ struct ChannelInner<T> {
     value: Option<T>,
     /// Waker possibly set by calling `Receiver.poll` and awoken by
     /// `Sender.send`, if set.
-    waker: Option<LocalWaker>,
+    waker: Option<Waker>,
 }
 
 /// Creates a new asynchronous one shot channel, returning the sending and

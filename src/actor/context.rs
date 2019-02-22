@@ -3,7 +3,7 @@
 use std::future::Future;
 use std::ops::DerefMut;
 use std::pin::Pin;
-use std::task::{LocalWaker, Poll};
+use std::task::{Waker, Poll};
 
 use crate::actor_ref::{ActorRef, Local};
 use crate::mailbox::MailBox;
@@ -245,7 +245,7 @@ impl<'ctx, M, S> Future for ReceiveMessage<'ctx, M, S>
 {
     type Output = M;
 
-    fn poll(mut self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
         let ReceiveMessage {
             ref mut inbox,
             ref mut selector,

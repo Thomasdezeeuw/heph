@@ -4,7 +4,7 @@ use std::fmt;
 use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::pin::Pin;
-use std::task::{LocalWaker, Poll};
+use std::task::{Waker, Poll};
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
 use log::debug;
@@ -220,7 +220,7 @@ impl<S, NA> Actor for TcpListener<S, NA>
 {
     type Error = TcpListenerError<NA::Error>;
 
-    fn try_poll(self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Result<(), Self::Error>> {
+    fn try_poll(self: Pin<&mut Self>, _waker: &Waker) -> Poll<Result<(), Self::Error>> {
         // This is safe because only the `ActorSystemRef`, `MioTcpListener` and
         // the `MailBox` are mutably borrowed and all are `Unpin`.
         let &mut TcpListener {
@@ -407,7 +407,7 @@ impl TcpStream {
     /// connected, without removing that data from the queue. On success,
     /// returns the number of bytes peeked. Successive calls return the same
     /// data.
-    pub fn poll_peek(&mut self, _waker: &LocalWaker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    pub fn poll_peek(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         try_io!(self.inner.peek(buf))
     }
 
@@ -435,21 +435,21 @@ impl AsyncRead for TcpStream {
         Initializer::nop()
     }
 
-    fn poll_read(&mut self, _waker: &LocalWaker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         try_io!(self.inner.read(buf))
     }
 }
 
 impl AsyncWrite for TcpStream {
-    fn poll_write(&mut self, _waker: &LocalWaker, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(&mut self, _waker: &Waker, buf: &[u8]) -> Poll<io::Result<usize>> {
         try_io!(self.inner.write(buf))
     }
 
-    fn poll_flush(&mut self, _waker: &LocalWaker) -> Poll<io::Result<()>> {
+    fn poll_flush(&mut self, _waker: &Waker) -> Poll<io::Result<()>> {
         try_io!(self.inner.flush())
     }
 
-    fn poll_close(&mut self, waker: &LocalWaker) -> Poll<io::Result<()>> {
+    fn poll_close(&mut self, waker: &Waker) -> Poll<io::Result<()>> {
         self.poll_flush(waker)
     }
 }

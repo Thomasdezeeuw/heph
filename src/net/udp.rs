@@ -2,7 +2,7 @@
 
 use std::io;
 use std::net::SocketAddr;
-use std::task::{LocalWaker, Poll};
+use std::task::{Waker, Poll};
 
 use mio_st::net::{ConnectedUdpSocket as MioConnectedUdpSocket, UdpSocket as MioUdpSocket};
 use mio_st::poll::PollOption;
@@ -40,19 +40,19 @@ impl ConnectedUdpSocket {
 
     /// Sends data on the socket to the connected socket. On success, returns
     /// the number of bytes written.
-    pub fn poll_send(&mut self, _waker: &LocalWaker, buf: &[u8]) -> Poll<io::Result<usize>> {
+    pub fn poll_send(&mut self, _waker: &Waker, buf: &[u8]) -> Poll<io::Result<usize>> {
         try_io!(self.socket.send(buf))
     }
 
     /// Receives data from the socket. On success, returns the number of bytes
     /// read.
-    pub fn poll_recv(&mut self, _waker: &LocalWaker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    pub fn poll_recv(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         try_io!(self.socket.recv(buf))
     }
 
     /// Receives data from the socket, without removing it from the input queue.
     /// On success, returns the number of bytes read.
-    pub fn poll_peek(&mut self, _waker: &LocalWaker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    pub fn poll_peek(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         try_io!(self.socket.peek(buf))
     }
 
@@ -102,20 +102,20 @@ impl UdpSocket {
 
     /// Sends data to the given `target` address. On success, returns the number
     /// of bytes written.
-    pub fn poll_send_to(&mut self, _waker: &LocalWaker, buf: &[u8], target: SocketAddr) -> Poll<io::Result<usize>> {
+    pub fn poll_send_to(&mut self, _waker: &Waker, buf: &[u8], target: SocketAddr) -> Poll<io::Result<usize>> {
         try_io!(self.socket.send_to(buf, target))
     }
 
     /// Receives data from the socket. On success, returns the number of bytes
     /// read and the address from whence the data came.
-    pub fn poll_recv_from(&mut self, _waker: &LocalWaker, buf: &mut [u8]) -> Poll<io::Result<(usize, SocketAddr)>> {
+    pub fn poll_recv_from(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<(usize, SocketAddr)>> {
         try_io!(self.socket.recv_from(buf))
     }
 
     /// Receives data from the socket, without removing it from the input queue.
     /// On success, returns the number of bytes read and the address from whence
     /// the data came.
-    pub fn poll_peek_from(&mut self, _waker: &LocalWaker, buf: &mut [u8]) -> Poll<io::Result<(usize, SocketAddr)>> {
+    pub fn poll_peek_from(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<(usize, SocketAddr)>> {
         try_io!(self.socket.peek_from(buf))
     }
 

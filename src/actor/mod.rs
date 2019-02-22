@@ -37,7 +37,7 @@
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{LocalWaker, Poll};
+use std::task::{Waker, Poll};
 
 mod context;
 
@@ -269,7 +269,7 @@ pub trait Actor {
     ///
     /// Just like with [`Future`]s polling after it returned [`Poll::Ready`] may
     /// cause undefined behaviour, including but not limited to panicking.
-    fn try_poll(self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Result<(), Self::Error>>;
+    fn try_poll(self: Pin<&mut Self>, waker: &Waker) -> Poll<Result<(), Self::Error>>;
 }
 
 impl<Fut, E> Actor for Fut
@@ -277,7 +277,7 @@ impl<Fut, E> Actor for Fut
 {
     type Error = E;
 
-    fn try_poll(self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Result<(), Self::Error>> {
+    fn try_poll(self: Pin<&mut Self>, waker: &Waker) -> Poll<Result<(), Self::Error>> {
         self.poll(waker)
     }
 }

@@ -14,7 +14,7 @@
 
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{LocalWaker, Poll};
+use std::task::{Waker, Poll};
 use std::time::{Duration, Instant};
 
 use futures_core::stream::{FusedStream, Stream};
@@ -86,7 +86,7 @@ impl Timer {
 impl Future for Timer {
     type Output = DeadlinePassed;
 
-    fn poll(self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
         if self.deadline <= Instant::now() {
             Poll::Ready(DeadlinePassed)
         } else {
@@ -110,7 +110,7 @@ impl Future for Timer {
 ///
 /// # use std::future::Future;
 /// # use std::pin::Pin;
-/// # use std::task::{LocalWaker, Poll};
+/// # use std::task::{Waker, Poll};
 /// use std::time::Duration;
 ///
 /// use heph::actor::Context;
@@ -120,7 +120,7 @@ impl Future for Timer {
 /// #
 /// # impl Future for OtherFuture {
 /// #     type Output = ();
-/// #     fn poll(self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Self::Output> {
+/// #     fn poll(self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
 /// #         Poll::Pending
 /// #     }
 /// # }
@@ -176,7 +176,7 @@ impl<Fut> Future for Deadline<Fut>
 {
     type Output = Result<Fut::Output, DeadlinePassed>;
 
-    fn poll(self: Pin<&mut Self>, waker: &LocalWaker) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, waker: &Waker) -> Poll<Self::Output> {
         if self.deadline <= Instant::now() {
             Poll::Ready(Err(DeadlinePassed))
         } else {
@@ -261,7 +261,7 @@ impl Interval {
 impl Stream for Interval {
     type Item = DeadlinePassed;
 
-    fn poll_next(self: Pin<&mut Self>, _waker: &LocalWaker) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, _waker: &Waker) -> Poll<Option<Self::Item>> {
         if self.deadline <= Instant::now() {
             // Determine the next deadline.
             let next_deadline = Instant::now() + self.interval;
