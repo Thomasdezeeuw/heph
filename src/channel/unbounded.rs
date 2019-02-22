@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::future::Future;
 use std::marker::Unpin;
 use std::pin::Pin;
-use std::task::{LocalWaker, Poll};
+use std::task::{Waker, Poll};
 
 use futures_core::stream::Stream;
 
@@ -79,7 +79,7 @@ impl<T> Receiver<T> {
 impl<T: Unpin> Stream for Receiver<T> {
     type Item = T;
 
-    fn poll_next(self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, lw: &Waker) -> Poll<Option<Self::Item>> {
         let this = Pin::get_mut(self);
         match this.try_receive() {
             Ok(Some(value)) => Poll::Ready(Some(value)),
@@ -103,7 +103,7 @@ pub struct ReceiveOne<'r, T> {
 impl<'r, T: Unpin> Future for ReceiveOne<'r, T> {
     type Output = Result<T, NoValue>;
 
-    fn poll(self: Pin<&mut Self>, lw: &LocalWaker) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, lw: &Waker) -> Poll<Self::Output> {
         let this = Pin::get_mut(self);
         match this.inner.try_receive() {
             Ok(Some(value)) => Poll::Ready(Ok(value)),
@@ -122,7 +122,7 @@ struct ChannelInner<T> {
     values: VecDeque<T>,
     /// Waker set by calling `Receiver.poll_next` or `ReceiveOne.poll` and
     /// awoken by `Sender.send`, if set.
-    waker: Option<LocalWaker>,
+    waker: Option<Waker>,
 }
 
 /// Creates a new asynchronous unbounded channel, returning the sending and
