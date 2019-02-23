@@ -189,7 +189,7 @@ impl<M> ActorRef<M, Local> {
         };
 
         let waker = system_ref.new_waker(pid);
-        Ok(ActorRef::<M, Machine>::new(sender, waker.into()))
+        Ok(ActorRef::<M, Machine>::new(sender, waker))
     }
 }
 

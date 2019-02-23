@@ -119,12 +119,12 @@ impl WakerData {
     }
 
     /// Get the thread id of from the waker data.
-    fn waker_id(&self) -> WakerId {
+    fn waker_id(self) -> WakerId {
         WakerId((self.0 >> (WAKER_DATA_BITS - THREAD_ID_BITS)) as u16)
     }
 
     /// Get the process id from the waker data.
-    fn pid(&self) -> ProcessId {
+    fn pid(self) -> ProcessId {
         ProcessId((self.0 << THREAD_ID_BITS) >> THREAD_ID_BITS)
     }
 
@@ -147,7 +147,7 @@ impl WakerData {
 /// Virtual table used by the `Waker` implementation.
 static WAKER_VTABLE: &RawWakerVTable = &RawWakerVTable {
     clone: clone_wake_data,
-    wake: wake,
+    wake,
     drop: drop_wake_data,
 };
 
