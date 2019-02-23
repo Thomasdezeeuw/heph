@@ -1,6 +1,6 @@
 //! This is just a memory stress test of the system.
 //!
-//! Currently using 10 million "actors" this test uses 2.19 GB.
+//! Currently using 10 million "actors" this test uses 1.89 GB.
 
 #![feature(async_await, futures_api, never_type)]
 
