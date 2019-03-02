@@ -68,10 +68,8 @@ impl<M> fmt::Debug for LocalData<M> {
 
 impl<M> ActorRef<M, Local> {
     /// Create a new `ActorRef` with a shared mailbox.
-    pub(crate) const fn new(inbox: WeakShared<MailBox<M>>) -> ActorRef<M, Local> {
-        ActorRef {
-            data: LocalData { inbox },
-        }
+    pub(crate) const fn new_local(inbox: WeakShared<MailBox<M>>) -> ActorRef<M, Local> {
+        ActorRef::new(LocalData { inbox })
     }
 
     /// Get access to the internal inbox, used in testing.

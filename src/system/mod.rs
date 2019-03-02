@@ -57,7 +57,7 @@ use mio_st::poll::{Awakener, Interests, PollOption, Poller};
 use num_cpus;
 
 use crate::actor::{Actor, Context, NewActor};
-use crate::actor_ref::{ActorRef, Local};
+use crate::actor_ref::ActorRef;
 use crate::mailbox::MailBox;
 use crate::scheduler::{ProcessId, Scheduler, SchedulerRef};
 use crate::supervisor::Supervisor;
@@ -516,7 +516,7 @@ impl ActorSystemRef {
 
         // Create our actor context and our actor with it.
         let mailbox = Shared::new(MailBox::new(pid, self.clone()));
-        let actor_ref = ActorRef::<NA::Message, Local>::new(mailbox.downgrade());
+        let actor_ref = ActorRef::new_local(mailbox.downgrade());
         let ctx = Context::new(pid, system_ref, mailbox.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 

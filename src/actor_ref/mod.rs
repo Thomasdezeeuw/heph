@@ -145,6 +145,17 @@ pub struct ActorRef<M, T: ActorRefType<M> = Local> {
     data: T::Data,
 }
 
+impl<M, T> ActorRef<M, T>
+    where T: ActorRefType<M>,
+{
+    /// Create a new `ActorRef` with the required data.
+    pub(crate) const fn new(data: T::Data) -> ActorRef<M, T> {
+        ActorRef {
+            data,
+        }
+    }
+}
+
 /// Trait that defines the type of actor reference.
 ///
 /// This trait allows for different types of actor reference to use the same
@@ -189,7 +200,7 @@ impl<M> ActorRef<M, Local> {
         };
 
         let waker = system_ref.new_waker(pid);
-        Ok(ActorRef::<M, Machine>::new(sender, waker))
+        Ok(ActorRef::new_machine(sender, waker))
     }
 }
 
