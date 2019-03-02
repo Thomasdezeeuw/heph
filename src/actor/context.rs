@@ -5,7 +5,7 @@ use std::ops::DerefMut;
 use std::pin::Pin;
 use std::task::{Waker, Poll};
 
-use crate::actor_ref::{ActorRef, Local};
+use crate::actor_ref::ActorRef;
 use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
 use crate::system::ActorSystemRef;
@@ -216,7 +216,7 @@ impl<M> Context<M> {
 
     /// Returns a reference to this actor.
     pub fn actor_ref(&mut self) -> ActorRef<M> {
-        ActorRef::<M, Local>::new(self.inbox.downgrade())
+        ActorRef::new_local(self.inbox.downgrade())
     }
 
     /// Get a reference to the actor system this actor is running in.
