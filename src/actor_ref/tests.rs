@@ -8,8 +8,6 @@ use crate::scheduler::ProcessId;
 use crate::test;
 use crate::util::Shared;
 
-type LocalActorRef<M> = ActorRef<M, Local>;
-
 // FIXME: add a test that local actor reference is !Send and !Sync. Below
 // doesn't work. :(
 //fn assert_not_send<T: !Send + !Sync>(_: &T) {}
@@ -29,7 +27,7 @@ fn local_actor_ref() {
     assert_eq!(mailbox.borrow_mut().receive_next(), None);
 
     // Create our actor reference.
-    let mut actor_ref = LocalActorRef::new_local(mailbox.downgrade());
+    let mut actor_ref = ActorRef::new_local(mailbox.downgrade());
 
     // Send a message.
     actor_ref.send(1).unwrap();
@@ -51,7 +49,7 @@ fn local_actor_ref() {
     // Should be able to compare references.
     assert_eq!(actor_ref, actor_ref2);
     let mailbox2 = Shared::new(MailBox::new(pid, system_ref));
-    let actor_ref3 = LocalActorRef::new_local(mailbox2.downgrade());
+    let actor_ref3 = ActorRef::new_local(mailbox2.downgrade());
     assert_ne!(actor_ref, actor_ref3);
     assert_ne!(actor_ref2, actor_ref3);
     assert_eq!(actor_ref3, actor_ref3);
@@ -77,7 +75,7 @@ fn machine_local_actor_ref() {
     assert_eq!(mailbox.borrow_mut().receive_next(), None);
 
     // Create our actor reference.
-    let mut actor_ref = LocalActorRef::new_local(mailbox.downgrade())
+    let mut actor_ref = ActorRef::new_local(mailbox.downgrade())
         .upgrade(&mut system_ref).unwrap();
 
     // Sending a message.
@@ -96,7 +94,7 @@ fn machine_local_actor_ref() {
     assert_eq!(actor_ref, actor_ref2);
 
     let mailbox2 = Shared::new(MailBox::new(pid, system_ref.clone()));
-    let actor_ref3 = LocalActorRef::new_local(mailbox2.downgrade())
+    let actor_ref3 = ActorRef::new_local(mailbox2.downgrade())
         .upgrade(&mut system_ref).unwrap();
     assert_ne!(actor_ref, actor_ref3);
     assert_ne!(actor_ref2, actor_ref3);
@@ -110,7 +108,7 @@ fn machine_local_actor_ref() {
 
     // After the mailbox is dropped the local reference should return an error
     // when trying to upgrade.
-    let local_actor_ref = LocalActorRef::new_local(mailbox.downgrade());
+    let local_actor_ref = ActorRef::new_local(mailbox.downgrade());
     drop(mailbox);
     assert_eq!(local_actor_ref.upgrade(&mut system_ref).unwrap_err(), ActorShutdown);
 }
@@ -124,7 +122,7 @@ fn local_and_machine_actor_ref() {
     assert_eq!(mailbox.borrow_mut().receive_next(), None);
 
     // Create our actor reference.
-    let mut local_actor_ref = LocalActorRef::new_local(mailbox.downgrade());
+    let mut local_actor_ref = ActorRef::new_local(mailbox.downgrade());
     let mut machine_actor_ref = local_actor_ref.clone().upgrade(&mut system_ref).unwrap();
 
     // Send a number messages via both the local and machine references.
