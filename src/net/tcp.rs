@@ -8,9 +8,8 @@ use std::task::{Waker, Poll};
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
 use log::debug;
-
 use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
-use mio_st::poll::PollOption;
+use mio_st::os::RegisterOption;
 
 use crate::actor::messages::Terminate;
 use crate::actor::{self, Actor, NewActor};
@@ -251,8 +250,8 @@ impl<S, NA> Actor for TcpListener<S, NA>
             debug!("accepted connection from: {}", addr);
 
             let res = system_ref.try_spawn_setup(supervisor.clone(), new_actor.clone(), |pid, system_ref| {
-                system_ref.poller_register(&mut stream, pid.into(),
-                    MioTcpStream::INTERESTS, PollOption::Edge)?;
+                system_ref.register(&mut stream, pid.into(),
+                    MioTcpStream::INTERESTS, RegisterOption::EDGE)?;
 
                 // Wrap the raw stream with our wrapper.
                 let stream = TcpStream { inner: stream };
@@ -342,7 +341,8 @@ impl<S, NA> NewActor for NewTcpListener<S, NA>
     fn new(&mut self, mut ctx: actor::Context<Self::Message>, address: Self::Argument) -> Result<Self::Actor, Self::Error> {
         let mut system_ref = ctx.system_ref().clone();
         let mut listener = MioTcpListener::bind(address)?;
-        system_ref.poller_register(&mut listener, ctx.pid().into(), MioTcpListener::INTERESTS, PollOption::Edge)?;
+        system_ref.register(&mut listener, ctx.pid().into(),
+            MioTcpListener::INTERESTS, RegisterOption::EDGE)?;
 
         Ok(TcpListener {
             system_ref,
@@ -368,8 +368,8 @@ impl TcpStream {
     pub fn connect<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpStream> {
         let mut stream = MioTcpStream::connect(address)?;
         let pid = ctx.pid();
-        ctx.system_ref().poller_register(&mut stream, pid.into(),
-            MioTcpStream::INTERESTS, PollOption::Edge)?;
+        ctx.system_ref().register(&mut stream, pid.into(),
+            MioTcpStream::INTERESTS, RegisterOption::EDGE)?;
         Ok(TcpStream { inner: stream })
     }
 
@@ -459,7 +459,7 @@ impl actor::Bound for TcpStream {
 
     fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
-        ctx.system_ref().poller_register(&mut self.inner, pid.into(),
-            MioTcpStream::INTERESTS, PollOption::Edge)
+        ctx.system_ref().reregister(&mut self.socket, pid.into(),
+            MioTcpStream::INTERESTS, RegisterOption::EDGE)
     }
 }

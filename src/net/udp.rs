@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use std::task::{Waker, Poll};
 
 use mio_st::net::{ConnectedUdpSocket as MioConnectedUdpSocket, UdpSocket as MioUdpSocket};
-use mio_st::poll::PollOption;
+use mio_st::os::RegisterOption;
 
 use crate::actor;
 use crate::net::{interrupted, would_block};
@@ -20,16 +20,13 @@ pub struct ConnectedUdpSocket {
     socket: MioConnectedUdpSocket,
 }
 
-impl ConnectedUdpSocket {
-    /// Connect to a `remote` address, binding to the `local` address.
-    ///
-    /// This method first binds a UDP socket to the `local` address, then
-    /// connects that socket to `remote` address.
-    pub fn connect<M>(ctx: &mut actor::Context<M>, local: SocketAddr, remote: SocketAddr) -> io::Result<ConnectedUdpSocket> {
-        let mut socket = MioConnectedUdpSocket::connect(local, remote)?;
+impl UdpSocket {
+    /// Create a UDP socket binding to the `local` address.
+    pub fn bind<M>(ctx: &mut actor::Context<M>, local: SocketAddr) -> io::Result<UdpSocket<Unconnected>> {
+        let mut socket = MioUdpSocket::bind(local)?;
         let pid = ctx.pid();
-        ctx.system_ref().poller_register(&mut socket, pid.into(),
-            MioConnectedUdpSocket::INTERESTS, PollOption::Edge)?;
+        ctx.system_ref().register(&mut socket, pid.into(),
+            MioConnectedUdpSocket::INTERESTS, RegisterOption::EDGE)?;
         Ok(ConnectedUdpSocket { socket })
     }
 
@@ -93,8 +90,8 @@ impl UdpSocket {
     pub fn bind<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<UdpSocket> {
         let mut socket = MioUdpSocket::bind(address)?;
         let pid = ctx.pid();
-        ctx.system_ref().poller_register(&mut socket, pid.into(),
-            MioUdpSocket::INTERESTS, PollOption::Edge)?;
+        ctx.system_ref().register(&mut socket, pid.into(),
+            MioUdpSocket::INTERESTS, RegisterOption::EDGE)?;
         Ok(UdpSocket { socket })
     }
 
@@ -144,7 +141,7 @@ impl actor::Bound for UdpSocket {
 
     fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
-        ctx.system_ref().poller_reregister(&mut self.socket, pid.into(),
-            MioUdpSocket::INTERESTS, PollOption::Edge)
+        ctx.system_ref().reregister(&mut self.socket, pid.into(),
+            MioUdpSocket::INTERESTS, RegisterOption::EDGE)
     }
 }

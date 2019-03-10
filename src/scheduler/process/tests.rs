@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{empty, Empty};
-use mio_st::event::EventedId;
+use mio_st::event;
 
 use crate::actor::{Context, NewActor};
 use crate::scheduler::process::{ActorProcess, Priority, Process, ProcessId, ProcessResult};
@@ -35,10 +35,10 @@ fn pid() {
 #[test]
 fn pid_and_evented_id() {
     let pid = ProcessId(0);
-    let id: EventedId = pid.into();
-    assert_eq!(id, EventedId(0));
+    let id: event::Id = pid.into();
+    assert_eq!(id, event::Id(0));
 
-    let id = EventedId(0);
+    let id = event::Id(0);
     let pid: ProcessId = id.into();
     assert_eq!(pid, ProcessId(0));
 }

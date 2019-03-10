@@ -45,6 +45,7 @@
 //! [`lookup_actor`]: ActorSystemRef::lookup_actor
 
 use std::cell::RefCell;
+use std::ops::DerefMut;
 use std::rc::Rc;
 use std::task::Waker;
 use std::time::Instant;
@@ -52,8 +53,8 @@ use std::{fmt, io, thread};
 
 use crossbeam_channel::{self as channel, Receiver};
 use log::{debug, trace};
-use mio_st::event::{Evented, EventedId, Events, Ready};
-use mio_st::poll::{Awakener, Interests, PollOption, Poller};
+use mio_st::os::{Awakener, Evented, Interests, RegisterOption, OsQueue};
+use mio_st::{event, Event, Ready, Timers, Queue, poll};
 use num_cpus;
 
 use crate::actor::{Actor, Context, NewActor};
@@ -342,7 +343,7 @@ pub(crate) struct RunningActorSystem {
 const RUN_POLL_RATIO: usize = 32;
 
 /// Id used for the awakener.
-const AWAKENER_ID: EventedId = EventedId(usize::max_value());
+const AWAKENER_ID: event::Id = event::Id(usize::max_value());
 
 impl RunningActorSystem {
     /// Create a new running actor system.
@@ -351,9 +352,9 @@ impl RunningActorSystem {
         let (waker_sender, waker_recv) = channel::unbounded();
         // Scheduler for scheduling and running processes.
         let (scheduler, scheduler_ref) = Scheduler::new();
-        // System poller for event notifications.
-        let mut poller = Poller::new().map_err(RuntimeError::poll)?;
-        let awakener = Awakener::new(&mut poller, AWAKENER_ID)
+        // System queue for event notifications.
+        let mut os_queue = OsQueue::new().map_err(RuntimeError::poll)?;
+        let awakener = Awakener::new(&mut os_queue, AWAKENER_ID)
             .map_err(RuntimeError::poll)?;
 
         let waker_id = init_waker(awakener, waker_sender);
@@ -362,7 +363,9 @@ impl RunningActorSystem {
         let internal = ActorSystemInternal {
             waker_id,
             scheduler_ref: RefCell::new(scheduler_ref),
-            poller: RefCell::new(poller),
+            os_queue: RefCell::new(os_queue),
+            timers: RefCell::new(Timers::new()),
+            queue: RefCell::new(Queue::new()),
             registry: RefCell::new(ActorRegistry::new()),
         };
 
@@ -385,13 +388,11 @@ impl RunningActorSystem {
     pub fn run_event_loop<E>(mut self) -> Result<(), RuntimeError<E>> {
         debug!("running actor system's event loop");
 
-        // Empty set of events, to be filled by the system poller.
-        let mut events = Events::new();
         // System reference used in running the processes.
         let mut system_ref = self.create_ref();
 
         loop {
-            self.schedule_processes(&mut events)?;
+            self.schedule_processes()?;
 
             for _ in 0 .. RUN_POLL_RATIO {
                 if !self.scheduler.run_process(&mut system_ref) {
@@ -410,24 +411,20 @@ impl RunningActorSystem {
 
     /// Schedule processes.
     ///
-    /// This polls the system poller and the waker notifications and schedules
+    /// This polls the system os_queue and the waker notifications and schedules
     /// the processes notified.
-    fn schedule_processes<E>(&mut self, events: &mut Events) -> Result<(), RuntimeError<E>> {
-        trace!("polling system poller for events");
-        self.internal.poller.borrow_mut().poll(events, None)
+    fn schedule_processes<E>(&mut self) -> Result<(), RuntimeError<E>> {
+        trace!("polling event sources to schedule processes");
+
+        let mut os_queue = self.internal.os_queue.borrow_mut();
+        let mut queue = self.internal.queue.borrow_mut();
+        let mut timers = self.internal.timers.borrow_mut();
+        poll(&mut [os_queue.deref_mut(), queue.deref_mut(), timers.deref_mut()], &mut self.scheduler, None)
             .map_err(RuntimeError::poll)?;
 
-        // Schedule all processes with a notification.
-        for event in events {
-            if event.id() == AWAKENER_ID {
-                trace!("receiving waker events");
-                while let Some(pid) = self.waker_notifications.try_recv().ok() {
-                    self.scheduler.schedule(pid);
-                }
-                continue;
-            }
-
-            self.scheduler.schedule(event.id().into());
+        // TODO: only do this if the `AWAKENER_ID` was returned in poll.
+        while let Some(pid) = self.waker_notifications.try_recv().ok() {
+            self.scheduler.schedule(pid);
         }
 
         Ok(())
@@ -624,18 +621,18 @@ impl ActorSystemRef {
         let _ = self.internal.registry.borrow_mut().deregister::<NA>();
     }
 
-    /// Register an `Evented` handle, see `Poll.register`.
-    pub(crate) fn poller_register<E>(&mut self, handle: &mut E, id: EventedId, interests: Interests, opt: PollOption) -> io::Result<()>
+    /// Register an `Evented` handle, see `OsQueue.register`.
+    pub(crate) fn register<E>(&mut self, handle: &mut E, id: event::Id, interests: Interests, opt: RegisterOption) -> io::Result<()>
         where E: Evented + ?Sized,
     {
-        self.internal.poller.borrow_mut().register(handle, id, interests, opt)
+        self.internal.os_queue.borrow_mut().register(handle, id, interests, opt)
     }
 
-    /// Register an `Evented` handle, see `Poll.reregister`.
-    pub(crate) fn poller_reregister<E>(&mut self, handle: &mut E, id: EventedId, interests: Interests, opt: PollOption) -> io::Result<()>
+    /// Reregister an `Evented` handle, see `OsQueue.reregister`.
+    pub(crate) fn reregister<E>(&mut self, handle: &mut E, id: event::Id, interests: Interests, opt: RegisterOption) -> io::Result<()>
         where E: Evented + ?Sized,
     {
-        self.internal.poller.borrow_mut().reregister(handle, id, interests, opt)
+        self.internal.os_queue.borrow_mut().reregister(handle, id, interests, opt)
     }
 
     /// Get a clone of the sending end of the notification channel.
@@ -643,15 +640,15 @@ impl ActorSystemRef {
         new_waker(self.internal.waker_id, pid)
     }
 
-    /// Add a deadline to the system poller.
+    /// Add a deadline to the event sources.
     ///
     /// This is used in the `timer` crate.
     pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.internal.poller.borrow_mut().add_deadline(pid.into(), deadline);
+        self.internal.timers.borrow_mut().add_deadline(pid.into(), deadline);
     }
 
     pub(crate) fn notify(&mut self, pid: ProcessId) {
-        self.internal.poller.borrow_mut().notify(pid.into(), Ready::READABLE);
+        self.internal.queue.borrow_mut().add(Event::new(pid.into(), Ready::READABLE));
     }
 }
 
@@ -672,8 +669,12 @@ pub(crate) struct ActorSystemInternal {
     waker_id: WakerId,
     /// A reference to the scheduler to add new processes to.
     scheduler_ref: RefCell<SchedulerRef>,
-    /// System poller, used for event notifications to support non-blocking I/O.
-    poller: RefCell<Poller>,
+    /// System queue, used for event notifications to support non-blocking I/O.
+    os_queue: RefCell<OsQueue>,
+    /// Timers, deadlines and timeouts.
+    timers: RefCell<Timers>,
+    /// User space queue.
+    queue: RefCell<Queue>,
     /// Actor registrations.
     registry: RefCell<ActorRegistry>,
 }
