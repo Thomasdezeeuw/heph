@@ -6,7 +6,7 @@ use std::task::{Waker, RawWaker, RawWakerVTable};
 
 use crossbeam_channel::Sender;
 use log::error;
-use mio_st::poll::Awakener;
+use mio_st::os::Awakener;
 
 use crate::scheduler::ProcessId;
 
@@ -184,15 +184,15 @@ unsafe fn drop_wake_data(data: *const ()) {
 #[cfg(test)]
 mod tests {
     use std::mem::size_of;
-    use std::thread;
+    use std::{thread, io};
 
-    use mio_st::event::{Event, Events, EventedId, Ready};
-    use mio_st::poll::{Awakener, Poller};
+    use mio_st::os::{Awakener, OsQueue};
+    use mio_st::{event, Event, Ready, poll};
 
     use crate::scheduler::ProcessId;
     use crate::system::waker::{init_waker, new_waker, WakerData, WAKER_DATA_BITS, THREAD_ID_BITS};
 
-    const AWAKENER_ID: EventedId = EventedId(0);
+    const AWAKENER_ID: event::Id = event::Id(0);
     const PID1: ProcessId = ProcessId(0);
 
     #[test]
@@ -202,11 +202,11 @@ mod tests {
 
     #[test]
     fn waker() {
-        let mut poller = Poller::new().unwrap();
-        let mut events = Events::new();
+        let mut os_queue = OsQueue::new().unwrap();
+        let mut events = Vec::new();
 
         // Initialise the waker.
-        let awakener = Awakener::new(&mut poller, AWAKENER_ID).unwrap();
+        let awakener = Awakener::new(&mut os_queue, AWAKENER_ID).unwrap();
         let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
         let waker_id = init_waker(awakener, wake_sender);
 
@@ -214,10 +214,10 @@ mod tests {
         let waker = new_waker(waker_id, PID1);
         waker.wake();
 
-        poller.poll(&mut events, None).unwrap();
+        poll::<_, io::Error>(&mut [&mut os_queue], &mut events, None).unwrap();
         // Should receive an event for the Awakener.
         assert_eq!(events.len(), 1);
-        assert_eq!((&mut events).next(), Some(Event::new(AWAKENER_ID, Ready::READABLE)));
+        assert_eq!(events.pop(), Some(Event::new(AWAKENER_ID, Ready::READABLE)));
         // And the process id that needs to be scheduled.
         assert_eq!(wake_receiver.try_recv(), Ok(PID1));
 
@@ -225,21 +225,21 @@ mod tests {
         let waker = new_waker(waker_id, pid2);
         waker.wake();
 
-        poller.poll(&mut events, None).unwrap();
+        poll::<_, io::Error>(&mut [&mut os_queue], &mut events, None).unwrap();
         // Should receive an event for the Awakener.
         assert_eq!(events.len(), 1);
-        assert_eq!((&mut events).next(), Some(Event::new(AWAKENER_ID, Ready::READABLE)));
+        assert_eq!(events.pop(), Some(Event::new(AWAKENER_ID, Ready::READABLE)));
         // And the process id that needs to be scheduled.
         assert_eq!(wake_receiver.try_recv(), Ok(pid2));
     }
 
     #[test]
     fn waker_different_thread() {
-        let mut poller = Poller::new().unwrap();
-        let mut events = Events::new();
+        let mut os_queue = OsQueue::new().unwrap();
+        let mut events = Vec::new();
 
         // Initialise the waker.
-        let awakener = Awakener::new(&mut poller, AWAKENER_ID).unwrap();
+        let awakener = Awakener::new(&mut os_queue, AWAKENER_ID).unwrap();
         let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
         let waker_id = init_waker(awakener, wake_sender);
 
@@ -250,10 +250,10 @@ mod tests {
         });
 
         handle.join().unwrap();
-        poller.poll(&mut events, None).unwrap();
+        poll::<_, io::Error>(&mut [&mut os_queue], &mut events, None).unwrap();
         // Should receive an event for the Awakener.
         assert_eq!(events.len(), 1);
-        assert_eq!((&mut events).next(), Some(Event::new(AWAKENER_ID, Ready::READABLE)));
+        assert_eq!(events.pop(), Some(Event::new(AWAKENER_ID, Ready::READABLE)));
         // And the process id that needs to be scheduled.
         assert_eq!(wake_receiver.try_recv(), Ok(PID1));
     }
@@ -261,10 +261,10 @@ mod tests {
     #[test]
     #[should_panic(expected = "Process id too large for waker")]
     fn waker_too_large_pid() {
-        let mut poller = Poller::new().unwrap();
+        let mut os_queue = OsQueue::new().unwrap();
 
         // Initialise the waker.
-        let awakener = Awakener::new(&mut poller, AWAKENER_ID).unwrap();
+        let awakener = Awakener::new(&mut os_queue, AWAKENER_ID).unwrap();
         let (wake_sender, _) = crossbeam_channel::unbounded();
         let waker_id = init_waker(awakener, wake_sender);
 

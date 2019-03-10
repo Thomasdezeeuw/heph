@@ -5,7 +5,7 @@ use std::fmt;
 use std::pin::Pin;
 use std::time::Duration;
 
-use mio_st::event::EventedId;
+use mio_st::event;
 
 use crate::system::ActorSystemRef;
 
@@ -23,7 +23,7 @@ pub use self::priority::Priority;
 ///
 /// This can only be created by the [`Scheduler`] and should be seen as an
 /// opaque type for the rest of the crate. For convince this can converted from
-/// and into an [`EventedId`] as used by mio.
+/// and into an [`event::Id`] as used by mio.
 ///
 /// [`ActorSystem`]: crate::system::ActorSystem
 /// [`Scheduler`]: crate::scheduler::Scheduler
@@ -31,15 +31,15 @@ pub use self::priority::Priority;
 #[repr(transparent)]
 pub struct ProcessId(pub usize);
 
-impl From<EventedId> for ProcessId {
-    fn from(id: EventedId) -> ProcessId {
+impl From<event::Id> for ProcessId {
+    fn from(id: event::Id) -> ProcessId {
         ProcessId(id.0)
     }
 }
 
-impl Into<EventedId> for ProcessId {
-    fn into(self) -> EventedId {
-        EventedId(self.0)
+impl Into<event::Id> for ProcessId {
+    fn into(self) -> event::Id {
+        event::Id(self.0)
     }
 }
 
