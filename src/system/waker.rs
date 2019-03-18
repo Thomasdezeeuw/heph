@@ -258,7 +258,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Process id too large for waker"]
+    #[should_panic(expected = "Process id too large for waker")]
     fn waker_too_large_pid() {
         let mut poller = Poller::new().unwrap();
 
