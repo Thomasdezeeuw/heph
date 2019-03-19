@@ -52,10 +52,10 @@ macro_rules! try_io {
     ($op:expr) => {
         loop {
             match $op {
-                Ok(ok) => return Poll::Ready(Ok(ok)),
-                Err(err) => return Poll::Ready(Err(err)),
+                Ok(ok) => break Poll::Ready(Ok(ok)),
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break Poll::Pending,
                 Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => break Poll::Ready(Err(err)),
             }
         }
     };
