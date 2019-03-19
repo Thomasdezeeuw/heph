@@ -626,10 +626,16 @@ impl ActorSystemRef {
 
     /// Register an `Evented` handle, see `Poll.register`.
     pub(crate) fn poller_register<E>(&mut self, handle: &mut E, id: EventedId, interests: Interests, opt: PollOption) -> io::Result<()>
-    where
-        E: Evented + ?Sized,
+        where E: Evented + ?Sized,
     {
         self.internal.poller.borrow_mut().register(handle, id, interests, opt)
+    }
+
+    /// Register an `Evented` handle, see `Poll.reregister`.
+    pub(crate) fn poller_reregister<E>(&mut self, handle: &mut E, id: EventedId, interests: Interests, opt: PollOption) -> io::Result<()>
+        where E: Evented + ?Sized,
+    {
+        self.internal.poller.borrow_mut().reregister(handle, id, interests, opt)
     }
 
     /// Get a clone of the sending end of the notification channel.
