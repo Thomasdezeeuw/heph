@@ -1,138 +1,226 @@
 //! UDP related types.
 
-use std::io;
+use std::future::Future;
+use std::marker::PhantomData;
 use std::net::SocketAddr;
+use std::ops::DerefMut;
+use std::pin::Pin;
 use std::task::{Waker, Poll};
+use std::{fmt, io};
 
-use mio_st::net::{ConnectedUdpSocket as MioConnectedUdpSocket, UdpSocket as MioUdpSocket};
+use mio_st::net::UdpSocket as MioUdpSocket;
 use mio_st::os::RegisterOption;
 
 use crate::actor;
 use crate::net::{interrupted, would_block};
 
-/// A connected User Datagram Protocol (UDP) socket.
+/// The unconnected mode of an [`UdpSocket`].
+#[allow(missing_debug_implementations)]
+pub enum Unconnected { }
+
+/// The connected mode of an [`UdpSocket`].
+#[allow(missing_debug_implementations)]
+pub enum Connected { }
+
+/// An User Datagram Protocol (UDP) socket.
 ///
-/// This works much like the [`UdpSocket`] however it can only send to and
-/// receive from a single remote address.
-#[derive(Debug)]
-pub struct ConnectedUdpSocket {
+/// An `UdpSocket` can be in one of two modes:
+///
+/// - [`Unconnected`]: this allows sending and receiving packets to and from all
+///   sources.
+/// - [`Connected`]: in connected mode sending and receiving packets is only
+///   possible from/to a single source.
+///
+/// An unconnected socket can be [connected] to a specific address if needed,
+/// changing the mode to [`Connected`] in the process. The remote address of an
+/// already connected socket can be changed to a different address using the
+/// same method.
+///
+/// Both unconnected and connected socket have three main operations: send,
+/// receive and peek, all these methods return a [`Future`].
+///
+/// [connected]: UdpSocket::connect
+pub struct UdpSocket<M = Unconnected> {
     /// Underlying UDP socket, backed by mio.
-    socket: MioConnectedUdpSocket,
+    socket: MioUdpSocket,
+    /// The mode in which the socket is in, this determines what methods are
+    /// available.
+    mode: PhantomData<M>,
 }
 
-impl UdpSocket {
+impl<M> UdpSocket<M> {
+    /// Connects the UDP socket by setting the default destination and limiting
+    /// packets that are read, written and peeked to the `remote` address.
+    pub fn connect(mut self, remote: SocketAddr) -> io::Result<UdpSocket<Connected>> {
+        self.socket.connect(remote)?;
+        Ok(UdpSocket { socket: self.socket, mode: PhantomData })
+    }
+
+    /// Returns the sockets local address.
+    pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
+        self.socket.local_addr()
+    }
+
+    /// Get the value of the `SO_ERROR` option on this socket.
+    ///
+    /// This will retrieve the stored error in the underlying socket, clearing
+    /// the field in the process. This can be useful for checking errors between
+    /// calls.
+    pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
+        self.socket.take_error()
+    }
+}
+
+impl UdpSocket<Unconnected> {
     /// Create a UDP socket binding to the `local` address.
     pub fn bind<M>(ctx: &mut actor::Context<M>, local: SocketAddr) -> io::Result<UdpSocket<Unconnected>> {
         let mut socket = MioUdpSocket::bind(local)?;
         let pid = ctx.pid();
         ctx.system_ref().register(&mut socket, pid.into(),
-            MioConnectedUdpSocket::INTERESTS, RegisterOption::EDGE)?;
-        Ok(ConnectedUdpSocket { socket })
-    }
-
-    /// Returns the sockets local address.
-    pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
-        self.socket.local_addr()
-    }
-
-    /// Sends data on the socket to the connected socket. On success, returns
-    /// the number of bytes written.
-    pub fn poll_send(&mut self, _waker: &Waker, buf: &[u8]) -> Poll<io::Result<usize>> {
-        try_io!(self.socket.send(buf))
-    }
-
-    /// Receives data from the socket. On success, returns the number of bytes
-    /// read.
-    pub fn poll_recv(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-        try_io!(self.socket.recv(buf))
-    }
-
-    /// Receives data from the socket, without removing it from the input queue.
-    /// On success, returns the number of bytes read.
-    pub fn poll_peek(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-        try_io!(self.socket.peek(buf))
-    }
-
-    /// Get the value of the `SO_ERROR` option on this socket.
-    ///
-    /// This will retrieve the stored error in the underlying socket, clearing
-    /// the field in the process. This can be useful for checking errors between
-    /// calls.
-    pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
-        self.socket.take_error()
-    }
-}
-
-impl actor::Bound for ConnectedUdpSocket {
-    type Error = io::Error;
-
-    fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
-        let pid = ctx.pid();
-        ctx.system_ref().poller_reregister(&mut self.socket, pid.into(),
-            MioConnectedUdpSocket::INTERESTS, PollOption::Edge)
-    }
-}
-
-/// An User Datagram Protocol (UDP) socket.
-///
-/// This works much like the `UdpSocket` in the standard library, but the
-/// `send_to`, `recv_from` and `peek_from` methods are now prefixed with `poll_`
-/// and work with futures and so they won't block, instead returning
-/// `Poll::Pending`.
-#[derive(Debug)]
-pub struct UdpSocket {
-    /// Underlying UDP socket, backed by mio.
-    socket: MioUdpSocket,
-}
-
-impl UdpSocket {
-    /// Create a UDP socket binding to the `address`.
-    pub fn bind<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<UdpSocket> {
-        let mut socket = MioUdpSocket::bind(address)?;
-        let pid = ctx.pid();
-        ctx.system_ref().register(&mut socket, pid.into(),
             MioUdpSocket::INTERESTS, RegisterOption::EDGE)?;
-        Ok(UdpSocket { socket })
-    }
-
-    /// Connects the UDP socket by setting the default destination and limiting
-    /// packets that are read, written and peeked to the `remote_address`.
-    pub fn connect(self, remote_address: SocketAddr) -> io::Result<ConnectedUdpSocket> {
-        self.socket.connect(remote_address)
-            .map(|socket| ConnectedUdpSocket { socket })
-    }
-
-    /// Returns the sockets local address.
-    pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
-        self.socket.local_addr()
+        Ok(UdpSocket { socket, mode: PhantomData })
     }
 
     /// Sends data to the given `target` address. On success, returns the number
     /// of bytes written.
-    pub fn poll_send_to(&mut self, _waker: &Waker, buf: &[u8], target: SocketAddr) -> Poll<io::Result<usize>> {
-        try_io!(self.socket.send_to(buf, target))
+    pub fn send_to<'a>(&'a mut self, buf: &'a [u8], target: SocketAddr) -> SendTo<'a> {
+        SendTo { socket: self, buf, target }
     }
 
     /// Receives data from the socket. On success, returns the number of bytes
     /// read and the address from whence the data came.
-    pub fn poll_recv_from(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<(usize, SocketAddr)>> {
-        try_io!(self.socket.recv_from(buf))
+    pub fn recv_from<'a>(&'a mut self, buf: &'a mut [u8]) -> RecvFrom<'a> {
+        RecvFrom { socket: self, buf }
     }
 
     /// Receives data from the socket, without removing it from the input queue.
     /// On success, returns the number of bytes read and the address from whence
     /// the data came.
-    pub fn poll_peek_from(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<(usize, SocketAddr)>> {
-        try_io!(self.socket.peek_from(buf))
+    pub fn peek_from<'a>(&'a mut self, buf: &'a mut [u8]) -> PeekFrom<'a> {
+        PeekFrom { socket: self, buf }
+    }
+}
+
+/// The [`Future`] behind [`UdpSocket::send_to`].
+#[derive(Debug)]
+pub struct SendTo<'a> {
+    socket: &'a mut UdpSocket<Unconnected>,
+    buf: &'a [u8],
+    target: SocketAddr,
+}
+
+impl<'a> Future for SendTo<'a> {
+    type Output = io::Result<usize>;
+
+    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+        let SendTo { ref mut socket, ref buf, ref target } = self.deref_mut();
+        try_io!(socket.socket.send_to(buf, *target))
+    }
+}
+
+/// The [`Future`] behind [`UdpSocket::recv_from`].
+#[derive(Debug)]
+pub struct RecvFrom<'a> {
+    socket: &'a mut UdpSocket<Unconnected>,
+    buf: &'a mut [u8],
+}
+
+impl<'a> Future for RecvFrom<'a> {
+    type Output = io::Result<(usize, SocketAddr)>;
+
+    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+        let RecvFrom { ref mut socket, ref mut buf } = self.deref_mut();
+        try_io!(socket.socket.recv_from(buf))
+    }
+}
+
+/// The [`Future`] behind [`UdpSocket::peek_from`].
+#[derive(Debug)]
+pub struct PeekFrom<'a> {
+    socket: &'a mut UdpSocket<Unconnected>,
+    buf: &'a mut [u8],
+}
+
+impl<'a> Future for PeekFrom<'a> {
+    type Output = io::Result<(usize, SocketAddr)>;
+
+    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+        let PeekFrom { ref mut socket, ref mut buf } = self.deref_mut();
+        try_io!(socket.socket.peek_from(buf))
+    }
+}
+
+impl UdpSocket<Connected> {
+    /// Sends data on the socket to the connected socket. On success, returns
+    /// the number of bytes written.
+    pub fn send<'a>(&'a mut self, buf: &'a [u8]) -> Send<'a> {
+        Send { socket: self, buf }
     }
 
-    /// Get the value of the `SO_ERROR` option on this socket.
-    ///
-    /// This will retrieve the stored error in the underlying socket, clearing
-    /// the field in the process. This can be useful for checking errors between
-    /// calls.
-    pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
-        self.socket.take_error()
+    /// Receives data from the socket. On success, returns the number of bytes
+    /// read.
+    pub fn recv<'a>(&'a mut self, buf: &'a mut [u8]) -> Recv<'a> {
+        Recv { socket: self, buf }
+    }
+
+    /// Receives data from the socket, without removing it from the input queue.
+    /// On success, returns the number of bytes read.
+    pub fn peek<'a>(&'a mut self, buf: &'a mut [u8]) -> Peek<'a> {
+        Peek { socket: self, buf }
+    }
+}
+
+/// The [`Future`] behind [`UdpSocket::send`].
+#[derive(Debug)]
+pub struct Send<'a> {
+    socket: &'a mut UdpSocket<Connected>,
+    buf: &'a [u8],
+}
+
+impl<'a> Future for Send<'a> {
+    type Output = io::Result<usize>;
+
+    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+        let Send { ref mut socket, ref buf } = self.deref_mut();
+        try_io!(socket.socket.send(buf))
+    }
+}
+
+/// The [`Future`] behind [`UdpSocket::recv`].
+#[derive(Debug)]
+pub struct Recv<'a> {
+    socket: &'a mut UdpSocket<Connected>,
+    buf: &'a mut [u8],
+}
+
+impl<'a> Future for Recv<'a> {
+    type Output = io::Result<usize>;
+
+    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+        let Recv { ref mut socket, ref mut buf } = self.deref_mut();
+        try_io!(socket.socket.recv(buf))
+    }
+}
+
+/// The [`Future`] behind [`UdpSocket::peek`].
+#[derive(Debug)]
+pub struct Peek<'a> {
+    socket: &'a mut UdpSocket<Connected>,
+    buf: &'a mut [u8],
+}
+
+impl<'a> Future for Peek<'a> {
+    type Output = io::Result<usize>;
+
+    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+        let Peek { ref mut socket, ref mut buf } = self.deref_mut();
+        try_io!(socket.socket.peek(buf))
+    }
+}
+
+impl<M> fmt::Debug for UdpSocket<M> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.socket.fmt(f)
     }
 }
 

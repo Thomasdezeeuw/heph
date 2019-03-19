@@ -64,10 +64,11 @@ macro_rules! try_io {
 }
 
 mod tcp;
-mod udp;
+pub mod udp;
 
 pub use self::tcp::{TcpListener, TcpListenerError, TcpListenerMessage, TcpStream};
-pub use self::udp::{ConnectedUdpSocket, UdpSocket};
+#[doc(no_inline)]
+pub use self::udp::UdpSocket;
 
 /// Whether or not the error is a would block error.
 pub(crate) fn would_block(err: &io::Error) -> bool {
