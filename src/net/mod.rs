@@ -44,8 +44,6 @@
 //! [`UdpSocket`]: crate::net::UdpSocket
 //! [`poll_recv_from`]: crate::net::UdpSocket::poll_recv_from
 
-use std::io;
-
 /// A macro to try an I/O function.
 ///
 /// Note that this is used in the tcp and udp modules and has to be defined
@@ -55,9 +53,9 @@ macro_rules! try_io {
         loop {
             match $op {
                 Ok(ok) => return Poll::Ready(Ok(ok)),
-                Err(ref err) if would_block(err) => return Poll::Pending,
-                Err(ref err) if interrupted(err) => continue,
                 Err(err) => return Poll::Ready(Err(err)),
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break Poll::Pending,
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
             }
         }
     };
@@ -70,13 +68,3 @@ pub mod udp;
 pub use self::tcp::{TcpListener, TcpStream};
 #[doc(no_inline)]
 pub use self::udp::UdpSocket;
-
-/// Whether or not the error is a would block error.
-pub(crate) fn would_block(err: &io::Error) -> bool {
-    err.kind() == io::ErrorKind::WouldBlock
-}
-
-/// Whether or not the error is an interrupted error.
-pub(crate) fn interrupted(err: &io::Error) -> bool {
-    err.kind() == io::ErrorKind::Interrupted
-}

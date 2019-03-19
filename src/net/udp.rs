@@ -12,7 +12,6 @@ use mio_st::net::UdpSocket as MioUdpSocket;
 use mio_st::os::RegisterOption;
 
 use crate::actor;
-use crate::net::{interrupted, would_block};
 
 /// The unconnected mode of an [`UdpSocket`].
 #[allow(missing_debug_implementations)]

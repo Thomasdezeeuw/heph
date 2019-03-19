@@ -16,7 +16,6 @@ use mio_st::os::RegisterOption;
 use crate::actor::messages::Terminate;
 use crate::actor::{self, Actor, NewActor};
 use crate::mailbox::MailBox;
-use crate::net::{interrupted, would_block};
 use crate::supervisor::Supervisor;
 use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 use crate::util::Shared;
@@ -247,8 +246,8 @@ impl<S, NA> Actor for TcpListener<S, NA>
         loop {
             let (mut stream, addr) = match listener.accept() {
                 Ok(ok) => ok,
-                Err(ref err) if would_block(err) => return Poll::Pending,
-                Err(ref err) if interrupted(err) => continue, // Try again.
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue, // Try again.
                 Err(err) => return Poll::Ready(Err(TcpListenerError::Accept(err))),
             };
             debug!("accepted connection from: {}", addr);
