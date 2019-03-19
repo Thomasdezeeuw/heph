@@ -63,10 +63,11 @@ macro_rules! try_io {
     };
 }
 
-mod tcp;
+pub mod tcp;
 pub mod udp;
 
-pub use self::tcp::{TcpListener, TcpListenerError, TcpListenerMessage, TcpStream};
+#[doc(no_inline)]
+pub use self::tcp::{TcpListener, TcpStream};
 #[doc(no_inline)]
 pub use self::udp::UdpSocket;
 

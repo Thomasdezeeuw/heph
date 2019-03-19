@@ -7,7 +7,8 @@ use futures_util::AsyncWriteExt;
 
 use heph::actor;
 use heph::log::{self, error, info};
-use heph::net::{TcpListener, TcpListenerError, TcpStream};
+use heph::net::tcp::TcpListenerError;
+use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::SupervisorStrategy;
 use heph::system::options::Priority;
 use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
