@@ -1,8 +1,10 @@
 //! TCP related types.
 
 use std::fmt;
+use std::future::Future;
 use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr};
+use std::ops::DerefMut;
 use std::pin::Pin;
 use std::task::{Waker, Poll};
 
@@ -409,8 +411,8 @@ impl TcpStream {
     /// connected, without removing that data from the queue. On success,
     /// returns the number of bytes peeked. Successive calls return the same
     /// data.
-    pub fn poll_peek(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-        try_io!(self.inner.peek(buf))
+    pub fn peek<'a>(&'a mut self, buf: &'a mut [u8]) -> Peek<'a> {
+        Peek { stream: self, buf }
     }
 
     /// Shuts down the read, write, or both halves of this connection.
@@ -429,6 +431,22 @@ impl TcpStream {
     /// calls.
     pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
         self.inner.take_error()
+    }
+}
+
+/// The [`Future`] behind [`TcpStream::peek`].
+#[derive(Debug)]
+pub struct Peek<'a> {
+    stream: &'a mut TcpStream,
+    buf: &'a mut [u8],
+}
+
+impl<'a> Future for Peek<'a> {
+    type Output = io::Result<usize>;
+
+    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+        let Peek { ref mut stream, ref mut buf } = self.deref_mut();
+        try_io!(stream.inner.peek(buf))
     }
 }
 
