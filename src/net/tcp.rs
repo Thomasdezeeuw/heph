@@ -257,7 +257,7 @@ impl<S, NA> Actor for TcpListener<S, NA>
                     MioTcpStream::INTERESTS, RegisterOption::EDGE)?;
 
                 // Wrap the raw stream with our wrapper.
-                let stream = TcpStream { inner: stream };
+                let stream = TcpStream { socket: stream };
 
                 // Return the arguments used to create the actor.
                 Ok((stream, addr))
@@ -362,48 +362,48 @@ impl<S, NA> NewActor for NewTcpListener<S, NA>
 #[derive(Debug)]
 pub struct TcpStream {
     /// Underlying TCP connection, backed by mio.
-    inner: MioTcpStream,
+    socket: MioTcpStream,
 }
 
 impl TcpStream {
     /// Create a new TCP stream and issue a non-blocking connect to the
     /// specified `address`.
     pub fn connect<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpStream> {
-        let mut stream = MioTcpStream::connect(address)?;
+        let mut socket = MioTcpStream::connect(address)?;
         let pid = ctx.pid();
-        ctx.system_ref().register(&mut stream, pid.into(),
+        ctx.system_ref().register(&mut socket, pid.into(),
             MioTcpStream::INTERESTS, RegisterOption::EDGE)?;
-        Ok(TcpStream { inner: stream })
+        Ok(TcpStream { socket })
     }
 
     /// Returns the socket address of the remote peer of this TCP connection.
     pub fn peer_addr(&mut self) -> io::Result<SocketAddr> {
-        self.inner.peer_addr()
+        self.socket.peer_addr()
     }
 
     /// Returns the socket address of the local half of this TCP connection.
     pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
-        self.inner.local_addr()
+        self.socket.local_addr()
     }
 
     /// Sets the value for the `IP_TTL` option on this socket.
     pub fn set_ttl(&mut self, ttl: u32) -> io::Result<()> {
-        self.inner.set_ttl(ttl)
+        self.socket.set_ttl(ttl)
     }
 
     /// Gets the value of the `IP_TTL` option for this socket.
     pub fn ttl(&mut self) -> io::Result<u32> {
-        self.inner.ttl()
+        self.socket.ttl()
     }
 
     /// Sets the value of the `TCP_NODELAY` option on this socket.
     pub fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
-        self.inner.set_nodelay(nodelay)
+        self.socket.set_nodelay(nodelay)
     }
 
     /// Gets the value of the `TCP_NODELAY` option on this socket.
     pub fn nodelay(&mut self) -> io::Result<bool> {
-        self.inner.nodelay()
+        self.socket.nodelay()
     }
 
     /// Receives data on the socket from the remote address to which it is
@@ -420,7 +420,7 @@ impl TcpStream {
     /// portions to return immediately with an appropriate value (see the
     /// documentation of [`Shutdown`]).
     pub fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
-        self.inner.shutdown(how)
+        self.socket.shutdown(how)
     }
 
     /// Get the value of the `SO_ERROR` option on this socket.
@@ -429,7 +429,7 @@ impl TcpStream {
     /// the field in the process. This can be useful for checking errors between
     /// calls.
     pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
-        self.inner.take_error()
+        self.socket.take_error()
     }
 }
 
@@ -445,7 +445,7 @@ impl<'a> Future for Peek<'a> {
 
     fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
         let Peek { ref mut stream, ref mut buf } = self.deref_mut();
-        try_io!(stream.inner.peek(buf))
+        try_io!(stream.socket.peek(buf))
     }
 }
 
@@ -455,17 +455,17 @@ impl AsyncRead for TcpStream {
     }
 
     fn poll_read(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
-        try_io!(self.inner.read(buf))
+        try_io!(self.socket.read(buf))
     }
 }
 
 impl AsyncWrite for TcpStream {
     fn poll_write(&mut self, _waker: &Waker, buf: &[u8]) -> Poll<io::Result<usize>> {
-        try_io!(self.inner.write(buf))
+        try_io!(self.socket.write(buf))
     }
 
     fn poll_flush(&mut self, _waker: &Waker) -> Poll<io::Result<()>> {
-        try_io!(self.inner.flush())
+        try_io!(self.socket.flush())
     }
 
     fn poll_close(&mut self, waker: &Waker) -> Poll<io::Result<()>> {
