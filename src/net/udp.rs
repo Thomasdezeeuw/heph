@@ -47,6 +47,17 @@ pub struct UdpSocket<M = Unconnected> {
     mode: PhantomData<M>,
 }
 
+impl UdpSocket {
+    /// Create a UDP socket binding to the `local` address.
+    pub fn bind<M>(ctx: &mut actor::Context<M>, local: SocketAddr) -> io::Result<UdpSocket<Unconnected>> {
+        let mut socket = MioUdpSocket::bind(local)?;
+        let pid = ctx.pid();
+        ctx.system_ref().register(&mut socket, pid.into(),
+            MioUdpSocket::INTERESTS, RegisterOption::EDGE)?;
+        Ok(UdpSocket { socket, mode: PhantomData })
+    }
+}
+
 impl<M> UdpSocket<M> {
     /// Connects the UDP socket by setting the default destination and limiting
     /// packets that are read, written and peeked to the `remote` address.
@@ -71,17 +82,8 @@ impl<M> UdpSocket<M> {
 }
 
 impl UdpSocket<Unconnected> {
-    /// Create a UDP socket binding to the `local` address.
-    pub fn bind<M>(ctx: &mut actor::Context<M>, local: SocketAddr) -> io::Result<UdpSocket<Unconnected>> {
-        let mut socket = MioUdpSocket::bind(local)?;
-        let pid = ctx.pid();
-        ctx.system_ref().register(&mut socket, pid.into(),
-            MioUdpSocket::INTERESTS, RegisterOption::EDGE)?;
-        Ok(UdpSocket { socket, mode: PhantomData })
-    }
-
-    /// Sends data to the given `target` address. On success, returns the number
-    /// of bytes written.
+    /// Sends data to the given `target` address. Returns a [`Future`] that on
+    /// success returns the number of bytes written (`io::Result<usize>`).
     pub fn send_to<'a>(&'a mut self, buf: &'a [u8], target: SocketAddr) -> SendTo<'a> {
         SendTo { socket: self, buf, target }
     }
