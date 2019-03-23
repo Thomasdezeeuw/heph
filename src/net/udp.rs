@@ -1,4 +1,6 @@
 //! UDP related types.
+//!
+//! See [`UdpSocket`].
 
 use std::future::Future;
 use std::marker::PhantomData;
@@ -21,24 +23,108 @@ pub enum Unconnected { }
 #[allow(missing_debug_implementations)]
 pub enum Connected { }
 
-/// An User Datagram Protocol (UDP) socket.
+/// A User Datagram Protocol (UDP) socket.
 ///
-/// An `UdpSocket` can be in one of two modes:
+/// To create socket [`UdpSocket::bind`] can be used, this will bind the socket
+/// to a local address. The created socket will be in unconnected mode, a socket
+/// can be in one of two modes:
 ///
-/// - [`Unconnected`]: this allows sending and receiving packets to and from all
+/// - [`Unconnected`] mode allows sending and receiving packets to and from all
 ///   sources.
-/// - [`Connected`]: in connected mode sending and receiving packets is only
-///   possible from/to a single source.
+/// - [`Connected`] mode only allows sending and receiving packets from/to a
+///   single source.
 ///
 /// An unconnected socket can be [connected] to a specific address if needed,
 /// changing the mode to [`Connected`] in the process. The remote address of an
 /// already connected socket can be changed to a different address using the
 /// same method.
 ///
-/// Both unconnected and connected socket have three main operations: send,
+/// Both unconnected and connected sockets have three main operations send,
 /// receive and peek, all these methods return a [`Future`].
 ///
 /// [connected]: UdpSocket::connect
+///
+/// # Examples
+///
+/// ```
+/// #![feature(async_await, await_macro, futures_api, never_type)]
+///
+/// use std::{io, str};
+/// use std::net::SocketAddr;
+///
+/// use futures_util::future::FutureExt;
+/// use futures_util::select;
+/// use log::error;
+///
+/// use heph::actor::messages::Terminate;
+/// use heph::net::UdpSocket;
+/// use heph::system::RuntimeError;
+/// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef, SupervisorStrategy};
+///
+/// fn main() -> Result<(), RuntimeError> {
+///     heph::log::init();
+///
+///     ActorSystem::new()
+///         .with_setup(setup)
+///         .run()
+/// }
+///
+/// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
+///     let address = "127.0.0.1:7000".parse().unwrap();
+///
+///     // Add our server actor.
+///     system_ref.spawn(supervisor, echo_server as fn(_, _) -> _, address, ActorOptions {
+///         schedule: true,
+///         .. ActorOptions::default()
+///     });
+///
+///     // Add our client actor.
+///     system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions {
+///         schedule: true,
+///         .. ActorOptions::default()
+///     });
+///
+///     Ok(())
+/// }
+///
+/// // Simple supervisor that logs the error and stops the actor.
+/// fn supervisor<Arg>(err: io::Error) -> SupervisorStrategy<Arg> {
+///     error!("Encountered an error: {}", err);
+///     SupervisorStrategy::Stop
+/// }
+///
+/// // Actor that will bind a UDP socket and waits for incoming packets and
+/// // echos the message to standard out.
+/// async fn echo_server(mut ctx: actor::Context<Terminate>, local: SocketAddr) -> io::Result<()> {
+///     let mut socket = UdpSocket::bind(&mut ctx, local)?;
+///     let mut buf = [0; 4096];
+///     loop {
+///         // Either receive a message, a signal to quit, or a UDP packet.
+///         let (n, address) = select! {
+///             _ = ctx.receive_next().fuse() => return Ok(()),
+///             res = socket.recv_from(&mut buf).fuse() => res?,
+///         };
+///
+///         let buf = &buf[..n];
+///         match str::from_utf8(buf) {
+///             Ok(str) => println!("Got the following message: `{}`, from {}", str, address),
+///             Err(_) => println!("Got data: {:?}, from {}", buf, address),
+///         }
+/// #       return Ok(());
+///     }
+/// }
+///
+/// async fn client(mut ctx: actor::Context<!>, server_address: SocketAddr) -> io::Result<()> {
+///     let local_address = "127.0.0.1:7001".parse().unwrap();
+///     let mut socket = UdpSocket::bind(&mut ctx, local_address)?
+///         .connect(server_address)?;
+///
+///     let msg = b"Hello world";
+///     let n = await!(socket.send(&*msg))?;
+///     assert_eq!(n, msg.len());
+///     Ok(())
+/// }
+/// ```
 pub struct UdpSocket<M = Unconnected> {
     /// Underlying UDP socket, backed by mio.
     socket: MioUdpSocket,
