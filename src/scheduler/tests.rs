@@ -2,7 +2,6 @@
 
 use std::mem;
 use std::pin::Pin;
-use std::task::{Waker, RawWaker, RawWakerVTable};
 use std::time::Duration;
 
 use futures_test::future::{AssertUnmoved, FutureTestExt};
@@ -18,26 +17,6 @@ use crate::util::Shared;
 
 fn assert_size<T>(expected: usize) {
     assert_eq!(mem::size_of::<T>(), expected);
-}
-
-// Also used in the process tests.
-pub fn nop_waker() -> Waker {
-    let data = 0 as *const ();
-    let raw_waker = RawWaker::new(data, NOP_WAKER_VTABLE);
-    unsafe { Waker::new_unchecked(raw_waker) }
-}
-
-static NOP_WAKER_VTABLE: &RawWakerVTable = &RawWakerVTable {
-    clone: clone_wake_data,
-    wake,
-    drop,
-};
-
-unsafe fn clone_wake_data(data: *const ()) -> RawWaker {
-    RawWaker::new(data, NOP_WAKER_VTABLE)
-}
-
-unsafe fn wake(_data: *const ()) {
 }
 
 #[test]
@@ -229,7 +208,7 @@ fn actor_process() {
     let process_entry = scheduler_ref.add_process();
     let inbox = actor_ref.get_inbox().unwrap();
     process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor,
-        inbox, nop_waker());
+        inbox);
 
     // Schedule and run, should return Pending and become inactive.
     scheduler.schedule(ProcessId(0));
@@ -277,7 +256,7 @@ fn assert_actor_unmoved() {
     let process_entry = scheduler_ref.add_process();
     let inbox = actor_ref.get_inbox().unwrap();
     process_entry.add_actor(Priority::NORMAL, NoSupervisor, TestNewActor,
-        actor, inbox, nop_waker());
+        actor, inbox);
 
     // Schedule and run the process multiple times, ensure it's not moved in the
     // process.

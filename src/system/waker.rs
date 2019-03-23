@@ -95,6 +95,7 @@ pub fn init_waker(awakener: Awakener, notifications: Sender<ProcessId>) -> Waker
 ///
 /// `init_waker` must be called before calling this function to get a `WakerId`.
 pub fn new_waker(waker_id: WakerId, pid: ProcessId) -> Waker {
+    // TODO: try to remove this check and make it into an unsafe function.
     if pid.0 >= 2_usize.pow(WAKER_DATA_BITS as u32 - THREAD_ID_BITS as u32) {
         panic!("Process id too large for waker");
     }

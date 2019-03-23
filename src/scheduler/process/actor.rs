@@ -2,7 +2,7 @@
 
 use std::fmt;
 use std::pin::Pin;
-use std::task::{Waker, Poll};
+use std::task::Poll;
 use std::time::{Duration, Instant};
 
 use log::{error, trace};
@@ -25,15 +25,12 @@ pub struct ActorProcess<S, NA: NewActor> {
     /// The inbox of the actor, used in create a new `Context` if the actor
     /// is restarted.
     inbox: Shared<MailBox<NA::Message>>,
-    /// Waker used in the futures context.
-    waker: Waker,
 }
 
 impl<S, NA: NewActor> ActorProcess<S, NA> {
     /// Create a new `ActorProcess`.
     pub(crate) const fn new(id: ProcessId, priority: Priority, supervisor: S,
-        new_actor: NA, actor: NA::Actor, inbox: Shared<MailBox<NA::Message>>,
-        waker: Waker
+        new_actor: NA, actor: NA::Actor, inbox: Shared<MailBox<NA::Message>>
     ) -> ActorProcess<S, NA> {
         ActorProcess {
             id,
@@ -43,7 +40,6 @@ impl<S, NA: NewActor> ActorProcess<S, NA> {
             new_actor,
             actor,
             inbox,
-            waker,
         }
     }
 }
@@ -74,7 +70,8 @@ impl<S, NA> Process for ActorProcess<S, NA>
         // The actor need to be called with `Pin`. So we're undoing the previous
         // operation, still ensuring that the actor is not moved.
         let mut pinned_actor = unsafe { Pin::new_unchecked(&mut this.actor) };
-        let result = match Actor::try_poll(pinned_actor.as_mut(), &this.waker) {
+        let waker = system_ref.new_waker(this.id);
+        let result = match Actor::try_poll(pinned_actor.as_mut(), &waker) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
             Poll::Ready(Err(err)) => {
                 match this.supervisor.decide(err) {
