@@ -174,15 +174,17 @@ impl UdpSocket<Unconnected> {
         SendTo { socket: self, buf, target }
     }
 
-    /// Receives data from the socket. On success, returns the number of bytes
-    /// read and the address from whence the data came.
+    /// Receives data from the socket. Returns a [`Future`] that on success
+    /// returns the number of bytes read and the address from whence the data
+    /// came (`io::Result<(usize, SocketAddr>`).
     pub fn recv_from<'a>(&'a mut self, buf: &'a mut [u8]) -> RecvFrom<'a> {
         RecvFrom { socket: self, buf }
     }
 
     /// Receives data from the socket, without removing it from the input queue.
-    /// On success, returns the number of bytes read and the address from whence
-    /// the data came.
+    /// Returns a [`Future`] that on success returns the number of bytes read
+    /// and the address from whence the data came (`io::Result<(usize,
+    /// SocketAddr>`).
     pub fn peek_from<'a>(&'a mut self, buf: &'a mut [u8]) -> PeekFrom<'a> {
         PeekFrom { socket: self, buf }
     }
@@ -238,20 +240,22 @@ impl<'a> Future for PeekFrom<'a> {
 }
 
 impl UdpSocket<Connected> {
-    /// Sends data on the socket to the connected socket. On success, returns
-    /// the number of bytes written.
+    /// Sends data on the socket to the connected socket. Returns a [`Future`]
+    /// that on success returns the number of bytes written
+    /// (`io::Result<usize>`).
     pub fn send<'a>(&'a mut self, buf: &'a [u8]) -> Send<'a> {
         Send { socket: self, buf }
     }
 
-    /// Receives data from the socket. On success, returns the number of bytes
-    /// read.
+    /// Receives data from the socket. Returns a [`Future`] that on success
+    /// returns the number of bytes read (`io::Result<usize>`).
     pub fn recv<'a>(&'a mut self, buf: &'a mut [u8]) -> Recv<'a> {
         Recv { socket: self, buf }
     }
 
     /// Receives data from the socket, without removing it from the input queue.
-    /// On success, returns the number of bytes read.
+    /// Returns a [`Future`] that on success returns the number of bytes read
+    /// (`io::Result<usize>`).
     pub fn peek<'a>(&'a mut self, buf: &'a mut [u8]) -> Peek<'a> {
         Peek { socket: self, buf }
     }
