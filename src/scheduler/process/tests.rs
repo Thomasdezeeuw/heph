@@ -16,7 +16,6 @@ use mio_st::event::EventedId;
 
 use crate::actor::{Context, NewActor};
 use crate::scheduler::process::{ActorProcess, Priority, Process, ProcessId, ProcessResult};
-use crate::scheduler::tests::nop_waker;
 use crate::supervisor::{NoSupervisor, SupervisorStrategy};
 use crate::system::ActorSystemRef;
 use crate::test::{init_actor, system_ref};
@@ -159,7 +158,7 @@ fn actor_process() {
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
     let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, NoSupervisor,
-        new_actor, actor, inbox, nop_waker());
+        new_actor, actor, inbox);
     let mut process = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -200,7 +199,7 @@ fn erroneous_actor_process() {
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
     let process = ActorProcess::new(ProcessId(0), Priority::NORMAL,
-        |_err| SupervisorStrategy::Stop, new_actor, actor, inbox, nop_waker());
+        |_err| SupervisorStrategy::Stop, new_actor, actor, inbox);
     let mut process = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -229,8 +228,8 @@ fn restarting_erroneous_actor_process() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, supervisor, new_actor,
-        actor, inbox, nop_waker());
+    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, supervisor,
+        new_actor, actor, inbox);
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -272,7 +271,7 @@ fn actor_process_runtime_increase() {
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
     let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, NoSupervisor,
-        new_actor, actor, inbox, nop_waker());
+        new_actor, actor, inbox);
     let mut process = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -309,7 +308,7 @@ fn actor_process_assert_actor_unmoved() {
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
     let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, NoSupervisor,
-        TestAssertUnmovedNewActor, actor, inbox, nop_waker());
+        TestAssertUnmovedNewActor, actor, inbox);
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));

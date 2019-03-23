@@ -520,14 +520,13 @@ impl ActorSystemRef {
         let ctx = Context::new(pid, system_ref, mailbox.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
-        let waker = new_waker(*waker_id, pid);
         if options.schedule {
-            waker.wake()
+            new_waker(*waker_id, pid).wake()
         }
 
         // Add the actor to the scheduler.
         process_entry.add_actor(options.priority, supervisor, new_actor, actor,
-            mailbox, waker);
+            mailbox);
 
         if options.register && registry.borrow_mut().register::<NA>(actor_ref.clone()).is_some() {
             panic!("can't overwrite a previously registered actor in the Actor Registry");

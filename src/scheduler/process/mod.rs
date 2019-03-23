@@ -65,7 +65,7 @@ pub trait Process: fmt::Debug {
 
     /// Run the process.
     ///
-    /// Once the process returns `ProcessResult::Complete` it will be remove
+    /// Once the process returns `ProcessResult::Complete` it will be removed
     /// from the system and no longer run.
     ///
     /// If it returns `ProcessResult::Pending` it will be considered inactive

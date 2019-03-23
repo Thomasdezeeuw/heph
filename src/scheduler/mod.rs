@@ -4,7 +4,6 @@ use std::cell::RefMut;
 use std::collections::BinaryHeap;
 use std::mem;
 use std::pin::Pin;
-use std::task::Waker;
 
 use log::{debug, trace};
 use slab::Slab;
@@ -145,7 +144,6 @@ impl<'s> AddingProcess<'s> {
     /// Add a new inactive actor process to the scheduler.
     pub fn add_actor<S, NA>(self, priority: Priority, supervisor: S,
         new_actor: NA, actor: NA::Actor, mailbox: Shared<MailBox<NA::Message>>,
-        waker: Waker
     )
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
@@ -153,7 +151,7 @@ impl<'s> AddingProcess<'s> {
         let pid = self.pid();
         debug!("adding new actor process: pid={}", pid);
         let process = Box::pin(ActorProcess::new(pid, priority, supervisor,
-            new_actor, actor, mailbox, waker));
+            new_actor, actor, mailbox));
         self.add_process(pid, process)
     }
 
