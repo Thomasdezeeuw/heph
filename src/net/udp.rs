@@ -7,7 +7,7 @@ use std::task::{Waker, Poll};
 use mio_st::net::{ConnectedUdpSocket as MioConnectedUdpSocket, UdpSocket as MioUdpSocket};
 use mio_st::poll::PollOption;
 
-use crate::actor::Context;
+use crate::actor;
 use crate::net::{interrupted, would_block};
 
 /// A connected User Datagram Protocol (UDP) socket.
@@ -25,7 +25,7 @@ impl ConnectedUdpSocket {
     ///
     /// This method first binds a UDP socket to the `local` address, then
     /// connects that socket to `remote` address.
-    pub fn connect<M>(ctx: &mut Context<M>, local: SocketAddr, remote: SocketAddr) -> io::Result<ConnectedUdpSocket> {
+    pub fn connect<M>(ctx: &mut actor::Context<M>, local: SocketAddr, remote: SocketAddr) -> io::Result<ConnectedUdpSocket> {
         let mut socket = MioConnectedUdpSocket::connect(local, remote)?;
         let pid = ctx.pid();
         ctx.system_ref().poller_register(&mut socket, pid.into(),
@@ -66,6 +66,16 @@ impl ConnectedUdpSocket {
     }
 }
 
+impl actor::Bound for ConnectedUdpSocket {
+    type Error = io::Error;
+
+    fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
+        let pid = ctx.pid();
+        ctx.system_ref().poller_reregister(&mut self.socket, pid.into(),
+            MioConnectedUdpSocket::INTERESTS, PollOption::Edge)
+    }
+}
+
 /// An User Datagram Protocol (UDP) socket.
 ///
 /// This works much like the `UdpSocket` in the standard library, but the
@@ -80,7 +90,7 @@ pub struct UdpSocket {
 
 impl UdpSocket {
     /// Create a UDP socket binding to the `address`.
-    pub fn bind<M>(ctx: &mut Context<M>, address: SocketAddr) -> io::Result<UdpSocket> {
+    pub fn bind<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<UdpSocket> {
         let mut socket = MioUdpSocket::bind(address)?;
         let pid = ctx.pid();
         ctx.system_ref().poller_register(&mut socket, pid.into(),
@@ -126,5 +136,15 @@ impl UdpSocket {
     /// calls.
     pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
         self.socket.take_error()
+    }
+}
+
+impl actor::Bound for UdpSocket {
+    type Error = io::Error;
+
+    fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
+        let pid = ctx.pid();
+        ctx.system_ref().poller_reregister(&mut self.socket, pid.into(),
+            MioUdpSocket::INTERESTS, PollOption::Edge)
     }
 }
