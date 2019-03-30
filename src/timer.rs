@@ -95,6 +95,15 @@ impl Future for Timer {
     }
 }
 
+impl actor::Bound for Timer {
+    fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) {
+        // We don't remove the original deadline and just let it expire, as
+        // (currently) removing a deadline is an expensive operation.
+        let pid = ctx.pid();
+        ctx.system_ref().add_deadline(pid, self.deadline);
+    }
+}
+
 /// A [`Future`] that wraps another future setting a deadline for it.
 ///
 /// When this future is polled it first checks if the deadline has passed, if so
@@ -189,6 +198,15 @@ impl<Fut> Future for Deadline<Fut>
     }
 }
 
+impl<Fut> actor::Bound for Deadline<Fut> {
+    fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) {
+        // We don't remove the original deadline and just let it expire, as
+        // (currently) removing a deadline is an expensive operation.
+        let pid = ctx.pid();
+        ctx.system_ref().add_deadline(pid, self.deadline);
+    }
+}
+
 /// A [`Stream`] that yields an item after an interval has passed.
 ///
 /// This stream will never return `None`, it will always set another deadline
@@ -278,5 +296,17 @@ impl Stream for Interval {
 impl FusedStream for Interval {
     fn is_terminated(&self) -> bool {
         false
+    }
+}
+
+impl actor::Bound for Interval {
+    fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) {
+        // We don't remove the original deadline and just let it expire, as
+        // (currently) removing a deadline is an expensive operation.
+        let pid = ctx.pid();
+        let mut system_ref = ctx.system_ref().clone();
+        system_ref.add_deadline(pid, self.deadline);
+        self.pid = pid;
+        self.system_ref = system_ref;
     }
 }
