@@ -13,7 +13,7 @@ use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
 use mio_st::poll::PollOption;
 
 use crate::actor::messages::Terminate;
-use crate::actor::{Actor, Context, NewActor};
+use crate::actor::{self, Actor, NewActor};
 use crate::mailbox::MailBox;
 use crate::net::{interrupted, would_block};
 use crate::supervisor::Supervisor;
@@ -44,7 +44,7 @@ use crate::util::Shared;
 ///
 /// use futures_util::AsyncWriteExt;
 ///
-/// use heph::actor::Context;
+/// use heph::actor;
 /// use heph::log::error;
 /// use heph::net::{TcpListener, TcpListenerError, TcpStream};
 /// use heph::supervisor::SupervisorStrategy;
@@ -92,7 +92,7 @@ use crate::util::Shared;
 /// }
 ///
 /// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_ctx: Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+/// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
 ///     await!(stream.write_all(b"Hello World"))
 /// }
@@ -109,7 +109,7 @@ use crate::util::Shared;
 ///
 /// use futures_util::AsyncWriteExt;
 ///
-/// use heph::actor::Context;
+/// use heph::actor;
 /// use heph::actor::messages::Terminate;
 /// use heph::log::error;
 /// use heph::net::{TcpListener, TcpListenerError, TcpStream};
@@ -154,7 +154,7 @@ use crate::util::Shared;
 /// }
 ///
 /// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_ctx: Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+/// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
 ///     await!(stream.write_all(b"Hello World"))
 /// }
@@ -339,7 +339,7 @@ impl<S, NA> NewActor for NewTcpListener<S, NA>
     type Actor = TcpListener<S, NA>;
     type Error = io::Error;
 
-    fn new(&mut self, mut ctx: Context<Self::Message>, address: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(&mut self, mut ctx: actor::Context<Self::Message>, address: Self::Argument) -> Result<Self::Actor, Self::Error> {
         let mut system_ref = ctx.system_ref().clone();
         let mut listener = MioTcpListener::bind(address)?;
         system_ref.poller_register(&mut listener, ctx.pid().into(), MioTcpListener::INTERESTS, PollOption::Edge)?;
@@ -365,7 +365,7 @@ pub struct TcpStream {
 impl TcpStream {
     /// Create a new TCP stream and issue a non-blocking connect to the
     /// specified `address`.
-    pub fn connect<M>(ctx: &mut Context<M>, address: SocketAddr) -> io::Result<TcpStream> {
+    pub fn connect<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpStream> {
         let mut stream = MioTcpStream::connect(address)?;
         let pid = ctx.pid();
         ctx.system_ref().poller_register(&mut stream, pid.into(),
@@ -451,5 +451,15 @@ impl AsyncWrite for TcpStream {
 
     fn poll_close(&mut self, waker: &Waker) -> Poll<io::Result<()>> {
         self.poll_flush(waker)
+    }
+}
+
+impl actor::Bound for TcpStream {
+    type Error = io::Error;
+
+    fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
+        let pid = ctx.pid();
+        ctx.system_ref().poller_register(&mut self.inner, pid.into(),
+            MioTcpStream::INTERESTS, PollOption::Edge)
     }
 }
