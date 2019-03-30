@@ -1,6 +1,6 @@
 #![feature(async_await, await_macro, futures_api, never_type)]
 
-use heph::actor::Context;
+use heph::actor;
 use heph::supervisor::NoSupervisor;
 use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 
@@ -32,7 +32,7 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
 /// Our greeter actor.
 ///
 /// Note: this needs the `schedule` options when adding it to the actor system.
-async fn greeter_actor(_: Context<!>) -> Result<(), !> {
+async fn greeter_actor(_: actor::Context<!>) -> Result<(), !> {
     println!("Hello World");
     Ok(())
 }

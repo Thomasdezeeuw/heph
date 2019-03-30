@@ -1,6 +1,6 @@
 #![feature(async_await, await_macro, futures_api, never_type)]
 
-use heph::actor::Context;
+use heph::actor;
 use heph::supervisor::NoSupervisor;
 use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 
@@ -44,7 +44,7 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
 /// Our greeter actor.
 ///
 /// We'll receive a single message and print it.
-async fn greeter_actor(mut ctx: Context<&'static str>) -> Result<(), !> {
+async fn greeter_actor(mut ctx: actor::Context<&'static str>) -> Result<(), !> {
     // All actors have an actor context, which give the actor access to its
     // inbox, from which we can `receive` a message.
     let name = await!(ctx.receive_next());

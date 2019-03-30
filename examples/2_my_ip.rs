@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 
 use futures_util::AsyncWriteExt;
 
-use heph::actor::Context;
+use heph::actor;
 use heph::log::{self, error, info};
 use heph::net::{TcpListener, TcpListenerError, TcpStream};
 use heph::supervisor::SupervisorStrategy;
@@ -77,7 +77,7 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)
 ///
 /// This actor will not receive any message and thus uses `!` (the never type)
 /// as message type.
-async fn conn_actor(_: Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+async fn conn_actor(_: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
     info!("accepted connection: address={}", address);
 
     // This will allocate a new string which isn't the most efficient way to do
