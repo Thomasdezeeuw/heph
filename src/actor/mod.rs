@@ -281,3 +281,28 @@ impl<Fut, E> Actor for Fut
         self.poll(waker)
     }
 }
+
+/// Types that are bound to an [`Actor`].
+///
+/// A marker trait to indicate the type is bound to an [`Actor`]. How the type
+/// is bound to the actor is different for each type. For most futures it means
+/// that if progress can be made (when the [future is awoken]) the actor will be
+/// run. This has the unfortunate consequence that those types can't be moved
+/// away from the actor without first [rebinding] it first, otherwise the
+/// new actor will never be run and the actor that created the type will run
+/// instead.
+///
+/// Most types that are bound can only be created with a (mutable) reference to
+/// an [`actor::Context`]. Examples of this are [`TcpStream`], [`UdpSocket`] and
+/// all futures in the [`timer`] module.
+///
+/// [future is awoken]: std::task::Waker::wake
+/// [rebinding]: Bound::rebind
+/// [`actor::Context`]: Context
+/// [`TcpStream`]: crate::net::TcpStream
+/// [`UdpSocket`]: crate::net::UdpSocket
+/// [`timer`]: crate::timer
+pub trait Bound {
+    /// Bind to a different [`Actor`].
+    fn rebind<M>(&mut self, ctx: &mut Context<M>);
+}
