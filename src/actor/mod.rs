@@ -303,6 +303,11 @@ impl<Fut, E> Actor for Fut
 /// [`UdpSocket`]: crate::net::UdpSocket
 /// [`timer`]: crate::timer
 pub trait Bound {
+    /// Error type used in [`rebind`].
+    ///
+    /// [`rebind`]: Bound::rebind
+    type Error;
+
     /// Bind to a different [`Actor`].
-    fn rebind<M>(&mut self, ctx: &mut Context<M>);
+    fn rebind<M>(&mut self, ctx: &mut Context<M>) -> Result<(), Self::Error>;
 }
