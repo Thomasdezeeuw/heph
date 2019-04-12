@@ -6,7 +6,7 @@ use std::mem;
 use std::pin::Pin;
 
 use log::{debug, trace};
-use mio_st::{event, Events, Event};
+use mio_st::{event, Event};
 use slab::Slab;
 
 use crate::actor::{Actor, NewActor};
@@ -106,7 +106,7 @@ impl Scheduler {
     }
 }
 
-impl Events for Scheduler {
+impl event::Sink for Scheduler {
     fn capacity_left(&self) -> event::Capacity {
         event::Capacity::Growable
     }
