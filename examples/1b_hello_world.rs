@@ -1,8 +1,8 @@
 #![feature(async_await, await_macro, futures_api, never_type)]
 
-use heph::actor;
 use heph::supervisor::NoSupervisor;
-use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
+use heph::system::RuntimeError;
+use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
 
 // The creation and running of the actor system is the same as in example 1.
 fn main() -> Result<(), RuntimeError> {
@@ -19,7 +19,7 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
     // The `schedule` actor option will wake (schedule) the actor when it is
     // added to the actor system for the first time. This is useful for actors
     // that don't have any (initial) external wakers, for example our
-    // `greeter_actor`.
+    // `greeter_actor` below.
     let actor = greeter_actor as fn(_) -> _;
     system_ref.spawn(NoSupervisor, actor, (), ActorOptions {
         schedule: true,

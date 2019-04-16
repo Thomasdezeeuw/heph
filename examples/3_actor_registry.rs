@@ -6,13 +6,13 @@ use std::net::SocketAddr;
 
 use futures_util::{AsyncReadExt, TryFutureExt};
 
-use heph::actor;
 use heph::log::{self, error, info};
 use heph::net::tcp::TcpListenerError;
 use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
+use heph::system::RuntimeError;
 use heph::system::options::Priority;
-use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
+use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
 
 // Main is mostly the same as example 2, but we only use 2 worker threads.
 fn main() -> Result<(), RuntimeError<io::Error>> {
@@ -37,7 +37,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
         .. Default::default()
     })?;
 
-    // In this example we'll use the Actor Registry. This also actors to be
+    // In this example we'll use the Actor Registry. This allows actors to be
     // lookup dynamically at runtime, see the `echo_actor` for an example of
     // that.
     system_ref.spawn(NoSupervisor, count_actor as fn(_) -> _, (), ActorOptions {

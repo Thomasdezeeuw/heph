@@ -7,15 +7,16 @@
 use std::thread;
 use std::time::Duration;
 
-use heph::actor;
 use heph::supervisor::NoSupervisor;
-use heph::system::{ActorOptions, ActorSystem, RuntimeError};
+use heph::system::RuntimeError;
+use heph::{actor, ActorOptions, ActorSystem};
 
 fn main() -> Result<(), RuntimeError> {
     ActorSystem::new()
         .with_setup(|mut system_ref| {
             for _ in 0 .. 10_000_000 {
-                system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
+                system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
+                    ActorOptions::default());
             }
 
             println!("Running, check the memory usage!");

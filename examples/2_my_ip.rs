@@ -5,13 +5,13 @@ use std::net::SocketAddr;
 
 use futures_util::AsyncWriteExt;
 
-use heph::actor;
 use heph::log::{self, error, info};
 use heph::net::tcp::TcpListenerError;
 use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::SupervisorStrategy;
+use heph::system::RuntimeError;
 use heph::system::options::Priority;
-use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
+use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
 
 fn main() -> Result<(), RuntimeError<io::Error>> {
     // For this example we'll enable logging, this give us a bit more insight
