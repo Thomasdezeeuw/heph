@@ -7,7 +7,7 @@ use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::ops::DerefMut;
 use std::pin::Pin;
-use std::task::{Waker, Poll};
+use std::task::{self, Poll};
 use std::{fmt, io};
 
 use mio_st::net::UdpSocket as MioUdpSocket;
@@ -201,7 +201,7 @@ pub struct SendTo<'a> {
 impl<'a> Future for SendTo<'a> {
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
         let SendTo { ref mut socket, ref buf, ref target } = self.deref_mut();
         try_io!(socket.socket.send_to(buf, *target))
     }
@@ -217,7 +217,7 @@ pub struct RecvFrom<'a> {
 impl<'a> Future for RecvFrom<'a> {
     type Output = io::Result<(usize, SocketAddr)>;
 
-    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
         let RecvFrom { ref mut socket, ref mut buf } = self.deref_mut();
         try_io!(socket.socket.recv_from(buf))
     }
@@ -233,7 +233,7 @@ pub struct PeekFrom<'a> {
 impl<'a> Future for PeekFrom<'a> {
     type Output = io::Result<(usize, SocketAddr)>;
 
-    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
         let PeekFrom { ref mut socket, ref mut buf } = self.deref_mut();
         try_io!(socket.socket.peek_from(buf))
     }
@@ -271,7 +271,7 @@ pub struct Send<'a> {
 impl<'a> Future for Send<'a> {
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
         let Send { ref mut socket, ref buf } = self.deref_mut();
         try_io!(socket.socket.send(buf))
     }
@@ -287,7 +287,7 @@ pub struct Recv<'a> {
 impl<'a> Future for Recv<'a> {
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
         let Recv { ref mut socket, ref mut buf } = self.deref_mut();
         try_io!(socket.socket.recv(buf))
     }
@@ -303,7 +303,7 @@ pub struct Peek<'a> {
 impl<'a> Future for Peek<'a> {
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
         let Peek { ref mut socket, ref mut buf } = self.deref_mut();
         try_io!(socket.socket.peek(buf))
     }

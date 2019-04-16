@@ -102,7 +102,7 @@ pub fn new_waker(waker_id: WakerId, pid: ProcessId) -> Waker {
 
     let data = WakerData::new(waker_id, pid).into_raw_data();
     let raw_waker = RawWaker::new(data, WAKER_VTABLE);
-    unsafe { Waker::new_unchecked(raw_waker) }
+    unsafe { Waker::from_raw(raw_waker) }
 }
 
 /// Waker data passed to `LocalWaker` and `Waker` implementations.
@@ -146,11 +146,8 @@ impl WakerData {
 }
 
 /// Virtual table used by the `Waker` implementation.
-static WAKER_VTABLE: &RawWakerVTable = &RawWakerVTable {
-    clone: clone_wake_data,
-    wake,
-    drop: drop_wake_data,
-};
+static WAKER_VTABLE: &RawWakerVTable = &RawWakerVTable::new(clone_wake_data,
+    wake, wake_by_ref, drop_wake_data);
 
 fn assert_copy<T: Copy>() { }
 
@@ -173,6 +170,13 @@ unsafe fn wake(data: *const ()) {
     let thread_waker = THREAD_WAKERS[waker_id.0 as usize].as_ref()
         .expect("tried to wake a thread that isn't initialised");
     thread_waker.wake(pid)
+}
+
+unsafe fn wake_by_ref(data: *const ()) {
+    assert_copy::<WakerData>();
+    // Since we `WakerData` is `Copy` `wake` doesn't actually consume any data,
+    // so we can just call it.
+    wake(data)
 }
 
 unsafe fn drop_wake_data(data: *const ()) {

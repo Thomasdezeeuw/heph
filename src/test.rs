@@ -20,7 +20,7 @@
 use std::cell::RefCell;
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Waker, Poll};
+use std::task::{self, Poll};
 
 use crate::actor::{Actor, Context, NewActor};
 use crate::actor_ref::ActorRef;
@@ -67,8 +67,10 @@ pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> Result<(NA::Actor
 pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
     where Fut: Future,
 {
-    let waker = test_waker();
-    Future::poll(future, &waker)
+    let pid = ProcessId(0);
+    let waker = system_ref().new_waker(pid);
+    let mut ctx = task::Context::from_waker(&waker);
+    Future::poll(future, &mut ctx)
 }
 
 /// Poll an actor.
@@ -83,12 +85,8 @@ pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
 pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
     where A: Actor,
 {
-    let waker = test_waker();
-    Actor::try_poll(actor, &waker)
-}
-
-/// Create a test [`LocalWaker`], with pid 0.
-fn test_waker() -> Waker {
     let pid = ProcessId(0);
-    system_ref().new_waker(pid)
+    let waker = system_ref().new_waker(pid);
+    let mut ctx = task::Context::from_waker(&waker);
+    Actor::try_poll(actor, &mut ctx)
 }

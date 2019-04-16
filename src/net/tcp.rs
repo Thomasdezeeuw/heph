@@ -6,7 +6,7 @@ use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::ops::DerefMut;
 use std::pin::Pin;
-use std::task::{Waker, Poll};
+use std::task::{self, Poll};
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
 use log::debug;
@@ -222,7 +222,7 @@ impl<S, NA> Actor for TcpListener<S, NA>
 {
     type Error = TcpListenerError<NA::Error>;
 
-    fn try_poll(self: Pin<&mut Self>, _waker: &Waker) -> Poll<Result<(), Self::Error>> {
+    fn try_poll(self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Result<(), Self::Error>> {
         // This is safe because only the `ActorSystemRef`, `MioTcpListener` and
         // the `MailBox` are mutably borrowed and all are `Unpin`.
         let &mut TcpListener {
@@ -443,7 +443,7 @@ pub struct Peek<'a> {
 impl<'a> Future for Peek<'a> {
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _waker: &Waker) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
         let Peek { ref mut stream, ref mut buf } = self.deref_mut();
         try_io!(stream.socket.peek(buf))
     }
@@ -454,22 +454,22 @@ impl AsyncRead for TcpStream {
         Initializer::nop()
     }
 
-    fn poll_read(&mut self, _waker: &Waker, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(mut self: Pin<&mut Self>, _ctx: &mut task::Context, buf: &mut [u8]) -> Poll<io::Result<usize>> {
         try_io!(self.socket.read(buf))
     }
 }
 
 impl AsyncWrite for TcpStream {
-    fn poll_write(&mut self, _waker: &Waker, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(mut self: Pin<&mut Self>, _ctx: &mut task::Context, buf: &[u8]) -> Poll<io::Result<usize>> {
         try_io!(self.socket.write(buf))
     }
 
-    fn poll_flush(&mut self, _waker: &Waker) -> Poll<io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<io::Result<()>> {
         try_io!(self.socket.flush())
     }
 
-    fn poll_close(&mut self, waker: &Waker) -> Poll<io::Result<()>> {
-        self.poll_flush(waker)
+    fn poll_close(self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<io::Result<()>> {
+        self.poll_flush(ctx)
     }
 }
 

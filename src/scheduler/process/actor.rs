@@ -2,7 +2,7 @@
 
 use std::fmt;
 use std::pin::Pin;
-use std::task::Poll;
+use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
 use log::{error, trace};
@@ -71,7 +71,8 @@ impl<S, NA> Process for ActorProcess<S, NA>
         // operation, still ensuring that the actor is not moved.
         let mut pinned_actor = unsafe { Pin::new_unchecked(&mut this.actor) };
         let waker = system_ref.new_waker(this.id);
-        let result = match Actor::try_poll(pinned_actor.as_mut(), &waker) {
+        let mut ctx = task::Context::from_waker(&waker);
+        let result = match Actor::try_poll(pinned_actor.as_mut(), &mut ctx) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
             Poll::Ready(Err(err)) => {
                 match this.supervisor.decide(err) {
