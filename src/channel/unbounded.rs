@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::future::Future;
 use std::marker::Unpin;
 use std::pin::Pin;
-use std::task::{Waker, Poll};
+use std::task::{self, Waker, Poll};
 
 use futures_core::stream::Stream;
 
@@ -29,7 +29,7 @@ impl<T> Sender<T> {
         let mut inner = self.inner.borrow_mut();
         inner.values.push_back(value);
         if let Some(ref waker) = inner.waker {
-            waker.wake();
+            waker.wake_by_ref();
         }
         Ok(())
     }
@@ -43,7 +43,7 @@ impl<T> Sender<T> {
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
         if let Some(ref waker) = self.inner.borrow().waker {
-            waker.wake();
+            waker.wake_by_ref();
         }
     }
 }
@@ -79,12 +79,12 @@ impl<T> Receiver<T> {
 impl<T: Unpin> Stream for Receiver<T> {
     type Item = T;
 
-    fn poll_next(self: Pin<&mut Self>, lw: &Waker) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Option<Self::Item>> {
         let this = Pin::get_mut(self);
         match this.try_receive() {
             Ok(Some(value)) => Poll::Ready(Some(value)),
             Ok(None) => {
-                this.inner.borrow_mut().waker = Some(lw.clone());
+                this.inner.borrow_mut().waker = Some(ctx.waker().clone());
                 Poll::Pending
             },
             Err(_) => Poll::Ready(None),
@@ -103,12 +103,12 @@ pub struct ReceiveOne<'r, T> {
 impl<'r, T: Unpin> Future for ReceiveOne<'r, T> {
     type Output = Result<T, NoValue>;
 
-    fn poll(self: Pin<&mut Self>, lw: &Waker) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
         let this = Pin::get_mut(self);
         match this.inner.try_receive() {
             Ok(Some(value)) => Poll::Ready(Ok(value)),
             Ok(None) => {
-                this.inner.inner.borrow_mut().waker = Some(lw.clone());
+                this.inner.inner.borrow_mut().waker = Some(ctx.waker().clone());
                 Poll::Pending
             },
             Err(err) => Poll::Ready(Err(err)),
@@ -136,7 +136,7 @@ pub fn channel<T: Unpin>() -> (Sender<T>, Receiver<T>) {
 mod tests {
     use std::future::Future;
     use std::pin::Pin;
-    use std::task::Poll;
+    use std::task::{self, Poll};
 
     use futures_core::stream::Stream;
     use futures_test::task::new_count_waker;
@@ -148,14 +148,15 @@ mod tests {
         let (mut sender, receiver) = unbounded();
         let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
 
         assert_eq!(count, 0);
-        assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Pending);
+        assert_eq!(receiver.as_mut().poll_next(&mut ctx), Poll::Pending);
         assert_eq!(count, 0);
 
         sender.send(()).unwrap();
         assert_eq!(count, 1);
-        assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(Some(())));
+        assert_eq!(receiver.as_mut().poll_next(&mut ctx), Poll::Ready(Some(())));
     }
 
     #[test]
@@ -163,11 +164,12 @@ mod tests {
         let (mut sender, receiver) = unbounded();
         let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
 
         assert_eq!(count, 0);
         sender.send(()).unwrap();
         assert_eq!(count, 0);
-        assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(Some(())));
+        assert_eq!(receiver.as_mut().poll_next(&mut ctx), Poll::Ready(Some(())));
     }
 
     #[test]
@@ -175,14 +177,15 @@ mod tests {
         let (sender, receiver) = unbounded::<()>();
         let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
 
         assert_eq!(count, 0);
-        assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Pending);
+        assert_eq!(receiver.as_mut().poll_next(&mut ctx), Poll::Pending);
         assert_eq!(count, 0);
 
         drop(sender);
         assert_eq!(count, 1);
-        assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(None));
+        assert_eq!(receiver.as_mut().poll_next(&mut ctx), Poll::Ready(None));
     }
 
     #[test]
@@ -190,6 +193,7 @@ mod tests {
         let (mut sender, receiver) = unbounded();
         let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
 
         assert_eq!(count, 0);
         sender.send(1).unwrap();
@@ -197,36 +201,38 @@ mod tests {
         drop(sender);
 
         assert_eq!(count, 0);
-        assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(Some(1)));
-        assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(Some(2)));
-        assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(None));
+        assert_eq!(receiver.as_mut().poll_next(&mut ctx), Poll::Ready(Some(1)));
+        assert_eq!(receiver.as_mut().poll_next(&mut ctx), Poll::Ready(Some(2)));
+        assert_eq!(receiver.as_mut().poll_next(&mut ctx), Poll::Ready(None));
     }
 
     #[test]
     fn receive_one() {
         let (mut sender, mut receiver) = unbounded();
         let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
 
         assert_eq!(count, 0);
         sender.send(1).unwrap();
 
         assert_eq!(count, 0);
-        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Ready(Ok(1)));
-        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Pending);
+        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&mut ctx), Poll::Ready(Ok(1)));
+        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&mut ctx), Poll::Pending);
 
         sender.send(2).unwrap();
         assert_eq!(count, 1);
         drop(sender);
         assert_eq!(count, 2);
 
-        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Ready(Ok(2)));
-        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Ready(Err(NoValue)));
+        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&mut ctx), Poll::Ready(Ok(2)));
+        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&mut ctx), Poll::Ready(Err(NoValue)));
     }
 
     #[test]
     fn receive_one_after_sender_drop() {
         let (mut sender, mut receiver) = unbounded();
         let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
 
         assert_eq!(count, 0);
         sender.send(1).unwrap();
@@ -234,9 +240,9 @@ mod tests {
         drop(sender);
 
         assert_eq!(count, 0);
-        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Ready(Ok(1)));
-        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Ready(Ok(2)));
-        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&waker), Poll::Ready(Err(NoValue)));
+        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&mut ctx), Poll::Ready(Ok(1)));
+        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&mut ctx), Poll::Ready(Ok(2)));
+        assert_eq!(Pin::new(&mut receiver.receive_one()).as_mut().poll(&mut ctx), Poll::Ready(Err(NoValue)));
     }
 
     #[test]
@@ -251,9 +257,10 @@ mod tests {
         let (sender, receiver) = unbounded::<()>();
         let mut receiver = Box::pin(receiver);
         let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
 
         drop(sender);
         assert_eq!(count, 0);
-        assert_eq!(receiver.as_mut().poll_next(&waker), Poll::Ready(None));
+        assert_eq!(receiver.as_mut().poll_next(&mut ctx), Poll::Ready(None));
     }
 }

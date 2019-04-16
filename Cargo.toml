@@ -23,8 +23,8 @@ test = []
 
 [dependencies]
 crossbeam-channel    = "0.3.6"
-futures-core-preview = "0.3.0-alpha.13"
-futures-io-preview   = "0.3.0-alpha.13"
+futures-core-preview = "0.3.0-alpha.14"
+futures-io-preview   = "0.3.0-alpha.14"
 log                  = "0.4.6"
 mio-st               = { git = "https://github.com/Thomasdezeeuw/mio-st" }
 num_cpus             = "1.8.0"
@@ -32,6 +32,6 @@ slab                 = "0.4.0"
 std-logger           = "0.3.2"
 
 [dev-dependencies]
-futures-test-preview = "0.3.0-alpha.13"
-futures-util-preview = "0.3.0-alpha.13"
+futures-test-preview = "0.3.0-alpha.14"
+futures-util-preview = "0.3.0-alpha.14"
 lazy_static          = "1.1.0"

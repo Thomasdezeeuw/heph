@@ -26,7 +26,7 @@ impl<M> ActorRefType<M> for Machine {
     fn send(data: &mut Self::Data, msg: M) -> Result<(), SendError<M>> {
         match data.sender.try_send(msg) {
             Ok(()) => {
-                data.waker.wake();
+                data.waker.wake_by_ref();
                 Ok(())
             },
             Err(err) => Err(SendError { message: err.into_inner() }),
