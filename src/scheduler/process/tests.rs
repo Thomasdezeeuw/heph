@@ -5,8 +5,8 @@
 use std::cmp::Ordering;
 use std::mem::forget;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::sync::atomic::{self, AtomicBool};
+use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 

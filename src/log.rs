@@ -21,4 +21,4 @@
 pub use log::{debug, error, info, log, log_enabled, trace, warn};
 
 #[doc(no_inline)]
-pub use std_logger::{REQUEST_TARGET, init, try_init};
+pub use std_logger::{init, try_init, REQUEST_TARGET};

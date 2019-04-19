@@ -7,13 +7,13 @@ use std::time::Duration;
 use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{empty, Empty};
 
-use crate::{actor, NewActor};
 use crate::scheduler::process::{Process, ProcessId, ProcessResult};
 use crate::scheduler::{Priority, ProcessState, Scheduler};
 use crate::supervisor::NoSupervisor;
 use crate::system::ActorSystemRef;
 use crate::test::{init_actor, system_ref};
 use crate::util::Shared;
+use crate::{actor, NewActor};
 
 fn assert_size<T>(expected: usize) {
     assert_eq!(mem::size_of::<T>(), expected);

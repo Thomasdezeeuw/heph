@@ -9,8 +9,8 @@ use heph::log::{self, error, info};
 use heph::net::tcp::TcpListenerError;
 use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::SupervisorStrategy;
-use heph::system::RuntimeError;
 use heph::system::options::Priority;
+use heph::system::RuntimeError;
 use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
 
 fn main() -> Result<(), RuntimeError<io::Error>> {

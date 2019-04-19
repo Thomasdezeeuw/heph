@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::future::Future;
 use std::marker::Unpin;
 use std::pin::Pin;
-use std::task::{self, Waker, Poll};
+use std::task::{self, Poll, Waker};
 
 use futures_core::stream::Stream;
 
