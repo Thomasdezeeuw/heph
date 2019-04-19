@@ -38,7 +38,7 @@
 //! ```
 //! #![feature(async_await, await_macro, futures_api, never_type)]
 //!
-//! use heph::actor::Context;
+//! use heph::actor;
 //! use heph::log::{self, error};
 //! use heph::supervisor::SupervisorStrategy;
 //! use heph::system::{ActorOptions, ActorSystem, RuntimeError};
@@ -68,7 +68,7 @@
 //! }
 //!
 //! /// Our badly behaving actor.
-//! async fn bad_actor(_ctx: Context<!>) -> Result<(), Error> {
+//! async fn bad_actor(_ctx: actor::Context<!>) -> Result<(), Error> {
 //!     Err(Error)
 //! }
 //! ```
@@ -126,9 +126,9 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
-/// use heph::actor::Context;
+/// use heph::{actor, ActorSystem, ActorOptions};
 /// use heph::supervisor::NoSupervisor;
-/// use heph::system::{ActorOptions, ActorSystem, RuntimeError};
+/// use heph::system::RuntimeError;
 ///
 /// fn main() -> Result<(), RuntimeError> {
 ///     ActorSystem::new().with_setup(|mut system_ref| {
@@ -142,7 +142,7 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 /// }
 ///
 /// /// Our actor that never returns an error.
-/// async fn actor(ctx: Context<&'static str>) -> Result<(), !> {
+/// async fn actor(ctx: actor::Context<&'static str>) -> Result<(), !> {
 /// #   drop(ctx); // Silence dead code warnings.
 ///     Ok(())
 /// }

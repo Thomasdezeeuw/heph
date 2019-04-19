@@ -14,11 +14,10 @@ use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{empty, Empty};
 use mio_st::event;
 
-use crate::actor::{Context, NewActor};
 use crate::scheduler::process::{ActorProcess, Priority, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoSupervisor, SupervisorStrategy};
-use crate::system::ActorSystemRef;
 use crate::test::{init_actor, system_ref};
+use crate::{actor, ActorSystemRef, NewActor};
 
 #[test]
 fn pid() {
@@ -143,7 +142,7 @@ fn process_ordering() {
     assert_eq!(process2.cmp(process3), Ordering::Less);
 }
 
-async fn ok_actor(mut ctx: Context<()>) -> Result<(), !> {
+async fn ok_actor(mut ctx: actor::Context<()>) -> Result<(), !> {
     let _msg = await!(ctx.receive_next());
     Ok(())
 }
@@ -180,7 +179,7 @@ fn actor_process() {
     assert!(process.runtime() > runtime_after_1_run);
 }
 
-async fn error_actor(mut ctx: Context<()>, fail: bool) -> Result<(), ()> {
+async fn error_actor(mut ctx: actor::Context<()>, fail: bool) -> Result<(), ()> {
     if !fail {
         let _msg = await!(ctx.receive_next());
         Ok(())
@@ -253,7 +252,7 @@ fn restarting_erroneous_actor_process() {
     assert!(process.runtime() > runtime_after_1_run);
 }
 
-async fn sleepy_actor(ctx: Context<()>, sleep_time: Duration) -> Result<(), !> {
+async fn sleepy_actor(ctx: actor::Context<()>, sleep_time: Duration) -> Result<(), !> {
     sleep(sleep_time);
     drop(ctx);
     Ok(())
@@ -292,7 +291,7 @@ impl NewActor for TestAssertUnmovedNewActor {
     type Actor = AssertUnmoved<Empty<Result<(), !>>>;
     type Error = !;
 
-    fn new(&mut self, ctx: Context<Self::Message>, _arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(&mut self, ctx: actor::Context<Self::Message>, _arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
         // In the test we need the access to the inbox, to achieve that we can't
         // drop the context, so we forget about it here leaking the inbox.
         forget(ctx);

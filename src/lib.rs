@@ -12,9 +12,9 @@
 //! ```
 //! # #![feature(async_await, await_macro, futures_api, never_type)]
 //! #
-//! # use heph::actor::Context;
+//! # use heph::actor;
 //! #
-//! async fn actor(mut ctx: Context<String>) -> Result<(), !> {
+//! async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
 //!     // Receive a message.
 //!     let msg = await!(ctx.receive_next());
 //!     // Print the message.

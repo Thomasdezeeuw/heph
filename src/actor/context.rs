@@ -35,7 +35,7 @@ pub struct Context<M> {
 }
 
 impl<M> Context<M> {
-    /// Create a new `Context`.
+    /// Create a new `actor::Context`.
     pub(crate) const fn new(pid: ProcessId, system_ref: ActorSystemRef, inbox: Shared<MailBox<M>>) -> Context<M> {
         Context {
             pid,
@@ -48,8 +48,10 @@ impl<M> Context<M> {
     ///
     /// This will attempt to receive next message if one is available. If the
     /// actor wants to wait until a message is received
-    /// [`Context::receive_next`] can be used, which returns a `Future<Output =
-    /// M>`.
+    /// [`actor::Context::receive_next`] can be used, which returns a
+    /// `Future<Output = M>`.
+    ///
+    /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
     ///
     /// # Examples
     ///
@@ -58,9 +60,9 @@ impl<M> Context<M> {
     /// ```
     /// #![feature(async_await, futures_api, never_type)]
     ///
-    /// use heph::actor::Context;
+    /// use heph::actor;
     ///
-    /// async fn greeter_actor(mut ctx: Context<String>) -> Result<(), !> {
+    /// async fn greeter_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
     ///     if let Some(name) = ctx.try_receive_next() {
     ///         println!("Hello: {}", name);
     ///     } else {
@@ -80,7 +82,10 @@ impl<M> Context<M> {
     ///
     /// This will attempt to receive a message using message selection, if one
     /// is available. If the actor wants to wait until a message is received
-    /// [`Context::receive`] can be used, which returns a `Future<Output = M>`.
+    /// [`actor::Context::receive`] can be used, which returns a `Future<Output
+    /// = M>`.
+    ///
+    /// [`actor::Context::receive`]: crate::actor::Context::receive
     ///
     /// # Examples
     ///
@@ -90,7 +95,7 @@ impl<M> Context<M> {
     /// ```
     /// #![feature(async_await, futures_api, never_type)]
     ///
-    /// use heph::actor::Context;
+    /// use heph::actor;
     ///
     /// #[derive(Debug)]
     /// enum Message {
@@ -108,7 +113,7 @@ impl<M> Context<M> {
     ///     }
     /// }
     ///
-    /// async fn actor(mut ctx: Context<Message>) -> Result<(), !> {
+    /// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
     ///     // First we handle priority messages.
     ///     while let Some(priority_msg) = ctx.try_receive(Message::is_priority) {
     ///         println!("Priority message: {:?}", priority_msg);
@@ -144,9 +149,9 @@ impl<M> Context<M> {
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
-    /// use heph::actor::Context;
+    /// use heph::actor;
     ///
-    /// async fn print_actor(mut ctx: Context<String>) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
     ///     let msg = await!(ctx.receive_next());
     ///     println!("Got a message: {}", msg);
     ///     Ok(())
@@ -166,10 +171,10 @@ impl<M> Context<M> {
     ///
     /// use futures_util::future::FutureExt;
     /// use futures_util::select;
-    /// use heph::actor::Context;
+    /// use heph::actor;
     /// use heph::timer::Timer;
     ///
-    /// async fn print_actor(mut ctx: Context<String>) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
     ///     // Create a timer, this will be ready once the timeout has
     ///     // passed.
     ///     let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100)).fuse();
@@ -202,9 +207,13 @@ impl<M> Context<M> {
     ///
     /// This returns a [`Future`] that will complete once a message is ready.
     ///
-    /// See [`Context::try_receive`] and [`MessageSelector`] for examples on how
-    /// to use the message selector and see [`Context::receive_next`] for an
-    /// example that uses the same `Future` this method returns.
+    /// See [`actor::Context::try_receive`] and [`MessageSelector`] for examples
+    /// on how to use the message selector and see
+    /// [`actor::Context::receive_next`] for an example that uses the same
+    /// `Future` this method returns.
+    ///
+    /// [`actor::Context::try_receive`]: crate::actor::Context::try_receive
+    /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
     pub fn receive<'ctx, S>(&'ctx mut self, selector: S) -> ReceiveMessage<'ctx, M, S>
         where S: MessageSelector<M>,
     {
@@ -232,8 +241,11 @@ impl<M> Context<M> {
 
 /// Future to receive a single message.
 ///
-/// The implementation behind [`Context::receive`] and
-/// [`Context::receive_next`].
+/// The implementation behind [`actor::Context::receive`] and
+/// [`actor::Context::receive_next`].
+///
+/// [`actor::Context::receive`]: crate::actor::Context::receive
+/// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
 #[derive(Debug)]
 pub struct ReceiveMessage<'ctx, M, S = First> {
     inbox: &'ctx mut Shared<MailBox<M>>,

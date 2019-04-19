@@ -57,12 +57,12 @@ use mio_st::os::{Awakener, Evented, Interests, RegisterOption, OsQueue};
 use mio_st::{event, Event, Ready, Timers, Queue, poll};
 use num_cpus;
 
-use crate::actor::{Actor, Context, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::mailbox::MailBox;
 use crate::scheduler::{ProcessId, Scheduler, SchedulerRef};
 use crate::supervisor::Supervisor;
 use crate::util::Shared;
+use crate::{actor, Actor, NewActor};
 
 mod error;
 mod registry;
@@ -121,9 +121,9 @@ use waker::{MAX_THREADS, WakerId, new_waker, init_waker};
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
-/// use heph::actor::Context;
 /// use heph::supervisor::NoSupervisor;
-/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
+/// use heph::system::RuntimeError;
+/// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
 ///
 /// fn main() -> Result<(), RuntimeError> {
 ///     // Build a new `ActorSystem`.
@@ -159,7 +159,7 @@ use waker::{MAX_THREADS, WakerId, new_waker, init_waker};
 /// }
 ///
 /// /// Our actor that greets people.
-/// async fn greeter_actor(mut ctx: Context<&'static str>, message: &'static str) -> Result<(), !> {
+/// async fn greeter_actor(mut ctx: actor::Context<&'static str>, message: &'static str) -> Result<(), !> {
 ///     // `message` is the argument passed to `spawn` in the `setup` function
 ///     // above, in this example it was "Hello".
 ///
@@ -434,7 +434,7 @@ impl RunningActorSystem {
 /// A reference to an [`ActorSystem`].
 ///
 /// A reference to the running actor system can be accessed via the actor
-/// [`Context::system_ref`].
+/// [`actor::Context::system_ref`].
 ///
 /// This reference refers to the thread-local actor system, and thus can't be
 /// shared across thread bounds. To share this reference (within the same
@@ -514,7 +514,7 @@ impl ActorSystemRef {
         // Create our actor context and our actor with it.
         let mailbox = Shared::new(MailBox::new(pid, self.clone()));
         let actor_ref = ActorRef::new_local(mailbox.downgrade());
-        let ctx = Context::new(pid, system_ref, mailbox.clone());
+        let ctx = actor::Context::new(pid, system_ref, mailbox.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         if options.schedule {
@@ -570,9 +570,9 @@ impl ActorSystemRef {
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
-    /// use heph::actor::Context;
     /// use heph::supervisor::NoSupervisor;
-    /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
+    /// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
+    /// use heph::system::RuntimeError;
     ///
     /// fn main() -> Result<(), RuntimeError> {
     ///     ActorSystem::new()
@@ -602,7 +602,7 @@ impl ActorSystemRef {
     /// }
     ///
     /// /// Our actor implemented as an asynchronous function.
-    /// async fn actor(ctx: Context<()>) -> Result<(), !> {
+    /// async fn actor(ctx: actor::Context<()>) -> Result<(), !> {
     ///     // ...
     /// #   drop(ctx); // Silence dead code warnings.
     /// #   Ok(())
