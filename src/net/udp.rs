@@ -17,11 +17,11 @@ use crate::actor;
 
 /// The unconnected mode of an [`UdpSocket`].
 #[allow(missing_debug_implementations)]
-pub enum Unconnected { }
+pub enum Unconnected {}
 
 /// The connected mode of an [`UdpSocket`].
 #[allow(missing_debug_implementations)]
-pub enum Connected { }
+pub enum Connected {}
 
 /// A User Datagram Protocol (UDP) socket.
 ///
@@ -75,13 +75,13 @@ pub enum Connected { }
 ///     // Add our server actor.
 ///     system_ref.spawn(supervisor, echo_server as fn(_, _) -> _, address, ActorOptions {
 ///         schedule: true,
-///         .. ActorOptions::default()
+///         ..ActorOptions::default()
 ///     });
 ///
 ///     // Add our client actor.
 ///     system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions {
 ///         schedule: true,
-///         .. ActorOptions::default()
+///         ..ActorOptions::default()
 ///     });
 ///
 ///     Ok(())
@@ -105,7 +105,7 @@ pub enum Connected { }
 ///             res = socket.recv_from(&mut buf).fuse() => res?,
 ///         };
 ///
-///         let buf = &buf[..n];
+///         let buf = &buf[.. n];
 ///         match str::from_utf8(buf) {
 ///             Ok(str) => println!("Got the following message: `{}`, from {}", str, address),
 ///             Err(_) => println!("Got data: {:?}, from {}", buf, address),

@@ -34,7 +34,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     let address = "127.0.0.1:7890".parse().unwrap();
     system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions {
         priority: Priority::LOW,
-        .. Default::default()
+        ..Default::default()
     })?;
 
     // In this example we'll use the Actor Registry. This allows actors to be
@@ -47,7 +47,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
         //
         // Note: this registry is per thread!
         register: true,
-        .. Default::default()
+        ..Default::default()
     });
 
     Ok(())

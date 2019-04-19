@@ -129,8 +129,8 @@ impl SchedulerRef {
     /// By default the process will be considered inactive and thus not
     /// scheduled. To schedule the process see `Scheduler.schedule`.
     ///
-    /// This API allows the `ProcessId` to be used before the process is actually
-    /// added to scheduler.
+    /// This API allows the `ProcessId` to be used before the process is
+    /// actually added to scheduler.
     pub fn add_process<'s>(&'s mut self) -> AddingProcess<'s> {
         AddingProcess {
             processes: self.processes.borrow_mut(),

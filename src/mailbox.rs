@@ -178,7 +178,7 @@ impl<'m, M> ExactSizeIterator for Messages<'m, M> {
     }
 }
 
-impl<'m, M> FusedIterator for Messages<'m, M> { }
+impl<'m, M> FusedIterator for Messages<'m, M> {}
 
 impl<F, M> MessageSelector<M> for F
     where F: FnMut(&M) -> bool,

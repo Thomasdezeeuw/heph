@@ -18,7 +18,7 @@ use crate::actor_ref::{ActorRef, ActorRefType, SendError};
 ///
 /// [local actor reference]: crate::actor_ref::Local
 #[allow(missing_debug_implementations)]
-pub enum Machine { }
+pub enum Machine {}
 
 impl<M> ActorRefType<M> for Machine {
     type Data = MachineData<M>;

@@ -10,7 +10,7 @@ use crate::util::Shared;
 
 // FIXME: add a test that local actor reference is !Send and !Sync. Below
 // doesn't work. :(
-//fn assert_not_send<T: !Send + !Sync>(_: &T) {}
+// fn assert_not_send<T: !Send + !Sync>(_: &T) {}
 
 #[test]
 fn size_assertions() {

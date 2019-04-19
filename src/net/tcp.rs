@@ -74,7 +74,7 @@ use crate::util::Shared;
 ///         // handling of ongoing requests over accepting new requests possibly
 ///         // overloading the system.
 ///         priority: Priority::LOW,
-///         .. Default::default()
+///         ..Default::default()
 ///     })?;
 ///
 ///     Ok(())
@@ -132,7 +132,7 @@ use crate::util::Shared;
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     let mut listener_ref = system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions {
 ///         priority: Priority::LOW,
-///         .. Default::default()
+///         ..Default::default()
 ///     })?;
 ///
 ///     // Because the listener is just another actor we can send it messages.

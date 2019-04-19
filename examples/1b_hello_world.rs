@@ -23,7 +23,7 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
     let actor = greeter_actor as fn(_) -> _;
     system_ref.spawn(NoSupervisor, actor, (), ActorOptions {
         schedule: true,
-        .. ActorOptions::default()
+        ..ActorOptions::default()
     });
 
     Ok(())

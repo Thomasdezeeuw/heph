@@ -20,7 +20,7 @@ use crate::util::Shared;
 /// [upgraded]: crate::actor_ref::ActorRef::upgrade
 /// [machine local actor reference]: crate::actor_ref::Machine
 #[allow(missing_debug_implementations)]
-pub enum Local { }
+pub enum Local {}
 
 impl<M> ActorRefType<M> for Local {
     type Data = LocalData<M>;
