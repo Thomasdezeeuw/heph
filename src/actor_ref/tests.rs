@@ -2,7 +2,7 @@
 
 use std::mem::size_of;
 
-use crate::actor_ref::{ActorShutdown, ActorRef, ActorRefType, Local, Machine, SendError};
+use crate::actor_ref::{ActorRef, ActorRefType, ActorShutdown, Local, Machine, SendError};
 use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
 use crate::test;

@@ -76,7 +76,7 @@
 use std::future::Future;
 use std::marker::Unpin;
 use std::pin::Pin;
-use std::task::{self, Waker, Poll};
+use std::task::{self, Poll, Waker};
 
 use crate::channel::{NoReceiver, NoValue};
 use crate::util::Shared;

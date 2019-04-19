@@ -10,8 +10,8 @@ use heph::log::{self, error, info};
 use heph::net::tcp::TcpListenerError;
 use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
-use heph::system::RuntimeError;
 use heph::system::options::Priority;
+use heph::system::RuntimeError;
 use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
 
 // Main is mostly the same as example 2, but we only use 2 worker threads.

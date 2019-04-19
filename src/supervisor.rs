@@ -126,9 +126,9 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
-/// use heph::{actor, ActorSystem, ActorOptions};
 /// use heph::supervisor::NoSupervisor;
 /// use heph::system::RuntimeError;
+/// use heph::{actor, ActorOptions, ActorSystem};
 ///
 /// fn main() -> Result<(), RuntimeError> {
 ///     ActorSystem::new().with_setup(|mut system_ref| {

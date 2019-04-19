@@ -49,8 +49,8 @@ pub enum Connected { }
 /// ```
 /// #![feature(async_await, await_macro, futures_api, never_type)]
 ///
-/// use std::{io, str};
 /// use std::net::SocketAddr;
+/// use std::{io, str};
 ///
 /// use futures_util::future::FutureExt;
 /// use futures_util::select;

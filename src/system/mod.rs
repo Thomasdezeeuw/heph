@@ -53,8 +53,8 @@ use std::{fmt, io, thread};
 
 use crossbeam_channel::{self as channel, Receiver};
 use log::{debug, trace};
-use mio_st::os::{Awakener, Evented, Interests, RegisterOption, OsQueue};
-use mio_st::{event, Event, Ready, Timers, Queue, poll};
+use mio_st::os::{Awakener, Evented, Interests, OsQueue, RegisterOption};
+use mio_st::{event, poll, Event, Queue, Ready, Timers};
 use num_cpus;
 
 use crate::actor_ref::ActorRef;
@@ -75,7 +75,7 @@ pub mod options;
 pub use self::error::RuntimeError;
 pub use self::options::ActorOptions;
 
-use waker::{MAX_THREADS, WakerId, new_waker, init_waker};
+use waker::{init_waker, new_waker, WakerId, MAX_THREADS};
 
 /// The system that runs all actors.
 ///
@@ -571,8 +571,8 @@ impl ActorSystemRef {
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
     /// use heph::supervisor::NoSupervisor;
-    /// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
     /// use heph::system::RuntimeError;
+    /// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
     ///
     /// fn main() -> Result<(), RuntimeError> {
     ///     ActorSystem::new()

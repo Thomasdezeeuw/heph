@@ -2,7 +2,7 @@
 
 use std::mem;
 use std::sync::atomic::{AtomicU16, Ordering};
-use std::task::{Waker, RawWaker, RawWakerVTable};
+use std::task::{RawWaker, RawWakerVTable, Waker};
 
 use crossbeam_channel::Sender;
 use log::error;
@@ -188,20 +188,20 @@ unsafe fn drop_wake_data(data: *const ()) {
 #[cfg(test)]
 mod tests {
     use std::mem::size_of;
-    use std::{thread, io};
+    use std::{io, thread};
 
     use mio_st::os::{Awakener, OsQueue};
-    use mio_st::{event, Event, Ready, poll};
+    use mio_st::{event, poll, Event, Ready};
 
     use crate::scheduler::ProcessId;
-    use crate::system::waker::{init_waker, new_waker, WakerData, WAKER_DATA_BITS, THREAD_ID_BITS};
+    use crate::system::waker::{init_waker, new_waker, WakerData, THREAD_ID_BITS, WAKER_DATA_BITS};
 
     const AWAKENER_ID: event::Id = event::Id(0);
     const PID1: ProcessId = ProcessId(0);
 
     #[test]
     fn assert_waker_data_size() {
-        assert_eq!(size_of::<*const()>(), size_of::<WakerData>());
+        assert_eq!(size_of::<*const ()>(), size_of::<WakerData>());
     }
 
     #[test]

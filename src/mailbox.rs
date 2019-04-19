@@ -1,7 +1,7 @@
 //! Module containing the `MailBox` for an actor.
 
-use std::collections::VecDeque;
 use std::collections::vec_deque;
+use std::collections::VecDeque;
 use std::iter::{Enumerate, FusedIterator};
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
@@ -94,7 +94,7 @@ impl<M> MailBox<M> {
 /// example below is the implementation behind [`First`].
 ///
 /// ```
-/// use heph::actor::message_select::{Messages, MessageSelector, MessageSelection};
+/// use heph::actor::message_select::{MessageSelection, MessageSelector, Messages};
 ///
 /// struct First;
 ///
@@ -111,7 +111,7 @@ impl<M> MailBox<M> {
 /// The following example selects the message with the highest priority.
 ///
 /// ```
-/// use heph::actor::message_select::{Messages, MessageSelector, MessageSelection};
+/// use heph::actor::message_select::{MessageSelection, MessageSelector, Messages};
 ///
 /// struct Message {
 /// #   #[allow(dead_code)]

@@ -18,8 +18,8 @@
 //! ```
 //! #![feature(async_await, futures_api, never_type)]
 //!
-//! use heph::actor::messages::Ack;
 //! use heph::actor;
+//! use heph::actor::messages::Ack;
 //!
 //! #[derive(Debug, Eq, PartialEq)]
 //! struct OK;
