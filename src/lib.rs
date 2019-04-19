@@ -113,7 +113,7 @@ mod scheduler;
 mod util;
 
 #[doc(no_inline)]
-pub use crate::actor::{Actor, Context, NewActor};
+pub use crate::actor::{Actor, NewActor};
 #[doc(no_inline)]
 pub use crate::actor_ref::ActorRef;
 #[doc(no_inline)]
