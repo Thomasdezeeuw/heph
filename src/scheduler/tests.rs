@@ -7,7 +7,7 @@ use std::time::Duration;
 use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{empty, Empty};
 
-use crate::actor::{Context, NewActor};
+use crate::{actor, NewActor};
 use crate::scheduler::process::{Process, ProcessId, ProcessResult};
 use crate::scheduler::{Priority, ProcessState, Scheduler};
 use crate::supervisor::NoSupervisor;
@@ -189,7 +189,7 @@ fn scheduler_run_order() {
     assert_eq!(*run_order.borrow(), vec![2, 1, 0]);
 }
 
-async fn actor(mut ctx: Context<()>) -> Result<(), !> {
+async fn actor(mut ctx: actor::Context<()>) -> Result<(), !> {
     let _msg = await!(ctx.receive_next());
     Ok(())
 }
@@ -236,7 +236,7 @@ impl NewActor for TestNewActor {
     type Actor = AssertUnmoved<Empty<Result<(), !>>>;
     type Error = !;
 
-    fn new(&mut self, ctx: Context<Self::Message>, _arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(&mut self, ctx: actor::Context<Self::Message>, _arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
         // In the test we need the access to the inbox, to achieve that we can't
         // drop the context, so we forget about it here leaking the inbox.
         mem::forget(ctx);

@@ -16,9 +16,9 @@
 //! ```
 //! #![feature(async_await, futures_api)]
 //!
-//! use heph::actor::{Context, NewActor};
+//! use heph::{actor, NewActor};
 //!
-//! async fn actor(ctx: Context<()>) -> Result<(), ()> {
+//! async fn actor(ctx: actor::Context<()>) -> Result<(), ()> {
 //! #   drop(ctx); // Use `ctx` to silence dead code warnings.
 //!     println!("Actor is running!");
 //!     Ok(())
@@ -74,9 +74,9 @@ pub trait NewActor {
     /// ```
     /// #![feature(async_await, await_macro, futures_api, never_type)]
     ///
-    /// use heph::actor::Context;
     /// use heph::supervisor::NoSupervisor;
-    /// use heph::system::{ActorOptions, ActorSystem, RuntimeError};
+    /// use heph::system::RuntimeError;
+    /// use heph::{actor, ActorOptions, ActorSystem};
     ///
     /// fn main() -> Result<(), RuntimeError> {
     ///     // Create and run the actor system.
@@ -113,7 +113,7 @@ pub trait NewActor {
     /// }
     ///
     /// /// Our actor implementation that prints all messages it receives.
-    /// async fn actor(mut ctx: Context<Message>) -> Result<(), !> {
+    /// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
     ///     let msg = await!(ctx.receive_next());
     ///     println!("received message: {:?}", msg);
     ///     Ok(())
@@ -130,7 +130,7 @@ pub trait NewActor {
     /// `(TcpStream, SocketAddr)`.
     ///
     /// An empty tuple can be used for actors that don't accept any arguments
-    /// (except for the `Context`, see [`new`] below).
+    /// (except for the `actor::Context`, see [`new`] below).
     ///
     /// When using asynchronous functions arguments are passed regularly, i.e.
     /// not in the form of a tuple, however they do have be passed as a tuple to

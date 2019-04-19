@@ -195,9 +195,9 @@ impl<F, M> MessageSelector<M> for F
 
 /// A [`MessageSelector`] implementation that selects the first message.
 ///
-/// Used by [`Context::receive_next`].
+/// Used by [`actor::Context::receive_next`].
 ///
-/// [`Context::receive_next`]: crate::actor::Context::receive_next
+/// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
 #[derive(Debug)]
 pub struct First;
 
@@ -216,7 +216,7 @@ impl<M> MessageSelector<M> for First {
 ///
 /// use heph::actor::message_select::Priority;
 /// use heph::supervisor::NoSupervisor;
-/// use heph::{Context, ActorOptions, ActorSystem, ActorSystemRef};
+/// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
 ///
 /// ActorSystem::new()
 ///     .with_setup(setup)
@@ -238,7 +238,7 @@ impl<M> MessageSelector<M> for First {
 ///     msg: String,
 /// }
 ///
-/// async fn actor(mut ctx: Context<Message>) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
 ///     // As both messages are ready this will receive the priority message.
 ///     let msg = await!(ctx.receive(Priority(|msg: &Message| msg.priority)));
 ///     println!("Got message: {}", msg.msg);

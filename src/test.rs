@@ -22,12 +22,11 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use crate::actor::{Actor, Context, NewActor};
-use crate::actor_ref::ActorRef;
 use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
-use crate::system::{ActorSystemRef, RunningActorSystem};
+use crate::system::RunningActorSystem;
 use crate::util::Shared;
+use crate::{actor, Actor, ActorRef, ActorSystemRef, NewActor};
 
 thread_local! {
     /// Per thread active, but not running, actor system.
@@ -50,7 +49,7 @@ pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> Result<(NA::Actor
     let inbox = Shared::new(MailBox::new(pid, system_ref.clone()));
     let actor_ref = ActorRef::new_local(inbox.downgrade());
 
-    let ctx = Context::new(pid, system_ref, inbox);
+    let ctx = actor::Context::new(pid, system_ref, inbox);
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, actor_ref))
