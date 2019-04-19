@@ -50,7 +50,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
         // ongoing requests over accepting new requests possibly overloading the
         // system.
         priority: Priority::LOW,
-        .. Default::default()
+        ..Default::default()
     })?;
 
     Ok(())

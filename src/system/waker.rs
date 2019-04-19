@@ -149,7 +149,7 @@ impl WakerData {
 static WAKER_VTABLE: &RawWakerVTable = &RawWakerVTable::new(clone_wake_data,
     wake, wake_by_ref, drop_wake_data);
 
-fn assert_copy<T: Copy>() { }
+fn assert_copy<T: Copy>() {}
 
 unsafe fn clone_wake_data(data: *const ()) -> RawWaker {
     assert_copy::<WakerData>();

@@ -29,8 +29,9 @@ pub struct DeadlinePassed;
 
 /// A [`Future`] that represents a timer.
 ///
-/// If this future returns [`Poll::Ready`]`(`[`DeadlinePassed`]`)` it means that the
-/// deadline has passed. If it returns [`Poll::Pending`] it's not yet passed.
+/// If this future returns [`Poll::Ready`]`(`[`DeadlinePassed`]`)` it means that
+/// the deadline has passed. If it returns [`Poll::Pending`] it's not yet
+/// passed.
 ///
 /// # Examples
 ///
@@ -172,7 +173,8 @@ impl<Fut> Deadline<Fut> {
 
     /// Create a new deadline based on a timeout.
     ///
-    /// Same as calling `Deadline::new(&mut ctx, Instant::now() + timeout, future)`.
+    /// Same as calling `Deadline::new(&mut ctx, Instant::now() + timeout,
+    /// future)`.
     pub fn timeout<M>(ctx: &mut actor::Context<M>, timeout: Duration, future: Fut) -> Deadline<Fut> {
         Deadline::new(ctx, Instant::now() + timeout, future)
     }

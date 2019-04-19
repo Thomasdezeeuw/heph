@@ -234,7 +234,7 @@ impl<S> ActorSystem<S>
         debug!("running actor system: worker_threads={}", self.threads);
 
         let mut handles = Vec::with_capacity(self.threads);
-        for id in 0..self.threads {
+        for id in 0 .. self.threads {
             let setup = self.setup.clone();
             let handle = thread::Builder::new()
                 .name(format!("heph_worker{}", id))
@@ -586,11 +586,11 @@ impl ActorSystemRef {
     ///     let actor_ref1 = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
     ///         register: true,
     /// #       schedule: true, // Run the actor, so the example runs.
-    ///         .. ActorOptions::default()
+    ///         ..ActorOptions::default()
     ///     });
     ///
     ///     // Unfortunately this won't compile. :(
-    ///     //let actor_ref2 = system_ref.lookup::<actor>();
+    ///     // let actor_ref2 = system_ref.lookup::<actor>();
     ///
     ///     // This will work.
     ///     let actor_ref2 = system_ref.lookup_actor(&(actor as fn(_) -> _))
