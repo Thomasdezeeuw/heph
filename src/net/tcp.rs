@@ -1,4 +1,9 @@
-//! TCP related types.
+//! Transmission Control Protocol (TCP) related types.
+//!
+//! Two types are provided:
+//!
+//!  * [`TcpListener`] listens for incoming connections.
+//!  * [`TcpStream`] represents a single TCP connection.
 
 use std::fmt;
 use std::future::Future;

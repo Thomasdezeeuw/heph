@@ -1,4 +1,4 @@
-//! UDP related types.
+//! User Datagram Protocol (UDP) related types.
 //!
 //! See [`UdpSocket`].
 
@@ -25,9 +25,9 @@ pub enum Connected {}
 
 /// A User Datagram Protocol (UDP) socket.
 ///
-/// To create socket [`UdpSocket::bind`] can be used, this will bind the socket
-/// to a local address. The created socket will be in unconnected mode, a socket
-/// can be in one of two modes:
+/// To create a UDP socket [`UdpSocket::bind`] can be used, this will bind the
+/// socket to a local address. The created socket will be in unconnected mode. A
+/// socket can be in one of two modes:
 ///
 /// - [`Unconnected`] mode allows sending and receiving packets to and from all
 ///   sources.
@@ -99,9 +99,10 @@ pub enum Connected {}
 ///     let mut socket = UdpSocket::bind(&mut ctx, local)?;
 ///     let mut buf = [0; 4096];
 ///     loop {
-///         // Either receive a message, a signal to quit, or a UDP packet.
 ///         let (n, address) = select! {
+///             // If we receive a terminate message we'll stop the actor.
 ///             _ = ctx.receive_next().fuse() => return Ok(()),
+///             // Or we received an packet.
 ///             res = socket.recv_from(&mut buf).fuse() => res?,
 ///         };
 ///
@@ -114,6 +115,7 @@ pub enum Connected {}
 ///     }
 /// }
 ///
+/// // The client that will send a message to the server.
 /// async fn client(mut ctx: actor::Context<!>, server_address: SocketAddr) -> io::Result<()> {
 ///     let local_address = "127.0.0.1:7001".parse().unwrap();
 ///     let mut socket = UdpSocket::bind(&mut ctx, local_address)?
