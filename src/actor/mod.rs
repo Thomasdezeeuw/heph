@@ -288,9 +288,8 @@ impl<Fut, E> Actor for Fut
 /// is bound to the actor is different for each type. For most futures it means
 /// that if progress can be made (when the [future is awoken]) the actor will be
 /// run. This has the unfortunate consequence that those types can't be moved
-/// away from the actor without first [rebinding] it first, otherwise the
-/// new actor will never be run and the actor that created the type will run
-/// instead.
+/// away from the actor without [rebinding] it first, otherwise the new actor
+/// will never be run and the actor that created the type will run instead.
 ///
 /// Most types that are bound can only be created with a (mutable) reference to
 /// an [`actor::Context`]. Examples of this are [`TcpStream`], [`UdpSocket`] and
