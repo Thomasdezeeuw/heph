@@ -48,7 +48,7 @@ use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::rc::Rc;
 use std::task::Waker;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{fmt, io, thread};
 
 use crossbeam_channel::{self as channel, Receiver};
@@ -331,8 +331,34 @@ pub(crate) struct RunningActorSystem {
     internal: Rc<ActorSystemInternal>,
     /// Scheduler that hold the processes, schedules and runs them.
     scheduler: Scheduler,
-    /// Receiving side of the channel for `Waker` notifications.
-    waker_notifications: Receiver<ProcessId>,
+    /// Event source for `Waker` events.
+    waker_events: WakerEvents,
+}
+
+/// A wrapper around `crossbeam_channel::Receiver` that implements
+/// `mio_stevent::Source`.
+#[derive(Debug)]
+struct WakerEvents {
+    /// Receiving side of the channel for `Waker` events.
+    receiver: Receiver<ProcessId>,
+}
+
+impl<ES, E> event::Source<ES, E> for WakerEvents
+    where ES: event::Sink,
+{
+    fn next_event_available(&self) -> Option<Duration> {
+        if !self.receiver.is_empty() {
+            Some(Duration::from_millis(0))
+        } else {
+            None
+        }
+    }
+
+    fn poll(&mut self, event_sink: &mut ES) -> Result<(), E> {
+        event_sink.extend(self.receiver.try_iter()
+            .map(|pid| Event::new(pid.into(), Ready::READABLE)));
+        Ok(())
+    }
 }
 
 /// Number of processes to run before polling.
@@ -373,7 +399,7 @@ impl RunningActorSystem {
         Ok(RunningActorSystem {
             internal: Rc::new(internal),
             scheduler,
-            waker_notifications: waker_recv,
+            waker_events: WakerEvents { receiver: waker_recv },
         })
     }
 
@@ -419,13 +445,9 @@ impl RunningActorSystem {
         let mut os_queue = self.internal.os_queue.borrow_mut();
         let mut queue = self.internal.queue.borrow_mut();
         let mut timers = self.internal.timers.borrow_mut();
-        poll(&mut [os_queue.deref_mut(), queue.deref_mut(), timers.deref_mut()], &mut self.scheduler, None)
+        let waker = &mut self.waker_events;
+        poll(&mut [os_queue.deref_mut(), queue.deref_mut(), timers.deref_mut(), waker], &mut self.scheduler, None)
             .map_err(RuntimeError::poll)?;
-
-        // TODO: only do this if the `AWAKENER_ID` was returned in poll.
-        while let Some(pid) = self.waker_notifications.try_recv().ok() {
-            self.scheduler.schedule(pid);
-        }
 
         Ok(())
     }
