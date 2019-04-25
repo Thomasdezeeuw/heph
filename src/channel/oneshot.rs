@@ -9,7 +9,7 @@
 //! example below demonstrates.
 //!
 //! ```
-//! #![feature(async_await, await_macro, futures_api, never_type)]
+//! #![feature(async_await, await_macro, never_type)]
 //!
 //! use heph::channel::oneshot;
 //! use heph::{actor, ActorRef};

@@ -10,7 +10,7 @@
 //! Such an asynchronous function looks like this:
 //!
 //! ```
-//! # #![feature(async_await, await_macro, futures_api, never_type)]
+//! # #![feature(async_await, await_macro, never_type)]
 //! #
 //! # use heph::actor;
 //! #
@@ -67,7 +67,6 @@
 #![feature(async_await,
            await_macro,
            const_fn,
-           futures_api,
            never_type,
            non_exhaustive,
            read_initializer,

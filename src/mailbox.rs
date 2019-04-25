@@ -223,7 +223,7 @@ impl<M> MessageSelector<M> for First {
 /// # Examples
 ///
 /// ```
-/// #![feature(async_await, await_macro, futures_api, never_type)]
+/// #![feature(async_await, await_macro, never_type)]
 ///
 /// use heph::actor::message_select::Priority;
 /// use heph::supervisor::NoSupervisor;
