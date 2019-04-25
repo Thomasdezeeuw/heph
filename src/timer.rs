@@ -36,7 +36,7 @@ pub struct DeadlinePassed;
 /// # Examples
 ///
 /// ```
-/// #![feature(async_await, await_macro, futures_api, never_type)]
+/// #![feature(async_await, await_macro, never_type)]
 ///
 /// use std::time::Duration;
 ///
@@ -119,7 +119,7 @@ impl actor::Bound for Timer {
 /// Setting a timeout for a future.
 ///
 /// ```
-/// #![feature(async_await, await_macro, futures_api, never_type)]
+/// #![feature(async_await, await_macro, never_type)]
 ///
 /// # use std::future::Future;
 /// # use std::pin::Pin;
@@ -234,7 +234,7 @@ impl<Fut> actor::Bound for Deadline<Fut> {
 /// The following example will print hello world (roughly) every second.
 ///
 /// ```
-/// #![feature(async_await, await_macro, futures_api, never_type)]
+/// #![feature(async_await, await_macro, never_type)]
 ///
 /// use std::time::Duration;
 ///

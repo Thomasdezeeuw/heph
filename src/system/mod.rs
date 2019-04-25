@@ -119,7 +119,7 @@ use waker::{init_waker, new_waker, WakerId, MAX_THREADS};
 /// each worker thread started).
 ///
 /// ```
-/// #![feature(async_await, await_macro, futures_api, never_type)]
+/// #![feature(async_await, await_macro, never_type)]
 ///
 /// use heph::supervisor::NoSupervisor;
 /// use heph::system::RuntimeError;
@@ -590,7 +590,7 @@ impl ActorSystemRef {
     /// # Examples
     ///
     /// ```
-    /// #![feature(async_await, await_macro, futures_api, never_type)]
+    /// #![feature(async_await, await_macro, never_type)]
     ///
     /// use heph::supervisor::NoSupervisor;
     /// use heph::system::RuntimeError;

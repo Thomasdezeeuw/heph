@@ -36,7 +36,7 @@
 //! Supervisor that logs the errors of a badly behaving actor and stops it.
 //!
 //! ```
-//! #![feature(async_await, await_macro, futures_api, never_type)]
+//! #![feature(async_await, await_macro, never_type)]
 //!
 //! use heph::actor;
 //! use heph::log::{self, error};
@@ -124,7 +124,7 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 /// # Example
 ///
 /// ```
-/// #![feature(async_await, await_macro, futures_api, never_type)]
+/// #![feature(async_await, await_macro, never_type)]
 ///
 /// use heph::supervisor::NoSupervisor;
 /// use heph::system::RuntimeError;

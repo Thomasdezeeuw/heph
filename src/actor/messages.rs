@@ -16,7 +16,7 @@
 //! Implementing `From<Message>` to allow for easy sending of messages.
 //!
 //! ```
-//! #![feature(async_await, futures_api, never_type)]
+//! #![feature(async_await, never_type)]
 //!
 //! use heph::actor;
 //! use heph::actor::messages::Ack;
