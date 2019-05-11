@@ -63,7 +63,7 @@ manage different rust installations is via [rustup]. The following command will
 install a nightly compiler via rustup.
 
 ```bash
-rustup install nightly # Install the latests nightly compiler.
+rustup install nightly # Install the latest nightly compiler.
 
 # Optional:
 rustup default nightly # Set the nightly compiler as default.
