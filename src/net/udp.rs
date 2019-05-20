@@ -99,11 +99,13 @@ pub enum Connected {}
 ///     let mut socket = UdpSocket::bind(&mut ctx, local)?;
 ///     let mut buf = [0; 4096];
 ///     loop {
+///         let mut receive_msg = ctx.receive_next().fuse();
+///         let mut read = socket.recv_from(&mut buf).fuse();
 ///         let (n, address) = select! {
 ///             // If we receive a terminate message we'll stop the actor.
-///             _ = ctx.receive_next().fuse() => return Ok(()),
+///             _ = receive_msg => return Ok(()),
 ///             // Or we received an packet.
-///             res = socket.recv_from(&mut buf).fuse() => res?,
+///             res = read => res?,
 ///         };
 ///
 ///         let buf = &buf[.. n];
