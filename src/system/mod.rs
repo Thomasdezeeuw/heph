@@ -346,7 +346,7 @@ struct WakerEvents {
 impl<ES, E> event::Source<ES, E> for WakerEvents
     where ES: event::Sink,
 {
-    fn next_event_available(&self) -> Option<Duration> {
+    fn max_timeout(&self) -> Option<Duration> {
         if !self.receiver.is_empty() {
             Some(Duration::from_millis(0))
         } else {
