@@ -40,6 +40,7 @@ pub fn system_ref() -> ActorSystemRef {
 }
 
 /// Initialise an actor.
+#[allow(clippy::type_complexity)]
 pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
     where NA: NewActor,
 {
