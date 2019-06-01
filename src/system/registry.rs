@@ -102,10 +102,12 @@ unsafe fn from_value<NA>(value: *mut ()) -> ActorRef<NA::Message>
 /// The caller needs to ensure the type is correct, **if the type is not correct
 /// this will cause undefined behaviour**.
 #[inline]
+#[allow(clippy::trivially_copy_pass_by_ref)]
 unsafe fn from_value_ref<NA>(value_ref: &*mut ()) -> ActorRef<NA::Message>
     where NA: NewActor + 'static,
 {
     // See `into_value` for comments about safety.
+    #[allow(clippy::transmute_ptr_to_ptr)]
     let actor_ref_ref: &ActorRef<NA::Message> = mem::transmute(value_ref);
     actor_ref_ref.clone()
 }

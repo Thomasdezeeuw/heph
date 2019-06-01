@@ -240,6 +240,7 @@ impl<S, NA> Actor for TcpListener<S, NA>
         } = unsafe { self.get_unchecked_mut() };
 
         // Start with receiving any send messages.
+        #[allow(clippy::never_loop)]
         while let Some(msg) = inbox.borrow_mut().receive_next() {
             use self::TcpListenerMessageInner::*;
             match msg.inner {

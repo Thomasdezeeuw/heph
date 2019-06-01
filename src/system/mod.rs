@@ -180,6 +180,7 @@ pub struct ActorSystem<S = !> {
 
 impl ActorSystem {
     /// Create a new actor system with the default configuration.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> ActorSystem<!> {
         ActorSystem {
             threads: 1,
