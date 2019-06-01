@@ -251,7 +251,7 @@ impl<M> MessageSelector<M> for First {
 ///
 /// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
 ///     // As both messages are ready this will receive the priority message.
-///     let msg = await!(ctx.receive(Priority(|msg: &Message| msg.priority)));
+///     let msg = ctx.receive(Priority(|msg: &Message| msg.priority)).await;
 ///     println!("Got message: {}", msg.msg);
 ///     Ok(())
 /// }

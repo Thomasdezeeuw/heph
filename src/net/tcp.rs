@@ -100,7 +100,7 @@ use crate::util::Shared;
 /// /// The actor responsible for a single TCP stream.
 /// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
-///     await!(stream.write_all(b"Hello World"))
+///     stream.write_all(b"Hello World").await
 /// }
 /// ```
 ///
@@ -163,7 +163,7 @@ use crate::util::Shared;
 /// /// The actor responsible for a single TCP stream.
 /// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
-///     await!(stream.write_all(b"Hello World"))
+///     stream.write_all(b"Hello World").await
 /// }
 /// ```
 #[derive(Debug)]

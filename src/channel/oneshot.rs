@@ -34,7 +34,7 @@
 //! async fn db_manager(mut ctx: actor::Context<DbConnMsg>, mut pool: Vec<DbConn>) -> Result<(), !> {
 //!     loop {
 //! #       #[allow(unreachable_patterns)]
-//!         match await!(ctx.receive_next()) {
+//!         match ctx.receive_next().await {
 //!             DbConnMsg::Get(sender) => {
 //!                 // Get a database connection from the pool, or create a new
 //!                 // one.
@@ -62,7 +62,7 @@
 //!     // Wait for the database connection to be returned.
 //!     // Note that you might want to add a timeout for this, see the `timer`
 //!     // module.
-//!     let db_conn = await!(receiver);
+//!     let db_conn = receiver.await;
 //!
 //!     // Use the database connection here.
 //! #   drop(db_conn);

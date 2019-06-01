@@ -143,7 +143,7 @@ fn process_ordering() {
 }
 
 async fn ok_actor(mut ctx: actor::Context<()>) -> Result<(), !> {
-    let _msg = await!(ctx.receive_next());
+    let _msg = ctx.receive_next().await;
     Ok(())
 }
 
@@ -181,7 +181,7 @@ fn actor_process() {
 
 async fn error_actor(mut ctx: actor::Context<()>, fail: bool) -> Result<(), ()> {
     if !fail {
-        let _msg = await!(ctx.receive_next());
+        let _msg = ctx.receive_next().await;
         Ok(())
     } else {
         Err(())

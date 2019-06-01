@@ -190,7 +190,7 @@ fn scheduler_run_order() {
 }
 
 async fn actor(mut ctx: actor::Context<()>) -> Result<(), !> {
-    let _msg = await!(ctx.receive_next());
+    let _msg = ctx.receive_next().await;
     Ok(())
 }
 

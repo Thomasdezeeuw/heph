@@ -124,7 +124,7 @@ pub enum Connected {}
 ///         .connect(server_address)?;
 ///
 ///     let msg = b"Hello world";
-///     let n = await!(socket.send(&*msg))?;
+///     let n = socket.send(&*msg).await?;
 ///     assert_eq!(n, msg.len());
 ///     Ok(())
 /// }

@@ -19,7 +19,7 @@ an asynchronous function looks like this:
 ```rust
 async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
     // Receive a message.
-    let msg = await!(ctx.receive());
+    let msg = ctx.receive().await;
     // Print the message.
     println!("got a message: {}", msg);
     // And we're done.

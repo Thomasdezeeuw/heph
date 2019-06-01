@@ -48,7 +48,7 @@ pub struct DeadlinePassed;
 ///     let timeout = Timer::timeout(&mut ctx, Duration::from_secs(1));
 ///
 ///     // Wait for the timer to pass.
-///     await!(timeout);
+///     timeout.await;
 ///     println!("One second has passed!");
 ///     Ok(())
 /// }
@@ -145,7 +145,7 @@ impl actor::Bound for Timer {
 ///     let deadline_future = Deadline::timeout(&mut ctx, Duration::from_millis(20), future);
 ///
 ///     // Now we await the results.
-///     let result = await!(deadline_future);
+///     let result = deadline_future.await;
 ///     // However the other future is rather slow, so the timeout will pass.
 ///     assert_eq!(result, Err(DeadlinePassed));
 ///     Ok(())
@@ -245,10 +245,10 @@ impl<Fut> actor::Bound for Deadline<Fut> {
 ///
 /// async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
 ///     let interval = Interval::new(&mut ctx, Duration::from_secs(1));
-///     await!(interval.for_each(|_| {
+///     interval.for_each(|_| {
 ///         println!("Hello world");
 ///         ready(())
-///     }));
+///     }).await;
 ///     Ok(())
 /// }
 ///

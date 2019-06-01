@@ -165,7 +165,7 @@ use waker::{init_waker, new_waker, WakerId, MAX_THREADS};
 ///
 ///     // Using the context we use receive messages for this actor, so here
 ///     // we'll receive the "World" message we send in the setup function.
-///     let name = await!(ctx.receive_next());
+///     let name = ctx.receive_next().await;
 ///     // This should print "Hello world"!
 ///     println!("{} {}", message, name);
 ///     Ok(())
