@@ -77,7 +77,7 @@ impl<T> Receiver<T> {
     /// Returns a [`Future`] that returns a single value, if any is send.
     ///
     /// The `Future`'s lifetime is bound to the receiver.
-    pub fn receive_one<'r>(&'r mut self) -> ReceiveOne<'r, T> {
+    pub fn receive_one(&mut self) -> ReceiveOne<T> {
         ReceiveOne { inner: self }
     }
 

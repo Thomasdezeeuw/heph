@@ -196,7 +196,7 @@ impl<M> Context<M> {
     /// # // Use the `print_actor` function to silence dead code warning.
     /// # drop(print_actor);
     /// ```
-    pub fn receive_next<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
+    pub fn receive_next(&mut self) -> ReceiveMessage<M> {
         ReceiveMessage {
             inbox: &mut self.inbox,
             selector: First,
@@ -214,7 +214,7 @@ impl<M> Context<M> {
     ///
     /// [`actor::Context::try_receive`]: crate::actor::Context::try_receive
     /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
-    pub fn receive<'ctx, S>(&'ctx mut self, selector: S) -> ReceiveMessage<'ctx, M, S>
+    pub fn receive<S>(&mut self, selector: S) -> ReceiveMessage<M, S>
         where S: MessageSelector<M>,
     {
         ReceiveMessage {
@@ -224,7 +224,7 @@ impl<M> Context<M> {
     }
 
     /// Peek at the next message.
-    pub fn peek_next<'ctx>(&'ctx mut self) -> PeekMessage<'ctx, M>
+    pub fn peek_next(&mut self) -> PeekMessage<M>
         where M: Clone,
     {
         PeekMessage {
@@ -241,7 +241,7 @@ impl<M> Context<M> {
     ///
     /// [`receive`]: Context::receive
     /// [`peek`]: Context::peek
-    pub fn peek<'ctx, S>(&'ctx mut self, selector: S) -> PeekMessage<'ctx, M, S>
+    pub fn peek<S>(&mut self, selector: S) -> PeekMessage<M, S>
         where S: MessageSelector<M>,
               M: Clone,
     {
