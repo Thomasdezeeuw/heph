@@ -152,7 +152,7 @@ impl<M> Context<M> {
     /// use heph::actor;
     ///
     /// async fn print_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
-    ///     let msg = await!(ctx.receive_next());
+    ///     let msg = ctx.receive_next().await;
     ///     println!("Got a message: {}", msg);
     ///     Ok(())
     /// }

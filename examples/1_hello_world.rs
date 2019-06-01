@@ -48,7 +48,7 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
 async fn greeter_actor(mut ctx: actor::Context<&'static str>) -> Result<(), !> {
     // All actors have an actor context, which give the actor access to, among
     // other things, its inbox from which we can receive a message.
-    let name = await!(ctx.receive_next());
+    let name = ctx.receive_next().await;
     println!("Hello {}", name);
     Ok(())
 }

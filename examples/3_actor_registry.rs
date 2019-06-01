@@ -71,7 +71,7 @@ struct Add;
 async fn count_actor(mut ctx: actor::Context<Add>) -> Result<(), !> {
     let mut total = 0;
     loop {
-        let _msg = await!(ctx.receive_next());
+        let _msg = ctx.receive_next().await;
         total += 1;
 
         println!("Total count: {}", total);
@@ -109,5 +109,5 @@ async fn echo_actor(mut ctx: actor::Context<!>, stream: TcpStream, address: Sock
     // Here we'll split the TCP stream and copy every thing back, this is part
     // of the `AsyncReadExt` trait.
     let (mut read, mut write) = stream.split();
-    await!(read.copy_into(&mut write).map_ok(|_| ()))
+    read.copy_into(&mut write).map_ok(|_| ()).await
 }

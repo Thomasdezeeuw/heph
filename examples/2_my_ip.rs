@@ -86,5 +86,5 @@ async fn conn_actor(_: actor::Context<!>, mut stream: TcpStream, address: Socket
     let ip = address.ip().to_string();
 
     // Next we'll write the IP address to the connection.
-    await!(stream.write_all(ip.as_bytes()))
+    stream.write_all(ip.as_bytes()).await
 }

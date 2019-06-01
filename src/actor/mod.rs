@@ -114,7 +114,7 @@ pub trait NewActor {
     ///
     /// /// Our actor implementation that prints all messages it receives.
     /// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
-    ///     let msg = await!(ctx.receive_next());
+    ///     let msg = ctx.receive_next().await;
     ///     println!("received message: {:?}", msg);
     ///     Ok(())
     /// }
