@@ -1,1 +1,2 @@
-cognitive-complexity-threshold = 5
+# TODO: decrease this to 5.
+cognitive-complexity-threshold = 8
