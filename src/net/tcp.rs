@@ -15,8 +15,8 @@ use std::task::{self, Poll};
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
 use log::debug;
-use mio_st::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
-use mio_st::os::RegisterOption;
+use gaea::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
+use gaea::os::RegisterOption;
 
 use crate::actor::messages::Terminate;
 use crate::actor::{self, Actor, NewActor};
