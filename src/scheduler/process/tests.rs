@@ -12,7 +12,7 @@ use std::time::Duration;
 
 use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{empty, Empty};
-use mio_st::event;
+use gaea::event;
 
 use crate::scheduler::process::{ActorProcess, Priority, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoSupervisor, SupervisorStrategy};

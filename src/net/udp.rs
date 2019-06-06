@@ -10,8 +10,8 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
-use mio_st::net::UdpSocket as MioUdpSocket;
-use mio_st::os::RegisterOption;
+use gaea::net::UdpSocket as MioUdpSocket;
+use gaea::os::RegisterOption;
 
 use crate::actor;
 

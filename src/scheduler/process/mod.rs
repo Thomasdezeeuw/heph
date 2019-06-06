@@ -5,7 +5,7 @@ use std::fmt;
 use std::pin::Pin;
 use std::time::Duration;
 
-use mio_st::event;
+use gaea::event;
 
 use crate::system::ActorSystemRef;
 

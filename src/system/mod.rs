@@ -53,8 +53,8 @@ use std::{fmt, io, thread};
 
 use crossbeam_channel::{self as channel, Receiver};
 use log::{debug, trace};
-use mio_st::os::{Awakener, Evented, Interests, OsQueue, RegisterOption};
-use mio_st::{event, poll, Event, Queue, Ready, Timers};
+use gaea::os::{Awakener, Evented, Interests, OsQueue, RegisterOption};
+use gaea::{event, poll, Event, Queue, Ready, Timers};
 use num_cpus;
 
 use crate::actor_ref::ActorRef;
@@ -336,7 +336,7 @@ pub(crate) struct RunningActorSystem {
 }
 
 /// A wrapper around `crossbeam_channel::Receiver` that implements
-/// `mio_stevent::Source`.
+/// `gaeaevent::Source`.
 #[derive(Debug)]
 struct WakerEvents {
     /// Receiving side of the channel for `Waker` events.

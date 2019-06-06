@@ -6,7 +6,7 @@ use std::mem;
 use std::pin::Pin;
 
 use log::{debug, trace};
-use mio_st::{event, Event};
+use gaea::{event, Event};
 use slab::Slab;
 
 use crate::actor::{Actor, NewActor};

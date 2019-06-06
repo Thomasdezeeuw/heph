@@ -6,7 +6,7 @@ use std::task::{RawWaker, RawWakerVTable, Waker};
 
 use crossbeam_channel::Sender;
 use log::error;
-use mio_st::os::Awakener;
+use gaea::os::Awakener;
 
 use crate::scheduler::ProcessId;
 
@@ -190,8 +190,8 @@ mod tests {
     use std::mem::size_of;
     use std::{io, thread};
 
-    use mio_st::os::{Awakener, OsQueue};
-    use mio_st::{event, poll, Event, Ready};
+    use gaea::os::{Awakener, OsQueue};
+    use gaea::{event, poll, Event, Ready};
 
     use crate::scheduler::ProcessId;
     use crate::system::waker::{init_waker, new_waker, WakerData, THREAD_ID_BITS, WAKER_DATA_BITS};
