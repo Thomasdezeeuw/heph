@@ -1,4 +1,3 @@
-cache: cargo
 os:
   - linux
   - osx
