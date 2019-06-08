@@ -1,6 +1,6 @@
 # Heph
 
-[![Build Status](https://travis-ci.org/Thomasdezeeuw/heph.svg?branch=master)](https://travis-ci.org/Thomasdezeeuw/heph)
+[![Build Status](https://travis-ci.com/Thomasdezeeuw/heph.svg?branch=master)](https://travis-ci.com/Thomasdezeeuw/heph)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Crates.io](https://img.shields.io/crates/v/heph.svg)](https://crates.io/crates/heph)
 [![Docs](https://docs.rs/heph/badge.svg)](https://docs.rs/heph)
