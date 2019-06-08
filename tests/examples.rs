@@ -68,8 +68,9 @@ sequential_tests! {
         let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
         let mut stream = tcp_retry_connect(address);
 
-        const SEND: &'static [u8] = b"Hello World";
-        stream.write(SEND).unwrap();
+        const SEND: &[u8] = b"Hello World";
+        let n = stream.write(SEND).unwrap();
+        assert_eq!(n, SEND.len());
 
         let mut output = [0; 12];
         let n = stream.read(&mut output).unwrap();

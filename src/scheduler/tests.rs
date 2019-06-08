@@ -32,6 +32,7 @@ struct TestProcess {
 }
 
 impl TestProcess {
+    #[allow(clippy::new_ret_no_self)]
     fn new(id: ProcessId, priority: Priority, result: ProcessResult) -> Pin<Box<dyn Process>> {
         Box::pin(TestProcess { id, priority, result })
     }
@@ -131,6 +132,7 @@ struct OrderTestProcess {
 }
 
 impl OrderTestProcess {
+    #[allow(clippy::new_ret_no_self)]
     fn new(id: ProcessId, priority: Priority, order: Shared<Vec<usize>>) -> Pin<Box<dyn Process>> {
         Box::pin(OrderTestProcess { id, priority, runtime: Duration::from_millis(0), order })
     }
@@ -190,7 +192,7 @@ fn scheduler_run_order() {
 }
 
 async fn actor(mut ctx: actor::Context<()>) -> Result<(), !> {
-    let _msg = ctx.receive_next().await;
+    ctx.receive_next().await;
     Ok(())
 }
 
