@@ -4,7 +4,7 @@ os:
   - osx
 language: rust
 env:
-  - RUST_BACKTRACE=1
+  - RUST_BACKTRACE=full
 rust:
   - nightly
 matrix:
