@@ -8,7 +8,7 @@ env:
 rust:
   - nightly
 matrix:
-  fast_finish: true
+  fast_finish: false
 script:
   - cargo --version
   - rustc --version
