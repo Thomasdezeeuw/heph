@@ -12,7 +12,7 @@ use crate::system::ActorSystemRef;
 mod actor;
 mod priority;
 
-#[cfg(all(test, feature = "test"))]
+#[cfg(test)]
 mod tests;
 
 pub use self::actor::ActorProcess;

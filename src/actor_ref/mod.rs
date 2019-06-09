@@ -121,7 +121,7 @@ use crate::system::ActorSystemRef;
 
 mod error;
 
-#[cfg(all(test, feature = "test"))]
+#[cfg(test)]
 mod tests;
 
 pub mod local;

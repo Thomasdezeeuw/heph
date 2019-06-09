@@ -101,11 +101,8 @@ pub mod supervisor;
 pub mod system;
 pub mod timer;
 
-#[cfg(feature = "test")]
+#[cfg(any(test, feature = "test"))]
 pub mod test;
-
-#[cfg(all(test, not(feature = "test")))]
-compile_error!("please enable the `test` feature when testing, call `cargo test --features test`");
 
 mod mailbox;
 mod scheduler;
