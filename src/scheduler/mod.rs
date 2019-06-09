@@ -17,7 +17,7 @@ use crate::util::Shared;
 
 mod process;
 
-#[cfg(all(test, feature = "test"))]
+#[cfg(test)]
 mod tests;
 
 use self::process::{ActorProcess, Process, ProcessResult};

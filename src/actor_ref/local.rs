@@ -6,7 +6,7 @@ use crate::actor_ref::{ActorRef, ActorRefType, SendError};
 use crate::mailbox::MailBox;
 use crate::util::WeakShared;
 
-#[cfg(all(test, feature = "test"))]
+#[cfg(test)]
 use crate::util::Shared;
 
 /// Local actor reference.
@@ -73,7 +73,7 @@ impl<M> ActorRef<M, Local> {
     }
 
     /// Get access to the internal inbox, used in testing.
-    #[cfg(all(test, feature = "test"))]
+    #[cfg(test)]
     pub(crate) fn get_inbox(&mut self) -> Option<Shared<MailBox<M>>> {
         self.data.inbox.upgrade()
     }

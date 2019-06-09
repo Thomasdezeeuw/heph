@@ -163,7 +163,7 @@ pub fn channel<T: Unpin>(capacity: usize) -> (Sender<T>, Receiver<T>) {
     (Sender { inner: shared.clone() }, Receiver { inner: shared })
 }
 
-#[cfg(all(test, feature = "test"))]
+#[cfg(test)]
 mod tests {
     use std::future::Future;
     use std::pin::Pin;

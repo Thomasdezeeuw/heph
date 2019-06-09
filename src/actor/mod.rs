@@ -41,7 +41,7 @@ use std::task::{self, Poll};
 
 mod context;
 
-#[cfg(all(test, feature = "test"))]
+#[cfg(test)]
 mod tests;
 
 pub mod messages;
