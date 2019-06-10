@@ -10,7 +10,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
-use gaea::net::UdpSocket as MioUdpSocket;
+use gaea::net::UdpSocket as GaeaUdpSocket;
 use gaea::os::RegisterOption;
 
 use crate::actor;
@@ -130,8 +130,8 @@ pub enum Connected {}
 /// }
 /// ```
 pub struct UdpSocket<M = Unconnected> {
-    /// Underlying UDP socket, backed by mio.
-    socket: MioUdpSocket,
+    /// Underlying UDP socket, backed by Gaea.
+    socket: GaeaUdpSocket,
     /// The mode in which the socket is in, this determines what methods are
     /// available.
     mode: PhantomData<M>,
@@ -140,10 +140,10 @@ pub struct UdpSocket<M = Unconnected> {
 impl UdpSocket {
     /// Create a UDP socket binding to the `local` address.
     pub fn bind<M>(ctx: &mut actor::Context<M>, local: SocketAddr) -> io::Result<UdpSocket<Unconnected>> {
-        let mut socket = MioUdpSocket::bind(local)?;
+        let mut socket = GaeaUdpSocket::bind(local)?;
         let pid = ctx.pid();
         ctx.system_ref().register(&mut socket, pid.into(),
-            MioUdpSocket::INTERESTS, RegisterOption::EDGE)?;
+            GaeaUdpSocket::INTERESTS, RegisterOption::EDGE)?;
         Ok(UdpSocket { socket, mode: PhantomData })
     }
 }
@@ -325,6 +325,6 @@ impl actor::Bound for UdpSocket {
     fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
         ctx.system_ref().reregister(&mut self.socket, pid.into(),
-            MioUdpSocket::INTERESTS, RegisterOption::EDGE)
+            GaeaUdpSocket::INTERESTS, RegisterOption::EDGE)
     }
 }
