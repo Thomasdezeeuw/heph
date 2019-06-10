@@ -322,7 +322,7 @@ impl<M> fmt::Debug for UdpSocket<M> {
 impl actor::Bound for UdpSocket {
     type Error = io::Error;
 
-    fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
+    fn bind<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
         ctx.system_ref().reregister(&mut self.socket, pid.into(),
             GaeaUdpSocket::INTERESTS, RegisterOption::EDGE)
