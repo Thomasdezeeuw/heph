@@ -139,6 +139,14 @@ pub struct UdpSocket<M = Unconnected> {
 
 impl UdpSocket {
     /// Create a UDP socket binding to the `local` address.
+    ///
+    /// # Notes
+    ///
+    /// The UDP socket is also [bound] to the actor that owns the
+    /// `actor::Context`, which means the actor will be run every time the
+    /// socket is ready to be read or write to.
+    ///
+    /// [bound]: crate::actor::Bound
     pub fn bind<M>(ctx: &mut actor::Context<M>, local: SocketAddr) -> io::Result<UdpSocket<Unconnected>> {
         let mut socket = GaeaUdpSocket::bind(local)?;
         let pid = ctx.pid();
