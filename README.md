@@ -141,7 +141,7 @@ least can be), where Heph actors are strongly typed (just like Rust in general).
 The final inspiration I would like to mention is [Nginx], Nginx is a HTTP and
 reverse proxy server. The architecture used in Nginx is running a single master
 process (not a thread) that coordinates a number of workers processes (again not
-threads), each with there own polling instance (epoll/kqueue etc.) which all
+threads), each with their own polling instance (epoll/kqueue etc.) which all
 share the same TCP listeners. In early stages of development of Heph the idea
 was to start a new process per cpu core, must like Nginx. This would allow all
 atomic and locking operations to be dropped, later however this was changed to
