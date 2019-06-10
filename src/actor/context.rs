@@ -147,7 +147,7 @@ impl<M> Context<M> {
     /// An actor that await a message and prints it.
     ///
     /// ```
-    /// #![feature(async_await, await_macro, never_type)]
+    /// #![feature(async_await, never_type)]
     ///
     /// use heph::actor;
     ///
@@ -165,7 +165,7 @@ impl<M> Context<M> {
     /// amount of time.
     ///
     /// ```
-    /// #![feature(async_await, await_macro, never_type)]
+    /// #![feature(async_await, never_type)]
     ///
     /// use std::time::Duration;
     ///

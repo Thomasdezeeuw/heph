@@ -41,7 +41,7 @@ use crate::util::Shared;
 /// connection.
 ///
 /// ```
-/// #![feature(async_await, await_macro, never_type)]
+/// #![feature(async_await, never_type)]
 /// # #![allow(unreachable_code)]
 ///
 /// use std::io;
@@ -108,7 +108,7 @@ use crate::util::Shared;
 /// sending it a [`Terminate`] message.
 ///
 /// ```
-/// #![feature(async_await, await_macro, never_type)]
+/// #![feature(async_await, never_type)]
 ///
 /// use std::io;
 /// use std::net::SocketAddr;

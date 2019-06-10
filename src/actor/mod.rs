@@ -72,7 +72,7 @@ pub trait NewActor {
     /// Here is an example of using an enum as message type.
     ///
     /// ```
-    /// #![feature(async_await, await_macro, never_type)]
+    /// #![feature(async_await, never_type)]
     ///
     /// use heph::supervisor::NoSupervisor;
     /// use heph::system::RuntimeError;
