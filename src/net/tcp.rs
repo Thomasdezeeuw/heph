@@ -15,7 +15,7 @@ use std::task::{self, Poll};
 
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
 use log::debug;
-use gaea::net::{TcpListener as MioTcpListener, TcpStream as MioTcpStream};
+use gaea::net::{TcpListener as GaeaTcpListener, TcpStream as GaeaTcpStream};
 use gaea::os::RegisterOption;
 
 use crate::actor::messages::Terminate;
@@ -171,8 +171,8 @@ pub struct TcpListener<S, NA> {
     /// Reference to the actor system used to add new actors to handle accepted
     /// connections.
     system_ref: ActorSystemRef,
-    /// The underlying TCP listener, backed by mio.
-    listener: MioTcpListener,
+    /// The underlying TCP listener, backed by Gaea.
+    listener: GaeaTcpListener,
     /// Supervisor for all actors created by `NewActor`.
     supervisor: S,
     /// NewActor used to create an actor for each connection.
@@ -228,7 +228,7 @@ impl<S, NA> Actor for TcpListener<S, NA>
     type Error = TcpListenerError<NA::Error>;
 
     fn try_poll(self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Result<(), Self::Error>> {
-        // This is safe because only the `ActorSystemRef`, `MioTcpListener` and
+        // This is safe because only the `ActorSystemRef`, `GaeaTcpListener` and
         // the `MailBox` are mutably borrowed and all are `Unpin`.
         let &mut TcpListener {
             ref mut system_ref,
@@ -260,7 +260,7 @@ impl<S, NA> Actor for TcpListener<S, NA>
 
             let res = system_ref.try_spawn_setup(supervisor.clone(), new_actor.clone(), |pid, system_ref| {
                 system_ref.register(&mut stream, pid.into(),
-                    MioTcpStream::INTERESTS, RegisterOption::EDGE)?;
+                    GaeaTcpStream::INTERESTS, RegisterOption::EDGE)?;
 
                 // Wrap the raw stream with our wrapper.
                 let stream = TcpStream { socket: stream };
@@ -349,9 +349,9 @@ impl<S, NA> NewActor for NewTcpListener<S, NA>
 
     fn new(&mut self, mut ctx: actor::Context<Self::Message>, address: Self::Argument) -> Result<Self::Actor, Self::Error> {
         let mut system_ref = ctx.system_ref().clone();
-        let mut listener = MioTcpListener::bind(address)?;
+        let mut listener = GaeaTcpListener::bind(address)?;
         system_ref.register(&mut listener, ctx.pid().into(),
-            MioTcpListener::INTERESTS, RegisterOption::EDGE)?;
+            GaeaTcpListener::INTERESTS, RegisterOption::EDGE)?;
 
         Ok(TcpListener {
             system_ref,
@@ -367,18 +367,18 @@ impl<S, NA> NewActor for NewTcpListener<S, NA>
 /// A non-blocking TCP stream between a local socket and a remote socket.
 #[derive(Debug)]
 pub struct TcpStream {
-    /// Underlying TCP connection, backed by mio.
-    socket: MioTcpStream,
+    /// Underlying TCP connection, backed by Gaea.
+    socket: GaeaTcpStream,
 }
 
 impl TcpStream {
     /// Create a new TCP stream and issue a non-blocking connect to the
     /// specified `address`.
     pub fn connect<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpStream> {
-        let mut socket = MioTcpStream::connect(address)?;
+        let mut socket = GaeaTcpStream::connect(address)?;
         let pid = ctx.pid();
         ctx.system_ref().register(&mut socket, pid.into(),
-            MioTcpStream::INTERESTS, RegisterOption::EDGE)?;
+            GaeaTcpStream::INTERESTS, RegisterOption::EDGE)?;
         Ok(TcpStream { socket })
     }
 
@@ -485,6 +485,6 @@ impl actor::Bound for TcpStream {
     fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
         ctx.system_ref().reregister(&mut self.socket, pid.into(),
-            MioTcpStream::INTERESTS, RegisterOption::EDGE)
+            GaeaTcpStream::INTERESTS, RegisterOption::EDGE)
     }
 }

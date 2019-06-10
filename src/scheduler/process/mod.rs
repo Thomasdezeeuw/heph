@@ -23,7 +23,7 @@ pub use self::priority::Priority;
 ///
 /// This can only be created by the [`Scheduler`] and should be seen as an
 /// opaque type for the rest of the crate. For convince this can converted from
-/// and into an [`event::Id`] as used by mio.
+/// and into an [`event::Id`] as used by Gaea.
 ///
 /// [`ActorSystem`]: crate::system::ActorSystem
 /// [`Scheduler`]: crate::scheduler::Scheduler

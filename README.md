@@ -161,10 +161,9 @@ inspired by the one used in Nginx.
 Besides the inspiration gained from the work of others, Heph is also build on
 top of the work of others. Three major components used in Heph are the futures
 task system (to be part of the standard library), asynchronous functions and
-[Mio] (or rather a specialised fork [mio-st]).
+[Gaea].
 
-[Mio]: https://github.com/carllerche/mio
-[mio-st]: https://github.com/Thomasdezeeuw/mio-st
+[Gaea]: https://github.com/Thomasdezeeuw/Gaea
 
 [1]: https://en.wikipedia.org/wiki/Hephaestus
 [2]: https://en.wikipedia.org/wiki/Actor_model
