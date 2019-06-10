@@ -288,7 +288,7 @@ impl<Fut, E> Actor for Fut
 /// is bound to the actor is different for each type. For most futures it means
 /// that if progress can be made (when the [future is awoken]) the actor will be
 /// run. This has the unfortunate consequence that those types can't be moved
-/// away from the actor without [rebinding] it first, otherwise the new actor
+/// away from the actor without [(re)binding] it first, otherwise the new actor
 /// will never be run and the actor that created the type will run instead.
 ///
 /// Most types that are bound can only be created with a (mutable) reference to
@@ -296,17 +296,17 @@ impl<Fut, E> Actor for Fut
 /// all futures in the [`timer`] module.
 ///
 /// [future is awoken]: std::task::Waker::wake
-/// [rebinding]: Bound::rebind
+/// [(re)binding]: Bound::bind
 /// [`actor::Context`]: Context
 /// [`TcpStream`]: crate::net::TcpStream
 /// [`UdpSocket`]: crate::net::UdpSocket
 /// [`timer`]: crate::timer
 pub trait Bound {
-    /// Error type used in [`rebind`].
+    /// Error type used in [`bind`].
     ///
-    /// [`rebind`]: Bound::rebind
+    /// [`bind`]: Bound::bind
     type Error;
 
-    /// Bind to a different [`Actor`].
-    fn rebind<M>(&mut self, ctx: &mut Context<M>) -> Result<(), Self::Error>;
+    /// Bind a type to the [`Actor`] that owns the `ctx`.
+    fn bind<M>(&mut self, ctx: &mut Context<M>) -> Result<(), Self::Error>;
 }

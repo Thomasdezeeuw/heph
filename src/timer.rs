@@ -99,7 +99,7 @@ impl Future for Timer {
 impl actor::Bound for Timer {
     type Error = !;
 
-    fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
+    fn bind<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
@@ -206,7 +206,7 @@ impl<Fut> Future for Deadline<Fut>
 impl<Fut> actor::Bound for Deadline<Fut> {
     type Error = !;
 
-    fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
+    fn bind<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
@@ -310,7 +310,7 @@ impl FusedStream for Interval {
 impl actor::Bound for Interval {
     type Error = !;
 
-    fn rebind<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
+    fn bind<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
