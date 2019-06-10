@@ -1,4 +1,4 @@
-#![feature(async_await, await_macro, never_type)]
+#![feature(async_await, never_type)]
 
 use std::default::Default;
 use std::io;
