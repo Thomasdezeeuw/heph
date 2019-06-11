@@ -50,7 +50,7 @@ pub mod message_select {
     //! Module containing the `MessageSelector` trait and related types.
 
     #[doc(inline)]
-    pub use crate::actor::context::{First, MessageSelection, MessageSelector, Messages, Priority};
+    pub use crate::mailbox::{First, MessageSelection, MessageSelector, Messages, Priority};
 }
 
 #[doc(inline)]
@@ -256,7 +256,7 @@ pub trait Actor {
     /// regular processing of a message.
     ///
     /// How to process non-terminal errors that happen during regular processing
-    /// of messages is up to the actor.
+    /// is up to the actor.
     ///
     /// [supervisor]: crate::supervisor
     type Error;
