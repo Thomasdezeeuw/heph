@@ -5,13 +5,12 @@ use std::ops::DerefMut;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
+use crate::actor::message_select::{First, MessageSelector};
 use crate::actor_ref::ActorRef;
 use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
 use crate::system::ActorSystemRef;
 use crate::util::Shared;
-
-pub use crate::mailbox::{First, MessageSelection, MessageSelector, Messages, Priority};
 
 /// The context in which an actor is executed.
 ///

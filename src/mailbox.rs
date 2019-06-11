@@ -91,7 +91,7 @@ impl<M> MailBox<M> {
     }
 }
 
-// Below is re-exported in the `actor::context` module.
+// Below is re-exported in the `actor::message_select` module.
 
 /// Trait that defines how to select what message to receive.
 ///
