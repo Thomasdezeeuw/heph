@@ -68,12 +68,16 @@ impl<SetupError: fmt::Display> fmt::Display for RuntimeError<SetupError> {
     }
 }
 
-impl<SetupError: Error + fmt::Display> Error for RuntimeError<SetupError> {
+impl<SetupError: Error + fmt::Display + 'static> Error for RuntimeError<SetupError> {
     fn description(&self) -> &str {
         Self::DESC
     }
 
     fn cause(&self) -> Option<&dyn Error> {
+        self.source()
+    }
+
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
         use self::RuntimeErrorInner::*;
         match self.inner {
             StartThread(ref err) | Poll(ref err) => Some(err),
