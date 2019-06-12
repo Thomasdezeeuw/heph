@@ -43,10 +43,9 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::ptr::NonNull;
 
-use crossbeam_channel::{Sender, Receiver};
+use crossbeam_channel::Receiver;
 
 use crate::actor::message_select::{MessageSelector, Messages};
-use crate::actor_ref::{ActorRef, Sync};
 
 /// Synchronous actor.
 ///
@@ -169,19 +168,17 @@ pub struct SyncContext<M> {
 
 /// Data in `SyncContext`.
 pub(crate) struct SyncContextData<M> {
-    /// The messages in the mailbox.
+    /// The messages in the inbox.
     messages: VecDeque<M>,
     inbox: Receiver<M>,
-    sender: Sender<M>,
 }
 
 impl<M> SyncContextData<M> {
     /// Create a new `SyncContextData`.
-    pub(crate) fn new(sender: Sender<M>, inbox: Receiver<M>) -> SyncContextData<M> {
+    pub(crate) fn new(inbox: Receiver<M>) -> SyncContextData<M> {
         SyncContextData {
             messages: VecDeque::new(),
             inbox,
-            sender,
         }
     }
 }
@@ -366,11 +363,6 @@ impl<M> SyncContext<M> {
         selector.select(Messages::new(&data.messages))
             .and_then(|selection| data.messages.get(selection.0).cloned())
             .ok_or(NoMessages)
-    }
-
-    /// Returns a reference to this actor.
-    pub fn actor_ref(&mut self) -> ActorRef<M, Sync> {
-        ActorRef::new_sync(self.data().sender.clone())
     }
 
     /// Receive all messages, if any, and add them to the message queue.

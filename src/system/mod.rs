@@ -52,7 +52,7 @@ use std::task::Waker;
 use std::time::{Duration, Instant};
 use std::{fmt, io, thread};
 
-use crossbeam_channel::{self as channel, Sender, Receiver};
+use crossbeam_channel::{self as channel, Receiver};
 use log::{debug, trace};
 use gaea::os::{Awakener, Evented, Interests, OsQueue, RegisterOption};
 use gaea::{event, poll, Event, Queue, Ready, Timers};
@@ -242,12 +242,12 @@ impl<S> ActorSystem<S> {
               M: Send + 'static,
     {
         let (sender, receiver) = channel::unbounded();
-        let actor_ref = ActorRef::new_sync(sender.clone());
+        let actor_ref = ActorRef::new_sync(sender);
 
         debug!("creating thread for synchronous actor");
         let handle = thread::Builder::new()
             .name("heph_sync_actor".to_owned())
-            .spawn(move || run_sync_actor(supervisor, actor, arg, sender, receiver))
+            .spawn(move || run_sync_actor(supervisor, actor, arg, receiver))
             .map_err(RuntimeError::start_thread)?;
         self.sync_actors.push(handle);
 
@@ -368,12 +368,12 @@ fn run_system<S>(setup: Option<S>) -> Result<(), RuntimeError<S::Error>>
 }
 
 /// Run a synchronous actor.
-fn run_sync_actor<S, E, Arg, A, M>(mut supervisor: S, actor: A, mut arg: Arg, sender: Sender<M>, inbox: Receiver<M>)
+fn run_sync_actor<S, E, Arg, A, M>(mut supervisor: S, actor: A, mut arg: Arg, inbox: Receiver<M>)
     where S: Supervisor<E, Arg>,
           A: SyncActor<Message = M, Argument = Arg, Error = E>,
 {
     trace!("running synchronous actor");
-    let mut ctx_data = SyncContextData::new(sender, inbox);
+    let mut ctx_data = SyncContextData::new(inbox);
     loop {
         let ctx = unsafe {
             // This is safe because the context data doesn't outlive the pointer
