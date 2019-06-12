@@ -46,21 +46,23 @@
 
 use std::cell::RefCell;
 use std::ops::DerefMut;
+use std::ptr::NonNull;
 use std::rc::Rc;
 use std::task::Waker;
 use std::time::{Duration, Instant};
 use std::{fmt, io, thread};
 
-use crossbeam_channel::{self as channel, Receiver};
+use crossbeam_channel::{self as channel, Sender, Receiver};
 use log::{debug, trace};
 use gaea::os::{Awakener, Evented, Interests, OsQueue, RegisterOption};
 use gaea::{event, poll, Event, Queue, Ready, Timers};
 use num_cpus;
 
-use crate::actor_ref::ActorRef;
+use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
+use crate::actor_ref::{ActorRef, Sync};
 use crate::mailbox::MailBox;
 use crate::scheduler::{ProcessId, Scheduler, SchedulerRef};
-use crate::supervisor::Supervisor;
+use crate::supervisor::{Supervisor, SupervisorStrategy};
 use crate::util::Shared;
 use crate::{actor, Actor, NewActor};
 
@@ -174,6 +176,8 @@ use waker::{init_waker, new_waker, WakerId, MAX_THREADS};
 pub struct ActorSystem<S = !> {
     /// Number of threads to create.
     threads: usize,
+    /// Synchronous actor thread handles.
+    sync_actors: Vec<thread::JoinHandle<()>>,
     /// Optional setup function.
     setup: Option<S>,
 }
@@ -184,6 +188,7 @@ impl ActorSystem {
     pub fn new() -> ActorSystem<!> {
         ActorSystem {
             threads: 1,
+            sync_actors: Vec::new(),
             setup: None,
         }
     }
@@ -198,6 +203,7 @@ impl ActorSystem {
     {
         ActorSystem {
             threads: self.threads,
+            sync_actors: self.sync_actors,
             setup: Some(setup),
         }
     }
@@ -221,6 +227,31 @@ impl<S> ActorSystem<S> {
     /// See [`ActorSystem::num_threads`].
     pub fn use_all_cores(self) -> Self {
         self.num_threads(num_cpus::get())
+    }
+
+    /// Spawn an synchronous actor that runs on its own thread.
+    ///
+    /// For more information and examples about synchronous actors see the
+    /// [`actor::sync`] module.
+    ///
+    /// [`actor::sync`]: crate::actor::sync
+    pub fn spawn_sync_actor<Sv, A, E, Arg, M>(&mut self, supervisor: Sv, actor: A, arg: Arg) -> Result<ActorRef<M, Sync>, RuntimeError>
+        where Sv: Supervisor<E, Arg> + Send + 'static,
+              A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
+              Arg: Send + 'static,
+              M: Send + 'static,
+    {
+        let (sender, receiver) = channel::unbounded();
+        let actor_ref = ActorRef::new_sync(sender.clone());
+
+        debug!("creating thread for synchronous actor");
+        let handle = thread::Builder::new()
+            .name("heph_sync_actor".to_owned())
+            .spawn(move || run_sync_actor(supervisor, actor, arg, sender, receiver))
+            .map_err(RuntimeError::start_thread)?;
+        self.sync_actors.push(handle);
+
+        Ok(actor_ref)
     }
 }
 
@@ -258,6 +289,19 @@ impl<S> ActorSystem<S>
                 })
                 .map_err(RuntimeError::panic)
                 .and_then(|res| res)?;
+        }
+
+        // Wait for all synchronous actors.
+        for handle in self.sync_actors {
+            handle.join()
+                .map_err(|err| match err.downcast_ref::<&'static str>() {
+                    Some(s) => (*s).to_owned(),
+                    None => match err.downcast_ref::<String>() {
+                        Some(s) => s.clone(),
+                        None => "unkown panic message".to_owned(),
+                    },
+                })
+                .map_err(RuntimeError::panic)?;
         }
 
         Ok(())
@@ -321,6 +365,32 @@ fn run_system<S>(setup: Option<S>) -> Result<(), RuntimeError<S::Error>>
 
     // All setup is done, so we're ready to run the event loop.
     actor_system.run_event_loop()
+}
+
+/// Run a synchronous actor.
+fn run_sync_actor<S, E, Arg, A, M>(mut supervisor: S, actor: A, mut arg: Arg, sender: Sender<M>, inbox: Receiver<M>)
+    where S: Supervisor<E, Arg>,
+          A: SyncActor<Message = M, Argument = Arg, Error = E>,
+{
+    trace!("running synchronous actor");
+    let mut ctx_data = SyncContextData::new(sender, inbox);
+    loop {
+        let ctx = unsafe {
+            // This is safe because the context data doesn't outlive the pointer
+            // and the pointer is not null.
+            SyncContext::new(NonNull::new_unchecked(&mut ctx_data))
+        };
+        match actor.run(ctx, arg) {
+            Ok(()) => return,
+            Err(err) => match supervisor.decide(err) {
+                SupervisorStrategy::Restart(new_arg) => {
+                    trace!("restarting synchronous actor");
+                    arg = new_arg
+                },
+                SupervisorStrategy::Stop => return,
+            },
+        }
+    }
 }
 
 /// The system that runs all processes.
