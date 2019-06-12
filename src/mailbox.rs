@@ -149,7 +149,7 @@ pub trait MessageSelector<M> {
 /// The type used to indicate what message to select.
 #[derive(Copy, Clone, Debug)]
 #[repr(transparent)]
-pub struct MessageSelection(usize);
+pub struct MessageSelection(pub(crate) usize);
 
 /// All message currently queued for an actor.
 ///
