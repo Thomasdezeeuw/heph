@@ -24,6 +24,20 @@ pub(crate) enum RuntimeErrorInner<SetupError> {
     Panic(String),
 }
 
+impl RuntimeError {
+    /// Helper method to map `RuntimeError<!>` to `RuntimeError<SetupError>`.
+    pub fn map_type<SetupError>(self) -> RuntimeError<SetupError> {
+        RuntimeError {
+            inner: match self.inner {
+                RuntimeErrorInner::StartThread(err) => RuntimeErrorInner::StartThread(err),
+                RuntimeErrorInner::Poll(err) => RuntimeErrorInner::Poll(err),
+                RuntimeErrorInner::<!>::Setup(_) => unreachable!(),
+                RuntimeErrorInner::Panic(err) => RuntimeErrorInner::Panic(err),
+            },
+        }
+    }
+}
+
 impl<SetupError> RuntimeError<SetupError> {
     const DESC: &'static str = "error running actor system";
 
