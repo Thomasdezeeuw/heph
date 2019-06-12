@@ -446,11 +446,18 @@ impl RunningActorSystem {
     fn schedule_processes<E>(&mut self) -> Result<(), RuntimeError<E>> {
         trace!("polling event sources to schedule processes");
 
+        // If there are any processes to run we don't want to block.
+        let timeout = if self.scheduler.has_active_process() {
+            Some(Duration::from_millis(0))
+        } else {
+            None
+        };
+
         let mut os_queue = self.internal.os_queue.borrow_mut();
         let mut queue = self.internal.queue.borrow_mut();
         let mut timers = self.internal.timers.borrow_mut();
         let waker = &mut self.waker_events;
-        poll(&mut [os_queue.deref_mut(), queue.deref_mut(), timers.deref_mut(), waker], &mut self.scheduler, None)
+        poll(&mut [os_queue.deref_mut(), queue.deref_mut(), timers.deref_mut(), waker], &mut self.scheduler, timeout)
             .map_err(RuntimeError::poll)?;
 
         Ok(())

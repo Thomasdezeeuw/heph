@@ -77,6 +77,11 @@ impl Scheduler {
         self.processes.borrow().is_empty()
     }
 
+    /// Returns true is there are any processes ready to run, i.e. active.
+    pub fn has_active_process(&self) -> bool {
+        !self.active.is_empty()
+    }
+
     /// Run the next active process.
     ///
     /// Returns `true` if a process was run, `false` otherwise.
