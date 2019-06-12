@@ -56,8 +56,7 @@ impl<M> MailBox<M> {
         where S: MessageSelector<M>,
     {
         self.receive_remote_messages();
-        let messages = self.messages.iter().enumerate();
-        selector.select(Messages{ inner: messages })
+        selector.select(Messages::new(&self.messages))
             .and_then(|selection| self.messages.remove(selection.0))
     }
 
@@ -79,8 +78,7 @@ impl<M> MailBox<M> {
               M: Clone,
     {
         self.receive_remote_messages();
-        let messages = self.messages.iter().enumerate();
-        selector.select(Messages{ inner: messages })
+        selector.select(Messages::new(&self.messages))
             .and_then(|selection| self.messages.get(selection.0).cloned())
     }
 
@@ -161,6 +159,15 @@ pub struct MessageSelection(usize);
 #[derive(Debug)]
 pub struct Messages<'m, M> {
     inner: Enumerate<vec_deque::Iter<'m, M>>,
+}
+
+impl<'m, M> Messages<'m, M> {
+    /// Create a new iterator for `messages`.
+    pub(crate) fn new(messages: &'m VecDeque<M>) -> Messages<'m , M> {
+        Messages {
+            inner: messages.iter().enumerate(),
+        }
+    }
 }
 
 impl<'m, M> Iterator for Messages<'m, M> {
