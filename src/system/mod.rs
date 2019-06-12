@@ -291,7 +291,7 @@ impl<S> ActorSystem<S>
                 .and_then(|res| res)?;
         }
 
-        // Wait for all synchronous actors.
+        trace!("worker threads completed, waiting for synchronous actors");
         for handle in self.sync_actors {
             handle.join()
                 .map_err(|err| match err.downcast_ref::<&'static str>() {
@@ -381,16 +381,17 @@ fn run_sync_actor<S, E, Arg, A, M>(mut supervisor: S, actor: A, mut arg: Arg, in
             SyncContext::new(NonNull::new_unchecked(&mut ctx_data))
         };
         match actor.run(ctx, arg) {
-            Ok(()) => return,
+            Ok(()) => break,
             Err(err) => match supervisor.decide(err) {
                 SupervisorStrategy::Restart(new_arg) => {
                     trace!("restarting synchronous actor");
                     arg = new_arg
                 },
-                SupervisorStrategy::Stop => return,
+                SupervisorStrategy::Stop => break,
             },
         }
     }
+    trace!("stopping synchronous actor");
 }
 
 /// The system that runs all processes.
