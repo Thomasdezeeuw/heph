@@ -36,6 +36,7 @@
 
 use std::fmt;
 use std::future::Future;
+use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
@@ -160,6 +161,69 @@ pub trait NewActor {
 
     /// Create a new [`Actor`](Actor).
     fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error>;
+
+    /// Wrap the `NewActor` to change it's accept arguments.
+    ///
+    /// This can be used when additional arguments need to be passed to an
+    /// actor, where another function requires a certain argument list. For
+    /// example when using [`TcpListener`].
+    ///
+    /// [`TcpListener`]: crate::net::TcpListener
+    ///
+    /// # Examples
+    ///
+    /// Using [`TcpListener`] requires an actor that accepts `(TcpStream,
+    /// SocketAddr)` as arguments, but we need to pass the actor additional
+    /// arguments.
+    ///
+    /// ```ignore
+    /// unimplemeneted!("TODO: add example");
+    /// ```
+    fn map_arg<F, Arg>(self, f: F) -> ArgMap<Self, F, Arg>
+        where Self: Sized,
+              F: FnMut(Arg) -> Self::Argument,
+    {
+        ArgMap {
+            new_actor: self,
+            map: f,
+            _phantom: PhantomData,
+        }
+    }
+}
+
+/// See [`NewActor::map_arg`].
+#[derive(Debug)]
+pub struct ArgMap<NA, F, Arg> {
+    new_actor: NA,
+    map: F,
+    _phantom: PhantomData<Arg>,
+}
+
+impl<NA, F, Arg> Clone for ArgMap<NA, F, Arg>
+    where NA: Clone,
+          F: Clone,
+{
+    fn clone(&self) -> Self {
+        ArgMap {
+            new_actor: self.new_actor.clone(),
+            map: self.map.clone(),
+            _phantom: PhantomData,
+        }
+    }
+}
+
+impl<NA, F, Arg> NewActor for ArgMap<NA, F, Arg>
+    where NA: NewActor,
+          F: FnMut(Arg) -> NA::Argument,
+{
+    type Message = NA::Message;
+    type Argument = Arg;
+    type Actor = NA::Actor;
+    type Error = NA::Error;
+    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+        let arg = (self.map)(arg);
+        self.new_actor.new(ctx, arg)
+    }
 }
 
 impl<M, A> NewActor for fn(ctx: Context<M>) -> A
