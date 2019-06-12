@@ -45,6 +45,7 @@ mod context;
 mod tests;
 
 pub mod messages;
+pub mod sync;
 
 pub mod message_select {
     //! Module containing the `MessageSelector` trait and related types.
