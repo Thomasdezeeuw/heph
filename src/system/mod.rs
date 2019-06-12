@@ -419,8 +419,9 @@ impl RunningActorSystem {
         let mut system_ref = self.create_ref();
 
         loop {
-            self.schedule_processes()?;
-
+            // We first run the processes and only poll after to ensure that we
+            // return if there is nothing to poll, as there would be no
+            // processes to run then either.
             for _ in 0 .. RUN_POLL_RATIO {
                 if !self.scheduler.run_process(&mut system_ref) {
                     if self.scheduler.is_empty() {
@@ -433,6 +434,8 @@ impl RunningActorSystem {
                     }
                 }
             }
+
+            self.schedule_processes()?;
         }
     }
 
