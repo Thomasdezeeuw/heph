@@ -482,7 +482,7 @@ impl AsyncWrite for TcpStream {
 impl actor::Bound for TcpStream {
     type Error = io::Error;
 
-    fn bind<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
         ctx.system_ref().reregister(&mut self.socket, pid.into(),
             GaeaTcpStream::INTERESTS, RegisterOption::EDGE)
