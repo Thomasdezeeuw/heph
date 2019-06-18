@@ -29,7 +29,7 @@ log                  = "0.4.6"
 gaea                 = "0.3.0"
 num_cpus             = "1.8.0"
 slab                 = "0.4.0"
-std-logger           = "0.3.2"
+std-logger           = "0.3.4"
 
 [dev-dependencies]
 futures-test-preview = "0.3.0-alpha.16"
