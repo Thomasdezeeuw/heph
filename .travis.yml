@@ -11,12 +11,5 @@ matrix:
   include:
     - rust: nightly
       name: "Clippy check"
-      # Failing the `cognitive-complexity' lint is allowed because the tests are
-      # too complex.
-      script:
-        - rustup component add clippy
-        - cargo clippy --all-targets --all-features -- -D warnings -A clippy::cognitive-complexity
-script:
-  - cargo --version
-  - rustc --version
-  - cargo test --verbose --all-features
+      script: ./.ci/clippy.sh
+script: ./.ci/test.sh
