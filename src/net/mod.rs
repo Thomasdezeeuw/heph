@@ -38,3 +38,6 @@ pub mod udp;
 pub use self::tcp::{TcpListener, TcpStream};
 #[doc(no_inline)]
 pub use self::udp::UdpSocket;
+
+#[cfg(test)]
+mod tests;

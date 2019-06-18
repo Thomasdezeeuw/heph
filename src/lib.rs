@@ -72,6 +72,8 @@
            weak_ptr_eq,
 )]
 
+#![cfg_attr(test, feature(const_slice_len))]
+
 #![warn(anonymous_parameters,
         bare_trait_objects,
         missing_debug_implementations,
