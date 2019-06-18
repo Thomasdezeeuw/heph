@@ -58,7 +58,7 @@ pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> Result<(NA::Actor
 
 /// Poll a future.
 ///
-/// The [`LocalWaker`] be provided by the *test* actor system.
+/// The [`task::Context`] will be provided by the *test* actor system.
 ///
 /// # Notes
 ///
@@ -76,7 +76,7 @@ pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
 /// Poll an actor.
 ///
 /// This is effectively the same function as [`poll_future`], but instead polls
-/// an actors. The [`LocalWaker`] be provided by the *test* actor system.
+/// an actor. The [`task::Context`] will be provided by the *test* actor system.
 ///
 /// # Notes
 ///
