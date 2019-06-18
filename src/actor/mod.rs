@@ -162,9 +162,9 @@ pub trait NewActor {
     /// Create a new [`Actor`](Actor).
     fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error>;
 
-    /// Wrap the `NewActor` to change it's accept arguments.
+    /// Wrap the `NewActor` to change the arguments its accepts.
     ///
-    /// This can be used when additional arguments need to be passed to an
+    /// This can be used when additional arguments are needed to be passed to an
     /// actor, where another function requires a certain argument list. For
     /// example when using [`TcpListener`].
     ///
@@ -172,7 +172,7 @@ pub trait NewActor {
     ///
     /// # Examples
     ///
-    /// Using [`TcpListener`] requires an actor that accepts `(TcpStream,
+    /// Using [`TcpListener`] requires a `NewActor` that accepts `(TcpStream,
     /// SocketAddr)` as arguments, but we need to pass the actor additional
     /// arguments.
     ///
