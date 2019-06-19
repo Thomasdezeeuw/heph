@@ -404,16 +404,17 @@ const AWAKENER_ID: event::Id = event::Id(usize::max_value());
 impl RunningActorSystem {
     /// Create a new running actor system.
     pub fn new<E>() -> Result<RunningActorSystem, RuntimeError<E>> {
-        // Channel used in the `Waker` implementation.
-        let (waker_sender, waker_recv) = channel::unbounded();
-        // Scheduler for scheduling and running processes.
-        let (scheduler, scheduler_ref) = Scheduler::new();
         // System queue for event notifications.
         let mut os_queue = OsQueue::new().map_err(RuntimeError::poll)?;
         let awakener = Awakener::new(&mut os_queue, AWAKENER_ID)
             .map_err(RuntimeError::poll)?;
 
+        // Channel used in the `Waker` implementation.
+        let (waker_sender, waker_recv) = channel::unbounded();
         let waker_id = init_waker(awakener, waker_sender);
+
+        // Scheduler for scheduling and running processes.
+        let (scheduler, scheduler_ref) = Scheduler::new();
 
         // Internals of the running actor system.
         let internal = ActorSystemInternal {
