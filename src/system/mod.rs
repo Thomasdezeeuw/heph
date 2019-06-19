@@ -9,6 +9,7 @@
 //! See [`ActorSystem`] for documentation on how to run an actor system. For
 //! more examples see the examples directory in the source code.
 
+use std::any::Any;
 use std::cell::RefCell;
 use std::ops::DerefMut;
 use std::ptr::NonNull;
@@ -241,33 +242,29 @@ impl<S> ActorSystem<S>
         // keeps running and all other threads crash we'll keep running. Not an
         // ideal situation.
         for handle in handles {
-            handle.join()
-                .map_err(|err| match err.downcast_ref::<&'static str>() {
-                    Some(s) => (*s).to_owned(),
-                    None => match err.downcast_ref::<String>() {
-                        Some(s) => s.clone(),
-                        None => "unkown panic message".to_owned(),
-                    },
-                })
-                .map_err(RuntimeError::panic)
-                .and_then(|res| res)?;
+            handle.join().map_err(map_panic)
+                .and_then(|res| res)?; // Result<Result<(), E>> -> Result<(), E>.
         }
 
         trace!("worker threads completed, waiting for synchronous actors");
         for handle in self.sync_actors {
-            handle.join()
-                .map_err(|err| match err.downcast_ref::<&'static str>() {
-                    Some(s) => (*s).to_owned(),
-                    None => match err.downcast_ref::<String>() {
-                        Some(s) => s.clone(),
-                        None => "unkown panic message".to_owned(),
-                    },
-                })
-                .map_err(RuntimeError::panic)?;
+            handle.join().map_err(map_panic)?;
         }
 
         Ok(())
     }
+}
+
+/// Maps a boxed panic messages to a `RuntimeError`.
+fn map_panic<E>(err: Box<dyn Any + Send + 'static>) -> RuntimeError<E> {
+    let msg = match err.downcast_ref::<&'static str>() {
+        Some(s) => (*s).to_owned(),
+        None => match err.downcast_ref::<String>() {
+            Some(s) => s.clone(),
+            None => "unkown panic message".to_owned(),
+        },
+    };
+    RuntimeError::panic(msg)
 }
 
 impl<S> fmt::Debug for ActorSystem<S> {
