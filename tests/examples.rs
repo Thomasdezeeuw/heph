@@ -1,7 +1,7 @@
 //! These test perform an end-to-end test based on the examples in the examples
 //! directory.
 
-use std::io::{Read, Write};
+use std::io::Read;
 use std::net::{SocketAddr, TcpStream};
 use std::ops::{Deref, DerefMut};
 use std::panic;
@@ -60,22 +60,6 @@ sequential_tests! {
         stream.read_to_string(&mut output)
             .expect("unable to to read from stream");
         assert_eq!(output, "127.0.0.1");
-    }
-
-    fn example_3_actor_registry() {
-        let _child = run_example("3_actor_registry");
-
-        let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
-        let mut stream = tcp_retry_connect(address);
-
-        const SEND: &[u8] = b"Hello World";
-        let n = stream.write(SEND).unwrap();
-        assert_eq!(n, SEND.len());
-
-        let mut output = [0; 12];
-        let n = stream.read(&mut output).unwrap();
-        assert_eq!(n, 11);
-        assert_eq!(&output[0..n], SEND, "should be `Hello World`");
     }
 }
 
