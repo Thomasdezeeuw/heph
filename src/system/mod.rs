@@ -227,16 +227,14 @@ impl<S> ActorSystem<S>
     /// [`ActorSystem::num_threads`]) to run the system.
     pub fn run(self) -> Result<(), RuntimeError<S::Error>> {
         debug!("running actor system: worker_threads={}", self.threads);
-
-        let mut handles = Vec::with_capacity(self.threads);
-        for id in 0 .. self.threads {
+        // Start our worker threads.
+        let handles = (0 .. self.threads).map(|id| {
             let setup = self.setup.clone();
-            let handle = thread::Builder::new()
+            thread::Builder::new()
                 .name(format!("heph_worker{}", id))
                 .spawn(move || run_system(setup))
-                .map_err(RuntimeError::start_thread)?;
-            handles.push(handle)
-        }
+                .map_err(RuntimeError::start_thread)
+        }).collect::<Result<Vec<thread::JoinHandle<_>>, _>>()?;
 
         // TODO: handle errors better. Currently as long as the first thread
         // keeps running and all other threads crash we'll keep running. Not an
