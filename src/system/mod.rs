@@ -590,6 +590,7 @@ impl ActorSystemRef {
     /// `options`. The only difference being rather then passing an argument
     /// directly this function requires a function to create the argument, which
     /// allows the caller to do any required setup work.
+    #[allow(clippy::type_complexity)] // Not part of the public API, so it's OK.
     pub(crate) fn try_spawn_setup<S, NA, ArgFn, ArgFnE>(&mut self, supervisor: S,
         mut new_actor: NA, arg_fn: ArgFn, options: ActorOptions
     ) -> Result<ActorRef<Local<NA::Message>>, AddActorError<NA::Error, ArgFnE>>
