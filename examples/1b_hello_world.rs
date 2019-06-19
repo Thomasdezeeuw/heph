@@ -6,9 +6,7 @@ use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
 
 // The creation and running of the actor system is the same as in example 1.
 fn main() -> Result<(), RuntimeError> {
-    ActorSystem::new()
-        .with_setup(add_greeter_actor)
-        .run()
+    ActorSystem::new().with_setup(add_greeter_actor).run()
 }
 
 /// The is the setup function used in the actor system.
@@ -20,11 +18,12 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
     // added to the actor system for the first time. This is useful for actors
     // that don't have any (initial) external wakers, for example our
     // `greeter_actor` below.
-    let actor = greeter_actor as fn(_) -> _;
-    system_ref.spawn(NoSupervisor, actor, (), ActorOptions {
+    let options = ActorOptions {
         schedule: true,
         ..ActorOptions::default()
-    });
+    };
+    let actor = greeter_actor as fn(_) -> _;
+    system_ref.spawn(NoSupervisor, actor, (), options);
 
     Ok(())
 }

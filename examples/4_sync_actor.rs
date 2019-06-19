@@ -1,7 +1,7 @@
 #![feature(never_type)]
 
-use heph::supervisor::NoSupervisor;
 use heph::actor::sync::SyncContext;
+use heph::supervisor::NoSupervisor;
 use heph::system::{ActorSystem, RuntimeError};
 
 fn main() -> Result<(), RuntimeError> {

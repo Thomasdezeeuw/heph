@@ -5,12 +5,9 @@ use heph::system::RuntimeError;
 use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
 
 fn main() -> Result<(), RuntimeError> {
-    // First we create our actor system.
-    ActorSystem::new()
-        // We add a setup function, which adds our greeter actor.
-        .with_setup(add_greeter_actor)
-        // And then we run it.
-        .run()
+    // We create our actor system. Add a setup function, which adds our greeter
+    // actor. And finally we run it.
+    ActorSystem::new().with_setup(add_greeter_actor).run()
 }
 
 /// The is the setup function used in the actor system.
@@ -26,8 +23,7 @@ fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
     // We'll use the default actor options here, other examples expand on the
     // options available.
     let actor = greeter_actor as fn(_) -> _;
-    let mut actor_ref = system_ref.spawn(NoSupervisor, actor, (),
-        ActorOptions::default());
+    let mut actor_ref = system_ref.spawn(NoSupervisor, actor, (), ActorOptions::default());
 
     // By default actors don't do anything when added to the actor system. We
     // need to wake them, for example by sending them a message. If we didn't

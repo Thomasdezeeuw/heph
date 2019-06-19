@@ -22,12 +22,9 @@ fn main() -> Result<(), RuntimeError<io::Error>> {
     log::init();
 
     // Just like in examples 1 and 2 we'll create our actor system and add our
-    // setup function.
-    ActorSystem::new()
-        .with_setup(setup)
-        // For this example we'll create a worker thread per available CPU core.
-        .use_all_cores()
-        .run()
+    // setup function. But for this example we'll create a worker thread per
+    // available CPU core.
+    ActorSystem::new().with_setup(setup).use_all_cores().run()
 }
 
 /// Our setup function that will add the TCP listener to the actor system.
@@ -45,13 +42,14 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // `listener_supervisor` as supervisor. As argument the TCP listener needs
     // an address to listen on.
     let address = "127.0.0.1:7890".parse().unwrap();
-    system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions {
+    let options = ActorOptions {
         // We'll give our listener a low priority to prioritise handling of
         // ongoing requests over accepting new requests possibly overloading the
         // system.
         priority: Priority::LOW,
         ..Default::default()
-    })?;
+    };
+    system_ref.try_spawn(listener_supervisor, listener, address, options)?;
 
     Ok(())
 }
@@ -78,7 +76,11 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)
 ///
 /// This actor will not receive any message and thus uses `!` (the never type)
 /// as message type.
-async fn conn_actor(_: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+async fn conn_actor(
+    _: actor::Context<!>,
+    mut stream: TcpStream,
+    address: SocketAddr,
+) -> io::Result<()> {
     info!("accepted connection: address={}", address);
 
     // This will allocate a new string which isn't the most efficient way to do
