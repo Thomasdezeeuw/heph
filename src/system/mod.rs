@@ -59,7 +59,7 @@ use gaea::{event, poll, Event, Queue, Ready, Timers};
 use num_cpus;
 
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
-use crate::actor_ref::{ActorRef, Sync};
+use crate::actor_ref::{ActorRef, Sync, Local};
 use crate::mailbox::MailBox;
 use crate::scheduler::{ProcessId, Scheduler, SchedulerRef};
 use crate::supervisor::{Supervisor, SupervisorStrategy};
@@ -235,7 +235,7 @@ impl<S> ActorSystem<S> {
     /// [`actor::sync`] module.
     ///
     /// [`actor::sync`]: crate::actor::sync
-    pub fn spawn_sync_actor<Sv, A, E, Arg, M>(&mut self, supervisor: Sv, actor: A, arg: Arg) -> Result<ActorRef<M, Sync>, RuntimeError>
+    pub fn spawn_sync_actor<Sv, A, E, Arg, M>(&mut self, supervisor: Sv, actor: A, arg: Arg) -> Result<ActorRef<Sync<M>>, RuntimeError>
         where Sv: Supervisor<E, Arg> + Send + 'static,
               A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
               Arg: Send + 'static,
@@ -557,7 +557,7 @@ impl ActorSystemRef {
     /// is the way to create the actor, this is `new_actor`, and the `arg`ument
     /// to create it. Finally it also needs `options` for actor and the place
     /// inside the actor system.
-    pub fn try_spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> Result<ActorRef<NA::Message>, NA::Error>
+    pub fn try_spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> Result<ActorRef<Local<NA::Message>>, NA::Error>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
               NA::Actor: 'static,
@@ -575,7 +575,7 @@ impl ActorSystemRef {
     /// return an error, such as asynchronous functions.
     ///
     /// See [`ActorSystemRef::try_spawn`] for more information.
-    pub fn spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> ActorRef<NA::Message>
+    pub fn spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> ActorRef<Local<NA::Message>>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor<Error = !> + 'static,
               NA::Actor: 'static,
@@ -592,7 +592,7 @@ impl ActorSystemRef {
     /// allows the caller to do any required setup work.
     pub(crate) fn try_spawn_setup<S, NA, ArgFn, ArgFnE>(&mut self, supervisor: S,
         mut new_actor: NA, arg_fn: ArgFn, options: ActorOptions
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    ) -> Result<ActorRef<Local<NA::Message>>, AddActorError<NA::Error, ArgFnE>>
         where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
               NA: NewActor + 'static,
               ArgFn: FnOnce(ProcessId, &mut ActorSystemRef) -> Result<NA::Argument, ArgFnE>,
@@ -646,7 +646,7 @@ impl ActorSystemRef {
     /// [`ActorSystemRef::lookup_actor`].
     ///
     /// [Actor Registry]: ./index.html#actor-registry
-    pub fn lookup<NA>(&mut self) -> Option<ActorRef<NA::Message>>
+    pub fn lookup<NA>(&mut self) -> Option<ActorRef<Local<NA::Message>>>
         where NA: NewActor + 'static,
     {
         self.internal.registry.borrow_mut().lookup::<NA>()
@@ -712,7 +712,7 @@ impl ActorSystemRef {
     /// #   Ok(())
     /// }
     /// ```
-    pub fn lookup_actor<NA>(&mut self, _: &NA) -> Option<ActorRef<NA::Message>>
+    pub fn lookup_actor<NA>(&mut self, _: &NA) -> Option<ActorRef<Local<NA::Message>>>
         where NA: NewActor + 'static,
     {
         self.lookup::<NA>()

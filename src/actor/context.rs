@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 
 use crate::actor::message_select::{First, MessageSelector};
-use crate::actor_ref::ActorRef;
+use crate::actor_ref::{ActorRef, Local};
 use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
 use crate::system::ActorSystemRef;
@@ -251,7 +251,7 @@ impl<M> Context<M> {
     }
 
     /// Returns a reference to this actor.
-    pub fn actor_ref(&mut self) -> ActorRef<M> {
+    pub fn actor_ref(&mut self) -> ActorRef<Local<M>> {
         ActorRef::new_local(self.inbox.downgrade())
     }
 

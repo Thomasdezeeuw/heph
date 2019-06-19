@@ -22,11 +22,12 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
+use crate::actor_ref::{ActorRef, Local};
 use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
 use crate::system::RunningActorSystem;
 use crate::util::Shared;
-use crate::{actor, Actor, ActorRef, ActorSystemRef, NewActor};
+use crate::{actor, Actor, ActorSystemRef, NewActor};
 
 thread_local! {
     /// Per thread active, but not running, actor system.
@@ -41,7 +42,7 @@ pub fn system_ref() -> ActorSystemRef {
 
 /// Initialise an actor.
 #[allow(clippy::type_complexity)]
-pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
+pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> Result<(NA::Actor, ActorRef<Local<NA::Message>>), NA::Error>
     where NA: NewActor,
 {
     let system_ref = system_ref();

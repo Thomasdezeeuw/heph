@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use crate::actor_ref::{ActorRef, ActorRefType, SendError};
+use crate::actor_ref::{ActorRef, Send, SendError};
 use crate::mailbox::MailBox;
 use crate::util::WeakShared;
 
@@ -19,14 +19,18 @@ use crate::util::Shared;
 /// [`ActorSystem`]: crate::system::ActorSystem
 /// [upgraded]: crate::actor_ref::ActorRef::upgrade
 /// [machine local actor reference]: crate::actor_ref::Machine
-#[allow(missing_debug_implementations)]
-pub enum Local {}
+pub struct Local<M> {
+    /// The inbox of the `Actor`, owned by the `ActorProcess`.
+    ///
+    /// Note: if this representation changes it will break the Actor Registry!
+    pub(super) inbox: WeakShared<MailBox<M>>,
+}
 
-impl<M> ActorRefType<M> for Local {
-    type Data = LocalData<M>;
+impl<M> Send for Local<M> {
+    type Message = M;
 
-    fn send(data: &mut Self::Data, msg: M) -> Result<(), SendError<M>> {
-        match data.inbox.upgrade() {
+    fn send(&mut self, msg: Self::Message) -> Result<(), SendError<Self::Message>> {
+        match self.inbox.upgrade() {
             Some(mut inbox) => {
                 inbox.borrow_mut().deliver(msg);
                 Ok(())
@@ -37,39 +41,33 @@ impl<M> ActorRefType<M> for Local {
 }
 
 /// Data used by a local actor reference.
-pub struct LocalData<M> {
-    /// The inbox of the `Actor`, owned by the `ActorProcess`.
-    ///
-    /// Note: if this representation changes it will break the Actor Registry!
-    pub(super) inbox: WeakShared<MailBox<M>>,
-}
 
-impl<M> Clone for LocalData<M> {
-    fn clone(&self) -> LocalData<M> {
-        LocalData {
+impl<M> Clone for Local<M> {
+    fn clone(&self) -> Local<M> {
+        Local {
             inbox: self.inbox.clone(),
         }
     }
 }
 
-impl<M> Eq for LocalData<M> {}
+impl<M> Eq for Local<M> {}
 
-impl<M> PartialEq for LocalData<M> {
-    fn eq(&self, other: &LocalData<M>) -> bool {
+impl<M> PartialEq for Local<M> {
+    fn eq(&self, other: &Local<M>) -> bool {
         self.inbox.ptr_eq(&other.inbox)
     }
 }
 
-impl<M> fmt::Debug for LocalData<M> {
+impl<M> fmt::Debug for Local<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "LocalActorRef")
     }
 }
 
-impl<M> ActorRef<M, Local> {
+impl<M> ActorRef<Local<M>> {
     /// Create a new `ActorRef` with a shared mailbox.
-    pub(crate) const fn new_local(inbox: WeakShared<MailBox<M>>) -> ActorRef<M, Local> {
-        ActorRef::new(LocalData { inbox })
+    pub(crate) const fn new_local(inbox: WeakShared<MailBox<M>>) -> ActorRef<Local<M>> {
+        ActorRef::new(Local { inbox })
     }
 
     /// Get access to the internal inbox, used in testing.

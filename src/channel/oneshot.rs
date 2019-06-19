@@ -11,6 +11,7 @@
 //! ```
 //! #![feature(async_await, never_type)]
 //!
+//! use heph::actor_ref::Local;
 //! use heph::channel::oneshot;
 //! use heph::{actor, ActorRef};
 //!
@@ -53,7 +54,7 @@
 //! }
 //!
 //! /// Our actor that uses a database connection.
-//! async fn actor(ctx: actor::Context<()>, mut db_manager: ActorRef<DbConnMsg>) -> Result<(), ()> {
+//! async fn actor(ctx: actor::Context<()>, mut db_manager: ActorRef<Local<DbConnMsg>>) -> Result<(), ()> {
 //!     // Create a new one shot channel.
 //!     let (sender, receiver) = oneshot();
 //!     // Send a get request to the database connection actor.
