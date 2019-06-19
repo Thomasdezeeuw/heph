@@ -95,7 +95,6 @@
 
 pub mod actor;
 pub mod actor_ref;
-pub mod channel;
 pub mod log;
 pub mod net;
 pub mod supervisor;
