@@ -269,6 +269,7 @@ impl<S> fmt::Debug for ActorSystem<S> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("ActorSystem")
             .field("threads", &self.threads)
+            .field("sync_actors (length)", &self.sync_actors.len())
             .field("setup", if self.setup.is_some() { &"Some" } else { &"None" })
             .finish()
     }
