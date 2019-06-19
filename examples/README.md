@@ -29,17 +29,3 @@ to the connection.
 The code can be found in `2_my_ip.rs` and run with `cargo run --example
 2_my_ip`, running something like `nc localhost 7890` should then print your ip
 address, e.g. "127.0.0.1".
-
-## 3. Actor Registry
-
-The next example will be a bit more complex; an echo server written using TCP.
-However using all the utilities that `futures-util` has to offer this is
-actually not that hard either.
-
-One special feature this example uses is the Actor Registry. The actor
-registry allows an actor to be registered and for another actor to look up the
-first actor and get a actor reference.
-
-The code can be found in `3_actor_registry.rs` and run with `cargo run --example
-3_actor_registry`, running something like `echo "Hello world" | nc -v localhost
-7890` should then echo back (print) "Hello world".

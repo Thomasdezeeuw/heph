@@ -8,41 +8,6 @@
 //!
 //! See [`ActorSystem`] for documentation on how to run an actor system. For
 //! more examples see the examples directory in the source code.
-//!
-//! [Actor Registry]: #actor-registry
-//!
-//! # Actor Registry
-//!
-//! The Actor Registry is a fairly simple concept, it maps a [`NewActor`] type
-//! to an [`ActorRef`].
-//!
-//! First an actor must be registered with the Actor Registry. This is done by
-//! setting the [register] option to `true` in the [`ActorOptions`] when
-//! [spawning] an actor. Note that an actor registration must be unique **per
-//! actor type**, that is type in the Rust's type system. It is not possible to
-//! register two actors with the same type.
-//!
-//! After the actor is registered it can be looked up. This can be done using
-//! the [`lookup`] method, or if the type can't be typed (which is the case when
-//! using asynchronous functions, see the methods description for more info)
-//! [`lookup_actor`] can be used instead. Both methods will do the same thing
-//! return an [`ActorRef`], which can be used to communicate with the actor.
-//!
-//! ## Actor Registry Notes
-//!
-//! As the Actor Registry maps to `ActorRef`s each registry is **thread local**.
-//! Example 3 (in the examples directory of the repo) shows this possible gotcha
-//! in practice.
-//!
-//! Another thing to note is that the actor registration is **unique per actor
-//! type** (within each thread). This means that two actors with the same type
-//! cannot be registered at the same time, the second registration of the same
-//! type will panic.
-//!
-//! [register]: crate::system::options::ActorOptions::register
-//! [spawning]: ActorSystemRef::try_spawn
-//! [`lookup`]: ActorSystemRef::lookup
-//! [`lookup_actor`]: ActorSystemRef::lookup_actor
 
 use std::cell::RefCell;
 use std::ops::DerefMut;
@@ -67,10 +32,7 @@ use crate::util::Shared;
 use crate::{actor, Actor, NewActor};
 
 mod error;
-mod registry;
 mod waker;
-
-use self::registry::ActorRegistry;
 
 pub mod options;
 
@@ -464,7 +426,6 @@ impl RunningActorSystem {
             os_queue: RefCell::new(os_queue),
             timers: RefCell::new(Timers::new()),
             queue: RefCell::new(Queue::new()),
-            registry: RefCell::new(ActorRegistry::new()),
         };
 
         // The actor system we're going to run.
@@ -602,7 +563,6 @@ impl ActorSystemRef {
         let ActorSystemInternal {
             waker_id,
             ref scheduler_ref,
-            ref registry,
             ..
         } = &*self.internal;
 
@@ -630,100 +590,7 @@ impl ActorSystemRef {
         process_entry.add_actor(options.priority, supervisor, new_actor, actor,
             mailbox);
 
-        if options.register && registry.borrow_mut().register::<NA>(actor_ref.clone()).is_some() {
-            panic!("can't overwrite a previously registered actor in the Actor Registry");
-        }
-
         Ok(actor_ref)
-    }
-
-    /// Lookup an actor in the [Actor Registry].
-    ///
-    /// This looks up an actor in Actor Registry and returns an actor reference
-    /// to that actor, if found. For more information, as well as possible
-    /// gotchas of the design, see [Actor Registry].
-    ///
-    /// Note: when using asynchronous functions as actors you'll likely need
-    /// [`ActorSystemRef::lookup_actor`].
-    ///
-    /// [Actor Registry]: ./index.html#actor-registry
-    pub fn lookup<NA>(&mut self) -> Option<ActorRef<Local<NA::Message>>>
-        where NA: NewActor + 'static,
-    {
-        self.internal.registry.borrow_mut().lookup::<NA>()
-    }
-
-    /// Lookup an actor in the [Actor Registry], of which the type is hard to
-    /// get.
-    ///
-    /// Actors can be implemented as an asynchronous function, of which it hard
-    /// to get type, e.g. `system_ref.lookup::<my_actor>()` will not work. This
-    /// is because `my_actor` is not a type (it is a [function]) and doesn't
-    /// implement [`NewActor`] directly, only function pointers do.
-    ///
-    /// This function is a work around for that problem, although it isn't
-    /// pretty. See the example below for usage.
-    ///
-    /// Note: the argument provided is completely ignored and only used to
-    /// determine the type of the argument.
-    ///
-    /// [Actor Registry]: ./index.html#actor-registry
-    /// [function]: https://doc.rust-lang.org/std/keyword.fn.html
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// #![feature(async_await, never_type)]
-    ///
-    /// use heph::supervisor::NoSupervisor;
-    /// use heph::system::RuntimeError;
-    /// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
-    ///
-    /// fn main() -> Result<(), RuntimeError> {
-    ///     ActorSystem::new()
-    ///         .with_setup(setup)
-    ///         .run()
-    /// }
-    ///
-    /// /// Setup function used in starting the `ActorSystem`.
-    /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
-    ///     // Add the actor to the system, enabling registering of the actor.
-    ///     let actor_ref1 = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
-    ///         register: true,
-    /// #       schedule: true, // Run the actor, so the example runs.
-    ///         ..ActorOptions::default()
-    ///     });
-    ///
-    ///     // Unfortunately this won't compile. :(
-    ///     // let actor_ref2 = system_ref.lookup::<actor>();
-    ///
-    ///     // This will work.
-    ///     let actor_ref2 = system_ref.lookup_actor(&(actor as fn(_) -> _))
-    ///         .unwrap();
-    ///
-    ///     // The actor reference should be the same.
-    ///     assert_eq!(actor_ref1, actor_ref2);
-    ///     Ok(())
-    /// }
-    ///
-    /// /// Our actor implemented as an asynchronous function.
-    /// async fn actor(ctx: actor::Context<()>) -> Result<(), !> {
-    ///     // ...
-    /// #   drop(ctx); // Silence dead code warnings.
-    /// #   Ok(())
-    /// }
-    /// ```
-    pub fn lookup_actor<NA>(&mut self, _: &NA) -> Option<ActorRef<Local<NA::Message>>>
-        where NA: NewActor + 'static,
-    {
-        self.lookup::<NA>()
-    }
-
-    /// Deregister an actor from the Actor Registry.
-    pub(crate) fn deregister<NA>(&mut self)
-        where NA: NewActor + 'static,
-    {
-        let _ = self.internal.registry.borrow_mut().deregister::<NA>();
     }
 
     /// Register an `Evented` handle, see `OsQueue.register`.
@@ -780,6 +647,4 @@ pub(crate) struct ActorSystemInternal {
     timers: RefCell<Timers>,
     /// User space queue.
     queue: RefCell<Queue>,
-    /// Actor registrations.
-    registry: RefCell<ActorRegistry>,
 }

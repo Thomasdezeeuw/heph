@@ -99,12 +99,6 @@ impl<S, NA> Process for ActorProcess<S, NA>
             Poll::Pending => ProcessResult::Pending,
         };
 
-        // Normally this should go in the `Drop` implementation, but we don't
-        // have access to a system ref there, so we need to do it here.
-        if let ProcessResult::Complete = result {
-            system_ref.deregister::<NA>();
-        }
-
         let elapsed = start.elapsed();
         trace!("finished running actor process: pid={}, elapsed_time={:?}, result={:?}", this.id, elapsed, result);
         this.runtime += elapsed;
