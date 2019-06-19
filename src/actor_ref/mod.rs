@@ -5,14 +5,14 @@
 //!
 //! Currently there are three types of actor references.
 //!
-//! - [`Local`] (`ActorRef<M, Local>`): reference to an actor running on the
+//! - [`Local`] (`ActorRef<Local<M>>`): reference to an actor running on the
 //!   same thread. This is the least expensive reference and should always be
 //!   preferred, that is why it is also the default.
-//! - [`Machine`] (`ActorRef<M, Machine>`): reference to an actor running on the
+//! - [`Machine`] (`ActorRef<Machine<M>>`): reference to an actor running on the
 //!   same machine, possibly on another thread. This implements
 //!   [`Send`](std::marker::Send) and [`Sync`](std::marker::Sync), which the
 //!   local actor reference does not.
-//! - [`Sync`] (`ActorRef<M, Sync>`): reference to a synchronous actor running
+//! - [`Sync`] (`ActorRef<Sync<M>>`): reference to a synchronous actor running
 //!   on its own thread. Like the machine reference this reference also
 //!   implements [`Send`](std::marker::Send) and [`Sync`](std::marker::Sync).
 //!
@@ -144,39 +144,35 @@ pub use self::sync::Sync;
 /// see the [module] documentation.
 ///
 /// `ActorRef` is effectively just a container that wraps the actual
-/// implementation defined by the [`ActorRefType`].
+/// implementation defined by the [`Send`].
 ///
 /// [module]: crate::actor_ref
 #[repr(transparent)]
-pub struct ActorRef<M, T: ActorRefType<M> = Local> {
-    data: T::Data,
+#[derive(Clone, Eq, PartialEq)]
+pub struct ActorRef<T> {
+    data: T,
 }
 
-impl<M, T> ActorRef<M, T>
-    where T: ActorRefType<M>,
-{
-    /// Create a new `ActorRef` with the required data.
-    pub(crate) const fn new(data: T::Data) -> ActorRef<M, T> {
+impl<T> ActorRef<T> {
+    /// Create a new `ActorRef`.
+    pub(crate) const fn new(data: T) -> ActorRef<T> {
         ActorRef {
             data,
         }
     }
 }
 
-/// Trait that defines the type of actor reference.
-///
-/// This trait allows for different types of actor reference to use the same
-/// `ActorRef` struct, which allows for easier usage.
-pub trait ActorRefType<M> {
-    /// Data required by the actor reference.
-    type Data: Sized;
+/// Trait that defines how an actor reference sends messages.
+pub trait Send {
+    /// The message the actor reference can send.
+    type Message;
 
     /// Implementation behind [`ActorRef::send`].
-    fn send(data: &mut Self::Data, msg: M) -> Result<(), SendError<M>>;
+    fn send(&mut self, msg: Self::Message) -> Result<(), SendError<Self::Message>>;
 }
 
-impl<M, T> ActorRef<M, T>
-    where T: ActorRefType<M>,
+impl<M, T> ActorRef<T>
+    where T: Send<Message = M>,
 {
     /// Asynchronously send a message to the actor.
     ///
@@ -191,16 +187,16 @@ impl<M, T> ActorRef<M, T>
     pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<M>>
         where Msg: Into<M>,
     {
-        T::send(&mut self.data, msg.into())
+        self.data.send(msg.into())
     }
 }
 
-impl<M> ActorRef<M, Local> {
+impl<M> ActorRef<Local<M>> {
     /// Upgrade a local actor reference to a machine local reference.
     ///
     /// This allows the actor reference to be send across threads, however
     /// operations on it are more expensive.
-    pub fn upgrade(self, system_ref: &mut ActorSystemRef) -> Result<ActorRef<M, Machine>, ActorShutdown> {
+    pub fn upgrade(self, system_ref: &mut ActorSystemRef) -> Result<ActorRef<Machine<M>>, ActorShutdown> {
         let (pid, sender) = match self.data.inbox.upgrade() {
             Some(mut inbox) => inbox.borrow_mut().upgrade_ref(),
             None => return Err(ActorShutdown),
@@ -211,8 +207,8 @@ impl<M> ActorRef<M, Local> {
     }
 }
 
-impl<M, Msg, T> ShlAssign<Msg> for ActorRef<M, T>
-    where T: ActorRefType<M>,
+impl<M, Msg, T> ShlAssign<Msg> for ActorRef<T>
+    where T: Send<Message = M>,
           Msg: Into<M>,
 {
     fn shl_assign(&mut self, msg: Msg) {
@@ -220,34 +216,8 @@ impl<M, Msg, T> ShlAssign<Msg> for ActorRef<M, T>
     }
 }
 
-impl<M, T> Clone for ActorRef<M, T>
-    where T: ActorRefType<M>,
-          T::Data: Clone,
-{
-    fn clone(&self) -> ActorRef<M, T> {
-        ActorRef {
-            data: self.data.clone(),
-        }
-    }
-}
-
-impl<M, T> Eq for ActorRef<M, T>
-    where T: ActorRefType<M>,
-          T::Data: Eq,
-{}
-
-impl<M, T> PartialEq for ActorRef<M, T>
-    where T: ActorRefType<M>,
-          T::Data: PartialEq,
-{
-    fn eq(&self, other: &ActorRef<M, T>) -> bool {
-        self.data.eq(&other.data)
-    }
-}
-
-impl<M, T> fmt::Debug for ActorRef<M, T>
-    where T: ActorRefType<M>,
-          T::Data: fmt::Debug,
+impl<T> fmt::Debug for ActorRef<T>
+    where T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.data.fmt(f)

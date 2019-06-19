@@ -2,7 +2,7 @@
 
 use std::mem::size_of;
 
-use crate::actor_ref::{ActorRef, ActorRefType, ActorShutdown, Local, Machine, SendError};
+use crate::actor_ref::{ActorRef, ActorShutdown, Local, Machine, SendError};
 use crate::mailbox::MailBox;
 use crate::scheduler::ProcessId;
 use crate::test;
@@ -14,8 +14,8 @@ use crate::util::Shared;
 
 #[test]
 fn size_assertions() {
-    assert_eq!(size_of::<ActorRef<usize, Local>>(), size_of::<<Local as ActorRefType<usize>>::Data>());
-    assert_eq!(size_of::<ActorRef<usize, Machine>>(), size_of::<<Machine as ActorRefType<usize>>::Data>());
+    assert_eq!(size_of::<ActorRef<Local<usize>>>(), size_of::<Local<usize>>());
+    assert_eq!(size_of::<ActorRef<Machine<usize>>>(), size_of::<Machine<usize>>());
 }
 
 #[test]
