@@ -1,9 +1,16 @@
 //! Transmission Control Protocol (TCP) related types.
 //!
-//! Two types are provided:
+//! Three main types are provided:
 //!
 //!  * [`TcpListener`] listens for incoming connections.
 //!  * [`TcpStream`] represents a single TCP connection.
+//!  * [`tcp::Actor`] is an [`Actor`] that listens for incoming connections and
+//!    starts a new actor for each.
+//!
+//! [`tcp::Actor`]: crate::net::tcp::Actor
+//! [`Actor`]: crate::actor::Actor
+//! [`tcp::NewListener`]: crate::net::tcp::NewListener
+//! [`NewActor`]: crate::actor::NewActor
 
 use std::future::Future;
 use std::io::{self, Read, Write};

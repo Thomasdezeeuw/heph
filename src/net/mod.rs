@@ -5,12 +5,14 @@
 //! * [Transmission Control Protocol] (TCP) module provides two main types:
 //!   * A [TCP stream] between a local and a remote socket.
 //!   * A [TCP socket server], listening for connections.
+//!   * A [TCP actor], listens for connections and starts a new actor for each.
 //! * [User Datagram Protocol] (UDP) only provides a single socket type:
 //!   * [`UdpSocket`].
 //!
 //! [Transmission Control Protocol]: crate::net::tcp
 //! [TCP stream]: crate::net::TcpStream
 //! [TCP socket server]: crate::net::TcpListener
+//! [TCP actor]: crate::net::tcp::Actor
 //! [User Datagram Protocol]: crate::net::udp
 //! [`UdpSocket`]: crate::net::UdpSocket
 

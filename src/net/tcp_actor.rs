@@ -77,7 +77,11 @@ where
     }
 }
 
-/// An actor that starts an actor for each accepted TCP connection.
+/// An actor that starts a new actor for each accepted TCP connection.
+///
+/// See [`tcp::NewListener`] for the [`NewActor`] implementation for this actor.
+///
+/// [`tcp::NewListener`]: crate::net::tcp::NewListener
 ///
 /// # Graceful shutdown
 ///
