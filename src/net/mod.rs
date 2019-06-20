@@ -31,6 +31,8 @@ macro_rules! try_io {
     };
 }
 
+mod tcp_actor;
+
 pub mod tcp;
 pub mod udp;
 
