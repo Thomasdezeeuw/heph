@@ -76,7 +76,8 @@ fn machine_local_actor_ref() {
 
     // Create our actor reference.
     let mut actor_ref = ActorRef::new_local(mailbox.downgrade())
-        .upgrade(&mut system_ref).unwrap();
+        .upgrade(&mut system_ref)
+        .unwrap();
 
     // Sending a message.
     actor_ref.send(1).unwrap();

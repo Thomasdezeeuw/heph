@@ -5,8 +5,8 @@ use std::collections::BinaryHeap;
 use std::mem;
 use std::pin::Pin;
 
-use log::{debug, trace};
 use gaea::{event, Event};
+use log::{debug, trace};
 use slab::Slab;
 
 use crate::actor::{Actor, NewActor};
@@ -47,9 +47,7 @@ impl Scheduler {
             active: BinaryHeap::new(),
             processes: shared.clone(),
         };
-        let scheduler_ref = SchedulerRef {
-            processes: shared,
-        };
+        let scheduler_ref = SchedulerRef { processes: shared };
         (scheduler, scheduler_ref)
     }
 
@@ -91,7 +89,7 @@ impl Scheduler {
             None => {
                 debug!("no active processes left to run");
                 return false;
-            },
+            }
         };
 
         let pid = process.id();
@@ -99,12 +97,10 @@ impl Scheduler {
             ProcessResult::Complete => {
                 let process_state = self.processes.borrow_mut().remove(pid.0);
                 debug_assert!(process_state.is_active(), "removed an inactive process");
-            },
+            }
             ProcessResult::Pending => match self.processes.borrow_mut().get_mut(pid.0) {
-                Some(ref mut process_state) =>
-                    process_state.mark_inactive(process),
-                None =>
-                    unreachable!("active process already removed"),
+                Some(ref mut process_state) => process_state.mark_inactive(process),
+                None => unreachable!("active process already removed"),
             },
         }
         true
@@ -158,16 +154,22 @@ impl<'s> AddingProcess<'s> {
     }
 
     /// Add a new inactive actor process to the scheduler.
-    pub fn add_actor<S, NA>(self, priority: Priority, supervisor: S,
-        new_actor: NA, actor: NA::Actor, mailbox: Shared<MailBox<NA::Message>>,
-    )
-        where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
-              NA: NewActor + 'static,
+    pub fn add_actor<S, NA>(
+        self,
+        priority: Priority,
+        supervisor: S,
+        new_actor: NA,
+        actor: NA::Actor,
+        mailbox: Shared<MailBox<NA::Message>>,
+    ) where
+        S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
+        NA: NewActor + 'static,
     {
         let pid = self.pid();
         debug!("adding new actor process: pid={}", pid);
-        let process = Box::pin(ActorProcess::new(pid, priority, supervisor,
-            new_actor, actor, mailbox));
+        let process = Box::pin(ActorProcess::new(
+            pid, priority, supervisor, new_actor, actor, mailbox,
+        ));
         self.add_process(pid, process)
     }
 
@@ -204,8 +206,7 @@ impl ProcessState {
     /// Panics if the process was already active.
     fn mark_active(&mut self) -> Pin<Box<dyn Process>> {
         match mem::replace(self, ProcessState::Active) {
-            ProcessState::Active =>
-                unreachable!("tried to mark an active process as active"),
+            ProcessState::Active => unreachable!("tried to mark an active process as active"),
             ProcessState::Inactive(process) => process,
         }
     }
@@ -217,9 +218,10 @@ impl ProcessState {
     /// Panics if the process was already inactive.
     fn mark_inactive(&mut self, process: Pin<Box<dyn Process>>) {
         match mem::replace(self, ProcessState::Inactive(process)) {
-            ProcessState::Active => {},
-            ProcessState::Inactive(_) =>
-                unreachable!("tried to mark an inactive process as inactive"),
+            ProcessState::Active => {}
+            ProcessState::Inactive(_) => {
+                unreachable!("tried to mark an inactive process as inactive")
+            }
         }
     }
 }

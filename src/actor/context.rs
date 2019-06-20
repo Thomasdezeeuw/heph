@@ -35,7 +35,11 @@ pub struct Context<M> {
 
 impl<M> Context<M> {
     /// Create a new `actor::Context`.
-    pub(crate) const fn new(pid: ProcessId, system_ref: ActorSystemRef, inbox: Shared<MailBox<M>>) -> Context<M> {
+    pub(crate) const fn new(
+        pid: ProcessId,
+        system_ref: ActorSystemRef,
+        inbox: Shared<MailBox<M>>,
+    ) -> Context<M> {
         Context {
             pid,
             system_ref,
@@ -132,7 +136,8 @@ impl<M> Context<M> {
     /// # drop(Message::Normal("".to_owned()));
     /// ```
     pub fn try_receive<S>(&mut self, mut selector: S) -> Option<M>
-        where S: MessageSelector<M>,
+    where
+        S: MessageSelector<M>,
     {
         self.inbox.borrow_mut().receive(&mut selector)
     }
@@ -214,7 +219,8 @@ impl<M> Context<M> {
     /// [`actor::Context::try_receive`]: crate::actor::Context::try_receive
     /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
     pub fn receive<S>(&mut self, selector: S) -> ReceiveMessage<M, S>
-        where S: MessageSelector<M>,
+    where
+        S: MessageSelector<M>,
     {
         ReceiveMessage {
             inbox: &mut self.inbox,
@@ -224,7 +230,8 @@ impl<M> Context<M> {
 
     /// Peek at the next message.
     pub fn peek_next(&mut self) -> PeekMessage<M>
-        where M: Clone,
+    where
+        M: Clone,
     {
         PeekMessage {
             inbox: &mut self.inbox,
@@ -241,8 +248,9 @@ impl<M> Context<M> {
     /// [`receive`]: Context::receive
     /// [`peek`]: Context::peek
     pub fn peek<S>(&mut self, selector: S) -> PeekMessage<M, S>
-        where S: MessageSelector<M>,
-              M: Clone,
+    where
+        S: MessageSelector<M>,
+        M: Clone,
     {
         PeekMessage {
             inbox: &mut self.inbox,
@@ -280,7 +288,8 @@ pub struct ReceiveMessage<'ctx, M, S = First> {
 }
 
 impl<'ctx, M, S> Future for ReceiveMessage<'ctx, M, S>
-    where S: MessageSelector<M> + Unpin,
+where
+    S: MessageSelector<M> + Unpin,
 {
     type Output = M;
 
@@ -311,8 +320,9 @@ pub struct PeekMessage<'ctx, M: 'ctx + Clone, S = First> {
 }
 
 impl<'ctx, M, S> Future for PeekMessage<'ctx, M, S>
-    where S: MessageSelector<M> + Unpin,
-          M: Clone,
+where
+    S: MessageSelector<M> + Unpin,
+    M: Clone,
 {
     type Output = M;
 

@@ -7,8 +7,8 @@
 //! ```
 //! #![feature(never_type)]
 //!
-//! use heph::supervisor::NoSupervisor;
 //! use heph::actor::sync::SyncContext;
+//! use heph::supervisor::NoSupervisor;
 //! use heph::system::{ActorSystem, RuntimeError};
 //!
 //! fn main() -> Result<(), RuntimeError> {
@@ -71,7 +71,8 @@ use crate::actor::message_select::{MessageSelector, Messages};
 /// [actors]: crate::Actor
 /// [context]: SyncContext
 /// [actor references]: crate::ActorRef
-/// [`ActorSystem::spawn_sync_actor`]: crate::system::ActorSystem::spawn_sync_actor
+/// [`ActorSystem::spawn_sync_actor`]:
+/// crate::system::ActorSystem::spawn_sync_actor
 pub trait SyncActor {
     /// The type of messages the synchronous actor can receive.
     ///
@@ -106,7 +107,11 @@ impl<M, E> SyncActor for fn(ctx: SyncContext<M>) -> Result<(), E> {
     type Message = M;
     type Argument = ();
     type Error = E;
-    fn run(&self, ctx: SyncContext<Self::Message>, _arg: Self::Argument) -> Result<(), Self::Error> {
+    fn run(
+        &self,
+        ctx: SyncContext<Self::Message>,
+        _arg: Self::Argument,
+    ) -> Result<(), Self::Error> {
         (self)(ctx)
     }
 }
@@ -120,39 +125,54 @@ impl<M, E, Arg> SyncActor for fn(ctx: SyncContext<M>, arg: Arg) -> Result<(), E>
     }
 }
 
-impl<M, E, Arg1, Arg2> SyncActor for fn(ctx: SyncContext<M>, arg1: Arg1, arg2: Arg2) -> Result<(), E> {
+impl<M, E, Arg1, Arg2> SyncActor
+    for fn(ctx: SyncContext<M>, arg1: Arg1, arg2: Arg2) -> Result<(), E>
+{
     type Message = M;
     type Argument = (Arg1, Arg2);
     type Error = E;
     fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
-        (self)(ctx, arg.0 , arg.1)
+        (self)(ctx, arg.0, arg.1)
     }
 }
 
-impl<M, E, Arg1, Arg2, Arg3> SyncActor for fn(ctx: SyncContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3) -> Result<(), E> {
+impl<M, E, Arg1, Arg2, Arg3> SyncActor
+    for fn(ctx: SyncContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3) -> Result<(), E>
+{
     type Message = M;
     type Argument = (Arg1, Arg2, Arg3);
     type Error = E;
     fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
-        (self)(ctx, arg.0 , arg.1, arg.2)
+        (self)(ctx, arg.0, arg.1, arg.2)
     }
 }
 
-impl<M, E, Arg1, Arg2, Arg3, Arg4> SyncActor for fn(ctx: SyncContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4) -> Result<(), E> {
+impl<M, E, Arg1, Arg2, Arg3, Arg4> SyncActor
+    for fn(ctx: SyncContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4) -> Result<(), E>
+{
     type Message = M;
     type Argument = (Arg1, Arg2, Arg3, Arg4);
     type Error = E;
     fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
-        (self)(ctx, arg.0 , arg.1, arg.2, arg.3)
+        (self)(ctx, arg.0, arg.1, arg.2, arg.3)
     }
 }
 
-impl<M, E, Arg1, Arg2, Arg3, Arg4, Arg5> SyncActor for fn(ctx: SyncContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5) -> Result<(), E> {
+impl<M, E, Arg1, Arg2, Arg3, Arg4, Arg5> SyncActor
+    for fn(
+        ctx: SyncContext<M>,
+        arg1: Arg1,
+        arg2: Arg2,
+        arg3: Arg3,
+        arg4: Arg4,
+        arg5: Arg5,
+    ) -> Result<(), E>
+{
     type Message = M;
     type Argument = (Arg1, Arg2, Arg3, Arg4, Arg5);
     type Error = E;
     fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
-        (self)(ctx, arg.0 , arg.1, arg.2, arg.3, arg.4)
+        (self)(ctx, arg.0, arg.1, arg.2, arg.3, arg.4)
     }
 }
 
@@ -191,9 +211,7 @@ impl<M> SyncContext<M> {
     /// The caller must ensure the context data stays alive as long as
     /// `SyncContext` is alive.
     pub(crate) const unsafe fn new(ptr: NonNull<SyncContextData<M>>) -> SyncContext<M> {
-        SyncContext {
-            ptr
-        }
+        SyncContext { ptr }
     }
 
     /// Attempt to receive the next message.
@@ -285,10 +303,12 @@ impl<M> SyncContext<M> {
     /// # drop(Message::Normal("".to_owned()));
     /// ```
     pub fn try_receive<S>(&mut self, mut selector: S) -> Option<M>
-        where S: MessageSelector<M>,
+    where
+        S: MessageSelector<M>,
     {
         self.receive_messages();
-        selector.select(Messages::new(&self.data().messages))
+        selector
+            .select(Messages::new(&self.data().messages))
             .and_then(|selection| self.data().messages.remove(selection.0))
     }
 
@@ -328,18 +348,21 @@ impl<M> SyncContext<M> {
     /// Receives a message using messages selection. If no messages are
     /// currently available it will block until a message becomes available.
     pub fn receive<S>(&mut self, mut selector: S) -> Result<M, NoMessages>
-        where S: MessageSelector<M>,
+    where
+        S: MessageSelector<M>,
     {
         self.receive_messages_blocking()?;
         let data = self.data();
-        selector.select(Messages::new(&data.messages))
+        selector
+            .select(Messages::new(&data.messages))
             .and_then(|selection| data.messages.remove(selection.0))
             .ok_or(NoMessages)
     }
 
     /// Peek at the next message.
     pub fn peek_next(&mut self) -> Result<M, NoMessages>
-        where M: Clone,
+    where
+        M: Clone,
     {
         self.receive_messages_blocking()?;
         self.data().messages.front().cloned().ok_or(NoMessages)
@@ -355,12 +378,14 @@ impl<M> SyncContext<M> {
     /// [`receive`]: SyncContext::receive
     /// [`peek`]: SyncContext::peek
     pub fn peek<S>(&mut self, mut selector: S) -> Result<M, NoMessages>
-        where S: MessageSelector<M>,
-              M: Clone,
+    where
+        S: MessageSelector<M>,
+        M: Clone,
     {
         self.receive_messages_blocking()?;
         let data = self.data();
-        selector.select(Messages::new(&data.messages))
+        selector
+            .select(Messages::new(&data.messages))
             .and_then(|selection| data.messages.get(selection.0).cloned())
             .ok_or(NoMessages)
     }

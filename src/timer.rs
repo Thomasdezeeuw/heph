@@ -66,9 +66,7 @@ impl Timer {
     pub fn new<M>(ctx: &mut actor::Context<M>, deadline: Instant) -> Timer {
         let pid = ctx.pid();
         ctx.system_ref().add_deadline(pid, deadline);
-        Timer {
-            deadline,
-        }
+        Timer { deadline }
     }
 
     /// Create a new timer, based on a timeout.
@@ -165,17 +163,18 @@ impl<Fut> Deadline<Fut> {
     pub fn new<M>(ctx: &mut actor::Context<M>, deadline: Instant, future: Fut) -> Deadline<Fut> {
         let pid = ctx.pid();
         ctx.system_ref().add_deadline(pid, deadline);
-        Deadline {
-            deadline,
-            future,
-        }
+        Deadline { deadline, future }
     }
 
     /// Create a new deadline based on a timeout.
     ///
     /// Same as calling `Deadline::new(&mut ctx, Instant::now() + timeout,
     /// future)`.
-    pub fn timeout<M>(ctx: &mut actor::Context<M>, timeout: Duration, future: Fut) -> Deadline<Fut> {
+    pub fn timeout<M>(
+        ctx: &mut actor::Context<M>,
+        timeout: Duration,
+        future: Fut,
+    ) -> Deadline<Fut> {
         Deadline::new(ctx, Instant::now() + timeout, future)
     }
 
@@ -186,7 +185,8 @@ impl<Fut> Deadline<Fut> {
 }
 
 impl<Fut> Future for Deadline<Fut>
-    where Fut: Future,
+where
+    Fut: Future,
 {
     type Output = Result<Fut::Output, DeadlinePassed>;
 
@@ -245,10 +245,12 @@ impl<Fut> actor::Bound for Deadline<Fut> {
 ///
 /// async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
 ///     let interval = Interval::new(&mut ctx, Duration::from_secs(1));
-///     interval.for_each(|_| {
-///         println!("Hello world");
-///         ready(())
-///     }).await;
+///     interval
+///         .for_each(|_| {
+///             println!("Hello world");
+///             ready(())
+///         })
+///         .await;
 ///     Ok(())
 /// }
 ///

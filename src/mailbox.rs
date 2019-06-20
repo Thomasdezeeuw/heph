@@ -53,10 +53,12 @@ impl<M> MailBox<M> {
 
     /// Receive a delivered message, if any.
     pub fn receive<S>(&mut self, selector: &mut S) -> Option<M>
-        where S: MessageSelector<M>,
+    where
+        S: MessageSelector<M>,
     {
         self.receive_remote_messages();
-        selector.select(Messages::new(&self.messages))
+        selector
+            .select(Messages::new(&self.messages))
             .and_then(|selection| self.messages.remove(selection.0))
     }
 
@@ -74,18 +76,25 @@ impl<M> MailBox<M> {
 
     /// Peek a delivered message, if any.
     pub fn peek<S>(&mut self, selector: &mut S) -> Option<M>
-        where S: MessageSelector<M>,
-              M: Clone,
+    where
+        S: MessageSelector<M>,
+        M: Clone,
     {
         self.receive_remote_messages();
-        selector.select(Messages::new(&self.messages))
+        selector
+            .select(Messages::new(&self.messages))
             .and_then(|selection| self.messages.get(selection.0).cloned())
     }
 
     /// Used by local actor reference to upgrade to a machine local actor
     /// reference.
     pub fn upgrade_ref(&mut self) -> (ProcessId, Sender<M>) {
-        (self.pid, self.messages2.get_or_insert_with(channel::unbounded).0.clone())
+        let sender = self
+            .messages2
+            .get_or_insert_with(channel::unbounded)
+            .0
+            .clone();
+        (self.pid, sender)
     }
 }
 
@@ -132,9 +141,7 @@ impl<M> MailBox<M> {
 ///
 /// impl MessageSelector<Message> for MyMessageSelector {
 ///     fn select<'m>(&mut self, messages: Messages<'m, Message>) -> Option<MessageSelection> {
-///         messages
-///             .max_by_key(|(_, msg)| msg.priority)
-///             .map(|(selection, _)| selection)
+///         messages.max_by_key(|(_, msg)| msg.priority).map(|(selection, _)| selection)
 ///     }
 /// }
 ///
@@ -163,7 +170,7 @@ pub struct Messages<'m, M> {
 
 impl<'m, M> Messages<'m, M> {
     /// Create a new iterator for `messages`.
-    pub(crate) fn new(messages: &'m VecDeque<M>) -> Messages<'m , M> {
+    pub(crate) fn new(messages: &'m VecDeque<M>) -> Messages<'m, M> {
         Messages {
             inner: messages.iter().enumerate(),
         }
@@ -174,7 +181,8 @@ impl<'m, M> Iterator for Messages<'m, M> {
     type Item = (MessageSelection, &'m M);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner.next()
+        self.inner
+            .next()
             .map(|(idx, msg)| (MessageSelection(idx), msg))
     }
 
@@ -185,7 +193,8 @@ impl<'m, M> Iterator for Messages<'m, M> {
 
 impl<'m, M> DoubleEndedIterator for Messages<'m, M> {
     fn next_back(&mut self) -> Option<Self::Item> {
-        self.inner.next_back()
+        self.inner
+            .next_back()
             .map(|(idx, msg)| (MessageSelection(idx), msg))
     }
 }
@@ -199,7 +208,8 @@ impl<'m, M> ExactSizeIterator for Messages<'m, M> {
 impl<'m, M> FusedIterator for Messages<'m, M> {}
 
 impl<F, M> MessageSelector<M> for F
-    where F: FnMut(&M) -> bool,
+where
+    F: FnMut(&M) -> bool,
 {
     fn select<'m>(&mut self, messages: Messages<'m, M>) -> Option<MessageSelection> {
         for (idx, msg) in messages {
@@ -236,18 +246,22 @@ impl<M> MessageSelector<M> for First {
 /// use heph::supervisor::NoSupervisor;
 /// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
 ///
-/// ActorSystem::new()
-///     .with_setup(setup)
-///     .run()
-///     .unwrap();
+/// ActorSystem::new().with_setup(setup).run().unwrap();
 ///
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
-///     let mut actor_ref = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
-///         ActorOptions::default());
+///     let mut actor_ref = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
 ///
 ///     // We'll send our actor two messages, one normal one and a priority one.
-///     actor_ref <<= Message { priority: 1, msg: "Normal message".to_owned() };
-///     actor_ref <<= Message { priority: 100, msg: "Priority message".to_owned() };
+///     let msg1 = Message {
+///         priority: 1,
+///         msg: "Normal message".to_owned(),
+///     };
+///     let msg2 = Message {
+///         priority: 100,
+///         msg: "Priority message".to_owned(),
+///     };
+///     actor_ref <<= msg1;
+///     actor_ref <<= msg2;
 ///     Ok(())
 /// }
 ///
@@ -270,8 +284,9 @@ impl<M> MessageSelector<M> for First {
 pub struct Priority<F>(pub F);
 
 impl<F, P, M> MessageSelector<M> for Priority<F>
-    where F: FnMut(&M) -> P,
-          P: Ord,
+where
+    F: FnMut(&M) -> P,
+    P: Ord,
 {
     fn select<'m>(&mut self, messages: Messages<'m, M>) -> Option<MessageSelection> {
         messages

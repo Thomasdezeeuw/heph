@@ -70,14 +70,12 @@ impl<SetupError: fmt::Display> fmt::Display for RuntimeError<SetupError> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         use self::RuntimeErrorInner::*;
         match self.inner {
-            StartThread(ref err) => write!(f, "{}: error starting worker thread: {}",
-                Self::DESC, err),
-            Poll(ref err) => write!(f, "{}: error polling system poller: {}",
-                Self::DESC, err),
-            Setup(ref err) => write!(f, "{}: error running setup function: {}",
-                Self::DESC, err),
-            Panic(ref msg) => write!(f, "{}: panic in worker thread: {}",
-                Self::DESC, msg),
+            StartThread(ref err) => {
+                write!(f, "{}: error starting worker thread: {}", Self::DESC, err)
+            }
+            Poll(ref err) => write!(f, "{}: error polling system poller: {}", Self::DESC, err),
+            Setup(ref err) => write!(f, "{}: error running setup function: {}", Self::DESC, err),
+            Panic(ref msg) => write!(f, "{}: panic in worker thread: {}", Self::DESC, msg),
         }
     }
 }

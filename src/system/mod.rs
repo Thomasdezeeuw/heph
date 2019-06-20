@@ -19,13 +19,13 @@ use std::time::{Duration, Instant};
 use std::{fmt, io, thread};
 
 use crossbeam_channel::{self as channel, Receiver};
-use log::{debug, trace};
 use gaea::os::{Awakener, Evented, Interests, OsQueue, RegisterOption};
 use gaea::{event, poll, Event, Queue, Ready, Timers};
+use log::{debug, trace};
 use num_cpus;
 
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
-use crate::actor_ref::{ActorRef, Sync, Local};
+use crate::actor_ref::{ActorRef, Local, Sync};
 use crate::mailbox::MailBox;
 use crate::scheduler::{ProcessId, Scheduler, SchedulerRef};
 use crate::supervisor::{Supervisor, SupervisorStrategy};
@@ -161,8 +161,9 @@ impl ActorSystem {
     /// This function will be run on each worker thread the actor system
     /// creates. Only a single setup function can be added to the actor system.
     pub fn with_setup<F, E>(self, setup: F) -> ActorSystem<F>
-        where F: FnOnce(ActorSystemRef) -> Result<(), E> + Send + Clone + 'static,
-              E: Send,
+    where
+        F: FnOnce(ActorSystemRef) -> Result<(), E> + Send + Clone + 'static,
+        E: Send,
     {
         ActorSystem {
             threads: self.threads,
@@ -198,11 +199,17 @@ impl<S> ActorSystem<S> {
     /// [`actor::sync`] module.
     ///
     /// [`actor::sync`]: crate::actor::sync
-    pub fn spawn_sync_actor<Sv, A, E, Arg, M>(&mut self, supervisor: Sv, actor: A, arg: Arg) -> Result<ActorRef<Sync<M>>, RuntimeError>
-        where Sv: Supervisor<E, Arg> + Send + 'static,
-              A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
-              Arg: Send + 'static,
-              M: Send + 'static,
+    pub fn spawn_sync_actor<Sv, A, E, Arg, M>(
+        &mut self,
+        supervisor: Sv,
+        actor: A,
+        arg: Arg,
+    ) -> Result<ActorRef<Sync<M>>, RuntimeError>
+    where
+        Sv: Supervisor<E, Arg> + Send + 'static,
+        A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
+        Arg: Send + 'static,
+        M: Send + 'static,
     {
         let (sender, receiver) = channel::unbounded();
         let actor_ref = ActorRef::new_sync(sender);
@@ -219,7 +226,8 @@ impl<S> ActorSystem<S> {
 }
 
 impl<S> ActorSystem<S>
-    where S: SetupFn,
+where
+    S: SetupFn,
 {
     /// Run the system.
     ///
@@ -228,13 +236,15 @@ impl<S> ActorSystem<S>
     pub fn run(self) -> Result<(), RuntimeError<S::Error>> {
         debug!("running actor system: worker_threads={}", self.threads);
         // Start our worker threads.
-        let handles = (0 .. self.threads).map(|id| {
-            let setup = self.setup.clone();
-            thread::Builder::new()
-                .name(format!("heph_worker{}", id))
-                .spawn(move || run_system(setup))
-                .map_err(RuntimeError::start_thread)
-        }).collect::<Result<Vec<thread::JoinHandle<_>>, _>>()?;
+        let handles = (0..self.threads)
+            .map(|id| {
+                let setup = self.setup.clone();
+                thread::Builder::new()
+                    .name(format!("heph_worker{}", id))
+                    .spawn(move || run_system(setup))
+                    .map_err(RuntimeError::start_thread)
+            })
+            .collect::<Result<Vec<thread::JoinHandle<_>>, _>>()?;
 
         // TODO: handle errors better. Currently as long as the first thread
         // keeps running and all other threads crash we'll keep running. Not an
@@ -286,8 +296,9 @@ mod hack {
     }
 
     impl<F, E> SetupFn for F
-        where F: FnOnce(ActorSystemRef) -> Result<(), E> + Send + Clone + 'static,
-              E: Send,
+    where
+        F: FnOnce(ActorSystemRef) -> Result<(), E> + Send + Clone + 'static,
+        E: Send,
     {
         type Error = E;
 
@@ -311,7 +322,8 @@ use self::hack::SetupFn;
 ///
 /// This is the entry point for the worker threads.
 fn run_system<S>(setup: Option<S>) -> Result<(), RuntimeError<S::Error>>
-    where S: SetupFn,
+where
+    S: SetupFn,
 {
     let actor_system = RunningActorSystem::new()?;
 
@@ -327,8 +339,9 @@ fn run_system<S>(setup: Option<S>) -> Result<(), RuntimeError<S::Error>>
 
 /// Run a synchronous actor.
 fn run_sync_actor<S, E, Arg, A, M>(mut supervisor: S, actor: A, mut arg: Arg, inbox: Receiver<M>)
-    where S: Supervisor<E, Arg>,
-          A: SyncActor<Message = M, Argument = Arg, Error = E>,
+where
+    S: Supervisor<E, Arg>,
+    A: SyncActor<Message = M, Argument = Arg, Error = E>,
 {
     trace!("running synchronous actor");
     let mut ctx_data = SyncContextData::new(inbox);
@@ -344,7 +357,7 @@ fn run_sync_actor<S, E, Arg, A, M>(mut supervisor: S, actor: A, mut arg: Arg, in
                 SupervisorStrategy::Restart(new_arg) => {
                     trace!("restarting synchronous actor");
                     arg = new_arg
-                },
+                }
                 SupervisorStrategy::Stop => break,
             },
         }
@@ -374,7 +387,8 @@ struct WakerEvents {
 }
 
 impl<ES, E> event::Source<ES, E> for WakerEvents
-    where ES: event::Sink,
+where
+    ES: event::Sink,
 {
     fn max_timeout(&self) -> Option<Duration> {
         if !self.receiver.is_empty() {
@@ -451,7 +465,7 @@ impl RunningActorSystem {
             // We first run the processes and only poll after to ensure that we
             // return if there is nothing to poll, as there would be no
             // processes to run then either.
-            for _ in 0 .. RUN_POLL_RATIO {
+            for _ in 0..RUN_POLL_RATIO {
                 if !self.scheduler.run_process(&mut system_ref) {
                     if self.scheduler.is_empty() {
                         // No processes left to run, so we're done.
@@ -515,10 +529,17 @@ impl ActorSystemRef {
     /// is the way to create the actor, this is `new_actor`, and the `arg`ument
     /// to create it. Finally it also needs `options` for actor and the place
     /// inside the actor system.
-    pub fn try_spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> Result<ActorRef<Local<NA::Message>>, NA::Error>
-        where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
-              NA: NewActor + 'static,
-              NA::Actor: 'static,
+    pub fn try_spawn<S, NA>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> Result<ActorRef<Local<NA::Message>>, NA::Error>
+    where
+        S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
+        NA: NewActor + 'static,
+        NA::Actor: 'static,
     {
         self.try_spawn_setup(supervisor, new_actor, |_, _| Ok(arg), options)
             .map_err(|err| match err {
@@ -533,10 +554,17 @@ impl ActorSystemRef {
     /// return an error, such as asynchronous functions.
     ///
     /// See [`ActorSystemRef::try_spawn`] for more information.
-    pub fn spawn<S, NA>(&mut self, supervisor: S, new_actor: NA, arg: NA::Argument, options: ActorOptions) -> ActorRef<Local<NA::Message>>
-        where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
-              NA: NewActor<Error = !> + 'static,
-              NA::Actor: 'static,
+    pub fn spawn<S, NA>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> ActorRef<Local<NA::Message>>
+    where
+        S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
+        NA: NewActor<Error = !> + 'static,
+        NA::Actor: 'static,
     {
         self.try_spawn_setup(supervisor, new_actor, |_, _| Ok(arg), options)
             .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
@@ -549,13 +577,18 @@ impl ActorSystemRef {
     /// directly this function requires a function to create the argument, which
     /// allows the caller to do any required setup work.
     #[allow(clippy::type_complexity)] // Not part of the public API, so it's OK.
-    pub(crate) fn try_spawn_setup<S, NA, ArgFn, ArgFnE>(&mut self, supervisor: S,
-        mut new_actor: NA, arg_fn: ArgFn, options: ActorOptions
+    pub(crate) fn try_spawn_setup<S, NA, ArgFn, ArgFnE>(
+        &mut self,
+        supervisor: S,
+        mut new_actor: NA,
+        arg_fn: ArgFn,
+        options: ActorOptions,
     ) -> Result<ActorRef<Local<NA::Message>>, AddActorError<NA::Error, ArgFnE>>
-        where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
-              NA: NewActor + 'static,
-              ArgFn: FnOnce(ProcessId, &mut ActorSystemRef) -> Result<NA::Argument, ArgFnE>,
-              NA::Actor: 'static,
+    where
+        S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
+        NA: NewActor + 'static,
+        ArgFn: FnOnce(ProcessId, &mut ActorSystemRef) -> Result<NA::Argument, ArgFnE>,
+        NA::Actor: 'static,
     {
         let ActorSystemInternal {
             waker_id,
@@ -584,8 +617,7 @@ impl ActorSystemRef {
         }
 
         // Add the actor to the scheduler.
-        process_entry.add_actor(options.priority, supervisor, new_actor, actor,
-            mailbox);
+        process_entry.add_actor(options.priority, supervisor, new_actor, actor, mailbox);
 
         Ok(actor_ref)
     }

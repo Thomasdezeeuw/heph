@@ -28,7 +28,8 @@
 //! // be cast into a function pointer, which does implement `NewActor`.
 //! use_actor(actor as fn(_) -> _);
 //!
-//! fn use_actor<NA>(new_actor: NA) where NA: NewActor {
+//! fn use_actor<NA>(new_actor: NA)
+//! where NA: NewActor {
 //!     // Do stuff with the actor ...
 //! #   drop(new_actor);
 //! }
@@ -82,19 +83,19 @@ pub trait NewActor {
     ///
     /// fn main() -> Result<(), RuntimeError> {
     ///     // Create and run the actor system.
-    ///     ActorSystem::new().with_setup(|mut system_ref| {
-    ///         // Add the actor to the system.
-    ///         let new_actor = actor as fn(_) -> _;
-    ///         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (),
-    ///             ActorOptions::default());
+    ///     ActorSystem::new()
+    ///         .with_setup(|mut system_ref| {
+    ///             // Add the actor to the system.
+    ///             let new_actor = actor as fn(_) -> _;
+    ///             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
     ///
-    ///         // Now we can use the reference to send the actor a message. We
-    ///         // don't have to use `Message` we can just use `String`, because
-    ///         // `Message` implements `From<String>`.
-    ///         actor_ref <<= "Hello world".to_owned();
-    ///         Ok(())
-    ///     })
-    ///     .run()
+    ///             // Now we can use the reference to send the actor a message. We
+    ///             // don't have to use `Message` we can just use `String`, because
+    ///             // `Message` implements `From<String>`.
+    ///             actor_ref <<= "Hello world".to_owned();
+    ///             Ok(())
+    ///         })
+    ///         .run()
     /// }
     ///
     /// /// The message type for the actor.
@@ -160,7 +161,11 @@ pub trait NewActor {
     type Error: fmt::Display;
 
     /// Create a new [`Actor`](Actor).
-    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error>;
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error>;
 
     /// Wrap the `NewActor` to change the arguments its accepts.
     ///
@@ -180,8 +185,9 @@ pub trait NewActor {
     /// unimplemeneted!("TODO: add example");
     /// ```
     fn map_arg<F, Arg>(self, f: F) -> ArgMap<Self, F, Arg>
-        where Self: Sized,
-              F: FnMut(Arg) -> Self::Argument,
+    where
+        Self: Sized,
+        F: FnMut(Arg) -> Self::Argument,
     {
         ArgMap {
             new_actor: self,
@@ -200,8 +206,9 @@ pub struct ArgMap<NA, F, Arg> {
 }
 
 impl<NA, F, Arg> Clone for ArgMap<NA, F, Arg>
-    where NA: Clone,
-          F: Clone,
+where
+    NA: Clone,
+    F: Clone,
 {
     fn clone(&self) -> Self {
         ArgMap {
@@ -213,87 +220,125 @@ impl<NA, F, Arg> Clone for ArgMap<NA, F, Arg>
 }
 
 impl<NA, F, Arg> NewActor for ArgMap<NA, F, Arg>
-    where NA: NewActor,
-          F: FnMut(Arg) -> NA::Argument,
+where
+    NA: NewActor,
+    F: FnMut(Arg) -> NA::Argument,
 {
     type Message = NA::Message;
     type Argument = Arg;
     type Actor = NA::Actor;
     type Error = NA::Error;
-    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
         let arg = (self.map)(arg);
         self.new_actor.new(ctx, arg)
     }
 }
 
 impl<M, A> NewActor for fn(ctx: Context<M>) -> A
-    where A: Actor,
+where
+    A: Actor,
 {
     type Message = M;
     type Argument = ();
     type Actor = A;
     type Error = !;
-    fn new(&mut self, ctx: Context<Self::Message>, _arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        _arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx))
     }
 }
 
 impl<M, Arg, A> NewActor for fn(ctx: Context<M>, arg: Arg) -> A
-    where A: Actor,
+where
+    A: Actor,
 {
     type Message = M;
     type Argument = Arg;
     type Actor = A;
     type Error = !;
-    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg))
     }
 }
 
 impl<M, Arg1, Arg2, A> NewActor for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2) -> A
-    where A: Actor,
+where
+    A: Actor,
 {
     type Message = M;
     type Argument = (Arg1, Arg2);
     type Actor = A;
     type Error = !;
-    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1))
     }
 }
 
-impl<M, Arg1, Arg2, Arg3, A> NewActor for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3) -> A
-    where A: Actor,
+impl<M, Arg1, Arg2, Arg3, A> NewActor
+    for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3) -> A
+where
+    A: Actor,
 {
     type Message = M;
     type Argument = (Arg1, Arg2, Arg3);
     type Actor = A;
     type Error = !;
-    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1, arg.2))
     }
 }
 
-impl<M, Arg1, Arg2, Arg3, Arg4, A> NewActor for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4) -> A
-    where A: Actor,
+impl<M, Arg1, Arg2, Arg3, Arg4, A> NewActor
+    for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4) -> A
+where
+    A: Actor,
 {
     type Message = M;
     type Argument = (Arg1, Arg2, Arg3, Arg4);
     type Actor = A;
     type Error = !;
-    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3))
     }
 }
 
-impl<M, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5) -> A
-    where A: Actor,
+impl<M, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor
+    for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5) -> A
+where
+    A: Actor,
 {
     type Message = M;
     type Argument = (Arg1, Arg2, Arg3, Arg4, Arg5);
     type Actor = A;
     type Error = !;
-    fn new(&mut self, ctx: Context<Self::Message>, arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3, arg.4))
     }
 }
@@ -338,7 +383,8 @@ pub trait Actor {
 }
 
 impl<Fut, E> Actor for Fut
-    where Fut: Future<Output = Result<(), E>>
+where
+    Fut: Future<Output = Result<(), E>>,
 {
     type Error = E;
 

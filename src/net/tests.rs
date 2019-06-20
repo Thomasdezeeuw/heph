@@ -42,8 +42,9 @@ fn connected_udp_socket_ipv6() {
 }
 
 fn test_udp_socket<NA, A>(local_address: SocketAddr, new_actor: NA)
-    where NA: NewActor<Message = !, Argument = SocketAddr, Actor = A, Error = !>,
-          A: Actor<Error = io::Error>,
+where
+    NA: NewActor<Message = !, Argument = SocketAddr, Actor = A, Error = !>,
+    A: Actor<Error = io::Error>,
 {
     let echo_socket = net::UdpSocket::bind(local_address).unwrap();
     let address = echo_socket.local_addr().unwrap();
@@ -55,7 +56,7 @@ fn test_udp_socket<NA, A>(local_address: SocketAddr, new_actor: NA)
     match poll_actor(Pin::as_mut(&mut actor)) {
         Poll::Ready(Ok(())) => unreachable!(),
         Poll::Ready(Err(err)) => panic!("unexpected error from actor: {:?}", err),
-        Poll::Pending => {}, // Ok.
+        Poll::Pending => {} // Ok.
     }
 
     let mut buf = [0; DATA.len() + 2];
@@ -63,7 +64,9 @@ fn test_udp_socket<NA, A>(local_address: SocketAddr, new_actor: NA)
     assert_eq!(bytes_read, DATA.len());
     assert_eq!(&buf[..bytes_read], &*DATA);
 
-    let bytes_written = echo_socket.send_to(&buf[..bytes_read], peer_address).unwrap();
+    let bytes_written = echo_socket
+        .send_to(&buf[..bytes_read], peer_address)
+        .unwrap();
     assert_eq!(bytes_written, DATA.len());
 
     // The peeking and reading.
@@ -76,7 +79,10 @@ fn test_udp_socket<NA, A>(local_address: SocketAddr, new_actor: NA)
     }
 }
 
-async fn unconnected_udp_actor(mut ctx: actor::Context<!>, peer_address: SocketAddr) -> io::Result<()> {
+async fn unconnected_udp_actor(
+    mut ctx: actor::Context<!>,
+    peer_address: SocketAddr,
+) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
     let mut socket = UdpSocket::bind(&mut ctx, local_address)?;
 
@@ -97,7 +103,10 @@ async fn unconnected_udp_actor(mut ctx: actor::Context<!>, peer_address: SocketA
     Ok(())
 }
 
-async fn connected_udp_actor(mut ctx: actor::Context<!>, peer_address: SocketAddr) -> io::Result<()> {
+async fn connected_udp_actor(
+    mut ctx: actor::Context<!>,
+    peer_address: SocketAddr,
+) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
     let socket = UdpSocket::bind(&mut ctx, local_address)?;
     let mut socket = socket.connect(peer_address)?;

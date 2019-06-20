@@ -47,14 +47,15 @@
 //!     // Enable logging so we can see the error message.
 //!     log::init();
 //!
-//!     ActorSystem::new().with_setup(|mut system_ref| {
-//!         system_ref.spawn(supervisor, bad_actor as fn(_) -> _, (), ActorOptions {
-//!             schedule: true,
-//!             .. ActorOptions::default()
-//!         });
-//!         Ok(())
-//!     })
-//!     .run()
+//!     ActorSystem::new()
+//!         .with_setup(|mut system_ref| {
+//!             system_ref.spawn(supervisor, bad_actor as fn(_) -> _, (), ActorOptions {
+//!                 schedule: true,
+//!                 ..ActorOptions::default()
+//!             });
+//!             Ok(())
+//!         })
+//!         .run()
 //! }
 //!
 //! /// The error returned by our actor.
@@ -108,7 +109,8 @@ pub enum SupervisorStrategy<Arg> {
 }
 
 impl<F, E, Arg> Supervisor<E, Arg> for F
-    where F: FnMut(E) -> SupervisorStrategy<Arg>,
+where
+    F: FnMut(E) -> SupervisorStrategy<Arg>,
 {
     fn decide(&mut self, error: E) -> SupervisorStrategy<Arg> {
         (self)(error)
@@ -131,14 +133,15 @@ impl<F, E, Arg> Supervisor<E, Arg> for F
 /// use heph::{actor, ActorOptions, ActorSystem};
 ///
 /// fn main() -> Result<(), RuntimeError> {
-///     ActorSystem::new().with_setup(|mut system_ref| {
-///         system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
-///             schedule: true,
-///             .. ActorOptions::default()
-///         });
-///         Ok(())
-///     })
-///     .run()
+///     ActorSystem::new()
+///         .with_setup(|mut system_ref| {
+///             system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
+///                 schedule: true,
+///                 ..ActorOptions::default()
+///             });
+///             Ok(())
+///         })
+///         .run()
 /// }
 ///
 /// /// Our actor that never returns an error.

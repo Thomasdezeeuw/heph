@@ -34,7 +34,11 @@ struct TestProcess {
 impl TestProcess {
     #[allow(clippy::new_ret_no_self)]
     fn new(id: ProcessId, priority: Priority, result: ProcessResult) -> Pin<Box<dyn Process>> {
-        Box::pin(TestProcess { id, priority, result })
+        Box::pin(TestProcess {
+            id,
+            priority,
+            result,
+        })
     }
 }
 
@@ -134,7 +138,12 @@ struct OrderTestProcess {
 impl OrderTestProcess {
     #[allow(clippy::new_ret_no_self)]
     fn new(id: ProcessId, priority: Priority, order: Shared<Vec<usize>>) -> Pin<Box<dyn Process>> {
-        Box::pin(OrderTestProcess { id, priority, runtime: Duration::from_millis(0), order })
+        Box::pin(OrderTestProcess {
+            id,
+            priority,
+            runtime: Duration::from_millis(0),
+            order,
+        })
     }
 }
 
@@ -177,14 +186,14 @@ fn scheduler_run_order() {
     }
 
     // Schedule all processes.
-    for pid in 0 .. 3 {
+    for pid in 0..3 {
         scheduler.schedule(ProcessId(pid));
     }
     assert!(!scheduler.is_empty());
 
     // Run all processes, should be in order of priority (since there runtimes
     // are equal).
-    for _ in 0 .. 3 {
+    for _ in 0..3 {
         assert!(scheduler.run_process(&mut system_ref));
     }
     assert!(!scheduler.is_empty());
@@ -209,8 +218,7 @@ fn actor_process() {
     // Add the actor to the scheduler.
     let process_entry = scheduler_ref.add_process();
     let inbox = actor_ref.get_inbox().unwrap();
-    process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor,
-        inbox);
+    process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
     // Schedule and run, should return Pending and become inactive.
     scheduler.schedule(ProcessId(0));
@@ -238,7 +246,11 @@ impl NewActor for TestNewActor {
     type Actor = AssertUnmoved<Empty<Result<(), !>>>;
     type Error = !;
 
-    fn new(&mut self, ctx: actor::Context<Self::Message>, _arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(
+        &mut self,
+        ctx: actor::Context<Self::Message>,
+        _arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
         // In the test we need the access to the inbox, to achieve that we can't
         // drop the context, so we forget about it here leaking the inbox.
         mem::forget(ctx);
@@ -257,8 +269,7 @@ fn assert_actor_unmoved() {
     // Add the actor to the scheduler.
     let process_entry = scheduler_ref.add_process();
     let inbox = actor_ref.get_inbox().unwrap();
-    process_entry.add_actor(Priority::NORMAL, NoSupervisor, TestNewActor,
-        actor, inbox);
+    process_entry.add_actor(Priority::NORMAL, NoSupervisor, TestNewActor, actor, inbox);
 
     // Schedule and run the process multiple times, ensure it's not moved in the
     // process.
