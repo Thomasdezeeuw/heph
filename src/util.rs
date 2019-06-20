@@ -19,7 +19,7 @@ impl<T> Shared<T> {
     }
 
     /// Borrow the value, i.e. `&T`.
-    pub fn borrow(&self) -> Ref<T> {
+    pub fn borrow(&self) -> Ref<'_, T> {
         match self.inner.try_borrow() {
             Ok(inner) => inner,
             Err(_) => unreachable!("tried to borrow an already borrowed Shared"),
@@ -27,7 +27,7 @@ impl<T> Shared<T> {
     }
 
     /// Mutably borrow the value, i.e. `&mut T`.
-    pub fn borrow_mut(&mut self) -> RefMut<T> {
+    pub fn borrow_mut(&mut self) -> RefMut<'_, T> {
         match self.inner.try_borrow_mut() {
             Ok(inner) => inner,
             Err(_) => unreachable!("tried to mutable borrow an already borrowed Shared"),

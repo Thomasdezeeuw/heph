@@ -67,7 +67,7 @@ impl<SetupError> RuntimeError<SetupError> {
 }
 
 impl<SetupError: fmt::Display> fmt::Display for RuntimeError<SetupError> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use self::RuntimeErrorInner::*;
         match self.inner {
             StartThread(ref err) => {

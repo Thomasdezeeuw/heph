@@ -132,7 +132,7 @@ impl SchedulerRef {
     ///
     /// This API allows the `ProcessId` to be used before the process is
     /// actually added to scheduler.
-    pub fn add_process(&mut self) -> AddingProcess {
+    pub fn add_process<'a>(&'a mut self) -> AddingProcess<'a> {
         AddingProcess {
             processes: self.processes.borrow_mut(),
         }

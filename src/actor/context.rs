@@ -200,7 +200,7 @@ impl<M> Context<M> {
     /// # // Use the `print_actor` function to silence dead code warning.
     /// # drop(print_actor);
     /// ```
-    pub fn receive_next(&mut self) -> ReceiveMessage<M> {
+    pub fn receive_next<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
         ReceiveMessage {
             inbox: &mut self.inbox,
             selector: First,
@@ -218,7 +218,7 @@ impl<M> Context<M> {
     ///
     /// [`actor::Context::try_receive`]: crate::actor::Context::try_receive
     /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
-    pub fn receive<S>(&mut self, selector: S) -> ReceiveMessage<M, S>
+    pub fn receive<'ctx, S>(&'ctx mut self, selector: S) -> ReceiveMessage<'ctx, M, S>
     where
         S: MessageSelector<M>,
     {
@@ -229,7 +229,7 @@ impl<M> Context<M> {
     }
 
     /// Peek at the next message.
-    pub fn peek_next(&mut self) -> PeekMessage<M>
+    pub fn peek_next<'ctx>(&'ctx mut self) -> PeekMessage<'ctx, M>
     where
         M: Clone,
     {
@@ -247,7 +247,7 @@ impl<M> Context<M> {
     ///
     /// [`receive`]: Context::receive
     /// [`peek`]: Context::peek
-    pub fn peek<S>(&mut self, selector: S) -> PeekMessage<M, S>
+    pub fn peek<'ctx, S>(&'ctx mut self, selector: S) -> PeekMessage<'ctx, M, S>
     where
         S: MessageSelector<M>,
         M: Clone,
@@ -293,7 +293,7 @@ where
 {
     type Output = M;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let ReceiveMessage {
             ref mut inbox,
             ref mut selector,
@@ -314,7 +314,7 @@ where
 /// [`actor::Context::peek`]: crate::actor::Context::peek
 /// [`actor::Context::peek_next`]: crate::actor::Context::peek_next
 #[derive(Debug)]
-pub struct PeekMessage<'ctx, M: 'ctx + Clone, S = First> {
+pub struct PeekMessage<'ctx, M, S = First> {
     inbox: &'ctx mut Shared<MailBox<M>>,
     selector: S,
 }
@@ -326,7 +326,7 @@ where
 {
     type Output = M;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let PeekMessage {
             ref mut inbox,
             ref mut selector,

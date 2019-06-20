@@ -31,13 +31,13 @@ pub struct SendError<M> {
 }
 
 impl<M> fmt::Debug for SendError<M> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SendError").finish()
     }
 }
 
 impl<M> fmt::Display for SendError<M> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.description())
     }
 }
@@ -55,7 +55,7 @@ impl<M> Error for SendError<M> {
 pub struct ActorShutdown;
 
 impl fmt::Display for ActorShutdown {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad(self.description())
     }
 }

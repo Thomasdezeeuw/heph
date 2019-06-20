@@ -276,7 +276,7 @@ fn map_panic<E>(err: Box<dyn Any + Send + 'static>) -> RuntimeError<E> {
 }
 
 impl<S> fmt::Debug for ActorSystem<S> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ActorSystem")
             .field("threads", &self.threads)
             .field("sync_actors (length)", &self.sync_actors.len())

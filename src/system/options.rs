@@ -60,7 +60,7 @@ impl Default for ActorOptions {
 }
 
 impl fmt::Debug for ActorOptions {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ActorOptions")
             .field("priority", &self.priority)
             .field("schedule", &self.schedule)

@@ -430,7 +430,7 @@ impl<M> SyncContext<M> {
 pub struct NoMessages;
 
 impl fmt::Display for NoMessages {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("no messages in inbox")
     }
 }
