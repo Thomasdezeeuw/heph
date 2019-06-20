@@ -44,7 +44,7 @@ impl Into<event::Id> for ProcessId {
 }
 
 impl fmt::Display for ProcessId {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
     }
 }

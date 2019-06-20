@@ -109,7 +109,7 @@ where
 }
 
 impl<S, NA: NewActor> fmt::Debug for ActorProcess<S, NA> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ActorProcess")
             .field("id", &self.id)
             .field("priority", &self.priority)

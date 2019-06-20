@@ -227,7 +227,7 @@ pub struct SendTo<'a> {
 impl<'a> Future for SendTo<'a> {
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let SendTo {
             ref mut socket,
             ref buf,
@@ -247,7 +247,7 @@ pub struct RecvFrom<'a> {
 impl<'a> Future for RecvFrom<'a> {
     type Output = io::Result<(usize, SocketAddr)>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let RecvFrom {
             ref mut socket,
             ref mut buf,
@@ -266,7 +266,7 @@ pub struct PeekFrom<'a> {
 impl<'a> Future for PeekFrom<'a> {
     type Output = io::Result<(usize, SocketAddr)>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let PeekFrom {
             ref mut socket,
             ref mut buf,
@@ -307,7 +307,7 @@ pub struct Send<'a> {
 impl<'a> Future for Send<'a> {
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Send {
             ref mut socket,
             ref buf,
@@ -326,7 +326,7 @@ pub struct Recv<'a> {
 impl<'a> Future for Recv<'a> {
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Recv {
             ref mut socket,
             ref mut buf,
@@ -345,7 +345,7 @@ pub struct Peek<'a> {
 impl<'a> Future for Peek<'a> {
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Peek {
             ref mut socket,
             ref mut buf,
@@ -355,7 +355,7 @@ impl<'a> Future for Peek<'a> {
 }
 
 impl<M> fmt::Debug for UdpSocket<M> {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.socket.fmt(f)
     }
 }

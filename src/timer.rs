@@ -85,7 +85,7 @@ impl Timer {
 impl Future for Timer {
     type Output = DeadlinePassed;
 
-    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         if self.deadline <= Instant::now() {
             Poll::Ready(DeadlinePassed)
         } else {
@@ -131,7 +131,7 @@ impl actor::Bound for Timer {
 /// #
 /// # impl Future for OtherFuture {
 /// #     type Output = ();
-/// #     fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
+/// #     fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
 /// #         Poll::Pending
 /// #     }
 /// # }
@@ -190,7 +190,7 @@ where
 {
     type Output = Result<Fut::Output, DeadlinePassed>;
 
-    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         if self.deadline <= Instant::now() {
             Poll::Ready(Err(DeadlinePassed))
         } else {
@@ -289,7 +289,7 @@ impl Interval {
 impl Stream for Interval {
     type Item = DeadlinePassed;
 
-    fn poll_next(self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
         if self.deadline <= Instant::now() {
             // Determine the next deadline.
             let next_deadline = Instant::now() + self.interval;

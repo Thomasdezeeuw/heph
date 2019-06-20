@@ -379,7 +379,7 @@ pub trait Actor {
     ///
     /// Just like with [`Future`]s polling after it returned [`Poll::Ready`] may
     /// cause undefined behaviour, including but not limited to panicking.
-    fn try_poll(self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Result<(), Self::Error>>;
+    fn try_poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>>;
 }
 
 impl<Fut, E> Actor for Fut
@@ -388,7 +388,7 @@ where
 {
     type Error = E;
 
-    fn try_poll(self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Result<(), Self::Error>> {
+    fn try_poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.poll(ctx)
     }
 }
