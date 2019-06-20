@@ -84,11 +84,12 @@ pub use super::tcp_actor::{Actor, ListenerError, Message, NewListener};
 /// }
 /// #
 /// # async fn client(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
-/// #   let mut buf = [0; 256];
 /// #   let mut stream = TcpStream::connect(&mut ctx, address)?;
-/// #   let n = stream.read(&mut buf).await?;
 /// #   let local_address = stream.local_addr()?.to_string();
-/// #   assert_eq!(&buf[..n], local_address.as_bytes());
+/// #   let mut buf = [0; 64];
+/// #   let buf = &mut buf[..local_address.len()];
+/// #   stream.read_exact(buf).await?;
+/// #   assert_eq!(buf, local_address.as_bytes());
 /// #   Ok(())
 /// # }
 ///
@@ -159,11 +160,12 @@ pub use super::tcp_actor::{Actor, ListenerError, Message, NewListener};
 /// }
 /// #
 /// # async fn client(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
-/// #   let mut buf = [0; 256];
 /// #   let mut stream = TcpStream::connect(&mut ctx, address)?;
-/// #   let n = stream.read(&mut buf).await?;
 /// #   let local_address = stream.local_addr()?.to_string();
-/// #   assert_eq!(&buf[..n], local_address.as_bytes());
+/// #   let mut buf = [0; 64];
+/// #   let buf = &mut buf[..local_address.len()];
+/// #   stream.read_exact(buf).await?;
+/// #   assert_eq!(buf, local_address.as_bytes());
 /// #   Ok(())
 /// # }
 ///
