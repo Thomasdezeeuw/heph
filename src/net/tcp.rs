@@ -5,7 +5,6 @@
 //!  * [`TcpListener`] listens for incoming connections.
 //!  * [`TcpStream`] represents a single TCP connection.
 
-use std::fmt;
 use std::future::Future;
 use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr};
@@ -13,32 +12,28 @@ use std::ops::DerefMut;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
+use futures_core::future::FusedFuture;
+use futures_core::stream::{FusedStream, Stream};
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
-use log::debug;
 use gaea::net::{TcpListener as GaeaTcpListener, TcpStream as GaeaTcpStream};
 use gaea::os::RegisterOption;
 
-use crate::actor::messages::Terminate;
-use crate::actor::{self, Actor, NewActor};
-use crate::mailbox::MailBox;
-use crate::supervisor::Supervisor;
-use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
-use crate::util::Shared;
+use crate::actor;
 
-/// A TCP listener.
+/// A TCP socket listener.
 ///
-/// This listener will accept TCP connections and for each incoming connection
-/// create an actor, via the [`NewActor`] trait.
+/// A listener can be created using [`TcpListener::bind`]. After it is created
+/// there are two ways to accept incoming [`TcpStream`]s:
 ///
-/// # Graceful shutdown
+///  * [`accept`] accepts a single connection, or
+///  * [`incoming`] which returns stream of incoming connections.
 ///
-/// Graceful shutdown of the TCP listener is done by sending it a [`Terminate`]
-/// message, see below for an example.
+/// [`accept`]: TcpListener::accept
+/// [`incoming`]: TcpListener::incoming
 ///
 /// # Examples
 ///
-/// The following example is a TCP server that writes "Hello World" to the
-/// connection.
+/// Accepting a single [`TcpStream`], using [`TcpListener::accept`].
 ///
 /// ```
 /// #![feature(async_await, never_type)]
@@ -48,64 +43,74 @@ use crate::util::Shared;
 /// use std::net::SocketAddr;
 ///
 /// use futures_util::AsyncWriteExt;
+/// # use futures_util::AsyncReadExt;
+/// use log::{error, info};
 ///
-/// use heph::actor;
-/// use heph::log::error;
-/// use heph::net::tcp::TcpListenerError;
-/// use heph::net::{TcpListener, TcpStream};
-/// use heph::supervisor::SupervisorStrategy;
-/// use heph::system::options::Priority;
-/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+/// # use heph::net::TcpStream;
+/// use heph::actor::Bound;
+/// use heph::log::REQUEST_TARGET;
+/// use heph::net::TcpListener;
+/// use heph::system::RuntimeError;
+/// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef, SupervisorStrategy};
 ///
-/// # // Don't actually want to run the actor system.
-/// # return;
+/// fn main() -> Result<(), RuntimeError> {
+///     heph::log::init();
 ///
-/// // Create and run the actor system.
-/// ActorSystem::new()
-///     .with_setup(setup)
-///     .run()
-///     .unwrap();
+///     ActorSystem::new()
+///         .with_setup(setup)
+///         .run()
+/// }
 ///
-/// /// In this setup function we'll add the TcpListener to the actor system.
-/// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
-///     // Create our TCP listener. We'll use the default actor options.
-///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let listener = TcpListener::new(conn_supervisor, new_actor, ActorOptions::default());
+/// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
+///     let address = "127.0.0.1:8000".parse().unwrap();
 ///
-///     // The address to listen on.
-///     let address = "127.0.0.1:7890".parse().unwrap();
-///     system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions {
-///         // We advice to give the TCP listener a low priority to prioritise
-///         // handling of ongoing requests over accepting new requests possibly
-///         // overloading the system.
-///         priority: Priority::LOW,
-///         ..Default::default()
-///     })?;
+///     system_ref.spawn(supervisor, actor as fn(_, _) -> _, address, ActorOptions {
+///         schedule: true,
+///         .. ActorOptions::default()
+///     });
+/// #
+/// #   system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions {
+/// #       schedule: true,
+/// #       .. ActorOptions::default()
+/// #   });
 ///
 ///     Ok(())
 /// }
+/// #
+/// # async fn client(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+/// #   let mut buf = [0; 256];
+/// #   let mut stream = TcpStream::connect(&mut ctx, address)?;
+/// #   let n = stream.read(&mut buf).await?;
+/// #   let local_address = stream.local_addr()?.to_string();
+/// #   assert_eq!(&buf[..n], local_address.as_bytes());
+/// #   Ok(())
+/// # }
 ///
-/// /// Supervisor for the TCP listener.
-/// fn listener_supervisor(err: TcpListenerError<!>) -> SupervisorStrategy<(SocketAddr)> {
-///     error!("error accepting connection: {}", err);
+/// // Simple supervisor that logs the error and stops the actor.
+/// fn supervisor<Arg>(err: io::Error) -> SupervisorStrategy<Arg> {
+///     error!("Encountered an error: {}", err);
 ///     SupervisorStrategy::Stop
 /// }
 ///
-/// /// `conn_actor`'s supervisor.
-/// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-///     error!("error handling connection: {}", err);
-///     SupervisorStrategy::Stop
-/// }
+/// async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+///     // Create a new listener.
+///     let mut listener = TcpListener::bind(&mut ctx, address)?;
 ///
-/// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
-/// #   drop(address); // Silence dead code warnings.
-///     stream.write_all(b"Hello World").await
+///     // Accept a connection.
+///     let (mut stream, peer_address) = listener.accept().await?;
+///     info!(target: REQUEST_TARGET, "accepted connection from: {}", peer_address);
+///
+///     // Next we need to bind the stream to this actor.
+///     // NOTE: if we don't do this the actor will (likely) never complete.
+///     stream.bind_to(&mut ctx)?;
+///
+///     // Next we write the IP address to the connection.
+///     let ip = peer_address.to_string();
+///     stream.write_all(ip.as_bytes()).await
 /// }
 /// ```
 ///
-/// The next example shows how the TCP listener can gracefully be shutdown by
-/// sending it a [`Terminate`] message.
+/// Accepting multiple [`TcpStream`]s, using [`TcpListener::incoming`].
 ///
 /// ```
 /// #![feature(async_await, never_type)]
@@ -113,254 +118,226 @@ use crate::util::Shared;
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// use futures_util::AsyncWriteExt;
+/// use futures_util::future::ready;
+/// use futures_util::{AsyncWriteExt, TryFutureExt, TryStreamExt};
+/// # use futures_util::{AsyncReadExt, StreamExt};
+/// use log::{error, info};
 ///
-/// use heph::actor;
-/// use heph::actor::messages::Terminate;
-/// use heph::log::error;
-/// use heph::net::tcp::TcpListenerError;
-/// use heph::net::{TcpListener, TcpStream};
-/// use heph::supervisor::SupervisorStrategy;
-/// use heph::system::options::Priority;
-/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+/// # use heph::net::TcpStream;
+/// use heph::actor::Bound;
+/// use heph::log::REQUEST_TARGET;
+/// use heph::net::TcpListener;
+/// use heph::system::RuntimeError;
+/// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef, SupervisorStrategy};
 ///
-/// // Create and run the actor system.
-/// ActorSystem::new()
-///     .with_setup(setup)
-///     .run()
-///     .unwrap();
+/// fn main() -> Result<(), RuntimeError> {
+///     heph::log::init();
 ///
-/// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
-///     // Adding the TCP listener is the same as in the example above.
-///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let listener = TcpListener::new(conn_supervisor, new_actor, ActorOptions::default());
-///     let address = "127.0.0.1:7890".parse().unwrap();
-///     let mut listener_ref = system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions {
-///         priority: Priority::LOW,
-///         ..Default::default()
-///     })?;
+///     ActorSystem::new()
+///         .with_setup(setup)
+///         .run()
+/// }
 ///
-///     // Because the listener is just another actor we can send it messages.
-///     // Here we'll send it a terminate message so it will gracefully
-///     // shutdown.
-///     listener_ref <<= Terminate;
+/// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
+///     let address = "127.0.0.1:8000".parse().unwrap();
+///
+///     system_ref.spawn(supervisor, actor as fn(_, _) -> _, address, ActorOptions {
+///         schedule: true,
+///         .. ActorOptions::default()
+///     });
+/// #
+/// #   system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions {
+/// #       schedule: true,
+/// #       .. ActorOptions::default()
+/// #   });
 ///
 ///     Ok(())
 /// }
+/// #
+/// # async fn client(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+/// #   let mut buf = [0; 256];
+/// #   let mut stream = TcpStream::connect(&mut ctx, address)?;
+/// #   let n = stream.read(&mut buf).await?;
+/// #   let local_address = stream.local_addr()?.to_string();
+/// #   assert_eq!(&buf[..n], local_address.as_bytes());
+/// #   Ok(())
+/// # }
 ///
-/// /// Supervisor for the TCP listener.
-/// fn listener_supervisor(err: TcpListenerError<!>) -> SupervisorStrategy<(SocketAddr)> {
-///     error!("error accepting connection: {}", err);
+/// // Simple supervisor that logs the error and stops the actor.
+/// fn supervisor<Arg>(err: io::Error) -> SupervisorStrategy<Arg> {
+///     error!("Encountered an error: {}", err);
 ///     SupervisorStrategy::Stop
 /// }
 ///
-/// /// `conn_actor`'s supervisor.
-/// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-///     error!("error handling connection: {}", err);
-///     SupervisorStrategy::Stop
-/// }
+/// async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+///     // Create a new listener.
+///     let mut listener = TcpListener::bind(&mut ctx, address)?;
+///     let streams = listener.incoming();
+/// #   let streams = streams.take(1);
 ///
-/// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
-/// #   drop(address); // Silence dead code warnings.
-///     stream.write_all(b"Hello World").await
+///     streams.try_for_each(|(mut stream, peer_address)| {
+///         info!(target: REQUEST_TARGET, "accepted connection from: {}", peer_address);
+///         // Next we need to bind the stream to this actor.
+///         // NOTE: if we don't do this the actor will (likely) never complete.
+///         ready(stream.bind_to(&mut ctx)).and_then(async move |()| {
+///             // Next we write the IP address to the connection.
+///             let ip = peer_address.to_string();
+///             stream.write_all(ip.as_bytes()).await
+///         })
+///     }).await
 /// }
-/// ```
 #[derive(Debug)]
-pub struct TcpListener<S, NA> {
-    /// Reference to the actor system used to add new actors to handle accepted
-    /// connections.
-    system_ref: ActorSystemRef,
+pub struct TcpListener {
     /// The underlying TCP listener, backed by Gaea.
-    listener: GaeaTcpListener,
-    /// Supervisor for all actors created by `NewActor`.
-    supervisor: S,
-    /// NewActor used to create an actor for each connection.
-    new_actor: NA,
-    /// Options used to add the actor to the actor system.
-    options: ActorOptions,
-    /// The inbox of the listener.
-    inbox: Shared<MailBox<TcpListenerMessage>>,
+    socket: GaeaTcpListener,
 }
 
-impl<S, NA> TcpListener<S, NA>
-    where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
-          NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
-{
-    /// Create a new TCP listener.
+impl TcpListener {
+    /// Creates a new `TcpListener` which will be bound to the specified
+    /// `address`.
     ///
-    /// For each accepted connection a new actor will be created by using the
-    /// [`NewActor::new`] method, with a `TcpStream` and `SocketAddr` as
-    /// argument. The provided `options` will be used in adding the newly
-    /// created actor to the actor system. The supervisor `S` will be used as
-    /// supervisor.
+    /// # Notes
     ///
-    /// Note in the function call we'll not yet bound to the port, this will
-    /// happen in `NewTcpListener`'s `NewActor` implementation.
-    pub fn new(supervisor: S, new_actor: NA, options: ActorOptions) ->
-        impl NewActor<Message = TcpListenerMessage, Argument = SocketAddr, Actor = TcpListener<S, NA>, Error = io::Error>
-    {
-        NewTcpListener { supervisor, new_actor, options }
+    /// The listener is also [bound] to the actor that owns the
+    /// `actor::Context`, which means the actor will be run every time the
+    /// listener has a connection ready to be accepted.
+    ///
+    /// [bound]: crate::actor::Bound
+    pub fn bind<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpListener> {
+        let mut socket = GaeaTcpListener::bind(address)?;
+        let pid = ctx.pid();
+        ctx.system_ref().register(
+            &mut socket,
+            pid.into(),
+            GaeaTcpListener::INTERESTS,
+            RegisterOption::EDGE,
+        )?;
+        Ok(TcpListener { socket })
     }
-}
 
-impl<S, NA> TcpListener<S, NA> {
     /// Returns the local socket address of this listener.
     pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
-        self.listener.local_addr()
+        self.socket.local_addr()
     }
 
     /// Sets the value for the `IP_TTL` option on this socket.
     pub fn set_ttl(&mut self, ttl: u32) -> io::Result<()> {
-        self.listener.set_ttl(ttl)
+        self.socket.set_ttl(ttl)
     }
 
     /// Gets the value of the `IP_TTL` option for this socket.
     pub fn ttl(&mut self) -> io::Result<u32> {
-        self.listener.ttl()
+        self.socket.ttl()
+    }
+
+    /// Accepts a new incoming [`TcpStream`].
+    ///
+    /// If an accepted TCP stream is returned, the remote address of the peer is
+    /// returned along with it.
+    ///
+    /// See the [`TcpListener`] documentation for an example.
+    ///
+    /// # Notes
+    ///
+    /// After accepting a stream it needs to be [bound] to an actor to ensure
+    /// the actor is run once the stream is ready.
+    ///
+    /// [bound]: actor::Bound::bind_to
+    pub fn accept<'a>(&'a mut self) -> Accept<'a> {
+        Accept {
+            listener: Some(self),
+        }
+    }
+
+    /// Returns a stream that iterates over the [`TcpStream`]s being received on
+    /// this listener.
+    ///
+    /// See the [`TcpListener`] documentation for an example.
+    ///
+    /// # Notes
+    ///
+    /// After accepting a stream it needs to be [bound] to an actor to ensure
+    /// the actor is run once the stream is ready.
+    ///
+    /// [bound]: actor::Bound::bind_to
+    pub fn incoming<'a>(&'a mut self) -> Incoming<'a> {
+        Incoming { listener: self }
+    }
+
+    /// Get the value of the `SO_ERROR` option on this socket.
+    ///
+    /// This will retrieve the stored error in the underlying socket, clearing
+    /// the field in the process. This can be useful for checking errors between
+    /// calls.
+    pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
+        self.socket.take_error()
     }
 }
 
-impl<S, NA> Actor for TcpListener<S, NA>
-    where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + 'static,
-          NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
-{
-    type Error = TcpListenerError<NA::Error>;
+/// The [`Future`] behind [`TcpListener::accept`].
+#[derive(Debug)]
+pub struct Accept<'a> {
+    listener: Option<&'a mut TcpListener>,
+}
 
-    fn try_poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        // This is safe because only the `ActorSystemRef`, `GaeaTcpListener` and
-        // the `MailBox` are mutably borrowed and all are `Unpin`.
-        let &mut TcpListener {
-            ref mut system_ref,
-            ref mut listener,
-            ref supervisor,
-            ref new_actor,
-            ref options,
-            ref mut inbox,
-        } = unsafe { self.get_unchecked_mut() };
+impl<'a> Future for Accept<'a> {
+    type Output = io::Result<(TcpStream, SocketAddr)>;
 
-        // Start with receiving any send messages.
-        #[allow(clippy::never_loop)]
-        while let Some(msg) = inbox.borrow_mut().receive_next() {
-            use self::TcpListenerMessageInner::*;
-            match msg.inner {
-                Terminate => return Poll::Ready(Ok(())),
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        match self.listener {
+            Some(ref mut listener) => {
+                try_io!(listener.socket.accept()).map_ok(|(socket, address)| {
+                    drop(self.listener.take());
+                    (TcpStream { socket }, address)
+                })
             }
-        }
-
-        // Next start accepting streams.
-        loop {
-            let (mut stream, addr) = match listener.accept() {
-                Ok(ok) => ok,
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
-                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue, // Try again.
-                Err(err) => return Poll::Ready(Err(TcpListenerError::Accept(err))),
-            };
-            debug!("accepted connection from: {}", addr);
-
-            let res = system_ref.try_spawn_setup(supervisor.clone(), new_actor.clone(), |pid, system_ref| {
-                system_ref.register(&mut stream, pid.into(),
-                    GaeaTcpStream::INTERESTS, RegisterOption::EDGE)?;
-
-                // Wrap the raw stream with our wrapper.
-                let stream = TcpStream { socket: stream };
-
-                // Return the arguments used to create the actor.
-                Ok((stream, addr))
-            }, options.clone());
-
-            match res {
-                Ok(_) => {}, // Continue.
-                Err(err) => return Poll::Ready(Err(err.into())),
-            }
+            None => panic!(""),
         }
     }
 }
 
-/// The message type used by [`TcpListener`].
-///
-/// The message implements [`From`]`<`[`Terminate`]`>` for the
-/// message, allowing for graceful shutdown.
+impl<'a> FusedFuture for Accept<'a> {
+    fn is_terminated(&self) -> bool {
+        self.listener.is_none()
+    }
+}
+
+/// The [`Stream`] behind [`TcpListener::incoming`].
 #[derive(Debug)]
-pub struct TcpListenerMessage {
-    inner: TcpListenerMessageInner,
+pub struct Incoming<'a> {
+    listener: &'a mut TcpListener,
 }
 
-impl From<Terminate> for TcpListenerMessage {
-    fn from(_msg: Terminate) -> TcpListenerMessage {
-        TcpListenerMessage {
-            inner: TcpListenerMessageInner::Terminate,
-        }
+impl<'a> Stream for Incoming<'a> {
+    type Item = io::Result<(TcpStream, SocketAddr)>;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        _ctx: &mut task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        try_io!(self.listener.socket.accept())
+            .map_ok(|(socket, address)| (TcpStream { socket }, address))
+            .map(Some)
     }
 }
 
-/// Internal message type for the TCP listener.
-#[derive(Debug)]
-enum TcpListenerMessageInner {
-    Terminate,
-}
-
-/// Error returned by [`TcpListener`].
-#[derive(Debug)]
-pub enum TcpListenerError<E> {
-    /// Error accepting TCP stream.
-    Accept(io::Error),
-    /// Error creating new actor to handle the TCP stream.
-    NewActor(E),
-}
-
-impl<E> From<AddActorError<E, io::Error>> for TcpListenerError<E> {
-    fn from(err: AddActorError<E, io::Error>) -> TcpListenerError<E> {
-        match err {
-            AddActorError::NewActor(err) => TcpListenerError::NewActor(err),
-            AddActorError::ArgFn(err) => TcpListenerError::Accept(err),
-        }
+impl<'a> FusedStream for Incoming<'a> {
+    fn is_terminated(&self) -> bool {
+        false
     }
 }
 
-impl<E: fmt::Display> fmt::Display for TcpListenerError<E> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use self::TcpListenerError::*;
-        match self {
-            Accept(ref err) => write!(f, "error accepting TCP stream: {}", err),
-            NewActor(ref err) => write!(f, "error creating new actor: {}", err),
-        }
-    }
-}
-
-/// `NewTcpListener` is an implementation of [`NewActor`] for `TcpListener`.
-///
-/// It can be created by calling [`TcpListener::new`].
-#[derive(Debug, Clone)]
-struct NewTcpListener<S, NA> {
-    supervisor: S,
-    new_actor: NA,
-    options: ActorOptions,
-}
-
-impl<S, NA> NewActor for NewTcpListener<S, NA>
-    where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + Clone + Send + 'static,
-          NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + Send + 'static,
-{
-    type Message = TcpListenerMessage;
-    type Argument = SocketAddr;
-    type Actor = TcpListener<S, NA>;
+impl actor::Bound for TcpListener {
     type Error = io::Error;
 
-    fn new(&mut self, mut ctx: actor::Context<Self::Message>, address: Self::Argument) -> Result<Self::Actor, Self::Error> {
-        let mut system_ref = ctx.system_ref().clone();
-        let mut listener = GaeaTcpListener::bind(address)?;
-        system_ref.register(&mut listener, ctx.pid().into(),
-            GaeaTcpListener::INTERESTS, RegisterOption::EDGE)?;
-
-        Ok(TcpListener {
-            system_ref,
-            listener,
-            supervisor: self.supervisor.clone(),
-            new_actor: self.new_actor.clone(),
-            options: self.options.clone(),
-            inbox: ctx.inbox,
-        })
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
+        let pid = ctx.pid();
+        ctx.system_ref().reregister(
+            &mut self.socket,
+            pid.into(),
+            GaeaTcpStream::INTERESTS,
+            RegisterOption::EDGE,
+        )
     }
 }
 
@@ -377,8 +354,12 @@ impl TcpStream {
     pub fn connect<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpStream> {
         let mut socket = GaeaTcpStream::connect(address)?;
         let pid = ctx.pid();
-        ctx.system_ref().register(&mut socket, pid.into(),
-            GaeaTcpStream::INTERESTS, RegisterOption::EDGE)?;
+        ctx.system_ref().register(
+            &mut socket,
+            pid.into(),
+            GaeaTcpStream::INTERESTS,
+            RegisterOption::EDGE,
+        )?;
         Ok(TcpStream { socket })
     }
 
@@ -450,7 +431,10 @@ impl<'a> Future for Peek<'a> {
     type Output = io::Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let Peek { ref mut stream, ref mut buf } = self.deref_mut();
+        let Peek {
+            ref mut stream,
+            ref mut buf,
+        } = self.deref_mut();
         try_io!(stream.socket.peek(buf))
     }
 }
@@ -460,13 +444,21 @@ impl AsyncRead for TcpStream {
         Initializer::nop()
     }
 
-    fn poll_read(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>, buf: &mut [u8]) -> Poll<io::Result<usize>> {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        _ctx: &mut task::Context<'_>,
+        buf: &mut [u8],
+    ) -> Poll<io::Result<usize>> {
         try_io!(self.socket.read(buf))
     }
 }
 
 impl AsyncWrite for TcpStream {
-    fn poll_write(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>, buf: &[u8]) -> Poll<io::Result<usize>> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        _ctx: &mut task::Context<'_>,
+        buf: &[u8],
+    ) -> Poll<io::Result<usize>> {
         try_io!(self.socket.write(buf))
     }
 
@@ -484,7 +476,11 @@ impl actor::Bound for TcpStream {
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
-        ctx.system_ref().reregister(&mut self.socket, pid.into(),
-            GaeaTcpStream::INTERESTS, RegisterOption::EDGE)
+        ctx.system_ref().reregister(
+            &mut self.socket,
+            pid.into(),
+            GaeaTcpStream::INTERESTS,
+            RegisterOption::EDGE,
+        )
     }
 }
