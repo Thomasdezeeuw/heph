@@ -46,7 +46,6 @@ pub use super::tcp_actor::{Actor, ListenerError, Message, NewListener};
 ///
 /// ```
 /// #![feature(async_await, never_type)]
-/// # #![allow(unreachable_code)]
 ///
 /// use std::io;
 /// use std::net::SocketAddr;
@@ -65,9 +64,7 @@ pub use super::tcp_actor::{Actor, ListenerError, Message, NewListener};
 /// fn main() -> Result<(), RuntimeError> {
 ///     heph::log::init();
 ///
-///     ActorSystem::new()
-///         .with_setup(setup)
-///         .run()
+///     ActorSystem::new().with_setup(setup).run()
 /// }
 ///
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
@@ -142,9 +139,7 @@ pub use super::tcp_actor::{Actor, ListenerError, Message, NewListener};
 /// fn main() -> Result<(), RuntimeError> {
 ///     heph::log::init();
 ///
-///     ActorSystem::new()
-///         .with_setup(setup)
-///         .run()
+///     ActorSystem::new().with_setup(setup).run()
 /// }
 ///
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {

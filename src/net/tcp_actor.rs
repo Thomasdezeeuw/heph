@@ -110,10 +110,7 @@ where
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
 ///
 /// // Create and run the actor system.
-/// ActorSystem::new()
-///     .with_setup(setup)
-///     .run()
-///     .unwrap();
+/// ActorSystem::new().with_setup(setup).run().unwrap();
 ///
 /// /// In this setup function we'll add the TcpListener to the actor system.
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
@@ -177,10 +174,7 @@ where
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
 ///
 /// // Create and run the actor system.
-/// ActorSystem::new()
-///     .with_setup(setup)
-///     .run()
-///     .unwrap();
+/// ActorSystem::new().with_setup(setup).run().unwrap();
 ///
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///     // Adding the TCP listener is the same as in the example above.
