@@ -54,19 +54,20 @@
 //! use heph::{actor, ActorOptions, ActorSystem};
 //!
 //! fn main() -> Result<(), RuntimeError> {
-//!     ActorSystem::new().with_setup(|mut system_ref| {
-//!         // Add the actor to the actor system.
-//!         let new_actor = actor as fn (_) -> _;
-//!         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
+//!     ActorSystem::new()
+//!         .with_setup(|mut system_ref| {
+//!             // Add the actor to the actor system.
+//!             let new_actor = actor as fn(_) -> _;
+//!             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
 //!
-//!         // Now we can use the reference to send the actor a message.
-//!         actor_ref <<= "Hello world".to_owned();
-//!         // Above is the same as:
-//!         // let _ = actor_ref.send("Hello world".to_owned());
+//!             // Now we can use the reference to send the actor a message.
+//!             actor_ref <<= "Hello world".to_owned();
+//!             // Above is the same as:
+//!             // let _ = actor_ref.send("Hello world".to_owned());
 //!
-//!         Ok(())
-//!     })
-//!     .run()
+//!             Ok(())
+//!         })
+//!         .run()
 //! }
 //!
 //! /// Our actor.
@@ -92,20 +93,21 @@
 //! use heph::{actor, ActorOptions, ActorSystem};
 //!
 //! fn main() -> Result<(), RuntimeError> {
-//!      ActorSystem::new().with_setup(|mut system_ref| {
-//!         let new_actor = actor as fn (_) -> _;
-//!         let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
+//!     ActorSystem::new()
+//!         .with_setup(|mut system_ref| {
+//!             let new_actor = actor as fn(_) -> _;
+//!             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
 //!
-//!         // To create another actor reference we can simply clone the first one.
-//!         let mut second_actor_ref = actor_ref.clone();
+//!             // To create another actor reference we can simply clone the first one.
+//!             let mut second_actor_ref = actor_ref.clone();
 //!
-//!         // Now we can use both references to send a message.
-//!         actor_ref <<= "Hello world".to_owned();
-//!         second_actor_ref <<= "Bye world".to_owned();
+//!             // Now we can use both references to send a message.
+//!             actor_ref <<= "Hello world".to_owned();
+//!             second_actor_ref <<= "Bye world".to_owned();
 //!
-//!         Ok(())
-//!     })
-//!     .run()
+//!             Ok(())
+//!         })
+//!         .run()
 //! }
 //!
 //! /// Our actor.
@@ -156,9 +158,7 @@ pub struct ActorRef<T> {
 impl<T> ActorRef<T> {
     /// Create a new `ActorRef`.
     pub(crate) const fn new(data: T) -> ActorRef<T> {
-        ActorRef {
-            data,
-        }
+        ActorRef { data }
     }
 }
 
@@ -172,7 +172,8 @@ pub trait Send {
 }
 
 impl<M, T> ActorRef<T>
-    where T: Send<Message = M>,
+where
+    T: Send<Message = M>,
 {
     /// Asynchronously send a message to the actor.
     ///
@@ -185,7 +186,8 @@ impl<M, T> ActorRef<T>
     ///
     /// [Sending messages]: index.html#sending-messages
     pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<M>>
-        where Msg: Into<M>,
+    where
+        Msg: Into<M>,
     {
         self.data.send(msg.into())
     }
@@ -196,7 +198,10 @@ impl<M> ActorRef<Local<M>> {
     ///
     /// This allows the actor reference to be send across threads, however
     /// operations on it are more expensive.
-    pub fn upgrade(self, system_ref: &mut ActorSystemRef) -> Result<ActorRef<Machine<M>>, ActorShutdown> {
+    pub fn upgrade(
+        self,
+        system_ref: &mut ActorSystemRef,
+    ) -> Result<ActorRef<Machine<M>>, ActorShutdown> {
         let (pid, sender) = match self.data.inbox.upgrade() {
             Some(mut inbox) => inbox.borrow_mut().upgrade_ref(),
             None => return Err(ActorShutdown),
@@ -208,8 +213,9 @@ impl<M> ActorRef<Local<M>> {
 }
 
 impl<M, Msg, T> ShlAssign<Msg> for ActorRef<T>
-    where T: Send<Message = M>,
-          Msg: Into<M>,
+where
+    T: Send<Message = M>,
+    Msg: Into<M>,
 {
     fn shl_assign(&mut self, msg: Msg) {
         let _ = self.send(msg);
@@ -217,7 +223,8 @@ impl<M, Msg, T> ShlAssign<Msg> for ActorRef<T>
 }
 
 impl<T> fmt::Debug for ActorRef<T>
-    where T: fmt::Debug,
+where
+    T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.data.fmt(f)

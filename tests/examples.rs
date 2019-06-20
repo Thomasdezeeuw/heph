@@ -114,9 +114,9 @@ fn build_example(name: &'static str) {
         .expect("unable to build example");
 
     if !output.status.success() {
-        panic!("failed to build example: {}\n\n{}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr));
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        panic!("failed to build example: {}\n\n{}", stdout, stderr);
     }
 }
 
@@ -137,12 +137,14 @@ fn read_output(mut child: ChildCommand) -> String {
 
     let mut stdout = child.stdout.take().unwrap();
     let mut output = String::new();
-    stdout.read_to_string(&mut output).expect("error reading output of example");
+    stdout
+        .read_to_string(&mut output)
+        .expect("error reading output of example");
     output
 }
 
 fn tcp_retry_connect(address: SocketAddr) -> TcpStream {
-    for _ in 0 .. 10 {
+    for _ in 0..10 {
         if let Ok(stream) = TcpStream::connect(address) {
             return stream;
         }

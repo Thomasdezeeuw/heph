@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicU16, Ordering};
 use std::task::{RawWaker, RawWakerVTable, Waker};
 
 use crossbeam_channel::Sender;
-use log::error;
 use gaea::os::Awakener;
+use log::error;
 
 use crate::scheduler::ProcessId;
 
@@ -34,14 +34,10 @@ static THREAD_IDS: AtomicU16 = AtomicU16::new(0);
 /// the initial write each element is read only there are no further data races
 /// possible.
 static mut THREAD_WAKERS: [Option<ThreadWaker>; MAX_THREADS] = [
-    None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
 ];
 
 /// A `Waker` implementation.
@@ -86,7 +82,10 @@ pub fn init_waker(awakener: Awakener, notifications: Sender<ProcessId>) -> Waker
     // This is safe because we are the only thread that has write access to the
     // given index. See documentation of `THREAD_WAKERS` for more.
     unsafe {
-        THREAD_WAKERS[thread_id as usize] = Some(ThreadWaker{ awakener, notifications });
+        THREAD_WAKERS[thread_id as usize] = Some(ThreadWaker {
+            awakener,
+            notifications,
+        });
     }
     WakerId(thread_id)
 }
@@ -146,8 +145,8 @@ impl WakerData {
 }
 
 /// Virtual table used by the `Waker` implementation.
-static WAKER_VTABLE: &RawWakerVTable = &RawWakerVTable::new(clone_wake_data,
-    wake, wake_by_ref, drop_wake_data);
+static WAKER_VTABLE: &RawWakerVTable =
+    &RawWakerVTable::new(clone_wake_data, wake, wake_by_ref, drop_wake_data);
 
 fn assert_copy<T: Copy>() {}
 
@@ -167,7 +166,8 @@ unsafe fn wake(data: *const ()) {
     // This is safe as the only way the `waker_id` is created is by
     // `init_waker`, which ensure that the particular index is set. See
     // `THREAD_WAKERS` documentation for more.
-    let thread_waker = THREAD_WAKERS[waker_id.0 as usize].as_ref()
+    let thread_waker = THREAD_WAKERS[waker_id.0 as usize]
+        .as_ref()
         .expect("tried to wake a thread that isn't initialised");
     thread_waker.wake(pid)
 }

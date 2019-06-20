@@ -64,9 +64,7 @@ pub enum Connected {}
 /// fn main() -> Result<(), RuntimeError> {
 ///     heph::log::init();
 ///
-///     ActorSystem::new()
-///         .with_setup(setup)
-///         .run()
+///     ActorSystem::new().with_setup(setup).run()
 /// }
 ///
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
@@ -120,8 +118,7 @@ pub enum Connected {}
 /// // The client that will send a message to the server.
 /// async fn client(mut ctx: actor::Context<!>, server_address: SocketAddr) -> io::Result<()> {
 ///     let local_address = "127.0.0.1:7001".parse().unwrap();
-///     let mut socket = UdpSocket::bind(&mut ctx, local_address)?
-///         .connect(server_address)?;
+///     let mut socket = UdpSocket::bind(&mut ctx, local_address)?.connect(server_address)?;
 ///
 ///     let msg = b"Hello world";
 ///     let n = socket.send(&*msg).await?;
@@ -147,12 +144,22 @@ impl UdpSocket {
     /// socket is ready to be read or write to.
     ///
     /// [bound]: crate::actor::Bound
-    pub fn bind<M>(ctx: &mut actor::Context<M>, local: SocketAddr) -> io::Result<UdpSocket<Unconnected>> {
+    pub fn bind<M>(
+        ctx: &mut actor::Context<M>,
+        local: SocketAddr,
+    ) -> io::Result<UdpSocket<Unconnected>> {
         let mut socket = GaeaUdpSocket::bind(local)?;
         let pid = ctx.pid();
-        ctx.system_ref().register(&mut socket, pid.into(),
-            GaeaUdpSocket::INTERESTS, RegisterOption::EDGE)?;
-        Ok(UdpSocket { socket, mode: PhantomData })
+        ctx.system_ref().register(
+            &mut socket,
+            pid.into(),
+            GaeaUdpSocket::INTERESTS,
+            RegisterOption::EDGE,
+        )?;
+        Ok(UdpSocket {
+            socket,
+            mode: PhantomData,
+        })
     }
 }
 
@@ -161,7 +168,10 @@ impl<M> UdpSocket<M> {
     /// packets that are read, written and peeked to the `remote` address.
     pub fn connect(mut self, remote: SocketAddr) -> io::Result<UdpSocket<Connected>> {
         self.socket.connect(remote)?;
-        Ok(UdpSocket { socket: self.socket, mode: PhantomData })
+        Ok(UdpSocket {
+            socket: self.socket,
+            mode: PhantomData,
+        })
     }
 
     /// Returns the sockets local address.
@@ -183,7 +193,11 @@ impl UdpSocket<Unconnected> {
     /// Sends data to the given `target` address. Returns a [`Future`] that on
     /// success returns the number of bytes written (`io::Result<usize>`).
     pub fn send_to<'a>(&'a mut self, buf: &'a [u8], target: SocketAddr) -> SendTo<'a> {
-        SendTo { socket: self, buf, target }
+        SendTo {
+            socket: self,
+            buf,
+            target,
+        }
     }
 
     /// Receives data from the socket. Returns a [`Future`] that on success
@@ -214,7 +228,11 @@ impl<'a> Future for SendTo<'a> {
     type Output = io::Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
-        let SendTo { ref mut socket, ref buf, ref target } = self.deref_mut();
+        let SendTo {
+            ref mut socket,
+            ref buf,
+            ref target,
+        } = self.deref_mut();
         try_io!(socket.socket.send_to(buf, *target))
     }
 }
@@ -230,7 +248,10 @@ impl<'a> Future for RecvFrom<'a> {
     type Output = io::Result<(usize, SocketAddr)>;
 
     fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
-        let RecvFrom { ref mut socket, ref mut buf } = self.deref_mut();
+        let RecvFrom {
+            ref mut socket,
+            ref mut buf,
+        } = self.deref_mut();
         try_io!(socket.socket.recv_from(buf))
     }
 }
@@ -246,7 +267,10 @@ impl<'a> Future for PeekFrom<'a> {
     type Output = io::Result<(usize, SocketAddr)>;
 
     fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
-        let PeekFrom { ref mut socket, ref mut buf } = self.deref_mut();
+        let PeekFrom {
+            ref mut socket,
+            ref mut buf,
+        } = self.deref_mut();
         try_io!(socket.socket.peek_from(buf))
     }
 }
@@ -284,7 +308,10 @@ impl<'a> Future for Send<'a> {
     type Output = io::Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
-        let Send { ref mut socket, ref buf } = self.deref_mut();
+        let Send {
+            ref mut socket,
+            ref buf,
+        } = self.deref_mut();
         try_io!(socket.socket.send(buf))
     }
 }
@@ -300,7 +327,10 @@ impl<'a> Future for Recv<'a> {
     type Output = io::Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
-        let Recv { ref mut socket, ref mut buf } = self.deref_mut();
+        let Recv {
+            ref mut socket,
+            ref mut buf,
+        } = self.deref_mut();
         try_io!(socket.socket.recv(buf))
     }
 }
@@ -316,7 +346,10 @@ impl<'a> Future for Peek<'a> {
     type Output = io::Result<usize>;
 
     fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context) -> Poll<Self::Output> {
-        let Peek { ref mut socket, ref mut buf } = self.deref_mut();
+        let Peek {
+            ref mut socket,
+            ref mut buf,
+        } = self.deref_mut();
         try_io!(socket.socket.peek(buf))
     }
 }
@@ -332,7 +365,11 @@ impl actor::Bound for UdpSocket {
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
-        ctx.system_ref().reregister(&mut self.socket, pid.into(),
-            GaeaUdpSocket::INTERESTS, RegisterOption::EDGE)
+        ctx.system_ref().reregister(
+            &mut self.socket,
+            pid.into(),
+            GaeaUdpSocket::INTERESTS,
+            RegisterOption::EDGE,
+        )
     }
 }

@@ -64,32 +64,30 @@
 //! [1]: https://en.wikipedia.org/wiki/Hephaestus
 //! [2]: https://en.wikipedia.org/wiki/Actor_model
 
-#![feature(async_await,
-           const_fn,
-           never_type,
-           non_exhaustive,
-           read_initializer,
-           weak_ptr_eq,
+#![feature(
+    async_await,
+    const_fn,
+    never_type,
+    non_exhaustive,
+    read_initializer,
+    weak_ptr_eq
 )]
-
 #![cfg_attr(test, feature(const_slice_len))]
-
-#![warn(anonymous_parameters,
-        bare_trait_objects,
-        missing_debug_implementations,
-        missing_docs,
-        trivial_casts,
-        trivial_numeric_casts,
-        unused_extern_crates,
-        unused_import_braces,
-        unused_qualifications,
-        unused_results,
-        variant_size_differences,
+#![warn(
+    anonymous_parameters,
+    bare_trait_objects,
+    missing_debug_implementations,
+    missing_docs,
+    trivial_casts,
+    trivial_numeric_casts,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications,
+    unused_results,
+    variant_size_differences
 )]
-
 // Disallow warnings when running tests.
 #![cfg_attr(test, deny(warnings))]
-
 // Disallow warnings in examples, we want to set a good example after all.
 #![doc(test(attr(deny(warnings))))]
 

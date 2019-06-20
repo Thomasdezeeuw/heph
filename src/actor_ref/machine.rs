@@ -32,8 +32,10 @@ impl<M> Send for Machine<M> {
             Ok(()) => {
                 self.waker.wake_by_ref();
                 Ok(())
-            },
-            Err(err) => Err(SendError { message: err.into_inner() }),
+            }
+            Err(err) => Err(SendError {
+                message: err.into_inner(),
+            }),
         }
     }
 }

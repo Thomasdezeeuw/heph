@@ -44,8 +44,9 @@ impl<S, NA: NewActor> ActorProcess<S, NA> {
 }
 
 impl<S, NA> Process for ActorProcess<S, NA>
-    where S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument>,
-          NA: NewActor + 'static,
+where
+    S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument>,
+    NA: NewActor + 'static,
 {
     fn id(&self) -> ProcessId {
         self.id
@@ -84,18 +85,18 @@ impl<S, NA> Process for ActorProcess<S, NA>
                                 // Run the actor, just in case progress can be
                                 // made already.
                                 return unsafe { Pin::new_unchecked(this) }.run(system_ref);
-                            },
+                            }
                             Err(err) => {
                                 // New actor can't be created, so all we can do
                                 // is log and mark the process as complete.
                                 error!("error creating new actor: {}", err);
                                 ProcessResult::Complete
-                            },
+                            }
                         }
-                    },
+                    }
                     SupervisorStrategy::Stop => ProcessResult::Complete,
                 }
-            },
+            }
             Poll::Pending => ProcessResult::Pending,
         };
 

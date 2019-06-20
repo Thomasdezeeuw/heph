@@ -32,8 +32,7 @@ pub struct SendError<M> {
 
 impl<M> fmt::Debug for SendError<M> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("SendError")
-            .finish()
+        f.debug_struct("SendError").finish()
     }
 }
 

@@ -34,7 +34,7 @@ impl<M> Send for Local<M> {
             Some(mut inbox) => {
                 inbox.borrow_mut().deliver(msg);
                 Ok(())
-            },
+            }
             None => Err(SendError { message: msg }),
         }
     }

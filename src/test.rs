@@ -42,8 +42,12 @@ pub fn system_ref() -> ActorSystemRef {
 
 /// Initialise an actor.
 #[allow(clippy::type_complexity)]
-pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> Result<(NA::Actor, ActorRef<Local<NA::Message>>), NA::Error>
-    where NA: NewActor,
+pub fn init_actor<NA>(
+    mut new_actor: NA,
+    arg: NA::Argument,
+) -> Result<(NA::Actor, ActorRef<Local<NA::Message>>), NA::Error>
+where
+    NA: NewActor,
 {
     let system_ref = system_ref();
     let pid = ProcessId(0);
@@ -66,7 +70,8 @@ pub fn init_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> Result<(NA::Actor
 /// Wake notifications will be ignored. If this is required run an end to end
 /// test with a completely functional actor system instead.
 pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
-    where Fut: Future,
+where
+    Fut: Future,
 {
     let pid = ProcessId(0);
     let waker = system_ref().new_waker(pid);
@@ -84,7 +89,8 @@ pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
 /// Wake notifications will be ignored. If this is required run an end to end
 /// test with a completely functional actor system instead.
 pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
-    where A: Actor,
+where
+    A: Actor,
 {
     let pid = ProcessId(0);
     let waker = system_ref().new_waker(pid);
