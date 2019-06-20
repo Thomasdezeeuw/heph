@@ -20,6 +20,8 @@ use gaea::os::RegisterOption;
 
 use crate::actor;
 
+pub use super::tcp_actor::{Actor, ListenerError, Message, NewListener};
+
 /// A TCP socket listener.
 ///
 /// A listener can be created using [`TcpListener::bind`]. After it is created
@@ -345,7 +347,7 @@ impl actor::Bound for TcpListener {
 #[derive(Debug)]
 pub struct TcpStream {
     /// Underlying TCP connection, backed by Gaea.
-    socket: GaeaTcpStream,
+    pub(in crate::net) socket: GaeaTcpStream,
 }
 
 impl TcpStream {
