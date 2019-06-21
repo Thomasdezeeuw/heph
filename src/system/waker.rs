@@ -94,11 +94,6 @@ pub fn init_waker(awakener: Awakener, notifications: Sender<ProcessId>) -> Waker
 ///
 /// `init_waker` must be called before calling this function to get a `WakerId`.
 pub fn new_waker(waker_id: WakerId, pid: ProcessId) -> Waker {
-    // TODO: try to remove this check and make it into an unsafe function.
-    if pid.0 >= 2_usize.pow(WAKER_DATA_BITS as u32 - THREAD_ID_BITS as u32) {
-        panic!("Process id too large for waker");
-    }
-
     let data = WakerData::new(waker_id, pid).into_raw_data();
     let raw_waker = RawWaker::new(data, WAKER_VTABLE);
     unsafe { Waker::from_raw(raw_waker) }
@@ -115,7 +110,7 @@ const THREAD_ID_BITS: usize = mem::size_of::<WakerId>() * 8;
 impl WakerData {
     /// Create new `WakerData`.
     fn new(thread_id: WakerId, pid: ProcessId) -> WakerData {
-        WakerData((thread_id.0 as usize) << (WAKER_DATA_BITS - THREAD_ID_BITS) | pid.0)
+        WakerData((thread_id.0 as usize) << (WAKER_DATA_BITS - THREAD_ID_BITS) | pid.0 as usize)
     }
 
     /// Get the thread id of from the waker data.
@@ -125,7 +120,7 @@ impl WakerData {
 
     /// Get the process id from the waker data.
     fn pid(self) -> ProcessId {
-        ProcessId((self.0 << THREAD_ID_BITS) >> THREAD_ID_BITS)
+        ProcessId(((self.0 << THREAD_ID_BITS) >> THREAD_ID_BITS) as u32)
     }
 
     /// Convert raw data from `RawWaker` into `WakerData`.
@@ -195,7 +190,7 @@ mod tests {
     use gaea::{event, poll, Event, Ready};
 
     use crate::system::ProcessId;
-    use crate::system::waker::{init_waker, new_waker, WakerData, THREAD_ID_BITS, WAKER_DATA_BITS};
+    use crate::system::waker::{init_waker, new_waker, WakerData};
 
     const AWAKENER_ID: event::Id = event::Id(0);
     const PID1: ProcessId = ProcessId(0);
@@ -226,7 +221,7 @@ mod tests {
         // And the process id that needs to be scheduled.
         assert_eq!(wake_receiver.try_recv(), Ok(PID1));
 
-        let pid2 = ProcessId(2_usize.pow(WAKER_DATA_BITS as u32 - THREAD_ID_BITS as u32) - 1);
+        let pid2 = ProcessId(u32::max_value());
         let waker = new_waker(waker_id, pid2);
         waker.wake();
 
@@ -261,19 +256,5 @@ mod tests {
         assert_eq!(events.pop(), Some(Event::new(AWAKENER_ID, Ready::READABLE)));
         // And the process id that needs to be scheduled.
         assert_eq!(wake_receiver.try_recv(), Ok(PID1));
-    }
-
-    #[test]
-    #[should_panic(expected = "Process id too large for waker")]
-    fn waker_too_large_pid() {
-        let mut os_queue = OsQueue::new().unwrap();
-
-        // Initialise the waker.
-        let awakener = Awakener::new(&mut os_queue, AWAKENER_ID).unwrap();
-        let (wake_sender, _) = crossbeam_channel::unbounded();
-        let waker_id = init_waker(awakener, wake_sender);
-
-        let pid = ProcessId(usize::max_value());
-        let _waker = new_waker(waker_id, pid);
     }
 }

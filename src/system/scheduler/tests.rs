@@ -162,7 +162,7 @@ impl Process for OrderTestProcess {
 
     fn run(mut self: Pin<&mut Self>, _system_ref: &mut ActorSystemRef) -> ProcessResult {
         let pid = self.id;
-        self.order.borrow_mut().push(pid.0);
+        self.order.borrow_mut().push(pid.0 as usize);
         self.runtime += Duration::from_millis(10);
         ProcessResult::Pending
     }
