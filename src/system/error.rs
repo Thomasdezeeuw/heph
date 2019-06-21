@@ -68,7 +68,7 @@ impl<SetupError> RuntimeError<SetupError> {
 
 impl<SetupError: fmt::Display> fmt::Display for RuntimeError<SetupError> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use self::RuntimeErrorInner::*;
+        use RuntimeErrorInner::*;
         match self.inner {
             StartThread(ref err) => {
                 write!(f, "{}: error starting worker thread: {}", Self::DESC, err)
@@ -90,7 +90,7 @@ impl<SetupError: Error + fmt::Display + 'static> Error for RuntimeError<SetupErr
     }
 
     fn source(&self) -> Option<&(dyn Error + 'static)> {
-        use self::RuntimeErrorInner::*;
+        use RuntimeErrorInner::*;
         match self.inner {
             StartThread(ref err) | Poll(ref err) => Some(err),
             Setup(ref err) => Some(err),

@@ -15,8 +15,8 @@ mod priority;
 #[cfg(test)]
 mod tests;
 
-pub use self::actor::ActorProcess;
-pub use self::priority::Priority;
+pub use actor::ActorProcess;
+pub use priority::Priority;
 
 /// Process id, or pid for short, is an identifier for a process in an
 /// [`ActorSystem`].

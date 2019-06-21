@@ -338,7 +338,7 @@ impl<E> From<AddActorError<E, io::Error>> for ServerError<E> {
 
 impl<E: fmt::Display> fmt::Display for ServerError<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use self::ServerError::*;
+        use ServerError::*;
         match self {
             Accept(ref err) => write!(f, "error accepting TCP stream: {}", err),
             NewActor(ref err) => write!(f, "error creating new actor: {}", err),

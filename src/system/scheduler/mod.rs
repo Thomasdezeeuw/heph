@@ -20,10 +20,10 @@ mod process;
 #[cfg(test)]
 mod tests;
 
-use self::process::{ActorProcess, Process, ProcessResult};
+use process::{ActorProcess, Process, ProcessResult};
 
-pub use self::process::Priority;
-pub use self::process::ProcessId;
+pub use process::Priority;
+pub use process::ProcessId;
 
 /// The scheduler, responsible for scheduling and running processes.
 #[derive(Debug)]

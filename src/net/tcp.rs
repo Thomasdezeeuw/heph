@@ -30,7 +30,7 @@ use crate::actor;
 
 mod server;
 
-pub use self::server::{setup_server, Server, ServerError, ServerMessage, ServerSetup};
+pub use server::{setup_server, Server, ServerError, ServerMessage, ServerSetup};
 
 /// A TCP socket listener.
 ///
