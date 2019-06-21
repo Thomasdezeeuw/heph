@@ -39,8 +39,8 @@ pub(crate) mod scheduler;
 
 pub mod options;
 
-pub use self::error::RuntimeError;
-pub use self::options::ActorOptions;
+pub use error::RuntimeError;
+pub use options::ActorOptions;
 
 use scheduler::{ProcessId, Scheduler, SchedulerRef};
 use waker::{init_waker, new_waker, WakerId, MAX_THREADS};
@@ -319,7 +319,7 @@ mod hack {
     }
 }
 
-use self::hack::SetupFn;
+use hack::SetupFn;
 
 /// Run the actor system, with an optional `setup` function.
 ///

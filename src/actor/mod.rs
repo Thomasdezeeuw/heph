@@ -57,7 +57,7 @@ pub mod message_select {
 }
 
 #[doc(inline)]
-pub use self::context::{Context, PeekMessage, ReceiveMessage};
+pub use context::{Context, PeekMessage, ReceiveMessage};
 
 /// The trait that defines how to create a new [`Actor`].
 ///

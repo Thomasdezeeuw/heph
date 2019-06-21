@@ -135,10 +135,10 @@ pub mod local;
 pub mod machine;
 pub mod sync;
 
-pub use self::error::{ActorShutdown, SendError};
-pub use self::local::Local;
-pub use self::machine::Machine;
-pub use self::sync::Sync;
+pub use error::{ActorShutdown, SendError};
+pub use local::Local;
+pub use machine::Machine;
+pub use sync::Sync;
 
 /// A reference to an actor.
 ///
