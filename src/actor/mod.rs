@@ -171,18 +171,71 @@ pub trait NewActor {
     ///
     /// This can be used when additional arguments are needed to be passed to an
     /// actor, where another function requires a certain argument list. For
-    /// example when using [`TcpListener`].
+    /// example when using [`tcp::Server`].
     ///
-    /// [`TcpListener`]: crate::net::TcpListener
+    /// [`tcp::Server`]: crate::net::tcp::Server
     ///
     /// # Examples
     ///
-    /// Using [`TcpListener`] requires a `NewActor` that accepts `(TcpStream,
+    /// Using [`tcp::Server`] requires a `NewActor` that accepts `(TcpStream,
     /// SocketAddr)` as arguments, but we need to pass the actor additional
     /// arguments.
     ///
-    /// ```ignore
-    /// unimplemeneted!("TODO: add example");
+    /// ```
+    /// #![feature(async_await, never_type)]
+    ///
+    /// use std::io;
+    /// use std::net::SocketAddr;
+    ///
+    /// use futures_util::AsyncWriteExt;
+    ///
+    /// # use heph::actor::messages::Terminate;
+    /// use heph::actor::{self, NewActor};
+    /// # use heph::log::error;
+    /// use heph::net::tcp::{self, TcpStream};
+    /// # use heph::supervisor::SupervisorStrategy;
+    /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+    ///
+    /// // Create and run the actor system.
+    /// ActorSystem::new().with_setup(setup).run().unwrap();
+    ///
+    /// /// In this setup function we'll add the TcpListener to the actor system.
+    /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
+    ///     // Our extra argument.
+    ///     let extra: usize = 1;
+    ///
+    ///     // Our actor that accepts three arguments.
+    ///     let new_actor = (conn_actor as fn(_, _, _, _) -> _)
+    ///         .map_arg(move |(stream, address)| (stream, address, extra));
+    ///
+    ///     // For more information about the remainder of this example see
+    ///     // `tcp::Server`.
+    ///     let listener = tcp::setup_server(conn_supervisor, new_actor, ActorOptions::default());
+    ///     let address = "127.0.0.1:7890".parse().unwrap();
+    ///     # let mut actor_ref =
+    ///     system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions::default())?;
+    ///
+    ///     actor_ref <<= Terminate;
+    ///
+    ///     Ok(())
+    /// }
+    ///
+    /// # fn listener_supervisor(err: tcp::ServerError<!>) -> SupervisorStrategy<(SocketAddr)> {
+    /// #   error!("error accepting connection: {}", err);
+    /// #   SupervisorStrategy::Stop
+    /// # }
+    /// #
+    /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
+    /// #   error!("error handling connection: {}", err);
+    /// #   SupervisorStrategy::Stop
+    /// # }
+    /// #
+    /// // Actor that handles a connection.
+    /// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr, extra: usize) -> io::Result<()> {
+    /// #   drop(address); // Silence dead code warnings.
+    /// #   drop(extra);
+    ///     stream.write_all(b"Hello World").await
+    /// }
     /// ```
     fn map_arg<F, Arg>(self, f: F) -> ArgMap<Self, F, Arg>
     where
