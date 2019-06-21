@@ -12,7 +12,7 @@ use crate::actor::{self, Actor, NewActor};
 use crate::mailbox::MailBox;
 use crate::net::TcpStream;
 use crate::supervisor::Supervisor;
-use crate::system::scheduler::ProcessId;
+use crate::system::ProcessId;
 use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 use crate::util::Shared;
 
