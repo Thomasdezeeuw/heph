@@ -27,7 +27,6 @@ use num_cpus;
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
 use crate::actor_ref::{ActorRef, Local, Sync};
 use crate::mailbox::MailBox;
-use crate::scheduler::{ProcessId, Scheduler, SchedulerRef};
 use crate::supervisor::{Supervisor, SupervisorStrategy};
 use crate::util::Shared;
 use crate::{actor, Actor, NewActor};
@@ -35,11 +34,15 @@ use crate::{actor, Actor, NewActor};
 mod error;
 mod waker;
 
+// TODO: don't make this public.
+pub(crate) mod scheduler;
+
 pub mod options;
 
 pub use self::error::RuntimeError;
 pub use self::options::ActorOptions;
 
+use scheduler::{ProcessId, Scheduler, SchedulerRef};
 use waker::{init_waker, new_waker, WakerId, MAX_THREADS};
 
 /// The system that runs all actors.

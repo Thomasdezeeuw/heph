@@ -11,8 +11,8 @@ use crate::actor::messages::Terminate;
 use crate::actor::{self, Actor, NewActor};
 use crate::mailbox::MailBox;
 use crate::net::TcpStream;
-use crate::scheduler::ProcessId;
 use crate::supervisor::Supervisor;
+use crate::system::scheduler::ProcessId;
 use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 use crate::util::Shared;
 
