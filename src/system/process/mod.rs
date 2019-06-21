@@ -8,15 +8,14 @@ use std::time::Duration;
 use gaea::event;
 
 use crate::system::ActorSystemRef;
+use crate::system::scheduler::Priority;
 
 mod actor;
-mod priority;
 
 #[cfg(test)]
 mod tests;
 
 pub use actor::ActorProcess;
-pub use priority::Priority;
 
 /// Process id, or pid for short, is an identifier for a process in an
 /// [`ActorSystem`].
