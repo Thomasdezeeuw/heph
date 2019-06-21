@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use futures_util::AsyncWriteExt;
 
 use heph::log::{self, error, info};
-use heph::net::tcp::{ListenerError, NewListener, TcpStream};
+use heph::net::tcp::{self, TcpStream};
 use heph::supervisor::SupervisorStrategy;
 use heph::system::options::Priority;
 use heph::system::RuntimeError;
@@ -34,7 +34,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // be added to the actor system it needs the `ActorOptions` to do that,
     // we'll use the defaults options here.
     let actor = conn_actor as fn(_, _, _) -> _;
-    let listener = NewListener::new(conn_supervisor, actor, ActorOptions::default());
+    let server = tcp::setup_server(conn_supervisor, actor, ActorOptions::default());
 
     // As the TCP listener is just another actor we need to spawn it like any
     // other actor. And again actors needs supervision, thus we provide
@@ -48,7 +48,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
         priority: Priority::LOW,
         ..Default::default()
     };
-    system_ref.try_spawn(listener_supervisor, listener, address, options)?;
+    system_ref.try_spawn(server_supervisor, server, address, options)?;
 
     Ok(())
 }
@@ -57,7 +57,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///
 /// In this example we'll log the error and then stop the actor, but we could
 /// restart it by providing another address.
-fn listener_supervisor(err: ListenerError<!>) -> SupervisorStrategy<(SocketAddr)> {
+fn server_supervisor(err: tcp::ServerError<!>) -> SupervisorStrategy<(SocketAddr)> {
     error!("error in TCP listener: {}", err);
     SupervisorStrategy::Stop
 }
