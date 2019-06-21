@@ -4,13 +4,14 @@
 //!
 //!  * [`TcpListener`] listens for incoming connections.
 //!  * [`TcpStream`] represents a single TCP connection.
-//!  * [`tcp::Actor`] is an [`Actor`] that listens for incoming connections and
-//!    starts a new actor for each.
+//!  * [`tcp::Server`] is an [`Actor`] that listens for incoming connections and
+//!    starts a new actor for each. A server can be created by using
+//!    [`setup_server`].
 //!
-//! [`tcp::Actor`]: crate::net::tcp::Actor
+//! [`tcp::Server`]: crate::net::tcp::Server
 //! [`Actor`]: crate::actor::Actor
 //! [`tcp::NewListener`]: crate::net::tcp::NewListener
-//! [`NewActor`]: crate::actor::NewActor
+//! [`setup_server`]: crate::net::tcp::setup_server
 
 use std::future::Future;
 use std::io::{self, Read, Write};
@@ -27,7 +28,9 @@ use gaea::os::RegisterOption;
 
 use crate::actor;
 
-pub use super::tcp_actor::{Actor, ListenerError, Message, NewListener};
+mod server;
+
+pub use self::server::{setup_server, Server, ServerError, ServerMessage, ServerSetup};
 
 /// A TCP socket listener.
 ///
