@@ -59,7 +59,8 @@ impl Scheduler {
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub fn schedule(&mut self, pid: ProcessId) {
         trace!("scheduling process: pid={}", pid);
-        if let Some(ref mut process) = self.processes.borrow_mut().get_mut(pid.0) {
+        let pid = pid.0 as usize;
+        if let Some(ref mut process) = self.processes.borrow_mut().get_mut(pid) {
             if !process.is_active() {
                 self.active.push(process.mark_active());
             }
@@ -90,13 +91,13 @@ impl Scheduler {
             }
         };
 
-        let pid = process.id();
+        let pid = process.id().0 as usize;
         match process.as_mut().run(system_ref) {
             ProcessResult::Complete => {
-                let process_state = self.processes.borrow_mut().remove(pid.0);
+                let process_state = self.processes.borrow_mut().remove(pid);
                 debug_assert!(process_state.is_active(), "removed an inactive process");
             }
-            ProcessResult::Pending => match self.processes.borrow_mut().get_mut(pid.0) {
+            ProcessResult::Pending => match self.processes.borrow_mut().get_mut(pid) {
                 Some(ref mut process_state) => process_state.mark_inactive(process),
                 None => unreachable!("active process already removed"),
             },
@@ -148,7 +149,7 @@ pub struct AddingProcess<'s> {
 impl<'s> AddingProcess<'s> {
     /// Get the would be `ProcessId` for the process.
     pub fn pid(&self) -> ProcessId {
-        ProcessId(self.processes.len())
+        ProcessId(self.processes.len() as u32)
     }
 
     /// Add a new inactive actor process to the scheduler.
@@ -174,7 +175,7 @@ impl<'s> AddingProcess<'s> {
     /// Add a new process to the scheduler.
     fn add_process(mut self, pid: ProcessId, process: Pin<Box<dyn Process>>) {
         let actual_pid = self.processes.insert(ProcessState::Inactive(process));
-        debug_assert_eq!(actual_pid, pid.0);
+        debug_assert_eq!(actual_pid as u32, pid.0);
     }
 }
 
