@@ -14,8 +14,10 @@ use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{empty, Empty};
 use gaea::event;
 
-use crate::scheduler::process::{ActorProcess, Priority, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoSupervisor, SupervisorStrategy};
+use crate::system::scheduler::process::{
+    ActorProcess, Priority, Process, ProcessId, ProcessResult,
+};
 use crate::test::{init_actor, system_ref};
 use crate::{actor, ActorSystemRef, NewActor};
 
@@ -135,8 +137,14 @@ fn process_ordering() {
 
     // If all the "fair runtimes" are equal we only compare based on the
     // priority.
-    assert_eq!(process1.runtime() * process1.priority(), process2.runtime() * process2.priority());
-    assert_eq!(process1.runtime() * process1.priority(), process3.runtime() * process3.priority());
+    assert_eq!(
+        process1.runtime() * process1.priority(),
+        process2.runtime() * process2.priority()
+    );
+    assert_eq!(
+        process1.runtime() * process1.priority(),
+        process3.runtime() * process3.priority()
+    );
     assert_eq!(process1.cmp(process2), Ordering::Less);
     assert_eq!(process1.cmp(process3), Ordering::Less);
     assert_eq!(process2.cmp(process3), Ordering::Less);
@@ -156,8 +164,14 @@ fn actor_process() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, NoSupervisor,
-        new_actor, actor, inbox);
+    let process = ActorProcess::new(
+        ProcessId(0),
+        Priority::NORMAL,
+        NoSupervisor,
+        new_actor,
+        actor,
+        inbox,
+    );
     let mut process = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -167,7 +181,10 @@ fn actor_process() {
     // Actor should return `Poll::Pending` in the first call, since no message
     // is available.
     let mut system_ref = system_ref();
-    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
+    assert_eq!(
+        process.as_mut().run(&mut system_ref),
+        ProcessResult::Pending
+    );
 
     // Runtime must be increased after each call to run.
     let runtime_after_1_run = process.runtime();
@@ -175,7 +192,10 @@ fn actor_process() {
 
     // Send the message and the actor should return Ok.
     actor_ref.send(()).unwrap();
-    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
+    assert_eq!(
+        process.as_mut().run(&mut system_ref),
+        ProcessResult::Complete
+    );
     assert!(process.runtime() > runtime_after_1_run);
 }
 
@@ -197,8 +217,14 @@ fn erroneous_actor_process() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL,
-        |_err| SupervisorStrategy::Stop, new_actor, actor, inbox);
+    let process = ActorProcess::new(
+        ProcessId(0),
+        Priority::NORMAL,
+        |_err| SupervisorStrategy::Stop,
+        new_actor,
+        actor,
+        inbox,
+    );
     let mut process = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -207,7 +233,10 @@ fn erroneous_actor_process() {
 
     // Actor should return Err.
     let mut system_ref = system_ref();
-    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
+    assert_eq!(
+        process.as_mut().run(&mut system_ref),
+        ProcessResult::Complete
+    );
     assert!(process.runtime() > Duration::from_millis(0));
 }
 
@@ -227,8 +256,14 @@ fn restarting_erroneous_actor_process() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, supervisor,
-        new_actor, actor, inbox);
+    let process = ActorProcess::new(
+        ProcessId(0),
+        Priority::NORMAL,
+        supervisor,
+        new_actor,
+        actor,
+        inbox,
+    );
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -239,7 +274,10 @@ fn restarting_erroneous_actor_process() {
     // be restarted. The restarted actor waits for a message, returning
     // `Poll::Pending`.
     let mut system_ref = system_ref();
-    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
+    assert_eq!(
+        process.as_mut().run(&mut system_ref),
+        ProcessResult::Pending
+    );
     // Runtime must be increased after each call to run.
     let runtime_after_1_run = process.runtime();
     assert!(runtime_after_1_run > Duration::from_millis(0));
@@ -248,7 +286,10 @@ fn restarting_erroneous_actor_process() {
 
     // Now we send a message to the restarted actor, which should return `Ok`.
     actor_ref.send(()).unwrap();
-    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
+    assert_eq!(
+        process.as_mut().run(&mut system_ref),
+        ProcessResult::Complete
+    );
     assert!(process.runtime() > runtime_after_1_run);
 }
 
@@ -269,8 +310,14 @@ fn actor_process_runtime_increase() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, NoSupervisor,
-        new_actor, actor, inbox);
+    let process = ActorProcess::new(
+        ProcessId(0),
+        Priority::NORMAL,
+        NoSupervisor,
+        new_actor,
+        actor,
+        inbox,
+    );
     let mut process = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -279,7 +326,10 @@ fn actor_process_runtime_increase() {
 
     // Runtime must increase after running.
     let mut system_ref = system_ref();
-    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Complete);
+    assert_eq!(
+        process.as_mut().run(&mut system_ref),
+        ProcessResult::Complete
+    );
     assert!(process.runtime() >= SLEEP_TIME);
 }
 
@@ -291,7 +341,11 @@ impl NewActor for TestAssertUnmovedNewActor {
     type Actor = AssertUnmoved<Empty<Result<(), !>>>;
     type Error = !;
 
-    fn new(&mut self, ctx: actor::Context<Self::Message>, _arg: Self::Argument) -> Result<Self::Actor, Self::Error> {
+    fn new(
+        &mut self,
+        ctx: actor::Context<Self::Message>,
+        _arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
         // In the test we need the access to the inbox, to achieve that we can't
         // drop the context, so we forget about it here leaking the inbox.
         forget(ctx);
@@ -306,8 +360,14 @@ fn actor_process_assert_actor_unmoved() {
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(ProcessId(0), Priority::NORMAL, NoSupervisor,
-        TestAssertUnmovedNewActor, actor, inbox);
+    let process = ActorProcess::new(
+        ProcessId(0),
+        Priority::NORMAL,
+        NoSupervisor,
+        TestAssertUnmovedNewActor,
+        actor,
+        inbox,
+    );
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
     assert_eq!(process.id(), ProcessId(0));
@@ -317,7 +377,16 @@ fn actor_process_assert_actor_unmoved() {
     // All we do is run it a couple of times, it should panic if the actor is
     // moved.
     let mut system_ref = system_ref();
-    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
-    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
-    assert_eq!(process.as_mut().run(&mut system_ref), ProcessResult::Pending);
+    assert_eq!(
+        process.as_mut().run(&mut system_ref),
+        ProcessResult::Pending
+    );
+    assert_eq!(
+        process.as_mut().run(&mut system_ref),
+        ProcessResult::Pending
+    );
+    assert_eq!(
+        process.as_mut().run(&mut system_ref),
+        ProcessResult::Pending
+    );
 }

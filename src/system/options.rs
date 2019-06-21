@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-pub use crate::scheduler::Priority;
+pub use crate::system::scheduler::Priority;
 
 /// Options for adding an actor to an [`ActorSystem`].
 ///

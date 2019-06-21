@@ -8,7 +8,7 @@ use crossbeam_channel::Sender;
 use gaea::os::Awakener;
 use log::error;
 
-use crate::scheduler::ProcessId;
+use crate::system::scheduler::ProcessId;
 
 /// Maximum number of threads currently supported by this `Waker`
 /// implementation.
@@ -194,7 +194,7 @@ mod tests {
     use gaea::os::{Awakener, OsQueue};
     use gaea::{event, poll, Event, Ready};
 
-    use crate::scheduler::ProcessId;
+    use crate::system::scheduler::ProcessId;
     use crate::system::waker::{init_waker, new_waker, WakerData, THREAD_ID_BITS, WAKER_DATA_BITS};
 
     const AWAKENER_ID: event::Id = event::Id(0);

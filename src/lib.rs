@@ -104,7 +104,6 @@ pub mod timer;
 pub mod test;
 
 mod mailbox;
-mod scheduler;
 mod util;
 
 #[doc(no_inline)]

@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 use log::{error, trace};
 
 use crate::mailbox::MailBox;
-use crate::scheduler::process::{Priority, Process, ProcessId, ProcessResult};
 use crate::supervisor::SupervisorStrategy;
+use crate::system::scheduler::process::{Priority, Process, ProcessId, ProcessResult};
 use crate::util::Shared;
 use crate::{actor, Actor, ActorSystemRef, NewActor, Supervisor};
 
@@ -28,8 +28,13 @@ pub struct ActorProcess<S, NA: NewActor> {
 
 impl<S, NA: NewActor> ActorProcess<S, NA> {
     /// Create a new `ActorProcess`.
-    pub(crate) const fn new(id: ProcessId, priority: Priority, supervisor: S,
-        new_actor: NA, actor: NA::Actor, inbox: Shared<MailBox<NA::Message>>
+    pub(crate) const fn new(
+        id: ProcessId,
+        priority: Priority,
+        supervisor: S,
+        new_actor: NA,
+        actor: NA::Actor,
+        inbox: Shared<MailBox<NA::Message>>,
     ) -> ActorProcess<S, NA> {
         ActorProcess {
             id,
@@ -78,7 +83,8 @@ where
                 match this.supervisor.decide(err) {
                     SupervisorStrategy::Restart(arg) => {
                         // Create a new actor.
-                        let ctx = actor::Context::new(this.id, system_ref.clone(), this.inbox.clone());
+                        let ctx =
+                            actor::Context::new(this.id, system_ref.clone(), this.inbox.clone());
                         match this.new_actor.new(ctx, arg) {
                             Ok(actor) => {
                                 pinned_actor.set(actor);
@@ -101,7 +107,12 @@ where
         };
 
         let elapsed = start.elapsed();
-        trace!("finished running actor process: pid={}, elapsed_time={:?}, result={:?}", this.id, elapsed, result);
+        trace!(
+            "finished running actor process: pid={}, elapsed_time={:?}, result={:?}",
+            this.id,
+            elapsed,
+            result
+        );
         this.runtime += elapsed;
 
         result

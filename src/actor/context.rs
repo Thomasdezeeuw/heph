@@ -8,7 +8,7 @@ use std::task::{self, Poll};
 use crate::actor::message_select::{First, MessageSelector};
 use crate::actor_ref::{ActorRef, Local};
 use crate::mailbox::MailBox;
-use crate::scheduler::ProcessId;
+use crate::system::scheduler::ProcessId;
 use crate::system::ActorSystemRef;
 use crate::util::Shared;
 
