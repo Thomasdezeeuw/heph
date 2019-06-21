@@ -4,7 +4,7 @@ use std::mem::size_of;
 
 use crate::actor_ref::{ActorRef, ActorShutdown, Local, Machine, SendError};
 use crate::mailbox::MailBox;
-use crate::system::scheduler::ProcessId;
+use crate::system::ProcessId;
 use crate::test;
 use crate::util::Shared;
 

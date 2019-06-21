@@ -8,7 +8,7 @@ use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{empty, Empty};
 
 use crate::supervisor::NoSupervisor;
-use crate::system::scheduler::process::{Process, ProcessId, ProcessResult};
+use crate::system::process::{Process, ProcessId, ProcessResult};
 use crate::system::scheduler::{Priority, ProcessState, Scheduler};
 use crate::system::ActorSystemRef;
 use crate::test::{init_actor, system_ref};

@@ -32,17 +32,18 @@ use crate::util::Shared;
 use crate::{actor, Actor, NewActor};
 
 mod error;
+mod process;
+mod scheduler;
 mod waker;
 
-// TODO: don't make this public.
-pub(crate) mod scheduler;
+pub(crate) use process::ProcessId;
 
 pub mod options;
 
 pub use error::RuntimeError;
 pub use options::ActorOptions;
 
-use scheduler::{ProcessId, Scheduler, SchedulerRef};
+use scheduler::{Scheduler, SchedulerRef};
 use waker::{init_waker, new_waker, WakerId, MAX_THREADS};
 
 /// The system that runs all actors.

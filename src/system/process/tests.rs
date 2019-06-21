@@ -15,9 +15,7 @@ use futures_util::future::{empty, Empty};
 use gaea::event;
 
 use crate::supervisor::{NoSupervisor, SupervisorStrategy};
-use crate::system::scheduler::process::{
-    ActorProcess, Priority, Process, ProcessId, ProcessResult,
-};
+use crate::system::process::{ActorProcess, Priority, Process, ProcessId, ProcessResult};
 use crate::test::{init_actor, system_ref};
 use crate::{actor, ActorSystemRef, NewActor};
 

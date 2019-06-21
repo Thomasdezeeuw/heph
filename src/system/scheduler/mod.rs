@@ -10,20 +10,14 @@ use log::{debug, trace};
 use slab::Slab;
 
 use crate::actor::{Actor, NewActor};
+use crate::system::process::{Priority, ProcessId, ActorProcess, Process, ProcessResult};
 use crate::mailbox::MailBox;
 use crate::supervisor::Supervisor;
 use crate::system::ActorSystemRef;
 use crate::util::Shared;
 
-mod process;
-
 #[cfg(test)]
 mod tests;
-
-use process::{ActorProcess, Process, ProcessResult};
-
-pub use process::Priority;
-pub use process::ProcessId;
 
 /// The scheduler, responsible for scheduling and running processes.
 #[derive(Debug)]

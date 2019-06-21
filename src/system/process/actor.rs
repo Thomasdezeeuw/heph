@@ -9,7 +9,7 @@ use log::{error, trace};
 
 use crate::mailbox::MailBox;
 use crate::supervisor::SupervisorStrategy;
-use crate::system::scheduler::process::{Priority, Process, ProcessId, ProcessResult};
+use crate::system::process::{Priority, Process, ProcessId, ProcessResult};
 use crate::util::Shared;
 use crate::{actor, Actor, ActorSystemRef, NewActor, Supervisor};
 

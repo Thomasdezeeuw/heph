@@ -6,7 +6,7 @@ use std::iter::{Enumerate, FusedIterator};
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
 
-use crate::system::scheduler::ProcessId;
+use crate::system::ProcessId;
 use crate::system::ActorSystemRef;
 
 /// Mailbox that holds all messages for an actor.

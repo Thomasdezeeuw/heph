@@ -24,7 +24,7 @@ use std::task::{self, Poll};
 
 use crate::actor_ref::{ActorRef, Local};
 use crate::mailbox::MailBox;
-use crate::system::scheduler::ProcessId;
+use crate::system::ProcessId;
 use crate::system::RunningActorSystem;
 use crate::util::Shared;
 use crate::{actor, Actor, ActorSystemRef, NewActor};
