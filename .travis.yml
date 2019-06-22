@@ -14,5 +14,5 @@ matrix:
       script: ./.ci/clippy.sh
     - rust: stable
       name: "Format check"
-      script: cargo fmt --all -- --check
+      script: ./.ci/fmt.sh
 script: ./.ci/test.sh
