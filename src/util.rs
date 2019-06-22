@@ -33,13 +33,6 @@ impl<T> Shared<T> {
             Err(_) => unreachable!("tried to mutable borrow an already borrowed Shared"),
         }
     }
-
-    /// See `Rc::downgrade`.
-    pub fn downgrade(&self) -> WeakShared<T> {
-        WeakShared {
-            inner: Rc::downgrade(&self.inner),
-        }
-    }
 }
 
 impl<T> Clone for Shared<T> {
@@ -56,17 +49,6 @@ impl<T> Clone for Shared<T> {
 pub struct WeakShared<T> {
     /// Note: if this representation changes it will break the Actor Registry!
     inner: Weak<RefCell<T>>,
-}
-
-impl<T> WeakShared<T> {
-    /// See `Weak.upgrade`.
-    pub fn upgrade(&self) -> Option<Shared<T>> {
-        self.inner.upgrade().map(|inner| Shared { inner })
-    }
-
-    pub fn ptr_eq(&self, other: &Self) -> bool {
-        Weak::ptr_eq(&self.inner, &other.inner)
-    }
 }
 
 impl<T> Clone for WeakShared<T> {

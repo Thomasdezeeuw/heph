@@ -3,11 +3,9 @@
 use std::fmt;
 
 use crate::actor_ref::{ActorRef, Send, SendError};
-use crate::mailbox::MailBox;
-use crate::util::WeakShared;
-
 #[cfg(test)]
-use crate::util::Shared;
+use crate::inbox::Inbox;
+use crate::inbox::InboxRef;
 
 /// Local actor reference.
 ///
@@ -19,34 +17,19 @@ use crate::util::Shared;
 /// [`ActorSystem`]: crate::system::ActorSystem
 /// [upgraded]: crate::actor_ref::ActorRef::upgrade
 /// [machine local actor reference]: crate::actor_ref::Machine
+#[derive(Clone)]
 pub struct Local<M> {
     /// The inbox of the `Actor`, owned by the `ActorProcess`.
-    ///
-    /// Note: if this representation changes it will break the Actor Registry!
-    pub(super) inbox: WeakShared<MailBox<M>>,
+    pub(super) inbox: InboxRef<M>,
 }
 
 impl<M> Send for Local<M> {
     type Message = M;
 
     fn send(&mut self, msg: Self::Message) -> Result<(), SendError<Self::Message>> {
-        match self.inbox.upgrade() {
-            Some(mut inbox) => {
-                inbox.borrow_mut().deliver(msg);
-                Ok(())
-            }
-            None => Err(SendError { message: msg }),
-        }
-    }
-}
-
-/// Data used by a local actor reference.
-
-impl<M> Clone for Local<M> {
-    fn clone(&self) -> Local<M> {
-        Local {
-            inbox: self.inbox.clone(),
-        }
+        self.inbox
+            .try_deliver(msg)
+            .map_err(|msg| SendError { message: msg })
     }
 }
 
@@ -54,7 +37,7 @@ impl<M> Eq for Local<M> {}
 
 impl<M> PartialEq for Local<M> {
     fn eq(&self, other: &Local<M>) -> bool {
-        self.inbox.ptr_eq(&other.inbox)
+        self.inbox.same_inbox(&other.inbox)
     }
 }
 
@@ -66,13 +49,13 @@ impl<M> fmt::Debug for Local<M> {
 
 impl<M> ActorRef<Local<M>> {
     /// Create a new `ActorRef` with a shared mailbox.
-    pub(crate) const fn new_local(inbox: WeakShared<MailBox<M>>) -> ActorRef<Local<M>> {
+    pub(crate) const fn new_local(inbox: InboxRef<M>) -> ActorRef<Local<M>> {
         ActorRef::new(Local { inbox })
     }
 
     /// Get access to the internal inbox, used in testing.
     #[cfg(test)]
-    pub(crate) fn get_inbox(&mut self) -> Option<Shared<MailBox<M>>> {
+    pub(crate) fn get_inbox(&mut self) -> Option<Inbox<M>> {
         self.data.inbox.upgrade()
     }
 }

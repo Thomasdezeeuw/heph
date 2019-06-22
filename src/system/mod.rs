@@ -26,9 +26,8 @@ use num_cpus;
 
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
 use crate::actor_ref::{ActorRef, Local, Sync};
-use crate::mailbox::MailBox;
+use crate::inbox::Inbox;
 use crate::supervisor::{Supervisor, SupervisorStrategy};
-use crate::util::Shared;
 use crate::{actor, Actor, NewActor};
 
 mod error;
@@ -611,9 +610,9 @@ impl ActorSystemRef {
         let arg = arg_fn(pid, &mut system_ref).map_err(AddActorError::ArgFn)?;
 
         // Create our actor context and our actor with it.
-        let mailbox = Shared::new(MailBox::new(pid, self.clone()));
-        let actor_ref = ActorRef::new_local(mailbox.downgrade());
-        let ctx = actor::Context::new(pid, system_ref, mailbox.clone());
+        let inbox = Inbox::new(pid, self.clone());
+        let actor_ref = ActorRef::new_local(inbox.create_ref());
+        let ctx = actor::Context::new(pid, system_ref, inbox.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         if options.schedule {
@@ -621,7 +620,7 @@ impl ActorSystemRef {
         }
 
         // Add the actor to the scheduler.
-        process_entry.add_actor(options.priority, supervisor, new_actor, actor, mailbox);
+        process_entry.add_actor(options.priority, supervisor, new_actor, actor, inbox);
 
         Ok(actor_ref)
     }

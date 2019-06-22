@@ -1,17 +1,24 @@
 //! Module containing the `MailBox` for an actor.
 
+use std::cell::RefCell;
 use std::collections::vec_deque;
 use std::collections::VecDeque;
 use std::iter::{Enumerate, FusedIterator};
+use std::rc::{Rc, Weak};
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
 
 use crate::system::ActorSystemRef;
 use crate::system::ProcessId;
 
-/// Mailbox that holds all messages for an actor.
+/// Inbox that holds all messages for an actor.
 #[derive(Debug)]
-pub struct MailBox<M> {
+pub struct Inbox<M> {
+    shared: Rc<RefCell<SharedInbox<M>>>,
+}
+
+#[derive(Debug)]
+struct SharedInbox<M> {
     /// Process id of the actor, used to notify the actor when receiving
     /// message.
     pid: ProcessId,
@@ -26,42 +33,7 @@ pub struct MailBox<M> {
     messages2: Option<(Sender<M>, Receiver<M>)>,
 }
 
-impl<M> MailBox<M> {
-    /// Create a new mailbox.
-    pub fn new(pid: ProcessId, system_ref: ActorSystemRef) -> MailBox<M> {
-        MailBox {
-            pid,
-            system_ref,
-            messages: VecDeque::new(),
-            messages2: None,
-        }
-    }
-
-    /// Deliver a new message to the mailbox.
-    ///
-    /// This will also schedule the actor to run.
-    pub fn deliver(&mut self, msg: M) {
-        self.system_ref.notify(self.pid);
-        self.messages.push_back(msg);
-    }
-
-    /// Receive the next message, if any.
-    pub fn receive_next(&mut self) -> Option<M> {
-        self.receive_remote_messages();
-        self.messages.pop_front()
-    }
-
-    /// Receive a delivered message, if any.
-    pub fn receive<S>(&mut self, selector: &mut S) -> Option<M>
-    where
-        S: MessageSelector<M>,
-    {
-        self.receive_remote_messages();
-        selector
-            .select(Messages::new(&self.messages))
-            .and_then(|selection| self.messages.remove(selection.0))
-    }
-
+impl<M> SharedInbox<M> {
     /// Receive all remote messages, if any, and add them to the message queue.
     ///
     /// This is done in an attempt to make the receiving of the two sources of
@@ -73,6 +45,46 @@ impl<M> MailBox<M> {
             }
         }
     }
+}
+
+impl<M> Inbox<M> {
+    /// Create a new inbox.
+    pub fn new(pid: ProcessId, system_ref: ActorSystemRef) -> Inbox<M> {
+        Inbox {
+            shared: Rc::new(RefCell::new(SharedInbox {
+                pid,
+                system_ref,
+                messages: VecDeque::new(),
+                messages2: None,
+            })),
+        }
+    }
+
+    /// Create a reference to this inbox.
+    pub fn create_ref(&self) -> InboxRef<M> {
+        InboxRef {
+            shared: Rc::downgrade(&self.shared),
+        }
+    }
+
+    /// Receive the next message, if any.
+    pub fn receive_next(&mut self) -> Option<M> {
+        let mut shared = self.shared.borrow_mut();
+        shared.receive_remote_messages();
+        shared.messages.pop_front()
+    }
+
+    /// Receive a delivered message, if any.
+    pub fn receive<S>(&mut self, selector: &mut S) -> Option<M>
+    where
+        S: MessageSelector<M>,
+    {
+        let mut shared = self.shared.borrow_mut();
+        shared.receive_remote_messages();
+        selector
+            .select(Messages::new(&shared.messages))
+            .and_then(|selection| shared.messages.remove(selection.0))
+    }
 
     /// Peek a delivered message, if any.
     pub fn peek<S>(&mut self, selector: &mut S) -> Option<M>
@@ -80,21 +92,79 @@ impl<M> MailBox<M> {
         S: MessageSelector<M>,
         M: Clone,
     {
-        self.receive_remote_messages();
+        let mut shared = self.shared.borrow_mut();
+        shared.receive_remote_messages();
         selector
-            .select(Messages::new(&self.messages))
-            .and_then(|selection| self.messages.get(selection.0).cloned())
+            .select(Messages::new(&shared.messages))
+            .and_then(|selection| shared.messages.get(selection.0).cloned())
+    }
+}
+
+impl<M> Clone for Inbox<M> {
+    fn clone(&self) -> Inbox<M> {
+        Inbox {
+            shared: Rc::clone(&self.shared),
+        }
+    }
+}
+
+/// Reference to an inbox that may fail to get access to the inbox if the actor
+/// is stopped.
+#[derive(Debug)]
+pub struct InboxRef<M> {
+    shared: Weak<RefCell<SharedInbox<M>>>,
+}
+
+impl<M> InboxRef<M> {
+    /// Attempt to deliver a message to the mailbox.
+    ///
+    /// This will also schedule the actor to run.
+    pub fn try_deliver(&mut self, msg: M) -> Result<(), M> {
+        match self.shared.upgrade() {
+            Some(shared) => {
+                let mut shared = shared.borrow_mut();
+                let pid = shared.pid;
+                shared.messages.push_back(msg);
+                shared.system_ref.notify(pid);
+                Ok(())
+            }
+            None => Err(msg),
+        }
     }
 
     /// Used by local actor reference to upgrade to a machine local actor
     /// reference.
-    pub fn upgrade_ref(&mut self) -> (ProcessId, Sender<M>) {
-        let sender = self
-            .messages2
-            .get_or_insert_with(channel::unbounded)
-            .0
-            .clone();
-        (self.pid, sender)
+    pub fn try_upgrade_ref(&mut self) -> Result<(ProcessId, Sender<M>), ()> {
+        match self.shared.upgrade() {
+            Some(shared) => {
+                let mut shared = shared.borrow_mut();
+                let sender = shared
+                    .messages2
+                    .get_or_insert_with(channel::unbounded)
+                    .0
+                    .clone();
+                Ok((shared.pid, sender))
+            }
+            None => Err(()),
+        }
+    }
+
+    /// Returns true if `self` and `other` point to the same inbox.
+    pub fn same_inbox(&self, other: &InboxRef<M>) -> bool {
+        Weak::ptr_eq(&self.shared, &other.shared)
+    }
+
+    #[cfg(test)]
+    pub fn upgrade(&mut self) -> Option<Inbox<M>> {
+        self.shared.upgrade().map(|shared| Inbox { shared })
+    }
+}
+
+impl<M> Clone for InboxRef<M> {
+    fn clone(&self) -> InboxRef<M> {
+        InboxRef {
+            shared: Weak::clone(&self.shared),
+        }
     }
 }
 

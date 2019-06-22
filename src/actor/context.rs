@@ -7,10 +7,9 @@ use std::task::{self, Poll};
 
 use crate::actor::message_select::{First, MessageSelector};
 use crate::actor_ref::{ActorRef, Local};
-use crate::mailbox::MailBox;
+use crate::inbox::Inbox;
 use crate::system::ActorSystemRef;
 use crate::system::ProcessId;
-use crate::util::Shared;
 
 /// The context in which an actor is executed.
 ///
@@ -30,7 +29,7 @@ pub struct Context<M> {
     ///
     /// This field is public because it is used by `TcpListener`, as we don't
     /// need entire context there.
-    pub(crate) inbox: Shared<MailBox<M>>,
+    pub(crate) inbox: Inbox<M>,
 }
 
 impl<M> Context<M> {
@@ -38,7 +37,7 @@ impl<M> Context<M> {
     pub(crate) const fn new(
         pid: ProcessId,
         system_ref: ActorSystemRef,
-        inbox: Shared<MailBox<M>>,
+        inbox: Inbox<M>,
     ) -> Context<M> {
         Context {
             pid,
@@ -78,7 +77,7 @@ impl<M> Context<M> {
     /// # drop(greeter_actor);
     /// ```
     pub fn try_receive_next(&mut self) -> Option<M> {
-        self.inbox.borrow_mut().receive_next()
+        self.inbox.receive_next()
     }
 
     /// Attempt to receive a specific message.
@@ -139,7 +138,7 @@ impl<M> Context<M> {
     where
         S: MessageSelector<M>,
     {
-        self.inbox.borrow_mut().receive(&mut selector)
+        self.inbox.receive(&mut selector)
     }
 
     /// Receive the next message.
@@ -260,7 +259,7 @@ impl<M> Context<M> {
 
     /// Returns a reference to this actor.
     pub fn actor_ref(&mut self) -> ActorRef<Local<M>> {
-        ActorRef::new_local(self.inbox.downgrade())
+        ActorRef::new_local(self.inbox.create_ref())
     }
 
     /// Get a reference to the actor system this actor is running in.
@@ -283,7 +282,7 @@ impl<M> Context<M> {
 /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
 #[derive(Debug)]
 pub struct ReceiveMessage<'ctx, M, S = First> {
-    inbox: &'ctx mut Shared<MailBox<M>>,
+    inbox: &'ctx mut Inbox<M>,
     selector: S,
 }
 
@@ -298,7 +297,7 @@ where
             ref mut inbox,
             ref mut selector,
         } = self.deref_mut();
-        match inbox.borrow_mut().receive(selector) {
+        match inbox.receive(selector) {
             Some(msg) => Poll::Ready(msg),
             // Wakeup notifications are done when adding to the mailbox.
             None => Poll::Pending,
@@ -315,7 +314,7 @@ where
 /// [`actor::Context::peek_next`]: crate::actor::Context::peek_next
 #[derive(Debug)]
 pub struct PeekMessage<'ctx, M, S = First> {
-    inbox: &'ctx mut Shared<MailBox<M>>,
+    inbox: &'ctx mut Inbox<M>,
     selector: S,
 }
 
@@ -331,7 +330,7 @@ where
             ref mut inbox,
             ref mut selector,
         } = self.deref_mut();
-        match inbox.borrow_mut().peek(selector) {
+        match inbox.peek(selector) {
             Some(msg) => Poll::Ready(msg),
             // Wakeup notifications are done when adding to the mailbox.
             None => Poll::Pending,

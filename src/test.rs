@@ -23,10 +23,9 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 
 use crate::actor_ref::{ActorRef, Local};
-use crate::mailbox::MailBox;
+use crate::inbox::Inbox;
 use crate::system::ProcessId;
 use crate::system::RunningActorSystem;
-use crate::util::Shared;
 use crate::{actor, Actor, ActorSystemRef, NewActor};
 
 thread_local! {
@@ -52,8 +51,8 @@ where
     let system_ref = system_ref();
     let pid = ProcessId(0);
 
-    let inbox = Shared::new(MailBox::new(pid, system_ref.clone()));
-    let actor_ref = ActorRef::new_local(inbox.downgrade());
+    let inbox = Inbox::new(pid, system_ref.clone());
+    let actor_ref = ActorRef::new_local(inbox.create_ref());
 
     let ctx = actor::Context::new(pid, system_ref, inbox);
     let actor = new_actor.new(ctx, arg)?;

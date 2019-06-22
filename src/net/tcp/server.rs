@@ -9,12 +9,11 @@ use log::debug;
 
 use crate::actor::messages::Terminate;
 use crate::actor::{self, Actor, NewActor};
-use crate::mailbox::MailBox;
+use crate::inbox::Inbox;
 use crate::net::TcpStream;
 use crate::supervisor::Supervisor;
 use crate::system::ProcessId;
 use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
-use crate::util::Shared;
 
 /// A intermediate structure that implements [`NewActor`], creating
 /// [`tcp::Server`].
@@ -239,7 +238,7 @@ pub struct Server<S, NA> {
     /// Options used to add the actor to the actor system.
     options: ActorOptions,
     /// The inbox of the listener.
-    inbox: Shared<MailBox<ServerMessage>>,
+    inbox: Inbox<ServerMessage>,
 }
 
 impl<S, NA> Actor for Server<S, NA>
@@ -265,7 +264,7 @@ where
         } = unsafe { self.get_unchecked_mut() };
 
         // See if we need to shutdown.
-        if inbox.borrow_mut().receive_next().is_some() {
+        if inbox.receive_next().is_some() {
             return Poll::Ready(Ok(()));
         }
 
