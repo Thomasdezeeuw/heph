@@ -189,8 +189,8 @@ mod tests {
     use gaea::os::{Awakener, OsQueue};
     use gaea::{event, poll, Event, Ready};
 
-    use crate::system::ProcessId;
     use crate::system::waker::{init_waker, new_waker, WakerData};
+    use crate::system::ProcessId;
 
     const AWAKENER_ID: event::Id = event::Id(0);
     const PID1: ProcessId = ProcessId(0);

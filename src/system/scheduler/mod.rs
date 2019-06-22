@@ -1,18 +1,20 @@
 //! Module containing the `Scheduler` and related types.
 
 use std::cell::RefMut;
+use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use std::mem;
 use std::pin::Pin;
+use std::time::{Duration, Instant};
+use std::{fmt, mem};
 
 use gaea::{event, Event};
 use log::{debug, trace};
 use slab::Slab;
 
 use crate::actor::{Actor, NewActor};
-use crate::system::process::{ProcessId, ActorProcess, Process, ProcessResult};
 use crate::mailbox::MailBox;
 use crate::supervisor::Supervisor;
+use crate::system::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::system::ActorSystemRef;
 use crate::util::Shared;
 
@@ -27,13 +29,13 @@ pub use priority::Priority;
 #[derive(Debug)]
 pub struct Scheduler {
     /// Active processes.
-    active: BinaryHeap<Pin<Box<dyn Process>>>,
+    active: BinaryHeap<ProcessData>,
     /// All* processes in the scheduler.
+    ///
+    /// This is shared with `SchedulerRef`, which can add inactive processes.
     ///
     /// *Actually active processes are in the active list above, but still have
     /// a state in this list.
-    ///
-    /// This is shared with `SchedulerRef`, which can add inactive processes.
     processes: Shared<Slab<ProcessState>>,
 }
 
@@ -91,8 +93,8 @@ impl Scheduler {
             }
         };
 
-        let pid = process.id().0 as usize;
-        match process.as_mut().run(system_ref) {
+        let pid = process.id.0 as usize;
+        match process.run(system_ref) {
             ProcessResult::Complete => {
                 let process_state = self.processes.borrow_mut().remove(pid);
                 debug_assert!(process_state.is_active(), "removed an inactive process");
@@ -164,18 +166,22 @@ impl<'s> AddingProcess<'s> {
         S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
         NA: NewActor + 'static,
     {
-        let pid = self.pid();
-        debug!("adding new actor process: pid={}", pid);
-        let process = Box::pin(ActorProcess::new(
-            pid, priority, supervisor, new_actor, actor, mailbox,
-        ));
-        self.add_process(pid, process)
+        let process = Box::pin(ActorProcess::new(supervisor, new_actor, actor, mailbox));
+        self.add_process(process, priority)
     }
 
     /// Add a new process to the scheduler.
-    fn add_process(mut self, pid: ProcessId, process: Pin<Box<dyn Process>>) {
-        let actual_pid = self.processes.insert(ProcessState::Inactive(process));
-        debug_assert_eq!(actual_pid as u32, pid.0);
+    fn add_process(mut self, process: Pin<Box<dyn Process>>, priority: Priority) {
+        let id = self.pid();
+        debug!("adding new actor process: pid={}", id);
+        let process_data = ProcessData {
+            id,
+            priority,
+            runtime: Duration::from_millis(0),
+            process,
+        };
+        let actual_pid = self.processes.insert(ProcessState::Inactive(process_data));
+        debug_assert_eq!(actual_pid as u32, id.0);
     }
 }
 
@@ -186,7 +192,7 @@ enum ProcessState {
     /// processes.
     Active,
     /// Process is currently inactive.
-    Inactive(Pin<Box<dyn Process>>),
+    Inactive(ProcessData),
 }
 
 impl ProcessState {
@@ -203,7 +209,7 @@ impl ProcessState {
     /// # Panics
     ///
     /// Panics if the process was already active.
-    fn mark_active(&mut self) -> Pin<Box<dyn Process>> {
+    fn mark_active(&mut self) -> ProcessData {
         match mem::replace(self, ProcessState::Active) {
             ProcessState::Active => unreachable!("tried to mark an active process as active"),
             ProcessState::Inactive(process) => process,
@@ -215,12 +221,78 @@ impl ProcessState {
     /// # Panics
     ///
     /// Panics if the process was already inactive.
-    fn mark_inactive(&mut self, process: Pin<Box<dyn Process>>) {
+    fn mark_inactive(&mut self, process: ProcessData) {
         match mem::replace(self, ProcessState::Inactive(process)) {
             ProcessState::Active => {}
             ProcessState::Inactive(_) => {
                 unreachable!("tried to mark an inactive process as inactive")
             }
         }
+    }
+}
+
+/// Data related to a process.
+///
+/// # Notes
+///
+/// Because this structure moves around a lot inside the `Scheduler`, from
+/// inactive to active and vice versa, it important for the performance for this
+/// to be small in size.
+struct ProcessData {
+    id: ProcessId,
+    priority: Priority,
+    runtime: Duration,
+    process: Pin<Box<dyn Process + 'static>>,
+}
+
+impl Eq for ProcessData {}
+
+impl PartialEq for ProcessData {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl Ord for ProcessData {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (other.runtime * other.priority)
+            .cmp(&(self.runtime * self.priority))
+            .then_with(|| self.priority.cmp(&other.priority))
+    }
+}
+
+impl PartialOrd for ProcessData {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl ProcessData {
+    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
+        trace!("running process: pid={}", self.id);
+
+        let start = Instant::now();
+        let result = self.process.as_mut().run(system_ref, self.id);
+        let elapsed = start.elapsed();
+        self.runtime += elapsed;
+
+        trace!(
+            "finished running process: pid={}, elapsed_time={:?}, result={:?}",
+            self.id,
+            elapsed,
+            result
+        );
+
+        result
+    }
+}
+
+impl fmt::Debug for ProcessData {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Process")
+            .field("id", &self.id)
+            .field("priority", &self.priority)
+            .field("runtime", &self.runtime)
+            .finish()
     }
 }

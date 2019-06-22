@@ -20,8 +20,7 @@ use std::time::{Duration, Instant};
 use futures_core::stream::{FusedStream, Stream};
 
 use crate::actor;
-use crate::system::ProcessId;
-use crate::system::ActorSystemRef;
+use crate::system::{ActorSystemRef, ProcessId};
 
 /// Type returned when the deadline has passed.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
