@@ -199,16 +199,16 @@ impl<M> ActorRef<Local<M>> {
     /// This allows the actor reference to be send across threads, however
     /// operations on it are more expensive.
     pub fn upgrade(
-        self,
+        mut self,
         system_ref: &mut ActorSystemRef,
     ) -> Result<ActorRef<Machine<M>>, ActorShutdown> {
-        let (pid, sender) = match self.data.inbox.upgrade() {
-            Some(mut inbox) => inbox.borrow_mut().upgrade_ref(),
-            None => return Err(ActorShutdown),
-        };
-
-        let waker = system_ref.new_waker(pid);
-        Ok(ActorRef::new_machine(sender, waker))
+        match self.data.inbox.try_upgrade_ref() {
+            Ok((pid, sender)) => {
+                let waker = system_ref.new_waker(pid);
+                Ok(ActorRef::new_machine(sender, waker))
+            }
+            Err(()) => Err(ActorShutdown),
+        }
     }
 }
 

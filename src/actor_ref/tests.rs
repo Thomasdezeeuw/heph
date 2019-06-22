@@ -3,10 +3,9 @@
 use std::mem::size_of;
 
 use crate::actor_ref::{ActorRef, ActorShutdown, Local, Machine, SendError};
-use crate::mailbox::MailBox;
+use crate::inbox::Inbox;
 use crate::system::ProcessId;
 use crate::test;
-use crate::util::Shared;
 
 // FIXME: add a test that local actor reference is !Send and !Sync. Below
 // doesn't work. :(
@@ -20,36 +19,36 @@ fn size_assertions() {
 
 #[test]
 fn local_actor_ref() {
-    // Create our mailbox.
+    // Create our inbox.
     let pid = ProcessId(0);
     let system_ref = test::system_ref();
-    let mut mailbox = Shared::new(MailBox::new(pid, system_ref.clone()));
-    assert_eq!(mailbox.borrow_mut().receive_next(), None);
+    let mut inbox = Inbox::new(pid, system_ref.clone());
+    assert_eq!(inbox.receive_next(), None);
 
     // Create our actor reference.
-    let mut actor_ref = ActorRef::new_local(mailbox.downgrade());
+    let mut actor_ref = ActorRef::new_local(inbox.create_ref());
 
     // Send a message.
     actor_ref.send(1).unwrap();
-    assert_eq!(mailbox.borrow_mut().receive_next(), Some(1));
+    assert_eq!(inbox.receive_next(), Some(1));
 
     // Sending multiple messages.
     actor_ref.send(2).unwrap();
     actor_ref.send(3).unwrap();
-    assert_eq!(mailbox.borrow_mut().receive_next(), Some(2));
-    assert_eq!(mailbox.borrow_mut().receive_next(), Some(3));
+    assert_eq!(inbox.receive_next(), Some(2));
+    assert_eq!(inbox.receive_next(), Some(3));
 
-    // Clone the reference should send to the same mailbox.
+    // Clone the reference should send to the same inbox.
     let mut actor_ref2 = actor_ref.clone();
     actor_ref.send(4).unwrap();
     actor_ref2 <<= 5;
-    assert_eq!(mailbox.borrow_mut().receive_next(), Some(4));
-    assert_eq!(mailbox.borrow_mut().receive_next(), Some(5));
+    assert_eq!(inbox.receive_next(), Some(4));
+    assert_eq!(inbox.receive_next(), Some(5));
 
     // Should be able to compare references.
     assert_eq!(actor_ref, actor_ref2);
-    let mailbox2 = Shared::new(MailBox::new(pid, system_ref));
-    let actor_ref3 = ActorRef::new_local(mailbox2.downgrade());
+    let inbox2 = Inbox::new(pid, system_ref);
+    let actor_ref3 = ActorRef::new_local(inbox2.create_ref());
     assert_ne!(actor_ref, actor_ref3);
     assert_ne!(actor_ref2, actor_ref3);
     assert_eq!(actor_ref3, actor_ref3);
@@ -57,9 +56,9 @@ fn local_actor_ref() {
     // Test Debug implementation.
     assert_eq!(format!("{:?}", actor_ref), "LocalActorRef");
 
-    // Dropping the mailbox should cause send messages to return errors.
-    assert_eq!(mailbox.borrow_mut().receive_next(), None);
-    drop(mailbox);
+    // Dropping the inbox should cause send messages to return errors.
+    assert_eq!(inbox.receive_next(), None);
+    drop(inbox);
     assert_eq!(actor_ref.send(10), Err(SendError { message: 10 }));
     assert_eq!(actor_ref2.send(11), Err(SendError { message: 11 }));
 }
@@ -68,34 +67,34 @@ fn assert_send<T: Send + Sync>(_: &T) {}
 
 #[test]
 fn machine_local_actor_ref() {
-    // Create our mailbox.
+    // Create our inbox.
     let pid = ProcessId(0);
     let mut system_ref = test::system_ref();
-    let mut mailbox = Shared::new(MailBox::new(pid, system_ref.clone()));
-    assert_eq!(mailbox.borrow_mut().receive_next(), None);
+    let mut inbox = Inbox::new(pid, system_ref.clone());
+    assert_eq!(inbox.receive_next(), None);
 
     // Create our actor reference.
-    let mut actor_ref = ActorRef::new_local(mailbox.downgrade())
+    let mut actor_ref = ActorRef::new_local(inbox.create_ref())
         .upgrade(&mut system_ref)
         .unwrap();
 
     // Sending a message.
     actor_ref.send(1).unwrap();
     actor_ref <<= 2;
-    assert_eq!(mailbox.borrow_mut().receive_next(), Some(1));
-    assert_eq!(mailbox.borrow_mut().receive_next(), Some(2));
+    assert_eq!(inbox.receive_next(), Some(1));
+    assert_eq!(inbox.receive_next(), Some(2));
 
-    // Cloning should send to the same mailbox.
+    // Cloning should send to the same inbox.
     let mut actor_ref2 = actor_ref.clone();
     actor_ref2 <<= 3;
-    assert_eq!(mailbox.borrow_mut().receive_next(), Some(3));
+    assert_eq!(inbox.receive_next(), Some(3));
 
     /* TODO: depends on https://github.com/crossbeam-rs/crossbeam/issues/319.
     // Comparing should be possible.
     assert_eq!(actor_ref, actor_ref2);
 
-    let mailbox2 = Shared::new(MailBox::new(pid, system_ref.clone()));
-    let actor_ref3 = ActorRef::new_local(mailbox2.downgrade())
+    let inbox2 = Inbox::new(pid, system_ref.clone());
+    let actor_ref3 = ActorRef::new_local(inbox2.create_ref())
         .upgrade(&mut system_ref).unwrap();
     assert_ne!(actor_ref, actor_ref3);
     assert_ne!(actor_ref2, actor_ref3);
@@ -107,23 +106,23 @@ fn machine_local_actor_ref() {
     // Test Send and Sync.
     assert_send(&actor_ref);
 
-    // After the mailbox is dropped the local reference should return an error
+    // After the inbox is dropped the local reference should return an error
     // when trying to upgrade.
-    let local_actor_ref = ActorRef::new_local(mailbox.downgrade());
-    drop(mailbox);
+    let local_actor_ref = ActorRef::new_local(inbox.create_ref());
+    drop(inbox);
     assert_eq!(local_actor_ref.upgrade(&mut system_ref).unwrap_err(), ActorShutdown);
 }
 
 #[test]
 fn local_and_machine_actor_ref() {
-    // Create our mailbox.
+    // Create our inbox.
     let pid = ProcessId(0);
     let mut system_ref = test::system_ref();
-    let mut mailbox = Shared::new(MailBox::new(pid, system_ref.clone()));
-    assert_eq!(mailbox.borrow_mut().receive_next(), None);
+    let mut inbox = Inbox::new(pid, system_ref.clone());
+    assert_eq!(inbox.receive_next(), None);
 
     // Create our actor reference.
-    let mut local_actor_ref = ActorRef::new_local(mailbox.downgrade());
+    let mut local_actor_ref = ActorRef::new_local(inbox.create_ref());
     let mut machine_actor_ref = local_actor_ref.clone().upgrade(&mut system_ref).unwrap();
 
     // Send a number messages via both the local and machine references.
@@ -134,8 +133,8 @@ fn local_and_machine_actor_ref() {
     // On the first call to receive all the non-local messages are appended to
     // the local messages. Which means that local message are queue before the
     // non-local messages.
-    assert_eq!(mailbox.borrow_mut().receive_next(), Some(1));
-    assert_eq!(mailbox.borrow_mut().receive_next(), Some(4));
-    assert_eq!(mailbox.borrow_mut().receive_next(), Some(2));
-    assert_eq!(mailbox.borrow_mut().receive_next(), Some(3));
+    assert_eq!(inbox.receive_next(), Some(1));
+    assert_eq!(inbox.receive_next(), Some(4));
+    assert_eq!(inbox.receive_next(), Some(2));
+    assert_eq!(inbox.receive_next(), Some(3));
 }

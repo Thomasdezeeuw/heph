@@ -12,7 +12,7 @@ use log::{debug, trace};
 use slab::Slab;
 
 use crate::actor::{Actor, NewActor};
-use crate::mailbox::MailBox;
+use crate::inbox::Inbox;
 use crate::supervisor::Supervisor;
 use crate::system::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::system::ActorSystemRef;
@@ -161,7 +161,7 @@ impl<'s> AddingProcess<'s> {
         supervisor: S,
         new_actor: NA,
         actor: NA::Actor,
-        mailbox: Shared<MailBox<NA::Message>>,
+        mailbox: Inbox<NA::Message>,
     ) where
         S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
         NA: NewActor + 'static,

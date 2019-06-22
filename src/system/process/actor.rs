@@ -5,10 +5,9 @@ use std::task::{self, Poll};
 
 use log::error;
 
-use crate::mailbox::MailBox;
+use crate::inbox::Inbox;
 use crate::supervisor::SupervisorStrategy;
 use crate::system::process::{Process, ProcessId, ProcessResult};
-use crate::util::Shared;
 use crate::{actor, Actor, ActorSystemRef, NewActor, Supervisor};
 
 /// A process that represent an [`Actor`].
@@ -18,7 +17,7 @@ pub struct ActorProcess<S, NA: NewActor> {
     actor: NA::Actor,
     /// The inbox of the actor, used in create a new `actor::Context` if the
     /// actor is restarted.
-    inbox: Shared<MailBox<NA::Message>>,
+    inbox: Inbox<NA::Message>,
 }
 
 impl<S, NA: NewActor> ActorProcess<S, NA> {
@@ -27,7 +26,7 @@ impl<S, NA: NewActor> ActorProcess<S, NA> {
         supervisor: S,
         new_actor: NA,
         actor: NA::Actor,
-        inbox: Shared<MailBox<NA::Message>>,
+        inbox: Inbox<NA::Message>,
     ) -> ActorProcess<S, NA> {
         ActorProcess {
             supervisor,

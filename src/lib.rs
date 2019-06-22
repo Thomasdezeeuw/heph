@@ -103,7 +103,7 @@ pub mod timer;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 
-mod mailbox;
+mod inbox;
 mod util;
 
 #[doc(no_inline)]
