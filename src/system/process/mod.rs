@@ -25,7 +25,7 @@ pub use actor::ActorProcess;
 /// and into an [`event::Id`] as used by Gaea.
 ///
 /// [`ActorSystem`]: crate::system::ActorSystem
-/// [`Scheduler`]: crate::scheduler::Scheduler
+/// [`Scheduler`]: crate::system::scheduler::Scheduler
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(transparent)]
 pub struct ProcessId(pub u32);
