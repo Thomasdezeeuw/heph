@@ -104,7 +104,6 @@ pub mod timer;
 pub mod test;
 
 mod inbox;
-mod util;
 
 #[doc(no_inline)]
 pub use crate::actor::{Actor, NewActor};

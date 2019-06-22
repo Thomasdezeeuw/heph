@@ -1,8 +1,10 @@
 //! Tests for the scheduler.
 
+use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::mem::{self, forget};
 use std::pin::Pin;
+use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -17,7 +19,6 @@ use crate::system::process::{Process, ProcessId, ProcessResult};
 use crate::system::scheduler::{Priority, ProcessData, ProcessState, Scheduler};
 use crate::system::ActorSystemRef;
 use crate::test::{init_actor, system_ref};
-use crate::util::Shared;
 use crate::{actor, NewActor};
 
 fn assert_size<T>(expected: usize) {
@@ -372,7 +373,7 @@ fn event_sink_impl() {
 async fn order_actor(
     _ctx: actor::Context<!>,
     id: usize,
-    mut order: Shared<Vec<usize>>,
+    order: Rc<RefCell<Vec<usize>>>,
 ) -> Result<(), !> {
     order.borrow_mut().push(id);
     Ok(())
@@ -384,7 +385,7 @@ fn scheduler_run_order() {
     let mut system_ref = system_ref();
 
     // The order in which the processes have been run.
-    let run_order = Shared::new(Vec::new());
+    let run_order = Rc::new(RefCell::new(Vec::new()));
 
     // Add our processes.
     #[allow(trivial_casts)]

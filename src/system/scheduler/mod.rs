@@ -1,9 +1,11 @@
 //! Module containing the `Scheduler` and related types.
 
+use std::cell::RefCell;
 use std::cell::RefMut;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::pin::Pin;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 use std::{fmt, mem};
 
@@ -16,7 +18,6 @@ use crate::inbox::Inbox;
 use crate::supervisor::Supervisor;
 use crate::system::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::system::ActorSystemRef;
-use crate::util::Shared;
 
 mod priority;
 
@@ -36,13 +37,13 @@ pub struct Scheduler {
     ///
     /// *Actually active processes are in the active list above, but still have
     /// a state in this list.
-    processes: Shared<Slab<ProcessState>>,
+    processes: Rc<RefCell<Slab<ProcessState>>>,
 }
 
 impl Scheduler {
     /// Create a new scheduler and accompanying reference.
     pub fn new() -> (Scheduler, SchedulerRef) {
-        let shared = Shared::new(Slab::new());
+        let shared = Rc::new(RefCell::new(Slab::new()));
         let scheduler = Scheduler {
             active: BinaryHeap::new(),
             processes: shared.clone(),
@@ -122,7 +123,7 @@ impl event::Sink for Scheduler {
 #[derive(Debug)]
 pub struct SchedulerRef {
     /// Processes shared with `Scheduler`.
-    processes: Shared<Slab<ProcessState>>,
+    processes: Rc<RefCell<Slab<ProcessState>>>,
 }
 
 impl SchedulerRef {
