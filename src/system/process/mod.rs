@@ -1,14 +1,11 @@
 //! Module containing the `Process` trait, related types and implementations.
 
-use std::cmp::Ordering;
 use std::fmt;
 use std::pin::Pin;
-use std::time::Duration;
 
 use gaea::event;
 
 use crate::system::ActorSystemRef;
-use crate::system::scheduler::Priority;
 
 mod actor;
 
@@ -52,16 +49,7 @@ impl fmt::Display for ProcessId {
 ///
 /// This currently has a single implementations;
 /// - the `ActorProcess`, which wraps an `Actor` to implement this trait.
-pub trait Process: fmt::Debug {
-    /// Get the id of the process.
-    fn id(&self) -> ProcessId;
-
-    /// Get the priority of the process.
-    fn priority(&self) -> Priority;
-
-    /// Get the total time this process has run.
-    fn runtime(&self) -> Duration;
-
+pub trait Process {
     /// Run the process.
     ///
     /// Once the process returns `ProcessResult::Complete` it will be removed
@@ -69,29 +57,7 @@ pub trait Process: fmt::Debug {
     ///
     /// If it returns `ProcessResult::Pending` it will be considered inactive
     /// and the process itself must make sure its gets scheduled again.
-    fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef) -> ProcessResult;
-}
-
-impl Eq for dyn Process {}
-
-impl PartialEq for dyn Process {
-    fn eq(&self, other: &Self) -> bool {
-        self.id() == other.id()
-    }
-}
-
-impl Ord for dyn Process {
-    fn cmp(&self, other: &Self) -> Ordering {
-        (other.runtime() * other.priority())
-            .cmp(&(self.runtime() * self.priority()))
-            .then_with(|| self.priority().cmp(&other.priority()))
-    }
-}
-
-impl PartialOrd for dyn Process {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
+    fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef, pid: ProcessId) -> ProcessResult;
 }
 
 /// The result of running a `Process`.
