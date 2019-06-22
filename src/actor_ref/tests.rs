@@ -13,8 +13,16 @@ use crate::test;
 
 #[test]
 fn size_assertions() {
-    assert_eq!(size_of::<ActorRef<Local<usize>>>(), size_of::<Local<usize>>());
-    assert_eq!(size_of::<ActorRef<Machine<usize>>>(), size_of::<Machine<usize>>());
+    assert_eq!(
+        size_of::<ActorRef<Local<usize>>>(),
+        size_of::<Local<usize>>()
+    );
+    assert_eq!(
+        size_of::<ActorRef<Machine<usize>>>(),
+        size_of::<Machine<usize>>()
+    );
+    use crate::actor_ref::Sync;
+    assert_eq!(size_of::<ActorRef<Sync<usize>>>(), size_of::<Sync<usize>>());
 }
 
 #[test]
@@ -110,7 +118,8 @@ fn machine_local_actor_ref() {
     // when trying to upgrade.
     let local_actor_ref = ActorRef::new_local(inbox.create_ref());
     drop(inbox);
-    assert_eq!(local_actor_ref.upgrade(&mut system_ref).unwrap_err(), ActorShutdown);
+    let res = local_actor_ref.upgrade(&mut system_ref).unwrap_err();
+    assert_eq!(res, ActorShutdown);
 }
 
 #[test]

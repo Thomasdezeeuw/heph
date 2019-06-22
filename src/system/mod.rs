@@ -183,7 +183,10 @@ impl<S> ActorSystem<S> {
     /// sets the number of threads equal to the number of CPU cores.
     pub fn num_threads(mut self, n: usize) -> Self {
         if n > MAX_THREADS {
-            panic!("Can't create {} worker threads, {} is the maximum", n, MAX_THREADS);
+            panic!(
+                "Can't create {} worker threads, {} is the maximum",
+                n, MAX_THREADS
+            );
         }
         self.threads = n;
         self
@@ -253,8 +256,8 @@ where
         // keeps running and all other threads crash we'll keep running. Not an
         // ideal situation.
         for handle in handles {
-            handle.join().map_err(map_panic)
-                .and_then(|res| res)?; // Result<Result<(), E>> -> Result<(), E>.
+            // Last `and_then` maps: Result<Result<(), E>> -> Result<(), E>.
+            handle.join().map_err(map_panic).and_then(|res| res)?;
         }
 
         trace!("worker threads completed, waiting for synchronous actors");
@@ -280,10 +283,15 @@ fn map_panic<E>(err: Box<dyn Any + Send + 'static>) -> RuntimeError<E> {
 
 impl<S> fmt::Debug for ActorSystem<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let setup = if self.setup.is_some() {
+            &"Some"
+        } else {
+            &"None"
+        };
         f.debug_struct("ActorSystem")
             .field("threads", &self.threads)
             .field("sync_actors (length)", &self.sync_actors.len())
-            .field("setup", if self.setup.is_some() { &"Some" } else { &"None" })
+            .field("setup", setup)
             .finish()
     }
 }
@@ -402,8 +410,11 @@ where
     }
 
     fn poll(&mut self, event_sink: &mut ES) -> Result<(), E> {
-        event_sink.extend(self.receiver.try_iter()
-            .map(|pid| Event::new(pid.into(), Ready::READABLE)));
+        event_sink.extend(
+            self.receiver
+                .try_iter()
+                .map(|pid| Event::new(pid.into(), Ready::READABLE)),
+        );
         Ok(())
     }
 }
@@ -423,8 +434,7 @@ impl RunningActorSystem {
     pub fn new<E>() -> Result<RunningActorSystem, RuntimeError<E>> {
         // System queue for event notifications.
         let mut os_queue = OsQueue::new().map_err(RuntimeError::poll)?;
-        let awakener = Awakener::new(&mut os_queue, AWAKENER_ID)
-            .map_err(RuntimeError::poll)?;
+        let awakener = Awakener::new(&mut os_queue, AWAKENER_ID).map_err(RuntimeError::poll)?;
 
         // Channel used in the `Waker` implementation.
         let (waker_sender, waker_recv) = channel::unbounded();
@@ -446,7 +456,9 @@ impl RunningActorSystem {
         Ok(RunningActorSystem {
             internal: Rc::new(internal),
             scheduler,
-            waker_events: WakerEvents { receiver: waker_recv },
+            waker_events: WakerEvents {
+                receiver: waker_recv,
+            },
         })
     }
 
@@ -503,8 +515,17 @@ impl RunningActorSystem {
         let mut queue = self.internal.queue.borrow_mut();
         let mut timers = self.internal.timers.borrow_mut();
         let waker = &mut self.waker_events;
-        poll(&mut [os_queue.deref_mut(), queue.deref_mut(), timers.deref_mut(), waker], &mut self.scheduler, timeout)
-            .map_err(RuntimeError::poll)?;
+        poll(
+            &mut [
+                os_queue.deref_mut(),
+                queue.deref_mut(),
+                timers.deref_mut(),
+                waker,
+            ],
+            &mut self.scheduler,
+            timeout,
+        )
+        .map_err(RuntimeError::poll)?;
 
         Ok(())
     }
@@ -626,17 +647,37 @@ impl ActorSystemRef {
     }
 
     /// Register an `Evented` handle, see `OsQueue.register`.
-    pub(crate) fn register<E>(&mut self, handle: &mut E, id: event::Id, interests: Interests, opt: RegisterOption) -> io::Result<()>
-        where E: Evented + ?Sized,
+    pub(crate) fn register<E>(
+        &mut self,
+        handle: &mut E,
+        id: event::Id,
+        interests: Interests,
+        opt: RegisterOption,
+    ) -> io::Result<()>
+    where
+        E: Evented + ?Sized,
     {
-        self.internal.os_queue.borrow_mut().register(handle, id, interests, opt)
+        self.internal
+            .os_queue
+            .borrow_mut()
+            .register(handle, id, interests, opt)
     }
 
     /// Reregister an `Evented` handle, see `OsQueue.reregister`.
-    pub(crate) fn reregister<E>(&mut self, handle: &mut E, id: event::Id, interests: Interests, opt: RegisterOption) -> io::Result<()>
-        where E: Evented + ?Sized,
+    pub(crate) fn reregister<E>(
+        &mut self,
+        handle: &mut E,
+        id: event::Id,
+        interests: Interests,
+        opt: RegisterOption,
+    ) -> io::Result<()>
+    where
+        E: Evented + ?Sized,
     {
-        self.internal.os_queue.borrow_mut().reregister(handle, id, interests, opt)
+        self.internal
+            .os_queue
+            .borrow_mut()
+            .reregister(handle, id, interests, opt)
     }
 
     /// Get a clone of the sending end of the notification channel.
@@ -648,11 +689,17 @@ impl ActorSystemRef {
     ///
     /// This is used in the `timer` crate.
     pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.internal.timers.borrow_mut().add_deadline(pid.into(), deadline);
+        self.internal
+            .timers
+            .borrow_mut()
+            .add_deadline(pid.into(), deadline);
     }
 
     pub(crate) fn notify(&mut self, pid: ProcessId) {
-        self.internal.queue.borrow_mut().add(Event::new(pid.into(), Ready::READABLE));
+        self.internal
+            .queue
+            .borrow_mut()
+            .add(Event::new(pid.into(), Ready::READABLE));
     }
 }
 
