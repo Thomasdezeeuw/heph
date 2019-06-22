@@ -12,4 +12,7 @@ matrix:
     - rust: nightly
       name: "Clippy check"
       script: ./.ci/clippy.sh
+    - rust: stable
+      name: "Format check"
+      script: cargo fmt --all -- --check
 script: ./.ci/test.sh
