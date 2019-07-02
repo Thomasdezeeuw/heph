@@ -9,7 +9,6 @@ use std::rc::Rc;
 use std::time::{Duration, Instant};
 use std::{fmt, mem};
 
-use gaea::{event, Event};
 use log::{debug, trace};
 use slab::Slab;
 
@@ -106,16 +105,6 @@ impl Scheduler {
             },
         }
         true
-    }
-}
-
-impl event::Sink for Scheduler {
-    fn capacity_left(&self) -> event::Capacity {
-        event::Capacity::Growable
-    }
-
-    fn add(&mut self, event: Event) {
-        self.schedule(event.id().into());
     }
 }
 

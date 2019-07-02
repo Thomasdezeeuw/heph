@@ -11,8 +11,6 @@ use std::time::Duration;
 use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{empty, Empty};
 use futures_util::pending;
-use gaea::event::{self, Sink};
-use gaea::{Event, Ready};
 
 use crate::supervisor::NoSupervisor;
 use crate::system::process::{Process, ProcessId, ProcessResult};
@@ -348,26 +346,6 @@ fn running_process() {
     assert!(scheduler.run_process(&mut system_ref));
     assert!(scheduler.is_empty());
     assert!(!scheduler.has_active_process());
-}
-
-#[test]
-fn event_sink_impl() {
-    let (mut scheduler, mut scheduler_ref) = Scheduler::new();
-    let mut system_ref = system_ref();
-
-    // Add an actor to the scheduler.
-    let process_entry = scheduler_ref.add_process();
-    assert_eq!(process_entry.pid(), ProcessId(0));
-    #[allow(trivial_casts)]
-    let new_actor = simple_actor as fn(_) -> _;
-    let (actor, mut actor_ref) = init_actor(new_actor, ()).unwrap();
-    let inbox = actor_ref.get_inbox().unwrap();
-    process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
-
-    scheduler.add(Event::new(event::Id(0), Ready::READABLE));
-    assert!(scheduler.run_process(&mut system_ref));
-
-    assert_eq!(scheduler.capacity_left(), event::Capacity::Growable);
 }
 
 async fn order_actor(
