@@ -385,37 +385,24 @@ pub(crate) struct RunningActorSystem {
     internal: Rc<ActorSystemInternal>,
     /// Scheduler that hold the processes, schedules and runs them.
     scheduler: Scheduler,
-    /// Event source for `Waker` events.
-    waker_events: WakerEvents,
-}
-
-/// A wrapper around `crossbeam_channel::Receiver` that implements
-/// `gaeaevent::Source`.
-#[derive(Debug)]
-struct WakerEvents {
     /// Receiving side of the channel for `Waker` events.
-    receiver: Receiver<ProcessId>,
+    waker_events: Receiver<ProcessId>,
 }
 
-impl<ES, E> event::Source<ES, E> for WakerEvents
-where
-    ES: event::Sink,
-{
-    fn max_timeout(&self) -> Option<Duration> {
-        if !self.receiver.is_empty() {
-            Some(Duration::from_millis(0))
-        } else {
-            None
-        }
+struct Schedule<'s>(&'s mut Scheduler, bool);
+
+impl<'s> event::Sink for Schedule<'s> {
+    fn capacity_left(&self) -> event::Capacity {
+        event::Capacity::Growable
     }
 
-    fn poll(&mut self, event_sink: &mut ES) -> Result<(), E> {
-        event_sink.extend(
-            self.receiver
-                .try_iter()
-                .map(|pid| Event::new(pid.into(), Ready::READABLE)),
-        );
-        Ok(())
+    fn add(&mut self, event: Event) {
+        let id = event.id();
+        if id == AWAKENER_ID {
+            self.1 = true;
+        } else {
+            self.0.schedule(id.into());
+        }
     }
 }
 
@@ -456,9 +443,7 @@ impl RunningActorSystem {
         Ok(RunningActorSystem {
             internal: Rc::new(internal),
             scheduler,
-            waker_events: WakerEvents {
-                receiver: waker_recv,
-            },
+            waker_events: waker_recv,
         })
     }
 
@@ -505,27 +490,37 @@ impl RunningActorSystem {
         trace!("polling event sources to schedule processes");
 
         // If there are any processes to run we don't want to block.
-        let timeout = if self.scheduler.has_active_process() {
+        let timeout = if self.scheduler.has_active_process() || !self.waker_events.is_empty() {
             Some(Duration::from_millis(0))
         } else {
             None
         };
 
-        let mut os_queue = self.internal.os_queue.borrow_mut();
-        let mut queue = self.internal.queue.borrow_mut();
-        let mut timers = self.internal.timers.borrow_mut();
-        let waker = &mut self.waker_events;
-        poll(
-            &mut [
-                os_queue.deref_mut(),
-                queue.deref_mut(),
-                timers.deref_mut(),
-                waker,
-            ],
-            &mut self.scheduler,
-            timeout,
-        )
-        .map_err(RuntimeError::poll)?;
+        let poll_waker = {
+            let mut os_queue = self.internal.os_queue.borrow_mut();
+            let mut queue = self.internal.queue.borrow_mut();
+            let mut timers = self.internal.timers.borrow_mut();
+
+            let mut schedule = Schedule(&mut self.scheduler, false);
+
+            poll(
+                &mut [os_queue.deref_mut(), queue.deref_mut(), timers.deref_mut()],
+                &mut schedule,
+                timeout,
+            )
+            .map_err(RuntimeError::poll)?;
+            schedule.1
+        };
+
+        if poll_waker {
+            // We must first mark the waker as polled and only after poll the
+            // waker events to ensure we don't miss any wake ups.
+            waker::mark_polled(self.internal.waker_id);
+
+            for pid in self.waker_events.try_iter() {
+                self.scheduler.schedule(pid);
+            }
+        }
 
         Ok(())
     }
