@@ -133,23 +133,26 @@ pub fn mark_polled(waker_id: WakerId) {
 #[repr(transparent)]
 struct WakerData(usize);
 
-const WAKER_DATA_BITS: usize = mem::size_of::<WakerData>() * 8;
-const THREAD_ID_BITS: usize = mem::size_of::<WakerId>() * 8;
+const PID_BITS: usize = mem::size_of::<ProcessId>() * 8;
+const PID_MASK: usize = (1 << PID_BITS) - 1;
 
 impl WakerData {
     /// Create new `WakerData`.
     fn new(thread_id: WakerId, pid: ProcessId) -> WakerData {
-        WakerData((thread_id.0 as usize) << (WAKER_DATA_BITS - THREAD_ID_BITS) | pid.0 as usize)
+        let thread_data = (thread_id.0 as usize) << PID_BITS;
+        WakerData(thread_data | pid.0 as usize)
     }
 
     /// Get the thread id of from the waker data.
     fn waker_id(self) -> WakerId {
-        WakerId((self.0 >> (WAKER_DATA_BITS - THREAD_ID_BITS)) as u8)
+        let waker_id = self.0 >> PID_BITS;
+        WakerId(waker_id as u8)
     }
 
     /// Get the process id from the waker data.
     fn pid(self) -> ProcessId {
-        ProcessId(((self.0 << THREAD_ID_BITS) >> THREAD_ID_BITS) as u32)
+        let pid = self.0 & PID_MASK;
+        ProcessId(pid as u32)
     }
 
     /// Convert raw data from `RawWaker` into `WakerData`.
