@@ -465,6 +465,7 @@ impl RunningActorSystem {
             // We first run the processes and only poll after to ensure that we
             // return if there is nothing to poll, as there would be no
             // processes to run then either.
+            trace!("running processes");
             for _ in 0..RUN_POLL_RATIO {
                 if !self.scheduler.run_process(&mut system_ref) {
                     if self.scheduler.is_empty() {
@@ -517,6 +518,7 @@ impl RunningActorSystem {
             // waker events to ensure we don't miss any wake ups.
             waker::mark_polled(self.internal.waker_id);
 
+            trace!("polling wakup events");
             for pid in self.waker_events.try_iter() {
                 self.scheduler.schedule(pid);
             }
