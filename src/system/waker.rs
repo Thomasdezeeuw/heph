@@ -129,6 +129,12 @@ pub fn mark_polled(waker_id: WakerId) {
 }
 
 /// Waker data passed to `LocalWaker` and `Waker` implementations.
+///
+/// # Layout
+///
+/// The 32 least significant bits (right-most) make up the process id
+/// (`ProcessId`), the next 8 bits are the waker id (`WakerId`). The 8 most
+/// significant bits are currently unused.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(transparent)]
 struct WakerData(usize);
