@@ -14,10 +14,55 @@ use crate::system::ProcessId;
 /// implementation.
 pub const MAX_THREADS: usize = 64;
 
-/// Each worker thread that uses a `Waker` implementation needs an unique
-/// `WakerId`, which serves as index to `THREAD_WAKERS`, this variable
-/// determines that.
-static THREAD_IDS: AtomicU8 = AtomicU8::new(0);
+/// An id for a waker.
+///
+/// Returned by `init_waker` and used in `new_waker` to create a new `Waker`.
+//
+// This serves as index into `THREAD_WAKERS`.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[repr(transparent)]
+pub struct WakerId(u8);
+
+/// Initialise a new waker.
+///
+/// This returns a `WakerId` which can be used to create a new `Waker` using
+/// `new_waker`.
+pub fn init_waker(awakener: Awakener, notifications: Sender<ProcessId>) -> WakerId {
+    /// Each worker thread that uses a `Waker` implementation needs an unique
+    /// `WakerId`, which serves as index to `THREAD_WAKERS`, this variable
+    /// determines that.
+    static THREAD_IDS: AtomicU8 = AtomicU8::new(0);
+
+    let thread_id = THREAD_IDS.fetch_add(1, Ordering::AcqRel);
+    if thread_id as usize >= MAX_THREADS {
+        panic!("Created too many Heph worker threads");
+    }
+
+    // This is safe because we are the only thread that has write access to the
+    // given index. See documentation of `THREAD_WAKERS` for more.
+    unsafe {
+        THREAD_WAKERS[thread_id as usize] = Some(ThreadWaker {
+            notifications,
+            awoken: AtomicBool::new(false),
+            awakener,
+        });
+    }
+    WakerId(thread_id)
+}
+
+/// Create a new `Waker`.
+///
+/// `init_waker` must be called before calling this function to get a `WakerId`.
+pub fn new_waker(waker_id: WakerId, pid: ProcessId) -> Waker {
+    let data = WakerData::new(waker_id, pid).into_raw_data();
+    let raw_waker = RawWaker::new(data, WAKER_VTABLE);
+    unsafe { Waker::from_raw(raw_waker) }
+}
+
+/// Mark the waker with `waker_id` as recently polled.
+pub fn mark_polled(waker_id: WakerId) {
+    get_waker(waker_id).mark_polled();
+}
 
 /// Each worker thread of the `ActorSystem` has a unique `WakeId` which is used
 /// as index into this array.
@@ -81,51 +126,6 @@ impl ThreadWaker {
     fn mark_polled(&self) {
         self.awoken.store(false, Ordering::Release);
     }
-}
-
-/// An id for a waker.
-///
-/// Returned by `init_waker` and used in `new_waker` to create a new `Waker`.
-//
-// This serves as index into `THREAD_WAKERS`.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-#[repr(transparent)]
-pub struct WakerId(u8);
-
-/// Initialise a new waker.
-///
-/// This returns a `WakerId` which can be used to create a new `Waker` using
-/// `new_waker`.
-pub fn init_waker(awakener: Awakener, notifications: Sender<ProcessId>) -> WakerId {
-    let thread_id = THREAD_IDS.fetch_add(1, Ordering::AcqRel);
-    if thread_id as usize >= MAX_THREADS {
-        panic!("Created too many Heph worker threads");
-    }
-
-    // This is safe because we are the only thread that has write access to the
-    // given index. See documentation of `THREAD_WAKERS` for more.
-    unsafe {
-        THREAD_WAKERS[thread_id as usize] = Some(ThreadWaker {
-            notifications,
-            awoken: AtomicBool::new(false),
-            awakener,
-        });
-    }
-    WakerId(thread_id)
-}
-
-/// Create a new `Waker`.
-///
-/// `init_waker` must be called before calling this function to get a `WakerId`.
-pub fn new_waker(waker_id: WakerId, pid: ProcessId) -> Waker {
-    let data = WakerData::new(waker_id, pid).into_raw_data();
-    let raw_waker = RawWaker::new(data, WAKER_VTABLE);
-    unsafe { Waker::from_raw(raw_waker) }
-}
-
-/// Mark the waker with `waker_id` as recently polled.
-pub fn mark_polled(waker_id: WakerId) {
-    get_waker(waker_id).mark_polled();
 }
 
 /// Waker data passed to `LocalWaker` and `Waker` implementations.
