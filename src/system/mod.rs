@@ -633,12 +633,12 @@ impl ActorSystemRef {
         let ctx = actor::Context::new(pid, system_ref, inbox.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
-        if options.schedule {
+        if options.should_schedule() {
             new_waker(*waker_id, pid).wake()
         }
 
         // Add the actor to the scheduler.
-        process_entry.add_actor(options.priority, supervisor, new_actor, actor, inbox);
+        process_entry.add_actor(options.priority(), supervisor, new_actor, actor, inbox);
 
         Ok(actor_ref)
     }

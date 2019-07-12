@@ -73,15 +73,8 @@ pub use server::{setup_server, Server, ServerError, ServerMessage, ServerSetup};
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
 ///     let address = "127.0.0.1:8000".parse().unwrap();
 ///
-///     system_ref.spawn(supervisor, actor as fn(_, _) -> _, address, ActorOptions {
-///         schedule: true,
-///         .. ActorOptions::default()
-///     });
-/// #
-/// #   system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions {
-/// #       schedule: true,
-/// #       .. ActorOptions::default()
-/// #   });
+///     system_ref.spawn(supervisor, actor as fn(_, _) -> _, address, ActorOptions::default().schedule());
+/// #   system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions::default().schedule());
 ///
 ///     Ok(())
 /// }
@@ -149,15 +142,8 @@ pub use server::{setup_server, Server, ServerError, ServerMessage, ServerSetup};
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
 ///     let address = "127.0.0.1:8000".parse().unwrap();
 ///
-///     system_ref.spawn(supervisor, actor as fn(_, _) -> _, address, ActorOptions {
-///         schedule: true,
-///         .. ActorOptions::default()
-///     });
-/// #
-/// #   system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions {
-/// #       schedule: true,
-/// #       .. ActorOptions::default()
-/// #   });
+///     system_ref.spawn(supervisor, actor as fn(_, _) -> _, address, ActorOptions::default().schedule());
+/// #   system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions::default().schedule());
 ///
 ///     Ok(())
 /// }

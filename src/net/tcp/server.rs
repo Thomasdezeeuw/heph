@@ -131,17 +131,13 @@ where
 ///
 ///     // The address to listen on.
 ///     let address = "127.0.0.1:7890".parse().unwrap();
-///     let options = ActorOptions {
-///         // We advice to give the TCP listener a low priority to prioritise
-///         // handling of ongoing requests over accepting new requests possibly
-///         // overloading the system.
-///         priority: Priority::LOW,
-///         ..Default::default()
-///     };
+///     // We advice to give the TCP listener a low priority to prioritise
+///     // handling of ongoing requests over accepting new requests possibly
+///     // overloading the system.
+///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let mut actor_ref =
 ///     system_ref.try_spawn(listener_supervisor, listener, address, options)?;
-///
-///     actor_ref <<= Terminate;
+///     # actor_ref <<= Terminate;
 ///
 ///     Ok(())
 /// }
@@ -192,10 +188,7 @@ where
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
 ///     let listener = tcp::setup_server(conn_supervisor, new_actor, ActorOptions::default());
 ///     let address = "127.0.0.1:7890".parse().unwrap();
-///     let options = ActorOptions {
-///         priority: Priority::LOW,
-///         ..Default::default()
-///     };
+///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     let mut listener_ref = system_ref.try_spawn(listener_supervisor, listener, address, options)?;
 ///
 ///     // Because the listener is just another actor we can send it messages.

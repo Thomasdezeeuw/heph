@@ -71,16 +71,12 @@ pub enum Connected {}
 ///     let address = "127.0.0.1:7000".parse().unwrap();
 ///
 ///     // Add our server actor.
-///     system_ref.spawn(supervisor, echo_server as fn(_, _) -> _, address, ActorOptions {
-///         schedule: true,
-///         ..ActorOptions::default()
-///     });
+///     system_ref.spawn(supervisor, echo_server as fn(_, _) -> _, address,
+///         ActorOptions::default().schedule());
 ///
 ///     // Add our client actor.
-///     system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions {
-///         schedule: true,
-///         ..ActorOptions::default()
-///     });
+///     system_ref.spawn(supervisor, client as fn(_, _) -> _, address,
+///         ActorOptions::default().schedule());
 ///
 ///     Ok(())
 /// }
