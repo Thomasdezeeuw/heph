@@ -49,10 +49,8 @@
 //!
 //!     ActorSystem::new()
 //!         .with_setup(|mut system_ref| {
-//!             system_ref.spawn(supervisor, bad_actor as fn(_) -> _, (), ActorOptions {
-//!                 schedule: true,
-//!                 ..ActorOptions::default()
-//!             });
+//!             system_ref.spawn(supervisor, bad_actor as fn(_) -> _, (),
+//!                 ActorOptions::default().schedule());
 //!             Ok(())
 //!         })
 //!         .run()
@@ -135,10 +133,8 @@ where
 /// fn main() -> Result<(), RuntimeError> {
 ///     ActorSystem::new()
 ///         .with_setup(|mut system_ref| {
-///             system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions {
-///                 schedule: true,
-///                 ..ActorOptions::default()
-///             });
+///             system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
+///                 ActorOptions::default().schedule());
 ///             Ok(())
 ///         })
 ///         .run()

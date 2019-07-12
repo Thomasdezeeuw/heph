@@ -41,13 +41,9 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // `listener_supervisor` as supervisor. As argument the TCP listener needs
     // an address to listen on.
     let address = "127.0.0.1:7890".parse().unwrap();
-    let options = ActorOptions {
-        // We'll give our listener a low priority to prioritise handling of
-        // ongoing requests over accepting new requests possibly overloading the
-        // system.
-        priority: Priority::LOW,
-        ..Default::default()
-    };
+    // We'll give our listener a low priority to prioritise handling of ongoing
+    // requests over accepting new requests possibly overloading the system.
+    let options = ActorOptions::default().with_priority(Priority::LOW);
     system_ref.try_spawn(server_supervisor, server, address, options)?;
 
     Ok(())

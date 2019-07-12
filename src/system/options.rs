@@ -1,8 +1,6 @@
 //! Options for adding an `Actor` to an `ActorSystem`.
 
-use std::fmt;
-
-pub use crate::system::scheduler::Priority;
+pub use crate::system::scheduler::{default_priority, Priority};
 
 /// Options for adding an actor to an [`ActorSystem`].
 ///
@@ -25,45 +23,58 @@ pub use crate::system::scheduler::Priority;
 /// ```
 /// use heph::system::options::{ActorOptions, Priority};
 ///
-/// let opts = ActorOptions {
-///     priority: Priority::HIGH,
-///     ..Default::default()
-/// };
+/// let opts = ActorOptions::default().with_priority(Priority::HIGH);
 ///
 /// # drop(opts); // Silence unused variable warning.
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ActorOptions {
-    /// Scheduling priority.
-    pub priority: Priority,
+    priority: Priority,
+    schedule: bool,
+}
+
+/// Returns the default [`ActorOptions`].
+pub const fn default_options() -> ActorOptions {
+    ActorOptions {
+        priority: default_priority(),
+        schedule: false,
+    }
+}
+
+impl ActorOptions {
+    /// Returns the priority set in the options.
+    pub const fn priority(&self) -> Priority {
+        self.priority
+    }
+
+    /// Set the scheduling priority.
+    pub const fn with_priority(mut self, priority: Priority) -> Self {
+        self.priority = priority;
+        self
+    }
+
+    /// Returns true if the actor should be scheduled when added to the system.
+    ///
+    /// See [`schedule`] for more information.
+    pub fn should_schedule(&self) -> bool {
+        self.schedule
+    }
+
     /// This option will schedule the actor to be run when added to the actor
-    /// system, defaults to false.
+    /// system.
     ///
     /// By default actors added to the actor system will wait for an external
-    /// notification before they start running. This can happen for example by a
+    /// event before they start running. This can happen for example by a
     /// message send to them, or a `TcpStream` becoming ready to read or write.
-    pub schedule: bool,
-    /// Reserved for future expansion. Use the `Default` implementation to set
-    /// this field, see examples in structure documentation.
-    #[doc(hidden)]
-    pub __private: (),
+    pub const fn schedule(mut self) -> Self {
+        // TODO: better name: auto_run, auto_schedule, start_running?
+        self.schedule = true;
+        self
+    }
 }
 
 impl Default for ActorOptions {
     fn default() -> ActorOptions {
-        ActorOptions {
-            priority: Priority::default(),
-            schedule: false,
-            __private: (),
-        }
-    }
-}
-
-impl fmt::Debug for ActorOptions {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ActorOptions")
-            .field("priority", &self.priority)
-            .field("schedule", &self.schedule)
-            .finish()
+        default_options()
     }
 }
