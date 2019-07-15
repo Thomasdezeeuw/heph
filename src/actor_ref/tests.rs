@@ -171,13 +171,13 @@ impl From<M> for Msg {
 #[test]
 fn local_mapped_actor_ref_different_types() {
     let pid = ProcessId(0);
-    let system_ref = test::system_ref();
+    let mut system_ref = test::system_ref();
     let mut inbox = Inbox::<M>::new(pid, system_ref.clone());
 
     let local_actor_ref = ActorRef::new_local(inbox.create_ref());
     let machine_actor_ref = local_actor_ref
         .clone()
-        .upgrade(&mut test::system_ref())
+        .upgrade(&mut system_ref)
         .expect("unable to upgrade actor reference");
 
     // TODO: add Sync actor reference.
@@ -196,20 +196,20 @@ fn local_mapped_actor_ref_different_types() {
 #[test]
 fn local_mapped_actor_ref_different_references() {
     let pid = ProcessId(0);
-    let system_ref = test::system_ref();
+    let mut system_ref = test::system_ref();
 
     let mut inbox1 = Inbox::<M>::new(pid, system_ref.clone());
     let local_actor_ref1 = ActorRef::new_local(inbox1.create_ref());
     let machine_actor_ref1 = local_actor_ref1
         .clone()
-        .upgrade(&mut test::system_ref())
+        .upgrade(&mut system_ref)
         .expect("unable to upgrade actor reference");
 
     let mut inbox2 = Inbox::<M>::new(pid, system_ref.clone());
     let local_actor_ref2 = ActorRef::new_local(inbox2.create_ref());
     let machine_actor_ref2 = local_actor_ref2
         .clone()
-        .upgrade(&mut test::system_ref())
+        .upgrade(&mut system_ref)
         .expect("unable to upgrade actor reference");
 
     let actor_refs: &mut [ActorRef<LocalMap<Msg>>] = &mut [
@@ -241,12 +241,12 @@ fn mapped_actor_ref_is_send_sync() {
 #[test]
 fn mapped_actor_ref_different_types() {
     let pid = ProcessId(0);
-    let system_ref = test::system_ref();
+    let mut system_ref = test::system_ref();
     let mut inbox = Inbox::<M>::new(pid, system_ref.clone());
 
     let local_actor_ref = ActorRef::new_local(inbox.create_ref());
     let machine_actor_ref = local_actor_ref
-        .upgrade(&mut test::system_ref())
+        .upgrade(&mut system_ref)
         .expect("unable to upgrade actor reference");
 
     // TODO: add Sync actor reference.
@@ -263,18 +263,18 @@ fn mapped_actor_ref_different_types() {
 #[test]
 fn mapped_actor_ref_different_references() {
     let pid = ProcessId(0);
-    let system_ref = test::system_ref();
+    let mut system_ref = test::system_ref();
 
     let mut inbox1 = Inbox::<M>::new(pid, system_ref.clone());
     let local_actor_ref1 = ActorRef::new_local(inbox1.create_ref());
     let machine_actor_ref1 = local_actor_ref1
-        .upgrade(&mut test::system_ref())
+        .upgrade(&mut system_ref)
         .expect("unable to upgrade actor reference");
 
     let mut inbox2 = Inbox::<M>::new(pid, system_ref.clone());
     let local_actor_ref2 = ActorRef::new_local(inbox2.create_ref());
     let machine_actor_ref2 = local_actor_ref2
-        .upgrade(&mut test::system_ref())
+        .upgrade(&mut system_ref)
         .expect("unable to upgrade actor reference");
 
     let actor_refs: &mut [ActorRef<LocalMap<Msg>>] = &mut [
