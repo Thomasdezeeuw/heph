@@ -33,14 +33,6 @@ pub struct ActorOptions {
     schedule: bool,
 }
 
-/// Returns the default [`ActorOptions`].
-pub const fn default_options() -> ActorOptions {
-    ActorOptions {
-        priority: default_priority(),
-        schedule: false,
-    }
-}
-
 impl ActorOptions {
     /// Returns the priority set in the options.
     pub const fn priority(&self) -> Priority {
@@ -77,6 +69,9 @@ impl ActorOptions {
 
 impl Default for ActorOptions {
     fn default() -> ActorOptions {
-        default_options()
+        ActorOptions {
+            priority: default_priority(),
+            schedule: false,
+        }
     }
 }
