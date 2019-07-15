@@ -71,7 +71,7 @@ fn local_actor_ref() {
     assert_eq!(actor_ref2.send(11), Err(SendError { message: 11 }));
 }
 
-fn assert_send<T: Send + Sync>(_: &T) {}
+fn assert_send<T: Send + Sync>() {}
 
 #[test]
 fn machine_local_actor_ref() {
@@ -112,7 +112,10 @@ fn machine_local_actor_ref() {
     assert_eq!(format!("{:?}", actor_ref), "MachineLocalActorRef");
 
     // Test Send and Sync.
-    assert_send(&actor_ref);
+    assert_send::<ActorRef<Machine<()>>>();
+    // UnsafeCell is !Sync and Send, our reference should still be Send and
+    // Sync.
+    assert_send::<ActorRef<Machine<std::cell::UnsafeCell<()>>>>();
 
     // After the inbox is dropped the local reference should return an error
     // when trying to upgrade.
