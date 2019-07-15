@@ -159,13 +159,13 @@ pub use types::{Local, Machine, Sync};
 #[repr(transparent)]
 #[derive(Clone, Eq, PartialEq)]
 pub struct ActorRef<T> {
-    data: T,
+    inner: T,
 }
 
 impl<T> ActorRef<T> {
     /// Create a new `ActorRef`.
-    pub(crate) const fn new(data: T) -> ActorRef<T> {
-        ActorRef { data }
+    pub(crate) const fn new(inner: T) -> ActorRef<T> {
+        ActorRef { inner }
     }
 }
 
@@ -196,7 +196,7 @@ where
     where
         Msg: Into<M>,
     {
-        self.data.send(msg.into())
+        self.inner.send(msg.into())
     }
 }
 
@@ -209,7 +209,7 @@ impl<M> ActorRef<Local<M>> {
         mut self,
         system_ref: &mut ActorSystemRef,
     ) -> Result<ActorRef<Machine<M>>, ActorShutdown> {
-        match self.data.inbox.try_upgrade_ref() {
+        match self.inner.inbox.try_upgrade_ref() {
             Ok((pid, sender)) => {
                 let waker = system_ref.new_waker(pid);
                 Ok(ActorRef::new_machine(sender, waker))
@@ -234,6 +234,6 @@ where
     T: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.data.fmt(f)
+        self.inner.fmt(f)
     }
 }
