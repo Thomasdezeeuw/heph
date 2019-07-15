@@ -23,8 +23,8 @@ test = []
 
 [dependencies]
 crossbeam-channel    = "0.3.6"
-futures-core-preview = "0.3.0-alpha.16"
-futures-io-preview   = "0.3.0-alpha.16"
+futures-core-preview = "0.3.0-alpha.17"
+futures-io-preview   = "0.3.0-alpha.17"
 log                  = "0.4.6"
 gaea                 = "0.3.0"
 num_cpus             = "1.8.0"
@@ -32,7 +32,6 @@ slab                 = "0.4.0"
 std-logger           = "0.3.4"
 
 [dev-dependencies]
-futures-test-preview = "0.3.0-alpha.16"
-futures-util-preview = { version = "0.3.0-alpha.16", features = ["nightly", "async-await"] }
+futures-test-preview = "0.3.0-alpha.17"
+futures-util-preview = { version = "0.3.0-alpha.17", features = ["nightly", "async-await", "select-macro"] }
 lazy_static          = "1.1.0"
-pin-utils            = "0.1.0-alpha.4"

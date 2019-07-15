@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::task::Poll;
 use std::{io, net};
 
-use pin_utils::pin_mut;
+use futures_util::pin_mut;
 
 use crate::actor::{self, Actor, NewActor};
 use crate::net::UdpSocket;

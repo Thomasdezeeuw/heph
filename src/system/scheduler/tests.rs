@@ -9,7 +9,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use futures_test::future::{AssertUnmoved, FutureTestExt};
-use futures_util::future::{empty, Empty};
+use futures_util::future::{pending, Pending};
 use futures_util::pending;
 
 use crate::supervisor::NoSupervisor;
@@ -399,7 +399,7 @@ struct TestAssertUnmovedNewActor;
 impl NewActor for TestAssertUnmovedNewActor {
     type Message = ();
     type Argument = ();
-    type Actor = AssertUnmoved<Empty<Result<(), !>>>;
+    type Actor = AssertUnmoved<Pending<Result<(), !>>>;
     type Error = !;
 
     fn new(
@@ -410,7 +410,7 @@ impl NewActor for TestAssertUnmovedNewActor {
         // In the test we need the access to the inbox, to achieve that we can't
         // drop the context, so we forget about it here leaking the inbox.
         forget(ctx);
-        Ok(empty().assert_unmoved())
+        Ok(pending().assert_unmoved())
     }
 }
 
