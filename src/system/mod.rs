@@ -201,7 +201,7 @@ impl<S> ActorSystem<S> {
 
     /// Spawn an synchronous actor that runs on its own thread.
     ///
-    /// For more information and examples about synchronous actors see the
+    /// For more information and examples for synchronous actors see the
     /// [`actor::sync`] module.
     ///
     /// [`actor::sync`]: crate::actor::sync

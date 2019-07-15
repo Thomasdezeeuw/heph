@@ -2,7 +2,7 @@
 //!
 //! # Examples
 //!
-//! Spawn and running a synchronous actor.
+//! Spawn and run a synchronous actor.
 //!
 //! ```
 //! #![feature(never_type)]
@@ -12,7 +12,7 @@
 //! use heph::system::{ActorSystem, RuntimeError};
 //!
 //! fn main() -> Result<(), RuntimeError> {
-//!     // Spawning synchronous actor works slightly differently the spawning
+//!     // Spawning synchronous actor works slightly different from spawning
 //!     // regular (asynchronous) actors. Mainly, synchronous actors need to be
 //!     // spawned before the system is run.
 //!     let mut system = ActorSystem::new();
@@ -315,7 +315,8 @@ impl<M> SyncContext<M> {
     /// Receive the next message.
     ///
     /// Returns the next message available. If no messages are currently
-    /// available it will block until a message becomes available.
+    /// available it will block until a message becomes available or until all
+    /// actor references (that reference this actor) are dropped.
     ///
     /// # Examples
     ///
@@ -346,7 +347,8 @@ impl<M> SyncContext<M> {
     /// Receive a message.
     ///
     /// Receives a message using messages selection. If no messages are
-    /// currently available it will block until a message becomes available.
+    /// currently available it will block until a message becomes available or
+    /// until all actor references (that reference this actor) are dropped.
     pub fn receive<S>(&mut self, mut selector: S) -> Result<M, NoMessages>
     where
         S: MessageSelector<M>,
