@@ -56,6 +56,8 @@ impl ActorOptions {
     /// Returns true if the actor should be scheduled when added to the system.
     ///
     /// See [`schedule`] for more information.
+    ///
+    /// [`schedule`]: ActorOptions::schedule
     pub const fn should_schedule(&self) -> bool {
         self.schedule
     }
