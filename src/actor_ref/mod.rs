@@ -179,7 +179,7 @@ where
     ///
     /// Some types of actor references can detect errors in sending a message,
     /// however not all actor references can. This means that even if this
-    /// methods returns `Ok` it does **not** means that the message is
+    /// methods returns `Ok` it does **not** mean that the message is
     /// guaranteed to be handled by the actor.
     ///
     /// See [Sending messages] for more details.
