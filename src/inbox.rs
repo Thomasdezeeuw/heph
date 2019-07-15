@@ -281,13 +281,10 @@ impl<F, M> MessageSelector<M> for F
 where
     F: FnMut(&M) -> bool,
 {
-    fn select<'m>(&mut self, messages: Messages<'m, M>) -> Option<MessageSelection> {
-        for (idx, msg) in messages {
-            if (self)(msg) {
-                return Some(idx);
-            }
-        }
-        None
+    fn select<'m>(&mut self, mut messages: Messages<'m, M>) -> Option<MessageSelection> {
+        messages
+            .find(|(_, msg)| (self)(msg))
+            .map(|(selection, _)| selection)
     }
 }
 
