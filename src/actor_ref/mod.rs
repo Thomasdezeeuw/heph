@@ -121,8 +121,8 @@
 //! }
 //! ```
 
-use std::fmt;
 use std::ops::ShlAssign;
+use std::{fmt, marker};
 
 use crate::system::ActorSystemRef;
 
@@ -133,6 +133,7 @@ mod tests;
 
 mod local;
 mod machine;
+mod map;
 mod sync;
 
 pub mod types {
@@ -140,12 +141,13 @@ pub mod types {
 
     pub use super::local::Local;
     pub use super::machine::Machine;
+    pub use super::map::{LocalMap, Map};
     pub use super::sync::Sync;
 }
 
 pub use error::{ActorShutdown, SendError};
 #[doc(no_inline)]
-pub use types::{Local, Machine, Sync};
+pub use types::{Local, LocalMap, Machine, Map, Sync};
 
 /// A reference to an actor.
 ///
@@ -197,6 +199,37 @@ where
         Msg: Into<M>,
     {
         self.inner.send(msg.into())
+    }
+
+    /// Wraps the actor reference to change the message type. This is useful
+    /// when you need to send to different types of actors from a central
+    /// location.
+    ///
+    /// # Notes
+    ///
+    /// This conversion is **not** cheap, it requires an allocation so use with
+    /// caution when it comes to performance sensitive code.
+    pub fn local_map<Msg>(self) -> ActorRef<LocalMap<Msg>>
+    where
+        Msg: Into<M> + From<M>,
+        T: 'static, // TODO: try to remove the static lifetime.
+    {
+        ActorRef::new(LocalMap {
+            inner: Box::new(self.inner),
+        })
+    }
+
+    /// Same as [`local_map`] but returns a thread safe version.
+    ///
+    /// [`local_map`]: ActorRef::local_map
+    pub fn map<Msg>(self) -> ActorRef<Map<Msg>>
+    where
+        Msg: Into<M> + From<M>,
+        T: Send<Message = M> + marker::Sync + marker::Send + 'static, // TODO: try to remove the static lifetime.
+    {
+        ActorRef::new(Map {
+            inner: Box::new(self.inner),
+        })
     }
 }
 

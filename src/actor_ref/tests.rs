@@ -2,7 +2,7 @@
 
 use std::mem::size_of;
 
-use crate::actor_ref::{ActorRef, ActorShutdown, Local, Machine, SendError};
+use crate::actor_ref::{ActorRef, ActorShutdown, Local, LocalMap, Machine, Map, SendError};
 use crate::inbox::Inbox;
 use crate::system::ProcessId;
 use crate::test;
@@ -10,6 +10,8 @@ use crate::test;
 // FIXME: add a test that local actor reference is !Send and !Sync. Below
 // doesn't work. :(
 // fn assert_not_send<T: !Send + !Sync>(_: &T) {}
+
+fn assert_send<T: Send + Sync>() {}
 
 #[test]
 fn size_assertions() {
@@ -70,8 +72,6 @@ fn local_actor_ref() {
     assert_eq!(actor_ref.send(10), Err(SendError { message: 10 }));
     assert_eq!(actor_ref2.send(11), Err(SendError { message: 11 }));
 }
-
-fn assert_send<T: Send + Sync>() {}
 
 #[test]
 fn machine_local_actor_ref() {
@@ -149,4 +149,143 @@ fn local_and_machine_actor_ref() {
     assert_eq!(inbox.receive_next(), Some(4));
     assert_eq!(inbox.receive_next(), Some(2));
     assert_eq!(inbox.receive_next(), Some(3));
+}
+
+#[derive(PartialEq, Debug)]
+struct M(usize);
+
+struct Msg(usize);
+
+impl Into<M> for Msg {
+    fn into(self) -> M {
+        M(self.0)
+    }
+}
+
+impl From<M> for Msg {
+    fn from(msg: M) -> Msg {
+        Msg(msg.0)
+    }
+}
+
+#[test]
+fn local_mapped_actor_ref_different_types() {
+    let pid = ProcessId(0);
+    let system_ref = test::system_ref();
+    let mut inbox = Inbox::<M>::new(pid, system_ref.clone());
+
+    let local_actor_ref = ActorRef::new_local(inbox.create_ref());
+    let machine_actor_ref = local_actor_ref
+        .clone()
+        .upgrade(&mut test::system_ref())
+        .expect("unable to upgrade actor reference");
+
+    // TODO: add Sync actor reference.
+
+    let actor_refs: &mut [ActorRef<LocalMap<Msg>>] =
+        &mut [local_actor_ref.local_map(), machine_actor_ref.local_map()];
+
+    for actor_ref in actor_refs.iter_mut() {
+        actor_ref.send(Msg(1)).expect("unable to send message");
+    }
+
+    assert_eq!(inbox.receive_next(), Some(M(1))); // Local ref.
+    assert_eq!(inbox.receive_next(), Some(M(1))); // Machine ref.
+}
+
+#[test]
+fn local_mapped_actor_ref_different_references() {
+    let pid = ProcessId(0);
+    let system_ref = test::system_ref();
+
+    let mut inbox1 = Inbox::<M>::new(pid, system_ref.clone());
+    let local_actor_ref1 = ActorRef::new_local(inbox1.create_ref());
+    let machine_actor_ref1 = local_actor_ref1
+        .clone()
+        .upgrade(&mut test::system_ref())
+        .expect("unable to upgrade actor reference");
+
+    let mut inbox2 = Inbox::<M>::new(pid, system_ref.clone());
+    let local_actor_ref2 = ActorRef::new_local(inbox2.create_ref());
+    let machine_actor_ref2 = local_actor_ref2
+        .clone()
+        .upgrade(&mut test::system_ref())
+        .expect("unable to upgrade actor reference");
+
+    let actor_refs: &mut [ActorRef<LocalMap<Msg>>] = &mut [
+        local_actor_ref1.local_map(),
+        machine_actor_ref1.local_map(),
+        local_actor_ref2.local_map(),
+        machine_actor_ref2.local_map(),
+    ];
+
+    for actor_ref in actor_refs.iter_mut() {
+        actor_ref.send(Msg(1)).expect("unable to send message");
+    }
+
+    assert_eq!(inbox1.receive_next(), Some(M(1))); // Local ref.
+    assert_eq!(inbox1.receive_next(), Some(M(1))); // Machine ref.
+    assert_eq!(inbox2.receive_next(), Some(M(1))); // Local ref.
+    assert_eq!(inbox2.receive_next(), Some(M(1))); // Machine ref.
+}
+
+#[test]
+fn mapped_actor_ref_is_send_sync() {
+    // Test Send and Sync.
+    assert_send::<ActorRef<Map<()>>>();
+    // UnsafeCell is !Sync and Send, our reference should still be Send and
+    // Sync.
+    assert_send::<ActorRef<Map<std::cell::UnsafeCell<()>>>>();
+}
+
+#[test]
+fn mapped_actor_ref_different_types() {
+    let pid = ProcessId(0);
+    let system_ref = test::system_ref();
+    let mut inbox = Inbox::<M>::new(pid, system_ref.clone());
+
+    let local_actor_ref = ActorRef::new_local(inbox.create_ref());
+    let machine_actor_ref = local_actor_ref
+        .upgrade(&mut test::system_ref())
+        .expect("unable to upgrade actor reference");
+
+    // TODO: add Sync actor reference.
+
+    let actor_refs: &mut [ActorRef<LocalMap<Msg>>] = &mut [machine_actor_ref.local_map()];
+
+    for actor_ref in actor_refs.iter_mut() {
+        actor_ref.send(Msg(1)).expect("unable to send message");
+    }
+
+    assert_eq!(inbox.receive_next(), Some(M(1))); // Machine ref.
+}
+
+#[test]
+fn mapped_actor_ref_different_references() {
+    let pid = ProcessId(0);
+    let system_ref = test::system_ref();
+
+    let mut inbox1 = Inbox::<M>::new(pid, system_ref.clone());
+    let local_actor_ref1 = ActorRef::new_local(inbox1.create_ref());
+    let machine_actor_ref1 = local_actor_ref1
+        .upgrade(&mut test::system_ref())
+        .expect("unable to upgrade actor reference");
+
+    let mut inbox2 = Inbox::<M>::new(pid, system_ref.clone());
+    let local_actor_ref2 = ActorRef::new_local(inbox2.create_ref());
+    let machine_actor_ref2 = local_actor_ref2
+        .upgrade(&mut test::system_ref())
+        .expect("unable to upgrade actor reference");
+
+    let actor_refs: &mut [ActorRef<LocalMap<Msg>>] = &mut [
+        machine_actor_ref1.local_map(),
+        machine_actor_ref2.local_map(),
+    ];
+
+    for actor_ref in actor_refs.iter_mut() {
+        actor_ref.send(Msg(1)).expect("unable to send message");
+    }
+
+    assert_eq!(inbox1.receive_next(), Some(M(1))); // Machine ref.
+    assert_eq!(inbox2.receive_next(), Some(M(1))); // Machine ref.
 }
