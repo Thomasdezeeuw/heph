@@ -56,6 +56,6 @@ impl<M> ActorRef<Local<M>> {
     /// Get access to the internal inbox, used in testing.
     #[cfg(test)]
     pub(crate) fn get_inbox(&mut self) -> Option<Inbox<M>> {
-        self.data.inbox.upgrade()
+        self.inner.inbox.upgrade()
     }
 }
