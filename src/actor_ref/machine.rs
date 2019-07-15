@@ -59,7 +59,7 @@ impl<M> ActorRef<Machine<M>> {
     /// Create a new machine local actor reference.
     ///
     /// The `Waker` must wake the same actor the `Sender` is sending to.
-    pub(crate) fn new_machine(sender: Sender<M>, waker: Waker) -> ActorRef<Machine<M>> {
+    pub(crate) const fn new_machine(sender: Sender<M>, waker: Waker) -> ActorRef<Machine<M>> {
         ActorRef::new(Machine { sender, waker })
     }
 }

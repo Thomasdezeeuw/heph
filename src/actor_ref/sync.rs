@@ -43,7 +43,7 @@ impl<M> fmt::Debug for Sync<M> {
 
 impl<M> ActorRef<Sync<M>> {
     /// Create a new threaded actor reference.
-    pub(crate) fn new_sync(sender: Sender<M>) -> ActorRef<Sync<M>> {
+    pub(crate) const fn new_sync(sender: Sender<M>) -> ActorRef<Sync<M>> {
         ActorRef::new(Sync { sender })
     }
 }
