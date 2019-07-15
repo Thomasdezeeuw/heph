@@ -17,7 +17,6 @@ use crate::inbox::InboxRef;
 /// [`ActorSystem`]: crate::system::ActorSystem
 /// [upgraded]: crate::actor_ref::ActorRef::upgrade
 /// [machine local actor reference]: crate::actor_ref::Machine
-#[derive(Clone)]
 pub struct Local<M> {
     /// The inbox of the `Actor`, owned by the `ActorProcess`.
     pub(super) inbox: InboxRef<M>,
@@ -38,6 +37,14 @@ impl<M> Eq for Local<M> {}
 impl<M> PartialEq for Local<M> {
     fn eq(&self, other: &Local<M>) -> bool {
         self.inbox.same_inbox(&other.inbox)
+    }
+}
+
+impl<M> Clone for Local<M> {
+    fn clone(&self) -> Local<M> {
+        Local {
+            inbox: self.inbox.clone(),
+        }
     }
 }
 
