@@ -51,7 +51,7 @@ impl<M> Clone for Machine<M> {
 
 impl<M> fmt::Debug for Machine<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "MachineLocalActorRef")
+        f.write_str("MachineLocalActorRef")
     }
 }
 

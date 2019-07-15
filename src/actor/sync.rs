@@ -433,6 +433,6 @@ pub struct NoMessages;
 
 impl fmt::Display for NoMessages {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.pad("no messages in inbox")
+        f.write_str("no messages in inbox")
     }
 }
