@@ -131,14 +131,21 @@ mod error;
 #[cfg(test)]
 mod tests;
 
-pub mod local;
-pub mod machine;
-pub mod sync;
+mod local;
+mod machine;
+mod sync;
+
+pub mod types {
+    //! Actor reference types.
+
+    pub use super::local::Local;
+    pub use super::machine::Machine;
+    pub use super::sync::Sync;
+}
 
 pub use error::{ActorShutdown, SendError};
-pub use local::Local;
-pub use machine::Machine;
-pub use sync::Sync;
+#[doc(no_inline)]
+pub use types::{Local, Machine, Sync};
 
 /// A reference to an actor.
 ///
