@@ -8,7 +8,10 @@ use crate::actor_ref::{ActorRef, Send, SendError};
 
 /// Reference to a synchronous actor.
 ///
-/// A reference to an actor that run in its own thread.
+/// For more information about synchronous actors see the [`actor::sync`]
+/// module.
+///
+/// [`actor::sync`]: crate::actor::sync
 pub struct Sync<M> {
     /// Sending side of the channel to messages to.
     sender: Sender<M>,
