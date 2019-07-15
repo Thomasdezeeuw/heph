@@ -1,6 +1,8 @@
 //! Options for adding an `Actor` to an `ActorSystem`.
 
-pub use crate::system::scheduler::{default_priority, Priority};
+use crate::system::scheduler::default_priority;
+
+pub use crate::system::scheduler::Priority;
 
 /// Options for adding an actor to an [`ActorSystem`].
 ///
