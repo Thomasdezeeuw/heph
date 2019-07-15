@@ -2,13 +2,13 @@
 
 use std::{fmt, marker};
 
-use crate::actor_ref::{ActorRef, Send, SendError};
+use crate::actor_ref::{Send, SendError};
 
 // TODO: remove the need for a allocation for both `LocalMap` and `Map`, if that
 // is possible at all.
 
 /// Trait to erase the original message type of the actor reference.
-trait MappedSend<Msg> {
+pub(super) trait MappedSend<Msg> {
     fn mapped_send(&mut self, msg: Msg) -> Result<(), SendError<Msg>>;
 }
 
@@ -33,10 +33,11 @@ where
 /// This actor reference doesn't implement [`Send`] or [`Sync`], see [`Map`] for
 /// a version that does.
 ///
+/// [`ActorRef::local_map`]: crate::actor_ref::ActorRef::local_map
 /// [`Send`]: std::marker::Send
 /// [`Sync`]: std::marker::Sync
 pub struct LocalMap<M> {
-    inner: Box<dyn MappedSend<M>>,
+    pub(super) inner: Box<dyn MappedSend<M>>,
 }
 
 impl<M> Send for LocalMap<M> {
@@ -60,8 +61,9 @@ impl<M> fmt::Debug for LocalMap<M> {
 ///
 /// [`Send`]: std::marker::Send
 /// [`Sync`]: std::marker::Sync
+/// [`ActorRef::map`]: crate::actor_ref::ActorRef::map
 pub struct Map<M> {
-    inner: Box<dyn MappedSend<M> + marker::Send + Sync>,
+    pub(super) inner: Box<dyn MappedSend<M> + marker::Send + Sync>,
 }
 
 impl<M> Send for Map<M> {
