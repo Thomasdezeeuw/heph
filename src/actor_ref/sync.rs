@@ -27,6 +27,14 @@ impl<M> Send for Sync<M> {
     }
 }
 
+impl<M> Eq for Sync<M> {}
+
+impl<M> PartialEq for Sync<M> {
+    fn eq(&self, other: &Sync<M>) -> bool {
+        self.sender.same_channel(&other.sender)
+    }
+}
+
 impl<M> Clone for Sync<M> {
     fn clone(&self) -> Sync<M> {
         Sync {

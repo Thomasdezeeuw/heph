@@ -40,6 +40,14 @@ impl<M> Send for Machine<M> {
     }
 }
 
+impl<M> Eq for Machine<M> {}
+
+impl<M> PartialEq for Machine<M> {
+    fn eq(&self, other: &Machine<M>) -> bool {
+        self.sender.same_channel(&other.sender)
+    }
+}
+
 impl<M> Clone for Machine<M> {
     fn clone(&self) -> Machine<M> {
         Machine {

@@ -97,16 +97,15 @@ fn machine_local_actor_ref() {
     actor_ref2 <<= 3;
     assert_eq!(inbox.receive_next(), Some(3));
 
-    /* TODO: depends on https://github.com/crossbeam-rs/crossbeam/issues/319.
     // Comparing should be possible.
     assert_eq!(actor_ref, actor_ref2);
 
     let inbox2 = Inbox::new(pid, system_ref.clone());
     let actor_ref3 = ActorRef::new_local(inbox2.create_ref())
-        .upgrade(&mut system_ref).unwrap();
+        .upgrade(&mut system_ref)
+        .unwrap();
     assert_ne!(actor_ref, actor_ref3);
     assert_ne!(actor_ref2, actor_ref3);
-    */
 
     // Test Debug implementation.
     assert_eq!(format!("{:?}", actor_ref), "MachineLocalActorRef");
