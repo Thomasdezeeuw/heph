@@ -200,10 +200,10 @@ fn process_state() {
     let mut process_state = ProcessState::Inactive(process);
     assert!(!process_state.is_active());
 
-    let process = process_state.mark_active();
+    let process = process_state.try_mark_active();
     assert!(process_state.is_active());
 
-    process_state.mark_inactive(process);
+    process_state.mark_inactive(process.unwrap());
     assert!(!process_state.is_active());
 }
 
