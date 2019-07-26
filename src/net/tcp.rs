@@ -280,12 +280,12 @@ impl<'a> Future for Accept<'a> {
 
     fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match self.listener {
-            Some(ref mut listener) => {
-                try_io!(listener.socket.accept()).map_ok(|(socket, address)| {
+            Some(ref mut listener) => try_io!(listener.socket.accept())
+                .map(|res| {
                     drop(self.listener.take());
-                    (TcpStream { socket }, address)
+                    res
                 })
-            }
+                .map_ok(|(socket, address)| (TcpStream { socket }, address)),
             None => panic!("polled Accept after it return Poll::Ready"),
         }
     }
