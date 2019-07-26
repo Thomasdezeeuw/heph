@@ -286,7 +286,7 @@ impl<'a> Future for Accept<'a> {
                     (TcpStream { socket }, address)
                 })
             }
-            None => panic!(""),
+            None => panic!("polled Accept after it return Poll::Ready"),
         }
     }
 }
