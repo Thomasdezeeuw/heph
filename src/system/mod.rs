@@ -4,7 +4,7 @@
 //!
 //! - [`ActorSystem`] is the actor system, used to run all actors.
 //! - [`ActorSystemRef`] is a reference to a running actor system, used for
-//!   example to spawn new actors or get access to the [Actor Registry].
+//!   example to spawn new actors.
 //!
 //! See [`ActorSystem`] for documentation on how to run an actor system. For
 //! more examples see the examples directory in the source code.
