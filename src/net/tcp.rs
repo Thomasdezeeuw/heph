@@ -340,7 +340,7 @@ impl actor::Bound for TcpListener {
 #[derive(Debug)]
 pub struct TcpStream {
     /// Underlying TCP connection, backed by Gaea.
-    pub(in crate::net) socket: GaeaTcpStream,
+    socket: GaeaTcpStream,
 }
 
 impl TcpStream {
