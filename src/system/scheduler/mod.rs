@@ -63,8 +63,8 @@ impl Scheduler {
         trace!("scheduling process: pid={}", pid);
         let pid = pid.0 as usize;
         if let Some(ref mut process) = self.processes.borrow_mut().get_mut(pid) {
-            if !process.is_active() {
-                self.active.push(process.mark_active());
+            if let Some(process) = process.try_mark_active() {
+                self.active.push(process);
             }
         }
     }
@@ -194,15 +194,13 @@ impl ProcessState {
         }
     }
 
-    /// Mark the process as active, returning the process data.
+    /// Attempts to mark the process as active, returning the process data.
     ///
-    /// # Panics
-    ///
-    /// Panics if the process was already active.
-    fn mark_active(&mut self) -> ProcessData {
+    /// If the process is already active this returns `None`.
+    fn try_mark_active(&mut self) -> Option<ProcessData> {
         match mem::replace(self, ProcessState::Active) {
-            ProcessState::Active => unreachable!("tried to mark an active process as active"),
-            ProcessState::Inactive(process) => process,
+            ProcessState::Active => None,
+            ProcessState::Inactive(process) => Some(process),
         }
     }
 
@@ -215,7 +213,7 @@ impl ProcessState {
         match mem::replace(self, ProcessState::Inactive(process)) {
             ProcessState::Active => {}
             ProcessState::Inactive(_) => {
-                unreachable!("tried to mark an inactive process as inactive")
+                unreachable!("tried to mark an already inactive process as inactive")
             }
         }
     }
