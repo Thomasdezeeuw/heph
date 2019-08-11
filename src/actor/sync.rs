@@ -323,7 +323,7 @@ impl<M> SyncContext<M> {
     /// An actor that waits for a message and prints it.
     ///
     /// ```
-    /// #![feature(async_await, await_macro, never_type)]
+    /// #![feature(async_await, never_type)]
     ///
     /// use heph::actor::sync::SyncContext;
     ///
