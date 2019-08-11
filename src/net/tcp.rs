@@ -268,6 +268,13 @@ impl TcpListener {
 }
 
 /// The [`Future`] behind [`TcpListener::accept`].
+///
+/// # Notes
+///
+/// After accepting a stream it needs to be [bound] to an actor to ensure the
+/// actor is run once the stream is ready.
+///
+/// [bound]: actor::Bound::bind_to
 #[derive(Debug)]
 pub struct Accept<'a> {
     listener: Option<&'a mut TcpListener>,
@@ -296,6 +303,13 @@ impl<'a> FusedFuture for Accept<'a> {
 }
 
 /// The [`Stream`] behind [`TcpListener::incoming`].
+///
+/// # Notes
+///
+/// After accepting a stream it needs to be [bound] to an actor to ensure the
+/// actor is run once the stream is ready.
+///
+/// [bound]: actor::Bound::bind_to
 #[derive(Debug)]
 pub struct Incoming<'a> {
     listener: &'a mut TcpListener,

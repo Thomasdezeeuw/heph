@@ -89,7 +89,7 @@ pub struct Cancel<Id = ()>(pub Id);
 
 /// Ask an actor to terminate.
 ///
-/// Note: this message is not special in anyway, this mean the receiving actor
+/// Note: this message is not special in anyway, this means the receiving actor
 /// can simply ignore this message and continue living.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Terminate;
