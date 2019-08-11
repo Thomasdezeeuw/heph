@@ -4,6 +4,8 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::Poll;
 use std::{io, net};
+use std::thread::sleep;
+use std::time::Duration;
 
 use futures_util::pin_mut;
 
@@ -74,7 +76,7 @@ where
         match poll_actor(Pin::as_mut(&mut actor)) {
             Poll::Ready(Ok(())) => return, // Ok.
             Poll::Ready(Err(err)) => panic!("unexpected error from actor: {:?}", err),
-            Poll::Pending => continue,
+            Poll::Pending => sleep(Duration::from_millis(1)),
         }
     }
 }
