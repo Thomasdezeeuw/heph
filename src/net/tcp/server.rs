@@ -69,10 +69,6 @@ where
 
 /// An actor that starts a new actor for each accepted TCP connection.
 ///
-/// See [`tcp::ServerSetup`] for the [`NewActor`] implementation for this actor.
-///
-/// [`tcp::ServerSetup`]: crate::net::tcp::ServerSetup
-///
 /// # Graceful shutdown
 ///
 /// Graceful shutdown is done by sending it a [`Terminate`] message, see below
@@ -292,10 +288,12 @@ where
     }
 }
 
-/// The message type used by [`Actor`].
+/// The message type used by [`tcp::Server`].
 ///
 /// The message implements [`From`]`<`[`Terminate`]`>` for the message, allowing
 /// for graceful shutdown.
+///
+/// [`tcp::Server`]: Server
 #[derive(Debug)]
 pub struct ServerMessage {
     // Allow for future expansion.
@@ -308,7 +306,9 @@ impl From<Terminate> for ServerMessage {
     }
 }
 
-/// Error returned by the [`Actor`] actor.
+/// Error returned by the [`tcp::Server`] actor.
+///
+/// [`tcp::Server`]: Server
 #[derive(Debug)]
 pub enum ServerError<E> {
     /// Error accepting TCP stream.
@@ -317,6 +317,7 @@ pub enum ServerError<E> {
     NewActor(E),
 }
 
+// Not part of the public API.
 #[doc(hidden)]
 impl<E> From<AddActorError<E, io::Error>> for ServerError<E> {
     fn from(err: AddActorError<E, io::Error>) -> ServerError<E> {
