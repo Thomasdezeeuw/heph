@@ -34,7 +34,7 @@ fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
     // be added to the actor system it needs the `ActorOptions` to do that,
     // we'll use the defaults options here.
     let actor = conn_actor as fn(_, _, _) -> _;
-    let server = tcp::setup_server(conn_supervisor, actor, ActorOptions::default());
+    let server = tcp::Server::setup(conn_supervisor, actor, ActorOptions::default());
 
     // As the TCP listener is just another actor we need to spawn it like any
     // other actor. And again actors needs supervision, thus we provide

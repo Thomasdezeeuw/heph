@@ -5,13 +5,11 @@
 //!  * [`TcpListener`] listens for incoming connections.
 //!  * [`TcpStream`] represents a single TCP connection.
 //!  * [`tcp::Server`] is an [`Actor`] that listens for incoming connections and
-//!    starts a new actor for each. A server can be created by using
-//!    [`setup_server`].
+//!    starts a new actor for each.
 //!
 //! [`tcp::Server`]: crate::net::tcp::Server
 //! [`Actor`]: crate::actor::Actor
 //! [`tcp::NewListener`]: crate::net::tcp::NewListener
-//! [`setup_server`]: crate::net::tcp::setup_server
 
 use std::future::Future;
 use std::io::{self, Read, Write};
@@ -30,7 +28,7 @@ use crate::actor;
 
 mod server;
 
-pub use server::{setup_server, Server, ServerError, ServerMessage, ServerSetup};
+pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 
 /// A TCP socket listener.
 ///

@@ -18,9 +18,10 @@ use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 /// A intermediate structure that implements [`NewActor`], creating
 /// [`tcp::Server`].
 ///
-/// See [`setup_server`] to create this and [`tcp::Server`] for examples.
+/// See [`tcp::Server::setup`] to create this and [`tcp::Server`] for examples.
 ///
-/// [`tcp::Server`]: crate::net::tcp::Server
+/// [`tcp::Server`]: Server
+/// [`tcp::Server::setup`]: Server::setup
 #[derive(Debug)]
 pub struct ServerSetup<S, NA> {
     /// Supervisor for all actors created by `NewActor`.
@@ -29,28 +30,6 @@ pub struct ServerSetup<S, NA> {
     new_actor: NA,
     /// Options used to add the actor to the actor system.
     options: ActorOptions,
-}
-
-/// Create a new [`ServerSetup`].
-///
-/// Arguments:
-/// * the actor (`new_actor`) to start for each connection,
-/// * the `supervisor` to supervise each new actor, and
-/// * the actor `options` used to spawn the new actors.
-///
-/// See [`tcp::Server`] for examples.
-///
-/// [`tcp::Server`]: crate::net::tcp::Server
-pub const fn setup_server<S, NA>(
-    supervisor: S,
-    new_actor: NA,
-    options: ActorOptions,
-) -> ServerSetup<S, NA> {
-    ServerSetup {
-        supervisor,
-        new_actor,
-        options,
-    }
 }
 
 impl<S, NA> NewActor for ServerSetup<S, NA>
@@ -127,7 +106,7 @@ where
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///     // Create our TCP listener. We'll use the default actor options.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let listener = tcp::setup_server(conn_supervisor, new_actor, ActorOptions::default());
+///     let listener = tcp::Server::setup(conn_supervisor, new_actor, ActorOptions::default());
 ///
 ///     // The address to listen on.
 ///     let address = "127.0.0.1:7890".parse().unwrap();
@@ -186,7 +165,7 @@ where
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///     // Adding the TCP listener is the same as in the example above.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let listener = tcp::setup_server(conn_supervisor, new_actor, ActorOptions::default());
+///     let listener = tcp::Server::setup(conn_supervisor, new_actor, ActorOptions::default());
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     let mut listener_ref = system_ref.try_spawn(listener_supervisor, listener, address, options)?;
@@ -232,6 +211,26 @@ pub struct Server<S, NA> {
     options: ActorOptions,
     /// The inbox of the listener.
     inbox: Inbox<ServerMessage>,
+}
+
+impl<S, NA> Server<S, NA>
+where
+    S: Supervisor<<NA::Actor as actor::Actor>::Error, NA::Argument> + Clone + 'static,
+    NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
+{
+    /// Create a new [`ServerSetup`].
+    ///
+    /// Arguments:
+    /// * `supervisor`: the [`Supervisor`] used to supervise each started actor,
+    /// * `new_actor`: the [`NewActor`] implementation to start each actor, and
+    /// * `options`: the actor options used to spawn the new actors.
+    pub const fn setup(supervisor: S, new_actor: NA, options: ActorOptions) -> ServerSetup<S, NA> {
+        ServerSetup {
+            supervisor,
+            new_actor,
+            options,
+        }
+    }
 }
 
 impl<S, NA> Actor for Server<S, NA>
