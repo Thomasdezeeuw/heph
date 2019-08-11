@@ -1,9 +1,9 @@
 //! Tests related to `net` types.
 
+use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::Poll;
-use std::{io, net};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -48,7 +48,7 @@ where
     NA: NewActor<Message = !, Argument = SocketAddr, Actor = A, Error = !>,
     A: Actor<Error = io::Error>,
 {
-    let echo_socket = net::UdpSocket::bind(local_address).unwrap();
+    let echo_socket = std::net::UdpSocket::bind(local_address).unwrap();
     let address = echo_socket.local_addr().unwrap();
 
     let (actor, _) = init_actor(new_actor, address).unwrap();
@@ -61,7 +61,7 @@ where
         Poll::Pending => {} // Ok.
     }
 
-    let mut buf = [0; DATA.len() + 2];
+    let mut buf = [0; DATA.len() + 1];
     let (bytes_read, peer_address) = echo_socket.recv_from(&mut buf).unwrap();
     assert_eq!(bytes_read, DATA.len());
     assert_eq!(&buf[..bytes_read], &*DATA);
@@ -102,6 +102,8 @@ async fn unconnected_udp_actor(
     assert_eq!(&buf[..bytes_read], &*DATA);
     assert_eq!(address, peer_address);
 
+    assert!(socket.take_error().unwrap().is_none());
+
     Ok(())
 }
 
@@ -124,6 +126,8 @@ async fn connected_udp_actor(
     let bytes_read = socket.recv(&mut buf).await?;
     assert_eq!(bytes_read, DATA.len());
     assert_eq!(&buf[..bytes_read], &*DATA);
+
+    assert!(socket.take_error().unwrap().is_none());
 
     Ok(())
 }
