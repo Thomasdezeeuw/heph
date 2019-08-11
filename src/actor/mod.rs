@@ -210,7 +210,7 @@ pub trait NewActor {
     ///
     ///     // For more information about the remainder of this example see
     ///     // `tcp::Server`.
-    ///     let listener = tcp::setup_server(conn_supervisor, new_actor, ActorOptions::default());
+    ///     let listener = tcp::Server::setup(conn_supervisor, new_actor, ActorOptions::default());
     ///     let address = "127.0.0.1:7890".parse().unwrap();
     ///     # let mut actor_ref =
     ///     system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions::default())?;
