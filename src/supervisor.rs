@@ -141,12 +141,12 @@ where
     fn decide(&mut self, error: A::Error) -> SupervisorStrategy<A::Argument>;
 }
 
-impl<F, A, E, Arg> SyncSupervisor<A> for F
+impl<F, A> SyncSupervisor<A> for F
 where
-    F: FnMut(E) -> SupervisorStrategy<Arg>,
-    A: SyncActor<Argument = Arg, Error = E>,
+    F: FnMut(A::Error) -> SupervisorStrategy<A::Argument>,
+    A: SyncActor,
 {
-    fn decide(&mut self, err: E) -> SupervisorStrategy<Arg> {
+    fn decide(&mut self, err: A::Error) -> SupervisorStrategy<A::Argument> {
         (self)(err)
     }
 }
