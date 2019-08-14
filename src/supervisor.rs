@@ -2,9 +2,10 @@
 //!
 //! # Supervisor
 //!
-//! A supervisor supervises an actor and handles its errors. A supervisor
-//! generally does two things; logging and deciding whether to stop or restart
-//! the actor. Its advised to keep a supervisor small and simple.
+//! A supervisor supervises an actor and handles any errors it encounters. A
+//! supervisor generally does two things; logging of the error and deciding
+//! whether to stop or restart the actor. Its advised to keep a supervisor small
+//! and simple.
 //!
 //! When encountering an error it usually means someone has to be notified (to
 //! fix it), something often done via logging.
@@ -24,12 +25,12 @@
 //! Sometimes just restarting an actor is the easiest way to deal with errors.
 //! Starting the actor from a clean slate will often allow it to continue
 //! processing. However this is not possible in all cases, for example when a
-//! new argument can't be provided (think actors started by a [`TcpListener`]).
+//! new argument can't be provided (think actors started by a [`tcp::Server`]).
 //! In those cases the supervisor should still log the error encountered.
 //!
 //! [stopped]: crate::supervisor::SupervisorStrategy::Stop
 //! [restarted]: crate::supervisor::SupervisorStrategy::Restart
-//! [`TcpListener`]: crate::net::TcpListener
+//! [`tcp::Server`]: crate::net::tcp::Server
 //!
 //! # Examples
 //!
