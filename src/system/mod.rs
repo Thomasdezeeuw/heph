@@ -27,7 +27,7 @@ use num_cpus;
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
 use crate::actor_ref::{ActorRef, Local, Sync};
 use crate::inbox::Inbox;
-use crate::supervisor::{Supervisor, SupervisorStrategy};
+use crate::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
 use crate::{actor, Actor, NewActor};
 
 mod error;
@@ -212,7 +212,7 @@ impl<S> ActorSystem<S> {
         arg: Arg,
     ) -> Result<ActorRef<Sync<M>>, RuntimeError>
     where
-        Sv: Supervisor<E, Arg> + Send + 'static,
+        Sv: SyncSupervisor<A> + Send + 'static,
         A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
         Arg: Send + 'static,
         M: Send + 'static,
@@ -351,7 +351,7 @@ where
 /// Run a synchronous actor.
 fn run_sync_actor<S, E, Arg, A, M>(mut supervisor: S, actor: A, mut arg: Arg, inbox: Receiver<M>)
 where
-    S: Supervisor<E, Arg>,
+    S: SyncSupervisor<A> + 'static,
     A: SyncActor<Message = M, Argument = Arg, Error = E>,
 {
     trace!("running synchronous actor");

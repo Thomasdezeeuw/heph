@@ -72,6 +72,8 @@
 //! }
 //! ```
 
+use crate::actor::sync::SyncActor;
+
 /// The supervisor of an actor.
 ///
 /// For more information about supervisors see the [module documentation], here
@@ -115,6 +117,40 @@ where
     }
 }
 
+/// Supervisor for [synchronous actors].
+///
+/// For more information about supervisors see the [module documentation], here
+/// only the design of the trait is discussed.
+///
+/// The trait is designed to be generic over the actor (`A`). This means that
+/// the same type can implement supervision for a number of different actors.
+/// But a word of caution, supervisors should generally be small and simple,
+/// which means that having a different supervisor for each actor is often a
+/// good thing.
+///
+/// `SyncSupervisor` is implemented for any function that takes an error `E` and
+/// returns `SupervisorStrategy<Arg>` automatically.
+///
+/// [synchronous actors]: crate::actor::sync
+/// [module documentation]: crate::supervisor
+pub trait SyncSupervisor<A>
+where
+    A: SyncActor,
+{
+    /// Decide what happens to the actor that returned `error`.
+    fn decide(&mut self, error: A::Error) -> SupervisorStrategy<A::Argument>;
+}
+
+impl<F, A, E, Arg> SyncSupervisor<A> for F
+where
+    F: FnMut(E) -> SupervisorStrategy<Arg>,
+    A: SyncActor<Argument = Arg, Error = E>,
+{
+    fn decide(&mut self, err: E) -> SupervisorStrategy<Arg> {
+        (self)(err)
+    }
+}
+
 /// A supervisor implementation for actors that never return an error.
 ///
 /// This supervisor does nothing and can't actually be called, it can only serve
@@ -150,7 +186,17 @@ where
 pub struct NoSupervisor;
 
 impl<Arg> Supervisor<!, Arg> for NoSupervisor {
-    fn decide(&mut self, _error: !) -> SupervisorStrategy<Arg> {
+    fn decide(&mut self, _: !) -> SupervisorStrategy<Arg> {
+        // This can't be called.
+        SupervisorStrategy::Stop
+    }
+}
+
+impl<A, Arg> SyncSupervisor<A> for NoSupervisor
+where
+    A: SyncActor<Argument = Arg, Error = !>,
+{
+    fn decide(&mut self, _: !) -> SupervisorStrategy<Arg> {
         // This can't be called.
         SupervisorStrategy::Stop
     }
