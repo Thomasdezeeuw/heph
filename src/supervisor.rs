@@ -192,11 +192,11 @@ impl<Arg> Supervisor<!, Arg> for NoSupervisor {
     }
 }
 
-impl<A, Arg> SyncSupervisor<A> for NoSupervisor
+impl<A> SyncSupervisor<A> for NoSupervisor
 where
-    A: SyncActor<Argument = Arg, Error = !>,
+    A: SyncActor<Error = !>,
 {
-    fn decide(&mut self, _: !) -> SupervisorStrategy<Arg> {
+    fn decide(&mut self, _: !) -> SupervisorStrategy<A::Argument> {
         // This can't be called.
         SupervisorStrategy::Stop
     }
