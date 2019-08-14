@@ -78,6 +78,12 @@ where
         error!("error restarting the TCP server: {}", err);
         SupervisorStrategy::Stop
     }
+
+    fn second_restart_error(&mut self, err: io::Error) {
+        // This shouldn't ever be called as we don't restart the actor a second
+        // time (see `decide_on_restart_error`), but just in case.
+        error!("error restarting the actor a second time: {}", err);
+    }
 }
 
 /// Our supervisor for the connection actor.
