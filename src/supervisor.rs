@@ -73,25 +73,50 @@
 //! ```
 
 use crate::actor::sync::SyncActor;
+use crate::actor::{Actor, NewActor};
 
 /// The supervisor of an actor.
 ///
 /// For more information about supervisors see the [module documentation], here
 /// only the design of the trait is discussed.
 ///
-/// The trait is designed to be generic to the error (`E`) and argument used in
-/// restarting the actor (`Arg`). This means that the same type can implement
-/// supervision for a number of different actors. But a word of caution,
-/// supervisors should generally be small and simple, which means that having a
-/// different supervisor for each actor is often a good thing.
+/// The trait is designed to be generic over the [`NewActor`] implementation
+/// (`NA`). This means that the same type can implement supervision for a number
+/// of different actors. But a word of caution, supervisors should generally be
+/// small and simple, which means that having a different supervisor for each
+/// actor is often a good thing.
 ///
-/// `Supervisor` is implemented for any function that takes an error `E` and
-/// returns `SupervisorStrategy<Arg>` automatically.
+/// `Supervisor` can be implemented using a simple function if the `NewActor`
+/// implementation doesn't return an error (i.e. `NewActor::Error = !`), which
+/// is the case for asynchronous functions. See the [module documentation] for
+/// an example of this.
 ///
 /// [module documentation]: crate::supervisor
-pub trait Supervisor<E, Arg> {
+pub trait Supervisor<NA>
+where
+    NA: NewActor,
+{
     /// Decide what happens to the actor that returned `error`.
-    fn decide(&mut self, error: E) -> SupervisorStrategy<Arg>;
+    fn decide(&mut self, error: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument>;
+
+    /// Decide what happens when an actor is restarted and the [`NewActor`]
+    /// implementation returns an `error`.
+    fn decide_on_restart_error(&mut self, error: NA::Error) -> SupervisorStrategy<NA::Argument>;
+}
+
+impl<F, NA> Supervisor<NA> for F
+where
+    F: FnMut(<NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument>,
+    NA: NewActor<Error = !>,
+{
+    fn decide(&mut self, err: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
+        (self)(err)
+    }
+
+    fn decide_on_restart_error(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
+        // This can't be called.
+        SupervisorStrategy::Stop
+    }
 }
 
 /// The strategy to use when handling an error from an actor.
@@ -106,15 +131,6 @@ pub enum SupervisorStrategy<Arg> {
     Restart(Arg),
     /// Stop the actor.
     Stop,
-}
-
-impl<F, E, Arg> Supervisor<E, Arg> for F
-where
-    F: FnMut(E) -> SupervisorStrategy<Arg>,
-{
-    fn decide(&mut self, error: E) -> SupervisorStrategy<Arg> {
-        (self)(error)
-    }
 }
 
 /// Supervisor for [synchronous actors].
@@ -185,8 +201,17 @@ where
 #[derive(Copy, Clone, Debug)]
 pub struct NoSupervisor;
 
-impl<Arg> Supervisor<!, Arg> for NoSupervisor {
-    fn decide(&mut self, _: !) -> SupervisorStrategy<Arg> {
+impl<NA, A> Supervisor<NA> for NoSupervisor
+where
+    NA: NewActor<Actor = A, Error = !>,
+    A: Actor<Error = !>,
+{
+    fn decide(&mut self, _: A::Error) -> SupervisorStrategy<NA::Argument> {
+        // This can't be called.
+        SupervisorStrategy::Stop
+    }
+
+    fn decide_on_restart_error(&mut self, _: NA::Error) -> SupervisorStrategy<NA::Argument> {
         // This can't be called.
         SupervisorStrategy::Stop
     }

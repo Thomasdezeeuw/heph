@@ -20,7 +20,11 @@ pub struct ActorProcess<S, NA: NewActor> {
     inbox: Inbox<NA::Message>,
 }
 
-impl<S, NA: NewActor> ActorProcess<S, NA> {
+impl<S, NA: NewActor> ActorProcess<S, NA>
+where
+    S: Supervisor<NA>,
+    NA: NewActor + 'static,
+{
     /// Create a new `ActorProcess`.
     pub(crate) const fn new(
         supervisor: S,
@@ -39,7 +43,7 @@ impl<S, NA: NewActor> ActorProcess<S, NA> {
 
 impl<S, NA> Process for ActorProcess<S, NA>
 where
-    S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument>,
+    S: Supervisor<NA>,
     NA: NewActor + 'static,
 {
     fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef, pid: ProcessId) -> ProcessResult {

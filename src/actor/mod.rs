@@ -193,7 +193,7 @@ pub trait NewActor {
     /// use heph::actor::{self, NewActor};
     /// # use heph::log::error;
     /// use heph::net::tcp::{self, TcpStream};
-    /// # use heph::supervisor::SupervisorStrategy;
+    /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
     /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
     ///
     /// // Create and run the actor system.
@@ -212,17 +212,38 @@ pub trait NewActor {
     ///     // `tcp::Server`.
     ///     let listener = tcp::Server::setup(conn_supervisor, new_actor, ActorOptions::default());
     ///     let address = "127.0.0.1:7890".parse().unwrap();
+    ///     # let server_supervisor = ServerSupervisor(address);
     ///     # let mut actor_ref =
-    ///     system_ref.try_spawn(listener_supervisor, listener, address, ActorOptions::default())?;
+    ///     system_ref.try_spawn(server_supervisor, listener, address, ActorOptions::default())?;
     ///
     ///     actor_ref <<= Terminate;
     ///
     ///     Ok(())
     /// }
     ///
-    /// # fn listener_supervisor(err: tcp::ServerError<!>) -> SupervisorStrategy<(SocketAddr)> {
-    /// #   error!("error accepting connection: {}", err);
-    /// #   SupervisorStrategy::Stop
+    /// # #[derive(Copy, Clone, Debug)]
+    /// # struct ServerSupervisor(SocketAddr);
+    /// #
+    /// # impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
+    /// # where
+    /// #     S: Supervisor<NA> + Clone + 'static,
+    /// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
+    /// # {
+    /// #     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<SocketAddr> {
+    /// #         use tcp::ServerError::*;
+    /// #         match err {
+    /// #             Accept(err) => {
+    /// #                 error!("error accepting new connection: {}", err);
+    /// #                 SupervisorStrategy::Restart(self.0)
+    /// #             }
+    /// #             NewActor(_) => unreachable!(),
+    /// #         }
+    /// #     }
+    /// #
+    /// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<SocketAddr> {
+    /// #         error!("error restarting the TCP server: {}", err);
+    /// #         SupervisorStrategy::Stop
+    /// #     }
     /// # }
     /// #
     /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {

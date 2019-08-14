@@ -12,11 +12,9 @@ use std::{fmt, mem};
 use log::{debug, trace};
 use slab::Slab;
 
-use crate::actor::{Actor, NewActor};
 use crate::inbox::Inbox;
-use crate::supervisor::Supervisor;
 use crate::system::process::{ActorProcess, Process, ProcessId, ProcessResult};
-use crate::system::ActorSystemRef;
+use crate::{ActorSystemRef, NewActor, Supervisor};
 
 mod priority;
 
@@ -153,7 +151,7 @@ impl<'s> AddingProcess<'s> {
         actor: NA::Actor,
         mailbox: Inbox<NA::Message>,
     ) where
-        S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
+        S: Supervisor<NA> + 'static,
         NA: NewActor + 'static,
     {
         let process = Box::pin(ActorProcess::new(supervisor, new_actor, actor, mailbox));

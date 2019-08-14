@@ -28,7 +28,7 @@ use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
 use crate::actor_ref::{ActorRef, Local, Sync};
 use crate::inbox::Inbox;
 use crate::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
-use crate::{actor, Actor, NewActor};
+use crate::{actor, NewActor};
 
 mod error;
 mod process;
@@ -558,7 +558,7 @@ impl ActorSystemRef {
         options: ActorOptions,
     ) -> Result<ActorRef<Local<NA::Message>>, NA::Error>
     where
-        S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
+        S: Supervisor<NA> + 'static,
         NA: NewActor + 'static,
         NA::Actor: 'static,
     {
@@ -583,7 +583,7 @@ impl ActorSystemRef {
         options: ActorOptions,
     ) -> ActorRef<Local<NA::Message>>
     where
-        S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
+        S: Supervisor<NA> + 'static,
         NA: NewActor<Error = !> + 'static,
         NA::Actor: 'static,
     {
@@ -606,7 +606,7 @@ impl ActorSystemRef {
         options: ActorOptions,
     ) -> Result<ActorRef<Local<NA::Message>>, AddActorError<NA::Error, ArgFnE>>
     where
-        S: Supervisor<<NA::Actor as Actor>::Error, NA::Argument> + 'static,
+        S: Supervisor<NA> + 'static,
         NA: NewActor + 'static,
         ArgFn: FnOnce(ProcessId, &mut ActorSystemRef) -> Result<NA::Argument, ArgFnE>,
         NA::Actor: 'static,
