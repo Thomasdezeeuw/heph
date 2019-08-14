@@ -244,6 +244,11 @@ pub trait NewActor {
     /// #         error!("error restarting the TCP server: {}", err);
     /// #         SupervisorStrategy::Stop
     /// #     }
+    /// #
+    /// #     fn second_restart_error(&mut self, _: io::Error) {
+    /// #         // We don't restart a second time, so this will never be called.
+    /// #         unreachable!();
+    /// #     }
     /// # }
     /// #
     /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {

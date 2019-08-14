@@ -82,24 +82,9 @@ fn erroneous_actor_process() {
     let new_actor = error_actor as fn(_, _) -> _;
     let (actor, mut actor_ref) = init_actor(new_actor, true).unwrap();
 
-    struct TestSupervisor;
-
-    impl<NA> Supervisor<NA> for TestSupervisor
-    where
-        NA: NewActor,
-    {
-        fn decide(&mut self, _: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
-            SupervisorStrategy::Stop
-        }
-
-        fn decide_on_restart_error(&mut self, _: NA::Error) -> SupervisorStrategy<NA::Argument> {
-            SupervisorStrategy::Stop
-        }
-    }
-
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(TestSupervisor, new_actor, actor, inbox);
+    let process = ActorProcess::new(|_| SupervisorStrategy::Stop, new_actor, actor, inbox);
     let mut process = Box::pin(process);
 
     // Actor should return Err.
@@ -129,6 +114,10 @@ fn restarting_erroneous_actor_process() {
         fn decide_on_restart_error(&mut self, _: NA::Error) -> SupervisorStrategy<NA::Argument> {
             self.0.store(true, atomic::Ordering::SeqCst);
             SupervisorStrategy::Restart(false)
+        }
+
+        fn second_restart_error(&mut self, _: NA::Error) {
+            unreachable!("TODO: test call to second_restart_error in ActorProcess");
         }
     }
 

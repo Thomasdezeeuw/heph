@@ -103,6 +103,15 @@ where
     /// Decide what happens when an actor is restarted and the [`NewActor`]
     /// implementation returns an `error`.
     fn decide_on_restart_error(&mut self, error: NA::Error) -> SupervisorStrategy<NA::Argument>;
+
+    /// Method that gets call if an actor fails to restart twice.
+    ///
+    /// This is only call if [`decide`] return the restart strategy, the actors
+    /// fails to restart, then [`decide_on_restart_error`] also returns a
+    /// restart strategy and restarting a second time also restarts. We will not
+    /// create an endless loop restart failures.
+    // TODO: a better name.
+    fn second_restart_error(&mut self, error: NA::Error);
 }
 
 impl<F, NA> Supervisor<NA> for F
@@ -117,6 +126,10 @@ where
     fn decide_on_restart_error(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
         // This can't be called.
         SupervisorStrategy::Stop
+    }
+
+    fn second_restart_error(&mut self, _: !) {
+        // This can't be called.
     }
 }
 
@@ -207,14 +220,18 @@ where
     NA: NewActor<Actor = A, Error = !>,
     A: Actor<Error = !>,
 {
-    fn decide(&mut self, _: A::Error) -> SupervisorStrategy<NA::Argument> {
+    fn decide(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
         // This can't be called.
         SupervisorStrategy::Stop
     }
 
-    fn decide_on_restart_error(&mut self, _: NA::Error) -> SupervisorStrategy<NA::Argument> {
+    fn decide_on_restart_error(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
         // This can't be called.
         SupervisorStrategy::Stop
+    }
+
+    fn second_restart_error(&mut self, _: !) {
+        // This can't be called.
     }
 }
 

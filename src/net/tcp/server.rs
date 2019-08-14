@@ -146,6 +146,11 @@ where
 ///         error!("error restarting the TCP server: {}", err);
 ///         SupervisorStrategy::Stop
 ///     }
+///
+///     fn second_restart_error(&mut self, _: io::Error) {
+///         // We don't restart a second time, so this will never be called.
+///         unreachable!();
+///     }
 /// }
 ///
 /// /// `conn_actor`'s supervisor.
@@ -227,6 +232,11 @@ where
 ///         // If we can't create a new listener we'll stop.
 ///         error!("error restarting the TCP server: {}", err);
 ///         SupervisorStrategy::Stop
+///     }
+///
+///     fn second_restart_error(&mut self, _: io::Error) {
+///         // We don't restart a second time, so this will never be called.
+///         unreachable!();
 ///     }
 /// }
 ///
