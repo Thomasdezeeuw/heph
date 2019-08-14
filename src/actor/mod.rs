@@ -35,7 +35,6 @@
 //! }
 //! ```
 
-use std::fmt;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -158,7 +157,7 @@ pub trait NewActor {
     /// Note that if creating an actor is always successful the never type (`!`)
     /// can be used. Asynchronous functions for example use the never type as
     /// error.
-    type Error: fmt::Display;
+    type Error;
 
     /// Create a new [`Actor`](Actor).
     fn new(
