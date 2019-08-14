@@ -7,10 +7,10 @@ use futures_util::AsyncWriteExt;
 
 use heph::log::{self, error, info};
 use heph::net::tcp::{self, TcpStream};
-use heph::supervisor::SupervisorStrategy;
+use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph::system::options::Priority;
 use heph::system::RuntimeError;
-use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
+use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef, NewActor};
 
 fn main() -> Result<(), RuntimeError<io::Error>> {
     // For this example we'll enable logging, this give us a bit more insight
@@ -28,34 +28,56 @@ fn main() -> Result<(), RuntimeError<io::Error>> {
 
 /// Our setup function that will add the TCP listener to the actor system.
 fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
-    // Create our TCP listener. This TCP listener will create a new actor for
-    // each incoming TCP stream. As always, actors needs supervision, this is
-    // done by `conn_supervisor` in this example. And as each actor will need to
-    // be added to the actor system it needs the `ActorOptions` to do that,
-    // we'll use the defaults options here.
+    // Create our TCP server. This TCP server will create a new actor for each
+    // incoming TCP stream. As always, actors needs supervision, this is done by
+    // `ConnSupervisor` in this example. And as each actor will need to be added
+    // to the actor system it needs the `ActorOptions` to do that, we'll use the
+    // defaults options here.
     let actor = conn_actor as fn(_, _, _) -> _;
     let server = tcp::Server::setup(conn_supervisor, actor, ActorOptions::default());
 
-    // As the TCP listener is just another actor we need to spawn it like any
+    // As the TCP server is just another actor we need to spawn it like any
     // other actor. And again actors needs supervision, thus we provide
-    // `listener_supervisor` as supervisor. As argument the TCP listener needs
-    // an address to listen on.
+    // `ServerSupervisor` as supervisor. As argument the TCP listener needs an
+    // address to listen on.
     let address = "127.0.0.1:7890".parse().unwrap();
     // We'll give our listener a low priority to prioritise handling of ongoing
     // requests over accepting new requests possibly overloading the system.
     let options = ActorOptions::default().with_priority(Priority::LOW);
-    system_ref.try_spawn(server_supervisor, server, address, options)?;
+    system_ref.try_spawn(ServerSupervisor(address), server, address, options)?;
 
     Ok(())
 }
 
-/// Our supervisor for the TCP listener.
-///
-/// In this example we'll log the error and then stop the actor, but we could
-/// restart it by providing another address.
-fn server_supervisor(err: tcp::ServerError<!>) -> SupervisorStrategy<(SocketAddr)> {
-    error!("error in TCP listener: {}", err);
-    SupervisorStrategy::Stop
+/// Our supervisor for the TCP server.
+#[derive(Copy, Clone, Debug)]
+struct ServerSupervisor(SocketAddr);
+
+impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
+where
+    // Trait bounds needed by `tcp::ServerSetup`.
+    S: Supervisor<NA> + Clone + 'static,
+    NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
+{
+    fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<SocketAddr> {
+        use tcp::ServerError::*;
+        match err {
+            // When we hit an error accepting a connection we'll drop the old
+            // listener and create a new one.
+            Accept(err) => {
+                error!("error accepting new connection: {}", err);
+                SupervisorStrategy::Restart(self.0)
+            }
+            // Async function never return an error creating a new actor.
+            NewActor(_) => unreachable!(),
+        }
+    }
+
+    fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<SocketAddr> {
+        // If we can't create a new listener we'll stop.
+        error!("error restarting the TCP server: {}", err);
+        SupervisorStrategy::Stop
+    }
 }
 
 /// Our supervisor for the connection actor.

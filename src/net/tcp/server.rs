@@ -34,7 +34,7 @@ pub struct ServerSetup<S, NA> {
 
 impl<S, NA> NewActor for ServerSetup<S, NA>
 where
-    S: Supervisor<<NA::Actor as actor::Actor>::Error, NA::Argument> + Clone + 'static,
+    S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
 {
     type Message = ServerMessage;
@@ -87,11 +87,11 @@ where
 ///
 /// use futures_util::AsyncWriteExt;
 ///
-/// use heph::actor;
+/// use heph::actor::{self, NewActor};
 /// # use heph::actor::messages::Terminate;
 /// use heph::log::error;
-/// use heph::net::tcp::{self, ServerError, TcpStream};
-/// use heph::supervisor::SupervisorStrategy;
+/// use heph::net::tcp::{self, TcpStream};
+/// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::system::options::Priority;
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
 ///
@@ -111,16 +111,41 @@ where
 ///     // overloading the system.
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let mut actor_ref =
-///     system_ref.try_spawn(listener_supervisor, listener, address, options)?;
+///     system_ref.try_spawn(ServerSupervisor(address), listener, address, options)?;
 ///     # actor_ref <<= Terminate;
 ///
 ///     Ok(())
 /// }
 ///
-/// /// Supervisor for the TCP listener.
-/// fn listener_supervisor(err: ServerError<!>) -> SupervisorStrategy<(SocketAddr)> {
-///     error!("error accepting connection: {}", err);
-///     SupervisorStrategy::Stop
+/// /// Our supervisor for the TCP server.
+/// #[derive(Copy, Clone, Debug)]
+/// struct ServerSupervisor(SocketAddr);
+///
+/// impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
+/// where
+///     // Trait bounds needed by `tcp::ServerSetup`.
+///     S: Supervisor<NA> + Clone + 'static,
+///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
+/// {
+///     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<SocketAddr> {
+///         use tcp::ServerError::*;
+///         match err {
+///             // When we hit an error accepting a connection we'll drop the old
+///             // listener and create a new one.
+///             Accept(err) => {
+///                 error!("error accepting new connection: {}", err);
+///                 SupervisorStrategy::Restart(self.0)
+///             }
+///             // Async function never return an error creating a new actor.
+///             NewActor(_) => unreachable!(),
+///         }
+///     }
+///
+///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<SocketAddr> {
+///         // If we can't create a new listener we'll stop.
+///         error!("error restarting the TCP server: {}", err);
+///         SupervisorStrategy::Stop
+///     }
 /// }
 ///
 /// /// `conn_actor`'s supervisor.
@@ -147,11 +172,11 @@ where
 ///
 /// use futures_util::AsyncWriteExt;
 ///
-/// use heph::actor;
+/// use heph::{actor, NewActor};
 /// use heph::actor::messages::Terminate;
 /// use heph::log::error;
-/// use heph::net::tcp::{self, ServerError, TcpStream};
-/// use heph::supervisor::SupervisorStrategy;
+/// use heph::net::tcp::{self, TcpStream};
+/// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::system::options::Priority;
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
 ///
@@ -164,7 +189,7 @@ where
 ///     let listener = tcp::Server::setup(conn_supervisor, new_actor, ActorOptions::default());
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
-///     let mut listener_ref = system_ref.try_spawn(listener_supervisor, listener, address, options)?;
+///     let mut listener_ref = system_ref.try_spawn(ServerSupervisor(address), listener, address, options)?;
 ///
 ///     // Because the listener is just another actor we can send it messages.
 ///     // Here we'll send it a terminate message so it will gracefully
@@ -174,10 +199,35 @@ where
 ///     Ok(())
 /// }
 ///
-/// /// Supervisor for the TCP listener.
-/// fn listener_supervisor(err: ServerError<!>) -> SupervisorStrategy<(SocketAddr)> {
-///     error!("error accepting connection: {}", err);
-///     SupervisorStrategy::Stop
+/// /// Our supervisor for the TCP server.
+/// #[derive(Copy, Clone, Debug)]
+/// struct ServerSupervisor(SocketAddr);
+///
+/// impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
+/// where
+///     // Trait bounds needed by `tcp::ServerSetup`.
+///     S: Supervisor<NA> + Clone + 'static,
+///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
+/// {
+///     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<SocketAddr> {
+///         use tcp::ServerError::*;
+///         match err {
+///             // When we hit an error accepting a connection we'll drop the old
+///             // listener and create a new one.
+///             Accept(err) => {
+///                 error!("error accepting new connection: {}", err);
+///                 SupervisorStrategy::Restart(self.0)
+///             }
+///             // Async function never return an error creating a new actor.
+///             NewActor(_) => unreachable!(),
+///         }
+///     }
+///
+///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<SocketAddr> {
+///         // If we can't create a new listener we'll stop.
+///         error!("error restarting the TCP server: {}", err);
+///         SupervisorStrategy::Stop
+///     }
 /// }
 ///
 /// /// `conn_actor`'s supervisor.
@@ -211,7 +261,7 @@ pub struct Server<S, NA> {
 
 impl<S, NA> Server<S, NA>
 where
-    S: Supervisor<<NA::Actor as actor::Actor>::Error, NA::Argument> + Clone + 'static,
+    S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
 {
     /// Create a new [`ServerSetup`].
@@ -231,7 +281,7 @@ where
 
 impl<S, NA> Actor for Server<S, NA>
 where
-    S: Supervisor<<NA::Actor as actor::Actor>::Error, NA::Argument> + Clone + 'static,
+    S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
 {
     type Error = ServerError<NA::Error>;

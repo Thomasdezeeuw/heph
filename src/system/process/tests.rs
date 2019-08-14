@@ -9,10 +9,10 @@ use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{pending, Pending};
 use gaea::event;
 
-use crate::supervisor::{NoSupervisor, SupervisorStrategy};
+use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use crate::system::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::test::{init_actor, system_ref};
-use crate::{actor, NewActor};
+use crate::{actor, Actor, NewActor};
 
 #[test]
 fn pid() {
@@ -82,9 +82,24 @@ fn erroneous_actor_process() {
     let new_actor = error_actor as fn(_, _) -> _;
     let (actor, mut actor_ref) = init_actor(new_actor, true).unwrap();
 
+    struct TestSupervisor;
+
+    impl<NA> Supervisor<NA> for TestSupervisor
+    where
+        NA: NewActor,
+    {
+        fn decide(&mut self, _: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
+            SupervisorStrategy::Stop
+        }
+
+        fn decide_on_restart_error(&mut self, _: NA::Error) -> SupervisorStrategy<NA::Argument> {
+            SupervisorStrategy::Stop
+        }
+    }
+
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
-    let process = ActorProcess::new(|_err| SupervisorStrategy::Stop, new_actor, actor, inbox);
+    let process = ActorProcess::new(TestSupervisor, new_actor, actor, inbox);
     let mut process = Box::pin(process);
 
     // Actor should return Err.
@@ -100,12 +115,25 @@ fn restarting_erroneous_actor_process() {
     let new_actor = error_actor as fn(_, _) -> _;
     let (actor, mut actor_ref) = init_actor(new_actor, true).unwrap();
 
-    let supervisor_check = Arc::new(AtomicBool::new(false));
-    let supervisor_called = Arc::clone(&supervisor_check);
-    let supervisor = move |_err| {
-        supervisor_called.store(true, atomic::Ordering::SeqCst);
-        SupervisorStrategy::Restart(false)
-    };
+    struct TestSupervisor(Arc<AtomicBool>);
+
+    impl<NA> Supervisor<NA> for TestSupervisor
+    where
+        NA: NewActor<Argument = bool>,
+    {
+        fn decide(&mut self, _: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
+            self.0.store(true, atomic::Ordering::SeqCst);
+            SupervisorStrategy::Restart(false)
+        }
+
+        fn decide_on_restart_error(&mut self, _: NA::Error) -> SupervisorStrategy<NA::Argument> {
+            self.0.store(true, atomic::Ordering::SeqCst);
+            SupervisorStrategy::Restart(false)
+        }
+    }
+
+    let supervisor_called = Arc::new(AtomicBool::new(false));
+    let supervisor = TestSupervisor(Arc::clone(&supervisor_called));
 
     // Create our process.
     let inbox = actor_ref.get_inbox().unwrap();
@@ -119,7 +147,7 @@ fn restarting_erroneous_actor_process() {
     let res = process.as_mut().run(&mut system_ref, ProcessId(0));
     assert_eq!(res, ProcessResult::Pending);
     // Supervisor must be called and the actor restarted.
-    assert!(supervisor_check.load(atomic::Ordering::SeqCst));
+    assert!(supervisor_called.load(atomic::Ordering::SeqCst));
 
     // Now we send a message to the restarted actor, which should return `Ok`.
     actor_ref.send(()).unwrap();
