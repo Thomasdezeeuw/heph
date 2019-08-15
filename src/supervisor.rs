@@ -106,10 +106,14 @@ where
 
     /// Method that gets call if an actor fails to restart twice.
     ///
-    /// This is only call if [`decide`] return the restart strategy, the actors
-    /// fails to restart, then [`decide_on_restart_error`] also returns a
-    /// restart strategy and restarting a second time also restarts. We will not
-    /// create an endless loop restart failures.
+    /// This is only called if [`decide`] returns a restart strategy, the actors
+    /// fails to restart, after which [`decide_on_restart_error`] is called also
+    /// returns a restart strategy and restarting a second time also fails. We
+    /// will not create an endless loop of restarting failures and instead call
+    /// this function.
+    ///
+    /// [`decide`]: Supervisor::decide
+    /// [`decide_on_restart_error`]: Supervisor::decide_on_restart_error
     // TODO: a better name.
     fn second_restart_error(&mut self, error: NA::Error);
 }
