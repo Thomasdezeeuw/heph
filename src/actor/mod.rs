@@ -151,9 +151,6 @@ pub trait NewActor {
 
     /// The type of error.
     ///
-    /// The error type must implement [`fmt::Display`] to it can be used to log
-    /// errors, for example when restarting actors.
-    ///
     /// Note that if creating an actor is always successful the never type (`!`)
     /// can be used. Asynchronous functions for example use the never type as
     /// error.
