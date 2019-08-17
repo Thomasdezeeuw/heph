@@ -25,26 +25,16 @@ struct SharedInbox<M> {
     /// Reference to the actor system, used to notify the actor.
     system_ref: ActorSystemRef,
     /// The messages in the mailbox.
+    ///
+    /// NOTE: don't use this directly instead used `with_messages`.
     messages: VecDeque<M>,
     /// This is an alternative source of messages, send across thread bounds,
     /// used by machine local actor references to send messages. This defaults
     /// to `None` and is only set to `Some` the first time `upgrade_ref` is
     /// called.
-    messages2: Option<(Sender<M>, Receiver<M>)>,
-}
-
-impl<M> SharedInbox<M> {
-    /// Receive all remote messages, if any, and add them to the message queue.
     ///
-    /// This is done in an attempt to make the receiving of the two sources of
-    /// message a bit more fair.
-    fn receive_remote_messages(&mut self) {
-        if let Some((_, recv)) = self.messages2.as_ref() {
-            while let Ok(msg) = recv.try_recv() {
-                self.messages.push_back(msg);
-            }
-        }
-    }
+    /// NOTE: don't use this directly instead used `with_messages`.
+    messages2: Option<(Sender<M>, Receiver<M>)>,
 }
 
 impl<M> Inbox<M> {
@@ -69,9 +59,7 @@ impl<M> Inbox<M> {
 
     /// Receive the next message, if any.
     pub fn receive_next(&mut self) -> Option<M> {
-        let mut shared = self.shared.borrow_mut();
-        shared.receive_remote_messages();
-        shared.messages.pop_front()
+        self.with_messages(|messages| messages.pop_front())
     }
 
     /// Receive a delivered message, if any.
@@ -79,11 +67,11 @@ impl<M> Inbox<M> {
     where
         S: MessageSelector<M>,
     {
-        let mut shared = self.shared.borrow_mut();
-        shared.receive_remote_messages();
-        selector
-            .select(Messages::new(&shared.messages))
-            .and_then(|selection| shared.messages.remove(selection.0))
+        self.with_messages(|messages| {
+            selector
+                .select(Messages::new(&messages))
+                .and_then(|selection| messages.remove(selection.0))
+        })
     }
 
     /// Peek the next delivered message, if any.
@@ -91,9 +79,7 @@ impl<M> Inbox<M> {
     where
         M: Clone,
     {
-        let mut shared = self.shared.borrow_mut();
-        shared.receive_remote_messages();
-        shared.messages.front().cloned()
+        self.with_messages(|messages| messages.front().cloned())
     }
 
     /// Peek a delivered message, if any.
@@ -102,11 +88,30 @@ impl<M> Inbox<M> {
         S: MessageSelector<M>,
         M: Clone,
     {
+        self.with_messages(|messages| {
+            selector
+                .select(Messages::new(&messages))
+                .and_then(|selection| messages.get(selection.0).cloned())
+        })
+    }
+
+    /// Receive all remote messages, if any, and add them to the message queue
+    /// and then calls `f` with all currently available messages.
+    ///
+    /// This is done in an attempt to make the receiving of the two sources of
+    /// message a bit more fair.
+    fn with_messages<F>(&mut self, f: F) -> Option<M>
+    where
+        F: FnOnce(&mut VecDeque<M>) -> Option<M>,
+    {
         let mut shared = self.shared.borrow_mut();
-        shared.receive_remote_messages();
-        selector
-            .select(Messages::new(&shared.messages))
-            .and_then(|selection| shared.messages.get(selection.0).cloned())
+        let shared = &mut *shared;
+        if let Some((_, recv)) = shared.messages2.as_ref() {
+            while let Ok(msg) = recv.try_recv() {
+                shared.messages.push_back(msg);
+            }
+        }
+        f(&mut shared.messages)
     }
 }
 
