@@ -361,6 +361,28 @@ impl<M> SyncContext<M> {
             .ok_or(NoMessages)
     }
 
+    /// Attempt to peek the next message.
+    pub fn try_peek_next(&mut self) -> Option<M>
+    where
+        M: Clone,
+    {
+        self.receive_messages();
+        self.data().messages.front().cloned()
+    }
+
+    /// Attempt to peek a specific message.
+    pub fn try_peek<S>(&mut self, mut selector: S) -> Option<M>
+    where
+        S: MessageSelector<M>,
+        M: Clone,
+    {
+        self.receive_messages();
+        let data = self.data();
+        selector
+            .select(Messages::new(&data.messages))
+            .and_then(|selection| data.messages.get(selection.0).cloned())
+    }
+
     /// Peek at the next message.
     pub fn peek_next(&mut self) -> Result<M, NoMessages>
     where

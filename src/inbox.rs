@@ -86,6 +86,16 @@ impl<M> Inbox<M> {
             .and_then(|selection| shared.messages.remove(selection.0))
     }
 
+    /// Peek the next delivered message, if any.
+    pub fn peek_next(&mut self) -> Option<M>
+    where
+        M: Clone,
+    {
+        let mut shared = self.shared.borrow_mut();
+        shared.receive_remote_messages();
+        shared.messages.front().cloned()
+    }
+
     /// Peek a delivered message, if any.
     pub fn peek<S>(&mut self, selector: &mut S) -> Option<M>
     where
