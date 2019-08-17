@@ -227,6 +227,23 @@ impl<M> Context<M> {
         }
     }
 
+    /// Attempt to peek the next message.
+    pub fn try_peek_next(&mut self) -> Option<M>
+    where
+        M: Clone,
+    {
+        self.inbox.peek_next()
+    }
+
+    /// Attempt to peek a specific message.
+    pub fn try_peek<S>(&mut self, mut selector: S) -> Option<M>
+    where
+        S: MessageSelector<M>,
+        M: Clone,
+    {
+        self.inbox.peek(&mut selector)
+    }
+
     /// Peek at the next message.
     pub fn peek_next<'ctx>(&'ctx mut self) -> PeekMessage<'ctx, M>
     where
