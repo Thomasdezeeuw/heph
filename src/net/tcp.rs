@@ -71,7 +71,8 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
 ///     let address = "127.0.0.1:8000".parse().unwrap();
 ///
-///     system_ref.spawn(supervisor, actor as fn(_, _) -> _, address, ActorOptions::default().schedule());
+///     system_ref.spawn(supervisor, actor as fn(_, _) -> _, address,
+///         ActorOptions::default().schedule());
 /// #   system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions::default().schedule());
 ///
 ///     Ok(())
@@ -102,7 +103,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 ///     info!(target: REQUEST_TARGET, "accepted connection from: {}", peer_address);
 ///
 ///     // Next we need to bind the stream to this actor.
-///     // NOTE: if we don't do this the actor will (likely) never complete.
+///     // NOTE: if we don't do this the actor will (likely) never be run (again).
 ///     stream.bind_to(&mut ctx)?;
 ///
 ///     // Next we write the IP address to the connection.
@@ -140,7 +141,8 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
 ///     let address = "127.0.0.1:8000".parse().unwrap();
 ///
-///     system_ref.spawn(supervisor, actor as fn(_, _) -> _, address, ActorOptions::default().schedule());
+///     system_ref.spawn(supervisor, actor as fn(_, _) -> _, address,
+///         ActorOptions::default().schedule());
 /// #   system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions::default().schedule());
 ///
 ///     Ok(())
@@ -171,7 +173,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 ///     streams.try_for_each(|(mut stream, peer_address)| {
 ///         info!(target: REQUEST_TARGET, "accepted connection from: {}", peer_address);
 ///         // Next we need to bind the stream to this actor.
-///         // NOTE: if we don't do this the actor will (likely) never complete.
+///         // NOTE: if we don't do this the actor will (likely) never be run (again).
 ///         ready(stream.bind_to(&mut ctx)).and_then(async move |()| {
 ///             // Next we write the IP address to the connection.
 ///             let ip = peer_address.to_string();
