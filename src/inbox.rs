@@ -211,7 +211,8 @@ impl<M> Clone for InboxRef<M> {
 /// # drop(First);
 /// ```
 ///
-/// The following example selects the message with the highest priority.
+/// The following example selects the message with the highest priority (also
+/// see [`Priority`]).
 ///
 /// ```
 /// use heph::actor::message_select::{MessageSelection, MessageSelector, Messages};
@@ -247,7 +248,7 @@ pub struct MessageSelection(pub(crate) usize);
 ///
 /// This is used by [`MessageSelector`] to select a message to receive next.
 /// This implements [`Iterator`], iterating over [`MessageSelection`] and a
-/// reference to the message.
+/// reference to the message `M`.
 #[derive(Debug)]
 pub struct Messages<'m, M> {
     inner: Enumerate<vec_deque::Iter<'m, M>>,
@@ -305,9 +306,11 @@ where
 
 /// A [`MessageSelector`] implementation that selects the first message.
 ///
-/// Used by [`actor::Context::receive_next`].
+/// This will return the same message as [`actor::Context::receive_next`] and
+/// [`actor::Context::peek_next`].
 ///
 /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
+/// [`actor::Context::peek_next`]: crate::actor::Context::peek_next
 ///
 /// # Examples
 ///
