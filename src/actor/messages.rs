@@ -1,6 +1,6 @@
 //! Module with some generic messages.
 //!
-//! To use these message the receiving actor should implement `From<Message>`,
+//! To use these message the receiving actor should implement [`From`]`<Message>`,
 //! this way the sending actor can simply send the message, without having to
 //! wrap it in a message type first. See the examples below.
 //!
@@ -9,7 +9,7 @@
 //! differentiate the source of the message.
 //!
 //! Two more default messages should be considered, the two variants from
-//! `Result`: `Ok` and `Err`.
+//! [`Result`]: [`Ok`] and [`Err`].
 //!
 //! # Examples
 //!
@@ -18,7 +18,6 @@
 //! ```
 //! #![feature(async_await, never_type)]
 //!
-//! use heph::actor;
 //! use heph::actor::messages::Ack;
 //!
 //! #[derive(Debug, Eq, PartialEq)]
@@ -54,15 +53,8 @@
 //!         }
 //!     }
 //! }
-//!
-//! async fn coordinator(ctx: actor::Context<Message>) -> Result<(), !> {
-//!     // Do coordinator stuff ...
-//! #   drop(ctx); // Silence dead code warnings.
-//!     # Ok(())
-//! }
-//!
-//! # // Use the `coordinator` function to silence dead code warning.
-//! # drop(coordinator);
+//! #
+//! # drop(Message::Ack(0));
 //! ```
 
 /// An acknowledgement.
@@ -89,7 +81,9 @@ pub struct Cancel<Id = ()>(pub Id);
 
 /// Ask an actor to terminate.
 ///
-/// Note: this message is not special in anyway, this means the receiving actor
-/// can simply ignore this message and continue living.
+/// # Notes
+///
+/// This message is not special in anyway, this means the receiving actor can
+/// simply ignore this message and continue living.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Terminate;
