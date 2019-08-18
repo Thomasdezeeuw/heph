@@ -30,6 +30,7 @@
 //!
 //! fn actor(mut ctx: SyncContext<String>, exit_msg: &'static str) -> Result<(), !> {
 //!     if let Ok(msg) = ctx.receive_next() {
+//! #       assert_eq!(msg, "Hello world");
 //!         println!("Got a message: {}", msg);
 //!     } else {
 //!         eprintln!("Receive no messages");
