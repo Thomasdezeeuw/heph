@@ -334,16 +334,14 @@ impl<M> MessageSelector<M> for First {
 ///     let mut actor_ref = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
 ///
 ///     // We'll send our actor two messages, one normal one and a priority one.
-///     let msg1 = Message {
+///     actor_ref <<= Message {
 ///         priority: 1,
 ///         msg: "Normal message".to_owned(),
 ///     };
-///     let msg2 = Message {
+///     actor_ref <<= Message {
 ///         priority: 100,
 ///         msg: "Priority message".to_owned(),
 ///     };
-///     actor_ref <<= msg1;
-///     actor_ref <<= msg2;
 ///     Ok(())
 /// }
 ///
@@ -355,12 +353,15 @@ impl<M> MessageSelector<M> for First {
 /// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
 ///     // As both messages are ready this will receive the priority message.
 ///     let msg = ctx.receive(Priority(|msg: &Message| msg.priority)).await;
+/// #   assert_eq!(msg.priority, 100);
+/// #   assert_eq!(msg.msg, "Priority message");
 ///     println!("Got message: {}", msg.msg);
+/// #   // Also check the second message.
+/// #   let msg = ctx.receive(Priority(|msg: &Message| msg.priority)).await;
+/// #   assert_eq!(msg.priority, 1);
+/// #   assert_eq!(msg.msg, "Normal message");
 ///     Ok(())
 /// }
-///
-/// # // Use the `actor` function to silence dead code warning.
-/// # drop(actor);
 /// ```
 #[derive(Debug)]
 pub struct Priority<F>(pub F);
