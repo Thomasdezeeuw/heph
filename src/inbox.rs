@@ -308,6 +308,40 @@ where
 /// Used by [`actor::Context::receive_next`].
 ///
 /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
+///
+/// # Examples
+///
+/// ```
+/// #![feature(async_await, never_type)]
+///
+/// use heph::actor::message_select::First;
+/// use heph::supervisor::NoSupervisor;
+/// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
+///
+/// ActorSystem::new().with_setup(setup).run().unwrap();
+///
+/// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
+///     let mut actor_ref = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
+///
+///     // We'll send our actor two messages.
+///     actor_ref <<= "Message 1".to_owned();
+///     actor_ref <<= "Message 2".to_owned();
+///     Ok(())
+/// }
+///
+/// async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+///     // Using `First` is the same as the `{peek, retrieve}_next` functions.
+///     let msg1 = ctx.peek_next().await;
+///     let msg1_again = ctx.receive(First).await;
+///     assert_eq!(msg1, msg1_again);
+/// #   assert_eq!(msg1, "Message 1");
+///     println!("Got message: {}", msg1);
+/// #   // Also check the second message.
+/// #   let msg = ctx.receive(First).await;
+/// #   assert_eq!(msg, "Message 2");
+///     Ok(())
+/// }
+/// ```
 #[derive(Debug)]
 pub struct First;
 
