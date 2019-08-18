@@ -96,22 +96,23 @@ where
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
 ///
 /// // Create and run the actor system.
-/// ActorSystem::new().with_setup(setup).run().unwrap();
+/// ActorSystem::new().with_setup(setup).run()
+/// #   .unwrap();
 ///
 /// /// In this setup function we'll add the TcpListener to the actor system.
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
-///     // Create our TCP listener. We'll use the default actor options.
+///     // Create our TCP server. We'll use the default actor options.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let listener = tcp::Server::setup(conn_supervisor, new_actor, ActorOptions::default());
+///     let server = tcp::Server::setup(conn_supervisor, new_actor, ActorOptions::default());
 ///
 ///     // The address to listen on.
 ///     let address = "127.0.0.1:7890".parse().unwrap();
-///     // We advice to give the TCP listener a low priority to prioritise
+///     // We advice to give the TCP server a low priority to prioritise
 ///     // handling of ongoing requests over accepting new requests possibly
 ///     // overloading the system.
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let mut actor_ref =
-///     system_ref.try_spawn(ServerSupervisor(address), listener, address, options)?;
+///     system_ref.try_spawn(ServerSupervisor(address), server, address, options)?;
 ///     # actor_ref <<= Terminate;
 ///
 ///     Ok(())
@@ -131,7 +132,7 @@ where
 ///         use tcp::ServerError::*;
 ///         match err {
 ///             // When we hit an error accepting a connection we'll drop the old
-///             // listener and create a new one.
+///             // server and create a new one.
 ///             Accept(err) => {
 ///                 error!("error accepting new connection: {}", err);
 ///                 SupervisorStrategy::Restart(self.0)
@@ -142,7 +143,7 @@ where
 ///     }
 ///
 ///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<SocketAddr> {
-///         // If we can't create a new listener we'll stop.
+///         // If we can't create a new server we'll stop.
 ///         error!("error restarting the TCP server: {}", err);
 ///         SupervisorStrategy::Stop
 ///     }
@@ -186,65 +187,64 @@ where
 /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
 ///
 /// // Create and run the actor system.
-/// ActorSystem::new().with_setup(setup).run().unwrap();
+/// ActorSystem::new().with_setup(setup).run()
+/// #   .unwrap();
 ///
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
-///     // Adding the TCP listener is the same as in the example above.
+///     // This uses the same supervisors as in the previous example, not shown
+///     // here.
+///
+///     // Adding the TCP server is the same as in the example above.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let listener = tcp::Server::setup(conn_supervisor, new_actor, ActorOptions::default());
+///     let server = tcp::Server::setup(conn_supervisor, new_actor, ActorOptions::default());
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
-///     let mut listener_ref = system_ref.try_spawn(ServerSupervisor(address), listener, address, options)?;
+///     let mut server_ref = system_ref.try_spawn(ServerSupervisor(address), server, address, options)?;
 ///
-///     // Because the listener is just another actor we can send it messages.
+///     // Because the server is just another actor we can send it messages.
 ///     // Here we'll send it a terminate message so it will gracefully
 ///     // shutdown.
-///     listener_ref <<= Terminate;
+///     server_ref <<= Terminate;
 ///
 ///     Ok(())
 /// }
-///
-/// /// Our supervisor for the TCP server.
-/// #[derive(Copy, Clone, Debug)]
-/// struct ServerSupervisor(SocketAddr);
-///
-/// impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
-/// where
-///     // Trait bounds needed by `tcp::ServerSetup`.
-///     S: Supervisor<NA> + Clone + 'static,
-///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
-/// {
-///     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<SocketAddr> {
-///         use tcp::ServerError::*;
-///         match err {
-///             // When we hit an error accepting a connection we'll drop the old
-///             // listener and create a new one.
-///             Accept(err) => {
-///                 error!("error accepting new connection: {}", err);
-///                 SupervisorStrategy::Restart(self.0)
-///             }
-///             // Async function never return an error creating a new actor.
-///             NewActor(_) => unreachable!(),
-///         }
-///     }
-///
-///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<SocketAddr> {
-///         // If we can't create a new listener we'll stop.
-///         error!("error restarting the TCP server: {}", err);
-///         SupervisorStrategy::Stop
-///     }
-///
-///     fn second_restart_error(&mut self, _: io::Error) {
-///         // We don't restart a second time, so this will never be called.
-///         unreachable!();
-///     }
-/// }
-///
-/// /// `conn_actor`'s supervisor.
-/// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-///     error!("error handling connection: {}", err);
-///     SupervisorStrategy::Stop
-/// }
+/// #
+/// # /// # Our supervisor for the TCP server.
+/// # #[derive(Copy, Clone, Debug)]
+/// # struct ServerSupervisor(SocketAddr);
+/// #
+/// # impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
+/// # where
+/// #     S: Supervisor<NA> + Clone + 'static,
+/// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
+/// # {
+/// #     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<SocketAddr> {
+/// #         use tcp::ServerError::*;
+/// #         match err {
+/// #             Accept(err) => {
+/// #                 error!("error accepting new connection: {}", err);
+/// #                 SupervisorStrategy::Restart(self.0)
+/// #             }
+/// #             NewActor(_) => unreachable!(),
+/// #         }
+/// #     }
+/// #
+/// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<SocketAddr> {
+/// #         error!("error restarting the TCP server: {}", err);
+/// #         SupervisorStrategy::Stop
+/// #     }
+/// #
+/// #     fn second_restart_error(&mut self, _: io::Error) {
+/// #         // We don't restart a second time, so this will never be called.
+/// #         unreachable!();
+/// #     }
+/// # }
+/// #
+/// # /// # `conn_actor`'s supervisor.
+/// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
+/// #     error!("error handling connection: {}", err);
+/// #     SupervisorStrategy::Stop
+/// # }
 ///
 /// /// The actor responsible for a single TCP stream.
 /// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
@@ -265,7 +265,7 @@ pub struct Server<S, NA> {
     new_actor: NA,
     /// Options used to add the actor to the actor system.
     options: ActorOptions,
-    /// The inbox of the listener.
+    /// The inbox of the server.
     inbox: Inbox<ServerMessage>,
 }
 
