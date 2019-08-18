@@ -28,8 +28,7 @@
 //! // be cast into a function pointer, which does implement `NewActor`.
 //! use_actor(actor as fn(_) -> _);
 //!
-//! fn use_actor<NA>(new_actor: NA)
-//! where NA: NewActor {
+//! fn use_actor<NA>(new_actor: NA) where NA: NewActor {
 //!     // Do stuff with the actor ...
 //! #   drop(new_actor);
 //! }
@@ -88,9 +87,9 @@ pub trait NewActor {
     ///             let new_actor = actor as fn(_) -> _;
     ///             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
     ///
-    ///             // Now we can use the reference to send the actor a message. We
-    ///             // don't have to use `Message` we can just use `String`, because
-    ///             // `Message` implements `From<String>`.
+    ///             // Now we can use the reference to send the actor a message.
+    ///             // We don't have to use `Message` type we can just use
+    ///             // `String`, because `Message` implements `From<String>`.
     ///             actor_ref <<= "Hello world".to_owned();
     ///             Ok(())
     ///         })
@@ -99,6 +98,7 @@ pub trait NewActor {
     ///
     /// /// The message type for the actor.
     /// #[derive(Debug)]
+    /// # #[derive(Eq, PartialEq)]
     /// enum Message {
     ///     String(String),
     /// #   #[allow(dead_code)]
@@ -107,7 +107,7 @@ pub trait NewActor {
     ///
     /// // Implementing `From` for the message allows us to just pass a
     /// // `String`, rather then a `Message::String`. See sending of the
-    /// // message in the `main` function.
+    /// // message in the `setup` function.
     /// impl From<String> for Message {
     ///     fn from(str: String) -> Message {
     ///         Message::String(str)
@@ -117,6 +117,7 @@ pub trait NewActor {
     /// /// Our actor implementation that prints all messages it receives.
     /// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
     ///     let msg = ctx.receive_next().await;
+    /// #   assert_eq!(msg, Message::String("Hello world".to_owned()));
     ///     println!("received message: {:?}", msg);
     ///     Ok(())
     /// }
@@ -211,8 +212,7 @@ pub trait NewActor {
     ///     # let server_supervisor = ServerSupervisor(address);
     ///     # let mut actor_ref =
     ///     system_ref.try_spawn(server_supervisor, listener, address, ActorOptions::default())?;
-    ///
-    ///     actor_ref <<= Terminate;
+    ///     # actor_ref <<= Terminate;
     ///
     ///     Ok(())
     /// }
