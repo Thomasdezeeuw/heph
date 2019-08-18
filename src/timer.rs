@@ -38,22 +38,34 @@ pub struct DeadlinePassed;
 /// #![feature(async_await, never_type)]
 ///
 /// use std::time::Duration;
+/// # use std::time::Instant;
 ///
 /// use heph::actor;
+/// # use heph::supervisor::NoSupervisor;
+/// # use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
 /// use heph::timer::Timer;
 ///
-/// async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+/// # ActorSystem::new().with_setup(setup).run().unwrap();
+/// #
+/// # fn setup(mut system_ref: ActorSystemRef) -> Result<(), ()> {
+/// #   let actor = actor as fn(_) -> _;
+/// #   let options = ActorOptions::default().schedule();
+/// #   system_ref.spawn(NoSupervisor, actor, (), options);
+/// #   Ok(())
+/// # }
+/// #
+/// async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+/// #   let start = Instant::now();
 ///     // Create a timer, this will be ready once the timeout has passed.
-///     let timeout = Timer::timeout(&mut ctx, Duration::from_secs(1));
+///     let timeout = Timer::timeout(&mut ctx, Duration::from_millis(200));
+/// #   assert!(timeout.deadline() >= start + Duration::from_millis(200));
 ///
 ///     // Wait for the timer to pass.
 ///     timeout.await;
+/// #   assert!(Instant::now() >= start + Duration::from_millis(200));
 ///     println!("One second has passed!");
 ///     Ok(())
 /// }
-///
-/// # // Use the `actor` function to silence dead code warning.
-/// # drop(actor);
 /// ```
 #[derive(Debug)]
 pub struct Timer {
@@ -122,10 +134,22 @@ impl actor::Bound for Timer {
 /// # use std::pin::Pin;
 /// # use std::task::{self, Poll};
 /// use std::time::Duration;
+/// # use std::time::Instant;
 ///
 /// use heph::actor;
+/// # use heph::supervisor::NoSupervisor;
+/// # use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
 /// use heph::timer::{DeadlinePassed, Deadline};
 ///
+/// # ActorSystem::new().with_setup(setup).run().unwrap();
+/// #
+/// # fn setup(mut system_ref: ActorSystemRef) -> Result<(), ()> {
+/// #   let actor = actor as fn(_) -> _;
+/// #   let options = ActorOptions::default().schedule();
+/// #   system_ref.spawn(NoSupervisor, actor, (), options);
+/// #   Ok(())
+/// # }
+/// #
 /// # struct OtherFuture;
 /// #
 /// # impl Future for OtherFuture {
@@ -139,17 +163,17 @@ impl actor::Bound for Timer {
 ///     // `OtherFuture` is a type that implements `Future`.
 ///     let future = OtherFuture;
 ///     // Create our deadline.
-///     let deadline_future = Deadline::timeout(&mut ctx, Duration::from_millis(20), future);
+/// #   let start = Instant::now();
+///     let deadline_future = Deadline::timeout(&mut ctx, Duration::from_millis(100), future);
+/// #   assert!(deadline_future.deadline() >= start + Duration::from_millis(100));
 ///
 ///     // Now we await the results.
 ///     let result = deadline_future.await;
+/// #   assert!(Instant::now() >= start + Duration::from_millis(100));
 ///     // However the other future is rather slow, so the timeout will pass.
 ///     assert_eq!(result, Err(DeadlinePassed));
 ///     Ok(())
 /// }
-///
-/// # // Use the `actor` function to silence dead code warning.
-/// # drop(actor);
 /// ```
 #[derive(Debug)]
 pub struct Deadline<Fut> {
@@ -236,25 +260,40 @@ impl<Fut> actor::Bound for Deadline<Fut> {
 /// #![feature(async_await, never_type)]
 ///
 /// use std::time::Duration;
+/// # use std::time::Instant;
 ///
 /// use futures_util::future::ready;
 /// use futures_util::stream::StreamExt;
-/// use heph::actor;
-/// use heph::timer::Interval;
 ///
-/// async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
-///     let interval = Interval::new(&mut ctx, Duration::from_secs(1));
+/// use heph::actor;
+/// # use heph::supervisor::NoSupervisor;
+/// # use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+/// use heph::timer::Interval;
+/// #
+/// # ActorSystem::new().with_setup(setup).run().unwrap();
+/// #
+/// # fn setup(mut system_ref: ActorSystemRef) -> Result<(), ()> {
+/// #   let actor = actor as fn(_) -> _;
+/// #   let options = ActorOptions::default().schedule();
+/// #   system_ref.spawn(NoSupervisor, actor, (), options);
+/// #   Ok(())
+/// # }
+///
+/// async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+/// #   let mut start = Instant::now();
+///     let interval = Interval::new(&mut ctx, Duration::from_millis(200));
+/// #   assert!(interval.next_deadline() >= start + Duration::from_millis(200));
 ///     interval
+/// #       .take(1)
 ///         .for_each(|_| {
+/// #           assert!(Instant::now() >= start + Duration::from_millis(200));
+/// #           start = Instant::now();
 ///             println!("Hello world");
 ///             ready(())
 ///         })
 ///         .await;
 ///     Ok(())
 /// }
-///
-/// # // Use the `actor` function to silence dead code warning.
-/// # drop(actor);
 /// ```
 #[derive(Debug)]
 pub struct Interval {
