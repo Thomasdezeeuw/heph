@@ -37,7 +37,7 @@
 //! Supervisor that logs the errors of a badly behaving actor and stops it.
 //!
 //! ```
-//! #![feature(async_await, never_type)]
+//! #![feature(never_type)]
 //!
 //! use heph::actor;
 //! use heph::log::{self, error};
@@ -194,7 +194,7 @@ where
 /// # Example
 ///
 /// ```
-/// #![feature(async_await, never_type)]
+/// #![feature(never_type)]
 ///
 /// use heph::supervisor::NoSupervisor;
 /// use heph::system::RuntimeError;

@@ -14,8 +14,6 @@
 //! traits.
 //!
 //! ```
-//! #![feature(async_await)]
-//!
 //! use heph::{actor, NewActor};
 //!
 //! async fn actor(ctx: actor::Context<()>) -> Result<(), ()> {
@@ -73,7 +71,7 @@ pub trait NewActor {
     /// Here is an example of using an enum as message type.
     ///
     /// ```
-    /// #![feature(async_await, never_type)]
+    /// #![feature(never_type)]
     ///
     /// use heph::supervisor::NoSupervisor;
     /// use heph::system::RuntimeError;
@@ -179,7 +177,7 @@ pub trait NewActor {
     /// arguments.
     ///
     /// ```
-    /// #![feature(async_await, never_type)]
+    /// #![feature(never_type)]
     ///
     /// use std::io;
     /// use std::net::SocketAddr;

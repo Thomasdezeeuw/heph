@@ -315,7 +315,7 @@ where
 /// # Examples
 ///
 /// ```
-/// #![feature(async_await, never_type)]
+/// #![feature(never_type)]
 ///
 /// use heph::actor::message_select::First;
 /// use heph::supervisor::NoSupervisor;
@@ -359,7 +359,7 @@ impl<M> MessageSelector<M> for First {
 /// # Examples
 ///
 /// ```
-/// #![feature(async_await, never_type)]
+/// #![feature(never_type)]
 ///
 /// use heph::actor::message_select::Priority;
 /// use heph::supervisor::NoSupervisor;

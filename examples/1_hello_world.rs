@@ -1,4 +1,4 @@
-#![feature(async_await, never_type)]
+#![feature(never_type)]
 
 use heph::supervisor::NoSupervisor;
 use heph::system::RuntimeError;

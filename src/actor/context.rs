@@ -60,7 +60,7 @@ impl<M> Context<M> {
     /// An actor that receives a name to greet, or greets the entire world.
     ///
     /// ```
-    /// #![feature(async_await, never_type)]
+    /// #![feature(never_type)]
     ///
     /// use heph::actor;
     ///
@@ -95,7 +95,7 @@ impl<M> Context<M> {
     /// all of those are handled it will handle normal messages.
     ///
     /// ```
-    /// #![feature(async_await, never_type)]
+    /// #![feature(never_type)]
     ///
     /// use heph::actor;
     ///
@@ -150,7 +150,7 @@ impl<M> Context<M> {
     /// An actor that await a message and prints it.
     ///
     /// ```
-    /// #![feature(async_await, never_type)]
+    /// #![feature(never_type)]
     ///
     /// use heph::actor;
     ///
@@ -168,7 +168,7 @@ impl<M> Context<M> {
     /// amount of time.
     ///
     /// ```
-    /// #![feature(async_await, never_type)]
+    /// #![feature(never_type)]
     ///
     /// use std::time::Duration;
     ///
