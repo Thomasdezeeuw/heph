@@ -2,7 +2,7 @@
 //!
 //! Currently using 10 million "actors" this test uses 1.74 GB.
 
-#![feature(async_await, never_type)]
+#![feature(never_type)]
 
 use std::thread;
 use std::time::Duration;

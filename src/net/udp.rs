@@ -47,7 +47,7 @@ pub enum Connected {}
 /// # Examples
 ///
 /// ```
-/// #![feature(async_await, never_type)]
+/// #![feature(never_type)]
 ///
 /// use std::net::SocketAddr;
 /// use std::{io, str};

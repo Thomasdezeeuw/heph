@@ -46,7 +46,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// Accepting a single [`TcpStream`], using [`TcpListener::accept`].
 ///
 /// ```
-/// #![feature(async_await, never_type)]
+/// #![feature(never_type)]
 ///
 /// use std::io;
 /// use std::net::SocketAddr;
@@ -115,7 +115,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// Accepting multiple [`TcpStream`]s, using [`TcpListener::incoming`].
 ///
 /// ```
-/// #![feature(async_await, async_closure, never_type)]
+/// #![feature(async_closure, never_type)]
 ///
 /// use std::io;
 /// use std::net::SocketAddr;

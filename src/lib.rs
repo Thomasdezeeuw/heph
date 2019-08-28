@@ -10,7 +10,7 @@
 //! Such an asynchronous function looks like this:
 //!
 //! ```
-//! # #![feature(async_await, never_type)]
+//! # #![feature(never_type)]
 //! #
 //! # use heph::actor;
 //! #
@@ -64,14 +64,7 @@
 //! [1]: https://en.wikipedia.org/wiki/Hephaestus
 //! [2]: https://en.wikipedia.org/wiki/Actor_model
 
-#![feature(
-    async_await,
-    const_fn,
-    never_type,
-    non_exhaustive,
-    read_initializer,
-    weak_ptr_eq
-)]
+#![feature(const_fn, never_type, non_exhaustive, read_initializer, weak_ptr_eq)]
 #![cfg_attr(test, feature(const_slice_len))]
 #![warn(
     anonymous_parameters,

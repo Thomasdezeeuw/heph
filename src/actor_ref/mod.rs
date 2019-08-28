@@ -47,7 +47,7 @@
 //! [`send`]: crate::actor_ref::ActorRef::send
 //!
 //! ```
-//! #![feature(async_await, never_type)]
+//! #![feature(never_type)]
 //!
 //! use heph::supervisor::NoSupervisor;
 //! use heph::system::RuntimeError;
@@ -86,7 +86,7 @@
 //! message to the same actor, but it is the same for all types of references.
 //!
 //! ```
-//! #![feature(async_await, never_type)]
+//! #![feature(never_type)]
 //!
 //! use heph::supervisor::NoSupervisor;
 //! use heph::system::RuntimeError;

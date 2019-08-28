@@ -87,7 +87,7 @@ use waker::{init_waker, new_waker, WakerId, MAX_THREADS};
 /// each worker thread started).
 ///
 /// ```
-/// #![feature(async_await, never_type)]
+/// #![feature(never_type)]
 ///
 /// use heph::supervisor::NoSupervisor;
 /// use heph::system::RuntimeError;

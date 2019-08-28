@@ -80,7 +80,7 @@ where
 /// connection.
 ///
 /// ```
-/// #![feature(async_await, never_type)]
+/// #![feature(never_type)]
 ///
 /// use std::io;
 /// use std::net::SocketAddr;
@@ -171,7 +171,7 @@ where
 /// sending it a [`Terminate`] message.
 ///
 /// ```
-/// #![feature(async_await, never_type)]
+/// #![feature(never_type)]
 ///
 /// use std::io;
 /// use std::net::SocketAddr;

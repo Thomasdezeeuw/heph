@@ -35,7 +35,7 @@ pub struct DeadlinePassed;
 /// # Examples
 ///
 /// ```
-/// #![feature(async_await, never_type)]
+/// #![feature(never_type)]
 ///
 /// use std::time::Duration;
 /// # use std::time::Instant;
@@ -128,7 +128,7 @@ impl actor::Bound for Timer {
 /// Setting a timeout for a future.
 ///
 /// ```
-/// #![feature(async_await, never_type)]
+/// #![feature(never_type)]
 ///
 /// # use std::future::Future;
 /// # use std::pin::Pin;
@@ -257,7 +257,7 @@ impl<Fut> actor::Bound for Deadline<Fut> {
 /// The following example will print hello world (roughly) every second.
 ///
 /// ```
-/// #![feature(async_await, never_type)]
+/// #![feature(never_type)]
 ///
 /// use std::time::Duration;
 /// # use std::time::Instant;
