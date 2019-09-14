@@ -1,11 +1,12 @@
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
-use gaea::net::{TcpListener as GaeaTcpListener, TcpStream as GaeaTcpStream};
-use gaea::os::RegisterOption;
 use log::debug;
+use mio::net::TcpListener;
+use mio::Interests;
 
 use crate::actor::messages::Terminate;
 use crate::actor::{self, Actor, NewActor};
@@ -24,6 +25,18 @@ use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
 /// [`tcp::Server::setup`]: Server::setup
 #[derive(Debug)]
 pub struct ServerSetup<S, NA> {
+    /// All fields are in an `Arc` to allow `ServerSetup` to cheaply be cloned
+    /// and still be `Send` and `Sync` for use in the setup function of
+    /// `ActorSystem`.
+    inner: Arc<ServerSetupInner<S, NA>>,
+}
+
+#[derive(Debug)]
+struct ServerSetupInner<S, NA> {
+    /// The underlying TCP listener, backed by Mio.
+    ///
+    /// NOTE: not registered with `mio::Poll`.
+    listener: TcpListener,
     /// Supervisor for all actors created by `NewActor`.
     supervisor: S,
     /// NewActor used to create an actor for each connection.
@@ -38,32 +51,36 @@ where
     NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
 {
     type Message = ServerMessage;
-    type Argument = SocketAddr;
+    type Argument = ();
     type Actor = Server<S, NA>;
     type Error = io::Error;
 
     fn new(
         &mut self,
         mut ctx: actor::Context<Self::Message>,
-        address: Self::Argument,
+        _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let mut system_ref = ctx.system_ref().clone();
-        let mut listener = GaeaTcpListener::bind(address)?;
-        system_ref.register(
-            &mut listener,
-            ctx.pid().into(),
-            GaeaTcpListener::INTERESTS,
-            RegisterOption::EDGE,
-        )?;
+        let this = &*self.inner;
+        let mut listener = this.listener.try_clone()?;
+        system_ref.register(&mut listener, ctx.pid().into(), Interests::READABLE)?;
 
         Ok(Server {
             listener,
             system_ref,
-            supervisor: self.supervisor.clone(),
-            new_actor: self.new_actor.clone(),
-            options: self.options.clone(),
+            supervisor: this.supervisor.clone(),
+            new_actor: this.new_actor.clone(),
+            options: this.options.clone(),
             inbox: ctx.inbox,
         })
+    }
+}
+
+impl<S, NA> Clone for ServerSetup<S, NA> {
+    fn clone(&self) -> ServerSetup<S, NA> {
+        ServerSetup {
+            inner: self.inner.clone(),
+        }
     }
 }
 
@@ -101,18 +118,18 @@ where
 ///
 /// /// In this setup function we'll add the TcpListener to the actor system.
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
-///     // Create our TCP server. We'll use the default actor options.
-///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let server = tcp::Server::setup(conn_supervisor, new_actor, ActorOptions::default());
-///
 ///     // The address to listen on.
 ///     let address = "127.0.0.1:7890".parse().unwrap();
+///     // Create our TCP server. We'll use the default actor options.
+///     let new_actor = conn_actor as fn(_, _, _) -> _;
+///     let server = tcp::Server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
+///
 ///     // We advice to give the TCP server a low priority to prioritise
 ///     // handling of ongoing requests over accepting new requests possibly
 ///     // overloading the system.
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let mut actor_ref =
-///     system_ref.try_spawn(ServerSupervisor(address), server, address, options)?;
+///     system_ref.try_spawn(ServerSupervisor, server, (), options)?;
 ///     # actor_ref <<= Terminate;
 ///
 ///     Ok(())
@@ -120,7 +137,7 @@ where
 ///
 /// /// Our supervisor for the TCP server.
 /// #[derive(Copy, Clone, Debug)]
-/// struct ServerSupervisor(SocketAddr);
+/// struct ServerSupervisor;
 ///
 /// impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
 /// where
@@ -128,21 +145,21 @@ where
 ///     S: Supervisor<NA> + Clone + 'static,
 ///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
 /// {
-///     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<SocketAddr> {
+///     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
 ///         use tcp::ServerError::*;
 ///         match err {
 ///             // When we hit an error accepting a connection we'll drop the old
 ///             // server and create a new one.
 ///             Accept(err) => {
 ///                 error!("error accepting new connection: {}", err);
-///                 SupervisorStrategy::Restart(self.0)
+///                 SupervisorStrategy::Restart(())
 ///             }
 ///             // Async function never return an error creating a new actor.
 ///             NewActor(_) => unreachable!(),
 ///         }
 ///     }
 ///
-///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<SocketAddr> {
+///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
 ///         // If we can't create a new server we'll stop.
 ///         error!("error restarting the TCP server: {}", err);
 ///         SupervisorStrategy::Stop
@@ -196,10 +213,10 @@ where
 ///
 ///     // Adding the TCP server is the same as in the example above.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let server = tcp::Server::setup(conn_supervisor, new_actor, ActorOptions::default());
 ///     let address = "127.0.0.1:7890".parse().unwrap();
+///     let server = tcp::Server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
-///     let mut server_ref = system_ref.try_spawn(ServerSupervisor(address), server, address, options)?;
+///     let mut server_ref = system_ref.try_spawn(ServerSupervisor, server, (), options)?;
 ///
 ///     // Because the server is just another actor we can send it messages.
 ///     // Here we'll send it a terminate message so it will gracefully
@@ -208,28 +225,28 @@ where
 ///
 ///     Ok(())
 /// }
-/// #
+///
 /// # /// # Our supervisor for the TCP server.
 /// # #[derive(Copy, Clone, Debug)]
-/// # struct ServerSupervisor(SocketAddr);
+/// # struct ServerSupervisor;
 /// #
 /// # impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
 /// # where
 /// #     S: Supervisor<NA> + Clone + 'static,
 /// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
 /// # {
-/// #     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<SocketAddr> {
+/// #     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
 /// #         use tcp::ServerError::*;
 /// #         match err {
 /// #             Accept(err) => {
 /// #                 error!("error accepting new connection: {}", err);
-/// #                 SupervisorStrategy::Restart(self.0)
+/// #                 SupervisorStrategy::Restart(())
 /// #             }
 /// #             NewActor(_) => unreachable!(),
 /// #         }
 /// #     }
 /// #
-/// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<SocketAddr> {
+/// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
 /// #         error!("error restarting the TCP server: {}", err);
 /// #         SupervisorStrategy::Stop
 /// #     }
@@ -245,7 +262,7 @@ where
 /// #     error!("error handling connection: {}", err);
 /// #     SupervisorStrategy::Stop
 /// # }
-///
+/// #
 /// /// The actor responsible for a single TCP stream.
 /// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
@@ -254,8 +271,8 @@ where
 /// ```
 #[derive(Debug)]
 pub struct Server<S, NA> {
-    /// The underlying TCP listener, backed by Gaea.
-    listener: GaeaTcpListener,
+    /// The underlying TCP listener, backed by Mio.
+    listener: TcpListener,
     /// Reference to the actor system used to add new actors to handle accepted
     /// connections.
     system_ref: ActorSystemRef,
@@ -265,7 +282,6 @@ pub struct Server<S, NA> {
     new_actor: NA,
     /// Options used to add the actor to the actor system.
     options: ActorOptions,
-    /// The inbox of the server.
     inbox: Inbox<ServerMessage>,
 }
 
@@ -277,15 +293,24 @@ where
     /// Create a new [`ServerSetup`].
     ///
     /// Arguments:
+    /// * `address`: the address to listen on.
     /// * `supervisor`: the [`Supervisor`] used to supervise each started actor,
     /// * `new_actor`: the [`NewActor`] implementation to start each actor, and
     /// * `options`: the actor options used to spawn the new actors.
-    pub const fn setup(supervisor: S, new_actor: NA, options: ActorOptions) -> ServerSetup<S, NA> {
-        ServerSetup {
-            supervisor,
-            new_actor,
-            options,
-        }
+    pub fn setup(
+        address: SocketAddr,
+        supervisor: S,
+        new_actor: NA,
+        options: ActorOptions,
+    ) -> io::Result<ServerSetup<S, NA>> {
+        TcpListener::bind(address).map(|listener| ServerSetup {
+            inner: Arc::new(ServerSetupInner {
+                listener,
+                supervisor,
+                new_actor,
+                options,
+            }),
+        })
     }
 }
 
@@ -300,10 +325,10 @@ where
         self: Pin<&mut Self>,
         _ctx: &mut task::Context<'_>,
     ) -> Poll<Result<(), Self::Error>> {
-        // This is safe because only the `ActorSystemRef`, `GaeaTcpListener` and
+        // This is safe because only the `ActorSystemRef`, `TcpListener` and
         // the `MailBox` are mutably borrowed and all are `Unpin`.
         let &mut Server {
-            ref mut listener,
+            ref listener,
             ref mut system_ref,
             ref supervisor,
             ref new_actor,
@@ -330,8 +355,7 @@ where
                 system_ref.register(
                     &mut stream,
                     pid.into(),
-                    GaeaTcpStream::INTERESTS,
-                    RegisterOption::EDGE,
+                    Interests::READABLE | Interests::WRITABLE,
                 )?;
                 Ok((TcpStream { socket: stream }, addr))
             };

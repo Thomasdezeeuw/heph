@@ -189,10 +189,12 @@ pub trait NewActor {
     /// # use heph::log::error;
     /// use heph::net::tcp::{self, TcpStream};
     /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
-    /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+    /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
     ///
-    /// // Create and run the actor system.
-    /// ActorSystem::new().with_setup(setup).run().unwrap();
+    /// fn main() -> Result<(), RuntimeError<io::Error>> {
+    ///     // Create and run the actor system.
+    ///     ActorSystem::new().with_setup(setup).run()
+    /// }
     ///
     /// /// In this setup function we'll add the TcpListener to the actor system.
     /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
@@ -205,36 +207,34 @@ pub trait NewActor {
     ///
     ///     // For more information about the remainder of this example see
     ///     // `tcp::Server`.
-    ///     let listener = tcp::Server::setup(conn_supervisor, new_actor, ActorOptions::default());
     ///     let address = "127.0.0.1:7890".parse().unwrap();
-    ///     # let server_supervisor = ServerSupervisor(address);
+    ///     let server = tcp::Server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
     ///     # let mut actor_ref =
-    ///     system_ref.try_spawn(server_supervisor, listener, address, ActorOptions::default())?;
+    ///     system_ref.try_spawn(ServerSupervisor, server, (), ActorOptions::default())?;
     ///     # actor_ref <<= Terminate;
-    ///
     ///     Ok(())
     /// }
     ///
     /// # #[derive(Copy, Clone, Debug)]
-    /// # struct ServerSupervisor(SocketAddr);
+    /// # struct ServerSupervisor;
     /// #
     /// # impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
     /// # where
     /// #     S: Supervisor<NA> + Clone + 'static,
     /// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
     /// # {
-    /// #     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<SocketAddr> {
+    /// #     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
     /// #         use tcp::ServerError::*;
     /// #         match err {
     /// #             Accept(err) => {
     /// #                 error!("error accepting new connection: {}", err);
-    /// #                 SupervisorStrategy::Restart(self.0)
+    /// #                 SupervisorStrategy::Restart(())
     /// #             }
     /// #             NewActor(_) => unreachable!(),
     /// #         }
     /// #     }
     /// #
-    /// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<SocketAddr> {
+    /// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
     /// #         error!("error restarting the TCP server: {}", err);
     /// #         SupervisorStrategy::Stop
     /// #     }

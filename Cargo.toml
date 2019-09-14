@@ -26,7 +26,6 @@ crossbeam-channel    = "0.3.9"
 futures-core-preview = "0.3.0-alpha.18"
 futures-io-preview   = "0.3.0-alpha.18"
 log                  = "0.4.6"
-gaea                 = "0.3.0"
 # Replace with Mio v0.7 once released.
 mio                  = { git = "https://github.com/tokio-rs/mio" }
 num_cpus             = "1.8.0"
