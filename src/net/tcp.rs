@@ -21,8 +21,7 @@ use std::task::{self, Poll};
 use futures_core::future::FusedFuture;
 use futures_core::stream::{FusedStream, Stream};
 use futures_io::{AsyncRead, AsyncWrite, Initializer};
-use gaea::net::{TcpListener as GaeaTcpListener, TcpStream as GaeaTcpStream};
-use gaea::os::RegisterOption;
+use mio::{net, Interests};
 
 use crate::actor;
 
@@ -183,8 +182,8 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// }
 #[derive(Debug)]
 pub struct TcpListener {
-    /// The underlying TCP listener, backed by Gaea.
-    socket: GaeaTcpListener,
+    /// The underlying TCP listener, backed by Mio.
+    socket: net::TcpListener,
 }
 
 impl TcpListener {
@@ -199,14 +198,10 @@ impl TcpListener {
     ///
     /// [bound]: crate::actor::Bound
     pub fn bind<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpListener> {
-        let mut socket = GaeaTcpListener::bind(address)?;
+        let mut socket = net::TcpListener::bind(address)?;
         let pid = ctx.pid();
-        ctx.system_ref().register(
-            &mut socket,
-            pid.into(),
-            GaeaTcpListener::INTERESTS,
-            RegisterOption::EDGE,
-        )?;
+        ctx.system_ref()
+            .register(&mut socket, pid.into(), Interests::READABLE)?;
         Ok(TcpListener { socket })
     }
 
@@ -321,7 +316,7 @@ impl<'a> Stream for Incoming<'a> {
     type Item = io::Result<(TcpStream, SocketAddr)>;
 
     fn poll_next(
-        mut self: Pin<&mut Self>,
+        self: Pin<&mut Self>,
         _ctx: &mut task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         try_io!(self.listener.socket.accept())
@@ -341,33 +336,28 @@ impl actor::Bound for TcpListener {
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
-        ctx.system_ref().reregister(
-            &mut self.socket,
-            pid.into(),
-            GaeaTcpStream::INTERESTS,
-            RegisterOption::EDGE,
-        )
+        ctx.system_ref()
+            .reregister(&mut self.socket, pid.into(), Interests::READABLE)
     }
 }
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
 #[derive(Debug)]
 pub struct TcpStream {
-    /// Underlying TCP connection, backed by Gaea.
-    socket: GaeaTcpStream,
+    /// Underlying TCP connection, backed by Mio.
+    socket: net::TcpStream,
 }
 
 impl TcpStream {
     /// Create a new TCP stream and issue a non-blocking connect to the
     /// specified `address`.
     pub fn connect<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpStream> {
-        let mut socket = GaeaTcpStream::connect(address)?;
+        let mut socket = net::TcpStream::connect(address)?;
         let pid = ctx.pid();
         ctx.system_ref().register(
             &mut socket,
             pid.into(),
-            GaeaTcpStream::INTERESTS,
-            RegisterOption::EDGE,
+            Interests::READABLE | Interests::WRITABLE,
         )?;
         Ok(TcpStream { socket })
     }
@@ -488,8 +478,7 @@ impl actor::Bound for TcpStream {
         ctx.system_ref().reregister(
             &mut self.socket,
             pid.into(),
-            GaeaTcpStream::INTERESTS,
-            RegisterOption::EDGE,
+            Interests::READABLE | Interests::WRITABLE,
         )
     }
 }
