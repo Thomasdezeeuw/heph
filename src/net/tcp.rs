@@ -315,10 +315,7 @@ pub struct Incoming<'a> {
 impl<'a> Stream for Incoming<'a> {
     type Item = io::Result<(TcpStream, SocketAddr)>;
 
-    fn poll_next(
-        self: Pin<&mut Self>,
-        _ctx: &mut task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
         try_io!(self.listener.socket.accept())
             .map_ok(|(socket, address)| (TcpStream { socket }, address))
             .map(Some)

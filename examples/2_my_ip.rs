@@ -45,7 +45,8 @@ fn main() -> Result<(), RuntimeError<io::Error>> {
             let options = ActorOptions::default().with_priority(Priority::LOW);
             system_ref.try_spawn(ServerSupervisor, server, (), options)?;
             Ok(())
-        }).run()
+        })
+        .run()
 }
 
 /// Our supervisor for the TCP server.
