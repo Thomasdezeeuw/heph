@@ -1,8 +1,8 @@
 //! Module with timers.
 
-use std::iter::FusedIterator;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::iter::FusedIterator;
 use std::time::Instant;
 
 use crate::system::ProcessId;
@@ -65,7 +65,7 @@ impl<'t> Iterator for Deadlines<'t> {
             Some(deadline) if deadline.0.deadline <= self.now => {
                 let deadline = self.timers.deadlines.pop().unwrap().0;
                 Some(deadline.pid)
-            },
+            }
             _ => None,
         }
     }

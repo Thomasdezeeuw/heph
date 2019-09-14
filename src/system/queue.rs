@@ -15,9 +15,7 @@ pub struct Queue {
 impl Queue {
     /// Create a new user space readiness event queue.
     pub fn new() -> Queue {
-        Queue {
-            events: Vec::new(),
-        }
+        Queue { events: Vec::new() }
     }
 
     /// Returns true if the queue contains no events.
