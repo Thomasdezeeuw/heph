@@ -3,7 +3,7 @@
 use std::fmt;
 use std::pin::Pin;
 
-use gaea::event;
+use mio::Token;
 
 use crate::system::ActorSystemRef;
 
@@ -19,7 +19,7 @@ pub use actor::ActorProcess;
 ///
 /// This can only be created by the [`Scheduler`] and should be seen as an
 /// opaque type for the rest of the crate. For convince this can converted from
-/// and into an [`event::Id`] as used by Gaea.
+/// and into an [`Token`] as used by Mio.
 ///
 /// [`ActorSystem`]: crate::system::ActorSystem
 /// [`Scheduler`]: crate::system::scheduler::Scheduler
@@ -27,15 +27,15 @@ pub use actor::ActorProcess;
 #[repr(transparent)]
 pub struct ProcessId(pub u32);
 
-impl From<event::Id> for ProcessId {
-    fn from(id: event::Id) -> ProcessId {
+impl From<Token> for ProcessId {
+    fn from(id: Token) -> ProcessId {
         ProcessId(id.0 as u32)
     }
 }
 
-impl Into<event::Id> for ProcessId {
-    fn into(self) -> event::Id {
-        event::Id(self.0 as usize)
+impl Into<Token> for ProcessId {
+    fn into(self) -> Token {
+        Token(self.0 as usize)
     }
 }
 

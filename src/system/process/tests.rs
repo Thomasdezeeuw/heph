@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{pending, Pending};
-use gaea::event;
+use mio::Token;
 
 use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use crate::system::process::{ActorProcess, Process, ProcessId, ProcessResult};
@@ -29,10 +29,10 @@ fn pid() {
 #[test]
 fn pid_and_evented_id() {
     let pid = ProcessId(0);
-    let id: event::Id = pid.into();
-    assert_eq!(id, event::Id(0));
+    let id: Token = pid.into();
+    assert_eq!(id, Token(0));
 
-    let id = event::Id(0);
+    let id = Token(0);
     let pid: ProcessId = id.into();
     assert_eq!(pid, ProcessId(0));
 }
