@@ -10,8 +10,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
-use gaea::net::UdpSocket as GaeaUdpSocket;
-use gaea::os::RegisterOption;
+use mio::{net, Interests};
 
 use crate::actor;
 
@@ -123,8 +122,8 @@ pub enum Connected {}
 /// }
 /// ```
 pub struct UdpSocket<M = Unconnected> {
-    /// Underlying UDP socket, backed by Gaea.
-    socket: GaeaUdpSocket,
+    /// Underlying UDP socket, backed by Mio.
+    socket: net::UdpSocket,
     /// The mode in which the socket is in, this determines what methods are
     /// available.
     mode: PhantomData<M>,
@@ -144,13 +143,12 @@ impl UdpSocket {
         ctx: &mut actor::Context<M>,
         local: SocketAddr,
     ) -> io::Result<UdpSocket<Unconnected>> {
-        let mut socket = GaeaUdpSocket::bind(local)?;
+        let mut socket = net::UdpSocket::bind(local)?;
         let pid = ctx.pid();
         ctx.system_ref().register(
             &mut socket,
             pid.into(),
-            GaeaUdpSocket::INTERESTS,
-            RegisterOption::EDGE,
+            Interests::READABLE | Interests::WRITABLE,
         )?;
         Ok(UdpSocket {
             socket,
@@ -162,7 +160,7 @@ impl UdpSocket {
 impl<M> UdpSocket<M> {
     /// Connects the UDP socket by setting the default destination and limiting
     /// packets that are read, written and peeked to the `remote` address.
-    pub fn connect(mut self, remote: SocketAddr) -> io::Result<UdpSocket<Connected>> {
+    pub fn connect(self, remote: SocketAddr) -> io::Result<UdpSocket<Connected>> {
         self.socket.connect(remote)?;
         Ok(UdpSocket {
             socket: self.socket,
@@ -364,8 +362,7 @@ impl actor::Bound for UdpSocket {
         ctx.system_ref().reregister(
             &mut self.socket,
             pid.into(),
-            GaeaUdpSocket::INTERESTS,
-            RegisterOption::EDGE,
+            Interests::READABLE | Interests::WRITABLE,
         )
     }
 }
