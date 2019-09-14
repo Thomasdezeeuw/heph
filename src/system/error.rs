@@ -6,13 +6,11 @@ use std::{fmt, io};
 /// Error returned by running an [`ActorSystem`].
 ///
 /// [`ActorSystem`]: crate::system::ActorSystem
-#[derive(Debug)]
 pub struct RuntimeError<SetupError = !> {
     inner: RuntimeErrorInner<SetupError>,
 }
 
 /// Inside of `RuntimeError` error.
-#[derive(Debug)]
 pub(crate) enum RuntimeErrorInner<SetupError> {
     /// Error starting worker thread.
     StartThread(io::Error),
@@ -63,6 +61,14 @@ impl<SetupError> RuntimeError<SetupError> {
         RuntimeError {
             inner: RuntimeErrorInner::Panic(err),
         }
+    }
+}
+
+// We implement `Debug` by using `Display` implementation because `Termination`
+// uses `Debug` rather then `Display`.
+impl<SetupError: fmt::Display> fmt::Debug for RuntimeError<SetupError> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
