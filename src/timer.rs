@@ -42,12 +42,15 @@ pub struct DeadlinePassed;
 ///
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
-/// # use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+/// # use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 /// use heph::timer::Timer;
 ///
-/// # ActorSystem::new().with_setup(setup).run().unwrap();
+/// # fn main() -> Result<(), RuntimeError> {
+/// #     ActorSystem::new().with_setup(setup).run()
+/// # }
 /// #
-/// # fn setup(mut system_ref: ActorSystemRef) -> Result<(), ()> {
+/// #
+/// # fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
 /// #   let actor = actor as fn(_) -> _;
 /// #   let options = ActorOptions::default().schedule();
 /// #   system_ref.spawn(NoSupervisor, actor, (), options);
@@ -138,12 +141,14 @@ impl actor::Bound for Timer {
 ///
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
-/// # use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+/// # use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 /// use heph::timer::{DeadlinePassed, Deadline};
 ///
-/// # ActorSystem::new().with_setup(setup).run().unwrap();
+/// # fn main() -> Result<(), RuntimeError> {
+/// #     ActorSystem::new().with_setup(setup).run()
+/// # }
 /// #
-/// # fn setup(mut system_ref: ActorSystemRef) -> Result<(), ()> {
+/// # fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
 /// #   let actor = actor as fn(_) -> _;
 /// #   let options = ActorOptions::default().schedule();
 /// #   system_ref.spawn(NoSupervisor, actor, (), options);
@@ -267,12 +272,14 @@ impl<Fut> actor::Bound for Deadline<Fut> {
 ///
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
-/// # use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+/// # use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 /// use heph::timer::Interval;
 /// #
-/// # ActorSystem::new().with_setup(setup).run().unwrap();
+/// # fn main() -> Result<(), RuntimeError> {
+/// #     ActorSystem::new().with_setup(setup).run()
+/// # }
 /// #
-/// # fn setup(mut system_ref: ActorSystemRef) -> Result<(), ()> {
+/// # fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
 /// #   let actor = actor as fn(_) -> _;
 /// #   let options = ActorOptions::default().schedule();
 /// #   system_ref.spawn(NoSupervisor, actor, (), options);
