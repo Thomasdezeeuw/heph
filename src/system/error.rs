@@ -22,8 +22,11 @@ pub(crate) enum RuntimeErrorInner<SetupError> {
     Panic(String),
 }
 
-impl RuntimeError {
+impl RuntimeError<!> {
     /// Helper method to map `RuntimeError<!>` to `RuntimeError<SetupError>`.
+    //
+    // TODO: replace this with `From<RuntimeError<!>> for
+    // RuntimeError<SetupError>` impl.
     pub fn map_type<SetupError>(self) -> RuntimeError<SetupError> {
         RuntimeError {
             inner: match self.inner {
@@ -51,7 +54,14 @@ impl<SetupError> RuntimeError<SetupError> {
         }
     }
 
-    pub(crate) fn setup(err: SetupError) -> RuntimeError<SetupError> {
+    /// Method to create a setup error, for use outside of the setup function.
+    /// This is useful for example when setting up a [`tcp::Server`] outside the
+    /// [setup function in `ActorSystem`] and want to use `RuntimeError` as
+    /// error returned by main. See example 2 for example usage.
+    ///
+    /// [`tcp::Server`]: crate::net::tcp::Server::setup
+    /// [setup function in `ActorSystem`]: crate::system::ActorSystem::with_setup
+    pub fn setup(err: SetupError) -> RuntimeError<SetupError> {
         RuntimeError {
             inner: RuntimeErrorInner::Setup(err),
         }
