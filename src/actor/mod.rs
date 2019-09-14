@@ -198,12 +198,12 @@ pub trait NewActor {
     ///
     /// /// In this setup function we'll add the TcpListener to the actor system.
     /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
-    ///     // Our extra argument.
-    ///     let extra: usize = 1;
+    ///     // Prepare for humans' expand to Mars.
+    ///     let greet_mars = true;
     ///
     ///     // Our actor that accepts three arguments.
     ///     let new_actor = (conn_actor as fn(_, _, _, _) -> _)
-    ///         .map_arg(move |(stream, address)| (stream, address, extra));
+    ///         .map_arg(move |(stream, address)| (stream, address, greet_mars));
     ///
     ///     // For more information about the remainder of this example see
     ///     // `tcp::Server`.
@@ -251,10 +251,14 @@ pub trait NewActor {
     /// # }
     /// #
     /// // Actor that handles a connection.
-    /// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr, extra: usize) -> io::Result<()> {
+    /// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr, greet_mars: bool) -> io::Result<()> {
     /// #   drop(address); // Silence dead code warnings.
-    /// #   drop(extra);
-    ///     stream.write_all(b"Hello World").await
+    ///     if greet_mars {
+    ///         // In case this example ever reaches Mars.
+    ///         stream.write_all(b"Hello Mars").await
+    ///     } else {
+    ///         stream.write_all(b"Hello World").await
+    ///     }
     /// }
     /// ```
     fn map_arg<F, Arg>(self, f: F) -> ArgMap<Self, F, Arg>
