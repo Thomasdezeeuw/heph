@@ -20,7 +20,7 @@ use std::{fmt, io, thread};
 use crossbeam_channel::{self as channel, Receiver};
 use log::{debug, trace};
 use mio::{event, Events, Interests, Poll, Token};
-use num_cpus;
+use mio_pipe::new_pipe;
 
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
 use crate::actor_ref::{ActorRef, Local, Sync};
@@ -245,30 +245,85 @@ where
         debug!("running actor system: worker_threads={}", self.threads);
         // Start our worker threads.
         let handles = (0..self.threads)
-            .map(|id| {
-                let setup = self.setup.clone();
-                thread::Builder::new()
-                    .name(format!("heph_worker{}", id))
-                    .spawn(move || run_system(setup))
-                    .map_err(RuntimeError::start_thread)
-            })
-            .collect::<Result<Vec<thread::JoinHandle<_>>, _>>()?;
+            .map(|id| Worker::start(id, self.setup.clone()))
+            .collect::<io::Result<Vec<Worker<S::Error>>>>()
+            .map_err(RuntimeError::start_thread)?;
 
-        // TODO: handle errors better. Currently as long as the first thread
-        // keeps running and all other threads crash we'll keep running. Not an
-        // ideal situation.
-        for handle in handles {
-            // Last `and_then` maps: Result<Result<(), E>> -> Result<(), E>.
-            handle.join().map_err(map_panic).and_then(|res| res)?;
-        }
-
-        trace!("worker threads completed, waiting for synchronous actors");
-        for handle in self.sync_actors {
-            handle.join().map_err(map_panic)?;
-        }
-
-        Ok(())
+        cmain(handles, self.sync_actors)
     }
+}
+
+struct Worker<E> {
+    id: usize,
+    handle: thread::JoinHandle<Result<(), RuntimeError<E>>>,
+    sender: mio_pipe::Sender,
+}
+
+impl<E> Worker<E> {
+    fn start<S>(id: usize, setup: Option<S>) -> io::Result<Worker<S::Error>>
+    where
+        S: SetupFn<Error = E>,
+        E: Send + 'static,
+    {
+        new_pipe().and_then(|(sender, receiver)| {
+            thread::Builder::new()
+                .name(format!("heph_worker{}", id))
+                .spawn(move || wmain(setup, receiver))
+                .map(|handle| Worker { id, handle, sender })
+        })
+    }
+}
+
+// NOTE: `workers` must be sorted based on `id`.
+fn cmain<E>(
+    mut workers: Vec<Worker<E>>,
+    sync_actors: Vec<thread::JoinHandle<()>>,
+) -> Result<(), RuntimeError<E>> {
+    let mut poll = Poll::new().map_err(RuntimeError::coordinator)?;
+    let mut events = Events::with_capacity(16);
+
+    for worker in workers.iter() {
+        trace!("registering worker thread: {}", worker.id);
+        poll.registry()
+            .register(&worker.sender, Token(worker.id), Interests::WRITABLE)
+            .map_err(RuntimeError::coordinator)?;
+    }
+
+    loop {
+        trace!("polling on coordinator");
+        poll.poll(&mut events, None)
+            .map_err(RuntimeError::coordinator)?;
+
+        for event in events.iter() {
+            let token = event.token();
+            if let Ok(i) = workers.binary_search_by_key(&token.0, |w| w.id) {
+                if event.is_error() || event.is_hup() {
+                    // Receiving end of the pipe is dropped, which means the
+                    // worker has shut down.
+                    let worker = workers.remove(i);
+                    debug!("worker thread {} is done", worker.id);
+
+                    worker
+                        .handle
+                        .join()
+                        .map_err(map_panic)
+                        .and_then(|res| res)?;
+                }
+            }
+        }
+
+        if workers.is_empty() {
+            break;
+        }
+    }
+
+    // TODO: do the same as above for sync actors.
+    trace!("worker threads completed, waiting for synchronous actors");
+    for handle in sync_actors {
+        handle.join().map_err(map_panic)?;
+    }
+
+    Ok(())
 }
 
 /// Maps a boxed panic messages to a `RuntimeError`.
@@ -334,11 +389,11 @@ use hack::SetupFn;
 /// Run the actor system, with an optional `setup` function.
 ///
 /// This is the entry point for the worker threads.
-fn run_system<S>(setup: Option<S>) -> Result<(), RuntimeError<S::Error>>
+fn wmain<S>(setup: Option<S>, receiver: mio_pipe::Receiver) -> Result<(), RuntimeError<S::Error>>
 where
     S: SetupFn,
 {
-    let actor_system = RunningActorSystem::new()?;
+    let actor_system = RunningActorSystem::new(receiver)?;
 
     // Run optional setup.
     if let Some(setup) = setup {
@@ -390,6 +445,8 @@ pub(crate) struct RunningActorSystem {
     scheduler: Scheduler,
     /// Receiving side of the channel for `Waker` events.
     waker_events: Receiver<ProcessId>,
+    /// Receiving end of the channel with the main thread.
+    receiver: mio_pipe::Receiver,
 }
 
 /// Number of processes to run before polling.
@@ -401,13 +458,17 @@ const RUN_POLL_RATIO: usize = 32;
 
 /// Id used for the awakener.
 const AWAKENER: Token = Token(usize::max_value());
+const COORDINATOR: Token = Token(usize::max_value() - 1);
 
 impl RunningActorSystem {
     /// Create a new running actor system.
-    pub fn new<E>() -> Result<RunningActorSystem, RuntimeError<E>> {
+    pub fn new<E>(receiver: mio_pipe::Receiver) -> Result<RunningActorSystem, RuntimeError<E>> {
         // System queue for event notifications.
         let poll = Poll::new().map_err(RuntimeError::poll)?;
         let awakener = mio::Waker::new(poll.registry(), AWAKENER).map_err(RuntimeError::poll)?;
+        poll.registry()
+            .register(&receiver, COORDINATOR, Interests::READABLE)
+            .map_err(RuntimeError::coordinator)?;
 
         // Channel used in the `Waker` implementation.
         let (waker_sender, waker_recv) = channel::unbounded();
@@ -431,6 +492,7 @@ impl RunningActorSystem {
             events: Events::with_capacity(128),
             scheduler,
             waker_events: waker_recv,
+            receiver,
         })
     }
 
