@@ -22,6 +22,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
+use mio_pipe::new_pipe;
+
 use crate::actor_ref::{ActorRef, Local};
 use crate::inbox::Inbox;
 use crate::system::ProcessId;
@@ -30,8 +32,10 @@ use crate::{actor, Actor, ActorSystemRef, NewActor};
 
 thread_local! {
     /// Per thread active, but not running, actor system.
-    static TEST_SYSTEM: RefCell<RunningActorSystem> =
-        RefCell::new(RunningActorSystem::new::<!>().unwrap());
+    static TEST_SYSTEM: RefCell<RunningActorSystem> = {
+        let (_, receiver) = new_pipe().unwrap();
+        RefCell::new(RunningActorSystem::new::<!>(receiver).unwrap())
+    };
 }
 
 /// Get a reference to the *test* actor system.
