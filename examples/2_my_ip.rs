@@ -43,7 +43,12 @@ fn main() -> Result<(), RuntimeError<io::Error>> {
             // ongoing requests over accepting new requests possibly overloading
             // the system.
             let options = ActorOptions::default().with_priority(Priority::LOW);
-            system_ref.try_spawn(ServerSupervisor, server, (), options)?;
+            let server_ref = system_ref.try_spawn(ServerSupervisor, server, (), options)?;
+
+            // The server can handle the interrupt, terminate and quit signals,
+            // so it will perform a cleanup shutdown for us.
+            system_ref.receive_signals(server_ref.local_try_map());
+
             Ok(())
         })
         .run()
