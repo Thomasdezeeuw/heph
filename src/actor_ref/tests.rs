@@ -150,20 +150,22 @@ fn local_and_machine_actor_ref() {
     assert_eq!(inbox.receive_next(), Some(3));
 }
 
+// Some type we can control.
 #[derive(PartialEq, Debug)]
 struct M(usize);
 
+// A type we don't control, but we want to receive.
 struct Msg(usize);
 
-impl Into<M> for Msg {
-    fn into(self) -> M {
-        M(self.0)
+impl From<Msg> for M {
+    fn from(msg: Msg) -> M {
+        M(msg.0)
     }
 }
 
-impl From<M> for Msg {
-    fn from(msg: M) -> Msg {
-        Msg(msg.0)
+impl Into<Msg> for M {
+    fn into(self) -> Msg {
+        Msg(self.0)
     }
 }
 
@@ -256,7 +258,7 @@ fn mapped_actor_ref_different_types() {
         actor_ref.send(Msg(1)).expect("unable to send message");
     }
 
-    assert_eq!(inbox.receive_next(), Some(M(1))); // Machine ref.
+    assert_eq!(inbox.receive_next(), Some(M(1))); // local ref.
 }
 
 #[test]

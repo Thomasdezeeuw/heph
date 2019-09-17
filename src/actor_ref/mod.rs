@@ -211,8 +211,8 @@ where
     /// caution when it comes to performance sensitive code.
     pub fn local_map<Msg>(self) -> ActorRef<LocalMap<Msg>>
     where
-        T: 'static, // TODO: try to remove the static lifetime.
-        Msg: Into<M> + From<M>,
+        T: 'static,
+        M: From<Msg> + Into<Msg>,
     {
         ActorRef::new(LocalMap {
             inner: Box::new(self.inner),
@@ -222,10 +222,15 @@ where
     /// Same as [`local_map`] but returns a thread safe version.
     ///
     /// [`local_map`]: ActorRef::local_map
+    ///
+    /// # Notes
+    ///
+    /// This conversion is **not** cheap, it requires an allocation so use with
+    /// caution when it comes to performance sensitive code.
     pub fn map<Msg>(self) -> ActorRef<Map<Msg>>
     where
-        T: Send<Message = M> + marker::Sync + marker::Send + 'static, // TODO: try to remove the static lifetime.
-        Msg: Into<M> + From<M>,
+        T: Send<Message = M> + marker::Sync + marker::Send + 'static,
+        M: From<Msg> + Into<Msg>,
     {
         ActorRef::new(Map {
             inner: Box::new(self.inner),

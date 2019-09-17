@@ -6,6 +6,8 @@ use crate::actor_ref::{Send, SendError};
 
 // TODO: remove the need for a allocation for both `LocalMap` and `Map`, if that
 // is possible at all.
+// TODO: maybe replace the `Box` with `Rc`/`Arc`, so its cheaper to clone the
+// reference?
 
 /// Trait to erase the original message type of the actor reference.
 pub(super) trait MappedSend<Msg> {
@@ -15,11 +17,11 @@ pub(super) trait MappedSend<Msg> {
 impl<T, M, Msg> MappedSend<Msg> for T
 where
     T: Send<Message = M>,
-    Msg: Into<M> + From<M>,
+    M: From<Msg> + Into<Msg>,
 {
     fn mapped_send(&mut self, msg: Msg) -> Result<(), SendError<Msg>> {
         self.send(msg.into()).map_err(|err| SendError {
-            message: Msg::from(err.message),
+            message: err.message.into(),
         })
     }
 }
