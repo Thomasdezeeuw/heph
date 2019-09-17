@@ -8,8 +8,10 @@
 //! single actor to receive messages from multiple sources with the ability to
 //! differentiate the source of the message.
 //!
-//! Two more default messages should be considered, the two variants from
-//! [`Result`]: [`Ok`] and [`Err`].
+//! Three more default messages should be considered, the two variants from
+//! [`Result`]: [`Ok`] and [`Err`] and [`Signal`] to handle process signals.
+//!
+//! [`Signal`]: crate::system::Signal
 //!
 //! # Examples
 //!
