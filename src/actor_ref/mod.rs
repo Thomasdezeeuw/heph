@@ -121,6 +121,7 @@
 //! }
 //! ```
 
+use std::convert::TryFrom;
 use std::ops::ShlAssign;
 use std::{fmt, marker};
 
@@ -141,13 +142,13 @@ pub mod types {
 
     pub use super::local::Local;
     pub use super::machine::Machine;
-    pub use super::map::{LocalMap, Map};
+    pub use super::map::{LocalMap, LocalTryMap, Map, TryMap};
     pub use super::sync::Sync;
 }
 
 pub use error::{ActorShutdown, SendError};
 #[doc(no_inline)]
-pub use types::{Local, LocalMap, Machine, Map, Sync};
+pub use types::{Local, LocalMap, LocalTryMap, Machine, Map, Sync, TryMap};
 
 /// A reference to an actor.
 ///
@@ -233,6 +234,42 @@ where
         M: From<Msg> + Into<Msg>,
     {
         ActorRef::new(Map {
+            inner: Box::new(self.inner),
+        })
+    }
+
+    /// Much like [`local_map`], but uses the [`TryFrom`] trait.
+    ///
+    /// [`local_map`]: ActorRef::local_map
+    ///
+    /// # Notes
+    ///
+    /// This conversion is **not** cheap, it requires an allocation so use with
+    /// caution when it comes to performance sensitive code.
+    pub fn local_try_map<Msg>(self) -> ActorRef<LocalTryMap<Msg>>
+    where
+        T: 'static,
+        M: TryFrom<Msg, Error = Msg> + Into<Msg>,
+    {
+        ActorRef::new(LocalTryMap {
+            inner: Box::new(self.inner),
+        })
+    }
+
+    /// Same as [`local_try_map`] but returns a thread safe version.
+    ///
+    /// [`local_try_map`]: ActorRef::local_try_map
+    ///
+    /// # Notes
+    ///
+    /// This conversion is **not** cheap, it requires an allocation so use with
+    /// caution when it comes to performance sensitive code.
+    pub fn try_map<Msg>(self) -> ActorRef<TryMap<Msg>>
+    where
+        T: Send<Message = M> + marker::Sync + marker::Send + 'static,
+        M: TryFrom<Msg, Error = Msg> + Into<Msg>,
+    {
+        ActorRef::new(TryMap {
             inner: Box::new(self.inner),
         })
     }
