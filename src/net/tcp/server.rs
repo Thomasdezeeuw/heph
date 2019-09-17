@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -13,8 +14,7 @@ use crate::actor::{self, Actor, NewActor};
 use crate::inbox::Inbox;
 use crate::net::TcpStream;
 use crate::supervisor::Supervisor;
-use crate::system::ProcessId;
-use crate::system::{ActorOptions, ActorSystemRef, AddActorError};
+use crate::system::{ActorOptions, ActorSystemRef, AddActorError, ProcessId, Signal};
 
 /// A intermediate structure that implements [`NewActor`], creating
 /// [`tcp::Server`].
@@ -89,7 +89,9 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// # Graceful shutdown
 ///
 /// Graceful shutdown is done by sending it a [`Terminate`] message, see below
-/// for an example.
+/// for an example. The TCP server can also handle (shutdown) process signals,
+/// see example 2: my_ip (in the examples directory of the source code) for an
+/// example of that.
 ///
 /// # Examples
 ///
@@ -338,6 +340,7 @@ where
 
         // See if we need to shutdown.
         if inbox.receive_next().is_some() {
+            debug!("TCP server received shutdown message, stopping");
             return Poll::Ready(Ok(()));
         }
 
@@ -387,6 +390,30 @@ pub struct ServerMessage {
 impl From<Terminate> for ServerMessage {
     fn from(_: Terminate) -> ServerMessage {
         ServerMessage { inner: () }
+    }
+}
+
+impl TryFrom<Signal> for ServerMessage {
+    type Error = Signal;
+
+    /// Converts [`Signal::Interrupt`], [`Signal::Terminate`] and
+    /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
+    fn try_from(signal: Signal) -> Result<Self, Self::Error> {
+        match signal {
+            Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(ServerMessage { inner: () }),
+        }
+    }
+}
+
+// Not part of the public API.
+//
+// NOTE: This is only here to allow the actor reference to be converted into a
+// (local) try map actor reference for use in signal handling, don't actually
+// use this.
+#[doc(hidden)]
+impl Into<Signal> for ServerMessage {
+    fn into(self) -> Signal {
+        unreachable!("shouldn't convert a tcp::ServerMessage into a Signal")
     }
 }
 
