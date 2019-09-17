@@ -29,6 +29,7 @@ log                  = "0.4.6"
 # Replace with Mio v0.7 once released.
 mio                  = { git = "https://github.com/tokio-rs/mio" }
 mio-pipe             = { git = "https://github.com/Thomasdezeeuw/mio-pipe" }
+mio-signals          = { git = "https://github.com/Thomasdezeeuw/mio-signals" }
 num_cpus             = "1.8.0"
 slab                 = "0.4.0"
 std-logger           = "0.3.4"

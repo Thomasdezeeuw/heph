@@ -11,19 +11,21 @@
 
 use std::any::Any;
 use std::cell::RefCell;
+use std::io::{self, IoSliceMut, Read, Write};
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::task::Waker;
 use std::time::{Duration, Instant};
-use std::{fmt, io, thread};
+use std::{fmt, thread};
 
 use crossbeam_channel::{self as channel, Receiver};
 use log::{debug, trace};
 use mio::{event, Events, Interests, Poll, Token};
 use mio_pipe::new_pipe;
+use mio_signals::{SignalSet, Signals};
 
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
-use crate::actor_ref::{ActorRef, Local, Sync};
+use crate::actor_ref::{ActorRef, Local, LocalTryMap, Sync};
 use crate::inbox::Inbox;
 use crate::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
 use crate::{actor, NewActor};
@@ -257,9 +259,11 @@ struct Worker<E> {
     id: usize,
     handle: thread::JoinHandle<Result<(), RuntimeError<E>>>,
     sender: mio_pipe::Sender,
+    pending: Vec<Signal>,
 }
 
 impl<E> Worker<E> {
+    /// Start a new worker thread.
     fn start<S>(id: usize, setup: Option<S>) -> io::Result<Worker<S::Error>>
     where
         S: SetupFn<Error = E>,
@@ -269,10 +273,47 @@ impl<E> Worker<E> {
             thread::Builder::new()
                 .name(format!("heph_worker{}", id))
                 .spawn(move || wmain(setup, receiver))
-                .map(|handle| Worker { id, handle, sender })
+                .map(|handle| Worker {
+                    id,
+                    handle,
+                    sender,
+                    pending: Vec::new(),
+                })
         })
     }
+
+    /// Send the worker thread a `signal`.
+    ///
+    /// If the signal can't be send now it will be added the to the list of
+    /// pending signals, which can be send using `send_pending_signals`.
+    fn send_signal(&mut self, signal: Signal) -> io::Result<()> {
+        let byte = signal.to_byte();
+        loop {
+            match self.sender.write(&[byte]) {
+                Ok(0) => return Err(io::ErrorKind::WriteZero.into()),
+                Ok(_) => return Ok(()),
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    // Can't write right now, we'll do so later.
+                    self.pending.push(signal);
+                    return Ok(());
+                }
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => return Err(err),
+            }
+        }
+    }
+
+    /// Send the worker thread any pending signals.
+    fn send_pending_signals(&mut self) -> io::Result<()> {
+        while let Some(signal) = self.pending.first().copied() {
+            self.send_signal(signal)?;
+            drop(self.pending.remove(0));
+        }
+        Ok(())
+    }
 }
+
+const SIGNAL: Token = Token(usize::max_value());
 
 // NOTE: `workers` must be sorted based on `id`.
 fn cmain<E>(
@@ -281,6 +322,11 @@ fn cmain<E>(
 ) -> Result<(), RuntimeError<E>> {
     let mut poll = Poll::new().map_err(RuntimeError::coordinator)?;
     let mut events = Events::with_capacity(16);
+
+    let mut signals = Signals::new(SignalSet::all()).map_err(RuntimeError::coordinator)?;
+    poll.registry()
+        .register(&signals, SIGNAL, Interests::READABLE)
+        .map_err(RuntimeError::coordinator)?;
 
     for worker in workers.iter() {
         trace!("registering worker thread: {}", worker.id);
@@ -295,19 +341,35 @@ fn cmain<E>(
             .map_err(RuntimeError::coordinator)?;
 
         for event in events.iter() {
-            let token = event.token();
-            if let Ok(i) = workers.binary_search_by_key(&token.0, |w| w.id) {
-                if event.is_error() || event.is_hup() {
-                    // Receiving end of the pipe is dropped, which means the
-                    // worker has shut down.
-                    let worker = workers.remove(i);
-                    debug!("worker thread {} is done", worker.id);
+            match event.token() {
+                SIGNAL => {
+                    while let Some(signal) = signals.receive().map_err(RuntimeError::coordinator)? {
+                        for worker in workers.iter_mut() {
+                            worker
+                                .send_signal(Signal::from_mio(signal))
+                                .map_err(RuntimeError::coordinator)?;
+                        }
+                    }
+                }
+                token => {
+                    if let Ok(i) = workers.binary_search_by_key(&token.0, |w| w.id) {
+                        if event.is_error() || event.is_hup() {
+                            // Receiving end of the pipe is dropped, which means the
+                            // worker has shut down.
+                            let worker = workers.remove(i);
+                            debug!("worker thread {} is done", worker.id);
 
-                    worker
-                        .handle
-                        .join()
-                        .map_err(map_panic)
-                        .and_then(|res| res)?;
+                            worker
+                                .handle
+                                .join()
+                                .map_err(map_panic)
+                                .and_then(|res| res)?;
+                        } else if event.is_writable() {
+                            workers[i]
+                                .send_pending_signals()
+                                .map_err(RuntimeError::coordinator)?;
+                        }
+                    }
                 }
             }
         }
@@ -385,6 +447,71 @@ mod hack {
 }
 
 use hack::SetupFn;
+
+/// Process signal.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Signal {
+    /// Interrupt signal.
+    ///
+    /// This signal is received by the process when its controlling terminal
+    /// wishes to interrupt the process. This signal will for example be send
+    /// when Ctrl+C is pressed in most terminals.
+    ///
+    /// Corresponds to POSIX signal `SIGINT`.
+    Interrupt,
+    /// Termination request signal.
+    ///
+    /// This signal received when the process is requested to terminate. This
+    /// allows the process to perform nice termination, releasing resources and
+    /// saving state if appropriate. This signal will be send when using the
+    /// `kill` command for example.
+    ///
+    /// Corresponds to POSIX signal `SIGTERM`.
+    Terminate,
+    /// Terminal quit signal.
+    ///
+    /// This signal is received when the process is requested to quit and
+    /// perform a core dump.
+    ///
+    /// Corresponds to POSIX signal `SIGQUIT`.
+    Quit,
+}
+
+impl Signal {
+    /// Convert to a byte, parsing using [`from_byte`].
+    ///
+    /// [`from_byte`]: Signal::from_byte
+    fn to_byte(self) -> u8 {
+        use Signal::*;
+        match self {
+            Interrupt => 1,
+            Terminate => 2,
+            Quit => 3,
+        }
+    }
+
+    /// Parse a signal converted to a byte using [`to_byte`].
+    ///
+    /// [`to_byte`]: Signal::to_byte
+    fn from_byte(byte: u8) -> Option<Signal> {
+        use Signal::*;
+        match byte {
+            1 => Some(Interrupt),
+            2 => Some(Terminate),
+            3 => Some(Quit),
+            _ => None,
+        }
+    }
+
+    /// Convert a `mio_signals::Signal` into our own `Signal`.
+    fn from_mio(signal: mio_signals::Signal) -> Signal {
+        match signal {
+            mio_signals::Signal::Interrupt => Signal::Interrupt,
+            mio_signals::Signal::Terminate => Signal::Terminate,
+            mio_signals::Signal::Quit => Signal::Quit,
+        }
+    }
+}
 
 /// Run the actor system, with an optional `setup` function.
 ///
@@ -484,6 +611,7 @@ impl RunningActorSystem {
             poll: RefCell::new(poll),
             timers: RefCell::new(Timers::new()),
             queue: RefCell::new(Queue::new()),
+            signal_receivers: RefCell::new(Vec::new()),
         };
 
         // The actor system we're going to run.
@@ -558,18 +686,24 @@ impl RunningActorSystem {
             None
         };
 
-        let mut poll = self.internal.poll.borrow_mut();
-        poll.poll(&mut self.events, timeout)
+        self.internal
+            .poll
+            .borrow_mut()
+            .poll(&mut self.events, timeout)
             .map_err(RuntimeError::poll)?;
 
         let mut poll_waker = false;
+        let mut check_receiver = false;
         for event in self.events.iter() {
-            let token = event.token();
-            if token == AWAKENER {
-                poll_waker = true;
-            } else {
-                self.scheduler.schedule(token.into());
+            match event.token() {
+                AWAKENER => poll_waker = true,
+                COORDINATOR => check_receiver = true,
+                token => self.scheduler.schedule(token.into()),
             }
+        }
+
+        if check_receiver {
+            self.receive_signals().map_err(RuntimeError::poll)?; // FIXME: change to generic worker error.
         }
 
         if poll_waker {
@@ -594,6 +728,41 @@ impl RunningActorSystem {
         }
 
         Ok(())
+    }
+
+    fn receive_signals(&mut self) -> io::Result<()> {
+        loop {
+            // We want to receive up to 4 signals in a single call, so we
+            // split our buffer in 4 1 byte buffers.
+            let mut buf = [0; 4];
+            let (bufs1, bufs2) = buf.split_at_mut(2);
+            let (bufs1a, bufs1b) = bufs1.split_at_mut(1);
+            let (bufs2a, bufs2b) = bufs2.split_at_mut(1);
+            let bufs = &mut [
+                IoSliceMut::new(bufs1a),
+                IoSliceMut::new(bufs1b),
+                IoSliceMut::new(bufs2a),
+                IoSliceMut::new(bufs2b),
+            ];
+
+            match self.receiver.read_vectored(bufs) {
+                // Should never happen.
+                Ok(0) => return Err(io::ErrorKind::UnexpectedEof.into()),
+                Ok(n) => {
+                    let mut receivers = self.internal.signal_receivers.borrow_mut();
+                    for signal in buf[..n].iter().copied().filter_map(Signal::from_byte) {
+                        debug!("received {:?} on worker thread", signal);
+                        for receiver in receivers.iter_mut() {
+                            // Don't care if we succeed in sending the message.
+                            let _ = receiver.send(signal);
+                        }
+                    }
+                }
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Ok(()),
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => return Err(err),
+            }
+        }
     }
 }
 
@@ -712,6 +881,14 @@ impl ActorSystemRef {
         Ok(actor_ref)
     }
 
+    /// Receive signals as messages.
+    ///
+    /// This adds the `actor_ref` to the list of actor references that will
+    /// receive a process signal.
+    pub fn receive_signals(&mut self, actor_ref: ActorRef<LocalTryMap<Signal>>) {
+        self.internal.signal_receivers.borrow_mut().push(actor_ref)
+    }
+
     /// Register an `event::Source`, see `mio::Registry::register`.
     pub(crate) fn register<E>(
         &mut self,
@@ -791,4 +968,5 @@ pub(crate) struct ActorSystemInternal {
     timers: RefCell<Timers>,
     /// User space queue.
     queue: RefCell<Queue>,
+    signal_receivers: RefCell<Vec<ActorRef<LocalTryMap<Signal>>>>,
 }
