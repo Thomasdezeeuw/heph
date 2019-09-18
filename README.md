@@ -73,14 +73,7 @@ Second Heph needs to be added as a dependency.
 
 ```toml
 [dependencies]
-heph = "0.1.0"
-```
-
-If your using the 2015 edition of Rust (the default) you need to add an `extern
-crate` statement to your code.
-
-```rust
-extern crate heph;
+heph = "0.2.0"
 ```
 
 Now you're ready to starting writing your application! Next you can look at some
@@ -160,10 +153,9 @@ inspired by the one used in Nginx.
 
 Besides the inspiration gained from the work of others, Heph is also build on
 top of the work of others. Three major components used in Heph are the futures
-task system (to be part of the standard library), asynchronous functions and
-[Gaea].
+task system (part of the standard library), asynchronous functions and [Mio].
 
-[Gaea]: https://github.com/Thomasdezeeuw/Gaea
+[Mio]: https://github.com/tokio-rs/mio
 
 [1]: https://en.wikipedia.org/wiki/Hephaestus
 [2]: https://en.wikipedia.org/wiki/Actor_model
