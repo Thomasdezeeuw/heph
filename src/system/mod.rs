@@ -307,7 +307,7 @@ impl<E> Worker<E> {
     fn send_pending_signals(&mut self) -> io::Result<()> {
         while let Some(signal) = self.pending.first().copied() {
             self.send_signal(signal)?;
-            drop(self.pending.remove(0));
+            let _ = self.pending.remove(0);
         }
         Ok(())
     }
