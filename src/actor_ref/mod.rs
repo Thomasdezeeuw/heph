@@ -3,7 +3,8 @@
 //! An actor reference is a generic reference to an actor that can run on the
 //! same thread, another thread on the same machine or even running remotely.
 //!
-//! Currently there are three types of actor references.
+//! All available actor reference types can be found in the [`types`] module,
+//! the three main types of actor references are the following:
 //!
 //! - [`Local`] (`ActorRef<Local<M>>`): reference to an actor running on the
 //!   same thread. This is the least expensive reference and should always be
@@ -16,6 +17,7 @@
 //!   on its own thread. Like the machine reference this reference also
 //!   implements [`Send`](std::marker::Send) and [`Sync`](std::marker::Sync).
 //!
+//! [`types`]: crate::actor_ref::types
 //! [`Local`]: crate::actor_ref::Local
 //! [`Machine`]: crate::actor_ref::Machine
 //! [`Sync`]: crate::actor_ref::Sync
