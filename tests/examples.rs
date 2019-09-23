@@ -1,4 +1,4 @@
-//! These test perform an end-to-end test based on the examples in the examples
+//! These tests perform an end-to-end test based on the examples in the examples
 //! directory.
 
 use std::io::Read;
@@ -19,16 +19,16 @@ use lazy_static::lazy_static;
 
 /// Macro to create a group of sequential tests.
 macro_rules! sequential_tests {
-    ($(fn $name:ident() $body:block)+) => {
+    ($(fn $name: ident () $body: block)+) => {
         lazy_static! {
             /// A global lock for testing sequentially.
-            static ref SEQUENTIAL_TEST_MUTEX: Mutex<()> = Mutex::new(());
+            static ref SEQUENTIAL_TESTS: Mutex<()> = Mutex::new(());
         }
 
         $(
         #[test]
         fn $name() {
-            let guard = SEQUENTIAL_TEST_MUTEX.lock().unwrap();
+            let guard = SEQUENTIAL_TESTS.lock().unwrap();
             // Catch any panics to not poison the lock.
             if let Err(err) = panic::catch_unwind(|| $body) {
                 drop(guard);
@@ -40,17 +40,17 @@ macro_rules! sequential_tests {
 }
 
 sequential_tests! {
-    fn example_1_hello_world() {
+    fn test_1_hello_world() {
         let output = run_example_output("1_hello_world");
         assert_eq!(output, "Hello World\n");
     }
 
-    fn example_1b_hello_world() {
+    fn test_1b_hello_world_() {
         let output = run_example_output("1b_hello_world");
         assert_eq!(output, "Hello World\n");
     }
 
-    fn example_2_my_ip() {
+    fn test_2_my_ip() {
         let _child = run_example("2_my_ip");
 
         let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
