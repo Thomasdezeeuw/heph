@@ -335,9 +335,11 @@ impl SyncWorker {
         A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
         Arg: Send + 'static,
         M: Send + 'static,
+        ActorRef<Sync<M>>: IntoSignalActorRef,
     {
         new_pipe().and_then(|(sender, receiver)| {
             let (send, inbox) = channel::unbounded();
+            let actor_ref = ActorRef::new_sync(send);
             thread::Builder::new()
                 .name(format!("heph_sync_actor{}", id))
                 .spawn(move || smain(supervisor, actor, arg, inbox, receiver))
@@ -345,10 +347,9 @@ impl SyncWorker {
                     id,
                     handle,
                     sender,
-                    // TODO: add actor ref if possible.
-                    signals: None,
+                    signals: IntoSignalActorRef::into(&actor_ref),
                 })
-                .map(|worker| (worker, ActorRef::new_sync(send)))
+                .map(|worker| (worker, actor_ref))
         })
     }
 
@@ -481,10 +482,16 @@ impl<S> fmt::Debug for ActorSystem<S> {
     }
 }
 
-/// A hack to allow us to call `ActorSystem<!>.run`.
+/// Collection of hacks.
 mod hack {
-    use super::ActorSystemRef;
+    use std::convert::TryFrom;
+    use std::marker;
 
+    use crate::actor_ref::{ActorRef, Sync, TryMap};
+
+    use super::{ActorSystemRef, Signal};
+
+    /// A hack to allow us to call `ActorSystem<!>.run`.
     pub trait SetupFn: Send + Clone + 'static {
         type Error: Send;
 
@@ -510,11 +517,38 @@ mod hack {
             self
         }
     }
+
+    /// Hack to allow `SyncWorker` to convert its actor reference to a reference
+    /// that receives signals if possible, or returns none.
+    pub trait IntoSignalActorRef {
+        fn into(actor_ref: &Self) -> Option<ActorRef<TryMap<Signal>>>;
+    }
+
+    impl<M> IntoSignalActorRef for ActorRef<Sync<M>> {
+        default fn into(_: &Self) -> Option<ActorRef<TryMap<Signal>>> {
+            None
+        }
+    }
+
+    impl<M> IntoSignalActorRef for ActorRef<Sync<M>>
+    where
+        M: TryFrom<Signal, Error = Signal> + Into<Signal> + marker::Sync + Send + 'static,
+    {
+        fn into(actor_ref: &Self) -> Option<ActorRef<TryMap<Signal>>> {
+            Some(actor_ref.clone().try_map())
+        }
+    }
 }
 
-use hack::SetupFn;
+use hack::{IntoSignalActorRef, SetupFn};
 
 /// Process signal.
+///
+/// Actors can receive signals by calling [`ActorSystemRef::receive_signals`]
+/// with their actor reference.
+///
+/// Synchronous actors receive signals automatically if they implement the
+/// required trait bounds, see [`SyncActor`] for more details.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Signal {
     /// Interrupt signal.

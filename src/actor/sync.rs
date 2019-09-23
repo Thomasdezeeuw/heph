@@ -64,6 +64,86 @@ use crate::actor::message_select::{MessageSelector, Messages};
 /// Synchronous actor can only be spawned before running the actor system, see
 /// [`ActorSystem::spawn_sync_actor`].
 ///
+/// # Signal handling
+///
+/// [Process signals] are automatically send to synchronous actors if the
+/// [`Message`] type implements the required trait bound to convert the actor
+/// reference into `ActorRef<TryMap<Signal>>`, see [`ActorRef::try_map`].
+///
+/// ```
+/// #![feature(never_type)]
+/// use std::convert::TryFrom;
+///
+/// use heph::actor::sync::SyncContext;
+/// # use heph::actor_ref::{ActorRef, TryMap};
+/// use heph::supervisor::NoSupervisor;
+/// use heph::system::{Signal, ActorSystem, RuntimeError};
+///
+/// fn main() -> Result<(), RuntimeError> {
+///     // Spawning synchronous actor works slightly differently the spawning
+///     // regular (asynchronous) actors. Mainly, synchronous actors need to be
+///     // spawned before the system is run.
+///     let mut system = ActorSystem::new();
+///
+///     // Spawn a new synchronous actor, returning an actor reference to it.
+///     let actor = actor as fn(_) -> _;
+///     let mut actor_ref = system.spawn_sync_actor(NoSupervisor, actor, ())?;
+///
+///     // Just like with any actor reference we can send the actor a message.
+///     actor_ref <<= "Hello world".to_string();
+///
+///     # let mut actor_ref: ActorRef<TryMap<Signal>> = actor_ref.try_map();
+///     # actor_ref <<= Signal::Interrupt;
+///
+///     // And now we run the system.
+///     system.run()
+/// }
+///
+/// enum Message {
+///     Print(String),
+///     Signal(Signal),
+/// }
+///
+/// impl From<String> for Message {
+///     fn from(msg: String) -> Self {
+///         Message::Print(msg)
+///     }
+/// }
+///
+/// // Required to allow the sync actor to receive signals.
+/// impl TryFrom<Signal> for Message {
+///     type Error = Signal;
+///
+///     fn try_from(signal: Signal) -> Result<Self, Self::Error> {
+///         Ok(Message::Signal(signal))
+///     }
+/// }
+///
+/// // Required to allow the sync actor to receive signals.
+/// impl Into<Signal> for Message {
+///     fn into(self) -> Signal {
+///         match self {
+///             Message::Print(_) => panic!("can't convert message into signal"),
+///             Message::Signal(signal) => signal,
+///         }
+///     }
+/// }
+///
+/// fn actor(mut ctx: SyncContext<Message>) -> Result<(), !> {
+///     while let Ok(msg) = ctx.receive_next() {
+///         match msg {
+///             Message::Print(msg) => println!("Got a message: {}", msg),
+///             Message::Signal(_signal) => break,
+///         }
+///     }
+///     Ok(())
+/// }
+/// ```
+///
+/// [Process signals]: crate::system::Signal
+/// [`Message`]: SyncActor::Message
+/// [`ActorRef::try_map`]: crate::actor_ref::ActorRef::try_map
+///
 /// # Panics
 ///
 /// Panics are not caught, thus bringing down the actor's thread, panics will
