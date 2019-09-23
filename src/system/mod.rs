@@ -25,7 +25,7 @@ use mio_pipe::new_pipe;
 use mio_signals::{SignalSet, Signals};
 
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
-use crate::actor_ref::{ActorRef, Local, LocalTryMap, Sync};
+use crate::actor_ref::{ActorRef, Local, LocalTryMap, Sync, TryMap};
 use crate::inbox::Inbox;
 use crate::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
 use crate::{actor, NewActor};
@@ -48,6 +48,8 @@ use queue::Queue;
 use scheduler::{Scheduler, SchedulerRef};
 use timers::Timers;
 use waker::{init_waker, new_waker, WakerId, MAX_THREADS};
+
+const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 
 /// The system that runs all actors.
 ///
@@ -146,8 +148,9 @@ use waker::{init_waker, new_waker, WakerId, MAX_THREADS};
 pub struct ActorSystem<S = !> {
     /// Number of threads to create.
     threads: usize,
+    sync_actor_id: usize,
     /// Synchronous actor thread handles.
-    sync_actors: Vec<thread::JoinHandle<()>>,
+    sync_actors: Vec<SyncWorker>,
     /// Optional setup function.
     setup: Option<S>,
 }
@@ -158,6 +161,7 @@ impl ActorSystem {
     pub fn new() -> ActorSystem<!> {
         ActorSystem {
             threads: 1,
+            sync_actor_id: SYNC_WORKER_ID_START,
             sync_actors: Vec::new(),
             setup: None,
         }
@@ -174,6 +178,7 @@ impl ActorSystem {
     {
         ActorSystem {
             threads: self.threads,
+            sync_actor_id: self.sync_actor_id,
             sync_actors: self.sync_actors,
             setup: Some(setup),
         }
@@ -221,17 +226,13 @@ impl<S> ActorSystem<S> {
         Arg: Send + 'static,
         M: Send + 'static,
     {
-        let (sender, receiver) = channel::unbounded();
-        let actor_ref = ActorRef::new_sync(sender);
-
-        debug!("creating thread for synchronous actor");
-        let handle = thread::Builder::new()
-            .name("heph_sync_actor".to_owned())
-            .spawn(move || run_sync_actor(supervisor, actor, arg, receiver))
-            .map_err(RuntimeError::start_thread)?;
-        self.sync_actors.push(handle);
-
-        Ok(actor_ref)
+        self.sync_actor_id += 1;
+        SyncWorker::start(self.sync_actor_id, supervisor, actor, arg)
+            .map(|(worker, actor_ref)| {
+                self.sync_actors.push(worker);
+                actor_ref
+            })
+            .map_err(RuntimeError::start_thread)
     }
 }
 
@@ -313,12 +314,58 @@ impl<E> Worker<E> {
     }
 }
 
+struct SyncWorker {
+    id: usize,
+    handle: thread::JoinHandle<()>,
+    sender: mio_pipe::Sender,
+    // None if the sync actor can't handle signals.
+    signals: Option<ActorRef<TryMap<Signal>>>,
+}
+
+impl SyncWorker {
+    /// Start a new thread that runs a sync actor.
+    pub fn start<Sv, A, E, Arg, M>(
+        id: usize,
+        supervisor: Sv,
+        actor: A,
+        arg: Arg,
+    ) -> io::Result<(SyncWorker, ActorRef<Sync<M>>)>
+    where
+        Sv: SyncSupervisor<A> + Send + 'static,
+        A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
+        Arg: Send + 'static,
+        M: Send + 'static,
+    {
+        new_pipe().and_then(|(sender, receiver)| {
+            let (send, inbox) = channel::unbounded();
+            thread::Builder::new()
+                .name(format!("heph_sync_actor{}", id))
+                .spawn(move || smain(supervisor, actor, arg, inbox, receiver))
+                .map(|handle| SyncWorker {
+                    id,
+                    handle,
+                    sender,
+                    // TODO: add actor ref if possible.
+                    signals: None,
+                })
+                .map(|worker| (worker, ActorRef::new_sync(send)))
+        })
+    }
+
+    /// Send the sync actor thread a `signal`.
+    fn send_signal(&mut self, signal: Signal) {
+        if let Some(ref mut signals) = self.signals {
+            let _ = signals.send(signal);
+        }
+    }
+}
+
 const SIGNAL: Token = Token(usize::max_value());
 
 // NOTE: `workers` must be sorted based on `id`.
 fn cmain<E>(
     mut workers: Vec<Worker<E>>,
-    sync_actors: Vec<thread::JoinHandle<()>>,
+    mut sync_workers: Vec<SyncWorker>,
 ) -> Result<(), RuntimeError<E>> {
     let mut poll = Poll::new().map_err(RuntimeError::coordinator)?;
     let mut events = Events::with_capacity(16);
@@ -332,6 +379,17 @@ fn cmain<E>(
         trace!("registering worker thread: {}", worker.id);
         poll.registry()
             .register(&worker.sender, Token(worker.id), Interests::WRITABLE)
+            .map_err(RuntimeError::coordinator)?;
+    }
+
+    for sync_worker in sync_workers.iter() {
+        trace!("registering sync actor worker thread: {}", sync_worker.id);
+        poll.registry()
+            .register(
+                &sync_worker.sender,
+                Token(sync_worker.id),
+                Interests::WRITABLE,
+            )
             .map_err(RuntimeError::coordinator)?;
     }
 
@@ -349,10 +407,24 @@ fn cmain<E>(
                                 .send_signal(Signal::from_mio(signal))
                                 .map_err(RuntimeError::coordinator)?;
                         }
+                        for sync_worker in sync_workers.iter_mut() {
+                            sync_worker.send_signal(Signal::from_mio(signal));
+                        }
                     }
                 }
                 token => {
-                    if let Ok(i) = workers.binary_search_by_key(&token.0, |w| w.id) {
+                    if token.0 >= SYNC_WORKER_ID_START {
+                        if let Ok(i) = sync_workers.binary_search_by_key(&token.0, |w| w.id) {
+                            if event.is_error() || event.is_hup() {
+                                // Receiving end of the pipe is dropped, which means the
+                                // worker has shut down.
+                                let sync_worker = sync_workers.remove(i);
+                                debug!("sync actor worker thread {} is done", sync_worker.id);
+
+                                sync_worker.handle.join().map_err(map_panic)?;
+                            }
+                        }
+                    } else if let Ok(i) = workers.binary_search_by_key(&token.0, |w| w.id) {
                         if event.is_error() || event.is_hup() {
                             // Receiving end of the pipe is dropped, which means the
                             // worker has shut down.
@@ -377,12 +449,6 @@ fn cmain<E>(
         if workers.is_empty() {
             break;
         }
-    }
-
-    // TODO: do the same as above for sync actors.
-    trace!("worker threads completed, waiting for synchronous actors");
-    for handle in sync_actors {
-        handle.join().map_err(map_panic)?;
     }
 
     Ok(())
@@ -533,8 +599,13 @@ where
 }
 
 /// Run a synchronous actor.
-fn run_sync_actor<S, E, Arg, A, M>(mut supervisor: S, actor: A, mut arg: Arg, inbox: Receiver<M>)
-where
+fn smain<S, E, Arg, A, M>(
+    mut supervisor: S,
+    actor: A,
+    mut arg: Arg,
+    inbox: Receiver<M>,
+    receiver: mio_pipe::Receiver,
+) where
     S: SyncSupervisor<A> + 'static,
     A: SyncActor<Message = M, Argument = Arg, Error = E>,
 {
@@ -558,6 +629,9 @@ where
         }
     }
     trace!("stopping synchronous actor");
+
+    // Let the coordinator know we're done.
+    drop(receiver);
 }
 
 /// The system that runs all processes.
