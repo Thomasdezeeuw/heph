@@ -39,14 +39,9 @@ impl Priority {
     pub const HIGH: Priority = Priority(unsafe { NonZeroU8::new_unchecked(5) });
 }
 
-/// Constant variant of `Default::default` for `Priority`.
-pub const fn default_priority() -> Priority {
-    Priority::NORMAL
-}
-
 impl Default for Priority {
     fn default() -> Priority {
-        default_priority()
+        Priority::NORMAL
     }
 }
 
