@@ -113,7 +113,8 @@ pub enum Connected {}
 /// // The client that will send a message to the server.
 /// async fn client(mut ctx: actor::Context<!>, server_address: SocketAddr) -> io::Result<()> {
 ///     let local_address = "127.0.0.1:7001".parse().unwrap();
-///     let mut socket = UdpSocket::bind(&mut ctx, local_address)?.connect(server_address)?;
+///     let mut socket = UdpSocket::bind(&mut ctx, local_address)
+///         .and_then(|socket| socket.connect(server_address))?;
 ///
 ///     let msg = b"Hello world";
 ///     let n = socket.send(&*msg).await?;
