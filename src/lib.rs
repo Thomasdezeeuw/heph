@@ -22,7 +22,7 @@
 //!     // And we're done.
 //!     Ok(())
 //! }
-//!
+//! #
 //! # drop(actor); // Silence dead code warnings.
 //! ```
 //!

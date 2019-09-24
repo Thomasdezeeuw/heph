@@ -9,6 +9,7 @@ use crate::actor_ref::{Send, SendError};
 // is possible at all.
 // TODO: maybe replace the `Box` with `Rc`/`Arc`, so its cheaper to clone the
 // reference?
+// TODO: implement `Eq`, `PartialEq` and `Clone` for all map types.
 
 /// Trait to erase the original message type of the actor reference.
 pub(super) trait MappedSend<Msg> {
