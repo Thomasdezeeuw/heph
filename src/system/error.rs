@@ -16,8 +16,8 @@ enum RuntimeErrorInner<SetupError> {
     StartThread(io::Error),
     /// Error in coordinator.
     Coordinator(io::Error),
-    /// Error polling the system poller.
-    Poll(io::Error),
+    /// Error in a worker thread.
+    Worker(io::Error),
     /// Error returned by user defined setup function.
     Setup(SetupError),
     /// Panic in a worker thread.
@@ -34,7 +34,7 @@ impl RuntimeError<!> {
             inner: match self.inner {
                 RuntimeErrorInner::StartThread(err) => RuntimeErrorInner::StartThread(err),
                 RuntimeErrorInner::Coordinator(err) => RuntimeErrorInner::Coordinator(err),
-                RuntimeErrorInner::Poll(err) => RuntimeErrorInner::Poll(err),
+                RuntimeErrorInner::Worker(err) => RuntimeErrorInner::Worker(err),
                 RuntimeErrorInner::<!>::Setup(_) => unreachable!(),
                 RuntimeErrorInner::Panic(err) => RuntimeErrorInner::Panic(err),
             },
@@ -57,9 +57,9 @@ impl<SetupError> RuntimeError<SetupError> {
         }
     }
 
-    pub(crate) const fn poll(err: io::Error) -> RuntimeError<SetupError> {
+    pub(crate) const fn worker(err: io::Error) -> RuntimeError<SetupError> {
         RuntimeError {
-            inner: RuntimeErrorInner::Poll(err),
+            inner: RuntimeErrorInner::Worker(err),
         }
     }
 
@@ -112,7 +112,7 @@ impl<SetupError: fmt::Display> fmt::Display for RuntimeError<SetupError> {
             Coordinator(ref err) => {
                 write!(f, "{}: error in coordinator thread: {}", Self::DESC, err)
             }
-            Poll(ref err) => write!(f, "{}: error polling system poller: {}", Self::DESC, err),
+            Worker(ref err) => write!(f, "{}: error in worker thread: {}", Self::DESC, err),
             Setup(ref err) => write!(f, "{}: error running setup function: {}", Self::DESC, err),
             Panic(ref msg) => write!(f, "{}: panic in worker thread: {}", Self::DESC, msg),
         }
@@ -127,7 +127,7 @@ impl<SetupError: Error + fmt::Display + 'static> Error for RuntimeError<SetupErr
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use RuntimeErrorInner::*;
         match self.inner {
-            StartThread(ref err) | Coordinator(ref err) | Poll(ref err) => Some(err),
+            StartThread(ref err) | Coordinator(ref err) | Worker(ref err) => Some(err),
             Setup(ref err) => Some(err),
             Panic(_) => None,
         }

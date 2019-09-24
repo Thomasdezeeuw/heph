@@ -11,7 +11,7 @@
 
 use std::any::Any;
 use std::cell::RefCell;
-use std::io::{self, IoSliceMut, Read, Write};
+use std::io::{self, Read, Write};
 use std::ptr::NonNull;
 use std::rc::Rc;
 use std::task::Waker;
@@ -630,7 +630,7 @@ fn wmain<S>(setup: Option<S>, receiver: mio_pipe::Receiver) -> Result<(), Runtim
 where
     S: SetupFn,
 {
-    let actor_system = RunningActorSystem::new(receiver)?;
+    let actor_system = RunningActorSystem::new(receiver).map_err(RuntimeError::worker)?;
 
     // Run optional setup.
     if let Some(setup) = setup {
@@ -707,13 +707,12 @@ const COORDINATOR: Token = Token(usize::max_value() - 1);
 
 impl RunningActorSystem {
     /// Create a new running actor system.
-    pub fn new<E>(receiver: mio_pipe::Receiver) -> Result<RunningActorSystem, RuntimeError<E>> {
+    pub fn new(receiver: mio_pipe::Receiver) -> io::Result<RunningActorSystem> {
         // System queue for event notifications.
-        let poll = Poll::new().map_err(RuntimeError::poll)?;
-        let awakener = mio::Waker::new(poll.registry(), AWAKENER).map_err(RuntimeError::poll)?;
+        let poll = Poll::new()?;
+        let awakener = mio::Waker::new(poll.registry(), AWAKENER)?;
         poll.registry()
-            .register(&receiver, COORDINATOR, Interests::READABLE)
-            .map_err(RuntimeError::coordinator)?;
+            .register(&receiver, COORDINATOR, Interests::READABLE)?;
 
         // Channel used in the `Waker` implementation.
         let (waker_sender, waker_recv) = channel::unbounded();
@@ -774,41 +773,22 @@ impl RunningActorSystem {
                 }
             }
 
-            self.schedule_processes()?;
+            self.schedule_processes().map_err(RuntimeError::worker)?;
         }
     }
 
     /// Schedule processes.
     ///
     /// This polls all event subsystems and schedules processes based on them.
-    fn schedule_processes<E>(&mut self) -> Result<(), RuntimeError<E>> {
+    fn schedule_processes(&mut self) -> io::Result<()> {
         trace!("polling event sources to schedule processes");
 
-        // If there are any processes ready to run, any waker events or user
-        // space events we don't want to block.
-        let timeout = if self.scheduler.has_active_process()
-            || !self.waker_events.is_empty()
-            || !self.internal.queue.borrow().is_empty()
-        {
-            Some(Duration::from_millis(0))
-        } else if let Some(deadline) = self.internal.timers.borrow().next_deadline() {
-            let now = Instant::now();
-            if deadline <= now {
-                // Deadline has already expired, so no blocking.
-                Some(Duration::from_millis(0))
-            } else {
-                // Time between the deadline and right now.
-                Some(deadline.duration_since(now))
-            }
-        } else {
-            None
-        };
+        let timeout = self.determine_timeout();
 
         self.internal
             .poll
             .borrow_mut()
-            .poll(&mut self.events, timeout)
-            .map_err(RuntimeError::poll)?;
+            .poll(&mut self.events, timeout)?;
 
         let mut poll_waker = false;
         let mut check_receiver = false;
@@ -821,7 +801,7 @@ impl RunningActorSystem {
         }
 
         if check_receiver {
-            self.receive_signals().map_err(RuntimeError::poll)?; // FIXME: change to generic worker error.
+            self.receive_signals()?;
         }
 
         if poll_waker {
@@ -848,28 +828,39 @@ impl RunningActorSystem {
         Ok(())
     }
 
-    fn receive_signals(&mut self) -> io::Result<()> {
-        loop {
-            // We want to receive up to 4 signals in a single call, so we
-            // split our buffer in 4 1 byte buffers.
-            let mut buf = [0; 4];
-            let (bufs1, bufs2) = buf.split_at_mut(2);
-            let (bufs1a, bufs1b) = bufs1.split_at_mut(1);
-            let (bufs2a, bufs2b) = bufs2.split_at_mut(1);
-            let bufs = &mut [
-                IoSliceMut::new(bufs1a),
-                IoSliceMut::new(bufs1b),
-                IoSliceMut::new(bufs2a),
-                IoSliceMut::new(bufs2b),
-            ];
+    fn determine_timeout(&self) -> Option<Duration> {
+        // If there are any processes ready to run, any waker events or user
+        // space events we don't want to block.
+        if self.scheduler.has_active_process()
+            || !self.waker_events.is_empty()
+            || !self.internal.queue.borrow().is_empty()
+        {
+            Some(Duration::from_millis(0))
+        } else if let Some(deadline) = self.internal.timers.borrow().next_deadline() {
+            let now = Instant::now();
+            if deadline <= now {
+                // Deadline has already expired, so no blocking.
+                Some(Duration::from_millis(0))
+            } else {
+                // Time between the deadline and right now.
+                Some(deadline.duration_since(now))
+            }
+        } else {
+            None
+        }
+    }
 
-            match self.receiver.read_vectored(bufs) {
-                // Should never happen.
+    fn receive_signals(&mut self) -> io::Result<()> {
+        trace!("receiving process signals");
+        loop {
+            let mut buf = [0; 8];
+            match self.receiver.read(&mut buf) {
+                // Should never happen as this would mean the coordinator has
+                // dropped the sending side.
                 Ok(0) => return Err(io::ErrorKind::UnexpectedEof.into()),
                 Ok(n) => {
                     let mut receivers = self.internal.signal_receivers.borrow_mut();
                     for signal in buf[..n].iter().copied().filter_map(Signal::from_byte) {
-                        debug!("received {:?} on worker thread", signal);
                         for receiver in receivers.iter_mut() {
                             // Don't care if we succeed in sending the message.
                             let _ = receiver.send(signal);
