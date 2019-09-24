@@ -27,8 +27,7 @@ fn main() -> Result<(), RuntimeError<io::Error>> {
     // we'll use the defaults options here.
     let actor = conn_actor as fn(_, _, _) -> _;
     let address = "127.0.0.1:7890".parse().unwrap();
-    let server = tcp::Server::setup(address, conn_supervisor, actor, ActorOptions::default())
-        .map_err(RuntimeError::setup)?;
+    let server = tcp::Server::setup(address, conn_supervisor, actor, ActorOptions::default())?;
 
     // Just like in examples 1 and 2 we'll create our actor system and run our
     // setup function. But for this example we'll create a worker thread per
