@@ -1,7 +1,5 @@
 //! Options for adding an `Actor` to an `ActorSystem`.
 
-use crate::system::scheduler::default_priority;
-
 pub use crate::system::scheduler::Priority;
 
 /// Options for adding an actor to an [`ActorSystem`].
@@ -61,7 +59,9 @@ impl ActorOptions {
     ///
     /// By default actors added to the actor system will wait for an external
     /// event before they start running. This can happen for example by a
-    /// message send to them, or a `TcpStream` becoming ready to read or write.
+    /// message send to them, or a [`TcpStream`] becoming ready to read or write.
+    ///
+    /// [`TcpStream`]: crate::net::TcpStream
     pub const fn schedule(mut self) -> Self {
         // TODO: better name: auto_run, auto_schedule, start_running?
         self.schedule = true;
@@ -72,7 +72,7 @@ impl ActorOptions {
 impl Default for ActorOptions {
     fn default() -> ActorOptions {
         ActorOptions {
-            priority: default_priority(),
+            priority: Priority::default(),
             schedule: false,
         }
     }

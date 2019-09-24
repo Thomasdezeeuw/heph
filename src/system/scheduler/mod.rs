@@ -21,7 +21,7 @@ mod priority;
 #[cfg(test)]
 mod tests;
 
-pub use priority::{default_priority, Priority};
+pub use priority::Priority;
 
 /// The scheduler, responsible for scheduling and running processes.
 #[derive(Debug)]
