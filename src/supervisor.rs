@@ -18,7 +18,11 @@
 //! The restarted actor will have the same message inbox as the old (stopped)
 //! actor. Note however that if an actor retrieved a message from its inbox, and
 //! returned an error when processing it, the new (restarted) actor won't
-//! retrieve that message again (messages aren't cloned after all).
+//! retrieve that message again (messages aren't cloned after all). If you want
+//! to ensure that all messages are handled instead of receiving message they
+//! can be [peeked], which clones the message.
+//!
+//! [peeked]: crate::actor::Context::peek
 //!
 //! # Restarting or stopping?
 //!
@@ -31,6 +35,17 @@
 //! [stopped]: crate::supervisor::SupervisorStrategy::Stop
 //! [restarted]: crate::supervisor::SupervisorStrategy::Restart
 //! [`tcp::Server`]: crate::net::tcp::Server
+//!
+//! # Actors and sync actors
+//!
+//! As actors come in two flavours, [regular/asynchronous actors] and
+//! [synchronous actors], thus so do the supervisor traits, [`Supervisor`] and
+//! [`SyncSupervisor`].
+//!
+//! [regular/asynchronous actors]: crate::actor
+//! [synchronous actors]: crate::actor::sync
+//! [`Supervisor`]: crate::supervisor::Supervisor
+//! [`SyncSupervisor`]: crate::supervisor::SyncSupervisor
 //!
 //! # Examples
 //!
@@ -107,10 +122,11 @@ where
     /// Method that gets call if an actor fails to restart twice.
     ///
     /// This is only called if [`decide`] returns a restart strategy, the actors
-    /// fails to restart, after which [`decide_on_restart_error`] is called also
-    /// returns a restart strategy and restarting a second time also fails. We
-    /// will not create an endless loop of restarting failures and instead call
-    /// this function.
+    /// fails to restart, after which [`decide_on_restart_error`] is called and
+    /// also returns a restart strategy and restarting a second time also fails.
+    /// We will not create an endless loop of restarting failures and instead
+    /// call this function before stopping the actor (which can't be restarted
+    /// any more).
     ///
     /// [`decide`]: Supervisor::decide
     /// [`decide_on_restart_error`]: Supervisor::decide_on_restart_error
