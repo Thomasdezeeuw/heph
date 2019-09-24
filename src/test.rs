@@ -34,7 +34,7 @@ thread_local! {
     /// Per thread active, but not running, actor system.
     static TEST_SYSTEM: RefCell<RunningActorSystem> = {
         let (_, receiver) = new_pipe().unwrap();
-        RefCell::new(RunningActorSystem::new::<!>(receiver).unwrap())
+        RefCell::new(RunningActorSystem::new(receiver).unwrap())
     };
 }
 
