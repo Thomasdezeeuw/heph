@@ -83,7 +83,8 @@ pub trait NewActor {
     ///         .with_setup(|mut system_ref| {
     ///             // Add the actor to the system.
     ///             let new_actor = actor as fn(_) -> _;
-    ///             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
+    ///             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (),
+    ///                 ActorOptions::default());
     ///
     ///             // Now we can use the reference to send the actor a message.
     ///             // We don't have to use `Message` type we can just use
@@ -127,7 +128,7 @@ pub trait NewActor {
     /// The arguments passed to the actor are much like arguments passed to a
     /// regular function. If more then one argument is needed the arguments can
     /// be in the form of a tuple, e.g. `(123, "Hello")`. For example
-    /// [`TcpListener`] requires a `NewActor` where the argument  is a tuple
+    /// [`tcp::Server`] requires a `NewActor` where the argument  is a tuple
     /// `(TcpStream, SocketAddr)`.
     ///
     /// An empty tuple can be used for actors that don't accept any arguments
@@ -137,7 +138,7 @@ pub trait NewActor {
     /// not in the form of a tuple, however they do have be passed as a tuple to
     /// the [`try_spawn`] method. See there [implementations] below.
     ///
-    /// [`TcpListener`]: crate::net::TcpListener
+    /// [`tcp::Server`]: crate::net::tcp::Server
     /// [`new`]: NewActor::new
     /// [`try_spawn`]: crate::system::ActorSystemRef::try_spawn
     /// [implementations]: #foreign-impls
@@ -208,7 +209,8 @@ pub trait NewActor {
     ///     // For more information about the remainder of this example see
     ///     // `tcp::Server`.
     ///     let address = "127.0.0.1:7890".parse().unwrap();
-    ///     let server = tcp::Server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
+    ///     let server = tcp::Server::setup(address, conn_supervisor, new_actor,
+    ///         ActorOptions::default())?;
     ///     # let mut actor_ref =
     ///     system_ref.try_spawn(ServerSupervisor, server, (), ActorOptions::default())?;
     ///     # actor_ref <<= Terminate;
@@ -251,7 +253,12 @@ pub trait NewActor {
     /// # }
     /// #
     /// // Actor that handles a connection.
-    /// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr, greet_mars: bool) -> io::Result<()> {
+    /// async fn conn_actor(
+    ///     _ctx: actor::Context<!>,
+    ///     mut stream: TcpStream,
+    ///     address: SocketAddr,
+    ///     greet_mars: bool
+    /// ) -> io::Result<()> {
     /// #   drop(address); // Silence dead code warnings.
     ///     if greet_mars {
     ///         // In case this example ever reaches Mars.

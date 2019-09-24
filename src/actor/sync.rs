@@ -257,7 +257,7 @@ impl<M, E, Arg1, Arg2, Arg3, Arg4, Arg5> SyncActor
     }
 }
 
-/// The context in which an synchronous actor is executed.
+/// The context in which a synchronous actor is executed.
 ///
 /// This context can be used for a number of things including receiving
 /// messages.
