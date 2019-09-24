@@ -54,8 +54,9 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// The system that runs all actors.
 ///
 /// This type implements a builder pattern to build and run an actor system. It
-/// has a single generic parameter `S`, the type of the setup function. The
-/// setup function is optional, which is represented by `!` (the never type).
+/// has a single generic parameter `S` which is the type of the setup function.
+/// The setup function is optional, which is represented by `!` (the never
+/// type).
 ///
 /// The actor system will start workers threads that will run all actors, these
 /// threads will run until all actors have returned.
@@ -65,11 +66,11 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// Building an actor system starts with calling [`new`], this will create a new
 /// system without a setup function, using a single worker thread.
 ///
-/// An optional setup function can be added. This setup function will be called
-/// on each thread the actor system starts, and thus has to be [`Clone`] and
-/// [`Send`]. This can be done by calling [`with_setup`]. This will change the
-/// `S` parameter from `!` to an actual type. Only a single setup function can
-/// be used per actor system.
+/// An optional setup function can be added by calling [`with_setup`]. This
+/// setup function will be called on each worker thread the actor system starts,
+/// and thus has to be [`Clone`] and [`Send`]. This will change the `S`
+/// parameter from `!` to an actual type (that of the provided setup function).
+/// Only a single setup function can be used per actor system.
 ///
 /// Now that the generic parameter is optionally defined we also have some more
 /// configuration options. One such option is the number of threads the system
@@ -111,43 +112,46 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// }
 ///
 /// // This setup function will on run on each created thread. In the case of
-/// // this example we create 2 threads (see `main`).
+/// // this example we create two threads (see `main`).
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
 ///     // Asynchronous function don't yet implement the required `NewActor`
-///     // trait, but function pointers do.
-///     let new_actor = greeter_actor as fn(_, _) -> _;
-///     // Each actors needs to be supervised, but since our actor doesn't return
-///     // an error we can get away with our `NoSupervisor` which doesn't do
-///     // anything.
+///     // trait, but function pointers do so we cast our type to a function
+///     // pointer.
+///     let actor = actor as fn(_, _) -> _;
+///     // Each actors needs to be supervised, but since our actor doesn't
+///     // return an error (the error type is `!`) we can get away with our
+///     // `NoSupervisor` which doesn't do anything (as it can never be called).
 ///     let supervisor = NoSupervisor;
 ///     // All actors start with one or more arguments, in our case it's message
-///     // used to greet people with. See `greeter_actor` below.
+///     // used to greet people with. See `actor` below.
 ///     let arg = "Hello";
-///     // Spawn the actor to run on our actor system.
-///     let mut actor_ref = system_ref.spawn(supervisor, new_actor, arg, ActorOptions::default());
+///     // Spawn the actor to run on our actor system. We get an actor reference
+///     // back which can be used to send the actor messages, see below.
+///     let mut actor_ref = system_ref.spawn(supervisor, actor, arg, ActorOptions::default());
 ///
-///     // Send a message to the actor we just spawned with it's `ActorRef`.
+///     // Send a message to the actor we just spawned.
 ///     actor_ref <<= "World";
 ///
 ///     Ok(())
 /// }
 ///
 /// /// Our actor that greets people.
-/// async fn greeter_actor(mut ctx: actor::Context<&'static str>, message: &'static str) -> Result<(), !> {
-///     // `message` is the argument passed to `spawn` in the `setup` function
+/// async fn actor(mut ctx: actor::Context<&'static str>, msg: &'static str) -> Result<(), !> {
+///     // `msg` is the argument passed to `spawn` in the `setup` function
 ///     // above, in this example it was "Hello".
 ///
-///     // Using the context we use receive messages for this actor, so here
-///     // we'll receive the "World" message we send in the setup function.
+///     // Using the context we can receive messages send to this actor, so here
+///     // we'll receive the "World" message we send in the `setup` function.
 ///     let name = ctx.receive_next().await;
 ///     // This should print "Hello world"!
-///     println!("{} {}", message, name);
+///     println!("{} {}", msg, name);
 ///     Ok(())
 /// }
 /// ```
 pub struct ActorSystem<S = !> {
-    /// Number of threads to create.
+    /// Number of worker threads to create.
     threads: usize,
+    /// Unique id for sync actors.
     sync_actor_id: usize,
     /// Synchronous actor thread handles.
     sync_actors: Vec<SyncWorker>,
@@ -186,7 +190,7 @@ impl ActorSystem {
 }
 
 impl<S> ActorSystem<S> {
-    /// Set the number of worker threads to use, defaults to `1`.
+    /// Set the number of worker threads to use, defaults to one.
     ///
     /// Most applications would want to use [`ActorSystem::use_all_cores`] which
     /// sets the number of threads equal to the number of CPU cores.
@@ -210,7 +214,7 @@ impl<S> ActorSystem<S> {
 
     /// Spawn an synchronous actor that runs on its own thread.
     ///
-    /// For more information and examples for synchronous actors see the
+    /// For more information and examples of synchronous actors see the
     /// [`actor::sync`] module.
     ///
     /// [`actor::sync`]: crate::actor::sync
@@ -243,7 +247,13 @@ where
     /// Run the system.
     ///
     /// This will spawn a number of worker threads (see
-    /// [`ActorSystem::num_threads`]) to run the system.
+    /// [`ActorSystem::num_threads`]) to run the system. After spawning all
+    /// worker threads it will wait until all worker threads have returned,
+    /// which happens when all actors have returned.
+    ///
+    /// In addition to waiting for all worker threads it will also watch for
+    /// all process signals in [`Signal`] and relay them to actors that want to
+    /// handle them, see the [`Signal`] type for more information.
     pub fn run(self) -> Result<(), RuntimeError<S::Error>> {
         debug!("running actor system: worker_threads={}", self.threads);
         // Start our worker threads.
@@ -680,7 +690,7 @@ pub(crate) struct RunningActorSystem {
     scheduler: Scheduler,
     /// Receiving side of the channel for `Waker` events.
     waker_events: Receiver<ProcessId>,
-    /// Receiving end of the channel with the main thread.
+    /// Receiving end of the channel connected to the coordinator thread.
     receiver: mio_pipe::Receiver,
 }
 
@@ -876,12 +886,15 @@ impl RunningActorSystem {
 
 /// A reference to an [`ActorSystem`].
 ///
-/// A reference to the running actor system can be accessed via the actor
-/// [`actor::Context::system_ref`].
-///
 /// This reference refers to the thread-local actor system, and thus can't be
 /// shared across thread bounds. To share this reference (within the same
 /// thread) it can be cloned.
+///
+/// This is passed to the [setup function] when starting the actor system and
+/// can be accessed inside an actor by using the [`actor::Context::system_ref`]
+/// method.
+///
+/// [setup function]: ActorSystem::with_setup
 #[derive(Clone, Debug)]
 pub struct ActorSystemRef {
     /// A shared reference to the actor system's internals.
@@ -891,11 +904,24 @@ pub struct ActorSystemRef {
 impl ActorSystemRef {
     /// Attempts to spawn an actor on the actor system.
     ///
-    /// Actors can never be unsupervised, so when adding an actor we need a good
-    /// number of arguments. Starting with the `supervisor` of the actor, next
-    /// is the way to create the actor, this is `new_actor`, and the `arg`ument
-    /// to create it. Finally it also needs `options` for actor and the place
-    /// inside the actor system.
+    /// Arguments:
+    /// * `supervisor`: all actors need supervision, the `supervisor` is the
+    ///   supervisor for this actor, see the [`Supervisor`] trait for more
+    ///   information.
+    /// * `new_actor`: the [`NewActor`] implementation that defines how to start
+    ///   the actor.
+    /// * `arg`: the argument passed when starting the actor, and
+    /// * `options`: the actor options used to spawn the new actors.
+    ///
+    /// See [`ActorSystem`] for an example on spawning actors.
+    ///
+    /// # Notes
+    ///
+    /// When using a [`NewActor`] implementation that never returns an error,
+    /// such as the implementation provided by async function, it's easier to
+    /// use the [`spawn`] method.
+    ///
+    /// [`spawn`]: ActorSystemRef::spawn
     pub fn try_spawn<S, NA>(
         &mut self,
         supervisor: S,
@@ -989,10 +1015,12 @@ impl ActorSystemRef {
         Ok(actor_ref)
     }
 
-    /// Receive signals as messages.
+    /// Receive [process signals] as messages.
     ///
     /// This adds the `actor_ref` to the list of actor references that will
     /// receive a process signal.
+    ///
+    /// [process signals]: Signal
     pub fn receive_signals(&mut self, actor_ref: ActorRef<LocalTryMap<Signal>>) {
         self.internal.signal_receivers.borrow_mut().push(actor_ref)
     }
@@ -1047,6 +1075,8 @@ impl ActorSystemRef {
             .add_deadline(pid, deadline);
     }
 
+    /// Notify that process with `pid` is ready to run. Used by the inbox when
+    /// it receives a message.
     pub(crate) fn notify(&mut self, pid: ProcessId) {
         trace!("notifying: pid={}", pid);
         self.internal.queue.borrow_mut().add(pid);
