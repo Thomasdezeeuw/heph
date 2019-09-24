@@ -112,13 +112,14 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// use heph::net::tcp::{self, TcpStream};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::system::options::Priority;
-/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 ///
-/// // Create and run the actor system.
-/// ActorSystem::new().with_setup(setup).run()
-/// #   .unwrap();
+/// fn main() -> Result<(), RuntimeError<io::Error>> {
+///     // Create and run the actor system.
+///     ActorSystem::new().with_setup(setup).run()
+/// }
 ///
-/// /// In this setup function we'll add the TcpListener to the actor system.
+/// /// In this setup function we'll add the TCP server to the actor system.
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///     // The address to listen on.
 ///     let address = "127.0.0.1:7890".parse().unwrap();
@@ -203,11 +204,12 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// use heph::net::tcp::{self, TcpStream};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::system::options::Priority;
-/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef};
+/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
 ///
-/// // Create and run the actor system.
-/// ActorSystem::new().with_setup(setup).run()
-/// #   .unwrap();
+/// fn main() -> Result<(), RuntimeError<io::Error>> {
+///     // Create and run the actor system.
+///     ActorSystem::new().with_setup(setup).run()
+/// }
 ///
 /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
 ///     // This uses the same supervisors as in the previous example, not shown
@@ -377,8 +379,8 @@ where
 
 /// The message type used by [`tcp::Server`].
 ///
-/// The message implements [`From`]`<`[`Terminate`]`>` for the message, allowing
-/// for graceful shutdown.
+/// The message implements [`From`]`<`[`Terminate`]`>` and
+/// [`TryFrom`]`<`[`Signal`]`>` for the message, allowing for graceful shutdown.
 ///
 /// [`tcp::Server`]: Server
 #[derive(Debug)]
