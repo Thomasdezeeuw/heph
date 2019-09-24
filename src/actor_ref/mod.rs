@@ -17,10 +17,23 @@
 //!   on its own thread. Like the machine reference this reference also
 //!   implements [`Send`](std::marker::Send) and [`Sync`](std::marker::Sync).
 //!
+//! In addition to the three main actor reference types there are four *mapped*
+//! actor reference types, [`LocalMap`], [`Map`], [`LocalTryMap`] and
+//! [`TryMap`]. These types map (or try to map) a message into another type
+//! before sending. These mapped actor references can now be stored (e.g. in a
+//! struct) using the same type. This for example used in
+//! [`ActorSystemRef::receive_signals`] to send process signals to all actors
+//! that want to receive them, using mapped actor references these can simply be
+//! stored in a [`Vec`]tor.
+//!
 //! [`types`]: crate::actor_ref::types
 //! [`Local`]: crate::actor_ref::Local
 //! [`Machine`]: crate::actor_ref::Machine
 //! [`Sync`]: crate::actor_ref::Sync
+//! [`LocalMap`]: crate::actor_ref::LocalMap
+//! [`Map`]: crate::actor_ref::Map
+//! [`LocalTryMap`]: crate::actor_ref::LocalTryMap
+//! [`TryMap`]: crate::actor_ref::TryMap
 //!
 //! ## Sending messages
 //!
@@ -37,15 +50,13 @@
 //!
 //! If guarantees are needed that a message is received or processed the
 //! receiving actor should send back an acknowledgment that the message is
-//! received and/or processed correctly. This can for example be done by using
-//! the [request-response pattern].
+//! received and/or processed correctly.
 //!
-//! Other then the [`send`] method the `<<=` operator can be used to send
+//! Other then the `send` method the `<<=` operator can be used to send
 //! messages, which does the same thing as `send` but with nicer syntax. The
 //! following example shows how messages can be send using this operator. It
 //! uses a local actor reference but it's the same for all flavours.
 //!
-//! [request-response pattern]: ../channel/oneshot/index.html#request-response-pattern
 //! [`send`]: crate::actor_ref::ActorRef::send
 //!
 //! ```
@@ -60,7 +71,8 @@
 //!         .with_setup(|mut system_ref| {
 //!             // Add the actor to the actor system.
 //!             let new_actor = actor as fn(_) -> _;
-//!             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
+//!             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (),
+//!                 ActorOptions::default());
 //!
 //!             // Now we can use the reference to send the actor a message.
 //!             actor_ref <<= "Hello world".to_owned();
@@ -98,9 +110,11 @@
 //!     ActorSystem::new()
 //!         .with_setup(|mut system_ref| {
 //!             let new_actor = actor as fn(_) -> _;
-//!             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (), ActorOptions::default());
+//!             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (),
+//!                 ActorOptions::default());
 //!
-//!             // To create another actor reference we can simply clone the first one.
+//!             // To create another actor reference we can simply clone the
+//!             // first one.
 //!             let mut second_actor_ref = actor_ref.clone();
 //!
 //!             // Now we can use both references to send a message.
@@ -158,7 +172,7 @@ pub use types::{Local, LocalMap, LocalTryMap, Machine, Map, Sync, TryMap};
 /// see the [module] documentation.
 ///
 /// `ActorRef` is effectively just a container that wraps the actual
-/// implementation defined by the [`Send`].
+/// implementation defined by the [`Send`] trait.
 ///
 /// [module]: crate::actor_ref
 #[repr(transparent)]
@@ -191,8 +205,8 @@ where
     ///
     /// Some types of actor references can detect errors in sending a message,
     /// however not all actor references can. This means that even if this
-    /// methods returns `Ok` it does **not** mean that the message is
-    /// guaranteed to be handled by the actor.
+    /// methods returns `Ok` it does **not** mean that the message is guaranteed
+    /// to be delivered to or handled by the actor.
     ///
     /// See [Sending messages] for more details.
     ///
