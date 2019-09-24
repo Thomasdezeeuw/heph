@@ -1,8 +1,8 @@
 //! Network related types.
 //!
-//! Two types of socket as provided:
+//! The network module support two types of protocols:
 //!
-//! * [Transmission Control Protocol] (TCP) module provides two main types:
+//! * [Transmission Control Protocol] (TCP) module provides three main types:
 //!   * A [TCP stream] between a local and a remote socket.
 //!   * A [TCP listening socket], a socket used to listen for connections.
 //!   * A [TCP server], listens for connections and starts a new actor for each.
