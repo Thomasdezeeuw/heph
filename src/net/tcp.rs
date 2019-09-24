@@ -348,6 +348,14 @@ pub struct TcpStream {
 impl TcpStream {
     /// Create a new TCP stream and issue a non-blocking connect to the
     /// specified `address`.
+    ///
+    /// # Notes
+    ///
+    /// The stream is also [bound] to the actor that owns the `actor::Context`,
+    /// which means the actor will be run every time the stream is ready to read
+    /// or write.
+    ///
+    /// [bound]: crate::actor::Bound
     pub fn connect<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpStream> {
         let mut socket = net::TcpStream::connect(address)?;
         let pid = ctx.pid();
