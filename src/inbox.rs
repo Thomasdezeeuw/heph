@@ -320,11 +320,15 @@ where
 /// use heph::actor::message_select::First;
 /// use heph::supervisor::NoSupervisor;
 /// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
+/// use heph::system::RuntimeError;
 ///
-/// ActorSystem::new().with_setup(setup).run().unwrap();
+/// fn main() -> Result<(), RuntimeError> {
+///     ActorSystem::new().with_setup(setup).run()
+/// }
 ///
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
-///     let mut actor_ref = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
+///     let mut actor_ref = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
+///         ActorOptions::default());
 ///
 ///     // We'll send our actor two messages.
 ///     actor_ref <<= "Message 1".to_owned();
@@ -364,11 +368,15 @@ impl<M> MessageSelector<M> for First {
 /// use heph::actor::message_select::Priority;
 /// use heph::supervisor::NoSupervisor;
 /// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
+/// use heph::system::RuntimeError;
 ///
-/// ActorSystem::new().with_setup(setup).run().unwrap();
+/// fn main() -> Result<(), RuntimeError> {
+///     ActorSystem::new().with_setup(setup).run()
+/// }
 ///
 /// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
-///     let mut actor_ref = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
+///     let mut actor_ref = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
+///         ActorOptions::default());
 ///
 ///     // We'll send our actor two messages, one normal one and a priority one.
 ///     actor_ref <<= Message {
