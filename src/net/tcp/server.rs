@@ -407,18 +407,6 @@ impl TryFrom<Signal> for ServerMessage {
     }
 }
 
-// Not part of the public API.
-//
-// NOTE: This is only here to allow the actor reference to be converted into a
-// (local) try map actor reference for use in signal handling, don't actually
-// use this.
-#[doc(hidden)]
-impl Into<Signal> for ServerMessage {
-    fn into(self) -> Signal {
-        unreachable!("shouldn't convert a tcp::ServerMessage into a Signal")
-    }
-}
-
 /// Error returned by the [`tcp::Server`] actor.
 ///
 /// [`tcp::Server`]: Server
