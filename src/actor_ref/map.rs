@@ -19,7 +19,7 @@ pub(super) trait MappedSend<Msg> {
 impl<T, M, Msg> MappedSend<Msg> for T
 where
     T: Send<Message = M>,
-    M: From<Msg> + Into<Msg>,
+    M: From<Msg>,
 {
     fn mapped_send(&mut self, msg: Msg) -> Result<(), SendError> {
         self.send(msg.into())
@@ -90,7 +90,7 @@ pub(super) trait TryMappedSend<Msg> {
 impl<T, M, Msg> TryMappedSend<Msg> for T
 where
     T: Send<Message = M>,
-    M: TryFrom<Msg, Error = Msg> + Into<Msg>,
+    M: TryFrom<Msg, Error = Msg>,
 {
     fn try_mapped_send(&mut self, msg: Msg) -> Result<(), SendError> {
         M::try_from(msg)

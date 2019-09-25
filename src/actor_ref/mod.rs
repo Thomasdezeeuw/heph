@@ -229,7 +229,7 @@ where
     pub fn local_map<Msg>(self) -> ActorRef<LocalMap<Msg>>
     where
         T: 'static,
-        M: From<Msg> + Into<Msg>,
+        M: From<Msg>,
     {
         ActorRef::new(LocalMap {
             inner: Box::new(self.inner),
@@ -246,8 +246,8 @@ where
     /// caution when it comes to performance sensitive code.
     pub fn map<Msg>(self) -> ActorRef<Map<Msg>>
     where
-        T: Send<Message = M> + marker::Sync + marker::Send + 'static,
-        M: From<Msg> + Into<Msg>,
+        T: marker::Sync + marker::Send + 'static,
+        M: From<Msg>,
     {
         ActorRef::new(Map {
             inner: Box::new(self.inner),
@@ -265,7 +265,7 @@ where
     pub fn local_try_map<Msg>(self) -> ActorRef<LocalTryMap<Msg>>
     where
         T: 'static,
-        M: TryFrom<Msg, Error = Msg> + Into<Msg>,
+        M: TryFrom<Msg, Error = Msg>,
     {
         ActorRef::new(LocalTryMap {
             inner: Box::new(self.inner),
@@ -282,8 +282,8 @@ where
     /// caution when it comes to performance sensitive code.
     pub fn try_map<Msg>(self) -> ActorRef<TryMap<Msg>>
     where
-        T: Send<Message = M> + marker::Sync + marker::Send + 'static,
-        M: TryFrom<Msg, Error = Msg> + Into<Msg>,
+        T: marker::Sync + marker::Send + 'static,
+        M: TryFrom<Msg, Error = Msg>,
     {
         ActorRef::new(TryMap {
             inner: Box::new(self.inner),

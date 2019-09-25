@@ -119,16 +119,6 @@ use crate::actor::message_select::{MessageSelector, Messages};
 ///     }
 /// }
 ///
-/// // Required to allow the sync actor to receive signals.
-/// impl Into<Signal> for Message {
-///     fn into(self) -> Signal {
-///         match self {
-///             Message::Print(_) => panic!("can't convert message into signal"),
-///             Message::Signal(signal) => signal,
-///         }
-///     }
-/// }
-///
 /// fn actor(mut ctx: SyncContext<Message>) -> Result<(), !> {
 ///     while let Ok(msg) = ctx.receive_next() {
 ///         match msg {
