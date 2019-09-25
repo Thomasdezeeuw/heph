@@ -2,7 +2,7 @@
 
 use std::mem::size_of;
 
-use crate::actor_ref::{ActorRef, ActorShutdown, Local, LocalMap, Machine, Map, SendError};
+use crate::actor_ref::{ActorRef, Local, LocalMap, Machine, Map};
 use crate::inbox::Inbox;
 use crate::system::ProcessId;
 use crate::test;
@@ -69,8 +69,8 @@ fn local_actor_ref() {
     // Dropping the inbox should cause send messages to return errors.
     assert_eq!(inbox.receive_next(), None);
     drop(inbox);
-    assert_eq!(actor_ref.send(10), Err(SendError { message: 10 }));
-    assert_eq!(actor_ref2.send(11), Err(SendError { message: 11 }));
+    assert!(actor_ref.send(10).is_err());
+    assert!(actor_ref2.send(11).is_err());
 }
 
 #[test]
@@ -120,8 +120,7 @@ fn machine_local_actor_ref() {
     // when trying to upgrade.
     let local_actor_ref = ActorRef::new_local(inbox.create_ref());
     drop(inbox);
-    let res = local_actor_ref.upgrade(&mut system_ref).unwrap_err();
-    assert_eq!(res, ActorShutdown);
+    assert!(local_actor_ref.upgrade(&mut system_ref).is_err());
 }
 
 #[test]

@@ -27,15 +27,13 @@ pub struct Machine<M> {
 impl<M> Send for Machine<M> {
     type Message = M;
 
-    fn send(&mut self, msg: Self::Message) -> Result<(), SendError<Self::Message>> {
+    fn send(&mut self, msg: Self::Message) -> Result<(), SendError> {
         match self.sender.try_send(msg) {
             Ok(()) => {
                 self.waker.wake_by_ref();
                 Ok(())
             }
-            Err(err) => Err(SendError {
-                message: err.into_inner(),
-            }),
+            Err(_err) => Err(SendError),
         }
     }
 }

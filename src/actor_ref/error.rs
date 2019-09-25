@@ -3,46 +3,19 @@
 use std::error::Error;
 use std::fmt;
 
-/// Error returned when sending a message.
+/// Error returned when sending a message fails.
 ///
-/// # Notes
-///
-/// When printing this error (using either the `Display` or `Debug`
-/// implementation) the message will not be printed.
-///
-/// # Examples
-///
-/// Printing the error doesn't print the message.
-///
-/// ```
-/// use heph::actor_ref::SendError;
-///
-/// let error = SendError {
-///     // Message will be ignored in printing the error.
-///     message: (),
-/// };
-///
-/// assert_eq!(error.to_string(), "unable to send message");
-/// ```
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub struct SendError<M> {
-    /// The message that failed to be send.
-    pub message: M,
-}
+/// The reason why the sending of the message failed is unspecified.
+#[derive(Copy, Clone, Debug)]
+pub struct SendError;
 
-impl<M> fmt::Debug for SendError<M> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("SendError")
-    }
-}
-
-impl<M> fmt::Display for SendError<M> {
+impl fmt::Display for SendError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.description())
     }
 }
 
-impl<M> Error for SendError<M> {
+impl Error for SendError {
     fn description(&self) -> &str {
         "unable to send message"
     }
@@ -51,7 +24,7 @@ impl<M> Error for SendError<M> {
 /// Error returned when the actor is shutdown.
 ///
 /// This is only possible to detect on local references.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug)]
 pub struct ActorShutdown;
 
 impl fmt::Display for ActorShutdown {
