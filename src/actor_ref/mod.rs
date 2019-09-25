@@ -194,7 +194,7 @@ pub trait Send {
     type Message;
 
     /// Implementation behind [`ActorRef::send`].
-    fn send(&mut self, msg: Self::Message) -> Result<(), SendError<Self::Message>>;
+    fn send(&mut self, msg: Self::Message) -> Result<(), SendError>;
 }
 
 impl<M, T> ActorRef<T>
@@ -211,7 +211,7 @@ where
     /// See [Sending messages] for more details.
     ///
     /// [Sending messages]: index.html#sending-messages
-    pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError<M>>
+    pub fn send<Msg>(&mut self, msg: Msg) -> Result<(), SendError>
     where
         Msg: Into<M>,
     {

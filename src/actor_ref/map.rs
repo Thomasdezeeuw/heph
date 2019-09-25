@@ -13,7 +13,7 @@ use crate::actor_ref::{Send, SendError};
 
 /// Trait to erase the original message type of the actor reference.
 pub(super) trait MappedSend<Msg> {
-    fn mapped_send(&mut self, msg: Msg) -> Result<(), SendError<Msg>>;
+    fn mapped_send(&mut self, msg: Msg) -> Result<(), SendError>;
 }
 
 impl<T, M, Msg> MappedSend<Msg> for T
@@ -21,10 +21,8 @@ where
     T: Send<Message = M>,
     M: From<Msg> + Into<Msg>,
 {
-    fn mapped_send(&mut self, msg: Msg) -> Result<(), SendError<Msg>> {
-        self.send(msg.into()).map_err(|err| SendError {
-            message: err.message.into(),
-        })
+    fn mapped_send(&mut self, msg: Msg) -> Result<(), SendError> {
+        self.send(msg.into())
     }
 }
 
@@ -47,7 +45,7 @@ pub struct LocalMap<M> {
 impl<M> Send for LocalMap<M> {
     type Message = M;
 
-    fn send(&mut self, msg: Self::Message) -> Result<(), SendError<Self::Message>> {
+    fn send(&mut self, msg: Self::Message) -> Result<(), SendError> {
         self.inner.mapped_send(msg)
     }
 }
@@ -73,7 +71,7 @@ pub struct Map<M> {
 impl<M> Send for Map<M> {
     type Message = M;
 
-    fn send(&mut self, msg: Self::Message) -> Result<(), SendError<Self::Message>> {
+    fn send(&mut self, msg: Self::Message) -> Result<(), SendError> {
         self.inner.mapped_send(msg)
     }
 }
@@ -86,7 +84,7 @@ impl<M> fmt::Debug for Map<M> {
 
 /// Trait to erase the original message type of the actor reference.
 pub(super) trait TryMappedSend<Msg> {
-    fn try_mapped_send(&mut self, msg: Msg) -> Result<(), SendError<Msg>>;
+    fn try_mapped_send(&mut self, msg: Msg) -> Result<(), SendError>;
 }
 
 impl<T, M, Msg> TryMappedSend<Msg> for T
@@ -94,14 +92,10 @@ where
     T: Send<Message = M>,
     M: TryFrom<Msg, Error = Msg> + Into<Msg>,
 {
-    fn try_mapped_send(&mut self, msg: Msg) -> Result<(), SendError<Msg>> {
+    fn try_mapped_send(&mut self, msg: Msg) -> Result<(), SendError> {
         M::try_from(msg)
-            .map_err(|message| SendError { message })
-            .and_then(|msg| {
-                self.send(msg).map_err(|err| SendError {
-                    message: err.message.into(),
-                })
-            })
+            .map_err(|_msg| SendError)
+            .and_then(|msg| self.send(msg))
     }
 }
 
@@ -125,7 +119,7 @@ pub struct LocalTryMap<M> {
 impl<M> Send for LocalTryMap<M> {
     type Message = M;
 
-    fn send(&mut self, msg: Self::Message) -> Result<(), SendError<Self::Message>> {
+    fn send(&mut self, msg: Self::Message) -> Result<(), SendError> {
         self.inner.try_mapped_send(msg)
     }
 }
@@ -151,7 +145,7 @@ pub struct TryMap<M> {
 impl<M> Send for TryMap<M> {
     type Message = M;
 
-    fn send(&mut self, msg: Self::Message) -> Result<(), SendError<Self::Message>> {
+    fn send(&mut self, msg: Self::Message) -> Result<(), SendError> {
         self.inner.try_mapped_send(msg)
     }
 }

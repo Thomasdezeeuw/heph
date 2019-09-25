@@ -25,10 +25,8 @@ pub struct Local<M> {
 impl<M> Send for Local<M> {
     type Message = M;
 
-    fn send(&mut self, msg: Self::Message) -> Result<(), SendError<Self::Message>> {
-        self.inbox
-            .try_deliver(msg)
-            .map_err(|msg| SendError { message: msg })
+    fn send(&mut self, msg: Self::Message) -> Result<(), SendError> {
+        self.inbox.try_deliver(msg).map_err(|_err| SendError)
     }
 }
 

@@ -20,10 +20,8 @@ pub struct Sync<M> {
 impl<M> Send for Sync<M> {
     type Message = M;
 
-    fn send(&mut self, msg: Self::Message) -> Result<(), SendError<Self::Message>> {
-        self.sender.try_send(msg).map_err(|err| SendError {
-            message: err.into_inner(),
-        })
+    fn send(&mut self, msg: Self::Message) -> Result<(), SendError> {
+        self.sender.try_send(msg).map_err(|_err| SendError)
     }
 }
 
