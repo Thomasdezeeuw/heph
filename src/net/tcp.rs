@@ -20,7 +20,7 @@ use std::task::{self, Poll};
 
 use futures_core::future::FusedFuture;
 use futures_core::stream::{FusedStream, Stream};
-use futures_io::{AsyncRead, AsyncWrite, Initializer};
+use futures_io::{AsyncRead, AsyncWrite};
 use mio::{net, Interests};
 
 use crate::actor;
@@ -444,10 +444,6 @@ impl<'a> Future for Peek<'a> {
 }
 
 impl AsyncRead for TcpStream {
-    unsafe fn initializer(&self) -> Initializer {
-        Initializer::nop()
-    }
-
     fn poll_read(
         mut self: Pin<&mut Self>,
         _ctx: &mut task::Context<'_>,
