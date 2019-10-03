@@ -64,6 +64,30 @@ where
     Ok((actor, actor_ref))
 }
 
+/// Initialise an actor.
+///
+/// Same as `init_actor`, but returns the inbox of the actor instead of an actor
+/// reference.
+#[allow(clippy::type_complexity)]
+#[cfg(test)]
+pub(crate) fn init_actor_inbox<NA>(
+    mut new_actor: NA,
+    arg: NA::Argument,
+) -> Result<(NA::Actor, Inbox<NA::Message>), NA::Error>
+where
+    NA: NewActor,
+{
+    let system_ref = system_ref();
+    let pid = ProcessId(0);
+
+    let inbox = Inbox::new(pid, system_ref.clone());
+
+    let ctx = actor::Context::new(pid, system_ref, inbox.clone());
+    let actor = new_actor.new(ctx, arg)?;
+
+    Ok((actor, inbox))
+}
+
 /// Poll a future.
 ///
 /// The [`task::Context`] will be provided by the *test* actor system.
