@@ -64,15 +64,7 @@
 //! [1]: https://en.wikipedia.org/wiki/Hephaestus
 //! [2]: https://en.wikipedia.org/wiki/Actor_model
 
-#![feature(
-    const_fn,
-    never_type,
-    non_exhaustive,
-    read_initializer,
-    specialization,
-    weak_ptr_eq
-)]
-#![cfg_attr(test, feature(const_slice_len))]
+#![feature(const_fn, never_type, non_exhaustive, read_initializer, specialization)]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,
