@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 
 use crate::actor::message_select::{First, MessageSelector};
-use crate::actor_ref::{ActorRef, Local};
+use crate::actor_ref::LocalActorRef;
 use crate::inbox::Inbox;
 use crate::system::ActorSystemRef;
 use crate::system::ProcessId;
@@ -275,8 +275,8 @@ impl<M> Context<M> {
     }
 
     /// Returns a reference to this actor.
-    pub fn actor_ref(&mut self) -> ActorRef<Local<M>> {
-        ActorRef::new_local(self.inbox.create_ref())
+    pub fn actor_ref(&mut self) -> LocalActorRef<M> {
+        LocalActorRef::from_inbox(self.inbox.create_ref())
     }
 
     /// Get a reference to the actor system this actor is running in.

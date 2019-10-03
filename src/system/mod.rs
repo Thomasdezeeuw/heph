@@ -25,7 +25,7 @@ use mio_pipe::new_pipe;
 use mio_signals::{SignalSet, Signals};
 
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
-use crate::actor_ref::{ActorRef, Local, LocalTryMap, Sync, TryMap};
+use crate::actor_ref::{ActorRef, LocalActorRef};
 use crate::inbox::Inbox;
 use crate::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
 use crate::{actor, NewActor};
@@ -223,7 +223,7 @@ impl<S> ActorSystem<S> {
         supervisor: Sv,
         actor: A,
         arg: Arg,
-    ) -> Result<ActorRef<Sync<M>>, RuntimeError>
+    ) -> Result<ActorRef<M>, RuntimeError>
     where
         Sv: SyncSupervisor<A> + Send + 'static,
         A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
@@ -329,7 +329,7 @@ struct SyncWorker {
     handle: thread::JoinHandle<()>,
     sender: mio_pipe::Sender,
     // None if the sync actor can't handle signals.
-    signals: Option<ActorRef<TryMap<Signal>>>,
+    signals: Option<ActorRef<Signal>>,
 }
 
 impl SyncWorker {
@@ -339,17 +339,17 @@ impl SyncWorker {
         supervisor: Sv,
         actor: A,
         arg: Arg,
-    ) -> io::Result<(SyncWorker, ActorRef<Sync<M>>)>
+    ) -> io::Result<(SyncWorker, ActorRef<M>)>
     where
         Sv: SyncSupervisor<A> + Send + 'static,
         A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
         Arg: Send + 'static,
         M: Send + 'static,
-        ActorRef<Sync<M>>: IntoSignalActorRef,
+        ActorRef<M>: IntoSignalActorRef,
     {
         new_pipe().and_then(|(sender, receiver)| {
             let (send, inbox) = channel::unbounded();
-            let actor_ref = ActorRef::new_sync(send);
+            let actor_ref = ActorRef::for_sync_actor(send);
             thread::Builder::new()
                 .name(format!("heph_sync_actor{}", id))
                 .spawn(move || smain(supervisor, actor, arg, inbox, receiver))
@@ -495,9 +495,8 @@ impl<S> fmt::Debug for ActorSystem<S> {
 /// Collection of hacks.
 mod hack {
     use std::convert::TryFrom;
-    use std::marker;
 
-    use crate::actor_ref::{ActorRef, Sync, TryMap};
+    use crate::actor_ref::ActorRef;
 
     use super::{ActorSystemRef, Signal};
 
@@ -531,20 +530,20 @@ mod hack {
     /// Hack to allow `SyncWorker` to convert its actor reference to a reference
     /// that receives signals if possible, or returns none.
     pub trait IntoSignalActorRef {
-        fn into(actor_ref: &Self) -> Option<ActorRef<TryMap<Signal>>>;
+        fn into(actor_ref: &Self) -> Option<ActorRef<Signal>>;
     }
 
-    impl<M> IntoSignalActorRef for ActorRef<Sync<M>> {
-        default fn into(_: &Self) -> Option<ActorRef<TryMap<Signal>>> {
+    impl<M> IntoSignalActorRef for ActorRef<M> {
+        default fn into(_: &Self) -> Option<ActorRef<Signal>> {
             None
         }
     }
 
-    impl<M> IntoSignalActorRef for ActorRef<Sync<M>>
+    impl<M> IntoSignalActorRef for ActorRef<M>
     where
-        M: TryFrom<Signal, Error = Signal> + Into<Signal> + marker::Sync + Send + 'static,
+        M: TryFrom<Signal, Error = Signal> + Into<Signal> + Sync + Send + 'static,
     {
-        fn into(actor_ref: &Self) -> Option<ActorRef<TryMap<Signal>>> {
+        fn into(actor_ref: &Self) -> Option<ActorRef<Signal>> {
             Some(actor_ref.clone().try_map())
         }
     }
@@ -919,7 +918,7 @@ impl ActorSystemRef {
         new_actor: NA,
         arg: NA::Argument,
         options: ActorOptions,
-    ) -> Result<ActorRef<Local<NA::Message>>, NA::Error>
+    ) -> Result<LocalActorRef<NA::Message>, NA::Error>
     where
         S: Supervisor<NA> + 'static,
         NA: NewActor + 'static,
@@ -944,7 +943,7 @@ impl ActorSystemRef {
         new_actor: NA,
         arg: NA::Argument,
         options: ActorOptions,
-    ) -> ActorRef<Local<NA::Message>>
+    ) -> LocalActorRef<NA::Message>
     where
         S: Supervisor<NA> + 'static,
         NA: NewActor<Error = !> + 'static,
@@ -967,7 +966,7 @@ impl ActorSystemRef {
         mut new_actor: NA,
         arg_fn: ArgFn,
         options: ActorOptions,
-    ) -> Result<ActorRef<Local<NA::Message>>, AddActorError<NA::Error, ArgFnE>>
+    ) -> Result<LocalActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
         S: Supervisor<NA> + 'static,
         NA: NewActor + 'static,
@@ -992,7 +991,7 @@ impl ActorSystemRef {
 
         // Create our actor context and our actor with it.
         let inbox = Inbox::new(pid, self.clone());
-        let actor_ref = ActorRef::new_local(inbox.create_ref());
+        let actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
         let ctx = actor::Context::new(pid, system_ref, inbox.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
@@ -1012,7 +1011,7 @@ impl ActorSystemRef {
     /// receive a process signal.
     ///
     /// [process signals]: Signal
-    pub fn receive_signals(&mut self, actor_ref: ActorRef<LocalTryMap<Signal>>) {
+    pub fn receive_signals(&mut self, actor_ref: LocalActorRef<Signal>) {
         self.internal.signal_receivers.borrow_mut().push(actor_ref)
     }
 
@@ -1097,5 +1096,5 @@ pub(crate) struct ActorSystemInternal {
     timers: RefCell<Timers>,
     /// User space queue.
     queue: RefCell<Queue>,
-    signal_receivers: RefCell<Vec<ActorRef<LocalTryMap<Signal>>>>,
+    signal_receivers: RefCell<Vec<LocalActorRef<Signal>>>,
 }

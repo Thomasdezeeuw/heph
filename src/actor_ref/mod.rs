@@ -2,43 +2,22 @@
 //!
 //! An actor reference is a generic reference to an actor that can run on the
 //! same thread, another thread on the same machine or even running remotely.
+//! There are two types of actor references:
 //!
-//! All available actor reference types can be found in the [`types`] module,
-//! the three main types of actor references are the following:
+//! - [`LocalActorRef`]: reference to an actor running on the same thread. This
+//!   is the least expensive reference and should always be preferred.
+//! - [`ActorRef`]: reference to an actor not running on the same thread, maybe
+//!   it is on another thread on the same machine or maybe it is a reference to
+//!   a remote actor. This implements [`Send`](std::marker::Send) and
+//!   [`Sync`](std::marker::Sync), which the local actor reference does not.
 //!
-//! - [`Local`] (`ActorRef<Local<M>>`): reference to an actor running on the
-//!   same thread. This is the least expensive reference and should always be
-//!   preferred, that is why it is also the default.
-//! - [`Machine`] (`ActorRef<Machine<M>>`): reference to an actor running on the
-//!   same machine, possibly on another thread. This implements
-//!   [`Send`](std::marker::Send) and [`Sync`](std::marker::Sync), which the
-//!   local actor reference does not.
-//! - [`Sync`] (`ActorRef<Sync<M>>`): reference to a synchronous actor running
-//!   on its own thread. Like the machine reference this reference also
-//!   implements [`Send`](std::marker::Send) and [`Sync`](std::marker::Sync).
-//!
-//! In addition to the three main actor reference types there are four *mapped*
-//! actor reference types, [`LocalMap`], [`Map`], [`LocalTryMap`] and
-//! [`TryMap`]. These types map (or try to map) a message into another type
-//! before sending. These mapped actor references can now be stored (e.g. in a
-//! struct) using the same type. This for example used in
-//! [`ActorSystemRef::receive_signals`] to send process signals to all actors
-//! that want to receive them, using mapped actor references these can simply be
-//! stored in a [`Vec`]tor.
-//!
-//! [`types`]: crate::actor_ref::types
-//! [`Local`]: crate::actor_ref::Local
-//! [`Machine`]: crate::actor_ref::Machine
-//! [`Sync`]: crate::actor_ref::Sync
-//! [`LocalMap`]: crate::actor_ref::LocalMap
-//! [`Map`]: crate::actor_ref::Map
-//! [`LocalTryMap`]: crate::actor_ref::LocalTryMap
-//! [`TryMap`]: crate::actor_ref::TryMap
+//! [`LocalActorRef`]: crate::actor_ref::LocalActorRef
+//! [`ActorRef`]: crate::actor_ref::ActorRef
 //!
 //! ## Sending messages
 //!
 //! All types of actor references have a [`send`] method. These methods don't
-//! block, even on the remote actor reference, but the method doesn't provided a
+//! block, even the remote actor reference, but the method doesn't provided a
 //! lot of guarantees. What [`send`] does is asynchronously add the message to
 //! the queue of messages for the actor.
 //!
@@ -137,10 +116,17 @@
 //! }
 //! ```
 
+use std::cell::RefCell;
 use std::convert::TryFrom;
+use std::fmt;
 use std::ops::ShlAssign;
-use std::{fmt, marker};
+use std::rc::Rc;
+use std::sync::Arc;
+use std::task::Waker;
 
+use crossbeam_channel::Sender;
+
+use crate::inbox::InboxRef;
 use crate::system::ActorSystemRef;
 
 mod error;
@@ -148,59 +134,69 @@ mod error;
 #[cfg(test)]
 mod tests;
 
-mod local;
-mod machine;
-mod map;
-mod sync;
-
-pub mod types {
-    //! Actor reference types.
-
-    pub use super::local::Local;
-    pub use super::machine::Machine;
-    pub use super::map::{LocalMap, LocalTryMap, Map, TryMap};
-    pub use super::sync::Sync;
-}
-
 pub use error::{ActorShutdown, SendError};
-#[doc(no_inline)]
-pub use types::{Local, LocalMap, LocalTryMap, Machine, Map, Sync, TryMap};
 
-/// A reference to an actor.
+// TODO: reuse the `Rc` used in `Inbox` in `Mapped` and `TryMapped` variant of
+// `LocalActorRefKind`.
+// InboxRef:
+// shared: Weak<RefCell<SharedInbox<M>>>,
+// Somehow reuse that allocation.
+// &'static dyn MappedActorRef<M>?
+// Or do we need to start using unsafe pointers?
+// TODO: Add a `sends_to_same_actor` method (with a better name).
+
+/// Trait to erase the original message type of the actor reference.
+trait MappedActorRef<M> {
+    fn mapped_send(&self, msg: M) -> Result<(), SendError>;
+
+    /// Required by `LocalActorRef::upgrade`.
+    // FIXME: move this to a separate trait.
+    fn upgrade(&self, system_ref: &mut ActorSystemRef) -> Result<ActorRef<M>, ActorShutdown>;
+}
+
+/// Trait to erase the original message type of the actor reference.
+trait TryMappedActorRef<M> {
+    fn try_mapped_send(&self, msg: M) -> Result<(), SendError>;
+
+    /// Required by `LocalActorRef::upgrade`.
+    // FIXME: move this to a separate trait.
+    fn upgrade(&self, system_ref: &mut ActorSystemRef) -> Result<ActorRef<M>, ActorShutdown>;
+}
+
+/// A reference to a local actor.
 ///
-/// This reference can be used to send messages to an actor, for more details
-/// see the [module] documentation.
+/// This is a reference to an actor running on the same thread as this reference
+/// is located on. This type does not implement `Send` or `Sync`, if this is
+/// needed this reference can be [upgraded] to an [`ActorRef`] which is allowed
+/// to be send across thread bounds.
 ///
-/// `ActorRef` is effectively just a container that wraps the actual
-/// implementation defined by the [`Send`] trait.
+/// An actor reference reference can be used to send messages to an actor, for
+/// more details see the [module] documentation.
 ///
+/// [upgraded]: crate::actor_ref::LocalActorRef::upgrade
 /// [module]: crate::actor_ref
-#[repr(transparent)]
-#[derive(Clone, Eq, PartialEq)]
-pub struct ActorRef<T> {
-    inner: T,
+pub struct LocalActorRef<M> {
+    kind: LocalActorRefKind<M>,
 }
 
-impl<T> ActorRef<T> {
-    /// Create a new `ActorRef`.
-    pub(crate) const fn new(inner: T) -> ActorRef<T> {
-        ActorRef { inner }
+enum LocalActorRefKind<M> {
+    /// Reference to an actor on the same thread.
+    Local(InboxRef<M>),
+    /// Reference that maps the message to a different type first.
+    // TODO: reuse the `Rc` used in `Inbox`.
+    Mapped(Rc<dyn MappedActorRef<M>>),
+    /// Reference that attempts to map the message to a different type first.
+    TryMapped(Rc<dyn TryMappedActorRef<M>>),
+}
+
+impl<M> LocalActorRef<M> {
+    /// Create a new `ActorRef` from a shared mailbox.
+    pub(crate) const fn from_inbox(inbox: InboxRef<M>) -> LocalActorRef<M> {
+        LocalActorRef {
+            kind: LocalActorRefKind::Local(inbox),
+        }
     }
-}
 
-/// Trait that defines how an actor reference sends messages.
-pub trait Send {
-    /// The message the actor reference can send.
-    type Message;
-
-    /// Implementation behind [`ActorRef::send`].
-    fn send(&mut self, msg: Self::Message) -> Result<(), SendError>;
-}
-
-impl<M, T> ActorRef<T>
-where
-    T: Send<Message = M>,
-{
     /// Asynchronously send a message to the actor.
     ///
     /// Some types of actor references can detect errors in sending a message,
@@ -215,104 +211,109 @@ where
     where
         Msg: Into<M>,
     {
-        self.inner.send(msg.into())
+        let msg = msg.into();
+        use LocalActorRefKind::*;
+        match &mut self.kind {
+            Local(inbox) => inbox.try_deliver(msg).map_err(|_| SendError),
+            Mapped(actor_ref) => actor_ref.mapped_send(msg),
+            TryMapped(actor_ref) => actor_ref.try_mapped_send(msg),
+        }
     }
 
-    /// Wraps the actor reference to change the message type. This is useful
-    /// when you need to send to different types of actors from a central
-    /// location.
+    /// Changes the message type of the actor reference.
+    ///
+    /// Before sending the message this will first change the message into a
+    /// different type. This is useful when you need to send to different types
+    /// of actors (using different message types) from a central location.
     ///
     /// # Notes
     ///
     /// This conversion is **not** cheap, it requires an allocation so use with
     /// caution when it comes to performance sensitive code.
-    pub fn local_map<Msg>(self) -> ActorRef<LocalMap<Msg>>
+    pub fn map<Msg>(self) -> LocalActorRef<Msg>
     where
-        T: 'static,
         M: From<Msg>,
+        Self: 'static,
     {
-        ActorRef::new(LocalMap {
-            inner: Box::new(self.inner),
-        })
+        LocalActorRef {
+            kind: LocalActorRefKind::Mapped(Rc::new(RefCell::new(self))),
+        }
     }
 
-    /// Same as [`local_map`] but returns a thread safe version.
+    /// Much like [`map`], but uses the [`TryFrom`] trait.
     ///
-    /// [`local_map`]: ActorRef::local_map
+    /// This creates a new local actor reference that attempts to map from one
+    /// message type to another before sending. This is useful when you need to
+    /// send to different types of actors from a central location.
+    ///
+    /// [`map`]: LocalActorRef::map
     ///
     /// # Notes
     ///
-    /// This conversion is **not** cheap, it requires an allocation so use with
-    /// caution when it comes to performance sensitive code.
-    pub fn map<Msg>(self) -> ActorRef<Map<Msg>>
-    where
-        T: marker::Sync + marker::Send + 'static,
-        M: From<Msg>,
-    {
-        ActorRef::new(Map {
-            inner: Box::new(self.inner),
-        })
-    }
-
-    /// Much like [`local_map`], but uses the [`TryFrom`] trait.
-    ///
-    /// [`local_map`]: ActorRef::local_map
-    ///
-    /// # Notes
+    /// Errors converting from one message type to another are turned into
+    /// [`SendError`]s.
     ///
     /// This conversion is **not** cheap, it requires an allocation so use with
     /// caution when it comes to performance sensitive code.
-    pub fn local_try_map<Msg>(self) -> ActorRef<LocalTryMap<Msg>>
+    pub fn try_map<Msg>(self) -> LocalActorRef<Msg>
     where
-        T: 'static,
-        M: TryFrom<Msg, Error = Msg>,
+        M: TryFrom<Msg>,
+        Self: 'static,
     {
-        ActorRef::new(LocalTryMap {
-            inner: Box::new(self.inner),
-        })
+        LocalActorRef {
+            kind: LocalActorRefKind::TryMapped(Rc::new(RefCell::new(self))),
+        }
     }
 
-    /// Same as [`local_try_map`] but returns a thread safe version.
-    ///
-    /// [`local_try_map`]: ActorRef::local_try_map
-    ///
-    /// # Notes
-    ///
-    /// This conversion is **not** cheap, it requires an allocation so use with
-    /// caution when it comes to performance sensitive code.
-    pub fn try_map<Msg>(self) -> ActorRef<TryMap<Msg>>
-    where
-        T: marker::Sync + marker::Send + 'static,
-        M: TryFrom<Msg, Error = Msg>,
-    {
-        ActorRef::new(TryMap {
-            inner: Box::new(self.inner),
-        })
-    }
-}
-
-impl<M> ActorRef<Local<M>> {
-    /// Upgrade a local actor reference to a machine local reference.
+    /// Upgrade a local actor reference to a non-local reference.
     ///
     /// This allows the actor reference to be send across threads, however
     /// operations on it are more expensive.
     pub fn upgrade(
         mut self,
         system_ref: &mut ActorSystemRef,
-    ) -> Result<ActorRef<Machine<M>>, ActorShutdown> {
-        match self.inner.inbox.try_upgrade_ref() {
-            Ok((pid, sender)) => {
-                let waker = system_ref.new_waker(pid);
-                Ok(ActorRef::new_machine(sender, waker))
-            }
-            Err(()) => Err(ActorShutdown),
+    ) -> Result<ActorRef<M>, ActorShutdown> {
+        self.upgrade_ref(system_ref)
+    }
+
+    // TODO: maybe just change `upgrade` to take `&mut self`? Would make it
+    // different from ActorRef in API.
+    fn upgrade_ref(
+        &mut self,
+        system_ref: &mut ActorSystemRef,
+    ) -> Result<ActorRef<M>, ActorShutdown> {
+        use LocalActorRefKind::*;
+        match &mut self.kind {
+            Local(inbox) => match inbox.try_upgrade_ref() {
+                Ok((pid, sender)) => {
+                    let waker = system_ref.new_waker(pid);
+                    Ok(ActorRef {
+                        kind: ActorRefKind::Node((sender, waker)),
+                    })
+                }
+                Err(()) => Err(ActorShutdown),
+            },
+            Mapped(actor_ref) => actor_ref.upgrade(system_ref),
+            TryMapped(actor_ref) => actor_ref.upgrade(system_ref),
         }
     }
 }
 
-impl<M, Msg, T> ShlAssign<Msg> for ActorRef<T>
+impl<M> Clone for LocalActorRef<M> {
+    fn clone(&self) -> LocalActorRef<M> {
+        use LocalActorRefKind::*;
+        LocalActorRef {
+            kind: match &self.kind {
+                Local(inbox) => Local(inbox.clone()),
+                Mapped(actor_ref) => Mapped(actor_ref.clone()),
+                TryMapped(actor_ref) => TryMapped(actor_ref.clone()),
+            },
+        }
+    }
+}
+
+impl<M, Msg> ShlAssign<Msg> for LocalActorRef<M>
 where
-    T: Send<Message = M>,
     Msg: Into<M>,
 {
     fn shl_assign(&mut self, msg: Msg) {
@@ -320,11 +321,225 @@ where
     }
 }
 
-impl<T> fmt::Debug for ActorRef<T>
-where
-    T: fmt::Debug,
-{
+impl<M> fmt::Debug for LocalActorRef<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.inner.fmt(f)
+        f.write_str("LocalActorRef")
+    }
+}
+
+impl<M, Msg> MappedActorRef<Msg> for RefCell<LocalActorRef<M>>
+where
+    M: From<Msg> + 'static,
+{
+    fn mapped_send(&self, msg: Msg) -> Result<(), SendError> {
+        self.borrow_mut().send(msg)
+    }
+
+    fn upgrade(&self, system_ref: &mut ActorSystemRef) -> Result<ActorRef<Msg>, ActorShutdown> {
+        self.borrow_mut().upgrade_ref(system_ref).map(ActorRef::map)
+    }
+}
+
+impl<M, Msg> TryMappedActorRef<Msg> for RefCell<LocalActorRef<M>>
+where
+    M: TryFrom<Msg> + 'static,
+{
+    fn try_mapped_send(&self, msg: Msg) -> Result<(), SendError> {
+        M::try_from(msg)
+            .map_err(|_msg| SendError)
+            .and_then(|msg| self.borrow_mut().send(msg))
+    }
+
+    fn upgrade(&self, system_ref: &mut ActorSystemRef) -> Result<ActorRef<Msg>, ActorShutdown> {
+        self.borrow_mut()
+            .upgrade_ref(system_ref)
+            .map(ActorRef::try_map)
+    }
+}
+
+/// Non-local actor reference.
+///
+/// An actor reference reference can be used to send messages to an actor, for
+/// more details see the [module] documentation.
+///
+/// [module]: crate::actor_ref
+///
+/// # Notes
+///
+/// This reference uses much more expensive operations then the local actor
+/// reference, **if at all possible prefer to use** [`LocalActorRef`].
+pub struct ActorRef<M> {
+    kind: ActorRefKind<M>,
+}
+
+enum ActorRefKind<M> {
+    /// Reference to an actor on another thread, but on the same node.
+    // TODO: replace with our own `Waker` type?
+    Node((Sender<M>, Waker)),
+    /// Reference to a synchronous actor.
+    Sync(Sender<M>),
+    /// Reference that maps the message to a different type first.
+    Mapped(Arc<dyn MappedActorRef<M>>),
+    /// Reference that attempts to map the message to a different type first.
+    TryMapped(Arc<dyn TryMappedActorRef<M>>),
+}
+
+// We know that `Node` and `Sync` variants are `Send` and `Sync` and since the
+// `Mapped` and `TryMapped` variants are only one of those two so are those
+// variants, which makes the entire `ActorRefKind` `Send` and `Sync`, as long as
+// `M` is `Send` (as we would be sending the message across thread bounds).
+unsafe impl<M: Send> Send for ActorRefKind<M> {}
+unsafe impl<M: Send> Sync for ActorRefKind<M> {}
+
+impl<M> ActorRef<M> {
+    /// Create a new `ActorRef` from a channel.
+    pub(crate) const fn for_sync_actor(sender: Sender<M>) -> ActorRef<M> {
+        ActorRef {
+            kind: ActorRefKind::Sync(sender),
+        }
+    }
+
+    /// Asynchronously send a message to the actor.
+    ///
+    /// Some types of actor references can detect errors in sending a message,
+    /// however not all actor references can. This means that even if this
+    /// methods returns `Ok` it does **not** mean that the message is guaranteed
+    /// to be delivered to or handled by the actor.
+    ///
+    /// See [Sending messages] for more details.
+    ///
+    /// [Sending messages]: index.html#sending-messages
+    pub fn send<Msg>(&self, msg: Msg) -> Result<(), SendError>
+    where
+        Msg: Into<M>,
+    {
+        let msg = msg.into();
+        use ActorRefKind::*;
+        match &self.kind {
+            Node((sender, waker)) => match sender.try_send(msg) {
+                Ok(()) => {
+                    waker.wake_by_ref();
+                    Ok(())
+                }
+                Err(_err) => Err(SendError),
+            },
+            // We don't have to wake sync actors.
+            Sync(sender) => sender.try_send(msg).map_err(|_err| SendError),
+            Mapped(actor_ref) => actor_ref.mapped_send(msg),
+            TryMapped(actor_ref) => actor_ref.try_mapped_send(msg),
+        }
+    }
+
+    /// Changes the message type of the actor reference.
+    ///
+    /// Before sending the message this will first change the message into a
+    /// different type. This is useful when you need to send to different types
+    /// of actors (using different message types) from a central location.
+    ///
+    /// # Notes
+    ///
+    /// This conversion is **not** cheap, it requires an allocation so use with
+    /// caution when it comes to performance sensitive code.
+    pub fn map<Msg>(self) -> ActorRef<Msg>
+    where
+        M: From<Msg>,
+        Self: 'static,
+    {
+        ActorRef {
+            kind: ActorRefKind::Mapped(Arc::new(self)),
+        }
+    }
+
+    /// Much like [`map`], but uses the [`TryFrom`] trait.
+    ///
+    /// This creates a new local actor reference that attempts to map from one
+    /// message type to another before sending. This is useful when you need to
+    /// send to different types of actors from a central location.
+    ///
+    /// [`map`]: ActorRef::map
+    ///
+    /// # Notes
+    ///
+    /// Errors converting from one message type to another are turned into
+    /// [`SendError`]s.
+    ///
+    /// This conversion is **not** cheap, it requires an allocation so use with
+    /// caution when it comes to performance sensitive code.
+    pub fn try_map<Msg>(self) -> ActorRef<Msg>
+    where
+        M: TryFrom<Msg>,
+        Self: 'static,
+    {
+        ActorRef {
+            kind: ActorRefKind::TryMapped(Arc::new(self)),
+        }
+    }
+}
+
+impl<M> Clone for ActorRef<M> {
+    fn clone(&self) -> ActorRef<M> {
+        use ActorRefKind::*;
+        ActorRef {
+            kind: match &self.kind {
+                Node((sender, waker)) => Node((sender.clone(), waker.clone())),
+                Sync(sender) => Sync(sender.clone()),
+                Mapped(actor_ref) => Mapped(actor_ref.clone()),
+                TryMapped(actor_ref) => TryMapped(actor_ref.clone()),
+            },
+        }
+    }
+}
+
+impl<M, Msg> ShlAssign<Msg> for ActorRef<M>
+where
+    Msg: Into<M>,
+{
+    fn shl_assign(&mut self, msg: Msg) {
+        let _ = self.send(msg);
+    }
+}
+
+impl<M, Msg> ShlAssign<Msg> for &ActorRef<M>
+where
+    Msg: Into<M>,
+{
+    fn shl_assign(&mut self, msg: Msg) {
+        let _ = self.send(msg);
+    }
+}
+
+impl<M> fmt::Debug for ActorRef<M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ActorRef")
+    }
+}
+
+impl<M, Msg> MappedActorRef<Msg> for ActorRef<M>
+where
+    M: From<Msg>,
+{
+    fn mapped_send(&self, msg: Msg) -> Result<(), SendError> {
+        self.send(msg)
+    }
+
+    fn upgrade(&self, _system_ref: &mut ActorSystemRef) -> Result<ActorRef<Msg>, ActorShutdown> {
+        // Not called.
+        unreachable!()
+    }
+}
+
+impl<M, Msg> TryMappedActorRef<Msg> for ActorRef<M>
+where
+    M: TryFrom<Msg>,
+{
+    fn try_mapped_send(&self, msg: Msg) -> Result<(), SendError> {
+        M::try_from(msg)
+            .map_err(|_msg| SendError)
+            .and_then(|msg| self.send(msg))
+    }
+
+    fn upgrade(&self, _system_ref: &mut ActorSystemRef) -> Result<ActorRef<Msg>, ActorShutdown> {
+        // Not called.
+        unreachable!()
     }
 }

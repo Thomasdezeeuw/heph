@@ -46,7 +46,7 @@ fn main() -> Result<(), RuntimeError<io::Error>> {
 
             // The server can handle the interrupt, terminate and quit signals,
             // so it will perform a cleanup shutdown for us.
-            system_ref.receive_signals(server_ref.local_try_map());
+            system_ref.receive_signals(server_ref.try_map());
 
             Ok(())
         })

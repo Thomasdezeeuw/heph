@@ -75,7 +75,7 @@ use crate::actor::message_select::{MessageSelector, Messages};
 /// use std::convert::TryFrom;
 ///
 /// use heph::actor::sync::SyncContext;
-/// # use heph::actor_ref::{ActorRef, TryMap};
+/// # use heph::actor_ref::ActorRef;
 /// use heph::supervisor::NoSupervisor;
 /// use heph::system::{Signal, ActorSystem, RuntimeError};
 ///
@@ -92,7 +92,7 @@ use crate::actor::message_select::{MessageSelector, Messages};
 ///     // Just like with any actor reference we can send the actor a message.
 ///     actor_ref <<= "Hello world".to_string();
 ///
-///     # let mut actor_ref: ActorRef<TryMap<Signal>> = actor_ref.try_map();
+///     # let mut actor_ref: ActorRef<Signal> = actor_ref.try_map();
 ///     # actor_ref <<= Signal::Interrupt;
 ///
 ///     // And now we run the system.
