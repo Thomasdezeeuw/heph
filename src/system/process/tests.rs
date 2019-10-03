@@ -9,9 +9,10 @@ use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{pending, Pending};
 use mio::Token;
 
+use crate::actor_ref::LocalActorRef;
 use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use crate::system::process::{ActorProcess, Process, ProcessId, ProcessResult};
-use crate::test::{init_actor, system_ref};
+use crate::test::{init_actor_inbox, system_ref};
 use crate::{actor, Actor, NewActor};
 
 #[test]
@@ -47,10 +48,10 @@ fn actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = ok_actor as fn(_) -> _;
-    let (actor, mut actor_ref) = init_actor(new_actor, ()).unwrap();
+    let (actor, inbox) = init_actor_inbox(new_actor, ()).unwrap();
+    let mut actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
 
     // Create our process.
-    let inbox = actor_ref.get_inbox().unwrap();
     let process = ActorProcess::new(NoSupervisor, new_actor, actor, inbox);
     let mut process = Box::pin(process);
 
@@ -80,10 +81,9 @@ fn erroneous_actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = error_actor as fn(_, _) -> _;
-    let (actor, mut actor_ref) = init_actor(new_actor, true).unwrap();
+    let (actor, inbox) = init_actor_inbox(new_actor, true).unwrap();
 
     // Create our process.
-    let inbox = actor_ref.get_inbox().unwrap();
     let process = ActorProcess::new(|_| SupervisorStrategy::Stop, new_actor, actor, inbox);
     let mut process = Box::pin(process);
 
@@ -98,7 +98,8 @@ fn restarting_erroneous_actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = error_actor as fn(_, _) -> _;
-    let (actor, mut actor_ref) = init_actor(new_actor, true).unwrap();
+    let (actor, inbox) = init_actor_inbox(new_actor, true).unwrap();
+    let mut actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
 
     struct TestSupervisor(Arc<AtomicBool>);
 
@@ -125,7 +126,6 @@ fn restarting_erroneous_actor_process() {
     let supervisor = TestSupervisor(Arc::clone(&supervisor_called));
 
     // Create our process.
-    let inbox = actor_ref.get_inbox().unwrap();
     let process = ActorProcess::new(supervisor, new_actor, actor, inbox);
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
@@ -167,10 +167,9 @@ impl NewActor for TestAssertUnmovedNewActor {
 #[test]
 fn actor_process_assert_actor_unmoved() {
     // Create our actor.
-    let (actor, mut actor_ref) = init_actor(TestAssertUnmovedNewActor, ()).unwrap();
+    let (actor, inbox) = init_actor_inbox(TestAssertUnmovedNewActor, ()).unwrap();
 
     // Create our process.
-    let inbox = actor_ref.get_inbox().unwrap();
     let process = ActorProcess::new(NoSupervisor, TestAssertUnmovedNewActor, actor, inbox);
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 

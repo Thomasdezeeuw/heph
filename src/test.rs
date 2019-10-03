@@ -24,7 +24,7 @@ use std::task::{self, Poll};
 
 use mio_pipe::new_pipe;
 
-use crate::actor_ref::{ActorRef, Local};
+use crate::actor_ref::LocalActorRef;
 use crate::inbox::Inbox;
 use crate::system::ProcessId;
 use crate::system::RunningActorSystem;
@@ -48,7 +48,7 @@ pub fn system_ref() -> ActorSystemRef {
 pub fn init_actor<NA>(
     mut new_actor: NA,
     arg: NA::Argument,
-) -> Result<(NA::Actor, ActorRef<Local<NA::Message>>), NA::Error>
+) -> Result<(NA::Actor, LocalActorRef<NA::Message>), NA::Error>
 where
     NA: NewActor,
 {
@@ -56,7 +56,7 @@ where
     let pid = ProcessId(0);
 
     let inbox = Inbox::new(pid, system_ref.clone());
-    let actor_ref = ActorRef::new_local(inbox.create_ref());
+    let actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
 
     let ctx = actor::Context::new(pid, system_ref, inbox);
     let actor = new_actor.new(ctx, arg)?;

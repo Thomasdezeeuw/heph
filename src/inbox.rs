@@ -137,7 +137,16 @@ impl<M> InboxRef<M> {
     pub fn try_deliver(&mut self, msg: M) -> Result<(), M> {
         match self.shared.upgrade() {
             Some(shared) => {
+                // First queue all message send on the secondary inbox to make
+                // the ordering the message equal(er).
                 let mut shared = shared.borrow_mut();
+                let shared = &mut *shared;
+                if let Some((_, recv)) = shared.messages2.as_ref() {
+                    while let Ok(msg) = recv.try_recv() {
+                        shared.messages.push_back(msg);
+                    }
+                }
+
                 let pid = shared.pid;
                 shared.messages.push_back(msg);
                 shared.system_ref.notify(pid);
@@ -162,16 +171,6 @@ impl<M> InboxRef<M> {
             }
             None => Err(()),
         }
-    }
-
-    /// Returns true if `self` and `other` point to the same inbox.
-    pub fn same_inbox(&self, other: &InboxRef<M>) -> bool {
-        Weak::ptr_eq(&self.shared, &other.shared)
-    }
-
-    #[cfg(test)]
-    pub fn upgrade(&mut self) -> Option<Inbox<M>> {
-        self.shared.upgrade().map(|shared| Inbox { shared })
     }
 }
 
