@@ -16,7 +16,7 @@ use crate::supervisor::NoSupervisor;
 use crate::system::process::{Process, ProcessId, ProcessResult};
 use crate::system::scheduler::{Priority, ProcessData, ProcessState, Scheduler};
 use crate::system::ActorSystemRef;
-use crate::test::{init_actor, system_ref};
+use crate::test::{init_actor_inbox, system_ref};
 use crate::{actor, NewActor};
 
 fn assert_size<T>(expected: usize) {
@@ -226,8 +226,7 @@ fn adding_process() {
     assert_eq!(process_entry.pid(), ProcessId(0));
     #[allow(trivial_casts)]
     let new_actor = simple_actor as fn(_) -> _;
-    let (actor, mut actor_ref) = init_actor(new_actor, ()).unwrap();
-    let inbox = actor_ref.get_inbox().unwrap();
+    let (actor, inbox) = init_actor_inbox(new_actor, ()).unwrap();
     process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
     // Newly added processes aren't ready by default.
@@ -259,8 +258,7 @@ fn adding_process_reusing_pid() {
     assert_eq!(process_entry.pid(), ProcessId(0));
     #[allow(trivial_casts)]
     let new_actor = simple_actor as fn(_) -> _;
-    let (actor, mut actor_ref) = init_actor(new_actor, ()).unwrap();
-    let inbox = actor_ref.get_inbox().unwrap();
+    let (actor, inbox) = init_actor_inbox(new_actor, ()).unwrap();
     process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
     scheduler.schedule(ProcessId(0));
@@ -270,8 +268,7 @@ fn adding_process_reusing_pid() {
     // means the pid will be available for reuse.
     let process_entry = scheduler_ref.add_process();
     assert_eq!(process_entry.pid(), ProcessId(0));
-    let (actor, mut actor_ref) = init_actor(new_actor, ()).unwrap();
-    let inbox = actor_ref.get_inbox().unwrap();
+    let (actor, inbox) = init_actor_inbox(new_actor, ()).unwrap();
     process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
     // Again newly added processes aren't ready by default.
@@ -322,8 +319,7 @@ fn running_process() {
     assert_eq!(process_entry.pid(), ProcessId(0));
     #[allow(trivial_casts)]
     let new_actor = pending_actor as fn(_) -> _;
-    let (actor, mut actor_ref) = init_actor(new_actor, ()).unwrap();
-    let inbox = actor_ref.get_inbox().unwrap();
+    let (actor, inbox) = init_actor_inbox(new_actor, ()).unwrap();
     process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
     // Newly added processes aren't ready by default.
@@ -372,8 +368,7 @@ fn scheduler_run_order() {
     for (id, priority) in priorities.iter().enumerate() {
         let process_entry = scheduler_ref.add_process();
         assert_eq!(process_entry.pid(), ProcessId(id as u32));
-        let (actor, mut actor_ref) = init_actor(new_actor, (id, run_order.clone())).unwrap();
-        let inbox = actor_ref.get_inbox().unwrap();
+        let (actor, inbox) = init_actor_inbox(new_actor, (id, run_order.clone())).unwrap();
         process_entry.add_actor(*priority, NoSupervisor, new_actor, actor, inbox);
     }
 
@@ -420,10 +415,9 @@ fn assert_process_unmoved() {
     let mut system_ref = system_ref();
 
     let new_actor = TestAssertUnmovedNewActor;
-    let (actor, mut actor_ref) = init_actor(new_actor, ()).unwrap();
+    let (actor, inbox) = init_actor_inbox(new_actor, ()).unwrap();
 
     let process_entry = scheduler_ref.add_process();
-    let inbox = actor_ref.get_inbox().unwrap();
     process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
     // Schedule and run the process multiple times, ensure it's not moved in the
