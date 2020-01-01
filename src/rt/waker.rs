@@ -1,6 +1,6 @@
 //! Module containing the `task::Waker` implementation.
 
-use std::mem;
+use std::mem::size_of;
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::task::{RawWaker, RawWakerVTable, Waker};
 
@@ -138,26 +138,25 @@ impl ThreadWaker {
 #[repr(transparent)]
 struct WakerData(usize);
 
-const PID_BITS: usize = mem::size_of::<ProcessId>() * 8;
-const PID_MASK: usize = (1 << PID_BITS) - 1;
+const THREAD_BITS: usize = 8;
+const THREAD_SHIFT: usize = (size_of::<*const ()>() * 8) - THREAD_BITS;
+const THREAD_MASK: usize = ((1 << THREAD_BITS) - 1) << THREAD_SHIFT;
 
 impl WakerData {
     /// Create new `WakerData`.
     fn new(thread_id: WakerId, pid: ProcessId) -> WakerData {
-        let thread_data = (thread_id.0 as usize) << PID_BITS;
-        WakerData(thread_data | pid.0 as usize)
+        debug_assert!(pid.0 < (1 << THREAD_SHIFT), "pid too large");
+        WakerData((thread_id.0 as usize) << THREAD_SHIFT | pid.0)
     }
 
     /// Get the thread id of from the waker data.
     fn waker_id(self) -> WakerId {
-        let waker_id = self.0 >> PID_BITS;
-        WakerId(waker_id as u8)
+        WakerId((self.0 >> THREAD_SHIFT) as u8)
     }
 
     /// Get the process id from the waker data.
     fn pid(self) -> ProcessId {
-        let pid = self.0 & PID_MASK;
-        ProcessId(pid as u32)
+        ProcessId(self.0 & !THREAD_MASK)
     }
 
     /// Convert raw data from `RawWaker` into `WakerData`.
@@ -220,12 +219,30 @@ mod tests {
     use crate::rt::waker::{self, WakerData};
     use crate::rt::ProcessId;
 
+    use super::{MAX_THREADS, THREAD_BITS, THREAD_MASK};
+
     const AWAKENER: Token = Token(0);
     const PID1: ProcessId = ProcessId(0);
 
     #[test]
     fn assert_waker_data_size() {
         assert_eq!(size_of::<*const ()>(), size_of::<WakerData>());
+    }
+
+    #[test]
+    fn thread_bits_large_enough() {
+        assert!(
+            2usize.pow(THREAD_BITS as u32) >= MAX_THREADS,
+            "Not enough bits for MAX_THREADS"
+        );
+    }
+
+    #[test]
+    fn thread_mask() {
+        assert!(
+            (usize::max_value() & !THREAD_MASK).leading_zeros() as usize == THREAD_BITS,
+            "Incorrect THREAD_MASK"
+        );
     }
 
     #[test]
@@ -250,7 +267,7 @@ mod tests {
         assert_eq!(wake_receiver.try_recv(), Ok(PID1));
         waker::mark_polled(waker_id);
 
-        let pid2 = ProcessId(u32::max_value());
+        let pid2 = ProcessId(usize::max_value() & !THREAD_MASK);
         let waker = waker::new(waker_id, pid2);
         waker.wake();
 
