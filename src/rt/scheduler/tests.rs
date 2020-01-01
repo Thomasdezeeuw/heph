@@ -25,11 +25,11 @@ fn assert_size<T>(expected: usize) {
 
 #[test]
 fn size_assertions() {
-    assert_size::<ProcessId>(4);
+    assert_size::<ProcessId>(8);
     assert_size::<Priority>(1);
     assert_size::<Duration>(16);
     assert_size::<Box<dyn Process>>(16);
-    assert_size::<ProcessData>(40);
+    assert_size::<ProcessData>(48);
 
     assert_size::<ProcessState>(mem::size_of::<ProcessData>());
 }
@@ -359,7 +359,7 @@ fn scheduler_run_order() {
     let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
     for (id, priority) in priorities.iter().enumerate() {
         let process_entry = scheduler_ref.add_process();
-        assert_eq!(process_entry.pid(), ProcessId(id as u32));
+        assert_eq!(process_entry.pid(), ProcessId(id));
         let (actor, inbox) = init_actor_inbox(new_actor, (id, run_order.clone())).unwrap();
         process_entry.add_actor(*priority, NoSupervisor, new_actor, actor, inbox);
     }

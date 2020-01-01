@@ -25,17 +25,17 @@ pub use actor::ActorProcess;
 /// [`Scheduler`]: crate::rt::scheduler::Scheduler
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(transparent)]
-pub struct ProcessId(pub u32);
+pub struct ProcessId(pub usize);
 
 impl From<Token> for ProcessId {
     fn from(id: Token) -> ProcessId {
-        ProcessId(id.0 as u32)
+        ProcessId(id.0)
     }
 }
 
 impl Into<Token> for ProcessId {
     fn into(self) -> Token {
-        Token(self.0 as usize)
+        Token(self.0)
     }
 }
 

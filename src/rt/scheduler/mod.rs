@@ -59,7 +59,7 @@ impl Scheduler {
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub fn schedule(&mut self, pid: ProcessId) {
         trace!("scheduling process: pid={}", pid);
-        let pid = pid.0 as usize;
+        let pid = pid.0;
         if let Some(ref mut process) = self.processes.borrow_mut().get_mut(pid) {
             if let Some(process) = process.try_mark_active() {
                 self.active.push(process);
@@ -91,7 +91,7 @@ impl Scheduler {
             }
         };
 
-        let pid = process.id.0 as usize;
+        let pid = process.id.0;
         match process.run(runtime_ref) {
             ProcessResult::Complete => {
                 let process_state = self.processes.borrow_mut().remove(pid);
@@ -139,7 +139,7 @@ pub struct AddingProcess<'s> {
 impl<'s> AddingProcess<'s> {
     /// Get the would be `ProcessId` for the process.
     pub fn pid(&self) -> ProcessId {
-        ProcessId(self.processes.len() as u32)
+        ProcessId(self.processes.len())
     }
 
     /// Add a new inactive actor process to the scheduler.
@@ -169,7 +169,7 @@ impl<'s> AddingProcess<'s> {
             process,
         };
         let actual_pid = self.processes.insert(ProcessState::Inactive(process_data));
-        debug_assert_eq!(actual_pid as u32, id.0);
+        debug_assert_eq!(actual_pid, id.0);
     }
 }
 
