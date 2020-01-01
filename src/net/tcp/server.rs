@@ -7,7 +7,7 @@ use std::{fmt, io};
 
 use log::debug;
 use mio::net::TcpListener;
-use mio::Interests;
+use mio::Interest;
 
 use crate::actor::messages::Terminate;
 use crate::actor::{self, Actor, NewActor};
@@ -62,8 +62,19 @@ where
     ) -> Result<Self::Actor, Self::Error> {
         let mut system_ref = ctx.system_ref().clone();
         let this = &*self.inner;
-        let mut listener = this.listener.try_clone()?;
-        system_ref.register(&mut listener, ctx.pid().into(), Interests::READABLE)?;
+        // FIXME: `try_clone` is removed in Mio v0.7-alpha.1, use `SO_REUSEPORT`
+        // instead, see https://github.com/tokio-rs/mio/pull/1068.
+        //let mut listener = this.listener.try_clone()?;
+
+        // FIXME: this is an ugly hack to clone the listener anyway.
+        use std::os::unix::io::{AsRawFd, FromRawFd};
+        let raw_fd = this.listener.as_raw_fd();
+        let net_listener = unsafe { std::net::TcpListener::from_raw_fd(raw_fd) };
+        let listener = net_listener.try_clone();
+        std::mem::forget(net_listener); // This is `this.listener`.
+        let mut listener = listener.map(TcpListener::from_std)?;
+
+        system_ref.register(&mut listener, ctx.pid().into(), Interest::READABLE)?;
 
         Ok(Server {
             listener,
@@ -360,7 +371,7 @@ where
                 system_ref.register(
                     &mut stream,
                     pid.into(),
-                    Interests::READABLE | Interests::WRITABLE,
+                    Interest::READABLE | Interest::WRITABLE,
                 )?;
                 Ok((TcpStream { socket: stream }, addr))
             };

@@ -20,7 +20,7 @@ use std::{fmt, thread};
 
 use crossbeam_channel::{self as channel, Receiver};
 use log::{debug, trace};
-use mio::{event, Events, Interests, Poll, Token};
+use mio::{event, Events, Interest, Poll, Token};
 use mio_pipe::new_pipe;
 use mio_signals::{SignalSet, Signals};
 
@@ -383,23 +383,23 @@ fn cmain<E>(
 
     let mut signals = Signals::new(SignalSet::all()).map_err(RuntimeError::coordinator)?;
     poll.registry()
-        .register(&signals, SIGNAL, Interests::READABLE)
+        .register(&mut signals, SIGNAL, Interest::READABLE)
         .map_err(RuntimeError::coordinator)?;
 
-    for worker in workers.iter() {
+    for worker in workers.iter_mut() {
         trace!("registering worker thread: {}", worker.id);
         poll.registry()
-            .register(&worker.sender, Token(worker.id), Interests::WRITABLE)
+            .register(&mut worker.sender, Token(worker.id), Interest::WRITABLE)
             .map_err(RuntimeError::coordinator)?;
     }
 
-    for sync_worker in sync_workers.iter() {
+    for sync_worker in sync_workers.iter_mut() {
         trace!("registering sync actor worker thread: {}", sync_worker.id);
         poll.registry()
             .register(
-                &sync_worker.sender,
+                &mut sync_worker.sender,
                 Token(sync_worker.id),
-                Interests::WRITABLE,
+                Interest::WRITABLE,
             )
             .map_err(RuntimeError::coordinator)?;
     }
@@ -426,7 +426,7 @@ fn cmain<E>(
                 token => {
                     if token.0 >= SYNC_WORKER_ID_START {
                         if let Ok(i) = sync_workers.binary_search_by_key(&token.0, |w| w.id) {
-                            if event.is_error() || event.is_hup() {
+                            if event.is_error() || event.is_write_closed() {
                                 // Receiving end of the pipe is dropped, which means the
                                 // worker has shut down.
                                 let sync_worker = sync_workers.remove(i);
@@ -436,7 +436,7 @@ fn cmain<E>(
                             }
                         }
                     } else if let Ok(i) = workers.binary_search_by_key(&token.0, |w| w.id) {
-                        if event.is_error() || event.is_hup() {
+                        if event.is_error() || event.is_write_closed() {
                             // Receiving end of the pipe is dropped, which means the
                             // worker has shut down.
                             let worker = workers.remove(i);
@@ -706,12 +706,12 @@ const COORDINATOR: Token = Token(usize::max_value() - 1);
 
 impl RunningActorSystem {
     /// Create a new running actor system.
-    pub fn new(receiver: mio_pipe::Receiver) -> io::Result<RunningActorSystem> {
+    pub fn new(mut receiver: mio_pipe::Receiver) -> io::Result<RunningActorSystem> {
         // System queue for event notifications.
         let poll = Poll::new()?;
         let awakener = mio::Waker::new(poll.registry(), AWAKENER)?;
         poll.registry()
-            .register(&receiver, COORDINATOR, Interests::READABLE)?;
+            .register(&mut receiver, COORDINATOR, Interest::READABLE)?;
 
         // Channel used in the `Waker` implementation.
         let (waker_sender, waker_recv) = channel::unbounded();
@@ -1020,7 +1020,7 @@ impl ActorSystemRef {
         &mut self,
         handle: &mut E,
         id: Token,
-        interests: Interests,
+        interests: Interest,
     ) -> io::Result<()>
     where
         E: event::Source + ?Sized,
@@ -1037,7 +1037,7 @@ impl ActorSystemRef {
         &mut self,
         handle: &mut E,
         id: Token,
-        interests: Interests,
+        interests: Interest,
     ) -> io::Result<()>
     where
         E: event::Source + ?Sized,

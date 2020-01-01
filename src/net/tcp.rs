@@ -21,7 +21,7 @@ use std::task::{self, Poll};
 use futures_core::future::FusedFuture;
 use futures_core::stream::{FusedStream, Stream};
 use futures_io::{AsyncRead, AsyncWrite};
-use mio::{net, Interests};
+use mio::{net, Interest};
 
 use crate::actor;
 
@@ -201,7 +201,7 @@ impl TcpListener {
         let mut socket = net::TcpListener::bind(address)?;
         let pid = ctx.pid();
         ctx.system_ref()
-            .register(&mut socket, pid.into(), Interests::READABLE)?;
+            .register(&mut socket, pid.into(), Interest::READABLE)?;
         Ok(TcpListener { socket })
     }
 
@@ -334,7 +334,7 @@ impl actor::Bound for TcpListener {
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
         ctx.system_ref()
-            .reregister(&mut self.socket, pid.into(), Interests::READABLE)
+            .reregister(&mut self.socket, pid.into(), Interest::READABLE)
     }
 }
 
@@ -362,7 +362,7 @@ impl TcpStream {
         ctx.system_ref().register(
             &mut socket,
             pid.into(),
-            Interests::READABLE | Interests::WRITABLE,
+            Interest::READABLE | Interest::WRITABLE,
         )?;
         Ok(TcpStream { socket })
     }
@@ -479,7 +479,7 @@ impl actor::Bound for TcpStream {
         ctx.system_ref().reregister(
             &mut self.socket,
             pid.into(),
-            Interests::READABLE | Interests::WRITABLE,
+            Interest::READABLE | Interest::WRITABLE,
         )
     }
 }
