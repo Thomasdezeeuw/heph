@@ -10,7 +10,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
-use mio::{net, Interests};
+use mio::{net, Interest};
 
 use crate::actor;
 
@@ -149,7 +149,7 @@ impl UdpSocket {
         ctx.system_ref().register(
             &mut socket,
             pid.into(),
-            Interests::READABLE | Interests::WRITABLE,
+            Interest::READABLE | Interest::WRITABLE,
         )?;
         Ok(UdpSocket {
             socket,
@@ -363,7 +363,7 @@ impl actor::Bound for UdpSocket {
         ctx.system_ref().reregister(
             &mut self.socket,
             pid.into(),
-            Interests::READABLE | Interests::WRITABLE,
+            Interest::READABLE | Interest::WRITABLE,
         )
     }
 }
