@@ -26,6 +26,7 @@ use crate::{actor, NewActor};
 
 mod coordinator;
 mod error;
+mod hack;
 mod process;
 mod queue;
 mod scheduler;
@@ -45,6 +46,7 @@ pub use error::RuntimeError;
 pub use options::ActorOptions;
 pub use signal::Signal;
 
+use hack::SetupFn;
 use queue::Queue;
 use scheduler::SchedulerRef;
 use sync_worker::SyncWorker;
@@ -280,65 +282,6 @@ impl<S> fmt::Debug for ActorSystem<S> {
     }
 }
 
-/// Collection of hacks.
-mod hack {
-    use std::convert::TryFrom;
-
-    use crate::actor_ref::ActorRef;
-
-    use super::{ActorSystemRef, Signal};
-
-    /// A hack to allow us to call `ActorSystem<!>.run`.
-    pub trait SetupFn: Send + Clone + 'static {
-        type Error: Send;
-
-        fn setup(self, system_ref: ActorSystemRef) -> Result<(), Self::Error>;
-    }
-
-    impl<F, E> SetupFn for F
-    where
-        F: FnOnce(ActorSystemRef) -> Result<(), E> + Send + Clone + 'static,
-        E: Send,
-    {
-        type Error = E;
-
-        fn setup(self, system_ref: ActorSystemRef) -> Result<(), Self::Error> {
-            (self)(system_ref)
-        }
-    }
-
-    impl SetupFn for ! {
-        type Error = !;
-
-        fn setup(self, _: ActorSystemRef) -> Result<(), Self::Error> {
-            self
-        }
-    }
-
-    /// Hack to allow `SyncWorker` to convert its actor reference to a reference
-    /// that receives signals if possible, or returns none.
-    pub trait IntoSignalActorRef {
-        fn into(actor_ref: &Self) -> Option<ActorRef<Signal>>;
-    }
-
-    impl<M> IntoSignalActorRef for ActorRef<M> {
-        default fn into(_: &Self) -> Option<ActorRef<Signal>> {
-            None
-        }
-    }
-
-    impl<M> IntoSignalActorRef for ActorRef<M>
-    where
-        M: TryFrom<Signal, Error = Signal> + Into<Signal> + Sync + Send + 'static,
-    {
-        fn into(actor_ref: &Self) -> Option<ActorRef<Signal>> {
-            Some(actor_ref.clone().try_map())
-        }
-    }
-}
-
-use hack::SetupFn;
-
 /// A reference to an [`ActorSystem`].
 ///
 /// This reference refers to the thread-local actor system, and thus can't be
@@ -480,38 +423,38 @@ impl ActorSystemRef {
         self.internal.signal_receivers.borrow_mut().push(actor_ref)
     }
 
-    /// Register an `event::Source`, see `mio::Registry::register`.
-    pub(crate) fn register<E>(
+    /// Register an `event::Source`, see [`mio::Registry::register`].
+    pub(crate) fn register<S>(
         &mut self,
-        handle: &mut E,
-        id: Token,
-        interests: Interest,
+        source: &mut S,
+        token: Token,
+        interest: Interest,
     ) -> io::Result<()>
     where
-        E: event::Source + ?Sized,
+        S: event::Source + ?Sized,
     {
         self.internal
             .poll
-            .borrow_mut()
+            .borrow()
             .registry()
-            .register(handle, id, interests)
+            .register(source, token, interest)
     }
 
-    /// Reregister an `event::Source`, see `mio::Registry::reregister`.
-    pub(crate) fn reregister<E>(
+    /// Reregister an `event::Source`, see [`mio::Registry::reregister`].
+    pub(crate) fn reregister<S>(
         &mut self,
-        handle: &mut E,
-        id: Token,
-        interests: Interest,
+        source: &mut S,
+        token: Token,
+        interest: Interest,
     ) -> io::Result<()>
     where
-        E: event::Source + ?Sized,
+        S: event::Source + ?Sized,
     {
         self.internal
             .poll
-            .borrow_mut()
+            .borrow()
             .registry()
-            .reregister(handle, id, interests)
+            .reregister(source, token, interest)
     }
 
     /// Get a clone of the sending end of the notification channel.
@@ -547,19 +490,19 @@ pub(crate) enum AddActorError<NewActorE, ArgFnE> {
     ArgFn(ArgFnE),
 }
 
-/// Internals of the `RunningActorSystem`, to which `ActorSystemRef`s have a
-/// reference.
+/// Internals of the actor system, to which `ActorSystemRef`s have a reference.
 #[derive(Debug)]
-pub(crate) struct ActorSystemInternal {
+struct ActorSystemInternal {
     /// Waker id used to create a `Waker`.
     waker_id: WakerId,
     /// A reference to the scheduler to add new processes to.
     scheduler_ref: RefCell<SchedulerRef>,
-    /// System queue, used for event notifications to support non-blocking I/O.
+    /// System poll, used for event notifications to support non-blocking I/O.
     poll: RefCell<Poll>,
     /// Timers, deadlines and timeouts.
     timers: RefCell<Timers>,
     /// User space queue.
     queue: RefCell<Queue>,
+    /// Actor references to relay received `Signal`s to.
     signal_receivers: RefCell<Vec<LocalActorRef<Signal>>>,
 }
