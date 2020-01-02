@@ -26,8 +26,8 @@ use mio_pipe::new_pipe;
 
 use crate::actor_ref::LocalActorRef;
 use crate::inbox::Inbox;
+use crate::system::worker::RunningActorSystem;
 use crate::system::ProcessId;
-use crate::system::RunningActorSystem;
 use crate::{actor, Actor, ActorSystemRef, NewActor};
 
 thread_local! {
