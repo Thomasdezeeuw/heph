@@ -152,8 +152,6 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 pub struct ActorSystem<S = !> {
     /// Number of worker threads to create.
     threads: usize,
-    /// Unique id for sync actors.
-    sync_actor_id: usize,
     /// Synchronous actor thread handles.
     sync_actors: Vec<SyncWorker>,
     /// Optional setup function.
@@ -166,7 +164,6 @@ impl ActorSystem {
     pub fn new() -> ActorSystem<!> {
         ActorSystem {
             threads: 1,
-            sync_actor_id: SYNC_WORKER_ID_START,
             sync_actors: Vec::new(),
             setup: None,
         }
@@ -183,7 +180,6 @@ impl ActorSystem {
     {
         ActorSystem {
             threads: self.threads,
-            sync_actor_id: self.sync_actor_id,
             sync_actors: self.sync_actors,
             setup: Some(setup),
         }
@@ -231,8 +227,8 @@ impl<S> ActorSystem<S> {
         Arg: Send + 'static,
         M: Send + 'static,
     {
-        self.sync_actor_id += 1;
-        SyncWorker::start(self.sync_actor_id, supervisor, actor, arg)
+        let id = SYNC_WORKER_ID_START + self.sync_actors.len();
+        SyncWorker::start(id, supervisor, actor, arg)
             .map(|(worker, actor_ref)| {
                 self.sync_actors.push(worker);
                 actor_ref
