@@ -36,7 +36,7 @@ fn size_assertions() {
 fn local_actor_ref() {
     let pid = ProcessId(0);
     let system_ref = test::system_ref();
-    let mut inbox = Inbox::new(pid, system_ref.clone());
+    let mut inbox = Inbox::new(pid, system_ref);
     let mut actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
 
     // Send a message.
@@ -170,7 +170,7 @@ impl TryFrom<Msg2> for M {
 fn local_mapped_actor_ref() {
     let pid = ProcessId(0);
     let system_ref = test::system_ref();
-    let mut inbox = Inbox::<M>::new(pid, system_ref.clone());
+    let mut inbox = Inbox::<M>::new(pid, system_ref);
 
     let mut actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
     let mut mapped_actor_ref: LocalActorRef<Msg> = actor_ref.clone().map();
@@ -189,7 +189,7 @@ fn local_mapped_actor_ref() {
 fn local_try_mapped_actor_ref() {
     let pid = ProcessId(0);
     let system_ref = test::system_ref();
-    let mut inbox = Inbox::<M>::new(pid, system_ref.clone());
+    let mut inbox = Inbox::<M>::new(pid, system_ref);
 
     let mut actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
     let mut mapped_actor_ref: LocalActorRef<Msg2> = actor_ref.clone().try_map();
