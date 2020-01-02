@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use crossbeam_channel::{self as channel, Receiver};
 use log::{debug, trace};
-use mio::{Events, Interest, Poll, Token};
+use mio::{event, Events, Interest, Poll, Registry, Token};
 use mio_pipe::new_pipe;
 
 use crate::system::hack::SetupFn;
@@ -16,9 +16,15 @@ use crate::system::timers::Timers;
 use crate::system::{waker, ActorSystemInternal, ActorSystemRef, ProcessId, RuntimeError, Signal};
 
 pub(super) struct Worker<E> {
-    pub(super) id: usize,
-    pub(super) handle: thread::JoinHandle<Result<(), RuntimeError<E>>>,
-    pub(super) sender: mio_pipe::Sender,
+    /// Unique id (among all threads in the `ActorSystem`).
+    id: usize,
+    /// Handle for the actual thread.
+    handle: thread::JoinHandle<Result<(), RuntimeError<E>>>,
+    /// Sending half of the Unix pipe, used to communicate with the thread.
+    sender: mio_pipe::Sender,
+    /// Any signal that could not be send (via `sender`) without blocking when
+    /// `send_signal` was called previously. These will be send again when
+    /// `send_pending_signals` is called.
     pending: Vec<Signal>,
 }
 
@@ -40,6 +46,11 @@ impl<E> Worker<E> {
                     pending: Vec::new(),
                 })
         })
+    }
+
+    /// Return the worker's id.
+    pub(super) fn id(&self) -> usize {
+        self.id
     }
 
     /// Send the worker thread a `signal`.
@@ -70,6 +81,37 @@ impl<E> Worker<E> {
             let _ = self.pending.remove(0);
         }
         Ok(())
+    }
+
+    /// See [`thread::JoinHandle::join`].
+    pub(super) fn join(self) -> thread::Result<Result<(), RuntimeError<E>>> {
+        self.handle.join()
+    }
+}
+
+/// Registers the sending end of the Unix pipe used to communicate with the
+/// thread.
+impl<E> event::Source for Worker<E> {
+    fn register(
+        &mut self,
+        registry: &Registry,
+        token: Token,
+        interests: Interest,
+    ) -> io::Result<()> {
+        self.sender.register(registry, token, interests)
+    }
+
+    fn reregister(
+        &mut self,
+        registry: &Registry,
+        token: Token,
+        interests: Interest,
+    ) -> io::Result<()> {
+        self.sender.reregister(registry, token, interests)
+    }
+
+    fn deregister(&mut self, registry: &Registry) -> io::Result<()> {
+        self.sender.deregister(registry)
     }
 }
 

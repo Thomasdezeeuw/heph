@@ -22,7 +22,7 @@ pub(super) fn main<E>(
     mut workers: Vec<Worker<E>>,
     mut sync_workers: Vec<SyncWorker>,
 ) -> Result<(), RuntimeError<E>> {
-    debug_assert!(workers.is_sorted_by_key(|w| w.id));
+    debug_assert!(workers.is_sorted_by_key(|w| w.id()));
 
     let poll = Poll::new().map_err(RuntimeError::coordinator)?;
 
@@ -49,9 +49,10 @@ fn setup_signals(registry: &Registry) -> io::Result<Signals> {
 fn register_workers<E>(registry: &Registry, workers: &mut [Worker<E>]) -> io::Result<()> {
     workers
         .iter_mut()
-        .map(|worker| {
-            trace!("registering worker thread: id={}", worker.id);
-            registry.register(&mut worker.sender, Token(worker.id), Interest::WRITABLE)
+        .map(|mut worker| {
+            let id = worker.id();
+            trace!("registering worker thread: id={}", id);
+            registry.register(&mut worker, Token(id), Interest::WRITABLE)
         })
         .collect()
 }
@@ -123,14 +124,14 @@ fn handle_worker_event<E>(
     workers: &mut Vec<Worker<E>>,
     event: &Event,
 ) -> Result<(), RuntimeError<E>> {
-    if let Ok(i) = workers.binary_search_by_key(&event.token().0, |w| w.id) {
+    if let Ok(i) = workers.binary_search_by_key(&event.token().0, |w| w.id()) {
         if event.is_error() || event.is_write_closed() {
             // Receiving end of the pipe is dropped, which means the
             // worker has shut down.
             let worker = workers.remove(i);
-            debug!("worker thread done: id={}", worker.id);
+            debug!("worker thread done: id={}", worker.id());
 
-            worker.handle.join().map_err(map_panic).and_then(|res| res)
+            worker.join().map_err(map_panic).and_then(|res| res)
         } else if event.is_writable() {
             // It could that we tried to send a signal previously but failed.
             // Now we try again.
