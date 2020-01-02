@@ -82,3 +82,34 @@ impl Mul<Priority> for Duration {
         self * u32::from(rhs.0.get())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::Priority;
+
+    #[test]
+    fn priority() {
+        assert!(Priority::HIGH > Priority::NORMAL);
+        assert!(Priority::NORMAL > Priority::LOW);
+        assert!(Priority::HIGH > Priority::LOW);
+
+        assert_eq!(Priority::HIGH, Priority::HIGH);
+        assert_ne!(Priority::HIGH, Priority::NORMAL);
+
+        assert_eq!(Priority::default(), Priority::NORMAL);
+    }
+
+    #[test]
+    fn priority_duration_multiplication() {
+        let duration = Duration::from_millis(1);
+        let high = duration * Priority::HIGH;
+        let normal = duration * Priority::NORMAL;
+        let low = duration * Priority::LOW;
+
+        assert!(high < normal);
+        assert!(normal < low);
+        assert!(high < low);
+    }
+}
