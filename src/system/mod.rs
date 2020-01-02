@@ -11,7 +11,6 @@
 
 use std::cell::RefCell;
 use std::io::{self, Read, Write};
-use std::ptr::NonNull;
 use std::rc::Rc;
 use std::task::Waker;
 use std::time::{Duration, Instant};
@@ -22,10 +21,10 @@ use log::{debug, trace};
 use mio::{event, Events, Interest, Poll, Token};
 use mio_pipe::new_pipe;
 
-use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
+use crate::actor::sync::SyncActor;
 use crate::actor_ref::{ActorRef, LocalActorRef};
 use crate::inbox::Inbox;
-use crate::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
+use crate::supervisor::{Supervisor, SyncSupervisor};
 use crate::{actor, NewActor};
 
 mod coordinator;
@@ -34,6 +33,7 @@ mod process;
 mod queue;
 mod scheduler;
 mod signal;
+mod sync_worker;
 mod timers;
 mod waker;
 
@@ -47,6 +47,7 @@ pub use signal::Signal;
 
 use queue::Queue;
 use scheduler::{Scheduler, SchedulerRef};
+use sync_worker::SyncWorker;
 use timers::Timers;
 use waker::{init_waker, new_waker, WakerId, MAX_THREADS};
 
@@ -263,6 +264,21 @@ where
     }
 }
 
+impl<S> fmt::Debug for ActorSystem<S> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let setup = if self.setup.is_some() {
+            &"Some"
+        } else {
+            &"None"
+        };
+        f.debug_struct("ActorSystem")
+            .field("threads", &self.threads)
+            .field("sync_actors (length)", &self.sync_actors.len())
+            .field("setup", setup)
+            .finish()
+    }
+}
+
 struct Worker<E> {
     id: usize,
     handle: thread::JoinHandle<Result<(), RuntimeError<E>>>,
@@ -318,68 +334,6 @@ impl<E> Worker<E> {
             let _ = self.pending.remove(0);
         }
         Ok(())
-    }
-}
-
-struct SyncWorker {
-    id: usize,
-    handle: thread::JoinHandle<()>,
-    sender: mio_pipe::Sender,
-    // None if the sync actor can't handle signals.
-    signals: Option<ActorRef<Signal>>,
-}
-
-impl SyncWorker {
-    /// Start a new thread that runs a sync actor.
-    pub fn start<Sv, A, E, Arg, M>(
-        id: usize,
-        supervisor: Sv,
-        actor: A,
-        arg: Arg,
-    ) -> io::Result<(SyncWorker, ActorRef<M>)>
-    where
-        Sv: SyncSupervisor<A> + Send + 'static,
-        A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
-        Arg: Send + 'static,
-        M: Send + 'static,
-        ActorRef<M>: IntoSignalActorRef,
-    {
-        new_pipe().and_then(|(sender, receiver)| {
-            let (send, inbox) = channel::unbounded();
-            let actor_ref = ActorRef::for_sync_actor(send);
-            thread::Builder::new()
-                .name(format!("heph_sync_actor{}", id))
-                .spawn(move || smain(supervisor, actor, arg, inbox, receiver))
-                .map(|handle| SyncWorker {
-                    id,
-                    handle,
-                    sender,
-                    signals: IntoSignalActorRef::into(&actor_ref),
-                })
-                .map(|worker| (worker, actor_ref))
-        })
-    }
-
-    /// Send the sync actor thread a `signal`.
-    fn send_signal(&mut self, signal: Signal) {
-        if let Some(ref mut signals) = self.signals {
-            let _ = signals.send(signal);
-        }
-    }
-}
-
-impl<S> fmt::Debug for ActorSystem<S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let setup = if self.setup.is_some() {
-            &"Some"
-        } else {
-            &"None"
-        };
-        f.debug_struct("ActorSystem")
-            .field("threads", &self.threads)
-            .field("sync_actors (length)", &self.sync_actors.len())
-            .field("setup", setup)
-            .finish()
     }
 }
 
@@ -440,7 +394,7 @@ mod hack {
     }
 }
 
-use hack::{IntoSignalActorRef, SetupFn};
+use hack::SetupFn;
 
 /// Run the actor system, with an optional `setup` function.
 ///
@@ -459,42 +413,6 @@ where
 
     // All setup is done, so we're ready to run the event loop.
     actor_system.run_event_loop()
-}
-
-/// Run a synchronous actor.
-fn smain<S, E, Arg, A, M>(
-    mut supervisor: S,
-    actor: A,
-    mut arg: Arg,
-    inbox: Receiver<M>,
-    receiver: mio_pipe::Receiver,
-) where
-    S: SyncSupervisor<A> + 'static,
-    A: SyncActor<Message = M, Argument = Arg, Error = E>,
-{
-    trace!("running synchronous actor");
-    let mut ctx_data = SyncContextData::new(inbox);
-    loop {
-        let ctx = unsafe {
-            // This is safe because the context data doesn't outlive the pointer
-            // and the pointer is not null.
-            SyncContext::new(NonNull::new_unchecked(&mut ctx_data))
-        };
-        match actor.run(ctx, arg) {
-            Ok(()) => break,
-            Err(err) => match supervisor.decide(err) {
-                SupervisorStrategy::Restart(new_arg) => {
-                    trace!("restarting synchronous actor");
-                    arg = new_arg
-                }
-                SupervisorStrategy::Stop => break,
-            },
-        }
-    }
-    trace!("stopping synchronous actor");
-
-    // Let the coordinator know we're done.
-    drop(receiver);
 }
 
 /// The system that runs all processes.
