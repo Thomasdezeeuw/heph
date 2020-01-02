@@ -15,7 +15,7 @@ pub const MAX_THREADS: usize = 64;
 
 /// An id for a waker.
 ///
-/// Returned by `init_waker` and used in `new_waker` to create a new `Waker`.
+/// Returned by `init` and used in `new` to create a new `Waker`.
 //
 // This serves as index into `THREAD_WAKERS`.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -25,8 +25,8 @@ pub struct WakerId(u8);
 /// Initialise a new waker.
 ///
 /// This returns a `WakerId` which can be used to create a new `Waker` using
-/// `new_waker`.
-pub fn init_waker(waker: mio::Waker, notifications: Sender<ProcessId>) -> WakerId {
+/// `new`.
+pub fn init(waker: mio::Waker, notifications: Sender<ProcessId>) -> WakerId {
     /// Each worker thread that uses a `Waker` implementation needs an unique
     /// `WakerId`, which serves as index to `THREAD_WAKERS`, this variable
     /// determines that.
@@ -51,8 +51,8 @@ pub fn init_waker(waker: mio::Waker, notifications: Sender<ProcessId>) -> WakerI
 
 /// Create a new `Waker`.
 ///
-/// `init_waker` must be called before calling this function to get a `WakerId`.
-pub fn new_waker(waker_id: WakerId, pid: ProcessId) -> Waker {
+/// `init` must be called before calling this function to get a `WakerId`.
+pub fn new(waker_id: WakerId, pid: ProcessId) -> Waker {
     let data = WakerData::new(waker_id, pid).into_raw_data();
     let raw_waker = RawWaker::new(data, WAKER_VTABLE);
     unsafe { Waker::from_raw(raw_waker) }
@@ -68,15 +68,15 @@ pub fn mark_polled(waker_id: WakerId) {
 ///
 /// # Safety
 ///
-/// Only `init_waker` may write to this array. After the initial write, no more
-/// writes are allowed and the array element is read only. To get a waker use
-/// the `get_waker` function.
+/// Only `init` may write to this array. After the initial write, no more writes
+/// are allowed and the array element is read only. To get a waker use the
+/// `get_waker` function.
 ///
 /// Following the rules above means that there are no data races. The array can
-/// only be indexed by `WakerId`, which is only created by `init_waker`, which
-/// ensures the waker is setup before returning the `WakerId`. This ensures that
-/// only a single write happens to each element of the array. And because after
-/// the initial write each element is read only there are no further data races
+/// only be indexed by `WakerId`, which is only created by `init`, which ensures
+/// the waker is setup before returning the `WakerId`. This ensures that only a
+/// single write happens to each element of the array. And because after the
+/// initial write each element is read only there are no further data races
 /// possible.
 static mut THREAD_WAKERS: [Option<ThreadWaker>; MAX_THREADS] = [
     None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
@@ -89,7 +89,7 @@ static mut THREAD_WAKERS: [Option<ThreadWaker>; MAX_THREADS] = [
 fn get_waker(waker_id: WakerId) -> &'static ThreadWaker {
     unsafe {
         // This is safe because the only way the `waker_id` is created is by
-        // `init_waker`, which ensure that the particular index is set. See
+        // `init`, which ensure that the particular index is set. See
         // `THREAD_WAKERS` documentation for more.
         THREAD_WAKERS[waker_id.0 as usize]
             .as_ref()
@@ -217,7 +217,7 @@ mod tests {
 
     use mio::{Events, Poll, Token, Waker};
 
-    use crate::system::waker::{init_waker, mark_polled, new_waker, WakerData};
+    use crate::system::waker::{self, WakerData};
     use crate::system::ProcessId;
 
     const AWAKENER: Token = Token(0);
@@ -236,10 +236,10 @@ mod tests {
         // Initialise the waker.
         let waker = Waker::new(poll.registry(), AWAKENER).unwrap();
         let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
-        let waker_id = init_waker(waker, wake_sender);
+        let waker_id = waker::init(waker, wake_sender);
 
         // Create a new waker.
-        let waker = new_waker(waker_id, PID1);
+        let waker = waker::new(waker_id, PID1);
         waker.wake();
 
         poll.poll(&mut events, Some(Duration::from_secs(1)))
@@ -248,10 +248,10 @@ mod tests {
         expect_one_waker_event(&mut events);
         // And the process id that needs to be scheduled.
         assert_eq!(wake_receiver.try_recv(), Ok(PID1));
-        mark_polled(waker_id);
+        waker::mark_polled(waker_id);
 
         let pid2 = ProcessId(u32::max_value());
-        let waker = new_waker(waker_id, pid2);
+        let waker = waker::new(waker_id, pid2);
         waker.wake();
 
         poll.poll(&mut events, Some(Duration::from_secs(1)))
@@ -260,7 +260,7 @@ mod tests {
         expect_one_waker_event(&mut events);
         // And the process id that needs to be scheduled.
         assert_eq!(wake_receiver.try_recv(), Ok(pid2));
-        mark_polled(waker_id);
+        waker::mark_polled(waker_id);
     }
 
     #[test]
@@ -271,10 +271,10 @@ mod tests {
         // Initialise the waker.
         let waker = Waker::new(poll.registry(), AWAKENER).unwrap();
         let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
-        let waker_id = init_waker(waker, wake_sender);
+        let waker_id = waker::init(waker, wake_sender);
 
         // Create a new waker.
-        let waker = new_waker(waker_id, PID1);
+        let waker = waker::new(waker_id, PID1);
         let handle = thread::spawn(move || {
             waker.wake();
         });
@@ -286,7 +286,7 @@ mod tests {
         expect_one_waker_event(&mut events);
         // And the process id that needs to be scheduled.
         assert_eq!(wake_receiver.try_recv(), Ok(PID1));
-        mark_polled(waker_id);
+        waker::mark_polled(waker_id);
     }
 
     fn expect_one_waker_event(events: &mut Events) {
