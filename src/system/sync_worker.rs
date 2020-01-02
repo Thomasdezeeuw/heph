@@ -102,7 +102,7 @@ impl event::Source for SyncWorker {
 }
 
 /// Run a synchronous actor worker thread.
-pub(super) fn main<S, E, Arg, A, M>(
+fn main<S, E, Arg, A, M>(
     mut supervisor: S,
     actor: A,
     mut arg: Arg,
