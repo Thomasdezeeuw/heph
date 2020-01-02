@@ -11,15 +11,11 @@ pub struct SendError;
 
 impl fmt::Display for SendError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.description())
+        f.write_str("unable to send message")
     }
 }
 
-impl Error for SendError {
-    fn description(&self) -> &str {
-        "unable to send message"
-    }
-}
+impl Error for SendError {}
 
 /// Error returned when the actor is shutdown.
 ///
@@ -29,12 +25,8 @@ pub struct ActorShutdown;
 
 impl fmt::Display for ActorShutdown {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.description())
+        f.write_str("actor shutdown")
     }
 }
 
-impl Error for ActorShutdown {
-    fn description(&self) -> &str {
-        "actor shutdown"
-    }
-}
+impl Error for ActorShutdown {}

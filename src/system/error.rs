@@ -120,10 +120,6 @@ impl<SetupError: fmt::Display> fmt::Display for RuntimeError<SetupError> {
 }
 
 impl<SetupError: Error + fmt::Display + 'static> Error for RuntimeError<SetupError> {
-    fn description(&self) -> &str {
-        Self::DESC
-    }
-
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use RuntimeErrorInner::*;
         match self.inner {
