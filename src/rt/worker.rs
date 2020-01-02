@@ -1,3 +1,5 @@
+#![allow(dead_code, unused_variables, unused_imports)]
+
 use std::cell::RefCell;
 use std::io::{self, Read, Write};
 use std::rc::Rc;
@@ -10,6 +12,7 @@ use mio::{event, Events, Interest, Poll, Registry, Token};
 use mio_pipe::new_pipe;
 
 use crate::rt::hack::SetupFn;
+use crate::rt::process::{Process, ProcessResult};
 use crate::rt::queue::Queue;
 use crate::rt::scheduler::Scheduler;
 use crate::rt::timers::Timers;
@@ -142,8 +145,6 @@ pub(crate) struct RunningRuntime {
     /// Inside of the runtime, shared with zero or more `RuntimeRef`s.
     internal: Rc<RuntimeInternal>,
     events: Events,
-    /// Scheduler that hold the processes, schedules and runs them.
-    scheduler: Scheduler,
     /// Receiving side of the channel for `Waker` events.
     waker_events: Receiver<ProcessId>,
     /// Receiving end of the channel connected to the coordinator thread.
@@ -175,12 +176,13 @@ impl RunningRuntime {
         let waker_id = waker::init(awakener, waker_sender);
 
         // Scheduler for scheduling and running processes.
-        let (scheduler, scheduler_ref) = Scheduler::new();
+        let (scheduler, _work_stealer) = Scheduler::new();
+        // TODO: share the work stealer with other threads.
 
         // Internals of the running runtime.
         let internal = RuntimeInternal {
             waker_id,
-            scheduler_ref: RefCell::new(scheduler_ref),
+            scheduler: RefCell::new(scheduler),
             poll: RefCell::new(poll),
             timers: RefCell::new(Timers::new()),
             queue: RefCell::new(Queue::new()),
@@ -190,7 +192,6 @@ impl RunningRuntime {
         Ok(RunningRuntime {
             internal: Rc::new(internal),
             events: Events::with_capacity(128),
-            scheduler,
             waker_events: waker_recv,
             receiver,
         })
@@ -216,8 +217,25 @@ impl RunningRuntime {
             // processes to run then either.
             trace!("running processes");
             for _ in 0..RUN_POLL_RATIO {
-                if !self.scheduler.run_process(&mut runtime_ref) {
-                    if self.scheduler.is_empty() {
+                // NOTE: preferably this running of a process is handled
+                // completely within a method of `Scheduler`, however this is
+                // not possible.
+                // Because we need `borrow_mut` the scheduler here we couldn't
+                // also get a mutable reference to it to add actors, while a
+                // process is running. Thus we need to remove a process from the
+                // scheduler, drop the mutable reference, and only then run the
+                // process. This allow a `RuntimeRef` to also mutable borrow the
+                // `Scheduler` to add new actors to it.
+                let process = self.internal.scheduler.borrow_mut().next_process();
+                if let Some(mut process) = process {
+                    match process.as_mut().run(&mut runtime_ref) {
+                        ProcessResult::Complete => {}
+                        ProcessResult::Pending => {
+                            self.internal.scheduler.borrow_mut().add_process(process);
+                        }
+                    }
+                } else {
+                    if !self.internal.scheduler.borrow().has_process() {
                         // No processes left to run, so we're done.
                         debug!("no processes to run, stopping runtime");
                         return Ok(());
@@ -251,7 +269,11 @@ impl RunningRuntime {
             match event.token() {
                 AWAKENER => poll_waker = true,
                 COORDINATOR => check_receiver = true,
-                token => self.scheduler.schedule(token.into()),
+                token => self
+                    .internal
+                    .scheduler
+                    .borrow_mut()
+                    .mark_ready(token.into()),
             }
         }
 
@@ -266,18 +288,18 @@ impl RunningRuntime {
 
             trace!("polling wakup events");
             for pid in self.waker_events.try_iter() {
-                self.scheduler.schedule(pid);
+                self.internal.scheduler.borrow_mut().mark_ready(pid);
             }
         }
 
         trace!("polling user space events");
         for pid in self.internal.queue.borrow_mut().events() {
-            self.scheduler.schedule(pid);
+            self.internal.scheduler.borrow_mut().mark_ready(pid);
         }
 
         trace!("polling timers");
         for pid in self.internal.timers.borrow_mut().deadlines() {
-            self.scheduler.schedule(pid);
+            self.internal.scheduler.borrow_mut().mark_ready(pid);
         }
 
         Ok(())
@@ -286,7 +308,7 @@ impl RunningRuntime {
     fn determine_timeout(&self) -> Option<Duration> {
         // If there are any processes ready to run, any waker events or user
         // space events we don't want to block.
-        if self.scheduler.has_active_process()
+        if self.internal.scheduler.borrow().has_ready_process()
             || !self.waker_events.is_empty()
             || !self.internal.queue.borrow().is_empty()
         {

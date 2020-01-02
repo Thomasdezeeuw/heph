@@ -48,7 +48,7 @@ pub use signal::Signal;
 
 use hack::SetupFn;
 use queue::Queue;
-use scheduler::SchedulerRef;
+use scheduler::Scheduler;
 use sync_worker::SyncWorker;
 use timers::Timers;
 use waker::{WakerId, MAX_THREADS};
@@ -384,14 +384,14 @@ impl RuntimeRef {
     {
         let RuntimeInternal {
             waker_id,
-            ref scheduler_ref,
+            scheduler,
             ..
         } = &*self.internal;
 
         // Setup adding a new process to the scheduler.
-        let mut scheduler_ref = scheduler_ref.borrow_mut();
-        let process_entry = scheduler_ref.add_process();
-        let pid = process_entry.pid();
+        let mut scheduler = scheduler.borrow_mut();
+        let actor_entry = scheduler.add_actor();
+        let pid = actor_entry.pid();
         debug!("spawning actor: pid={}", pid);
 
         // Create our actor argument, running any setup required by the caller.
@@ -409,7 +409,7 @@ impl RuntimeRef {
         }
 
         // Add the actor to the scheduler.
-        process_entry.add_actor(options.priority(), supervisor, new_actor, actor, inbox);
+        actor_entry.add(options.priority(), supervisor, new_actor, actor, inbox);
 
         Ok(actor_ref)
     }
@@ -497,7 +497,7 @@ struct RuntimeInternal {
     /// Waker id used to create a `Waker`.
     waker_id: WakerId,
     /// A reference to the scheduler to add new processes to.
-    scheduler_ref: RefCell<SchedulerRef>,
+    scheduler: RefCell<Scheduler>,
     /// System poll, used for event notifications to support non-blocking I/O.
     poll: RefCell<Poll>,
     /// Timers, deadlines and timeouts.

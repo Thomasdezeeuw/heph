@@ -112,11 +112,13 @@ impl ThreadWaker {
             return;
         }
 
+        // TODO: Acquire here?
         if !self.awoken.load(Ordering::Relaxed) {
             if let Err(err) = self.waker.wake() {
                 error!("unable to wake up worker thread: {}", err);
                 return;
             }
+            // Swap here?
             self.awoken.store(true, Ordering::Release);
         }
     }

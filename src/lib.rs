@@ -64,7 +64,15 @@
 //! [1]: https://en.wikipedia.org/wiki/Hephaestus
 //! [2]: https://en.wikipedia.org/wiki/Actor_model
 
-#![feature(const_fn, is_sorted, never_type, read_initializer, specialization)]
+#![feature(
+    const_fn,
+    const_raw_ptr_to_usize_cast,
+    is_sorted,
+    maybe_uninit_extra,
+    never_type,
+    new_uninit,
+    specialization
+)]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,
@@ -96,6 +104,7 @@ pub mod timer;
 pub mod test;
 
 mod inbox;
+mod util;
 
 #[doc(no_inline)]
 pub use crate::actor::{Actor, NewActor};
