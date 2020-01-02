@@ -13,8 +13,7 @@ use crate::system::hack::SetupFn;
 use crate::system::queue::Queue;
 use crate::system::scheduler::Scheduler;
 use crate::system::timers::Timers;
-use crate::system::waker::{self, init_waker};
-use crate::system::{ActorSystemInternal, ActorSystemRef, ProcessId, RuntimeError, Signal};
+use crate::system::{waker, ActorSystemInternal, ActorSystemRef, ProcessId, RuntimeError, Signal};
 
 pub(super) struct Worker<E> {
     pub(super) id: usize,
@@ -131,7 +130,7 @@ impl RunningActorSystem {
 
         // Channel used in the `Waker` implementation.
         let (waker_sender, waker_recv) = channel::unbounded();
-        let waker_id = init_waker(awakener, waker_sender);
+        let waker_id = waker::init(awakener, waker_sender);
 
         // Scheduler for scheduling and running processes.
         let (scheduler, scheduler_ref) = Scheduler::new();

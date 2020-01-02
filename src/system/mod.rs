@@ -49,7 +49,7 @@ use queue::Queue;
 use scheduler::SchedulerRef;
 use sync_worker::SyncWorker;
 use timers::Timers;
-use waker::{new_waker, WakerId, MAX_THREADS};
+use waker::{WakerId, MAX_THREADS};
 use worker::Worker;
 
 const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
@@ -461,7 +461,7 @@ impl ActorSystemRef {
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         if options.should_schedule() {
-            new_waker(*waker_id, pid).wake()
+            waker::new(*waker_id, pid).wake()
         }
 
         // Add the actor to the scheduler.
@@ -516,7 +516,7 @@ impl ActorSystemRef {
 
     /// Get a clone of the sending end of the notification channel.
     pub(crate) fn new_waker(&self, pid: ProcessId) -> Waker {
-        new_waker(self.internal.waker_id, pid)
+        waker::new(self.internal.waker_id, pid)
     }
 
     /// Add a deadline to the event sources.
