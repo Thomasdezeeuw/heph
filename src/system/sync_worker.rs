@@ -5,25 +5,29 @@ use std::{io, thread};
 
 use crossbeam_channel::{self as channel, Receiver};
 use log::trace;
+use mio::{event, Interest, Registry, Token};
 use mio_pipe::new_pipe;
 
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
+use crate::system::hack::IntoSignalActorRef;
 use crate::system::Signal;
 use crate::ActorRef;
 
-use super::hack::IntoSignalActorRef;
-
+/// Handle to a synchronous worker.
 pub(super) struct SyncWorker {
-    pub(super) id: usize,
-    pub(super) handle: thread::JoinHandle<()>,
-    pub(super) sender: mio_pipe::Sender,
-    // None if the sync actor can't handle signals.
+    /// Unique id (among all threads in the `ActorSystem`).
+    id: usize,
+    /// Handle for the actual thread.
+    handle: thread::JoinHandle<()>,
+    /// Sending half of the Unix pipe, used to communicate with the thread.
+    sender: mio_pipe::Sender,
+    /// `None` if the sync actor can't handle signals.
     signals: Option<ActorRef<Signal>>,
 }
 
 impl SyncWorker {
-    /// Start a new thread that runs a sync actor.
+    /// Start a new thread that runs a synchronous actor.
     pub(super) fn start<Sv, A, E, Arg, M>(
         id: usize,
         supervisor: Sv,
@@ -53,11 +57,47 @@ impl SyncWorker {
         })
     }
 
+    /// Return the worker's id.
+    pub(super) const fn id(&self) -> usize {
+        self.id
+    }
+
     /// Send the sync actor thread a `signal`.
     pub(super) fn send_signal(&mut self, signal: Signal) {
         if let Some(ref mut signals) = self.signals {
             let _ = signals.send(signal);
         }
+    }
+
+    /// See [`thread::JoinHandle::join`].
+    pub(super) fn join(self) -> thread::Result<()> {
+        self.handle.join()
+    }
+}
+
+/// Registers the sending end of the Unix pipe used to communicate with the
+/// thread.
+impl event::Source for SyncWorker {
+    fn register(
+        &mut self,
+        registry: &Registry,
+        token: Token,
+        interests: Interest,
+    ) -> io::Result<()> {
+        self.sender.register(registry, token, interests)
+    }
+
+    fn reregister(
+        &mut self,
+        registry: &Registry,
+        token: Token,
+        interests: Interest,
+    ) -> io::Result<()> {
+        self.sender.reregister(registry, token, interests)
+    }
+
+    fn deregister(&mut self, registry: &Registry) -> io::Result<()> {
+        self.sender.deregister(registry)
     }
 }
 

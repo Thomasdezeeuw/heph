@@ -60,9 +60,10 @@ fn register_workers<E>(registry: &Registry, workers: &mut [Worker<E>]) -> io::Re
 fn register_sync_workers(registry: &Registry, sync_workers: &mut [SyncWorker]) -> io::Result<()> {
     sync_workers
         .iter_mut()
-        .map(|worker| {
-            trace!("registering sync actor worker thread: id={}", worker.id);
-            registry.register(&mut worker.sender, Token(worker.id), Interest::WRITABLE)
+        .map(|mut worker| {
+            let id = worker.id();
+            trace!("registering sync actor worker thread: id={}", id);
+            registry.register(&mut worker, Token(id), Interest::WRITABLE)
         })
         .collect()
 }
@@ -151,14 +152,14 @@ fn handle_sync_worker_event<E>(
     sync_workers: &mut Vec<SyncWorker>,
     event: &Event,
 ) -> Result<(), RuntimeError<E>> {
-    if let Ok(i) = sync_workers.binary_search_by_key(&event.token().0, |w| w.id) {
+    if let Ok(i) = sync_workers.binary_search_by_key(&event.token().0, |w| w.id()) {
         if event.is_error() || event.is_write_closed() {
             // Receiving end of the pipe is dropped, which means the
             // worker has shut down.
             let sync_worker = sync_workers.remove(i);
-            debug!("sync actor worker thread done: id={}", sync_worker.id);
+            debug!("sync actor worker thread done: id={}", sync_worker.id());
 
-            sync_worker.handle.join().map_err(map_panic)
+            sync_worker.join().map_err(map_panic)
         } else {
             Ok(())
         }
