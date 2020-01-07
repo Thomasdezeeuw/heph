@@ -8,7 +8,7 @@ use mio::event::Event;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
-use crate::system::{RuntimeError, Signal, SyncWorker, Worker, SYNC_WORKER_ID_START};
+use crate::rt::{RuntimeError, Signal, SyncWorker, Worker, SYNC_WORKER_ID_START};
 
 /// Token used to receive events.
 const SIGNAL: Token = Token(usize::max_value());

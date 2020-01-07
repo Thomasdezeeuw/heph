@@ -1,6 +1,6 @@
 //! Testing facilities.
 //!
-//! This module will lazily create an active, but not running, actor system per
+//! This module will lazily create an active, but not running, runtime per
 //! thread.
 //!
 //! # Notes
@@ -26,21 +26,21 @@ use mio_pipe::new_pipe;
 
 use crate::actor_ref::LocalActorRef;
 use crate::inbox::Inbox;
-use crate::system::worker::RunningActorSystem;
-use crate::system::ProcessId;
-use crate::{actor, Actor, ActorSystemRef, NewActor};
+use crate::rt::worker::RunningRuntime;
+use crate::rt::ProcessId;
+use crate::{actor, Actor, NewActor, RuntimeRef};
 
 thread_local! {
-    /// Per thread active, but not running, actor system.
-    static TEST_SYSTEM: RefCell<RunningActorSystem> = {
+    /// Per thread active, but not running, runtime.
+    static TEST_RT: RefCell<RunningRuntime> = {
         let (_, receiver) = new_pipe().unwrap();
-        RefCell::new(RunningActorSystem::new(receiver).unwrap())
+        RefCell::new(RunningRuntime::new(receiver).unwrap())
     };
 }
 
-/// Get a reference to the *test* actor system.
-pub fn system_ref() -> ActorSystemRef {
-    TEST_SYSTEM.with(|system| system.borrow().create_ref())
+/// Returns a reference to the *test* runtime.
+pub fn runtime() -> RuntimeRef {
+    TEST_RT.with(|runtime| runtime.borrow().create_ref())
 }
 
 /// Initialise an actor.
@@ -52,13 +52,13 @@ pub fn init_actor<NA>(
 where
     NA: NewActor,
 {
-    let system_ref = system_ref();
+    let runtime_ref = runtime();
     let pid = ProcessId(0);
 
-    let inbox = Inbox::new(pid, system_ref.clone());
+    let inbox = Inbox::new(pid, runtime_ref.clone());
     let actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
 
-    let ctx = actor::Context::new(pid, system_ref, inbox);
+    let ctx = actor::Context::new(pid, runtime_ref, inbox);
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, actor_ref))
@@ -77,12 +77,12 @@ pub(crate) fn init_actor_inbox<NA>(
 where
     NA: NewActor,
 {
-    let system_ref = system_ref();
+    let runtime_ref = runtime();
     let pid = ProcessId(0);
 
-    let inbox = Inbox::new(pid, system_ref.clone());
+    let inbox = Inbox::new(pid, runtime_ref.clone());
 
-    let ctx = actor::Context::new(pid, system_ref, inbox.clone());
+    let ctx = actor::Context::new(pid, runtime_ref, inbox.clone());
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, inbox))
@@ -90,18 +90,18 @@ where
 
 /// Poll a future.
 ///
-/// The [`task::Context`] will be provided by the *test* actor system.
+/// The [`task::Context`] will be provided by the *test* runtime.
 ///
 /// # Notes
 ///
 /// Wake notifications will be ignored. If this is required run an end to end
-/// test with a completely functional actor system instead.
+/// test with a completely functional runtime instead.
 pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
 where
     Fut: Future,
 {
     let pid = ProcessId(0);
-    let waker = system_ref().new_waker(pid);
+    let waker = runtime().new_waker(pid);
     let mut ctx = task::Context::from_waker(&waker);
     Future::poll(future, &mut ctx)
 }
@@ -109,18 +109,18 @@ where
 /// Poll an actor.
 ///
 /// This is effectively the same function as [`poll_future`], but instead polls
-/// an actor. The [`task::Context`] will be provided by the *test* actor system.
+/// an actor. The [`task::Context`] will be provided by the *test* runtime.
 ///
 /// # Notes
 ///
 /// Wake notifications will be ignored. If this is required run an end to end
-/// test with a completely functional actor system instead.
+/// test with a completely functional runtime instead.
 pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
 where
     A: Actor,
 {
     let pid = ProcessId(0);
-    let waker = system_ref().new_waker(pid);
+    let waker = runtime().new_waker(pid);
     let mut ctx = task::Context::from_waker(&waker);
     Actor::try_poll(actor, &mut ctx)
 }

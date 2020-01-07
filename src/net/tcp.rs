@@ -58,21 +58,20 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// use heph::actor::Bound;
 /// use heph::log::REQUEST_TARGET;
 /// use heph::net::TcpListener;
-/// use heph::system::RuntimeError;
-/// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef, SupervisorStrategy};
+/// use heph::{RuntimeError, actor, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
 ///
 /// fn main() -> Result<(), RuntimeError> {
 ///     heph::log::init();
 ///
-///     ActorSystem::new().with_setup(setup).run()
+///     Runtime::new().with_setup(setup).run()
 /// }
 ///
-/// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
+/// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 ///     let address = "127.0.0.1:8000".parse().unwrap();
 ///
-///     system_ref.spawn(supervisor, actor as fn(_, _) -> _, address,
+///     runtime_ref.spawn(supervisor, actor as fn(_, _) -> _, address,
 ///         ActorOptions::default().schedule());
-/// #   system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions::default().schedule());
+/// #   runtime_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions::default().schedule());
 ///
 ///     Ok(())
 /// }
@@ -128,21 +127,20 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// use heph::actor::Bound;
 /// use heph::log::REQUEST_TARGET;
 /// use heph::net::TcpListener;
-/// use heph::system::RuntimeError;
-/// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef, SupervisorStrategy};
+/// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
 ///
 /// fn main() -> Result<(), RuntimeError> {
 ///     heph::log::init();
 ///
-///     ActorSystem::new().with_setup(setup).run()
+///     Runtime::new().with_setup(setup).run()
 /// }
 ///
-/// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
+/// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 ///     let address = "127.0.0.1:8000".parse().unwrap();
 ///
-///     system_ref.spawn(supervisor, actor as fn(_, _) -> _, address,
+///     runtime_ref.spawn(supervisor, actor as fn(_, _) -> _, address,
 ///         ActorOptions::default().schedule());
-/// #   system_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions::default().schedule());
+/// #   runtime_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions::default().schedule());
 ///
 ///     Ok(())
 /// }
@@ -200,7 +198,7 @@ impl TcpListener {
     pub fn bind<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpListener> {
         let mut socket = net::TcpListener::bind(address)?;
         let pid = ctx.pid();
-        ctx.system_ref()
+        ctx.runtime()
             .register(&mut socket, pid.into(), Interest::READABLE)?;
         Ok(TcpListener { socket })
     }
@@ -333,7 +331,7 @@ impl actor::Bound for TcpListener {
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
-        ctx.system_ref()
+        ctx.runtime()
             .reregister(&mut self.socket, pid.into(), Interest::READABLE)
     }
 }
@@ -359,7 +357,7 @@ impl TcpStream {
     pub fn connect<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpStream> {
         let mut socket = net::TcpStream::connect(address)?;
         let pid = ctx.pid();
-        ctx.system_ref().register(
+        ctx.runtime().register(
             &mut socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,
@@ -476,7 +474,7 @@ impl actor::Bound for TcpStream {
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
-        ctx.system_ref().reregister(
+        ctx.runtime().reregister(
             &mut self.socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,

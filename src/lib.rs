@@ -53,7 +53,7 @@
 //!
 //! The easiest way to get start with Heph is looking at the examples in the
 //! examples directory of the source code. Or by looking through the API
-//! documentation, starting with [`ActorSystem`].
+//! documentation, starting with [`Runtime`].
 //!
 //!
 //! ## Features
@@ -88,8 +88,8 @@ pub mod actor;
 pub mod actor_ref;
 pub mod log;
 pub mod net;
+pub mod rt;
 pub mod supervisor;
-pub mod system;
 pub mod timer;
 
 #[cfg(any(test, feature = "test"))]
@@ -102,6 +102,6 @@ pub use crate::actor::{Actor, NewActor};
 #[doc(no_inline)]
 pub use crate::actor_ref::ActorRef;
 #[doc(no_inline)]
-pub use crate::supervisor::{Supervisor, SupervisorStrategy};
+pub use crate::rt::{ActorOptions, Runtime, RuntimeError, RuntimeRef};
 #[doc(no_inline)]
-pub use crate::system::{ActorOptions, ActorSystem, ActorSystemRef};
+pub use crate::supervisor::{Supervisor, SupervisorStrategy};

@@ -7,34 +7,33 @@ use futures_util::AsyncWriteExt;
 
 use heph::log::{self, error, info};
 use heph::net::tcp::{self, TcpStream};
+use heph::rt::options::Priority;
 use heph::supervisor::{Supervisor, SupervisorStrategy};
-use heph::system::options::Priority;
-use heph::system::RuntimeError;
-use heph::{actor, ActorOptions, ActorSystem, NewActor};
+use heph::{actor, ActorOptions, NewActor, Runtime, RuntimeError};
 
 fn main() -> Result<(), RuntimeError<io::Error>> {
     // For this example we'll enable logging, this give us a bit more insight
-    // into the running system. By default it only logs informational or more
-    // severe messages, the environment variable `LOG_LEVEL` can be set to
-    // change this. For example enabling logging of trace severity message can
-    // be done by setting `LOG_LEVEL=trace`.
+    // into the runtime. By default it only logs informational or more severe
+    // messages, the environment variable `LOG_LEVEL` can be set to change this.
+    // For example enabling logging of trace severity message can be done by
+    // setting `LOG_LEVEL=trace`.
     log::init();
 
     // Create our TCP server. This server will create a new actor for each
     // incoming TCP connection. As always, actors needs supervision, this is
     // done by `conn_supervisor` in this example. And as each actor will need to
-    // be added to the actor system it needs the `ActorOptions` to do that,
-    // we'll use the defaults options here.
+    // be added to the runtime it needs the `ActorOptions` to do that, we'll use
+    // the defaults options here.
     let actor = conn_actor as fn(_, _, _) -> _;
     let address = "127.0.0.1:7890".parse().unwrap();
     let server = tcp::Server::setup(address, conn_supervisor, actor, ActorOptions::default())?;
 
-    // Just like in examples 1 and 2 we'll create our actor system and run our
-    // setup function. But for this example we'll create a worker thread per
-    // available CPU core using `use_all_cores`.
-    ActorSystem::new()
+    // Just like in examples 1 and 2 we'll create our runtime and run our setup
+    // function. But for this example we'll create a worker thread per available
+    // CPU core using `use_all_cores`.
+    Runtime::new()
         .use_all_cores()
-        .with_setup(move |mut system_ref| {
+        .with_setup(move |mut runtime_ref| {
             // As the TCP listener is just another actor we need to spawn it
             // like any other actor. And again actors needs supervision, thus we
             // provide `ServerSupervisor` as supervisor.
@@ -42,11 +41,11 @@ fn main() -> Result<(), RuntimeError<io::Error>> {
             // ongoing requests over accepting new requests possibly overloading
             // the system.
             let options = ActorOptions::default().with_priority(Priority::LOW);
-            let server_ref = system_ref.try_spawn(ServerSupervisor, server, (), options)?;
+            let server_ref = runtime_ref.try_spawn(ServerSupervisor, server, (), options)?;
 
             // The server can handle the interrupt, terminate and quit signals,
             // so it will perform a cleanup shutdown for us.
-            system_ref.receive_signals(server_ref.try_map());
+            runtime_ref.receive_signals(server_ref.try_map());
 
             Ok(())
         })

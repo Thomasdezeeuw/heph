@@ -8,8 +8,7 @@ use std::rc::{Rc, Weak};
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
 
-use crate::system::ActorSystemRef;
-use crate::system::ProcessId;
+use crate::rt::{ProcessId, RuntimeRef};
 
 /// Inbox that holds all messages for an actor.
 #[derive(Debug)]
@@ -22,8 +21,8 @@ struct SharedInbox<M> {
     /// Process id of the actor, used to notify the actor when receiving
     /// message.
     pid: ProcessId,
-    /// Reference to the actor system, used to notify the actor.
-    system_ref: ActorSystemRef,
+    /// Reference to the runtime, used to notify the actor.
+    runtime_ref: RuntimeRef,
     /// The messages in the mailbox.
     ///
     /// NOTE: don't use this directly instead used `with_messages`.
@@ -39,11 +38,11 @@ struct SharedInbox<M> {
 
 impl<M> Inbox<M> {
     /// Create a new inbox.
-    pub fn new(pid: ProcessId, system_ref: ActorSystemRef) -> Inbox<M> {
+    pub fn new(pid: ProcessId, runtime_ref: RuntimeRef) -> Inbox<M> {
         Inbox {
             shared: Rc::new(RefCell::new(SharedInbox {
                 pid,
-                system_ref,
+                runtime_ref,
                 messages: VecDeque::new(),
                 messages2: None,
             })),
@@ -149,7 +148,7 @@ impl<M> InboxRef<M> {
 
                 let pid = shared.pid;
                 shared.messages.push_back(msg);
-                shared.system_ref.notify(pid);
+                shared.runtime_ref.notify(pid);
                 Ok(())
             }
             None => Err(msg),
@@ -318,15 +317,14 @@ where
 ///
 /// use heph::actor::message_select::First;
 /// use heph::supervisor::NoSupervisor;
-/// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
-/// use heph::system::RuntimeError;
+/// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef};
 ///
 /// fn main() -> Result<(), RuntimeError> {
-///     ActorSystem::new().with_setup(setup).run()
+///     Runtime::new().with_setup(setup).run()
 /// }
 ///
-/// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
-///     let mut actor_ref = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
+/// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
+///     let mut actor_ref = runtime_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
 ///         ActorOptions::default());
 ///
 ///     // We'll send our actor two messages.
@@ -366,15 +364,14 @@ impl<M> MessageSelector<M> for First {
 ///
 /// use heph::actor::message_select::Priority;
 /// use heph::supervisor::NoSupervisor;
-/// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
-/// use heph::system::RuntimeError;
+/// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef};
 ///
 /// fn main() -> Result<(), RuntimeError> {
-///     ActorSystem::new().with_setup(setup).run()
+///     Runtime::new().with_setup(setup).run()
 /// }
 ///
-/// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
-///     let mut actor_ref = system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
+/// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
+///     let mut actor_ref = runtime_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
 ///         ActorOptions::default());
 ///
 ///     // We'll send our actor two messages, one normal one and a priority one.

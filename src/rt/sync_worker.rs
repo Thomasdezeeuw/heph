@@ -9,14 +9,14 @@ use mio::{event, Interest, Registry, Token};
 use mio_pipe::new_pipe;
 
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
+use crate::rt::hack::IntoSignalActorRef;
+use crate::rt::Signal;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
-use crate::system::hack::IntoSignalActorRef;
-use crate::system::Signal;
 use crate::ActorRef;
 
 /// Handle to a synchronous worker.
 pub(super) struct SyncWorker {
-    /// Unique id (among all threads in the `ActorSystem`).
+    /// Unique id (among all threads in the `Runtime`).
     id: usize,
     /// Handle for the actual thread.
     handle: thread::JoinHandle<()>,

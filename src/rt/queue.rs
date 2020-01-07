@@ -2,7 +2,7 @@
 
 use std::vec::Drain;
 
-use crate::system::ProcessId;
+use crate::rt::ProcessId;
 
 /// User space readiness queue.
 ///

@@ -1,11 +1,11 @@
-//! Module containing system error types.
+//! Module containing runtime error types.
 
 use std::error::Error;
 use std::{fmt, io};
 
-/// Error returned by running an [`ActorSystem`].
+/// Error returned by running an [`Runtime`].
 ///
-/// [`ActorSystem`]: crate::system::ActorSystem
+/// [`Runtime`]: crate::Runtime
 pub struct RuntimeError<SetupError = !> {
     inner: RuntimeErrorInner<SetupError>,
 }
@@ -43,7 +43,7 @@ impl RuntimeError<!> {
 }
 
 impl<SetupError> RuntimeError<SetupError> {
-    const DESC: &'static str = "error running actor system";
+    const DESC: &'static str = "error running Heph runtime";
 
     pub(crate) const fn coordinator(err: io::Error) -> RuntimeError<SetupError> {
         RuntimeError {
@@ -78,11 +78,11 @@ impl<SetupError> RuntimeError<SetupError> {
 
 /// Method to create a setup error, for use outside of the setup function. This
 /// is useful for example when setting up a [`tcp::Server`] outside the [setup
-/// function in `ActorSystem`] and want to use `RuntimeError` as error returned
-/// by main. See example 2 for example usage.
+/// function in `Runtime`] and want to use `RuntimeError` as error returned by
+/// main. See example 2 for example usage.
 ///
 /// [`tcp::Server`]: crate::net::tcp::Server::setup
-/// [setup function in `ActorSystem`]: crate::system::ActorSystem::with_setup
+/// [setup function in `Runtime`]: crate::Runtime::with_setup
 impl<SetupError> From<SetupError> for RuntimeError<SetupError> {
     fn from(err: SetupError) -> RuntimeError<SetupError> {
         RuntimeError::setup(err)

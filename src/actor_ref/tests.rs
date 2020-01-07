@@ -7,7 +7,7 @@ use crossbeam_channel as channel;
 
 use crate::actor_ref::{ActorRef, LocalActorRef};
 use crate::inbox::Inbox;
-use crate::system::ProcessId;
+use crate::rt::ProcessId;
 use crate::test;
 
 fn assert_send<T: Send>() {}
@@ -35,8 +35,8 @@ fn size_assertions() {
 #[test]
 fn local_actor_ref() {
     let pid = ProcessId(0);
-    let system_ref = test::system_ref();
-    let mut inbox = Inbox::new(pid, system_ref);
+    let runtime_ref = test::runtime();
+    let mut inbox = Inbox::new(pid, runtime_ref);
     let mut actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
 
     // Send a message.
@@ -69,10 +69,10 @@ fn local_actor_ref() {
 #[test]
 fn actor_ref() {
     let pid = ProcessId(0);
-    let mut system_ref = test::system_ref();
-    let mut inbox = Inbox::new(pid, system_ref.clone());
+    let mut runtime_ref = test::runtime();
+    let mut inbox = Inbox::new(pid, runtime_ref.clone());
     let mut actor_ref = LocalActorRef::from_inbox(inbox.create_ref())
-        .upgrade(&mut system_ref)
+        .upgrade(&mut runtime_ref)
         .unwrap();
 
     // Sending messages.
@@ -93,7 +93,7 @@ fn actor_ref() {
     // when trying to upgrade.
     let local_actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
     drop(inbox);
-    assert!(local_actor_ref.upgrade(&mut system_ref).is_err());
+    assert!(local_actor_ref.upgrade(&mut runtime_ref).is_err());
     // Sending messages should also return an error.
     assert!(actor_ref.send(10).is_err());
 }
@@ -125,11 +125,11 @@ fn sync_actor_ref() {
 #[test]
 fn actor_ref_message_order() {
     let pid = ProcessId(0);
-    let mut system_ref = test::system_ref();
-    let mut inbox = Inbox::new(pid, system_ref.clone());
+    let mut runtime_ref = test::runtime();
+    let mut inbox = Inbox::new(pid, runtime_ref.clone());
 
     let mut local_actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
-    let mut actor_ref = local_actor_ref.clone().upgrade(&mut system_ref).unwrap();
+    let mut actor_ref = local_actor_ref.clone().upgrade(&mut runtime_ref).unwrap();
 
     // Send a number messages via both the local and machine references.
     local_actor_ref <<= 1;
@@ -169,8 +169,8 @@ impl TryFrom<Msg2> for M {
 #[test]
 fn local_mapped_actor_ref() {
     let pid = ProcessId(0);
-    let system_ref = test::system_ref();
-    let mut inbox = Inbox::<M>::new(pid, system_ref);
+    let runtime_ref = test::runtime();
+    let mut inbox = Inbox::<M>::new(pid, runtime_ref);
 
     let mut actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
     let mut mapped_actor_ref: LocalActorRef<Msg> = actor_ref.clone().map();
@@ -188,8 +188,8 @@ fn local_mapped_actor_ref() {
 #[test]
 fn local_try_mapped_actor_ref() {
     let pid = ProcessId(0);
-    let system_ref = test::system_ref();
-    let mut inbox = Inbox::<M>::new(pid, system_ref);
+    let runtime_ref = test::runtime();
+    let mut inbox = Inbox::<M>::new(pid, runtime_ref);
 
     let mut actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
     let mut mapped_actor_ref: LocalActorRef<Msg2> = actor_ref.clone().try_map();
@@ -207,11 +207,11 @@ fn local_try_mapped_actor_ref() {
 #[test]
 fn mapped_actor_ref() {
     let pid = ProcessId(0);
-    let mut system_ref = test::system_ref();
-    let mut inbox = Inbox::<M>::new(pid, system_ref.clone());
+    let mut runtime_ref = test::runtime();
+    let mut inbox = Inbox::<M>::new(pid, runtime_ref.clone());
 
     let local_actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
-    let actor_ref = local_actor_ref.upgrade(&mut system_ref).unwrap();
+    let actor_ref = local_actor_ref.upgrade(&mut runtime_ref).unwrap();
     let mapped_actor_ref: ActorRef<Msg> = actor_ref.clone().map();
 
     actor_ref.send(M(1)).expect("unable to send message");
@@ -227,11 +227,11 @@ fn mapped_actor_ref() {
 #[test]
 fn try_mapped_actor_ref() {
     let pid = ProcessId(0);
-    let mut system_ref = test::system_ref();
-    let mut inbox = Inbox::<M>::new(pid, system_ref.clone());
+    let mut runtime_ref = test::runtime();
+    let mut inbox = Inbox::<M>::new(pid, runtime_ref.clone());
 
     let local_actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
-    let actor_ref = local_actor_ref.upgrade(&mut system_ref).unwrap();
+    let actor_ref = local_actor_ref.upgrade(&mut runtime_ref).unwrap();
     let mapped_actor_ref: ActorRef<Msg2> = actor_ref.clone().try_map();
 
     actor_ref.send(M(1)).expect("unable to send message");

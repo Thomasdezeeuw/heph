@@ -7,7 +7,7 @@ use std::task::{RawWaker, RawWakerVTable, Waker};
 use crossbeam_channel::Sender;
 use log::error;
 
-use crate::system::ProcessId;
+use crate::rt::ProcessId;
 
 /// Maximum number of threads currently supported by this `Waker`
 /// implementation.
@@ -63,8 +63,8 @@ pub fn mark_polled(waker_id: WakerId) {
     get_waker(waker_id).mark_polled();
 }
 
-/// Each worker thread of the `ActorSystem` has a unique `WakeId` which is used
-/// as index into this array.
+/// Each worker thread of the `Runtime` has a unique `WakeId` which is used as
+/// index into this array.
 ///
 /// # Safety
 ///
@@ -217,8 +217,8 @@ mod tests {
 
     use mio::{Events, Poll, Token, Waker};
 
-    use crate::system::waker::{self, WakerData};
-    use crate::system::ProcessId;
+    use crate::rt::waker::{self, WakerData};
+    use crate::rt::ProcessId;
 
     const AWAKENER: Token = Token(0);
     const PID1: ProcessId = ProcessId(0);

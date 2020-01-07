@@ -8,21 +8,20 @@ use std::task::{self, Poll};
 use crate::actor::message_select::{First, MessageSelector};
 use crate::actor_ref::LocalActorRef;
 use crate::inbox::Inbox;
-use crate::system::ActorSystemRef;
-use crate::system::ProcessId;
+use crate::rt::ProcessId;
+use crate::RuntimeRef;
 
 /// The context in which an actor is executed.
 ///
 /// This context can be used for a number of things including receiving
-/// messages and getting access to the running actor system.
+/// messages and getting access to the runtime.
 #[derive(Debug)]
 pub struct Context<M> {
-    /// Process id of the actor, used as `EventedId` in registering things, e.g.
-    /// a `TcpStream`, with the system poller.
+    /// Process id of the actor, used as `Token` in registering things, e.g.
+    /// a `TcpStream`, with `mio::Poll`.
     pid: ProcessId,
-    /// A reference to the actor system, used to get access to the system
-    /// poller.
-    system_ref: ActorSystemRef,
+    /// A reference to the runtime, used to get access to `mio::Poll`.
+    runtime_ref: RuntimeRef,
     /// Inbox of the actor, shared between this and zero or more actor
     /// references. It's owned by the context, the actor references only have a
     /// weak reference.
@@ -36,12 +35,12 @@ impl<M> Context<M> {
     /// Create a new `actor::Context`.
     pub(crate) const fn new(
         pid: ProcessId,
-        system_ref: ActorSystemRef,
+        runtime_ref: RuntimeRef,
         inbox: Inbox<M>,
     ) -> Context<M> {
         Context {
             pid,
-            system_ref,
+            runtime_ref,
             inbox,
         }
     }
@@ -279,9 +278,9 @@ impl<M> Context<M> {
         LocalActorRef::from_inbox(self.inbox.create_ref())
     }
 
-    /// Get a reference to the actor system this actor is running in.
-    pub fn system_ref(&mut self) -> &mut ActorSystemRef {
-        &mut self.system_ref
+    /// Get a reference to the runtime this actor is running in.
+    pub fn runtime(&mut self) -> &mut RuntimeRef {
+        &mut self.runtime_ref
     }
 
     /// Get the pid of this actor.

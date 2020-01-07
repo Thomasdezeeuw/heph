@@ -11,7 +11,7 @@
 //! Three more default messages should be considered, the two variants from
 //! [`Result`]: [`Ok`] and [`Err`] and [`Signal`] to handle process signals.
 //!
-//! [`Signal`]: crate::system::Signal
+//! [`Signal`]: crate::rt::Signal
 //!
 //! # Examples
 //!

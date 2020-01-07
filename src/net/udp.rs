@@ -57,24 +57,23 @@ pub enum Connected {}
 ///
 /// use heph::actor::messages::Terminate;
 /// use heph::net::UdpSocket;
-/// use heph::system::RuntimeError;
-/// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef, SupervisorStrategy};
+/// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
 ///
 /// fn main() -> Result<(), RuntimeError> {
 ///     heph::log::init();
 ///
-///     ActorSystem::new().with_setup(setup).run()
+///     Runtime::new().with_setup(setup).run()
 /// }
 ///
-/// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
+/// fn setup(mut runtime: RuntimeRef) -> Result<(), !> {
 ///     let address = "127.0.0.1:7000".parse().unwrap();
 ///
 ///     // Add our server actor.
-///     system_ref.spawn(supervisor, echo_server as fn(_, _) -> _, address,
+///     runtime.spawn(supervisor, echo_server as fn(_, _) -> _, address,
 ///         ActorOptions::default().schedule());
 ///
 ///     // Add our client actor.
-///     system_ref.spawn(supervisor, client as fn(_, _) -> _, address,
+///     runtime.spawn(supervisor, client as fn(_, _) -> _, address,
 ///         ActorOptions::default().schedule());
 ///
 ///     Ok(())
@@ -146,7 +145,7 @@ impl UdpSocket {
     ) -> io::Result<UdpSocket<Unconnected>> {
         let mut socket = net::UdpSocket::bind(local)?;
         let pid = ctx.pid();
-        ctx.system_ref().register(
+        ctx.runtime().register(
             &mut socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,
@@ -360,7 +359,7 @@ impl actor::Bound for UdpSocket {
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
-        ctx.system_ref().reregister(
+        ctx.runtime().reregister(
             &mut self.socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,

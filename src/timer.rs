@@ -19,8 +19,8 @@ use std::time::{Duration, Instant};
 
 use futures_core::stream::{FusedStream, Stream};
 
-use crate::actor;
-use crate::system::{ActorSystemRef, ProcessId};
+use crate::rt::ProcessId;
+use crate::{actor, RuntimeRef};
 
 /// Type returned when the deadline has passed.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -42,18 +42,18 @@ pub struct DeadlinePassed;
 ///
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
-/// # use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
+/// # use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
 /// use heph::timer::Timer;
 ///
 /// # fn main() -> Result<(), RuntimeError> {
-/// #     ActorSystem::new().with_setup(setup).run()
+/// #     Runtime::new().with_setup(setup).run()
 /// # }
 /// #
 /// #
-/// # fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
+/// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 /// #   let actor = actor as fn(_) -> _;
 /// #   let options = ActorOptions::default().schedule();
-/// #   system_ref.spawn(NoSupervisor, actor, (), options);
+/// #   runtime_ref.spawn(NoSupervisor, actor, (), options);
 /// #   Ok(())
 /// # }
 /// #
@@ -79,7 +79,7 @@ impl Timer {
     /// Create a new `Timer`.
     pub fn new<M>(ctx: &mut actor::Context<M>, deadline: Instant) -> Timer {
         let pid = ctx.pid();
-        ctx.system_ref().add_deadline(pid, deadline);
+        ctx.runtime().add_deadline(pid, deadline);
         Timer { deadline }
     }
 
@@ -115,7 +115,7 @@ impl actor::Bound for Timer {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
-        ctx.system_ref().add_deadline(pid, self.deadline);
+        ctx.runtime().add_deadline(pid, self.deadline);
         Ok(())
     }
 }
@@ -141,17 +141,17 @@ impl actor::Bound for Timer {
 ///
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
-/// # use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
+/// # use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
 /// use heph::timer::{DeadlinePassed, Deadline};
 ///
 /// # fn main() -> Result<(), RuntimeError> {
-/// #     ActorSystem::new().with_setup(setup).run()
+/// #     Runtime::new().with_setup(setup).run()
 /// # }
 /// #
-/// # fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
+/// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 /// #   let actor = actor as fn(_) -> _;
 /// #   let options = ActorOptions::default().schedule();
-/// #   system_ref.spawn(NoSupervisor, actor, (), options);
+/// #   runtime_ref.spawn(NoSupervisor, actor, (), options);
 /// #   Ok(())
 /// # }
 /// #
@@ -190,7 +190,7 @@ impl<Fut> Deadline<Fut> {
     /// Create a new `Deadline`.
     pub fn new<M>(ctx: &mut actor::Context<M>, deadline: Instant, future: Fut) -> Deadline<Fut> {
         let pid = ctx.pid();
-        ctx.system_ref().add_deadline(pid, deadline);
+        ctx.runtime().add_deadline(pid, deadline);
         Deadline { deadline, future }
     }
 
@@ -238,7 +238,7 @@ impl<Fut> actor::Bound for Deadline<Fut> {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
-        ctx.system_ref().add_deadline(pid, self.deadline);
+        ctx.runtime().add_deadline(pid, self.deadline);
         Ok(())
     }
 }
@@ -272,17 +272,17 @@ impl<Fut> actor::Bound for Deadline<Fut> {
 ///
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
-/// # use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
+/// # use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
 /// use heph::timer::Interval;
 /// #
 /// # fn main() -> Result<(), RuntimeError> {
-/// #     ActorSystem::new().with_setup(setup).run()
+/// #     Runtime::new().with_setup(setup).run()
 /// # }
 /// #
-/// # fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
+/// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 /// #   let actor = actor as fn(_) -> _;
 /// #   let options = ActorOptions::default().schedule();
-/// #   system_ref.spawn(NoSupervisor, actor, (), options);
+/// #   runtime_ref.spawn(NoSupervisor, actor, (), options);
 /// #   Ok(())
 /// # }
 ///
@@ -307,21 +307,21 @@ pub struct Interval {
     interval: Duration,
     deadline: Instant,
     pid: ProcessId,
-    system_ref: ActorSystemRef,
+    runtime_ref: RuntimeRef,
 }
 
 impl Interval {
     /// Create a new `Interval`.
     pub fn new<M>(ctx: &mut actor::Context<M>, interval: Duration) -> Interval {
         let deadline = Instant::now() + interval;
-        let mut system_ref = ctx.system_ref().clone();
+        let mut runtime_ref = ctx.runtime().clone();
         let pid = ctx.pid();
-        system_ref.add_deadline(pid, deadline);
+        runtime_ref.add_deadline(pid, deadline);
         Interval {
             interval,
             deadline,
             pid,
-            system_ref,
+            runtime_ref,
         }
     }
 
@@ -340,7 +340,7 @@ impl Stream for Interval {
             let next_deadline = Instant::now() + self.interval;
             let this = Pin::get_mut(self);
             this.deadline = next_deadline;
-            this.system_ref.add_deadline(this.pid, next_deadline);
+            this.runtime_ref.add_deadline(this.pid, next_deadline);
             Poll::Ready(Some(DeadlinePassed))
         } else {
             Poll::Pending
@@ -361,10 +361,10 @@ impl actor::Bound for Interval {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
-        let mut system_ref = ctx.system_ref().clone();
-        system_ref.add_deadline(pid, self.deadline);
+        let mut runtime_ref = ctx.runtime().clone();
+        runtime_ref.add_deadline(pid, self.deadline);
         self.pid = pid;
-        self.system_ref = system_ref;
+        self.runtime_ref = runtime_ref;
         Ok(())
     }
 }

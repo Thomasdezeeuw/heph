@@ -74,16 +74,15 @@ pub trait NewActor {
     /// #![feature(never_type)]
     ///
     /// use heph::supervisor::NoSupervisor;
-    /// use heph::system::RuntimeError;
-    /// use heph::{actor, ActorOptions, ActorSystem};
+    /// use heph::{actor, RuntimeError, ActorOptions, Runtime};
     ///
     /// fn main() -> Result<(), RuntimeError> {
-    ///     // Create and run the actor system.
-    ///     ActorSystem::new()
-    ///         .with_setup(|mut system_ref| {
-    ///             // Add the actor to the system.
+    ///     // Create and run the runtime.
+    ///     Runtime::new()
+    ///         .with_setup(|mut runtime_ref| {
+    ///             // Spawn the actor.
     ///             let new_actor = actor as fn(_) -> _;
-    ///             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (),
+    ///             let mut actor_ref = runtime_ref.spawn(NoSupervisor, new_actor, (),
     ///                 ActorOptions::default());
     ///
     ///             // Now we can use the reference to send the actor a message.
@@ -140,7 +139,7 @@ pub trait NewActor {
     ///
     /// [`tcp::Server`]: crate::net::tcp::Server
     /// [`new`]: NewActor::new
-    /// [`try_spawn`]: crate::system::ActorSystemRef::try_spawn
+    /// [`try_spawn`]: crate::RuntimeRef::try_spawn
     /// [implementations]: #foreign-impls
     type Argument;
 
@@ -190,15 +189,15 @@ pub trait NewActor {
     /// # use heph::log::error;
     /// use heph::net::tcp::{self, TcpStream};
     /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
-    /// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
+    /// use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
     ///
     /// fn main() -> Result<(), RuntimeError<io::Error>> {
-    ///     // Create and run the actor system.
-    ///     ActorSystem::new().with_setup(setup).run()
+    ///     // Create and run runtime
+    ///     Runtime::new().with_setup(setup).run()
     /// }
     ///
-    /// /// In this setup function we'll add the TcpListener to the actor system.
-    /// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
+    /// /// In this setup function we'll spawn the `tcp::Server` actor.
+    /// fn setup(mut spawn_ref: RuntimeRef) -> io::Result<()> {
     ///     // Prepare for humans' expand to Mars.
     ///     let greet_mars = true;
     ///
@@ -212,7 +211,7 @@ pub trait NewActor {
     ///     let server = tcp::Server::setup(address, conn_supervisor, new_actor,
     ///         ActorOptions::default())?;
     ///     # let mut actor_ref =
-    ///     system_ref.try_spawn(ServerSupervisor, server, (), ActorOptions::default())?;
+    ///     spawn_ref.try_spawn(ServerSupervisor, server, (), ActorOptions::default())?;
     ///     # actor_ref <<= Terminate;
     ///     Ok(())
     /// }
