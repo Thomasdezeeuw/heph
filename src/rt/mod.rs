@@ -1,13 +1,13 @@
-//! Module with the actor system and related types.
+//! Module with Heph's runtime and related types.
 //!
 //! The module has two main types and a submodule:
 //!
-//! - [`ActorSystem`] is the actor system, used to run all actors.
-//! - [`ActorSystemRef`] is a reference to a running actor system, used for
-//!   example to spawn new actors.
+//! - [`Runtime`] is Heph's runtime, used to run all actors.
+//! - [`RuntimeRef`] is a reference to a running runtime, used for example to
+//!   spawn new actors.
 //!
-//! See [`ActorSystem`] for documentation on how to run an actor system. For
-//! more examples see the examples directory in the source code.
+//! See [`Runtime`] for documentation on how to run an actor. For more examples
+//! see the examples directory in the source code.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -56,45 +56,44 @@ use worker::Worker;
 
 const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 
-/// The system that runs all actors.
+/// The runtime that runs all actors.
 ///
-/// This type implements a builder pattern to build and run an actor system. It
-/// has a single generic parameter `S` which is the type of the setup function.
-/// The setup function is optional, which is represented by `!` (the never
-/// type).
+/// This type implements a builder pattern to build and start a runtime. It has
+/// a single generic parameter `S` which is the type of the setup function. The
+/// setup function is optional, which is represented by `!` (the never type).
 ///
-/// The actor system will start workers threads that will run all actors, these
+/// The runtime will start workers threads that will run all actors, these
 /// threads will run until all actors have returned.
 ///
 /// ## Usage
 ///
-/// Building an actor system starts with calling [`new`], this will create a new
-/// system without a setup function, using a single worker thread.
+/// Building an runtime starts with calling [`new`], this will create a new
+/// runtime without a setup function, using a single worker thread.
 ///
 /// An optional setup function can be added by calling [`with_setup`]. This
-/// setup function will be called on each worker thread the actor system starts,
-/// and thus has to be [`Clone`] and [`Send`]. This will change the `S`
-/// parameter from `!` to an actual type (that of the provided setup function).
-/// Only a single setup function can be used per actor system.
+/// setup function will be called on each worker thread the runtime starts, and
+/// thus has to be [`Clone`] and [`Send`]. This will change the `S` parameter
+/// from `!` to an actual type (that of the provided setup function). Only a
+/// single setup function can be used per runtime.
 ///
 /// Now that the generic parameter is optionally defined we also have some more
-/// configuration options. One such option is the number of threads the system
+/// configuration options. One such option is the number of threads the runtime
 /// uses, this can configured with the [`num_threads`] method, or
 /// [`use_all_cores`].
 ///
-/// Finally after setting all the configuration options the system can be
+/// Finally after setting all the configuration options the runtime can be
 /// [`run`]. This will spawn a number of worker threads to actually run the
-/// system.
+/// actors.
 ///
-/// [`new`]: ActorSystem::new
-/// [`with_setup`]: ActorSystem::with_setup
-/// [`num_threads`]: ActorSystem::num_threads
-/// [`use_all_cores`]: ActorSystem::use_all_cores
-/// [`run`]: ActorSystem::run
+/// [`new`]: Runtime::new
+/// [`with_setup`]: Runtime::with_setup
+/// [`num_threads`]: Runtime::num_threads
+/// [`use_all_cores`]: Runtime::use_all_cores
+/// [`run`]: Runtime::run
 ///
 /// ## Examples
 ///
-/// This simple example shows how to run an `ActorSystem` and add how start a
+/// This simple example shows how to run an `Runtime` and add how start a
 /// single actor on each thread. This should print "Hello World" twice (once on
 /// each worker thread started).
 ///
@@ -102,23 +101,22 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// #![feature(never_type)]
 ///
 /// use heph::supervisor::NoSupervisor;
-/// use heph::system::RuntimeError;
-/// use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
+/// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef};
 ///
 /// fn main() -> Result<(), RuntimeError> {
-///     // Build a new `ActorSystem`.
-///     ActorSystem::new()
+///     // Build a new `Runtime`.
+///     Runtime::new()
 ///         // Start two worker threads.
 ///         .num_threads(2)
 ///         // On each worker thread run our setup function.
 ///         .with_setup(setup)
-///         // And run the system.
+///         // And run the runtime.
 ///         .run()
 /// }
 ///
 /// // This setup function will on run on each created thread. In the case of
 /// // this example we create two threads (see `main`).
-/// fn setup(mut system_ref: ActorSystemRef) -> Result<(), !> {
+/// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 ///     // Asynchronous function don't yet implement the required `NewActor`
 ///     // trait, but function pointers do so we cast our type to a function
 ///     // pointer.
@@ -130,9 +128,9 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 ///     // All actors start with one or more arguments, in our case it's message
 ///     // used to greet people with. See `actor` below.
 ///     let arg = "Hello";
-///     // Spawn the actor to run on our actor system. We get an actor reference
+///     // Spawn the actor to run on our actor runtime. We get an actor reference
 ///     // back which can be used to send the actor messages, see below.
-///     let mut actor_ref = system_ref.spawn(supervisor, actor, arg, ActorOptions::default());
+///     let mut actor_ref = runtime_ref.spawn(supervisor, actor, arg, ActorOptions::default());
 ///
 ///     // Send a message to the actor we just spawned.
 ///     actor_ref <<= "World";
@@ -153,7 +151,7 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 ///     Ok(())
 /// }
 /// ```
-pub struct ActorSystem<S = !> {
+pub struct Runtime<S = !> {
     /// Number of worker threads to create.
     threads: usize,
     /// Synchronous actor thread handles.
@@ -162,11 +160,11 @@ pub struct ActorSystem<S = !> {
     setup: Option<S>,
 }
 
-impl ActorSystem {
-    /// Create a new actor system with the default configuration.
+impl Runtime {
+    /// Create a `Runtime` with the default configuration.
     #[allow(clippy::new_without_default)]
-    pub fn new() -> ActorSystem<!> {
-        ActorSystem {
+    pub fn new() -> Runtime<!> {
+        Runtime {
             threads: 1,
             sync_actors: Vec::new(),
             setup: None,
@@ -175,14 +173,14 @@ impl ActorSystem {
 
     /// Add a setup function.
     ///
-    /// This function will be run on each worker thread the actor system
-    /// creates. Only a single setup function can be added to the actor system.
-    pub fn with_setup<F, E>(self, setup: F) -> ActorSystem<F>
+    /// This function will be run on each worker thread the runtime creates.
+    /// Only a single setup function can be added to the runtime.
+    pub fn with_setup<F, E>(self, setup: F) -> Runtime<F>
     where
-        F: FnOnce(ActorSystemRef) -> Result<(), E> + Send + Clone + 'static,
+        F: FnOnce(RuntimeRef) -> Result<(), E> + Send + Clone + 'static,
         E: Send,
     {
-        ActorSystem {
+        Runtime {
             threads: self.threads,
             sync_actors: self.sync_actors,
             setup: Some(setup),
@@ -190,10 +188,10 @@ impl ActorSystem {
     }
 }
 
-impl<S> ActorSystem<S> {
+impl<S> Runtime<S> {
     /// Set the number of worker threads to use, defaults to one.
     ///
-    /// Most applications would want to use [`ActorSystem::use_all_cores`] which
+    /// Most applications would want to use [`Runtime::use_all_cores`] which
     /// sets the number of threads equal to the number of CPU cores.
     pub fn num_threads(mut self, n: usize) -> Self {
         if n > MAX_THREADS {
@@ -208,7 +206,7 @@ impl<S> ActorSystem<S> {
 
     /// Set the number of worker threads equal to the number of CPU cores.
     ///
-    /// See [`ActorSystem::num_threads`].
+    /// See [`Runtime::num_threads`].
     pub fn use_all_cores(self) -> Self {
         self.num_threads(num_cpus::get())
     }
@@ -241,22 +239,22 @@ impl<S> ActorSystem<S> {
     }
 }
 
-impl<S> ActorSystem<S>
+impl<S> Runtime<S>
 where
     S: SetupFn,
 {
-    /// Run the system.
+    /// Run the runtime.
     ///
     /// This will spawn a number of worker threads (see
-    /// [`ActorSystem::num_threads`]) to run the system. After spawning all
-    /// worker threads it will wait until all worker threads have returned,
-    /// which happens when all actors have returned.
+    /// [`Runtime::num_threads`]) to run. After spawning all worker threads it
+    /// will wait until all worker threads have returned, which happens when all
+    /// actors have returned.
     ///
     /// In addition to waiting for all worker threads it will also watch for
     /// all process signals in [`Signal`] and relay them to actors that want to
     /// handle them, see the [`Signal`] type for more information.
     pub fn run(self) -> Result<(), RuntimeError<S::Error>> {
-        debug!("running actor system: worker_threads={}", self.threads);
+        debug!("running Heph runtime: worker_threads={}", self.threads);
         // Start our worker threads.
         let handles = (0..self.threads)
             .map(|id| Worker::start(id, self.setup.clone()))
@@ -267,14 +265,14 @@ where
     }
 }
 
-impl<S> fmt::Debug for ActorSystem<S> {
+impl<S> fmt::Debug for Runtime<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let setup = if self.setup.is_some() {
             &"Some"
         } else {
             &"None"
         };
-        f.debug_struct("ActorSystem")
+        f.debug_struct("Runtime")
             .field("threads", &self.threads)
             .field("sync_actors (length)", &self.sync_actors.len())
             .field("setup", setup)
@@ -282,25 +280,24 @@ impl<S> fmt::Debug for ActorSystem<S> {
     }
 }
 
-/// A reference to an [`ActorSystem`].
+/// A reference to an [`Runtime`].
 ///
-/// This reference refers to the thread-local actor system, and thus can't be
-/// shared across thread bounds. To share this reference (within the same
-/// thread) it can be cloned.
+/// This reference refers to the thread-local runtime, and thus can't be shared
+/// across thread bounds. To share this reference (within the same thread) it
+/// can be cloned.
 ///
-/// This is passed to the [setup function] when starting the actor system and
-/// can be accessed inside an actor by using the [`actor::Context::system_ref`]
-/// method.
+/// This is passed to the [setup function] when starting the runtime and can be
+/// accessed inside an actor by using the [`actor::Context::runtime`] method.
 ///
-/// [setup function]: ActorSystem::with_setup
+/// [setup function]: Runtime::with_setup
 #[derive(Clone, Debug)]
-pub struct ActorSystemRef {
-    /// A shared reference to the actor system's internals.
-    internal: Rc<ActorSystemInternal>,
+pub struct RuntimeRef {
+    /// A shared reference to the runtime's internals.
+    internal: Rc<RuntimeInternal>,
 }
 
-impl ActorSystemRef {
-    /// Attempts to spawn an actor on the actor system.
+impl RuntimeRef {
+    /// Attempts to spawn an actor.
     ///
     /// Arguments:
     /// * `supervisor`: all actors need supervision, the `supervisor` is the
@@ -311,7 +308,7 @@ impl ActorSystemRef {
     /// * `arg`: the argument passed when starting the actor, and
     /// * `options`: the actor options used to spawn the new actors.
     ///
-    /// See [`ActorSystem`] for an example on spawning actors.
+    /// See [`Runtime`] for an example on spawning actors.
     ///
     /// # Notes
     ///
@@ -319,7 +316,7 @@ impl ActorSystemRef {
     /// such as the implementation provided by async function, it's easier to
     /// use the [`spawn`] method.
     ///
-    /// [`spawn`]: ActorSystemRef::spawn
+    /// [`spawn`]: RuntimeRef::spawn
     pub fn try_spawn<S, NA>(
         &mut self,
         supervisor: S,
@@ -339,12 +336,12 @@ impl ActorSystemRef {
             })
     }
 
-    /// Spawn an actor on the actor system.
+    /// Spawn an actor.
     ///
     /// This is a convenience method for `NewActor` implementations that never
     /// return an error, such as asynchronous functions.
     ///
-    /// See [`ActorSystemRef::try_spawn`] for more information.
+    /// See [`RuntimeRef::try_spawn`] for more information.
     pub fn spawn<S, NA>(
         &mut self,
         supervisor: S,
@@ -378,10 +375,10 @@ impl ActorSystemRef {
     where
         S: Supervisor<NA> + 'static,
         NA: NewActor + 'static,
-        ArgFn: FnOnce(ProcessId, &mut ActorSystemRef) -> Result<NA::Argument, ArgFnE>,
+        ArgFn: FnOnce(ProcessId, &mut RuntimeRef) -> Result<NA::Argument, ArgFnE>,
         NA::Actor: 'static,
     {
-        let ActorSystemInternal {
+        let RuntimeInternal {
             waker_id,
             ref scheduler_ref,
             ..
@@ -391,16 +388,16 @@ impl ActorSystemRef {
         let mut scheduler_ref = scheduler_ref.borrow_mut();
         let process_entry = scheduler_ref.add_process();
         let pid = process_entry.pid();
-        debug!("adding actor to actor system: pid={}", pid);
+        debug!("spawning actor: pid={}", pid);
 
         // Create our actor argument, running any setup required by the caller.
-        let mut system_ref = self.clone();
-        let arg = arg_fn(pid, &mut system_ref).map_err(AddActorError::ArgFn)?;
+        let mut runtime_ref = self.clone();
+        let arg = arg_fn(pid, &mut runtime_ref).map_err(AddActorError::ArgFn)?;
 
         // Create our actor context and our actor with it.
         let inbox = Inbox::new(pid, self.clone());
         let actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
-        let ctx = actor::Context::new(pid, system_ref, inbox.clone());
+        let ctx = actor::Context::new(pid, runtime_ref, inbox.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         if options.should_schedule() {
@@ -481,7 +478,7 @@ impl ActorSystemRef {
     }
 }
 
-/// Internal error returned by adding a new actor to the actor system.
+/// Internal error returned by spawning a actor.
 #[derive(Debug)]
 pub(crate) enum AddActorError<NewActorE, ArgFnE> {
     /// Calling `NewActor::new` actor resulted in an error.
@@ -490,9 +487,9 @@ pub(crate) enum AddActorError<NewActorE, ArgFnE> {
     ArgFn(ArgFnE),
 }
 
-/// Internals of the actor system, to which `ActorSystemRef`s have a reference.
+/// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
-struct ActorSystemInternal {
+struct RuntimeInternal {
     /// Waker id used to create a `Waker`.
     waker_id: WakerId,
     /// A reference to the scheduler to add new processes to.

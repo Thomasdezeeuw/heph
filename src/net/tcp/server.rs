@@ -13,8 +13,8 @@ use crate::actor::messages::Terminate;
 use crate::actor::{self, Actor, NewActor};
 use crate::inbox::Inbox;
 use crate::net::TcpStream;
+use crate::rt::{ActorOptions, AddActorError, ProcessId, RuntimeRef, Signal};
 use crate::supervisor::Supervisor;
-use crate::system::{ActorOptions, ActorSystemRef, AddActorError, ProcessId, Signal};
 
 /// A intermediate structure that implements [`NewActor`], creating
 /// [`tcp::Server`].
@@ -27,7 +27,7 @@ use crate::system::{ActorOptions, ActorSystemRef, AddActorError, ProcessId, Sign
 pub struct ServerSetup<S, NA> {
     /// All fields are in an `Arc` to allow `ServerSetup` to cheaply be cloned
     /// and still be `Send` and `Sync` for use in the setup function of
-    /// `ActorSystem`.
+    /// `Runtime`.
     inner: Arc<ServerSetupInner<S, NA>>,
 }
 
@@ -41,7 +41,7 @@ struct ServerSetupInner<S, NA> {
     supervisor: S,
     /// NewActor used to create an actor for each connection.
     new_actor: NA,
-    /// Options used to add the actor to the actor system.
+    /// Options used to spawn the actor.
     options: ActorOptions,
 }
 
@@ -60,7 +60,7 @@ where
         mut ctx: actor::Context<Self::Message>,
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
-        let mut system_ref = ctx.system_ref().clone();
+        let mut runtime_ref = ctx.runtime().clone();
         let this = &*self.inner;
         // FIXME: `try_clone` is removed in Mio v0.7-alpha.1, use `SO_REUSEPORT`
         // instead, see https://github.com/tokio-rs/mio/pull/1068.
@@ -74,11 +74,11 @@ where
         std::mem::forget(net_listener); // This is `this.listener`.
         let mut listener = listener.map(TcpListener::from_std)?;
 
-        system_ref.register(&mut listener, ctx.pid().into(), Interest::READABLE)?;
+        runtime_ref.register(&mut listener, ctx.pid().into(), Interest::READABLE)?;
 
         Ok(Server {
             listener,
-            system_ref,
+            runtime_ref,
             supervisor: this.supervisor.clone(),
             new_actor: this.new_actor.clone(),
             options: this.options.clone(),
@@ -122,16 +122,16 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// use heph::log::error;
 /// use heph::net::tcp::{self, TcpStream};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
-/// use heph::system::options::Priority;
-/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
+/// use heph::rt::options::Priority;
+/// use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
 ///
 /// fn main() -> Result<(), RuntimeError<io::Error>> {
-///     // Create and run the actor system.
-///     ActorSystem::new().with_setup(setup).run()
+///     // Create and run the Heph runtime.
+///     Runtime::new().with_setup(setup).run()
 /// }
 ///
-/// /// In this setup function we'll add the TCP server to the actor system.
-/// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
+/// /// In this setup function we'll spawn the TCP server.
+/// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
 ///     // The address to listen on.
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     // Create our TCP server. We'll use the default actor options.
@@ -143,7 +143,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///     // overloading the system.
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let mut actor_ref =
-///     system_ref.try_spawn(ServerSupervisor, server, (), options)?;
+///     runtime_ref.try_spawn(ServerSupervisor, server, (), options)?;
 ///     # actor_ref <<= Terminate;
 ///
 ///     Ok(())
@@ -214,15 +214,14 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// use heph::log::error;
 /// use heph::net::tcp::{self, TcpStream};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
-/// use heph::system::options::Priority;
-/// use heph::system::{ActorOptions, ActorSystem, ActorSystemRef, RuntimeError};
+/// use heph::rt::options::Priority;
+/// use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
 ///
 /// fn main() -> Result<(), RuntimeError<io::Error>> {
-///     // Create and run the actor system.
-///     ActorSystem::new().with_setup(setup).run()
+///     Runtime::new().with_setup(setup).run()
 /// }
 ///
-/// fn setup(mut system_ref: ActorSystemRef) -> io::Result<()> {
+/// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
 ///     // This uses the same supervisors as in the previous example, not shown
 ///     // here.
 ///
@@ -231,7 +230,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     let server = tcp::Server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
-///     let mut server_ref = system_ref.try_spawn(ServerSupervisor, server, (), options)?;
+///     let mut server_ref = runtime_ref.try_spawn(ServerSupervisor, server, (), options)?;
 ///
 ///     // Because the server is just another actor we can send it messages.
 ///     // Here we'll send it a terminate message so it will gracefully
@@ -288,14 +287,14 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 pub struct Server<S, NA> {
     /// The underlying TCP listener, backed by Mio.
     listener: TcpListener,
-    /// Reference to the actor system used to add new actors to handle accepted
+    /// Reference to the runtime used to add new actors to handle accepted
     /// connections.
-    system_ref: ActorSystemRef,
+    runtime_ref: RuntimeRef,
     /// Supervisor for all actors created by `NewActor`.
     supervisor: S,
     /// NewActor used to create an actor for each connection.
     new_actor: NA,
-    /// Options used to add the actor to the actor system.
+    /// Options used to spawn the actor.
     options: ActorOptions,
     inbox: Inbox<ServerMessage>,
 }
@@ -340,11 +339,11 @@ where
         self: Pin<&mut Self>,
         _ctx: &mut task::Context<'_>,
     ) -> Poll<Result<(), Self::Error>> {
-        // This is safe because only the `ActorSystemRef`, `TcpListener` and
+        // This is safe because only the `RuntimeRef`, `TcpListener` and
         // the `MailBox` are mutably borrowed and all are `Unpin`.
         let &mut Server {
             ref listener,
-            ref mut system_ref,
+            ref mut runtime_ref,
             ref supervisor,
             ref new_actor,
             ref options,
@@ -367,15 +366,15 @@ where
             };
             debug!("accepted connection from: {}", addr);
 
-            let setup_actor = move |pid: ProcessId, system_ref: &mut ActorSystemRef| {
-                system_ref.register(
+            let setup_actor = move |pid: ProcessId, runtime_ref: &mut RuntimeRef| {
+                runtime_ref.register(
                     &mut stream,
                     pid.into(),
                     Interest::READABLE | Interest::WRITABLE,
                 )?;
                 Ok((TcpStream { socket: stream }, addr))
             };
-            let res = system_ref.try_spawn_setup(
+            let res = runtime_ref.try_spawn_setup(
                 supervisor.clone(),
                 new_actor.clone(),
                 setup_actor,

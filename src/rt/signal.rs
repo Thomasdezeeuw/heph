@@ -1,6 +1,6 @@
 /// Process signal.
 ///
-/// Actors can receive signals by calling [`ActorSystemRef::receive_signals`]
+/// Actors can receive signals by calling [`RuntimeRef::receive_signals`]
 /// with their actor reference.
 ///
 /// Synchronous actors receive signals automatically if they implement the

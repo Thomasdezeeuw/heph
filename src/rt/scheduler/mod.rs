@@ -13,8 +13,8 @@ use log::{debug, trace};
 use slab::Slab;
 
 use crate::inbox::Inbox;
-use crate::system::process::{ActorProcess, Process, ProcessId, ProcessResult};
-use crate::{ActorSystemRef, NewActor, Supervisor};
+use crate::rt::process::{ActorProcess, Process, ProcessId, ProcessResult};
+use crate::{NewActor, RuntimeRef, Supervisor};
 
 mod priority;
 
@@ -69,7 +69,7 @@ impl Scheduler {
 
     /// Check if any processes are present in the scheduler.
     ///
-    /// Used by the actor system to determine whether to stop running.
+    /// Used by the runtime to determine whether to stop running.
     pub fn is_empty(&self) -> bool {
         self.processes.borrow().is_empty()
     }
@@ -82,7 +82,7 @@ impl Scheduler {
     /// Run the next active process.
     ///
     /// Returns `true` if a process was run, `false` otherwise.
-    pub fn run_process(&mut self, system_ref: &mut ActorSystemRef) -> bool {
+    pub fn run_process(&mut self, runtime_ref: &mut RuntimeRef) -> bool {
         let mut process = match self.active.pop() {
             Some(process) => process,
             None => {
@@ -92,7 +92,7 @@ impl Scheduler {
         };
 
         let pid = process.id.0 as usize;
-        match process.run(system_ref) {
+        match process.run(runtime_ref) {
             ProcessResult::Complete => {
                 let process_state = self.processes.borrow_mut().remove(pid);
                 debug_assert!(process_state.is_active(), "removed an inactive process");
@@ -131,7 +131,7 @@ impl SchedulerRef {
 /// A handle to add a process to the scheduler.
 ///
 /// This allows the `ProcessId` to be determined before the process is actually
-/// added. This is used in registering with the system poller.
+/// added, This is used in registering with `mio::Poll`.
 pub struct AddingProcess<'s> {
     processes: RefMut<'s, Slab<ProcessState>>,
 }
@@ -254,11 +254,11 @@ impl PartialOrd for ProcessData {
 }
 
 impl ProcessData {
-    fn run(&mut self, system_ref: &mut ActorSystemRef) -> ProcessResult {
+    fn run(&mut self, runtime_ref: &mut RuntimeRef) -> ProcessResult {
         trace!("running process: pid={}", self.id);
 
         let start = Instant::now();
-        let result = self.process.as_mut().run(system_ref, self.id);
+        let result = self.process.as_mut().run(runtime_ref, self.id);
         let elapsed = start.elapsed();
         self.runtime += elapsed;
 

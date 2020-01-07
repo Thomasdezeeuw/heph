@@ -8,11 +8,10 @@ use std::thread;
 use std::time::Duration;
 
 use heph::supervisor::NoSupervisor;
-use heph::system::RuntimeError;
-use heph::{actor, ActorOptions, ActorSystem};
+use heph::{actor, ActorOptions, Runtime, RuntimeError};
 
 fn main() -> Result<(), RuntimeError> {
-    ActorSystem::new()
+    Runtime::new()
         .with_setup(|mut system_ref| {
             let actor = actor as fn(_) -> _;
             for _ in 0..10_000_000 {

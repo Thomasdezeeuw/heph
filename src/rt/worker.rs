@@ -9,14 +9,14 @@ use log::{debug, trace};
 use mio::{event, Events, Interest, Poll, Registry, Token};
 use mio_pipe::new_pipe;
 
-use crate::system::hack::SetupFn;
-use crate::system::queue::Queue;
-use crate::system::scheduler::Scheduler;
-use crate::system::timers::Timers;
-use crate::system::{waker, ActorSystemInternal, ActorSystemRef, ProcessId, RuntimeError, Signal};
+use crate::rt::hack::SetupFn;
+use crate::rt::queue::Queue;
+use crate::rt::scheduler::Scheduler;
+use crate::rt::timers::Timers;
+use crate::rt::{waker, ProcessId, RuntimeError, RuntimeInternal, RuntimeRef, Signal};
 
 pub(super) struct Worker<E> {
-    /// Unique id (among all threads in the `ActorSystem`).
+    /// Unique id (among all threads in the `Runtime`).
     id: usize,
     /// Handle for the actual thread.
     handle: thread::JoinHandle<Result<(), RuntimeError<E>>>,
@@ -115,32 +115,32 @@ impl<E> event::Source for Worker<E> {
     }
 }
 
-/// Run the actor system, with an optional `setup` function.
+/// Run the Heph runtime, with an optional `setup` function.
 ///
 /// This is the entry point for the worker threads.
 fn main<S>(setup: Option<S>, receiver: mio_pipe::Receiver) -> Result<(), RuntimeError<S::Error>>
 where
     S: SetupFn,
 {
-    let actor_system = RunningActorSystem::new(receiver).map_err(RuntimeError::worker)?;
+    let runtime = RunningRuntime::new(receiver).map_err(RuntimeError::worker)?;
 
     // Run optional setup.
     if let Some(setup) = setup {
-        let system_ref = actor_system.create_ref();
-        setup.setup(system_ref).map_err(RuntimeError::setup)?;
+        let runtime_ref = runtime.create_ref();
+        setup.setup(runtime_ref).map_err(RuntimeError::setup)?;
     }
 
     // All setup is done, so we're ready to run the event loop.
-    actor_system.run_event_loop()
+    runtime.run_event_loop()
 }
 
-/// The system that runs all processes.
+/// The runtime that runs all processes.
 ///
 /// This `pub(crate)` because it's used in the test module.
 #[derive(Debug)]
-pub(crate) struct RunningActorSystem {
-    /// Inside of the system, shared with zero or more `ActorSystemRef`s.
-    internal: Rc<ActorSystemInternal>,
+pub(crate) struct RunningRuntime {
+    /// Inside of the runtime, shared with zero or more `RuntimeRef`s.
+    internal: Rc<RuntimeInternal>,
     events: Events,
     /// Scheduler that hold the processes, schedules and runs them.
     scheduler: Scheduler,
@@ -161,9 +161,9 @@ const RUN_POLL_RATIO: usize = 32;
 const AWAKENER: Token = Token(usize::max_value());
 const COORDINATOR: Token = Token(usize::max_value() - 1);
 
-impl RunningActorSystem {
-    /// Create a new running actor system.
-    pub fn new(mut receiver: mio_pipe::Receiver) -> io::Result<RunningActorSystem> {
+impl RunningRuntime {
+    /// Create a new running runtime.
+    pub fn new(mut receiver: mio_pipe::Receiver) -> io::Result<RunningRuntime> {
         // System queue for event notifications.
         let poll = Poll::new()?;
         let awakener = mio::Waker::new(poll.registry(), AWAKENER)?;
@@ -177,8 +177,8 @@ impl RunningActorSystem {
         // Scheduler for scheduling and running processes.
         let (scheduler, scheduler_ref) = Scheduler::new();
 
-        // Internals of the running actor system.
-        let internal = ActorSystemInternal {
+        // Internals of the running runtime.
+        let internal = RuntimeInternal {
             waker_id,
             scheduler_ref: RefCell::new(scheduler_ref),
             poll: RefCell::new(poll),
@@ -187,8 +187,7 @@ impl RunningActorSystem {
             signal_receivers: RefCell::new(Vec::new()),
         };
 
-        // The actor system we're going to run.
-        Ok(RunningActorSystem {
+        Ok(RunningRuntime {
             internal: Rc::new(internal),
             events: Events::with_capacity(128),
             scheduler,
@@ -197,19 +196,19 @@ impl RunningActorSystem {
         })
     }
 
-    /// Create a new reference to this actor system.
-    pub fn create_ref(&self) -> ActorSystemRef {
-        ActorSystemRef {
+    /// Create a new reference to this runtime.
+    pub fn create_ref(&self) -> RuntimeRef {
+        RuntimeRef {
             internal: self.internal.clone(),
         }
     }
 
-    /// Run the actor system's event loop.
+    /// Run the runtime's event loop.
     pub fn run_event_loop<E>(mut self) -> Result<(), RuntimeError<E>> {
-        debug!("running actor system's event loop");
+        debug!("running runtime's event loop");
 
         // System reference used in running the processes.
-        let mut system_ref = self.create_ref();
+        let mut runtime_ref = self.create_ref();
 
         loop {
             // We first run the processes and only poll after to ensure that we
@@ -217,10 +216,10 @@ impl RunningActorSystem {
             // processes to run then either.
             trace!("running processes");
             for _ in 0..RUN_POLL_RATIO {
-                if !self.scheduler.run_process(&mut system_ref) {
+                if !self.scheduler.run_process(&mut runtime_ref) {
                     if self.scheduler.is_empty() {
                         // No processes left to run, so we're done.
-                        debug!("no processes to run, stopping actor system");
+                        debug!("no processes to run, stopping runtime");
                         return Ok(());
                     } else {
                         // No processes ready to run, try polling again.

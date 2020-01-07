@@ -1,30 +1,28 @@
-//! Options for adding an `Actor` to an `ActorSystem`.
+//! Options for adding an `Actor` to a [`Runtime`].
 
-pub use crate::system::scheduler::Priority;
+pub use crate::rt::scheduler::Priority;
 
-/// Options for adding an actor to an [`ActorSystem`].
+/// Options for adding an actor to an [`Runtime`].
 ///
-/// [`ActorSystem`]: crate::system::ActorSystem
+/// [`Runtime`]: crate::Runtime
 ///
 /// # Examples
 ///
 /// Using the default options.
 ///
 /// ```
-/// use heph::system::ActorOptions;
+/// use heph::rt::ActorOptions;
 ///
 /// let opts = ActorOptions::default();
-///
 /// # drop(opts); // Silence unused variable warning.
 /// ```
 ///
 /// Giving an actor a high priority.
 ///
 /// ```
-/// use heph::system::options::{ActorOptions, Priority};
+/// use heph::rt::options::{ActorOptions, Priority};
 ///
 /// let opts = ActorOptions::default().with_priority(Priority::HIGH);
-///
 /// # drop(opts); // Silence unused variable warning.
 /// ```
 #[derive(Clone, Debug)]
@@ -45,7 +43,7 @@ impl ActorOptions {
         self
     }
 
-    /// Returns true if the actor should be scheduled when added to the system.
+    /// Returns `true` if the actor should be scheduled when spawned.
     ///
     /// See [`schedule`] for more information.
     ///
@@ -54,12 +52,11 @@ impl ActorOptions {
         self.schedule
     }
 
-    /// This option will schedule the actor to be run when added to the actor
-    /// system.
+    /// This option will schedule the actor to run when spawned.
     ///
-    /// By default actors added to the actor system will wait for an external
-    /// event before they start running. This can happen for example by a
-    /// message send to them, or a [`TcpStream`] becoming ready to read or write.
+    /// By default newly spawned actors will wait for an external event before
+    /// they start running. This can happen for example by a message send to
+    /// them, or a [`TcpStream`] becoming ready to read or write.
     ///
     /// [`TcpStream`]: crate::net::TcpStream
     pub const fn schedule(mut self) -> Self {

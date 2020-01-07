@@ -4,9 +4,9 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 
 use crate::inbox::Inbox;
+use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::supervisor::SupervisorStrategy;
-use crate::system::process::{Process, ProcessId, ProcessResult};
-use crate::{actor, Actor, ActorSystemRef, NewActor, Supervisor};
+use crate::{actor, Actor, NewActor, RuntimeRef, Supervisor};
 
 /// A process that represent an [`Actor`].
 pub struct ActorProcess<S, NA: NewActor> {
@@ -42,13 +42,13 @@ where
     /// wasn't restarted and an error if the actor failed to restart.
     fn handle_actor_error(
         &mut self,
-        system_ref: &mut ActorSystemRef,
+        runtime_ref: &mut RuntimeRef,
         pid: ProcessId,
         err: <NA::Actor as Actor>::Error,
     ) -> Result<bool, NA::Error> {
         match self.supervisor.decide(err) {
             SupervisorStrategy::Restart(arg) => {
-                self.create_new_actor(system_ref, pid, arg).map(|()| true)
+                self.create_new_actor(runtime_ref, pid, arg).map(|()| true)
             }
             SupervisorStrategy::Stop => Ok(false),
         }
@@ -57,13 +57,13 @@ where
     /// Same `handle_actor_error` but handles `NewActor::Error`s instead.
     fn handle_restart_error(
         &mut self,
-        system_ref: &mut ActorSystemRef,
+        runtime_ref: &mut RuntimeRef,
         pid: ProcessId,
         err: NA::Error,
     ) -> Result<bool, NA::Error> {
         match self.supervisor.decide_on_restart_error(err) {
             SupervisorStrategy::Restart(arg) => {
-                self.create_new_actor(system_ref, pid, arg).map(|()| true)
+                self.create_new_actor(runtime_ref, pid, arg).map(|()| true)
             }
             SupervisorStrategy::Stop => Ok(false),
         }
@@ -72,12 +72,12 @@ where
     /// Create a new actor and, if successful, replace the old actor with it.
     fn create_new_actor(
         &mut self,
-        system_ref: &mut ActorSystemRef,
+        runtime_ref: &mut RuntimeRef,
         pid: ProcessId,
         arg: NA::Argument,
     ) -> Result<(), NA::Error> {
         // Create a new actor.
-        let ctx = actor::Context::new(pid, system_ref.clone(), self.inbox.clone());
+        let ctx = actor::Context::new(pid, runtime_ref.clone(), self.inbox.clone());
         self.new_actor.new(ctx, arg).map(|actor| self.actor = actor)
     }
 }
@@ -87,29 +87,29 @@ where
     S: Supervisor<NA>,
     NA: NewActor + 'static,
 {
-    fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef, pid: ProcessId) -> ProcessResult {
+    fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult {
         // This is safe because we're not moving any values.
         let this = unsafe { Pin::get_unchecked_mut(self) };
         // The actor need to be called with `Pin`. So we're undoing the previous
         // operation, still ensuring that the actor is not moved.
         let mut pinned_actor = unsafe { Pin::new_unchecked(&mut this.actor) };
 
-        let waker = system_ref.new_waker(pid);
+        let waker = runtime_ref.new_waker(pid);
         let mut ctx = task::Context::from_waker(&waker);
         match Actor::try_poll(pinned_actor.as_mut(), &mut ctx) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
-            Poll::Ready(Err(err)) => match this.handle_actor_error(system_ref, pid, err) {
+            Poll::Ready(Err(err)) => match this.handle_actor_error(runtime_ref, pid, err) {
                 Ok(true) => {
                     // Run the actor, just in case progress can be made already,
                     // this required because we use edge triggers for I/O.
-                    unsafe { Pin::new_unchecked(this) }.run(system_ref, pid)
+                    unsafe { Pin::new_unchecked(this) }.run(runtime_ref, pid)
                 }
                 // Actor wasn't restarted.
                 Ok(false) => ProcessResult::Complete,
-                Err(err) => match this.handle_restart_error(system_ref, pid, err) {
+                Err(err) => match this.handle_restart_error(runtime_ref, pid, err) {
                     Ok(true) => {
                         // Run the actor.
-                        unsafe { Pin::new_unchecked(this) }.run(system_ref, pid)
+                        unsafe { Pin::new_unchecked(this) }.run(runtime_ref, pid)
                     }
                     // Actor wasn't restarted.
                     Ok(false) => ProcessResult::Complete,

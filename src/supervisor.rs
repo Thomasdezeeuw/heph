@@ -57,15 +57,15 @@
 //! use heph::actor;
 //! use heph::log::{self, error};
 //! use heph::supervisor::SupervisorStrategy;
-//! use heph::system::{ActorOptions, ActorSystem, RuntimeError};
+//! use heph::{ActorOptions, Runtime, RuntimeError};
 //!
 //! fn main() -> Result<(), RuntimeError> {
 //!     // Enable logging so we can see the error message.
 //!     log::init();
 //!
-//!     ActorSystem::new()
-//!         .with_setup(|mut system_ref| {
-//!             system_ref.spawn(supervisor, bad_actor as fn(_) -> _, (),
+//!     Runtime::new()
+//!         .with_setup(|mut runtime_ref| {
+//!             runtime_ref.spawn(supervisor, bad_actor as fn(_) -> _, (),
 //!                 ActorOptions::default().schedule());
 //!             Ok(())
 //!         })
@@ -213,13 +213,12 @@ where
 /// #![feature(never_type)]
 ///
 /// use heph::supervisor::NoSupervisor;
-/// use heph::system::RuntimeError;
-/// use heph::{actor, ActorOptions, ActorSystem};
+/// use heph::{actor, RuntimeError, ActorOptions, Runtime};
 ///
 /// fn main() -> Result<(), RuntimeError> {
-///     ActorSystem::new()
-///         .with_setup(|mut system_ref| {
-///             system_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
+///     Runtime::new()
+///         .with_setup(|mut runtime_ref| {
+///             runtime_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
 ///                 ActorOptions::default().schedule());
 ///             Ok(())
 ///         })

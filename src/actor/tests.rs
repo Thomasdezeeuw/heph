@@ -5,15 +5,15 @@ use std::task::Poll;
 
 use crate::actor;
 use crate::inbox::Inbox;
-use crate::system::ProcessId;
+use crate::rt::ProcessId;
 use crate::test;
 
 #[test]
 fn test_actor_context() {
     let pid = ProcessId(0);
-    let system_ref = test::system_ref();
-    let inbox = Inbox::new(pid, system_ref.clone());
-    let mut ctx = actor::Context::new(pid, system_ref, inbox);
+    let runtime_ref = test::runtime();
+    let inbox = Inbox::new(pid, runtime_ref.clone());
+    let mut ctx = actor::Context::new(pid, runtime_ref, inbox);
 
     assert_eq!(ctx.pid(), pid);
     let mut actor_ref = ctx.actor_ref();

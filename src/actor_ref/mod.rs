@@ -42,15 +42,14 @@
 //! #![feature(never_type)]
 //!
 //! use heph::supervisor::NoSupervisor;
-//! use heph::system::RuntimeError;
-//! use heph::{actor, ActorOptions, ActorSystem};
+//! use heph::{actor, RuntimeError, ActorOptions, Runtime};
 //!
 //! fn main() -> Result<(), RuntimeError> {
-//!     ActorSystem::new()
-//!         .with_setup(|mut system_ref| {
-//!             // Add the actor to the actor system.
+//!     Runtime::new()
+//!         .with_setup(|mut runtime_ref| {
+//!             // Spawn the actor.
 //!             let new_actor = actor as fn(_) -> _;
-//!             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (),
+//!             let mut actor_ref = runtime_ref.spawn(NoSupervisor, new_actor, (),
 //!                 ActorOptions::default());
 //!
 //!             // Now we can use the reference to send the actor a message.
@@ -82,14 +81,13 @@
 //! #![feature(never_type)]
 //!
 //! use heph::supervisor::NoSupervisor;
-//! use heph::system::RuntimeError;
-//! use heph::{actor, ActorOptions, ActorSystem};
+//! use heph::{actor, RuntimeError, ActorOptions, Runtime};
 //!
 //! fn main() -> Result<(), RuntimeError> {
-//!     ActorSystem::new()
-//!         .with_setup(|mut system_ref| {
+//!     Runtime::new()
+//!         .with_setup(|mut runtime_ref| {
 //!             let new_actor = actor as fn(_) -> _;
-//!             let mut actor_ref = system_ref.spawn(NoSupervisor, new_actor, (),
+//!             let mut actor_ref = runtime_ref.spawn(NoSupervisor, new_actor, (),
 //!                 ActorOptions::default());
 //!
 //!             // To create another actor reference we can simply clone the
@@ -127,7 +125,7 @@ use std::task::Waker;
 use crossbeam_channel::Sender;
 
 use crate::inbox::InboxRef;
-use crate::system::ActorSystemRef;
+use crate::RuntimeRef;
 
 mod error;
 
@@ -151,7 +149,7 @@ trait MappedActorRef<M> {
 
     /// Required by `LocalActorRef::upgrade`.
     // FIXME: move this to a separate trait.
-    fn upgrade(&self, system_ref: &mut ActorSystemRef) -> Result<ActorRef<M>, ActorShutdown>;
+    fn upgrade(&self, runtime_ref: &mut RuntimeRef) -> Result<ActorRef<M>, ActorShutdown>;
 }
 
 /// Trait to erase the original message type of the actor reference.
@@ -160,7 +158,7 @@ trait TryMappedActorRef<M> {
 
     /// Required by `LocalActorRef::upgrade`.
     // FIXME: move this to a separate trait.
-    fn upgrade(&self, system_ref: &mut ActorSystemRef) -> Result<ActorRef<M>, ActorShutdown>;
+    fn upgrade(&self, runtime_ref: &mut RuntimeRef) -> Result<ActorRef<M>, ActorShutdown>;
 }
 
 /// A reference to a local actor.
@@ -269,32 +267,26 @@ impl<M> LocalActorRef<M> {
     ///
     /// This allows the actor reference to be send across threads, however
     /// operations on it are more expensive.
-    pub fn upgrade(
-        mut self,
-        system_ref: &mut ActorSystemRef,
-    ) -> Result<ActorRef<M>, ActorShutdown> {
-        self.upgrade_ref(system_ref)
+    pub fn upgrade(mut self, runtime_ref: &mut RuntimeRef) -> Result<ActorRef<M>, ActorShutdown> {
+        self.upgrade_ref(runtime_ref)
     }
 
     // TODO: maybe just change `upgrade` to take `&mut self`? Would make it
     // different from ActorRef in API.
-    fn upgrade_ref(
-        &mut self,
-        system_ref: &mut ActorSystemRef,
-    ) -> Result<ActorRef<M>, ActorShutdown> {
+    fn upgrade_ref(&mut self, runtime_ref: &mut RuntimeRef) -> Result<ActorRef<M>, ActorShutdown> {
         use LocalActorRefKind::*;
         match &mut self.kind {
             Local(inbox) => match inbox.try_upgrade_ref() {
                 Ok((pid, sender)) => {
-                    let waker = system_ref.new_waker(pid);
+                    let waker = runtime_ref.new_waker(pid);
                     Ok(ActorRef {
                         kind: ActorRefKind::Node((sender, waker)),
                     })
                 }
                 Err(()) => Err(ActorShutdown),
             },
-            Mapped(actor_ref) => actor_ref.upgrade(system_ref),
-            TryMapped(actor_ref) => actor_ref.upgrade(system_ref),
+            Mapped(actor_ref) => actor_ref.upgrade(runtime_ref),
+            TryMapped(actor_ref) => actor_ref.upgrade(runtime_ref),
         }
     }
 }
@@ -335,8 +327,10 @@ where
         self.borrow_mut().send(msg)
     }
 
-    fn upgrade(&self, system_ref: &mut ActorSystemRef) -> Result<ActorRef<Msg>, ActorShutdown> {
-        self.borrow_mut().upgrade_ref(system_ref).map(ActorRef::map)
+    fn upgrade(&self, runtime_ref: &mut RuntimeRef) -> Result<ActorRef<Msg>, ActorShutdown> {
+        self.borrow_mut()
+            .upgrade_ref(runtime_ref)
+            .map(ActorRef::map)
     }
 }
 
@@ -350,9 +344,9 @@ where
             .and_then(|msg| self.borrow_mut().send(msg))
     }
 
-    fn upgrade(&self, system_ref: &mut ActorSystemRef) -> Result<ActorRef<Msg>, ActorShutdown> {
+    fn upgrade(&self, runtime_ref: &mut RuntimeRef) -> Result<ActorRef<Msg>, ActorShutdown> {
         self.borrow_mut()
-            .upgrade_ref(system_ref)
+            .upgrade_ref(runtime_ref)
             .map(ActorRef::try_map)
     }
 }
@@ -522,7 +516,7 @@ where
         self.send(msg)
     }
 
-    fn upgrade(&self, _system_ref: &mut ActorSystemRef) -> Result<ActorRef<Msg>, ActorShutdown> {
+    fn upgrade(&self, _runtime_ref: &mut RuntimeRef) -> Result<ActorRef<Msg>, ActorShutdown> {
         // Not called.
         unreachable!()
     }
@@ -538,7 +532,7 @@ where
             .and_then(|msg| self.send(msg))
     }
 
-    fn upgrade(&self, _system_ref: &mut ActorSystemRef) -> Result<ActorRef<Msg>, ActorShutdown> {
+    fn upgrade(&self, _runtime_ref: &mut RuntimeRef) -> Result<ActorRef<Msg>, ActorShutdown> {
         // Not called.
         unreachable!()
     }

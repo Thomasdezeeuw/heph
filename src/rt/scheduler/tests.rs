@@ -12,11 +12,11 @@ use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{pending, Pending};
 use futures_util::pending;
 
+use crate::rt::process::{Process, ProcessId, ProcessResult};
+use crate::rt::scheduler::{Priority, ProcessData, ProcessState, Scheduler};
+use crate::rt::RuntimeRef;
 use crate::supervisor::NoSupervisor;
-use crate::system::process::{Process, ProcessId, ProcessResult};
-use crate::system::scheduler::{Priority, ProcessData, ProcessState, Scheduler};
-use crate::system::ActorSystemRef;
-use crate::test::{init_actor_inbox, system_ref};
+use crate::test::{self, init_actor_inbox};
 use crate::{actor, NewActor};
 
 fn assert_size<T>(expected: usize) {
@@ -62,11 +62,7 @@ fn priority_duration_multiplication() {
 struct NopTestProcess;
 
 impl Process for NopTestProcess {
-    fn run(
-        self: Pin<&mut Self>,
-        _system_ref: &mut ActorSystemRef,
-        _pid: ProcessId,
-    ) -> ProcessResult {
+    fn run(self: Pin<&mut Self>, _runtime_ref: &mut RuntimeRef, _pid: ProcessId) -> ProcessResult {
         unimplemented!();
     }
 }
@@ -160,11 +156,7 @@ fn process_data_ordering() {
 struct SleepyProcess(Duration);
 
 impl Process for SleepyProcess {
-    fn run(
-        self: Pin<&mut Self>,
-        _system_ref: &mut ActorSystemRef,
-        _pid: ProcessId,
-    ) -> ProcessResult {
+    fn run(self: Pin<&mut Self>, _runtime_ref: &mut RuntimeRef, _pid: ProcessId) -> ProcessResult {
         sleep(self.0);
         ProcessResult::Pending
     }
@@ -182,8 +174,8 @@ fn process_data_runtime_increase() {
     };
 
     // Runtime must increase after running.
-    let mut system_ref = system_ref();
-    let res = process.run(&mut system_ref);
+    let mut runtime_ref = test::runtime();
+    let res = process.run(&mut runtime_ref);
     assert_eq!(res, ProcessResult::Pending);
     assert!(process.runtime >= SLEEP_TIME);
 }
@@ -214,12 +206,12 @@ async fn simple_actor(_ctx: actor::Context<!>) -> Result<(), !> {
 #[test]
 fn adding_process() {
     let (mut scheduler, mut scheduler_ref) = Scheduler::new();
-    let mut system_ref = system_ref();
+    let mut runtime_ref = test::runtime();
 
     // Shouldn't run any process yet, since none are added.
     assert!(scheduler.is_empty());
     assert!(!scheduler.has_active_process());
-    assert!(!scheduler.run_process(&mut system_ref));
+    assert!(!scheduler.run_process(&mut runtime_ref));
 
     // Add an actor to the scheduler.
     let process_entry = scheduler_ref.add_process();
@@ -232,18 +224,18 @@ fn adding_process() {
     // Newly added processes aren't ready by default.
     assert!(!scheduler.is_empty());
     assert!(!scheduler.has_active_process());
-    assert!(!scheduler.run_process(&mut system_ref));
+    assert!(!scheduler.run_process(&mut runtime_ref));
 
     // After scheduling the process should be ready to run.
     scheduler.schedule(ProcessId(0));
     assert!(!scheduler.is_empty());
     assert!(scheduler.has_active_process());
-    assert!(scheduler.run_process(&mut system_ref));
+    assert!(scheduler.run_process(&mut runtime_ref));
     // After the process is run, and returned `ProcessResult::Complete`, it
     // should be removed.
     assert!(scheduler.is_empty());
     assert!(!scheduler.has_active_process());
-    assert!(!scheduler.run_process(&mut system_ref));
+    assert!(!scheduler.run_process(&mut runtime_ref));
     assert!(scheduler.is_empty());
     assert!(!scheduler.has_active_process());
 }
@@ -251,7 +243,7 @@ fn adding_process() {
 #[test]
 fn adding_process_reusing_pid() {
     let (mut scheduler, mut scheduler_ref) = Scheduler::new();
-    let mut system_ref = system_ref();
+    let mut runtime_ref = test::runtime();
 
     // Add an actor to the scheduler.
     let process_entry = scheduler_ref.add_process();
@@ -262,7 +254,7 @@ fn adding_process_reusing_pid() {
     process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
     scheduler.schedule(ProcessId(0));
-    assert!(scheduler.run_process(&mut system_ref));
+    assert!(scheduler.run_process(&mut runtime_ref));
 
     // Since the previous process was completed it should be removed, which
     // means the pid will be available for reuse.
@@ -274,29 +266,29 @@ fn adding_process_reusing_pid() {
     // Again newly added processes aren't ready by default.
     assert!(!scheduler.is_empty());
     assert!(!scheduler.has_active_process());
-    assert!(!scheduler.run_process(&mut system_ref));
+    assert!(!scheduler.run_process(&mut runtime_ref));
 
     // After scheduling the process should be ready to run.
     scheduler.schedule(ProcessId(0));
     assert!(!scheduler.is_empty());
     assert!(scheduler.has_active_process());
-    assert!(scheduler.run_process(&mut system_ref));
+    assert!(scheduler.run_process(&mut runtime_ref));
 }
 
 #[test]
 fn scheduling_unknown_proccess() {
     let (mut scheduler, _) = Scheduler::new();
-    let mut system_ref = system_ref();
+    let mut runtime_ref = test::runtime();
 
     assert!(scheduler.is_empty());
     assert!(!scheduler.has_active_process());
-    assert!(!scheduler.run_process(&mut system_ref));
+    assert!(!scheduler.run_process(&mut runtime_ref));
 
     // Scheduling an unknown process should do nothing.
     scheduler.schedule(ProcessId(0));
     assert!(scheduler.is_empty());
     assert!(!scheduler.has_active_process());
-    assert!(!scheduler.run_process(&mut system_ref));
+    assert!(!scheduler.run_process(&mut runtime_ref));
 }
 
 async fn pending_actor(_ctx: actor::Context<!>) -> Result<(), !> {
@@ -307,12 +299,12 @@ async fn pending_actor(_ctx: actor::Context<!>) -> Result<(), !> {
 #[test]
 fn running_process() {
     let (mut scheduler, mut scheduler_ref) = Scheduler::new();
-    let mut system_ref = system_ref();
+    let mut runtime_ref = test::runtime();
 
     // Shouldn't run any process yet, since none are added.
     assert!(scheduler.is_empty());
     assert!(!scheduler.has_active_process());
-    assert!(!scheduler.run_process(&mut system_ref));
+    assert!(!scheduler.run_process(&mut runtime_ref));
 
     // Add an actor to the scheduler.
     let process_entry = scheduler_ref.add_process();
@@ -325,21 +317,21 @@ fn running_process() {
     // Newly added processes aren't ready by default.
     assert!(!scheduler.is_empty());
     assert!(!scheduler.has_active_process());
-    assert!(!scheduler.run_process(&mut system_ref));
+    assert!(!scheduler.run_process(&mut runtime_ref));
 
     // After scheduling the process should be ready to run.
     scheduler.schedule(ProcessId(0));
     assert!(!scheduler.is_empty());
     assert!(scheduler.has_active_process());
-    assert!(scheduler.run_process(&mut system_ref));
+    assert!(scheduler.run_process(&mut runtime_ref));
 
     // Process should return pending, making it inactive.
     assert!(!scheduler.is_empty());
     assert!(!scheduler.has_active_process());
-    assert!(!scheduler.run_process(&mut system_ref));
+    assert!(!scheduler.run_process(&mut runtime_ref));
 
     scheduler.schedule(ProcessId(0));
-    assert!(scheduler.run_process(&mut system_ref));
+    assert!(scheduler.run_process(&mut runtime_ref));
     assert!(scheduler.is_empty());
     assert!(!scheduler.has_active_process());
 }
@@ -356,7 +348,7 @@ async fn order_actor(
 #[test]
 fn scheduler_run_order() {
     let (mut scheduler, mut scheduler_ref) = Scheduler::new();
-    let mut system_ref = system_ref();
+    let mut runtime_ref = test::runtime();
 
     // The order in which the processes have been run.
     let run_order = Rc::new(RefCell::new(Vec::new()));
@@ -382,7 +374,7 @@ fn scheduler_run_order() {
     // Run all processes, should be in order of priority (since there runtimes
     // are equal).
     for _ in 0..3 {
-        assert!(scheduler.run_process(&mut system_ref));
+        assert!(scheduler.run_process(&mut runtime_ref));
     }
     assert!(scheduler.is_empty());
     assert_eq!(*run_order.borrow(), vec![2usize, 1, 0]);
@@ -412,7 +404,7 @@ impl NewActor for TestAssertUnmovedNewActor {
 #[test]
 fn assert_process_unmoved() {
     let (mut scheduler, mut scheduler_ref) = Scheduler::new();
-    let mut system_ref = system_ref();
+    let mut runtime_ref = test::runtime();
 
     let new_actor = TestAssertUnmovedNewActor;
     let (actor, inbox) = init_actor_inbox(new_actor, ()).unwrap();
@@ -424,9 +416,9 @@ fn assert_process_unmoved() {
     // process.
     let pid = ProcessId(0);
     scheduler.schedule(pid);
-    assert!(scheduler.run_process(&mut system_ref));
+    assert!(scheduler.run_process(&mut runtime_ref));
     scheduler.schedule(pid);
-    assert!(scheduler.run_process(&mut system_ref));
+    assert!(scheduler.run_process(&mut runtime_ref));
     scheduler.schedule(pid);
-    assert!(scheduler.run_process(&mut system_ref));
+    assert!(scheduler.run_process(&mut runtime_ref));
 }

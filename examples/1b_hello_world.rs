@@ -1,16 +1,15 @@
 #![feature(never_type)]
 
 use heph::supervisor::NoSupervisor;
-use heph::system::RuntimeError;
-use heph::{actor, ActorOptions, ActorSystem, ActorSystemRef};
+use heph::{actor, ActorOptions, Runtime, RuntimeError, RuntimeRef};
 
 // The creation and running of the actor system is the same as in example 1.
 fn main() -> Result<(), RuntimeError> {
-    ActorSystem::new().with_setup(add_greeter_actor).run()
+    Runtime::new().with_setup(add_greeter_actor).run()
 }
 
 /// The is the setup function used in the actor system.
-fn add_greeter_actor(mut system_ref: ActorSystemRef) -> Result<(), !> {
+fn add_greeter_actor(mut system_ref: RuntimeRef) -> Result<(), !> {
     // As shown in example 1 actors don't do anything went they are not awoken.
     // In example 1 we send the actor a message to wake it, this example will
     // use the `schedule` actor option.

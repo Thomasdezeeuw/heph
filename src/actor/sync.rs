@@ -9,23 +9,23 @@
 //!
 //! use heph::actor::sync::SyncContext;
 //! use heph::supervisor::NoSupervisor;
-//! use heph::system::{ActorSystem, RuntimeError};
+//! use heph::{Runtime, RuntimeError};
 //!
 //! fn main() -> Result<(), RuntimeError> {
 //!     // Spawning synchronous actor works slightly different from spawning
 //!     // regular (asynchronous) actors. Mainly, synchronous actors need to be
-//!     // spawned before the system is run.
-//!     let mut system = ActorSystem::new();
+//!     // spawned before the runtime is started.
+//!     let mut runtime = Runtime::new();
 //!
 //!     // Spawn a new synchronous actor, returning an actor reference to it.
 //!     let actor = actor as fn(_, _) -> _;
-//!     let mut actor_ref = system.spawn_sync_actor(NoSupervisor, actor, "Bye")?;
+//!     let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye")?;
 //!
 //!     // Just like with any actor reference we can send the actor a message.
 //!     actor_ref <<= "Hello world".to_string();
 //!
-//!     // And now we run the system.
-//!     system.run()
+//!     // And now we start the runtime.
+//!     runtime.run()
 //! }
 //!
 //! fn actor(mut ctx: SyncContext<String>, exit_msg: &'static str) -> Result<(), !> {
@@ -61,8 +61,8 @@ use crate::actor::message_select::{MessageSelector, Messages};
 ///
 /// [module level]: crate::actor::sync
 ///
-/// Synchronous actor can only be spawned before running the actor system, see
-/// [`ActorSystem::spawn_sync_actor`].
+/// Synchronous actor can only be spawned before starting the runtime, see
+/// [`Runtime::spawn_sync_actor`].
 ///
 /// # Signal handling
 ///
@@ -77,17 +77,18 @@ use crate::actor::message_select::{MessageSelector, Messages};
 /// use heph::actor::sync::SyncContext;
 /// # use heph::actor_ref::ActorRef;
 /// use heph::supervisor::NoSupervisor;
-/// use heph::system::{Signal, ActorSystem, RuntimeError};
+/// use heph::{Runtime, RuntimeError};
+/// use heph::rt::Signal;
 ///
 /// fn main() -> Result<(), RuntimeError> {
 ///     // Spawning synchronous actor works slightly differently the spawning
 ///     // regular (asynchronous) actors. Mainly, synchronous actors need to be
-///     // spawned before the system is run.
-///     let mut system = ActorSystem::new();
+///     // spawned before the runtime is started.
+///     let mut runtime = Runtime::new();
 ///
 ///     // Spawn a new synchronous actor, returning an actor reference to it.
 ///     let actor = actor as fn(_) -> _;
-///     let mut actor_ref = system.spawn_sync_actor(NoSupervisor, actor, ())?;
+///     let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, ())?;
 ///
 ///     // Just like with any actor reference we can send the actor a message.
 ///     actor_ref <<= "Hello world".to_string();
@@ -95,8 +96,8 @@ use crate::actor::message_select::{MessageSelector, Messages};
 ///     # let mut actor_ref: ActorRef<Signal> = actor_ref.try_map();
 ///     # actor_ref <<= Signal::Interrupt;
 ///
-///     // And now we run the system.
-///     system.run()
+///     // And now we start the runtime.
+///     runtime.run()
 /// }
 ///
 /// enum Message {
@@ -130,7 +131,7 @@ use crate::actor::message_select::{MessageSelector, Messages};
 /// }
 /// ```
 ///
-/// [Process signals]: crate::system::Signal
+/// [Process signals]: crate::rt::Signal
 /// [`Message`]: SyncActor::Message
 /// [`ActorRef::try_map`]: crate::actor_ref::ActorRef::try_map
 ///
@@ -142,8 +143,7 @@ use crate::actor::message_select::{MessageSelector, Messages};
 /// [actors]: crate::Actor
 /// [context]: SyncContext
 /// [actor references]: crate::ActorRef
-/// [`ActorSystem::spawn_sync_actor`]:
-/// crate::system::ActorSystem::spawn_sync_actor
+/// [`Runtime::spawn_sync_actor`]: crate::Runtime::spawn_sync_actor
 pub trait SyncActor {
     /// The type of messages the synchronous actor can receive.
     ///

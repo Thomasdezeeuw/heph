@@ -5,7 +5,7 @@ use std::collections::BinaryHeap;
 use std::iter::FusedIterator;
 use std::time::Instant;
 
-use crate::system::ProcessId;
+use crate::rt::ProcessId;
 
 /// Timer readiness queue.
 ///

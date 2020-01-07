@@ -5,7 +5,7 @@ use std::num::NonZeroU8;
 use std::ops::Mul;
 use std::time::Duration;
 
-// NOTE: the `Priority` type is public in the system module. Because of this it
+// NOTE: the `Priority` type is public in the rt module. Because of this it
 // talks only about actors, rather the processes, because in the public
 // documentation process is never mentioned. Effectively actor can be replaced
 // with process in the documentation below.

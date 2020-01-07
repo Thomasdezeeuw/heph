@@ -5,7 +5,7 @@ use std::pin::Pin;
 
 use mio::Token;
 
-use crate::system::ActorSystemRef;
+use crate::RuntimeRef;
 
 mod actor;
 
@@ -15,14 +15,14 @@ mod tests;
 pub use actor::ActorProcess;
 
 /// Process id, or pid for short, is an identifier for a process in an
-/// [`ActorSystem`].
+/// [`Runtime`].
 ///
 /// This can only be created by the [`Scheduler`] and should be seen as an
 /// opaque type for the rest of the crate. For convince this can converted from
 /// and into an [`Token`] as used by Mio.
 ///
-/// [`ActorSystem`]: crate::system::ActorSystem
-/// [`Scheduler`]: crate::system::scheduler::Scheduler
+/// [`Runtime`]: crate::Runtime
+/// [`Scheduler`]: crate::rt::scheduler::Scheduler
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(transparent)]
 pub struct ProcessId(pub u32);
@@ -53,11 +53,11 @@ pub trait Process {
     /// Run the process.
     ///
     /// Once the process returns `ProcessResult::Complete` it will be removed
-    /// from the system and no longer run.
+    /// from the scheduler and no longer run.
     ///
     /// If it returns `ProcessResult::Pending` it will be considered inactive
     /// and the process itself must make sure its gets scheduled again.
-    fn run(self: Pin<&mut Self>, system_ref: &mut ActorSystemRef, pid: ProcessId) -> ProcessResult;
+    fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult;
 }
 
 /// The result of running a `Process`.

@@ -10,9 +10,9 @@ use futures_util::future::{pending, Pending};
 use mio::Token;
 
 use crate::actor_ref::LocalActorRef;
+use crate::rt::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use crate::system::process::{ActorProcess, Process, ProcessId, ProcessResult};
-use crate::test::{init_actor_inbox, system_ref};
+use crate::test::{self, init_actor_inbox};
 use crate::{actor, Actor, NewActor};
 
 #[test]
@@ -57,13 +57,13 @@ fn actor_process() {
 
     // Actor should return `Poll::Pending` in the first call, since no message
     // is available.
-    let mut system_ref = system_ref();
-    let res = process.as_mut().run(&mut system_ref, ProcessId(0));
+    let mut runtime_ref = test::runtime();
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
     assert_eq!(res, ProcessResult::Pending);
 
     // Send the message and the actor should return Ok.
     actor_ref.send(()).unwrap();
-    let res = process.as_mut().run(&mut system_ref, ProcessId(0));
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
     assert_eq!(res, ProcessResult::Complete);
 }
 
@@ -88,8 +88,8 @@ fn erroneous_actor_process() {
     let mut process = Box::pin(process);
 
     // Actor should return Err.
-    let mut system_ref = system_ref();
-    let res = process.as_mut().run(&mut system_ref, ProcessId(0));
+    let mut runtime_ref = test::runtime();
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
     assert_eq!(res, ProcessResult::Complete);
 }
 
@@ -132,15 +132,15 @@ fn restarting_erroneous_actor_process() {
     // In the first call to run the actor should return an error. Then it should
     // be restarted. The restarted actor waits for a message, returning
     // `Poll::Pending`.
-    let mut system_ref = system_ref();
-    let res = process.as_mut().run(&mut system_ref, ProcessId(0));
+    let mut runtime_ref = test::runtime();
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
     assert_eq!(res, ProcessResult::Pending);
     // Supervisor must be called and the actor restarted.
     assert!(supervisor_called.load(atomic::Ordering::SeqCst));
 
     // Now we send a message to the restarted actor, which should return `Ok`.
     actor_ref.send(()).unwrap();
-    let res = process.as_mut().run(&mut system_ref, ProcessId(0));
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
     assert_eq!(res, ProcessResult::Complete);
 }
 
@@ -175,11 +175,11 @@ fn actor_process_assert_actor_unmoved() {
 
     // All we do is run it a couple of times, it should panic if the actor is
     // moved.
-    let mut system_ref = system_ref();
-    let res = process.as_mut().run(&mut system_ref, ProcessId(0));
+    let mut runtime_ref = test::runtime();
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
     assert_eq!(res, ProcessResult::Pending);
-    let res = process.as_mut().run(&mut system_ref, ProcessId(0));
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
     assert_eq!(res, ProcessResult::Pending);
-    let res = process.as_mut().run(&mut system_ref, ProcessId(0));
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
     assert_eq!(res, ProcessResult::Pending);
 }
