@@ -5,6 +5,9 @@
 ///
 /// Synchronous actors receive signals automatically if they implement the
 /// required trait bounds, see [`SyncActor`] for more details.
+///
+/// [`RuntimeRef::receive_signals`]: crate::RuntimeRef::receive_signals
+/// [`SyncActor`]: crate::actor::sync::SyncActor
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Signal {
     /// Interrupt signal.

@@ -82,14 +82,14 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// [`use_all_cores`].
 ///
 /// Finally after setting all the configuration options the runtime can be
-/// [`run`]. This will spawn a number of worker threads to actually run the
+/// [`start`]ed. This will spawn a number of worker threads to actually run the
 /// actors.
 ///
 /// [`new`]: Runtime::new
 /// [`with_setup`]: Runtime::with_setup
 /// [`num_threads`]: Runtime::num_threads
 /// [`use_all_cores`]: Runtime::use_all_cores
-/// [`run`]: Runtime::run
+/// [`start`]: Runtime::start
 ///
 /// ## Examples
 ///
