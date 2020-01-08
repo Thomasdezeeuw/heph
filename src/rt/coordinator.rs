@@ -90,7 +90,7 @@ fn event_loop<E>(
                 token if token.0 >= SYNC_WORKER_ID_START => {
                     handle_sync_worker_event(&mut sync_workers, event)?
                 }
-                _ => handle_worker_event(&mut workers, event)?,
+                _ => handle_worker_event(&mut workers, &mut sync_workers, event)?,
             }
         }
 
@@ -122,10 +122,15 @@ fn relay_signals<E>(
 /// Handle an `event` for a worker.
 fn handle_worker_event<E>(
     workers: &mut Vec<Worker<E>>,
+    sync_workers: &mut Vec<SyncWorker>,
     event: &Event,
 ) -> Result<(), RuntimeError<E>> {
     if let Ok(i) = workers.binary_search_by_key(&event.token().0, |w| w.id()) {
-        if event.is_error() || event.is_write_closed() {
+        if event.is_readable() {
+            workers[i]
+                .handle_messages(sync_workers)
+                .map_err(RuntimeError::coordinator)
+        } else if event.is_error() || event.is_write_closed() {
             // Receiving end of the pipe is dropped, which means the
             // worker has shut down.
             let worker = workers.remove(i);

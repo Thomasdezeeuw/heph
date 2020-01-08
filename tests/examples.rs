@@ -45,7 +45,7 @@ sequential_tests! {
         assert_eq!(output, "Hello World\n");
     }
 
-    fn test_1b_hello_world_() {
+    fn test_1b_hello_world() {
         let output = run_example_output("1b_hello_world");
         assert_eq!(output, "Hello World\n");
     }
@@ -60,6 +60,16 @@ sequential_tests! {
         stream.read_to_string(&mut output)
             .expect("unable to to read from stream");
         assert_eq!(output, "127.0.0.1");
+    }
+
+    fn test_4_sync_actor() {
+        let output = run_example_output("4_sync_actor");
+        assert_eq!(output, "Got a message: Hello world\nBye\n");
+    }
+
+    fn test_4b_sync_actor() {
+        let output = run_example_output("4b_sync_actor");
+        assert_eq!(output, "Got a message: Hello world\nBye\n");
     }
 }
 

@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
-use std::{io, thread};
+use std::{fmt, io, thread};
 
 use crossbeam_channel::{self, Receiver};
 use log::{debug, trace};
@@ -10,8 +10,12 @@ use mio::{Events, Poll, Registry, Token};
 use crate::rt::hack::SetupFn;
 use crate::rt::queue::Queue;
 use crate::rt::scheduler::Scheduler;
+use crate::rt::sync_worker::SyncWorker;
 use crate::rt::timers::Timers;
-use crate::rt::{channel, waker, ProcessId, RuntimeError, RuntimeInternal, RuntimeRef, Signal};
+use crate::rt::{
+    channel, waker, ProcessId, RuntimeError, RuntimeInternal, RuntimeRef, Signal,
+    SYNC_WORKER_ID_START,
+};
 
 /// Message send by the coordinator thread.
 #[derive(Debug)]
@@ -21,8 +25,19 @@ pub(crate) enum CoordinatorMessage {
 }
 
 /// Message send by the worker thread.
-#[derive(Debug)]
-pub(crate) enum WorkerMessage {}
+pub(crate) enum WorkerMessage {
+    /// Let the coordinator start a new `SyncActor`.
+    StartSyncActor(Box<dyn FnOnce(usize) -> io::Result<SyncWorker> + Send + 'static>),
+}
+
+impl fmt::Debug for WorkerMessage {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use WorkerMessage::*;
+        match self {
+            StartSyncActor(_) => f.write_str("StartSyncActor"),
+        }
+    }
+}
 
 pub(super) struct Worker<E> {
     /// Unique id (among all threads in the `Runtime`).
@@ -44,6 +59,7 @@ impl<E> Worker<E> {
         S: SetupFn<Error = E>,
         E: Send + 'static,
     {
+        debug!("starting worker thread: id={}", id);
         channel::new().and_then(|(channel, worker_handle)| {
             thread::Builder::new()
                 .name(format!("heph_worker{}", id))
@@ -80,6 +96,23 @@ impl<E> Worker<E> {
         while let Some(signal) = self.pending.first().copied() {
             self.send_signal(signal)?;
             let _ = self.pending.remove(0);
+        }
+        Ok(())
+    }
+
+    /// Handle messages send
+    pub(super) fn handle_messages(&mut self, sync_workers: &mut Vec<SyncWorker>) -> io::Result<()> {
+        while let Some(msg) = self.channel.try_recv()? {
+            match msg {
+                WorkerMessage::StartSyncActor(start) => {
+                    let id = sync_workers
+                        .last()
+                        .map(|w| w.id())
+                        .unwrap_or(SYNC_WORKER_ID_START);
+                    let sync_worker = start(id)?;
+                    sync_workers.push(sync_worker);
+                }
+            }
         }
         Ok(())
     }
@@ -124,8 +157,6 @@ pub(crate) struct RunningRuntime {
     scheduler: Scheduler,
     /// Receiving side of the channel for `Waker` events.
     waker_events: Receiver<ProcessId>,
-    /// Two-way communication channel to share messages with the coordinator.
-    channel: channel::Handle<WorkerMessage, CoordinatorMessage>,
 }
 
 /// Number of processes to run before polling.
@@ -163,6 +194,7 @@ impl RunningRuntime {
             poll: RefCell::new(poll),
             timers: RefCell::new(Timers::new()),
             queue: RefCell::new(Queue::new()),
+            channel: RefCell::new(channel),
             signal_receivers: RefCell::new(Vec::new()),
         };
 
@@ -171,7 +203,6 @@ impl RunningRuntime {
             events: Events::with_capacity(128),
             scheduler,
             waker_events: waker_recv,
-            channel,
         })
     }
 
@@ -288,7 +319,8 @@ impl RunningRuntime {
     /// Check messages from the coordinator.
     fn check_coordinator(&mut self) -> io::Result<()> {
         use CoordinatorMessage::*;
-        while let Some(msg) = self.channel.try_recv()? {
+        let mut channel = self.internal.channel.borrow_mut();
+        while let Some(msg) = channel.try_recv()? {
             match msg {
                 Signal(signal) => {
                     trace!("received process signal: {:?}", signal);

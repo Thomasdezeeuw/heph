@@ -4,7 +4,7 @@ use std::ptr::NonNull;
 use std::{io, thread};
 
 use crossbeam_channel::{self as channel, Receiver};
-use log::trace;
+use log::{debug, trace};
 use mio::{event, Interest, Registry, Token};
 use mio_pipe::new_pipe;
 
@@ -15,7 +15,7 @@ use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 use crate::ActorRef;
 
 /// Handle to a synchronous worker.
-pub(super) struct SyncWorker {
+pub(crate) struct SyncWorker {
     /// Unique id (among all threads in the `Runtime`).
     id: usize,
     /// Handle for the actual thread.
@@ -41,6 +41,7 @@ impl SyncWorker {
         M: Send + 'static,
         ActorRef<M>: IntoSignalActorRef,
     {
+        debug!("starting sync actor thread: id={}", id);
         new_pipe().and_then(|(sender, receiver)| {
             let (send, inbox) = channel::unbounded();
             let actor_ref = ActorRef::for_sync_actor(send);

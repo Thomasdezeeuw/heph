@@ -10,10 +10,12 @@
 //! see the examples directory in the source code.
 
 use std::cell::RefCell;
+use std::future::Future;
+use std::pin::Pin;
 use std::rc::Rc;
 use std::task::Waker;
 use std::time::Instant;
-use std::{fmt, io};
+use std::{fmt, io, task};
 
 use log::{debug, trace};
 use mio::{event, Interest, Poll, Token};
@@ -53,7 +55,7 @@ use scheduler::SchedulerRef;
 use sync_worker::SyncWorker;
 use timers::Timers;
 use waker::{WakerId, MAX_THREADS};
-use worker::Worker;
+use worker::{CoordinatorMessage, Worker, WorkerMessage};
 
 const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 
@@ -415,6 +417,54 @@ impl RuntimeRef {
         Ok(actor_ref)
     }
 
+    /// Spawn an synchronous actor that runs on its own thread.
+    ///
+    /// For more information and examples of synchronous actors see the
+    /// [`actor::sync`] module.
+    ///
+    /// [`actor::sync`]: crate::actor::sync
+    pub fn spawn_sync_actor<S, A, E, Arg, M, M2>(
+        &mut self,
+        ctx: &mut actor::Context<M2>,
+        supervisor: S,
+        actor: A,
+        arg: Arg,
+    ) -> io::Result<SpawnSyncActor<M>>
+    where
+        S: SyncSupervisor<A> + Send + 'static,
+        A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
+        Arg: Send + 'static,
+        M: Send + 'static,
+    {
+        // We're going to send the coordinator a function that:
+        // 1) Starts a `SyncWorker`.
+        // 2) Sends the `ActorRef` back to the call of this function (via
+        //    the `SpawnSyncActor` future).
+        // 3) Wake the future.
+        //
+        // The coordinator runs this function with a unique id and further
+        // controls the `SyncWorker` for us.
+
+        let waker = self.new_waker(ctx.pid());
+        let (sender, receiver) = crossbeam_channel::bounded(1);
+
+        // Create a function that starts a `SyncWorker`.
+        let start_actor_fn = Box::new(move |id: usize| {
+            SyncWorker::start(id, supervisor, actor, arg).map(|(worker, actor_ref)| {
+                let _ = sender.try_send(actor_ref);
+                waker.wake();
+                worker
+            })
+        });
+
+        let msg = WorkerMessage::StartSyncActor(start_actor_fn);
+        self.internal
+            .channel
+            .borrow_mut()
+            .try_send(msg)
+            .map(|()| SpawnSyncActor { receiver })
+    }
+
     /// Receive [process signals] as messages.
     ///
     /// This adds the `actor_ref` to the list of actor references that will
@@ -483,6 +533,23 @@ impl RuntimeRef {
     }
 }
 
+/// The [`Future`] behind [`RuntimeRef::spawn_sync_actor`].
+#[derive(Debug)]
+pub struct SpawnSyncActor<M> {
+    receiver: crossbeam_channel::Receiver<ActorRef<M>>,
+}
+
+impl<M> Future for SpawnSyncActor<M> {
+    type Output = ActorRef<M>;
+
+    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> task::Poll<Self::Output> {
+        match self.receiver.try_recv() {
+            Ok(actor_ref) => task::Poll::Ready(actor_ref),
+            Err(_) => task::Poll::Pending,
+        }
+    }
+}
+
 /// Internal error returned by spawning a actor.
 #[derive(Debug)]
 pub(crate) enum AddActorError<NewActorE, ArgFnE> {
@@ -505,6 +572,8 @@ struct RuntimeInternal {
     timers: RefCell<Timers>,
     /// User space queue.
     queue: RefCell<Queue>,
+    /// Two-way communication channel to share messages with the coordinator.
+    channel: RefCell<channel::Handle<WorkerMessage, CoordinatorMessage>>,
     /// Actor references to relay received `Signal`s to.
     signal_receivers: RefCell<Vec<LocalActorRef<Signal>>>,
 }
