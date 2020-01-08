@@ -49,10 +49,10 @@ fn setup_signals(registry: &Registry) -> io::Result<Signals> {
 fn register_workers<E>(registry: &Registry, workers: &mut [Worker<E>]) -> io::Result<()> {
     workers
         .iter_mut()
-        .map(|mut worker| {
+        .map(|worker| {
             let id = worker.id();
             trace!("registering worker thread: id={}", id);
-            registry.register(&mut worker, Token(id), Interest::WRITABLE)
+            worker.register(&registry, Token(id))
         })
         .collect()
 }

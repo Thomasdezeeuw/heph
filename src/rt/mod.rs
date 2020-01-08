@@ -36,6 +36,7 @@ mod timers;
 mod waker;
 
 // Used in test module.
+pub(crate) mod channel;
 pub(crate) mod worker;
 
 pub(crate) use process::ProcessId;

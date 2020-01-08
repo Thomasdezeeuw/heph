@@ -22,18 +22,16 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use mio_pipe::new_pipe;
-
 use crate::actor_ref::LocalActorRef;
 use crate::inbox::Inbox;
 use crate::rt::worker::RunningRuntime;
 use crate::rt::ProcessId;
-use crate::{actor, Actor, NewActor, RuntimeRef};
+use crate::{actor, rt, Actor, NewActor, RuntimeRef};
 
 thread_local! {
     /// Per thread active, but not running, runtime.
     static TEST_RT: RefCell<RunningRuntime> = {
-        let (_, receiver) = new_pipe().unwrap();
+        let (_, receiver) = rt::channel::new().unwrap();
         RefCell::new(RunningRuntime::new(receiver).unwrap())
     };
 }
