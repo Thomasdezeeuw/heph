@@ -320,7 +320,7 @@ where
 /// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef};
 ///
 /// fn main() -> Result<(), RuntimeError> {
-///     Runtime::new().with_setup(setup).run()
+///     Runtime::new().with_setup(setup).start()
 /// }
 ///
 /// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
@@ -367,7 +367,7 @@ impl<M> MessageSelector<M> for First {
 /// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef};
 ///
 /// fn main() -> Result<(), RuntimeError> {
-///     Runtime::new().with_setup(setup).run()
+///     Runtime::new().with_setup(setup).start()
 /// }
 ///
 /// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {

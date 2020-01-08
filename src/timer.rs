@@ -46,7 +46,7 @@ pub struct DeadlinePassed;
 /// use heph::timer::Timer;
 ///
 /// # fn main() -> Result<(), RuntimeError> {
-/// #     Runtime::new().with_setup(setup).run()
+/// #     Runtime::new().with_setup(setup).start()
 /// # }
 /// #
 /// #
@@ -145,7 +145,7 @@ impl actor::Bound for Timer {
 /// use heph::timer::{DeadlinePassed, Deadline};
 ///
 /// # fn main() -> Result<(), RuntimeError> {
-/// #     Runtime::new().with_setup(setup).run()
+/// #     Runtime::new().with_setup(setup).start()
 /// # }
 /// #
 /// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
@@ -276,7 +276,7 @@ impl<Fut> actor::Bound for Deadline<Fut> {
 /// use heph::timer::Interval;
 /// #
 /// # fn main() -> Result<(), RuntimeError> {
-/// #     Runtime::new().with_setup(setup).run()
+/// #     Runtime::new().with_setup(setup).start()
 /// # }
 /// #
 /// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {

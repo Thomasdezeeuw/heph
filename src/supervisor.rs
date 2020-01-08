@@ -69,7 +69,7 @@
 //!                 ActorOptions::default().schedule());
 //!             Ok(())
 //!         })
-//!         .run()
+//!         .start()
 //! }
 //!
 //! /// The error returned by our actor.
@@ -222,7 +222,7 @@ where
 ///                 ActorOptions::default().schedule());
 ///             Ok(())
 ///         })
-///         .run()
+///         .start()
 /// }
 ///
 /// /// Our actor that never returns an error.

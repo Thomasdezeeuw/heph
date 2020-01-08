@@ -110,8 +110,8 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 ///         .num_threads(2)
 ///         // On each worker thread run our setup function.
 ///         .with_setup(setup)
-///         // And run the runtime.
-///         .run()
+///         // And start the runtime.
+///         .start()
 /// }
 ///
 /// // This setup function will on run on each created thread. In the case of
@@ -253,8 +253,12 @@ where
     /// In addition to waiting for all worker threads it will also watch for
     /// all process signals in [`Signal`] and relay them to actors that want to
     /// handle them, see the [`Signal`] type for more information.
-    pub fn run(self) -> Result<(), RuntimeError<S::Error>> {
-        debug!("running Heph runtime: worker_threads={}", self.threads);
+    pub fn start(self) -> Result<(), RuntimeError<S::Error>> {
+        debug!(
+            "starting Heph runtime: worker_threads={}, sync_actors={}",
+            self.threads,
+            self.sync_actors.len()
+        );
         // Start our worker threads.
         let handles = (0..self.threads)
             .map(|id| Worker::start(id, self.setup.clone()))

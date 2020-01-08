@@ -91,7 +91,7 @@ pub trait NewActor {
     ///             actor_ref <<= "Hello world".to_owned();
     ///             Ok(())
     ///         })
-    ///         .run()
+    ///         .start()
     /// }
     ///
     /// /// The message type for the actor.
@@ -193,7 +193,7 @@ pub trait NewActor {
     ///
     /// fn main() -> Result<(), RuntimeError<io::Error>> {
     ///     // Create and run runtime
-    ///     Runtime::new().with_setup(setup).run()
+    ///     Runtime::new().with_setup(setup).start()
     /// }
     ///
     /// /// In this setup function we'll spawn the `tcp::Server` actor.
