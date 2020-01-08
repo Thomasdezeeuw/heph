@@ -62,7 +62,7 @@ pub enum Connected {}
 /// fn main() -> Result<(), RuntimeError> {
 ///     heph::log::init();
 ///
-///     Runtime::new().with_setup(setup).run()
+///     Runtime::new().with_setup(setup).start()
 /// }
 ///
 /// fn setup(mut runtime: RuntimeRef) -> Result<(), !> {

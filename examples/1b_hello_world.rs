@@ -5,7 +5,7 @@ use heph::{actor, ActorOptions, Runtime, RuntimeError, RuntimeRef};
 
 // The creation and running of the actor system is the same as in example 1.
 fn main() -> Result<(), RuntimeError> {
-    Runtime::new().with_setup(add_greeter_actor).run()
+    Runtime::new().with_setup(add_greeter_actor).start()
 }
 
 /// The is the setup function used in the actor system.

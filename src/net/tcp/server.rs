@@ -126,8 +126,8 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
 ///
 /// fn main() -> Result<(), RuntimeError<io::Error>> {
-///     // Create and run the Heph runtime.
-///     Runtime::new().with_setup(setup).run()
+///     // Create and start the Heph runtime.
+///     Runtime::new().with_setup(setup).start()
 /// }
 ///
 /// /// In this setup function we'll spawn the TCP server.
@@ -218,7 +218,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
 ///
 /// fn main() -> Result<(), RuntimeError<io::Error>> {
-///     Runtime::new().with_setup(setup).run()
+///     Runtime::new().with_setup(setup).start()
 /// }
 ///
 /// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {

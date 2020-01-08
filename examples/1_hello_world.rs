@@ -5,8 +5,8 @@ use heph::{actor, ActorOptions, Runtime, RuntimeError, RuntimeRef};
 
 fn main() -> Result<(), RuntimeError> {
     // We create a new runtime. Add a setup function, which adds our greeter
-    // actor. And finally we run it.
-    Runtime::new().with_setup(add_greeter_actor).run()
+    // actor. And finally we start it.
+    Runtime::new().with_setup(add_greeter_actor).start()
 }
 
 /// The is the setup function used in the runtime.

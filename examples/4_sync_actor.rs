@@ -18,7 +18,7 @@ fn main() -> Result<(), RuntimeError> {
     actor_ref <<= "Hello world".to_string();
 
     // And now we start the runtime.
-    runtime.run()
+    runtime.start()
 }
 
 fn actor(mut ctx: SyncContext<String>, exit_msg: &'static str) -> Result<(), !> {

@@ -23,7 +23,7 @@ fn main() -> Result<(), RuntimeError> {
 
             Ok(())
         })
-        .run()
+        .start()
 }
 
 /// Our "actor", but it doesn't do much.

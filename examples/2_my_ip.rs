@@ -49,7 +49,7 @@ fn main() -> Result<(), RuntimeError<io::Error>> {
 
             Ok(())
         })
-        .run()
+        .start()
 }
 
 /// Our supervisor for the TCP server.
