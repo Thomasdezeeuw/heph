@@ -1,30 +1,39 @@
 #![allow(dead_code, unused_variables, unused_imports)]
 
 use std::cell::RefCell;
-use std::io::{self, Read, Write};
 use std::rc::Rc;
-use std::thread;
 use std::time::{Duration, Instant};
+use std::{io, thread};
 
-use crossbeam_channel::{self as channel, Receiver};
+use crossbeam_channel::{self, Receiver};
 use log::{debug, trace};
-use mio::{event, Events, Interest, Poll, Registry, Token};
-use mio_pipe::new_pipe;
+use mio::{Events, Poll, Registry, Token};
 
 use crate::rt::hack::SetupFn;
 use crate::rt::process::{Process, ProcessResult};
 use crate::rt::queue::Queue;
 use crate::rt::scheduler::Scheduler;
 use crate::rt::timers::Timers;
-use crate::rt::{waker, ProcessId, RuntimeError, RuntimeInternal, RuntimeRef, Signal};
+use crate::rt::{channel, waker, ProcessId, RuntimeError, RuntimeInternal, RuntimeRef, Signal};
+
+/// Message send by the coordinator thread.
+#[derive(Debug)]
+pub(crate) enum CoordinatorMessage {
+    /// Process received a signal.
+    Signal(Signal),
+}
+
+/// Message send by the worker thread.
+#[derive(Debug)]
+pub(crate) enum WorkerMessage {}
 
 pub(super) struct Worker<E> {
     /// Unique id (among all threads in the `Runtime`).
     id: usize,
     /// Handle for the actual thread.
     handle: thread::JoinHandle<Result<(), RuntimeError<E>>>,
-    /// Sending half of the Unix pipe, used to communicate with the thread.
-    sender: mio_pipe::Sender,
+    /// Two-way communication channel to share messages with the worker thread.
+    channel: channel::Handle<CoordinatorMessage, WorkerMessage>,
     /// Any signal that could not be send (via `sender`) without blocking when
     /// `send_signal` was called previously. These will be send again when
     /// `send_pending_signals` is called.
@@ -38,14 +47,14 @@ impl<E> Worker<E> {
         S: SetupFn<Error = E>,
         E: Send + 'static,
     {
-        new_pipe().and_then(|(sender, receiver)| {
+        channel::new().and_then(|(channel, worker_handle)| {
             thread::Builder::new()
                 .name(format!("heph_worker{}", id))
-                .spawn(move || main(setup, receiver))
+                .spawn(move || main(setup, worker_handle))
                 .map(|handle| Worker {
                     id,
                     handle,
-                    sender,
+                    channel,
                     pending: Vec::new(),
                 })
         })
@@ -56,25 +65,17 @@ impl<E> Worker<E> {
         self.id
     }
 
+    pub(super) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
+        self.channel.register(registry, token)
+    }
+
     /// Send the worker thread a `signal`.
     ///
     /// If the signal can't be send now it will be added the to the list of
     /// pending signals, which can be send using `send_pending_signals`.
     pub(super) fn send_signal(&mut self, signal: Signal) -> io::Result<()> {
-        let byte = signal.to_byte();
-        loop {
-            match self.sender.write(&[byte]) {
-                Ok(0) => return Err(io::ErrorKind::WriteZero.into()),
-                Ok(_) => return Ok(()),
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                    // Can't write right now, we'll do so later.
-                    self.pending.push(signal);
-                    return Ok(());
-                }
-                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                Err(err) => return Err(err),
-            }
-        }
+        let msg = CoordinatorMessage::Signal(signal);
+        self.channel.try_send(msg)
     }
 
     /// Send the worker thread any pending signals.
@@ -92,36 +93,13 @@ impl<E> Worker<E> {
     }
 }
 
-/// Registers the sending end of the Unix pipe used to communicate with the
-/// thread.
-impl<E> event::Source for Worker<E> {
-    fn register(
-        &mut self,
-        registry: &Registry,
-        token: Token,
-        interests: Interest,
-    ) -> io::Result<()> {
-        self.sender.register(registry, token, interests)
-    }
-
-    fn reregister(
-        &mut self,
-        registry: &Registry,
-        token: Token,
-        interests: Interest,
-    ) -> io::Result<()> {
-        self.sender.reregister(registry, token, interests)
-    }
-
-    fn deregister(&mut self, registry: &Registry) -> io::Result<()> {
-        self.sender.deregister(registry)
-    }
-}
-
 /// Run the Heph runtime, with an optional `setup` function.
 ///
 /// This is the entry point for the worker threads.
-fn main<S>(setup: Option<S>, receiver: mio_pipe::Receiver) -> Result<(), RuntimeError<S::Error>>
+fn main<S>(
+    setup: Option<S>,
+    receiver: channel::Handle<WorkerMessage, CoordinatorMessage>,
+) -> Result<(), RuntimeError<S::Error>>
 where
     S: SetupFn,
 {
@@ -147,8 +125,8 @@ pub(crate) struct RunningRuntime {
     events: Events,
     /// Receiving side of the channel for `Waker` events.
     waker_events: Receiver<ProcessId>,
-    /// Receiving end of the channel connected to the coordinator thread.
-    receiver: mio_pipe::Receiver,
+    /// Two-way communication channel to share messages with the coordinator.
+    channel: channel::Handle<WorkerMessage, CoordinatorMessage>,
 }
 
 /// Number of processes to run before polling.
@@ -164,15 +142,16 @@ const COORDINATOR: Token = Token(usize::max_value() - 1);
 
 impl RunningRuntime {
     /// Create a new running runtime.
-    pub(crate) fn new(mut receiver: mio_pipe::Receiver) -> io::Result<RunningRuntime> {
+    pub(crate) fn new(
+        mut channel: channel::Handle<WorkerMessage, CoordinatorMessage>,
+    ) -> io::Result<RunningRuntime> {
         // System queue for event notifications.
         let poll = Poll::new()?;
         let awakener = mio::Waker::new(poll.registry(), AWAKENER)?;
-        poll.registry()
-            .register(&mut receiver, COORDINATOR, Interest::READABLE)?;
+        channel.register(poll.registry(), COORDINATOR)?;
 
         // Channel used in the `Waker` implementation.
-        let (waker_sender, waker_recv) = channel::unbounded();
+        let (waker_sender, waker_recv) = crossbeam_channel::unbounded();
         let waker_id = waker::init(awakener, waker_sender);
 
         // Scheduler for scheduling and running processes.
@@ -193,7 +172,7 @@ impl RunningRuntime {
             internal: Rc::new(internal),
             events: Events::with_capacity(128),
             waker_events: waker_recv,
-            receiver,
+            channel,
         })
     }
 
@@ -283,7 +262,7 @@ impl RunningRuntime {
 
         if check_coordinator {
             drop(scheduler); // Com'on rustc, this one isn't that hard...
-            self.receive_signals()
+            self.check_coordinator()
         } else {
             Ok(())
         }
@@ -314,6 +293,7 @@ impl RunningRuntime {
         res
     }
 
+    /// Determine the timeout to be used in `Poll::poll`.
     fn determine_timeout(&self) -> Option<Duration> {
         // If there are any processes ready to run, any waker events or user
         // space events we don't want to block.
@@ -336,28 +316,22 @@ impl RunningRuntime {
         }
     }
 
-    fn receive_signals(&mut self) -> io::Result<()> {
-        trace!("receiving process signals");
-        loop {
-            let mut buf = [0; 8];
-            match self.receiver.read(&mut buf) {
-                // Should never happen as this would mean the coordinator has
-                // dropped the sending side.
-                Ok(0) => return Err(io::ErrorKind::UnexpectedEof.into()),
-                Ok(n) => {
+    /// Check messages from the coordinator.
+    fn check_coordinator(&mut self) -> io::Result<()> {
+        use CoordinatorMessage::*;
+        while let Some(msg) = self.channel.try_recv()? {
+            match msg {
+                Signal(signal) => {
+                    trace!("received process signal: {:?}", signal);
                     let mut receivers = self.internal.signal_receivers.borrow_mut();
-                    for signal in buf[..n].iter().copied().filter_map(Signal::from_byte) {
-                        for receiver in receivers.iter_mut() {
-                            // Don't care if we succeed in sending the message.
-                            let _ = receiver.send(signal);
-                        }
+                    for receiver in receivers.iter_mut() {
+                        // Don't care if we succeed in sending the message.
+                        let _ = receiver.send(signal);
                     }
                 }
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Ok(()),
-                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                Err(err) => return Err(err),
             }
         }
+        Ok(())
     }
 }
 

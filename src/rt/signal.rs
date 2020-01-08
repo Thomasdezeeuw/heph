@@ -37,31 +37,6 @@ pub enum Signal {
 }
 
 impl Signal {
-    /// Convert to a byte, parsing using [`from_byte`].
-    ///
-    /// [`from_byte`]: Signal::from_byte
-    pub(super) fn to_byte(self) -> u8 {
-        use Signal::*;
-        match self {
-            Interrupt => 1,
-            Terminate => 2,
-            Quit => 3,
-        }
-    }
-
-    /// Parse a signal converted to a byte using [`to_byte`].
-    ///
-    /// [`to_byte`]: Signal::to_byte
-    pub(super) fn from_byte(byte: u8) -> Option<Signal> {
-        use Signal::*;
-        match byte {
-            1 => Some(Interrupt),
-            2 => Some(Terminate),
-            3 => Some(Quit),
-            _ => None,
-        }
-    }
-
     /// Convert a [`mio_signals::Signal`] into our own `Signal`.
     pub(super) fn from_mio(signal: mio_signals::Signal) -> Signal {
         match signal {
