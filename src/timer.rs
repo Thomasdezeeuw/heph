@@ -2,12 +2,12 @@
 //!
 //! This module provides three types.
 //!
-//! - [`Timer`](timer::Timer) is a stand-alone future that returns
-//!   [`DeadlinePassed`](timer::DeadlinePassed) once the deadline has passed.
-//! - [`Deadline`](timer::Deadline) wraps another `Future` and checks the
+//! - [`Timer`](Timer) is a stand-alone future that returns
+//!   [`DeadlinePassed`](DeadlinePassed) once the deadline has passed.
+//! - [`Deadline`](Deadline) wraps another `Future` and checks the
 //!   deadline each time it's polled, it returns `Err(DeadlinePassed)` once the
 //!   deadline has passed.
-//! - [`Interval`](timer::Interval) implements [`Stream`] which yields an item
+//! - [`Interval`](Interval) implements [`Stream`] which yields an item
 //!   after the deadline has passed each interval.
 //!
 //! [`Stream`]: futures_core::stream::Stream

@@ -1,4 +1,6 @@
 //! Options for adding an `Actor` to a [`Runtime`].
+//!
+//! [`Runtime`]: crate::Runtime
 
 pub use crate::rt::scheduler::Priority;
 
