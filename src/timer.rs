@@ -266,6 +266,21 @@ impl<Fut> Deadline<Fut> {
     pub fn has_passed(&self) -> bool {
         self.deadline <= Instant::now()
     }
+
+    /// Returns a reference to the wrapped future.
+    pub fn as_ref(&self) -> &Fut {
+        &self.future
+    }
+
+    /// Returns a mutable reference to the wrapped future.
+    pub fn as_mut(&mut self) -> &mut Fut {
+        &mut self.future
+    }
+
+    /// Returns the wrapped future.
+    pub fn into_inner(self) -> Fut {
+        self.future
+    }
 }
 
 /* TODO: add this once `specialization` feature is stabilised.
