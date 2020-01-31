@@ -209,6 +209,14 @@ impl<M> LocalActorRef<M> {
     where
         Msg: Into<M>,
     {
+        #[cfg(any(test, feature = "test"))]
+        {
+            if crate::test::should_lose_msg() {
+                log::debug!("dropping message on purpose");
+                return Ok(());
+            }
+        }
+
         let msg = msg.into();
         use LocalActorRefKind::*;
         match &mut self.kind {
@@ -407,6 +415,14 @@ impl<M> ActorRef<M> {
     where
         Msg: Into<M>,
     {
+        #[cfg(any(test, feature = "test"))]
+        {
+            if crate::test::should_lose_msg() {
+                log::debug!("dropping message on purpose");
+                return Ok(());
+            }
+        }
+
         let msg = msg.into();
         use ActorRefKind::*;
         match &self.kind {
