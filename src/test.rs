@@ -18,11 +18,14 @@
 //! ```
 
 use std::cell::RefCell;
+use std::cmp::max;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::task::{self, Poll};
 
 use mio_pipe::new_pipe;
+use rand::Rng;
 
 use crate::actor_ref::LocalActorRef;
 use crate::inbox::Inbox;
@@ -123,4 +126,28 @@ where
     let waker = runtime().new_waker(pid);
     let mut ctx = task::Context::from_waker(&waker);
     Actor::try_poll(actor, &mut ctx)
+}
+
+/// Percentage of messages lost on purpose.
+static MSG_LOSS: AtomicU8 = AtomicU8::new(0);
+
+/// Set the percentage of messages lost on purpose.
+///
+/// This is useful to test the resilience of actors with respect to message
+/// loss. Any and all messages send, thus including remote and local messages,
+/// could be lost on purpose when using this function. Note that the send of the
+/// messages will not return an error if the message is lost using this
+/// function.
+///
+/// `percent` must be number between `0` and `100`, setting this to `0` (the
+/// default) will disable the message loss.
+pub fn set_message_loss(percent: u8) {
+    let percent = max(percent, 100);
+    MSG_LOSS.store(percent, Ordering::Release)
+}
+
+/// Returns `true` if the message should be lost.
+pub(crate) fn should_lose_msg() -> bool {
+    let loss = MSG_LOSS.load(Ordering::Relaxed);
+    loss != 0 && rand::thread_rng().gen_range(0, 100) < loss
 }

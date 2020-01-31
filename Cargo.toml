@@ -30,6 +30,7 @@ mio                  = { version = "0.7.0-alpha.1", features = ["os-poll", "tcp"
 mio-pipe             = "0.1.0"
 mio-signals          = "0.1.0"
 num_cpus             = "1.10.1"
+rand                 = "0.7.3"
 slab                 = "0.4.2"
 std-logger           = "0.3.4"
 
