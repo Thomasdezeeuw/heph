@@ -1,7 +1,7 @@
 //! Module containing the `task::Waker` implementation.
 
 use std::mem::size_of;
-use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::task::{RawWaker, RawWakerVTable, Waker};
 
 use crossbeam_channel::Sender;
@@ -42,7 +42,7 @@ pub fn init(waker: mio::Waker, notifications: Sender<ProcessId>) -> WakerId {
     unsafe {
         THREAD_WAKERS[thread_id as usize] = Some(ThreadWaker {
             notifications,
-            awoken: AtomicBool::new(false),
+            waker_status: AtomicU8::new(NOT_POLLING),
             waker,
         });
     }
@@ -58,9 +58,12 @@ pub fn new(waker_id: WakerId, pid: ProcessId) -> Waker {
     unsafe { Waker::from_raw(raw_waker) }
 }
 
-/// Mark the waker with `waker_id` as recently polled.
-pub fn mark_polled(waker_id: WakerId) {
-    get_waker(waker_id).mark_polled();
+/// Let the `Waker` know the worker thread is currently `polling` (or not).
+///
+/// This is used by the `task::Waker` implementation to wake the worker thread
+/// up from polling.
+pub fn mark_polling(waker_id: WakerId, polling: bool) {
+    get_waker(waker_id).mark_polling(polling);
 }
 
 /// Each worker thread of the `Runtime` has a unique `WakeId` which is used as
@@ -97,11 +100,18 @@ fn get_waker(waker_id: WakerId) -> &'static ThreadWaker {
     }
 }
 
+/// Not currently polling.
+const NOT_POLLING: u8 = 0;
+/// Currently polling.
+const IS_POLLING: u8 = 1;
+/// Going to wake the polling thread.
+const WAKING: u8 = 2;
+
 /// A `Waker` implementation.
 struct ThreadWaker {
     notifications: Sender<ProcessId>,
-    awoken: AtomicBool,
     waker: mio::Waker,
+    waker_status: AtomicU8,
 }
 
 impl ThreadWaker {
@@ -112,20 +122,26 @@ impl ThreadWaker {
             return;
         }
 
-        // TODO: Acquire here?
-        if !self.awoken.load(Ordering::Relaxed) {
+        // If the thread is currently polling we're going to wake it. To avoid
+        // additional calls to `Waker::wake` we use compare_exchange and let
+        // only a single call to `Thread::wake` wake the thread.
+        if let Ok(_) = self.waker_status.compare_exchange(
+            IS_POLLING,
+            WAKING,
+            Ordering::AcqRel,
+            Ordering::Relaxed, // We don't care about the result.
+        ) {
             if let Err(err) = self.waker.wake() {
                 error!("unable to wake up worker thread: {}", err);
                 return;
             }
-            // Swap here?
-            self.awoken.store(true, Ordering::Release);
         }
     }
 
-    /// Mark the waker as recently polled.
-    fn mark_polled(&self) {
-        self.awoken.store(false, Ordering::Release);
+    /// Mark the thread as currently polling (or not).
+    fn mark_polling(&self, is_polling: bool) {
+        let status = if is_polling { IS_POLLING } else { NOT_POLLING };
+        self.waker_status.store(status, Ordering::Release);
     }
 }
 
@@ -223,8 +239,9 @@ mod tests {
 
     use super::{MAX_THREADS, THREAD_BITS, THREAD_MASK};
 
-    const AWAKENER: Token = Token(0);
+    const WAKER: Token = Token(0);
     const PID1: ProcessId = ProcessId(0);
+    const PID2: ProcessId = ProcessId(1);
 
     #[test]
     fn assert_waker_data_size() {
@@ -253,33 +270,84 @@ mod tests {
         let mut events = Events::with_capacity(8);
 
         // Initialise the waker.
-        let waker = Waker::new(poll.registry(), AWAKENER).unwrap();
+        let waker = Waker::new(poll.registry(), WAKER).unwrap();
         let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
         let waker_id = waker::init(waker, wake_sender);
 
         // Create a new waker.
         let waker = waker::new(waker_id, PID1);
-        waker.wake();
 
+        // Should receive an event for the `Waker` if marked as polling.
+        waker::mark_polling(waker_id, true);
+        waker.wake();
         poll.poll(&mut events, Some(Duration::from_secs(1)))
             .unwrap();
-        // Should receive an event for the Waker.
         expect_one_waker_event(&mut events);
         // And the process id that needs to be scheduled.
         assert_eq!(wake_receiver.try_recv(), Ok(PID1));
-        waker::mark_polled(waker_id);
+        waker::mark_polling(waker_id, false);
 
         let pid2 = ProcessId(usize::max_value() & !THREAD_MASK);
         let waker = waker::new(waker_id, pid2);
+        waker::mark_polling(waker_id, true);
         waker.wake();
-
         poll.poll(&mut events, Some(Duration::from_secs(1)))
             .unwrap();
         // Should receive an event for the Waker.
         expect_one_waker_event(&mut events);
         // And the process id that needs to be scheduled.
         assert_eq!(wake_receiver.try_recv(), Ok(pid2));
-        waker::mark_polled(waker_id);
+    }
+
+    #[test]
+    fn waker_not_polling() {
+        let mut poll = Poll::new().unwrap();
+        let mut events = Events::with_capacity(8);
+
+        // Initialise the waker.
+        let waker = Waker::new(poll.registry(), WAKER).unwrap();
+        let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
+        let waker_id = waker::init(waker, wake_sender);
+
+        // Create a new waker.
+        let waker = waker::new(waker_id, PID1);
+
+        // Since the waker is marked as not polling we shouldn't get an event.
+        waker::mark_polling(waker_id, false);
+        waker.wake();
+        poll.poll(&mut events, Some(Duration::from_millis(100)))
+            .unwrap();
+        assert!(events.is_empty());
+        // But the pid should still be delivered
+        assert_eq!(wake_receiver.try_recv(), Ok(PID1));
+    }
+
+    #[test]
+    fn waker_single_mio_waker_call() {
+        let mut poll = Poll::new().unwrap();
+        let mut events = Events::with_capacity(8);
+
+        let waker = Waker::new(poll.registry(), WAKER).unwrap();
+        let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
+        let waker_id = waker::init(waker, wake_sender);
+
+        let waker = waker::new(waker_id, PID1);
+        let waker2 = waker::new(waker_id, PID2);
+
+        // Should receive an event for the `Waker` if marked as polling.
+        waker::mark_polling(waker_id, true);
+        waker.wake_by_ref();
+        waker.wake(); // More calls shouldn't create more `WAKER` events.
+        waker2.wake_by_ref();
+        waker2.wake();
+        poll.poll(&mut events, Some(Duration::from_secs(1)))
+            .unwrap();
+        expect_one_waker_event(&mut events);
+        // And the process id that needs to be scheduled.
+        assert_eq!(wake_receiver.try_recv(), Ok(PID1));
+        assert_eq!(wake_receiver.try_recv(), Ok(PID1));
+        assert_eq!(wake_receiver.try_recv(), Ok(PID2));
+        assert_eq!(wake_receiver.try_recv(), Ok(PID2));
     }
 
     #[test]
@@ -288,10 +356,11 @@ mod tests {
         let mut events = Events::with_capacity(8);
 
         // Initialise the waker.
-        let waker = Waker::new(poll.registry(), AWAKENER).unwrap();
+        let waker = Waker::new(poll.registry(), WAKER).unwrap();
         let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
         let waker_id = waker::init(waker, wake_sender);
 
+        waker::mark_polling(waker_id, true);
         // Create a new waker.
         let waker = waker::new(waker_id, PID1);
         let handle = thread::spawn(move || {
@@ -305,14 +374,13 @@ mod tests {
         expect_one_waker_event(&mut events);
         // And the process id that needs to be scheduled.
         assert_eq!(wake_receiver.try_recv(), Ok(PID1));
-        waker::mark_polled(waker_id);
     }
 
     fn expect_one_waker_event(events: &mut Events) {
         assert!(!events.is_empty());
         let mut iter = events.iter();
         let event = iter.next().unwrap();
-        assert_eq!(event.token(), AWAKENER);
+        assert_eq!(event.token(), WAKER);
         assert!(event.is_readable());
         assert!(iter.next().is_none(), "unexpected event");
     }
