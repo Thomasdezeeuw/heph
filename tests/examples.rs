@@ -45,7 +45,7 @@ sequential_tests! {
         assert_eq!(output, "Hello World\n");
     }
 
-    fn test_1b_hello_world_() {
+    fn test_1b_hello_world() {
         let output = run_example_output("1b_hello_world");
         assert_eq!(output, "Hello World\n");
     }
@@ -148,7 +148,7 @@ fn tcp_retry_connect(address: SocketAddr) -> TcpStream {
         if let Ok(stream) = TcpStream::connect(address) {
             return stream;
         }
-        sleep(Duration::from_millis(10));
+        sleep(Duration::from_millis(50));
     }
     panic!("failed to connect to address");
 }
