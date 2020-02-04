@@ -125,12 +125,16 @@ impl ThreadWaker {
         // If the thread is currently polling we're going to wake it. To avoid
         // additional calls to `Waker::wake` we use compare_exchange and let
         // only a single call to `Thread::wake` wake the thread.
-        if let Ok(_) = self.waker_status.compare_exchange(
-            IS_POLLING,
-            WAKING,
-            Ordering::AcqRel,
-            Ordering::Relaxed, // We don't care about the result.
-        ) {
+        if self
+            .waker_status
+            .compare_exchange(
+                IS_POLLING,
+                WAKING,
+                Ordering::AcqRel,
+                Ordering::Relaxed, // We don't care about the result.
+            )
+            .is_ok()
+        {
             if let Err(err) = self.waker.wake() {
                 error!("unable to wake up worker thread: {}", err);
                 return;
