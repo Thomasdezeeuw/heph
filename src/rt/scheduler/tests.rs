@@ -10,7 +10,6 @@ use std::time::Duration;
 
 use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{pending, Pending};
-use futures_util::pending;
 
 use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::rt::scheduler::{Priority, ProcessData, Scheduler};
@@ -156,7 +155,6 @@ async fn simple_actor(_ctx: actor::Context<!>) -> Result<(), !> {
 #[test]
 fn adding_actor() {
     let (mut scheduler, _) = Scheduler::new();
-    let mut runtime_ref = test::runtime();
 
     // Shouldn't run any process yet, since none are added.
     assert!(!scheduler.has_process());
@@ -208,7 +206,6 @@ fn adding_actor() {
 #[test]
 fn marking_unknown_pid_as_ready() {
     let (mut scheduler, _) = Scheduler::new();
-    let mut runtime_ref = test::runtime();
 
     assert!(!scheduler.has_process());
     assert!(!scheduler.has_ready_process());

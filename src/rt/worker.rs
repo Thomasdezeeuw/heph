@@ -164,7 +164,7 @@ const COORDINATOR: Token = Token(usize::max_value() - 1);
 
 impl RunningRuntime {
     /// Create a new running runtime.
-    pub fn new(mut receiver: mio_pipe::Receiver) -> io::Result<RunningRuntime> {
+    pub(crate) fn new(mut receiver: mio_pipe::Receiver) -> io::Result<RunningRuntime> {
         // System queue for event notifications.
         let poll = Poll::new()?;
         let awakener = mio::Waker::new(poll.registry(), AWAKENER)?;
@@ -198,14 +198,14 @@ impl RunningRuntime {
     }
 
     /// Create a new reference to this runtime.
-    pub fn create_ref(&self) -> RuntimeRef {
+    pub(crate) fn create_ref(&self) -> RuntimeRef {
         RuntimeRef {
             internal: self.internal.clone(),
         }
     }
 
     /// Run the runtime's event loop.
-    pub fn run_event_loop<E>(mut self) -> Result<(), RuntimeError<E>> {
+    fn run_event_loop<E>(mut self) -> Result<(), RuntimeError<E>> {
         debug!("running runtime's event loop");
 
         // System reference used in running the processes.
@@ -256,53 +256,64 @@ impl RunningRuntime {
     fn schedule_processes(&mut self) -> io::Result<()> {
         trace!("polling event sources to schedule processes");
 
-        let timeout = self.determine_timeout();
+        self.poll()?;
 
-        self.internal
-            .poll
-            .borrow_mut()
-            .poll(&mut self.events, timeout)?;
-
-        let mut poll_waker = false;
-        let mut check_receiver = false;
+        let mut scheduler = self.internal.scheduler.borrow_mut();
+        let mut check_coordinator = false;
         for event in self.events.iter() {
             match event.token() {
-                AWAKENER => poll_waker = true,
-                COORDINATOR => check_receiver = true,
-                token => self
-                    .internal
-                    .scheduler
-                    .borrow_mut()
-                    .mark_ready(token.into()),
+                AWAKENER => {}
+                COORDINATOR => check_coordinator = true,
+                token => scheduler.mark_ready(token.into()),
             }
         }
 
-        if check_receiver {
-            self.receive_signals()?;
-        }
-
-        if poll_waker {
-            // We must first mark the waker as polled and only after poll the
-            // waker events to ensure we don't miss any wake ups.
-            waker::mark_polled(self.internal.waker_id);
-
-            trace!("polling wakup events");
-            for pid in self.waker_events.try_iter() {
-                self.internal.scheduler.borrow_mut().mark_ready(pid);
-            }
+        trace!("polling wakup events");
+        for pid in self.waker_events.try_iter() {
+            scheduler.mark_ready(pid);
         }
 
         trace!("polling user space events");
         for pid in self.internal.queue.borrow_mut().events() {
-            self.internal.scheduler.borrow_mut().mark_ready(pid);
+            scheduler.mark_ready(pid);
         }
 
         trace!("polling timers");
         for pid in self.internal.timers.borrow_mut().deadlines() {
-            self.internal.scheduler.borrow_mut().mark_ready(pid);
+            scheduler.mark_ready(pid);
         }
 
-        Ok(())
+        if check_coordinator {
+            drop(scheduler); // Com'on rustc, this one isn't that hard...
+            self.receive_signals()
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Poll for system events.
+    fn poll(&mut self) -> io::Result<()> {
+        let timeout = self.determine_timeout();
+
+        // Only mark ourselves as polling if the timeout is non zero.
+        let mark_waker = if !is_zero(timeout) {
+            waker::mark_polling(self.internal.waker_id, true);
+            true
+        } else {
+            false
+        };
+
+        let res = self
+            .internal
+            .poll
+            .borrow_mut()
+            .poll(&mut self.events, timeout);
+
+        if mark_waker {
+            waker::mark_polling(self.internal.waker_id, false);
+        }
+
+        res
     }
 
     fn determine_timeout(&self) -> Option<Duration> {
@@ -349,5 +360,13 @@ impl RunningRuntime {
                 Err(err) => return Err(err),
             }
         }
+    }
+}
+
+/// Returns `true` is timeout is `Some(Duration::from_nanos(0))`.
+fn is_zero(timeout: Option<Duration>) -> bool {
+    match timeout {
+        Some(timeout) if timeout.subsec_nanos() == 0 => true,
+        _ => false,
     }
 }
