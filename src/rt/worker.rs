@@ -234,15 +234,13 @@ impl RunningRuntime {
                             self.internal.scheduler.borrow_mut().add_process(process);
                         }
                     }
+                } else if !self.internal.scheduler.borrow().has_process() {
+                    // No processes left to run, so we're done.
+                    debug!("no processes to run, stopping runtime");
+                    return Ok(());
                 } else {
-                    if !self.internal.scheduler.borrow().has_process() {
-                        // No processes left to run, so we're done.
-                        debug!("no processes to run, stopping runtime");
-                        return Ok(());
-                    } else {
-                        // No processes ready to run, try polling again.
-                        break;
-                    }
+                    // No processes ready to run, try polling again.
+                    break;
                 }
             }
 

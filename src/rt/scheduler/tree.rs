@@ -111,9 +111,7 @@ impl Branch {
     pub(super) fn add(&mut self, process: Pin<Box<ProcessData>>, w_pid: usize, depth: usize) {
         match &mut self.branches[w_pid & LEVEL_MASK] {
             Some(branch) => match branch.deref_mut() {
-                Either::Left(mut branch) => {
-                    return branch.add(process, w_pid >> LEVEL_SHIFT, depth + 1)
-                }
+                Either::Left(mut branch) => branch.add(process, w_pid >> LEVEL_SHIFT, depth + 1),
                 Either::Right(_) => {
                     let new_branch = TreeBox::new_left(Box::pin(Branch::empty()));
 
@@ -175,7 +173,7 @@ impl Branch {
                 _ => unreachable!(),
             }
 
-            w_pid = w_pid >> LEVEL_SHIFT;
+            w_pid >>= LEVEL_SHIFT;
         }
 
         self.add(process1, skip_bits(pid1, depth), depth);
@@ -187,16 +185,12 @@ impl Branch {
             .as_mut()
             .map(|b| b.deref_mut())
         {
-            Some(Either::Left(mut next_branch)) => {
-                return next_branch.remove(pid, w_pid >> LEVEL_SHIFT)
-            }
-            Some(Either::Right(process)) if process.as_ref().id() == pid => {
-                let process = self.branches[w_pid & LEVEL_MASK]
-                    .take()
-                    .map(|process| process.into_inner().unwrap_right());
-                return process;
-            }
-            Some(Either::Right(_)) | None => return None,
+            Some(Either::Left(mut next_branch)) => next_branch.remove(pid, w_pid >> LEVEL_SHIFT),
+            Some(Either::Right(process)) if process.as_ref().id() == pid => self.branches
+                [w_pid & LEVEL_MASK]
+                .take()
+                .map(|process| process.into_inner().unwrap_right()),
+            Some(Either::Right(_)) | None => None,
         }
     }
 }
@@ -216,8 +210,8 @@ fn diff_branch_depth(pid1: ProcessId, pid2: ProcessId, depth: usize) -> usize {
         debug_assert!(depth < 32);
         debug_assert!(pid1 > 0);
         depth += 1;
-        pid1 = pid1 >> LEVEL_SHIFT;
-        pid2 = pid2 >> LEVEL_SHIFT;
+        pid1 >>= LEVEL_SHIFT;
+        pid2 >>= LEVEL_SHIFT;
     }
     depth
 }
