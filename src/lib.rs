@@ -1,13 +1,15 @@
-//! Heph derived from Hephaestus, is the Greek god of blacksmiths, metalworking,
-//! carpenters, craftsmen, artisans, sculptors, metallurgy, fire, and volcanoes.
-//! <sup>[1]</sup> Well this crate has very little to do with Greek gods, but I
+//! Heph, derived from [Hephaestus], is the Greek god of blacksmiths,
+//! metalworking, carpenters, craftsmen, artisans, sculptors, metallurgy, fire,
+//! and volcanoes. Well this crate has very little to do with Greek gods, but I
 //! needed a name.
+//!
+//! [Hephaestus]: https://en.wikipedia.org/wiki/Hephaestus
 //!
 //!
 //! ## About
 //!
-//! Heph is an actor <sup>[2]</sup> framework based on asynchronous functions.
-//! Such an asynchronous function looks like this:
+//! Heph is an [actor] framework based on asynchronous functions. Such an
+//! asynchronous function looks like this:
 //!
 //! ```
 //! # #![feature(never_type)]
@@ -30,7 +32,7 @@
 //! do all those buzzwords actually mean?
 //!
 //!  - *Event-driven*: Heph does nothing by itself, it must first get an event
-//!    before it starts doing anything. For example when using an `TcpListener`
+//!    before it starts doing anything. For example when using a [`TcpListener`]
 //!    it waits on a notification from the OS saying the `TcpListener` is ready
 //!    before trying to accept connections.
 //!  - *Non-blocking I/O*: normal I/O operations need to wait (block) until the
@@ -44,6 +46,8 @@
 //!    owned by other actors. Instead communication is done via sending
 //!    messages, see the [actor model].
 //!
+//! [actor]: https://en.wikipedia.org/wiki/Actor_model
+//! [`TcpListener`]: crate::net::TcpListener
 //! [`Mutex`]: std::sync::Mutex
 //! [atomic]: https://doc.rust-lang.org/std/sync/atomic/index.html
 //! [actor model]: https://en.wikipedia.org/wiki/Actor_model
@@ -60,9 +64,6 @@
 //!
 //! This crate has a single optional feature: `test`. This feature will enable
 //! the `test` module which adds testing facilities.
-//!
-//! [1]: https://en.wikipedia.org/wiki/Hephaestus
-//! [2]: https://en.wikipedia.org/wiki/Actor_model
 
 #![feature(
     const_fn,

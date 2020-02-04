@@ -5,16 +5,17 @@
 [![Crates.io](https://img.shields.io/crates/v/heph.svg)](https://crates.io/crates/heph)
 [![Docs](https://docs.rs/heph/badge.svg)](https://docs.rs/heph)
 
-Heph, derived from Hephaestus, is the Greek god of blacksmiths, metalworking,
+Heph, derived from [Hephaestus], is the Greek god of blacksmiths, metalworking,
 carpenters, craftsmen, artisans, sculptors, metallurgy, fire, and volcanoes.
-<sup>[1]</sup> Well this crate has very little to do with Greek gods, but I
-needed a name.
+Well this crate has very little to do with Greek gods, but I needed a name.
+
+[Hephaestus]: https://en.wikipedia.org/wiki/Hephaestus
 
 
 ## About
 
-Heph is an actor <sup>[2]</sup> framework based on asynchronous functions. Such
-an asynchronous function looks like this:
+Heph is an [actor] framework based on asynchronous functions. Such an
+asynchronous function looks like this:
 
 ```rust
 async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
@@ -29,6 +30,7 @@ async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
 
 For more examples see the [examples] directory.
 
+[actor]: https://en.wikipedia.org/wiki/Actor_model
 [examples]: ./examples/README.md
 
 
@@ -38,7 +40,7 @@ Heph uses an event-driven, non-blocking I/O, share nothing design. But what do
 all those buzzwords actually mean?
 
  - *Event-driven*: Heph does nothing by itself, it must first get an event
-   before it starts doing anything. For example when using an `TcpListener` it
+   before it starts doing anything. For example when using a `TcpListener` it
    waits on a notification from the OS saying the `TcpListener` is ready before
    trying to accepted connections.
  - *Non-blocking I/O*: normal I/O operations need to wait (block) until the
@@ -49,11 +51,12 @@ all those buzzwords actually mean?
    do this safely we need to protect it from data races, via a [`Mutex`] or
    by using [atomic] operations. Heph is designed to not share any data. Each
    actor is responsible for its own memory and cannot access memory owned by
-   other actors. Instead communication is done via sending messages, see actor
-   model. <sup>[2]</sup>
+   other actors. Instead communication is done via sending messages, see [actor
+   model].
 
 [`Mutex`]: https://doc.rust-lang.org/std/sync/struct.Mutex.html
 [atomic]: https://doc.rust-lang.org/std/sync/atomic/index.html
+[actor model]: https://en.wikipedia.org/wiki/Actor_model
 
 
 ## Getting started
@@ -156,6 +159,3 @@ top of the work of others. Three major components used in Heph are the futures
 task system (part of the standard library), asynchronous functions and [Mio].
 
 [Mio]: https://github.com/tokio-rs/mio
-
-[1]: https://en.wikipedia.org/wiki/Hephaestus
-[2]: https://en.wikipedia.org/wiki/Actor_model
