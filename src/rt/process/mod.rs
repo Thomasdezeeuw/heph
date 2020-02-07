@@ -47,29 +47,37 @@ impl fmt::Display for ProcessId {
 
 /// The trait that represents a process.
 ///
-/// This currently has a single implementations;
-/// - the `ActorProcess`, which wraps an `Actor` to implement this trait.
+/// This currently has a single implementation:
+/// - `ActorProcess`, which wraps an `Actor` to implement this trait.
 pub trait Process {
     /// Run the process.
     ///
     /// Once the process returns `ProcessResult::Complete` it will be removed
-    /// from the scheduler and no longer run.
+    /// from the scheduler and will no longer run.
     ///
     /// If it returns `ProcessResult::Pending` it will be considered inactive
     /// and the process itself must make sure its gets scheduled again.
     fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult;
 }
 
-/// The result of running a `Process`.
+/// The result of running a [`Process`].
 ///
 /// See [`Process::run`].
 #[must_use]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ProcessResult {
     /// The process is complete.
+    ///
+    /// Similar to [`Poll::Ready`].
+    ///
+    /// [`Poll::Pending`]: std::task::Poll::Ready
     Complete,
     /// Process completion is pending, but for now no further progress can be
     /// made without blocking. The process itself is responsible for scheduling
     /// itself again.
+    ///
+    /// Similar to [`Poll::Pending`].
+    ///
+    /// [`Poll::Pending`]: std::task::Poll::Pending
     Pending,
 }
