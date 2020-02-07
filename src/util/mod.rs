@@ -141,6 +141,9 @@ impl<L, R> Drop for TaggedBox<L, R> {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+
     use super::TaggedBox;
 
     type T = TaggedBox<usize, bool>;
@@ -182,5 +185,30 @@ mod tests {
         // This shouldn't panic or anything.
         let ptr: T = TaggedBox::new_left(Box::pin(123));
         drop(ptr);
+
+        struct DropTest(Arc<AtomicUsize>);
+
+        impl Drop for DropTest {
+            fn drop(&mut self) {
+                let _ = self.0.fetch_add(1, Ordering::SeqCst);
+            }
+        }
+
+        let dropped_left = Arc::new(AtomicUsize::new(0));
+        let dropped_right = Arc::new(AtomicUsize::new(0));
+
+        let left: TaggedBox<DropTest, ()> =
+            TaggedBox::new_left(Box::pin(DropTest(dropped_left.clone())));
+        let right: TaggedBox<(), DropTest> =
+            TaggedBox::new_right(Box::pin(DropTest(dropped_right.clone())));
+
+        assert_eq!(dropped_left.load(Ordering::Acquire), 0);
+        assert_eq!(dropped_right.load(Ordering::Acquire), 0);
+
+        drop(left);
+        drop(right);
+
+        assert_eq!(dropped_left.load(Ordering::Acquire), 1);
+        assert_eq!(dropped_right.load(Ordering::Acquire), 1);
     }
 }
