@@ -42,17 +42,17 @@ impl Process for NopTestProcess {
 fn process_data_equality() {
     let process1 = ProcessData {
         priority: Priority::LOW,
-        runtime: Duration::from_millis(0),
+        fair_runtime: Duration::from_millis(0),
         process: Box::pin(NopTestProcess),
     };
     let process2 = ProcessData {
         priority: Priority::NORMAL,
-        runtime: Duration::from_millis(0),
+        fair_runtime: Duration::from_millis(0),
         process: Box::pin(NopTestProcess),
     };
     let process3 = ProcessData {
         priority: Priority::HIGH,
-        runtime: Duration::from_millis(0),
+        fair_runtime: Duration::from_millis(0),
         process: Box::pin(NopTestProcess),
     };
 
@@ -74,17 +74,17 @@ fn process_data_equality() {
 fn process_data_ordering() {
     let mut process1 = ProcessData {
         priority: Priority::HIGH,
-        runtime: Duration::from_millis(10),
+        fair_runtime: Duration::from_millis(10),
         process: Box::pin(NopTestProcess),
     };
     let mut process2 = ProcessData {
         priority: Priority::NORMAL,
-        runtime: Duration::from_millis(10),
+        fair_runtime: Duration::from_millis(10),
         process: Box::pin(NopTestProcess),
     };
     let mut process3 = ProcessData {
         priority: Priority::LOW,
-        runtime: Duration::from_millis(10),
+        fair_runtime: Duration::from_millis(10),
         process: Box::pin(NopTestProcess),
     };
 
@@ -102,9 +102,9 @@ fn process_data_ordering() {
     assert_eq!(process3.cmp(&process3), Ordering::Equal);
 
     let duration = Duration::from_millis(0);
-    process1.runtime = duration;
-    process2.runtime = duration;
-    process3.runtime = duration;
+    process1.fair_runtime = duration;
+    process2.fair_runtime = duration;
+    process3.fair_runtime = duration;
 
     // If all the "fair runtimes" are equal we only compare based on the
     // priority.
@@ -137,7 +137,7 @@ fn process_data_runtime_increase() {
 
     let mut process = Box::pin(ProcessData {
         priority: Priority::HIGH,
-        runtime: Duration::from_millis(10),
+        fair_runtime: Duration::from_millis(10),
         process: Box::pin(SleepyProcess(SLEEP_TIME)),
     });
 
@@ -145,7 +145,7 @@ fn process_data_runtime_increase() {
     let mut runtime_ref = test::runtime();
     let res = process.as_mut().run(&mut runtime_ref);
     assert_eq!(res, ProcessResult::Pending);
-    assert!(process.runtime >= SLEEP_TIME);
+    assert!(process.fair_runtime >= SLEEP_TIME);
 }
 
 async fn simple_actor(_ctx: actor::Context<!>) -> Result<(), !> {

@@ -8,19 +8,19 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-use log::{debug, trace};
+use log::trace;
 use parking_lot::RwLock;
 
 use crate::inbox::Inbox;
 use crate::rt::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::{NewActor, RuntimeRef, Supervisor};
 
+mod inactive;
 mod priority;
 mod runqueue;
-mod tree;
 
+use inactive::Inactive;
 use runqueue::RunQueue;
-use tree::Tree;
 
 #[cfg(test)]
 mod tests;
@@ -30,9 +30,9 @@ mod tests;
 // There are two components to the scheduler:
 //
 // * `RunQueue`: holds the processes that are ready to run.
-// * `Tree`: holds the inactive processes.
+// * `Inactive`: holds the inactive processes.
 //
-// The scheduler has unique access to the `Tree`. However the `RunQueue` is
+// The scheduler has unique access to the `Inactive`. However the `RunQueue` is
 // shared with `WorkStealer`, which can be used to steal processes in the ready
 // state from this scheduler. This is used by other workers threads to steal
 // work for themselves in an effort to prevent an in-balance in the workload.
@@ -54,14 +54,14 @@ mod tests;
 // * Inactive: default state of an process, its located in `Scheduler.inactive`.
 // * Ready: process is ready to run (after they are marked as such, see
 //   `Scheduler::mark_ready`), located in `Scheduler.ready`.
-// * Running: process is being run, located on the stack in
-//   `Scheduler::run_process` or `WorkStealer::steal_and_run`.
+// * Running: process is being run, located on the stack on the worker thread
+//   that is running it.
 // * Stopped: final state of a process, at this point its deallocated and its
 //   resources cleaned up.
 
 pub use priority::Priority;
 
-/// The scheduler, responsible for scheduling and running processes.
+/// The scheduler, responsible for scheduling processes.
 pub(super) struct Scheduler {
     /// Processes that are ready to run.
     ///
@@ -79,7 +79,7 @@ pub(super) struct Scheduler {
     ///   access.
     ready: Arc<RwLock<RunQueue>>,
     /// Inactive processes that are not ready to run.
-    inactive: Tree,
+    inactive: Inactive,
 }
 
 impl Scheduler {
@@ -88,7 +88,7 @@ impl Scheduler {
         let ready = Arc::new(RwLock::new(RunQueue::empty()));
         let scheduler = Scheduler {
             ready: ready.clone(),
-            inactive: Tree::empty(),
+            inactive: Inactive::empty(),
         };
         let stealer = WorkStealer { ready };
         (scheduler, stealer)
@@ -131,24 +131,6 @@ impl Scheduler {
         }
     }
 
-    /* TODO: this is prefered over `next_process` and `add_process`, but
-     * currently not usable. See note in `RunningRuntime::run_event_loop`.
-    /// Run the next process that is ready.
-    ///
-    /// Returns `true` if a process was run, `false` otherwise.
-    pub(super) fn run_process(&mut self, runtime_ref: &mut RuntimeRef) -> bool {
-        if let Some(mut process) = self.next_process() {
-            match process.as_mut().run(runtime_ref) {
-                ProcessResult::Complete => {}
-                ProcessResult::Pending => self.inactive.add(process),
-            }
-            true
-        } else {
-            false
-        }
-    }
-    */
-
     /// Returns the next ready process.
     pub(super) fn next_process(&mut self) -> Option<Pin<Box<ProcessData>>> {
         // Get a process from the run queue.
@@ -187,7 +169,7 @@ impl fmt::Debug for Scheduler {
     }
 }
 
-/// Worker stealing queue.
+/// Handle to a [`Scheduler`] to steal processes from the run queue.
 #[derive(Clone)]
 pub struct WorkStealer {
     /// Processes that are ready to run.
@@ -199,40 +181,17 @@ pub struct WorkStealer {
     ready: Arc<RwLock<RunQueue>>,
 }
 
-/// Result by attempt to steal a process, see `WorkStealer::steal_and_run`.
-pub(super) enum WorkStealResult {
-    /// A process was stolen.
-    Stolen,
-    /// Can't steal any process at the moment, try again later.
-    Aborted,
-    /// The scheduler has no processes ready to run.
-    Empty,
-}
-
 impl WorkStealer {
-    /// Attempts to steal a process, if any are ready it runs it and if its
-    /// returned pending its added to `scheduler`.
+    /// Attempts to steal a process.
+    ///
+    /// If this returns `Err(())` it means the thread that owns the scheduler
+    /// has unique access to it and that we can't get access to it. Otherwise it
+    /// returns a process or nothing if the run queue is empty.
     #[allow(dead_code)] // TODO: use this.
-    pub(super) fn steal_and_run(
-        &mut self,
-        scheduler: &mut Scheduler,
-        runtime_ref: &mut RuntimeRef,
-    ) -> WorkStealResult {
-        // Get a process from the run queue.
-        let process = match self.ready.try_read() {
-            Some(run_queue) => run_queue.remove(),
-            None => return WorkStealResult::Aborted,
-        };
-
-        if let Some(mut process) = process {
-            match process.as_mut().run(runtime_ref) {
-                ProcessResult::Complete => {}
-                ProcessResult::Pending => scheduler.inactive.add(process),
-            }
-            WorkStealResult::Stolen
-        } else {
-            debug!("no ready processes to steal");
-            WorkStealResult::Empty
+    pub(super) fn try_steal(&mut self) -> Result<Option<Pin<Box<ProcessData>>>, ()> {
+        match self.ready.try_read() {
+            Some(run_queue) => Ok(run_queue.remove()),
+            None => Err(()),
         }
     }
 }
@@ -254,7 +213,8 @@ impl fmt::Debug for WorkStealer {
 /// priority.
 pub(super) struct ProcessData {
     priority: Priority,
-    runtime: Duration,
+    /// Fair runtime of the process, which is `actual runtime * priority`.
+    fair_runtime: Duration,
     process: Pin<Box<dyn Process>>,
 }
 
@@ -279,7 +239,8 @@ impl ProcessData {
         let start = Instant::now();
         let result = self.process.as_mut().run(runtime_ref, pid);
         let elapsed = start.elapsed();
-        self.runtime += elapsed;
+        let fair_elapsed = elapsed * self.priority;
+        self.fair_runtime += fair_elapsed;
 
         trace!(
             "finished running process: pid={}, elapsed_time={:?}, result={:?}",
@@ -303,8 +264,8 @@ impl PartialEq for ProcessData {
 
 impl Ord for ProcessData {
     fn cmp(&self, other: &Self) -> Ordering {
-        (other.runtime * other.priority)
-            .cmp(&(self.runtime * self.priority))
+        (other.fair_runtime)
+            .cmp(&(self.fair_runtime))
             .then_with(|| self.priority.cmp(&other.priority))
     }
 }
@@ -321,7 +282,7 @@ impl fmt::Debug for ProcessData {
             // FIXME: is this unsafe?
             .field("id", &Pin::new(self).id())
             .field("priority", &self.priority)
-            .field("runtime", &self.runtime)
+            .field("fair_runtime", &self.fair_runtime)
             .finish()
     }
 }
@@ -331,7 +292,7 @@ impl fmt::Debug for ProcessData {
 /// This allows the `ProcessId` to be determined before the process is actually
 /// added. This is used in registering with the system poller.
 pub(super) struct AddActor<'s> {
-    processes: &'s mut Tree,
+    processes: &'s mut Inactive,
     /// Already allocated `ProcessData`, used to determine the `ProcessId`.
     alloc: Box<MaybeUninit<ProcessData>>,
 }
@@ -357,13 +318,13 @@ impl<'s> AddActor<'s> {
     {
         #[allow(trivial_casts)]
         debug_assert!(
-            tree::ok_ptr(self.alloc.as_ptr() as *const ()),
+            inactive::ok_ptr(self.alloc.as_ptr() as *const ()),
             "SKIP_BITS invalid"
         );
 
-        let process: ProcessData = ProcessData {
+        let process = ProcessData {
             priority,
-            runtime: Duration::from_nanos(0),
+            fair_runtime: Duration::from_nanos(0),
             process: Box::pin(ActorProcess::new(supervisor, new_actor, actor, inbox)),
         };
         let AddActor {

@@ -222,10 +222,10 @@ mod tests {
         }
     }
 
-    fn add_process(run_queue: &RunQueue, runtime: Duration) -> ProcessId {
+    fn add_process(run_queue: &RunQueue, fair_runtime: Duration) -> ProcessId {
         let process = Box::pin(ProcessData {
             priority: Priority::NORMAL,
-            runtime,
+            fair_runtime,
             process: Box::pin(TestProcess),
         });
         let pid = process.as_ref().id();
@@ -233,10 +233,10 @@ mod tests {
         pid
     }
 
-    fn add_process_mut(run_queue: &mut RunQueue, runtime: Duration) -> ProcessId {
+    fn add_process_mut(run_queue: &mut RunQueue, fair_runtime: Duration) -> ProcessId {
         let process = Box::pin(ProcessData {
             priority: Priority::NORMAL,
-            runtime,
+            fair_runtime,
             process: Box::pin(TestProcess),
         });
         let pid = process.as_ref().id();

@@ -22,9 +22,6 @@ pub(super) fn ok_ptr(ptr: *const ()) -> bool {
     ptr as usize & ((1 << SKIP_BITS) - 1) == 0
 }
 
-/// Allocated `Branch` or `ProcessData`.
-type TreeBox = TaggedBox<Branch, ProcessData>;
-
 /// Inactive processes.
 ///
 /// Implemented as a tree with four pointers on each level. A pointer can point
@@ -35,19 +32,22 @@ type TreeBox = TaggedBox<Branch, ProcessData>;
 /// but longer total lifetime they quickly move into and out from the structure.
 /// To ensure operations remain quick we keep the structure of tree in place
 /// when removing processes.
-pub(super) struct Tree {
+pub(super) struct Inactive {
     root: Branch,
     length: usize,
 }
+
+/// Allocated `Branch` or `ProcessData`.
+type TreeBox = TaggedBox<Branch, ProcessData>;
 
 struct Branch {
     branches: [Option<TreeBox>; N_BRANCHES],
 }
 
-impl Tree {
-    /// Create an empty `Tree`.
-    pub(super) const fn empty() -> Tree {
-        Tree {
+impl Inactive {
+    /// Create an empty `Inactive` tree.
+    pub(super) const fn empty() -> Inactive {
+        Inactive {
             root: Branch::empty(),
             length: 0,
         }
@@ -72,32 +72,6 @@ impl Tree {
             self.length -= 1;
             process
         })
-
-        /* TODO: loop version that doesn't work.
-        let mut w_pid = pid.0 >> SKIP_BITS;
-        let mut branch = &mut self.root;
-
-        loop {
-            match branch.branches[w_pid & LEVEL_MASK]
-                .as_mut()
-                .map(|b| b.deref_mut())
-            {
-                Some(Either::Left(next_branch)) => {
-                    w_pid = w_pid >> LEVEL_SHIFT;
-                    branch = next_branch;
-                }
-                Some(Either::Right(process)) if process.id() == pid => {
-                    let process = branch.branches[w_pid & LEVEL_MASK]
-                        .take()
-                        .map(|process| Pin::new(process.unwrap_right()));
-                    self.length -= 1;
-                    debug_assert_eq!(process.as_ref().unwrap().id(), pid);
-                    return process;
-                }
-                Some(Either::Right(_)) | None => return None,
-            }
-        }
-        */
     }
 }
 
