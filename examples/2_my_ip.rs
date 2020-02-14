@@ -44,7 +44,7 @@ fn main() -> Result<(), RuntimeError<io::Error>> {
             let server_ref = runtime_ref.try_spawn(ServerSupervisor, server, (), options)?;
 
             // The server can handle the interrupt, terminate and quit signals,
-            // so it will perform a cleanup shutdown for us.
+            // so it will perform a clean shutdown for us.
             runtime_ref.receive_signals(server_ref.try_map());
 
             Ok(())

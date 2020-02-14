@@ -1,3 +1,5 @@
+use std::fmt;
+
 /// Process signal.
 ///
 /// Actors can receive signals by calling [`RuntimeRef::receive_signals`]
@@ -44,5 +46,24 @@ impl Signal {
             mio_signals::Signal::Terminate => Signal::Terminate,
             mio_signals::Signal::Quit => Signal::Quit,
         }
+    }
+
+    /// Whether or not the `Signal` is considered a "stopping" signal.
+    pub(super) fn should_stop(self) -> bool {
+        true
+    }
+}
+
+impl fmt::Display for Signal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let alternate = f.alternate();
+        f.write_str(match (self, alternate) {
+            (Signal::Interrupt, false) => "interrupt",
+            (Signal::Interrupt, true) => "interrupt (SIGINT)",
+            (Signal::Terminate, false) => "terminate",
+            (Signal::Terminate, true) => "terminate (SIGTERM)",
+            (Signal::Quit, false) => "quit",
+            (Signal::Quit, true) => "quit (SIGQUIT)",
+        })
     }
 }
