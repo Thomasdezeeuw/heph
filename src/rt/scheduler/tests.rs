@@ -166,8 +166,15 @@ fn adding_actor() {
     let pid = actor_entry.pid();
     #[allow(trivial_casts)]
     let new_actor = simple_actor as fn(_) -> _;
-    let (actor, inbox) = init_actor_inbox(new_actor, ()).unwrap();
-    actor_entry.add(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
+    let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+    actor_entry.add(
+        Priority::NORMAL,
+        NoSupervisor,
+        new_actor,
+        actor,
+        inbox,
+        inbox_ref,
+    );
 
     // Newly added processes aren't ready by default.
     assert!(scheduler.has_process());
@@ -239,8 +246,8 @@ fn running_process() {
     assert_eq!(process_entry.pid(), ProcessId(0));
     #[allow(trivial_casts)]
     let new_actor = pending_actor as fn(_) -> _;
-    let (actor, inbox) = init_actor_inbox(new_actor, ()).unwrap();
-    process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
+    let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+    process_entry.add_actor(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox, inbox_ref);
 
     // Newly added processes aren't ready by default.
     assert!(!!scheduler.has_process());
@@ -290,8 +297,9 @@ fn scheduler_run_order() {
     for (id, priority) in priorities.iter().enumerate() {
         let actor_entry = scheduler.add_actor();
         pids.push(actor_entry.pid());
-        let (actor, inbox) = init_actor_inbox(new_actor, (id, run_order.clone())).unwrap();
-        actor_entry.add(*priority, NoSupervisor, new_actor, actor, inbox);
+        let (actor, inbox, inbox_ref) =
+            init_actor_inbox(new_actor, (id, run_order.clone())).unwrap();
+        actor_entry.add(*priority, NoSupervisor, new_actor, actor, inbox, inbox_ref);
     }
 
     // Schedule all processes.
@@ -341,11 +349,18 @@ fn assert_process_unmoved() {
     let mut runtime_ref = test::runtime();
 
     let new_actor = TestAssertUnmovedNewActor;
-    let (actor, inbox) = init_actor_inbox(new_actor, ()).unwrap();
+    let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
 
     let actor_entry = scheduler.add_actor();
     let pid = actor_entry.pid();
-    actor_entry.add(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
+    actor_entry.add(
+        Priority::NORMAL,
+        NoSupervisor,
+        new_actor,
+        actor,
+        inbox,
+        inbox_ref,
+    );
 
     // Schedule and run the process multiple times, ensure it's not moved in the
     // process.

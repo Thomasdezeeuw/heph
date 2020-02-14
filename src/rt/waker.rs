@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::task;
 
 use crossbeam_channel::Sender;
-use log::error;
+use log::{error, trace};
 
 use crate::rt::ProcessId;
 
@@ -14,13 +14,12 @@ use crate::rt::ProcessId;
 // can't access anymore?
 
 /// Waker used to wake a process.
-#[allow(dead_code)] // TODO: use.
+#[derive(Debug, Clone)]
 pub(crate) struct Waker {
     waker: &'static ThreadWaker,
     pid: ProcessId,
 }
 
-#[allow(dead_code)]
 impl Waker {
     /// Create a new `Waker` for the process with `pid`, running on thread with
     /// `waker_id`.
@@ -136,6 +135,7 @@ const IS_POLLING: u8 = 1;
 const WAKING: u8 = 2;
 
 /// A `Waker` implementation.
+#[derive(Debug)]
 struct ThreadWaker {
     notifications: Sender<ProcessId>,
     /// If the worker thread is polling (without a timeout) we need to wake it
@@ -148,6 +148,7 @@ struct ThreadWaker {
 impl ThreadWaker {
     /// Wake up the process with `pid`.
     fn wake(&self, pid: ProcessId) {
+        trace!("waking: pid={}", pid);
         if let Err(err) = self.notifications.try_send(pid) {
             error!("unable to send wake up notification: {}", err);
             return;

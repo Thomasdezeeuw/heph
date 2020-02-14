@@ -12,8 +12,9 @@ use crate::test;
 fn test_actor_context() {
     let pid = ProcessId(0);
     let runtime_ref = test::runtime();
-    let inbox = Inbox::new(pid, runtime_ref.clone());
-    let mut ctx = actor::Context::new(pid, runtime_ref, inbox);
+    let waker = runtime_ref.new_waker(pid);
+    let (inbox, inbox_ref) = Inbox::new(waker);
+    let mut ctx = actor::Context::new(pid, runtime_ref, inbox, inbox_ref);
 
     assert_eq!(ctx.pid(), pid);
     let mut actor_ref = ctx.actor_ref();

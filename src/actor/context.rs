@@ -1,13 +1,12 @@
 //! Module containing the `Context` and related types.
 
 use std::future::Future;
-use std::ops::DerefMut;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use crate::actor::message_select::{First, MessageSelector};
+use crate::actor::message_select::First;
 use crate::actor_ref::LocalActorRef;
-use crate::inbox::Inbox;
+use crate::inbox::{Inbox, InboxRef};
 use crate::rt::ProcessId;
 use crate::RuntimeRef;
 
@@ -29,6 +28,8 @@ pub struct Context<M> {
     /// This field is public because it is used by `TcpListener`, as we don't
     /// need entire context there.
     pub(crate) inbox: Inbox<M>,
+    /// Reference to `inbox` above, used to create `ActorRef`s to this actor.
+    inbox_ref: InboxRef<M>,
 }
 
 impl<M> Context<M> {
@@ -37,11 +38,13 @@ impl<M> Context<M> {
         pid: ProcessId,
         runtime_ref: RuntimeRef,
         inbox: Inbox<M>,
+        inbox_ref: InboxRef<M>,
     ) -> Context<M> {
         Context {
             pid,
             runtime_ref,
             inbox,
+            inbox_ref,
         }
     }
 
@@ -79,6 +82,7 @@ impl<M> Context<M> {
         self.inbox.receive_next()
     }
 
+    /*
     /// Attempt to receive a specific message.
     ///
     /// This will attempt to receive a message using message selection, if one
@@ -139,6 +143,7 @@ impl<M> Context<M> {
     {
         self.inbox.receive(&mut selector)
     }
+    */
 
     /// Receive the next message.
     ///
@@ -205,6 +210,7 @@ impl<M> Context<M> {
         }
     }
 
+    /*
     /// Receive a message.
     ///
     /// This returns a [`Future`] that will complete once a message is ready.
@@ -225,7 +231,9 @@ impl<M> Context<M> {
             selector,
         }
     }
+    */
 
+    /*
     /// Attempt to peek the next message.
     pub fn try_peek_next(&mut self) -> Option<M>
     where
@@ -272,10 +280,11 @@ impl<M> Context<M> {
             selector,
         }
     }
+    */
 
     /// Returns a reference to this actor.
     pub fn actor_ref(&mut self) -> LocalActorRef<M> {
-        LocalActorRef::from_inbox(self.inbox.create_ref())
+        LocalActorRef::from_inbox(self.inbox_ref.clone())
     }
 
     /// Get a reference to the runtime this actor is running in.
@@ -302,6 +311,7 @@ pub struct ReceiveMessage<'ctx, M, S = First> {
     selector: S,
 }
 
+/*
 impl<'ctx, M, S> Future for ReceiveMessage<'ctx, M, S>
 where
     S: MessageSelector<M> + Unpin,
@@ -320,7 +330,21 @@ where
         }
     }
 }
+*/
 
+impl<'ctx, M> Future for ReceiveMessage<'ctx, M, First> {
+    type Output = M;
+
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        match self.inbox.receive_next() {
+            Some(msg) => Poll::Ready(msg),
+            // Wakeup notifications are done when adding to the mailbox.
+            None => Poll::Pending,
+        }
+    }
+}
+
+/*
 /// Future to peek a single message.
 ///
 /// The implementation behind [`actor::Context::peek`] and
@@ -353,3 +377,4 @@ where
         }
     }
 }
+*/

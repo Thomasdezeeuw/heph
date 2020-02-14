@@ -3,7 +3,7 @@
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use crate::inbox::Inbox;
+use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::supervisor::SupervisorStrategy;
 use crate::{actor, Actor, NewActor, RuntimeRef, Supervisor};
@@ -18,6 +18,7 @@ pub struct ActorProcess<S, NA: NewActor> {
     /// The inbox of the actor, used in creating a new [`actor::Context`] if the
     /// actor is restarted.
     inbox: Inbox<NA::Message>,
+    inbox_ref: InboxRef<NA::Message>,
     /// The running actors.
     actor: NA::Actor,
 }
@@ -33,12 +34,14 @@ where
         new_actor: NA,
         actor: NA::Actor,
         inbox: Inbox<NA::Message>,
+        inbox_ref: InboxRef<NA::Message>,
     ) -> ActorProcess<S, NA> {
         ActorProcess {
             supervisor,
             new_actor,
             actor,
             inbox,
+            inbox_ref,
         }
     }
 
@@ -82,7 +85,12 @@ where
         arg: NA::Argument,
     ) -> Result<(), NA::Error> {
         // Create a new actor.
-        let ctx = actor::Context::new(pid, runtime_ref.clone(), self.inbox.clone());
+        let ctx = actor::Context::new(
+            pid,
+            runtime_ref.clone(),
+            self.inbox.ctx_inbox(),
+            self.inbox_ref.clone(),
+        );
         self.new_actor.new(ctx, arg).map(|actor| {
             // We pin the actor here to ensure its dropped in place when
             // replacing it with out new actor.
@@ -103,7 +111,7 @@ where
         // operation, still ensuring that the actor is not moved.
         let mut actor = unsafe { Pin::new_unchecked(&mut this.actor) };
 
-        let waker = runtime_ref.new_waker(pid);
+        let waker = runtime_ref.new_task_waker(pid);
         let mut task_ctx = task::Context::from_waker(&waker);
         match actor.as_mut().try_poll(&mut task_ctx) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
