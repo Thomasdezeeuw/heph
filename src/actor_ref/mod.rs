@@ -120,7 +120,6 @@ use std::fmt;
 use std::ops::ShlAssign;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::task::Waker;
 
 use crossbeam_channel::Sender;
 
@@ -149,7 +148,7 @@ trait MappedActorRef<M> {
 
     /// Required by `LocalActorRef::upgrade`.
     // FIXME: move this to a separate trait.
-    fn upgrade(&self, runtime_ref: &mut RuntimeRef) -> Result<ActorRef<M>, ActorShutdown>;
+    fn upgrade(&self) -> Result<ActorRef<M>, ActorShutdown>;
 }
 
 /// Trait to erase the original message type of the actor reference.
@@ -158,7 +157,7 @@ trait TryMappedActorRef<M> {
 
     /// Required by `LocalActorRef::upgrade`.
     // FIXME: move this to a separate trait.
-    fn upgrade(&self, runtime_ref: &mut RuntimeRef) -> Result<ActorRef<M>, ActorShutdown>;
+    fn upgrade(&self) -> Result<ActorRef<M>, ActorShutdown>;
 }
 
 /// A reference to a local actor.
@@ -189,9 +188,9 @@ enum LocalActorRefKind<M> {
 
 impl<M> LocalActorRef<M> {
     /// Create a new `ActorRef` from a shared mailbox.
-    pub(crate) const fn from_inbox(inbox: InboxRef<M>) -> LocalActorRef<M> {
+    pub(crate) const fn from_inbox(inbox_ref: InboxRef<M>) -> LocalActorRef<M> {
         LocalActorRef {
-            kind: LocalActorRefKind::Local(inbox),
+            kind: LocalActorRefKind::Local(inbox_ref),
         }
     }
 
@@ -220,7 +219,7 @@ impl<M> LocalActorRef<M> {
         let msg = msg.into();
         use LocalActorRefKind::*;
         match &mut self.kind {
-            Local(inbox) => inbox.try_deliver(msg).map_err(|_| SendError),
+            Local(inbox_ref) => inbox_ref.try_send(msg).map_err(|_| SendError),
             Mapped(actor_ref) => actor_ref.mapped_send(msg),
             TryMapped(actor_ref) => actor_ref.try_mapped_send(msg),
         }
@@ -275,26 +274,23 @@ impl<M> LocalActorRef<M> {
     ///
     /// This allows the actor reference to be send across threads, however
     /// operations on it are more expensive.
-    pub fn upgrade(mut self, runtime_ref: &mut RuntimeRef) -> Result<ActorRef<M>, ActorShutdown> {
-        self.upgrade_ref(runtime_ref)
+    pub fn upgrade(mut self, _runtime_ref: &mut RuntimeRef) -> Result<ActorRef<M>, ActorShutdown> {
+        // TODO: remove `_runtime_ref` arg.
+        // TODO: remove `Result`?
+        self.upgrade_ref()
     }
 
     // TODO: maybe just change `upgrade` to take `&mut self`? Would make it
     // different from ActorRef in API.
-    fn upgrade_ref(&mut self, runtime_ref: &mut RuntimeRef) -> Result<ActorRef<M>, ActorShutdown> {
+    fn upgrade_ref(&mut self) -> Result<ActorRef<M>, ActorShutdown> {
         use LocalActorRefKind::*;
         match &mut self.kind {
-            Local(inbox) => match inbox.try_upgrade_ref() {
-                Ok((pid, sender)) => {
-                    let waker = runtime_ref.new_waker(pid);
-                    Ok(ActorRef {
-                        kind: ActorRefKind::Node((sender, waker)),
-                    })
-                }
-                Err(()) => Err(ActorShutdown),
-            },
-            Mapped(actor_ref) => actor_ref.upgrade(runtime_ref),
-            TryMapped(actor_ref) => actor_ref.upgrade(runtime_ref),
+            // TODO: check if the actor receiving end is still connected?
+            Local(inbox_ref) => Ok(ActorRef {
+                kind: ActorRefKind::Node(inbox_ref.clone()),
+            }),
+            Mapped(actor_ref) => actor_ref.upgrade(),
+            TryMapped(actor_ref) => actor_ref.upgrade(),
         }
     }
 }
@@ -304,7 +300,7 @@ impl<M> Clone for LocalActorRef<M> {
         use LocalActorRefKind::*;
         LocalActorRef {
             kind: match &self.kind {
-                Local(inbox) => Local(inbox.clone()),
+                Local(inbox_ref) => Local(inbox_ref.clone()),
                 Mapped(actor_ref) => Mapped(actor_ref.clone()),
                 TryMapped(actor_ref) => TryMapped(actor_ref.clone()),
             },
@@ -335,10 +331,8 @@ where
         self.borrow_mut().send(msg)
     }
 
-    fn upgrade(&self, runtime_ref: &mut RuntimeRef) -> Result<ActorRef<Msg>, ActorShutdown> {
-        self.borrow_mut()
-            .upgrade_ref(runtime_ref)
-            .map(ActorRef::map)
+    fn upgrade(&self) -> Result<ActorRef<Msg>, ActorShutdown> {
+        self.borrow_mut().upgrade_ref().map(ActorRef::map)
     }
 }
 
@@ -352,10 +346,8 @@ where
             .and_then(|msg| self.borrow_mut().send(msg))
     }
 
-    fn upgrade(&self, runtime_ref: &mut RuntimeRef) -> Result<ActorRef<Msg>, ActorShutdown> {
-        self.borrow_mut()
-            .upgrade_ref(runtime_ref)
-            .map(ActorRef::try_map)
+    fn upgrade(&self) -> Result<ActorRef<Msg>, ActorShutdown> {
+        self.borrow_mut().upgrade_ref().map(ActorRef::try_map)
     }
 }
 
@@ -377,7 +369,7 @@ pub struct ActorRef<M> {
 enum ActorRefKind<M> {
     /// Reference to an actor on another thread, but on the same node.
     // TODO: replace with our own `Waker` type?
-    Node((Sender<M>, Waker)),
+    Node(InboxRef<M>),
     /// Reference to a synchronous actor.
     Sync(Sender<M>),
     /// Reference that maps the message to a different type first.
@@ -426,13 +418,7 @@ impl<M> ActorRef<M> {
         let msg = msg.into();
         use ActorRefKind::*;
         match &self.kind {
-            Node((sender, waker)) => match sender.try_send(msg) {
-                Ok(()) => {
-                    waker.wake_by_ref();
-                    Ok(())
-                }
-                Err(_err) => Err(SendError),
-            },
+            Node(inbox_ref) => inbox_ref.try_send(msg).map_err(|_| SendError),
             // We don't have to wake sync actors.
             Sync(sender) => sender.try_send(msg).map_err(|_err| SendError),
             Mapped(actor_ref) => actor_ref.mapped_send(msg),
@@ -491,7 +477,7 @@ impl<M> Clone for ActorRef<M> {
         use ActorRefKind::*;
         ActorRef {
             kind: match &self.kind {
-                Node((sender, waker)) => Node((sender.clone(), waker.clone())),
+                Node(inbox_ref) => Node(inbox_ref.clone()),
                 Sync(sender) => Sync(sender.clone()),
                 Mapped(actor_ref) => Mapped(actor_ref.clone()),
                 TryMapped(actor_ref) => TryMapped(actor_ref.clone()),
@@ -532,7 +518,7 @@ where
         self.send(msg)
     }
 
-    fn upgrade(&self, _runtime_ref: &mut RuntimeRef) -> Result<ActorRef<Msg>, ActorShutdown> {
+    fn upgrade(&self) -> Result<ActorRef<Msg>, ActorShutdown> {
         // Not called.
         unreachable!()
     }
@@ -548,7 +534,7 @@ where
             .and_then(|msg| self.send(msg))
     }
 
-    fn upgrade(&self, _runtime_ref: &mut RuntimeRef) -> Result<ActorRef<Msg>, ActorShutdown> {
+    fn upgrade(&self) -> Result<ActorRef<Msg>, ActorShutdown> {
         // Not called.
         unreachable!()
     }

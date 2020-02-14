@@ -11,9 +11,8 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::task::Waker;
 use std::time::Instant;
-use std::{fmt, io};
+use std::{fmt, io, task};
 
 use log::{debug, trace};
 use mio::{event, Interest, Poll, Token};
@@ -28,7 +27,6 @@ mod coordinator;
 mod error;
 mod hack;
 mod process;
-mod queue;
 mod scheduler;
 mod signal;
 mod sync_worker;
@@ -40,6 +38,7 @@ pub(crate) mod channel;
 pub(crate) mod worker;
 
 pub(crate) use process::ProcessId;
+pub(crate) use waker::Waker;
 
 pub mod options;
 
@@ -48,7 +47,6 @@ pub use options::ActorOptions;
 pub use signal::Signal;
 
 use hack::SetupFn;
-use queue::Queue;
 use scheduler::Scheduler;
 use sync_worker::SyncWorker;
 use timers::Timers;
@@ -400,9 +398,9 @@ impl RuntimeRef {
         let arg = arg_fn(pid, &mut runtime_ref).map_err(AddActorError::ArgFn)?;
 
         // Create our actor context and our actor with it.
-        let inbox = Inbox::new(pid, self.clone());
-        let actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
-        let ctx = actor::Context::new(pid, runtime_ref, inbox.clone());
+        let (inbox, inbox_ref) = Inbox::new(self.new_waker(pid));
+        let actor_ref = LocalActorRef::from_inbox(inbox_ref.clone());
+        let ctx = actor::Context::new(pid, runtime_ref, inbox.ctx_inbox(), inbox_ref.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         if options.should_schedule() {
@@ -410,7 +408,14 @@ impl RuntimeRef {
         }
 
         // Add the actor to the scheduler.
-        actor_entry.add(options.priority(), supervisor, new_actor, actor, inbox);
+        actor_entry.add(
+            options.priority(),
+            supervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+        );
 
         Ok(actor_ref)
     }
@@ -459,8 +464,17 @@ impl RuntimeRef {
             .reregister(source, token, interest)
     }
 
-    /// Get a clone of the sending end of the notification channel.
+    /// Create a new `Waker` implementation.
     pub(crate) fn new_waker(&self, pid: ProcessId) -> Waker {
+        Waker::new(self.internal.waker_id, pid)
+    }
+
+    /// Get a clone of the sending end of the notification channel.
+    ///
+    /// # Notes
+    ///
+    /// Prefer `new_waker` if possible, only use `task::Waker` for `Future`s.
+    pub(crate) fn new_task_waker(&self, pid: ProcessId) -> task::Waker {
         waker::new(self.internal.waker_id, pid)
     }
 
@@ -473,13 +487,6 @@ impl RuntimeRef {
             .timers
             .borrow_mut()
             .add_deadline(pid, deadline);
-    }
-
-    /// Notify that process with `pid` is ready to run. Used by the inbox when
-    /// it receives a message.
-    pub(crate) fn notify(&mut self, pid: ProcessId) {
-        trace!("notifying: pid={}", pid);
-        self.internal.queue.borrow_mut().add(pid);
     }
 }
 
@@ -503,8 +510,6 @@ struct RuntimeInternal {
     poll: RefCell<Poll>,
     /// Timers, deadlines and timeouts.
     timers: RefCell<Timers>,
-    /// User space queue.
-    queue: RefCell<Queue>,
     /// Actor references to relay received `Signal`s to.
     signal_receivers: RefCell<Vec<LocalActorRef<Signal>>>,
 }

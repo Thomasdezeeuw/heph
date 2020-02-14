@@ -27,9 +27,9 @@ use std::task::{self, Poll};
 use rand::Rng;
 
 use crate::actor_ref::LocalActorRef;
-use crate::inbox::Inbox;
+use crate::inbox::{Inbox, InboxRef};
 use crate::rt::worker::RunningRuntime;
-use crate::rt::ProcessId;
+use crate::rt::{ProcessId, Waker};
 use crate::{actor, rt, Actor, NewActor, RuntimeRef};
 
 thread_local! {
@@ -57,10 +57,11 @@ where
     let runtime_ref = runtime();
     let pid = ProcessId(0);
 
-    let inbox = Inbox::new(pid, runtime_ref.clone());
-    let actor_ref = LocalActorRef::from_inbox(inbox.create_ref());
+    let waker = runtime_ref.new_waker(pid);
+    let (inbox, inbox_ref) = Inbox::new(waker);
+    let actor_ref = LocalActorRef::from_inbox(inbox_ref.clone());
 
-    let ctx = actor::Context::new(pid, runtime_ref, inbox);
+    let ctx = actor::Context::new(pid, runtime_ref, inbox, inbox_ref);
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, actor_ref))
@@ -75,19 +76,20 @@ where
 pub(crate) fn init_actor_inbox<NA>(
     mut new_actor: NA,
     arg: NA::Argument,
-) -> Result<(NA::Actor, Inbox<NA::Message>), NA::Error>
+) -> Result<(NA::Actor, Inbox<NA::Message>, InboxRef<NA::Message>), NA::Error>
 where
     NA: NewActor,
 {
     let runtime_ref = runtime();
     let pid = ProcessId(0);
 
-    let inbox = Inbox::new(pid, runtime_ref.clone());
+    let waker = runtime_ref.new_waker(pid);
+    let (inbox, inbox_ref) = Inbox::new(waker);
 
-    let ctx = actor::Context::new(pid, runtime_ref, inbox.clone());
+    let ctx = actor::Context::new(pid, runtime_ref, inbox.ctx_inbox(), inbox_ref.clone());
     let actor = new_actor.new(ctx, arg)?;
 
-    Ok((actor, inbox))
+    Ok((actor, inbox, inbox_ref))
 }
 
 /// Poll a future.
@@ -103,7 +105,7 @@ where
     Fut: Future,
 {
     let pid = ProcessId(0);
-    let waker = runtime().new_waker(pid);
+    let waker = runtime().new_task_waker(pid);
     let mut ctx = task::Context::from_waker(&waker);
     Future::poll(future, &mut ctx)
 }
@@ -122,9 +124,14 @@ where
     A: Actor,
 {
     let pid = ProcessId(0);
-    let waker = runtime().new_waker(pid);
+    let waker = runtime().new_task_waker(pid);
     let mut ctx = task::Context::from_waker(&waker);
     Actor::try_poll(actor, &mut ctx)
+}
+
+/// Returns a new `Waker` for `pid`.
+pub(crate) fn new_waker(pid: ProcessId) -> Waker {
+    runtime().new_waker(pid)
 }
 
 /// Percentage of messages lost on purpose.

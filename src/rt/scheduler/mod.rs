@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use log::trace;
 use parking_lot::RwLock;
 
-use crate::inbox::Inbox;
+use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::{NewActor, RuntimeRef, Supervisor};
 
@@ -312,6 +312,7 @@ impl<'s> AddActor<'s> {
         new_actor: NA,
         actor: NA::Actor,
         inbox: Inbox<NA::Message>,
+        inbox_ref: InboxRef<NA::Message>,
     ) where
         S: Supervisor<NA> + 'static,
         NA: NewActor + 'static,
@@ -325,7 +326,9 @@ impl<'s> AddActor<'s> {
         let process = ProcessData {
             priority,
             fair_runtime: Duration::from_nanos(0),
-            process: Box::pin(ActorProcess::new(supervisor, new_actor, actor, inbox)),
+            process: Box::pin(ActorProcess::new(
+                supervisor, new_actor, actor, inbox, inbox_ref,
+            )),
         };
         let AddActor {
             processes,

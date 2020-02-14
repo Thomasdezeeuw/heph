@@ -1,68 +1,44 @@
-//! Module containing the `MailBox` for an actor.
+//! Module containing the `Inbox` for an actor.
 
-use std::cell::RefCell;
 use std::collections::vec_deque;
 use std::collections::VecDeque;
 use std::iter::{Enumerate, FusedIterator};
-use std::rc::{Rc, Weak};
 
 use crossbeam_channel::{self as channel, Receiver, Sender};
 
-use crate::rt::{ProcessId, RuntimeRef};
+use crate::rt::Waker;
 
 /// Inbox that holds all messages for an actor.
 #[derive(Debug)]
-pub struct Inbox<M> {
-    shared: Rc<RefCell<SharedInbox<M>>>,
-}
-
-#[derive(Debug)]
-struct SharedInbox<M> {
-    /// Process id of the actor, used to notify the actor when receiving
-    /// message.
-    pid: ProcessId,
-    /// Reference to the runtime, used to notify the actor.
-    runtime_ref: RuntimeRef,
-    /// The messages in the mailbox.
-    ///
-    /// NOTE: don't use this directly instead used `with_messages`.
-    messages: VecDeque<M>,
-    /// This is an alternative source of messages, send across thread bounds,
-    /// used by machine local actor references to send messages. This defaults
-    /// to `None` and is only set to `Some` the first time `upgrade_ref` is
-    /// called.
-    ///
-    /// NOTE: don't use this directly instead used `with_messages`.
-    messages2: Option<(Sender<M>, Receiver<M>)>,
+pub(crate) struct Inbox<M> {
+    receiver: Receiver<M>,
 }
 
 impl<M> Inbox<M> {
-    /// Create a new inbox.
-    pub fn new(pid: ProcessId, runtime_ref: RuntimeRef) -> Inbox<M> {
-        Inbox {
-            shared: Rc::new(RefCell::new(SharedInbox {
-                pid,
-                runtime_ref,
-                messages: VecDeque::new(),
-                messages2: None,
-            })),
-        }
+    /// Create a new inbox. Needs a `waker` to wake the actor when sending
+    /// messages to it.
+    pub(crate) fn new(waker: Waker) -> (Inbox<M>, InboxRef<M>) {
+        let (sender, receiver) = channel::unbounded();
+        let inbox = Inbox { receiver };
+        let inbox_ref = InboxRef { sender, waker };
+        (inbox, inbox_ref)
     }
 
-    /// Create a reference to this inbox.
-    pub fn create_ref(&self) -> InboxRef<M> {
-        InboxRef {
-            shared: Rc::downgrade(&self.shared),
+    /// Creates an `Inbox` for use in the `actor::Context`.
+    pub(crate) fn ctx_inbox(&self) -> Inbox<M> {
+        Inbox {
+            receiver: self.receiver.clone(),
         }
     }
 
     /// Receive the next message, if any.
-    pub fn receive_next(&mut self) -> Option<M> {
-        self.with_messages(|messages| messages.pop_front())
+    pub(crate) fn receive_next(&mut self) -> Option<M> {
+        self.receiver.try_recv().ok()
     }
 
+    /*
     /// Receive a delivered message, if any.
-    pub fn receive<S>(&mut self, selector: &mut S) -> Option<M>
+    pub(crate) fn receive<S>(&mut self, _selector: &mut S) -> Option<M>
     where
         S: MessageSelector<M>,
     {
@@ -74,7 +50,7 @@ impl<M> Inbox<M> {
     }
 
     /// Peek the next delivered message, if any.
-    pub fn peek_next(&mut self) -> Option<M>
+    pub(crate) fn peek_next(&mut self) -> Option<M>
     where
         M: Clone,
     {
@@ -82,7 +58,7 @@ impl<M> Inbox<M> {
     }
 
     /// Peek a delivered message, if any.
-    pub fn peek<S>(&mut self, selector: &mut S) -> Option<M>
+    pub(crate) fn peek<S>(&mut self, _selector: &mut S) -> Option<M>
     where
         S: MessageSelector<M>,
         M: Clone,
@@ -93,90 +69,33 @@ impl<M> Inbox<M> {
                 .and_then(|selection| messages.get(selection.0).cloned())
         })
     }
-
-    /// Receive all remote messages, if any, and add them to the message queue
-    /// and then calls `f` with all currently available messages.
-    ///
-    /// This is done in an attempt to make the receiving of the two sources of
-    /// message a bit more fair.
-    fn with_messages<F>(&mut self, f: F) -> Option<M>
-    where
-        F: FnOnce(&mut VecDeque<M>) -> Option<M>,
-    {
-        let mut shared = self.shared.borrow_mut();
-        let shared = &mut *shared;
-        if let Some((_, recv)) = shared.messages2.as_ref() {
-            while let Ok(msg) = recv.try_recv() {
-                shared.messages.push_back(msg);
-            }
-        }
-        f(&mut shared.messages)
-    }
+    */
 }
 
-impl<M> Clone for Inbox<M> {
-    fn clone(&self) -> Inbox<M> {
-        Inbox {
-            shared: Rc::clone(&self.shared),
-        }
-    }
-}
-
-/// Reference to an inbox that may fail to get access to the inbox if the actor
-/// is stopped.
+/// Reference to an actor's inbox, used to send messages to it.
 #[derive(Debug)]
-pub struct InboxRef<M> {
-    shared: Weak<RefCell<SharedInbox<M>>>,
+pub(crate) struct InboxRef<M> {
+    sender: Sender<M>,
+    waker: Waker,
 }
 
 impl<M> InboxRef<M> {
-    /// Attempt to deliver a message to the mailbox.
+    /// Attempt to send a message to the mailbox.
     ///
-    /// This will also schedule the actor to run.
-    pub fn try_deliver(&mut self, msg: M) -> Result<(), M> {
-        match self.shared.upgrade() {
-            Some(shared) => {
-                // First queue all message send on the secondary inbox to make
-                // the ordering the message equal(er).
-                let mut shared = shared.borrow_mut();
-                let shared = &mut *shared;
-                if let Some((_, recv)) = shared.messages2.as_ref() {
-                    while let Ok(msg) = recv.try_recv() {
-                        shared.messages.push_back(msg);
-                    }
-                }
-
-                let pid = shared.pid;
-                shared.messages.push_back(msg);
-                shared.runtime_ref.notify(pid);
-                Ok(())
-            }
-            None => Err(msg),
-        }
-    }
-
-    /// Used by local actor reference to upgrade to a machine local actor
-    /// reference.
-    pub fn try_upgrade_ref(&mut self) -> Result<(ProcessId, Sender<M>), ()> {
-        match self.shared.upgrade() {
-            Some(shared) => {
-                let mut shared = shared.borrow_mut();
-                let sender = shared
-                    .messages2
-                    .get_or_insert_with(channel::unbounded)
-                    .0
-                    .clone();
-                Ok((shared.pid, sender))
-            }
-            None => Err(()),
-        }
+    /// This will also mark the actor as ready to run.
+    pub(crate) fn try_send(&self, msg: M) -> Result<(), M> {
+        self.sender
+            .try_send(msg)
+            .map(|()| self.waker.wake())
+            .map_err(|err| err.into_inner())
     }
 }
 
 impl<M> Clone for InboxRef<M> {
     fn clone(&self) -> InboxRef<M> {
         InboxRef {
-            shared: Weak::clone(&self.shared),
+            sender: self.sender.clone(),
+            waker: self.waker.clone(),
         }
     }
 }
@@ -309,6 +228,7 @@ where
 ///
 /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
 /// [`actor::Context::peek_next`]: crate::actor::Context::peek_next
+/*
 ///
 /// # Examples
 ///
@@ -346,6 +266,7 @@ where
 ///     Ok(())
 /// }
 /// ```
+*/
 #[derive(Debug)]
 pub struct First;
 
@@ -356,6 +277,7 @@ impl<M> MessageSelector<M> for First {
 }
 
 /// Select a message with the highest priority.
+/*
 ///
 /// # Examples
 ///
@@ -404,6 +326,7 @@ impl<M> MessageSelector<M> for First {
 ///     Ok(())
 /// }
 /// ```
+*/
 #[derive(Debug)]
 pub struct Priority<F>(pub F);
 
@@ -416,5 +339,22 @@ where
         messages
             .max_by_key(|(_, msg)| (self.0)(msg))
             .map(|(selection, _)| selection)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Inbox, InboxRef};
+
+    fn assert_send<T: Send>() {}
+    fn assert_sync<T: Sync>() {}
+
+    #[test]
+    fn inbox_is_send_and_sync() {
+        assert_send::<Inbox<()>>();
+        assert_sync::<Inbox<()>>();
+
+        assert_send::<InboxRef<()>>();
+        assert_sync::<InboxRef<()>>();
     }
 }

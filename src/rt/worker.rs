@@ -1,5 +1,3 @@
-#![allow(dead_code, unused_variables, unused_imports)]
-
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
@@ -10,8 +8,7 @@ use log::{debug, trace};
 use mio::{Events, Poll, Registry, Token};
 
 use crate::rt::hack::SetupFn;
-use crate::rt::process::{Process, ProcessResult};
-use crate::rt::queue::Queue;
+use crate::rt::process::ProcessResult;
 use crate::rt::scheduler::Scheduler;
 use crate::rt::timers::Timers;
 use crate::rt::{channel, waker, ProcessId, RuntimeError, RuntimeInternal, RuntimeRef, Signal};
@@ -147,7 +144,6 @@ impl RunningRuntime {
             scheduler: RefCell::new(scheduler),
             poll: RefCell::new(poll),
             timers: RefCell::new(Timers::new()),
-            queue: RefCell::new(Queue::new()),
             signal_receivers: RefCell::new(Vec::new()),
         };
 
@@ -233,11 +229,6 @@ impl RunningRuntime {
             scheduler.mark_ready(pid);
         }
 
-        trace!("polling user space events");
-        for pid in self.internal.queue.borrow_mut().events() {
-            scheduler.mark_ready(pid);
-        }
-
         trace!("polling timers");
         for pid in self.internal.timers.borrow_mut().deadlines() {
             scheduler.mark_ready(pid);
@@ -280,10 +271,7 @@ impl RunningRuntime {
     fn determine_timeout(&self) -> Option<Duration> {
         // If there are any processes ready to run, any waker events or user
         // space events we don't want to block.
-        if self.internal.scheduler.borrow().has_ready_process()
-            || !self.waker_events.is_empty()
-            || !self.internal.queue.borrow().is_empty()
-        {
+        if self.internal.scheduler.borrow().has_ready_process() || !self.waker_events.is_empty() {
             Some(Duration::from_millis(0))
         } else if let Some(deadline) = self.internal.timers.borrow().next_deadline() {
             let now = Instant::now();
