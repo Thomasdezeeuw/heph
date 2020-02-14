@@ -34,10 +34,6 @@ pub(super) struct Worker<E> {
     handle: thread::JoinHandle<Result<(), RuntimeError<E>>>,
     /// Two-way communication channel to share messages with the worker thread.
     channel: channel::Handle<CoordinatorMessage, WorkerMessage>,
-    /// Any signal that could not be send (via `sender`) without blocking when
-    /// `send_signal` was called previously. These will be send again when
-    /// `send_pending_signals` is called.
-    pending: Vec<Signal>,
 }
 
 impl<E> Worker<E> {
@@ -55,7 +51,6 @@ impl<E> Worker<E> {
                     id,
                     handle,
                     channel,
-                    pending: Vec::new(),
                 })
         })
     }
@@ -70,21 +65,9 @@ impl<E> Worker<E> {
     }
 
     /// Send the worker thread a `signal`.
-    ///
-    /// If the signal can't be send now it will be added the to the list of
-    /// pending signals, which can be send using `send_pending_signals`.
     pub(super) fn send_signal(&mut self, signal: Signal) -> io::Result<()> {
         let msg = CoordinatorMessage::Signal(signal);
         self.channel.try_send(msg)
-    }
-
-    /// Send the worker thread any pending signals.
-    pub(super) fn send_pending_signals(&mut self) -> io::Result<()> {
-        while let Some(signal) = self.pending.first().copied() {
-            self.send_signal(signal)?;
-            let _ = self.pending.remove(0);
-        }
-        Ok(())
     }
 
     /// See [`thread::JoinHandle::join`].
@@ -324,6 +307,15 @@ impl RunningRuntime {
                 Signal(signal) => {
                     trace!("received process signal: {:?}", signal);
                     let mut receivers = self.internal.signal_receivers.borrow_mut();
+
+                    if receivers.is_empty() && signal.should_stop() {
+                        let msg = format!(
+                            "received {:#} signal, but no receivers for it, stopping runtime",
+                            signal
+                        );
+                        return Err(io::Error::new(io::ErrorKind::Interrupted, msg));
+                    }
+
                     for receiver in receivers.iter_mut() {
                         // Don't care if we succeed in sending the message.
                         let _ = receiver.send(signal);

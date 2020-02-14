@@ -7,10 +7,13 @@
 use std::thread;
 use std::time::Duration;
 
+use log::info;
+
 use heph::supervisor::NoSupervisor;
 use heph::{actor, ActorOptions, Runtime, RuntimeError};
 
 fn main() -> Result<(), RuntimeError> {
+    heph::log::init();
     let start = std::time::Instant::now();
     Runtime::new()
         .with_setup(move |mut runtime_ref| {
@@ -19,10 +22,15 @@ fn main() -> Result<(), RuntimeError> {
                 runtime_ref.spawn(NoSupervisor, actor, (), ActorOptions::default());
             }
 
-            println!("Elapsed: {:?}", start.elapsed());
+            let sleepy_actor = sleepy_actor as fn(_) -> _;
+            runtime_ref.spawn(
+                NoSupervisor,
+                sleepy_actor,
+                (),
+                ActorOptions::default().schedule(),
+            );
 
-            println!("Running, check the memory usage!");
-            thread::sleep(Duration::from_secs(100));
+            info!("Elapsed: {:?}", start.elapsed());
 
             Ok(())
         })
@@ -31,5 +39,11 @@ fn main() -> Result<(), RuntimeError> {
 
 /// Our "actor", but it doesn't do much.
 async fn actor(_: actor::Context<!>) -> Result<(), !> {
+    Ok(())
+}
+
+async fn sleepy_actor(_: actor::Context<!>) -> Result<(), !> {
+    info!("Running, check the memory usage!");
+    thread::sleep(Duration::from_secs(5));
     Ok(())
 }

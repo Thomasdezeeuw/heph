@@ -108,6 +108,8 @@ fn relay_signals<E>(
     sync_workers: &mut [SyncWorker],
 ) -> io::Result<()> {
     while let Some(signal) = signals.receive()? {
+        debug!("received signal on coordinator: signal={:?}", signal);
+
         let signal = Signal::from_mio(signal);
         for worker in workers.iter_mut() {
             worker.send_signal(signal)?;
@@ -132,12 +134,6 @@ fn handle_worker_event<E>(
             debug!("worker thread done: id={}", worker.id());
 
             worker.join().map_err(map_panic).and_then(|res| res)
-        } else if event.is_writable() {
-            // It could that we tried to send a signal previously but failed.
-            // Now we try again.
-            workers[i]
-                .send_pending_signals()
-                .map_err(RuntimeError::coordinator)
         } else {
             // Sporadic event, we can ignore it.
             Ok(())
