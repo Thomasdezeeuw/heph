@@ -52,11 +52,11 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 ///
 /// use futures_util::AsyncWriteExt;
 /// # use futures_util::AsyncReadExt;
-/// use log::{error, info};
+/// use log::error;
 ///
 /// # use heph::net::TcpStream;
 /// use heph::actor::Bound;
-/// use heph::log::REQUEST_TARGET;
+/// use heph::log::request;
 /// use heph::net::TcpListener;
 /// use heph::{RuntimeError, actor, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
 ///
@@ -98,7 +98,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 ///
 ///     // Accept a connection.
 ///     let (mut stream, peer_address) = listener.accept().await?;
-///     info!(target: REQUEST_TARGET, "accepted connection from: {}", peer_address);
+///     request!("accepted connection from: {}", peer_address);
 ///
 ///     // Next we need to bind the stream to this actor.
 ///     // NOTE: if we don't do this the actor will (likely) never be run (again).
@@ -121,11 +121,11 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// use futures_util::future::ready;
 /// use futures_util::{AsyncWriteExt, TryFutureExt, TryStreamExt};
 /// # use futures_util::{AsyncReadExt, StreamExt};
-/// use log::{error, info};
+/// use log::error;
 ///
 /// # use heph::net::TcpStream;
 /// use heph::actor::Bound;
-/// use heph::log::REQUEST_TARGET;
+/// use heph::log::request;
 /// use heph::net::TcpListener;
 /// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
 ///
@@ -168,7 +168,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// #   let streams = streams.take(1);
 ///
 ///     streams.try_for_each(|(mut stream, peer_address)| {
-///         info!(target: REQUEST_TARGET, "accepted connection from: {}", peer_address);
+///         request!("accepted connection from: {}", peer_address);
 ///         // Next we need to bind the stream to this actor.
 ///         // NOTE: if we don't do this the actor will (likely) never be run (again).
 ///         ready(stream.bind_to(&mut ctx)).and_then(async move |()| {
