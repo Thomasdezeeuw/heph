@@ -66,7 +66,7 @@
 //!     Runtime::new()
 //!         .with_setup(|mut runtime_ref| {
 //!             runtime_ref.spawn(supervisor, bad_actor as fn(_) -> _, (),
-//!                 ActorOptions::default().schedule());
+//!                 ActorOptions::default().mark_ready());
 //!             Ok(())
 //!         })
 //!         .start()
@@ -219,7 +219,7 @@ where
 ///     Runtime::new()
 ///         .with_setup(|mut runtime_ref| {
 ///             runtime_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
-///                 ActorOptions::default().schedule());
+///                 ActorOptions::default().mark_ready());
 ///             Ok(())
 ///         })
 ///         .start()

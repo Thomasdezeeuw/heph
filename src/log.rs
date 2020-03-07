@@ -33,7 +33,7 @@
 //!
 //! fn add_greeter_actor(mut system_ref: RuntimeRef) -> Result<(), !> {
 //!     let actor = greeter_actor as fn(_) -> _;
-//!     system_ref.spawn(NoSupervisor, actor, (), ActorOptions::default().schedule());
+//!     system_ref.spawn(NoSupervisor, actor, (), ActorOptions::default().mark_ready());
 //!     Ok(())
 //! }
 //!

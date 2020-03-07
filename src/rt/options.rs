@@ -30,7 +30,7 @@ pub use crate::rt::scheduler::Priority;
 #[derive(Clone, Debug)]
 pub struct ActorOptions {
     priority: Priority,
-    schedule: bool,
+    ready: bool,
 }
 
 impl ActorOptions {
@@ -45,25 +45,24 @@ impl ActorOptions {
         self
     }
 
-    /// Returns `true` if the actor should be scheduled when spawned.
+    /// Returns `true` if the actor is ready to run when spawned.
     ///
-    /// See [`schedule`] for more information.
+    /// See [`mark_ready`] for more information.
     ///
-    /// [`schedule`]: ActorOptions::schedule
-    pub const fn should_schedule(&self) -> bool {
-        self.schedule
+    /// [`mark_ready`]: ActorOptions::mark_ready
+    pub const fn is_ready(&self) -> bool {
+        self.ready
     }
 
-    /// This option will schedule the actor to run when spawned.
+    /// This option will mark the actor as ready to run when spawned.
     ///
     /// By default newly spawned actors will wait for an external event before
-    /// they start running. This can happen for example by a message send to
-    /// them, or a [`TcpStream`] becoming ready to read or write.
+    /// they start running. This external event can for example be a message
+    /// send to them, or a [`TcpStream`] becoming ready to read or write.
     ///
     /// [`TcpStream`]: crate::net::TcpStream
-    pub const fn schedule(mut self) -> Self {
-        // TODO: better name: auto_run, auto_schedule, start_running?
-        self.schedule = true;
+    pub const fn mark_ready(mut self) -> Self {
+        self.ready = true;
         self
     }
 }
@@ -72,7 +71,7 @@ impl Default for ActorOptions {
     fn default() -> ActorOptions {
         ActorOptions {
             priority: Priority::default(),
-            schedule: false,
+            ready: false,
         }
     }
 }
