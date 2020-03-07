@@ -5,7 +5,7 @@ use std::mem::size_of;
 
 use crossbeam_channel as channel;
 
-use crate::actor_ref::{ActorRef, LocalActorRef};
+use crate::actor_ref::ActorRef;
 use crate::inbox::Inbox;
 use crate::rt::ProcessId;
 use crate::test;
@@ -26,55 +26,15 @@ fn mapped_actor_ref_is_send_sync() {
 
 #[test]
 fn size_assertions() {
-    assert_eq!(size_of::<LocalActorRef<()>>(), 40);
-    // ActorRef is quite big, maybe replace the `task::Waker` in `Node` will
-    // reduce the size.
     assert_eq!(size_of::<ActorRef<()>>(), 40);
-}
-
-#[test]
-fn local_actor_ref() {
-    let pid = ProcessId(0);
-    let waker = test::new_waker(pid);
-    let (mut inbox, inbox_ref) = Inbox::new(waker);
-    let mut actor_ref = LocalActorRef::from_inbox(inbox_ref);
-
-    // Send a message.
-    actor_ref.send(1).unwrap();
-    assert_eq!(inbox.receive_next(), Some(1));
-
-    // Sending multiple messages.
-    actor_ref.send(2).unwrap();
-    actor_ref.send(3).unwrap();
-    assert_eq!(inbox.receive_next(), Some(2));
-    assert_eq!(inbox.receive_next(), Some(3));
-
-    // Cloning the reference should send to the same inbox.
-    let mut actor_ref2 = actor_ref.clone();
-    actor_ref.send(4).unwrap();
-    actor_ref2 <<= 5;
-    assert_eq!(inbox.receive_next(), Some(4));
-    assert_eq!(inbox.receive_next(), Some(5));
-
-    // Test Debug implementation.
-    assert_eq!(format!("{:?}", actor_ref), "LocalActorRef");
-
-    // Dropping the inbox should cause send messages to return errors.
-    assert_eq!(inbox.receive_next(), None);
-    drop(inbox);
-    assert!(actor_ref.send(10).is_err());
-    assert!(actor_ref2.send(11).is_err());
 }
 
 #[test]
 fn actor_ref() {
     let pid = ProcessId(0);
-    let mut runtime_ref = test::runtime();
-    let waker = runtime_ref.new_waker(pid);
+    let waker = test::new_waker(pid);
     let (mut inbox, inbox_ref) = Inbox::new(waker);
-    let mut actor_ref = LocalActorRef::from_inbox(inbox_ref.clone())
-        .upgrade(&mut runtime_ref)
-        .unwrap();
+    let mut actor_ref = ActorRef::from_inbox(inbox_ref.clone());
 
     // Sending messages.
     actor_ref.send(1).unwrap();
@@ -89,16 +49,6 @@ fn actor_ref() {
 
     // Test Debug implementation.
     assert_eq!(format!("{:?}", actor_ref), "ActorRef");
-
-    /* TODO: this is no longer true, do we what it to be?
-    // After the inbox is dropped the local reference should return an error
-    // when trying to upgrade.
-    let local_actor_ref = LocalActorRef::from_inbox(inbox_ref);
-    drop(inbox);
-    assert!(local_actor_ref.upgrade(&mut runtime_ref).is_err());
-    // Sending messages should also return an error.
-    assert!(actor_ref.send(10).is_err());
-    */
 }
 
 #[test]
@@ -128,17 +78,15 @@ fn sync_actor_ref() {
 #[test]
 fn actor_ref_message_order() {
     let pid = ProcessId(0);
-    let mut runtime_ref = test::runtime();
-    let waker = runtime_ref.new_waker(pid);
+    let waker = test::new_waker(pid);
     let (mut inbox, inbox_ref) = Inbox::new(waker);
 
-    let mut local_actor_ref = LocalActorRef::from_inbox(inbox_ref);
-    let mut actor_ref = local_actor_ref.clone().upgrade(&mut runtime_ref).unwrap();
+    let mut actor_ref = ActorRef::from_inbox(inbox_ref);
 
-    // Send a number messages via both the local and machine references.
-    local_actor_ref <<= 1;
+    // Send a number messages.
+    actor_ref <<= 1;
     actor_ref <<= 2;
-    local_actor_ref <<= 3;
+    actor_ref <<= 3;
     actor_ref <<= 4;
     // The message should arrive in order, but this is just an best effort.
     assert_eq!(inbox.receive_next(), Some(1));
@@ -171,54 +119,12 @@ impl TryFrom<Msg2> for M {
 }
 
 #[test]
-fn local_mapped_actor_ref() {
-    let pid = ProcessId(0);
-    let runtime_ref = test::runtime();
-    let waker = runtime_ref.new_waker(pid);
-    let (mut inbox, inbox_ref) = Inbox::<M>::new(waker);
-
-    let mut actor_ref = LocalActorRef::from_inbox(inbox_ref);
-    let mut mapped_actor_ref: LocalActorRef<Msg> = actor_ref.clone().map();
-
-    actor_ref.send(M(1)).expect("unable to send message");
-    mapped_actor_ref
-        .send(Msg(2))
-        .expect("unable to send message");
-
-    assert_eq!(inbox.receive_next(), Some(M(1))); // Local ref.
-    assert_eq!(inbox.receive_next(), Some(M(2))); // Mapped ref.
-    assert_eq!(inbox.receive_next(), None);
-}
-
-#[test]
-fn local_try_mapped_actor_ref() {
-    let pid = ProcessId(0);
-    let runtime_ref = test::runtime();
-    let waker = runtime_ref.new_waker(pid);
-    let (mut inbox, inbox_ref) = Inbox::<M>::new(waker);
-
-    let mut actor_ref = LocalActorRef::from_inbox(inbox_ref);
-    let mut mapped_actor_ref: LocalActorRef<Msg2> = actor_ref.clone().try_map();
-
-    actor_ref.send(M(1)).expect("unable to send message");
-    mapped_actor_ref
-        .send(Msg2(2))
-        .expect("unable to send message");
-
-    assert_eq!(inbox.receive_next(), Some(M(1))); // Local ref.
-    assert_eq!(inbox.receive_next(), Some(M(2 + 1))); // Try mapped ref.
-    assert_eq!(inbox.receive_next(), None);
-}
-
-#[test]
 fn mapped_actor_ref() {
     let pid = ProcessId(0);
-    let mut runtime_ref = test::runtime();
-    let waker = runtime_ref.new_waker(pid);
+    let waker = test::new_waker(pid);
     let (mut inbox, inbox_ref) = Inbox::<M>::new(waker);
 
-    let local_actor_ref = LocalActorRef::from_inbox(inbox_ref);
-    let actor_ref = local_actor_ref.upgrade(&mut runtime_ref).unwrap();
+    let actor_ref = ActorRef::from_inbox(inbox_ref);
     let mapped_actor_ref: ActorRef<Msg> = actor_ref.clone().map();
 
     actor_ref.send(M(1)).expect("unable to send message");
@@ -234,12 +140,10 @@ fn mapped_actor_ref() {
 #[test]
 fn try_mapped_actor_ref() {
     let pid = ProcessId(0);
-    let mut runtime_ref = test::runtime();
-    let waker = runtime_ref.new_waker(pid);
+    let waker = test::new_waker(pid);
     let (mut inbox, inbox_ref) = Inbox::<M>::new(waker);
 
-    let local_actor_ref = LocalActorRef::from_inbox(inbox_ref);
-    let actor_ref = local_actor_ref.upgrade(&mut runtime_ref).unwrap();
+    let actor_ref = ActorRef::from_inbox(inbox_ref);
     let mapped_actor_ref: ActorRef<Msg2> = actor_ref.clone().try_map();
 
     actor_ref.send(M(1)).expect("unable to send message");

@@ -18,7 +18,7 @@ use log::{debug, trace};
 use mio::{event, Interest, Poll, Token};
 
 use crate::actor::sync::SyncActor;
-use crate::actor_ref::{ActorRef, LocalActorRef};
+use crate::actor_ref::ActorRef;
 use crate::inbox::Inbox;
 use crate::supervisor::{Supervisor, SyncSupervisor};
 use crate::{actor, NewActor};
@@ -326,7 +326,7 @@ impl RuntimeRef {
         new_actor: NA,
         arg: NA::Argument,
         options: ActorOptions,
-    ) -> Result<LocalActorRef<NA::Message>, NA::Error>
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
         S: Supervisor<NA> + 'static,
         NA: NewActor + 'static,
@@ -351,7 +351,7 @@ impl RuntimeRef {
         new_actor: NA,
         arg: NA::Argument,
         options: ActorOptions,
-    ) -> LocalActorRef<NA::Message>
+    ) -> ActorRef<NA::Message>
     where
         S: Supervisor<NA> + 'static,
         NA: NewActor<Error = !> + 'static,
@@ -374,7 +374,7 @@ impl RuntimeRef {
         mut new_actor: NA,
         arg_fn: ArgFn,
         options: ActorOptions,
-    ) -> Result<LocalActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
         S: Supervisor<NA> + 'static,
         NA: NewActor + 'static,
@@ -399,7 +399,7 @@ impl RuntimeRef {
 
         // Create our actor context and our actor with it.
         let (inbox, inbox_ref) = Inbox::new(self.new_waker(pid));
-        let actor_ref = LocalActorRef::from_inbox(inbox_ref.clone());
+        let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
         let ctx = actor::Context::new(pid, runtime_ref, inbox.ctx_inbox(), inbox_ref.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
@@ -426,7 +426,7 @@ impl RuntimeRef {
     /// receive a process signal.
     ///
     /// [process signals]: Signal
-    pub fn receive_signals(&mut self, actor_ref: LocalActorRef<Signal>) {
+    pub fn receive_signals(&mut self, actor_ref: ActorRef<Signal>) {
         self.internal.signal_receivers.borrow_mut().push(actor_ref)
     }
 
@@ -511,5 +511,5 @@ struct RuntimeInternal {
     /// Timers, deadlines and timeouts.
     timers: RefCell<Timers>,
     /// Actor references to relay received `Signal`s to.
-    signal_receivers: RefCell<Vec<LocalActorRef<Signal>>>,
+    signal_receivers: RefCell<Vec<ActorRef<Signal>>>,
 }

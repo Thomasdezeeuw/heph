@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 
 use crate::actor::message_select::First;
-use crate::actor_ref::LocalActorRef;
+use crate::actor_ref::ActorRef;
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::ProcessId;
 use crate::RuntimeRef;
@@ -283,8 +283,8 @@ impl<M> Context<M> {
     */
 
     /// Returns a reference to this actor.
-    pub fn actor_ref(&mut self) -> LocalActorRef<M> {
-        LocalActorRef::from_inbox(self.inbox_ref.clone())
+    pub fn actor_ref(&mut self) -> ActorRef<M> {
+        ActorRef::from_inbox(self.inbox_ref.clone())
     }
 
     /// Get a reference to the runtime this actor is running in.
