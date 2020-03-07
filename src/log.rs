@@ -13,6 +13,38 @@
 //!
 //! To enable logging call [`init`].
 //!
+//! # Examples
+//!
+//! Enabling logging.
+//!
+//! ```
+//! #![feature(never_type)]
+//!
+//! use heph::supervisor::NoSupervisor;
+//! use heph::{actor, ActorOptions, Runtime, RuntimeError, RuntimeRef};
+//! use heph::log::{self, request};
+//!
+//! fn main() -> Result<(), RuntimeError> {
+//!     // Enable logging.
+//!     log::init();
+//!
+//!     Runtime::new().with_setup(add_greeter_actor).start()
+//! }
+//!
+//! fn add_greeter_actor(mut system_ref: RuntimeRef) -> Result<(), !> {
+//!     let actor = greeter_actor as fn(_) -> _;
+//!     system_ref.spawn(NoSupervisor, actor, (), ActorOptions::default().schedule());
+//!     Ok(())
+//! }
+//!
+//! async fn greeter_actor(_: actor::Context<!>) -> Result<(), !> {
+//!     // Log a request.
+//!     request!("Hello world");
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
 //! [`std-logger`]: std_logger
 //! [`request`]: crate::log::request
 //! [`init`]: crate::log::init
