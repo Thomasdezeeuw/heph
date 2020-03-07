@@ -26,7 +26,7 @@ use std::task::{self, Poll};
 
 use rand::Rng;
 
-use crate::actor_ref::LocalActorRef;
+use crate::actor_ref::ActorRef;
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::worker::RunningRuntime;
 use crate::rt::{ProcessId, Waker};
@@ -50,7 +50,7 @@ pub fn runtime() -> RuntimeRef {
 pub fn init_actor<NA>(
     mut new_actor: NA,
     arg: NA::Argument,
-) -> Result<(NA::Actor, LocalActorRef<NA::Message>), NA::Error>
+) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
 where
     NA: NewActor,
 {
@@ -59,7 +59,7 @@ where
 
     let waker = runtime_ref.new_waker(pid);
     let (inbox, inbox_ref) = Inbox::new(waker);
-    let actor_ref = LocalActorRef::from_inbox(inbox_ref.clone());
+    let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
 
     let ctx = actor::Context::new(pid, runtime_ref, inbox, inbox_ref);
     let actor = new_actor.new(ctx, arg)?;

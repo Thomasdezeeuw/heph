@@ -9,7 +9,7 @@ use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{pending, Pending};
 use mio::Token;
 
-use crate::actor_ref::LocalActorRef;
+use crate::actor_ref::ActorRef;
 use crate::rt::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use crate::test::{self, init_actor_inbox};
@@ -49,7 +49,7 @@ fn actor_process() {
     #[allow(trivial_casts)]
     let new_actor = ok_actor as fn(_) -> _;
     let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
-    let mut actor_ref = LocalActorRef::from_inbox(inbox_ref.clone());
+    let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
 
     // Create our process.
     let process = ActorProcess::new(NoSupervisor, new_actor, actor, inbox, inbox_ref);
@@ -105,7 +105,7 @@ fn restarting_erroneous_actor_process() {
     #[allow(trivial_casts)]
     let new_actor = error_actor as fn(_, _) -> _;
     let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, true).unwrap();
-    let mut actor_ref = LocalActorRef::from_inbox(inbox_ref.clone());
+    let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
 
     struct TestSupervisor(Arc<AtomicBool>);
 
