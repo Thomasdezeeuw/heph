@@ -27,7 +27,7 @@ fn main() -> Result<(), RuntimeError> {
                 NoSupervisor,
                 sleepy_actor,
                 (),
-                ActorOptions::default().schedule(),
+                ActorOptions::default().mark_ready(),
             );
 
             info!("Elapsed: {:?}", start.elapsed());

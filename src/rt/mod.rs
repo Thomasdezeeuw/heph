@@ -403,7 +403,7 @@ impl RuntimeRef {
         let ctx = actor::Context::new(pid, runtime_ref, inbox.ctx_inbox(), inbox_ref.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
-        if options.should_schedule() {
+        if options.is_ready() {
             waker::new(*waker_id, pid).wake()
         }
 
