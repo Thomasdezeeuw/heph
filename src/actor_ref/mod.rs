@@ -115,6 +115,7 @@
 //! ```
 
 use std::convert::TryFrom;
+use std::error::Error;
 use std::fmt;
 use std::ops::ShlAssign;
 use std::sync::Arc;
@@ -123,38 +124,17 @@ use crossbeam_channel::Sender;
 
 use crate::inbox::InboxRef;
 
-mod error;
-
 #[cfg(test)]
 mod tests;
-
-pub use error::{ActorShutdown, SendError};
-
-// TODO: reuse the `Rc` used in `Inbox` in `Mapped` and `TryMapped` variant of
-// `LocalActorRefKind`.
-// InboxRef:
-// shared: Weak<RefCell<SharedInbox<M>>>,
-// Somehow reuse that allocation.
-// &'static dyn MappedActorRef<M>?
-// Or do we need to start using unsafe pointers?
-// TODO: Add a `sends_to_same_actor` method (with a better name).
 
 /// Trait to erase the original message type of the actor reference.
 trait MappedActorRef<M> {
     fn mapped_send(&self, msg: M) -> Result<(), SendError>;
-
-    /// Required by `LocalActorRef::upgrade`.
-    // FIXME: move this to a separate trait.
-    fn upgrade(&self) -> Result<ActorRef<M>, ActorShutdown>;
 }
 
 /// Trait to erase the original message type of the actor reference.
 trait TryMappedActorRef<M> {
     fn try_mapped_send(&self, msg: M) -> Result<(), SendError>;
-
-    /// Required by `LocalActorRef::upgrade`.
-    // FIXME: move this to a separate trait.
-    fn upgrade(&self) -> Result<ActorRef<M>, ActorShutdown>;
 }
 
 /// Non-local actor reference.
@@ -192,17 +172,17 @@ unsafe impl<M: Send> Send for ActorRefKind<M> {}
 unsafe impl<M: Send> Sync for ActorRefKind<M> {}
 
 impl<M> ActorRef<M> {
-    /// Create a new `ActorRef` from a channel.
-    pub(crate) const fn for_sync_actor(sender: Sender<M>) -> ActorRef<M> {
-        ActorRef {
-            kind: ActorRefKind::Sync(sender),
-        }
-    }
-
-    /// Create a new `ActorRef` from a shared mailbox.
+    /// Create a new `ActorRef` for an actor using `inbox_ref`.
     pub(crate) const fn from_inbox(inbox_ref: InboxRef<M>) -> ActorRef<M> {
         ActorRef {
             kind: ActorRefKind::Node(inbox_ref),
+        }
+    }
+
+    /// Create a new `ActorRef` for a synchronous actor.
+    pub(crate) const fn for_sync_actor(sender: Sender<M>) -> ActorRef<M> {
+        ActorRef {
+            kind: ActorRefKind::Sync(sender),
         }
     }
 
@@ -232,7 +212,6 @@ impl<M> ActorRef<M> {
         use ActorRefKind::*;
         match &self.kind {
             Node(inbox_ref) => inbox_ref.try_send(msg).map_err(|_| SendError),
-            // We don't have to wake sync actors.
             Sync(sender) => sender.try_send(msg).map_err(|_err| SendError),
             Mapped(actor_ref) => actor_ref.mapped_send(msg),
             TryMapped(actor_ref) => actor_ref.try_mapped_send(msg),
@@ -249,6 +228,9 @@ impl<M> ActorRef<M> {
     ///
     /// This conversion is **not** cheap, it requires an allocation so use with
     /// caution when it comes to performance sensitive code.
+    ///
+    /// Prefer to clone an existing mapped `ActorRef` over creating a new one as
+    /// that can reuse the allocation mentioned above.
     pub fn map<Msg>(self) -> ActorRef<Msg>
     where
         M: From<Msg>,
@@ -274,6 +256,9 @@ impl<M> ActorRef<M> {
     ///
     /// This conversion is **not** cheap, it requires an allocation so use with
     /// caution when it comes to performance sensitive code.
+    ///
+    /// Prefer to clone an existing mapped `ActorRef` over creating a new one as
+    /// that can reuse the allocation mentioned above.
     pub fn try_map<Msg>(self) -> ActorRef<Msg>
     where
         M: TryFrom<Msg>,
@@ -330,11 +315,6 @@ where
     fn mapped_send(&self, msg: Msg) -> Result<(), SendError> {
         self.send(msg)
     }
-
-    fn upgrade(&self) -> Result<ActorRef<Msg>, ActorShutdown> {
-        // Not called.
-        unreachable!()
-    }
 }
 
 impl<M, Msg> TryMappedActorRef<Msg> for ActorRef<M>
@@ -346,9 +326,18 @@ where
             .map_err(|_msg| SendError)
             .and_then(|msg| self.send(msg))
     }
+}
 
-    fn upgrade(&self) -> Result<ActorRef<Msg>, ActorShutdown> {
-        // Not called.
-        unreachable!()
+/// Error returned when sending a message fails.
+///
+/// The reason why the sending of the message failed is unspecified.
+#[derive(Copy, Clone, Debug)]
+pub struct SendError;
+
+impl fmt::Display for SendError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("unable to send message")
     }
 }
+
+impl Error for SendError {}
