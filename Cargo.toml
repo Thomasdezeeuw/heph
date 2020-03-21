@@ -22,19 +22,19 @@ default = []
 test = []
 
 [dependencies]
-crossbeam-channel    = "0.4.0"
-futures-core-preview = "=0.3.0-alpha.19"
-futures-io-preview   = "=0.3.0-alpha.19"
-log                  = "0.4.8"
-mio                  = { version = "0.7.0-alpha.1", features = ["os-poll", "tcp", "udp"] }
-mio-pipe             = "0.1.0"
-mio-signals          = "0.1.1"
-num_cpus             = "1.12.0"
-parking_lot          = "0.10.0"
-rand                 = "0.7.3"
-std-logger           = "0.3.6"
+crossbeam-channel = { version = "0.4.0", default-features = false }
+futures-core      = { version = "0.3.4", default-features = false }
+futures-io        = { version = "0.3.4", default-features = false, features = ["std"] }
+log               = { version = "0.4.8", default-features = false }
+mio               = { version = "0.7.0", default-features = false, features = ["os-poll", "tcp", "udp"] }
+mio-pipe          = { version = "0.1.0", default-features = false }
+mio-signals       = { version = "0.1.1", default-features = false }
+num_cpus          = { version = "1.12.0", default-features = false }
+parking_lot       = { version = "0.10.0", default-features = false }
+rand              = { version = "0.7.3", default-features = false, features = ["std"] }
+std-logger        = { version = "0.3.6", default-features = false }
 
 [dev-dependencies]
-futures-test-preview = "=0.3.0-alpha.19"
-futures-util-preview = { version = "=0.3.0-alpha.19", features = ["unstable", "select-macro"] }
-lazy_static          = "1.4.0"
+futures-test = { version = "0.3.4", default-features = false, features = ["std"] }
+futures-util = { version = "0.3.4", default-features = false, features = ["async-await-macro"] }
+lazy_static  = { version = "1.4.0", default-features = false }

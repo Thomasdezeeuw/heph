@@ -61,10 +61,10 @@ fn register_workers<E>(registry: &Registry, workers: &mut [Worker<E>]) -> io::Re
 fn register_sync_workers(registry: &Registry, sync_workers: &mut [SyncWorker]) -> io::Result<()> {
     sync_workers
         .iter_mut()
-        .map(|mut worker| {
+        .map(|worker| {
             let id = worker.id();
             trace!("registering sync actor worker thread: id={}", id);
-            registry.register(&mut worker, Token(id), Interest::WRITABLE)
+            registry.register(worker, Token(id), Interest::WRITABLE)
         })
         .collect()
 }
