@@ -66,13 +66,15 @@
 //! the `test` module which adds testing facilities.
 
 #![feature(
+    box_into_raw_non_null,
     const_fn,
     const_raw_ptr_to_usize_cast,
     is_sorted,
     maybe_uninit_extra,
     never_type,
     new_uninit,
-    specialization
+    specialization,
+    maybe_uninit_ref
 )]
 #![warn(
     anonymous_parameters,

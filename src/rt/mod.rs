@@ -31,11 +31,21 @@ mod scheduler;
 mod signal;
 mod sync_worker;
 mod timers;
-mod waker;
 
-// Used in test module.
-pub(crate) mod channel;
-pub(crate) mod worker;
+// Modules that are public (in the crate) when testing and private otherwise.
+macro_rules! cfg_pub_test {
+    ($( $mod_name: ident ),+) => {
+        $(
+            #[cfg(not(test))]
+            pub(crate) mod $mod_name;
+            #[cfg(test)]
+            pub(crate) mod $mod_name;
+        )+
+    };
+}
+
+// Modules used in testing.
+cfg_pub_test!(channel, waker, worker);
 
 pub(crate) use process::ProcessId;
 pub(crate) use waker::Waker;
