@@ -300,10 +300,10 @@ impl<M> Context<M> {
 
 /// Future to receive a single message.
 ///
-/// The implementation behind [`actor::Context::receive`] and
-/// [`actor::Context::receive_next`].
+/// The implementation behind [`actor::Context::receive_next`].
+// and [`actor::Context::receive`].
 ///
-/// [`actor::Context::receive`]: crate::actor::Context::receive
+// [`actor::Context::receive`]: crate::actor::Context::receive
 /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
 #[derive(Debug)]
 pub struct ReceiveMessage<'ctx, M, S = First> {

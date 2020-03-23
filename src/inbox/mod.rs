@@ -228,11 +228,11 @@ where
 
 /// A [`MessageSelector`] implementation that selects the first message.
 ///
-/// This will return the same message as [`actor::Context::receive_next`] and
-/// [`actor::Context::peek_next`].
+/// This will return the same message as [`actor::Context::receive_next`].
+// and [`actor::Context::peek_next`].
 ///
 /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
-/// [`actor::Context::peek_next`]: crate::actor::Context::peek_next
+// [`actor::Context::peek_next`]: crate::actor::Context::peek_next
 /*
 ///
 /// # Examples
