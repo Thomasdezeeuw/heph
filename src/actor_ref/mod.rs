@@ -211,6 +211,8 @@ impl<M> ActorRef<M> {
     /// This will send the `request` to the actor and returns a [`Rpc`]
     /// [`Future`] that will return a response (of type `Res`), or an error if
     /// the receiving actor didn't respond.
+    ///
+    /// [`Future`]: std::future::Future
     pub fn rpc<CM, Req, Res>(
         &mut self,
         ctx: &mut actor::Context<CM>,

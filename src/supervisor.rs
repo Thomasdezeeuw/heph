@@ -20,9 +20,10 @@
 //! returned an error when processing it, the new (restarted) actor won't
 //! retrieve that message again (messages aren't cloned after all). If you want
 //! to ensure that all messages are handled instead of receiving message they
-//! can be [peeked], which clones the message.
+// can be [peeked], which clones the message.
+//! can be peeked, which clones the message.
 //!
-//! [peeked]: crate::actor::Context::peek
+// [peeked]: crate::actor::Context::peek
 //!
 //! # Restarting or stopping?
 //!

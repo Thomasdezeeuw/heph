@@ -8,7 +8,7 @@
 //!
 //! The actual logging implementation comes from the [`std-logger`] crate. By
 //! default logs are written to standard error and requests log are written to
-//! standard out. To log a request the [`request`] macro can be used, which is
+//! standard out. To log a request the `request` macro can be used, which is
 //! re-exported from the `std-logger` crate.
 //!
 //! To enable logging call [`init`].
@@ -46,7 +46,8 @@
 //! ```
 //!
 //! [`std-logger`]: std_logger
-//! [`request`]: crate::log::request
+// [`request`]: crate::log::request
+// FIXME: this doesn't seem to work, see Rust issue #43466.
 //! [`init`]: crate::log::init
 
 #[doc(no_inline)]
