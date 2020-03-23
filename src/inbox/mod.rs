@@ -8,6 +8,11 @@ use crossbeam_channel::{self as channel, Receiver, Sender};
 
 use crate::rt::Waker;
 
+pub(crate) mod oneshot;
+
+#[cfg(test)]
+mod tests;
+
 /// Inbox that holds all messages for an actor.
 #[derive(Debug)]
 pub(crate) struct Inbox<M> {
@@ -339,22 +344,5 @@ where
         messages
             .max_by_key(|(_, msg)| (self.0)(msg))
             .map(|(selection, _)| selection)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Inbox, InboxRef};
-
-    fn assert_send<T: Send>() {}
-    fn assert_sync<T: Sync>() {}
-
-    #[test]
-    fn inbox_is_send_and_sync() {
-        assert_send::<Inbox<()>>();
-        assert_sync::<Inbox<()>>();
-
-        assert_send::<InboxRef<()>>();
-        assert_sync::<InboxRef<()>>();
     }
 }
