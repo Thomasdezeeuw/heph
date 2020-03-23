@@ -1,5 +1,3 @@
-#![allow(dead_code)] // FIXME: remove.
-
 //! Channel that allows a single message to be send, designed for use in Remote
 //! Procedure Calls (RPC).
 
@@ -121,6 +119,7 @@ impl<T> Receiver<T> {
     }
 
     /// Attempts to peek a value.
+    #[allow(dead_code)]
     pub(crate) fn try_peek(&self) -> Result<T, RecvError>
     where
         T: Clone,
@@ -144,6 +143,7 @@ impl<T> Receiver<T> {
     /// Attempts to reset the channel, returning a new sender for the channel.
     ///
     /// Fails if the sender is still connected.
+    #[allow(dead_code)]
     pub(crate) fn try_reset(&mut self) -> Result<Sender<T>, ()> {
         let shared = self.shared();
         let status = shared.status.load(Ordering::Relaxed);
@@ -169,6 +169,7 @@ impl<T> Receiver<T> {
     }
 
     /// Returns true if the sender is connected.
+    #[allow(dead_code)]
     pub(crate) fn is_connected(&self) -> bool {
         // Relaxed is fine here since there is always a bit of a race condition
         // when using the method (and then doing something based on it).

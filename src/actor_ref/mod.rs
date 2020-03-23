@@ -2,17 +2,6 @@
 //!
 //! An actor reference is a generic reference to an actor that can run on the
 //! same thread, another thread on the same machine or even running remotely.
-//! There are two types of actor references:
-//!
-//! - [`LocalActorRef`]: reference to an actor running on the same thread. This
-//!   is the least expensive reference and should always be preferred.
-//! - [`ActorRef`]: reference to an actor not running on the same thread, maybe
-//!   it is on another thread on the same machine or maybe it is a reference to
-//!   a remote actor. This implements [`Send`](std::marker::Send) and
-//!   [`Sync`](std::marker::Sync), which the local actor reference does not.
-//!
-//! [`LocalActorRef`]: crate::actor_ref::LocalActorRef
-//! [`ActorRef`]: crate::actor_ref::ActorRef
 //!
 //! ## Sending messages
 //!
@@ -122,7 +111,11 @@ use std::sync::Arc;
 
 use crossbeam_channel::Sender;
 
+use crate::actor;
 use crate::inbox::InboxRef;
+
+mod rpc;
+pub use rpc::{NoResponse, Rpc, RpcMessage, RpcResponse};
 
 #[cfg(test)]
 mod tests;
@@ -143,11 +136,6 @@ trait TryMappedActorRef<M> {
 /// more details see the [module] documentation.
 ///
 /// [module]: crate::actor_ref
-///
-/// # Notes
-///
-/// This reference uses much more expensive operations then the local actor
-/// reference, **if at all possible prefer to use** [`LocalActorRef`].
 pub struct ActorRef<M> {
     kind: ActorRefKind<M>,
 }
@@ -216,6 +204,25 @@ impl<M> ActorRef<M> {
             Mapped(actor_ref) => actor_ref.mapped_send(msg),
             TryMapped(actor_ref) => actor_ref.try_mapped_send(msg),
         }
+    }
+
+    /// Make a Remote Procedure Call (RPC).
+    ///
+    /// This will send the `request` to the actor and returns a [`Rpc`]
+    /// [`Future`] that will return a response (of type `Res`), or an error if
+    /// the receiving actor didn't respond.
+    pub fn rpc<CM, Req, Res>(
+        &mut self,
+        ctx: &mut actor::Context<CM>,
+        request: Req,
+    ) -> Result<Rpc<Res>, SendError>
+    where
+        M: From<RpcMessage<Req, Res>>,
+    {
+        let pid = ctx.pid();
+        let waker = ctx.runtime().new_waker(pid);
+        let (msg, rpc) = Rpc::new(waker, request);
+        self.send(msg).map(|()| rpc)
     }
 
     /// Changes the message type of the actor reference.
