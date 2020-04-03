@@ -32,7 +32,8 @@ mio-signals       = { version = "0.1.1", default-features = false }
 num_cpus          = { version = "1.12.0", default-features = false }
 parking_lot       = { version = "0.10.0", default-features = false }
 rand              = { version = "0.7.3", default-features = false, features = ["std"] }
-std-logger        = { version = "0.3.6", default-features = false }
+# Enable logging panics via `std-logger` and add timestamps to each log message.
+std-logger        = { version = "0.3.6", default-features = false, features = ["log-panic", "timestamp"] }
 
 [dev-dependencies]
 futures-test = { version = "0.3.4", default-features = false, features = ["std"] }
