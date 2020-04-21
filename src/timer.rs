@@ -13,6 +13,7 @@
 //! [`Stream`]: futures_core::stream::Stream
 
 use std::future::Future;
+use std::io;
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
@@ -23,8 +24,16 @@ use crate::rt::ProcessId;
 use crate::{actor, RuntimeRef};
 
 /// Type returned when the deadline has passed.
+///
+/// Can be converted into [`io::ErrorKind::TimedOut`].
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct DeadlinePassed;
+
+impl Into<io::Error> for DeadlinePassed {
+    fn into(self) -> io::Error {
+        io::ErrorKind::TimedOut.into()
+    }
+}
 
 /// A [`Future`] that represents a timer.
 ///
