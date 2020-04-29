@@ -38,7 +38,7 @@ impl Waker {
 
 /// Maximum number of threads currently supported by this `Waker`
 /// implementation.
-pub const MAX_THREADS: usize = 64;
+pub const MAX_THREADS: usize = 128;
 
 /// An id for a waker.
 ///
@@ -109,6 +109,10 @@ pub(crate) fn mark_polling(waker_id: WakerId, polling: bool) {
 /// initial write each element is read only there are no further data races
 /// possible.
 static mut THREAD_WAKERS: [Option<ThreadWaker>; MAX_THREADS] = [
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
     None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
     None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
     None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
