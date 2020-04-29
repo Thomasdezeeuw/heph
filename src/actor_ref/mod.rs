@@ -106,10 +106,12 @@
 use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt;
+use std::iter::FromIterator;
 use std::ops::ShlAssign;
 use std::sync::Arc;
 
 use crossbeam_channel::Sender;
+use parking_lot::RwLock;
 
 use crate::actor;
 use crate::inbox::InboxRef;
@@ -350,3 +352,125 @@ impl fmt::Display for SendError {
 }
 
 impl Error for SendError {}
+
+/// A group of [`ActorRef`]s used to send a message to multiple actors.
+pub struct ActorGroup<M> {
+    actor_refs: Arc<RwLock<Vec<ActorRef<M>>>>,
+}
+
+impl<M> ActorGroup<M> {
+    /// Creates an empty `ActorGroup`.
+    pub fn empty() -> ActorGroup<M> {
+        ActorGroup {
+            actor_refs: Arc::new(RwLock::new(Vec::new())),
+        }
+    }
+
+    /// Create a new `ActorGroup`.
+    pub fn new<I>(actor_refs: I) -> ActorGroup<M>
+    where
+        I: IntoIterator<Item = ActorRef<M>>,
+    {
+        let actor_refs = actor_refs.into_iter().collect();
+        ActorGroup {
+            actor_refs: Arc::new(RwLock::new(actor_refs)),
+        }
+    }
+
+    /// Add an `ActorRef` to the group.
+    pub fn add(&self, actor_ref: ActorRef<M>) {
+        let mut actor_refs = self.actor_refs.write();
+        actor_refs.push(actor_ref)
+    }
+
+    /// Asynchronously send a message to all the actors in the group.
+    ///
+    /// This will first `clone` the message and `send` it to each actor in the
+    /// group. Note that this means it will `clone` before calling
+    /// [`Into::into`] on the message. If the call to [`Into::into`] is
+    /// expansive, or `M` is cheaper to clone than `Msg` it might be worthwhile
+    /// to call `msg.into()` before calling this method.
+    ///
+    /// This only returns an error if the group is empty, otherwise this will
+    /// always return `Ok(())`.
+    ///
+    /// See [Sending messages] for more details.
+    ///
+    /// [Sending messages]: index.html#sending-messages
+    pub fn send<Msg>(&self, msg: Msg) -> Result<(), SendError>
+    where
+        Msg: Into<M> + Clone,
+    {
+        #[cfg(any(test, feature = "test"))]
+        {
+            if crate::test::should_lose_msg() {
+                log::debug!("dropping message on purpose");
+                return Ok(());
+            }
+        }
+
+        // This lock can only not be acquired when an actor ref is added to the
+        // group, which shouldn't take too long (notwithstanding the thread
+        // being descheduled).
+        let actor_refs = self.actor_refs.read();
+        if actor_refs.is_empty() {
+            Err(SendError)
+        } else {
+            for actor_ref in actor_refs.iter() {
+                let _ = actor_ref.send(msg.clone());
+            }
+            Ok(())
+        }
+    }
+}
+
+impl<M> FromIterator<ActorRef<M>> for ActorGroup<M> {
+    fn from_iter<I>(iter: I) -> Self
+    where
+        I: IntoIterator<Item = ActorRef<M>>,
+    {
+        ActorGroup::new(iter)
+    }
+}
+
+impl<M> Extend<ActorRef<M>> for ActorGroup<M> {
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = ActorRef<M>>,
+    {
+        let mut actor_refs = self.actor_refs.write();
+        actor_refs.extend(iter);
+    }
+}
+
+impl<M> Clone for ActorGroup<M> {
+    fn clone(&self) -> ActorGroup<M> {
+        ActorGroup {
+            actor_refs: self.actor_refs.clone(),
+        }
+    }
+}
+
+impl<M, Msg> ShlAssign<Msg> for ActorGroup<M>
+where
+    Msg: Into<M> + Clone,
+{
+    fn shl_assign(&mut self, msg: Msg) {
+        let _ = self.send(msg);
+    }
+}
+
+impl<M, Msg> ShlAssign<Msg> for &ActorGroup<M>
+where
+    Msg: Into<M> + Clone,
+{
+    fn shl_assign(&mut self, msg: Msg) {
+        let _ = self.send(msg);
+    }
+}
+
+impl<M> fmt::Debug for ActorGroup<M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ActorGroup")
+    }
+}
