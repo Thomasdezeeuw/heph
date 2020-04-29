@@ -240,6 +240,27 @@ where
     }
 }
 
+/* TODO: add this once `specialization` feature is stabilised.
+impl<Fut, T> Future for Deadline<Fut>
+where
+    Fut: Future<Output = io::Result<T>>,
+{
+    type Output = io::Result<T>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        if self.deadline <= Instant::now() {
+            Poll::Ready(Err(DeadlinePassed.into()))
+        } else {
+            let future = unsafe {
+                // This is safe because we're not moving the future.
+                Pin::map_unchecked_mut(self, |this| &mut this.future)
+            };
+            future.poll(ctx)
+        }
+    }
+}
+*/
+
 impl<Fut> actor::Bound for Deadline<Fut> {
     type Error = !;
 
