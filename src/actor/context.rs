@@ -298,6 +298,67 @@ impl<M> LocalContext<M> {
     }
 }
 
+/// Thread-safe actor context in which an actor is executed.
+///
+/// See [`actor::LocalContext`] for more information.
+///
+/// [`actor::LocalContext`]: crate::actor::LocalContext
+#[derive(Debug)]
+pub struct Context<M> {
+    /// Process id of the actor, used as `Token` in registering things, e.g.
+    /// a `TcpStream`, with `mio::Poll`.
+    pid: ProcessId,
+    /// Inbox of the actor, shared between this and zero or more actor
+    /// references. It's owned by the context, the actor references only have a
+    /// weak reference.
+    ///
+    /// This field is public because it is used by `tcp::Server`, as we don't
+    /// need entire context there.
+    pub(crate) inbox: Inbox<M>,
+    /// Reference to `inbox` above, used to create `ActorRef`s to this actor.
+    inbox_ref: InboxRef<M>,
+}
+
+impl<M> Context<M> {
+    /// Create a new `actor::Context`.
+    pub(crate) const fn new(pid: ProcessId, inbox: Inbox<M>, inbox_ref: InboxRef<M>) -> Context<M> {
+        Context {
+            pid,
+            inbox,
+            inbox_ref,
+        }
+    }
+
+    /// Attempt to receive the next message.
+    ///
+    /// This works the same as [`actor::LocalContext::try_receive_next`].
+    /// [`actor::LocalContext::try_receive_next`]: LocalContext::try_receive_next
+    pub fn try_receive_next(&mut self) -> Option<M> {
+        self.inbox.receive_next()
+    }
+
+    /// Receive the next message.
+    ///
+    /// This works the same as [`actor::LocalContext::receive_next`].
+    /// [`actor::LocalContext::receive_next`]: LocalContext::receive_next
+    pub fn receive_next<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
+        ReceiveMessage {
+            inbox: &mut self.inbox,
+            selector: First,
+        }
+    }
+
+    /// Returns a reference to this actor.
+    pub fn actor_ref(&mut self) -> ActorRef<M> {
+        ActorRef::from_inbox(self.inbox_ref.clone())
+    }
+
+    /// Get the pid of this actor.
+    pub(crate) fn pid(&self) -> ProcessId {
+        self.pid
+    }
+}
+
 /// Future to receive a single message.
 ///
 /// The implementation behind [`actor::LocalContext::receive_next`].
