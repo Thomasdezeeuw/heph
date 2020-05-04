@@ -25,7 +25,7 @@ pub struct LocalContext<M> {
     /// references. It's owned by the context, the actor references only have a
     /// weak reference.
     ///
-    /// This field is public because it is used by `TcpListener`, as we don't
+    /// This field is public because it is used by `tcp::Server`, as we don't
     /// need entire context there.
     pub(crate) inbox: Inbox<M>,
     /// Reference to `inbox` above, used to create `ActorRef`s to this actor.

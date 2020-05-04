@@ -16,6 +16,7 @@ use crate::rt::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::{NewActor, RuntimeRef, Supervisor};
 
 mod inactive;
+mod local;
 mod priority;
 mod runqueue;
 
@@ -59,6 +60,7 @@ mod tests;
 // * Stopped: final state of a process, at this point its deallocated and its
 //   resources cleaned up.
 
+pub(super) use local::LocalScheduler;
 pub use priority::Priority;
 
 /// The scheduler, responsible for scheduling processes.
@@ -107,7 +109,7 @@ impl Scheduler {
     }
 
     /// Add an actor to the scheduler.
-    pub(super) fn add_actor<'s>(&'s mut self) -> AddActor<'s> {
+    pub(super) fn add_actor<'s>(&'s mut self) -> AddActor<'s, Inactive> {
         AddActor {
             processes: &mut self.inactive,
             alloc: Box::new_uninit(),
@@ -257,7 +259,7 @@ impl Eq for ProcessData {}
 
 impl PartialEq for ProcessData {
     fn eq(&self, other: &Self) -> bool {
-        // FIXME: is this safe?
+        // FIXME: is this correct?
         Pin::new(self).id() == Pin::new(other).id()
     }
 }
@@ -291,19 +293,21 @@ impl fmt::Debug for ProcessData {
 ///
 /// This allows the `ProcessId` to be determined before the process is actually
 /// added. This is used in registering with the system poller.
-pub(super) struct AddActor<'s> {
-    processes: &'s mut Inactive,
+pub(super) struct AddActor<'s, I> {
+    processes: &'s mut I,
     /// Already allocated `ProcessData`, used to determine the `ProcessId`.
     alloc: Box<MaybeUninit<ProcessData>>,
 }
 
-impl<'s> AddActor<'s> {
+impl<'s, I> AddActor<'s, I> {
     /// Get the would be `ProcessId` for the process.
     pub(super) const fn pid(&self) -> ProcessId {
         #[allow(trivial_casts)]
         ProcessId(unsafe { &*self.alloc as *const _ as *const u8 as usize })
     }
+}
 
+impl<'s> AddActor<'s, Inactive> {
     /// Add a new inactive actor to the scheduler.
     pub(super) fn add<S, NA>(
         self,

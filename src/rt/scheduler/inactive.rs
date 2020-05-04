@@ -32,7 +32,8 @@ pub(super) fn ok_ptr(ptr: *const ()) -> bool {
 /// but longer total lifetime they quickly move into and out from the structure.
 /// To ensure operations remain quick we keep the structure of tree in place
 /// when removing processes.
-pub(super) struct Inactive {
+// pub(crate) because its used in AddActor.
+pub(crate) struct Inactive {
     root: Branch,
     length: usize,
 }

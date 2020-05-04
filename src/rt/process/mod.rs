@@ -1,6 +1,7 @@
 //! Module containing the `Process` trait, related types and implementations.
 
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 
 use mio::Token;
@@ -36,6 +37,15 @@ impl From<Token> for ProcessId {
 impl Into<Token> for ProcessId {
     fn into(self) -> Token {
         Token(self.0)
+    }
+}
+
+impl Hash for ProcessId {
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: Hasher,
+    {
+        self.0.hash(state)
     }
 }
 

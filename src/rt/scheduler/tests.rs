@@ -387,3 +387,201 @@ fn assert_process_unmoved() {
         ProcessResult::Pending
     );
 }
+
+mod local {
+    use std::time::Duration;
+
+    use super::super::{LocalScheduler, Priority, ProcessData, ProcessId};
+    use super::{simple_actor, NopTestProcess};
+    use crate::supervisor::NoSupervisor;
+    use crate::test::init_actor_inbox;
+
+    #[test]
+    fn has_process() {
+        let mut scheduler = LocalScheduler::new();
+        assert!(!scheduler.has_process());
+        assert!(!scheduler.has_ready_process());
+
+        let process = Box::pin(ProcessData {
+            priority: Priority::default(),
+            fair_runtime: Duration::from_secs(0),
+            process: Box::pin(NopTestProcess),
+        });
+        scheduler.add_process(process);
+        assert!(scheduler.has_process());
+        assert!(!scheduler.has_ready_process());
+    }
+
+    #[test]
+    fn add_actor() {
+        let mut scheduler = LocalScheduler::new();
+
+        let actor_entry = scheduler.add_actor();
+        #[allow(trivial_casts)]
+        let new_actor = simple_actor as fn(_) -> _;
+        let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+        actor_entry.add(
+            Priority::NORMAL,
+            NoSupervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+        );
+        assert!(scheduler.has_process());
+        assert!(!scheduler.has_ready_process());
+    }
+
+    #[test]
+    fn mark_ready() {
+        let mut scheduler = LocalScheduler::new();
+
+        // Incorrect (outdated) pid should be ok.
+        scheduler.mark_ready(ProcessId(1));
+
+        let actor_entry = scheduler.add_actor();
+        let pid = actor_entry.pid();
+        #[allow(trivial_casts)]
+        let new_actor = simple_actor as fn(_) -> _;
+        let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+        actor_entry.add(
+            Priority::NORMAL,
+            NoSupervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+        );
+
+        scheduler.mark_ready(pid);
+        assert!(scheduler.has_process());
+        assert!(scheduler.has_ready_process());
+    }
+
+    #[test]
+    fn next_process() {
+        let mut scheduler = LocalScheduler::new();
+
+        let actor_entry = scheduler.add_actor();
+        let pid = actor_entry.pid();
+        #[allow(trivial_casts)]
+        let new_actor = simple_actor as fn(_) -> _;
+        let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+        actor_entry.add(
+            Priority::NORMAL,
+            NoSupervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+        );
+        scheduler.mark_ready(pid);
+
+        if let Some(process) = scheduler.next_process() {
+            assert_eq!(process.as_ref().id(), pid);
+            assert!(!scheduler.has_process());
+            assert!(!scheduler.has_ready_process());
+        } else {
+            panic!("expected a process");
+        }
+    }
+
+    #[test]
+    fn next_process_order() {
+        let mut scheduler = LocalScheduler::new();
+
+        #[allow(trivial_casts)]
+        let new_actor = simple_actor as fn(_) -> _;
+        // Actor 1.
+        let actor_entry = scheduler.add_actor();
+        let pid1 = actor_entry.pid();
+        let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+        actor_entry.add(
+            Priority::LOW,
+            NoSupervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+        );
+        // Actor 2.
+        let actor_entry = scheduler.add_actor();
+        let pid2 = actor_entry.pid();
+        let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+        actor_entry.add(
+            Priority::HIGH,
+            NoSupervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+        );
+        // Actor 3.
+        let actor_entry = scheduler.add_actor();
+        let pid3 = actor_entry.pid();
+        let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+        actor_entry.add(
+            Priority::NORMAL,
+            NoSupervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+        );
+
+        scheduler.mark_ready(pid1);
+        scheduler.mark_ready(pid2);
+        scheduler.mark_ready(pid3);
+
+        assert!(scheduler.has_process());
+        assert!(scheduler.has_ready_process());
+
+        // Process 2 has a higher priority, should be scheduled first.
+        let process2 = scheduler.next_process().unwrap();
+        assert_eq!(process2.as_ref().id(), pid2);
+        let process3 = scheduler.next_process().unwrap();
+        assert_eq!(process3.as_ref().id(), pid3);
+        let process1 = scheduler.next_process().unwrap();
+        assert_eq!(process1.as_ref().id(), pid1);
+
+        assert!(process1 < process2);
+        assert!(process1 < process3);
+        assert!(process2 > process1);
+        assert!(process2 > process3);
+        assert!(process3 > process1);
+        assert!(process3 < process2);
+
+        assert_eq!(scheduler.next_process(), None);
+    }
+
+    #[test]
+    fn add_process() {
+        let mut scheduler = LocalScheduler::new();
+
+        let actor_entry = scheduler.add_actor();
+        let pid = actor_entry.pid();
+        #[allow(trivial_casts)]
+        let new_actor = simple_actor as fn(_) -> _;
+        let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+        actor_entry.add(
+            Priority::NORMAL,
+            NoSupervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+        );
+        scheduler.mark_ready(pid);
+
+        let process = scheduler.next_process().unwrap();
+        scheduler.add_process(process);
+        assert!(scheduler.has_process());
+        assert!(!scheduler.has_ready_process());
+
+        scheduler.mark_ready(pid);
+        assert!(scheduler.has_process());
+        assert!(scheduler.has_ready_process());
+        let process = scheduler.next_process().unwrap();
+        assert_eq!(process.as_ref().id(), pid);
+    }
+}
