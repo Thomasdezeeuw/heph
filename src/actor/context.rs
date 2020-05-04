@@ -332,6 +332,7 @@ impl<M> Context<M> {
     /// Attempt to receive the next message.
     ///
     /// This works the same as [`actor::LocalContext::try_receive_next`].
+    ///
     /// [`actor::LocalContext::try_receive_next`]: LocalContext::try_receive_next
     pub fn try_receive_next(&mut self) -> Option<M> {
         self.inbox.receive_next()
@@ -340,6 +341,7 @@ impl<M> Context<M> {
     /// Receive the next message.
     ///
     /// This works the same as [`actor::LocalContext::receive_next`].
+    ///
     /// [`actor::LocalContext::receive_next`]: LocalContext::receive_next
     pub fn receive_next<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
         ReceiveMessage {
@@ -361,11 +363,13 @@ impl<M> Context<M> {
 
 /// Future to receive a single message.
 ///
-/// The implementation behind [`actor::LocalContext::receive_next`].
+/// The implementation behind [`actor::LocalContext::receive_next`] and
+/// [`actor::Context::receive_next`].
 // and [`actor::LocalContext::receive`].
 ///
 // [`actor::LocalContext::receive`]: crate::actor::LocalContext::receive
 /// [`actor::LocalContext::receive_next`]: crate::actor::LocalContext::receive_next
+/// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
 #[derive(Debug)]
 pub struct ReceiveMessage<'ctx, M, S = First> {
     inbox: &'ctx mut Inbox<M>,

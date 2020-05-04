@@ -54,7 +54,7 @@ pub mod message_select {
 }
 
 #[doc(inline)]
-pub use context::{LocalContext, /*PeekMessage, */ ReceiveMessage};
+pub use context::{Context, LocalContext, /*PeekMessage, */ ReceiveMessage};
 
 /// The trait that defines how to create a new [`Actor`].
 ///
@@ -281,6 +281,55 @@ pub trait NewLocalActor {
     }
 }
 
+/// The trait that defines how to create a new thread-safe [`Actor`].
+///
+/// See the [`NewLocalActor`] trait for more information.
+pub trait NewActor {
+    /// The type of messages the actor can receive.
+    ///
+    /// See [`NewLocalActor::Message`] for more information.
+    type Message;
+
+    /// The argument(s) passed to the actor.
+    ///
+    /// See [`NewLocalActor::Argument`] for more information.
+    type Argument;
+
+    /// The type of the actor.
+    ///
+    /// See [`NewLocalActor::Actor`] for more information.
+    type Actor: Actor;
+
+    /// The type of error.
+    ///
+    /// See [`NewLocalActor::Error`] for more information.
+    type Error;
+
+    /// Create a new [`Actor`](Actor).
+    ///
+    /// See [`NewLocalActor::new`] for more information.
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error>;
+
+    /// Wrap the `NewActor` to change the arguments its accepts.
+    ///
+    /// See [`NewLocalActor::map_arg`] for more information.
+    fn map_arg<F, Arg>(self, f: F) -> ArgMap<Self, F, Arg>
+    where
+        Self: Sized,
+        F: FnMut(Arg) -> Self::Argument,
+    {
+        ArgMap {
+            new_actor: self,
+            map: f,
+            _phantom: PhantomData,
+        }
+    }
+}
+
 /// See [`NewLocalActor::map_arg`].
 #[derive(Debug)]
 pub struct ArgMap<NA, F, Arg> {
@@ -315,6 +364,25 @@ where
     fn new(
         &mut self,
         ctx: LocalContext<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
+        let arg = (self.map)(arg);
+        self.new_actor.new(ctx, arg)
+    }
+}
+
+impl<NA, F, Arg> NewActor for ArgMap<NA, F, Arg>
+where
+    NA: NewActor,
+    F: FnMut(Arg) -> NA::Argument,
+{
+    type Message = NA::Message;
+    type Argument = Arg;
+    type Actor = NA::Actor;
+    type Error = NA::Error;
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let arg = (self.map)(arg);
@@ -421,6 +489,111 @@ where
     fn new(
         &mut self,
         ctx: LocalContext<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
+        Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3, arg.4))
+    }
+}
+
+impl<M, A> NewActor for fn(ctx: Context<M>) -> A
+where
+    A: Actor,
+{
+    type Message = M;
+    type Argument = ();
+    type Actor = A;
+    type Error = !;
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        _arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
+        Ok((self)(ctx))
+    }
+}
+
+impl<M, Arg, A> NewActor for fn(ctx: Context<M>, arg: Arg) -> A
+where
+    A: Actor,
+{
+    type Message = M;
+    type Argument = Arg;
+    type Actor = A;
+    type Error = !;
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
+        Ok((self)(ctx, arg))
+    }
+}
+
+impl<M, Arg1, Arg2, A> NewActor for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2) -> A
+where
+    A: Actor,
+{
+    type Message = M;
+    type Argument = (Arg1, Arg2);
+    type Actor = A;
+    type Error = !;
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
+        Ok((self)(ctx, arg.0, arg.1))
+    }
+}
+
+impl<M, Arg1, Arg2, Arg3, A> NewActor
+    for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3) -> A
+where
+    A: Actor,
+{
+    type Message = M;
+    type Argument = (Arg1, Arg2, Arg3);
+    type Actor = A;
+    type Error = !;
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
+        Ok((self)(ctx, arg.0, arg.1, arg.2))
+    }
+}
+
+impl<M, Arg1, Arg2, Arg3, Arg4, A> NewActor
+    for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4) -> A
+where
+    A: Actor,
+{
+    type Message = M;
+    type Argument = (Arg1, Arg2, Arg3, Arg4);
+    type Actor = A;
+    type Error = !;
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
+        Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3))
+    }
+}
+
+impl<M, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor
+    for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5) -> A
+where
+    A: Actor,
+{
+    type Message = M;
+    type Argument = (Arg1, Arg2, Arg3, Arg4, Arg5);
+    type Actor = A;
+    type Error = !;
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3, arg.4))
