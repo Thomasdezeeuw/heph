@@ -6,14 +6,14 @@ use std::task::{self, Poll};
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::supervisor::SupervisorStrategy;
-use crate::{actor, Actor, NewActor, RuntimeRef, Supervisor};
+use crate::{actor, Actor, NewLocalActor, RuntimeRef, Supervisor};
 
 /// A process that represent an [`Actor`].
-pub struct ActorProcess<S, NA: NewActor> {
+pub struct ActorProcess<S, NA: NewLocalActor> {
     /// The actor's supervisor used to determine what to do when the actor, or
-    /// [`NewActor`] implementation, returns an error.
+    /// [`NewLocalActor`] implementation, returns an error.
     supervisor: S,
-    /// The [`NewActor`] implementation used to restart the actor.
+    /// The [`NewLocalActor`] implementation used to restart the actor.
     new_actor: NA,
     /// The inbox of the actor, used in creating a new [`actor::LocalContext`]
     /// if the actor is restarted.
@@ -23,10 +23,10 @@ pub struct ActorProcess<S, NA: NewActor> {
     actor: NA::Actor,
 }
 
-impl<S, NA: NewActor> ActorProcess<S, NA>
+impl<S, NA: NewLocalActor> ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewActor,
+    NA: NewLocalActor,
 {
     /// Create a new `ActorProcess`.
     pub(crate) const fn new(
@@ -62,7 +62,7 @@ where
         }
     }
 
-    /// Same as `handle_actor_error` but handles [`NewActor::Error`]s instead.
+    /// Same as `handle_actor_error` but handles [`NewLocalActor::Error`]s instead.
     fn handle_restart_error(
         &mut self,
         runtime_ref: &mut RuntimeRef,
@@ -102,7 +102,7 @@ where
 impl<S, NA> Process for ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewActor,
+    NA: NewLocalActor,
 {
     fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult {
         // This is safe because we're not moving the actor.

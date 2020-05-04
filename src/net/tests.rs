@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use futures_util::pin_mut;
 
-use crate::actor::{self, Actor, NewActor};
+use crate::actor::{self, Actor, NewLocalActor};
 use crate::net::UdpSocket;
 use crate::test::{init_actor, poll_actor};
 
@@ -45,7 +45,7 @@ fn connected_udp_socket_ipv6() {
 
 fn test_udp_socket<NA, A>(local_address: SocketAddr, new_actor: NA)
 where
-    NA: NewActor<Message = !, Argument = SocketAddr, Actor = A, Error = !>,
+    NA: NewLocalActor<Message = !, Argument = SocketAddr, Actor = A, Error = !>,
     A: Actor<Error = io::Error>,
 {
     let echo_socket = std::net::UdpSocket::bind(local_address).unwrap();

@@ -15,7 +15,7 @@ use parking_lot::RwLock;
 
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{ActorProcess, Process, ProcessId, ProcessResult};
-use crate::{NewActor, RuntimeRef, Supervisor};
+use crate::{NewLocalActor, RuntimeRef, Supervisor};
 
 mod inactive;
 mod local;
@@ -321,7 +321,7 @@ impl<'s> AddActor<'s, Inactive> {
         inbox_ref: InboxRef<NA::Message>,
     ) where
         S: Supervisor<NA> + 'static,
-        NA: NewActor + 'static,
+        NA: NewLocalActor + 'static,
     {
         #[allow(trivial_casts)]
         debug_assert!(

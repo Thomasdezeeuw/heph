@@ -110,7 +110,7 @@ mod inbox;
 mod util;
 
 #[doc(no_inline)]
-pub use crate::actor::{Actor, NewActor};
+pub use crate::actor::{Actor, NewLocalActor};
 #[doc(no_inline)]
 pub use crate::actor_ref::ActorRef;
 #[doc(no_inline)]

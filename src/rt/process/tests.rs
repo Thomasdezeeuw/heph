@@ -13,7 +13,7 @@ use crate::actor_ref::ActorRef;
 use crate::rt::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use crate::test::{self, init_actor_inbox};
-use crate::{actor, Actor, NewActor};
+use crate::{actor, Actor, NewLocalActor};
 
 #[test]
 fn pid() {
@@ -111,7 +111,7 @@ fn restarting_erroneous_actor_process() {
 
     impl<NA> Supervisor<NA> for TestSupervisor
     where
-        NA: NewActor<Argument = bool>,
+        NA: NewLocalActor<Argument = bool>,
     {
         fn decide(&mut self, _: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
             self.0.store(true, atomic::Ordering::SeqCst);
@@ -150,9 +150,9 @@ fn restarting_erroneous_actor_process() {
     assert_eq!(res, ProcessResult::Complete);
 }
 
-struct TestAssertUnmovedNewActor;
+struct TestAssertUnmovedNewLocalActor;
 
-impl NewActor for TestAssertUnmovedNewActor {
+impl NewLocalActor for TestAssertUnmovedNewLocalActor {
     type Message = ();
     type Argument = ();
     type Actor = AssertUnmoved<Pending<Result<(), !>>>;
@@ -173,12 +173,12 @@ impl NewActor for TestAssertUnmovedNewActor {
 #[test]
 fn actor_process_assert_actor_unmoved() {
     // Create our actor.
-    let (actor, inbox, inbox_ref) = init_actor_inbox(TestAssertUnmovedNewActor, ()).unwrap();
+    let (actor, inbox, inbox_ref) = init_actor_inbox(TestAssertUnmovedNewLocalActor, ()).unwrap();
 
     // Create our process.
     let process = ActorProcess::new(
         NoSupervisor,
-        TestAssertUnmovedNewActor,
+        TestAssertUnmovedNewLocalActor,
         actor,
         inbox,
         inbox_ref,

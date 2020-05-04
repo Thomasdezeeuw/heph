@@ -148,16 +148,16 @@ pub trait SyncActor {
     /// The type of messages the synchronous actor can receive.
     ///
     /// Using an enum allows an actor to handle multiple types of messages. See
-    /// [`NewActor::Message`] for examples.
+    /// [`NewLocalActor::Message`] for examples.
     ///
-    /// [`NewActor::Message`]: crate::NewActor::Message
+    /// [`NewLocalActor::Message`]: crate::NewLocalActor::Message
     type Message;
 
     /// The argument(s) passed to the actor.
     ///
-    /// This works just like the [arguments in `NewActor`].
+    /// This works just like the [arguments in `NewLocalActor`].
     ///
-    /// [arguments in `NewActor`]: crate::NewActor::Argument
+    /// [arguments in `NewLocalActor`]: crate::NewLocalActor::Argument
     type Argument;
 
     /// An error the actor can return to its [supervisor]. This error will be

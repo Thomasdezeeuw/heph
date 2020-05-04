@@ -9,7 +9,7 @@ use heph::log::{self, error, info};
 use heph::net::tcp::{self, TcpStream};
 use heph::rt::options::Priority;
 use heph::supervisor::{Supervisor, SupervisorStrategy};
-use heph::{actor, ActorOptions, NewActor, Runtime, RuntimeError};
+use heph::{actor, ActorOptions, NewLocalActor, Runtime, RuntimeError};
 
 fn main() -> Result<(), RuntimeError<io::Error>> {
     // For this example we'll enable logging, this give us a bit more insight
@@ -60,7 +60,7 @@ impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
 where
     // Trait bounds needed by `tcp::ServerSetup`.
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
+    NA: NewLocalActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
 {
     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
         use tcp::ServerError::*;
@@ -72,7 +72,7 @@ where
                 SupervisorStrategy::Restart(())
             }
             // Async function never return an error creating a new actor.
-            NewActor(_) => unreachable!(),
+            NewLocalActor(_) => unreachable!(),
         }
     }
 

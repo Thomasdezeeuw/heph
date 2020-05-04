@@ -15,7 +15,7 @@ use log::trace;
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{ActorProcess, ProcessId};
 use crate::rt::scheduler::{AddActor, Priority, ProcessData};
-use crate::{NewActor, Supervisor};
+use crate::{NewLocalActor, Supervisor};
 
 pub(in crate::rt) struct LocalScheduler {
     /// Processes that are ready to run.
@@ -133,7 +133,7 @@ impl<'s> AddActor<'s, HashSet<Process, FnvBuildHasher>> {
         inbox_ref: InboxRef<NA::Message>,
     ) where
         S: Supervisor<NA> + 'static,
-        NA: NewActor + 'static,
+        NA: NewLocalActor + 'static,
     {
         let process = ProcessData {
             priority,

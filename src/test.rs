@@ -30,7 +30,7 @@ use crate::actor_ref::ActorRef;
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::worker::RunningRuntime;
 use crate::rt::{ProcessId, Waker};
-use crate::{actor, rt, Actor, NewActor, RuntimeRef};
+use crate::{actor, rt, Actor, NewLocalActor, RuntimeRef};
 
 thread_local! {
     /// Per thread active, but not running, runtime.
@@ -52,7 +52,7 @@ pub fn init_actor<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
 where
-    NA: NewActor,
+    NA: NewLocalActor,
 {
     let runtime_ref = runtime();
     let pid = ProcessId(0);
@@ -78,7 +78,7 @@ pub(crate) fn init_actor_inbox<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, Inbox<NA::Message>, InboxRef<NA::Message>), NA::Error>
 where
-    NA: NewActor,
+    NA: NewLocalActor,
 {
     let runtime_ref = runtime();
     let pid = ProcessId(0);

@@ -16,7 +16,7 @@ use crate::rt::scheduler::{Priority, ProcessData, Scheduler};
 use crate::rt::RuntimeRef;
 use crate::supervisor::NoSupervisor;
 use crate::test::{self, init_actor_inbox};
-use crate::{actor, NewActor};
+use crate::{actor, NewLocalActor};
 
 fn assert_size<T>(expected: usize) {
     assert_eq!(mem::size_of::<T>(), expected);
@@ -323,9 +323,9 @@ fn scheduler_run_order() {
 }
 
 #[derive(Copy, Clone)]
-struct TestAssertUnmovedNewActor;
+struct TestAssertUnmovedNewLocalActor;
 
-impl NewActor for TestAssertUnmovedNewActor {
+impl NewLocalActor for TestAssertUnmovedNewLocalActor {
     type Message = ();
     type Argument = ();
     type Actor = AssertUnmoved<Pending<Result<(), !>>>;
@@ -348,7 +348,7 @@ fn assert_process_unmoved() {
     let (mut scheduler, _) = Scheduler::new();
     let mut runtime_ref = test::runtime();
 
-    let new_actor = TestAssertUnmovedNewActor;
+    let new_actor = TestAssertUnmovedNewLocalActor;
     let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
 
     let actor_entry = scheduler.add_actor();

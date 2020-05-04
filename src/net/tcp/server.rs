@@ -10,13 +10,13 @@ use mio::net::TcpListener;
 use mio::Interest;
 
 use crate::actor::messages::Terminate;
-use crate::actor::{self, Actor, NewActor};
+use crate::actor::{self, Actor, NewLocalActor};
 use crate::inbox::Inbox;
 use crate::net::TcpStream;
 use crate::rt::{ActorOptions, AddActorError, ProcessId, RuntimeRef, Signal};
 use crate::supervisor::Supervisor;
 
-/// A intermediate structure that implements [`NewActor`], creating
+/// A intermediate structure that implements [`NewLocalActor`], creating
 /// [`tcp::Server`].
 ///
 /// See [`tcp::Server::setup`] to create this and [`tcp::Server`] for examples.
@@ -37,18 +37,18 @@ struct ServerSetupInner<S, NA> {
     ///
     /// NOTE: not registered with `mio::Poll`.
     listener: TcpListener,
-    /// Supervisor for all actors created by `NewActor`.
+    /// Supervisor for all actors created by `NewLocalActor`.
     supervisor: S,
-    /// NewActor used to create an actor for each connection.
+    /// NewLocalActor used to create an actor for each connection.
     new_actor: NA,
     /// Options used to spawn the actor.
     options: ActorOptions,
 }
 
-impl<S, NA> NewActor for ServerSetup<S, NA>
+impl<S, NA> NewLocalActor for ServerSetup<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
+    NA: NewLocalActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
 {
     type Message = ServerMessage;
     type Argument = ();
@@ -117,7 +117,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///
 /// use futures_util::AsyncWriteExt;
 ///
-/// use heph::actor::{self, NewActor};
+/// use heph::actor::{self, NewLocalActor};
 /// # use heph::actor::messages::Terminate;
 /// use heph::log::error;
 /// use heph::net::tcp::{self, TcpStream};
@@ -157,7 +157,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// where
 ///     // Trait bounds needed by `tcp::ServerSetup`.
 ///     S: Supervisor<NA> + Clone + 'static,
-///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
+///     NA: NewLocalActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
 /// {
 ///     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
 ///         use tcp::ServerError::*;
@@ -169,7 +169,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///                 SupervisorStrategy::Restart(())
 ///             }
 ///             // Async function never return an error creating a new actor.
-///             NewActor(_) => unreachable!(),
+///             NewLocalActor(_) => unreachable!(),
 ///         }
 ///     }
 ///
@@ -209,7 +209,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///
 /// use futures_util::AsyncWriteExt;
 ///
-/// use heph::{actor, NewActor};
+/// use heph::{actor, NewLocalActor};
 /// use heph::actor::messages::Terminate;
 /// use heph::log::error;
 /// use heph::net::tcp::{self, TcpStream};
@@ -247,7 +247,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// # impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
 /// # where
 /// #     S: Supervisor<NA> + Clone + 'static,
-/// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
+/// #     NA: NewLocalActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
 /// # {
 /// #     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
 /// #         use tcp::ServerError::*;
@@ -256,7 +256,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// #                 error!("error accepting new connection: {}", err);
 /// #                 SupervisorStrategy::Restart(())
 /// #             }
-/// #             NewActor(_) => unreachable!(),
+/// #             NewLocalActor(_) => unreachable!(),
 /// #         }
 /// #     }
 /// #
@@ -290,9 +290,9 @@ pub struct Server<S, NA> {
     /// Reference to the runtime used to add new actors to handle accepted
     /// connections.
     runtime_ref: RuntimeRef,
-    /// Supervisor for all actors created by `NewActor`.
+    /// Supervisor for all actors created by `NewLocalActor`.
     supervisor: S,
-    /// NewActor used to create an actor for each connection.
+    /// NewLocalActor used to create an actor for each connection.
     new_actor: NA,
     /// Options used to spawn the actor.
     options: ActorOptions,
@@ -302,14 +302,15 @@ pub struct Server<S, NA> {
 impl<S, NA> Server<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
+    NA: NewLocalActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
 {
     /// Create a new [`ServerSetup`].
     ///
     /// Arguments:
     /// * `address`: the address to listen on.
     /// * `supervisor`: the [`Supervisor`] used to supervise each started actor,
-    /// * `new_actor`: the [`NewActor`] implementation to start each actor, and
+    /// * `new_actor`: the [`NewLocalActor`] implementation to start each actor,
+    ///   and
     /// * `options`: the actor options used to spawn the new actors.
     pub fn setup(
         address: SocketAddr,
@@ -331,7 +332,7 @@ where
 impl<S, NA> Actor for Server<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
+    NA: NewLocalActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
 {
     type Error = ServerError<NA::Error>;
 
@@ -425,7 +426,7 @@ pub enum ServerError<E> {
     /// Error accepting TCP stream.
     Accept(io::Error),
     /// Error creating a new actor to handle the TCP stream.
-    NewActor(E),
+    NewLocalActor(E),
 }
 
 // Not part of the public API.
@@ -433,7 +434,7 @@ pub enum ServerError<E> {
 impl<E> From<AddActorError<E, io::Error>> for ServerError<E> {
     fn from(err: AddActorError<E, io::Error>) -> ServerError<E> {
         match err {
-            AddActorError::NewActor(err) => ServerError::NewActor(err),
+            AddActorError::NewLocalActor(err) => ServerError::NewLocalActor(err),
             AddActorError::ArgFn(err) => ServerError::Accept(err),
         }
     }
@@ -444,7 +445,7 @@ impl<E: fmt::Display> fmt::Display for ServerError<E> {
         use ServerError::*;
         match self {
             Accept(ref err) => write!(f, "error accepting TCP stream: {}", err),
-            NewActor(ref err) => write!(f, "error creating new actor: {}", err),
+            NewLocalActor(ref err) => write!(f, "error creating new actor: {}", err),
         }
     }
 }
