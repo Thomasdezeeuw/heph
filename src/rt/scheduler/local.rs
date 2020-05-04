@@ -1,6 +1,8 @@
 //! Module with the thread-local scheduler.
 //!
 //! Scheduler for the actors started with [`RuntimeRef::try_spawn_local`].
+//!
+//! [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
 
 use std::borrow::Borrow;
 use std::collections::{BinaryHeap, HashSet};
