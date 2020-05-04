@@ -8,8 +8,21 @@ use crate::inbox::Inbox;
 use crate::rt::ProcessId;
 use crate::test;
 
+fn assert_send<T: Send>() {}
+fn assert_sync<T: Sync>() {}
+
 #[test]
-fn test_actor_context() {
+fn actor_context_is_send() {
+    assert_send::<actor::Context<()>>();
+}
+
+#[test]
+fn actor_context_is_sync() {
+    assert_sync::<actor::Context<()>>();
+}
+
+#[test]
+fn test_local_actor_context() {
     let pid = ProcessId(0);
     let runtime_ref = test::runtime();
     let waker = runtime_ref.new_waker(pid);
