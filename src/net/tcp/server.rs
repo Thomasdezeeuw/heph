@@ -143,7 +143,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///     // overloading the system.
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let mut actor_ref =
-///     runtime_ref.try_spawn(ServerSupervisor, server, (), options)?;
+///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
 ///     # actor_ref <<= Terminate;
 ///
 ///     Ok(())
@@ -230,7 +230,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     let server = tcp::Server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
-///     let mut server_ref = runtime_ref.try_spawn(ServerSupervisor, server, (), options)?;
+///     let mut server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
 ///
 ///     // Because the server is just another actor we can send it messages.
 ///     // Here we'll send it a terminate message so it will gracefully
@@ -374,7 +374,7 @@ where
                 )?;
                 Ok((TcpStream { socket: stream }, addr))
             };
-            let res = runtime_ref.try_spawn_setup(
+            let res = runtime_ref.try_spawn_local_setup(
                 supervisor.clone(),
                 new_actor.clone(),
                 setup_actor,

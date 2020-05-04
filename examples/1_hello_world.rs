@@ -22,7 +22,7 @@ fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
     // We'll use the default actor options here, other examples expand on the
     // options available.
     let actor = greeter_actor as fn(_) -> _;
-    let mut actor_ref = runtime_ref.spawn(NoSupervisor, actor, (), ActorOptions::default());
+    let mut actor_ref = runtime_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
 
     // By default actors don't do anything when spawned. We need to wake them,
     // for example by sending them a message. If we didn't send this message the

@@ -38,7 +38,7 @@
 //!         .with_setup(|mut runtime_ref| {
 //!             // Spawn the actor.
 //!             let new_actor = actor as fn(_) -> _;
-//!             let mut actor_ref = runtime_ref.spawn(NoSupervisor, new_actor, (),
+//!             let mut actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
 //!                 ActorOptions::default());
 //!
 //!             // Now we can use the reference to send the actor a message.
@@ -76,7 +76,7 @@
 //!     Runtime::new()
 //!         .with_setup(|mut runtime_ref| {
 //!             let new_actor = actor as fn(_) -> _;
-//!             let mut actor_ref = runtime_ref.spawn(NoSupervisor, new_actor, (),
+//!             let mut actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
 //!                 ActorOptions::default());
 //!
 //!             // To create another actor reference we can simply clone the

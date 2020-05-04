@@ -139,7 +139,7 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 ///     let arg = "Hello";
 ///     // Spawn the actor to run on our actor runtime. We get an actor reference
 ///     // back which can be used to send the actor messages, see below.
-///     let mut actor_ref = runtime_ref.spawn(supervisor, actor, arg, ActorOptions::default());
+///     let mut actor_ref = runtime_ref.spawn_local(supervisor, actor, arg, ActorOptions::default());
 ///
 ///     // Send a message to the actor we just spawned.
 ///     actor_ref <<= "World";
@@ -310,7 +310,7 @@ pub struct RuntimeRef {
 }
 
 impl RuntimeRef {
-    /// Attempts to spawn an actor.
+    /// Attempts to spawn a local actor.
     ///
     /// Arguments:
     /// * `supervisor`: all actors need supervision, the `supervisor` is the
@@ -325,12 +325,19 @@ impl RuntimeRef {
     ///
     /// # Notes
     ///
+    /// This actor will remain on the thread on which it is started, this both a
+    /// good and a bad thing. The good side of it is that it can be `!Send` and
+    /// `!Sync`, meaning that it can use cheaper operations is some cases. The
+    /// downside is that if a single actor blocks it will block *all* actors on
+    /// this thread. Something that some framework work around with actor/tasks
+    /// that transparently move between threads and hide blocking/bad actors.
+    ///
     /// When using a [`NewActor`] implementation that never returns an error,
     /// such as the implementation provided by async function, it's easier to
-    /// use the [`spawn`] method.
+    /// use the [`spawn_local`] method.
     ///
-    /// [`spawn`]: RuntimeRef::spawn
-    pub fn try_spawn<S, NA>(
+    /// [`spawn_local`]: RuntimeRef::spawn_local
+    pub fn try_spawn_local<S, NA>(
         &mut self,
         supervisor: S,
         new_actor: NA,
@@ -342,7 +349,7 @@ impl RuntimeRef {
         NA: NewActor + 'static,
         NA::Actor: 'static,
     {
-        self.try_spawn_setup(supervisor, new_actor, |_, _| Ok(arg), options)
+        self.try_spawn_local_setup(supervisor, new_actor, |_, _| Ok(arg), options)
             .map_err(|err| match err {
                 AddActorError::NewActor(err) => err,
                 AddActorError::<_, !>::ArgFn(_) => unreachable!(),
@@ -354,8 +361,8 @@ impl RuntimeRef {
     /// This is a convenience method for `NewActor` implementations that never
     /// return an error, such as asynchronous functions.
     ///
-    /// See [`RuntimeRef::try_spawn`] for more information.
-    pub fn spawn<S, NA>(
+    /// See [`RuntimeRef::try_spawn_local`] for more information.
+    pub fn spawn_local<S, NA>(
         &mut self,
         supervisor: S,
         new_actor: NA,
@@ -367,7 +374,7 @@ impl RuntimeRef {
         NA: NewActor<Error = !> + 'static,
         NA::Actor: 'static,
     {
-        self.try_spawn_setup(supervisor, new_actor, |_, _| Ok(arg), options)
+        self.try_spawn_local_setup(supervisor, new_actor, |_, _| Ok(arg), options)
             .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
     }
 
@@ -378,7 +385,7 @@ impl RuntimeRef {
     /// directly this function requires a function to create the argument, which
     /// allows the caller to do any required setup work.
     #[allow(clippy::type_complexity)] // Not part of the public API, so it's OK.
-    pub(crate) fn try_spawn_setup<S, NA, ArgFn, ArgFnE>(
+    pub(crate) fn try_spawn_local_setup<S, NA, ArgFn, ArgFnE>(
         &mut self,
         supervisor: S,
         mut new_actor: NA,

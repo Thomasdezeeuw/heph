@@ -82,7 +82,7 @@ pub trait NewActor {
     ///         .with_setup(|mut runtime_ref| {
     ///             // Spawn the actor.
     ///             let new_actor = actor as fn(_) -> _;
-    ///             let mut actor_ref = runtime_ref.spawn(NoSupervisor, new_actor, (),
+    ///             let mut actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
     ///                 ActorOptions::default());
     ///
     ///             // Now we can use the reference to send the actor a message.
@@ -135,11 +135,11 @@ pub trait NewActor {
     ///
     /// When using asynchronous functions arguments are passed regularly, i.e.
     /// not in the form of a tuple, however they do have be passed as a tuple to
-    /// the [`try_spawn`] method. See there [implementations] below.
+    /// the [`try_spawn_local`] method. See there [implementations] below.
     ///
     /// [`tcp::Server`]: crate::net::tcp::Server
     /// [`new`]: NewActor::new
-    /// [`try_spawn`]: crate::RuntimeRef::try_spawn
+    /// [`try_spawn_local`]: crate::RuntimeRef::try_spawn_local
     /// [implementations]: #foreign-impls
     type Argument;
 
@@ -197,7 +197,7 @@ pub trait NewActor {
     /// }
     ///
     /// /// In this setup function we'll spawn the `tcp::Server` actor.
-    /// fn setup(mut spawn_ref: RuntimeRef) -> io::Result<()> {
+    /// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
     ///     // Prepare for humans' expand to Mars.
     ///     let greet_mars = true;
     ///
@@ -211,7 +211,7 @@ pub trait NewActor {
     ///     let server = tcp::Server::setup(address, conn_supervisor, new_actor,
     ///         ActorOptions::default())?;
     ///     # let mut actor_ref =
-    ///     spawn_ref.try_spawn(ServerSupervisor, server, (), ActorOptions::default())?;
+    ///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), ActorOptions::default())?;
     ///     # actor_ref <<= Terminate;
     ///     Ok(())
     /// }

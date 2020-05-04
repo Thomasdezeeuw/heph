@@ -69,11 +69,11 @@ pub enum Connected {}
 ///     let address = "127.0.0.1:7000".parse().unwrap();
 ///
 ///     // Add our server actor.
-///     runtime.spawn(supervisor, echo_server as fn(_, _) -> _, address,
+///     runtime.spawn_local(supervisor, echo_server as fn(_, _) -> _, address,
 ///         ActorOptions::default().mark_ready());
 ///
 ///     // Add our client actor.
-///     runtime.spawn(supervisor, client as fn(_, _) -> _, address,
+///     runtime.spawn_local(supervisor, client as fn(_, _) -> _, address,
 ///         ActorOptions::default().mark_ready());
 ///
 ///     Ok(())

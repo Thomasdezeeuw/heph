@@ -7,7 +7,8 @@ use crate::rt::scheduler::ProcessData;
 
 // TODO: currently this creates and drops Node on almost every operation. Maybe
 // we can keep (some of) the structure in place, changing `Node.process` into an
-// AtomicPtr as well?
+// AtomicPtr as well? Maybe with a tag in the left/right pointer to indicate
+// wether or not the `process` is valid (changing `process` to MaybeUninit).
 
 /// Processes that are ready to run.
 ///
@@ -23,6 +24,7 @@ struct Node {
 }
 
 impl RunQueue {
+    /// Returns an empty `RunQueue`.
     pub(super) const fn empty() -> RunQueue {
         RunQueue {
             root: AtomicPtr::new(ptr::null_mut()),

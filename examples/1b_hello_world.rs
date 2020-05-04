@@ -19,7 +19,7 @@ fn add_greeter_actor(mut system_ref: RuntimeRef) -> Result<(), !> {
     // case of our `greeter_actor` below.
     let options = ActorOptions::default().mark_ready();
     let actor = greeter_actor as fn(_) -> _;
-    system_ref.spawn(NoSupervisor, actor, (), options);
+    system_ref.spawn_local(NoSupervisor, actor, (), options);
 
     Ok(())
 }

@@ -14,10 +14,10 @@ fn main() -> Result<(), RuntimeError> {
 fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
     // See example 1 for information on how to spawn actors.
     let pong_actor = pong_actor as fn(_) -> _;
-    let actor_ref = runtime_ref.spawn(NoSupervisor, pong_actor, (), ActorOptions::default());
+    let actor_ref = runtime_ref.spawn_local(NoSupervisor, pong_actor, (), ActorOptions::default());
 
     let ping_actor = ping_actor as fn(_, _) -> _;
-    runtime_ref.spawn(
+    runtime_ref.spawn_local(
         NoSupervisor,
         ping_actor,
         actor_ref,

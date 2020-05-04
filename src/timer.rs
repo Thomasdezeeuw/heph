@@ -62,7 +62,7 @@ impl Into<io::Error> for DeadlinePassed {
 /// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 /// #   let actor = actor as fn(_) -> _;
 /// #   let options = ActorOptions::default().mark_ready();
-/// #   runtime_ref.spawn(NoSupervisor, actor, (), options);
+/// #   runtime_ref.spawn_local(NoSupervisor, actor, (), options);
 /// #   Ok(())
 /// # }
 /// #
@@ -160,7 +160,7 @@ impl actor::Bound for Timer {
 /// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 /// #   let actor = actor as fn(_) -> _;
 /// #   let options = ActorOptions::default().mark_ready();
-/// #   runtime_ref.spawn(NoSupervisor, actor, (), options);
+/// #   runtime_ref.spawn_local(NoSupervisor, actor, (), options);
 /// #   Ok(())
 /// # }
 /// #
@@ -312,7 +312,7 @@ impl<Fut> actor::Bound for Deadline<Fut> {
 /// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 /// #   let actor = actor as fn(_) -> _;
 /// #   let options = ActorOptions::default().mark_ready();
-/// #   runtime_ref.spawn(NoSupervisor, actor, (), options);
+/// #   runtime_ref.spawn_local(NoSupervisor, actor, (), options);
 /// #   Ok(())
 /// # }
 ///

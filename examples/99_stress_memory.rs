@@ -1,6 +1,6 @@
 //! This is just a memory stress test of the runtime.
 //!
-//! Currently using 10 million "actors" this test uses 2.27 GB.
+//! Currently using 10 million "actors" this test uses 6.83 GB.
 
 #![feature(never_type)]
 
@@ -19,11 +19,11 @@ fn main() -> Result<(), RuntimeError> {
         .with_setup(move |mut runtime_ref| {
             let actor = actor as fn(_) -> _;
             for _ in 0..10_000_000 {
-                runtime_ref.spawn(NoSupervisor, actor, (), ActorOptions::default());
+                runtime_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
             }
 
             let sleepy_actor = sleepy_actor as fn(_) -> _;
-            runtime_ref.spawn(
+            runtime_ref.spawn_local(
                 NoSupervisor,
                 sleepy_actor,
                 (),

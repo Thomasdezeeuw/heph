@@ -69,9 +69,9 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 ///     let address = "127.0.0.1:8000".parse().unwrap();
 ///
-///     runtime_ref.spawn(supervisor, actor as fn(_, _) -> _, address,
+///     runtime_ref.spawn_local(supervisor, actor as fn(_, _) -> _, address,
 ///         ActorOptions::default().mark_ready());
-/// #   runtime_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions::default().mark_ready());
+/// #   runtime_ref.spawn_local(supervisor, client as fn(_, _) -> _, address, ActorOptions::default().mark_ready());
 ///
 ///     Ok(())
 /// }
@@ -138,9 +138,9 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 ///     let address = "127.0.0.1:8000".parse().unwrap();
 ///
-///     runtime_ref.spawn(supervisor, actor as fn(_, _) -> _, address,
+///     runtime_ref.spawn_local(supervisor, actor as fn(_, _) -> _, address,
 ///         ActorOptions::default().mark_ready());
-/// #   runtime_ref.spawn(supervisor, client as fn(_, _) -> _, address, ActorOptions::default().mark_ready());
+/// #   runtime_ref.spawn_local(supervisor, client as fn(_, _) -> _, address, ActorOptions::default().mark_ready());
 ///
 ///     Ok(())
 /// }
