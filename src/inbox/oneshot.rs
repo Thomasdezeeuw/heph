@@ -11,7 +11,7 @@ use crate::rt::Waker;
 
 /// Create a new one-shot channel.
 pub(crate) fn channel<T>(waker: Waker) -> (Sender<T>, Receiver<T>) {
-    let shared = Box::into_raw_non_null(Box::new(Shared::new(waker)));
+    let shared = NonNull::from(Box::leak(Box::new(Shared::new(waker))));
     (Sender { shared }, Receiver { shared })
 }
 
