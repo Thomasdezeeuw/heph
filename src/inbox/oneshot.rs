@@ -59,7 +59,7 @@ impl<T> Drop for Shared<T> {
 ///
 /// This half can only be owned and used by one thread.
 ///
-/// [one-shot channel]: crate::oneshot::channel
+/// [one-shot channel]: crate::inbox::oneshot::channel
 pub(crate) struct Receiver<T> {
     shared: NonNull<Shared<T>>,
 }
@@ -213,7 +213,7 @@ impl<T> Drop for Receiver<T> {
 ///
 /// This half can only be owned and used by one thread.
 ///
-/// [one-shot channel]: crate::oneshot::channel
+/// [one-shot channel]: crate::inbox::oneshot::channel
 pub(crate) struct Sender<T> {
     shared: NonNull<Shared<T>>,
 }

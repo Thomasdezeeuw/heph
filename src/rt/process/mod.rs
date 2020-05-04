@@ -70,7 +70,7 @@ pub enum ProcessResult {
     ///
     /// Similar to [`Poll::Ready`].
     ///
-    /// [`Poll::Pending`]: std::task::Poll::Ready
+    /// [`Poll::Ready`]: std::task::Poll::Ready
     Complete,
     /// Process completion is pending, but for now no further progress can be
     /// made without blocking. The process itself is responsible for scheduling
