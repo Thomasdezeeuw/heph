@@ -1,6 +1,6 @@
 //! This is just a memory stress test of the runtime.
 //!
-//! Currently using 10 million "actors" this test uses 6.83 GB.
+//! Currently using 10 million "actors" this test uses 6.81 GB.
 
 #![feature(never_type)]
 

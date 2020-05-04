@@ -9,7 +9,7 @@ use mio::{Events, Poll, Registry, Token};
 
 use crate::rt::hack::SetupFn;
 use crate::rt::process::ProcessResult;
-use crate::rt::scheduler::Scheduler;
+use crate::rt::scheduler::LocalScheduler;
 use crate::rt::timers::Timers;
 use crate::rt::{channel, waker, ProcessId, RuntimeError, RuntimeInternal, RuntimeRef, Signal};
 
@@ -134,9 +134,8 @@ impl RunningRuntime {
         let (waker_sender, waker_recv) = crossbeam_channel::unbounded();
         let waker_id = waker::init(awakener, waker_sender);
 
-        // Scheduler for scheduling and running processes.
-        let (scheduler, _work_stealer) = Scheduler::new();
-        // TODO: share the work stealer with other threads.
+        // Scheduler for scheduling and running local processes.
+        let scheduler = LocalScheduler::new();
 
         // Internals of the running runtime.
         let internal = RuntimeInternal {

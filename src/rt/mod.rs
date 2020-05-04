@@ -57,7 +57,7 @@ pub use options::ActorOptions;
 pub use signal::Signal;
 
 use hack::SetupFn;
-use scheduler::Scheduler;
+use scheduler::LocalScheduler;
 use sync_worker::SyncWorker;
 use timers::Timers;
 use waker::{WakerId, MAX_THREADS};
@@ -523,7 +523,7 @@ struct RuntimeInternal {
     /// Waker id used to create a `Waker`.
     waker_id: WakerId,
     /// A reference to the scheduler to add new processes to.
-    scheduler: RefCell<Scheduler>,
+    scheduler: RefCell<LocalScheduler>,
     /// System poll, used for event notifications to support non-blocking I/O.
     poll: RefCell<Poll>,
     /// Timers, deadlines and timeouts.

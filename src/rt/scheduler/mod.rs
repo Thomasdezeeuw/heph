@@ -1,4 +1,6 @@
-//! Module containing the `Scheduler` and related types.
+//! Module containing the schedulers and related types.
+
+#![allow(dead_code)] // `Scheduler` is currently unused.
 
 use std::cmp::Ordering;
 use std::fmt;
