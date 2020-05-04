@@ -39,7 +39,7 @@ fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 /// Our greeter actor.
 ///
 /// We'll receive a single message and print it.
-async fn greeter_actor(mut ctx: actor::Context<&'static str>) -> Result<(), !> {
+async fn greeter_actor(mut ctx: actor::LocalContext<&'static str>) -> Result<(), !> {
     // All actors have an actor context, which give the actor access to, among
     // other things, its inbox from which we can receive a message.
     let name = ctx.receive_next().await;

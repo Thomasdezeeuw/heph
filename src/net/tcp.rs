@@ -76,7 +76,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 ///     Ok(())
 /// }
 /// #
-/// # async fn client(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+/// # async fn client(mut ctx: actor::LocalContext<!>, address: SocketAddr) -> io::Result<()> {
 /// #   let mut stream = TcpStream::connect(&mut ctx, address)?;
 /// #   let local_address = stream.local_addr()?.to_string();
 /// #   let mut buf = [0; 64];
@@ -92,7 +92,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 ///     SupervisorStrategy::Stop
 /// }
 ///
-/// async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+/// async fn actor(mut ctx: actor::LocalContext<!>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
 ///     let mut listener = TcpListener::bind(&mut ctx, address)?;
 ///
@@ -145,7 +145,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 ///     Ok(())
 /// }
 /// #
-/// # async fn client(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+/// # async fn client(mut ctx: actor::LocalContext<!>, address: SocketAddr) -> io::Result<()> {
 /// #   let mut stream = TcpStream::connect(&mut ctx, address)?;
 /// #   let local_address = stream.local_addr()?.to_string();
 /// #   let mut buf = [0; 64];
@@ -161,7 +161,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 ///     SupervisorStrategy::Stop
 /// }
 ///
-/// async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+/// async fn actor(mut ctx: actor::LocalContext<!>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
 ///     let mut listener = TcpListener::bind(&mut ctx, address)?;
 ///     let streams = listener.incoming();
@@ -191,11 +191,14 @@ impl TcpListener {
     /// # Notes
     ///
     /// The listener is also [bound] to the actor that owns the
-    /// `actor::Context`, which means the actor will be run every time the
+    /// `actor::LocalContext`, which means the actor will be run every time the
     /// listener has a connection ready to be accepted.
     ///
     /// [bound]: crate::actor::Bound
-    pub fn bind<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpListener> {
+    pub fn bind<M>(
+        ctx: &mut actor::LocalContext<M>,
+        address: SocketAddr,
+    ) -> io::Result<TcpListener> {
         let mut socket = net::TcpListener::bind(address)?;
         let pid = ctx.pid();
         ctx.runtime()
@@ -329,7 +332,7 @@ impl<'a> FusedStream for Incoming<'a> {
 impl actor::Bound for TcpListener {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::LocalContext<M>) -> io::Result<()> {
         let pid = ctx.pid();
         ctx.runtime()
             .reregister(&mut self.socket, pid.into(), Interest::READABLE)
@@ -349,12 +352,15 @@ impl TcpStream {
     ///
     /// # Notes
     ///
-    /// The stream is also [bound] to the actor that owns the `actor::Context`,
-    /// which means the actor will be run every time the stream is ready to read
-    /// or write.
+    /// The stream is also [bound] to the actor that owns the
+    /// `actor::LocalContext`, which means the actor will be run every time the
+    /// stream is ready to read or write.
     ///
     /// [bound]: crate::actor::Bound
-    pub fn connect<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpStream> {
+    pub fn connect<M>(
+        ctx: &mut actor::LocalContext<M>,
+        address: SocketAddr,
+    ) -> io::Result<TcpStream> {
         let mut socket = net::TcpStream::connect(address)?;
         let pid = ctx.pid();
         ctx.runtime().register(
@@ -472,7 +478,7 @@ impl AsyncWrite for TcpStream {
 impl actor::Bound for TcpStream {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::LocalContext<M>) -> io::Result<()> {
         let pid = ctx.pid();
         ctx.runtime().reregister(
             &mut self.socket,

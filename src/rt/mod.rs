@@ -148,7 +148,7 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// }
 ///
 /// /// Our actor that greets people.
-/// async fn actor(mut ctx: actor::Context<&'static str>, msg: &'static str) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::LocalContext<&'static str>, msg: &'static str) -> Result<(), !> {
 ///     // `msg` is the argument passed to `spawn` in the `setup` function
 ///     // above, in this example it was "Hello".
 ///
@@ -300,7 +300,8 @@ impl<S> fmt::Debug for Runtime<S> {
 /// can be cloned.
 ///
 /// This is passed to the [setup function] when starting the runtime and can be
-/// accessed inside an actor by using the [`actor::Context::runtime`] method.
+/// accessed inside an actor by using the [`actor::LocalContext::runtime`]
+/// method.
 ///
 /// [setup function]: Runtime::with_setup
 #[derive(Clone, Debug)]
@@ -417,7 +418,7 @@ impl RuntimeRef {
         // Create our actor context and our actor with it.
         let (inbox, inbox_ref) = Inbox::new(self.new_waker(pid));
         let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
-        let ctx = actor::Context::new(pid, runtime_ref, inbox.ctx_inbox(), inbox_ref.clone());
+        let ctx = actor::LocalContext::new(pid, runtime_ref, inbox.ctx_inbox(), inbox_ref.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         if options.is_ready() {

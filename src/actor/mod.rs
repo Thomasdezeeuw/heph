@@ -16,7 +16,7 @@
 //! ```
 //! use heph::{actor, NewActor};
 //!
-//! async fn actor(ctx: actor::Context<()>) -> Result<(), ()> {
+//! async fn actor(ctx: actor::LocalContext<()>) -> Result<(), ()> {
 //! #   drop(ctx); // Use `ctx` to silence dead code warnings.
 //!     println!("Actor is running!");
 //!     Ok(())
@@ -53,7 +53,7 @@ pub mod message_select {
 }
 
 #[doc(inline)]
-pub use context::{Context, /*PeekMessage, */ ReceiveMessage};
+pub use context::{LocalContext, /*PeekMessage, */ ReceiveMessage};
 
 /// The trait that defines how to create a new [`Actor`].
 ///
@@ -113,7 +113,7 @@ pub trait NewActor {
     /// }
     ///
     /// /// Our actor implementation that prints all messages it receives.
-    /// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
+    /// async fn actor(mut ctx: actor::LocalContext<Message>) -> Result<(), !> {
     ///     let msg = ctx.receive_next().await;
     /// #   assert_eq!(msg, Message::String("Hello world".to_owned()));
     ///     println!("received message: {:?}", msg);
@@ -131,7 +131,7 @@ pub trait NewActor {
     /// `(TcpStream, SocketAddr)`.
     ///
     /// An empty tuple can be used for actors that don't accept any arguments
-    /// (except for the `actor::Context`, see [`new`] below).
+    /// (except for the `actor::LocalContext`, see [`new`] below).
     ///
     /// When using asynchronous functions arguments are passed regularly, i.e.
     /// not in the form of a tuple, however they do have be passed as a tuple to
@@ -158,7 +158,7 @@ pub trait NewActor {
     /// Create a new [`Actor`](Actor).
     fn new(
         &mut self,
-        ctx: Context<Self::Message>,
+        ctx: LocalContext<Self::Message>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error>;
 
@@ -253,7 +253,7 @@ pub trait NewActor {
     /// #
     /// // Actor that handles a connection.
     /// async fn conn_actor(
-    ///     _ctx: actor::Context<!>,
+    ///     _ctx: actor::LocalContext<!>,
     ///     mut stream: TcpStream,
     ///     address: SocketAddr,
     ///     greet_mars: bool
@@ -313,7 +313,7 @@ where
     type Error = NA::Error;
     fn new(
         &mut self,
-        ctx: Context<Self::Message>,
+        ctx: LocalContext<Self::Message>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let arg = (self.map)(arg);
@@ -321,7 +321,7 @@ where
     }
 }
 
-impl<M, A> NewActor for fn(ctx: Context<M>) -> A
+impl<M, A> NewActor for fn(ctx: LocalContext<M>) -> A
 where
     A: Actor,
 {
@@ -331,14 +331,14 @@ where
     type Error = !;
     fn new(
         &mut self,
-        ctx: Context<Self::Message>,
+        ctx: LocalContext<Self::Message>,
         _arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx))
     }
 }
 
-impl<M, Arg, A> NewActor for fn(ctx: Context<M>, arg: Arg) -> A
+impl<M, Arg, A> NewActor for fn(ctx: LocalContext<M>, arg: Arg) -> A
 where
     A: Actor,
 {
@@ -348,14 +348,14 @@ where
     type Error = !;
     fn new(
         &mut self,
-        ctx: Context<Self::Message>,
+        ctx: LocalContext<Self::Message>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg))
     }
 }
 
-impl<M, Arg1, Arg2, A> NewActor for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2) -> A
+impl<M, Arg1, Arg2, A> NewActor for fn(ctx: LocalContext<M>, arg1: Arg1, arg2: Arg2) -> A
 where
     A: Actor,
 {
@@ -365,7 +365,7 @@ where
     type Error = !;
     fn new(
         &mut self,
-        ctx: Context<Self::Message>,
+        ctx: LocalContext<Self::Message>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1))
@@ -373,7 +373,7 @@ where
 }
 
 impl<M, Arg1, Arg2, Arg3, A> NewActor
-    for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3) -> A
+    for fn(ctx: LocalContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3) -> A
 where
     A: Actor,
 {
@@ -383,7 +383,7 @@ where
     type Error = !;
     fn new(
         &mut self,
-        ctx: Context<Self::Message>,
+        ctx: LocalContext<Self::Message>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1, arg.2))
@@ -391,7 +391,7 @@ where
 }
 
 impl<M, Arg1, Arg2, Arg3, Arg4, A> NewActor
-    for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4) -> A
+    for fn(ctx: LocalContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4) -> A
 where
     A: Actor,
 {
@@ -401,7 +401,7 @@ where
     type Error = !;
     fn new(
         &mut self,
-        ctx: Context<Self::Message>,
+        ctx: LocalContext<Self::Message>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3))
@@ -409,7 +409,7 @@ where
 }
 
 impl<M, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor
-    for fn(ctx: Context<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5) -> A
+    for fn(ctx: LocalContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5) -> A
 where
     A: Actor,
 {
@@ -419,7 +419,7 @@ where
     type Error = !;
     fn new(
         &mut self,
-        ctx: Context<Self::Message>,
+        ctx: LocalContext<Self::Message>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3, arg.4))
@@ -490,12 +490,12 @@ where
 /// will never be run and the actor that created the type will run instead.
 ///
 /// Most types that are bound can only be created with a (mutable) reference to
-/// an [`actor::Context`]. Examples of this are [`TcpStream`], [`UdpSocket`] and
+/// an [`actor::LocalContext`]. Examples of this are [`TcpStream`], [`UdpSocket`] and
 /// all futures in the [`timer`] module.
 ///
 /// [future is awoken]: std::task::Waker::wake
 /// [(re)binding]: Bound::bind_to
-/// [`actor::Context`]: Context
+/// [`actor::LocalContext`]: LocalContext
 /// [`TcpStream`]: crate::net::TcpStream
 /// [`UdpSocket`]: crate::net::UdpSocket
 /// [`timer`]: crate::timer
@@ -506,5 +506,5 @@ pub trait Bound {
     type Error;
 
     /// Bind a type to the [`Actor`] that owns the `ctx`.
-    fn bind_to<M>(&mut self, ctx: &mut Context<M>) -> Result<(), Self::Error>;
+    fn bind_to<M>(&mut self, ctx: &mut LocalContext<M>) -> Result<(), Self::Error>;
 }

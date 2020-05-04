@@ -82,7 +82,7 @@ where
 }
 
 async fn unconnected_udp_actor(
-    mut ctx: actor::Context<!>,
+    mut ctx: actor::LocalContext<!>,
     peer_address: SocketAddr,
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
@@ -108,7 +108,7 @@ async fn unconnected_udp_actor(
 }
 
 async fn connected_udp_actor(
-    mut ctx: actor::Context<!>,
+    mut ctx: actor::LocalContext<!>,
     peer_address: SocketAddr,
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
@@ -181,7 +181,7 @@ fn test_reconnecting_udp_socket(local_address: SocketAddr) {
 }
 
 async fn reconnecting_actor(
-    mut ctx: actor::Context<!>,
+    mut ctx: actor::LocalContext<!>,
     peer_address1: SocketAddr,
     peer_address2: SocketAddr,
 ) -> io::Result<()> {

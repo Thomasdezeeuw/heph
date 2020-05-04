@@ -14,7 +14,7 @@ fn test_actor_context() {
     let runtime_ref = test::runtime();
     let waker = runtime_ref.new_waker(pid);
     let (inbox, inbox_ref) = Inbox::new(waker);
-    let mut ctx = actor::Context::new(pid, runtime_ref, inbox, inbox_ref);
+    let mut ctx = actor::LocalContext::new(pid, runtime_ref, inbox, inbox_ref);
 
     assert_eq!(ctx.pid(), pid);
     let mut actor_ref = ctx.actor_ref();

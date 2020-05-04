@@ -15,7 +15,7 @@ use crate::RuntimeRef;
 /// This context can be used for a number of things including receiving
 /// messages and getting access to the runtime.
 #[derive(Debug)]
-pub struct Context<M> {
+pub struct LocalContext<M> {
     /// Process id of the actor, used as `Token` in registering things, e.g.
     /// a `TcpStream`, with `mio::Poll`.
     pid: ProcessId,
@@ -32,15 +32,15 @@ pub struct Context<M> {
     inbox_ref: InboxRef<M>,
 }
 
-impl<M> Context<M> {
-    /// Create a new `actor::Context`.
+impl<M> LocalContext<M> {
+    /// Create a new `actor::LocalContext`.
     pub(crate) const fn new(
         pid: ProcessId,
         runtime_ref: RuntimeRef,
         inbox: Inbox<M>,
         inbox_ref: InboxRef<M>,
-    ) -> Context<M> {
-        Context {
+    ) -> LocalContext<M> {
+        LocalContext {
             pid,
             runtime_ref,
             inbox,
@@ -52,10 +52,10 @@ impl<M> Context<M> {
     ///
     /// This will attempt to receive next message if one is available. If the
     /// actor wants to wait until a message is received
-    /// [`actor::Context::receive_next`] can be used, which returns a
+    /// [`actor::LocalContext::receive_next`] can be used, which returns a
     /// `Future<Output = M>`.
     ///
-    /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
+    /// [`actor::LocalContext::receive_next`]: crate::actor::LocalContext::receive_next
     ///
     /// # Examples
     ///
@@ -66,7 +66,7 @@ impl<M> Context<M> {
     ///
     /// use heph::actor;
     ///
-    /// async fn greeter_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+    /// async fn greeter_actor(mut ctx: actor::LocalContext<String>) -> Result<(), !> {
     ///     if let Some(name) = ctx.try_receive_next() {
     ///         println!("Hello: {}", name);
     ///     } else {
@@ -87,10 +87,10 @@ impl<M> Context<M> {
     ///
     /// This will attempt to receive a message using message selection, if one
     /// is available. If the actor wants to wait until a message is received
-    /// [`actor::Context::receive`] can be used, which returns a `Future<Output
-    /// = M>`.
+    /// [`actor::LocalContext::receive`] can be used, which returns a
+    /// `Future<Output = M>`.
     ///
-    /// [`actor::Context::receive`]: crate::actor::Context::receive
+    /// [`actor::LocalContext::receive`]: crate::actor::LocalContext::receive
     ///
     /// # Examples
     ///
@@ -118,7 +118,7 @@ impl<M> Context<M> {
     ///     }
     /// }
     ///
-    /// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
+    /// async fn actor(mut ctx: actor::LocalContext<Message>) -> Result<(), !> {
     ///     // First we handle priority messages.
     ///     while let Some(priority_msg) = ctx.try_receive(Message::is_priority) {
     ///         println!("Priority message: {:?}", priority_msg);
@@ -158,7 +158,7 @@ impl<M> Context<M> {
     ///
     /// use heph::actor;
     ///
-    /// async fn print_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: actor::LocalContext<String>) -> Result<(), !> {
     ///     let msg = ctx.receive_next().await;
     ///     println!("Got a message: {}", msg);
     ///     Ok(())
@@ -181,7 +181,7 @@ impl<M> Context<M> {
     /// use heph::actor;
     /// use heph::timer::Timer;
     ///
-    /// async fn print_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: actor::LocalContext<String>) -> Result<(), !> {
     ///     // Create a timer, this will be ready once the timeout has
     ///     // passed.
     ///     let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100)).fuse();
@@ -215,13 +215,13 @@ impl<M> Context<M> {
     ///
     /// This returns a [`Future`] that will complete once a message is ready.
     ///
-    /// See [`actor::Context::try_receive`] and [`MessageSelector`] for examples
-    /// on how to use the message selector and see
-    /// [`actor::Context::receive_next`] for an example that uses the same
+    /// See [`actor::LocalContext::try_receive`] and [`MessageSelector`] for
+    /// examples on how to use the message selector and see
+    /// [`actor::LocalContext::receive_next`] for an example that uses the same
     /// `Future` this method returns.
     ///
-    /// [`actor::Context::try_receive`]: crate::actor::Context::try_receive
-    /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
+    /// [`actor::LocalContext::try_receive`]: crate::actor::LocalContext::try_receive
+    /// [`actor::LocalContext::receive_next`]: crate::actor::LocalContext::receive_next
     pub fn receive<'ctx, S>(&'ctx mut self, selector: S) -> ReceiveMessage<'ctx, M, S>
     where
         S: MessageSelector<M>,
@@ -268,8 +268,8 @@ impl<M> Context<M> {
     /// message will be cloned, which means that the next call to [`receive`] or
     /// [`peek`] will return the same message.
     ///
-    /// [`receive`]: Context::receive
-    /// [`peek`]: Context::peek
+    /// [`receive`]: LocalContext::receive
+    /// [`peek`]: LocalContext::peek
     pub fn peek<'ctx, S>(&'ctx mut self, selector: S) -> PeekMessage<'ctx, M, S>
     where
         S: MessageSelector<M>,
@@ -300,11 +300,11 @@ impl<M> Context<M> {
 
 /// Future to receive a single message.
 ///
-/// The implementation behind [`actor::Context::receive_next`].
-// and [`actor::Context::receive`].
+/// The implementation behind [`actor::LocalContext::receive_next`].
+// and [`actor::LocalContext::receive`].
 ///
-// [`actor::Context::receive`]: crate::actor::Context::receive
-/// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
+// [`actor::LocalContext::receive`]: crate::actor::LocalContext::receive
+/// [`actor::LocalContext::receive_next`]: crate::actor::LocalContext::receive_next
 #[derive(Debug)]
 pub struct ReceiveMessage<'ctx, M, S = First> {
     inbox: &'ctx mut Inbox<M>,
@@ -347,11 +347,11 @@ impl<'ctx, M> Future for ReceiveMessage<'ctx, M, First> {
 /*
 /// Future to peek a single message.
 ///
-/// The implementation behind [`actor::Context::peek`] and
-/// [`actor::Context::peek_next`].
+/// The implementation behind [`actor::LocalContext::peek`] and
+/// [`actor::LocalContext::peek_next`].
 ///
-/// [`actor::Context::peek`]: crate::actor::Context::peek
-/// [`actor::Context::peek_next`]: crate::actor::Context::peek_next
+/// [`actor::LocalContext::peek`]: crate::actor::LocalContext::peek
+/// [`actor::LocalContext::peek_next`]: crate::actor::LocalContext::peek_next
 #[derive(Debug)]
 pub struct PeekMessage<'ctx, M, S = First> {
     inbox: &'ctx mut Inbox<M>,

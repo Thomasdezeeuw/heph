@@ -66,7 +66,7 @@ impl Into<io::Error> for DeadlinePassed {
 /// #   Ok(())
 /// # }
 /// #
-/// async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::LocalContext<!>) -> Result<(), !> {
 /// #   let start = Instant::now();
 ///     // Create a timer, this will be ready once the timeout has passed.
 ///     let timeout = Timer::timeout(&mut ctx, Duration::from_millis(200));
@@ -86,7 +86,7 @@ pub struct Timer {
 
 impl Timer {
     /// Create a new `Timer`.
-    pub fn new<M>(ctx: &mut actor::Context<M>, deadline: Instant) -> Timer {
+    pub fn new<M>(ctx: &mut actor::LocalContext<M>, deadline: Instant) -> Timer {
         let pid = ctx.pid();
         ctx.runtime().add_deadline(pid, deadline);
         Timer { deadline }
@@ -95,7 +95,7 @@ impl Timer {
     /// Create a new timer, based on a timeout.
     ///
     /// Same as calling `Timer::new(&mut ctx, Instant::now() + timeout)`.
-    pub fn timeout<M>(ctx: &mut actor::Context<M>, timeout: Duration) -> Timer {
+    pub fn timeout<M>(ctx: &mut actor::LocalContext<M>, timeout: Duration) -> Timer {
         Timer::new(ctx, Instant::now() + timeout)
     }
 
@@ -120,7 +120,7 @@ impl Future for Timer {
 impl actor::Bound for Timer {
     type Error = !;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::LocalContext<M>) -> Result<(), !> {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
@@ -173,7 +173,7 @@ impl actor::Bound for Timer {
 /// #     }
 /// # }
 /// #
-/// async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::LocalContext<String>) -> Result<(), !> {
 ///     // `OtherFuture` is a type that implements `Future`.
 ///     let future = OtherFuture;
 ///     // Create our deadline.
@@ -197,7 +197,11 @@ pub struct Deadline<Fut> {
 
 impl<Fut> Deadline<Fut> {
     /// Create a new `Deadline`.
-    pub fn new<M>(ctx: &mut actor::Context<M>, deadline: Instant, future: Fut) -> Deadline<Fut> {
+    pub fn new<M>(
+        ctx: &mut actor::LocalContext<M>,
+        deadline: Instant,
+        future: Fut,
+    ) -> Deadline<Fut> {
         let pid = ctx.pid();
         ctx.runtime().add_deadline(pid, deadline);
         Deadline { deadline, future }
@@ -208,7 +212,7 @@ impl<Fut> Deadline<Fut> {
     /// Same as calling `Deadline::new(&mut ctx, Instant::now() + timeout,
     /// future)`.
     pub fn timeout<M>(
-        ctx: &mut actor::Context<M>,
+        ctx: &mut actor::LocalContext<M>,
         timeout: Duration,
         future: Fut,
     ) -> Deadline<Fut> {
@@ -264,7 +268,7 @@ where
 impl<Fut> actor::Bound for Deadline<Fut> {
     type Error = !;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::LocalContext<M>) -> Result<(), !> {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
@@ -316,7 +320,7 @@ impl<Fut> actor::Bound for Deadline<Fut> {
 /// #   Ok(())
 /// # }
 ///
-/// async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::LocalContext<!>) -> Result<(), !> {
 /// #   let mut start = Instant::now();
 ///     let interval = Interval::new(&mut ctx, Duration::from_millis(200));
 /// #   assert!(interval.next_deadline() >= start + Duration::from_millis(200));
@@ -342,7 +346,7 @@ pub struct Interval {
 
 impl Interval {
     /// Create a new `Interval`.
-    pub fn new<M>(ctx: &mut actor::Context<M>, interval: Duration) -> Interval {
+    pub fn new<M>(ctx: &mut actor::LocalContext<M>, interval: Duration) -> Interval {
         let deadline = Instant::now() + interval;
         let mut runtime_ref = ctx.runtime().clone();
         let pid = ctx.pid();
@@ -387,7 +391,7 @@ impl FusedStream for Interval {
 impl actor::Bound for Interval {
     type Error = !;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::LocalContext<M>) -> Result<(), !> {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();

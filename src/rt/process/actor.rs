@@ -15,8 +15,8 @@ pub struct ActorProcess<S, NA: NewActor> {
     supervisor: S,
     /// The [`NewActor`] implementation used to restart the actor.
     new_actor: NA,
-    /// The inbox of the actor, used in creating a new [`actor::Context`] if the
-    /// actor is restarted.
+    /// The inbox of the actor, used in creating a new [`actor::LocalContext`]
+    /// if the actor is restarted.
     inbox: Inbox<NA::Message>,
     inbox_ref: InboxRef<NA::Message>,
     /// The running actors.
@@ -85,7 +85,7 @@ where
         arg: NA::Argument,
     ) -> Result<(), NA::Error> {
         // Create a new actor.
-        let ctx = actor::Context::new(
+        let ctx = actor::LocalContext::new(
             pid,
             runtime_ref.clone(),
             self.inbox.ctx_inbox(),

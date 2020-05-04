@@ -61,7 +61,7 @@ where
     let (inbox, inbox_ref) = Inbox::new(waker);
     let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
 
-    let ctx = actor::Context::new(pid, runtime_ref, inbox, inbox_ref);
+    let ctx = actor::LocalContext::new(pid, runtime_ref, inbox, inbox_ref);
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, actor_ref))
@@ -86,7 +86,7 @@ where
     let waker = runtime_ref.new_waker(pid);
     let (inbox, inbox_ref) = Inbox::new(waker);
 
-    let ctx = actor::Context::new(pid, runtime_ref, inbox.ctx_inbox(), inbox_ref.clone());
+    let ctx = actor::LocalContext::new(pid, runtime_ref, inbox.ctx_inbox(), inbox_ref.clone());
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, inbox, inbox_ref))

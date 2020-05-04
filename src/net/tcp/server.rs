@@ -57,7 +57,7 @@ where
 
     fn new(
         &mut self,
-        mut ctx: actor::Context<Self::Message>,
+        mut ctx: actor::LocalContext<Self::Message>,
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let mut runtime_ref = ctx.runtime().clone();
@@ -192,7 +192,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// }
 ///
 /// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+/// async fn conn_actor(_ctx: actor::LocalContext<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
 ///     stream.write_all(b"Hello World").await
 /// }
@@ -278,7 +278,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// # }
 /// #
 /// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+/// async fn conn_actor(_ctx: actor::LocalContext<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
 ///     stream.write_all(b"Hello World").await
 /// }

@@ -103,7 +103,7 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)
 /// This actor will not receive any message and thus uses `!` (the never type)
 /// as message type.
 async fn conn_actor(
-    _: actor::Context<!>,
+    _: actor::LocalContext<!>,
     mut stream: TcpStream,
     address: SocketAddr,
 ) -> io::Result<()> {

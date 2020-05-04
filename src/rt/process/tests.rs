@@ -38,7 +38,7 @@ fn pid_and_evented_id() {
     assert_eq!(pid, ProcessId(0));
 }
 
-async fn ok_actor(mut ctx: actor::Context<()>) -> Result<(), !> {
+async fn ok_actor(mut ctx: actor::LocalContext<()>) -> Result<(), !> {
     ctx.receive_next().await;
     Ok(())
 }
@@ -67,7 +67,7 @@ fn actor_process() {
     assert_eq!(res, ProcessResult::Complete);
 }
 
-async fn error_actor(mut ctx: actor::Context<()>, fail: bool) -> Result<(), ()> {
+async fn error_actor(mut ctx: actor::LocalContext<()>, fail: bool) -> Result<(), ()> {
     if fail {
         Err(())
     } else {
@@ -160,7 +160,7 @@ impl NewActor for TestAssertUnmovedNewActor {
 
     fn new(
         &mut self,
-        ctx: actor::Context<Self::Message>,
+        ctx: actor::LocalContext<Self::Message>,
         _arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         // In the test we need the access to the inbox, to achieve that we can't

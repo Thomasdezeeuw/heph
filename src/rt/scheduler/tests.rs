@@ -148,7 +148,7 @@ fn process_data_runtime_increase() {
     assert!(process.fair_runtime >= SLEEP_TIME);
 }
 
-async fn simple_actor(_ctx: actor::Context<!>) -> Result<(), !> {
+async fn simple_actor(_ctx: actor::LocalContext<!>) -> Result<(), !> {
     Ok(())
 }
 
@@ -226,7 +226,7 @@ fn marking_unknown_pid_as_ready() {
 }
 
 /* NOTE: old test that tests Scheduler::run_process.
-async fn pending_actor(_ctx: actor::Context<!>) -> Result<(), !> {
+async fn pending_actor(_ctx: actor::LocalContext<!>) -> Result<(), !> {
     pending!();
     Ok(())
 }
@@ -273,7 +273,7 @@ fn running_process() {
 */
 
 async fn order_actor(
-    _ctx: actor::Context<!>,
+    _ctx: actor::LocalContext<!>,
     id: usize,
     order: Rc<RefCell<Vec<usize>>>,
 ) -> Result<(), !> {
@@ -333,7 +333,7 @@ impl NewActor for TestAssertUnmovedNewActor {
 
     fn new(
         &mut self,
-        ctx: actor::Context<Self::Message>,
+        ctx: actor::LocalContext<Self::Message>,
         _arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         // In the test we need the access to the inbox, to achieve that we can't

@@ -23,7 +23,7 @@
 // can be [peeked], which clones the message.
 //! can be peeked, which clones the message.
 //!
-// [peeked]: crate::actor::Context::peek
+// [peeked]: crate::actor::LocalContext::peek
 //!
 //! # Restarting or stopping?
 //!
@@ -84,7 +84,7 @@
 //! }
 //!
 //! /// Our badly behaving actor.
-//! async fn bad_actor(_ctx: actor::Context<!>) -> Result<(), Error> {
+//! async fn bad_actor(_ctx: actor::LocalContext<!>) -> Result<(), Error> {
 //!     Err(Error)
 //! }
 //! ```
@@ -227,7 +227,7 @@ where
 /// }
 ///
 /// /// Our actor that never returns an error.
-/// async fn actor(ctx: actor::Context<&'static str>) -> Result<(), !> {
+/// async fn actor(ctx: actor::LocalContext<&'static str>) -> Result<(), !> {
 /// #   drop(ctx); // Silence dead code warnings.
 ///     Ok(())
 /// }

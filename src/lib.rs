@@ -16,7 +16,7 @@
 //! #
 //! # use heph::actor;
 //! #
-//! async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+//! async fn actor(mut ctx: actor::LocalContext<String>) -> Result<(), !> {
 //!     // Receive a message.
 //!     let msg = ctx.receive_next().await;
 //!     // Print the message.
