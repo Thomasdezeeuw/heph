@@ -5,11 +5,12 @@ use std::net::SocketAddr;
 
 use futures_util::AsyncWriteExt;
 
+use heph::actor::{self, context, NewActor};
 use heph::log::{self, error, info};
 use heph::net::tcp::{self, TcpStream};
 use heph::rt::options::Priority;
 use heph::supervisor::{Supervisor, SupervisorStrategy};
-use heph::{actor, ActorOptions, NewLocalActor, Runtime, RuntimeError};
+use heph::{ActorOptions, Runtime, RuntimeError};
 
 fn main() -> Result<(), RuntimeError<io::Error>> {
     // For this example we'll enable logging, this give us a bit more insight
@@ -60,7 +61,9 @@ impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
 where
     // Trait bounds needed by `tcp::ServerSetup`.
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewLocalActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
+    NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = context::ThreadLocal>
+        + Clone
+        + 'static,
 {
     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
         use tcp::ServerError::*;
@@ -72,7 +75,7 @@ where
                 SupervisorStrategy::Restart(())
             }
             // Async function never return an error creating a new actor.
-            NewLocalActor(_) => unreachable!(),
+            NewActor(_) => unreachable!(),
         }
     }
 
@@ -103,7 +106,7 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)
 /// This actor will not receive any message and thus uses `!` (the never type)
 /// as message type.
 async fn conn_actor(
-    _: actor::LocalContext<!>,
+    _: actor::Context<!>,
     mut stream: TcpStream,
     address: SocketAddr,
 ) -> io::Result<()> {

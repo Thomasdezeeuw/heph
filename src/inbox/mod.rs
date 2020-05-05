@@ -29,7 +29,7 @@ impl<M> Inbox<M> {
         (inbox, inbox_ref)
     }
 
-    /// Creates an `Inbox` for use in the `actor::LocalContext`.
+    /// Creates an `Inbox` for use in the `actor::Context`.
     pub(crate) fn ctx_inbox(&self) -> Inbox<M> {
         Inbox {
             receiver: self.receiver.clone(),
@@ -228,11 +228,11 @@ where
 
 /// A [`MessageSelector`] implementation that selects the first message.
 ///
-/// This will return the same message as [`actor::LocalContext::receive_next`].
-// and [`actor::LocalContext::peek_next`].
+/// This will return the same message as [`actor::Context::receive_next`].
+// and [`actor::Context::peek_next`].
 ///
-/// [`actor::LocalContext::receive_next`]: crate::actor::LocalContext::receive_next
-// [`actor::LocalContext::peek_next`]: crate::actor::LocalContext::peek_next
+/// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
+// [`actor::Context::peek_next`]: crate::actor::Context::peek_next
 /*
 ///
 /// # Examples
@@ -258,7 +258,7 @@ where
 ///     Ok(())
 /// }
 ///
-/// async fn actor(mut ctx: actor::LocalContext<String>) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
 ///     // Using `First` is the same as the `{peek, retrieve}_next` functions.
 ///     let msg1 = ctx.peek_next().await;
 ///     let msg1_again = ctx.receive(First).await;
@@ -318,7 +318,7 @@ impl<M> MessageSelector<M> for First {
 ///     msg: String,
 /// }
 ///
-/// async fn actor(mut ctx: actor::LocalContext<Message>) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
 ///     // As both messages are ready this will receive the priority message.
 ///     let msg = ctx.receive(Priority(|msg: &Message| msg.priority)).await;
 /// #   assert_eq!(msg.priority, 100);

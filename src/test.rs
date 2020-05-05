@@ -26,11 +26,12 @@ use std::task::{self, Poll};
 
 use rand::Rng;
 
+use crate::actor::{self, context, Actor, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::worker::RunningRuntime;
 use crate::rt::{ProcessId, Waker};
-use crate::{actor, rt, Actor, NewLocalActor, RuntimeRef};
+use crate::{rt, RuntimeRef};
 
 thread_local! {
     /// Per thread active, but not running, runtime.
@@ -52,7 +53,7 @@ pub fn init_actor<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
 where
-    NA: NewLocalActor,
+    NA: NewActor<Context = context::ThreadLocal>,
 {
     let runtime_ref = runtime();
     let pid = ProcessId(0);
@@ -61,7 +62,7 @@ where
     let (inbox, inbox_ref) = Inbox::new(waker);
     let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
 
-    let ctx = actor::LocalContext::new(pid, runtime_ref, inbox, inbox_ref);
+    let ctx = actor::Context::new_local(pid, inbox, inbox_ref, runtime_ref);
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, actor_ref))
@@ -78,7 +79,7 @@ pub(crate) fn init_actor_inbox<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, Inbox<NA::Message>, InboxRef<NA::Message>), NA::Error>
 where
-    NA: NewLocalActor,
+    NA: NewActor<Context = context::ThreadLocal>,
 {
     let runtime_ref = runtime();
     let pid = ProcessId(0);
@@ -86,7 +87,7 @@ where
     let waker = runtime_ref.new_waker(pid);
     let (inbox, inbox_ref) = Inbox::new(waker);
 
-    let ctx = actor::LocalContext::new(pid, runtime_ref, inbox.ctx_inbox(), inbox_ref.clone());
+    let ctx = actor::Context::new_local(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, inbox, inbox_ref))

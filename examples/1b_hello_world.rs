@@ -27,7 +27,7 @@ fn add_greeter_actor(mut system_ref: RuntimeRef) -> Result<(), !> {
 /// Our greeter actor.
 ///
 /// Note: this needs the `mark_ready` option when adding it to the actor system.
-async fn greeter_actor(_: actor::LocalContext<!>) -> Result<(), !> {
+async fn greeter_actor(_: actor::Context<!>) -> Result<(), !> {
     println!("Hello World");
     Ok(())
 }

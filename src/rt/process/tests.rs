@@ -9,11 +9,11 @@ use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{pending, Pending};
 use mio::Token;
 
+use crate::actor::{self, context, Actor, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::rt::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use crate::test::{self, init_actor_inbox};
-use crate::{actor, Actor, NewLocalActor};
 
 #[test]
 fn pid() {
@@ -38,7 +38,7 @@ fn pid_and_evented_id() {
     assert_eq!(pid, ProcessId(0));
 }
 
-async fn ok_actor(mut ctx: actor::LocalContext<()>) -> Result<(), !> {
+async fn ok_actor(mut ctx: actor::Context<()>) -> Result<(), !> {
     ctx.receive_next().await;
     Ok(())
 }
@@ -67,7 +67,7 @@ fn actor_process() {
     assert_eq!(res, ProcessResult::Complete);
 }
 
-async fn error_actor(mut ctx: actor::LocalContext<()>, fail: bool) -> Result<(), ()> {
+async fn error_actor(mut ctx: actor::Context<()>, fail: bool) -> Result<(), ()> {
     if fail {
         Err(())
     } else {
@@ -111,7 +111,7 @@ fn restarting_erroneous_actor_process() {
 
     impl<NA> Supervisor<NA> for TestSupervisor
     where
-        NA: NewLocalActor<Argument = bool>,
+        NA: NewActor<Argument = bool>,
     {
         fn decide(&mut self, _: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
             self.0.store(true, atomic::Ordering::SeqCst);
@@ -150,17 +150,18 @@ fn restarting_erroneous_actor_process() {
     assert_eq!(res, ProcessResult::Complete);
 }
 
-struct TestAssertUnmovedNewLocalActor;
+struct TestAssertUnmovedNewActor;
 
-impl NewLocalActor for TestAssertUnmovedNewLocalActor {
+impl NewActor for TestAssertUnmovedNewActor {
     type Message = ();
     type Argument = ();
     type Actor = AssertUnmoved<Pending<Result<(), !>>>;
     type Error = !;
+    type Context = context::ThreadLocal;
 
     fn new(
         &mut self,
-        ctx: actor::LocalContext<Self::Message>,
+        ctx: actor::Context<Self::Message>,
         _arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         // In the test we need the access to the inbox, to achieve that we can't
@@ -173,12 +174,12 @@ impl NewLocalActor for TestAssertUnmovedNewLocalActor {
 #[test]
 fn actor_process_assert_actor_unmoved() {
     // Create our actor.
-    let (actor, inbox, inbox_ref) = init_actor_inbox(TestAssertUnmovedNewLocalActor, ()).unwrap();
+    let (actor, inbox, inbox_ref) = init_actor_inbox(TestAssertUnmovedNewActor, ()).unwrap();
 
     // Create our process.
     let process = ActorProcess::new(
         NoSupervisor,
-        TestAssertUnmovedNewLocalActor,
+        TestAssertUnmovedNewActor,
         actor,
         inbox,
         inbox_ref,

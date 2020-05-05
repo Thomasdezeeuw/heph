@@ -52,7 +52,7 @@
 //! }
 //!
 //! /// Our actor.
-//! async fn actor(mut ctx: actor::LocalContext<String>) -> Result<(), !> {
+//! async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
 //!     let msg = ctx.receive_next().await;
 //!     println!("got message: {}", msg);
 //!     Ok(())
@@ -93,7 +93,7 @@
 //! }
 //!
 //! /// Our actor.
-//! async fn actor(mut ctx: actor::LocalContext<String>) -> Result<(), !> {
+//! async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
 //!     let msg = ctx.receive_next().await;
 //!     println!("First message: {}", msg);
 //!
@@ -217,7 +217,7 @@ impl<M> ActorRef<M> {
     /// [`Future`]: std::future::Future
     pub fn rpc<CM, Req, Res>(
         &mut self,
-        ctx: &mut actor::LocalContext<CM>,
+        ctx: &mut actor::Context<CM>,
         request: Req,
     ) -> Result<Rpc<Res>, SendError>
     where

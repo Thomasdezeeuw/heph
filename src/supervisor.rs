@@ -13,7 +13,7 @@
 //! Next the supervisor needs to decide if the actor needs to be [stopped] or
 //! [restarted]. If the supervisor decides to restart the actor it needs to
 //! provide the argument to create a new actor (used in calling the
-//! [`NewLocalActor::new`] method).
+//! [`NewActor::new`] method).
 //!
 //! The restarted actor will have the same message inbox as the old (stopped)
 //! actor. Note however that if an actor retrieved a message from its inbox, and
@@ -23,7 +23,7 @@
 // can be [peeked], which clones the message.
 //! can be peeked, which clones the message.
 //!
-// [peeked]: crate::actor::LocalContext::peek
+// [peeked]: crate::actor::Context::peek
 //!
 //! # Restarting or stopping?
 //!
@@ -84,39 +84,39 @@
 //! }
 //!
 //! /// Our badly behaving actor.
-//! async fn bad_actor(_ctx: actor::LocalContext<!>) -> Result<(), Error> {
+//! async fn bad_actor(_ctx: actor::Context<!>) -> Result<(), Error> {
 //!     Err(Error)
 //! }
 //! ```
 
 use crate::actor::sync::SyncActor;
-use crate::actor::{Actor, NewLocalActor};
+use crate::actor::{Actor, NewActor};
 
 /// The supervisor of an actor.
 ///
 /// For more information about supervisors see the [module documentation], here
 /// only the design of the trait is discussed.
 ///
-/// The trait is designed to be generic over the [`NewLocalActor`]
-/// implementation (`NA`). This means that the same type can implement
-/// supervision for a number of different actors. But a word of caution,
-/// supervisors should generally be small and simple, which means that having a
-/// different supervisor for each actor is often a good thing.
+/// The trait is designed to be generic over the [`NewActor`] implementation
+/// (`NA`). This means that the same type can implement supervision for a number
+/// of different actors. But a word of caution, supervisors should generally be
+/// small and simple, which means that having a different supervisor for each
+/// actor is often a good thing.
 ///
-/// `Supervisor` can be implemented using a simple function if the
-/// `NewLocalActor` implementation doesn't return an error (i.e.
-/// `NewLocalActor::Error = !`), which is the case for asynchronous functions.
-/// See the [module documentation] for an example of this.
+/// `Supervisor` can be implemented using a simple function if the `NewActor`
+/// implementation doesn't return an error (i.e. `NewActor::Error = !`), which
+/// is the case for asynchronous functions. See the [module documentation] for
+/// an example of this.
 ///
 /// [module documentation]: crate::supervisor
 pub trait Supervisor<NA>
 where
-    NA: NewLocalActor,
+    NA: NewActor,
 {
     /// Decide what happens to the actor that returned `error`.
     fn decide(&mut self, error: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument>;
 
-    /// Decide what happens when an actor is restarted and the [`NewLocalActor`]
+    /// Decide what happens when an actor is restarted and the [`NewActor`]
     /// implementation returns an `error`.
     fn decide_on_restart_error(&mut self, error: NA::Error) -> SupervisorStrategy<NA::Argument>;
 
@@ -138,7 +138,7 @@ where
 impl<F, NA> Supervisor<NA> for F
 where
     F: FnMut(<NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument>,
-    NA: NewLocalActor<Error = !>,
+    NA: NewActor<Error = !>,
 {
     fn decide(&mut self, err: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
         (self)(err)
@@ -227,7 +227,7 @@ where
 /// }
 ///
 /// /// Our actor that never returns an error.
-/// async fn actor(ctx: actor::LocalContext<&'static str>) -> Result<(), !> {
+/// async fn actor(ctx: actor::Context<&'static str>) -> Result<(), !> {
 /// #   drop(ctx); // Silence dead code warnings.
 ///     Ok(())
 /// }
@@ -237,7 +237,7 @@ pub struct NoSupervisor;
 
 impl<NA, A> Supervisor<NA> for NoSupervisor
 where
-    NA: NewLocalActor<Actor = A, Error = !>,
+    NA: NewActor<Actor = A, Error = !>,
     A: Actor<Error = !>,
 {
     fn decide(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {

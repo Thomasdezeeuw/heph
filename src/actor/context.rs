@@ -1,5 +1,6 @@
 //! Module containing the `Context` and related types.
 
+use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
@@ -14,13 +15,19 @@ use crate::RuntimeRef;
 ///
 /// This context can be used for a number of things including receiving
 /// messages and getting access to the runtime.
+///
+/// The `actor::Context` comes in two flavours:
+/// * [`ThreadLocal`] (default) is the optimised version, but doesn't allow the
+///   actor to move between threads. Actor started with
+///   [`RuntimeRef::try_spawn_local`] will get this flavour of context.
+/// * [`ThreadSafe`] is the flavour that allows the actor to be moved between
+///   threads. Actor started with [`RuntimeRef::try_spawn`] will get this
+///   flavour of context.
 #[derive(Debug)]
-pub struct LocalContext<M> {
+pub struct Context<M, K = ThreadLocal> {
     /// Process id of the actor, used as `Token` in registering things, e.g.
     /// a `TcpStream`, with `mio::Poll`.
     pid: ProcessId,
-    /// A reference to the runtime, used to get access to `mio::Poll`.
-    runtime_ref: RuntimeRef,
     /// Inbox of the actor, shared between this and zero or more actor
     /// references. It's owned by the context, the actor references only have a
     /// weak reference.
@@ -30,32 +37,58 @@ pub struct LocalContext<M> {
     pub(crate) inbox: Inbox<M>,
     /// Reference to `inbox` above, used to create `ActorRef`s to this actor.
     inbox_ref: InboxRef<M>,
+    /// Kind of the context.
+    kind: K,
 }
 
-impl<M> LocalContext<M> {
-    /// Create a new `actor::LocalContext`.
-    pub(crate) const fn new(
+/// Provides a thread-local actor context.
+///
+/// This is optimised version of [`ThreadSafe`], but doesn't allow the actor to
+/// move between threads.
+///
+/// See [`actor::Context`] for more information.
+///
+/// [`actor::Context`]: crate::actor::Context
+pub struct ThreadLocal {
+    /// A reference to the runtime, used to get access to `mio::Poll`.
+    runtime_ref: RuntimeRef,
+}
+
+/// Provides a thread-safe actor context.
+///
+/// See [`actor::Context`] for more information.
+///
+/// [`actor::Context`]: crate::actor::Context
+pub struct ThreadSafe {
+    _priv: (),
+}
+
+impl<M> Context<M> {
+    /// Create a new `actor::Context<M, ThreadLocal>`.
+    pub(crate) const fn new_local(
         pid: ProcessId,
-        runtime_ref: RuntimeRef,
         inbox: Inbox<M>,
         inbox_ref: InboxRef<M>,
-    ) -> LocalContext<M> {
-        LocalContext {
+        runtime_ref: RuntimeRef,
+    ) -> Context<M> {
+        Context {
             pid,
-            runtime_ref,
             inbox,
             inbox_ref,
+            kind: ThreadLocal { runtime_ref },
         }
     }
+}
 
+impl<M, K> Context<M, K> {
     /// Attempt to receive the next message.
     ///
     /// This will attempt to receive next message if one is available. If the
     /// actor wants to wait until a message is received
-    /// [`actor::LocalContext::receive_next`] can be used, which returns a
+    /// [`actor::Context::receive_next`] can be used, which returns a
     /// `Future<Output = M>`.
     ///
-    /// [`actor::LocalContext::receive_next`]: crate::actor::LocalContext::receive_next
+    /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
     ///
     /// # Examples
     ///
@@ -66,7 +99,7 @@ impl<M> LocalContext<M> {
     ///
     /// use heph::actor;
     ///
-    /// async fn greeter_actor(mut ctx: actor::LocalContext<String>) -> Result<(), !> {
+    /// async fn greeter_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
     ///     if let Some(name) = ctx.try_receive_next() {
     ///         println!("Hello: {}", name);
     ///     } else {
@@ -87,10 +120,10 @@ impl<M> LocalContext<M> {
     ///
     /// This will attempt to receive a message using message selection, if one
     /// is available. If the actor wants to wait until a message is received
-    /// [`actor::LocalContext::receive`] can be used, which returns a
+    /// [`actor::Context::receive`] can be used, which returns a
     /// `Future<Output = M>`.
     ///
-    /// [`actor::LocalContext::receive`]: crate::actor::LocalContext::receive
+    /// [`actor::Context::receive`]: crate::actor::Context::receive
     ///
     /// # Examples
     ///
@@ -118,7 +151,7 @@ impl<M> LocalContext<M> {
     ///     }
     /// }
     ///
-    /// async fn actor(mut ctx: actor::LocalContext<Message>) -> Result<(), !> {
+    /// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
     ///     // First we handle priority messages.
     ///     while let Some(priority_msg) = ctx.try_receive(Message::is_priority) {
     ///         println!("Priority message: {:?}", priority_msg);
@@ -158,7 +191,7 @@ impl<M> LocalContext<M> {
     ///
     /// use heph::actor;
     ///
-    /// async fn print_actor(mut ctx: actor::LocalContext<String>) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
     ///     let msg = ctx.receive_next().await;
     ///     println!("Got a message: {}", msg);
     ///     Ok(())
@@ -181,7 +214,7 @@ impl<M> LocalContext<M> {
     /// use heph::actor;
     /// use heph::timer::Timer;
     ///
-    /// async fn print_actor(mut ctx: actor::LocalContext<String>) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
     ///     // Create a timer, this will be ready once the timeout has
     ///     // passed.
     ///     let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100)).fuse();
@@ -215,13 +248,13 @@ impl<M> LocalContext<M> {
     ///
     /// This returns a [`Future`] that will complete once a message is ready.
     ///
-    /// See [`actor::LocalContext::try_receive`] and [`MessageSelector`] for
-    /// examples on how to use the message selector and see
-    /// [`actor::LocalContext::receive_next`] for an example that uses the same
+    /// See [`actor::Context::try_receive`] and [`MessageSelector`] for examples
+    /// on how to use the message selector and see
+    /// [`actor::Context::receive_next`] for an example that uses the same
     /// `Future` this method returns.
     ///
-    /// [`actor::LocalContext::try_receive`]: crate::actor::LocalContext::try_receive
-    /// [`actor::LocalContext::receive_next`]: crate::actor::LocalContext::receive_next
+    /// [`actor::Context::try_receive`]: crate::actor::Context::try_receive
+    /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
     pub fn receive<'ctx, S>(&'ctx mut self, selector: S) -> ReceiveMessage<'ctx, M, S>
     where
         S: MessageSelector<M>,
@@ -268,8 +301,8 @@ impl<M> LocalContext<M> {
     /// message will be cloned, which means that the next call to [`receive`] or
     /// [`peek`] will return the same message.
     ///
-    /// [`receive`]: LocalContext::receive
-    /// [`peek`]: LocalContext::peek
+    /// [`receive`]: Context::receive
+    /// [`peek`]: Context::peek
     pub fn peek<'ctx, S>(&'ctx mut self, selector: S) -> PeekMessage<'ctx, M, S>
     where
         S: MessageSelector<M>,
@@ -287,88 +320,35 @@ impl<M> LocalContext<M> {
         ActorRef::from_inbox(self.inbox_ref.clone())
     }
 
+    /// Get the pid of this actor.
+    pub(crate) fn pid(&self) -> ProcessId {
+        self.pid
+    }
+}
+
+impl<M> Context<M, ThreadLocal> {
     /// Get a reference to the runtime this actor is running in.
     pub fn runtime(&mut self) -> &mut RuntimeRef {
-        &mut self.runtime_ref
-    }
-
-    /// Get the pid of this actor.
-    pub(crate) fn pid(&self) -> ProcessId {
-        self.pid
+        &mut self.kind.runtime_ref
     }
 }
 
-/// Thread-safe actor context in which an actor is executed.
-///
-/// See [`actor::LocalContext`] for more information.
-///
-/// [`actor::LocalContext`]: crate::actor::LocalContext
-#[derive(Debug)]
-pub struct Context<M> {
-    /// Process id of the actor, used as `Token` in registering things, e.g.
-    /// a `TcpStream`, with `mio::Poll`.
-    pid: ProcessId,
-    /// Inbox of the actor, shared between this and zero or more actor
-    /// references. It's owned by the context, the actor references only have a
-    /// weak reference.
-    ///
-    /// This field is public because it is used by `tcp::Server`, as we don't
-    /// need entire context there.
-    pub(crate) inbox: Inbox<M>,
-    /// Reference to `inbox` above, used to create `ActorRef`s to this actor.
-    inbox_ref: InboxRef<M>,
+impl fmt::Debug for ThreadLocal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ThreadLocal")
+    }
 }
 
-impl<M> Context<M> {
-    /// Create a new `actor::Context`.
-    pub(crate) const fn new(pid: ProcessId, inbox: Inbox<M>, inbox_ref: InboxRef<M>) -> Context<M> {
-        Context {
-            pid,
-            inbox,
-            inbox_ref,
-        }
-    }
-
-    /// Attempt to receive the next message.
-    ///
-    /// This works the same as [`actor::LocalContext::try_receive_next`].
-    ///
-    /// [`actor::LocalContext::try_receive_next`]: LocalContext::try_receive_next
-    pub fn try_receive_next(&mut self) -> Option<M> {
-        self.inbox.receive_next()
-    }
-
-    /// Receive the next message.
-    ///
-    /// This works the same as [`actor::LocalContext::receive_next`].
-    ///
-    /// [`actor::LocalContext::receive_next`]: LocalContext::receive_next
-    pub fn receive_next<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
-        ReceiveMessage {
-            inbox: &mut self.inbox,
-            selector: First,
-        }
-    }
-
-    /// Returns a reference to this actor.
-    pub fn actor_ref(&mut self) -> ActorRef<M> {
-        ActorRef::from_inbox(self.inbox_ref.clone())
-    }
-
-    /// Get the pid of this actor.
-    pub(crate) fn pid(&self) -> ProcessId {
-        self.pid
+impl fmt::Debug for ThreadSafe {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ThreadSafe")
     }
 }
 
 /// Future to receive a single message.
 ///
-/// The implementation behind [`actor::LocalContext::receive_next`] and
-/// [`actor::Context::receive_next`].
-// and [`actor::LocalContext::receive`].
+/// The implementation behind and [`actor::Context::receive_next`].
 ///
-// [`actor::LocalContext::receive`]: crate::actor::LocalContext::receive
-/// [`actor::LocalContext::receive_next`]: crate::actor::LocalContext::receive_next
 /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
 #[derive(Debug)]
 pub struct ReceiveMessage<'ctx, M, S = First> {
@@ -412,11 +392,11 @@ impl<'ctx, M> Future for ReceiveMessage<'ctx, M, First> {
 /*
 /// Future to peek a single message.
 ///
-/// The implementation behind [`actor::LocalContext::peek`] and
-/// [`actor::LocalContext::peek_next`].
+/// The implementation behind [`actor::Context::peek`] and
+/// [`actor::Context::peek_next`].
 ///
-/// [`actor::LocalContext::peek`]: crate::actor::LocalContext::peek
-/// [`actor::LocalContext::peek_next`]: crate::actor::LocalContext::peek_next
+/// [`actor::Context::peek`]: crate::actor::Context::peek
+/// [`actor::Context::peek_next`]: crate::actor::Context::peek_next
 #[derive(Debug)]
 pub struct PeekMessage<'ctx, M, S = First> {
     inbox: &'ctx mut Inbox<M>,

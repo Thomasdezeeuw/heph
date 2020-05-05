@@ -28,7 +28,7 @@ fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 }
 
 async fn ping_actor(
-    mut ctx: actor::LocalContext<!>,
+    mut ctx: actor::Context<!>,
     mut actor_ref: ActorRef<PongMessage>,
 ) -> Result<(), !> {
     // Send our RPC request.
@@ -45,7 +45,7 @@ async fn ping_actor(
 // Message type to support the ping-pong RPC call.
 type PongMessage = RpcMessage<Ping, Pong>;
 
-async fn pong_actor(mut ctx: actor::LocalContext<PongMessage>) -> Result<(), !> {
+async fn pong_actor(mut ctx: actor::Context<PongMessage>) -> Result<(), !> {
     // Await a message, same as all other messages.
     let RpcMessage { request, response } = ctx.receive_next().await;
 

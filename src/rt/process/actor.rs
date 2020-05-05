@@ -3,19 +3,20 @@
 use std::pin::Pin;
 use std::task::{self, Poll};
 
+use crate::actor::{self, context, Actor, NewActor};
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::supervisor::SupervisorStrategy;
-use crate::{actor, Actor, NewLocalActor, RuntimeRef, Supervisor};
+use crate::{RuntimeRef, Supervisor};
 
 /// A process that represent an [`Actor`].
-pub struct ActorProcess<S, NA: NewLocalActor> {
+pub struct ActorProcess<S, NA: NewActor> {
     /// The actor's supervisor used to determine what to do when the actor, or
-    /// [`NewLocalActor`] implementation, returns an error.
+    /// [`NewActor`] implementation, returns an error.
     supervisor: S,
-    /// The [`NewLocalActor`] implementation used to restart the actor.
+    /// The [`NewActor`] implementation used to restart the actor.
     new_actor: NA,
-    /// The inbox of the actor, used in creating a new [`actor::LocalContext`]
+    /// The inbox of the actor, used in creating a new [`actor::Context`]
     /// if the actor is restarted.
     inbox: Inbox<NA::Message>,
     inbox_ref: InboxRef<NA::Message>,
@@ -23,10 +24,10 @@ pub struct ActorProcess<S, NA: NewLocalActor> {
     actor: NA::Actor,
 }
 
-impl<S, NA: NewLocalActor> ActorProcess<S, NA>
+impl<S, NA: NewActor> ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewLocalActor,
+    NA: NewActor<Context = context::ThreadLocal>,
 {
     /// Create a new `ActorProcess`.
     pub(crate) const fn new(
@@ -62,7 +63,7 @@ where
         }
     }
 
-    /// Same as `handle_actor_error` but handles [`NewLocalActor::Error`]s instead.
+    /// Same as `handle_actor_error` but handles [`NewActor::Error`]s instead.
     fn handle_restart_error(
         &mut self,
         runtime_ref: &mut RuntimeRef,
@@ -85,11 +86,11 @@ where
         arg: NA::Argument,
     ) -> Result<(), NA::Error> {
         // Create a new actor.
-        let ctx = actor::LocalContext::new(
+        let ctx = actor::Context::new_local(
             pid,
-            runtime_ref.clone(),
             self.inbox.ctx_inbox(),
             self.inbox_ref.clone(),
+            runtime_ref.clone(),
         );
         self.new_actor.new(ctx, arg).map(|actor| {
             // We pin the actor here to ensure its dropped in place when
@@ -102,7 +103,7 @@ where
 impl<S, NA> Process for ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewLocalActor,
+    NA: NewActor<Context = context::ThreadLocal>,
 {
     fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult {
         // This is safe because we're not moving the actor.

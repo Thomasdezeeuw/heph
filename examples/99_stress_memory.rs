@@ -38,11 +38,11 @@ fn main() -> Result<(), RuntimeError> {
 }
 
 /// Our "actor", but it doesn't do much.
-async fn actor(_: actor::LocalContext<!>) -> Result<(), !> {
+async fn actor(_: actor::Context<!>) -> Result<(), !> {
     Ok(())
 }
 
-async fn sleepy_actor(_: actor::LocalContext<!>) -> Result<(), !> {
+async fn sleepy_actor(_: actor::Context<!>) -> Result<(), !> {
     info!("Running, check the memory usage!");
     thread::sleep(Duration::from_secs(5));
     Ok(())

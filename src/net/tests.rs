@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use futures_util::pin_mut;
 
-use crate::actor::{self, Actor, NewLocalActor};
+use crate::actor::{self, context, Actor, NewActor};
 use crate::net::UdpSocket;
 use crate::test::{init_actor, poll_actor};
 
@@ -45,7 +45,13 @@ fn connected_udp_socket_ipv6() {
 
 fn test_udp_socket<NA, A>(local_address: SocketAddr, new_actor: NA)
 where
-    NA: NewLocalActor<Message = !, Argument = SocketAddr, Actor = A, Error = !>,
+    NA: NewActor<
+        Message = !,
+        Argument = SocketAddr,
+        Actor = A,
+        Error = !,
+        Context = context::ThreadLocal,
+    >,
     A: Actor<Error = io::Error>,
 {
     let echo_socket = std::net::UdpSocket::bind(local_address).unwrap();
@@ -82,7 +88,7 @@ where
 }
 
 async fn unconnected_udp_actor(
-    mut ctx: actor::LocalContext<!>,
+    mut ctx: actor::Context<!>,
     peer_address: SocketAddr,
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
@@ -108,7 +114,7 @@ async fn unconnected_udp_actor(
 }
 
 async fn connected_udp_actor(
-    mut ctx: actor::LocalContext<!>,
+    mut ctx: actor::Context<!>,
     peer_address: SocketAddr,
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
@@ -181,7 +187,7 @@ fn test_reconnecting_udp_socket(local_address: SocketAddr) {
 }
 
 async fn reconnecting_actor(
-    mut ctx: actor::LocalContext<!>,
+    mut ctx: actor::Context<!>,
     peer_address1: SocketAddr,
     peer_address2: SocketAddr,
 ) -> io::Result<()> {

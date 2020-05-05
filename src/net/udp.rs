@@ -87,7 +87,7 @@ pub enum Connected {}
 ///
 /// // Actor that will bind a UDP socket and waits for incoming packets and
 /// // echos the message to standard out.
-/// async fn echo_server(mut ctx: actor::LocalContext<Terminate>, local: SocketAddr) -> io::Result<()> {
+/// async fn echo_server(mut ctx: actor::Context<Terminate>, local: SocketAddr) -> io::Result<()> {
 ///     let mut socket = UdpSocket::bind(&mut ctx, local)?;
 ///     let mut buf = [0; 4096];
 ///     loop {
@@ -110,7 +110,7 @@ pub enum Connected {}
 /// }
 ///
 /// // The client that will send a message to the server.
-/// async fn client(mut ctx: actor::LocalContext<!>, server_address: SocketAddr) -> io::Result<()> {
+/// async fn client(mut ctx: actor::Context<!>, server_address: SocketAddr) -> io::Result<()> {
 ///     let local_address = "127.0.0.1:7001".parse().unwrap();
 ///     let mut socket = UdpSocket::bind(&mut ctx, local_address)
 ///         .and_then(|socket| socket.connect(server_address))?;
@@ -135,12 +135,12 @@ impl UdpSocket {
     /// # Notes
     ///
     /// The UDP socket is also [bound] to the actor that owns the
-    /// `actor::LocalContext`, which means the actor will be run every time the
+    /// `actor::Context`, which means the actor will be run every time the
     /// socket is ready to be read or write to.
     ///
     /// [bound]: crate::actor::Bound
     pub fn bind<M>(
-        ctx: &mut actor::LocalContext<M>,
+        ctx: &mut actor::Context<M>,
         local: SocketAddr,
     ) -> io::Result<UdpSocket<Unconnected>> {
         let mut socket = net::UdpSocket::bind(local)?;
@@ -357,7 +357,7 @@ impl<M> fmt::Debug for UdpSocket<M> {
 impl actor::Bound for UdpSocket {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::LocalContext<M>) -> io::Result<()> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
         let pid = ctx.pid();
         ctx.runtime().reregister(
             &mut self.socket,

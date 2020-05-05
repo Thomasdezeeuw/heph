@@ -16,7 +16,7 @@
 //! #
 //! # use heph::actor;
 //! #
-//! async fn actor(mut ctx: actor::LocalContext<String>) -> Result<(), !> {
+//! async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
 //!     // Receive a message.
 //!     let msg = ctx.receive_next().await;
 //!     // Print the message.
@@ -110,7 +110,7 @@ mod inbox;
 mod util;
 
 #[doc(no_inline)]
-pub use crate::actor::{Actor, NewLocalActor};
+pub use crate::actor::{Actor, NewActor};
 #[doc(no_inline)]
 pub use crate::actor_ref::ActorRef;
 #[doc(no_inline)]

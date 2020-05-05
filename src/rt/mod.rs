@@ -18,10 +18,10 @@ use log::{debug, trace};
 use mio::{event, Interest, Poll, Token};
 
 use crate::actor::sync::SyncActor;
+use crate::actor::{self, context, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::inbox::Inbox;
 use crate::supervisor::{Supervisor, SyncSupervisor};
-use crate::{actor, NewLocalActor};
 
 mod coordinator;
 mod error;
@@ -126,9 +126,9 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// // This setup function will on run on each created thread. In the case of
 /// // this example we create two threads (see `main`).
 /// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-///     // Asynchronous function don't yet implement the required
-///     // `NewLocalActor` trait, but function pointers do so we cast our type
-///     // to a function pointer.
+///     // Asynchronous function don't yet implement the required `NewActor`
+///     // trait, but function pointers do so we cast our type to a function
+///     // pointer.
 ///     let actor = actor as fn(_, _) -> _;
 ///     // Each actors needs to be supervised, but since our actor doesn't
 ///     // return an error (the error type is `!`) we can get away with our
@@ -148,7 +148,7 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// }
 ///
 /// /// Our actor that greets people.
-/// async fn actor(mut ctx: actor::LocalContext<&'static str>, msg: &'static str) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::Context<&'static str>, msg: &'static str) -> Result<(), !> {
 ///     // `msg` is the argument passed to `spawn` in the `setup` function
 ///     // above, in this example it was "Hello".
 ///
@@ -300,8 +300,7 @@ impl<S> fmt::Debug for Runtime<S> {
 /// can be cloned.
 ///
 /// This is passed to the [setup function] when starting the runtime and can be
-/// accessed inside an actor by using the [`actor::LocalContext::runtime`]
-/// method.
+/// accessed inside an actor by using the [`actor::Context::runtime`] method.
 ///
 /// [setup function]: Runtime::with_setup
 #[derive(Clone, Debug)]
@@ -317,8 +316,8 @@ impl RuntimeRef {
     /// * `supervisor`: all actors need supervision, the `supervisor` is the
     ///   supervisor for this actor, see the [`Supervisor`] trait for more
     ///   information.
-    /// * `new_actor`: the [`NewLocalActor`] implementation that defines how to
-    ///   start the actor.
+    /// * `new_actor`: the [`NewActor`] implementation that defines how to start
+    ///   the actor.
     /// * `arg`: the argument passed when starting the actor, and
     /// * `options`: the actor options used to spawn the new actors.
     ///
@@ -333,7 +332,7 @@ impl RuntimeRef {
     /// this thread. Something that some framework work around with actor/tasks
     /// that transparently move between threads and hide blocking/bad actors.
     ///
-    /// When using a [`NewLocalActor`] implementation that never returns an error,
+    /// When using a [`NewActor`] implementation that never returns an error,
     /// such as the implementation provided by async function, it's easier to
     /// use the [`spawn_local`] method.
     ///
@@ -347,19 +346,19 @@ impl RuntimeRef {
     ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewLocalActor + 'static,
+        NA: NewActor<Context = context::ThreadLocal> + 'static,
         NA::Actor: 'static,
     {
         self.try_spawn_local_setup(supervisor, new_actor, |_, _| Ok(arg), options)
             .map_err(|err| match err {
-                AddActorError::NewLocalActor(err) => err,
+                AddActorError::NewActor(err) => err,
                 AddActorError::<_, !>::ArgFn(_) => unreachable!(),
             })
     }
 
     /// Spawn an actor.
     ///
-    /// This is a convenience method for `NewLocalActor` implementations that never
+    /// This is a convenience method for `NewActor` implementations that never
     /// return an error, such as asynchronous functions.
     ///
     /// See [`RuntimeRef::try_spawn_local`] for more information.
@@ -372,7 +371,7 @@ impl RuntimeRef {
     ) -> ActorRef<NA::Message>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewLocalActor<Error = !> + 'static,
+        NA: NewActor<Error = !, Context = context::ThreadLocal> + 'static,
         NA::Actor: 'static,
     {
         self.try_spawn_local_setup(supervisor, new_actor, |_, _| Ok(arg), options)
@@ -395,7 +394,7 @@ impl RuntimeRef {
     ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewLocalActor + 'static,
+        NA: NewActor<Context = context::ThreadLocal> + 'static,
         ArgFn: FnOnce(ProcessId, &mut RuntimeRef) -> Result<NA::Argument, ArgFnE>,
         NA::Actor: 'static,
     {
@@ -418,10 +417,8 @@ impl RuntimeRef {
         // Create our actor context and our actor with it.
         let (inbox, inbox_ref) = Inbox::new(self.new_waker(pid));
         let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
-        let ctx = actor::LocalContext::new(pid, runtime_ref, inbox.ctx_inbox(), inbox_ref.clone());
-        let actor = new_actor
-            .new(ctx, arg)
-            .map_err(AddActorError::NewLocalActor)?;
+        let ctx = actor::Context::new_local(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
+        let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         if options.is_ready() {
             waker::new(*waker_id, pid).wake()
@@ -512,9 +509,9 @@ impl RuntimeRef {
 
 /// Internal error returned by spawning a actor.
 #[derive(Debug)]
-pub(crate) enum AddActorError<NewLocalActorE, ArgFnE> {
-    /// Calling `NewLocalActor::new` actor resulted in an error.
-    NewLocalActor(NewLocalActorE),
+pub(crate) enum AddActorError<NewActorE, ArgFnE> {
+    /// Calling `NewActor::new` actor resulted in an error.
+    NewActor(NewActorE),
     /// Calling the argument function resulted in an error.
     ArgFn(ArgFnE),
 }
