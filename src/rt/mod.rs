@@ -27,7 +27,6 @@ mod coordinator;
 mod error;
 mod hack;
 mod process;
-mod scheduler;
 mod signal;
 mod sync_worker;
 mod timers;
@@ -37,7 +36,7 @@ macro_rules! cfg_pub_test {
     ($( $mod_name: ident ),+) => {
         $(
             #[cfg(not(test))]
-            pub(crate) mod $mod_name;
+            mod $mod_name;
             #[cfg(test)]
             pub(crate) mod $mod_name;
         )+
@@ -45,7 +44,7 @@ macro_rules! cfg_pub_test {
 }
 
 // Modules used in testing.
-cfg_pub_test!(channel, waker, worker);
+cfg_pub_test!(channel, scheduler, waker, worker);
 
 pub(crate) use process::ProcessId;
 pub(crate) use waker::Waker;
@@ -56,8 +55,9 @@ pub use error::RuntimeError;
 pub use options::ActorOptions;
 pub use signal::Signal;
 
+use coordinator::Coordinator;
 use hack::SetupFn;
-use scheduler::LocalScheduler;
+use scheduler::{LocalScheduler, SchedulerRef};
 use sync_worker::SyncWorker;
 use timers::Timers;
 use waker::{WakerId, MAX_THREADS};
@@ -268,13 +268,21 @@ where
             self.threads,
             self.sync_actors.len()
         );
+
+        let coordinator = Coordinator::init().map_err(RuntimeError::coordinator)?;
+        let scheduler_ref = coordinator.scheduler_ref();
+        let waker_id = coordinator.waker_id();
+
         // Start our worker threads.
         let handles = (0..self.threads)
-            .map(|id| Worker::start(id, self.setup.clone()))
+            .map(|id| {
+                let setup = self.setup.clone();
+                Worker::start(id, setup, scheduler_ref.clone(), waker_id)
+            })
             .collect::<io::Result<Vec<Worker<S::Error>>>>()
             .map_err(RuntimeError::start_thread)?;
 
-        coordinator::main(handles, self.sync_actors)
+        coordinator.run(handles, self.sync_actors)
     }
 }
 
@@ -380,8 +388,8 @@ impl RuntimeRef {
 
     /// Spawn an actor that needs to be initialised.
     ///
-    /// Just like `try_spawn` this requires a `supervisor`, `new_actor` and
-    /// `options`. The only difference being rather then passing an argument
+    /// Just like `try_spawn_local` this requires a `supervisor`, `new_actor`
+    /// and `options`. The only difference being rather then passing an argument
     /// directly this function requires a function to create the argument, which
     /// allows the caller to do any required setup work.
     #[allow(clippy::type_complexity)] // Not part of the public API, so it's OK.
@@ -398,14 +406,8 @@ impl RuntimeRef {
         ArgFn: FnOnce(ProcessId, &mut RuntimeRef) -> Result<NA::Argument, ArgFnE>,
         NA::Actor: 'static,
     {
-        let RuntimeInternal {
-            waker_id,
-            scheduler,
-            ..
-        } = &*self.internal;
-
         // Setup adding a new process to the scheduler.
-        let mut scheduler = scheduler.borrow_mut();
+        let mut scheduler = self.internal.scheduler.borrow_mut();
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
         debug!("spawning actor: pid={}", pid);
@@ -414,15 +416,133 @@ impl RuntimeRef {
         let mut runtime_ref = self.clone();
         let arg = arg_fn(pid, &mut runtime_ref).map_err(AddActorError::ArgFn)?;
 
+        let waker = self.new_waker(pid);
+        if options.is_ready() {
+            waker.wake();
+        }
+
         // Create our actor context and our actor with it.
-        let (inbox, inbox_ref) = Inbox::new(self.new_waker(pid));
+        let (inbox, inbox_ref) = Inbox::new(waker);
         let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
-        let ctx = actor::Context::new_local(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
+        let ctx = actor::Context::new(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
+        // Add the actor to the scheduler.
+        actor_entry.add(
+            options.priority(),
+            supervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+        );
+
+        Ok(actor_ref)
+    }
+
+    /// Attempts to spawn a thread-safe actor.
+    ///
+    /// Actor spawned using this method can be run on any of the worker threads.
+    /// This has the upside of less starvation at the cost of decreased
+    /// performance as the implementation backing thread-local actors is faster.
+    ///
+    /// The arguments are the same as [`try_spawn_local`], but require the
+    /// `supervisor` (`S`), actor (`NA::Actor`) and `new_actor` (`NA`) to be
+    /// `Send`.
+    ///
+    /// # Notes
+    ///
+    /// When using a [`NewActor`] implementation that never returns an error,
+    /// such as the implementation provided by async function, it's easier to
+    /// use the [`spawn`] method.
+    ///
+    /// [`spawn`]: RuntimeRef::spawn
+    pub fn try_spawn<S, NA>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
+    where
+        S: Supervisor<NA> + Send + 'static,
+        NA: NewActor<Context = context::ThreadSafe> + Send + 'static,
+        NA::Actor: Send + 'static,
+    {
+        self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
+            .map_err(|err| match err {
+                AddActorError::NewActor(err) => err,
+                AddActorError::<_, !>::ArgFn(_) => unreachable!(),
+            })
+    }
+
+    /// Spawn an thread-safe actor.
+    ///
+    /// This is a convenience method for `NewActor` implementations that never
+    /// return an error, such as asynchronous functions.
+    ///
+    /// See [`RuntimeRef::try_spawn`] for more information.
+    pub fn spawn<S, NA>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> ActorRef<NA::Message>
+    where
+        S: Supervisor<NA> + Send + 'static,
+        NA: NewActor<Error = !, Context = context::ThreadSafe> + Send + 'static,
+        NA::Actor: Send + 'static,
+    {
+        self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
+            .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
+    }
+
+    /// Spawn an thread-safe actor that needs to be initialised.
+    ///
+    /// Just like `try_spawn` this requires a `supervisor`, `new_actor` and
+    /// `options`. The only difference being rather then passing an argument
+    /// directly this function requires a function to create the argument, which
+    /// allows the caller to do any required setup work.
+    #[allow(clippy::type_complexity)] // Not part of the public API, so it's OK.
+    pub(crate) fn try_spawn_setup<S, NA, ArgFn, ArgFnE>(
+        &mut self,
+        supervisor: S,
+        mut new_actor: NA,
+        arg_fn: ArgFn,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    where
+        S: Supervisor<NA> + Send + 'static,
+        NA: NewActor<Context = context::ThreadSafe> + Send + 'static,
+        ArgFn: FnOnce(ProcessId) -> Result<NA::Argument, ArgFnE>,
+        NA::Actor: Send + 'static,
+    {
+        let RuntimeInternal {
+            coordinator_id,
+            scheduler_ref,
+            ..
+        } = &*self.internal;
+
+        // Setup adding a new process to the scheduler.
+        let mut scheduler_ref = scheduler_ref.borrow_mut();
+        let actor_entry = scheduler_ref.add_actor();
+        let pid = actor_entry.pid();
+        debug!("spawning actor: pid={}", pid);
+
+        // Create our actor argument, running any setup required by the caller.
+        let arg = arg_fn(pid).map_err(AddActorError::ArgFn)?;
+
+        let waker = Waker::new(*coordinator_id, pid);
         if options.is_ready() {
-            waker::new(*waker_id, pid).wake()
+            waker.wake()
         }
+
+        // Create our actor context and our actor with it.
+        let (inbox, inbox_ref) = Inbox::new(waker);
+        let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
+        let ctx = actor::Context::new(pid, inbox.ctx_inbox(), inbox_ref.clone(), self.clone());
+        let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         // Add the actor to the scheduler.
         actor_entry.add(
@@ -523,6 +643,10 @@ struct RuntimeInternal {
     waker_id: WakerId,
     /// A reference to the scheduler to add new processes to.
     scheduler: RefCell<LocalScheduler>,
+    /// Working stealing reference to the shared scheduler.
+    scheduler_ref: RefCell<SchedulerRef>,
+    /// Waker id for the `Coordinator`.
+    coordinator_id: WakerId,
     /// System poll, used for event notifications to support non-blocking I/O.
     poll: RefCell<Poll>,
     /// Timers, deadlines and timeouts.

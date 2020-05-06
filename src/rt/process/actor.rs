@@ -3,7 +3,7 @@
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use crate::actor::{self, context, Actor, NewActor};
+use crate::actor::{self, Actor, NewActor};
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::supervisor::SupervisorStrategy;
@@ -24,10 +24,11 @@ pub struct ActorProcess<S, NA: NewActor> {
     actor: NA::Actor,
 }
 
-impl<S, NA: NewActor> ActorProcess<S, NA>
+impl<'a, S, NA: NewActor, C> ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewActor<Context = context::ThreadLocal>,
+    NA: NewActor<Context = C>,
+    C: From<RuntimeRef>,
 {
     /// Create a new `ActorProcess`.
     pub(crate) const fn new(
@@ -86,7 +87,7 @@ where
         arg: NA::Argument,
     ) -> Result<(), NA::Error> {
         // Create a new actor.
-        let ctx = actor::Context::new_local(
+        let ctx = actor::Context::new(
             pid,
             self.inbox.ctx_inbox(),
             self.inbox_ref.clone(),
@@ -100,10 +101,11 @@ where
     }
 }
 
-impl<S, NA> Process for ActorProcess<S, NA>
+impl<'a, S, NA, C> Process for ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewActor<Context = context::ThreadLocal>,
+    NA: NewActor<Context = C>,
+    C: From<RuntimeRef>,
 {
     fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult {
         // This is safe because we're not moving the actor.

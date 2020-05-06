@@ -1,8 +1,7 @@
 use std::fmt;
 use std::mem::{forget, replace};
 use std::pin::Pin;
-use std::ptr::{self, NonNull};
-use std::sync::atomic::{AtomicPtr, Ordering};
+use std::ptr::NonNull;
 
 use crate::rt::scheduler::{ProcessData, ProcessId};
 
@@ -38,6 +37,7 @@ pub(super) fn ok_ptr(ptr: *const ()) -> bool {
 #[derive(Debug)]
 pub(in crate::rt) struct Inactive {
     root: Branch,
+    length: usize,
 }
 
 impl Inactive {
@@ -45,7 +45,13 @@ impl Inactive {
     pub(super) const fn empty() -> Inactive {
         Inactive {
             root: Branch::empty(),
+            length: 0,
         }
+    }
+
+    /// Returns `true` if the queue contains a process.
+    pub(super) fn has_process(&self) -> bool {
+        self.length == 0
     }
 
     /// Add a `process`.
@@ -53,12 +59,14 @@ impl Inactive {
         let pid = process.as_ref().id();
         debug_assert!(pid.0 & LEVEL_MASK == 0);
         self.root.add(process, pid.0 >> SKIP_BITS, 0);
+        self.length += 1;
     }
 
     /// Removes the process with id `pid`, if any.
     pub(super) fn remove(&mut self, pid: ProcessId) -> Option<Pin<Box<ProcessData>>> {
         self.root.remove(pid, pid.0 >> SKIP_BITS).map(|process| {
             debug_assert_eq!(process.as_ref().id(), pid);
+            self.length -= 1;
             process
         })
     }
@@ -197,6 +205,11 @@ impl Pointer {
     }
 }
 
+/// This is safe because `Pin<Box<ProcessData>>` and `Pin<Box<Branch>>` are
+/// `Send` and `Sync`.
+unsafe impl Send for Pointer {}
+unsafe impl Sync for Pointer {}
+
 impl From<Pin<Box<ProcessData>>> for Pointer {
     fn from(process: Pin<Box<ProcessData>>) -> Pointer {
         #[allow(trivial_casts)]
@@ -287,6 +300,22 @@ mod tests {
 
     use super::{Branch, Inactive, Pointer};
 
+    /* FIXME.
+    #[test]
+    fn pointer_is_send() {
+        fn assert_send<T: Send>() {}
+        fn assert_sync<T: Sync>() {}
+
+        assert_send::<Pointer>();
+        assert_sync::<Pointer>();
+        // Required for `Pointer` to be `Send` and `Sync`.
+        assert_send::<Pin<Box<ProcessData>>>();
+        assert_sync::<Pin<Box<ProcessData>>>();
+        assert_send::<Pin<Box<Branch>>>();
+        assert_sync::<Pin<Box<Branch>>>();
+    }
+    */
+
     struct TestProcess;
 
     impl Process for TestProcess {
@@ -329,15 +358,7 @@ mod tests {
         assert!(ptr.is_none());
 
         // Process -> Some(Ok(..)).
-        let process = Box::pin(TestProcess);
-        let mut ptr: Option<Pointer> = Some(
-            Box::pin(ProcessData {
-                priority: Priority::default(),
-                fair_runtime: Duration::from_secs(0),
-                process,
-            })
-            .into(),
-        );
+        let mut ptr: Option<Pointer> = Some(test_process().into());
         match Pointer::take_process(&mut ptr) {
             Some(Ok(_)) => {}
             _ => panic!("unexpected result"),
@@ -395,11 +416,7 @@ mod tests {
     }
 
     fn add_process(queue: &mut Inactive) -> ProcessId {
-        let process = Box::pin(ProcessData {
-            priority: Priority::NORMAL,
-            fair_runtime: Duration::from_secs(1),
-            process: Box::pin(TestProcess),
-        });
+        let process = test_process();
         let pid = process.as_ref().id();
         queue.add(process);
         pid

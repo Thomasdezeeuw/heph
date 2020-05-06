@@ -3,35 +3,108 @@
 use std::any::Any;
 use std::io;
 
+use crossbeam_channel::Receiver;
 use log::{debug, trace};
 use mio::event::Event;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
+use crate::rt::process::ProcessId;
+use crate::rt::scheduler::{Scheduler, SchedulerRef};
+use crate::rt::waker::{self, WakerId};
 use crate::rt::{RuntimeError, Signal, SyncWorker, Worker, SYNC_WORKER_ID_START};
 
-/// Token used to receive events.
+/// Tokens used to receive events.
 const SIGNAL: Token = Token(usize::max_value());
+const AWAKENER: Token = Token(usize::max_value() - 1);
 
-/// Run the coordinator.
-///
-/// # Notes
-///
-/// `workers` must be sorted based on `id`.
-pub(super) fn main<E>(
-    mut workers: Vec<Worker<E>>,
-    mut sync_workers: Vec<SyncWorker>,
-) -> Result<(), RuntimeError<E>> {
-    debug_assert!(workers.is_sorted_by_key(|w| w.id()));
+pub(super) struct Coordinator {
+    poll: Poll,
+    waker_id: WakerId,
+    waker_events: Receiver<ProcessId>,
+    scheduler: Scheduler,
+}
 
-    let poll = Poll::new().map_err(RuntimeError::coordinator)?;
+impl Coordinator {
+    /// Initialise the `Coordinator` thread.
+    pub(super) fn init() -> io::Result<Coordinator> {
+        let poll = Poll::new()?;
+        let registry = poll.registry();
 
-    let registry = poll.registry();
-    let signals = setup_signals(&registry).map_err(RuntimeError::coordinator)?;
-    register_workers(&registry, &mut workers).map_err(RuntimeError::coordinator)?;
-    register_sync_workers(&registry, &mut sync_workers).map_err(RuntimeError::coordinator)?;
+        let (waker_sender, waker_events) = crossbeam_channel::unbounded();
+        let waker = mio::Waker::new(registry, AWAKENER)?;
+        let waker_id = waker::init(waker, waker_sender);
 
-    event_loop(poll, signals, workers, sync_workers)
+        Ok(Coordinator {
+            poll,
+            waker_events,
+            waker_id,
+            scheduler: Scheduler::new(),
+        })
+    }
+
+    /// Returns a reference to the `Coordinator`'s scheduler.
+    pub(super) fn scheduler_ref(&self) -> SchedulerRef {
+        self.scheduler.create_ref()
+    }
+
+    /// Returns the `WakerId` for this `Coordinator`.
+    pub(super) fn waker_id(&self) -> WakerId {
+        self.waker_id
+    }
+
+    /// Run the coordinator.
+    ///
+    /// # Notes
+    ///
+    /// `workers` must be sorted based on `id`.
+    pub(super) fn run<E>(
+        mut self,
+        mut workers: Vec<Worker<E>>,
+        mut sync_workers: Vec<SyncWorker>,
+    ) -> Result<(), RuntimeError<E>> {
+        debug_assert!(workers.is_sorted_by_key(|w| w.id()));
+
+        let registry = self.poll.registry();
+        let mut signals = setup_signals(&registry).map_err(RuntimeError::coordinator)?;
+        register_workers(&registry, &mut workers).map_err(RuntimeError::coordinator)?;
+        register_sync_workers(&registry, &mut sync_workers).map_err(RuntimeError::coordinator)?;
+
+        let mut events = Events::with_capacity(16);
+        loop {
+            trace!("polling on coordinator");
+            self.poll(&mut events).map_err(RuntimeError::coordinator)?;
+
+            for event in events.iter() {
+                match event.token() {
+                    SIGNAL => relay_signals(&mut signals, &mut workers, &mut sync_workers)
+                        .map_err(RuntimeError::coordinator)?,
+                    // We always check for waker events below.
+                    AWAKENER => {}
+                    token if token.0 >= SYNC_WORKER_ID_START => {
+                        handle_sync_worker_event(&mut sync_workers, event)?
+                    }
+                    _ => handle_worker_event(&mut workers, event)?,
+                }
+            }
+
+            trace!("polling wakup events");
+            for pid in self.waker_events.try_iter() {
+                self.scheduler.mark_ready(pid);
+            }
+
+            if workers.is_empty() {
+                return Ok(());
+            }
+        }
+    }
+
+    fn poll(&mut self, events: &mut Events) -> io::Result<()> {
+        waker::mark_polling(self.waker_id, true);
+        let res = self.poll.poll(events, None);
+        waker::mark_polling(self.waker_id, false);
+        res
+    }
 }
 
 /// Setup a new `Signals` instance, registering it with `registry`.
@@ -67,37 +140,6 @@ fn register_sync_workers(registry: &Registry, sync_workers: &mut [SyncWorker]) -
             registry.register(worker, Token(id), Interest::WRITABLE)
         })
         .collect()
-}
-
-/// The coordinator's event loop.
-fn event_loop<E>(
-    mut poll: Poll,
-    mut signals: Signals,
-    mut workers: Vec<Worker<E>>,
-    mut sync_workers: Vec<SyncWorker>,
-) -> Result<(), RuntimeError<E>> {
-    let mut events = Events::with_capacity(16);
-
-    loop {
-        trace!("polling on coordinator");
-        poll.poll(&mut events, None)
-            .map_err(RuntimeError::coordinator)?;
-
-        for event in events.iter() {
-            match event.token() {
-                SIGNAL => relay_signals(&mut signals, &mut workers, &mut sync_workers)
-                    .map_err(RuntimeError::coordinator)?,
-                token if token.0 >= SYNC_WORKER_ID_START => {
-                    handle_sync_worker_event(&mut sync_workers, event)?
-                }
-                _ => handle_worker_event(&mut workers, event)?,
-            }
-        }
-
-        if workers.is_empty() {
-            return Ok(());
-        }
-    }
 }
 
 /// Relay all signals receive from `signals` to the `workers` and

@@ -24,20 +24,33 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::task::{self, Poll};
 
+use lazy_static::lazy_static;
 use rand::Rng;
 
 use crate::actor::{self, context, Actor, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::inbox::{Inbox, InboxRef};
+use crate::rt::scheduler::Scheduler;
+use crate::rt::waker::{self, Waker, WakerId};
 use crate::rt::worker::RunningRuntime;
-use crate::rt::{ProcessId, Waker};
-use crate::{rt, RuntimeRef};
+use crate::rt::{self, ProcessId, RuntimeRef};
+
+lazy_static! {
+    static ref COORDINATOR_ID: WakerId = {
+        let poll = mio::Poll::new().unwrap();
+        let waker = mio::Waker::new(poll.registry(), mio::Token(0)).unwrap();
+        let (sender, _) = crossbeam_channel::unbounded();
+        waker::init(waker, sender)
+    };
+}
 
 thread_local! {
     /// Per thread active, but not running, runtime.
     static TEST_RT: RefCell<RunningRuntime> = {
+        let scheduler = Scheduler::new();
+        let scheduler = scheduler.create_ref();
         let (_, receiver) = rt::channel::new().unwrap();
-        RefCell::new(RunningRuntime::new(receiver).unwrap())
+        RefCell::new(RunningRuntime::new(receiver, scheduler, *COORDINATOR_ID).unwrap())
     };
 }
 
@@ -62,7 +75,7 @@ where
     let (inbox, inbox_ref) = Inbox::new(waker);
     let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
 
-    let ctx = actor::Context::new_local(pid, inbox, inbox_ref, runtime_ref);
+    let ctx = actor::Context::new(pid, inbox, inbox_ref, runtime_ref);
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, actor_ref))
@@ -87,7 +100,7 @@ where
     let waker = runtime_ref.new_waker(pid);
     let (inbox, inbox_ref) = Inbox::new(waker);
 
-    let ctx = actor::Context::new_local(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
+    let ctx = actor::Context::new(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, inbox, inbox_ref))

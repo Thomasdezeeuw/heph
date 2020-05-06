@@ -4,8 +4,6 @@
 //!
 //! [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
 
-#![allow(dead_code, unused_imports)] // FIXME: remove.
-
 use std::fmt;
 use std::ops::Deref;
 use std::pin::Pin;
@@ -15,7 +13,7 @@ use std::time::Duration;
 use log::trace;
 use parking_lot::{Mutex, RwLock};
 
-use crate::actor::NewActor;
+use crate::actor::{context, NewActor};
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{ActorProcess, ProcessId};
 use crate::rt::scheduler::{AddActor, Priority, ProcessData};
@@ -63,7 +61,7 @@ use runqueue::RunQueue;
 //   resources cleaned up.
 
 /// The thread-safe scheduler, responsible for scheduling processes.
-pub(in crate::rt) struct Scheduler {
+pub(crate) struct Scheduler {
     shared: Arc<Shared>,
 }
 
@@ -93,38 +91,12 @@ struct Shared {
 
 impl Scheduler {
     /// Create a new `Scheduler` and accompanying reference.
-    pub(in crate::rt) fn new() -> (Scheduler, WorkStealer) {
+    pub(crate) fn new() -> Scheduler {
         let shared = Arc::new(Shared {
             ready: RwLock::new(RunQueue::empty()),
             inactive: Mutex::new(Inactive::empty()),
         });
-        let scheduler = Scheduler {
-            shared: shared.clone(),
-        };
-        let stealer = WorkStealer { shared };
-        (scheduler, stealer)
-    }
-
-    /*
-    /// Returns `true` if the schedule has any processes (in any state), `false`
-    /// otherwise.
-    pub(in crate::rt) fn has_process(&self) -> bool {
-        self.shared.inactive.has_process() || self.has_ready_process()
-    }
-
-    /// Returns `true` if the schedule has any processes that are ready to run,
-    /// `false` otherwise.
-    pub(in crate::rt) fn has_ready_process(&self) -> bool {
-        self.run_queue(|run_queue| run_queue.has_process())
-    }
-    */
-
-    /// Add an actor to the scheduler.
-    pub(in crate::rt) fn add_actor<'s>(&'s mut self) -> AddActor<&'s Mutex<Inactive>> {
-        AddActor {
-            processes: &self.shared.inactive,
-            alloc: Box::new_uninit(),
-        }
+        Scheduler { shared }
     }
 
     /// Mark the process, with `pid`, as ready to run.
@@ -144,25 +116,6 @@ impl Scheduler {
         }
     }
 
-    /*
-    /// Returns the next ready process.
-    pub(in crate::rt) fn next_process(&mut self) -> Option<Pin<Box<ProcessData>>> {
-        // Get a process from the run queue.
-        match self.shared.ready.try_write() {
-            // Fast path.
-            Some(mut run_queue) => run_queue.remove_mut(),
-            // Slow path.
-            None => self.run_queue(|run_queue| run_queue.remove()),
-        }
-    }
-    */
-
-    /// Add back a process that was previously removed via
-    /// [`Scheduler::next_process`].
-    pub(in crate::rt) fn add_process(&mut self, process: Pin<Box<ProcessData>>) {
-        self.shared.inactive.lock().add(process)
-    }
-
     /// Get immutable access to the run queue.
     fn run_queue<F, O>(&self, f: F) -> O
     where
@@ -176,6 +129,13 @@ impl Scheduler {
             None => unreachable!("Scheduler can't get access to RunQueue"),
         }
     }
+
+    /// Create a [`SchedulerRef`] referring to this scheduler.
+    pub(crate) fn create_ref(&self) -> SchedulerRef {
+        SchedulerRef {
+            shared: self.shared.clone(),
+        }
+    }
 }
 
 impl fmt::Debug for Scheduler {
@@ -184,18 +144,39 @@ impl fmt::Debug for Scheduler {
     }
 }
 
-/// Handle to a [`Scheduler`] to steal processes from the run queue.
+/// Handle to a [`Scheduler`].
 #[derive(Clone)]
-pub(in crate::rt) struct WorkStealer {
+pub(crate) struct SchedulerRef {
     shared: Arc<Shared>,
 }
 
-impl WorkStealer {
+impl SchedulerRef {
+    /// Returns `true` if the schedule has any processes (in any state), `false`
+    /// otherwise.
+    pub(in crate::rt) fn has_process(&self) -> bool {
+        !self.shared.inactive.lock().has_process() || self.has_ready_process()
+    }
+
+    /// Returns `true` if the schedule has any processes that are ready to run,
+    /// `false` otherwise.
+    pub(in crate::rt) fn has_ready_process(&self) -> bool {
+        self.shared.ready.read().has_process()
+    }
+
+    /// Add a thread-safe actor to the scheduler.
+    pub(in crate::rt) fn add_actor<'s>(&'s mut self) -> AddActor<&'s Mutex<Inactive>> {
+        AddActor {
+            processes: &self.shared.inactive,
+            alloc: Box::new_uninit(),
+        }
+    }
+
     /// Attempts to steal a process.
     ///
-    /// If this returns `Err(())` it means the thread that owns the scheduler
-    /// has unique access to it and that we can't get access to it. Otherwise it
-    /// returns a process or nothing if the run queue is empty.
+    /// Returns:
+    /// * `Ok(Some(..))` if a process was successfully stolen.
+    /// * `Ok(None)` if no processes are available to run.
+    /// * `Err(())` if the scheduler currently can't be accessed.
     pub(in crate::rt) fn try_steal(&mut self) -> Result<Option<Pin<Box<ProcessData>>>, ()> {
         match self.shared.ready.try_read() {
             Some(run_queue) => Ok(run_queue.remove()),
@@ -210,16 +191,15 @@ impl WorkStealer {
     }
 }
 
-impl fmt::Debug for WorkStealer {
+impl fmt::Debug for SchedulerRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("WorkStealer")
+        f.write_str("SchedulerRef")
     }
 }
 
-/* FIXME: Supervisor trait for NewActor (not NewActor).
 impl<'s> AddActor<&'s Mutex<Inactive>> {
-    /// Add a new inactive actor to the scheduler.
-    pub(super) fn add<S, NA>(
+    /// Add a new inactive thread-safe actor to the scheduler.
+    pub(in crate::rt) fn add<S, NA>(
         self,
         priority: Priority,
         supervisor: S,
@@ -228,8 +208,9 @@ impl<'s> AddActor<&'s Mutex<Inactive>> {
         inbox: Inbox<NA::Message>,
         inbox_ref: InboxRef<NA::Message>,
     ) where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor + 'static,
+        S: Supervisor<NA> + Send + 'static,
+        NA: NewActor<Context = context::ThreadSafe> + Send + 'static,
+        NA::Actor: Send + 'static,
     {
         #[allow(trivial_casts)]
         debug_assert!(
@@ -253,7 +234,6 @@ impl<'s> AddActor<&'s Mutex<Inactive>> {
             // Safe because we write into the allocation above.
             alloc.assume_init().into()
         };
-        processes.add(process)
+        processes.lock().add(process)
     }
 }
-*/

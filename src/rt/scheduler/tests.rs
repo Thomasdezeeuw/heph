@@ -1,5 +1,6 @@
 //! Tests for the scheduler.
 
+use std::cmp::Ordering;
 use std::mem::{self, forget};
 use std::pin::Pin;
 use std::thread::sleep;
@@ -12,6 +13,7 @@ use crate::actor::{self, context, NewActor};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::rt::scheduler::{Priority, ProcessData};
 use crate::rt::RuntimeRef;
+use crate::test;
 
 fn assert_size<T>(expected: usize) {
     assert_eq!(mem::size_of::<T>(), expected);
@@ -22,6 +24,106 @@ fn size_assertions() {
     assert_size::<ProcessId>(8);
     assert_size::<Priority>(1);
     assert_size::<ProcessData>(40);
+}
+
+#[test]
+fn process_data_equality() {
+    let process1 = ProcessData {
+        priority: Priority::LOW,
+        fair_runtime: Duration::from_millis(0),
+        process: Box::pin(NopTestProcess),
+    };
+    let process2 = ProcessData {
+        priority: Priority::NORMAL,
+        fair_runtime: Duration::from_millis(0),
+        process: Box::pin(NopTestProcess),
+    };
+    let process3 = ProcessData {
+        priority: Priority::HIGH,
+        fair_runtime: Duration::from_millis(0),
+        process: Box::pin(NopTestProcess),
+    };
+
+    // Equality is only based on id alone.
+    assert_eq!(process1, process1);
+    assert_ne!(process1, process2);
+    assert_ne!(process1, process3);
+
+    assert_ne!(process2, process1);
+    assert_eq!(process2, process2);
+    assert_ne!(process2, process3);
+
+    assert_ne!(process3, process1);
+    assert_ne!(process3, process2);
+    assert_eq!(process3, process3);
+}
+
+#[test]
+fn process_data_ordering() {
+    let mut process1 = ProcessData {
+        priority: Priority::HIGH,
+        fair_runtime: Duration::from_millis(10),
+        process: Box::pin(NopTestProcess),
+    };
+    let mut process2 = ProcessData {
+        priority: Priority::NORMAL,
+        fair_runtime: Duration::from_millis(10),
+        process: Box::pin(NopTestProcess),
+    };
+    let mut process3 = ProcessData {
+        priority: Priority::LOW,
+        fair_runtime: Duration::from_millis(10),
+        process: Box::pin(NopTestProcess),
+    };
+
+    // Ordering only on runtime and priority.
+    assert_eq!(process1.cmp(&process1), Ordering::Equal);
+    assert_eq!(process1.cmp(&process2), Ordering::Greater);
+    assert_eq!(process1.cmp(&process3), Ordering::Greater);
+
+    assert_eq!(process2.cmp(&process1), Ordering::Less);
+    assert_eq!(process2.cmp(&process2), Ordering::Equal);
+    assert_eq!(process2.cmp(&process3), Ordering::Greater);
+
+    assert_eq!(process3.cmp(&process1), Ordering::Less);
+    assert_eq!(process3.cmp(&process2), Ordering::Less);
+    assert_eq!(process3.cmp(&process3), Ordering::Equal);
+
+    let duration = Duration::from_millis(0);
+    process1.fair_runtime = duration;
+    process2.fair_runtime = duration;
+    process3.fair_runtime = duration;
+
+    // If all the "fair runtimes" are equal we only compare based on the
+    // priority.
+    assert_eq!(process1.cmp(&process1), Ordering::Equal);
+    assert_eq!(process1.cmp(&process2), Ordering::Greater);
+    assert_eq!(process1.cmp(&process3), Ordering::Greater);
+
+    assert_eq!(process2.cmp(&process1), Ordering::Less);
+    assert_eq!(process2.cmp(&process2), Ordering::Equal);
+    assert_eq!(process2.cmp(&process3), Ordering::Greater);
+
+    assert_eq!(process3.cmp(&process1), Ordering::Less);
+    assert_eq!(process3.cmp(&process2), Ordering::Less);
+    assert_eq!(process3.cmp(&process3), Ordering::Equal);
+}
+
+#[test]
+fn process_data_runtime_increase() {
+    const SLEEP_TIME: Duration = Duration::from_millis(10);
+
+    let mut process = Box::pin(ProcessData {
+        priority: Priority::HIGH,
+        fair_runtime: Duration::from_millis(10),
+        process: Box::pin(SleepyProcess(SLEEP_TIME)),
+    });
+
+    // Runtime must increase after running.
+    let mut runtime_ref = test::runtime();
+    let res = process.as_mut().run(&mut runtime_ref);
+    assert_eq!(res, ProcessResult::Pending);
+    assert!(process.fair_runtime >= SLEEP_TIME);
 }
 
 #[derive(Debug)]
@@ -130,10 +232,11 @@ impl NewActor for TestAssertUnmovedNewActor {
 mod local {
     use std::time::Duration;
 
-    use super::super::{LocalScheduler, Priority, ProcessData, ProcessId};
-    use super::{simple_actor, NopTestProcess};
+    use super::{simple_actor, NopTestProcess, TestAssertUnmovedNewActor};
+    use crate::rt::process::{ProcessId, ProcessResult};
+    use crate::rt::scheduler::{LocalScheduler, Priority, ProcessData};
     use crate::supervisor::NoSupervisor;
-    use crate::test::init_actor_inbox;
+    use crate::test::{self, init_actor_inbox};
 
     #[test]
     fn has_process() {
@@ -323,113 +426,72 @@ mod local {
         let process = scheduler.next_process().unwrap();
         assert_eq!(process.as_ref().id(), pid);
     }
+
+    #[test]
+    fn assert_process_unmoved() {
+        let mut scheduler = LocalScheduler::new();
+        let mut runtime_ref = test::runtime();
+
+        let new_actor = TestAssertUnmovedNewActor;
+        let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+
+        let actor_entry = scheduler.add_actor();
+        let pid = actor_entry.pid();
+        actor_entry.add(
+            Priority::NORMAL,
+            NoSupervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+        );
+
+        // Schedule and run the process multiple times, ensure it's not moved in the
+        // process.
+        scheduler.mark_ready(pid);
+        let mut process = scheduler.next_process().unwrap();
+        assert_eq!(
+            process.as_mut().run(&mut runtime_ref),
+            ProcessResult::Pending
+        );
+        scheduler.add_process(process);
+
+        scheduler.mark_ready(pid);
+        let mut process = scheduler.next_process().unwrap();
+        assert_eq!(
+            process.as_mut().run(&mut runtime_ref),
+            ProcessResult::Pending
+        );
+        scheduler.add_process(process);
+
+        scheduler.mark_ready(pid);
+        let mut process = scheduler.next_process().unwrap();
+        assert_eq!(
+            process.as_mut().run(&mut runtime_ref),
+            ProcessResult::Pending
+        );
+    }
 }
 
-/*
 mod shared {
+    #![allow(unused_imports)] // FIXME: remove.
+
+    /*
     use crate::supervisor::NoSupervisor;
     use crate::test::{self, init_actor_inbox};
+    */
+
+    //use super::{simple_actor, NopTestProcess, TestAssertUnmovedNewActor};
+    use crate::rt::process::ProcessId;
+    use crate::rt::scheduler::Scheduler;
 
     #[test]
-    fn process_data_equality() {
-        let process1 = ProcessData {
-            priority: Priority::LOW,
-            fair_runtime: Duration::from_millis(0),
-            process: Box::pin(NopTestProcess),
-        };
-        let process2 = ProcessData {
-            priority: Priority::NORMAL,
-            fair_runtime: Duration::from_millis(0),
-            process: Box::pin(NopTestProcess),
-        };
-        let process3 = ProcessData {
-            priority: Priority::HIGH,
-            fair_runtime: Duration::from_millis(0),
-            process: Box::pin(NopTestProcess),
-        };
-
-        // Equality is only based on id alone.
-        assert_eq!(process1, process1);
-        assert_ne!(process1, process2);
-        assert_ne!(process1, process3);
-
-        assert_ne!(process2, process1);
-        assert_eq!(process2, process2);
-        assert_ne!(process2, process3);
-
-        assert_ne!(process3, process1);
-        assert_ne!(process3, process2);
-        assert_eq!(process3, process3);
+    fn is_send() {
+        fn assert_send<T: Send>() {}
+        assert_send::<Scheduler>();
     }
 
-    #[test]
-    fn process_data_ordering() {
-        let mut process1 = ProcessData {
-            priority: Priority::HIGH,
-            fair_runtime: Duration::from_millis(10),
-            process: Box::pin(NopTestProcess),
-        };
-        let mut process2 = ProcessData {
-            priority: Priority::NORMAL,
-            fair_runtime: Duration::from_millis(10),
-            process: Box::pin(NopTestProcess),
-        };
-        let mut process3 = ProcessData {
-            priority: Priority::LOW,
-            fair_runtime: Duration::from_millis(10),
-            process: Box::pin(NopTestProcess),
-        };
-
-        // Ordering only on runtime and priority.
-        assert_eq!(process1.cmp(&process1), Ordering::Equal);
-        assert_eq!(process1.cmp(&process2), Ordering::Greater);
-        assert_eq!(process1.cmp(&process3), Ordering::Greater);
-
-        assert_eq!(process2.cmp(&process1), Ordering::Less);
-        assert_eq!(process2.cmp(&process2), Ordering::Equal);
-        assert_eq!(process2.cmp(&process3), Ordering::Greater);
-
-        assert_eq!(process3.cmp(&process1), Ordering::Less);
-        assert_eq!(process3.cmp(&process2), Ordering::Less);
-        assert_eq!(process3.cmp(&process3), Ordering::Equal);
-
-        let duration = Duration::from_millis(0);
-        process1.fair_runtime = duration;
-        process2.fair_runtime = duration;
-        process3.fair_runtime = duration;
-
-        // If all the "fair runtimes" are equal we only compare based on the
-        // priority.
-        assert_eq!(process1.cmp(&process1), Ordering::Equal);
-        assert_eq!(process1.cmp(&process2), Ordering::Greater);
-        assert_eq!(process1.cmp(&process3), Ordering::Greater);
-
-        assert_eq!(process2.cmp(&process1), Ordering::Less);
-        assert_eq!(process2.cmp(&process2), Ordering::Equal);
-        assert_eq!(process2.cmp(&process3), Ordering::Greater);
-
-        assert_eq!(process3.cmp(&process1), Ordering::Less);
-        assert_eq!(process3.cmp(&process2), Ordering::Less);
-        assert_eq!(process3.cmp(&process3), Ordering::Equal);
-    }
-
-    #[test]
-    fn process_data_runtime_increase() {
-        const SLEEP_TIME: Duration = Duration::from_millis(10);
-
-        let mut process = Box::pin(ProcessData {
-            priority: Priority::HIGH,
-            fair_runtime: Duration::from_millis(10),
-            process: Box::pin(SleepyProcess(SLEEP_TIME)),
-        });
-
-        // Runtime must increase after running.
-        let mut runtime_ref = test::runtime();
-        let res = process.as_mut().run(&mut runtime_ref);
-        assert_eq!(res, ProcessResult::Pending);
-        assert!(process.fair_runtime >= SLEEP_TIME);
-    }
-
+    /*
     #[test]
     fn adding_actor() {
         let (mut scheduler, _) = Scheduler::new();
@@ -487,22 +549,29 @@ mod shared {
         let process = scheduler.next_process().unwrap();
         assert_eq!(process.as_ref().id(), pid);
     }
+    */
 
     #[test]
     fn marking_unknown_pid_as_ready() {
-        let (mut scheduler, _) = Scheduler::new();
+        let mut scheduler = Scheduler::new();
+        let mut scheduler_ref = scheduler.create_ref();
 
+        /*
         assert!(!scheduler.has_process());
         assert!(!scheduler.has_ready_process());
-        assert_eq!(scheduler.next_process(), None);
+        */
+        assert_eq!(scheduler_ref.try_steal(), Ok(None));
 
         // Scheduling an unknown process should do nothing.
         scheduler.mark_ready(ProcessId(0));
+        /*
         assert!(!scheduler.has_process());
         assert!(!scheduler.has_ready_process());
-        assert_eq!(scheduler.next_process(), None);
+        */
+        assert_eq!(scheduler_ref.try_steal(), Ok(None));
     }
 
+    /*
     #[test]
     fn scheduler_run_order() {
         let (mut scheduler, _) = Scheduler::new();
@@ -588,5 +657,5 @@ mod shared {
             ProcessResult::Pending
         );
     }
+    */
 }
-*/

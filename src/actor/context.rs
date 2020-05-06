@@ -63,24 +63,25 @@ pub struct ThreadSafe {
     _priv: (),
 }
 
-impl<M> Context<M> {
-    /// Create a new `actor::Context<M, ThreadLocal>`.
-    pub(crate) const fn new_local(
+impl<M, C> Context<M, C> {
+    /// Create a new `actor::Context`.
+    pub(crate) fn new<'a>(
         pid: ProcessId,
         inbox: Inbox<M>,
         inbox_ref: InboxRef<M>,
         runtime_ref: RuntimeRef,
-    ) -> Context<M> {
+    ) -> Context<M, C>
+    where
+        C: From<RuntimeRef>,
+    {
         Context {
             pid,
             inbox,
             inbox_ref,
-            kind: ThreadLocal { runtime_ref },
+            kind: C::from(runtime_ref),
         }
     }
-}
 
-impl<M, K> Context<M, K> {
     /// Attempt to receive the next message.
     ///
     /// This will attempt to receive next message if one is available. If the
@@ -330,6 +331,21 @@ impl<M> Context<M, ThreadLocal> {
     /// Get a reference to the runtime this actor is running in.
     pub fn runtime(&mut self) -> &mut RuntimeRef {
         &mut self.kind.runtime_ref
+    }
+}
+
+impl From<RuntimeRef> for ThreadLocal {
+    fn from(runtime_ref: RuntimeRef) -> ThreadLocal {
+        ThreadLocal {
+            runtime_ref: runtime_ref.clone(),
+        }
+    }
+}
+
+// See [`Context::new`] why.
+impl From<RuntimeRef> for ThreadSafe {
+    fn from(_: RuntimeRef) -> ThreadSafe {
+        ThreadSafe { _priv: () }
     }
 }
 

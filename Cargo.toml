@@ -26,6 +26,7 @@ crossbeam-channel = { version = "0.4.0", default-features = false }
 fnv               = { version = "1.0.6", default-features = false }
 futures-core      = { version = "0.3.4", default-features = false }
 futures-io        = { version = "0.3.4", default-features = false, features = ["std"] }
+lazy_static       = { version = "1.4.0", default-features = false }
 log               = { version = "0.4.8", default-features = false }
 mio               = { version = "0.7.0", default-features = false, features = ["os-poll", "tcp", "udp"] }
 mio-pipe          = { version = "0.1.0", default-features = false }
@@ -39,4 +40,3 @@ std-logger        = { version = "0.3.6", default-features = false, features = ["
 [dev-dependencies]
 futures-test = { version = "0.3.4", default-features = false, features = ["std"] }
 futures-util = { version = "0.3.4", default-features = false, features = ["async-await-macro"] }
-lazy_static  = { version = "1.4.0", default-features = false }

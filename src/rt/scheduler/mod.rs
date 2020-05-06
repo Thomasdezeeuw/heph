@@ -19,8 +19,8 @@ mod shared;
 mod tests;
 
 pub(super) use local::LocalScheduler;
-#[allow(unused_imports)] // FIXME: remove.
-pub(super) use shared::Scheduler;
+// Use in `test` module.
+pub(crate) use shared::{Scheduler, SchedulerRef};
 
 pub use priority::Priority;
 

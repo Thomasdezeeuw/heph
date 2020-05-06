@@ -128,6 +128,7 @@ impl RunQueue {
     }
 
     /// Mutable version of `remove`.
+    #[allow(dead_code)]
     pub(super) fn remove_mut(&mut self) -> Option<Pin<Box<ProcessData>>> {
         let root = self.root.get_mut();
 
