@@ -1,7 +1,6 @@
 //! Module containing the `Process` trait, related types and implementations.
 
 use std::fmt;
-use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 
 use mio::Token;
@@ -24,7 +23,7 @@ pub use actor::ActorProcess;
 ///
 /// [`Runtime`]: crate::Runtime
 /// [`Scheduler`]: crate::rt::scheduler::Scheduler
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[repr(transparent)]
 pub struct ProcessId(pub usize);
 
@@ -37,15 +36,6 @@ impl From<Token> for ProcessId {
 impl Into<Token> for ProcessId {
     fn into(self) -> Token {
         Token(self.0)
-    }
-}
-
-impl Hash for ProcessId {
-    fn hash<H>(&self, state: &mut H)
-    where
-        H: Hasher,
-    {
-        self.0.hash(state)
     }
 }
 

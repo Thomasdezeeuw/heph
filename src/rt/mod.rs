@@ -456,6 +456,7 @@ impl RuntimeRef {
     /// such as the implementation provided by async function, it's easier to
     /// use the [`spawn`] method.
     ///
+    /// [`try_spawn_local`]: RuntimeRef::try_spawn_local
     /// [`spawn`]: RuntimeRef::spawn
     pub fn try_spawn<S, NA>(
         &mut self,

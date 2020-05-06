@@ -182,7 +182,7 @@ impl Pointer {
             Some(pointer) if pointer.is_process() => {
                 let p = unsafe { Box::from_raw(pointer.as_ptr() as *mut _) };
                 // We just read the pointer so now we have to forget it.
-                forget(replace(this, None));
+                forget(this.take());
                 Some(Ok(Pin::new(p)))
             }
             Some(pointer) => {

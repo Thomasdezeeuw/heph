@@ -120,7 +120,10 @@ impl Hash for Process {
 impl Borrow<ProcessId> for Process {
     fn borrow(&self) -> &ProcessId {
         // See `ProcessData::id` why this is safe.
-        unsafe { std::mem::transmute::<&Process, &ProcessId>(self) }
+        #[allow(trivial_casts)]
+        unsafe {
+            &*(self as *const Process as *const ProcessId)
+        }
     }
 }
 

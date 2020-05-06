@@ -65,7 +65,7 @@ pub struct ThreadSafe {
 
 impl<M, C> Context<M, C> {
     /// Create a new `actor::Context`.
-    pub(crate) fn new<'a>(
+    pub(crate) fn new(
         pid: ProcessId,
         inbox: Inbox<M>,
         inbox_ref: InboxRef<M>,
@@ -336,9 +336,7 @@ impl<M> Context<M, ThreadLocal> {
 
 impl From<RuntimeRef> for ThreadLocal {
     fn from(runtime_ref: RuntimeRef) -> ThreadLocal {
-        ThreadLocal {
-            runtime_ref: runtime_ref.clone(),
-        }
+        ThreadLocal { runtime_ref }
     }
 }
 
