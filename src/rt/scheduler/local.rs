@@ -14,10 +14,11 @@ use std::time::Duration;
 use fnv::FnvBuildHasher;
 use log::trace;
 
+use crate::actor::context;
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{ActorProcess, ProcessId};
 use crate::rt::scheduler::{AddActor, Priority, ProcessData};
-use crate::{NewLocalActor, Supervisor};
+use crate::{NewActor, Supervisor};
 
 pub(in crate::rt) struct LocalScheduler {
     /// Processes that are ready to run.
@@ -50,7 +51,7 @@ impl LocalScheduler {
     /// Add an actor to the scheduler.
     pub(in crate::rt) fn add_actor<'s>(
         &'s mut self,
-    ) -> AddActor<'s, HashSet<Process, FnvBuildHasher>> {
+    ) -> AddActor<&'s mut HashSet<Process, FnvBuildHasher>> {
         AddActor {
             processes: &mut self.inactive,
             alloc: Box::new_uninit(),
@@ -123,7 +124,7 @@ impl Borrow<ProcessId> for Process {
     }
 }
 
-impl<'s> AddActor<'s, HashSet<Process, FnvBuildHasher>> {
+impl<'s> AddActor<&'s mut HashSet<Process, FnvBuildHasher>> {
     /// Add a new inactive actor to the scheduler.
     pub(in crate::rt) fn add<S, NA>(
         self,
@@ -135,7 +136,7 @@ impl<'s> AddActor<'s, HashSet<Process, FnvBuildHasher>> {
         inbox_ref: InboxRef<NA::Message>,
     ) where
         S: Supervisor<NA> + 'static,
-        NA: NewLocalActor + 'static,
+        NA: NewActor<Context = context::ThreadLocal> + 'static,
     {
         let process = ProcessData {
             priority,

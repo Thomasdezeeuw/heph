@@ -249,7 +249,7 @@ mod tests {
     /// Create a `RunQueue` test.
     macro_rules! runqueue_test {
         (
-            // Name of the queue.
+            // Name of the test.
             $name: ident,
             // List of processes to add in order. Value passed in the value of
             // the duration of the process' runtime (used in ordering in the
