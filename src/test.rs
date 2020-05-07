@@ -59,9 +59,9 @@ pub fn runtime() -> RuntimeRef {
     TEST_RT.with(|runtime| runtime.borrow().create_ref())
 }
 
-/// Initialise an actor.
+/// Initialise a thread-local actor.
 #[allow(clippy::type_complexity)]
-pub fn init_actor<NA>(
+pub fn init_local_actor<NA>(
     mut new_actor: NA,
     arg: NA::Argument,
 ) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
@@ -81,7 +81,56 @@ where
     Ok((actor, actor_ref))
 }
 
-/// Initialise an actor.
+/*
+/// Initialise a thread-safe actor.
+#[allow(clippy::type_complexity)]
+pub fn init_actor<NA>(
+    mut new_actor: NA,
+    arg: NA::Argument,
+) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
+where
+    NA: NewActor<Context = context::ThreadSafe>,
+{
+    let runtime_ref = runtime();
+    let pid = ProcessId(0);
+
+    let waker = runtime_ref.new_waker(pid);
+    let (inbox, inbox_ref) = Inbox::new(waker);
+    let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
+
+    let ctx = actor::Context::new(pid, inbox, inbox_ref, runtime_ref);
+    let actor = new_actor.new(ctx, arg)?;
+
+    Ok((actor, actor_ref))
+}
+*/
+
+/// Initialise a thread-local actor.
+///
+/// Same as `init_local_actor`, but returns the inbox of the actor instead of an
+/// actor reference.
+#[allow(clippy::type_complexity)]
+#[cfg(test)]
+pub(crate) fn init_local_actor_inbox<NA>(
+    mut new_actor: NA,
+    arg: NA::Argument,
+) -> Result<(NA::Actor, Inbox<NA::Message>, InboxRef<NA::Message>), NA::Error>
+where
+    NA: NewActor<Context = context::ThreadLocal>,
+{
+    let runtime_ref = runtime();
+    let pid = ProcessId(0);
+
+    let waker = runtime_ref.new_waker(pid);
+    let (inbox, inbox_ref) = Inbox::new(waker);
+
+    let ctx = actor::Context::new(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
+    let actor = new_actor.new(ctx, arg)?;
+
+    Ok((actor, inbox, inbox_ref))
+}
+
+/// Initialise a thread-safe actor.
 ///
 /// Same as `init_actor`, but returns the inbox of the actor instead of an actor
 /// reference.
@@ -92,7 +141,7 @@ pub(crate) fn init_actor_inbox<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, Inbox<NA::Message>, InboxRef<NA::Message>), NA::Error>
 where
-    NA: NewActor<Context = context::ThreadLocal>,
+    NA: NewActor<Context = context::ThreadSafe>,
 {
     let runtime_ref = runtime();
     let pid = ProcessId(0);

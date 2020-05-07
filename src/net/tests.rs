@@ -11,7 +11,7 @@ use futures_util::pin_mut;
 
 use crate::actor::{self, context, Actor, NewActor};
 use crate::net::UdpSocket;
-use crate::test::{init_actor, poll_actor};
+use crate::test::{init_local_actor, poll_actor};
 
 const DATA: &[u8] = b"Hello world";
 
@@ -57,7 +57,7 @@ where
     let echo_socket = std::net::UdpSocket::bind(local_address).unwrap();
     let address = echo_socket.local_addr().unwrap();
 
-    let (actor, _) = init_actor(new_actor, address).unwrap();
+    let (actor, _) = init_local_actor(new_actor, address).unwrap();
     pin_mut!(actor);
 
     // Send the data, peeking should return pending.
@@ -158,7 +158,7 @@ fn test_reconnecting_udp_socket(local_address: SocketAddr) {
 
     #[allow(trivial_casts)]
     let reconnecting_actor = reconnecting_actor as fn(_, _, _) -> _;
-    let (actor, _) = init_actor(reconnecting_actor, (address1, address2)).unwrap();
+    let (actor, _) = init_local_actor(reconnecting_actor, (address1, address2)).unwrap();
     pin_mut!(actor);
 
     // Let the actor send all data.

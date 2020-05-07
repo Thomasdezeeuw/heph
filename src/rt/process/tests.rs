@@ -13,7 +13,7 @@ use crate::actor::{self, context, Actor, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::rt::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use crate::test::{self, init_actor_inbox};
+use crate::test::{self, init_local_actor_inbox};
 
 #[test]
 fn pid() {
@@ -48,7 +48,7 @@ fn actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = ok_actor as fn(_) -> _;
-    let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+    let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, ()).unwrap();
     let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
 
     // Create our process.
@@ -81,7 +81,7 @@ fn erroneous_actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = error_actor as fn(_, _) -> _;
-    let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, true).unwrap();
+    let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, true).unwrap();
 
     // Create our process.
     let process = ActorProcess::new(
@@ -104,7 +104,7 @@ fn restarting_erroneous_actor_process() {
     // Create our actor.
     #[allow(trivial_casts)]
     let new_actor = error_actor as fn(_, _) -> _;
-    let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, true).unwrap();
+    let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, true).unwrap();
     let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
 
     struct TestSupervisor(Arc<AtomicBool>);
@@ -174,7 +174,7 @@ impl NewActor for TestAssertUnmovedNewActor {
 #[test]
 fn actor_process_assert_actor_unmoved() {
     // Create our actor.
-    let (actor, inbox, inbox_ref) = init_actor_inbox(TestAssertUnmovedNewActor, ()).unwrap();
+    let (actor, inbox, inbox_ref) = init_local_actor_inbox(TestAssertUnmovedNewActor, ()).unwrap();
 
     // Create our process.
     let process = ActorProcess::new(
