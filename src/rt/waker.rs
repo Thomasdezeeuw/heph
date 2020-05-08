@@ -9,10 +9,6 @@ use log::{error, trace};
 
 use crate::rt::ProcessId;
 
-// FIXME: once we implement work-stealing we now need to wake another thread.
-// How do we deal with that in `ActorRef`s and `task::Context`/`task::Waker`s we
-// can't access anymore?
-
 /// Waker used to wake a process.
 #[derive(Debug, Clone)]
 pub(crate) struct Waker {

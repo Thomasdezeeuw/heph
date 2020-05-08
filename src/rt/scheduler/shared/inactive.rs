@@ -16,12 +16,12 @@ const LEVEL_SHIFT: usize = N_BRANCHES / 2;
 const LEVEL_MASK: usize = (1 << LEVEL_SHIFT) - 1;
 /// For alignment reasons the two least significant bits are always 0, so we can
 /// safely skip them.
-// FIXME: add assertion test for this.
 const SKIP_BITS: usize = 2;
+const SKIP_MASK: usize = (1 << SKIP_BITS) - 1;
 
-/// Returns `false` if `ptr`'s `SKIP_BITS` aren't `0`.
+/// Returns `false` if `ptr`'s `SKIP_BITS` aren't valid.
 pub(super) fn ok_ptr(ptr: *const ()) -> bool {
-    ptr as usize & ((1 << SKIP_BITS) - 1) == 0
+    ptr as usize & SKIP_MASK == 0
 }
 
 /// Inactive processes.
@@ -58,7 +58,8 @@ impl Inactive {
     /// Add a `process`.
     pub(super) fn add(&mut self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
-        debug_assert!(pid.0 & LEVEL_MASK == 0);
+        // Ensure `SKIP_BITS` is correct.
+        debug_assert!(pid.0 & SKIP_MASK == 0);
         self.root.add(process, pid.0 >> SKIP_BITS, 0);
         self.length += 1;
     }
