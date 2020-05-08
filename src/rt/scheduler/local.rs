@@ -16,9 +16,11 @@ use log::trace;
 
 use crate::actor::context;
 use crate::inbox::{Inbox, InboxRef};
-use crate::rt::process::{ActorProcess, ProcessId};
-use crate::rt::scheduler::{AddActor, Priority, ProcessData};
+use crate::rt::process::{self, ActorProcess, ProcessId};
+use crate::rt::scheduler::{self, AddActor, Priority};
 use crate::{NewActor, Supervisor};
+
+pub(super) type ProcessData = scheduler::ProcessData<dyn process::Process>;
 
 pub(in crate::rt) struct LocalScheduler {
     /// Processes that are ready to run.
@@ -51,7 +53,7 @@ impl LocalScheduler {
     /// Add an actor to the scheduler.
     pub(in crate::rt) fn add_actor<'s>(
         &'s mut self,
-    ) -> AddActor<&'s mut HashSet<Process, FnvBuildHasher>> {
+    ) -> AddActor<&'s mut HashSet<Process, FnvBuildHasher>, dyn process::Process> {
         AddActor {
             processes: &mut self.inactive,
             alloc: Box::new_uninit(),
@@ -127,7 +129,7 @@ impl Borrow<ProcessId> for Process {
     }
 }
 
-impl<'s> AddActor<&'s mut HashSet<Process, FnvBuildHasher>> {
+impl<'s> AddActor<&'s mut HashSet<Process, FnvBuildHasher>, dyn process::Process> {
     /// Add a new inactive actor to the scheduler.
     pub(in crate::rt) fn add<S, NA>(
         self,

@@ -466,9 +466,10 @@ impl RuntimeRef {
         options: ActorOptions,
     ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
-        S: Supervisor<NA> + Send + 'static,
-        NA: NewActor<Context = context::ThreadSafe> + Send + 'static,
-        NA::Actor: Send + 'static,
+        S: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<Context = context::ThreadSafe> + Sync + Send + 'static,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
     {
         self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
             .map_err(|err| match err {
@@ -491,9 +492,10 @@ impl RuntimeRef {
         options: ActorOptions,
     ) -> ActorRef<NA::Message>
     where
-        S: Supervisor<NA> + Send + 'static,
-        NA: NewActor<Error = !, Context = context::ThreadSafe> + Send + 'static,
-        NA::Actor: Send + 'static,
+        S: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<Error = !, Context = context::ThreadSafe> + Sync + Send + 'static,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
     {
         self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
             .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
@@ -514,10 +516,11 @@ impl RuntimeRef {
         options: ActorOptions,
     ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
-        S: Supervisor<NA> + Send + 'static,
-        NA: NewActor<Context = context::ThreadSafe> + Send + 'static,
+        S: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<Context = context::ThreadSafe> + Sync + Send + 'static,
         ArgFn: FnOnce(ProcessId) -> Result<NA::Argument, ArgFnE>,
-        NA::Actor: Send + 'static,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
     {
         let RuntimeInternal {
             coordinator_id,

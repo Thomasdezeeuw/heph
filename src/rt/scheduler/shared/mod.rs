@@ -15,8 +15,8 @@ use parking_lot::{Mutex, RwLock};
 
 use crate::actor::{context, NewActor};
 use crate::inbox::{Inbox, InboxRef};
-use crate::rt::process::{ActorProcess, ProcessId};
-use crate::rt::scheduler::{AddActor, Priority, ProcessData};
+use crate::rt::process::{ActorProcess, Process, ProcessId};
+use crate::rt::scheduler::{self, AddActor, Priority};
 use crate::Supervisor;
 
 mod inactive;
@@ -24,6 +24,8 @@ mod runqueue;
 
 use inactive::Inactive;
 use runqueue::RunQueue;
+
+pub(super) type ProcessData = scheduler::ProcessData<dyn Process + Send + Sync>;
 
 // # How the `Scheduler` works.
 //
@@ -164,7 +166,9 @@ impl SchedulerRef {
     }
 
     /// Add a thread-safe actor to the scheduler.
-    pub(in crate::rt) fn add_actor<'s>(&'s mut self) -> AddActor<&'s Mutex<Inactive>> {
+    pub(in crate::rt) fn add_actor<'s>(
+        &'s mut self,
+    ) -> AddActor<&'s Mutex<Inactive>, dyn Process + Send + Sync> {
         AddActor {
             processes: &self.shared.inactive,
             alloc: Box::new_uninit(),
@@ -197,7 +201,7 @@ impl fmt::Debug for SchedulerRef {
     }
 }
 
-impl<'s> AddActor<&'s Mutex<Inactive>> {
+impl<'s> AddActor<&'s Mutex<Inactive>, dyn Process + Send + Sync> {
     /// Add a new inactive thread-safe actor to the scheduler.
     pub(in crate::rt) fn add<S, NA>(
         self,
@@ -208,9 +212,10 @@ impl<'s> AddActor<&'s Mutex<Inactive>> {
         inbox: Inbox<NA::Message>,
         inbox_ref: InboxRef<NA::Message>,
     ) where
-        S: Supervisor<NA> + Send + 'static,
-        NA: NewActor<Context = context::ThreadSafe> + Send + 'static,
-        NA::Actor: Send + 'static,
+        S: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<Context = context::ThreadSafe> + Send + Sync + 'static,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
     {
         #[allow(trivial_casts)]
         debug_assert!(

@@ -3,7 +3,8 @@ use std::mem::{forget, replace};
 use std::pin::Pin;
 use std::ptr::NonNull;
 
-use crate::rt::scheduler::{ProcessData, ProcessId};
+use crate::rt::scheduler::shared::ProcessData;
+use crate::rt::scheduler::ProcessId;
 
 /// Number of branches per level of the tree, must be a power of 2.
 // TODO: benchmark a size of 2, only using 2 bits at a time. This would increase
@@ -295,12 +296,11 @@ mod tests {
     use std::time::Duration;
 
     use crate::rt::process::{Process, ProcessId, ProcessResult};
-    use crate::rt::scheduler::{Priority, ProcessData};
+    use crate::rt::scheduler::Priority;
     use crate::rt::RuntimeRef;
 
-    use super::{Branch, Inactive, Pointer};
+    use super::{Branch, Inactive, Pointer, ProcessData};
 
-    /* FIXME.
     #[test]
     fn pointer_is_send() {
         fn assert_send<T: Send>() {}
@@ -314,7 +314,6 @@ mod tests {
         assert_send::<Pin<Box<Branch>>>();
         assert_sync::<Pin<Box<Branch>>>();
     }
-    */
 
     struct TestProcess;
 

@@ -3,7 +3,7 @@ use std::pin::Pin;
 use std::ptr;
 use std::sync::atomic::{AtomicPtr, Ordering};
 
-use crate::rt::scheduler::ProcessData;
+use crate::rt::scheduler::shared::ProcessData;
 
 // TODO: currently this creates and drops Node on almost every operation. Maybe
 // we can keep (some of) the structure in place, changing `Node.process` into an
@@ -204,10 +204,10 @@ mod tests {
     use std::time::Duration;
 
     use crate::rt::process::{Process, ProcessId, ProcessResult};
-    use crate::rt::scheduler::{Priority, ProcessData};
+    use crate::rt::scheduler::Priority;
     use crate::rt::RuntimeRef;
 
-    use super::{Node, RunQueue};
+    use super::{Node, ProcessData, RunQueue};
 
     // TODO: concurrent testing.
 

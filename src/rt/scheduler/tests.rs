@@ -12,7 +12,7 @@ use futures_util::future::{pending, Pending};
 
 use crate::actor::{self, NewActor};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
-use crate::rt::scheduler::{Priority, ProcessData};
+use crate::rt::scheduler::{local, shared, Priority, ProcessData};
 use crate::rt::RuntimeRef;
 use crate::test;
 
@@ -24,7 +24,8 @@ fn assert_size<T>(expected: usize) {
 fn size_assertions() {
     assert_size::<ProcessId>(8);
     assert_size::<Priority>(1);
-    assert_size::<ProcessData>(40);
+    assert_size::<local::ProcessData>(40);
+    assert_size::<shared::ProcessData>(40);
 }
 
 #[test]
@@ -175,15 +176,16 @@ impl<C> NewActor for TestAssertUnmovedNewActor<C> {
     }
 }
 
-mod local {
+mod local_scheduler {
     use std::cell::RefCell;
     use std::marker::PhantomData;
+    use std::pin::Pin;
     use std::rc::Rc;
     use std::time::Duration;
 
     use super::{NopTestProcess, TestAssertUnmovedNewActor};
     use crate::actor;
-    use crate::rt::process::{ProcessId, ProcessResult};
+    use crate::rt::process::{Process, ProcessId, ProcessResult};
     use crate::rt::scheduler::{LocalScheduler, Priority, ProcessData};
     use crate::supervisor::NoSupervisor;
     use crate::test::{self, init_local_actor_inbox};
@@ -198,7 +200,7 @@ mod local {
         assert!(!scheduler.has_process());
         assert!(!scheduler.has_ready_process());
 
-        let process = Box::pin(ProcessData {
+        let process: Pin<Box<ProcessData<dyn Process>>> = Box::pin(ProcessData {
             priority: Priority::default(),
             fair_runtime: Duration::from_secs(0),
             process: Box::pin(NopTestProcess),
@@ -477,7 +479,7 @@ mod local {
     }
 }
 
-mod shared {
+mod shared_scheduler {
     use std::sync::{Arc, Mutex};
 
     use crate::actor::{self, context};

@@ -33,14 +33,14 @@ pub use priority::Priority;
 ///
 /// `PartialOrd` and `Ord` however are implemented based on runtime and
 /// priority.
-pub(super) struct ProcessData {
+pub(super) struct ProcessData<P: ?Sized> {
     priority: Priority,
     /// Fair runtime of the process, which is `actual runtime * priority`.
     fair_runtime: Duration,
-    process: Pin<Box<dyn Process>>,
+    process: Pin<Box<P>>,
 }
 
-impl ProcessData {
+impl<P: ?Sized> ProcessData<P> {
     /// Returns the process identifier, or pid for short.
     fn id(self: Pin<&Self>) -> ProcessId {
         // Since the pid only job is to be unique we just use the pointer to
@@ -50,7 +50,9 @@ impl ProcessData {
         let ptr = unsafe { Pin::into_inner_unchecked(self) as *const _ as *const u8 };
         ProcessId(ptr as usize)
     }
+}
 
+impl<P: Process + ?Sized> ProcessData<P> {
     /// Run the process.
     ///
     /// Returns the completion state of the process.
@@ -75,16 +77,16 @@ impl ProcessData {
     }
 }
 
-impl Eq for ProcessData {}
+impl<P: ?Sized> Eq for ProcessData<P> {}
 
-impl PartialEq for ProcessData {
+impl<P: ?Sized> PartialEq for ProcessData<P> {
     fn eq(&self, other: &Self) -> bool {
         // FIXME: is this correct?
         Pin::new(self).id() == Pin::new(other).id()
     }
 }
 
-impl Ord for ProcessData {
+impl<P: ?Sized> Ord for ProcessData<P> {
     fn cmp(&self, other: &Self) -> Ordering {
         (other.fair_runtime)
             .cmp(&(self.fair_runtime))
@@ -92,13 +94,13 @@ impl Ord for ProcessData {
     }
 }
 
-impl PartialOrd for ProcessData {
+impl<P: ?Sized> PartialOrd for ProcessData<P> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl fmt::Debug for ProcessData {
+impl<P: ?Sized> fmt::Debug for ProcessData<P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Process")
             // FIXME: is this unsafe?
@@ -113,13 +115,13 @@ impl fmt::Debug for ProcessData {
 ///
 /// This allows the `ProcessId` to be determined before the process is actually
 /// added. This is used in registering with the system poller.
-pub(super) struct AddActor<I> {
+pub(super) struct AddActor<I, P: ?Sized> {
     processes: I,
     /// Already allocated `ProcessData`, used to determine the `ProcessId`.
-    alloc: Box<MaybeUninit<ProcessData>>,
+    alloc: Box<MaybeUninit<ProcessData<P>>>,
 }
 
-impl<I> AddActor<I> {
+impl<I, P: ?Sized> AddActor<I, P> {
     /// Get the would be `ProcessId` for the process.
     pub(super) const fn pid(&self) -> ProcessId {
         #[allow(trivial_casts)]
