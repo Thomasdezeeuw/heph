@@ -61,6 +61,16 @@ sequential_tests! {
             .expect("unable to to read from stream");
         assert_eq!(output, "127.0.0.1");
     }
+
+    fn test_3_rpc() {
+        let output = run_example_output("3_rpc");
+        assert_eq!(output, "Got a RPC request: Ping\nGot a RPC response: Pong\n");
+    }
+
+    fn test_4_sync_actor() {
+        let output = run_example_output("4_sync_actor");
+        assert_eq!(output, "Got a message: Hello world\nBye\n");
+    }
 }
 
 /// Wrapper around a `command::Child` that kills the process when dropped, even
