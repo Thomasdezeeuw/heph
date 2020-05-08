@@ -116,7 +116,8 @@ use parking_lot::RwLock;
 use crate::actor;
 use crate::inbox::InboxRef;
 
-mod rpc;
+pub mod rpc;
+#[doc(no_inline)]
 pub use rpc::{NoResponse, Rpc, RpcMessage, RpcResponse};
 
 #[cfg(test)]
@@ -132,7 +133,7 @@ trait TryMappedActorRef<M> {
     fn try_mapped_send(&self, msg: M) -> Result<(), SendError>;
 }
 
-/// Non-local actor reference.
+/// Actor reference.
 ///
 /// An actor reference reference can be used to send messages to an actor, for
 /// more details see the [module] documentation.
@@ -213,6 +214,8 @@ impl<M> ActorRef<M> {
     /// This will send the `request` to the actor and returns a [`Rpc`]
     /// [`Future`] that will return a response (of type `Res`), or an error if
     /// the receiving actor didn't respond.
+    ///
+    /// See the [`rpc`] module for more details.
     ///
     /// [`Future`]: std::future::Future
     pub fn rpc<CM, Req, Res>(
