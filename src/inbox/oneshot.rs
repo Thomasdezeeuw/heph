@@ -164,7 +164,6 @@ impl<T> Receiver<T> {
 
         Ok(Sender {
             shared: self.shared,
-            // TODO: waker
         })
     }
 

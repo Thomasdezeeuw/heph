@@ -7,8 +7,6 @@ use crate::rt::scheduler::shared::ProcessData;
 use crate::rt::scheduler::ProcessId;
 
 /// Number of branches per level of the tree, must be a power of 2.
-// TODO: benchmark a size of 2, only using 2 bits at a time. This would increase
-// the maximum depth of the tree to ~64 (from ~32).
 const N_BRANCHES: usize = 4;
 /// Number of bits to shift per level.
 const LEVEL_SHIFT: usize = N_BRANCHES / 2;

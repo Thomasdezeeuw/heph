@@ -124,7 +124,7 @@ fn restarting_erroneous_actor_process() {
         }
 
         fn second_restart_error(&mut self, _: NA::Error) {
-            unreachable!("TODO: test call to second_restart_error in ActorProcess");
+            unreachable!("test call to second_restart_error in ActorProcess");
         }
     }
 
