@@ -334,6 +334,7 @@ impl<M> Context<M, ThreadLocal> {
     }
 }
 
+#[doc(hidden)] // Not part of the API. DO NOT USE!
 impl From<RuntimeRef> for ThreadLocal {
     fn from(runtime_ref: RuntimeRef) -> ThreadLocal {
         ThreadLocal { runtime_ref }
@@ -341,6 +342,7 @@ impl From<RuntimeRef> for ThreadLocal {
 }
 
 // See [`Context::new`] why.
+#[doc(hidden)] // Not part of the API. DO NOT USE!
 impl From<RuntimeRef> for ThreadSafe {
     fn from(_: RuntimeRef) -> ThreadSafe {
         ThreadSafe { _priv: () }
