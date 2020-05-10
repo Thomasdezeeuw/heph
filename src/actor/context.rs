@@ -63,25 +63,40 @@ pub struct ThreadSafe {
     _priv: (),
 }
 
-impl<M, C> Context<M, C> {
-    /// Create a new `actor::Context`.
-    pub(crate) fn new(
+impl<M> Context<M, ThreadLocal> {
+    /// Create a new local `actor::Context`.
+    pub(crate) fn new_local(
         pid: ProcessId,
         inbox: Inbox<M>,
         inbox_ref: InboxRef<M>,
         runtime_ref: RuntimeRef,
-    ) -> Context<M, C>
-    where
-        C: From<RuntimeRef>,
-    {
+    ) -> Context<M, ThreadLocal> {
         Context {
             pid,
             inbox,
             inbox_ref,
-            kind: C::from(runtime_ref),
+            kind: ThreadLocal { runtime_ref },
         }
     }
+}
 
+impl<M> Context<M, ThreadSafe> {
+    /// Create a new local `actor::Context`.
+    pub(crate) fn new_shared(
+        pid: ProcessId,
+        inbox: Inbox<M>,
+        inbox_ref: InboxRef<M>,
+    ) -> Context<M, ThreadSafe> {
+        Context {
+            pid,
+            inbox,
+            inbox_ref,
+            kind: ThreadSafe { _priv: () },
+        }
+    }
+}
+
+impl<M, C> Context<M, C> {
     /// Attempt to receive the next message.
     ///
     /// This will attempt to receive next message if one is available. If the
@@ -331,21 +346,6 @@ impl<M> Context<M, ThreadLocal> {
     /// Get a reference to the runtime this actor is running in.
     pub fn runtime(&mut self) -> &mut RuntimeRef {
         &mut self.kind.runtime_ref
-    }
-}
-
-#[doc(hidden)] // Not part of the API. DO NOT USE!
-impl From<RuntimeRef> for ThreadLocal {
-    fn from(runtime_ref: RuntimeRef) -> ThreadLocal {
-        ThreadLocal { runtime_ref }
-    }
-}
-
-// See [`Context::new`] why.
-#[doc(hidden)] // Not part of the API. DO NOT USE!
-impl From<RuntimeRef> for ThreadSafe {
-    fn from(_: RuntimeRef) -> ThreadSafe {
-        ThreadSafe { _priv: () }
     }
 }
 

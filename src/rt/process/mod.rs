@@ -12,7 +12,7 @@ mod actor;
 #[cfg(test)]
 mod tests;
 
-pub use actor::ActorProcess;
+pub(in crate::rt) use actor::ActorProcess;
 
 /// Process id, or pid for short, is an identifier for a process in an
 /// [`Runtime`].
@@ -25,7 +25,7 @@ pub use actor::ActorProcess;
 /// [`Scheduler`]: crate::rt::scheduler::Scheduler
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[repr(transparent)]
-pub struct ProcessId(pub usize);
+pub(crate) struct ProcessId(pub usize);
 
 impl From<Token> for ProcessId {
     fn from(id: Token) -> ProcessId {
@@ -49,7 +49,7 @@ impl fmt::Display for ProcessId {
 ///
 /// This currently has a single implementation:
 /// - `ActorProcess`, which wraps an `Actor` to implement this trait.
-pub trait Process {
+pub(crate) trait Process {
     /// Run the process.
     ///
     /// Once the process returns `ProcessResult::Complete` it will be removed

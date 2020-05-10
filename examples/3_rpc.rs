@@ -27,10 +27,7 @@ fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
     Ok(())
 }
 
-async fn ping_actor(
-    mut ctx: actor::Context<!>,
-    mut actor_ref: ActorRef<PongMessage>,
-) -> Result<(), !> {
+async fn ping_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<PongMessage>) -> Result<(), !> {
     // Send our RPC request.
     let rpc = actor_ref.rpc(&mut ctx, Ping).unwrap();
 

@@ -424,7 +424,7 @@ impl RuntimeRef {
         // Create our actor context and our actor with it.
         let (inbox, inbox_ref) = Inbox::new(waker);
         let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
-        let ctx = actor::Context::new(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
+        let ctx = actor::Context::new_local(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         // Add the actor to the scheduler.
@@ -545,7 +545,7 @@ impl RuntimeRef {
         // Create our actor context and our actor with it.
         let (inbox, inbox_ref) = Inbox::new(waker);
         let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
-        let ctx = actor::Context::new(pid, inbox.ctx_inbox(), inbox_ref.clone(), self.clone());
+        let ctx = actor::Context::new_shared(pid, inbox.ctx_inbox(), inbox_ref.clone());
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         // Add the actor to the scheduler.
@@ -615,8 +615,13 @@ impl RuntimeRef {
     /// # Notes
     ///
     /// Prefer `new_waker` if possible, only use `task::Waker` for `Future`s.
-    pub(crate) fn new_task_waker(&self, pid: ProcessId) -> task::Waker {
+    pub(crate) fn new_local_task_waker(&self, pid: ProcessId) -> task::Waker {
         waker::new(self.internal.waker_id, pid)
+    }
+
+    /// Same as [`RuntimeRef::new_task_waker`] but used the coordinator's waker.
+    pub(crate) fn new_shared_task_waker(&self, pid: ProcessId) -> task::Waker {
+        waker::new(self.internal.coordinator_id, pid)
     }
 
     /// Add a deadline to the event sources.

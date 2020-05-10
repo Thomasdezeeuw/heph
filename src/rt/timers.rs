@@ -11,7 +11,7 @@ use crate::rt::ProcessId;
 ///
 /// Polling this event source never returns an error.
 #[derive(Debug)]
-pub struct Timers {
+pub(super) struct Timers {
     deadlines: BinaryHeap<Reverse<Deadline>>,
 }
 
@@ -26,24 +26,24 @@ struct Deadline {
 
 impl Timers {
     /// Create a new time event source.
-    pub fn new() -> Timers {
+    pub(super) fn new() -> Timers {
         Timers {
             deadlines: BinaryHeap::new(),
         }
     }
 
     /// Returns the next deadline, if any.
-    pub fn next_deadline(&self) -> Option<Instant> {
+    pub(super) fn next_deadline(&self) -> Option<Instant> {
         self.deadlines.peek().map(|deadline| deadline.0.deadline)
     }
 
     /// Add a new deadline.
-    pub fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
+    pub(super) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         self.deadlines.push(Reverse(Deadline { pid, deadline }));
     }
 
     /// Returns all deadlines that have expired (i.e. deadline < now).
-    pub fn deadlines(&mut self) -> Deadlines<'_> {
+    pub(super) fn deadlines(&mut self) -> Deadlines<'_> {
         Deadlines {
             timers: self,
             now: Instant::now(),
@@ -52,7 +52,7 @@ impl Timers {
 }
 
 #[derive(Debug)]
-pub struct Deadlines<'t> {
+pub(super) struct Deadlines<'t> {
     timers: &'t mut Timers,
     now: Instant,
 }

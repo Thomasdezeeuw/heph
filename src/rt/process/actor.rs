@@ -1,8 +1,9 @@
 //! Module containing the implementation of the `Process` trait for `Actor`s.
 
 use std::pin::Pin;
-use std::task::{self, Poll};
+use std::task::{self, Poll, Waker};
 
+use crate::actor::context::{ThreadLocal, ThreadSafe};
 use crate::actor::{self, Actor, NewActor};
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
@@ -10,7 +11,7 @@ use crate::supervisor::SupervisorStrategy;
 use crate::{RuntimeRef, Supervisor};
 
 /// A process that represent an [`Actor`].
-pub struct ActorProcess<S, NA: NewActor> {
+pub(in crate::rt) struct ActorProcess<S, NA: NewActor> {
     /// The actor's supervisor used to determine what to do when the actor, or
     /// [`NewActor`] implementation, returns an error.
     supervisor: S,
@@ -28,10 +29,10 @@ impl<'a, S, NA: NewActor, C> ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
     NA: NewActor<Context = C>,
-    C: From<RuntimeRef>,
+    C: ContextType,
 {
     /// Create a new `ActorProcess`.
-    pub(crate) const fn new(
+    pub(in crate::rt) const fn new(
         supervisor: S,
         new_actor: NA,
         actor: NA::Actor,
@@ -87,11 +88,11 @@ where
         arg: NA::Argument,
     ) -> Result<(), NA::Error> {
         // Create a new actor.
-        let ctx = actor::Context::new(
+        let ctx = C::new_context(
             pid,
             self.inbox.ctx_inbox(),
             self.inbox_ref.clone(),
-            runtime_ref.clone(),
+            runtime_ref,
         );
         self.new_actor.new(ctx, arg).map(|actor| {
             // We pin the actor here to ensure its dropped in place when
@@ -105,7 +106,7 @@ impl<'a, S, NA, C> Process for ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
     NA: NewActor<Context = C>,
-    C: From<RuntimeRef>,
+    C: ContextType,
 {
     fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult {
         // This is safe because we're not moving the actor.
@@ -114,7 +115,7 @@ where
         // operation, still ensuring that the actor is not moved.
         let mut actor = unsafe { Pin::new_unchecked(&mut this.actor) };
 
-        let waker = runtime_ref.new_task_waker(pid);
+        let waker = C::new_task_waker(runtime_ref, pid);
         let mut task_ctx = task::Context::from_waker(&waker);
         match actor.as_mut().try_poll(&mut task_ctx) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
@@ -142,5 +143,50 @@ where
             },
             Poll::Pending => ProcessResult::Pending,
         }
+    }
+}
+
+/// Implementation trait to support [`ThreadSafe`] and [`ThreadLocal`] contexts
+/// within the same implementation.
+pub(in crate::rt) trait ContextType {
+    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> Waker;
+
+    fn new_context<M>(
+        pid: ProcessId,
+        inbox: Inbox<M>,
+        inbox_ref: InboxRef<M>,
+        runtime_ref: &mut RuntimeRef,
+    ) -> actor::Context<M, Self>
+    where
+        Self: Sized;
+}
+
+impl ContextType for ThreadLocal {
+    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> Waker {
+        runtime_ref.new_local_task_waker(pid)
+    }
+
+    fn new_context<M>(
+        pid: ProcessId,
+        inbox: Inbox<M>,
+        inbox_ref: InboxRef<M>,
+        runtime_ref: &mut RuntimeRef,
+    ) -> actor::Context<M, ThreadLocal> {
+        actor::Context::new_local(pid, inbox, inbox_ref, runtime_ref.clone())
+    }
+}
+
+impl ContextType for ThreadSafe {
+    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> Waker {
+        runtime_ref.new_shared_task_waker(pid)
+    }
+
+    fn new_context<M>(
+        pid: ProcessId,
+        inbox: Inbox<M>,
+        inbox_ref: InboxRef<M>,
+        _: &mut RuntimeRef,
+    ) -> actor::Context<M, ThreadSafe> {
+        actor::Context::new_shared(pid, inbox, inbox_ref)
     }
 }

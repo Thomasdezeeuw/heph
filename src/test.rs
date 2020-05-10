@@ -75,7 +75,7 @@ where
     let (inbox, inbox_ref) = Inbox::new(waker);
     let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
 
-    let ctx = actor::Context::new(pid, inbox, inbox_ref, runtime_ref);
+    let ctx = actor::Context::new_local(pid, inbox, inbox_ref, runtime_ref);
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, actor_ref))
@@ -124,7 +124,7 @@ where
     let waker = runtime_ref.new_waker(pid);
     let (inbox, inbox_ref) = Inbox::new(waker);
 
-    let ctx = actor::Context::new(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
+    let ctx = actor::Context::new_local(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, inbox, inbox_ref))
@@ -149,7 +149,7 @@ where
     let waker = runtime_ref.new_waker(pid);
     let (inbox, inbox_ref) = Inbox::new(waker);
 
-    let ctx = actor::Context::new(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
+    let ctx = actor::Context::new_shared(pid, inbox.ctx_inbox(), inbox_ref.clone());
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, inbox, inbox_ref))
@@ -168,7 +168,7 @@ where
     Fut: Future,
 {
     let pid = ProcessId(0);
-    let waker = runtime().new_task_waker(pid);
+    let waker = runtime().new_local_task_waker(pid);
     let mut ctx = task::Context::from_waker(&waker);
     Future::poll(future, &mut ctx)
 }
@@ -187,7 +187,7 @@ where
     A: Actor,
 {
     let pid = ProcessId(0);
-    let waker = runtime().new_task_waker(pid);
+    let waker = runtime().new_local_task_waker(pid);
     let mut ctx = task::Context::from_waker(&waker);
     Actor::try_poll(actor, &mut ctx)
 }
