@@ -189,7 +189,7 @@ impl SchedulerRef {
     }
 
     /// Add back a process that was previously removed via
-    /// [`WorkStealer::try_steal`].
+    /// [`SchedulerRef::try_steal`].
     pub(in crate::rt) fn add_process(&mut self, process: Pin<Box<ProcessData>>) {
         self.shared.inactive.lock().add(process)
     }

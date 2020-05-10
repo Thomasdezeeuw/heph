@@ -619,7 +619,8 @@ impl RuntimeRef {
         waker::new(self.internal.waker_id, pid)
     }
 
-    /// Same as [`RuntimeRef::new_task_waker`] but used the coordinator's waker.
+    /// Same as [`RuntimeRef::new_local_task_waker`] but provides a waker
+    /// implementation for thread-safe actors.
     pub(crate) fn new_shared_task_waker(&self, pid: ProcessId) -> task::Waker {
         waker::new(self.internal.coordinator_id, pid)
     }
