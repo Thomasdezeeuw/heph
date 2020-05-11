@@ -502,7 +502,7 @@ mod shared_scheduler {
     #[test]
     fn adding_actor() {
         let mut scheduler = Scheduler::new();
-        let mut scheduler_ref = scheduler.create_ref();
+        let scheduler_ref = scheduler.create_ref();
 
         // Shouldn't run any process yet, since none are added.
         assert!(!scheduler_ref.has_process());
@@ -561,7 +561,7 @@ mod shared_scheduler {
     #[test]
     fn marking_unknown_pid_as_ready() {
         let mut scheduler = Scheduler::new();
-        let mut scheduler_ref = scheduler.create_ref();
+        let scheduler_ref = scheduler.create_ref();
 
         assert!(!scheduler_ref.has_process());
         assert!(!scheduler_ref.has_ready_process());
@@ -577,7 +577,7 @@ mod shared_scheduler {
     #[test]
     fn scheduler_run_order() {
         let mut scheduler = Scheduler::new();
-        let mut scheduler_ref = scheduler.create_ref();
+        let scheduler_ref = scheduler.create_ref();
         let mut runtime_ref = test::runtime();
 
         // The order in which the processes have been run.

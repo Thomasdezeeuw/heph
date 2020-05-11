@@ -11,11 +11,12 @@
 
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, io, task};
 
 use log::{debug, trace};
-use mio::{event, Interest, Poll, Token};
+use mio::{event, Interest, Poll, Registry, Token};
 
 use crate::actor::sync::SyncActor;
 use crate::actor::{self, context, NewActor};
@@ -269,15 +270,14 @@ where
             self.sync_actors.len()
         );
 
-        let coordinator = Coordinator::init().map_err(RuntimeError::coordinator)?;
-        let scheduler_ref = coordinator.scheduler_ref();
-        let waker_id = coordinator.waker_id();
+        let (coordinator, shared_internals) =
+            Coordinator::init().map_err(RuntimeError::coordinator)?;
 
         // Start our worker threads.
         let handles = (0..self.threads)
             .map(|id| {
                 let setup = self.setup.clone();
-                Worker::start(id, setup, scheduler_ref.clone(), waker_id)
+                Worker::start(id, setup, shared_internals.clone())
             })
             .collect::<io::Result<Vec<Worker<S::Error>>>>()
             .map_err(RuntimeError::start_thread)?;
@@ -522,22 +522,21 @@ impl RuntimeRef {
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
-        let RuntimeInternal {
-            coordinator_id,
-            scheduler_ref,
+        let SharedRuntimeInternal {
+            waker_id,
+            scheduler,
             ..
-        } = &*self.internal;
+        } = &*self.internal.shared;
 
         // Setup adding a new process to the scheduler.
-        let mut scheduler_ref = scheduler_ref.borrow_mut();
-        let actor_entry = scheduler_ref.add_actor();
+        let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
         debug!("spawning actor: pid={}", pid);
 
         // Create our actor argument, running any setup required by the caller.
         let arg = arg_fn(pid).map_err(AddActorError::ArgFn)?;
 
-        let waker = Waker::new(*coordinator_id, pid);
+        let waker = Waker::new(*waker_id, pid);
         if options.is_ready() {
             waker.wake()
         }
@@ -622,12 +621,13 @@ impl RuntimeRef {
     /// Same as [`RuntimeRef::new_local_task_waker`] but provides a waker
     /// implementation for thread-safe actors.
     pub(crate) fn new_shared_task_waker(&self, pid: ProcessId) -> task::Waker {
-        waker::new(self.internal.coordinator_id, pid)
+        waker::new(self.internal.shared.waker_id, pid)
     }
 
     /// Add a deadline to the event sources.
     ///
     /// This is used in the `timer` crate.
+    #[allow(dead_code)] // FIXME: remove.
     pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         trace!("adding deadline: pid={}, deadline={:?}", pid, deadline);
         self.internal
@@ -649,18 +649,41 @@ pub(crate) enum AddActorError<NewActorE, ArgFnE> {
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
 struct RuntimeInternal {
-    /// Waker id used to create a `Waker`.
+    /// Runtime internals shared between threads, owned by the `Coordinator`.
+    shared: Arc<SharedRuntimeInternal>,
+    /// Waker id used to create a `Waker` for thread-local actors.
     waker_id: WakerId,
-    /// A reference to the scheduler to add new processes to.
+    /// Scheduler for thread-local actors.
     scheduler: RefCell<LocalScheduler>,
-    /// Working stealing reference to the shared scheduler.
-    scheduler_ref: RefCell<SchedulerRef>,
-    /// Waker id for the `Coordinator`.
-    coordinator_id: WakerId,
     /// System poll, used for event notifications to support non-blocking I/O.
     poll: RefCell<Poll>,
     /// Timers, deadlines and timeouts.
     timers: RefCell<Timers>,
     /// Actor references to relay received `Signal`s to.
     signal_receivers: RefCell<Vec<ActorRef<Signal>>>,
+}
+
+/// Shared internals of the runtime.
+#[derive(Debug)]
+pub(crate) struct SharedRuntimeInternal {
+    /// Waker id used to create a `Waker` for thread-safe actors.
+    waker_id: WakerId,
+    /// Scheduler for thread-safe actors.
+    scheduler: SchedulerRef,
+    /// Registry for the `Coordinator`'s `Poll` instance.
+    registry: Registry,
+}
+
+impl SharedRuntimeInternal {
+    pub(crate) fn new(
+        waker_id: WakerId,
+        scheduler: SchedulerRef,
+        registry: Registry,
+    ) -> Arc<SharedRuntimeInternal> {
+        Arc::new(SharedRuntimeInternal {
+            waker_id,
+            scheduler,
+            registry,
+        })
+    }
 }

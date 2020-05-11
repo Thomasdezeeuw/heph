@@ -23,9 +23,10 @@ pub(in crate::rt) use actor::ActorProcess;
 ///
 /// [`Runtime`]: crate::Runtime
 /// [`Scheduler`]: crate::rt::scheduler::Scheduler
+// public because it used in the `ContextKind` trait.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[repr(transparent)]
-pub(crate) struct ProcessId(pub usize);
+pub struct ProcessId(pub usize);
 
 impl From<Token> for ProcessId {
     fn from(id: Token) -> ProcessId {

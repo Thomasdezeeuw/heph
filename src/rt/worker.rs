@@ -1,5 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{io, thread};
 
@@ -9,10 +10,12 @@ use mio::{Events, Poll, Registry, Token};
 
 use crate::rt::hack::SetupFn;
 use crate::rt::process::ProcessResult;
-use crate::rt::scheduler::{LocalScheduler, SchedulerRef};
+use crate::rt::scheduler::LocalScheduler;
 use crate::rt::timers::Timers;
-use crate::rt::waker::WakerId;
-use crate::rt::{channel, waker, ProcessId, RuntimeError, RuntimeInternal, RuntimeRef, Signal};
+use crate::rt::{
+    channel, waker, ProcessId, RuntimeError, RuntimeInternal, RuntimeRef, SharedRuntimeInternal,
+    Signal,
+};
 
 /// Message send by the coordinator thread.
 #[derive(Debug)]
@@ -39,8 +42,7 @@ impl<E> Worker<E> {
     pub(super) fn start<S>(
         id: usize,
         setup: Option<S>,
-        scheduler_ref: SchedulerRef,
-        coordinator_id: WakerId,
+        shared_internals: Arc<SharedRuntimeInternal>,
     ) -> io::Result<Worker<S::Error>>
     where
         S: SetupFn<Error = E>,
@@ -49,7 +51,7 @@ impl<E> Worker<E> {
         channel::new().and_then(|(channel, worker_handle)| {
             thread::Builder::new()
                 .name(format!("heph_worker{}", id))
-                .spawn(move || main(setup, worker_handle, scheduler_ref, coordinator_id))
+                .spawn(move || main(setup, worker_handle, shared_internals))
                 .map(|handle| Worker {
                     id,
                     handle,
@@ -85,14 +87,12 @@ impl<E> Worker<E> {
 fn main<S>(
     setup: Option<S>,
     receiver: channel::Handle<WorkerMessage, CoordinatorMessage>,
-    scheduler_ref: SchedulerRef,
-    coordinator_id: WakerId,
+    shared_internals: Arc<SharedRuntimeInternal>,
 ) -> Result<(), RuntimeError<S::Error>>
 where
     S: SetupFn,
 {
-    let runtime = RunningRuntime::new(receiver, scheduler_ref, coordinator_id)
-        .map_err(RuntimeError::worker)?;
+    let runtime = RunningRuntime::new(receiver, shared_internals).map_err(RuntimeError::worker)?;
 
     // Run optional setup.
     if let Some(setup) = setup {
@@ -133,8 +133,7 @@ impl RunningRuntime {
     /// Create a new running runtime.
     pub(crate) fn new(
         mut channel: channel::Handle<WorkerMessage, CoordinatorMessage>,
-        scheduler_ref: SchedulerRef,
-        coordinator_id: WakerId,
+        shared_internals: Arc<SharedRuntimeInternal>,
     ) -> io::Result<RunningRuntime> {
         // System queue for event notifications.
         let poll = Poll::new()?;
@@ -150,10 +149,9 @@ impl RunningRuntime {
 
         // Internals of the running runtime.
         let internal = RuntimeInternal {
+            shared: shared_internals,
             waker_id,
             scheduler: RefCell::new(scheduler),
-            scheduler_ref: RefCell::new(scheduler_ref),
-            coordinator_id,
             poll: RefCell::new(poll),
             timers: RefCell::new(Timers::new()),
             signal_receivers: RefCell::new(Vec::new()),
@@ -197,15 +195,12 @@ impl RunningRuntime {
                 // process. This allow a `RuntimeRef` to also mutable borrow the
                 // `Scheduler` to add new actors to it.
 
-                let process = self.internal.scheduler_ref.borrow_mut().try_steal();
+                let process = self.internal.shared.scheduler.try_steal();
                 if let Ok(Some(mut process)) = process {
                     match process.as_mut().run(&mut runtime_ref) {
                         ProcessResult::Complete => {}
                         ProcessResult::Pending => {
-                            self.internal
-                                .scheduler_ref
-                                .borrow_mut()
-                                .add_process(process);
+                            self.internal.shared.scheduler.add_process(process);
                         }
                     }
                     // Only run a single process per iteration.
@@ -221,7 +216,7 @@ impl RunningRuntime {
                         }
                     }
                 } else if !self.internal.scheduler.borrow().has_process()
-                    && !self.internal.scheduler_ref.borrow().has_process()
+                    && !self.internal.shared.scheduler.has_process()
                 {
                     // No processes left to run, so we're done.
                     debug!("no processes to run, stopping runtime");
@@ -303,7 +298,7 @@ impl RunningRuntime {
         // space events we don't want to block.
         if self.internal.scheduler.borrow().has_ready_process()
             || !self.waker_events.is_empty()
-            || self.internal.scheduler_ref.borrow().has_ready_process()
+            || self.internal.shared.scheduler.has_ready_process()
         {
             Some(Duration::from_millis(0))
         } else if let Some(deadline) = self.internal.timers.borrow().next_deadline() {

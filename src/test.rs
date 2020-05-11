@@ -22,6 +22,7 @@ use std::cmp::max;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Arc;
 use std::task::{self, Poll};
 
 use lazy_static::lazy_static;
@@ -33,7 +34,7 @@ use crate::inbox::{Inbox, InboxRef};
 use crate::rt::scheduler::Scheduler;
 use crate::rt::waker::{self, Waker, WakerId};
 use crate::rt::worker::RunningRuntime;
-use crate::rt::{self, ProcessId, RuntimeRef};
+use crate::rt::{self, ProcessId, RuntimeRef, SharedRuntimeInternal};
 
 lazy_static! {
     static ref COORDINATOR_ID: WakerId = {
@@ -42,15 +43,23 @@ lazy_static! {
         let (sender, _) = crossbeam_channel::unbounded();
         waker::init(waker, sender)
     };
+    static ref SHARED_INTERNAL: Arc<SharedRuntimeInternal> = {
+        let poll = mio::Poll::new().expect("failed to create Poll instance for test module");
+        let registry = poll
+            .registry()
+            .try_clone()
+            .expect("failed to create Registry for test module");
+        let scheduler = Scheduler::new();
+        let scheduler = scheduler.create_ref();
+        SharedRuntimeInternal::new(*COORDINATOR_ID, scheduler, registry)
+    };
 }
 
 thread_local! {
     /// Per thread active, but not running, runtime.
     static TEST_RT: RefCell<RunningRuntime> = {
-        let scheduler = Scheduler::new();
-        let scheduler = scheduler.create_ref();
-        let (_, receiver) = rt::channel::new().unwrap();
-        RefCell::new(RunningRuntime::new(receiver, scheduler, *COORDINATOR_ID).unwrap())
+        let (_, receiver) = rt::channel::new().expect("failed to create Channel for test module");
+        RefCell::new(RunningRuntime::new(receiver, SHARED_INTERNAL.clone()).expect("failed to create local Runtime for test module"))
     };
 }
 

@@ -2,6 +2,7 @@
 
 use std::any::Any;
 use std::io;
+use std::sync::Arc;
 
 use crossbeam_channel::Receiver;
 use log::{debug, trace};
@@ -10,9 +11,11 @@ use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
 use crate::rt::process::ProcessId;
-use crate::rt::scheduler::{Scheduler, SchedulerRef};
+use crate::rt::scheduler::Scheduler;
 use crate::rt::waker::{self, WakerId};
-use crate::rt::{RuntimeError, Signal, SyncWorker, Worker, SYNC_WORKER_ID_START};
+use crate::rt::{
+    RuntimeError, SharedRuntimeInternal, Signal, SyncWorker, Worker, SYNC_WORKER_ID_START,
+};
 
 /// Tokens used to receive events.
 const SIGNAL: Token = Token(usize::max_value());
@@ -27,30 +30,25 @@ pub(super) struct Coordinator {
 
 impl Coordinator {
     /// Initialise the `Coordinator` thread.
-    pub(super) fn init() -> io::Result<Coordinator> {
+    pub(super) fn init() -> io::Result<(Coordinator, Arc<SharedRuntimeInternal>)> {
         let poll = Poll::new()?;
-        let registry = poll.registry();
+        let registry = poll.registry().try_clone()?;
 
         let (waker_sender, waker_events) = crossbeam_channel::unbounded();
-        let waker = mio::Waker::new(registry, AWAKENER)?;
+        let waker = mio::Waker::new(&registry, AWAKENER)?;
         let waker_id = waker::init(waker, waker_sender);
+        let scheduler = Scheduler::new();
 
-        Ok(Coordinator {
+        let shared_internals =
+            SharedRuntimeInternal::new(waker_id, scheduler.create_ref(), registry);
+        let coordinator = Coordinator {
             poll,
             waker_events,
             waker_id,
-            scheduler: Scheduler::new(),
-        })
-    }
+            scheduler,
+        };
 
-    /// Returns a reference to the `Coordinator`'s scheduler.
-    pub(super) fn scheduler_ref(&self) -> SchedulerRef {
-        self.scheduler.create_ref()
-    }
-
-    /// Returns the `WakerId` for this `Coordinator`.
-    pub(super) fn waker_id(&self) -> WakerId {
-        self.waker_id
+        Ok((coordinator, shared_internals))
     }
 
     /// Run the coordinator.

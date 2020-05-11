@@ -167,7 +167,7 @@ impl SchedulerRef {
 
     /// Add a thread-safe actor to the scheduler.
     pub(in crate::rt) fn add_actor<'s>(
-        &'s mut self,
+        &'s self,
     ) -> AddActor<&'s Mutex<Inactive>, dyn Process + Send + Sync> {
         AddActor {
             processes: &self.shared.inactive,
@@ -181,7 +181,7 @@ impl SchedulerRef {
     /// * `Ok(Some(..))` if a process was successfully stolen.
     /// * `Ok(None)` if no processes are available to run.
     /// * `Err(())` if the scheduler currently can't be accessed.
-    pub(in crate::rt) fn try_steal(&mut self) -> Result<Option<Pin<Box<ProcessData>>>, ()> {
+    pub(in crate::rt) fn try_steal(&self) -> Result<Option<Pin<Box<ProcessData>>>, ()> {
         match self.shared.ready.try_read() {
             Some(run_queue) => Ok(run_queue.remove()),
             None => Err(()),
@@ -190,7 +190,7 @@ impl SchedulerRef {
 
     /// Add back a process that was previously removed via
     /// [`SchedulerRef::try_steal`].
-    pub(in crate::rt) fn add_process(&mut self, process: Pin<Box<ProcessData>>) {
+    pub(in crate::rt) fn add_process(&self, process: Pin<Box<ProcessData>>) {
         self.shared.inactive.lock().add(process)
     }
 }
