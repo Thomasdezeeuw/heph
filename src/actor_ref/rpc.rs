@@ -50,7 +50,7 @@
 //! }
 //!
 //! /// Sending actor of the RPC.
-//! async fn requester(mut ctx: actor::Context<!>, mut actor_ref: ActorRef<Add>) -> Result<(), !> {
+//! async fn requester(mut ctx: actor::Context<!>, actor_ref: ActorRef<Add>) -> Result<(), !> {
 //!     // Make the procedure call.
 //!     let response = actor_ref.rpc(&mut ctx, 10).unwrap().await;
 //! #   assert!(response.is_ok());
@@ -134,7 +134,7 @@
 //! }
 //!
 //! /// Sending actor of the RPC.
-//! async fn requester(mut ctx: actor::Context<!>, mut actor_ref: ActorRef<Message>) -> Result<(), !> {
+//! async fn requester(mut ctx: actor::Context<!>, actor_ref: ActorRef<Message>) -> Result<(), !> {
 //!     // Increase the counter by ten.
 //!     // NOTE: do handle the errors correctly in practice, this is just an
 //!     // example.

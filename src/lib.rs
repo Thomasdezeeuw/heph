@@ -71,10 +71,10 @@
     const_raw_ptr_to_usize_cast,
     is_sorted,
     maybe_uninit_extra,
+    maybe_uninit_ref,
     never_type,
     new_uninit,
-    specialization,
-    maybe_uninit_ref
+    specialization
 )]
 #![warn(
     anonymous_parameters,

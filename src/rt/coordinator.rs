@@ -70,7 +70,6 @@ impl Coordinator {
 
         let mut events = Events::with_capacity(16);
         loop {
-            trace!("polling on coordinator");
             self.poll(&mut events).map_err(RuntimeError::coordinator)?;
 
             for event in events.iter() {
@@ -98,6 +97,7 @@ impl Coordinator {
     }
 
     fn poll(&mut self, events: &mut Events) -> io::Result<()> {
+        trace!("polling event sources");
         waker::mark_polling(self.waker_id, true);
         let res = self.poll.poll(events, None);
         waker::mark_polling(self.waker_id, false);
