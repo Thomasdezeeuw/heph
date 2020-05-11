@@ -57,9 +57,9 @@ pub enum Connected {}
 ///
 /// use heph::actor::messages::Terminate;
 /// use heph::net::UdpSocket;
-/// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
+/// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
 ///
-/// fn main() -> Result<(), RuntimeError> {
+/// fn main() -> Result<(), rt::Error> {
 ///     heph::log::init();
 ///
 ///     Runtime::new().with_setup(setup).start()

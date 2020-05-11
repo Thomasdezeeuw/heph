@@ -31,9 +31,9 @@
 //! #![feature(never_type)]
 //!
 //! use heph::supervisor::NoSupervisor;
-//! use heph::{actor, RuntimeError, ActorOptions, Runtime};
+//! use heph::{actor, rt, ActorOptions, Runtime};
 //!
-//! fn main() -> Result<(), RuntimeError> {
+//! fn main() -> Result<(), rt::Error> {
 //!     Runtime::new()
 //!         .with_setup(|mut runtime_ref| {
 //!             // Spawn the actor.
@@ -70,9 +70,9 @@
 //! #![feature(never_type)]
 //!
 //! use heph::supervisor::NoSupervisor;
-//! use heph::{actor, RuntimeError, ActorOptions, Runtime};
+//! use heph::{actor, rt, ActorOptions, Runtime};
 //!
-//! fn main() -> Result<(), RuntimeError> {
+//! fn main() -> Result<(), rt::Error> {
 //!     Runtime::new()
 //!         .with_setup(|mut runtime_ref| {
 //!             let new_actor = actor as fn(_) -> _;

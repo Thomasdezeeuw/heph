@@ -244,9 +244,9 @@ where
 ///
 /// use heph::actor::message_select::First;
 /// use heph::supervisor::NoSupervisor;
-/// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef};
+/// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 ///
-/// fn main() -> Result<(), RuntimeError> {
+/// fn main() -> Result<(), rt::Error> {
 ///     Runtime::new().with_setup(setup).start()
 /// }
 ///
@@ -293,9 +293,9 @@ impl<M> MessageSelector<M> for First {
 ///
 /// use heph::actor::message_select::Priority;
 /// use heph::supervisor::NoSupervisor;
-/// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef};
+/// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 ///
-/// fn main() -> Result<(), RuntimeError> {
+/// fn main() -> Result<(), rt::Error> {
 ///     Runtime::new().with_setup(setup).start()
 /// }
 ///

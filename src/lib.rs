@@ -113,6 +113,6 @@ pub use crate::actor::{Actor, NewActor};
 #[doc(no_inline)]
 pub use crate::actor_ref::ActorRef;
 #[doc(no_inline)]
-pub use crate::rt::{ActorOptions, Runtime, RuntimeError, RuntimeRef};
+pub use crate::rt::{ActorOptions, Runtime, RuntimeRef};
 #[doc(no_inline)]
 pub use crate::supervisor::{Supervisor, SupervisorStrategy};

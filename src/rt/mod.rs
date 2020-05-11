@@ -52,7 +52,7 @@ pub(crate) use waker::Waker;
 
 pub mod options;
 
-pub use error::RuntimeError;
+pub use error::Error;
 pub use options::ActorOptions;
 pub use signal::Signal;
 
@@ -111,9 +111,9 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// #![feature(never_type)]
 ///
 /// use heph::supervisor::NoSupervisor;
-/// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef};
+/// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 ///
-/// fn main() -> Result<(), RuntimeError> {
+/// fn main() -> Result<(), rt::Error> {
 ///     // Build a new `Runtime`.
 ///     Runtime::new()
 ///         // Start two worker threads.
@@ -232,7 +232,7 @@ impl<S> Runtime<S> {
         supervisor: Sv,
         actor: A,
         arg: Arg,
-    ) -> Result<ActorRef<M>, RuntimeError>
+    ) -> Result<ActorRef<M>, Error>
     where
         Sv: SyncSupervisor<A> + Send + 'static,
         A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
@@ -245,7 +245,7 @@ impl<S> Runtime<S> {
                 self.sync_actors.push(worker);
                 actor_ref
             })
-            .map_err(RuntimeError::start_thread)
+            .map_err(Error::start_thread)
     }
 }
 
@@ -263,15 +263,14 @@ where
     /// In addition to waiting for all worker threads it will also watch for
     /// all process signals in [`Signal`] and relay them to actors that want to
     /// handle them, see the [`Signal`] type for more information.
-    pub fn start(self) -> Result<(), RuntimeError<S::Error>> {
+    pub fn start(self) -> Result<(), Error<S::Error>> {
         debug!(
             "starting Heph runtime: worker_threads={}, sync_actors={}",
             self.threads,
             self.sync_actors.len()
         );
 
-        let (coordinator, shared_internals) =
-            Coordinator::init().map_err(RuntimeError::coordinator)?;
+        let (coordinator, shared_internals) = Coordinator::init().map_err(Error::coordinator)?;
 
         // Start our worker threads.
         let handles = (0..self.threads)
@@ -280,7 +279,7 @@ where
                 Worker::start(id, setup, shared_internals.clone())
             })
             .collect::<io::Result<Vec<Worker<S::Error>>>>()
-            .map_err(RuntimeError::start_thread)?;
+            .map_err(Error::start_thread)?;
 
         coordinator.run(handles, self.sync_actors)
     }

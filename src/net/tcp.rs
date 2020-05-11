@@ -58,9 +58,9 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// use heph::actor::Bound;
 /// use heph::log::request;
 /// use heph::net::TcpListener;
-/// use heph::{RuntimeError, actor, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
+/// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
 ///
-/// fn main() -> Result<(), RuntimeError> {
+/// fn main() -> Result<(), rt::Error> {
 ///     heph::log::init();
 ///
 ///     Runtime::new().with_setup(setup).start()
@@ -127,9 +127,9 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// use heph::actor::Bound;
 /// use heph::log::request;
 /// use heph::net::TcpListener;
-/// use heph::{actor, RuntimeError, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
+/// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
 ///
-/// fn main() -> Result<(), RuntimeError> {
+/// fn main() -> Result<(), rt::Error> {
 ///     heph::log::init();
 ///
 ///     Runtime::new().with_setup(setup).start()

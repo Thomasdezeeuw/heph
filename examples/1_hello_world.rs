@@ -1,9 +1,9 @@
 #![feature(never_type)]
 
 use heph::supervisor::NoSupervisor;
-use heph::{actor, ActorOptions, Runtime, RuntimeError, RuntimeRef};
+use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 
-fn main() -> Result<(), RuntimeError> {
+fn main() -> Result<(), rt::Error> {
     // We create a new runtime. Add a setup function, which adds our greeter
     // actor. And finally we start it.
     Runtime::new().with_setup(add_greeter_actor).start()

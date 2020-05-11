@@ -1,17 +1,16 @@
 //! Module containing runtime error types.
 
-use std::error::Error;
 use std::{fmt, io};
 
 /// Error returned by running an [`Runtime`].
 ///
 /// [`Runtime`]: crate::Runtime
-pub struct RuntimeError<SetupError = !> {
-    inner: RuntimeErrorInner<SetupError>,
+pub struct Error<SetupError = !> {
+    inner: ErrorInner<SetupError>,
 }
 
-/// Inside of `RuntimeError` error.
-enum RuntimeErrorInner<SetupError> {
+/// Inside of `Error` error.
+enum ErrorInner<SetupError> {
     /// Error starting worker thread.
     StartThread(io::Error),
     /// Error in coordinator.
@@ -24,68 +23,68 @@ enum RuntimeErrorInner<SetupError> {
     Panic(String),
 }
 
-impl RuntimeError<!> {
-    /// Helper method to map `RuntimeError<!>` to `RuntimeError<SetupError>`.
+impl Error<!> {
+    /// Helper method to map `Error<!>` to `Error<SetupError>`.
     //
-    // TODO: replace this with `From<RuntimeError<!>> for
-    // RuntimeError<SetupError>` impl.
-    pub fn map_type<SetupError>(self) -> RuntimeError<SetupError> {
-        RuntimeError {
+    // TODO: replace this with `From<Error<!>> for
+    // Error<SetupError>` impl.
+    pub fn map_type<SetupError>(self) -> Error<SetupError> {
+        Error {
             inner: match self.inner {
-                RuntimeErrorInner::StartThread(err) => RuntimeErrorInner::StartThread(err),
-                RuntimeErrorInner::Coordinator(err) => RuntimeErrorInner::Coordinator(err),
-                RuntimeErrorInner::Worker(err) => RuntimeErrorInner::Worker(err),
-                RuntimeErrorInner::<!>::Setup(_) => unreachable!(),
-                RuntimeErrorInner::Panic(err) => RuntimeErrorInner::Panic(err),
+                ErrorInner::StartThread(err) => ErrorInner::StartThread(err),
+                ErrorInner::Coordinator(err) => ErrorInner::Coordinator(err),
+                ErrorInner::Worker(err) => ErrorInner::Worker(err),
+                ErrorInner::<!>::Setup(_) => unreachable!(),
+                ErrorInner::Panic(err) => ErrorInner::Panic(err),
             },
         }
     }
 }
 
-impl<SetupError> RuntimeError<SetupError> {
+impl<SetupError> Error<SetupError> {
     const DESC: &'static str = "error running Heph runtime";
 
-    pub(crate) const fn coordinator(err: io::Error) -> RuntimeError<SetupError> {
-        RuntimeError {
-            inner: RuntimeErrorInner::Coordinator(err),
+    pub(crate) const fn coordinator(err: io::Error) -> Error<SetupError> {
+        Error {
+            inner: ErrorInner::Coordinator(err),
         }
     }
 
-    pub(crate) const fn start_thread(err: io::Error) -> RuntimeError<SetupError> {
-        RuntimeError {
-            inner: RuntimeErrorInner::StartThread(err),
+    pub(crate) const fn start_thread(err: io::Error) -> Error<SetupError> {
+        Error {
+            inner: ErrorInner::StartThread(err),
         }
     }
 
-    pub(crate) const fn worker(err: io::Error) -> RuntimeError<SetupError> {
-        RuntimeError {
-            inner: RuntimeErrorInner::Worker(err),
+    pub(crate) const fn worker(err: io::Error) -> Error<SetupError> {
+        Error {
+            inner: ErrorInner::Worker(err),
         }
     }
 
-    pub(crate) const fn setup(err: SetupError) -> RuntimeError<SetupError> {
-        RuntimeError {
-            inner: RuntimeErrorInner::Setup(err),
+    pub(crate) const fn setup(err: SetupError) -> Error<SetupError> {
+        Error {
+            inner: ErrorInner::Setup(err),
         }
     }
 
-    pub(crate) const fn panic(err: String) -> RuntimeError<SetupError> {
-        RuntimeError {
-            inner: RuntimeErrorInner::Panic(err),
+    pub(crate) const fn panic(err: String) -> Error<SetupError> {
+        Error {
+            inner: ErrorInner::Panic(err),
         }
     }
 }
 
 /// Method to create a setup error, for use outside of the setup function. This
 /// is useful for example when setting up a [`tcp::Server`] outside the [setup
-/// function in `Runtime`] and want to use `RuntimeError` as error returned by
+/// function in `Runtime`] and want to use `Error` as error returned by
 /// main. See example 2 for example usage.
 ///
 /// [`tcp::Server`]: crate::net::tcp::Server::setup
 /// [setup function in `Runtime`]: crate::Runtime::with_setup
-impl<SetupError> From<SetupError> for RuntimeError<SetupError> {
-    fn from(err: SetupError) -> RuntimeError<SetupError> {
-        RuntimeError::setup(err)
+impl<SetupError> From<SetupError> for Error<SetupError> {
+    fn from(err: SetupError) -> Error<SetupError> {
+        Error::setup(err)
     }
 }
 
@@ -96,15 +95,15 @@ impl<SetupError> From<SetupError> for RuntimeError<SetupError> {
 /// [`Termination`]: std::process::Termination
 /// [`Debug`]: std::fmt::Debug
 /// [`Display`]: std::fmt::Display
-impl<SetupError: fmt::Display> fmt::Debug for RuntimeError<SetupError> {
+impl<SetupError: fmt::Display> fmt::Debug for Error<SetupError> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
 }
 
-impl<SetupError: fmt::Display> fmt::Display for RuntimeError<SetupError> {
+impl<SetupError: fmt::Display> fmt::Display for Error<SetupError> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use RuntimeErrorInner::*;
+        use ErrorInner::*;
         match self.inner {
             StartThread(ref err) => {
                 write!(f, "{}: error starting worker thread: {}", Self::DESC, err)
@@ -119,9 +118,11 @@ impl<SetupError: fmt::Display> fmt::Display for RuntimeError<SetupError> {
     }
 }
 
-impl<SetupError: Error + fmt::Display + 'static> Error for RuntimeError<SetupError> {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        use RuntimeErrorInner::*;
+impl<SetupError: std::error::Error + fmt::Display + 'static> std::error::Error
+    for Error<SetupError>
+{
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use ErrorInner::*;
         match self.inner {
             StartThread(ref err) | Coordinator(ref err) | Worker(ref err) => Some(err),
             Setup(ref err) => Some(err),

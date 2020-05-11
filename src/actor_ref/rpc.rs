@@ -22,7 +22,7 @@
 //! ```
 //! # #![feature(never_type)]
 //! #
-//! use heph::{actor, Runtime, ActorOptions, RuntimeError};
+//! use heph::{actor, rt, Runtime, ActorOptions};
 //! use heph::actor_ref::{ActorRef, RpcMessage, NoResponse};
 //! use heph::supervisor::NoSupervisor;
 //!
@@ -63,7 +63,7 @@
 //!     Ok(())
 //! }
 //!
-//! # fn main() -> Result<(), RuntimeError> {
+//! # fn main() -> Result<(), rt::Error> {
 //! #    Runtime::new().with_setup(|mut runtime_ref| {
 //! #        let counter = counter as fn(_) -> _;
 //! #        let actor_ref = runtime_ref.spawn_local(NoSupervisor, counter, (), ActorOptions::default());
@@ -85,7 +85,7 @@
 //! use heph::actor::sync::SyncContext;
 //! use heph::actor_ref::{ActorRef, RpcMessage};
 //! use heph::supervisor::NoSupervisor;
-//! use heph::{actor, Runtime, ActorOptions, RuntimeError};
+//! use heph::{actor, rt, Runtime, ActorOptions};
 //!
 //! /// Message type for [`counter`].
 //! enum Message {
@@ -148,7 +148,7 @@
 //!     Ok(())
 //! }
 //!
-//! # fn main() -> Result<(), RuntimeError> {
+//! # fn main() -> Result<(), rt::Error> {
 //! #    let mut runtime = Runtime::new();
 //! #    let counter = counter as fn(_) -> _;
 //! #    let actor_ref = runtime.spawn_sync_actor(NoSupervisor, counter, ())?;

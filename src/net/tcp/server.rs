@@ -126,9 +126,9 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// use heph::net::tcp::{self, TcpStream};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::rt::options::Priority;
-/// use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
+/// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
 ///
-/// fn main() -> Result<(), RuntimeError<io::Error>> {
+/// fn main() -> Result<(), rt::Error<io::Error>> {
 ///     // Create and start the Heph runtime.
 ///     Runtime::new().with_setup(setup).start()
 /// }
@@ -219,9 +219,9 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// use heph::net::tcp::{self, TcpStream};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::rt::options::Priority;
-/// use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
+/// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
 ///
-/// fn main() -> Result<(), RuntimeError<io::Error>> {
+/// fn main() -> Result<(), rt::Error<io::Error>> {
 ///     Runtime::new().with_setup(setup).start()
 /// }
 ///

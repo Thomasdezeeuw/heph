@@ -87,9 +87,9 @@ pub trait NewActor {
     /// #![feature(never_type)]
     ///
     /// use heph::supervisor::NoSupervisor;
-    /// use heph::{actor, RuntimeError, ActorOptions, Runtime};
+    /// use heph::{actor, rt, ActorOptions, Runtime};
     ///
-    /// fn main() -> Result<(), RuntimeError> {
+    /// fn main() -> Result<(), rt::Error> {
     ///     // Create and run the runtime.
     ///     Runtime::new()
     ///         .with_setup(|mut runtime_ref| {
@@ -210,9 +210,9 @@ pub trait NewActor {
     /// # use heph::log::error;
     /// use heph::net::tcp::{self, TcpStream};
     /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
-    /// use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
+    /// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
     ///
-    /// fn main() -> Result<(), RuntimeError<io::Error>> {
+    /// fn main() -> Result<(), rt::Error<io::Error>> {
     ///     // Create and run runtime
     ///     Runtime::new().with_setup(setup).start()
     /// }

@@ -55,12 +55,11 @@
 //! ```
 //! #![feature(never_type)]
 //!
-//! use heph::actor;
 //! use heph::log::{self, error};
 //! use heph::supervisor::SupervisorStrategy;
-//! use heph::{ActorOptions, Runtime, RuntimeError};
+//! use heph::{actor, rt, ActorOptions, Runtime};
 //!
-//! fn main() -> Result<(), RuntimeError> {
+//! fn main() -> Result<(), rt::Error> {
 //!     // Enable logging so we can see the error message.
 //!     log::init();
 //!
@@ -214,9 +213,9 @@ where
 /// #![feature(never_type)]
 ///
 /// use heph::supervisor::NoSupervisor;
-/// use heph::{actor, RuntimeError, ActorOptions, Runtime};
+/// use heph::{actor, rt, ActorOptions, Runtime};
 ///
-/// fn main() -> Result<(), RuntimeError> {
+/// fn main() -> Result<(), rt::Error> {
 ///     Runtime::new()
 ///         .with_setup(|mut runtime_ref| {
 ///             runtime_ref.spawn_local(NoSupervisor, actor as fn(_) -> _, (),

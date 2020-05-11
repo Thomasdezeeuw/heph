@@ -2,9 +2,9 @@
 
 use heph::actor::sync::SyncContext;
 use heph::supervisor::NoSupervisor;
-use heph::{Runtime, RuntimeError};
+use heph::{rt, Runtime};
 
-fn main() -> Result<(), RuntimeError> {
+fn main() -> Result<(), rt::Error> {
     // Spawning synchronous actor works slightly differently the spawning
     // regular (asynchronous) actors. Mainly, synchronous actors need to be
     // spawned before the runtime is started.

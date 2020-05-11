@@ -21,10 +21,10 @@
 //! #![feature(never_type)]
 //!
 //! use heph::supervisor::NoSupervisor;
-//! use heph::{actor, ActorOptions, Runtime, RuntimeError, RuntimeRef};
+//! use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 //! use heph::log::{self, request};
 //!
-//! fn main() -> Result<(), RuntimeError> {
+//! fn main() -> Result<(), rt::Error> {
 //!     // Enable logging.
 //!     log::init();
 //!

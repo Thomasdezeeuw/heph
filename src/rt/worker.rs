@@ -13,8 +13,7 @@ use crate::rt::process::ProcessResult;
 use crate::rt::scheduler::LocalScheduler;
 use crate::rt::timers::Timers;
 use crate::rt::{
-    channel, waker, ProcessId, RuntimeError, RuntimeInternal, RuntimeRef, SharedRuntimeInternal,
-    Signal,
+    self, channel, waker, ProcessId, RuntimeInternal, RuntimeRef, SharedRuntimeInternal, Signal,
 };
 
 /// Message send by the coordinator thread.
@@ -32,7 +31,7 @@ pub(super) struct Worker<E> {
     /// Unique id (among all threads in the `Runtime`).
     id: usize,
     /// Handle for the actual thread.
-    handle: thread::JoinHandle<Result<(), RuntimeError<E>>>,
+    handle: thread::JoinHandle<Result<(), rt::Error<E>>>,
     /// Two-way communication channel to share messages with the worker thread.
     channel: channel::Handle<CoordinatorMessage, WorkerMessage>,
 }
@@ -76,7 +75,7 @@ impl<E> Worker<E> {
     }
 
     /// See [`thread::JoinHandle::join`].
-    pub(super) fn join(self) -> thread::Result<Result<(), RuntimeError<E>>> {
+    pub(super) fn join(self) -> thread::Result<Result<(), rt::Error<E>>> {
         self.handle.join()
     }
 }
@@ -88,16 +87,16 @@ fn main<S>(
     setup: Option<S>,
     receiver: channel::Handle<WorkerMessage, CoordinatorMessage>,
     shared_internals: Arc<SharedRuntimeInternal>,
-) -> Result<(), RuntimeError<S::Error>>
+) -> Result<(), rt::Error<S::Error>>
 where
     S: SetupFn,
 {
-    let runtime = RunningRuntime::new(receiver, shared_internals).map_err(RuntimeError::worker)?;
+    let runtime = RunningRuntime::new(receiver, shared_internals).map_err(rt::Error::worker)?;
 
     // Run optional setup.
     if let Some(setup) = setup {
         let runtime_ref = runtime.create_ref();
-        setup.setup(runtime_ref).map_err(RuntimeError::setup)?;
+        setup.setup(runtime_ref).map_err(rt::Error::setup)?;
     }
 
     // All setup is done, so we're ready to run the event loop.
@@ -173,7 +172,7 @@ impl RunningRuntime {
     }
 
     /// Run the runtime's event loop.
-    fn run_event_loop<E>(mut self) -> Result<(), RuntimeError<E>> {
+    fn run_event_loop<E>(mut self) -> Result<(), rt::Error<E>> {
         debug!("running runtime's event loop");
 
         // System reference used in running the processes.
@@ -227,7 +226,7 @@ impl RunningRuntime {
                 }
             }
 
-            self.schedule_processes().map_err(RuntimeError::worker)?;
+            self.schedule_processes().map_err(rt::Error::worker)?;
         }
     }
 

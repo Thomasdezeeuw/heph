@@ -54,10 +54,10 @@ impl Into<io::Error> for DeadlinePassed {
 ///
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
-/// # use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
+/// # use heph::{rt, ActorOptions, Runtime, RuntimeRef};
 /// use heph::timer::Timer;
 ///
-/// # fn main() -> Result<(), RuntimeError> {
+/// # fn main() -> Result<(), rt::Error> {
 /// #     Runtime::new().with_setup(setup).start()
 /// # }
 /// #
@@ -153,10 +153,10 @@ impl actor::Bound<ThreadLocal> for Timer {
 ///
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
-/// # use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
+/// # use heph::{rt, ActorOptions, Runtime, RuntimeRef};
 /// use heph::timer::{DeadlinePassed, Deadline};
 ///
-/// # fn main() -> Result<(), RuntimeError> {
+/// # fn main() -> Result<(), rt::Error> {
 /// #     Runtime::new().with_setup(setup).start()
 /// # }
 /// #
@@ -305,10 +305,10 @@ impl<Fut> actor::Bound<ThreadLocal> for Deadline<Fut> {
 ///
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
-/// # use heph::{ActorOptions, Runtime, RuntimeRef, RuntimeError};
+/// # use heph::{rt, ActorOptions, Runtime, RuntimeRef};
 /// use heph::timer::Interval;
 /// #
-/// # fn main() -> Result<(), RuntimeError> {
+/// # fn main() -> Result<(), rt::Error> {
 /// #     Runtime::new().with_setup(setup).start()
 /// # }
 /// #

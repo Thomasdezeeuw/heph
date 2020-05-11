@@ -13,9 +13,7 @@ use mio_signals::{SignalSet, Signals};
 use crate::rt::process::ProcessId;
 use crate::rt::scheduler::Scheduler;
 use crate::rt::waker::{self, WakerId};
-use crate::rt::{
-    RuntimeError, SharedRuntimeInternal, Signal, SyncWorker, Worker, SYNC_WORKER_ID_START,
-};
+use crate::rt::{self, SharedRuntimeInternal, Signal, SyncWorker, Worker, SYNC_WORKER_ID_START};
 
 /// Tokens used to receive events.
 const SIGNAL: Token = Token(usize::max_value());
@@ -60,22 +58,22 @@ impl Coordinator {
         mut self,
         mut workers: Vec<Worker<E>>,
         mut sync_workers: Vec<SyncWorker>,
-    ) -> Result<(), RuntimeError<E>> {
+    ) -> Result<(), rt::Error<E>> {
         debug_assert!(workers.is_sorted_by_key(|w| w.id()));
 
         let registry = self.poll.registry();
-        let mut signals = setup_signals(&registry).map_err(RuntimeError::coordinator)?;
-        register_workers(&registry, &mut workers).map_err(RuntimeError::coordinator)?;
-        register_sync_workers(&registry, &mut sync_workers).map_err(RuntimeError::coordinator)?;
+        let mut signals = setup_signals(&registry).map_err(rt::Error::coordinator)?;
+        register_workers(&registry, &mut workers).map_err(rt::Error::coordinator)?;
+        register_sync_workers(&registry, &mut sync_workers).map_err(rt::Error::coordinator)?;
 
         let mut events = Events::with_capacity(16);
         loop {
-            self.poll(&mut events).map_err(RuntimeError::coordinator)?;
+            self.poll(&mut events).map_err(rt::Error::coordinator)?;
 
             for event in events.iter() {
                 match event.token() {
                     SIGNAL => relay_signals(&mut signals, &mut workers, &mut sync_workers)
-                        .map_err(RuntimeError::coordinator)?,
+                        .map_err(rt::Error::coordinator)?,
                     // We always check for waker events below.
                     AWAKENER => {}
                     token if token.0 >= SYNC_WORKER_ID_START => {
@@ -162,10 +160,7 @@ fn relay_signals<E>(
 }
 
 /// Handle an `event` for a worker.
-fn handle_worker_event<E>(
-    workers: &mut Vec<Worker<E>>,
-    event: &Event,
-) -> Result<(), RuntimeError<E>> {
+fn handle_worker_event<E>(workers: &mut Vec<Worker<E>>, event: &Event) -> Result<(), rt::Error<E>> {
     if let Ok(i) = workers.binary_search_by_key(&event.token().0, |w| w.id()) {
         if event.is_error() || event.is_write_closed() {
             // Receiving end of the pipe is dropped, which means the
@@ -188,7 +183,7 @@ fn handle_worker_event<E>(
 fn handle_sync_worker_event<E>(
     sync_workers: &mut Vec<SyncWorker>,
     event: &Event,
-) -> Result<(), RuntimeError<E>> {
+) -> Result<(), rt::Error<E>> {
     if let Ok(i) = sync_workers.binary_search_by_key(&event.token().0, |w| w.id()) {
         if event.is_error() || event.is_write_closed() {
             // Receiving end of the pipe is dropped, which means the
@@ -205,8 +200,8 @@ fn handle_sync_worker_event<E>(
     }
 }
 
-/// Maps a boxed panic messages to a `RuntimeError`.
-fn map_panic<E>(err: Box<dyn Any + Send + 'static>) -> RuntimeError<E> {
+/// Maps a boxed panic messages to a `rt::Error`.
+fn map_panic<E>(err: Box<dyn Any + Send + 'static>) -> rt::Error<E> {
     let msg = match err.downcast_ref::<&'static str>() {
         Some(s) => (*s).to_owned(),
         None => match err.downcast_ref::<String>() {
@@ -214,5 +209,5 @@ fn map_panic<E>(err: Box<dyn Any + Send + 'static>) -> RuntimeError<E> {
             None => "unkown panic message".to_owned(),
         },
     };
-    RuntimeError::panic(msg)
+    rt::Error::panic(msg)
 }

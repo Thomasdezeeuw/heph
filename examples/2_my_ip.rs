@@ -10,9 +10,9 @@ use heph::log::{self, error, info};
 use heph::net::tcp::{self, TcpStream};
 use heph::rt::options::Priority;
 use heph::supervisor::{Supervisor, SupervisorStrategy};
-use heph::{ActorOptions, Runtime, RuntimeError};
+use heph::{rt, ActorOptions, Runtime};
 
-fn main() -> Result<(), RuntimeError<io::Error>> {
+fn main() -> Result<(), rt::Error<io::Error>> {
     // For this example we'll enable logging, this give us a bit more insight
     // into the runtime. By default it only logs informational or more severe
     // messages, the environment variable `LOG_LEVEL` can be set to change this.

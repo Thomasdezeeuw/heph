@@ -10,9 +10,9 @@ use std::time::Duration;
 use log::info;
 
 use heph::supervisor::NoSupervisor;
-use heph::{actor, ActorOptions, Runtime, RuntimeError};
+use heph::{actor, rt, ActorOptions, Runtime};
 
-fn main() -> Result<(), RuntimeError> {
+fn main() -> Result<(), rt::Error> {
     heph::log::init();
     let start = std::time::Instant::now();
     Runtime::new()

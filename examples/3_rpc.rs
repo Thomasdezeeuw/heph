@@ -4,9 +4,9 @@ use std::fmt;
 
 use heph::actor_ref::{ActorRef, RpcMessage};
 use heph::supervisor::NoSupervisor;
-use heph::{actor, ActorOptions, Runtime, RuntimeError, RuntimeRef};
+use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 
-fn main() -> Result<(), RuntimeError> {
+fn main() -> Result<(), rt::Error> {
     // Setup is much like example 1, see that example for more information.
     Runtime::new().with_setup(add_rpc_actor).start()
 }
