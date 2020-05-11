@@ -1,10 +1,9 @@
 //! Module containing the implementation of the `Process` trait for `Actor`s.
 
 use std::pin::Pin;
-use std::task::{self, Poll, Waker};
+use std::task::{self, Poll};
 
-use crate::actor::context::{ThreadLocal, ThreadSafe};
-use crate::actor::{self, Actor, NewActor};
+use crate::actor::{Actor, ContextKind, NewActor};
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::supervisor::SupervisorStrategy;
@@ -29,7 +28,7 @@ impl<'a, S, NA: NewActor, C> ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
     NA: NewActor<Context = C>,
-    C: ContextType,
+    C: ContextKind,
 {
     /// Create a new `ActorProcess`.
     pub(in crate::rt) const fn new(
@@ -106,7 +105,7 @@ impl<'a, S, NA, C> Process for ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
     NA: NewActor<Context = C>,
-    C: ContextType,
+    C: ContextKind,
 {
     fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult {
         // This is safe because we're not moving the actor.
@@ -143,50 +142,5 @@ where
             },
             Poll::Pending => ProcessResult::Pending,
         }
-    }
-}
-
-/// Implementation trait to support [`ThreadSafe`] and [`ThreadLocal`] contexts
-/// within the same implementation.
-pub(in crate::rt) trait ContextType {
-    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> Waker;
-
-    fn new_context<M>(
-        pid: ProcessId,
-        inbox: Inbox<M>,
-        inbox_ref: InboxRef<M>,
-        runtime_ref: &mut RuntimeRef,
-    ) -> actor::Context<M, Self>
-    where
-        Self: Sized;
-}
-
-impl ContextType for ThreadLocal {
-    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> Waker {
-        runtime_ref.new_local_task_waker(pid)
-    }
-
-    fn new_context<M>(
-        pid: ProcessId,
-        inbox: Inbox<M>,
-        inbox_ref: InboxRef<M>,
-        runtime_ref: &mut RuntimeRef,
-    ) -> actor::Context<M, ThreadLocal> {
-        actor::Context::new_local(pid, inbox, inbox_ref, runtime_ref.clone())
-    }
-}
-
-impl ContextType for ThreadSafe {
-    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> Waker {
-        runtime_ref.new_shared_task_waker(pid)
-    }
-
-    fn new_context<M>(
-        pid: ProcessId,
-        inbox: Inbox<M>,
-        inbox_ref: InboxRef<M>,
-        _: &mut RuntimeRef,
-    ) -> actor::Context<M, ThreadSafe> {
-        actor::Context::new_shared(pid, inbox, inbox_ref)
     }
 }

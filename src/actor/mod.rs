@@ -64,6 +64,7 @@ pub mod message_select {
     pub use crate::inbox::{First, MessageSelection, MessageSelector, Messages, Priority};
 }
 
+pub(crate) use context_priv::ContextKind;
 #[doc(inline)]
 pub use context_priv::{Context, /*PeekMessage, */ ReceiveMessage};
 
