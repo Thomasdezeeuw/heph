@@ -12,7 +12,7 @@ use std::{fmt, io};
 
 use mio::{net, Interest};
 
-use crate::actor;
+use crate::actor::{self, ContextKind};
 
 /// The unconnected mode of an [`UdpSocket`].
 #[allow(missing_debug_implementations)]
@@ -139,13 +139,17 @@ impl UdpSocket {
     /// socket is ready to be read or write to.
     ///
     /// [bound]: crate::actor::Bound
-    pub fn bind<M>(
-        ctx: &mut actor::Context<M>,
+    pub fn bind<M, C>(
+        ctx: &mut actor::Context<M, C>,
         local: SocketAddr,
-    ) -> io::Result<UdpSocket<Unconnected>> {
+    ) -> io::Result<UdpSocket<Unconnected>>
+    where
+        C: ContextKind,
+    {
         let mut socket = net::UdpSocket::bind(local)?;
         let pid = ctx.pid();
-        ctx.runtime().register(
+        C::register(
+            ctx,
             &mut socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,
@@ -354,12 +358,16 @@ impl<M> fmt::Debug for UdpSocket<M> {
     }
 }
 
-impl actor::Bound for UdpSocket {
+impl<C> actor::Bound<C> for UdpSocket
+where
+    C: ContextKind,
+{
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, C>) -> io::Result<()> {
         let pid = ctx.pid();
-        ctx.runtime().reregister(
+        C::register(
+            ctx,
             &mut self.socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,

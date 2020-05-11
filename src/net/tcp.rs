@@ -23,7 +23,7 @@ use futures_core::stream::{FusedStream, Stream};
 use futures_io::{AsyncRead, AsyncWrite};
 use mio::{net, Interest};
 
-use crate::actor;
+use crate::actor::{self, ContextKind};
 
 mod server;
 
@@ -195,11 +195,16 @@ impl TcpListener {
     /// listener has a connection ready to be accepted.
     ///
     /// [bound]: crate::actor::Bound
-    pub fn bind<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpListener> {
+    pub fn bind<M, C>(
+        ctx: &mut actor::Context<M, C>,
+        address: SocketAddr,
+    ) -> io::Result<TcpListener>
+    where
+        C: ContextKind,
+    {
         let mut socket = net::TcpListener::bind(address)?;
         let pid = ctx.pid();
-        ctx.runtime()
-            .register(&mut socket, pid.into(), Interest::READABLE)?;
+        C::register(ctx, &mut socket, pid.into(), Interest::READABLE)?;
         Ok(TcpListener { socket })
     }
 
@@ -326,13 +331,15 @@ impl<'a> FusedStream for Incoming<'a> {
     }
 }
 
-impl actor::Bound for TcpListener {
+impl<C> actor::Bound<C> for TcpListener
+where
+    C: ContextKind,
+{
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, C>) -> io::Result<()> {
         let pid = ctx.pid();
-        ctx.runtime()
-            .reregister(&mut self.socket, pid.into(), Interest::READABLE)
+        C::reregister(ctx, &mut self.socket, pid.into(), Interest::READABLE)
     }
 }
 
@@ -354,10 +361,17 @@ impl TcpStream {
     /// or write.
     ///
     /// [bound]: crate::actor::Bound
-    pub fn connect<M>(ctx: &mut actor::Context<M>, address: SocketAddr) -> io::Result<TcpStream> {
+    pub fn connect<M, C>(
+        ctx: &mut actor::Context<M, C>,
+        address: SocketAddr,
+    ) -> io::Result<TcpStream>
+    where
+        C: ContextKind,
+    {
         let mut socket = net::TcpStream::connect(address)?;
         let pid = ctx.pid();
-        ctx.runtime().register(
+        C::register(
+            ctx,
             &mut socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,
@@ -469,12 +483,16 @@ impl AsyncWrite for TcpStream {
     }
 }
 
-impl actor::Bound for TcpStream {
+impl<C> actor::Bound<C> for TcpStream
+where
+    C: ContextKind,
+{
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> io::Result<()> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, C>) -> io::Result<()> {
         let pid = ctx.pid();
-        ctx.runtime().reregister(
+        C::reregister(
+            ctx,
             &mut self.socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,

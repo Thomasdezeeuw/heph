@@ -527,12 +527,12 @@ where
 /// [`TcpStream`]: crate::net::TcpStream
 /// [`UdpSocket`]: crate::net::UdpSocket
 /// [`timer`]: crate::timer
-pub trait Bound {
+pub trait Bound<C> {
     /// Error type used in [`bind_to`].
     ///
     /// [`bind_to`]: Bound::bind_to
     type Error;
 
     /// Bind a type to the [`Actor`] that owns the `ctx`.
-    fn bind_to<M>(&mut self, ctx: &mut Context<M>) -> Result<(), Self::Error>;
+    fn bind_to<M>(&mut self, ctx: &mut Context<M, C>) -> Result<(), Self::Error>;
 }

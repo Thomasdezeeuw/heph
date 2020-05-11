@@ -1,15 +1,17 @@
 //! Module containing the `Context` and related types.
 
-use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::{self, Poll};
+use std::{fmt, io};
+
+use mio::{event, Interest, Token};
 
 use crate::actor::message_select::First;
 use crate::actor_ref::ActorRef;
 use crate::inbox::{Inbox, InboxRef};
-use crate::rt::ProcessId;
-use crate::RuntimeRef;
+use crate::rt::{ProcessId, RuntimeRef, SharedRuntimeInternal};
 
 /// The context in which an actor is executed.
 ///
@@ -60,7 +62,7 @@ pub struct ThreadLocal {
 ///
 /// [`actor::Context`]: crate::actor::Context
 pub struct ThreadSafe {
-    _priv: (),
+    runtime_ref: Arc<SharedRuntimeInternal>,
 }
 
 impl<M> Context<M, ThreadLocal> {
@@ -86,12 +88,13 @@ impl<M> Context<M, ThreadSafe> {
         pid: ProcessId,
         inbox: Inbox<M>,
         inbox_ref: InboxRef<M>,
+        runtime_ref: Arc<SharedRuntimeInternal>,
     ) -> Context<M, ThreadSafe> {
         Context {
             pid,
             inbox,
             inbox_ref,
-            kind: ThreadSafe { _priv: () },
+            kind: ThreadSafe { runtime_ref },
         }
     }
 }
@@ -349,9 +352,16 @@ impl<M> Context<M, ThreadLocal> {
     }
 }
 
+impl<M> Context<M, ThreadSafe> {
+    fn runtime(&mut self) -> &SharedRuntimeInternal {
+        &mut self.kind.runtime_ref
+    }
+}
+
 /// Implementation detail to support [`ThreadSafe`] and [`ThreadLocal`] contexts
 /// within the same implementation.
-pub(crate) trait ContextKind {
+// public because it used in trait bound for methods like `UdpSocket::bind`.
+pub trait ContextKind {
     /// Create a new [`task::Waker`].
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
 
@@ -364,6 +374,30 @@ pub(crate) trait ContextKind {
     ) -> Context<M, Self>
     where
         Self: Sized;
+
+    /// Registers the `source` at the correct `Poll` instance using `token` and
+    /// `interest`.
+    fn register<M, S>(
+        ctx: &mut Context<M, Self>,
+        source: &mut S,
+        token: Token,
+        interest: Interest,
+    ) -> io::Result<()>
+    where
+        Self: Sized,
+        S: event::Source + ?Sized;
+
+    /// Reregisters the `source` at the correct `Poll` instance using `token` and
+    /// `interest`.
+    fn reregister<M, S>(
+        ctx: &mut Context<M, Self>,
+        source: &mut S,
+        token: Token,
+        interest: Interest,
+    ) -> io::Result<()>
+    where
+        Self: Sized,
+        S: event::Source + ?Sized;
 }
 
 impl ContextKind for ThreadLocal {
@@ -379,6 +413,32 @@ impl ContextKind for ThreadLocal {
     ) -> Context<M, ThreadLocal> {
         Context::new_local(pid, inbox, inbox_ref, runtime_ref.clone())
     }
+
+    fn register<M, S>(
+        ctx: &mut Context<M, Self>,
+        source: &mut S,
+        token: Token,
+        interest: Interest,
+    ) -> io::Result<()>
+    where
+        Self: Sized,
+        S: event::Source + ?Sized,
+    {
+        ctx.runtime().register(source, token, interest)
+    }
+
+    fn reregister<M, S>(
+        ctx: &mut Context<M, Self>,
+        source: &mut S,
+        token: Token,
+        interest: Interest,
+    ) -> io::Result<()>
+    where
+        Self: Sized,
+        S: event::Source + ?Sized,
+    {
+        ctx.runtime().reregister(source, token, interest)
+    }
 }
 
 impl ContextKind for ThreadSafe {
@@ -390,9 +450,35 @@ impl ContextKind for ThreadSafe {
         pid: ProcessId,
         inbox: Inbox<M>,
         inbox_ref: InboxRef<M>,
-        _: &mut RuntimeRef,
+        runtime_ref: &mut RuntimeRef,
     ) -> Context<M, ThreadSafe> {
-        Context::new_shared(pid, inbox, inbox_ref)
+        Context::new_shared(pid, inbox, inbox_ref, runtime_ref.clone_shared())
+    }
+
+    fn register<M, S>(
+        ctx: &mut Context<M, Self>,
+        source: &mut S,
+        token: Token,
+        interest: Interest,
+    ) -> io::Result<()>
+    where
+        Self: Sized,
+        S: event::Source + ?Sized,
+    {
+        ctx.runtime().register(source, token, interest)
+    }
+
+    fn reregister<M, S>(
+        ctx: &mut Context<M, Self>,
+        source: &mut S,
+        token: Token,
+        interest: Interest,
+    ) -> io::Result<()>
+    where
+        Self: Sized,
+        S: event::Source + ?Sized,
+    {
+        ctx.runtime().reregister(source, token, interest)
     }
 }
 

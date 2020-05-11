@@ -12,6 +12,8 @@
 //!
 //! [`Stream`]: futures_core::stream::Stream
 
+// TODO: support thread-safe actors.
+
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -20,6 +22,7 @@ use std::time::{Duration, Instant};
 
 use futures_core::stream::{FusedStream, Stream};
 
+use crate::actor::context::ThreadLocal;
 use crate::rt::ProcessId;
 use crate::{actor, RuntimeRef};
 
@@ -117,7 +120,7 @@ impl Future for Timer {
     }
 }
 
-impl actor::Bound for Timer {
+impl actor::Bound<ThreadLocal> for Timer {
     type Error = !;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
@@ -261,7 +264,7 @@ where
 }
 */
 
-impl<Fut> actor::Bound for Deadline<Fut> {
+impl<Fut> actor::Bound<ThreadLocal> for Deadline<Fut> {
     type Error = !;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
@@ -384,7 +387,7 @@ impl FusedStream for Interval {
     }
 }
 
-impl actor::Bound for Interval {
+impl actor::Bound<ThreadLocal> for Interval {
     type Error = !;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {

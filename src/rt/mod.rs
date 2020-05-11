@@ -544,7 +544,12 @@ impl RuntimeRef {
         // Create our actor context and our actor with it.
         let (inbox, inbox_ref) = Inbox::new(waker);
         let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
-        let ctx = actor::Context::new_shared(pid, inbox.ctx_inbox(), inbox_ref.clone());
+        let ctx = actor::Context::new_shared(
+            pid,
+            inbox.ctx_inbox(),
+            inbox_ref.clone(),
+            self.clone_shared(),
+        );
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         // Add the actor to the scheduler.
@@ -621,19 +626,23 @@ impl RuntimeRef {
     /// Same as [`RuntimeRef::new_local_task_waker`] but provides a waker
     /// implementation for thread-safe actors.
     pub(crate) fn new_shared_task_waker(&self, pid: ProcessId) -> task::Waker {
-        waker::new(self.internal.shared.waker_id, pid)
+        self.internal.shared.new_task_waker(pid)
     }
 
     /// Add a deadline to the event sources.
     ///
     /// This is used in the `timer` crate.
-    #[allow(dead_code)] // FIXME: remove.
     pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         trace!("adding deadline: pid={}, deadline={:?}", pid, deadline);
         self.internal
             .timers
             .borrow_mut()
             .add_deadline(pid, deadline);
+    }
+
+    /// Returns a copy of the shared internals.
+    pub(crate) fn clone_shared(&self) -> Arc<SharedRuntimeInternal> {
+        self.internal.shared.clone()
     }
 }
 
@@ -685,5 +694,36 @@ impl SharedRuntimeInternal {
             scheduler,
             registry,
         })
+    }
+
+    /// Returns a new [`task::Waker`] for the thread-safe actor with `pid`.
+    pub(crate) fn new_task_waker(&self, pid: ProcessId) -> task::Waker {
+        waker::new(self.waker_id, pid)
+    }
+
+    /// Register an `event::Source`, see [`mio::Registry::register`].
+    pub(crate) fn register<S>(
+        &self,
+        source: &mut S,
+        token: Token,
+        interest: Interest,
+    ) -> io::Result<()>
+    where
+        S: event::Source + ?Sized,
+    {
+        self.registry.register(source, token, interest)
+    }
+
+    /// Reregister an `event::Source`, see [`mio::Registry::reregister`].
+    pub(crate) fn reregister<S>(
+        &self,
+        source: &mut S,
+        token: Token,
+        interest: Interest,
+    ) -> io::Result<()>
+    where
+        S: event::Source + ?Sized,
+    {
+        self.registry.reregister(source, token, interest)
     }
 }

@@ -158,7 +158,12 @@ where
     let waker = runtime_ref.new_waker(pid);
     let (inbox, inbox_ref) = Inbox::new(waker);
 
-    let ctx = actor::Context::new_shared(pid, inbox.ctx_inbox(), inbox_ref.clone());
+    let ctx = actor::Context::new_shared(
+        pid,
+        inbox.ctx_inbox(),
+        inbox_ref.clone(),
+        runtime_ref.clone_shared(),
+    );
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, inbox, inbox_ref))

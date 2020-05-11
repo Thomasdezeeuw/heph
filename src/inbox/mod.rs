@@ -14,8 +14,9 @@ pub(crate) mod oneshot;
 mod tests;
 
 /// Inbox that holds all messages for an actor.
+// public because it used in the `ContextKind` trait.
 #[derive(Debug)]
-pub(crate) struct Inbox<M> {
+pub struct Inbox<M> {
     receiver: Receiver<M>,
 }
 
@@ -78,8 +79,9 @@ impl<M> Inbox<M> {
 }
 
 /// Reference to an actor's inbox, used to send messages to it.
+// public because it used in the `ContextKind` trait.
 #[derive(Debug)]
-pub(crate) struct InboxRef<M> {
+pub struct InboxRef<M> {
     sender: Sender<M>,
     waker: Waker,
 }
