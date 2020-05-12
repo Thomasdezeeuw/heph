@@ -33,6 +33,7 @@ fn main() -> Result<(), rt::Error<io::Error>> {
     // function. But for this example we'll create a worker thread per available
     // CPU core using `use_all_cores`.
     Runtime::new()
+        .map_err(rt::Error::map_type)?
         .use_all_cores()
         .with_setup(move |mut runtime_ref| {
             // As the TCP listener is just another actor we need to spawn it

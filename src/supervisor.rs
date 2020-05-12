@@ -63,7 +63,7 @@
 //!     // Enable logging so we can see the error message.
 //!     log::init();
 //!
-//!     Runtime::new()
+//!     Runtime::new().map_err(rt::Error::map_type)?
 //!         .with_setup(|mut runtime_ref| {
 //!             runtime_ref.spawn_local(supervisor, bad_actor as fn(_) -> _, (),
 //!                 ActorOptions::default().mark_ready());
@@ -216,7 +216,7 @@ where
 /// use heph::{actor, rt, ActorOptions, Runtime};
 ///
 /// fn main() -> Result<(), rt::Error> {
-///     Runtime::new()
+///     Runtime::new()?
 ///         .with_setup(|mut runtime_ref| {
 ///             runtime_ref.spawn_local(NoSupervisor, actor as fn(_) -> _, (),
 ///                 ActorOptions::default().mark_ready());

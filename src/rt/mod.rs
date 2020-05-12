@@ -91,6 +91,12 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// uses, this can configured with the [`num_threads`] method, or
 /// [`use_all_cores`].
 ///
+/// It is also possible to already start thread-safe actors using [`try_spawn`]
+/// or [`spawn`], or synchronous actors using [`spawn_sync_actor`]. Note that
+/// most actors should run as thread-*local* actors however, to spawn such an
+/// actor see [`RuntimeRef::try_spawn_local`]. For the different kind of actors
+/// see the [`actor`] module.
+///
 /// Finally after setting all the configuration options the runtime can be
 /// [`start`]ed. This will spawn a number of worker threads to actually run the
 /// actors.
@@ -99,6 +105,9 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// [`with_setup`]: Runtime::with_setup
 /// [`num_threads`]: Runtime::num_threads
 /// [`use_all_cores`]: Runtime::use_all_cores
+/// [`try_spawn`]: Runtime::try_spawn
+/// [`spawn_sync_actor`]: Runtime::spawn_sync_actor
+/// [`spawn`]: Runtime::spawn
 /// [`start`]: Runtime::start
 ///
 /// ## Examples
@@ -115,7 +124,7 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     // Build a new `Runtime`.
-///     Runtime::new()
+///     Runtime::new()?
 ///         // Start two worker threads.
 ///         .num_threads(2)
 ///         // On each worker thread run our setup function.
@@ -162,6 +171,8 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// }
 /// ```
 pub struct Runtime<S = !> {
+    coordinator: Coordinator,
+    shared: Arc<SharedRuntimeInternal>,
     /// Number of worker threads to create.
     threads: usize,
     /// Synchronous actor thread handles.
@@ -173,12 +184,15 @@ pub struct Runtime<S = !> {
 impl Runtime {
     /// Create a `Runtime` with the default configuration.
     #[allow(clippy::new_without_default)]
-    pub fn new() -> Runtime<!> {
-        Runtime {
+    pub fn new() -> Result<Runtime<!>, Error> {
+        let (coordinator, shared) = Coordinator::init().map_err(Error::coordinator)?;
+        Ok(Runtime {
+            coordinator,
+            shared,
             threads: 1,
             sync_actors: Vec::new(),
             setup: None,
-        }
+        })
     }
 
     /// Add a setup function.
@@ -191,6 +205,8 @@ impl Runtime {
         E: Send,
     {
         Runtime {
+            coordinator: self.coordinator,
+            shared: self.shared,
             threads: self.threads,
             sync_actors: self.sync_actors,
             setup: Some(setup),
@@ -219,6 +235,76 @@ impl<S> Runtime<S> {
     /// See [`Runtime::num_threads`].
     pub fn use_all_cores(self) -> Self {
         self.num_threads(num_cpus::get())
+    }
+
+    /// Attempts to spawn a thread-safe actor.
+    ///
+    /// See [`RuntimeRef::try_spawn`].
+    pub fn try_spawn<Sv, NA>(
+        &mut self,
+        supervisor: Sv,
+        mut new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
+    where
+        Sv: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<Context = context::ThreadSafe> + Sync + Send + 'static,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
+    {
+        // Setup adding a new process to the scheduler.
+        let actor_entry = self.shared.scheduler.add_actor();
+        let pid = actor_entry.pid();
+        debug!("spawning thread-safe actor: pid={}", pid);
+
+        let waker = Waker::new(self.coordinator.waker_id(), pid);
+        if options.is_ready() {
+            waker.wake()
+        }
+
+        // Create our actor context and our actor with it.
+        let (inbox, inbox_ref) = Inbox::new(waker);
+        let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
+        let ctx = actor::Context::new_shared(
+            pid,
+            inbox.ctx_inbox(),
+            inbox_ref.clone(),
+            self.shared.clone(),
+        );
+        let actor = new_actor.new(ctx, arg)?;
+
+        // Add the actor to the scheduler.
+        actor_entry.add(
+            options.priority(),
+            supervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+        );
+
+        Ok(actor_ref)
+    }
+
+    /// Spawn an thread-safe actor.
+    ///
+    /// See [`RuntimeRef::spawn`].
+    pub fn spawn<Sv, NA>(
+        &mut self,
+        supervisor: Sv,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> ActorRef<NA::Message>
+    where
+        Sv: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<Error = !, Context = context::ThreadSafe> + Sync + Send + 'static,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
+    {
+        self.try_spawn(supervisor, new_actor, arg, options)
+            .unwrap_or_else(|_: !| unreachable!())
     }
 
     /// Spawn an synchronous actor that runs on its own thread.
@@ -270,18 +356,16 @@ where
             self.sync_actors.len()
         );
 
-        let (coordinator, shared_internals) = Coordinator::init().map_err(Error::coordinator)?;
-
         // Start our worker threads.
         let handles = (0..self.threads)
             .map(|id| {
                 let setup = self.setup.clone();
-                Worker::start(id, setup, shared_internals.clone())
+                Worker::start(id, setup, self.shared.clone())
             })
             .collect::<io::Result<Vec<Worker<S::Error>>>>()
             .map_err(Error::start_thread)?;
 
-        coordinator.run(handles, self.sync_actors)
+        self.coordinator.run(handles, self.sync_actors)
     }
 }
 
@@ -300,7 +384,7 @@ impl<S> fmt::Debug for Runtime<S> {
     }
 }
 
-/// A reference to an [`Runtime`].
+/// A reference to a [`Runtime`].
 ///
 /// This reference refers to the thread-local runtime, and thus can't be shared
 /// across thread bounds. To share this reference (within the same thread) it
@@ -409,7 +493,7 @@ impl RuntimeRef {
         let mut scheduler = self.internal.scheduler.borrow_mut();
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
-        debug!("spawning actor: pid={}", pid);
+        debug!("spawning thread-local actor: pid={}", pid);
 
         // Create our actor argument, running any setup required by the caller.
         let mut runtime_ref = self.clone();
@@ -530,7 +614,7 @@ impl RuntimeRef {
         // Setup adding a new process to the scheduler.
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
-        debug!("spawning actor: pid={}", pid);
+        debug!("spawning thread-safe actor: pid={}", pid);
 
         // Create our actor argument, running any setup required by the caller.
         let arg = arg_fn(pid).map_err(AddActorError::ArgFn)?;

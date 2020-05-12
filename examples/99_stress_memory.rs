@@ -15,7 +15,7 @@ use heph::{actor, rt, ActorOptions, Runtime};
 fn main() -> Result<(), rt::Error> {
     heph::log::init();
     let start = std::time::Instant::now();
-    Runtime::new()
+    Runtime::new()?
         .with_setup(move |mut runtime_ref| {
             let actor = actor as fn(_) -> _;
             for _ in 0..10_000_000 {

@@ -1,10 +1,30 @@
 //! The module with the `Actor` trait and related definitions.
 //!
-//! All actors must implement the [`Actor`] trait, which defines how an actor is
-//! run. The [`NewActor`] defines how an actor is created. The easiest way to
-//! implement these traits is to use asynchronous functions, see the example
-//! below.
+//! Actors come in three different kinds:
 //!
+//! * Asynchronous thread-local actors, spawned using
+//!   [`RuntimeRef::try_spawn_local`], often referred to as just thread-local
+//!   actors. These should be the most used as they are the cheapest to run. The
+//!   upside of running a thread-local actor is that it doesn't have to be
+//!   `Send` or `Sync`, allowing it to use cheaper types that don't require
+//!   synchronisation. The downside is that if single actor blocks the thread
+//!   all thread-local actors running on that thread will be blocked.
+//! * Asynchronous thread-safe actors, spawned using [`RuntimeRef::try_spawn`],
+//!   often referred to as just thread-safe actors. These actors can run on any
+//!   thread and thus require to be `Send` and `Sync`. These actors are more
+//!   expansive to run than thread-local actors.
+//! * Synchronous actors that run own there own thread and can use blocking
+//!   operations. See the [`SyncActor`] for more information, the remainder of
+//!   the documentatio in this module is for asynchronous actors.
+//!
+//! All asynchornous actors must implement the [`Actor`] trait, which defines
+//! how an actor is run. The [`NewActor`] defines how an actor is created. The
+//! easiest way to implement these traits is to use asynchronous functions, see
+//! the example below.
+//!
+//! [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
+//! [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
+//! [`SyncActor`]: crate::actor::sync::SyncActor
 //! [`Actor`]: crate::actor::Actor
 //! [`NewActor`]: crate::actor::NewActor
 //!
@@ -91,7 +111,7 @@ pub trait NewActor {
     ///
     /// fn main() -> Result<(), rt::Error> {
     ///     // Create and run the runtime.
-    ///     Runtime::new()
+    ///     Runtime::new()?
     ///         .with_setup(|mut runtime_ref| {
     ///             // Spawn the actor.
     ///             let new_actor = actor as fn(_) -> _;
@@ -214,7 +234,7 @@ pub trait NewActor {
     ///
     /// fn main() -> Result<(), rt::Error<io::Error>> {
     ///     // Create and run runtime
-    ///     Runtime::new().with_setup(setup).start()
+    ///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
     /// }
     ///
     /// /// In this setup function we'll spawn the `tcp::Server` actor.

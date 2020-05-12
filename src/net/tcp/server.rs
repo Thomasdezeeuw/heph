@@ -130,7 +130,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///
 /// fn main() -> Result<(), rt::Error<io::Error>> {
 ///     // Create and start the Heph runtime.
-///     Runtime::new().with_setup(setup).start()
+///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
 /// }
 ///
 /// /// In this setup function we'll spawn the TCP server.
@@ -222,7 +222,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
 ///
 /// fn main() -> Result<(), rt::Error<io::Error>> {
-///     Runtime::new().with_setup(setup).start()
+///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
 /// }
 ///
 /// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {

@@ -63,7 +63,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// fn main() -> Result<(), rt::Error> {
 ///     heph::log::init();
 ///
-///     Runtime::new().with_setup(setup).start()
+///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
 /// }
 ///
 /// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
@@ -132,7 +132,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 /// fn main() -> Result<(), rt::Error> {
 ///     heph::log::init();
 ///
-///     Runtime::new().with_setup(setup).start()
+///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
 /// }
 ///
 /// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {

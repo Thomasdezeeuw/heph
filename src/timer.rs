@@ -58,7 +58,7 @@ impl Into<io::Error> for DeadlinePassed {
 /// use heph::timer::Timer;
 ///
 /// # fn main() -> Result<(), rt::Error> {
-/// #     Runtime::new().with_setup(setup).start()
+/// #     Runtime::new()?.with_setup(setup).start()
 /// # }
 /// #
 /// #
@@ -157,7 +157,7 @@ impl actor::Bound<ThreadLocal> for Timer {
 /// use heph::timer::{DeadlinePassed, Deadline};
 ///
 /// # fn main() -> Result<(), rt::Error> {
-/// #     Runtime::new().with_setup(setup).start()
+/// #     Runtime::new()?.with_setup(setup).start()
 /// # }
 /// #
 /// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
@@ -309,7 +309,7 @@ impl<Fut> actor::Bound<ThreadLocal> for Deadline<Fut> {
 /// use heph::timer::Interval;
 /// #
 /// # fn main() -> Result<(), rt::Error> {
-/// #     Runtime::new().with_setup(setup).start()
+/// #     Runtime::new()?.with_setup(setup).start()
 /// # }
 /// #
 /// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {

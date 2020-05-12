@@ -64,7 +64,7 @@
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {
-//! #    Runtime::new().with_setup(|mut runtime_ref| {
+//! #    Runtime::new()?.with_setup(|mut runtime_ref| {
 //! #        let counter = counter as fn(_) -> _;
 //! #        let actor_ref = runtime_ref.spawn_local(NoSupervisor, counter, (), ActorOptions::default());
 //! #
@@ -149,7 +149,7 @@
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {
-//! #    let mut runtime = Runtime::new();
+//! #    let mut runtime = Runtime::new()?;
 //! #    let counter = counter as fn(_) -> _;
 //! #    let actor_ref = runtime.spawn_sync_actor(NoSupervisor, counter, ())?;
 //! #    runtime.with_setup(|mut runtime_ref| {

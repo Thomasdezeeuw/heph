@@ -8,7 +8,7 @@ use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 
 fn main() -> Result<(), rt::Error> {
     // Setup is much like example 1, see that example for more information.
-    Runtime::new().with_setup(add_rpc_actor).start()
+    Runtime::new()?.with_setup(add_rpc_actor).start()
 }
 
 fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {

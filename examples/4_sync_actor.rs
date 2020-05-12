@@ -8,7 +8,7 @@ fn main() -> Result<(), rt::Error> {
     // Spawning synchronous actor works slightly differently the spawning
     // regular (asynchronous) actors. Mainly, synchronous actors need to be
     // spawned before the runtime is started.
-    let mut runtime = Runtime::new();
+    let mut runtime = Runtime::new()?;
 
     // Spawn a new synchronous actor, returning an actor reference to it.
     let actor = actor as fn(_, _) -> _;

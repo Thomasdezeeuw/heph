@@ -28,7 +28,7 @@
 //!     // Enable logging.
 //!     log::init();
 //!
-//!     Runtime::new().with_setup(add_greeter_actor).start()
+//!     Runtime::new()?.with_setup(add_greeter_actor).start()
 //! }
 //!
 //! fn add_greeter_actor(mut system_ref: RuntimeRef) -> Result<(), !> {

@@ -34,7 +34,7 @@
 //! use heph::{actor, rt, ActorOptions, Runtime};
 //!
 //! fn main() -> Result<(), rt::Error> {
-//!     Runtime::new()
+//!     Runtime::new()?
 //!         .with_setup(|mut runtime_ref| {
 //!             // Spawn the actor.
 //!             let new_actor = actor as fn(_) -> _;
@@ -73,7 +73,7 @@
 //! use heph::{actor, rt, ActorOptions, Runtime};
 //!
 //! fn main() -> Result<(), rt::Error> {
-//!     Runtime::new()
+//!     Runtime::new()?
 //!         .with_setup(|mut runtime_ref| {
 //!             let new_actor = actor as fn(_) -> _;
 //!             let mut actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
