@@ -106,6 +106,15 @@ impl Timer {
     pub fn deadline(&self) -> Instant {
         self.deadline
     }
+
+    /// Wrap a future creating a new `Deadline`.
+    pub fn wrap<Fut>(self, future: Fut) -> Deadline<Fut> {
+        // Already added a deadline so no need to do it again.
+        Deadline {
+            deadline: self.deadline,
+            future,
+        }
+    }
 }
 
 impl Future for Timer {
