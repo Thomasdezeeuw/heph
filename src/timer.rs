@@ -32,8 +32,8 @@ use crate::{actor, RuntimeRef};
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct DeadlinePassed;
 
-impl Into<io::Error> for DeadlinePassed {
-    fn into(self) -> io::Error {
+impl From<DeadlinePassed> for io::Error {
+    fn from(_: DeadlinePassed) -> io::Error {
         io::ErrorKind::TimedOut.into()
     }
 }
@@ -244,11 +244,12 @@ where
 }
 
 /* TODO: add this once `specialization` feature is stabilised.
-impl<Fut, T> Future for Deadline<Fut>
+impl<Fut, T, E> Future for Deadline<Fut>
 where
-    Fut: Future<Output = io::Result<T>>,
+    Fut: Future<Output = Result<T, E>>,
+    E: From<DeadlinePassed>,
 {
-    type Output = io::Result<T>;
+    type Output = Result<T, E>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         if self.deadline <= Instant::now() {
