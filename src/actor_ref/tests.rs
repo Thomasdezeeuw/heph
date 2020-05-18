@@ -27,7 +27,7 @@ fn mapped_actor_ref_is_send_sync() {
 #[test]
 fn size_assertions() {
     assert_eq!(size_of::<ActorRef<()>>(), 56);
-    assert_eq!(size_of::<ActorGroup<()>>(), 8);
+    assert_eq!(size_of::<ActorGroup<()>>(), 24);
 }
 
 #[test]

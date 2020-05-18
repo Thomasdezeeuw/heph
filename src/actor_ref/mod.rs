@@ -111,7 +111,6 @@ use std::ops::ShlAssign;
 use std::sync::Arc;
 
 use crossbeam_channel::Sender;
-use parking_lot::RwLock;
 
 use crate::actor;
 use crate::inbox::InboxRef;
@@ -386,14 +385,14 @@ impl Error for SendError {}
 
 /// A group of [`ActorRef`]s used to send a message to multiple actors.
 pub struct ActorGroup<M> {
-    actor_refs: Arc<RwLock<Vec<ActorRef<M>>>>,
+    actor_refs: Vec<ActorRef<M>>,
 }
 
 impl<M> ActorGroup<M> {
     /// Creates an empty `ActorGroup`.
     pub fn empty() -> ActorGroup<M> {
         ActorGroup {
-            actor_refs: Arc::new(RwLock::new(Vec::new())),
+            actor_refs: Vec::new(),
         }
     }
 
@@ -402,16 +401,14 @@ impl<M> ActorGroup<M> {
     where
         I: IntoIterator<Item = ActorRef<M>>,
     {
-        let actor_refs = actor_refs.into_iter().collect();
         ActorGroup {
-            actor_refs: Arc::new(RwLock::new(actor_refs)),
+            actor_refs: actor_refs.into_iter().collect(),
         }
     }
 
     /// Add an `ActorRef` to the group.
-    pub fn add(&self, actor_ref: ActorRef<M>) {
-        let mut actor_refs = self.actor_refs.write();
-        actor_refs.push(actor_ref)
+    pub fn add(&mut self, actor_ref: ActorRef<M>) {
+        self.actor_refs.push(actor_ref)
     }
 
     /// Asynchronously send a message to all the actors in the group.
@@ -443,11 +440,10 @@ impl<M> ActorGroup<M> {
         // This lock can only not be acquired when an actor ref is added to the
         // group, which shouldn't take too long (notwithstanding the thread
         // being descheduled).
-        let actor_refs = self.actor_refs.read();
-        if actor_refs.is_empty() {
+        if self.actor_refs.is_empty() {
             Err(SendError)
         } else {
-            for actor_ref in actor_refs.iter() {
+            for actor_ref in self.actor_refs.iter() {
                 let _ = actor_ref.send(msg.clone());
             }
             Ok(())
@@ -469,16 +465,7 @@ impl<M> Extend<ActorRef<M>> for ActorGroup<M> {
     where
         I: IntoIterator<Item = ActorRef<M>>,
     {
-        let mut actor_refs = self.actor_refs.write();
-        actor_refs.extend(iter);
-    }
-}
-
-impl<M> Clone for ActorGroup<M> {
-    fn clone(&self) -> ActorGroup<M> {
-        ActorGroup {
-            actor_refs: self.actor_refs.clone(),
-        }
+        self.actor_refs.extend(iter);
     }
 }
 
