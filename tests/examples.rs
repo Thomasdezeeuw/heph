@@ -71,6 +71,8 @@ sequential_tests! {
         let output = run_example_output("4_sync_actor");
         assert_eq!(output, "Got a message: Hello world\nBye\n");
     }
+
+    // TODO: add example 5.
 }
 
 /// Wrapper around a `command::Child` that kills the process when dropped, even
