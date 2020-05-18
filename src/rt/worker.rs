@@ -21,6 +21,8 @@ use crate::rt::{
 pub(crate) enum CoordinatorMessage {
     /// Process received a signal.
     Signal(Signal),
+    /// Signal to wake-up the worker thread.
+    Wake,
 }
 
 /// Message send by the worker thread.
@@ -71,6 +73,11 @@ impl<E> Worker<E> {
     /// Send the worker thread a `signal`.
     pub(super) fn send_signal(&mut self, signal: Signal) -> io::Result<()> {
         let msg = CoordinatorMessage::Signal(signal);
+        self.channel.try_send(msg)
+    }
+
+    pub(super) fn wake(&mut self) -> io::Result<()> {
+        let msg = CoordinatorMessage::Wake;
         self.channel.try_send(msg)
     }
 
@@ -125,7 +132,7 @@ pub(crate) struct RunningRuntime {
 const RUN_POLL_RATIO: usize = 32;
 
 /// Id used for the awakener.
-const AWAKENER: Token = Token(usize::max_value());
+const WAKER: Token = Token(usize::max_value());
 const COORDINATOR: Token = Token(usize::max_value() - 1);
 
 impl RunningRuntime {
@@ -136,7 +143,7 @@ impl RunningRuntime {
     ) -> io::Result<RunningRuntime> {
         // System queue for event notifications.
         let poll = Poll::new()?;
-        let awakener = mio::Waker::new(poll.registry(), AWAKENER)?;
+        let awakener = mio::Waker::new(poll.registry(), WAKER)?;
         channel.register(poll.registry(), COORDINATOR)?;
 
         // Channel used in the `Waker` implementation.
@@ -242,7 +249,7 @@ impl RunningRuntime {
         let mut check_coordinator = false;
         for event in self.events.iter() {
             match event.token() {
-                AWAKENER => {}
+                WAKER => {}
                 COORDINATOR => check_coordinator = true,
                 token => scheduler.mark_ready(token.into()),
             }
@@ -336,6 +343,7 @@ impl RunningRuntime {
                         let _ = receiver.send(signal);
                     }
                 }
+                Wake => { /* Just need to wake up. */ }
             }
         }
         Ok(())

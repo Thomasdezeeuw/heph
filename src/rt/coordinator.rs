@@ -13,11 +13,14 @@ use mio_signals::{SignalSet, Signals};
 use crate::rt::process::ProcessId;
 use crate::rt::scheduler::Scheduler;
 use crate::rt::waker::{self, WakerId};
-use crate::rt::{self, SharedRuntimeInternal, Signal, SyncWorker, Worker, SYNC_WORKER_ID_START};
+use crate::rt::{
+    self, SharedRuntimeInternal, Signal, SyncWorker, Worker, SYNC_WORKER_ID_END,
+    SYNC_WORKER_ID_START,
+};
 
 /// Tokens used to receive events.
 const SIGNAL: Token = Token(usize::max_value());
-const AWAKENER: Token = Token(usize::max_value() - 1);
+const WAKER: Token = Token(usize::max_value() - 1);
 
 pub(super) struct Coordinator {
     poll: Poll,
@@ -33,7 +36,7 @@ impl Coordinator {
         let registry = poll.registry().try_clone()?;
 
         let (waker_sender, waker_events) = crossbeam_channel::unbounded();
-        let waker = mio::Waker::new(&registry, AWAKENER)?;
+        let waker = mio::Waker::new(&registry, WAKER)?;
         let waker_id = waker::init(waker, waker_sender);
         let scheduler = Scheduler::new();
 
@@ -75,22 +78,43 @@ impl Coordinator {
         loop {
             self.poll(&mut events).map_err(rt::Error::coordinator)?;
 
+            let mut wake_workers = false;
             for event in events.iter() {
+                trace!("event: {:?}", event);
                 match event.token() {
                     SIGNAL => relay_signals(&mut signals, &mut workers, &mut sync_workers)
                         .map_err(rt::Error::coordinator)?,
                     // We always check for waker events below.
-                    AWAKENER => {}
-                    token if token.0 >= SYNC_WORKER_ID_START => {
+                    WAKER => {}
+                    token if token.0 <= SYNC_WORKER_ID_START => {
+                        handle_worker_event(&mut workers, event)?
+                    }
+                    token if token.0 <= SYNC_WORKER_ID_END => {
                         handle_sync_worker_event(&mut sync_workers, event)?
                     }
-                    _ => handle_worker_event(&mut workers, event)?,
+                    token => {
+                        wake_workers = true;
+                        let pid = token.into();
+                        trace!("waking thread-safe actor: pid={}", pid);
+                        self.scheduler.mark_ready(pid);
+                    }
                 }
             }
 
             trace!("polling wakup events");
             for pid in self.waker_events.try_iter() {
+                trace!("waking thread-safe actor: pid={}", pid);
+                wake_workers = true;
                 self.scheduler.mark_ready(pid);
+            }
+            // In case the worker threads are polling we need to wake them up.
+            // TODO: optimise this.
+            if wake_workers {
+                trace!("waking worker threads");
+                for worker in workers.iter_mut() {
+                    // Can't deal with the error.
+                    let _ = worker.wake();
+                }
             }
 
             if workers.is_empty() {

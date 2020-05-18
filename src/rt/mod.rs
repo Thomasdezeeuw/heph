@@ -65,6 +65,7 @@ use waker::{WakerId, MAX_THREADS};
 use worker::Worker;
 
 const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
+const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
 
 /// The runtime that runs all actors.
 ///
@@ -171,7 +172,9 @@ const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 /// }
 /// ```
 pub struct Runtime<S = !> {
+    /// Coordinator thread data.
     coordinator: Coordinator,
+    /// Internals shared between the coordinator and the worker threads.
     shared: Arc<SharedRuntimeInternal>,
     /// Number of worker threads to create.
     threads: usize,
