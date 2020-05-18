@@ -415,7 +415,7 @@ impl From<Terminate> for ServerMessage {
 }
 
 impl TryFrom<Signal> for ServerMessage {
-    type Error = Signal;
+    type Error = ();
 
     /// Converts [`Signal::Interrupt`], [`Signal::Terminate`] and
     /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
