@@ -29,17 +29,14 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::de::SliceRead;
 
+use crate::actor;
 use crate::actor::context::ThreadSafe;
 use crate::actor::messages::Terminate;
-use crate::actor::{self, Actor, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::net::udp::{Connected, UdpSocket};
 use crate::rt::options::{ActorOptions, Priority};
 use crate::rt::{Runtime, Signal};
-use crate::supervisor::{Supervisor, SupervisorStrategy};
-
-/// Maximum number of times the actors can fail before stopping it.
-const MAX_FAILS: usize = 3;
+use crate::supervisor::RestartSupervisor;
 
 /// Type used for registering actors.
 type Registrations = HashMap<&'static str, UntypedActorRef>;
@@ -114,13 +111,13 @@ impl RemoteRegistry {
         address: SocketAddr,
     ) -> ActorRef<RegistryMessage> {
         let registrations = Arc::new(self.registrations);
-        let supervisor = RegistrySupervisor(address, registrations.clone(), 0);
+        let args = (address, registrations);
+        let supervisor = RestartSupervisor::new("relay_listener", args.clone());
         #[allow(trivial_casts)]
         let relay_listener = relay_listener as fn(_, _, _) -> _;
         let options = ActorOptions::default()
             .with_priority(Priority::HIGH)
             .mark_ready();
-        let args = (address, registrations);
         runtime.spawn(supervisor, relay_listener, args, options)
     }
 }
@@ -203,33 +200,6 @@ enum SendError {
     FailedDeserialise,
     /// Failed to send the message.
     FailedSend,
-}
-
-/// [`Supervisor`] for the [`relay_actor`] actor.
-struct RegistrySupervisor(SocketAddr, Arc<Registrations>, usize);
-
-impl<NA, A> Supervisor<NA> for RegistrySupervisor
-where
-    NA: NewActor<Argument = (SocketAddr, Arc<Registrations>), Error = !, Actor = A>,
-    A: Actor<Error = io::Error>,
-{
-    fn decide(&mut self, err: io::Error) -> SupervisorStrategy<NA::Argument> {
-        warn!("relay listener actor failed: error={}", err);
-        self.2 += 1;
-        if self.2 >= MAX_FAILS {
-            SupervisorStrategy::Restart((self.0, self.1.clone()))
-        } else {
-            SupervisorStrategy::Stop
-        }
-    }
-
-    fn decide_on_restart_error(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
-        unreachable!()
-    }
-
-    fn second_restart_error(&mut self, _: !) {
-        unreachable!()
-    }
 }
 
 /// Message send to the listener actor started by
@@ -353,7 +323,7 @@ pub struct RemoteActors {
 impl RemoteActors {
     /// Create a new connection to a remote node.
     pub fn connect(runtime: &mut Runtime, address: SocketAddr) -> RemoteActors {
-        let supervisor = MsgRelaySupervisor(address, 0);
+        let supervisor = RestartSupervisor::new("remote_actor_ref", address);
         #[allow(trivial_casts)]
         let msg_relay = msg_relay as fn(_, _) -> _;
         let options = ActorOptions::default()
@@ -409,33 +379,6 @@ where
         Remote {
             data: Box::from(msg),
         }
-    }
-}
-
-/// [`Supervisor`] for the [`msg_relay`] actor.
-struct MsgRelaySupervisor(SocketAddr, usize);
-
-impl<NA, A> Supervisor<NA> for MsgRelaySupervisor
-where
-    NA: NewActor<Argument = SocketAddr, Error = !, Actor = A>,
-    A: Actor<Error = io::Error>,
-{
-    fn decide(&mut self, err: io::Error) -> SupervisorStrategy<NA::Argument> {
-        warn!("relay actor for remote ActorRefs failed: error={}", err);
-        self.1 += 1;
-        if self.1 >= MAX_FAILS {
-            SupervisorStrategy::Restart(self.0)
-        } else {
-            SupervisorStrategy::Stop
-        }
-    }
-
-    fn decide_on_restart_error(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
-        unreachable!()
-    }
-
-    fn second_restart_error(&mut self, _: !) {
-        unreachable!()
     }
 }
 
