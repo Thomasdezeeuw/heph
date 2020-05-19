@@ -18,8 +18,9 @@ use std::{fmt, io, task};
 use log::{debug, trace};
 use mio::{event, Interest, Poll, Registry, Token};
 
+use crate::actor::context::{ThreadLocal, ThreadSafe};
 use crate::actor::sync::SyncActor;
-use crate::actor::{self, context, NewActor};
+use crate::actor::{self, AddActorError, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::inbox::Inbox;
 use crate::supervisor::{Supervisor, SyncSupervisor};
@@ -246,48 +247,22 @@ impl<S> Runtime<S> {
     pub fn try_spawn<Sv, NA>(
         &mut self,
         supervisor: Sv,
-        mut new_actor: NA,
+        new_actor: NA,
         arg: NA::Argument,
         options: ActorOptions,
     ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
         Sv: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Context = context::ThreadSafe> + Sync + Send + 'static,
+        NA: NewActor<Context = ThreadSafe> + Sync + Send + 'static,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
-        // Setup adding a new process to the scheduler.
-        let actor_entry = self.shared.scheduler.add_actor();
-        let pid = actor_entry.pid();
-        debug!("spawning thread-safe actor: pid={}", pid);
-
-        let waker = Waker::new(self.coordinator.waker_id(), pid);
-        if options.is_ready() {
-            waker.wake()
-        }
-
-        // Create our actor context and our actor with it.
-        let (inbox, inbox_ref) = Inbox::new(waker);
-        let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
-        let ctx = actor::Context::new_shared(
-            pid,
-            inbox.ctx_inbox(),
-            inbox_ref.clone(),
-            self.shared.clone(),
-        );
-        let actor = new_actor.new(ctx, arg)?;
-
-        // Add the actor to the scheduler.
-        actor_entry.add(
-            options.priority(),
-            supervisor,
-            new_actor,
-            actor,
-            inbox,
-            inbox_ref,
-        );
-
-        Ok(actor_ref)
+        self.shared
+            .spawn_setup(supervisor, new_actor, move |_, _| Ok(arg), options)
+            .map_err(|err| match err {
+                AddActorError::NewActor(err) => err,
+                AddActorError::<_, !>::ArgFn(_) => unreachable!(),
+            })
     }
 
     /// Spawn an thread-safe actor.
@@ -302,12 +277,13 @@ impl<S> Runtime<S> {
     ) -> ActorRef<NA::Message>
     where
         Sv: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Error = !, Context = context::ThreadSafe> + Sync + Send + 'static,
+        NA: NewActor<Error = !, Context = ThreadSafe> + Sync + Send + 'static,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
-        self.try_spawn(supervisor, new_actor, arg, options)
-            .unwrap_or_else(|_: !| unreachable!())
+        self.shared
+            .spawn_setup(supervisor, new_actor, move |_, _| Ok(arg), options)
+            .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
     }
 
     /// Spawn an synchronous actor that runs on its own thread.
@@ -440,7 +416,7 @@ impl RuntimeRef {
     ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Context = context::ThreadLocal> + 'static,
+        NA: NewActor<Context = ThreadLocal> + 'static,
         NA::Actor: 'static,
     {
         self.try_spawn_local_setup(supervisor, new_actor, |_, _| Ok(arg), options)
@@ -465,7 +441,7 @@ impl RuntimeRef {
     ) -> ActorRef<NA::Message>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Error = !, Context = context::ThreadLocal> + 'static,
+        NA: NewActor<Error = !, Context = ThreadLocal> + 'static,
         NA::Actor: 'static,
     {
         self.try_spawn_local_setup(supervisor, new_actor, |_, _| Ok(arg), options)
@@ -488,8 +464,8 @@ impl RuntimeRef {
     ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Context = context::ThreadLocal> + 'static,
-        ArgFn: FnOnce(ProcessId, &mut RuntimeRef) -> Result<NA::Argument, ArgFnE>,
+        NA: NewActor<Context = ThreadLocal> + 'static,
+        ArgFn: FnOnce(ProcessId, &mut ThreadLocal) -> Result<NA::Argument, ArgFnE>,
         NA::Actor: 'static,
     {
         // Setup adding a new process to the scheduler.
@@ -497,10 +473,6 @@ impl RuntimeRef {
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
         debug!("spawning thread-local actor: pid={}", pid);
-
-        // Create our actor argument, running any setup required by the caller.
-        let mut runtime_ref = self.clone();
-        let arg = arg_fn(pid, &mut runtime_ref).map_err(AddActorError::ArgFn)?;
 
         let waker = self.new_waker(pid);
         if options.is_ready() {
@@ -510,7 +482,10 @@ impl RuntimeRef {
         // Create our actor context and our actor with it.
         let (inbox, inbox_ref) = Inbox::new(waker);
         let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
-        let ctx = actor::Context::new_local(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
+        let mut ctx =
+            actor::Context::new_local(pid, inbox.ctx_inbox(), inbox_ref.clone(), self.clone());
+        // Create our actor argument, running any setup required by the caller.
+        let arg = arg_fn(pid, ctx.kind()).map_err(AddActorError::ArgFn)?;
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
         // Add the actor to the scheduler.
@@ -553,7 +528,7 @@ impl RuntimeRef {
     ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
         S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Context = context::ThreadSafe> + Sync + Send + 'static,
+        NA: NewActor<Context = ThreadSafe> + Sync + Send + 'static,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
@@ -579,7 +554,7 @@ impl RuntimeRef {
     ) -> ActorRef<NA::Message>
     where
         S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Error = !, Context = context::ThreadSafe> + Sync + Send + 'static,
+        NA: NewActor<Error = !, Context = ThreadSafe> + Sync + Send + 'static,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
@@ -603,7 +578,7 @@ impl RuntimeRef {
     ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
         S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Context = context::ThreadSafe> + Sync + Send + 'static,
+        NA: NewActor<Context = ThreadSafe> + Sync + Send + 'static,
         ArgFn: FnOnce(ProcessId) -> Result<NA::Argument, ArgFnE>,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
@@ -732,15 +707,6 @@ impl RuntimeRef {
     }
 }
 
-/// Internal error returned by spawning a actor.
-#[derive(Debug)]
-pub(crate) enum AddActorError<NewActorE, ArgFnE> {
-    /// Calling `NewActor::new` actor resulted in an error.
-    NewActor(NewActorE),
-    /// Calling the argument function resulted in an error.
-    ArgFn(ArgFnE),
-}
-
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
 struct RuntimeInternal {
@@ -811,5 +777,50 @@ impl SharedRuntimeInternal {
         S: event::Source + ?Sized,
     {
         self.registry.reregister(source, token, interest)
+    }
+
+    pub(crate) fn spawn_setup<S, NA, ArgFn, ArgFnE>(
+        self: &Arc<Self>,
+        supervisor: S,
+        mut new_actor: NA,
+        arg_fn: ArgFn,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    where
+        S: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<Context = ThreadSafe> + Sync + Send + 'static,
+        ArgFn: FnOnce(ProcessId, &mut ThreadSafe) -> Result<NA::Argument, ArgFnE>,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
+    {
+        // Setup adding a new process to the scheduler.
+        let actor_entry = self.scheduler.add_actor();
+        let pid = actor_entry.pid();
+        debug!("spawning thread-safe actor: pid={}", pid);
+
+        let waker = Waker::new(self.waker_id, pid);
+        if options.is_ready() {
+            waker.wake()
+        }
+
+        // Create our actor context and our actor with it.
+        let (inbox, inbox_ref) = Inbox::new(waker);
+        let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
+        let mut ctx =
+            actor::Context::new_shared(pid, inbox.ctx_inbox(), inbox_ref.clone(), self.clone());
+        let arg = arg_fn(pid, ctx.kind()).map_err(AddActorError::ArgFn)?;
+        let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
+
+        // Add the actor to the scheduler.
+        actor_entry.add(
+            options.priority(),
+            supervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+        );
+
+        Ok(actor_ref)
     }
 }

@@ -204,7 +204,8 @@ impl TcpListener {
     {
         let mut socket = net::TcpListener::bind(address)?;
         let pid = ctx.pid();
-        C::register(ctx, &mut socket, pid.into(), Interest::READABLE)?;
+        ctx.kind()
+            .register(&mut socket, pid.into(), Interest::READABLE)?;
         Ok(TcpListener { socket })
     }
 
@@ -339,7 +340,8 @@ where
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, C>) -> io::Result<()> {
         let pid = ctx.pid();
-        C::reregister(ctx, &mut self.socket, pid.into(), Interest::READABLE)
+        ctx.kind()
+            .reregister(&mut self.socket, pid.into(), Interest::READABLE)
     }
 }
 
@@ -370,8 +372,7 @@ impl TcpStream {
     {
         let mut socket = net::TcpStream::connect(address)?;
         let pid = ctx.pid();
-        C::register(
-            ctx,
+        ctx.kind().register(
             &mut socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,
@@ -491,8 +492,7 @@ where
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, C>) -> io::Result<()> {
         let pid = ctx.pid();
-        C::reregister(
-            ctx,
+        ctx.kind().reregister(
             &mut self.socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,

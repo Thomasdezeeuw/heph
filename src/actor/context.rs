@@ -11,7 +11,8 @@ use mio::{event, Interest, Token};
 use crate::actor::message_select::First;
 use crate::actor_ref::ActorRef;
 use crate::inbox::{Inbox, InboxRef};
-use crate::rt::{ProcessId, RuntimeRef, SharedRuntimeInternal};
+use crate::rt::{ActorOptions, ProcessId, RuntimeRef, SharedRuntimeInternal};
+use crate::{NewActor, Supervisor};
 
 /// The context in which an actor is executed.
 ///
@@ -343,17 +344,15 @@ impl<M, C> Context<M, C> {
     pub(crate) fn pid(&self) -> ProcessId {
         self.pid
     }
+
+    pub(crate) fn kind(&mut self) -> &mut C {
+        &mut self.kind
+    }
 }
 
 impl<M> Context<M, ThreadLocal> {
     /// Get a reference to the runtime this actor is running in.
     pub fn runtime(&mut self) -> &mut RuntimeRef {
-        &mut self.kind.runtime_ref
-    }
-}
-
-impl<M> Context<M, ThreadSafe> {
-    fn runtime(&mut self) -> &SharedRuntimeInternal {
         &mut self.kind.runtime_ref
     }
 }
@@ -377,26 +376,14 @@ pub trait ContextKind {
 
     /// Registers the `source` at the correct `Poll` instance using `token` and
     /// `interest`.
-    fn register<M, S>(
-        ctx: &mut Context<M, Self>,
-        source: &mut S,
-        token: Token,
-        interest: Interest,
-    ) -> io::Result<()>
+    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
-        Self: Sized,
         S: event::Source + ?Sized;
 
     /// Reregisters the `source` at the correct `Poll` instance using `token` and
     /// `interest`.
-    fn reregister<M, S>(
-        ctx: &mut Context<M, Self>,
-        source: &mut S,
-        token: Token,
-        interest: Interest,
-    ) -> io::Result<()>
+    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
-        Self: Sized,
         S: event::Source + ?Sized;
 }
 
@@ -414,30 +401,18 @@ impl ContextKind for ThreadLocal {
         Context::new_local(pid, inbox, inbox_ref, runtime_ref.clone())
     }
 
-    fn register<M, S>(
-        ctx: &mut Context<M, Self>,
-        source: &mut S,
-        token: Token,
-        interest: Interest,
-    ) -> io::Result<()>
+    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
-        Self: Sized,
         S: event::Source + ?Sized,
     {
-        ctx.runtime().register(source, token, interest)
+        self.runtime_ref.register(source, token, interest)
     }
 
-    fn reregister<M, S>(
-        ctx: &mut Context<M, Self>,
-        source: &mut S,
-        token: Token,
-        interest: Interest,
-    ) -> io::Result<()>
+    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
-        Self: Sized,
         S: event::Source + ?Sized,
     {
-        ctx.runtime().reregister(source, token, interest)
+        self.runtime_ref.reregister(source, token, interest)
     }
 }
 
@@ -455,30 +430,93 @@ impl ContextKind for ThreadSafe {
         Context::new_shared(pid, inbox, inbox_ref, runtime_ref.clone_shared())
     }
 
-    fn register<M, S>(
-        ctx: &mut Context<M, Self>,
-        source: &mut S,
-        token: Token,
-        interest: Interest,
-    ) -> io::Result<()>
+    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
-        Self: Sized,
         S: event::Source + ?Sized,
     {
-        ctx.runtime().register(source, token, interest)
+        self.runtime_ref.register(source, token, interest)
     }
 
-    fn reregister<M, S>(
-        ctx: &mut Context<M, Self>,
-        source: &mut S,
-        token: Token,
-        interest: Interest,
-    ) -> io::Result<()>
+    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
-        Self: Sized,
         S: event::Source + ?Sized,
     {
-        ctx.runtime().reregister(source, token, interest)
+        self.runtime_ref.reregister(source, token, interest)
+    }
+}
+
+/// Implementation detail to support [`ThreadSafe`] and [`ThreadLocal`] contexts
+/// within the same implementation.
+// public because it used in trait bound for methods like `UdpSocket::bind`.
+pub trait Spawnable<S, NA>
+where
+    Self: Sized,
+    S: Supervisor<NA>,
+    NA: NewActor<Context = Self>,
+{
+    /// Spawn a new actor.
+    fn spawn<ArgFn, ArgFnE>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg_fn: ArgFn,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    where
+        ArgFn: FnOnce(ProcessId, &mut Self) -> Result<NA::Argument, ArgFnE>;
+}
+
+/// Internal error returned by spawning a actor.
+#[derive(Debug)]
+pub enum AddActorError<NewActorE, ArgFnE> {
+    /// Calling `NewActor::new` actor resulted in an error.
+    NewActor(NewActorE),
+    /// Calling the argument function resulted in an error.
+    ArgFn(ArgFnE),
+}
+
+impl<S, NA> Spawnable<S, NA> for ThreadLocal
+where
+    Self: Sized,
+    S: Supervisor<NA> + 'static,
+    NA: NewActor<Context = Self> + 'static,
+    NA::Actor: 'static,
+{
+    fn spawn<ArgFn, ArgFnE>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg_fn: ArgFn,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    where
+        ArgFn: FnOnce(ProcessId, &mut Self) -> Result<NA::Argument, ArgFnE>,
+    {
+        self.runtime_ref
+            .try_spawn_local_setup(supervisor, new_actor, arg_fn, options)
+    }
+}
+
+impl<S, NA> Spawnable<S, NA> for ThreadSafe
+where
+    Self: Sized,
+    S: Supervisor<NA> + Send + Sync + 'static,
+    NA: NewActor<Context = Self> + Send + Sync + 'static,
+    NA::Actor: Send + Sync + 'static,
+    NA::Message: Send,
+{
+    fn spawn<ArgFn, ArgFnE>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg_fn: ArgFn,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    where
+        ArgFn: FnOnce(ProcessId, &mut Self) -> Result<NA::Argument, ArgFnE>,
+    {
+        self.runtime_ref
+            .spawn_setup(supervisor, new_actor, arg_fn, options)
     }
 }
 

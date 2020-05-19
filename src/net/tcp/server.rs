@@ -10,10 +10,9 @@ use mio::net::TcpListener;
 use mio::Interest;
 
 use crate::actor::messages::Terminate;
-use crate::actor::{self, context, Actor, NewActor};
-use crate::inbox::Inbox;
+use crate::actor::{self, Actor, AddActorError, ContextKind, NewActor, Spawnable};
 use crate::net::TcpStream;
-use crate::rt::{ActorOptions, AddActorError, ProcessId, RuntimeRef, Signal};
+use crate::rt::{ActorOptions, ProcessId, Signal};
 use crate::supervisor::Supervisor;
 
 /// A intermediate structure that implements [`NewActor`], creating
@@ -45,25 +44,23 @@ struct ServerSetupInner<S, NA> {
     options: ActorOptions,
 }
 
-impl<S, NA> NewActor for ServerSetup<S, NA>
+impl<S, NA, C> NewActor for ServerSetup<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = context::ThreadLocal>
-        + Clone
-        + 'static,
+    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = C> + Clone + 'static,
+    C: ContextKind + Spawnable<S, NA>,
 {
     type Message = ServerMessage;
     type Argument = ();
-    type Actor = Server<S, NA>;
+    type Actor = Server<S, NA, C>;
     type Error = io::Error;
-    type Context = context::ThreadLocal;
+    type Context = C;
 
     fn new(
         &mut self,
-        mut ctx: actor::Context<Self::Message, context::ThreadLocal>,
+        mut ctx: actor::Context<Self::Message, C>,
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
-        let mut runtime_ref = ctx.runtime().clone();
         let this = &*self.inner;
         // FIXME: `try_clone` is removed in Mio v0.7-alpha.1, use `SO_REUSEPORT`
         // instead, see https://github.com/tokio-rs/mio/pull/1068.
@@ -77,15 +74,16 @@ where
         std::mem::forget(net_listener); // This is `this.listener`.
         let mut listener = listener.map(TcpListener::from_std)?;
 
-        runtime_ref.register(&mut listener, ctx.pid().into(), Interest::READABLE)?;
+        let token = ctx.pid().into();
+        ctx.kind()
+            .register(&mut listener, token, Interest::READABLE)?;
 
         Ok(Server {
+            ctx,
             listener,
-            runtime_ref,
             supervisor: this.supervisor.clone(),
             new_actor: this.new_actor.clone(),
             options: this.options.clone(),
-            inbox: ctx.inbox,
         })
     }
 }
@@ -100,6 +98,16 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 
 /// An actor that starts a new actor for each accepted TCP connection.
 ///
+/// This actor can start as a thread-local or thread-safe actor. When using the
+/// thread-local variant one actor runs per worker thread which spawns
+/// thread-local actors to handle the [`TcpStream`]s. See the first example
+/// below on how to run this `tcp::Server` as a thread-local actor.
+///
+/// This actor can also run as thread-safe actor in which case it also spawns
+/// thread-safe actors. Note however that using thread-*local* version is
+/// recommended. The third example below shows how to run the `tcp::Server` as
+/// thread-safe actor.
+///
 /// # Graceful shutdown
 ///
 /// Graceful shutdown is done by sending it a [`Terminate`] message, see below
@@ -110,7 +118,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// # Examples
 ///
 /// The following example is a TCP server that writes "Hello World" to the
-/// connection.
+/// connection, using the server as a thread-local actor.
 ///
 /// ```
 /// #![feature(never_type)]
@@ -287,28 +295,112 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///     stream.write_all(b"Hello World").await
 /// }
 /// ```
+///
+/// This example is similar to the first example, but runs the `tcp::Server`
+/// actor as thread-safe actor. *It's recommended to run the server as
+/// thread-local actor!* This is just an example show its possible.
+///
+/// ```
+/// #![feature(never_type)]
+///
+/// use std::io;
+/// use std::net::SocketAddr;
+///
+/// use futures_util::AsyncWriteExt;
+///
+/// use heph::actor::{self, NewActor};
+/// use heph::actor::context::ThreadSafe;
+/// # use heph::actor::messages::Terminate;
+/// use heph::log::error;
+/// use heph::net::tcp::{self, TcpStream};
+/// use heph::supervisor::{Supervisor, SupervisorStrategy};
+/// use heph::rt::options::Priority;
+/// use heph::{rt, ActorOptions, Runtime};
+///
+/// fn main() -> Result<(), rt::Error<io::Error>> {
+///     let mut runtime = Runtime::new().map_err(rt::Error::map_type)?;
+///
+///     // The address to listen on.
+///     let address = "127.0.0.1:7890".parse().unwrap();
+///     // Create our TCP server. We'll use the default actor options.
+///     let new_actor = conn_actor as fn(_, _, _) -> _;
+///     let server = tcp::Server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
+///
+///     let options = ActorOptions::default().with_priority(Priority::LOW);
+///     # let mut actor_ref =
+///     runtime.try_spawn(ServerSupervisor, server, (), options)?;
+///     # actor_ref <<= Terminate;
+///
+///     runtime.start().map_err(rt::Error::map_type)
+/// }
+///
+/// /// Our supervisor for the TCP server.
+/// #[derive(Copy, Clone, Debug)]
+/// struct ServerSupervisor;
+///
+/// impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
+/// where
+///     // Trait bounds needed by `tcp::ServerSetup` using a thread-safe actor.
+///     S: Supervisor<NA> + Send + Sync + Clone + 'static,
+///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = ThreadSafe> + Send + Sync + Clone + 'static,
+///     NA::Actor: Send + Sync + 'static,
+///     NA::Message: Send,
+/// {
+///     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
+///         use tcp::ServerError::*;
+///         match err {
+///             // When we hit an error accepting a connection we'll drop the old
+///             // server and create a new one.
+///             Accept(err) => {
+///                 error!("error accepting new connection: {}", err);
+///                 SupervisorStrategy::Restart(())
+///             }
+///             // Async function never return an error creating a new actor.
+///             NewActor(_) => unreachable!(),
+///         }
+///     }
+///
+///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
+///         // If we can't create a new server we'll stop.
+///         error!("error restarting the TCP server: {}", err);
+///         SupervisorStrategy::Stop
+///     }
+///
+///     fn second_restart_error(&mut self, _: io::Error) {
+///         // We don't restart a second time, so this will never be called.
+///         unreachable!();
+///     }
+/// }
+///
+/// /// `conn_actor`'s supervisor.
+/// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
+///     error!("error handling connection: {}", err);
+///     SupervisorStrategy::Stop
+/// }
+///
+/// /// The actor responsible for a single TCP stream.
+/// async fn conn_actor(_ctx: actor::Context<!, ThreadSafe>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+/// #   drop(address); // Silence dead code warnings.
+///     stream.write_all(b"Hello World").await
+/// }
 #[derive(Debug)]
-pub struct Server<S, NA> {
+pub struct Server<S, NA, C> {
+    /// Actor context in which this actor is running.
+    ctx: actor::Context<ServerMessage, C>,
     /// The underlying TCP listener, backed by Mio.
     listener: TcpListener,
-    /// Reference to the runtime used to add new actors to handle accepted
-    /// connections.
-    runtime_ref: RuntimeRef,
     /// Supervisor for all actors created by `NewActor`.
     supervisor: S,
-    /// NewActor used to create an actor for each connection.
+    /// `NewActor` used to create an actor for each connection.
     new_actor: NA,
     /// Options used to spawn the actor.
     options: ActorOptions,
-    inbox: Inbox<ServerMessage>,
 }
 
-impl<S, NA> Server<S, NA>
+impl<S, NA, C> Server<S, NA, C>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = context::ThreadLocal>
-        + Clone
-        + 'static,
+    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = C> + Clone + 'static,
 {
     /// Create a new [`ServerSetup`].
     ///
@@ -335,12 +427,11 @@ where
     }
 }
 
-impl<S, NA> Actor for Server<S, NA>
+impl<S, NA, C> Actor for Server<S, NA, C>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = context::ThreadLocal>
-        + Clone
-        + 'static,
+    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = C> + Clone + 'static,
+    C: ContextKind + Spawnable<S, NA>,
 {
     type Error = ServerError<NA::Error>;
 
@@ -352,15 +443,14 @@ where
         // the `MailBox` are mutably borrowed and all are `Unpin`.
         let &mut Server {
             ref listener,
-            ref mut runtime_ref,
+            ref mut ctx,
             ref supervisor,
             ref new_actor,
             ref options,
-            ref mut inbox,
         } = unsafe { self.get_unchecked_mut() };
 
         // See if we need to shutdown.
-        if inbox.receive_next().is_some() {
+        if ctx.try_receive_next().is_some() {
             debug!("TCP server received shutdown message, stopping");
             return Poll::Ready(Ok(()));
         }
@@ -373,17 +463,17 @@ where
                 Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue, // Try again.
                 Err(err) => return Poll::Ready(Err(ServerError::Accept(err))),
             };
-            debug!("accepted connection from: {}", addr);
+            debug!("tcp::Server accepted connection: remote_address={}", addr);
 
-            let setup_actor = move |pid: ProcessId, runtime_ref: &mut RuntimeRef| {
-                runtime_ref.register(
+            let setup_actor = move |pid: ProcessId, ctx: &mut C| {
+                ctx.register(
                     &mut stream,
                     pid.into(),
                     Interest::READABLE | Interest::WRITABLE,
                 )?;
                 Ok((TcpStream { socket: stream }, addr))
             };
-            let res = runtime_ref.try_spawn_local_setup(
+            let res = ctx.kind().spawn(
                 supervisor.clone(),
                 new_actor.clone(),
                 setup_actor,

@@ -148,8 +148,7 @@ impl UdpSocket {
     {
         let mut socket = net::UdpSocket::bind(local)?;
         let pid = ctx.pid();
-        C::register(
-            ctx,
+        ctx.kind().register(
             &mut socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,
@@ -366,8 +365,7 @@ where
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, C>) -> io::Result<()> {
         let pid = ctx.pid();
-        C::register(
-            ctx,
+        ctx.kind().reregister(
             &mut self.socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,

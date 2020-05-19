@@ -52,11 +52,6 @@ impl Coordinator {
         Ok((coordinator, shared_internals))
     }
 
-    /// Returns the [`WakerId`].
-    pub(super) fn waker_id(&self) -> WakerId {
-        self.waker_id
-    }
-
     /// Run the coordinator.
     ///
     /// # Notes
