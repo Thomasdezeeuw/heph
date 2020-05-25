@@ -406,6 +406,11 @@ impl<M> ActorGroup<M> {
         }
     }
 
+    /// Returns `true` if the group is empty.
+    pub fn is_empty(&self) -> bool {
+        self.actor_refs.is_empty()
+    }
+
     /// Add an `ActorRef` to the group.
     pub fn add(&mut self, actor_ref: ActorRef<M>) {
         self.actor_refs.push(actor_ref)
