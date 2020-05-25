@@ -189,6 +189,7 @@ impl<T> fmt::Debug for Receiver<T> {
 }
 
 unsafe impl<T: Send> Send for Receiver<T> {}
+unsafe impl<T: Send> Sync for Receiver<T> {}
 
 impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
@@ -218,6 +219,17 @@ pub(crate) struct Sender<T> {
 }
 
 impl<T> Sender<T> {
+    /// Create a sender that sends to nothing.
+    ///
+    /// Use [`new_receiver`] to create a receiver.
+    ///
+    /// [`new_receiver`]: Sender::new_receiver
+    pub(crate) fn empty() -> Sender<T> {
+        Sender {
+            shared: NonNull::dangling(),
+        }
+    }
+
     /// Attempts to send a `message` into the channel. If this returns an error
     /// it means the receiver has disconnected (has been dropped).
     pub(crate) fn try_send(self, message: T) -> Result<(), T> {
@@ -225,7 +237,11 @@ impl<T> Sender<T> {
             return Err(message);
         }
 
-        let shared = self.shared();
+        let shared = if let Some(shared) = self.shared() {
+            shared
+        } else {
+            return Err(message);
+        };
 
         // This is safe because we're the only sender.
         unsafe { ptr::write(shared.message.get(), MaybeUninit::new(message)) };
@@ -240,15 +256,38 @@ impl<T> Sender<T> {
 
     /// Returns true if the receiver is connected.
     pub(crate) fn is_connected(&self) -> bool {
-        // Relaxed is fine here since there is always a bit of a race condition
-        // when using the method (and then doing something based on it).
-        self.shared().status.load(Ordering::Relaxed) & RECEIVER_ALIVE != 0
+        if let Some(shared) = self.shared() {
+            // Relaxed is fine here since there is always a bit of a race
+            // condition when using the method (and then doing something based
+            // on it).
+            shared.status.load(Ordering::Relaxed) & RECEIVER_ALIVE != 0
+        } else {
+            false
+        }
+    }
+
+    /// Attempts to create a new `Receiver` for this `Sender`.
+    ///
+    /// Returns `None` if there already exists a `Receiver` for this `Sender`.
+    pub(crate) fn new_receiver(&mut self, waker: Waker) -> Option<Receiver<T>> {
+        if self.shared == NonNull::dangling() {
+            let shared = NonNull::from(Box::leak(Box::new(Shared::new(waker))));
+            self.shared = shared;
+            Some(Receiver { shared })
+        } else {
+            // TODO: check if receiver is disconnected.
+            None
+        }
     }
 
     /// Reference the shared data.
-    fn shared(&self) -> &Shared<T> {
-        // This is safe because it always points to valid memory.
-        unsafe { self.shared.as_ref() }
+    fn shared(&self) -> Option<&Shared<T>> {
+        if self.shared == NonNull::dangling() {
+            None
+        } else {
+            // This is safe because it always points to valid memory.
+            unsafe { Some(self.shared.as_ref()) }
+        }
     }
 }
 
@@ -259,19 +298,23 @@ impl<T> fmt::Debug for Sender<T> {
 }
 
 unsafe impl<T: Send> Send for Sender<T> {}
+unsafe impl<T: Send> Sync for Sender<T> {}
 
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
+        let shared = if let Some(shared) = self.shared() {
+            shared
+        } else {
+            return;
+        };
+
         // Mark ourselves as dropped.
-        let old_status = self
-            .shared()
-            .status
-            .fetch_and(!SENDER_ALIVE, Ordering::Release);
+        let old_status = shared.status.fetch_and(!SENDER_ALIVE, Ordering::Release);
 
         if old_status & !SENDER_ALIVE > FILLED {
             // Receiver is still alive, no need to drop. But we do need to wake
             // the other wise.
-            self.shared().waker.wake();
+            shared.waker.wake();
             return;
         }
 

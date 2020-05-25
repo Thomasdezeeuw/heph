@@ -99,6 +99,13 @@ mod oneshot {
     }
 
     #[test]
+    fn empty_sender() {
+        let send = Sender::empty();
+        assert!(!send.is_connected());
+        assert!(send.try_send(123usize).is_err());
+    }
+
+    #[test]
     fn single_send_recv() {
         let waker = new_waker(PID);
         let (send, mut recv) = channel(waker);
@@ -287,6 +294,36 @@ mod oneshot {
         assert_eq!(msg, 123);
         assert!(send3.is_connected());
         assert!(recv.is_connected());
+    }
+
+    #[test]
+    fn new_receiver_connected() {
+        let waker = new_waker(PID);
+        let (mut send, recv) = channel::<usize>(waker.clone());
+        assert!(send.new_receiver(waker).is_none());
+        drop(recv); // Must live until here.
+    }
+
+    #[test]
+    #[ignore = "Not implemented"]
+    fn new_receiver_disconnected() {
+        let waker = new_waker(PID);
+        let (mut send, recv) = channel(waker.clone());
+        drop(recv);
+
+        let mut recv = send.new_receiver(waker).unwrap();
+        send.try_send(123).unwrap();
+        assert_eq!(recv.try_recv().unwrap().0, 123);
+    }
+
+    #[test]
+    fn new_receiver_empty_sender() {
+        let waker = new_waker(PID);
+        let mut send = Sender::empty();
+
+        let mut recv = send.new_receiver(waker).unwrap();
+        send.try_send(123).unwrap();
+        assert_eq!(recv.try_recv().unwrap().0, 123);
     }
 
     // Note: the following test names are postfixed with `sr` or `rs`, which means
