@@ -24,6 +24,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::{fmt, io};
 
+use futures_util::future::{select, Either};
 use log::{debug, trace, warn};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -32,7 +33,7 @@ use serde_json::de::SliceRead;
 use crate::actor;
 use crate::actor::context::ThreadSafe;
 use crate::actor::messages::Terminate;
-use crate::actor_ref::ActorRef;
+use crate::actor_ref::{ActorRef, RpcMessage, RpcResponse};
 use crate::net::udp::{Connected, UdpSocket};
 use crate::rt::options::{ActorOptions, Priority};
 use crate::rt::{Runtime, Signal};
@@ -240,12 +241,13 @@ async fn relay_listener(
     debug!("listener for remote messages: local_addr={}", local);
     let mut socket = UdpSocket::bind(&mut ctx, local)?;
 
-    let mut buf = vec![0; u16::MAX as usize];
+    let mut buf = Vec::with_capacity(MAX_UDP_PACKET_SIZE);
     loop {
         // FIXME: read message incoming packets for RPC.
 
         // Read a single message from the socket.
-        buf.resize(buf.capacity(), 0);
+        debug_assert!(buf.capacity() >= MAX_UDP_PACKET_SIZE);
+        unsafe { buf.set_len(MAX_UDP_PACKET_SIZE) };
         let (n, remote) = socket.recv_from(&mut buf).await?;
         buf.truncate(n);
         trace!("got packet from remote actor: packet_size={}", n);
@@ -267,6 +269,11 @@ async fn relay_listener(
             "parsed remote message metadata: id={}, actor={}",
             meta.id, meta.actor
         );
+
+        if meta.rpc {
+            // TODO.
+            todo!("TODO: handle RPC messages");
+        }
 
         // Lookup the local actor.
         if let Some(actor_ref) = registrations.get(meta.actor) {
@@ -368,7 +375,17 @@ impl RemoteActors {
 /// [`SendError`]:crate::actor_ref::SendError
 #[allow(missing_debug_implementations)]
 pub struct Remote {
-    data: Box<dyn erased_serde::Serialize + Send + Sync>,
+    inner: RemoteInner,
+}
+
+enum RemoteInner {
+    /// Single message.
+    Message(Box<dyn erased_serde::Serialize + Send + Sync>),
+    /// Remote produce call, effectively an untyped [`RpcMessage`].
+    Rpc {
+        request: Box<dyn erased_serde::Serialize + Send + Sync>,
+        response: Box<dyn DeserializeRpcResponse + Send + Sync>,
+    },
 }
 
 impl<M> From<M> for Remote
@@ -377,76 +394,203 @@ where
 {
     fn from(msg: M) -> Remote {
         Remote {
-            data: Box::from(msg),
+            inner: RemoteInner::Message(Box::from(msg)),
+        }
+    }
+}
+
+impl<Req, Res> From<RpcMessage<Req, Res>> for Remote
+where
+    Req: Serialize + Send + Sync + 'static,
+    Res: DeserializeOwned + Send + Sync + 'static,
+{
+    fn from(msg: RpcMessage<Req, Res>) -> Remote {
+        Remote {
+            inner: RemoteInner::Rpc {
+                request: Box::from(msg.request),
+                response: Box::from(msg.response),
+            },
         }
     }
 }
 
 /// A conservative estimate for the maximum size of the data inside a UDP
 /// packet.
-const MAX_UDP_PACKET_SIZE: usize = 65000;
+const MAX_MESSAGE_SIZE: usize = 65000;
+const MAX_UDP_PACKET_SIZE: usize = 1 << 16;
 
 /// Actor that relays `Remote` messages to actors on the `remote` node.
 async fn msg_relay(
     mut ctx: actor::Context<(&'static str, Remote), ThreadSafe>,
     remote: SocketAddr,
 ) -> io::Result<()> {
-    let (mut socket, local) = new_socket(&mut ctx, remote)?;
+    let mut socket = RelaySocket::new(&mut ctx, remote)?;
 
-    let mut id = 0;
-    let mut buf = Vec::new();
+    // FIXME: This never stops.
     loop {
-        // TODO: read from socket to support RPC.
-        // FIXME: This never stops even if we get no more messages.
-        let (actor, msg) = ctx.receive_next().await;
-        let meta = MessageMetadata {
-            id: next_id(&mut id),
-            actor,
-        };
+        debug_assert!(socket.buf.capacity() >= MAX_UDP_PACKET_SIZE);
+        unsafe { socket.buf.set_len(MAX_UDP_PACKET_SIZE) };
 
-        buf.clear();
-        serde_json::to_writer(&mut buf, &meta)?;
-        serde_json::to_writer(&mut buf, &msg.data)?;
-        if buf.len() > MAX_UDP_PACKET_SIZE {
-            warn!("can't send message to remote actor, message too large: remote_actor={} remote_address={} message_size={}", actor, remote, buf.len());
-            continue;
-        }
-
-        debug!(
-            "sending message to remote actor: local_addr={}, remote_addr={}, actor={}, message_size={}",
-            local, remote, actor, buf.len(),
-        );
-        match socket.send(&buf).await {
-            Ok(send_size) if send_size < buf.len() => {
-                warn!(
-                    "failed to send entire message to remote actor: bytes_send={} message_size={}",
-                    send_size,
-                    buf.len()
-                );
+        match select(socket.socket.recv(&mut socket.buf), ctx.receive_next()).await {
+            Either::Left((res, _)) => {
+                // Read a packet.
+                socket.buf.truncate(res?);
+                socket.relay_rpc_response();
             }
-            Ok(_) => {}
-            Err(err) => {
-                warn!("failed to send message to remote actor: {}", err);
-                return Err(err);
+            Either::Right(((actor, msg), _)) => {
+                // Received a message to relay.
+                socket.send_message(actor, msg).await?;
             }
         }
     }
 }
 
-/// Create a new socket connected to `remote`, bound to any local address.
-fn new_socket<M>(
-    ctx: &mut actor::Context<M, ThreadSafe>,
+/// Wrapper around [`UdpSocket`] to send [`Remote`] messages.
+struct RelaySocket {
+    socket: UdpSocket<Connected>,
+    local: SocketAddr,
     remote: SocketAddr,
-) -> io::Result<(UdpSocket<Connected>, SocketAddr)> {
-    let local = any_local_address(&remote);
-    UdpSocket::bind(ctx, local).and_then(|mut socket| {
-        let local = socket.local_addr()?;
+    /// **Capacity must be at least MAX_UDP_PACKET_SIZE bytes!**
+    buf: Vec<u8>,
+    /// Id for the messages.
+    id: usize,
+    /// Map for [`RpcResponse`s].
+    responses: HashMap<usize, Box<dyn DeserializeRpcResponse + Send + Sync>>,
+}
+
+impl RelaySocket {
+    /// Create a new socket connected to `remote`, bound to any local address.
+    fn new<M>(
+        ctx: &mut actor::Context<M, ThreadSafe>,
+        remote: SocketAddr,
+    ) -> io::Result<RelaySocket> {
+        let local = any_local_address(&remote);
+        UdpSocket::bind(ctx, local).and_then(|mut socket| {
+            let local = socket.local_addr()?;
+            debug!(
+                "connecting remote actor message relay: local_addr={}, remote_addr={}",
+                local, remote
+            );
+            socket.connect(remote).map(|socket| RelaySocket {
+                socket,
+                local,
+                remote,
+                buf: Vec::with_capacity(MAX_UDP_PACKET_SIZE),
+                id: 0,
+                responses: HashMap::new(),
+            })
+        })
+    }
+
+    /// Returns the next id.
+    fn next_id(&mut self) -> usize {
+        let i = self.id;
+        self.id += 1;
+        i
+    }
+
+    /// Send `msg` to remote `actor`.
+    async fn send_message(&mut self, actor: &'static str, msg: Remote) -> io::Result<()> {
+        let id = self.next_id();
+        let (msg, rpc) = match msg.inner {
+            RemoteInner::Message(msg) => (msg, false),
+            RemoteInner::Rpc { request, response } => {
+                let r = self.responses.insert(id, response);
+                debug_assert!(r.is_none());
+                (request, true)
+            }
+        };
+
+        let meta = MessageMetadata { id, actor, rpc };
+
+        // Write the message metadata and the message itself.
+        self.buf.clear();
+        serde_json::to_writer(&mut self.buf, &meta)?;
+        serde_json::to_writer(&mut self.buf, &msg)?;
+
+        // We don't (yet) support splitting a single message over multiple UDP
+        // pakcets.
+        if self.buf.len() > MAX_MESSAGE_SIZE {
+            warn!("can't send message to remote actor, message too large: local_addr={} remote_addr={} actor={} message_size={}",
+                self.local,
+                self.remote,
+                actor,
+                self.buf.len());
+            return Ok(());
+        }
+
         debug!(
-            "connecting remote actor message relay: local_addr={}, remote_addr={}",
-            local, remote
+            "sending message to remote actor: local_addr={} remote_addr={} actor={} message_size={}",
+            self.local,
+            self.remote,
+            actor,
+            self.buf.len(),
         );
-        socket.connect(remote).map(|socket| (socket, local))
-    })
+        match self.socket.send(&self.buf).await {
+            Ok(send_size) if send_size < self.buf.len() => {
+                warn!(
+                    "failed to send entire message to remote actor: local_addr={} remote_addr={} actor={} bytes_send={} message_size={}",
+                    self.local,
+                    self.remote,
+                    actor,
+                    send_size,
+                    self.buf.len()
+                );
+                Ok(())
+            }
+            Ok(_) => Ok(()),
+            Err(err) => {
+                warn!(
+                    "failed to send message to remote actor: local_addr={} remote_addr={} actor={} error={}",
+                    self.local,
+                    self.remote,
+                    actor,
+                    err,
+                );
+                Err(err)
+            }
+        }
+    }
+
+    /// Relay the message in `self.buf` to the correct [`RpcResponse`].
+    fn relay_rpc_response(&mut self) {
+        let mut deserialiser = serde_json::Deserializer::from_slice(&self.buf);
+        let meta: RpcResponseMetadata = match Deserialize::deserialize(&mut deserialiser) {
+            Ok(meta) => meta,
+            Err(err) => {
+                warn!(
+                    "failed to parse RPC response metadata from remote node: remote_addr={} error=\"{}\"",
+                    self.remote, err
+                );
+                return;
+            }
+        };
+        // FIXME: possible attack vector by sending messages with the id, not
+        // allow the actual actors to ever respond.
+        match self.responses.remove(&meta.id) {
+            Some(response) => match response.try_respond(&mut deserialiser) {
+                Ok(()) => {}
+                Err(SendError::FailedDeserialise) => {
+                    warn!(
+                        "failed to parse RPC response from remote node: remote_addr={} id={}",
+                        self.remote, meta.id
+                    );
+                }
+                Err(SendError::FailedSend) => {
+                    warn!(
+                        "failed to relay RPC response to local actor: remote_addr={} id={}",
+                        self.remote, meta.id
+                    );
+                }
+            },
+            None => {
+                warn!(
+                    "got a RPC response with unknown id: remote_addr={} id={}",
+                    self.remote, meta.id
+                );
+            }
+        }
+    }
 }
 
 /// Returns a local address with the port set 0, allowing it to bind to any
@@ -459,11 +603,29 @@ fn any_local_address(addr: &SocketAddr) -> SocketAddr {
     }
 }
 
-/// Returns the next id for `id`.
-fn next_id(id: &mut usize) -> usize {
-    let i = *id;
-    *id += 1;
-    i
+/// Trait to box `RpcResponse<Res>` with different types of `Res`.
+trait DeserializeRpcResponse {
+    /// Serialise the message in `deserialiser` and respond to the RPC.
+    /// Deserialise a message from `deserialiser` and respond with it to the
+    /// underlying [`RpcResponse`].
+    fn try_respond(
+        self: Box<Self>,
+        deserialiser: &mut serde_json::Deserializer<SliceRead<'_>>,
+    ) -> Result<(), SendError>;
+}
+
+impl<Res> DeserializeRpcResponse for RpcResponse<Res>
+where
+    Res: DeserializeOwned + Send + Sync + 'static,
+{
+    fn try_respond(
+        self: Box<Self>,
+        deserialiser: &mut serde_json::Deserializer<SliceRead<'_>>,
+    ) -> Result<(), SendError> {
+        Res::deserialize(deserialiser)
+            .map_err(|_| SendError::FailedDeserialise)
+            .and_then(|msg| self.respond(msg).map_err(|_| SendError::FailedSend))
+    }
 }
 
 /// Metadata for the message send to the remote node via UDP.
@@ -473,4 +635,12 @@ struct MessageMetadata<'a> {
     id: usize,
     /// Actor to send the message to.
     actor: &'a str,
+    /// `true` if the sending actor expects a response.
+    rpc: bool,
+}
+
+#[derive(Deserialize, Serialize)]
+struct RpcResponseMetadata {
+    /// Id of the RPC request (in [`MessageMetadata`]).
+    id: usize,
 }
