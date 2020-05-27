@@ -357,6 +357,55 @@ impl<M> Context<M, ThreadLocal> {
     }
 }
 
+impl<M> Context<M, ThreadSafe> {
+    /// Attempts to spawn a thread-safe actor.
+    ///
+    /// See [`RuntimeRef::try_spawn`].
+    pub fn try_spawn<Sv, NA>(
+        &mut self,
+        supervisor: Sv,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
+    where
+        Sv: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<Context = ThreadSafe> + Sync + Send + 'static,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
+    {
+        self.kind
+            .runtime_ref
+            .spawn_setup(supervisor, new_actor, move |_, _| Ok(arg), options)
+            .map_err(|err| match err {
+                AddActorError::NewActor(err) => err,
+                AddActorError::<_, !>::ArgFn(_) => unreachable!(),
+            })
+    }
+
+    /// Spawn an thread-safe actor.
+    ///
+    /// See [`RuntimeRef::spawn`].
+    pub fn spawn<Sv, NA>(
+        &mut self,
+        supervisor: Sv,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> ActorRef<NA::Message>
+    where
+        Sv: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<Error = !, Context = ThreadSafe> + Sync + Send + 'static,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
+    {
+        self.kind
+            .runtime_ref
+            .spawn_setup(supervisor, new_actor, move |_, _| Ok(arg), options)
+            .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
+    }
+}
+
 /// Implementation detail to support [`ThreadSafe`] and [`ThreadLocal`] contexts
 /// within the same implementation.
 // public because it used in trait bound for methods like `UdpSocket::bind`.
