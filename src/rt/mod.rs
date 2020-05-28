@@ -33,6 +33,8 @@ mod signal;
 mod sync_worker;
 mod timers;
 
+pub(crate) mod waker;
+
 // Modules that are public (in the crate) when testing and private otherwise.
 macro_rules! cfg_pub_test {
     ($( $mod_name: ident ),+) => {
@@ -46,7 +48,7 @@ macro_rules! cfg_pub_test {
 }
 
 // Modules used in testing.
-cfg_pub_test!(channel, scheduler, waker, worker);
+cfg_pub_test!(channel, scheduler, worker);
 
 pub(crate) use process::ProcessId;
 pub(crate) use waker::Waker;
@@ -751,6 +753,10 @@ impl SharedRuntimeInternal {
     /// Returns a new [`task::Waker`] for the thread-safe actor with `pid`.
     pub(crate) fn new_task_waker(&self, pid: ProcessId) -> task::Waker {
         waker::new(self.waker_id, pid)
+    }
+
+    pub(crate) fn new_waker(&self, pid: ProcessId) -> Waker {
+        Waker::new(self.waker_id, pid)
     }
 
     /// Register an `event::Source`, see [`mio::Registry::register`].

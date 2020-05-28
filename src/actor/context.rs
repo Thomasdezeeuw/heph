@@ -14,6 +14,9 @@ use crate::inbox::{Inbox, InboxRef};
 use crate::rt::{ActorOptions, ProcessId, RuntimeRef, SharedRuntimeInternal};
 use crate::{NewActor, Supervisor};
 
+// Used in `ContextKind` trait.
+pub use crate::rt::waker::Waker;
+
 /// The context in which an actor is executed.
 ///
 /// This context can be used for a number of things including receiving
@@ -413,6 +416,9 @@ pub trait ContextKind {
     /// Create a new [`task::Waker`].
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
 
+    /// Create a new [`Waker`].
+    fn new_waker(&mut self, pid: ProcessId) -> Waker;
+
     /// Creates a new context.
     fn new_context<M>(
         pid: ProcessId,
@@ -439,6 +445,10 @@ pub trait ContextKind {
 impl ContextKind for ThreadLocal {
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
         runtime_ref.new_local_task_waker(pid)
+    }
+
+    fn new_waker(&mut self, pid: ProcessId) -> Waker {
+        self.runtime_ref.new_waker(pid)
     }
 
     fn new_context<M>(
@@ -468,6 +478,10 @@ impl ContextKind for ThreadLocal {
 impl ContextKind for ThreadSafe {
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
         runtime_ref.new_shared_task_waker(pid)
+    }
+
+    fn new_waker(&mut self, pid: ProcessId) -> Waker {
+        self.runtime_ref.new_waker(pid)
     }
 
     fn new_context<M>(

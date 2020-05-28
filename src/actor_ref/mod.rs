@@ -112,7 +112,7 @@ use std::sync::Arc;
 
 use crossbeam_channel::Sender;
 
-use crate::actor;
+use crate::actor::{self, ContextKind};
 use crate::inbox::InboxRef;
 
 pub mod rpc;
@@ -225,16 +225,17 @@ impl<M> ActorRef<M> {
     /// See the [`rpc`] module for more details.
     ///
     /// [`Future`]: std::future::Future
-    pub fn rpc<CM, Req, Res>(
+    pub fn rpc<CM, C, Req, Res>(
         &self,
-        ctx: &mut actor::Context<CM>,
+        ctx: &mut actor::Context<CM, C>,
         request: Req,
     ) -> Result<Rpc<Res>, SendError>
     where
         M: From<RpcMessage<Req, Res>>,
+        C: ContextKind,
     {
         let pid = ctx.pid();
-        let waker = ctx.runtime().new_waker(pid);
+        let waker = C::new_waker(ctx.kind(), pid);
         let (msg, rpc) = Rpc::new(waker, request);
         self.send(msg).map(|()| rpc)
     }
