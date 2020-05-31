@@ -1,0 +1,21 @@
+name: Rust
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+env:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Rustc version
+      run: rustc -Vv
+    - name: Cargo version
+      run: cargo -V
+    - name: Run tests
+      run: cargo test --verbose
+    - name: Run tests
+      run: cargo test --verbose --features stress_testing
