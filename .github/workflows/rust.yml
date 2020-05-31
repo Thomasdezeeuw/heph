@@ -6,16 +6,21 @@ on:
     branches: [ master ]
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
+    - name: Install nightly compiler
+      run: rustup toolchain install nightly
+    - name: Set nightly compiler as default
+      run: rustup default nightly
     - name: Rustc version
       run: rustc -Vv
     - name: Cargo version
       run: cargo -V
     - name: Run tests
-      run: cargo +nightly test --verbose
-    - name: Run tests
-      run: cargo +nightly test --verbose --features stress_testing
+      run: cargo test --verbose
+    - name: Run stress tests
+      run: cargo test --verbose --features stress_testing
