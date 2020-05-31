@@ -16,6 +16,6 @@ jobs:
     - name: Cargo version
       run: cargo -V
     - name: Run tests
-      run: cargo test --verbose
+      run: cargo +nightly test --verbose
     - name: Run tests
-      run: cargo test --verbose --features stress_testing
+      run: cargo +nightly test --verbose --features stress_testing
