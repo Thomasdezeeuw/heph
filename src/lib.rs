@@ -694,7 +694,6 @@ impl<T> Drop for Channel<T> {
 /// to restart the actor we need another `Receiver`. Using the manager a new
 /// `Receiver` can be created, ensuring only a single `Receiver` is alive at any
 /// given time.
-#[derive(Debug)]
 pub struct Manager<T> {
     channel: NonNull<Channel<T>>,
 }
@@ -765,6 +764,14 @@ impl<T> Manager<T> {
 
     fn channel(&self) -> &Channel<T> {
         unsafe { self.channel.as_ref() }
+    }
+}
+
+impl<T: fmt::Debug> fmt::Debug for Manager<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Manager")
+            .field("channel", self.channel())
+            .finish()
     }
 }
 
