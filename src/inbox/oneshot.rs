@@ -224,6 +224,7 @@ impl<T> Sender<T> {
     /// Use [`new_receiver`] to create a receiver.
     ///
     /// [`new_receiver`]: Sender::new_receiver
+    #[allow(dead_code)] // FIXME: remove.
     pub(crate) fn empty() -> Sender<T> {
         Sender {
             shared: NonNull::dangling(),
@@ -269,6 +270,7 @@ impl<T> Sender<T> {
     /// Attempts to create a new `Receiver` for this `Sender`.
     ///
     /// Returns `None` if there already exists a `Receiver` for this `Sender`.
+    #[allow(dead_code)] // FIXME: remove.
     pub(crate) fn new_receiver(&mut self, waker: Waker) -> Option<Receiver<T>> {
         if self.shared == NonNull::dangling() {
             let shared = NonNull::from(Box::leak(Box::new(Shared::new(waker))));
