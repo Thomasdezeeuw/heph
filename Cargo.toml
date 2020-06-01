@@ -1,8 +1,17 @@
 [package]
-name = "inbox"
-version = "0.1.0"
-authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
-edition = "2018"
+name          = "inbox"
+description   = "Bounded capacity channel designed to be used as inbox for actors."
+version       = "0.1.0"
+authors       = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
+license       = "MIT"
+documentation = "https://docs.rs/inbox"
+repository    = "https://github.com/Thomasdezeeuw/inbox"
+readme        = "README.md"
+keywords      = ["inbox", "channel", "actor", "async"]
+categories    = ["asynchronous"]
+include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
+edition       = "2018"
 
 [features]
+# Enables some tests that take long.
 stress_testing = []
