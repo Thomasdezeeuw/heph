@@ -158,7 +158,7 @@ mod drop_tests {
     use std::sync::Arc;
     use std::thread;
 
-    use crate::new_small;
+    use crate::{new_small, Manager, LEN};
 
     /// Message type used in drop tests to ensure we don't drop undefined memory.
     #[derive(Debug)]
@@ -191,6 +191,60 @@ mod drop_tests {
 
         let (sender, receiver) = new_small::<NeverDrop>();
         let sender2 = sender.clone();
+        drop(sender);
+        drop(sender2);
+        drop(receiver);
+    }
+
+    #[test]
+    fn empty_with_manager() {
+        let (manager, sender, receiver) = Manager::<NeverDrop>::new_small_channel();
+        drop(sender);
+        drop(receiver);
+        drop(manager);
+
+        let (manager, sender, receiver) = Manager::<NeverDrop>::new_small_channel();
+        drop(sender);
+        drop(receiver);
+        drop(manager);
+
+        let (manager, sender, receiver) = Manager::<NeverDrop>::new_small_channel();
+        drop(manager);
+        drop(sender);
+        drop(receiver);
+
+        let (manager, sender, receiver) = Manager::<NeverDrop>::new_small_channel();
+        drop(manager);
+        drop(sender);
+        drop(receiver);
+    }
+
+    #[test]
+    fn empty_cloned_with_manager() {
+        let (manager, sender, receiver) = Manager::<NeverDrop>::new_small_channel();
+        let sender2 = sender.clone();
+        drop(sender);
+        drop(sender2);
+        drop(receiver);
+        drop(manager);
+
+        let (manager, sender, receiver) = Manager::<NeverDrop>::new_small_channel();
+        let sender2 = sender.clone();
+        drop(sender);
+        drop(sender2);
+        drop(receiver);
+        drop(manager);
+
+        let (manager, sender, receiver) = Manager::<NeverDrop>::new_small_channel();
+        let sender2 = sender.clone();
+        drop(manager);
+        drop(sender);
+        drop(sender2);
+        drop(receiver);
+
+        let (manager, sender, receiver) = Manager::<NeverDrop>::new_small_channel();
+        let sender2 = sender.clone();
+        drop(manager);
         drop(sender);
         drop(sender2);
         drop(receiver);
@@ -232,17 +286,128 @@ mod drop_tests {
     }
 
     #[test]
-    fn send_single_value() {
+    fn send_single_value_sr() {
         let (mut sender, receiver) = new_small();
         let (value, _check) = DropTest::new();
         sender.try_send(value).unwrap();
         drop(sender);
         drop(receiver);
+    }
 
+    #[test]
+    fn send_single_value_rs() {
         let (mut sender, receiver) = new_small();
         let (value, _check) = DropTest::new();
         sender.try_send(value).unwrap();
         drop(receiver);
         drop(sender);
+    }
+
+    #[test]
+    fn send_single_value_with_manager() {
+        let (manager, mut sender, receiver) = Manager::new_small_channel();
+        let (value, _check) = DropTest::new();
+        sender.try_send(value).unwrap();
+        drop(sender);
+        drop(receiver);
+        drop(manager);
+    }
+
+    #[test]
+    fn full_channel_sr() {
+        let (mut sender, receiver) = new_small();
+        let _checks: Vec<IsDropped> = (0..LEN)
+            .into_iter()
+            .map(|_| {
+                let (value, check) = DropTest::new();
+                sender.try_send(value).unwrap();
+                check
+            })
+            .collect();
+        drop(sender);
+        drop(receiver);
+    }
+
+    #[test]
+    fn full_channel_rs() {
+        let (mut sender, receiver) = new_small();
+        let _checks: Vec<IsDropped> = (0..LEN)
+            .into_iter()
+            .map(|_| {
+                let (value, check) = DropTest::new();
+                sender.try_send(value).unwrap();
+                check
+            })
+            .collect();
+        drop(receiver);
+        drop(sender);
+    }
+
+    #[test]
+    fn full_channel_with_manager() {
+        let (manager, mut sender, receiver) = Manager::new_small_channel();
+        let _checks: Vec<IsDropped> = (0..LEN)
+            .into_iter()
+            .map(|_| {
+                let (value, check) = DropTest::new();
+                sender.try_send(value).unwrap();
+                check
+            })
+            .collect();
+        drop(sender);
+        drop(receiver);
+        drop(manager);
+    }
+
+    #[test]
+    fn value_received_sr() {
+        let (mut sender, mut receiver) = new_small();
+        let _checks: Vec<IsDropped> = (0..LEN)
+            .into_iter()
+            .map(|_| {
+                let (value, check) = DropTest::new();
+                sender.try_send(value).unwrap();
+                check
+            })
+            .collect();
+        let _value1 = receiver.try_recv().unwrap();
+        let _value2 = receiver.try_recv().unwrap();
+        drop(sender);
+        drop(receiver);
+    }
+
+    #[test]
+    fn value_received_rs() {
+        let (mut sender, mut receiver) = new_small();
+        let _checks: Vec<IsDropped> = (0..LEN)
+            .into_iter()
+            .map(|_| {
+                let (value, check) = DropTest::new();
+                sender.try_send(value).unwrap();
+                check
+            })
+            .collect();
+        let _value1 = receiver.try_recv().unwrap();
+        let _value2 = receiver.try_recv().unwrap();
+        drop(receiver);
+        drop(sender);
+    }
+
+    #[test]
+    fn value_received_with_manager() {
+        let (manager, mut sender, mut receiver) = Manager::new_small_channel();
+        let _checks: Vec<IsDropped> = (0..LEN)
+            .into_iter()
+            .map(|_| {
+                let (value, check) = DropTest::new();
+                sender.try_send(value).unwrap();
+                check
+            })
+            .collect();
+        let _value1 = receiver.try_recv().unwrap();
+        let _value2 = receiver.try_recv().unwrap();
+        drop(receiver);
+        drop(sender);
+        drop(manager);
     }
 }
