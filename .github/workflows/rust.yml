@@ -24,3 +24,7 @@ jobs:
       run: cargo test --verbose
     - name: Run stress tests
       run: cargo test --verbose --features stress_testing
+    - name: Add Miri
+      run: rustup component add miri
+    - name: Run tests in Miri
+      run: cargo miri test
