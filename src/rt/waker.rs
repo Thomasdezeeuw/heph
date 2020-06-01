@@ -11,7 +11,7 @@ use crate::rt::ProcessId;
 
 /// Waker used to wake a process.
 #[derive(Debug, Clone)]
-pub(crate) struct Waker {
+pub struct Waker {
     waker: &'static ThreadWaker,
     pid: ProcessId,
 }

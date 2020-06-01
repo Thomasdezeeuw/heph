@@ -89,6 +89,13 @@ mod oneshot {
     use super::{assert_send, DropTest, NeverDrop, PID};
 
     #[test]
+    fn size() {
+        use std::mem::size_of;
+        assert_eq!(size_of::<Sender<()>>(), 8);
+        assert_eq!(size_of::<super::InboxRef<()>>(), 32);
+    }
+
+    #[test]
     fn sender_is_send() {
         assert_send::<Sender<()>>();
     }
