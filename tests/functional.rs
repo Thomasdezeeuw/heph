@@ -204,3 +204,121 @@ fn sends_to() {
     assert!(!sender2b.sends_to(&receiver1));
     assert!(sender2b.sends_to(&receiver2));
 }
+
+mod manager {
+    use inbox::{Manager, ReceiverConnected};
+
+    #[test]
+    fn new_sender() {
+        let (manager, mut sender1, mut receiver) = Manager::<usize>::new_small_channel();
+        let mut sender2 = manager.new_sender();
+
+        sender1.try_send(123).unwrap();
+        sender2.try_send(456).unwrap();
+
+        assert_eq!(receiver.try_recv().unwrap(), 123);
+        assert_eq!(receiver.try_recv().unwrap(), 456);
+    }
+
+    #[test]
+    fn new_receiver() {
+        let (manager, mut sender, receiver) = Manager::<usize>::new_small_channel();
+        sender.try_send(123).unwrap();
+
+        drop(receiver);
+        sender.try_send(456).unwrap();
+
+        let mut receiver = manager.new_receiver().unwrap();
+
+        assert_eq!(receiver.try_recv().unwrap(), 123);
+        assert_eq!(receiver.try_recv().unwrap(), 456);
+    }
+
+    #[test]
+    fn new_receiver_already_exists() {
+        let (manager, _sender, _receiver) = Manager::<usize>::new_small_channel();
+        assert_eq!(manager.new_receiver().unwrap_err(), ReceiverConnected);
+    }
+
+    #[test]
+    fn sending_and_receiving_value() {
+        let (manager, mut sender, mut receiver) = Manager::<usize>::new_small_channel();
+        sender.try_send(123).unwrap();
+        assert_eq!(receiver.try_recv().unwrap(), 123);
+        drop(manager);
+    }
+
+    #[test]
+    fn sender_is_connected() {
+        let (manager, sender, receiver) = Manager::<usize>::new_small_channel();
+        assert!(sender.is_connected());
+        drop(receiver);
+        // Manager is still alive.
+        assert!(sender.is_connected());
+        drop(manager);
+        assert!(!sender.is_connected());
+    }
+
+    #[test]
+    fn receiver_is_connected() {
+        let (manager, sender, receiver) = Manager::<usize>::new_small_channel();
+        assert!(receiver.is_connected());
+        drop(manager);
+        assert!(receiver.is_connected());
+        drop(sender);
+        assert!(!receiver.is_connected());
+
+        let (manager, sender, receiver) = Manager::<usize>::new_small_channel();
+        assert!(receiver.is_connected());
+        drop(sender);
+        assert!(!receiver.is_connected());
+        let new_sender = manager.new_sender();
+        assert!(receiver.is_connected());
+        drop(new_sender);
+        assert!(!receiver.is_connected());
+    }
+
+    #[test]
+    fn same_channel() {
+        let (manager1, sender1a, _) = Manager::<usize>::new_small_channel();
+        let sender1b = manager1.new_sender();
+        let (manager2, sender2a, _) = Manager::<usize>::new_small_channel();
+        let sender2b = manager2.new_sender();
+
+        assert!(sender1a.same_channel(&sender1a));
+        assert!(sender1a.same_channel(&sender1b));
+        assert!(!sender1a.same_channel(&sender2a));
+        assert!(!sender1a.same_channel(&sender2b));
+        assert!(sender1b.same_channel(&sender1a));
+        assert!(sender1b.same_channel(&sender1b));
+        assert!(!sender1b.same_channel(&sender2a));
+        assert!(!sender1b.same_channel(&sender2b));
+
+        assert!(!sender2a.same_channel(&sender1a));
+        assert!(!sender2a.same_channel(&sender1b));
+        assert!(sender2a.same_channel(&sender2a));
+        assert!(sender2a.same_channel(&sender2b));
+        assert!(!sender2b.same_channel(&sender1a));
+        assert!(!sender2b.same_channel(&sender1b));
+        assert!(sender2b.same_channel(&sender2a));
+        assert!(sender2b.same_channel(&sender2b));
+    }
+
+    #[test]
+    fn sends_to() {
+        let (manager1, sender1a, receiver1) = Manager::<usize>::new_small_channel();
+        let sender1b = manager1.new_sender();
+        let (manager2, sender2a, receiver2) = Manager::<usize>::new_small_channel();
+        let sender2b = manager2.new_sender();
+
+        assert!(sender1a.sends_to(&receiver1));
+        assert!(!sender1a.sends_to(&receiver2));
+        assert!(sender1b.sends_to(&receiver1));
+        assert!(!sender1b.sends_to(&receiver2));
+
+        assert!(!sender2a.sends_to(&receiver1));
+        assert!(sender2a.sends_to(&receiver2));
+        assert!(!sender2b.sends_to(&receiver1));
+        assert!(sender2b.sends_to(&receiver2));
+    }
+}
