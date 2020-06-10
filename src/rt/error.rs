@@ -118,9 +118,7 @@ impl<SetupError: fmt::Display> fmt::Display for Error<SetupError> {
     }
 }
 
-impl<SetupError: std::error::Error + fmt::Display + 'static> std::error::Error
-    for Error<SetupError>
-{
+impl<SetupError: std::error::Error + 'static> std::error::Error for Error<SetupError> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use ErrorInner::*;
         match self.inner {
