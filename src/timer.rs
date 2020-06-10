@@ -107,6 +107,11 @@ impl Timer {
         self.deadline
     }
 
+    /// Returns `true` if the deadline has passed.
+    pub fn has_passed(&self) -> bool {
+        self.deadline <= Instant::now()
+    }
+
     /// Wrap a future creating a new `Deadline`.
     pub fn wrap<Fut>(self, future: Fut) -> Deadline<Fut> {
         // Already added a deadline so no need to do it again.
@@ -121,7 +126,7 @@ impl Future for Timer {
     type Output = DeadlinePassed;
 
     fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        if self.deadline <= Instant::now() {
+        if self.has_passed() {
             Poll::Ready(DeadlinePassed)
         } else {
             Poll::Pending
@@ -231,6 +236,11 @@ impl<Fut> Deadline<Fut> {
     pub fn deadline(&self) -> Instant {
         self.deadline
     }
+
+    /// Returns `true` if the deadline has passed.
+    pub fn has_passed(&self) -> bool {
+        self.deadline <= Instant::now()
+    }
 }
 
 impl<Fut> Future for Deadline<Fut>
@@ -240,7 +250,7 @@ where
     type Output = Result<Fut::Output, DeadlinePassed>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        if self.deadline <= Instant::now() {
+        if self.has_passed() {
             Poll::Ready(Err(DeadlinePassed))
         } else {
             let future = unsafe {
