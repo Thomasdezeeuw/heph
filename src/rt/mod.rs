@@ -805,12 +805,8 @@ impl SharedRuntimeInternal {
         let pid = actor_entry.pid();
         debug!("spawning thread-safe actor: pid={}", pid);
 
-        let waker = Waker::new(self.waker_id, pid);
-        if options.is_ready() {
-            waker.wake()
-        }
-
         // Create our actor context and our actor with it.
+        let waker = Waker::new(self.waker_id, pid);
         let (inbox, inbox_ref) = Inbox::new(waker);
         let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
         let mut ctx =
@@ -827,6 +823,14 @@ impl SharedRuntimeInternal {
             inbox,
             inbox_ref,
         );
+
+        // Note: this must happen after the adding to the scheduler above,
+        // unlike is the case for the local version. Otherwise there is a race
+        // condition between adding the actor to the scheduler and the
+        // coordinator mark it as ready.
+        if options.is_ready() {
+            Waker::new(self.waker_id, pid).wake();
+        }
 
         Ok(actor_ref)
     }
