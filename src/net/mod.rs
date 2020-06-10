@@ -21,10 +21,11 @@
 /// Note that this is used in the tcp and udp modules and has to be defined
 /// before them, otherwise this would have been place below.
 macro_rules! try_io {
-    ($op:expr) => {
+    ($op: expr $(, $kind: ident => $do: expr )*) => {
         loop {
             match $op {
                 Ok(ok) => break Poll::Ready(Ok(ok)),
+                $( Err(ref err) if err.kind() == io::ErrorKind::$kind => $do, )*
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break Poll::Pending,
                 Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
                 Err(err) => break Poll::Ready(Err(err)),

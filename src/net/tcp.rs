@@ -462,7 +462,11 @@ impl AsyncRead for TcpStream {
         _ctx: &mut task::Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        try_io!(self.socket.read(buf))
+        // If the socket is just created it could be the case that it isn't yet
+        // connected. Then we'll return pending as we'll be awoken later, when
+        // it failed to connected or when the socket is connected, and the user
+        // can try again.
+        try_io!(self.socket.read(buf), NotConnected => break Poll::Pending)
     }
 }
 
@@ -472,11 +476,13 @@ impl AsyncWrite for TcpStream {
         _ctx: &mut task::Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        try_io!(self.socket.write(buf))
+        // See `AsyncRead::poll_read` why `NotConnected` is special.
+        try_io!(self.socket.write(buf), NotConnected => break Poll::Pending)
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
-        try_io!(self.socket.flush())
+        // See `AsyncRead::poll_read` why `NotConnected` is special.
+        try_io!(self.socket.flush(), NotConnected => break Poll::Pending)
     }
 
     fn poll_close(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<io::Result<()>> {

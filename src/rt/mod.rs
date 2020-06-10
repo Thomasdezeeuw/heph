@@ -307,6 +307,7 @@ impl<S> Runtime<S> {
         M: Send + 'static,
     {
         let id = SYNC_WORKER_ID_START + self.sync_actors.len();
+        debug!("spawning synchronous actor: pid={}", id);
         SyncWorker::start(id, supervisor, actor, arg)
             .map(|(worker, actor_ref)| {
                 self.sync_actors.push(worker);
