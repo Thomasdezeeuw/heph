@@ -347,7 +347,7 @@ impl RemoteActors {
     pub fn create_ref(&self, name: &'static str) -> ActorRef<Remote> {
         self.actor_ref
             .clone()
-            .to_named(name)
+            .into_named(name)
             .unwrap_or_else(|| unreachable!())
     }
 }

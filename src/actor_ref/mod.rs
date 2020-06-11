@@ -294,7 +294,7 @@ impl<M> ActorRef<M> {
 
 impl<M> ActorRef<(&'static str, M)> {
     /// Attempts to convert the reference into a named reference.
-    pub(crate) fn to_named(self, name: &'static str) -> Option<ActorRef<M>> {
+    pub(crate) fn into_named(self, name: &'static str) -> Option<ActorRef<M>> {
         if let ActorRefKind::Node(inbox_ref) = self.kind {
             Some(ActorRef {
                 kind: ActorRefKind::Named {
