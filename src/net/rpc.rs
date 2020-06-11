@@ -83,7 +83,7 @@ impl RemoteRegistry {
         use std::collections::hash_map::Entry;
         match self.registrations.entry(name) {
             Entry::Vacant(entry) => {
-                drop(entry.insert(actor_ref.into()));
+                let _ = entry.insert(actor_ref.into());
                 Ok(())
             }
             Entry::Occupied(_) => Err(AlreadyRegistered { name }),
@@ -97,7 +97,7 @@ impl RemoteRegistry {
     ///
     /// Returns an error if no actor was previously registered using `name`.
     pub fn deregister(&mut self, name: &'static str) -> Result<(), ()> {
-        if let Some(_) = self.registrations.remove(name) {
+        if self.registrations.remove(name).is_some() {
             Ok(())
         } else {
             Err(())

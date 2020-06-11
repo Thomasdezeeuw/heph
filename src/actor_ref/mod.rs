@@ -318,7 +318,7 @@ impl<M> Clone for ActorRef<M> {
                 Mapped(actor_ref) => Mapped(actor_ref.clone()),
                 TryMapped(actor_ref) => TryMapped(actor_ref.clone()),
                 Named { actor, inbox_ref } => Named {
-                    actor: actor.clone(),
+                    actor,
                     inbox_ref: inbox_ref.clone(),
                 },
             },
