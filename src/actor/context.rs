@@ -259,6 +259,7 @@ impl<M, C> Context<M, C> {
     /// # // Use the `print_actor` function to silence dead code warning.
     /// # drop(print_actor);
     /// ```
+    #[allow(clippy::needless_lifetimes)]
     pub fn receive_next<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
         ReceiveMessage {
             inbox: &mut self.inbox,

@@ -237,6 +237,7 @@ impl TcpListener {
     /// the actor is run once the stream is ready.
     ///
     /// [bound]: actor::Bound::bind_to
+    #[allow(clippy::needless_lifetimes)]
     pub fn accept<'a>(&'a mut self) -> Accept<'a> {
         Accept {
             listener: Some(self),
@@ -254,6 +255,7 @@ impl TcpListener {
     /// the actor is run once the stream is ready.
     ///
     /// [bound]: actor::Bound::bind_to
+    #[allow(clippy::needless_lifetimes)]
     pub fn incoming<'a>(&'a mut self) -> Incoming<'a> {
         Incoming { listener: self }
     }

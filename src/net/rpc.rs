@@ -55,6 +55,7 @@ pub struct RemoteRegistry {
 
 impl RemoteRegistry {
     /// Create a new `RemoteRegistry`.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> RemoteRegistry {
         RemoteRegistry {
             registrations: HashMap::new(),
