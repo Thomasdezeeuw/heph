@@ -1,8 +1,41 @@
 //! Functional tests.
 
-use inbox::{new_small, RecvError, SendError};
+use inbox::{new_small, Manager, Receiver, RecvError, SendError, Sender};
 
 const N: usize = 8;
+
+fn assert_send<T: Send>() {}
+fn assert_sync<T: Sync>() {}
+
+#[test]
+fn sender_is_send() {
+    assert_send::<Sender<()>>();
+}
+
+#[test]
+fn sender_is_sync() {
+    assert_sync::<Sender<()>>();
+}
+
+#[test]
+fn receiver_is_send() {
+    assert_send::<Receiver<()>>();
+}
+
+#[test]
+fn receiver_is_sync() {
+    assert_sync::<Receiver<()>>();
+}
+
+#[test]
+fn manager_is_send() {
+    assert_send::<Manager<()>>();
+}
+
+#[test]
+fn manager_is_sync() {
+    assert_sync::<Manager<()>>();
+}
 
 #[test]
 fn sending_and_receiving_value() {
