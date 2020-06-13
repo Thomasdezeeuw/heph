@@ -61,7 +61,7 @@ use std::future::Future;
 use std::mem::{size_of, MaybeUninit};
 use std::pin::Pin;
 use std::ptr::NonNull;
-use std::sync::atomic::{fence, AtomicPtr, AtomicUsize, Ordering};
+use std::sync::atomic::{fence, AtomicBool, AtomicPtr, AtomicUsize, Ordering};
 use std::task::{self, Poll};
 use std::{fmt, ptr};
 
@@ -221,7 +221,7 @@ impl<T> Sender<T> {
             // Debug assertion to check the slot was in the TAKEN status.
             debug_assert!(has_status(old_status, slot, TAKEN));
 
-            channel.receiver_waker.wake_by_ref();
+            channel.wake_receiver();
 
             return Ok(());
         }
@@ -334,7 +334,7 @@ impl<T> Drop for Sender<T> {
         // is that the `Sender` loses a wake-up notification, but it doesn't
         // have any memory unsafety.
         if self.only_sender() {
-            self.channel().receiver_waker.wake_by_ref();
+            self.channel().wake_receiver();
         }
 
         // If the previous value was `1` it means that the receiver was dropped
@@ -379,10 +379,11 @@ impl<'s, T> Future for SendValue<'s, T> {
                 // be woken once a slot opens up.
                 self.sender.channel().add_waker(ctx.waker().clone());
 
-                // But it could be the case that the sender received a value in
-                // the time after we tried to send the value and before we added
-                // the our waker to list. So we try to send a value again to
-                // ensure we don't awoken and the channel has a slot available.
+                // But it could be the case that the received received a value
+                // in the time after we tried to send the value and before we
+                // added the our waker to list. So we try to send a value again
+                // to ensure we don't awoken and the channel has a slot
+                // available.
                 match self.sender.try_send(value) {
                     Ok(()) => Poll::Ready(Ok(())),
                     Err(SendError::Full(value)) => {
@@ -596,8 +597,21 @@ impl<'s, T> Future for RecvValue<'s, T> {
         match self.receiver.try_recv() {
             Ok(value) => Poll::Ready(Some(value)),
             Err(RecvError::Empty) => {
-                // The `Sender` will wake us when a new message is send.
-                Poll::Pending
+                // The channel is empty, we'll register ourselves as wanting to
+                // be woken once a value is added.
+                self.receiver.channel().need_receiver_wakeup();
+
+                // But it could be the case that a sender sender send a value in
+                // the time between we last checked and we actually marked
+                // ourselves as needing a wake-up.
+                match self.receiver.try_recv() {
+                    Ok(value) => Poll::Ready(Some(value)),
+                    Err(RecvError::Empty) => {
+                        // The `Sender` will wake us when a new message is send.
+                        Poll::Pending
+                    }
+                    Err(RecvError::Disconnected) => Poll::Ready(None),
+                }
             }
             Err(RecvError::Disconnected) => Poll::Ready(None),
         }
@@ -628,6 +642,7 @@ struct Channel<T> {
     sender_waker_tail: AtomicPtr<LinkedList>,
     /// `task::Waker` to wake the `Receiver`.
     receiver_waker: task::Waker,
+    receiver_needs_wakeup: AtomicBool,
 }
 
 /// Atomic linked list.
@@ -658,6 +673,7 @@ impl<T> Channel<T> {
             ref_count: AtomicUsize::new(RECEIVER_ALIVE | 1),
             sender_waker_tail: AtomicPtr::new(ptr::null_mut()),
             receiver_waker,
+            receiver_needs_wakeup: AtomicBool::new(false),
         }
     }
 
@@ -753,6 +769,25 @@ impl<T> Channel<T> {
                 // Failed update the pointer and try again.
                 Err(prev) => prev_ptr = prev,
             }
+        }
+    }
+
+    /// Mark that the `Receiver` needs to be woken up.
+    fn need_receiver_wakeup(&self) {
+        self.receiver_needs_wakeup.store(true, Ordering::Relaxed);
+    }
+
+    /// Wake the `Receiver`.
+    fn wake_receiver(&self) {
+        if !self.receiver_needs_wakeup.load(Ordering::Relaxed) {
+            // Receiver doesn't need a wake-up.
+            return;
+        }
+
+        // Mark that we've woken the `Sender` and after actually wake the
+        // `Sender`.
+        if self.receiver_needs_wakeup.swap(false, Ordering::Relaxed) {
+            self.receiver_waker.wake_by_ref();
         }
     }
 }
