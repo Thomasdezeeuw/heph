@@ -408,7 +408,7 @@ mod threaded {
                 drop(sender);
             },
             {
-                // Give the sender a chance to send the message.
+                // Give the sender a chance to send the messages.
                 thread::sleep(Duration::from_millis(200));
                 drop(receiver);
             }
@@ -428,7 +428,7 @@ mod threaded {
                 drop(sender);
             },
             {
-                // Give the sender a chance to send the message.
+                // Give the sender a chance to send the messages.
                 thread::sleep(Duration::from_millis(200));
                 drop(receiver);
             },
@@ -460,6 +460,8 @@ mod threaded {
                         }
                     }
                 }
+                // Give the sender a chance to send the remaining messages.
+                thread::sleep(Duration::from_millis(200));
                 drop(receiver);
             }
         );
@@ -487,6 +489,8 @@ mod threaded {
                         }
                     }
                 }
+                // Give the sender a chance to send the remaining messages.
+                thread::sleep(Duration::from_millis(200));
                 drop(receiver);
             },
             {

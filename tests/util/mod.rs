@@ -64,6 +64,7 @@ macro_rules! expect_send {
 }
 
 /// Loop until a value is received.
+#[allow(unused_macros)] // Not used by all tests modules.
 macro_rules! expect_recv {
     ($receiver: expr, $expected: expr) => {{
         r#loop! {
