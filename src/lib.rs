@@ -333,7 +333,10 @@ impl<'s, T> Future for SendValue<'s, T> {
     type Output = Result<(), T>;
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
-        let value = self.value.take().expect("Send polled after completion");
+        let value = self
+            .value
+            .take()
+            .expect("SendValue polled after completion");
 
         // First we try to send the value, if this succeeds we don't have to
         // allocate in the waker list.
@@ -448,6 +451,22 @@ impl<T> Receiver<T> {
     fn wake_next_sender(&mut self) {
         if let Some(waker) = self.channel().next_waker() {
             waker.wake()
+        }
+    }
+
+    /// Create a new [`Sender`] that sends to this channel.
+    ///
+    /// # Safety
+    ///
+    /// The same restrictions apply to this function as they do to
+    /// [`Sender::clone`].
+    ///
+    /// [`Sender::clone`]: struct.Sender.html#impl-Clone
+    pub fn new_sender(&self) -> Sender<T> {
+        // For the reasoning behind this relaxed ordering see `Arc::clone`.
+        let _ = self.channel().ref_count.fetch_add(1, Ordering::Relaxed);
+        Sender {
+            channel: self.channel,
         }
     }
 

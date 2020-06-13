@@ -238,6 +238,25 @@ fn sends_to() {
     assert!(sender2b.sends_to(&receiver2));
 }
 
+#[test]
+fn receiver_new_sender() {
+    let (sender, mut receiver) = new_small::<usize>();
+
+    let mut sender2 = receiver.new_sender();
+    assert!(sender2.sends_to(&receiver));
+    assert!(sender2.same_channel(&sender));
+
+    drop(sender);
+    assert!(sender2.is_connected());
+    assert!(receiver.is_connected());
+
+    sender2.try_send(123).unwrap();
+    assert_eq!(receiver.try_recv().unwrap(), 123);
+
+    drop(receiver);
+    assert!(!sender2.is_connected());
+}
+
 mod future {
     //! Tests for the `Future` implementations.
 
