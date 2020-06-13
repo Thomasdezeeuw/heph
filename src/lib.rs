@@ -16,7 +16,9 @@
 //! use inbox::RecvError;
 //!
 //! // Create a new small channel.
-//! let (mut sender, mut receiver) = inbox::new_small();
+//! let receiver_waker = /* Create a task::Waker for the receiver. */
+//! # futures_test::task::noop_waker();
+//! let (mut sender, mut receiver) = inbox::new_small(receiver_waker);
 //!
 //! let sender_handle = thread::spawn(move || {
 //!     if let Err(err) = sender.try_send("Hello world!".to_owned()) {
@@ -67,8 +69,10 @@ use std::{fmt, ptr};
 mod tests;
 
 /// Create a small bounded channel.
-pub fn new_small<T>() -> (Sender<T>, Receiver<T>) {
-    let channel = NonNull::from(Box::leak(Box::new(Channel::new())));
+///
+/// Requires a `task::Waker` to use for waking the `Receiver`.
+pub fn new_small<T>(receiver_waker: task::Waker) -> (Sender<T>, Receiver<T>) {
+    let channel = NonNull::from(Box::leak(Box::new(Channel::new(receiver_waker))));
     let send = Sender {
         channel: channel.clone(),
     };
@@ -216,6 +220,9 @@ impl<T> Sender<T> {
                 .fetch_or(FILLED << (STATUS_BITS * slot), Ordering::AcqRel);
             // Debug assertion to check the slot was in the TAKEN status.
             debug_assert!(has_status(old_status, slot, TAKEN));
+
+            channel.receiver_waker.wake_by_ref();
+
             return Ok(());
         }
 
@@ -269,6 +276,13 @@ impl<T> Sender<T> {
         self.channel == receiver.channel
     }
 
+    /// Returns `true` if this is the only sender alive.
+    fn only_sender(&self) -> bool {
+        // Relaxed is fine here since there is always a bit of a race condition
+        // when using this method (and then doing something based on it).
+        self.channel().ref_count.load(Ordering::Relaxed) & !(RECEIVER_ALIVE | MANAGER_ALIVE) == 1
+    }
+
     fn channel(&self) -> &Channel<T> {
         unsafe { self.channel.as_ref() }
     }
@@ -305,6 +319,24 @@ impl<T> Unpin for Sender<T> {}
 
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
+        // If we're the only sender and if so wake the receiver.
+        //
+        // NOTE: there is a race condition between the `wake` and `fetch_sub`
+        // below: in between those calls the receiver could run (after we
+        // woke it) and see we're still connected and sleep (return
+        // `Poll::Pending`) again. This can't be fixed.
+        // The alternative would be to call `fetch_sub` on the `ref_count`
+        // before waking, ensuring the count is valid once the `Sender` runs,
+        // however that opens another race condition in which the `Sender` can
+        // be dropped and deallocate the `Channel` memory, after which we'll
+        // access it to wake the `Sender`. Basically we're choosing the least
+        // worse of the two race conditions in which in the worst case scenario
+        // is that the `Sender` loses a wake-up notification, but it doesn't
+        // have any memory unsafety.
+        if self.only_sender() {
+            self.channel().receiver_waker.wake_by_ref();
+        }
+
         // If the previous value was `1` it means that the receiver was dropped
         // as well as all other senders, the receiver and the manager, so we
         // need to do the deallocating.
@@ -436,7 +468,11 @@ impl<T> Receiver<T> {
             debug_assert!(
                 has_status(old_status, slot, READING) || has_status(old_status, slot, FILLED)
             );
-            self.wake_next_sender();
+
+            if let Some(waker) = self.channel().next_waker() {
+                waker.wake()
+            }
+
             return Ok(value);
         }
 
@@ -447,11 +483,17 @@ impl<T> Receiver<T> {
         }
     }
 
-    /// Wake the next sender a slot has opened up.
-    fn wake_next_sender(&mut self) {
-        if let Some(waker) = self.channel().next_waker() {
-            waker.wake()
-        }
+    /// Returns a future that receives a value from the channel, waiting if the
+    /// channel is empty.
+    ///
+    /// If the returned [`Future`] returns `None` it means all [`Receiver`]s are
+    /// [disconnected]. This is the same error as [`RecvError::Disconnected`].
+    /// [`RecvError::Empty`] will never be returned, the `Future` will return
+    /// [`Poll::Pending`] instead.
+    ///
+    /// [disconnected]: Receiver::is_connected
+    pub fn recv<'s>(&'s mut self) -> RecvValue<'s, T> {
+        RecvValue { receiver: self }
     }
 
     /// Create a new [`Sender`] that sends to this channel.
@@ -530,6 +572,40 @@ impl<T> Drop for Receiver<T> {
     }
 }
 
+/// [`Future`] implementation behind [`Receiver::recv`].
+#[derive(Debug)]
+pub struct RecvValue<'s, T> {
+    receiver: &'s mut Receiver<T>,
+}
+
+impl<'s, T> Future for RecvValue<'s, T> {
+    type Output = Option<T>;
+
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
+        #[cfg(debug_assertions)]
+        {
+            assert!(
+                self.receiver
+                    .channel()
+                    .receiver_waker
+                    .will_wake(ctx.waker()),
+                "polling RecvValue with a different Waker then used in creating the channel"
+            );
+        }
+
+        match self.receiver.try_recv() {
+            Ok(value) => Poll::Ready(Some(value)),
+            Err(RecvError::Empty) => {
+                // The `Sender` will wake us when a new message is send.
+                Poll::Pending
+            }
+            Err(RecvError::Disconnected) => Poll::Ready(None),
+        }
+    }
+}
+
+impl<T> Unpin for RecvValue<'_, T> {}
+
 /// Channel internals shared between zero or more [`Sender`]s, zero or one
 /// [`Receiver`] and zero or one [`Manager`].
 struct Channel<T> {
@@ -550,6 +626,8 @@ struct Channel<T> {
     ///
     /// If this is not null it must point to correct memory.
     sender_waker_tail: AtomicPtr<LinkedList>,
+    /// `task::Waker` to wake the `Receiver`.
+    receiver_waker: task::Waker,
 }
 
 /// Atomic linked list.
@@ -564,7 +642,7 @@ struct LinkedList {
 }
 
 impl<T> Channel<T> {
-    const fn new() -> Channel<T> {
+    const fn new(receiver_waker: task::Waker) -> Channel<T> {
         Channel {
             slots: [
                 UnsafeCell::new(MaybeUninit::uninit()),
@@ -579,6 +657,7 @@ impl<T> Channel<T> {
             status: AtomicUsize::new(0),
             ref_count: AtomicUsize::new(RECEIVER_ALIVE | 1),
             sender_waker_tail: AtomicPtr::new(ptr::null_mut()),
+            receiver_waker,
         }
     }
 
@@ -744,8 +823,8 @@ impl<T> Manager<T> {
     /// Create a small bounded channel with a `Manager`.
     ///
     /// Same as [`new_small`] but with a `Manager`.
-    pub fn new_small_channel() -> (Manager<T>, Sender<T>, Receiver<T>) {
-        let (sender, receiver) = new_small();
+    pub fn new_small_channel(receiver_waker: task::Waker) -> (Manager<T>, Sender<T>, Receiver<T>) {
+        let (sender, receiver) = new_small(receiver_waker);
         let old_count = sender
             .channel()
             .ref_count

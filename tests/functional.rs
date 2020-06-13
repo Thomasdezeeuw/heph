@@ -1,5 +1,7 @@
 //! Functional tests.
 
+use futures_test::task::noop_waker;
+
 use inbox::{new_small, Manager, Receiver, RecvError, SendError, Sender};
 
 const LEN: usize = 8;
@@ -39,27 +41,27 @@ fn manager_is_sync() {
 
 #[test]
 fn sending_and_receiving_value() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
     sender.try_send(123).unwrap();
     assert_eq!(receiver.try_recv().unwrap(), 123);
 }
 
 #[test]
 fn receiving_from_empty_channel() {
-    let (_sender, mut receiver) = new_small::<usize>();
+    let (_sender, mut receiver) = new_small::<usize>(noop_waker());
     assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Empty);
 }
 
 #[test]
 fn receiving_from_disconnected_channel() {
-    let (sender, mut receiver) = new_small::<usize>();
+    let (sender, mut receiver) = new_small::<usize>(noop_waker());
     drop(sender);
     assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Disconnected);
 }
 
 #[test]
 fn sending_into_full_channel() {
-    let (mut sender, receiver) = new_small::<usize>();
+    let (mut sender, receiver) = new_small::<usize>(noop_waker());
     for value in 0..LEN {
         sender.try_send(value).unwrap();
     }
@@ -69,7 +71,7 @@ fn sending_into_full_channel() {
 
 #[test]
 fn send_len_values_send_then_recv() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
     for value in 0..LEN {
         sender.try_send(value).unwrap();
     }
@@ -82,7 +84,7 @@ fn send_len_values_send_then_recv() {
 
 #[test]
 fn send_len_values_interleaved() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
     for value in 0..LEN {
         sender.try_send(value).unwrap();
         assert_eq!(receiver.try_recv().unwrap(), value);
@@ -91,7 +93,7 @@ fn send_len_values_interleaved() {
 
 #[test]
 fn send_2_len_values_send_then_recv() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
     for value in 0..LEN {
         sender.try_send(value).unwrap();
     }
@@ -106,7 +108,7 @@ fn send_2_len_values_send_then_recv() {
 
 #[test]
 fn send_2_len_values_interleaved() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
     for value in 0..2 * LEN {
         sender.try_send(value).unwrap();
         assert_eq!(receiver.try_recv().unwrap(), value);
@@ -115,7 +117,7 @@ fn send_2_len_values_interleaved() {
 
 #[test]
 fn sender_disconnected_after_send() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
     sender.try_send(123).unwrap();
     drop(sender);
     assert_eq!(receiver.try_recv().unwrap(), 123);
@@ -124,7 +126,7 @@ fn sender_disconnected_after_send() {
 
 #[test]
 fn sender_disconnected_after_send_len() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
     for value in 0..LEN {
         sender.try_send(value).unwrap();
     }
@@ -137,7 +139,7 @@ fn sender_disconnected_after_send_len() {
 
 #[test]
 fn sender_disconnected_after_send_2_len() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
     for value in 0..2 * LEN {
         sender.try_send(value).unwrap();
         assert_eq!(receiver.try_recv().unwrap(), value);
@@ -151,7 +153,7 @@ const LARGE: usize = 1_000_000;
 #[test]
 #[cfg_attr(not(feature = "stress_testing"), ignore)]
 fn stress_sending_interleaved() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
     for value in 0..LARGE {
         sender.try_send(value).unwrap();
         assert_eq!(receiver.try_recv().unwrap(), value);
@@ -163,7 +165,7 @@ fn stress_sending_interleaved() {
 #[cfg_attr(not(feature = "stress_testing"), ignore)]
 fn stress_sending_fill() {
     for n in 1..=(LEN - 1) {
-        let (mut sender, mut receiver) = new_small::<usize>();
+        let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
 
         for value in 0..(LARGE / n) {
             for n in 0..n {
@@ -180,7 +182,7 @@ fn stress_sending_fill() {
 
 #[test]
 fn sender_is_connected() {
-    let (sender, receiver) = new_small::<usize>();
+    let (sender, receiver) = new_small::<usize>(noop_waker());
     assert!(sender.is_connected());
     drop(receiver);
     assert!(!sender.is_connected());
@@ -188,7 +190,7 @@ fn sender_is_connected() {
 
 #[test]
 fn receiver_is_connected() {
-    let (sender, receiver) = new_small::<usize>();
+    let (sender, receiver) = new_small::<usize>(noop_waker());
     assert!(receiver.is_connected());
     drop(sender);
     assert!(!receiver.is_connected());
@@ -196,9 +198,9 @@ fn receiver_is_connected() {
 
 #[test]
 fn same_channel() {
-    let (sender1a, _) = new_small::<usize>();
+    let (sender1a, _) = new_small::<usize>(noop_waker());
     let sender1b = sender1a.clone();
-    let (sender2a, _) = new_small::<usize>();
+    let (sender2a, _) = new_small::<usize>(noop_waker());
     let sender2b = sender2a.clone();
 
     assert!(sender1a.same_channel(&sender1a));
@@ -222,9 +224,9 @@ fn same_channel() {
 
 #[test]
 fn sends_to() {
-    let (sender1a, receiver1) = new_small::<usize>();
+    let (sender1a, receiver1) = new_small::<usize>(noop_waker());
     let sender1b = sender1a.clone();
-    let (sender2a, receiver2) = new_small::<usize>();
+    let (sender2a, receiver2) = new_small::<usize>(noop_waker());
     let sender2b = sender2a.clone();
 
     assert!(sender1a.sends_to(&receiver1));
@@ -240,7 +242,7 @@ fn sends_to() {
 
 #[test]
 fn receiver_new_sender() {
-    let (sender, mut receiver) = new_small::<usize>();
+    let (sender, mut receiver) = new_small::<usize>(noop_waker());
 
     let mut sender2 = receiver.new_sender();
     assert!(sender2.sends_to(&receiver));
@@ -265,7 +267,7 @@ mod future {
     use std::pin::Pin;
     use std::task::{self, Poll};
 
-    use futures_test::task::{new_count_waker, AwokenCount};
+    use futures_test::task::{new_count_waker, noop_waker, AwokenCount};
 
     use inbox::{new_small, SendValue, Sender};
 
@@ -273,7 +275,7 @@ mod future {
 
     #[test]
     fn send_value() {
-        let (mut sender, mut receiver) = new_small::<usize>();
+        let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
 
         let (waker, count) = new_count_waker();
         let mut ctx = task::Context::from_waker(&waker);
@@ -288,7 +290,7 @@ mod future {
 
     #[test]
     fn send_value_full_channel() {
-        let (mut sender, mut receiver) = new_small::<usize>();
+        let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
         // Fill the channel.
         for value in 0..LEN {
             sender.try_send(value).unwrap();
@@ -316,7 +318,7 @@ mod future {
 
     #[test]
     fn send_many_values() {
-        let (mut sender, mut receiver) = new_small::<usize>();
+        let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
 
         let (waker, count) = new_count_waker();
         let mut ctx = task::Context::from_waker(&waker);
@@ -336,7 +338,7 @@ mod future {
 
     #[test]
     fn send_many_values_interleaved() {
-        let (mut sender, mut receiver) = new_small::<usize>();
+        let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
 
         let (waker, count) = new_count_waker();
         let mut ctx = task::Context::from_waker(&waker);
@@ -354,7 +356,7 @@ mod future {
 
     // Test where `n` sender try to send into a full channel.
     fn send_many_values_full_channel_test(n: usize) {
-        let (mut sender, mut receiver) = new_small::<usize>();
+        let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
         // Fill the channel.
         for value in 0..LEN {
             sender.try_send(value).unwrap();
@@ -444,14 +446,139 @@ mod future {
     fn send_many_values_full_channel_many_senders() {
         send_many_values_full_channel_test(2 * LEN);
     }
+
+    #[test]
+    fn recv_value() {
+        let (waker, count) = new_count_waker();
+        let (mut sender, mut receiver) = new_small::<usize>(waker.clone());
+
+        sender.try_send(10).unwrap();
+        assert_eq!(count.get(), 1);
+
+        let mut ctx = task::Context::from_waker(&waker);
+
+        let mut future = receiver.recv();
+        let mut future = Pin::new(&mut future);
+
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+    }
+
+    #[test]
+    fn recv_value_empty() {
+        let (waker, count) = new_count_waker();
+
+        let (mut sender, mut receiver) = new_small::<usize>(waker.clone());
+
+        let mut ctx = task::Context::from_waker(&waker);
+
+        let mut future = receiver.recv();
+        let mut future = Pin::new(&mut future);
+
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+        assert_eq!(count.get(), 0);
+
+        sender.try_send(10).unwrap();
+
+        assert_eq!(count.get(), 1);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+    }
+
+    #[test]
+    fn recv_value_all_senders_disconnected() {
+        let (waker, count) = new_count_waker();
+
+        let (sender, mut receiver) = new_small::<usize>(waker.clone());
+
+        let mut ctx = task::Context::from_waker(&waker);
+
+        let mut future = receiver.recv();
+        let mut future = Pin::new(&mut future);
+
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+        // Dropping the last sender should notify the receiver.
+        drop(sender);
+        assert_eq!(count.get(), 1);
+
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+    }
+
+    #[test]
+    fn recv_value_all_senders_disconnected_not_empty() {
+        let (waker, count) = new_count_waker();
+
+        let (mut sender, mut receiver) = new_small::<usize>(waker.clone());
+
+        let mut ctx = task::Context::from_waker(&waker);
+
+        let mut future = receiver.recv();
+        let mut future = Pin::new(&mut future);
+
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+        // Sending and dropping the last sender should wake the receiver.
+        sender.try_send(10).unwrap();
+        assert_eq!(count.get(), 1);
+        drop(sender);
+        assert_eq!(count.get(), 2);
+
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+        let mut future = receiver.recv();
+        assert_eq!(Pin::new(&mut future).poll(&mut ctx), Poll::Ready(None));
+    }
+
+    #[test]
+    fn recv_value_all_senders_disconnected_cloned_sender() {
+        let (waker, count) = new_count_waker();
+
+        let (sender, mut receiver) = new_small::<usize>(waker.clone());
+        let sender2 = sender.clone();
+
+        let mut ctx = task::Context::from_waker(&waker);
+
+        let mut future = receiver.recv();
+        let mut future = Pin::new(&mut future);
+
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+        // Only dropping the last sender should wake the receiver.
+        drop(sender);
+        assert_eq!(count.get(), 0);
+        drop(sender2);
+        assert_eq!(count.get(), 1);
+
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+    }
+
+    #[test]
+    #[should_panic = "polling RecvValue with a different Waker then used in creating the channel"]
+    fn using_different_wakers_in_recv_value_should_panic() {
+        let (waker1, _) = new_count_waker();
+
+        let (sender, mut receiver) = new_small::<usize>(waker1);
+
+        let (waker2, _) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker2);
+
+        let mut future = receiver.recv();
+        let mut future = Pin::new(&mut future);
+
+        // Should panic.
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+        drop(sender);
+    }
 }
 
 mod manager {
+    use futures_test::task::noop_waker;
+
     use inbox::{Manager, ReceiverConnected};
 
     #[test]
     fn new_sender() {
-        let (manager, mut sender1, mut receiver) = Manager::<usize>::new_small_channel();
+        let (manager, mut sender1, mut receiver) =
+            Manager::<usize>::new_small_channel(noop_waker());
         let mut sender2 = manager.new_sender();
 
         sender1.try_send(123).unwrap();
@@ -463,7 +590,7 @@ mod manager {
 
     #[test]
     fn new_receiver() {
-        let (manager, mut sender, receiver) = Manager::<usize>::new_small_channel();
+        let (manager, mut sender, receiver) = Manager::<usize>::new_small_channel(noop_waker());
         sender.try_send(123).unwrap();
 
         drop(receiver);
@@ -477,13 +604,13 @@ mod manager {
 
     #[test]
     fn new_receiver_already_exists() {
-        let (manager, _sender, _receiver) = Manager::<usize>::new_small_channel();
+        let (manager, _sender, _receiver) = Manager::<usize>::new_small_channel(noop_waker());
         assert_eq!(manager.new_receiver().unwrap_err(), ReceiverConnected);
     }
 
     #[test]
     fn sending_and_receiving_value() {
-        let (manager, mut sender, mut receiver) = Manager::<usize>::new_small_channel();
+        let (manager, mut sender, mut receiver) = Manager::<usize>::new_small_channel(noop_waker());
         sender.try_send(123).unwrap();
         assert_eq!(receiver.try_recv().unwrap(), 123);
         drop(manager);
@@ -491,7 +618,7 @@ mod manager {
 
     #[test]
     fn sender_is_connected() {
-        let (manager, sender, receiver) = Manager::<usize>::new_small_channel();
+        let (manager, sender, receiver) = Manager::<usize>::new_small_channel(noop_waker());
         assert!(sender.is_connected());
         drop(receiver);
         // Manager is still alive.
@@ -502,14 +629,14 @@ mod manager {
 
     #[test]
     fn receiver_is_connected() {
-        let (manager, sender, receiver) = Manager::<usize>::new_small_channel();
+        let (manager, sender, receiver) = Manager::<usize>::new_small_channel(noop_waker());
         assert!(receiver.is_connected());
         drop(manager);
         assert!(receiver.is_connected());
         drop(sender);
         assert!(!receiver.is_connected());
 
-        let (manager, sender, receiver) = Manager::<usize>::new_small_channel();
+        let (manager, sender, receiver) = Manager::<usize>::new_small_channel(noop_waker());
         assert!(receiver.is_connected());
         drop(sender);
         assert!(!receiver.is_connected());
@@ -521,9 +648,9 @@ mod manager {
 
     #[test]
     fn same_channel() {
-        let (manager1, sender1a, _) = Manager::<usize>::new_small_channel();
+        let (manager1, sender1a, _) = Manager::<usize>::new_small_channel(noop_waker());
         let sender1b = manager1.new_sender();
-        let (manager2, sender2a, _) = Manager::<usize>::new_small_channel();
+        let (manager2, sender2a, _) = Manager::<usize>::new_small_channel(noop_waker());
         let sender2b = manager2.new_sender();
 
         assert!(sender1a.same_channel(&sender1a));
@@ -547,9 +674,9 @@ mod manager {
 
     #[test]
     fn sends_to() {
-        let (manager1, sender1a, receiver1) = Manager::<usize>::new_small_channel();
+        let (manager1, sender1a, receiver1) = Manager::<usize>::new_small_channel(noop_waker());
         let sender1b = manager1.new_sender();
-        let (manager2, sender2a, receiver2) = Manager::<usize>::new_small_channel();
+        let (manager2, sender2a, receiver2) = Manager::<usize>::new_small_channel(noop_waker());
         let sender2b = manager2.new_sender();
 
         assert!(sender1a.sends_to(&receiver1));

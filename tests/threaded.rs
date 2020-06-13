@@ -5,6 +5,8 @@
 use std::thread;
 use std::time::Duration;
 
+use futures_test::task::noop_waker;
+
 use inbox::{new_small, RecvError, SendError};
 
 #[macro_use]
@@ -12,7 +14,7 @@ mod util;
 
 #[test]
 fn send_single_value() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (mut sender, mut receiver) = new_small::<usize>(noop_waker());
 
     start_threads!(
         {
@@ -26,7 +28,7 @@ fn send_single_value() {
 
 #[test]
 fn zero_sized_types() {
-    let (mut sender, mut receiver) = new_small();
+    let (mut sender, mut receiver) = new_small(noop_waker());
 
     start_threads!(
         {
@@ -40,7 +42,7 @@ fn zero_sized_types() {
 
 #[test]
 fn receive_no_sender() {
-    let (sender, mut receiver) = new_small::<usize>();
+    let (sender, mut receiver) = new_small::<usize>(noop_waker());
 
     start_threads!(
         {
@@ -60,7 +62,7 @@ fn receive_no_sender() {
 
 #[test]
 fn send_no_receiver() {
-    let (mut sender, receiver) = new_small::<usize>();
+    let (mut sender, receiver) = new_small::<usize>(noop_waker());
 
     start_threads!(
         {
@@ -81,7 +83,7 @@ fn send_no_receiver() {
 
 #[test]
 fn sender_is_connected() {
-    let (sender, receiver) = new_small::<usize>();
+    let (sender, receiver) = new_small::<usize>(noop_waker());
 
     start_threads!(
         {
@@ -99,7 +101,7 @@ fn sender_is_connected() {
 
 #[test]
 fn receiver_is_connected() {
-    let (sender, receiver) = new_small::<usize>();
+    let (sender, receiver) = new_small::<usize>(noop_waker());
 
     start_threads!(
         {
