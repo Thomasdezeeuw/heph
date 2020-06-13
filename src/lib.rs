@@ -334,15 +334,29 @@ impl<'s, T> Future for SendValue<'s, T> {
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
         let value = self.value.take().expect("Send polled after completion");
+
+        // First we try to send the value, if this succeeds we don't have to
+        // allocate in the waker list.
         match self.sender.try_send(value) {
             Ok(()) => Poll::Ready(Ok(())),
             Err(SendError::Full(value)) => {
-                self.value = Some(value);
-                LinkedList::add(
-                    &self.sender.channel().sender_waker_tail,
-                    ctx.waker().clone(),
-                );
-                Poll::Pending
+                // The channel is full, we'll register ourselves as wanting to
+                // be woken once a slot opens up.
+                self.sender.channel().add_waker(ctx.waker().clone());
+
+                // But it could be the case that the sender received a value in
+                // the time after we tried to send the value and before we added
+                // the our waker to list. So we try to send a value again to
+                // ensure we don't awoken and the channel has a slot available.
+                match self.sender.try_send(value) {
+                    Ok(()) => Poll::Ready(Ok(())),
+                    Err(SendError::Full(value)) => {
+                        // Channel is still full, we'll have to wait.
+                        self.value = Some(value);
+                        Poll::Pending
+                    }
+                    Err(SendError::Disconnected(value)) => Poll::Ready(Err(value)),
+                }
             }
             Err(SendError::Disconnected(value)) => Poll::Ready(Err(value)),
         }
@@ -430,8 +444,9 @@ impl<T> Receiver<T> {
         }
     }
 
+    /// Wake the next sender a slot has opened up.
     fn wake_next_sender(&mut self) {
-        if let Some(waker) = LinkedList::remove(&self.channel().sender_waker_tail) {
+        if let Some(waker) = self.channel().next_waker() {
             waker.wake()
         }
     }
@@ -496,6 +511,8 @@ impl<T> Drop for Receiver<T> {
     }
 }
 
+/// Channel internals shared between zero or more [`Sender`]s, zero or one
+/// [`Receiver`] and zero or one [`Manager`].
 struct Channel<T> {
     /// Status of the slots.
     ///
@@ -510,11 +527,21 @@ struct Channel<T> {
     /// [`Receiver`] is alive. If the [`MANAGER_ALIVE`] bit is the [`Manager`]
     /// is alive.
     ref_count: AtomicUsize,
-    //receiver_waker: task::Waker,
     /// This is a linked list of `task::Waker`.
     ///
     /// If this is not null it must point to correct memory.
-    sender_waker_tail: AtomicPtr<LinkedList<task::Waker>>,
+    sender_waker_tail: AtomicPtr<LinkedList>,
+}
+
+/// Atomic linked list.
+///
+/// This list can only add items to the tail and remove them from the head. Only
+/// a single remover (the `Receiver`) is allowed.
+// TODO: reuse `LinkedList` allocations.
+#[derive(Debug)]
+struct LinkedList {
+    waker: task::Waker,
+    prev: AtomicPtr<Self>,
 }
 
 impl<T> Channel<T> {
@@ -535,36 +562,28 @@ impl<T> Channel<T> {
             sender_waker_tail: AtomicPtr::new(ptr::null_mut()),
         }
     }
-}
 
-/// Atomic linked list.
-///
-/// This link can only add items to the tail and remove them from the head. Only
-/// a single remover (receiver) is allowed.
-struct LinkedList<T> {
-    item: T,
-    prev: AtomicPtr<LinkedList<T>>,
-}
-
-impl<T> LinkedList<T> {
-    // TODO: reuse `LinkedList` allocation.
-    #[allow(unused_mut, unused_variables)] // FIXME: remove.
-    fn remove(tail: &AtomicPtr<LinkedList<T>>) -> Option<T> {
-        // TODO: comment on ordering.
-
-        let mut tail_ptr = tail.load(Ordering::Relaxed);
+    /// Returns the next `task::Waker` to wake, if any.
+    fn next_waker(&self) -> Option<task::Waker> {
+        // Relaxed is ok because if `SendValue` will try sending the value again
+        // after it adds its waker to the list.
+        let tail_ptr = self.sender_waker_tail.load(Ordering::Relaxed);
         if tail_ptr.is_null() {
             return None;
         }
 
-        // As the `Sender`s may write to the `tail` of the list we treat it as a
-        // special case so we can safely use `AtomicPtr::store` in the loop
-        // below as the previous link are only allow to be modified by the
-        // `Receiver` (of which there is only one).
-        let mut prev_ptr = unsafe { &(*tail_ptr).prev.load(Ordering::Relaxed) };
-        if prev_ptr.is_null() {
-            // Only a single item in the list.
-            let res = tail.compare_exchange(
+        // The links may only be accessed by the `Receiver` after they're added
+        // to the list by the `Sender`. Because of this we can safely use atomic
+        // `store` operations (with `Relaxed` ordering). However this is not
+        // true for the `Channel.sender_waker_tail` field, as the `Sender`s may
+        // write to the as well. We handle this case here using atomic
+        // `compare_exchange` and use the cheaper `store` operations in the loop
+        // below once we have unique access.
+        let tail_prev_ptr: *mut LinkedList = unsafe { (&*tail_ptr).prev.load(Ordering::Relaxed) };
+        if tail_prev_ptr.is_null() {
+            // Only a single item in the list, overwrite
+            // `Channel.sender_waker_tail`.
+            let res = self.sender_waker_tail.compare_exchange(
                 tail_ptr,
                 ptr::null_mut(),
                 Ordering::AcqRel,
@@ -574,7 +593,7 @@ impl<T> LinkedList<T> {
                 // Successfully removed the link from the list.
                 Ok(ptr) => {
                     let link = unsafe { Box::from_raw(ptr) };
-                    return Some(link.item);
+                    return Some(link.waker);
                 }
                 // Failed update the pointer, this means there are now at least
                 // two links in the list, so we can continue below.
@@ -582,53 +601,39 @@ impl<T> LinkedList<T> {
             }
         }
 
-        let mut atomic_prev = unsafe { &(*tail_ptr).prev };
+        // Safety: For pointers we checked above if they are null.
+        let mut parent: &LinkedList = unsafe { &*tail_ptr };
+        let mut link: &LinkedList = unsafe { &*tail_prev_ptr };
         loop {
-            /*
-            let prev_ptr = atomic_prev.load(Ordering::Relaxed);
-
-            if !prev_ptr.is_null() {
-                // List has another link.
-                atomic_prev = unsafe { &(*prev_ptr).prev };
+            // `Relaxed` ordering is ok here as we have unique access.
+            let prev_ptr = link.prev.load(Ordering::Relaxed);
+            if prev_ptr.is_null() {
+                // Last link, so remove itself from the parent.
+                // A `Relaxed` store is ok here since we're the only once who
+                // have access to these links.
+                parent.prev.store(ptr::null_mut(), Ordering::Relaxed);
+                let link = unsafe { Box::from_raw(link as *const _ as *mut LinkedList) };
+                return Some(link.waker);
+            } else {
+                // Not the end of the list yet.
+                parent = link;
+                // Safety: checked above if its null.
+                link = unsafe { &*prev_ptr };
             }
-            // Last link in the list.
-
-            // Remove the link from the list, now we have unique access to
-            // the link in `prev_ptr`.
-            // FIXME: incorrect! Need its parent.
-            atomic_prev.store(ptr::null_mut(), Ordering::Relaxed);
-            */
-
-            /*
-            // prev_ptr is null -> atomic_ptr is last item.
-            let res =
-                tail.compare_exchange(ptr, ptr::null_mut(), Ordering::AcqRel, Ordering::Relaxed);
-            match res {
-                // Successfully stored our item in the list.
-                Ok(..) => {
-                    //
-                    todo!()
-                }
-                // Failed update the pointer and try again.
-                Err(prev) => prev_ptr = prev,
-            }
-            */
-
-            // TODO: return tail_ptr.item.
-            todo!()
         }
     }
 
-    fn add(tail: &AtomicPtr<LinkedList<T>>, item: T) {
+    /// Adds `waker` to the list of wakers to wake.
+    fn add_waker(&self, waker: task::Waker) {
         // Create a new link.
         let link = Box::into_raw(Box::new(LinkedList {
-            item,
+            waker,
             prev: AtomicPtr::new(ptr::null_mut()),
         }));
 
-        // Relaxed is ok here because use `AcqRel` in `compare_exchange` to
-        // ensure the tail didn't change.
-        let mut prev_ptr = tail.load(Ordering::Relaxed);
+        // Relaxed is ok here because we use `AcqRel` in `compare_exchange`
+        // below to ensure the tail didn't change.
+        let mut prev_ptr = self.sender_waker_tail.load(Ordering::Relaxed);
         loop {
             // Update the `prev` link to the current tail.
             // Safety: we just create `link` above and so we're assured we have
@@ -638,7 +643,12 @@ impl<T> LinkedList<T> {
             }
             // Relaxed for failure is ok because on the next loop we use
             // `AcqRel` again.
-            let res = tail.compare_exchange(prev_ptr, link, Ordering::AcqRel, Ordering::Relaxed);
+            let res = self.sender_waker_tail.compare_exchange(
+                prev_ptr,
+                link,
+                Ordering::AcqRel,
+                Ordering::Relaxed,
+            );
             match res {
                 // Successfully stored our item in the list.
                 Ok(..) => return,
