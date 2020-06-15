@@ -1,10 +1,10 @@
 //! Coordinator thread code.
 
-use std::io;
 use std::sync::Arc;
+use std::{fmt, io};
 
 use crossbeam_channel::Receiver;
-use log::{debug, trace};
+use log::{debug, trace, warn};
 use mio::event::Event;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
@@ -16,6 +16,53 @@ use crate::rt::{
     self, SharedRuntimeInternal, Signal, SyncWorker, Worker, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
+
+/// Error running the [`Coordinator`].
+#[derive(Debug)]
+pub(super) enum Error {
+    /// Error in [`Coordinator::init`].
+    Init(io::Error),
+    /// Error in [`setup_signals`].
+    SetupSignals(io::Error),
+    /// Error in [`register_workers`].
+    RegisteringWorkers(io::Error),
+    /// Error in [`register_sync_workers`].
+    RegisteringSyncActors(io::Error),
+    /// Error polling [`mio::Poll`].
+    Polling(io::Error),
+    /// Error relaying process signal.
+    SignalRelay(io::Error),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Error::*;
+        match self {
+            Init(err) => write!(f, "error initialising coordinator: {}", err),
+            SetupSignals(err) => write!(f, "error setting up process signal handling: {}", err),
+            RegisteringWorkers(err) => write!(f, "error registering worker threads: {}", err),
+            RegisteringSyncActors(err) => {
+                write!(f, "error registering synchronous actor threads: {}", err)
+            }
+            Polling(err) => write!(f, "error polling for events: {}", err),
+            SignalRelay(err) => write!(f, "error relay process signal: {}", err),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use Error::*;
+        match self {
+            Init(ref err)
+            | SetupSignals(ref err)
+            | RegisteringWorkers(ref err)
+            | RegisteringSyncActors(ref err)
+            | Polling(ref err)
+            | SignalRelay(ref err) => Some(err),
+        }
+    }
+}
 
 /// Tokens used to receive events.
 const SIGNAL: Token = Token(usize::max_value());
@@ -30,12 +77,12 @@ pub(super) struct Coordinator {
 
 impl Coordinator {
     /// Initialise the `Coordinator` thread.
-    pub(super) fn init() -> io::Result<(Coordinator, Arc<SharedRuntimeInternal>)> {
-        let poll = Poll::new()?;
-        let registry = poll.registry().try_clone()?;
+    pub(super) fn init() -> Result<(Coordinator, Arc<SharedRuntimeInternal>), Error> {
+        let poll = Poll::new().map_err(Error::Init)?;
+        let registry = poll.registry().try_clone().map_err(Error::Init)?;
 
         let (waker_sender, waker_events) = crossbeam_channel::unbounded();
-        let waker = mio::Waker::new(&registry, WAKER)?;
+        let waker = mio::Waker::new(&registry, WAKER).map_err(Error::Init)?;
         let waker_id = waker::init(waker, waker_sender);
         let scheduler = Scheduler::new();
 
@@ -64,20 +111,24 @@ impl Coordinator {
         debug_assert!(workers.is_sorted_by_key(|w| w.id()));
 
         let registry = self.poll.registry();
-        let mut signals = setup_signals(&registry).map_err(rt::Error::coordinator)?;
-        register_workers(&registry, &mut workers).map_err(rt::Error::coordinator)?;
-        register_sync_workers(&registry, &mut sync_workers).map_err(rt::Error::coordinator)?;
+        let mut signals = setup_signals(&registry)
+            .map_err(|err| rt::Error::coordinator(Error::SetupSignals(err)))?;
+        register_workers(&registry, &mut workers)
+            .map_err(|err| rt::Error::coordinator(Error::RegisteringWorkers(err)))?;
+        register_sync_workers(&registry, &mut sync_workers)
+            .map_err(|err| rt::Error::coordinator(Error::RegisteringSyncActors(err)))?;
 
         let mut events = Events::with_capacity(16);
         loop {
-            self.poll(&mut events).map_err(rt::Error::coordinator)?;
+            self.poll(&mut events)
+                .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
 
             let mut wake_workers = false;
             for event in events.iter() {
                 trace!("event: {:?}", event);
                 match event.token() {
                     SIGNAL => relay_signals(&mut signals, &mut workers, &mut sync_workers)
-                        .map_err(rt::Error::coordinator)?,
+                        .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?,
                     // We always check for waker events below.
                     WAKER => {}
                     token if token.0 <= SYNC_WORKER_ID_START => {
@@ -107,7 +158,10 @@ impl Coordinator {
                 trace!("waking worker threads");
                 for worker in workers.iter_mut() {
                     // Can't deal with the error.
-                    let _ = worker.wake();
+                    trace!("waking worker thread: id={}", worker.id());
+                    if let Err(err) = worker.wake() {
+                        warn!("error waking working thread: {}: id={}", err, worker.id());
+                    }
                 }
             }
 
@@ -189,7 +243,7 @@ fn handle_worker_event<E>(workers: &mut Vec<Worker<E>>, event: &Event) -> Result
             // Receiving end of the pipe is dropped, which means the
             // worker has shut down.
             let worker = workers.remove(i);
-            debug!("worker thread done: id={}", worker.id());
+            debug!("worker thread stopped: id={}", worker.id());
 
             worker
                 .join()
@@ -215,7 +269,7 @@ fn handle_sync_worker_event<E>(
             // Receiving end of the pipe is dropped, which means the
             // worker has shut down.
             let sync_worker = sync_workers.remove(i);
-            debug!("sync actor worker thread done: id={}", sync_worker.id());
+            debug!("sync actor worker thread stopped: id={}", sync_worker.id());
 
             sync_worker.join().map_err(rt::Error::sync_actor_panic)
         } else {

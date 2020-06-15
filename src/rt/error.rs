@@ -3,6 +3,8 @@
 use std::any::Any;
 use std::{fmt, io};
 
+use crate::rt::coordinator;
+
 /// Error returned by running an [`Runtime`].
 ///
 /// [`Runtime`]: crate::Runtime
@@ -16,7 +18,7 @@ enum ErrorInner<SetupError> {
     Setup(SetupError),
 
     /// Error in coordinator.
-    Coordinator(io::Error),
+    Coordinator(coordinator::Error),
 
     /// Error starting worker thread.
     StartWorker(io::Error),
@@ -54,44 +56,44 @@ impl Error<!> {
 impl<SetupError> Error<SetupError> {
     const DESC: &'static str = "error running Heph runtime";
 
-    pub(crate) const fn coordinator(err: io::Error) -> Error<SetupError> {
-        Error {
-            inner: ErrorInner::Coordinator(err),
-        }
-    }
-
-    pub(crate) const fn start_worker(err: io::Error) -> Error<SetupError> {
-        Error {
-            inner: ErrorInner::StartWorker(err),
-        }
-    }
-
-    pub(crate) const fn start_sync_actor(err: io::Error) -> Error<SetupError> {
-        Error {
-            inner: ErrorInner::StartSyncActor(err),
-        }
-    }
-
-    pub(crate) const fn worker(err: io::Error) -> Error<SetupError> {
-        Error {
-            inner: ErrorInner::Worker(err),
-        }
-    }
-
-    pub(crate) const fn setup(err: SetupError) -> Error<SetupError> {
+    pub(super) const fn setup(err: SetupError) -> Error<SetupError> {
         Error {
             inner: ErrorInner::Setup(err),
         }
     }
 
-    pub(crate) fn worker_panic(err: Box<dyn Any + Send + 'static>) -> Error<SetupError> {
+    pub(super) const fn coordinator(err: coordinator::Error) -> Error<SetupError> {
+        Error {
+            inner: ErrorInner::Coordinator(err),
+        }
+    }
+
+    pub(super) const fn start_worker(err: io::Error) -> Error<SetupError> {
+        Error {
+            inner: ErrorInner::StartWorker(err),
+        }
+    }
+
+    pub(super) const fn worker(err: io::Error) -> Error<SetupError> {
+        Error {
+            inner: ErrorInner::Worker(err),
+        }
+    }
+
+    pub(super) fn worker_panic(err: Box<dyn Any + Send + 'static>) -> Error<SetupError> {
         let msg = convert_panic(err);
         Error {
             inner: ErrorInner::WorkerPanic(msg),
         }
     }
 
-    pub(crate) fn sync_actor_panic(err: Box<dyn Any + Send + 'static>) -> Error<SetupError> {
+    pub(super) const fn start_sync_actor(err: io::Error) -> Error<SetupError> {
+        Error {
+            inner: ErrorInner::StartSyncActor(err),
+        }
+    }
+
+    pub(super) fn sync_actor_panic(err: Box<dyn Any + Send + 'static>) -> Error<SetupError> {
         let msg = convert_panic(err);
         Error {
             inner: ErrorInner::SyncActorPanic(msg),
@@ -172,10 +174,8 @@ impl<SetupError: std::error::Error + 'static> std::error::Error for Error<SetupE
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use ErrorInner::*;
         match self.inner {
-            StartWorker(ref err)
-            | StartSyncActor(ref err)
-            | Coordinator(ref err)
-            | Worker(ref err) => Some(err),
+            StartWorker(ref err) | StartSyncActor(ref err) | Worker(ref err) => Some(err),
+            Coordinator(ref err) => Some(err),
             Setup(ref err) => Some(err),
             WorkerPanic(ref err) | SyncActorPanic(ref err) => Some(err),
         }
