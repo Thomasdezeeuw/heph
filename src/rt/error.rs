@@ -1,5 +1,6 @@
 //! Module containing runtime error types.
 
+use std::any::Any;
 use std::{fmt, io};
 
 /// Error returned by running an [`Runtime`].
@@ -22,7 +23,9 @@ enum ErrorInner<SetupError> {
     /// Error returned by user defined setup function.
     Setup(SetupError),
     /// Panic in a worker thread.
-    Panic(String),
+    WorkerPanic(StringError),
+    /// Panic in a synchronous actor thread.
+    SyncActorPanic(StringError),
 }
 
 impl Error<!> {
@@ -38,7 +41,8 @@ impl Error<!> {
                 ErrorInner::Coordinator(err) => ErrorInner::Coordinator(err),
                 ErrorInner::Worker(err) => ErrorInner::Worker(err),
                 ErrorInner::<!>::Setup(_) => unreachable!(),
-                ErrorInner::Panic(err) => ErrorInner::Panic(err),
+                ErrorInner::WorkerPanic(err) => ErrorInner::WorkerPanic(err),
+                ErrorInner::SyncActorPanic(err) => ErrorInner::SyncActorPanic(err),
             },
         }
     }
@@ -77,11 +81,33 @@ impl<SetupError> Error<SetupError> {
         }
     }
 
-    pub(crate) const fn panic(err: String) -> Error<SetupError> {
+    pub(crate) fn worker_panic(err: Box<dyn Any + Send + 'static>) -> Error<SetupError> {
+        let msg = convert_panic(err);
         Error {
-            inner: ErrorInner::Panic(err),
+            inner: ErrorInner::WorkerPanic(msg),
         }
     }
+
+    pub(crate) fn sync_actor_panic(err: Box<dyn Any + Send + 'static>) -> Error<SetupError> {
+        let msg = convert_panic(err);
+        Error {
+            inner: ErrorInner::SyncActorPanic(msg),
+        }
+    }
+}
+
+/// Maps a boxed panic messages to a [`StringError`]
+fn convert_panic(err: Box<dyn Any + Send + 'static>) -> StringError {
+    let msg = match err.downcast_ref::<&'static str>() {
+        Some(s) => (*s).to_owned(),
+        None => match err.downcast_ref::<String>() {
+            Some(s) => s.clone(),
+            None => {
+                "unknown panic message (use `String` or `&'static str` in the future)".to_owned()
+            }
+        },
+    };
+    StringError(msg)
 }
 
 /// Method to create a setup error, for use outside of the setup function. This
@@ -128,7 +154,13 @@ impl<SetupError: fmt::Display> fmt::Display for Error<SetupError> {
             }
             Worker(ref err) => write!(f, "{}: error in worker thread: {}", Self::DESC, err),
             Setup(ref err) => write!(f, "{}: error running setup function: {}", Self::DESC, err),
-            Panic(ref msg) => write!(f, "{}: panic in worker thread: {}", Self::DESC, msg),
+            WorkerPanic(ref msg) => write!(f, "{}: panic in worker thread: {}", Self::DESC, msg),
+            SyncActorPanic(ref msg) => write!(
+                f,
+                "{}: panic in synchronous actor thread: {}",
+                Self::DESC,
+                msg
+            ),
         }
     }
 }
@@ -142,7 +174,26 @@ impl<SetupError: std::error::Error + 'static> std::error::Error for Error<SetupE
             | Coordinator(ref err)
             | Worker(ref err) => Some(err),
             Setup(ref err) => Some(err),
-            Panic(_) => None,
+            WorkerPanic(ref err) | SyncActorPanic(ref err) => Some(err),
         }
     }
 }
+
+/// Wrapper around `String` to implement the [`Error`] trait.
+///
+/// [`Error`]: std::error::Error
+struct StringError(String);
+
+impl fmt::Debug for StringError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl fmt::Display for StringError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl std::error::Error for StringError {}

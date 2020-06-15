@@ -1,6 +1,5 @@
 //! Coordinator thread code.
 
-use std::any::Any;
 use std::io;
 use std::sync::Arc;
 
@@ -192,7 +191,10 @@ fn handle_worker_event<E>(workers: &mut Vec<Worker<E>>, event: &Event) -> Result
             let worker = workers.remove(i);
             debug!("worker thread done: id={}", worker.id());
 
-            worker.join().map_err(map_panic).and_then(|res| res)
+            worker
+                .join()
+                .map_err(rt::Error::worker_panic)
+                .and_then(|res| res)
         } else {
             // Sporadic event, we can ignore it.
             Ok(())
@@ -215,23 +217,11 @@ fn handle_sync_worker_event<E>(
             let sync_worker = sync_workers.remove(i);
             debug!("sync actor worker thread done: id={}", sync_worker.id());
 
-            sync_worker.join().map_err(map_panic)
+            sync_worker.join().map_err(rt::Error::sync_actor_panic)
         } else {
             Ok(())
         }
     } else {
         Ok(())
     }
-}
-
-/// Maps a boxed panic messages to a `rt::Error`.
-fn map_panic<E>(err: Box<dyn Any + Send + 'static>) -> rt::Error<E> {
-    let msg = match err.downcast_ref::<&'static str>() {
-        Some(s) => (*s).to_owned(),
-        None => match err.downcast_ref::<String>() {
-            Some(s) => s.clone(),
-            None => "unkown panic message".to_owned(),
-        },
-    };
-    rt::Error::panic(msg)
 }
