@@ -313,7 +313,7 @@ impl<S> Runtime<S> {
                 self.sync_actors.push(worker);
                 actor_ref
             })
-            .map_err(Error::start_thread)
+            .map_err(Error::start_sync_actor)
     }
 }
 
@@ -345,7 +345,7 @@ where
                 Worker::start(id, setup, self.shared.clone())
             })
             .collect::<io::Result<Vec<Worker<S::Error>>>>()
-            .map_err(Error::start_thread)?;
+            .map_err(Error::start_worker)?;
 
         self.coordinator.run(handles, self.sync_actors)
     }

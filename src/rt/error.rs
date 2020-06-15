@@ -12,7 +12,9 @@ pub struct Error<SetupError = !> {
 /// Inside of `Error` error.
 enum ErrorInner<SetupError> {
     /// Error starting worker thread.
-    StartThread(io::Error),
+    StartWorker(io::Error),
+    /// Error starting synchronous actor thread.
+    StartSyncActor(io::Error),
     /// Error in coordinator.
     Coordinator(io::Error),
     /// Error in a worker thread.
@@ -31,7 +33,8 @@ impl Error<!> {
     pub fn map_type<SetupError>(self) -> Error<SetupError> {
         Error {
             inner: match self.inner {
-                ErrorInner::StartThread(err) => ErrorInner::StartThread(err),
+                ErrorInner::StartWorker(err) => ErrorInner::StartWorker(err),
+                ErrorInner::StartSyncActor(err) => ErrorInner::StartSyncActor(err),
                 ErrorInner::Coordinator(err) => ErrorInner::Coordinator(err),
                 ErrorInner::Worker(err) => ErrorInner::Worker(err),
                 ErrorInner::<!>::Setup(_) => unreachable!(),
@@ -50,9 +53,15 @@ impl<SetupError> Error<SetupError> {
         }
     }
 
-    pub(crate) const fn start_thread(err: io::Error) -> Error<SetupError> {
+    pub(crate) const fn start_worker(err: io::Error) -> Error<SetupError> {
         Error {
-            inner: ErrorInner::StartThread(err),
+            inner: ErrorInner::StartWorker(err),
+        }
+    }
+
+    pub(crate) const fn start_sync_actor(err: io::Error) -> Error<SetupError> {
+        Error {
+            inner: ErrorInner::StartSyncActor(err),
         }
     }
 
@@ -105,9 +114,15 @@ impl<SetupError: fmt::Display> fmt::Display for Error<SetupError> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use ErrorInner::*;
         match self.inner {
-            StartThread(ref err) => {
+            StartWorker(ref err) => {
                 write!(f, "{}: error starting worker thread: {}", Self::DESC, err)
             }
+            StartSyncActor(ref err) => write!(
+                f,
+                "{}: error starting synchronous actor: {}",
+                Self::DESC,
+                err
+            ),
             Coordinator(ref err) => {
                 write!(f, "{}: error in coordinator thread: {}", Self::DESC, err)
             }
@@ -122,7 +137,10 @@ impl<SetupError: std::error::Error + 'static> std::error::Error for Error<SetupE
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use ErrorInner::*;
         match self.inner {
-            StartThread(ref err) | Coordinator(ref err) | Worker(ref err) => Some(err),
+            StartWorker(ref err)
+            | StartSyncActor(ref err)
+            | Coordinator(ref err)
+            | Worker(ref err) => Some(err),
             Setup(ref err) => Some(err),
             Panic(_) => None,
         }
