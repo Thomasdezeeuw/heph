@@ -12,18 +12,21 @@ pub struct Error<SetupError = !> {
 
 /// Inside of `Error` error.
 enum ErrorInner<SetupError> {
-    /// Error starting worker thread.
-    StartWorker(io::Error),
-    /// Error starting synchronous actor thread.
-    StartSyncActor(io::Error),
-    /// Error in coordinator.
-    Coordinator(io::Error),
-    /// Error in a worker thread.
-    Worker(io::Error),
     /// Error returned by user defined setup function.
     Setup(SetupError),
+
+    /// Error in coordinator.
+    Coordinator(io::Error),
+
+    /// Error starting worker thread.
+    StartWorker(io::Error),
+    /// Error in a worker thread.
+    Worker(io::Error),
     /// Panic in a worker thread.
     WorkerPanic(StringError),
+
+    /// Error starting synchronous actor thread.
+    StartSyncActor(io::Error),
     /// Panic in a synchronous actor thread.
     SyncActorPanic(StringError),
 }
