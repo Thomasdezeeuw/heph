@@ -4,6 +4,7 @@
 use std::io::{self, Read, Write};
 
 use crossbeam_channel as crossbeam;
+use log::trace;
 use mio::{Interest, Registry, Token};
 use mio_pipe::{self, new_pipe};
 
@@ -57,24 +58,54 @@ impl<S, R> Handle<S, R> {
 
     /// Try to send a message onto the channel.
     pub(super) fn try_send(&mut self, msg: S) -> io::Result<()> {
-        let _ = self.send_channel.try_send(msg);
+        self.send_channel
+            .try_send(msg)
+            .map_err(|_| io::Error::new(io::ErrorKind::NotConnected, "failed to send message"))?;
 
         // Generate an `mio::Event` for the receiving end.
-        match self.send_pipe.write(DATA) {
-            Ok(n) if n < DATA.len() => Err(io::ErrorKind::WriteZero.into()),
-            Ok(_) => Ok(()),
-            Err(err) => Err(err),
+        loop {
+            trace!("notifying worker-coordinator channel of new message");
+            match self.send_pipe.write(DATA) {
+                Ok(0) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::NotConnected,
+                        "failed into channel pipe",
+                    ))
+                }
+                Ok(..) => return Ok(()),
+                // Can't do too much here.
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Ok(()),
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => return Err(err),
+            }
         }
     }
 
     /// Try to receive a message from the channel.
     pub(super) fn try_recv(&mut self) -> io::Result<Option<R>> {
-        let msg = self.recv_channel.try_recv().ok();
-        if msg.is_some() {
-            let mut buf = [0; DATA.len()];
-            self.recv_pipe.read(&mut buf).map(|_| msg)
-        } else {
-            Ok(None)
+        match self.recv_channel.try_recv().ok() {
+            Some(msg) => Ok(Some(msg)),
+            None => {
+                // If the channel is empty this will likely be the last call in
+                // a while, so we'll empty the pipe to ensure we'll get another
+                // notification once the coordinator sends us another message.
+                let mut buf = [0; 5 * DATA.len()];
+                loop {
+                    trace!("emptying worker-coordinator channel pipe");
+                    match self.recv_pipe.read(&mut buf) {
+                        Ok(n) if n < buf.len() => break,
+                        // Didn't empty it.
+                        Ok(..) => continue,
+                        Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break,
+                        Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                        Err(err) => return Err(err),
+                    }
+                }
+                // Try one last time in case the coordinator send a message
+                // in between the time we last checked and we emptied the pipe
+                // above.
+                Ok(self.recv_channel.try_recv().ok())
+            }
         }
     }
 }
