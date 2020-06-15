@@ -59,7 +59,7 @@ thread_local! {
     /// Per thread active, but not running, runtime.
     static TEST_RT: RefCell<RunningRuntime> = {
         let (_, receiver) = rt::channel::new().expect("failed to create Channel for test module");
-        RefCell::new(RunningRuntime::new(receiver, SHARED_INTERNAL.clone()).expect("failed to create local Runtime for test module"))
+        RefCell::new(RunningRuntime::init(receiver, SHARED_INTERNAL.clone()).expect("failed to create local Runtime for test module"))
     };
 }
 

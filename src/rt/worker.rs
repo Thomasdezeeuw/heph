@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{io, thread};
+use std::{fmt, io, thread};
 
 use crossbeam_channel::{self, Receiver};
-use log::{debug, trace};
+use log::{debug, error, trace};
 use mio::{Events, Poll, Registry, Token};
 
 use crate::rt::hack::SetupFn;
@@ -15,6 +15,45 @@ use crate::rt::timers::Timers;
 use crate::rt::{
     self, channel, waker, ProcessId, RuntimeInternal, RuntimeRef, SharedRuntimeInternal, Signal,
 };
+
+/// Error running a [`Worker`].
+#[derive(Debug)]
+pub(super) enum Error {
+    /// Error in [`RunningRuntime::init`].
+    Init(io::Error),
+    /// Error polling [`mio::Poll`].
+    Polling(io::Error),
+    /// Error receiving message on coordinator channel.
+    RecvMsg(io::Error),
+    /// Process was interrupted (i.e. received process signal), but no actor can
+    /// receive the signal.
+    ProcessInterrupted,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Error::*;
+        match self {
+            Init(err) => write!(f, "error initialising worker: {}", err),
+            Polling(err) => write!(f, "error polling for events: {}", err),
+            RecvMsg(err) => write!(f, "error receiving message from coordinator: {}", err),
+            ProcessInterrupted => write!(
+                f,
+                "received process signal, but no receivers for it: stopped running"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use Error::*;
+        match self {
+            Init(ref err) | Polling(ref err) | RecvMsg(ref err) => Some(err),
+            ProcessInterrupted => None,
+        }
+    }
+}
 
 /// Message send by the coordinator thread.
 #[derive(Debug)]
@@ -98,7 +137,8 @@ fn main<S>(
 where
     S: SetupFn,
 {
-    let runtime = RunningRuntime::new(receiver, shared_internals).map_err(rt::Error::worker)?;
+    let runtime = RunningRuntime::init(receiver, shared_internals)
+        .map_err(|err| rt::Error::worker(Error::Init(err)))?;
 
     // Run optional setup.
     if let Some(setup) = setup {
@@ -137,7 +177,7 @@ const COORDINATOR: Token = Token(usize::max_value() - 1);
 
 impl RunningRuntime {
     /// Create a new running runtime.
-    pub(crate) fn new(
+    pub(crate) fn init(
         mut channel: channel::Handle<WorkerMessage, CoordinatorMessage>,
         shared_internals: Arc<SharedRuntimeInternal>,
     ) -> io::Result<RunningRuntime> {
@@ -240,10 +280,10 @@ impl RunningRuntime {
     /// Schedule processes.
     ///
     /// This polls all event subsystems and schedules processes based on them.
-    fn schedule_processes(&mut self) -> io::Result<()> {
+    fn schedule_processes(&mut self) -> Result<(), Error> {
         trace!("polling event sources to schedule processes");
 
-        self.poll()?;
+        self.poll().map_err(Error::Polling)?;
 
         let mut scheduler = self.internal.scheduler.borrow_mut();
         let mut check_coordinator = false;
@@ -322,20 +362,20 @@ impl RunningRuntime {
     }
 
     /// Check messages from the coordinator.
-    fn check_coordinator(&mut self) -> io::Result<()> {
+    fn check_coordinator(&mut self) -> Result<(), Error> {
         use CoordinatorMessage::*;
-        while let Some(msg) = self.channel.try_recv()? {
+        while let Some(msg) = self.channel.try_recv().map_err(Error::RecvMsg)? {
             match msg {
                 Signal(signal) => {
                     trace!("received process signal: {:?}", signal);
                     let mut receivers = self.internal.signal_receivers.borrow_mut();
 
                     if receivers.is_empty() && signal.should_stop() {
-                        let msg = format!(
+                        error!(
                             "received {:#} signal, but no receivers for it, stopping runtime",
                             signal
                         );
-                        return Err(io::Error::new(io::ErrorKind::Interrupted, msg));
+                        return Err(Error::ProcessInterrupted);
                     }
 
                     for receiver in receivers.iter_mut() {
@@ -353,7 +393,7 @@ impl RunningRuntime {
 /// Returns `true` is timeout is `Some(Duration::from_nanos(0))`.
 fn is_zero(timeout: Option<Duration>) -> bool {
     match timeout {
-        Some(timeout) if timeout.subsec_nanos() == 0 => true,
-        _ => false,
+        Some(timeout) if timeout.as_secs() == 0 && timeout.subsec_nanos() == 0 => true,
+        Some(..) | None => false,
     }
 }

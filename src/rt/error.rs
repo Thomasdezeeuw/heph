@@ -3,7 +3,7 @@
 use std::any::Any;
 use std::{fmt, io};
 
-use crate::rt::coordinator;
+use crate::rt::{coordinator, worker};
 
 /// Error returned by running an [`Runtime`].
 ///
@@ -23,7 +23,7 @@ enum ErrorInner<SetupError> {
     /// Error starting worker thread.
     StartWorker(io::Error),
     /// Error in a worker thread.
-    Worker(io::Error),
+    Worker(worker::Error),
     /// Panic in a worker thread.
     WorkerPanic(StringError),
 
@@ -74,7 +74,7 @@ impl<SetupError> Error<SetupError> {
         }
     }
 
-    pub(super) const fn worker(err: io::Error) -> Error<SetupError> {
+    pub(super) const fn worker(err: worker::Error) -> Error<SetupError> {
         Error {
             inner: ErrorInner::Worker(err),
         }
@@ -174,9 +174,10 @@ impl<SetupError: std::error::Error + 'static> std::error::Error for Error<SetupE
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use ErrorInner::*;
         match self.inner {
-            StartWorker(ref err) | StartSyncActor(ref err) | Worker(ref err) => Some(err),
-            Coordinator(ref err) => Some(err),
             Setup(ref err) => Some(err),
+            Coordinator(ref err) => Some(err),
+            StartWorker(ref err) | StartSyncActor(ref err) => Some(err),
+            Worker(ref err) => Some(err),
             WorkerPanic(ref err) | SyncActorPanic(ref err) => Some(err),
         }
     }
