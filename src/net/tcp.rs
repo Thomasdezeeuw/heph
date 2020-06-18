@@ -23,7 +23,8 @@ use futures_core::stream::{FusedStream, Stream};
 use futures_io::{AsyncRead, AsyncWrite};
 use mio::{net, Interest};
 
-use crate::actor::{self, ContextKind};
+use crate::actor;
+use crate::rt::RuntimeAccess;
 
 mod server;
 
@@ -195,12 +196,12 @@ impl TcpListener {
     /// listener has a connection ready to be accepted.
     ///
     /// [bound]: crate::actor::Bound
-    pub fn bind<M, C>(
-        ctx: &mut actor::Context<M, C>,
+    pub fn bind<M, K>(
+        ctx: &mut actor::Context<M, K>,
         address: SocketAddr,
     ) -> io::Result<TcpListener>
     where
-        C: ContextKind,
+        K: RuntimeAccess,
     {
         let mut socket = net::TcpListener::bind(address)?;
         let pid = ctx.pid();
@@ -334,13 +335,13 @@ impl<'a> FusedStream for Incoming<'a> {
     }
 }
 
-impl<C> actor::Bound<C> for TcpListener
+impl<K> actor::Bound<K> for TcpListener
 where
-    C: ContextKind,
+    K: RuntimeAccess,
 {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, C>) -> io::Result<()> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()> {
         let pid = ctx.pid();
         ctx.kind()
             .reregister(&mut self.socket, pid.into(), Interest::READABLE)
@@ -365,12 +366,12 @@ impl TcpStream {
     /// or write.
     ///
     /// [bound]: crate::actor::Bound
-    pub fn connect<M, C>(
-        ctx: &mut actor::Context<M, C>,
+    pub fn connect<M, K>(
+        ctx: &mut actor::Context<M, K>,
         address: SocketAddr,
     ) -> io::Result<TcpStream>
     where
-        C: ContextKind,
+        K: RuntimeAccess,
     {
         let mut socket = net::TcpStream::connect(address)?;
         let pid = ctx.pid();
@@ -492,13 +493,13 @@ impl AsyncWrite for TcpStream {
     }
 }
 
-impl<C> actor::Bound<C> for TcpStream
+impl<K> actor::Bound<K> for TcpStream
 where
-    C: ContextKind,
+    K: RuntimeAccess,
 {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, C>) -> io::Result<()> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()> {
         let pid = ctx.pid();
         ctx.kind().reregister(
             &mut self.socket,

@@ -11,7 +11,7 @@ use mio::{event, Interest, Token};
 use crate::actor::message_select::First;
 use crate::actor_ref::ActorRef;
 use crate::inbox::{Inbox, InboxRef};
-use crate::rt::{ActorOptions, ProcessId, RuntimeRef, SharedRuntimeInternal};
+use crate::rt::{self, ActorOptions, ProcessId, RuntimeRef, SharedRuntimeInternal};
 use crate::{NewActor, Supervisor};
 
 // Used in `ContextKind` trait.
@@ -410,15 +410,53 @@ impl<M> Context<M, ThreadSafe> {
     }
 }
 
+impl rt::access::Private for ThreadLocal {
+    fn new_waker(&mut self, pid: ProcessId) -> Waker {
+        self.runtime_ref.new_waker(pid)
+    }
+
+    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    where
+        S: event::Source + ?Sized,
+    {
+        self.runtime_ref.register(source, token, interest)
+    }
+
+    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    where
+        S: event::Source + ?Sized,
+    {
+        self.runtime_ref.reregister(source, token, interest)
+    }
+}
+
+impl rt::access::Private for ThreadSafe {
+    fn new_waker(&mut self, pid: ProcessId) -> Waker {
+        self.runtime_ref.new_waker(pid)
+    }
+
+    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    where
+        S: event::Source + ?Sized,
+    {
+        self.runtime_ref.register(source, token, interest)
+    }
+
+    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    where
+        S: event::Source + ?Sized,
+    {
+        self.runtime_ref.reregister(source, token, interest)
+    }
+}
+
 /// Implementation detail to support [`ThreadSafe`] and [`ThreadLocal`] contexts
-/// within the same implementation.
-// public because it used in trait bound for methods like `UdpSocket::bind`.
-pub trait ContextKind {
+/// within the same implementation of [`ActorProcess`].
+///
+/// [`ActorProcess`]: crate::rt::process::ActorProcess
+pub(crate) trait ContextKind {
     /// Create a new [`task::Waker`].
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
-
-    /// Create a new [`Waker`].
-    fn new_waker(&mut self, pid: ProcessId) -> Waker;
 
     /// Creates a new context.
     fn new_context<M>(
@@ -429,27 +467,11 @@ pub trait ContextKind {
     ) -> Context<M, Self>
     where
         Self: Sized;
-
-    /// Registers the `source` at the correct `Poll` instance using `token` and
-    /// `interest`.
-    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized;
-
-    /// Reregisters the `source` at the correct `Poll` instance using `token` and
-    /// `interest`.
-    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized;
 }
 
 impl ContextKind for ThreadLocal {
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
         runtime_ref.new_local_task_waker(pid)
-    }
-
-    fn new_waker(&mut self, pid: ProcessId) -> Waker {
-        self.runtime_ref.new_waker(pid)
     }
 
     fn new_context<M>(
@@ -460,29 +482,11 @@ impl ContextKind for ThreadLocal {
     ) -> Context<M, ThreadLocal> {
         Context::new_local(pid, inbox, inbox_ref, runtime_ref.clone())
     }
-
-    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.runtime_ref.register(source, token, interest)
-    }
-
-    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.runtime_ref.reregister(source, token, interest)
-    }
 }
 
 impl ContextKind for ThreadSafe {
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
         runtime_ref.new_shared_task_waker(pid)
-    }
-
-    fn new_waker(&mut self, pid: ProcessId) -> Waker {
-        self.runtime_ref.new_waker(pid)
     }
 
     fn new_context<M>(
@@ -492,20 +496,6 @@ impl ContextKind for ThreadSafe {
         runtime_ref: &mut RuntimeRef,
     ) -> Context<M, ThreadSafe> {
         Context::new_shared(pid, inbox, inbox_ref, runtime_ref.clone_shared())
-    }
-
-    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.runtime_ref.register(source, token, interest)
-    }
-
-    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.runtime_ref.reregister(source, token, interest)
     }
 }
 

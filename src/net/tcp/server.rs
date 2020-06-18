@@ -10,9 +10,9 @@ use mio::net::TcpListener;
 use mio::Interest;
 
 use crate::actor::messages::Terminate;
-use crate::actor::{self, Actor, AddActorError, ContextKind, NewActor, Spawnable};
+use crate::actor::{self, Actor, AddActorError, NewActor, Spawnable};
 use crate::net::TcpStream;
-use crate::rt::{ActorOptions, ProcessId, Signal};
+use crate::rt::{ActorOptions, ProcessId, RuntimeAccess, Signal};
 use crate::supervisor::Supervisor;
 
 /// A intermediate structure that implements [`NewActor`], creating
@@ -44,21 +44,21 @@ struct ServerSetupInner<S, NA> {
     options: ActorOptions,
 }
 
-impl<S, NA, C> NewActor for ServerSetup<S, NA>
+impl<S, NA, K> NewActor for ServerSetup<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = C> + Clone + 'static,
-    C: ContextKind + Spawnable<S, NA>,
+    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
+    K: RuntimeAccess + Spawnable<S, NA>,
 {
     type Message = ServerMessage;
     type Argument = ();
-    type Actor = Server<S, NA, C>;
+    type Actor = Server<S, NA, K>;
     type Error = io::Error;
-    type Context = C;
+    type Context = K;
 
     fn new(
         &mut self,
-        mut ctx: actor::Context<Self::Message, C>,
+        mut ctx: actor::Context<Self::Message, K>,
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let this = &*self.inner;
@@ -384,9 +384,9 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///     stream.write_all(b"Hello World").await
 /// }
 #[derive(Debug)]
-pub struct Server<S, NA, C> {
+pub struct Server<S, NA, K> {
     /// Actor context in which this actor is running.
-    ctx: actor::Context<ServerMessage, C>,
+    ctx: actor::Context<ServerMessage, K>,
     /// The underlying TCP listener, backed by Mio.
     listener: TcpListener,
     /// Supervisor for all actors created by `NewActor`.
@@ -397,10 +397,10 @@ pub struct Server<S, NA, C> {
     options: ActorOptions,
 }
 
-impl<S, NA, C> Server<S, NA, C>
+impl<S, NA, K> Server<S, NA, K>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = C> + Clone + 'static,
+    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
 {
     /// Create a new [`ServerSetup`].
     ///
@@ -427,11 +427,11 @@ where
     }
 }
 
-impl<S, NA, C> Actor for Server<S, NA, C>
+impl<S, NA, K> Actor for Server<S, NA, K>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = C> + Clone + 'static,
-    C: ContextKind + Spawnable<S, NA>,
+    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
+    K: RuntimeAccess + Spawnable<S, NA>,
 {
     type Error = ServerError<NA::Error>;
 
@@ -465,7 +465,7 @@ where
             };
             debug!("tcp::Server accepted connection: remote_address={}", addr);
 
-            let setup_actor = move |pid: ProcessId, ctx: &mut C| {
+            let setup_actor = move |pid: ProcessId, ctx: &mut K| {
                 ctx.register(
                     &mut stream,
                     pid.into(),

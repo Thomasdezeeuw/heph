@@ -12,7 +12,8 @@ use std::{fmt, io};
 
 use mio::{net, Interest};
 
-use crate::actor::{self, ContextKind};
+use crate::actor;
+use crate::rt::RuntimeAccess;
 
 /// The unconnected mode of an [`UdpSocket`].
 #[allow(missing_debug_implementations)]
@@ -139,12 +140,12 @@ impl UdpSocket {
     /// socket is ready to be read or write to.
     ///
     /// [bound]: crate::actor::Bound
-    pub fn bind<M, C>(
-        ctx: &mut actor::Context<M, C>,
+    pub fn bind<M, K>(
+        ctx: &mut actor::Context<M, K>,
         local: SocketAddr,
     ) -> io::Result<UdpSocket<Unconnected>>
     where
-        C: ContextKind,
+        K: RuntimeAccess,
     {
         let mut socket = net::UdpSocket::bind(local)?;
         let pid = ctx.pid();
@@ -357,13 +358,13 @@ impl<M> fmt::Debug for UdpSocket<M> {
     }
 }
 
-impl<C> actor::Bound<C> for UdpSocket
+impl<K> actor::Bound<K> for UdpSocket
 where
-    C: ContextKind,
+    K: RuntimeAccess,
 {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, C>) -> io::Result<()> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()> {
         let pid = ctx.pid();
         ctx.kind().reregister(
             &mut self.socket,

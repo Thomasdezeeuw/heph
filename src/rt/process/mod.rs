@@ -23,7 +23,7 @@ pub(in crate::rt) use actor::ActorProcess;
 ///
 /// [`Runtime`]: crate::Runtime
 /// [`Scheduler`]: crate::rt::scheduler::Scheduler
-// public because it used in the `ContextKind` trait.
+// public because it used in the `RuntimeAccess` trait.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[repr(transparent)]
 pub struct ProcessId(pub usize);
