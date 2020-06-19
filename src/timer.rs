@@ -161,6 +161,12 @@ where
 /// it returns [`Poll::Ready`]`(Err(`[`DeadlinePassed`]`))`. Otherwise this will
 /// poll the future it wraps.
 ///
+/// # Notes
+///
+/// This type can also be created using [`Timer::wrap`], this is useful when
+/// dealing with lifetime issue, e.g. when calling
+/// [`actor::Context::receive_next`] and wrapping that in a `Deadline`.
+///
 /// # Examples
 ///
 /// Setting a timeout for a future.
