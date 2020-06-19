@@ -26,6 +26,7 @@ use std::sync::Arc;
 use std::task::{self, Poll};
 
 use lazy_static::lazy_static;
+use parking_lot::Mutex;
 use rand::Rng;
 
 use crate::actor::{self, context, Actor, NewActor};
@@ -34,7 +35,7 @@ use crate::inbox::{Inbox, InboxRef};
 use crate::rt::scheduler::Scheduler;
 use crate::rt::waker::{self, Waker, WakerId};
 use crate::rt::worker::RunningRuntime;
-use crate::rt::{self, ProcessId, RuntimeRef, SharedRuntimeInternal};
+use crate::rt::{self, ProcessId, RuntimeRef, SharedRuntimeInternal, Timers};
 
 lazy_static! {
     static ref COORDINATOR_ID: WakerId = {
@@ -51,7 +52,8 @@ lazy_static! {
             .expect("failed to create Registry for test module");
         let scheduler = Scheduler::new();
         let scheduler = scheduler.create_ref();
-        SharedRuntimeInternal::new(*COORDINATOR_ID, scheduler, registry)
+        let timers = Arc::new(Mutex::new(Timers::new()));
+        SharedRuntimeInternal::new(*COORDINATOR_ID, scheduler, registry, timers)
     };
 }
 

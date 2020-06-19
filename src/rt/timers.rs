@@ -11,7 +11,7 @@ use crate::rt::ProcessId;
 ///
 /// Polling this event source never returns an error.
 #[derive(Debug)]
-pub(super) struct Timers {
+pub(crate) struct Timers {
     deadlines: BinaryHeap<Reverse<Deadline>>,
 }
 
@@ -26,7 +26,7 @@ struct Deadline {
 
 impl Timers {
     /// Create a new time event source.
-    pub(super) fn new() -> Timers {
+    pub(crate) fn new() -> Timers {
         Timers {
             deadlines: BinaryHeap::new(),
         }

@@ -1,6 +1,7 @@
 //! Coordinator thread code.
 
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 use std::{fmt, io};
 
 use crossbeam_channel::Receiver;
@@ -8,12 +9,13 @@ use log::{debug, trace, warn};
 use mio::event::Event;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
+use parking_lot::Mutex;
 
 use crate::rt::process::ProcessId;
 use crate::rt::scheduler::Scheduler;
 use crate::rt::waker::{self, WakerId};
 use crate::rt::{
-    self, SharedRuntimeInternal, Signal, SyncWorker, Worker, SYNC_WORKER_ID_END,
+    self, SharedRuntimeInternal, Signal, SyncWorker, Timers, Worker, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
 
@@ -66,13 +68,14 @@ impl std::error::Error for Error {
 
 /// Tokens used to receive events.
 const SIGNAL: Token = Token(usize::max_value());
-const WAKER: Token = Token(usize::max_value() - 1);
+pub(super) const WAKER: Token = Token(usize::max_value() - 1);
 
 pub(super) struct Coordinator {
     poll: Poll,
     waker_id: WakerId,
     waker_events: Receiver<ProcessId>,
     scheduler: Scheduler,
+    timers: Arc<Mutex<Timers>>,
 }
 
 impl Coordinator {
@@ -85,14 +88,16 @@ impl Coordinator {
         let waker = mio::Waker::new(&registry, WAKER).map_err(Error::Init)?;
         let waker_id = waker::init(waker, waker_sender);
         let scheduler = Scheduler::new();
+        let timers = Arc::new(Mutex::new(Timers::new()));
 
         let shared_internals =
-            SharedRuntimeInternal::new(waker_id, scheduler.create_ref(), registry);
+            SharedRuntimeInternal::new(waker_id, scheduler.create_ref(), registry, timers.clone());
         let coordinator = Coordinator {
             poll,
             waker_events,
             waker_id,
             scheduler,
+            timers,
         };
 
         Ok((coordinator, shared_internals))
@@ -146,6 +151,13 @@ impl Coordinator {
                 }
             }
 
+            trace!("polling timers");
+            for pid in self.timers.lock().deadlines() {
+                trace!("waking thread-safe actor: pid={}", pid);
+                wake_workers = true;
+                self.scheduler.mark_ready(pid);
+            }
+
             trace!("polling wakup events");
             for pid in self.waker_events.try_iter() {
                 trace!("waking thread-safe actor: pid={}", pid);
@@ -173,10 +185,47 @@ impl Coordinator {
 
     fn poll(&mut self, events: &mut Events) -> io::Result<()> {
         trace!("polling event sources");
-        waker::mark_polling(self.waker_id, true);
-        let res = self.poll.poll(events, None);
-        waker::mark_polling(self.waker_id, false);
+        let timeout = self.determine_timeout();
+
+        // Only mark ourselves as polling if the timeout is not zero.
+        let mark_waker = if !is_zero(timeout) {
+            waker::mark_polling(self.waker_id, true);
+            true
+        } else {
+            false
+        };
+
+        let res = self.poll.poll(events, timeout);
+
+        if mark_waker {
+            waker::mark_polling(self.waker_id, false);
+        }
+
         res
+    }
+
+    /// Determine the timeout to be used in `Poll::poll`.
+    fn determine_timeout(&self) -> Option<Duration> {
+        if let Some(deadline) = self.timers.lock().next_deadline() {
+            let now = Instant::now();
+            if deadline <= now {
+                // Deadline has already expired, so no blocking.
+                Some(Duration::from_millis(0))
+            } else {
+                // Time between the deadline and right now.
+                Some(deadline.duration_since(now))
+            }
+        } else {
+            None
+        }
+    }
+}
+
+/// Returns `true` is timeout is `Some(Duration::from_nanos(0))`.
+fn is_zero(timeout: Option<Duration>) -> bool {
+    match timeout {
+        Some(timeout) if timeout.as_secs() == 0 && timeout.subsec_nanos() == 0 => true,
+        Some(..) | None => false,
     }
 }
 

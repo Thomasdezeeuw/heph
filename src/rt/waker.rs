@@ -72,7 +72,7 @@ pub(crate) fn init(waker: mio::Waker, notifications: Sender<ProcessId>) -> Waker
     WakerId(thread_id)
 }
 
-/// Create a new `Waker`.
+/// Create a new `task::Waker`.
 ///
 /// `init` must be called before calling this function to get a `WakerId`.
 pub(crate) fn new(waker_id: WakerId, pid: ProcessId) -> task::Waker {

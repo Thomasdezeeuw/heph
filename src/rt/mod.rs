@@ -17,6 +17,7 @@ use std::{fmt, io, task};
 
 use log::{debug, trace};
 use mio::{event, Interest, Poll, Registry, Token};
+use parking_lot::Mutex;
 
 use crate::actor::context::{ThreadLocal, ThreadSafe};
 use crate::actor::sync::SyncActor;
@@ -51,6 +52,7 @@ macro_rules! cfg_pub_test {
 cfg_pub_test!(channel, scheduler, worker);
 
 pub(crate) use process::ProcessId;
+pub(crate) use timers::Timers; // Needed by the `test` module.
 pub(crate) use waker::Waker;
 
 pub mod options;
@@ -63,7 +65,6 @@ use coordinator::Coordinator;
 use hack::SetupFn;
 use scheduler::{LocalScheduler, SchedulerRef};
 use sync_worker::SyncWorker;
-use timers::Timers;
 use waker::{WakerId, MAX_THREADS};
 use worker::Worker;
 
@@ -87,6 +88,7 @@ pub(crate) mod access {
     //! [`RuntimeAccess`]: super::RuntimeAccess
 
     use std::io;
+    use std::time::Instant;
 
     use mio::{event, Interest, Token};
 
@@ -120,6 +122,9 @@ pub(crate) mod access {
         ) -> io::Result<()>
         where
             S: event::Source + ?Sized;
+
+        /// Add a deadline for `pid` at `deadline`.
+        fn add_deadline(&mut self, pid: ProcessId, deadline: Instant);
     }
 }
 
@@ -788,10 +793,15 @@ struct RuntimeInternal {
 pub(crate) struct SharedRuntimeInternal {
     /// Waker id used to create a `Waker` for thread-safe actors.
     waker_id: WakerId,
+    /// Waker used to wake the `Coordinator`, but not scheduler any particular
+    /// process.
+    waker: Waker,
     /// Scheduler for thread-safe actors.
     scheduler: SchedulerRef,
     /// Registry for the `Coordinator`'s `Poll` instance.
     registry: Registry,
+    // FIXME: `Timers` is not up to this job.
+    timers: Arc<Mutex<Timers>>,
 }
 
 impl SharedRuntimeInternal {
@@ -799,11 +809,15 @@ impl SharedRuntimeInternal {
         waker_id: WakerId,
         scheduler: SchedulerRef,
         registry: Registry,
+        timers: Arc<Mutex<Timers>>,
     ) -> Arc<SharedRuntimeInternal> {
+        let waker = Waker::new(waker_id, coordinator::WAKER.into());
         Arc::new(SharedRuntimeInternal {
             waker_id,
+            waker,
             scheduler,
             registry,
+            timers,
         })
     }
 
@@ -840,6 +854,17 @@ impl SharedRuntimeInternal {
         S: event::Source + ?Sized,
     {
         self.registry.reregister(source, token, interest)
+    }
+
+    pub(crate) fn add_deadline(&self, pid: ProcessId, deadline: Instant) {
+        self.timers.lock().add_deadline(pid, deadline);
+        // Ensure that the coordinator isn't polling and miss the deadline.
+        self.wake();
+    }
+
+    /// Wake the [`Coordinator`].
+    pub(crate) fn wake(&self) {
+        self.waker.wake()
     }
 
     pub(crate) fn spawn_setup<S, NA, ArgFn, ArgFnE>(

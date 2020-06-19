@@ -4,6 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
+use std::time::Instant;
 use std::{fmt, io};
 
 use mio::{event, Interest, Token};
@@ -428,6 +429,10 @@ impl rt::access::Private for ThreadLocal {
     {
         self.runtime_ref.reregister(source, token, interest)
     }
+
+    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
+        self.runtime_ref.add_deadline(pid, deadline)
+    }
 }
 
 impl rt::access::Private for ThreadSafe {
@@ -447,6 +452,10 @@ impl rt::access::Private for ThreadSafe {
         S: event::Source + ?Sized,
     {
         self.runtime_ref.reregister(source, token, interest)
+    }
+
+    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
+        self.runtime_ref.add_deadline(pid, deadline)
     }
 }
 
