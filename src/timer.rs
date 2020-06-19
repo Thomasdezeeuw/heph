@@ -23,7 +23,7 @@ use std::time::{Duration, Instant};
 use futures_core::stream::{FusedStream, Stream};
 
 use crate::actor::context::ThreadLocal;
-use crate::rt::ProcessId;
+use crate::rt::{ProcessId, RuntimeAccess};
 use crate::{actor, RuntimeRef};
 
 /// Type returned when the deadline has passed.
@@ -89,16 +89,22 @@ pub struct Timer {
 
 impl Timer {
     /// Create a new `Timer`.
-    pub fn new<M>(ctx: &mut actor::Context<M>, deadline: Instant) -> Timer {
+    pub fn new<M, K>(ctx: &mut actor::Context<M, K>, deadline: Instant) -> Timer
+    where
+        K: RuntimeAccess,
+    {
         let pid = ctx.pid();
-        ctx.runtime().add_deadline(pid, deadline);
+        ctx.kind().add_deadline(pid, deadline);
         Timer { deadline }
     }
 
     /// Create a new timer, based on a timeout.
     ///
     /// Same as calling `Timer::new(&mut ctx, Instant::now() + timeout)`.
-    pub fn timeout<M>(ctx: &mut actor::Context<M>, timeout: Duration) -> Timer {
+    pub fn timeout<M, K>(ctx: &mut actor::Context<M, K>, timeout: Duration) -> Timer
+    where
+        K: RuntimeAccess,
+    {
         Timer::new(ctx, Instant::now() + timeout)
     }
 
@@ -134,14 +140,17 @@ impl Future for Timer {
     }
 }
 
-impl actor::Bound<ThreadLocal> for Timer {
+impl<K> actor::Bound<K> for Timer
+where
+    K: RuntimeAccess,
+{
     type Error = !;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> Result<(), !> {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
-        ctx.runtime().add_deadline(pid, self.deadline);
+        ctx.kind().add_deadline(pid, self.deadline);
         Ok(())
     }
 }
@@ -166,19 +175,17 @@ impl actor::Bound<ThreadLocal> for Timer {
 /// # use std::time::Instant;
 ///
 /// use heph::actor;
+/// use heph::actor::context::ThreadSafe;
 /// # use heph::supervisor::NoSupervisor;
-/// # use heph::{rt, ActorOptions, Runtime, RuntimeRef};
+/// # use heph::{rt, ActorOptions, Runtime};
 /// use heph::timer::{DeadlinePassed, Deadline};
 ///
 /// # fn main() -> Result<(), rt::Error> {
-/// #     Runtime::new()?.with_setup(setup).start()
-/// # }
-/// #
-/// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-/// #   let actor = actor as fn(_) -> _;
-/// #   let options = ActorOptions::default().mark_ready();
-/// #   runtime_ref.spawn_local(NoSupervisor, actor, (), options);
-/// #   Ok(())
+/// #     let actor = actor as fn(_) -> _;
+/// #     let options = ActorOptions::default().mark_ready();
+/// #     let mut rt = Runtime::new()?;
+/// #     let _ = rt.spawn(NoSupervisor, actor, (), options);
+/// #     rt.start()
 /// # }
 /// #
 /// # struct OtherFuture;
@@ -190,7 +197,7 @@ impl actor::Bound<ThreadLocal> for Timer {
 /// #     }
 /// # }
 /// #
-/// async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::Context<String, ThreadSafe>) -> Result<(), !> {
 ///     // `OtherFuture` is a type that implements `Future`.
 ///     let future = OtherFuture;
 ///     // Create our deadline.
@@ -214,9 +221,16 @@ pub struct Deadline<Fut> {
 
 impl<Fut> Deadline<Fut> {
     /// Create a new `Deadline`.
-    pub fn new<M>(ctx: &mut actor::Context<M>, deadline: Instant, future: Fut) -> Deadline<Fut> {
+    pub fn new<M, K>(
+        ctx: &mut actor::Context<M, K>,
+        deadline: Instant,
+        future: Fut,
+    ) -> Deadline<Fut>
+    where
+        K: RuntimeAccess,
+    {
         let pid = ctx.pid();
-        ctx.runtime().add_deadline(pid, deadline);
+        ctx.kind().add_deadline(pid, deadline);
         Deadline { deadline, future }
     }
 
@@ -224,11 +238,14 @@ impl<Fut> Deadline<Fut> {
     ///
     /// Same as calling `Deadline::new(&mut ctx, Instant::now() + timeout,
     /// future)`.
-    pub fn timeout<M>(
-        ctx: &mut actor::Context<M>,
+    pub fn timeout<M, K>(
+        ctx: &mut actor::Context<M, K>,
         timeout: Duration,
         future: Fut,
-    ) -> Deadline<Fut> {
+    ) -> Deadline<Fut>
+    where
+        K: RuntimeAccess,
+    {
         Deadline::new(ctx, Instant::now() + timeout, future)
     }
 
@@ -284,14 +301,17 @@ where
 }
 */
 
-impl<Fut> actor::Bound<ThreadLocal> for Deadline<Fut> {
+impl<Fut, K> actor::Bound<K> for Deadline<Fut>
+where
+    K: RuntimeAccess,
+{
     type Error = !;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> Result<(), !> {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
-        ctx.runtime().add_deadline(pid, self.deadline);
+        ctx.kind().add_deadline(pid, self.deadline);
         Ok(())
     }
 }
