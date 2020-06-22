@@ -455,7 +455,7 @@ impl<'a> Future for Peek<'a> {
             ref mut stream,
             ref mut buf,
         } = self.deref_mut();
-        try_io!(stream.socket.peek(buf))
+        try_io!(stream.socket.peek(buf), NotConnected => break Poll::Pending)
     }
 }
 
