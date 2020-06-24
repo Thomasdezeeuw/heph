@@ -174,6 +174,7 @@ where
 /// ```
 /// #![feature(never_type)]
 ///
+/// use std::io;
 /// # use std::future::Future;
 /// # use std::pin::Pin;
 /// # use std::task::{self, Poll};
@@ -184,7 +185,7 @@ where
 /// use heph::actor::context::ThreadSafe;
 /// # use heph::supervisor::NoSupervisor;
 /// # use heph::{rt, ActorOptions, Runtime};
-/// use heph::timer::{DeadlinePassed, Deadline};
+/// use heph::timer::Deadline;
 ///
 /// # fn main() -> Result<(), rt::Error> {
 /// #     let actor = actor as fn(_) -> _;
@@ -194,10 +195,10 @@ where
 /// #     rt.start()
 /// # }
 /// #
-/// # struct OtherFuture;
+/// # struct IoFuture;
 /// #
-/// # impl Future for OtherFuture {
-/// #     type Output = ();
+/// # impl Future for IoFuture {
+/// #     type Output = io::Result<()>;
 /// #     fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
 /// #         Poll::Pending
 /// #     }
@@ -205,7 +206,7 @@ where
 /// #
 /// async fn actor(mut ctx: actor::Context<String, ThreadSafe>) -> Result<(), !> {
 ///     // `OtherFuture` is a type that implements `Future`.
-///     let future = OtherFuture;
+///     let future = IoFuture;
 ///     // Create our deadline.
 /// #   let start = Instant::now();
 ///     let deadline_future = Deadline::timeout(&mut ctx, Duration::from_millis(100), future);
@@ -215,7 +216,8 @@ where
 ///     let result = deadline_future.await;
 /// #   assert!(Instant::now() >= start + Duration::from_millis(100));
 ///     // However the other future is rather slow, so the timeout will pass.
-///     assert_eq!(result, Err(DeadlinePassed));
+///     assert!(result.is_err());
+///     assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
 ///     Ok(())
 /// }
 /// ```
@@ -266,6 +268,7 @@ impl<Fut> Deadline<Fut> {
     }
 }
 
+/* TODO: add this once `specialization` feature is stabilised.
 impl<Fut> Future for Deadline<Fut>
 where
     Fut: Future,
@@ -284,8 +287,8 @@ where
         }
     }
 }
+*/
 
-/* TODO: add this once `specialization` feature is stabilised.
 impl<Fut, T, E> Future for Deadline<Fut>
 where
     Fut: Future<Output = Result<T, E>>,
@@ -305,7 +308,6 @@ where
         }
     }
 }
-*/
 
 impl<Fut, K> actor::Bound<K> for Deadline<Fut>
 where
