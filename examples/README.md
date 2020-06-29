@@ -51,3 +51,12 @@ Examples 5a and 5b should be run together. Example 5a shows how to create a
 `RemoteRegistry` allow remote actors to send messages to local actors. Example
 5b shows how to create and use an remote actor reference, referencing the actor
 created in example 5a.
+
+## 6. Process signal handling
+
+Heph has build-in support for handling process signals. This example shows this
+can be used to cleanly shutdown your application.
+
+The code can be found in `6_process_signals.rs` and run with `cargo run
+--example 6_process_signals`, pressing ctrl-c (sending it an interrupt signal
+`SIGINT`) should shutdown the example cleanly.

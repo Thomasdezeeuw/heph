@@ -246,6 +246,8 @@ pub struct Runtime<S = !> {
     sync_actors: Vec<SyncWorker>,
     /// Optional setup function.
     setup: Option<S>,
+    /// List of actor references that want to receive process signals.
+    signals: Vec<ActorRef<Signal>>,
 }
 
 impl Runtime {
@@ -259,6 +261,7 @@ impl Runtime {
             threads: 1,
             sync_actors: Vec::new(),
             setup: None,
+            signals: Vec::new(),
         })
     }
 
@@ -277,6 +280,7 @@ impl Runtime {
             threads: self.threads,
             sync_actors: self.sync_actors,
             setup: Some(setup),
+            signals: self.signals,
         }
     }
 }
@@ -376,6 +380,16 @@ impl<S> Runtime<S> {
             })
             .map_err(Error::start_sync_actor)
     }
+
+    /// Receive [process signals] as messages.
+    ///
+    /// This adds the `actor_ref` to the list of actor references that will
+    /// receive a process signal.
+    ///
+    /// [process signals]: Signal
+    pub fn receive_signals(&mut self, actor_ref: ActorRef<Signal>) {
+        self.signals.push(actor_ref);
+    }
 }
 
 impl<S> Runtime<S>
@@ -408,7 +422,8 @@ where
             .collect::<io::Result<Vec<Worker<S::Error>>>>()
             .map_err(Error::start_worker)?;
 
-        self.coordinator.run(handles, self.sync_actors)
+        self.coordinator
+            .run(handles, self.sync_actors, self.signals)
     }
 }
 

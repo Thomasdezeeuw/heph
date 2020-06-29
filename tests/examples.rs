@@ -11,6 +11,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use lazy_static::lazy_static;
+use mio_signals::{send_signal, Signal};
 
 // The tests need to run in sequentially here because Cargo can only build one
 // example at a time. This would cause problems with the example that don't wait
@@ -19,13 +20,19 @@ use lazy_static::lazy_static;
 
 /// Macro to create a group of sequential tests.
 macro_rules! sequential_tests {
-    ($(fn $name: ident () $body: block)+) => {
+    (
+        $(
+            $( #[$meta: meta] )*
+            fn $name: ident () $body: block
+        )+
+    ) => {
         lazy_static! {
             /// A global lock for testing sequentially.
             static ref SEQUENTIAL_TESTS: Mutex<()> = Mutex::new(());
         }
 
         $(
+                $( #[$meta] )*
         #[test]
         fn $name() {
             let guard = SEQUENTIAL_TESTS.lock().unwrap();
@@ -72,7 +79,40 @@ sequential_tests! {
         assert_eq!(output, "Got a message: Hello world\nBye\n");
     }
 
-    // TODO: add example 5.
+    #[ignore]
+    fn test_5_remote_actors() {
+        todo!("TODO: add test for example 5: remote actors");
+    }
+
+    fn test_6_process_signals() {
+        let child = start_example("6_process_signals");
+        // Give the process some time to setup signal handling.
+        sleep(Duration::from_millis(10));
+        if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
+            panic!("unexpected error sending signal to process: {}", err);
+        }
+        let output = read_output(child);
+
+        // Because the order in which the signals are delivered isn't defined,
+        // nor is the order in which the actors are run, this output can
+        // differ. Either the thread safe or thread local actor is run last,
+        // we'll accept either below.
+        let want1 = "Got a message: Hello sync actor\n\
+            Got a message: Hello thread safe actor\n\
+            Got a message: Hello thread local actor\n\
+            shutting down the synchronous actor\n\
+            shutting down the thread safe actor\n\
+            shutting down the thread local actor\n";
+        let want2 = "Got a message: Hello sync actor\n\
+            Got a message: Hello thread safe actor\n\
+            Got a message: Hello thread local actor\n\
+            shutting down the synchronous actor\n\
+            shutting down the thread local actor\n\
+            shutting down the thread safe actor\n";
+        if output != want1 && output != want2 {
+            assert_eq!(output, want1);
+        }
+    }
 }
 
 /// Wrapper around a `command::Child` that kills the process when dropped, even

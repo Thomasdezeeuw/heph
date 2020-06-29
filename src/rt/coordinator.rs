@@ -18,6 +18,7 @@ use crate::rt::{
     self, SharedRuntimeInternal, Signal, SyncWorker, Timers, Worker, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
+use crate::ActorRef;
 
 /// Error running the [`Coordinator`].
 #[derive(Debug)]
@@ -112,6 +113,7 @@ impl Coordinator {
         mut self,
         mut workers: Vec<Worker<E>>,
         mut sync_workers: Vec<SyncWorker>,
+        mut signal_refs: Vec<ActorRef<Signal>>,
     ) -> Result<(), rt::Error<E>> {
         debug_assert!(workers.is_sorted_by_key(|w| w.id()));
 
@@ -132,8 +134,13 @@ impl Coordinator {
             for event in events.iter() {
                 trace!("event: {:?}", event);
                 match event.token() {
-                    SIGNAL => relay_signals(&mut signals, &mut workers, &mut sync_workers)
-                        .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?,
+                    SIGNAL => relay_signals(
+                        &mut signals,
+                        &mut workers,
+                        &mut sync_workers,
+                        &mut signal_refs,
+                    )
+                    .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?,
                     // We always check for waker events below.
                     WAKER => {}
                     token if token.0 <= SYNC_WORKER_ID_START => {
@@ -267,6 +274,7 @@ fn relay_signals<E>(
     signals: &mut Signals,
     workers: &mut [Worker<E>],
     sync_workers: &mut [SyncWorker],
+    signal_refs: &mut Vec<ActorRef<Signal>>,
 ) -> io::Result<()> {
     while let Some(signal) = signals.receive()? {
         debug!("received signal on coordinator: signal={:?}", signal);
@@ -277,6 +285,11 @@ fn relay_signals<E>(
         }
         for sync_worker in sync_workers.iter_mut() {
             sync_worker.send_signal(signal);
+        }
+        for actor_ref in signal_refs.iter() {
+            if let Err(err) = actor_ref.send(signal) {
+                warn!("failed to send process signal to actor: {}", err);
+            }
         }
     }
     Ok(())

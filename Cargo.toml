@@ -32,7 +32,7 @@ lazy_static       = { version = "1.4.0", default-features = false }
 log               = { version = "0.4.8", default-features = false }
 mio               = { version = "0.7.0", default-features = false, features = ["os-poll", "tcp", "udp"] }
 mio-pipe          = { version = "0.1.0", default-features = false }
-mio-signals       = { version = "0.1.1", default-features = false }
+mio-signals       = { version = "0.1.2", default-features = false }
 num_cpus          = { version = "1.12.0", default-features = false }
 parking_lot       = { version = "0.10.0", default-features = false, features = ["nightly"] }
 rand              = { version = "0.7.3", default-features = false, features = ["std"] }

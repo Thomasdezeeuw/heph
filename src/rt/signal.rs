@@ -2,12 +2,13 @@ use std::fmt;
 
 /// Process signal.
 ///
-/// Actors can receive signals by calling [`RuntimeRef::receive_signals`]
-/// with their actor reference.
+/// Actors can receive signals by calling [`Runtime::receive_signals`] or
+/// [`RuntimeRef::receive_signals`] with their actor reference.
 ///
 /// Synchronous actors receive signals automatically if they implement the
 /// required trait bounds, see [`SyncActor`] for more details.
 ///
+/// [`Runtime::receive_signals`]: crate::Runtime::receive_signals
 /// [`RuntimeRef::receive_signals`]: crate::RuntimeRef::receive_signals
 /// [`SyncActor`]: crate::actor::sync::SyncActor
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
