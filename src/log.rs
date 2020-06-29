@@ -13,6 +13,8 @@
 //!
 //! To enable logging call [`init`].
 //!
+//! [`log`]: https://crates.io/crates/log
+//!
 //! # Examples
 //!
 //! Enabling logging.
