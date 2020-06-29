@@ -69,6 +69,7 @@
     box_into_raw_non_null,
     const_fn,
     const_raw_ptr_to_usize_cast,
+    duration_zero,
     is_sorted,
     maybe_uninit_extra,
     maybe_uninit_ref,
@@ -76,6 +77,9 @@
     new_uninit,
     specialization
 )]
+// The `specialization` feature is incomplete, but we need it for
+// `rt::hack::IntoSignalActorRef`.
+#![allow(incomplete_features)]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,

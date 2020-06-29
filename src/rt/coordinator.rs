@@ -223,10 +223,7 @@ impl Coordinator {
 
 /// Returns `true` is timeout is `Some(Duration::from_nanos(0))`.
 fn is_zero(timeout: Option<Duration>) -> bool {
-    match timeout {
-        Some(timeout) if timeout.as_secs() == 0 && timeout.subsec_nanos() == 0 => true,
-        Some(..) | None => false,
-    }
+    timeout.map(|t| t.is_zero()).unwrap_or(false)
 }
 
 /// Setup a new `Signals` instance, registering it with `registry`.
