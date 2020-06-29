@@ -5,13 +5,12 @@
 //! [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
 
 use std::fmt;
-use std::ops::Deref;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
 use log::trace;
-use parking_lot::{Mutex, RwLock};
+use parking_lot::Mutex;
 
 use crate::actor::{context, NewActor};
 use crate::inbox::{Inbox, InboxRef};
@@ -40,15 +39,6 @@ pub(super) type ProcessData = scheduler::ProcessData<dyn Process + Send + Sync>;
 // steal work for themselves in an effort to prevent an in-balance in the
 // workload.
 //
-// The `RunQueue` is behind a `RwLock` to enable a fast path for the owner of
-// the run queue if no other thread is attempting to access it at the same time.
-// To ensure the thread that owns the run queue is never blocked only the
-// `Scheduler` can request mutable access, the `WorkStealer` may not. The
-// `WorkStealer` can only request immutable access, this way other
-// `WorkStealer`s and the `Scheduler` can continue to operate on the run queue
-// concurrently (albeit using the slow path), ensure the thread that owns the
-// run queue isn't blocked.
-//
 //
 // ## Process states
 //
@@ -70,23 +60,7 @@ pub(crate) struct Scheduler {
 /// Internal of the `Scheduler`, shared with zero or more `WorkStealer`s.
 struct Shared {
     /// Processes that are ready to run.
-    ///
-    /// # Notes
-    ///
-    /// This is shared between one `Scheduler` and zero or more `WorkStealer`s,
-    /// which can steal ready to run processes from this scheduler.
-    ///
-    /// The `scheduler` may only lock using the following two methods:
-    /// * `try_write`: attempts to get unique access to the processes.
-    /// * `try_read`: if `try_write` fails another thread has access to it via a
-    ///   `WorkStealer`. However `WorkStealer` may only use the read lock (see
-    ///   below), meaning that this owner of the scheduler (this struct) can
-    ///   always get access to the processes, with an optimisation if its the
-    ///   only one with access.
-    ///
-    /// A `WorkStealer` may only lock using the `try_read` method. **No other
-    /// methods are allowed to be used by the `WorkStealer`**.
-    ready: RwLock<RunQueue>,
+    ready: RunQueue,
     /// Inactive processes that are not ready to run.
     inactive: Mutex<Inactive>,
 }
@@ -95,7 +69,7 @@ impl Scheduler {
     /// Create a new `Scheduler` and accompanying reference.
     pub(crate) fn new() -> Scheduler {
         let shared = Arc::new(Shared {
-            ready: RwLock::new(RunQueue::empty()),
+            ready: RunQueue::empty(),
             inactive: Mutex::new(Inactive::empty()),
         });
         Scheduler { shared }
@@ -109,26 +83,7 @@ impl Scheduler {
     pub(in crate::rt) fn mark_ready(&mut self, pid: ProcessId) {
         trace!("marking process as ready: pid={}", pid);
         if let Some(process) = self.shared.inactive.lock().remove(pid) {
-            match self.shared.ready.try_write() {
-                // Fast path.
-                Some(mut run_queue) => run_queue.add_mut(process),
-                // Slow path.
-                None => self.run_queue(|run_queue| run_queue.add(process)),
-            }
-        }
-    }
-
-    /// Get immutable access to the run queue.
-    fn run_queue<F, O>(&self, f: F) -> O
-    where
-        F: FnOnce(&RunQueue) -> O,
-    {
-        match self.shared.ready.try_read() {
-            Some(run_queue) => f(run_queue.deref()),
-            // This is impossible as `Scheduler` is the only object that can use
-            // the `try_write` method, to which we have a unique reference, thus
-            // `try_read` will never fail.
-            None => unreachable!("Scheduler can't get access to RunQueue"),
+            self.shared.ready.add(process)
         }
     }
 
@@ -162,7 +117,7 @@ impl SchedulerRef {
     /// Returns `true` if the schedule has any processes that are ready to run,
     /// `false` otherwise.
     pub(in crate::rt) fn has_ready_process(&self) -> bool {
-        self.shared.ready.read().has_process()
+        self.shared.ready.has_process()
     }
 
     /// Add a thread-safe actor to the scheduler.
@@ -180,12 +135,8 @@ impl SchedulerRef {
     /// Returns:
     /// * `Ok(Some(..))` if a process was successfully stolen.
     /// * `Ok(None)` if no processes are available to run.
-    /// * `Err(())` if the scheduler currently can't be accessed.
-    pub(in crate::rt) fn try_steal(&self) -> Result<Option<Pin<Box<ProcessData>>>, ()> {
-        match self.shared.ready.try_read() {
-            Some(run_queue) => Ok(run_queue.remove()),
-            None => Err(()),
-        }
+    pub(in crate::rt) fn try_steal(&self) -> Option<Pin<Box<ProcessData>>> {
+        self.shared.ready.remove()
     }
 
     /// Add back a process that was previously removed via

@@ -242,7 +242,7 @@ impl RunningRuntime {
                 // `Scheduler` to add new actors to it.
 
                 let process = self.internal.shared.scheduler.try_steal();
-                if let Ok(Some(mut process)) = process {
+                if let Some(mut process) = process {
                     match process.as_mut().run(&mut runtime_ref) {
                         ProcessResult::Complete => {}
                         ProcessResult::Pending => {
