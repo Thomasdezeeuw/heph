@@ -74,12 +74,8 @@
     maybe_uninit_extra,
     maybe_uninit_ref,
     never_type,
-    new_uninit,
-    specialization
+    new_uninit
 )]
-// The `specialization` feature is incomplete, but we need it for
-// `rt::hack::IntoSignalActorRef`.
-#![allow(incomplete_features)]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,

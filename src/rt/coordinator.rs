@@ -134,13 +134,8 @@ impl Coordinator {
             for event in events.iter() {
                 trace!("event: {:?}", event);
                 match event.token() {
-                    SIGNAL => relay_signals(
-                        &mut signals,
-                        &mut workers,
-                        &mut sync_workers,
-                        &mut signal_refs,
-                    )
-                    .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?,
+                    SIGNAL => relay_signals(&mut signals, &mut workers, &mut signal_refs)
+                        .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?,
                     // We always check for waker events below.
                     WAKER => {}
                     token if token.0 <= SYNC_WORKER_ID_START => {
@@ -273,7 +268,6 @@ fn register_sync_workers(registry: &Registry, sync_workers: &mut [SyncWorker]) -
 fn relay_signals<E>(
     signals: &mut Signals,
     workers: &mut [Worker<E>],
-    sync_workers: &mut [SyncWorker],
     signal_refs: &mut Vec<ActorRef<Signal>>,
 ) -> io::Result<()> {
     while let Some(signal) = signals.receive()? {
@@ -282,9 +276,6 @@ fn relay_signals<E>(
         let signal = Signal::from_mio(signal);
         for worker in workers.iter_mut() {
             worker.send_signal(signal)?;
-        }
-        for sync_worker in sync_workers.iter_mut() {
-            sync_worker.send_signal(signal);
         }
         for actor_ref in signal_refs.iter() {
             if let Err(err) = actor_ref.send(signal) {

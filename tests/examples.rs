@@ -87,7 +87,7 @@ sequential_tests! {
     fn test_6_process_signals() {
         let child = start_example("6_process_signals");
         // Give the process some time to setup signal handling.
-        sleep(Duration::from_millis(10));
+        sleep(Duration::from_millis(100));
         if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
             panic!("unexpected error sending signal to process: {}", err);
         }

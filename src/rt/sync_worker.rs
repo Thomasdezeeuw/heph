@@ -9,8 +9,6 @@ use mio::{event, Interest, Registry, Token};
 use mio_pipe::new_pipe;
 
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
-use crate::rt::hack::IntoSignalActorRef;
-use crate::rt::Signal;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 use crate::ActorRef;
 
@@ -22,8 +20,6 @@ pub(super) struct SyncWorker {
     handle: thread::JoinHandle<()>,
     /// Sending half of the Unix pipe, used to communicate with the thread.
     sender: mio_pipe::Sender,
-    /// `None` if the sync actor can't handle signals.
-    signals: Option<ActorRef<Signal>>,
 }
 
 impl SyncWorker {
@@ -39,7 +35,6 @@ impl SyncWorker {
         A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
         Arg: Send + 'static,
         M: Send + 'static,
-        ActorRef<M>: IntoSignalActorRef,
     {
         new_pipe().and_then(|(sender, receiver)| {
             let (send, inbox) = channel::unbounded();
@@ -47,12 +42,7 @@ impl SyncWorker {
             thread::Builder::new()
                 .name(format!("heph_sync_actor{}", id))
                 .spawn(move || main(supervisor, actor, arg, inbox, receiver))
-                .map(|handle| SyncWorker {
-                    id,
-                    handle,
-                    sender,
-                    signals: IntoSignalActorRef::into(&actor_ref),
-                })
+                .map(|handle| SyncWorker { id, handle, sender })
                 .map(|worker| (worker, actor_ref))
         })
     }
@@ -60,13 +50,6 @@ impl SyncWorker {
     /// Return the worker's id.
     pub(super) const fn id(&self) -> usize {
         self.id
-    }
-
-    /// Send the sync actor thread a `signal`.
-    pub(super) fn send_signal(&mut self, signal: Signal) {
-        if let Some(ref mut signals) = self.signals {
-            let _ = signals.send(signal);
-        }
     }
 
     /// See [`thread::JoinHandle::join`].
