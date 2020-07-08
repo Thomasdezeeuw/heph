@@ -12,7 +12,7 @@
 //! [`tcp::NewListener`]: crate::net::tcp::NewListener
 
 use std::future::Future;
-use std::io::{self, Read, Write};
+use std::io::{self, IoSlice, IoSliceMut, Read, Write};
 use std::net::{Shutdown, SocketAddr};
 use std::ops::DerefMut;
 use std::pin::Pin;
@@ -471,6 +471,15 @@ impl AsyncRead for TcpStream {
         // can try again.
         try_io!(self.socket.read(buf), NotConnected => break Poll::Pending)
     }
+
+    fn poll_read_vectored(
+        mut self: Pin<&mut Self>,
+        _ctx: &mut task::Context<'_>,
+        bufs: &mut [IoSliceMut<'_>],
+    ) -> Poll<io::Result<usize>> {
+        // See `AsyncRead::poll_read` why `NotConnected` is special.
+        try_io!(self.socket.read_vectored(bufs), NotConnected => break Poll::Pending)
+    }
 }
 
 impl AsyncWrite for TcpStream {
@@ -481,6 +490,15 @@ impl AsyncWrite for TcpStream {
     ) -> Poll<io::Result<usize>> {
         // See `AsyncRead::poll_read` why `NotConnected` is special.
         try_io!(self.socket.write(buf), NotConnected => break Poll::Pending)
+    }
+
+    fn poll_write_vectored(
+        mut self: Pin<&mut Self>,
+        _ctx: &mut task::Context<'_>,
+        bufs: &[IoSlice<'_>],
+    ) -> Poll<io::Result<usize>> {
+        // See `AsyncRead::poll_read` why `NotConnected` is special.
+        try_io!(self.socket.write_vectored(bufs), NotConnected => break Poll::Pending)
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
