@@ -40,9 +40,9 @@ pub(crate) mod waker;
 macro_rules! cfg_pub_test {
     ($( $mod_name: ident ),+) => {
         $(
-            #[cfg(not(test))]
+            #[cfg(not(any(test, feature = "test")))]
             mod $mod_name;
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test"))]
             pub(crate) mod $mod_name;
         )+
     };
