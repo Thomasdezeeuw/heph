@@ -356,7 +356,7 @@ pub struct TcpStream {
 }
 
 impl TcpStream {
-    /// Create a new TCP stream and issue a non-blocking connect to the
+    /// Create a new TCP stream and issues a non-blocking connect to the
     /// specified `address`.
     ///
     /// # Notes
