@@ -85,33 +85,38 @@ sequential_tests! {
     }
 
     fn test_6_process_signals() {
-        let child = start_example("6_process_signals");
+        let child = run_example("6_process_signals");
         // Give the process some time to setup signal handling.
-        sleep(Duration::from_millis(100));
+        sleep(Duration::from_millis(300));
+
         if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
             panic!("unexpected error sending signal to process: {}", err);
         }
-        let output = read_output(child);
 
-        // Because the order in which the signals are delivered isn't defined,
-        // nor is the order in which the actors are run, this output can
-        // differ. Either the thread safe or thread local actor is run last,
-        // we'll accept either below.
-        let want1 = "Got a message: Hello sync actor\n\
-            Got a message: Hello thread safe actor\n\
-            Got a message: Hello thread local actor\n\
-            shutting down the synchronous actor\n\
-            shutting down the thread safe actor\n\
-            shutting down the thread local actor\n";
-        let want2 = "Got a message: Hello sync actor\n\
-            Got a message: Hello thread safe actor\n\
-            Got a message: Hello thread local actor\n\
-            shutting down the synchronous actor\n\
-            shutting down the thread local actor\n\
-            shutting down the thread safe actor\n";
-        if output != want1 && output != want2 {
-            assert_eq!(output, want1);
-        }
+        // Because the order in which the actors are run is not defined we don't
+        // know the order of the output. We do know that the greeting messages
+        // come before the shutdown messages.
+        let output = read_output(child);
+        let mut lines = output.lines();
+        // Greeting messages.
+        let mut got_greetings: Vec<&str> = (&mut lines).take(3).collect();
+        got_greetings.sort();
+        let want_greetings = &[
+            "Got a message: Hello sync actor",
+            "Got a message: Hello thread local actor",
+            "Got a message: Hello thread safe actor",
+        ];
+        assert_eq!(got_greetings, want_greetings);
+
+        // Shutdown messages.
+        let mut got_shutdown: Vec<&str> = lines.collect();
+        got_shutdown.sort();
+        let want_shutdown = [
+            "shutting down the synchronous actor",
+            "shutting down the thread local actor",
+            "shutting down the thread safe actor",
+        ];
+        assert_eq!(got_shutdown, want_shutdown);
     }
 }
 
