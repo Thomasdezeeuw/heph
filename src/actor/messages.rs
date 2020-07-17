@@ -99,3 +99,54 @@ pub struct Cancel<Id = ()>(pub Id);
 /// simply ignore this message and continue living.
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Terminate;
+
+/// Macro to implement [`From`] for an enum message type.
+///
+/// # Examples
+///
+/// ```
+/// # #[allow(dead_code)]
+/// use heph::actor_ref::RpcMessage;
+/// use heph::from_message;
+///
+/// #[derive(Debug)]
+/// enum Message {
+///     Msg(String),
+///     Rpc(RpcMessage<String, usize>),
+///     Rpc2(RpcMessage<(String, usize), (usize, usize)>),
+/// }
+///
+/// // This implements `From<Strig>` for `Message`.
+/// from_message!(Message::Msg(String));
+///
+/// // RPC is also supported:
+/// from_message!(Message::Rpc(String) -> usize);
+/// from_message!(Message::Rpc2(String, usize) -> (usize, usize));
+/// ```
+#[macro_export]
+macro_rules! from_message {
+    // Single field message.
+    ($name: ident :: $variant: ident ( $ty: ty )) => {
+        impl From<$ty> for $name {
+            fn from(msg: $ty) -> $name {
+                $name::$variant(msg)
+            }
+        }
+    };
+    // Single field RPC.
+    ($name: ident :: $variant: ident ( $ty: ty ) -> $return_ty: ty) => {
+        impl From<$crate::actor_ref::rpc::RpcMessage<$ty, $return_ty>> for $name {
+            fn from(msg: $crate::actor_ref::rpc::RpcMessage<$ty, $return_ty>) -> $name {
+                $name::$variant(msg)
+            }
+        }
+    };
+    // Multiple values RPC, for which we use the tuple format.
+    ($name: ident :: $variant: ident ( $( $ty: ty ),+ ) -> $return_ty: ty) => {
+        impl From<$crate::actor_ref::rpc::RpcMessage<( $( $ty ),+ ), $return_ty>> for $name {
+            fn from(msg: $crate::actor_ref::rpc::RpcMessage<( $( $ty ),+ ), $return_ty>) -> $name {
+                $name::$variant(msg)
+            }
+        }
+    };
+}
