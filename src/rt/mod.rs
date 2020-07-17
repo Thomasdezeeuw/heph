@@ -81,9 +81,8 @@ pub trait RuntimeAccess: access::Private {}
 impl<T> RuntimeAccess for T where T: access::Private {}
 
 pub(crate) mod access {
-    //! Module to make [`Private`] "public in private", allowing
-    //! [`RuntimeAccess`] to be public, but only implementable by types in this
-    //! crate.
+    //! Module to make `Private` "public in private", allowing [`RuntimeAccess`]
+    //! to be public, but only implementable by types in this crate.
     //!
     //! [`RuntimeAccess`]: super::RuntimeAccess
 
