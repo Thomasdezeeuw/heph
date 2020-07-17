@@ -61,6 +61,14 @@
 
 use serde::{Deserialize, Serialize};
 
+/// A start signal
+///
+/// Useful for example when you want to delay the start of an actor. This
+/// message has an optional id.
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
+#[repr(transparent)]
+pub struct Start<Id = ()>(pub Id);
+
 /// An acknowledgement.
 ///
 /// Useful for example when you want to know if a message was received. This
