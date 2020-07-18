@@ -307,6 +307,13 @@ impl<S> Runtime<S> {
         self.num_threads(num_cpus::get())
     }
 
+    /// Returns the number of worker threads to use.
+    ///
+    /// See [`Runtime::num_threads`].
+    pub fn get_threads(&self) -> usize {
+        self.threads
+    }
+
     /// Attempts to spawn a thread-safe actor.
     ///
     /// See [`RuntimeRef::try_spawn`].
