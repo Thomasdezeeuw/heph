@@ -496,6 +496,6 @@ where
 
 impl<M> fmt::Debug for ActorGroup<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("ActorGroup")
+        self.actor_refs.fmt(f)
     }
 }
