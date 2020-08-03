@@ -66,7 +66,6 @@
 //! the `test` module which adds testing facilities.
 
 #![feature(
-    box_into_raw_non_null,
     const_fn,
     const_raw_ptr_to_usize_cast,
     duration_zero,
