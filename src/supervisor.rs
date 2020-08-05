@@ -347,3 +347,194 @@ where
         );
     }
 }
+
+/// Helper macro to document type created in [`restart_supervisor`].
+#[macro_export]
+#[doc(hidden)]
+macro_rules! doc {
+    ($doc: expr, $( $tt: tt )*) => {
+        #[doc = $doc]
+        $($tt)*
+    };
+}
+
+// TODO: add additional data to log, e.g. `remote_addres={}`, to
+// `restart_supervisor`.
+
+/// Macro to create a supervisor that log the error and restarts the actor.
+///
+/// This creates a new type that implements the [`Supervisor`] trait. The macro
+/// accepts the following arguments:
+///
+/// * Visibility indicator (optional), defaults to private (i.e. no indicator).
+/// * Name of the supervisor type.
+/// * Name of the actor, used in logging.
+/// * Type of the arguments used to restart the actor. Multiple arguments must
+///   be in the tuple format (same as for the [`NewActor::Argument`] type).
+/// * Maximum number of restarts (optional), defaults to 5.
+/// * Maximum duration before the restart counter get reset (optional), defaults
+///   to 5 seconds.
+///
+/// The new type can be created using the `new` function, e.g.
+/// `MySupervisor::new(args)`, see the example below.
+///
+/// # Examples
+///
+/// The example below shows the simplest usage of the `restart_supervisor`
+/// macro. Example 7 restart_supervisor (in the example directory of the source
+/// code) has a more complete example.
+///
+/// ```
+/// use std::time::Duration;
+///
+/// use heph::restart_supervisor;
+///
+/// // Creates the `MySupervisor` type.
+/// restart_supervisor!(
+///     pub                     // Visibility indicator.
+///     MySupervisor,           // Name of the supervisor type.
+///     "my actor",             // Name of the actor.
+///     (bool, u32),            // Type of the arguments for the actor.
+///     2,                      // Maximum number of restarts.
+///     Duration::from_secs(30) // Maximum duration before the restart counter
+///                             // get reset, defaults to 5 seconds (optional).
+/// );
+///
+/// // Create a new supervisor.
+/// let supervisor = MySupervisor::new((true, 23));
+/// # drop(supervisor);
+/// ```
+#[macro_export]
+macro_rules! restart_supervisor {
+    (
+        $vis: vis
+        $supervisor_name: ident,
+        $actor_name: expr,
+        $args: ty
+        $(,)*
+    ) => {
+        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 3);
+    };
+    (
+        $vis: vis
+        $supervisor_name: ident,
+        $actor_name: expr,
+        $args: ty,
+        $max_restarts: expr
+        $(,)*
+    ) => {
+        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, $max_restarts, std::time::Duration::from_secs(5));
+    };
+    (
+        $vis: vis
+        $supervisor_name: ident,
+        $actor_name: expr,
+        $args: ty,
+        $max_restarts: expr,
+        $max_duration: expr
+        $(,)*
+    ) => {
+        $crate::doc!(
+            std::concat!(
+                "Supervisor for ", $actor_name, ".\n\n",
+                "Maximum number of restarts: `", stringify!($max_restarts), "`, ",
+                "within a duration of: `", stringify!($max_duration), "`.",
+            ),
+            #[derive(Debug)]
+            $vis struct $supervisor_name {
+                /// The number of restarts left.
+                restarts_left: usize,
+                /// Time of the last restart.
+                last_restart: Option<std::time::Instant>,
+                /// Arguments used to restart the actor.
+                args: $args,
+            }
+        );
+
+        impl $supervisor_name {
+            $crate::doc!(
+                std::concat!("Create a new `", stringify!($supervisor_name), "`."),
+                #[allow(dead_code)]
+                $vis fn new(args: $args) -> $supervisor_name {
+                    $supervisor_name {
+                        restarts_left: Self::MAX_RESTARTS,
+                        last_restart: None,
+                        args,
+                    }
+                }
+            );
+
+            /// Maximum number of restarts before the actor is stopped.
+            $vis const MAX_RESTARTS: usize = $max_restarts;
+
+            /// Maximum duration between errors to be considered of the same
+            /// cause. If `MAX_DURATION` has elapsed between errors the restart
+            /// counter gets reset to [`MAX_RESTARTS`].
+            ///
+            /// [`MAX_RESTARTS`]: Self::MAX_RESTARTS
+            $vis const MAX_DURATION: std::time::Duration = $max_duration;
+        }
+
+        impl<NA> $crate::supervisor::Supervisor<NA> for $supervisor_name
+        where
+            NA: $crate::NewActor<Argument = $args>,
+            NA::Error: std::fmt::Display,
+            <NA::Actor as $crate::Actor>::Error: std::fmt::Display,
+        {
+            fn decide(&mut self, err: <NA::Actor as $crate::Actor>::Error) -> $crate::SupervisorStrategy<NA::Argument> {
+                let now = std::time::Instant::now();
+                let last_restart = std::mem::replace(&mut self.last_restart, Some(now));
+
+                // If enough time has passed between the last restart and now we
+                // reset the `restarts_left` left counter.
+                if let Some(last_restart) = last_restart {
+                    let duration_since_last_crash = now - last_restart;
+                    if duration_since_last_crash > Self::MAX_DURATION {
+                        self.restarts_left = Self::MAX_RESTARTS;
+                    }
+                }
+
+                if self.restarts_left >= 1 {
+                    self.restarts_left -= 1;
+                    $crate::log::warn!(
+                        std::concat!($actor_name, " actor failed, restarting it ({}/{} restarts left): {}"),
+                        self.restarts_left, $max_restarts, err,
+                    );
+                    $crate::SupervisorStrategy::Restart(self.args.clone())
+                } else {
+                    $crate::log::warn!(
+                        std::concat!($actor_name, " actor failed, stopping it (no restarts left): {}"),
+                        err,
+                    );
+                    $crate::SupervisorStrategy::Stop
+                }
+            }
+
+            fn decide_on_restart_error(&mut self, err: NA::Error) -> $crate::SupervisorStrategy<NA::Argument> {
+                self.last_restart = Some(std::time::Instant::now());
+
+                if self.restarts_left >= 1 {
+                    self.restarts_left -= 1;
+                    $crate::log::warn!(
+                        std::concat!($actor_name, " actor failed to restart, trying again ({}/{} restarts left): {}"),
+                        self.restarts_left, $max_restarts, err,
+                    );
+                    $crate::SupervisorStrategy::Restart(self.args.clone())
+                } else {
+                    $crate::log::warn!(
+                        std::concat!($actor_name, " actor failed to restart, stopping it (no restarts left): {}"),
+                        err,
+                    );
+                    $crate::SupervisorStrategy::Stop
+                }
+            }
+
+            fn second_restart_error(&mut self, err: NA::Error) {
+                $crate::log::warn!(
+                    std::concat!($actor_name, " actor failed to restart a second time, stopping it: {}"),
+                    err,
+                );
+            }
+        }
+    };
+}
