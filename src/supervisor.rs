@@ -88,10 +88,6 @@
 //! }
 //! ```
 
-use std::fmt;
-
-use log::warn;
-
 use crate::actor::sync::SyncActor;
 use crate::actor::{Actor, NewActor};
 
@@ -265,86 +261,6 @@ where
     fn decide(&mut self, _: !) -> SupervisorStrategy<A::Argument> {
         // This can't be called.
         SupervisorStrategy::Stop
-    }
-}
-
-/// Supervisor attempts to restart the actor a number of times.
-#[derive(Debug)]
-pub struct RestartSupervisor<Arg> {
-    /// Name of the actor.
-    name: &'static str,
-    /// Argument used to restart the actor.
-    argument: Arg,
-    /// Number of times the actor can fail.
-    left: usize,
-}
-
-/// Default maximum number of fails before the actor is stopped.
-const DEFAULT_MAX_FAILS: usize = 3;
-
-impl<Arg> RestartSupervisor<Arg> {
-    /// Create a new `RestartSupervisor` with the name of the actor (used in
-    /// logging) and the argument used to restart the actor.
-    pub const fn new(name: &'static str, argument: Arg) -> RestartSupervisor<Arg> {
-        RestartSupervisor::with_max_tries(name, argument, DEFAULT_MAX_FAILS)
-    }
-
-    /// Create a new `RestartSupervisor` with the name of the actor (used in
-    /// logging), the argument used to restart the actor and a maximum number of
-    /// tries to restart the actor.
-    pub const fn with_max_tries(
-        name: &'static str,
-        argument: Arg,
-        max_tries: usize,
-    ) -> RestartSupervisor<Arg> {
-        RestartSupervisor {
-            name,
-            argument,
-            left: max_tries,
-        }
-    }
-}
-
-impl<NA, Arg> Supervisor<NA> for RestartSupervisor<Arg>
-where
-    NA: NewActor<Argument = Arg>,
-    NA::Error: fmt::Display,
-    <NA::Actor as Actor>::Error: fmt::Display,
-    Arg: Clone,
-{
-    fn decide(&mut self, err: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
-        if self.left == 0 {
-            warn!("{} actor failed, stopping it: error={}", self.name, err);
-            SupervisorStrategy::Stop
-        } else {
-            warn!("{} actor failed, restarting it: error={}", self.name, err);
-            self.left -= 1;
-            SupervisorStrategy::Restart(self.argument.clone())
-        }
-    }
-
-    fn decide_on_restart_error(&mut self, err: NA::Error) -> SupervisorStrategy<NA::Argument> {
-        if self.left == 0 {
-            warn!(
-                "{} actor failed to restart, stopping it: error={}",
-                self.name, err
-            );
-            SupervisorStrategy::Stop
-        } else {
-            warn!(
-                "{} actor failed to restart, restarting it: error={}",
-                self.name, err
-            );
-            self.left -= 1;
-            SupervisorStrategy::Restart(self.argument.clone())
-        }
-    }
-
-    fn second_restart_error(&mut self, err: NA::Error) {
-        warn!(
-            "{} actor failed to restart a second time, stopping it: error={}",
-            self.name, err
-        );
     }
 }
 

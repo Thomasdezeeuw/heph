@@ -30,14 +30,13 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use serde_json::de::SliceRead;
 
-use crate::actor;
 use crate::actor::context::ThreadSafe;
 use crate::actor::messages::Terminate;
 use crate::actor_ref::{ActorRef, RpcMessage, RpcResponse};
 use crate::net::udp::{Connected, UdpSocket};
 use crate::rt::options::{ActorOptions, Priority};
 use crate::rt::{Runtime, Signal};
-use crate::supervisor::RestartSupervisor;
+use crate::{actor, restart_supervisor};
 
 /// Type used for registering actors.
 type Registrations = HashMap<&'static str, UntypedActorRef>;
@@ -114,7 +113,7 @@ impl RemoteRegistry {
     ) -> ActorRef<RegistryMessage> {
         let registrations = Arc::new(self.registrations);
         let args = (address, registrations);
-        let supervisor = RestartSupervisor::new("relay_listener", args.clone());
+        let supervisor = ListenerSupervisor::new(args.clone());
         #[allow(trivial_casts)]
         let relay_listener = relay_listener as fn(_, _, _) -> _;
         let options = ActorOptions::default()
@@ -233,6 +232,13 @@ impl TryFrom<Signal> for RegistryMessage {
     }
 }
 
+restart_supervisor!(
+    ListenerSupervisor,
+    "relay listener",
+    (SocketAddr, Arc<Registrations>),
+    2
+);
+
 /// Actor that relays messages from peers to local actors.
 async fn relay_listener(
     mut ctx: actor::Context<RegistryMessage, ThreadSafe>,
@@ -331,7 +337,7 @@ pub struct RemoteActors {
 impl RemoteActors {
     /// Create a new connection to a remote node.
     pub fn connect(runtime: &mut Runtime, address: SocketAddr) -> RemoteActors {
-        let supervisor = RestartSupervisor::new("remote_actor_ref", address);
+        let supervisor = RelaySupervisor::new(address);
         #[allow(trivial_casts)]
         let msg_relay = msg_relay as fn(_, _) -> _;
         let options = ActorOptions::default()
@@ -414,6 +420,13 @@ where
         }
     }
 }
+
+restart_supervisor!(
+    RelaySupervisor,
+    "remote actor reference relay",
+    SocketAddr,
+    5
+);
 
 /// A conservative estimate for the maximum size of the data inside a UDP
 /// packet.
