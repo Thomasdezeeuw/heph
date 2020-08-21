@@ -5,7 +5,7 @@ use std::mem::size_of;
 
 use crossbeam_channel as channel;
 
-use crate::actor_ref::{ActorGroup, ActorRef};
+use crate::actor_ref::{ActorGroup, ActorRef, ActorRefKind};
 use crate::inbox::Inbox;
 use crate::rt::ProcessId;
 use crate::test;
@@ -127,6 +127,28 @@ fn mapped_actor_ref() {
 
     let actor_ref = ActorRef::from_inbox(inbox_ref);
     let mapped_actor_ref: ActorRef<Msg> = actor_ref.clone().map();
+    assert!(matches!(&mapped_actor_ref.kind, ActorRefKind::Mapped(_)));
+
+    actor_ref.send(M(1)).expect("unable to send message");
+    mapped_actor_ref
+        .send(Msg(2))
+        .expect("unable to send message");
+
+    assert_eq!(inbox.receive_next(), Some(M(1))); // Actor ref.
+    assert_eq!(inbox.receive_next(), Some(M(2))); // Mapped ref.
+    assert_eq!(inbox.receive_next(), None);
+}
+
+#[test]
+fn mapped_actor_ref_same_type() {
+    let pid = ProcessId(0);
+    let waker = test::new_waker(pid);
+    let (mut inbox, inbox_ref) = Inbox::<M>::new(waker);
+
+    let actor_ref = ActorRef::from_inbox(inbox_ref);
+    // Map using the same type (`M`), should result in the same actor_ref.
+    let mapped_actor_ref: ActorRef<M> = actor_ref.clone().map();
+    assert!(matches!(&mapped_actor_ref.kind, ActorRefKind::Node(_)));
 
     actor_ref.send(M(1)).expect("unable to send message");
     mapped_actor_ref
@@ -146,6 +168,7 @@ fn try_mapped_actor_ref() {
 
     let actor_ref = ActorRef::from_inbox(inbox_ref);
     let mapped_actor_ref: ActorRef<Msg2> = actor_ref.clone().try_map();
+    assert!(matches!(&mapped_actor_ref.kind, ActorRefKind::TryMapped(_)));
 
     actor_ref.send(M(1)).expect("unable to send message");
     mapped_actor_ref
@@ -154,6 +177,24 @@ fn try_mapped_actor_ref() {
 
     assert_eq!(inbox.receive_next(), Some(M(1))); // Actor ref.
     assert_eq!(inbox.receive_next(), Some(M(2 + 1))); // Try mapped ref.
+    assert_eq!(inbox.receive_next(), None);
+}
+
+#[test]
+fn try_mapped_actor_ref_same_type() {
+    let pid = ProcessId(0);
+    let waker = test::new_waker(pid);
+    let (mut inbox, inbox_ref) = Inbox::<M>::new(waker);
+
+    let actor_ref = ActorRef::from_inbox(inbox_ref);
+    let mapped_actor_ref: ActorRef<M> = actor_ref.clone().try_map();
+    assert!(matches!(&mapped_actor_ref.kind, ActorRefKind::Node(_)));
+
+    actor_ref.send(M(1)).expect("unable to send message");
+    mapped_actor_ref.send(M(2)).expect("unable to send message");
+
+    assert_eq!(inbox.receive_next(), Some(M(1))); // Actor ref.
+    assert_eq!(inbox.receive_next(), Some(M(2))); // Try mapped ref.
     assert_eq!(inbox.receive_next(), None);
 }
 

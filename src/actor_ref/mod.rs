@@ -103,6 +103,7 @@
 //! }
 //! ```
 
+use std::any::TypeId;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt;
@@ -258,9 +259,16 @@ impl<M> ActorRef<M> {
     where
         M: From<Msg>,
         Self: 'static,
+        ActorRef<Msg>: 'static,
     {
-        ActorRef {
-            kind: ActorRefKind::Mapped(Arc::new(self)),
+        if TypeId::of::<ActorRef<M>>() == TypeId::of::<ActorRef<Msg>>() {
+            // Safety: If `M` == `Msg`, then the following `transmute` is a
+            // no-op and thus safe.
+            unsafe { std::mem::transmute(self) }
+        } else {
+            ActorRef {
+                kind: ActorRefKind::Mapped(Arc::new(self)),
+            }
         }
     }
 
@@ -286,9 +294,16 @@ impl<M> ActorRef<M> {
     where
         M: TryFrom<Msg>,
         Self: 'static,
+        ActorRef<Msg>: 'static,
     {
-        ActorRef {
-            kind: ActorRefKind::TryMapped(Arc::new(self)),
+        if TypeId::of::<ActorRef<M>>() == TypeId::of::<ActorRef<Msg>>() {
+            // Safety: If `M` == `Msg`, then the following `transmute` is a
+            // no-op and thus safe.
+            unsafe { std::mem::transmute(self) }
+        } else {
+            ActorRef {
+                kind: ActorRefKind::TryMapped(Arc::new(self)),
+            }
         }
     }
 }
