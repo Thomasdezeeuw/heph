@@ -20,6 +20,7 @@
 use std::cell::RefCell;
 use std::cmp::max;
 use std::future::Future;
+use std::mem::size_of;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Arc;
@@ -241,4 +242,89 @@ pub fn set_message_loss(percent: u8) {
 pub(crate) fn should_lose_msg() -> bool {
     let loss = MSG_LOSS.load(Ordering::Relaxed);
     loss != 0 && rand::thread_rng().gen_range(0, 100) < loss
+}
+
+/// Returns the size of the actor.
+///
+/// When using asynchronous function for actors see [`size_of_actor_val`].
+pub const fn size_of_actor<NA>() -> usize
+where
+    NA: NewActor,
+{
+    size_of::<NA::Actor>()
+}
+
+/// Returns the size of the point-to actor.
+///
+/// # Examples
+///
+/// ```
+/// # #![feature(never_type)]
+/// #
+/// use heph::actor;
+/// use heph::test::size_of_actor_val;
+///
+/// async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+///     // Receive a message.
+///     let msg = ctx.receive_next().await;
+///     // Print the message.
+///     println!("got a message: {}", msg);
+///     // And we're done.
+///     Ok(())
+/// }
+///
+/// assert_eq!(size_of_actor_val(&(actor as fn(_) -> _)), 144);
+/// ```
+pub const fn size_of_actor_val<NA>(_new_actor: &NA) -> usize
+where
+    NA: NewActor,
+{
+    size_of_actor::<NA>()
+}
+
+#[test]
+fn test_size_of_actor() {
+    use crate::actor::context::ThreadLocal;
+
+    async fn actor1(_: actor::Context<!>) -> Result<(), !> {
+        Ok(())
+    }
+
+    struct NA;
+
+    impl NewActor for NA {
+        type Message = !;
+        type Argument = ();
+        type Actor = A;
+        type Error = !;
+        type Context = ThreadLocal;
+
+        fn new(
+            &mut self,
+            _: actor::Context<Self::Message, Self::Context>,
+            _: Self::Argument,
+        ) -> Result<Self::Actor, Self::Error> {
+            Ok(A)
+        }
+    }
+
+    struct A;
+
+    impl Actor for A {
+        type Error = !;
+        fn try_poll(
+            self: Pin<&mut Self>,
+            _: &mut task::Context<'_>,
+        ) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    assert_eq!(size_of::<actor::Context<!>>(), 64);
+    #[allow(trivial_casts)]
+    {
+        assert_eq!(size_of_actor_val(&(actor1 as fn(_) -> _)), 72);
+    }
+    assert_eq!(size_of_actor::<NA>(), 0);
+    assert_eq!(size_of_actor_val(&NA), 0);
 }
