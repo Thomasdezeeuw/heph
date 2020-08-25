@@ -31,11 +31,16 @@ use rand::Rng;
 
 use crate::actor::{self, context, Actor, NewActor};
 use crate::actor_ref::ActorRef;
-use crate::inbox::{Inbox, InboxRef};
+use crate::inbox::Inbox;
 use crate::rt::scheduler::Scheduler;
-use crate::rt::waker::{self, Waker, WakerId};
+use crate::rt::waker::{self, WakerId};
 use crate::rt::worker::RunningRuntime;
 use crate::rt::{self, ProcessId, RuntimeRef, SharedRuntimeInternal, Timers};
+
+#[cfg(test)]
+use crate::inbox::InboxRef;
+#[cfg(test)]
+use crate::rt::waker::Waker;
 
 lazy_static! {
     static ref COORDINATOR_ID: WakerId = {
@@ -209,6 +214,7 @@ where
 }
 
 /// Returns a new `Waker` for `pid`.
+#[cfg(test)]
 pub(crate) fn new_waker(pid: ProcessId) -> Waker {
     runtime().new_waker(pid)
 }
