@@ -264,18 +264,10 @@ where
     }
 }
 
-/// Helper macro to document type created in [`restart_supervisor`].
-#[macro_export]
-#[doc(hidden)]
-macro_rules! doc {
-    ($doc: expr, $( $tt: tt )*) => {
-        #[doc = $doc]
-        $($tt)*
-    };
-}
-
 // TODO: add additional data to log, e.g. `remote_addres={}`, to
 // `restart_supervisor`.
+//
+// TODO: better support tuple arguments in `new` function.
 
 /// Macro to create a supervisor that log the error and restarts the actor.
 ///
@@ -350,7 +342,7 @@ macro_rules! restart_supervisor {
         $max_duration: expr
         $(,)*
     ) => {
-        $crate::doc!(
+        $crate::__heph_doc!(
             std::concat!(
                 "Supervisor for ", $actor_name, ".\n\n",
                 "Maximum number of restarts: `", stringify!($max_restarts), "`, ",
@@ -368,7 +360,17 @@ macro_rules! restart_supervisor {
         );
 
         impl $supervisor_name {
-            $crate::doc!(
+            /// Maximum number of restarts before the actor is stopped.
+            $vis const MAX_RESTARTS: usize = $max_restarts;
+
+            /// Maximum duration between errors to be considered of the same
+            /// cause. If `MAX_DURATION` has elapsed between errors the restart
+            /// counter gets reset to [`MAX_RESTARTS`].
+            ///
+            /// [`MAX_RESTARTS`]: Self::MAX_RESTARTS
+            $vis const MAX_DURATION: std::time::Duration = $max_duration;
+
+            $crate::__heph_doc!(
                 std::concat!("Create a new `", stringify!($supervisor_name), "`."),
                 #[allow(dead_code)]
                 $vis fn new(args: $args) -> $supervisor_name {
@@ -379,16 +381,6 @@ macro_rules! restart_supervisor {
                     }
                 }
             );
-
-            /// Maximum number of restarts before the actor is stopped.
-            $vis const MAX_RESTARTS: usize = $max_restarts;
-
-            /// Maximum duration between errors to be considered of the same
-            /// cause. If `MAX_DURATION` has elapsed between errors the restart
-            /// counter gets reset to [`MAX_RESTARTS`].
-            ///
-            /// [`MAX_RESTARTS`]: Self::MAX_RESTARTS
-            $vis const MAX_DURATION: std::time::Duration = $max_duration;
         }
 
         impl<NA> $crate::supervisor::Supervisor<NA> for $supervisor_name
@@ -452,5 +444,15 @@ macro_rules! restart_supervisor {
                 );
             }
         }
+    };
+}
+
+/// Helper macro to document type created in [`restart_supervisor`].
+#[macro_export]
+#[doc(hidden)]
+macro_rules! __heph_doc {
+    ($doc: expr, $( $tt: tt )*) => {
+        #[doc = $doc]
+        $($tt)*
     };
 }
