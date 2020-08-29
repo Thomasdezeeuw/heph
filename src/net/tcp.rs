@@ -13,8 +13,10 @@
 
 use std::future::Future;
 use std::io::{self, IoSlice, IoSliceMut, Read, Write};
+use std::mem::size_of;
 use std::net::{Shutdown, SocketAddr};
 use std::ops::DerefMut;
+use std::os::unix::io::AsRawFd;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
@@ -25,6 +27,18 @@ use mio::{net, Interest};
 
 use crate::actor;
 use crate::rt::RuntimeAccess;
+
+// Used in the `server` module.
+macro_rules! syscall {
+    ($fn: ident ( $($arg: expr),* $(,)* ) ) => {{
+        let res = unsafe { libc::$fn($($arg, )*) };
+        if res == -1 {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(res)
+        }
+    }};
+}
 
 mod server;
 
@@ -411,6 +425,38 @@ impl TcpStream {
     /// Gets the value of the `TCP_NODELAY` option on this socket.
     pub fn nodelay(&mut self) -> io::Result<bool> {
         self.socket.nodelay()
+    }
+
+    /// Returns `true` if `SO_KEEPALIVE` is set.
+    pub fn keepalive(&self) -> io::Result<bool> {
+        // NOTE: this belongs in the socket2 crate.
+        let mut keepalive: libc::c_int = -1;
+        let mut keepalive_size = size_of::<libc::c_int>() as libc::socklen_t;
+        syscall!(getsockopt(
+            self.socket.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_KEEPALIVE,
+            &mut keepalive as *mut _ as *mut _,
+            &mut keepalive_size,
+        ))
+        .map(|_| {
+            debug_assert_eq!(keepalive_size as usize, size_of::<libc::c_int>());
+            !(keepalive == 0)
+        })
+    }
+
+    /// Enables or disables `SO_KEEPALIVE`.
+    pub fn set_keepalive(&self, enable: bool) -> io::Result<()> {
+        // NOTE: this belongs in the socket2 crate.
+        let enable = enable as libc::c_int;
+        syscall!(setsockopt(
+            self.socket.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_KEEPALIVE,
+            &enable as *const _ as *const _,
+            size_of::<libc::c_int>() as libc::socklen_t,
+        ))
+        .map(|_| ())
     }
 
     /// Receives data on the socket from the remote address to which it is

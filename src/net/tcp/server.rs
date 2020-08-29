@@ -88,17 +88,6 @@ fn new_listener(address: &SocketAddr) -> io::Result<TcpListener> {
     // Mio source, which I also wrote. Most of this code should live in the
     // `socket2` crate, once that is ready.
 
-    macro_rules! syscall {
-        ($fn: ident ( $($arg: expr),* $(,)* ) ) => {{
-            let res = unsafe { libc::$fn($($arg, )*) };
-            if res == -1 {
-                Err(std::io::Error::last_os_error())
-            } else {
-                Ok(res)
-            }
-        }};
-    }
-
     let domain = match address {
         SocketAddr::V4(..) => libc::AF_INET,
         SocketAddr::V6(..) => libc::AF_INET6,
