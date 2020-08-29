@@ -29,6 +29,7 @@ futures-core      = { version = "0.3.4", default-features = false }
 futures-io        = { version = "0.3.4", default-features = false, features = ["std"] }
 futures-util      = { version = "0.3.4", default-features = false }
 lazy_static       = { version = "1.4.0", default-features = false }
+libc              = { version = "0.2.76", default-features = false }
 log               = { version = "0.4.8", default-features = false }
 mio               = { version = "0.7.0", default-features = false, features = ["os-poll", "tcp", "udp"] }
 mio-pipe          = { version = "0.1.0", default-features = false }

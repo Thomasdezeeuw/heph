@@ -1,11 +1,13 @@
 use std::convert::TryFrom;
+use std::mem::{forget, size_of};
 use std::net::SocketAddr;
+use std::os::unix::io::{FromRawFd, RawFd};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
-use log::debug;
+use log::{debug, error};
 use mio::net::TcpListener;
 use mio::Interest;
 
@@ -32,10 +34,13 @@ pub struct ServerSetup<S, NA> {
 
 #[derive(Debug)]
 struct ServerSetupInner<S, NA> {
-    /// The underlying TCP listener, backed by Mio.
+    /// The underlying TCP listener.
     ///
-    /// NOTE: not registered with `mio::Poll`.
+    /// NOTE: This is never registered with any `mio::Poll` instance, it is just
+    /// used to return an error quickly if we can't create the socket.
     listener: TcpListener,
+    /// Address of the `listener`, used to create new sockets.
+    address: SocketAddr,
     /// Supervisor for all actors created by `NewActor`.
     supervisor: S,
     /// NewActor used to create an actor for each connection.
@@ -62,18 +67,7 @@ where
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let this = &*self.inner;
-        // FIXME: `try_clone` is removed in Mio v0.7-alpha.1, use `SO_REUSEPORT`
-        // instead, see https://github.com/tokio-rs/mio/pull/1068.
-        //let mut listener = this.listener.try_clone()?;
-
-        // FIXME: this is an ugly hack to clone the listener anyway.
-        use std::os::unix::io::{AsRawFd, FromRawFd};
-        let raw_fd = this.listener.as_raw_fd();
-        let net_listener = unsafe { std::net::TcpListener::from_raw_fd(raw_fd) };
-        let listener = net_listener.try_clone();
-        std::mem::forget(net_listener); // This is `this.listener`.
-        let mut listener = listener.map(TcpListener::from_std)?;
-
+        let mut listener = new_listener(&this.address)?;
         let token = ctx.pid().into();
         ctx.kind()
             .register(&mut listener, token, Interest::READABLE)?;
@@ -86,6 +80,114 @@ where
             options: this.options.clone(),
         })
     }
+}
+
+fn new_listener(address: &SocketAddr) -> io::Result<TcpListener> {
+    // Currently Mio doesn't provide a way to set socket options before binding,
+    // so we have to do that ourselves. The following is mostly copied from the
+    // Mio source, which I also wrote. Most of this code should live in the
+    // `socket2` crate, once that is ready.
+
+    macro_rules! syscall {
+        ($fn: ident ( $($arg: expr),* $(,)* ) ) => {{
+            let res = unsafe { libc::$fn($($arg, )*) };
+            if res == -1 {
+                Err(std::io::Error::last_os_error())
+            } else {
+                Ok(res)
+            }
+        }};
+    }
+
+    let domain = match address {
+        SocketAddr::V4(..) => libc::AF_INET,
+        SocketAddr::V6(..) => libc::AF_INET6,
+    };
+
+    #[cfg(any(target_os = "freebsd", target_os = "linux"))]
+    let socket_type = libc::SOCK_STREAM | libc::SOCK_NONBLOCK | libc::SOCK_CLOEXEC;
+    #[cfg(target_vendor = "apple")]
+    let socket_type = libc::SOCK_STREAM;
+
+    // Gives a warning for platforms without SOCK_NONBLOCK.
+    let socket = syscall!(socket(domain, socket_type, 0))?;
+
+    struct CloseFd {
+        fd: RawFd,
+    }
+    impl Drop for CloseFd {
+        fn drop(&mut self) {
+            if let Err(err) = syscall!(close(self.fd)) {
+                error!("error closing socket: {}", err);
+            }
+        }
+    }
+    let socket = CloseFd { fd: socket };
+
+    // For platforms that don't support flags in socket, we need to set the
+    // flags ourselves.
+    #[cfg(target_vendor = "apple")]
+    syscall!(fcntl(socket.fd, libc::F_SETFL, libc::O_NONBLOCK))
+        .and_then(|_| syscall!(fcntl(socket.fd, libc::F_SETFD, libc::FD_CLOEXEC)))
+        .map(|_| ())?;
+
+    // Mimick `libstd` and set `SO_NOSIGPIPE` on apple systems.
+    #[cfg(target_vendor = "apple")]
+    syscall!(setsockopt(
+        socket.fd,
+        libc::SOL_SOCKET,
+        libc::SO_NOSIGPIPE,
+        &1 as *const libc::c_int as *const libc::c_void,
+        size_of::<libc::c_int>() as libc::socklen_t
+    ))
+    .map(|_| ())?;
+
+    // Set `SO_REUSEADDR` (mirrors what libstd does).
+    syscall!(setsockopt(
+        socket.fd,
+        libc::SOL_SOCKET,
+        libc::SO_REUSEADDR,
+        &1 as *const libc::c_int as *const libc::c_void,
+        size_of::<libc::c_int>() as libc::socklen_t,
+    ))
+    .map(|_| ())?;
+
+    // Finally, the stuff we actually care about: setting `SO_REUSEPORT(_LB)`.
+    #[cfg(any(target_vendor = "apple", target_os = "linux"))]
+    let reuseport = libc::SO_REUSEPORT;
+    #[cfg(target_os = "freebsd")]
+    let reuseport = libc::SO_REUSEPORT_LB; // Improved load balancing.
+    syscall!(setsockopt(
+        socket.fd,
+        libc::SOL_SOCKET,
+        reuseport,
+        &1 as *const libc::c_int as *const libc::c_void,
+        size_of::<libc::c_int>() as libc::socklen_t,
+    ))
+    .map(|_| ())?;
+
+    fn socket_addr(addr: &SocketAddr) -> (*const libc::sockaddr, libc::socklen_t) {
+        use std::mem::size_of_val;
+
+        match addr {
+            SocketAddr::V4(ref addr) => (
+                addr as *const _ as *const libc::sockaddr,
+                size_of_val(addr) as libc::socklen_t,
+            ),
+            SocketAddr::V6(ref addr) => (
+                addr as *const _ as *const libc::sockaddr,
+                size_of_val(addr) as libc::socklen_t,
+            ),
+        }
+    }
+
+    let (raw_addr, raw_addr_length) = socket_addr(&address);
+    syscall!(bind(socket.fd, raw_addr, raw_addr_length)).map(|_| ())?;
+    syscall!(listen(socket.fd, 1024)).map(|_| ())?;
+
+    let fd = socket.fd;
+    forget(socket); // Don't close the file descriptor.
+    Ok(unsafe { TcpListener::from_raw_fd(fd) })
 }
 
 impl<S, NA> Clone for ServerSetup<S, NA> {
@@ -416,9 +518,10 @@ where
         new_actor: NA,
         options: ActorOptions,
     ) -> io::Result<ServerSetup<S, NA>> {
-        TcpListener::bind(address).map(|listener| ServerSetup {
+        new_listener(&address).map(|listener| ServerSetup {
             inner: Arc::new(ServerSetupInner {
                 listener,
+                address,
                 supervisor,
                 new_actor,
                 options,
