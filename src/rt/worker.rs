@@ -244,7 +244,9 @@ impl RunningRuntime {
                 let process = self.internal.shared.scheduler.try_steal();
                 if let Some(mut process) = process {
                     match process.as_mut().run(&mut runtime_ref) {
-                        ProcessResult::Complete => {}
+                        ProcessResult::Complete => {
+                            self.internal.shared.scheduler.complete(process);
+                        }
                         ProcessResult::Pending => {
                             self.internal.shared.scheduler.add_process(process);
                         }

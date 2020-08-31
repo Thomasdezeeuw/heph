@@ -4,6 +4,7 @@
 //!
 //! [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
 
+use std::collections::HashSet;
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -53,16 +54,20 @@ pub(super) type ProcessData = scheduler::ProcessData<dyn Process + Send + Sync>;
 //   resources cleaned up.
 
 /// The thread-safe scheduler, responsible for scheduling processes.
+#[derive(Debug)]
 pub(crate) struct Scheduler {
     shared: Arc<Shared>,
 }
 
 /// Internal of the `Scheduler`, shared with zero or more `WorkStealer`s.
+#[derive(Debug)]
 struct Shared {
     /// Processes that are ready to run.
     ready: RunQueue,
     /// Inactive processes that are not ready to run.
     inactive: Mutex<Inactive>,
+    /// Set of processes to mark ready
+    to_mark_ready: Mutex<HashSet<ProcessId>>,
 }
 
 impl Scheduler {
@@ -71,6 +76,7 @@ impl Scheduler {
         let shared = Arc::new(Shared {
             ready: RunQueue::empty(),
             inactive: Mutex::new(Inactive::empty()),
+            to_mark_ready: Mutex::new(HashSet::new()),
         });
         Scheduler { shared }
     }
@@ -82,8 +88,50 @@ impl Scheduler {
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub(in crate::rt) fn mark_ready(&mut self, pid: ProcessId) {
         trace!("marking process as ready: pid={}", pid);
-        if let Some(process) = self.shared.inactive.lock().remove(pid) {
-            self.shared.ready.add(process)
+        if !self.move_process_to_ready(pid) {
+            trace!(
+                "failed to mark process as ready, trying again later: pid={}",
+                pid
+            );
+            // We can't mark the process as ready. This can mean one of two
+            // things:
+            // 1) The process has already completed and is thus removed from the
+            //    scheduler.
+            // 2) The process is currently being run, but triggered an event on
+            //    the coordinator thread.
+            // In the second case we **must** still mark the process as ready
+            // because we don't know in which state the process is. It could be
+            // that the process has run, but hasn't yet been returned to the
+            // inactive list while we're trying to mark it as ready. If we would
+            // simple drop the event here (as we did previously) it would mean
+            // that the process missed a wake-up event, causing problems later
+            // on.
+            // To solve this we add the pid to the `to_mark_ready` list, which
+            // is used by `SchedulerRef::add_process` to mark the process as
+            // ready later on.
+            // Downside of this all is that if we hit case one we have an ever
+            // growing set...
+            {
+                let _ = self.shared.to_mark_ready.lock().insert(pid);
+            }
+
+            // It is possible that between the time we tried to move the process
+            // above and adding the pid to `to_mark_ready`, the process was
+            // added to the `inactive` queue. To not miss the event we try to
+            // move it again, ensuring the process is move here or once its
+            // added back again in `SchedulerRef::add_process`.
+            let _ = self.move_process_to_ready(pid);
+        }
+    }
+
+    /// Moves a process to the `RunQueue`, returns `true` if this succeeds,
+    /// false otherwise.
+    fn move_process_to_ready(&mut self, pid: ProcessId) -> bool {
+        if let Some(process) = { self.shared.inactive.lock().remove(pid) } {
+            self.shared.ready.add(process);
+            true
+        } else {
+            false
         }
     }
 
@@ -92,12 +140,6 @@ impl Scheduler {
         SchedulerRef {
             shared: self.shared.clone(),
         }
-    }
-}
-
-impl fmt::Debug for Scheduler {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Scheduler")
     }
 }
 
@@ -142,7 +184,26 @@ impl SchedulerRef {
     /// Add back a process that was previously removed via
     /// [`SchedulerRef::try_steal`].
     pub(in crate::rt) fn add_process(&self, process: Pin<Box<ProcessData>>) {
-        self.shared.inactive.lock().add(process)
+        let pid = process.as_ref().id();
+        // If the process received a wake-up event we'll mark it as ready.
+        if self.shared.to_mark_ready.lock().remove(&pid) {
+            trace!("adding back process as ready: pid={}", pid);
+            self.shared.ready.add(process);
+        } else {
+            trace!("adding back process as inactive: pid={}", pid);
+            self.shared.inactive.lock().add(process)
+        }
+    }
+
+    /// Mark the `process` as complete.
+    pub(in crate::rt) fn complete(&self, process: Pin<Box<ProcessData>>) {
+        let pid = process.as_ref().id();
+        trace!("removing process: pid={}", pid);
+        // Drop the process first, closing all file descriptors and thus
+        // de-registering any `event::Source`s from `mio::Poll`.
+        drop(process);
+        // Next remove any ready events for the process.
+        let _ = self.shared.to_mark_ready.lock().remove(&pid);
     }
 }
 
