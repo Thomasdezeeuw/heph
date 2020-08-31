@@ -89,10 +89,6 @@ impl Scheduler {
     pub(in crate::rt) fn mark_ready(&mut self, pid: ProcessId) {
         trace!("marking process as ready: pid={}", pid);
         if !self.move_process_to_ready(pid) {
-            trace!(
-                "failed to mark process as ready, trying again later: pid={}",
-                pid
-            );
             // We can't mark the process as ready. This can mean one of two
             // things:
             // 1) The process has already completed and is thus removed from the
@@ -120,7 +116,12 @@ impl Scheduler {
             // added to the `inactive` queue. To not miss the event we try to
             // move it again, ensuring the process is move here or once its
             // added back again in `SchedulerRef::add_process`.
-            let _ = self.move_process_to_ready(pid);
+            if !self.move_process_to_ready(pid) {
+                trace!(
+                    "failed to mark process as ready, trying again later: pid={}",
+                    pid
+                );
+            }
         }
     }
 
