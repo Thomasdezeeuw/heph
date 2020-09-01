@@ -24,7 +24,7 @@ pub(in crate::rt) use actor::ActorProcess;
 /// [`Runtime`]: crate::Runtime
 /// [`Scheduler`]: crate::rt::scheduler::Scheduler
 // public because it used in the `RuntimeAccess` trait.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Ord, PartialOrd)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[repr(transparent)]
 pub struct ProcessId(pub usize);
 
@@ -40,9 +40,15 @@ impl Into<Token> for ProcessId {
     }
 }
 
+impl fmt::Debug for ProcessId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
 impl fmt::Display for ProcessId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+        write!(f, "{:016x}", self.0)
     }
 }
 

@@ -22,9 +22,9 @@ fn pid() {
 
     assert!(ProcessId(0) < ProcessId(100));
 
-    assert_eq!(ProcessId(0).to_string(), "0");
-    assert_eq!(ProcessId(100).to_string(), "100");
-    assert_eq!(ProcessId(8000).to_string(), "8000");
+    assert_eq!(ProcessId(0).to_string(), "0000000000000000");
+    assert_eq!(ProcessId(100).to_string(), "0000000000000064");
+    assert_eq!(ProcessId(8000).to_string(), "0000000000001f40");
 }
 
 #[test]
