@@ -266,7 +266,6 @@ impl RunningRuntime {
                 } else if !self.internal.scheduler.borrow().has_process()
                     && !self.internal.shared.scheduler.has_process()
                 {
-                    // No processes left to run, so we're done.
                     debug!("no processes to run, stopping runtime");
                     return Ok(());
                 } else {
