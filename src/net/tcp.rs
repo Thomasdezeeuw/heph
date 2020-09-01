@@ -441,7 +441,7 @@ impl TcpStream {
         ))
         .map(|_| {
             debug_assert_eq!(keepalive_size as usize, size_of::<libc::c_int>());
-            !(keepalive == 0)
+            keepalive != 0
         })
     }
 
