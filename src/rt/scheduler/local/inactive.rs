@@ -8,9 +8,9 @@ use crate::rt::scheduler::local::ProcessData;
 use crate::rt::scheduler::ProcessId;
 
 /// Number of branches per level of the tree, must be a power of 2.
-const N_BRANCHES: usize = 4;
+const N_BRANCHES: usize = 16;
 /// Number of bits to shift per level.
-const LEVEL_SHIFT: usize = N_BRANCHES / 2;
+const LEVEL_SHIFT: usize = 4;
 /// Number of bits to mask per level.
 const LEVEL_MASK: usize = (1 << LEVEL_SHIFT) - 1;
 /// For alignment reasons the two least significant bits of a boxed
@@ -81,10 +81,22 @@ struct Branch {
 impl fmt::Debug for Branch {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_list()
-            .entry(&("00", &self.branches[0]))
-            .entry(&("01", &self.branches[1]))
-            .entry(&("10", &self.branches[2]))
-            .entry(&("11", &self.branches[3]))
+            .entry(&("0000", &self.branches[0]))
+            .entry(&("0001", &self.branches[1]))
+            .entry(&("0010", &self.branches[2]))
+            .entry(&("0011", &self.branches[3]))
+            .entry(&("0100", &self.branches[4]))
+            .entry(&("0101", &self.branches[5]))
+            .entry(&("0110", &self.branches[6]))
+            .entry(&("0111", &self.branches[7]))
+            .entry(&("1000", &self.branches[8]))
+            .entry(&("1001", &self.branches[9]))
+            .entry(&("1010", &self.branches[10]))
+            .entry(&("1011", &self.branches[11]))
+            .entry(&("1100", &self.branches[12]))
+            .entry(&("1101", &self.branches[13]))
+            .entry(&("1110", &self.branches[14]))
+            .entry(&("1111", &self.branches[15]))
             .finish()
     }
 }
@@ -93,7 +105,10 @@ impl Branch {
     /// Create an empty `Branch`.
     const fn empty() -> Branch {
         Branch {
-            branches: [None, None, None, None],
+            branches: [
+                None, None, None, None, None, None, None, None, None, None, None, None, None, None,
+                None, None,
+            ],
         }
     }
 
@@ -299,7 +314,10 @@ mod tests {
     use crate::rt::scheduler::Priority;
     use crate::rt::RuntimeRef;
 
-    use super::{Branch, Inactive, Pointer, ProcessData, POINTER_TAG_BITS, SKIP_BITS};
+    use super::{
+        Branch, Inactive, Pointer, ProcessData, LEVEL_SHIFT, N_BRANCHES, POINTER_TAG_BITS,
+        SKIP_BITS,
+    };
 
     struct TestProcess;
 
@@ -317,26 +335,35 @@ mod tests {
         })
     }
 
+    fn pow2(exp: usize) -> usize {
+        2usize.pow(exp as u32)
+    }
+
+    #[test]
+    fn constants() {
+        assert_eq!(pow2(LEVEL_SHIFT), N_BRANCHES);
+    }
+
     #[test]
     fn size_assertions() {
         assert_eq!(size_of::<Pin<Box<ProcessData>>>(), size_of::<usize>());
         assert_eq!(size_of::<Pin<Box<Branch>>>(), size_of::<usize>());
         assert_eq!(size_of::<Pointer>(), size_of::<usize>());
-        assert_eq!(size_of::<Branch>(), 4 * size_of::<usize>());
+        assert_eq!(size_of::<Branch>(), N_BRANCHES * size_of::<usize>());
     }
 
     #[test]
     fn process_data_alignment() {
         // Ensure that we don't skip any used bites and that the pointer tag
         // doesn't overwrite any pointer data.
-        assert!(align_of::<ProcessData>() >= 2usize.pow(max(SKIP_BITS, POINTER_TAG_BITS) as u32));
+        assert!(align_of::<ProcessData>() >= pow2(max(SKIP_BITS, POINTER_TAG_BITS)));
     }
 
     #[test]
     fn branch_alignment() {
         // Ensure that we don't skip any used bites and that the pointer tag
         // doesn't overwrite any pointer data.
-        assert!(align_of::<Branch>() >= 2usize.pow(max(SKIP_BITS, POINTER_TAG_BITS) as u32));
+        assert!(align_of::<Branch>() >= pow2(max(SKIP_BITS, POINTER_TAG_BITS)));
     }
 
     #[test]
