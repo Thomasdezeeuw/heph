@@ -16,16 +16,22 @@ fn main() -> Result<(), rt::Error> {
 
     // Just like with any actor reference we can send the actor a message.
     actor_ref <<= "Hello world".to_string();
+    // We need to drop the reference here to ensure the actor stops.
+    // The actor contains a `while` loop receiving messages (see the `actor`
+    // function), that only stops iterating once all actor reference to it are
+    // dropped or waits otherwise. If didn't manually dropped the reference here
+    // it would be dropped only after `runtime.start` returned below, when it
+    // goes out of scope. However that will never happen as the `actor` will
+    // wait until its dropped.
+    drop(actor_ref);
 
     // And now we start the runtime.
     runtime.start()
 }
 
 fn actor(mut ctx: SyncContext<String>, exit_msg: &'static str) -> Result<(), !> {
-    if let Ok(msg) = ctx.receive_next() {
+    while let Ok(msg) = ctx.receive_next() {
         println!("Got a message: {}", msg);
-    } else {
-        eprintln!("Receive no messages");
     }
     println!("{}", exit_msg);
     Ok(())
