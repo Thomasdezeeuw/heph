@@ -428,6 +428,11 @@ where
             .collect::<io::Result<Vec<Worker<S::Error>>>>()
             .map_err(Error::start_worker)?;
 
+        // Drop stuff we don't need anymore. For the setup function this is
+        // extra important if it contains e.g. actor references.
+        drop(self.setup);
+        drop(self.shared);
+
         self.coordinator
             .run(handles, self.sync_actors, self.signals)
     }
