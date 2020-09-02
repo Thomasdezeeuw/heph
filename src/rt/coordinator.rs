@@ -138,7 +138,7 @@ impl Coordinator {
                         .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?,
                     // We always check for waker events below.
                     WAKER => {}
-                    token if token.0 <= SYNC_WORKER_ID_START => {
+                    token if token.0 < SYNC_WORKER_ID_START => {
                         handle_worker_event(&mut workers, event)?
                     }
                     token if token.0 <= SYNC_WORKER_ID_END => {
@@ -179,7 +179,7 @@ impl Coordinator {
                 }
             }
 
-            if workers.is_empty() {
+            if workers.is_empty() && sync_workers.is_empty() {
                 return Ok(());
             }
         }
