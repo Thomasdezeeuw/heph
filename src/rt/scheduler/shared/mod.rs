@@ -154,7 +154,7 @@ impl SchedulerRef {
     /// Returns `true` if the schedule has any processes (in any state), `false`
     /// otherwise.
     pub(in crate::rt) fn has_process(&self) -> bool {
-        !self.shared.inactive.lock().has_process() || self.has_ready_process()
+        self.shared.inactive.lock().has_process() || self.has_ready_process()
     }
 
     /// Returns `true` if the schedule has any processes that are ready to run,

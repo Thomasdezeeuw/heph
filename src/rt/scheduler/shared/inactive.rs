@@ -50,7 +50,7 @@ impl Inactive {
 
     /// Returns `true` if the queue contains a process.
     pub(super) fn has_process(&self) -> bool {
-        self.length == 0
+        self.length != 0
     }
 
     /// Add a `process`.
