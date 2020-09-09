@@ -67,7 +67,7 @@ where
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let this = &*self.inner;
-        let mut listener = new_listener(&this.address)?;
+        let mut listener = new_listener(&this.address, 1024)?;
         let token = ctx.pid().into();
         ctx.kind()
             .register(&mut listener, token, Interest::READABLE)?;
@@ -82,7 +82,7 @@ where
     }
 }
 
-fn new_listener(address: &SocketAddr) -> io::Result<TcpListener> {
+fn new_listener(address: &SocketAddr, backlog: libc::c_int) -> io::Result<TcpListener> {
     // Currently Mio doesn't provide a way to set socket options before binding,
     // so we have to do that ourselves. The following is mostly copied from the
     // Mio source, which I also wrote. Most of this code should live in the
@@ -172,7 +172,7 @@ fn new_listener(address: &SocketAddr) -> io::Result<TcpListener> {
 
     let (raw_addr, raw_addr_length) = socket_addr(&address);
     syscall!(bind(socket.fd, raw_addr, raw_addr_length)).map(|_| ())?;
-    syscall!(listen(socket.fd, 1024)).map(|_| ())?;
+    syscall!(listen(socket.fd, backlog)).map(|_| ())?;
 
     let fd = socket.fd;
     forget(socket); // Don't close the file descriptor.
@@ -507,7 +507,18 @@ where
         new_actor: NA,
         options: ActorOptions,
     ) -> io::Result<ServerSetup<S, NA>> {
-        new_listener(&address).map(|listener| ServerSetup {
+        // We create a listener which don't actually use. However it gives a
+        // nicer user-experience to get an error up-front rather than $n errors
+        // later, where $n is the number of cpu cores when spawning a new server
+        // on each worker thread.
+        //
+        // Also note that we use a backlog of `0`, this is to avoid adding
+        // connections to the queue. But it's only a hint (per the POSIX spec),
+        // so most OSes actually completely ignore it.
+        //
+        // In any case any connections that get added to this sockets queue will
+        // be dropped (as they are never accepted).
+        new_listener(&address, 0).map(|listener| ServerSetup {
             inner: Arc::new(ServerSetupInner {
                 listener,
                 address,
@@ -542,16 +553,22 @@ where
         } = unsafe { self.get_unchecked_mut() };
 
         // See if we need to shutdown.
-        if ctx.try_receive_next().is_some() {
-            debug!("TCP server received shutdown message, stopping");
-            return Poll::Ready(Ok(()));
-        }
+        //
+        // We don't return immediately here because we're using `SO_REUSEPORT`,
+        // which on most OSes causes each listener (file descriptor) to have
+        // there own accept queue. This means that connections in *our* would be
+        // dropped if we would close the file descriptor immediately. So we
+        // first accept all pending connections and start actors for them. Note
+        // however that there is still a race condition between our last call to
+        // `accept` and the time the file descriptor is actually closed,
+        // currently we can't avoid this.
+        let should_stop = ctx.try_receive_next().is_some();
 
         // Next start accepting streams.
         loop {
             let (mut stream, addr) = match listener.accept() {
                 Ok(ok) => ok,
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break,
                 Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue, // Try again.
                 Err(err) => return Poll::Ready(Err(ServerError::Accept(err))),
             };
@@ -574,6 +591,13 @@ where
             if let Err(err) = res {
                 return Poll::Ready(Err(err.into()));
             }
+        }
+
+        if should_stop {
+            debug!("TCP server received shutdown message, stopping");
+            Poll::Ready(Ok(()))
+        } else {
+            Poll::Pending
         }
     }
 }
