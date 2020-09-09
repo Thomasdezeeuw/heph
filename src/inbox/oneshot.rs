@@ -137,7 +137,7 @@ impl<T> Receiver<T> {
             return Err(RecvError::Disconnected);
         }
 
-        unsafe { Ok(T::clone((&*shared.message.get()).get_ref())) }
+        unsafe { Ok(T::clone((&*shared.message.get()).assume_init_ref())) }
     }
 
     /// Attempts to reset the channel, returning a new sender for the channel.
