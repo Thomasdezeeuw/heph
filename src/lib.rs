@@ -16,9 +16,7 @@
 //! use inbox::RecvError;
 //!
 //! // Create a new small channel.
-//! let receiver_waker = /* Create a task::Waker for the receiver. */
-//! # futures_test::task::noop_waker();
-//! let (mut sender, mut receiver) = inbox::new_small(receiver_waker);
+//! let (mut sender, mut receiver) = inbox::new_small();
 //!
 //! let sender_handle = thread::spawn(move || {
 //!     if let Err(err) = sender.try_send("Hello world!".to_owned()) {
@@ -43,7 +41,15 @@
 //! receiver_handle.join().unwrap();
 //! ```
 
-#![feature(box_into_raw_non_null, maybe_uninit_extra, maybe_uninit_ref)]
+// FIXME: what do we do with SendValue Futures being pulled multiple times;
+// creating multiple waker in the list, or when it can send a value after adding
+// the waker. The Sender will wake the receiver, but the Future has already
+// complete, so any other SendValue Future will not be awoken even though there
+// is a slot available.
+
+// TODO: support larger channel, with more slots.
+
+#![feature(maybe_uninit_extra, maybe_uninit_ref, min_const_generics)]
 #![warn(
     missing_debug_implementations,
     missing_docs,
@@ -65,14 +71,14 @@ use std::sync::atomic::{fence, AtomicBool, AtomicPtr, AtomicUsize, Ordering};
 use std::task::{self, Poll};
 use std::{fmt, ptr};
 
+use parking_lot::{const_rwlock, RwLock, RwLockUpgradableReadGuard};
+
 #[cfg(test)]
 mod tests;
 
 /// Create a small bounded channel.
-///
-/// Requires a `task::Waker` to use for waking the `Receiver`.
-pub fn new_small<T>(receiver_waker: task::Waker) -> (Sender<T>, Receiver<T>) {
-    let channel = NonNull::from(Box::leak(Box::new(Channel::new(receiver_waker))));
+pub fn new_small<T>() -> (Sender<T>, Receiver<T>) {
+    let channel = NonNull::from(Box::leak(Box::new(Channel::new())));
     let send = Sender {
         channel: channel.clone(),
     };
@@ -85,18 +91,22 @@ const RECEIVER_ALIVE: usize = 1 << (size_of::<usize>() * 8 - 1);
 /// Bit mask to mark the manager as alive.
 const MANAGER_ALIVE: usize = 1 << (size_of::<usize>() * 8 - 2);
 
-// TODO: support a version with more slots.
 const LEN: usize = 8;
 
 // Bits to mark the status of a slot.
-const STATUS_BITS: usize = 2;
+const STATUS_BITS: usize = 2; // Number of bits used per slot.
 const STATUS_MASK: usize = (1 << STATUS_BITS) - 1;
 #[cfg(test)]
 const ALL_STATUSES_MASK: usize = (1 << (LEN * STATUS_BITS)) - 1;
+// The possible statuses of a slot.
 const EMPTY: usize = 0b00; // Slot is empty (initial state).
-const TAKEN: usize = 0b01; // A `Sender` acquired write access, currently writing.
-const FILLED: usize = 0b11; // A `Sender` wrote a value into the slot.
+const TAKEN: usize = 0b01; // `Sender` acquired write access, currently writing.
+const FILLED: usize = 0b11; // `Sender` wrote a value into the slot.
 const READING: usize = 0b10; // A `Receiver` is reading from the slot.
+
+// Status transitions.
+const MARK_TAKEN: usize = 0b01; // OR to go from EMPTY -> TAKEN.
+const MARK_FILLED: usize = 0b11; // OR to go from TAKEN -> FILLED.
 const MARK_READING: usize = 0b01; // XOR to go from FILLED -> READING.
 const MARK_EMPTIED: usize = 0b11; // ! AND to go from FILLED or READING -> EMPTY.
 
@@ -123,6 +133,14 @@ fn has_status(status: usize, slot: usize, expected: usize) -> bool {
 fn slot_status(status: usize, slot: usize) -> usize {
     debug_assert!(slot <= LEN);
     (status >> (STATUS_BITS * slot)) & STATUS_MASK
+}
+
+/// Creates a mask to transition `slot` using `transition`. `transition` must be
+/// one of the `MARK_*` constants.
+#[inline(always)]
+fn mark_slot(slot: usize, transition: usize) -> usize {
+    debug_assert!(slot <= LEN);
+    transition << (STATUS_BITS * slot)
 }
 
 /// Returns a string name for the `slot_status`.
@@ -181,6 +199,9 @@ impl<T> Sender<T> {
         }
 
         let channel = self.channel();
+        // NOTE: relaxed ordering here is ok because we acquire unique
+        // permission to write to the slot later before writing to it. Something
+        // we have to do no matter the ordering.
         let mut status: usize = channel.status.load(Ordering::Relaxed);
         let start = receiver_pos(status);
         for slot in (0..LEN).cycle().skip(start).take(LEN) {
@@ -199,25 +220,26 @@ impl<T> Sender<T> {
             // wrote TAKEN (01) or FILLED (11) we're not overwriting anything.
             // If a reader wrote READING (10) we won't use the slot and the
             // reader will overwrite it with EMPTY later. If we overwrite EMPTY
-            // (00) we can reuse the slot.
+            // (00) we can reuse the slot safely, but the message will be in a
+            // different order.
             status = channel
                 .status
-                .fetch_or(TAKEN << (STATUS_BITS * slot), Ordering::AcqRel);
+                .fetch_or(mark_slot(slot, MARK_TAKEN), Ordering::AcqRel);
             if !is_available(status, slot) {
                 // Another thread beat us to taking the slot.
                 continue;
             }
 
-            // Safety: we've acquired the slot above so we're ensured single
+            // Safety: we've acquired the slot above so we're ensured unique
             // access to the slot.
             unsafe {
                 let _ = (&mut *channel.slots[slot].get()).write(value);
             }
 
-            // Mark the slot as filled.
+            // Now we've writing to the slot we can mark it slot as filled.
             let old_status = channel
                 .status
-                .fetch_or(FILLED << (STATUS_BITS * slot), Ordering::AcqRel);
+                .fetch_or(mark_slot(slot, MARK_FILLED), Ordering::AcqRel);
             // Debug assertion to check the slot was in the TAKEN status.
             debug_assert!(has_status(old_status, slot, TAKEN));
 
@@ -319,7 +341,7 @@ impl<T> Unpin for Sender<T> {}
 
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
-        // If we're the only sender and if so wake the receiver.
+        // If we're the last sender being dropped wake the receiver.
         //
         // NOTE: there is a race condition between the `wake` and `fetch_sub`
         // below: in between those calls the receiver could run (after we
@@ -421,7 +443,7 @@ impl fmt::Display for RecvError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             RecvError::Empty => f.pad("channel is empty"),
-            RecvError::Disconnected => f.pad("channel is empty and no senders are connected"),
+            RecvError::Disconnected => f.pad("all senders are disconnected"),
         }
     }
 }
@@ -432,40 +454,39 @@ impl<T> Receiver<T> {
     /// Attempts to receive a value from this channel.
     pub fn try_recv(&mut self) -> Result<T, RecvError> {
         let channel = self.channel();
-        // Since we have substract from the `status` this will overflow at some
+        // Since we substract from the `status` this will overflow at some
         // point. But `fetch_add` wraps-around on overflow, so the position will
         // "reset" itself to 0. The status bits will not be touched (even on
         // wrap-around).
-        let mut status: usize = channel.status.fetch_add(MARK_NEXT_POS, Ordering::AcqRel);
+        let mut status = channel.status.fetch_add(MARK_NEXT_POS, Ordering::AcqRel);
         let start = receiver_pos(status);
         for slot in (0..LEN).cycle().skip(start).take(LEN) {
             if !is_filled(status, slot) {
                 continue;
             }
 
-            // Mark the slot as being read, see the `fetch_or` call in
-            // `Sender::send` for
+            // Mark the slot as being read.
             status = channel
                 .status
-                .fetch_xor(MARK_READING << (STATUS_BITS * slot), Ordering::AcqRel);
+                .fetch_xor(mark_slot(slot, MARK_READING), Ordering::AcqRel);
             if !is_filled(status, slot) {
                 // Slot isn't available after all.
                 continue;
             }
 
-            // Safety: we've acquired the slot above so we're ensured single
-            // access to the slot.
+            // Safety: we've acquired unique access the slot above and we're
+            // ensured the slot is filled.
             let value = unsafe { (&mut *channel.slots[slot].get()).read() };
 
-            // Mark the slot as EMPTY.
+            // Mark the slot as empty.
             let old_status = channel
                 .status
-                .fetch_and(!(MARK_EMPTIED << (STATUS_BITS * slot)), Ordering::AcqRel);
+                .fetch_and(!mark_slot(slot, MARK_EMPTIED), Ordering::AcqRel);
 
             // Debug assertion to check the slot was in the READING or FILLED
-            // status. The slot can be in the FILLED status if a sender tried to
-            // mark this slot as TAKEN (01) after we marked it as READING (10)
-            // (01 | 10 = 11 (FILLED)).
+            // status. The slot can be in the FILLED status if the sender tried
+            // to mark this slot as TAKEN (01) after we marked it as READING
+            // (10) (01 | 10 = 11 (FILLED)).
             debug_assert!(
                 has_status(old_status, slot, READING) || has_status(old_status, slot, FILLED)
             );
@@ -534,6 +555,28 @@ impl<T> Receiver<T> {
         self.channel().ref_count.load(Ordering::Relaxed) & MANAGER_ALIVE != 0
     }
 
+    /// Set the receiver waker to `waker`, if they are different.
+    fn set_waker(&mut self, waker: &task::Waker) {
+        let receiver_waker = self.channel().receiver_waker.upgradable_read();
+
+        if let Some(receiver_waker) = &*receiver_waker {
+            if receiver_waker.will_wake(waker) {
+                return;
+            }
+        }
+
+        let waker = Some(waker.clone());
+        let mut receiver_waker = RwLockUpgradableReadGuard::upgrade(receiver_waker);
+        *receiver_waker = waker;
+    }
+
+    /// Mark that the `Receiver` needs to be woken up.
+    fn need_receiver_wakeup(&self) {
+        self.channel()
+            .receiver_needs_wakeup
+            .store(true, Ordering::Relaxed);
+    }
+
     fn channel(&self) -> &Channel<T> {
         unsafe { self.channel.as_ref() }
     }
@@ -583,33 +626,21 @@ impl<'s, T> Future for RecvValue<'s, T> {
     type Output = Option<T>;
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
-        #[cfg(debug_assertions)]
-        {
-            assert!(
-                self.receiver
-                    .channel()
-                    .receiver_waker
-                    .will_wake(ctx.waker()),
-                "polling RecvValue with a different Waker then used in creating the channel"
-            );
-        }
-
         match self.receiver.try_recv() {
             Ok(value) => Poll::Ready(Some(value)),
             Err(RecvError::Empty) => {
-                // The channel is empty, we'll register ourselves as wanting to
-                // be woken once a value is added.
-                self.receiver.channel().need_receiver_wakeup();
+                // The channel is empty, we'll set the waker and register
+                // ourselves as wanting to be woken once a value is added.
+                self.receiver.set_waker(ctx.waker());
+                self.receiver.need_receiver_wakeup();
 
-                // But it could be the case that a sender sender send a value in
-                // the time between we last checked and we actually marked
-                // ourselves as needing a wake-up.
+                // But it could be the case that a sender send a value in the
+                // time between we last checked and we actually marked ourselves
+                // as needing a wake up, so we need to check again.
                 match self.receiver.try_recv() {
                     Ok(value) => Poll::Ready(Some(value)),
-                    Err(RecvError::Empty) => {
-                        // The `Sender` will wake us when a new message is send.
-                        Poll::Pending
-                    }
+                    // The `Sender` will wake us when a new message is send.
+                    Err(RecvError::Empty) => Poll::Pending,
                     Err(RecvError::Disconnected) => Poll::Ready(None),
                 }
             }
@@ -628,7 +659,9 @@ struct Channel<T> {
     /// This contains the status of the slots. Each status consists of
     /// [`STATUS_BITS`] bits to describe if the slot is taken or not.
     ///
-    /// TODO: expand doc.
+    /// The first `STATUS_BITS * LEN` bits are the statuses for the `slots`
+    /// field. The remaining bits are used by the `Sender` to indicate its
+    /// current reading position (modulo `LEN`).
     status: AtomicUsize,
     /// The slots in the channel, see `status` for what slots are used/unused.
     slots: [UnsafeCell<MaybeUninit<T>>; LEN],
@@ -638,10 +671,12 @@ struct Channel<T> {
     ref_count: AtomicUsize,
     /// This is a linked list of `task::Waker`.
     ///
-    /// If this is not null it must point to correct memory.
+    /// If this is not null it must point to valid memory.
     sender_waker_tail: AtomicPtr<LinkedList>,
     /// `task::Waker` to wake the `Receiver`.
-    receiver_waker: task::Waker,
+    receiver_waker: RwLock<Option<task::Waker>>,
+    /// `true` if `receiver_waker` needs to be awoken after sending a message,
+    /// see the `wake_receiver` method.
     receiver_needs_wakeup: AtomicBool,
 }
 
@@ -657,7 +692,8 @@ struct LinkedList {
 }
 
 impl<T> Channel<T> {
-    const fn new(receiver_waker: task::Waker) -> Channel<T> {
+    /// Marks a single [`Receiver`] and [`Sender`] as alive.
+    const fn new() -> Channel<T> {
         Channel {
             slots: [
                 UnsafeCell::new(MaybeUninit::uninit()),
@@ -672,15 +708,15 @@ impl<T> Channel<T> {
             status: AtomicUsize::new(0),
             ref_count: AtomicUsize::new(RECEIVER_ALIVE | 1),
             sender_waker_tail: AtomicPtr::new(ptr::null_mut()),
-            receiver_waker,
+            receiver_waker: const_rwlock(None),
             receiver_needs_wakeup: AtomicBool::new(false),
         }
     }
 
     /// Returns the next `task::Waker` to wake, if any.
     fn next_waker(&self) -> Option<task::Waker> {
-        // Relaxed is ok because if `SendValue` will try sending the value again
-        // after it adds its waker to the list.
+        // Safety: relaxed is ok because if `SendValue` will try sending the
+        // value again after it adds its waker to the list.
         let tail_ptr = self.sender_waker_tail.load(Ordering::Relaxed);
         if tail_ptr.is_null() {
             return None;
@@ -688,12 +724,12 @@ impl<T> Channel<T> {
 
         // The links may only be accessed by the `Receiver` after they're added
         // to the list by the `Sender`. Because of this we can safely use atomic
-        // `store` operations (with `Relaxed` ordering). However this is not
-        // true for the `Channel.sender_waker_tail` field, as the `Sender`s may
-        // write to the as well. We handle this case here using atomic
+        // `store` operations with `Relaxed` ordering. However this is not true
+        // for the `Channel.sender_waker_tail` field, as the `Sender`s may write
+        // to this as well. We handle this case here using atomic
         // `compare_exchange` and use the cheaper `store` operations in the loop
         // below once we have unique access.
-        let tail_prev_ptr: *mut LinkedList = unsafe { (&*tail_ptr).prev.load(Ordering::Relaxed) };
+        let tail_prev_ptr: *mut LinkedList = unsafe { (*tail_ptr).prev.load(Ordering::Relaxed) };
         if tail_prev_ptr.is_null() {
             // Only a single item in the list, overwrite
             // `Channel.sender_waker_tail`.
@@ -753,7 +789,7 @@ impl<T> Channel<T> {
             // Safety: we just create `link` above and so we're assured we have
             // unique access and the pointer is valid.
             unsafe {
-                *(&mut *link).prev.get_mut() = prev_ptr;
+                *(*link).prev.get_mut() = prev_ptr;
             }
             // Relaxed for failure is ok because on the next loop we use
             // `AcqRel` again.
@@ -772,11 +808,6 @@ impl<T> Channel<T> {
         }
     }
 
-    /// Mark that the `Receiver` needs to be woken up.
-    fn need_receiver_wakeup(&self) {
-        self.receiver_needs_wakeup.store(true, Ordering::Relaxed);
-    }
-
     /// Wake the `Receiver`.
     fn wake_receiver(&self) {
         if !self.receiver_needs_wakeup.load(Ordering::Relaxed) {
@@ -787,12 +818,14 @@ impl<T> Channel<T> {
         // Mark that we've woken the `Sender` and after actually wake the
         // `Sender`.
         if self.receiver_needs_wakeup.swap(false, Ordering::Relaxed) {
-            self.receiver_waker.wake_by_ref();
+            if let Some(receiver_waker) = &*self.receiver_waker.read() {
+                receiver_waker.wake_by_ref();
+            }
         }
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Channel<T> {
+impl<T> fmt::Debug for Channel<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let status = self.status.load(Ordering::Relaxed);
         let ref_count = self.ref_count.load(Ordering::Relaxed);
@@ -820,10 +853,14 @@ impl<T: fmt::Debug> fmt::Debug for Channel<T> {
 
 impl<T> Drop for Channel<T> {
     fn drop(&mut self) {
+        // Safety: we have unique access, per the mutable reference, so relaxed
+        // is fine.
         let status: usize = self.status.load(Ordering::Relaxed);
         for slot in 0..LEN {
             if is_filled(status, slot) {
-                unsafe { drop((&mut *self.slots[slot].get()).read()) };
+                // Safety: we have unique access to the slot and it's properly
+                // aligned.
+                unsafe { ptr::drop_in_place((&mut *self.slots[slot].get()).as_mut_ptr()) };
             }
         }
     }
@@ -832,11 +869,11 @@ impl<T> Drop for Channel<T> {
 /// Manager of a channel.
 ///
 /// A channel manager can be used to create [`Sender`]s and [`Receiver`]s for a
-/// channel, without have access to either. Its made for the following use case:
-/// restarting an actor which takes ownership of the `Receiver` and crashes, and
-/// to restart the actor we need another `Receiver`. Using the manager a new
-/// `Receiver` can be created, ensuring only a single `Receiver` is alive at any
-/// given time.
+/// channel, without having access to either. Its made for the following use
+/// case: restarting an actor which takes ownership of the `Receiver` and
+/// crashes, and to restart the actor we need another `Receiver`. Using the
+/// manager a new `Receiver` can be created, ensuring only a single `Receiver`
+/// is alive at any given time.
 pub struct Manager<T> {
     channel: NonNull<Channel<T>>,
 }
@@ -858,8 +895,8 @@ impl<T> Manager<T> {
     /// Create a small bounded channel with a `Manager`.
     ///
     /// Same as [`new_small`] but with a `Manager`.
-    pub fn new_small_channel(receiver_waker: task::Waker) -> (Manager<T>, Sender<T>, Receiver<T>) {
-        let (sender, receiver) = new_small(receiver_waker);
+    pub fn new_small_channel() -> (Manager<T>, Sender<T>, Receiver<T>) {
+        let (sender, receiver) = new_small();
         let old_count = sender
             .channel()
             .ref_count
