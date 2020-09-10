@@ -1,7 +1,6 @@
 //! Tests internal API.
 
 use std::mem::size_of;
-use std::task;
 
 use crate::{
     has_status, receiver_pos, slot_status, ALL_STATUSES_MASK, EMPTY, FILLED, LEN, MARK_EMPTIED,
@@ -10,7 +9,8 @@ use crate::{
 
 #[test]
 fn size_assertions() {
-    assert_eq!(size_of::<task::Waker>(), size_of::<Option<task::Waker>>());
+    use crate::Channel;
+    assert_eq!(size_of::<Channel<()>>(), 56);
 }
 
 #[test]

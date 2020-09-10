@@ -13,7 +13,7 @@ include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
 edition       = "2018"
 
 [features]
-# Enables some tests that take long.
+# Enables some tests that take a long to run.
 stress_testing = []
 
 [dependencies]

@@ -49,7 +49,7 @@
 
 // TODO: support larger channel, with more slots.
 
-#![feature(maybe_uninit_extra, maybe_uninit_ref, min_const_generics)]
+#![feature(maybe_uninit_extra, maybe_uninit_ref)]
 #![warn(
     missing_debug_implementations,
     missing_docs,
@@ -64,6 +64,7 @@
 use std::cell::UnsafeCell;
 use std::error::Error;
 use std::future::Future;
+use std::marker::PhantomPinned;
 use std::mem::{size_of, MaybeUninit};
 use std::pin::Pin;
 use std::ptr::NonNull;
@@ -71,7 +72,7 @@ use std::sync::atomic::{fence, AtomicBool, AtomicPtr, AtomicUsize, Ordering};
 use std::task::{self, Poll};
 use std::{fmt, ptr};
 
-use parking_lot::{const_rwlock, RwLock, RwLockUpgradableReadGuard};
+use parking_lot::{const_rwlock, Mutex, RwLock, RwLockUpgradableReadGuard};
 
 #[cfg(test)]
 mod tests;
@@ -265,6 +266,8 @@ impl<T> Sender<T> {
         SendValue {
             sender: self,
             value: Some(value),
+            waker_node: UnsafeCell::new(None),
+            _unpin: PhantomPinned,
         }
     }
 
@@ -381,36 +384,87 @@ impl<T> Drop for Sender<T> {
 pub struct SendValue<'s, T> {
     sender: &'s mut Sender<T>,
     value: Option<T>,
+    /// This future's `task::Waker`, maybe registered in `Channel`s list.
+    ///
+    /// This is wrapped in an `UnsafeCell` because we don't always have unique
+    /// access to it. If the inside of the `UnsafeCell` is `None` it means the
+    /// waker was not yet registered (added to the `Channel`s linked list). If
+    /// this is the case we can safely modify it (as we have unique access).
+    /// However once it is `Some` it means it is added to the `Channel`s linked
+    /// list and thus we **don't** have unique access anymore.
+    ///
+    /// Safety: only `register_waker` may read/write to this field.
+    waker_node: UnsafeCell<Option<WakerList>>,
+    /// Once `waker_node` is added to the `Channel`s linked list it must be
+    /// pinned and can't move.
+    _unpin: PhantomPinned,
 }
 
-impl<'s, T> Future for SendValue<'s, T> {
+impl<'s, T: Unpin> SendValue<'s, T> {
+    /// Register `new_waker` with list in `Channel`.
+    fn register_waker(self: Pin<&Self>, new_waker: &task::Waker) {
+        if let Some(waker_node) = unsafe { (*self.waker_node.get()).as_ref() } {
+            // We've already registered, check if we already used the same
+            // waker.
+            let mut waker = waker_node.waker.lock();
+            match &mut *waker {
+                // Already registered the same waker.
+                Some(waker) if waker.will_wake(new_waker) => {}
+                _ => {
+                    *waker = Some(new_waker.clone());
+                }
+            }
+        } else {
+            // Haven't yet added ourselves to the list in `Channel`, so we'll do
+            // that now.
+            // Safety: because we haven't added ourselves to the list in
+            // `Channel` it means we have unique access and thus making this
+            // mutable reference safe.
+            let waker_node = unsafe { &mut *self.waker_node.get() };
+            *waker_node = Some(WakerList {
+                waker: Mutex::new(Some(new_waker.clone())),
+                next: AtomicPtr::new(ptr::null_mut()),
+            });
+            // Safety: just initialised it above, so `unwrap` is safe.
+            let waker_ref = waker_node.as_mut().unwrap();
+            // Then add our node the `Channel`s list.
+            self.sender.channel().add_waker(waker_ref);
+        }
+    }
+}
+
+impl<'s, T: Unpin> Future for SendValue<'s, T> {
     type Output = Result<(), T>;
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
-        let value = self
+        // Safety: only `waker_node` is pinned, which is only used by
+        // `register_waker`.
+        let this = unsafe { self.as_mut().get_unchecked_mut() };
+        let value = this
             .value
             .take()
             .expect("SendValue polled after completion");
 
         // First we try to send the value, if this succeeds we don't have to
         // allocate in the waker list.
-        match self.sender.try_send(value) {
+        match this.sender.try_send(value) {
             Ok(()) => Poll::Ready(Ok(())),
             Err(SendError::Full(value)) => {
                 // The channel is full, we'll register ourselves as wanting to
                 // be woken once a slot opens up.
-                self.sender.channel().add_waker(ctx.waker().clone());
+                // Safety: the caller ensures we're pinned.
+                unsafe { Pin::new_unchecked(&*this) }.register_waker(ctx.waker());
 
                 // But it could be the case that the received received a value
                 // in the time after we tried to send the value and before we
                 // added the our waker to list. So we try to send a value again
                 // to ensure we don't awoken and the channel has a slot
                 // available.
-                match self.sender.try_send(value) {
+                match this.sender.try_send(value) {
                     Ok(()) => Poll::Ready(Ok(())),
                     Err(SendError::Full(value)) => {
                         // Channel is still full, we'll have to wait.
-                        self.value = Some(value);
+                        this.value = Some(value);
                         Poll::Pending
                     }
                     Err(SendError::Disconnected(value)) => Poll::Ready(Err(value)),
@@ -421,7 +475,22 @@ impl<'s, T> Future for SendValue<'s, T> {
     }
 }
 
-impl<T> Unpin for SendValue<'_, T> {}
+impl<'s, T> Drop for SendValue<'s, T> {
+    fn drop(&mut self) {
+        if let Some(waker_node) = unsafe { (*self.waker_node.get()).as_ref() } {
+            // First remove the waker from `waker_node`, replacing it with
+            // `None`.
+            let mut waker = waker_node.waker.lock();
+            // Remove our `task::Waker`.
+            drop(waker.take());
+            // Release the lock.
+            drop(waker);
+
+            // Remove our waker from the list in `Channel`.
+            self.sender.channel().remove_waker(waker_node);
+        }
+    }
+}
 
 /// Receiving side of the channel.
 pub struct Receiver<T> {
@@ -672,7 +741,9 @@ struct Channel<T> {
     /// This is a linked list of `task::Waker`.
     ///
     /// If this is not null it must point to valid memory.
-    sender_waker_tail: AtomicPtr<LinkedList>,
+    ///
+    /// TODO: doc how wakers are added and removed.
+    sender_waker_head: AtomicPtr<WakerList>,
     /// `task::Waker` to wake the `Receiver`.
     receiver_waker: RwLock<Option<task::Waker>>,
     /// `true` if `receiver_waker` needs to be awoken after sending a message,
@@ -680,15 +751,12 @@ struct Channel<T> {
     receiver_needs_wakeup: AtomicBool,
 }
 
-/// Atomic linked list.
-///
-/// This list can only add items to the tail and remove them from the head. Only
-/// a single remover (the `Receiver`) is allowed.
-// TODO: reuse `LinkedList` allocations.
+/// Atomic linked list of `task::Waker`s.
 #[derive(Debug)]
-struct LinkedList {
-    waker: task::Waker,
-    prev: AtomicPtr<Self>,
+struct WakerList {
+    waker: Mutex<Option<task::Waker>>,
+    /// If this is null it must point to valid memory.
+    next: AtomicPtr<Self>,
 }
 
 impl<T> Channel<T> {
@@ -707,7 +775,7 @@ impl<T> Channel<T> {
             ],
             status: AtomicUsize::new(0),
             ref_count: AtomicUsize::new(RECEIVER_ALIVE | 1),
-            sender_waker_tail: AtomicPtr::new(ptr::null_mut()),
+            sender_waker_head: AtomicPtr::new(ptr::null_mut()),
             receiver_waker: const_rwlock(None),
             receiver_needs_wakeup: AtomicBool::new(false),
         }
@@ -715,95 +783,127 @@ impl<T> Channel<T> {
 
     /// Returns the next `task::Waker` to wake, if any.
     fn next_waker(&self) -> Option<task::Waker> {
-        // Safety: relaxed is ok because if `SendValue` will try sending the
-        // value again after it adds its waker to the list.
-        let tail_ptr = self.sender_waker_tail.load(Ordering::Relaxed);
-        if tail_ptr.is_null() {
-            return None;
-        }
+        loop {
+            let head_ptr = self.sender_waker_head.load(Ordering::Relaxed);
+            if head_ptr.is_null() {
+                return None;
+            }
 
-        // The links may only be accessed by the `Receiver` after they're added
-        // to the list by the `Sender`. Because of this we can safely use atomic
-        // `store` operations with `Relaxed` ordering. However this is not true
-        // for the `Channel.sender_waker_tail` field, as the `Sender`s may write
-        // to this as well. We handle this case here using atomic
-        // `compare_exchange` and use the cheaper `store` operations in the loop
-        // below once we have unique access.
-        let tail_prev_ptr: *mut LinkedList = unsafe { (*tail_ptr).prev.load(Ordering::Relaxed) };
-        if tail_prev_ptr.is_null() {
-            // Only a single item in the list, overwrite
-            // `Channel.sender_waker_tail`.
-            let res = self.sender_waker_tail.compare_exchange(
-                tail_ptr,
-                ptr::null_mut(),
+            // Safety: checked for null above.
+            let next_node: &WakerList = unsafe { &*head_ptr };
+            let next_ptr: *mut WakerList = next_node.next.load(Ordering::Relaxed);
+            let res = self.sender_waker_head.compare_exchange(
+                head_ptr,
+                next_ptr,
                 Ordering::AcqRel,
                 Ordering::Relaxed,
             );
             match res {
-                // Successfully removed the link from the list.
-                Ok(ptr) => {
-                    let link = unsafe { Box::from_raw(ptr) };
-                    return Some(link.waker);
-                }
-                // Failed update the pointer, this means there are now at least
-                // two links in the list, so we can continue below.
-                Err(..) => {}
-            }
-        }
+                Ok(..) => {
+                    // Safety: checked for null above.
+                    let waker = next_node.waker.lock().take();
 
-        // Safety: For pointers we checked above if they are null.
-        let mut parent: &LinkedList = unsafe { &*tail_ptr };
-        let mut link: &LinkedList = unsafe { &*tail_prev_ptr };
-        loop {
-            // `Relaxed` ordering is ok here as we have unique access.
-            let prev_ptr = link.prev.load(Ordering::Relaxed);
-            if prev_ptr.is_null() {
-                // Last link, so remove itself from the parent.
-                // A `Relaxed` store is ok here since we're the only once who
-                // have access to these links.
-                parent.prev.store(ptr::null_mut(), Ordering::Relaxed);
-                let link = unsafe { Box::from_raw(link as *const _ as *mut LinkedList) };
-                return Some(link.waker);
-            } else {
-                // Not the end of the list yet.
-                parent = link;
-                // Safety: checked above if its null.
-                link = unsafe { &*prev_ptr };
+                    // It could be that a `Receiver` added its waker in between
+                    // we loaded the `next_ptr` and stored it in
+                    // `sender_waker_head`. If this is the case add the waker
+                    // back into the list.
+                    let updated_next_ptr = next_node.next.swap(ptr::null_mut(), Ordering::AcqRel);
+                    if updated_next_ptr != next_ptr && !updated_next_ptr.is_null() {
+                        self.add_waker(updated_next_ptr);
+                    }
+
+                    return waker;
+                }
+                // Failed, so let's try again.
+                Err(..) => continue,
             }
         }
     }
 
-    /// Adds `waker` to the list of wakers to wake.
-    fn add_waker(&self, waker: task::Waker) {
-        // Create a new link.
-        let link = Box::into_raw(Box::new(LinkedList {
-            waker,
-            prev: AtomicPtr::new(ptr::null_mut()),
-        }));
-
-        // Relaxed is ok here because we use `AcqRel` in `compare_exchange`
-        // below to ensure the tail didn't change.
-        let mut prev_ptr = self.sender_waker_tail.load(Ordering::Relaxed);
+    /// Adds `node` to the list of wakers to wake.
+    fn add_waker(&self, node: *mut WakerList) {
+        let mut ptr: &AtomicPtr<WakerList> = &self.sender_waker_head;
         loop {
-            // Update the `prev` link to the current tail.
-            // Safety: we just create `link` above and so we're assured we have
-            // unique access and the pointer is valid.
-            unsafe {
-                *(*link).prev.get_mut() = prev_ptr;
+            // Safety: Relaxed is fine because we use `compare_exchange` below
+            // as the deciding point.
+            let next_ptr = ptr.load(Ordering::Relaxed);
+            if next_ptr.is_null() {
+                // No next link, try to put our node in that spot.
+                let res = ptr.compare_exchange(
+                    ptr::null_mut(),
+                    node,
+                    Ordering::AcqRel,
+                    Ordering::Relaxed,
+                );
+                match res {
+                    Ok(..) => return,
+                    Err(next_ptr) => {
+                        // Failed, another node already took the spot so we need
+                        // to try again.
+                        ptr = unsafe { &(*next_ptr).next };
+                    }
+                }
+            } else {
+                // Already taken, follow the next link.
+                ptr = unsafe { &(*next_ptr).next };
             }
-            // Relaxed for failure is ok because on the next loop we use
-            // `AcqRel` again.
-            let res = self.sender_waker_tail.compare_exchange(
-                prev_ptr,
-                link,
-                Ordering::AcqRel,
-                Ordering::Relaxed,
-            );
-            match res {
-                // Successfully stored our item in the list.
-                Ok(..) => return,
-                // Failed update the pointer and try again.
-                Err(prev) => prev_ptr = prev,
+        }
+    }
+
+    /// Remove `node` from receiver waker list.
+    fn remove_waker(&self, node: *const WakerList) {
+        let node_ptr = node as *mut _;
+        let node: &WakerList = unsafe { &*node };
+
+        'main: loop {
+            let head_ptr = self.sender_waker_head.load(Ordering::Relaxed);
+            if head_ptr.is_null() {
+                // List is empty, then we're done quickly.
+                return;
+            } else if head_ptr == node_ptr {
+                // Next node is the node we're looking for. Link the next node
+                // (after `node`) to the previous node (`self.sender_waker_head`).
+                let next_ptr = node.next.load(Ordering::Relaxed);
+                let res = self.sender_waker_head.compare_exchange(
+                    node_ptr,
+                    next_ptr,
+                    Ordering::AcqRel,
+                    Ordering::Relaxed,
+                );
+                match res {
+                    // Successfully removed ourself.
+                    Ok(..) => return,
+                    // Failed to remove ourself, try again.
+                    Err(_) => break,
+                }
+            }
+
+            let mut parent: &WakerList = unsafe { &*head_ptr };
+            loop {
+                let link_ptr = parent.next.load(Ordering::Relaxed);
+                if link_ptr.is_null() {
+                    // End of the list, so the node isn't in it.
+                    return;
+                } else if link_ptr == node_ptr {
+                    // Next node is the node we're looking for. Link the next node
+                    // (after `node`) to the previous node (`parent`).
+                    let next_ptr = node.next.load(Ordering::Relaxed);
+                    let res = parent.next.compare_exchange(
+                        node_ptr,
+                        next_ptr,
+                        Ordering::AcqRel,
+                        Ordering::Relaxed,
+                    );
+                    match res {
+                        // Successfully removed ourself.
+                        Ok(..) => return,
+                        // Failed to remove ourself, try again.
+                        Err(_) => break 'main,
+                    }
+                } else {
+                    // Not in this spot, move to the next node.
+                    parent = unsafe { &*link_ptr };
+                }
             }
         }
     }

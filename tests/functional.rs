@@ -267,9 +267,17 @@ mod future {
 
     use futures_test::task::{new_count_waker, AwokenCount};
 
-    use inbox::{new_small, SendValue, Sender};
+    use inbox::{new_small, Sender};
 
     use super::LEN;
+
+    macro_rules! pin_stack {
+        ($fut: ident) => {
+            let mut $fut = $fut;
+            #[allow(unused_mut)]
+            let mut $fut = unsafe { Pin::new_unchecked(&mut $fut) };
+        };
+    }
 
     #[test]
     fn send_value() {
@@ -278,8 +286,8 @@ mod future {
         let (waker, count) = new_count_waker();
         let mut ctx = task::Context::from_waker(&waker);
 
-        let mut future = sender.send(10);
-        let mut future = Pin::new(&mut future);
+        let future = sender.send(10);
+        pin_stack!(future);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
         assert_eq!(count.get(), 0);
@@ -297,8 +305,8 @@ mod future {
         let (waker, count) = new_count_waker();
         let mut ctx = task::Context::from_waker(&waker);
 
-        let mut future = sender.send(LEN);
-        let mut future = Pin::new(&mut future);
+        let future = sender.send(LEN);
+        pin_stack!(future);
 
         // Channel should be full.
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
@@ -322,8 +330,8 @@ mod future {
         let mut ctx = task::Context::from_waker(&waker);
 
         for value in 0..LEN {
-            let mut future = sender.send(value);
-            let mut future = Pin::new(&mut future);
+            let future = sender.send(value);
+            pin_stack!(future);
 
             assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
             assert_eq!(count.get(), 0);
@@ -342,8 +350,8 @@ mod future {
         let mut ctx = task::Context::from_waker(&waker);
 
         for value in 0..LEN {
-            let mut future = sender.send(value);
-            let mut future = Pin::new(&mut future);
+            let future = sender.send(value);
+            pin_stack!(future);
 
             assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
             assert_eq!(count.get(), 0);
@@ -367,7 +375,7 @@ mod future {
         let mut senders = &mut *senders;
 
         // Create a number of `SendValue` futures.
-        let mut futures: Vec<(task::Waker, AwokenCount, SendValue<usize>)> = Vec::with_capacity(n);
+        let mut futures: Vec<(task::Waker, AwokenCount, _)> = Vec::with_capacity(n);
         for index in 0..n {
             let (waker, count) = new_count_waker();
             let mut ctx = task::Context::from_waker(&waker);
@@ -376,9 +384,9 @@ mod future {
             // sender in the vector at a time.
             let (head, tail) = senders.split_first_mut().unwrap();
             senders = tail;
-            let mut future = head.send(index + LEN);
+            let mut future = Box::pin(head.send(index + LEN));
 
-            assert_eq!(Pin::new(&mut future).poll(&mut ctx), Poll::Pending);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
             assert_eq!(count.get(), 0);
 
             futures.push((waker, count, future));
@@ -452,8 +460,8 @@ mod future {
 
         let mut ctx = task::Context::from_waker(&waker);
 
-        let mut future = receiver.recv();
-        let mut future = Pin::new(&mut future);
+        let future = receiver.recv();
+        pin_stack!(future);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
 
@@ -473,8 +481,8 @@ mod future {
 
         let mut ctx = task::Context::from_waker(&waker);
 
-        let mut future = receiver.recv();
-        let mut future = Pin::new(&mut future);
+        let future = receiver.recv();
+        pin_stack!(future);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
     }
@@ -487,8 +495,8 @@ mod future {
 
         let mut ctx = task::Context::from_waker(&waker);
 
-        let mut future = receiver.recv();
-        let mut future = Pin::new(&mut future);
+        let future = receiver.recv();
+        pin_stack!(future);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
         assert_eq!(count.get(), 0);
@@ -507,8 +515,8 @@ mod future {
 
         let mut ctx = task::Context::from_waker(&waker);
 
-        let mut future = receiver.recv();
-        let mut future = Pin::new(&mut future);
+        let future = receiver.recv();
+        pin_stack!(future);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
 
@@ -527,8 +535,8 @@ mod future {
 
         let mut ctx = task::Context::from_waker(&waker);
 
-        let mut future = receiver.recv();
-        let mut future = Pin::new(&mut future);
+        let future = receiver.recv();
+        pin_stack!(future);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
 
@@ -552,8 +560,8 @@ mod future {
 
         let mut ctx = task::Context::from_waker(&waker);
 
-        let mut future = receiver.recv();
-        let mut future = Pin::new(&mut future);
+        let future = receiver.recv();
+        pin_stack!(future);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
 
