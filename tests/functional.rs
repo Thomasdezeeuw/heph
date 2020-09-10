@@ -454,6 +454,32 @@ mod future {
     }
 
     #[test]
+    fn send_value_supports_polling_with_different_wakers() {
+        let (mut sender, mut receiver) = new_small::<usize>();
+
+        for _ in 0..LEN {
+            sender.try_send(123).unwrap();
+        }
+
+        let (waker1, count1) = new_count_waker();
+        let (waker2, count2) = new_count_waker();
+        let mut ctx1 = task::Context::from_waker(&waker1);
+        let mut ctx2 = task::Context::from_waker(&waker2);
+
+        let mut future = Box::pin(sender.send(10));
+        assert_eq!(future.as_mut().poll(&mut ctx1), Poll::Pending);
+        assert_eq!(future.as_mut().poll(&mut ctx2), Poll::Pending);
+
+        for _ in 0..LEN {
+            assert_eq!(receiver.try_recv().unwrap(), 123);
+        }
+        drop(receiver);
+
+        assert_eq!(count1.get(), 0);
+        assert_eq!(count2.get(), 1);
+    }
+
+    #[test]
     fn recv_value() {
         let (waker, count) = new_count_waker();
         let (mut sender, mut receiver) = new_small::<usize>();
@@ -570,6 +596,25 @@ mod future {
         assert_eq!(count.get(), 0);
         drop(sender2);
         assert_eq!(count.get(), 1);
+
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+    }
+
+    #[test]
+    fn recv_value_only_wake_if_polled() {
+        let (waker, count) = new_count_waker();
+
+        let (sender, mut receiver) = new_small::<usize>();
+
+        let mut ctx = task::Context::from_waker(&waker);
+
+        let future = receiver.recv();
+        pin_stack!(future);
+
+        drop(sender);
+        // `RecvValue` isn't polled yet, so we shouldn't receive a wake-up
+        // notification.
+        assert_eq!(count.get(), 0);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
     }

@@ -41,12 +41,6 @@
 //! receiver_handle.join().unwrap();
 //! ```
 
-// FIXME: what do we do with SendValue Futures being pulled multiple times;
-// creating multiple waker in the list, or when it can send a value after adding
-// the waker. The Sender will wake the receiver, but the Future has already
-// complete, so any other SendValue Future will not be awoken even though there
-// is a slot available.
-
 // TODO: support larger channel, with more slots.
 
 #![feature(maybe_uninit_extra, maybe_uninit_ref)]
@@ -80,11 +74,11 @@ mod tests;
 /// Create a small bounded channel.
 pub fn new_small<T>() -> (Sender<T>, Receiver<T>) {
     let channel = NonNull::from(Box::leak(Box::new(Channel::new())));
-    let send = Sender {
+    let sender = Sender {
         channel: channel.clone(),
     };
-    let recv = Receiver { channel };
-    (send, recv)
+    let receiver = Receiver { channel };
+    (sender, receiver)
 }
 
 /// Bit mask to mark the receiver as alive.
@@ -327,7 +321,7 @@ impl<T> Clone for Sender<T> {
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Sender<T> {
+impl<T> fmt::Debug for Sender<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Sender")
             .field("channel", self.channel())
@@ -741,8 +735,6 @@ struct Channel<T> {
     /// This is a linked list of `task::Waker`.
     ///
     /// If this is not null it must point to valid memory.
-    ///
-    /// TODO: doc how wakers are added and removed.
     sender_waker_head: AtomicPtr<WakerList>,
     /// `task::Waker` to wake the `Receiver`.
     receiver_waker: RwLock<Option<task::Waker>>,
@@ -812,6 +804,13 @@ impl<T> Channel<T> {
                         self.add_waker(updated_next_ptr);
                     }
 
+                    if waker.is_none() {
+                        // If the `SendValue` `Future` is in the process of
+                        // being dropped this will be `None`, so we need to wake
+                        // the next sender.
+                        continue;
+                    }
+
                     return waker;
                 }
                 // Failed, so let's try again.
@@ -821,6 +820,11 @@ impl<T> Channel<T> {
     }
 
     /// Adds `node` to the list of wakers to wake.
+    ///
+    /// # Safety
+    ///
+    /// `node` must be at a stable (pinned) address and must remain valid until
+    /// its removed from `Channel`, or `Channel` is dropped.
     fn add_waker(&self, node: *mut WakerList) {
         let mut ptr: &AtomicPtr<WakerList> = &self.sender_waker_head;
         loop {
@@ -838,8 +842,8 @@ impl<T> Channel<T> {
                 match res {
                     Ok(..) => return,
                     Err(next_ptr) => {
-                        // Failed, another node already took the spot so we need
-                        // to try again.
+                        // Failed, another node already took the spot, so we
+                        // need to try again.
                         ptr = unsafe { &(*next_ptr).next };
                     }
                 }
@@ -874,7 +878,7 @@ impl<T> Channel<T> {
                     // Successfully removed ourself.
                     Ok(..) => return,
                     // Failed to remove ourself, try again.
-                    Err(_) => break,
+                    Err(_) => continue,
                 }
             }
 
@@ -885,8 +889,8 @@ impl<T> Channel<T> {
                     // End of the list, so the node isn't in it.
                     return;
                 } else if link_ptr == node_ptr {
-                    // Next node is the node we're looking for. Link the next node
-                    // (after `node`) to the previous node (`parent`).
+                    // Next node is the node we're looking for. Link the next
+                    // node (after `node`) to the previous node (`parent`).
                     let next_ptr = node.next.load(Ordering::Relaxed);
                     let res = parent.next.compare_exchange(
                         node_ptr,
@@ -898,7 +902,7 @@ impl<T> Channel<T> {
                         // Successfully removed ourself.
                         Ok(..) => return,
                         // Failed to remove ourself, try again.
-                        Err(_) => break 'main,
+                        Err(_) => continue 'main,
                     }
                 } else {
                     // Not in this spot, move to the next node.
@@ -1047,7 +1051,7 @@ impl<T> Manager<T> {
     }
 }
 
-impl<T: fmt::Debug> fmt::Debug for Manager<T> {
+impl<T> fmt::Debug for Manager<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Manager")
             .field("channel", self.channel())
