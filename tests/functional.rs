@@ -1,5 +1,7 @@
 //! Functional tests.
 
+#![feature(once_cell)]
+
 use inbox::{new_small, Manager, Receiver, RecvError, SendError, Sender};
 
 mod util;

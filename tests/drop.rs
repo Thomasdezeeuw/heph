@@ -1,5 +1,7 @@
 //! Tests for memory deallocation.
 
+#![feature(once_cell)]
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::thread;
