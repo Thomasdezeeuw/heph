@@ -1,5 +1,11 @@
 //! Testing utilities.
 
+// Not all test files use all functions/macros.
+#![allow(unused_macros, dead_code)]
+
+// NOTE: keep in sync with the actual capacity.
+pub const SMALL_CAP: usize = 8;
+
 /// Start a number of threads and wait for them to finish.
 macro_rules! start_threads {
     ($( $thread: block $(,)* )+) => {{
@@ -18,10 +24,7 @@ macro_rules! start_threads {
                 Some(msg) => &*msg,
                 None => match err.downcast_ref::<&str>() {
                     Some(msg) => msg,
-                    None => {
-                        #[track_caller]
-                        panic!("thread failed with an unknown error");
-                    },
+                    None => "unkown error",
                 },
             };
             #[track_caller]
@@ -64,7 +67,6 @@ macro_rules! expect_send {
 }
 
 /// Loop until a value is received.
-#[allow(unused_macros)] // Not used by all tests modules.
 macro_rules! expect_recv {
     ($receiver: expr, $expected: expr) => {{
         r#loop! {

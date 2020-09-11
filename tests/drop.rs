@@ -9,8 +9,7 @@ use inbox::{new_small, Manager};
 #[macro_use]
 mod util;
 
-// NOTE: keep in sync with the actual length.
-const LEN: usize = 8;
+use util::SMALL_CAP;
 
 /// Message type used in drop tests to ensure we don't drop undefined memory.
 #[derive(Debug)]
@@ -181,7 +180,7 @@ fn send_single_value_with_manager() {
 #[test]
 fn full_channel_sr() {
     let (mut sender, receiver) = new_small();
-    let _checks: Vec<IsDropped> = (0..LEN)
+    let _checks: Vec<IsDropped> = (0..SMALL_CAP)
         .into_iter()
         .map(|_| {
             let (value, check) = DropTest::new();
@@ -196,7 +195,7 @@ fn full_channel_sr() {
 #[test]
 fn full_channel_rs() {
     let (mut sender, receiver) = new_small();
-    let _checks: Vec<IsDropped> = (0..LEN)
+    let _checks: Vec<IsDropped> = (0..SMALL_CAP)
         .into_iter()
         .map(|_| {
             let (value, check) = DropTest::new();
@@ -211,7 +210,7 @@ fn full_channel_rs() {
 #[test]
 fn full_channel_with_manager() {
     let (manager, mut sender, receiver) = Manager::new_small_channel();
-    let _checks: Vec<IsDropped> = (0..LEN)
+    let _checks: Vec<IsDropped> = (0..SMALL_CAP)
         .into_iter()
         .map(|_| {
             let (value, check) = DropTest::new();
@@ -227,7 +226,7 @@ fn full_channel_with_manager() {
 #[test]
 fn value_received_sr() {
     let (mut sender, mut receiver) = new_small();
-    let _checks: Vec<IsDropped> = (0..LEN)
+    let _checks: Vec<IsDropped> = (0..SMALL_CAP)
         .into_iter()
         .map(|_| {
             let (value, check) = DropTest::new();
@@ -244,7 +243,7 @@ fn value_received_sr() {
 #[test]
 fn value_received_rs() {
     let (mut sender, mut receiver) = new_small();
-    let _checks: Vec<IsDropped> = (0..LEN)
+    let _checks: Vec<IsDropped> = (0..SMALL_CAP)
         .into_iter()
         .map(|_| {
             let (value, check) = DropTest::new();
@@ -261,7 +260,7 @@ fn value_received_rs() {
 #[test]
 fn value_received_with_manager() {
     let (manager, mut sender, mut receiver) = Manager::new_small_channel();
-    let _checks: Vec<IsDropped> = (0..LEN)
+    let _checks: Vec<IsDropped> = (0..SMALL_CAP)
         .into_iter()
         .map(|_| {
             let (value, check) = DropTest::new();
@@ -282,7 +281,7 @@ mod threaded {
 
     use inbox::{new_small, Manager};
 
-    use super::{DropTest, NeverDrop, LEN};
+    use super::{DropTest, NeverDrop, SMALL_CAP};
 
     #[test]
     fn empty() {
@@ -396,7 +395,7 @@ mod threaded {
     #[test]
     fn full_channel() {
         let (mut sender, receiver) = new_small();
-        let (values, _checks) = DropTest::many(LEN);
+        let (values, _checks) = DropTest::many(SMALL_CAP);
 
         start_threads!(
             {
@@ -416,7 +415,7 @@ mod threaded {
     #[test]
     fn full_channel_with_manager() {
         let (manager, mut sender, receiver) = Manager::new_small_channel();
-        let (values, _checks) = DropTest::many(LEN);
+        let (values, _checks) = DropTest::many(SMALL_CAP);
 
         start_threads!(
             {
@@ -439,7 +438,7 @@ mod threaded {
     #[test]
     fn value_received() {
         let (mut sender, mut receiver) = new_small();
-        let (values, _checks) = DropTest::many(LEN);
+        let (values, _checks) = DropTest::many(SMALL_CAP);
 
         start_threads!(
             {
@@ -468,7 +467,7 @@ mod threaded {
     #[test]
     fn value_received_with_manager() {
         let (manager, mut sender, mut receiver) = Manager::new_small_channel();
-        let (values, _checks) = DropTest::many(LEN);
+        let (values, _checks) = DropTest::many(SMALL_CAP);
 
         start_threads!(
             {

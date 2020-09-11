@@ -2,7 +2,9 @@
 
 use inbox::{new_small, Manager, Receiver, RecvError, SendError, Sender};
 
-const LEN: usize = 8;
+mod util;
+
+use util::SMALL_CAP;
 
 fn assert_send<T: Send>() {}
 fn assert_sync<T: Sync>() {}
@@ -38,6 +40,13 @@ fn manager_is_sync() {
 }
 
 #[test]
+fn capacities_are_correct() {
+    let (sender, receiver) = new_small::<()>();
+    assert_eq!(sender.capacity(), SMALL_CAP);
+    assert_eq!(receiver.capacity(), SMALL_CAP);
+}
+
+#[test]
 fn sending_and_receiving_value() {
     let (mut sender, mut receiver) = new_small::<usize>();
     sender.try_send(123).unwrap();
@@ -60,21 +69,24 @@ fn receiving_from_disconnected_channel() {
 #[test]
 fn sending_into_full_channel() {
     let (mut sender, receiver) = new_small::<usize>();
-    for value in 0..LEN {
+    for value in 0..SMALL_CAP {
         sender.try_send(value).unwrap();
     }
-    assert_eq!(sender.try_send(LEN + 1), Err(SendError::Full(LEN + 1)));
+    assert_eq!(
+        sender.try_send(SMALL_CAP + 1),
+        Err(SendError::Full(SMALL_CAP + 1))
+    );
     drop(receiver);
 }
 
 #[test]
 fn send_len_values_send_then_recv() {
     let (mut sender, mut receiver) = new_small::<usize>();
-    for value in 0..LEN {
+    for value in 0..SMALL_CAP {
         sender.try_send(value).unwrap();
     }
-    assert!(sender.try_send(LEN + 1).is_err());
-    for value in 0..LEN {
+    assert!(sender.try_send(SMALL_CAP + 1).is_err());
+    for value in 0..SMALL_CAP {
         assert_eq!(receiver.try_recv().unwrap(), value);
     }
     assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Empty);
@@ -83,7 +95,7 @@ fn send_len_values_send_then_recv() {
 #[test]
 fn send_len_values_interleaved() {
     let (mut sender, mut receiver) = new_small::<usize>();
-    for value in 0..LEN {
+    for value in 0..SMALL_CAP {
         sender.try_send(value).unwrap();
         assert_eq!(receiver.try_recv().unwrap(), value);
     }
@@ -92,22 +104,22 @@ fn send_len_values_interleaved() {
 #[test]
 fn send_2_len_values_send_then_recv() {
     let (mut sender, mut receiver) = new_small::<usize>();
-    for value in 0..LEN {
+    for value in 0..SMALL_CAP {
         sender.try_send(value).unwrap();
     }
-    for value in 0..LEN {
+    for value in 0..SMALL_CAP {
         assert_eq!(receiver.try_recv().unwrap(), value);
-        sender.try_send(LEN + value).unwrap();
+        sender.try_send(SMALL_CAP + value).unwrap();
     }
-    for value in 0..LEN {
-        assert_eq!(receiver.try_recv().unwrap(), LEN + value);
+    for value in 0..SMALL_CAP {
+        assert_eq!(receiver.try_recv().unwrap(), SMALL_CAP + value);
     }
 }
 
 #[test]
 fn send_2_len_values_interleaved() {
     let (mut sender, mut receiver) = new_small::<usize>();
-    for value in 0..2 * LEN {
+    for value in 0..2 * SMALL_CAP {
         sender.try_send(value).unwrap();
         assert_eq!(receiver.try_recv().unwrap(), value);
     }
@@ -125,11 +137,11 @@ fn sender_disconnected_after_send() {
 #[test]
 fn sender_disconnected_after_send_len() {
     let (mut sender, mut receiver) = new_small::<usize>();
-    for value in 0..LEN {
+    for value in 0..SMALL_CAP {
         sender.try_send(value).unwrap();
     }
     drop(sender);
-    for value in 0..LEN {
+    for value in 0..SMALL_CAP {
         assert_eq!(receiver.try_recv().unwrap(), value);
     }
     assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Disconnected);
@@ -138,7 +150,7 @@ fn sender_disconnected_after_send_len() {
 #[test]
 fn sender_disconnected_after_send_2_len() {
     let (mut sender, mut receiver) = new_small::<usize>();
-    for value in 0..2 * LEN {
+    for value in 0..2 * SMALL_CAP {
         sender.try_send(value).unwrap();
         assert_eq!(receiver.try_recv().unwrap(), value);
     }
@@ -162,7 +174,7 @@ fn stress_sending_interleaved() {
 #[test]
 #[cfg_attr(not(feature = "stress_testing"), ignore)]
 fn stress_sending_fill() {
-    for n in 1..=(LEN - 1) {
+    for n in 1..=(SMALL_CAP - 1) {
         let (mut sender, mut receiver) = new_small::<usize>();
 
         for value in 0..(LARGE / n) {
@@ -269,7 +281,7 @@ mod future {
 
     use inbox::{new_small, Sender};
 
-    use super::LEN;
+    use super::SMALL_CAP;
 
     macro_rules! pin_stack {
         ($fut: ident) => {
@@ -298,14 +310,14 @@ mod future {
     fn send_value_full_channel() {
         let (mut sender, mut receiver) = new_small::<usize>();
         // Fill the channel.
-        for value in 0..LEN {
+        for value in 0..SMALL_CAP {
             sender.try_send(value).unwrap();
         }
 
         let (waker, count) = new_count_waker();
         let mut ctx = task::Context::from_waker(&waker);
 
-        let future = sender.send(LEN);
+        let future = sender.send(SMALL_CAP);
         pin_stack!(future);
 
         // Channel should be full.
@@ -317,7 +329,7 @@ mod future {
         assert_eq!(count.get(), 1);
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
 
-        for want in 1..LEN + 1 {
+        for want in 1..SMALL_CAP + 1 {
             assert_eq!(receiver.try_recv(), Ok(want));
         }
     }
@@ -329,7 +341,7 @@ mod future {
         let (waker, count) = new_count_waker();
         let mut ctx = task::Context::from_waker(&waker);
 
-        for value in 0..LEN {
+        for value in 0..SMALL_CAP {
             let future = sender.send(value);
             pin_stack!(future);
 
@@ -337,7 +349,7 @@ mod future {
             assert_eq!(count.get(), 0);
         }
 
-        for value in 0..LEN {
+        for value in 0..SMALL_CAP {
             assert_eq!(receiver.try_recv(), Ok(value));
         }
     }
@@ -349,7 +361,7 @@ mod future {
         let (waker, count) = new_count_waker();
         let mut ctx = task::Context::from_waker(&waker);
 
-        for value in 0..LEN {
+        for value in 0..SMALL_CAP {
             let future = sender.send(value);
             pin_stack!(future);
 
@@ -364,7 +376,7 @@ mod future {
     fn send_many_values_full_channel_test(n: usize) {
         let (mut sender, mut receiver) = new_small::<usize>();
         // Fill the channel.
-        for value in 0..LEN {
+        for value in 0..SMALL_CAP {
             sender.try_send(value).unwrap();
         }
 
@@ -384,7 +396,7 @@ mod future {
             // sender in the vector at a time.
             let (head, tail) = senders.split_first_mut().unwrap();
             senders = tail;
-            let mut future = Box::pin(head.send(index + LEN));
+            let mut future = Box::pin(head.send(index + SMALL_CAP));
 
             assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
             assert_eq!(count.get(), 0);
@@ -392,7 +404,7 @@ mod future {
             futures.push((waker, count, future));
         }
 
-        for value in 0..LEN {
+        for value in 0..SMALL_CAP {
             // Receiving a value should wake the correct future.
             assert_eq!(receiver.try_recv(), Ok(value));
             if value < n {
@@ -400,7 +412,7 @@ mod future {
             }
         }
 
-        for (waker, count, mut future) in futures.drain(..min(LEN, futures.len())) {
+        for (waker, count, mut future) in futures.drain(..min(SMALL_CAP, futures.len())) {
             assert_eq!(count.get(), 1);
 
             let mut ctx = task::Context::from_waker(&waker);
@@ -409,11 +421,11 @@ mod future {
         }
 
         while !futures.is_empty() {
-            for value in (0..futures.len()).take(LEN) {
-                assert_eq!(receiver.try_recv(), Ok(value + LEN));
+            for value in (0..futures.len()).take(SMALL_CAP) {
+                assert_eq!(receiver.try_recv(), Ok(value + SMALL_CAP));
             }
 
-            for (waker, count, mut future) in futures.drain(..min(LEN, futures.len())) {
+            for (waker, count, mut future) in futures.drain(..min(SMALL_CAP, futures.len())) {
                 assert_eq!(count.get(), 1);
 
                 let mut ctx = task::Context::from_waker(&waker);
@@ -445,19 +457,19 @@ mod future {
 
     #[test]
     fn send_many_values_full_channel_len_senders() {
-        send_many_values_full_channel_test(LEN);
+        send_many_values_full_channel_test(SMALL_CAP);
     }
 
     #[test]
     fn send_many_values_full_channel_many_senders() {
-        send_many_values_full_channel_test(2 * LEN);
+        send_many_values_full_channel_test(2 * SMALL_CAP);
     }
 
     #[test]
     fn send_value_supports_polling_with_different_wakers() {
         let (mut sender, mut receiver) = new_small::<usize>();
 
-        for _ in 0..LEN {
+        for _ in 0..SMALL_CAP {
             sender.try_send(123).unwrap();
         }
 
@@ -470,7 +482,7 @@ mod future {
         assert_eq!(future.as_mut().poll(&mut ctx1), Poll::Pending);
         assert_eq!(future.as_mut().poll(&mut ctx2), Poll::Pending);
 
-        for _ in 0..LEN {
+        for _ in 0..SMALL_CAP {
             assert_eq!(receiver.try_recv().unwrap(), 123);
         }
         drop(receiver);

@@ -11,8 +11,8 @@ use parking_lot::Mutex;
 
 use crate::{
     has_status, new_small, receiver_pos, slot_status, Channel, SendValue, WakerList,
-    ALL_STATUSES_MASK, EMPTY, FILLED, LEN, MARK_EMPTIED, MARK_NEXT_POS, MARK_READING, POS_BITS,
-    READING, TAKEN,
+    ALL_STATUSES_MASK, EMPTY, FILLED, MARK_EMPTIED, MARK_NEXT_POS, MARK_READING, POS_BITS, READING,
+    SMALL_CAP, TAKEN,
 };
 
 #[test]
@@ -27,7 +27,7 @@ fn assertions() {
     // correctly.
 
     // Enough bits for the statuses of the slots.
-    assert_eq!(2_usize.pow(POS_BITS as u32), LEN);
+    assert_eq!(2_usize.pow(POS_BITS as u32), SMALL_CAP);
 
     // Status are different.
     assert_ne!(EMPTY, TAKEN);
@@ -52,7 +52,7 @@ fn assertions() {
     const ORIGINAL_STATUS: usize = 0b1110010011100100;
     assert_eq!(
         (size_of::<usize>() * 8) - (ORIGINAL_STATUS.leading_zeros() as usize),
-        2 * LEN
+        2 * SMALL_CAP
     );
     let mut status: usize = ORIGINAL_STATUS.wrapping_sub(MARK_NEXT_POS);
     status = status.wrapping_add(MARK_NEXT_POS);
@@ -686,7 +686,7 @@ fn channel_remove_waker_null_pointer() {
 fn send_value_removes_waker_from_list_on_drop() {
     let (mut sender, mut receiver) = new_small::<usize>();
 
-    for _ in 0..LEN {
+    for _ in 0..SMALL_CAP {
         sender.try_send(123).unwrap();
     }
 
@@ -700,7 +700,7 @@ fn send_value_removes_waker_from_list_on_drop() {
     drop(future);
     assert!(receiver.channel().next_waker().is_none());
 
-    for _ in 0..LEN {
+    for _ in 0..SMALL_CAP {
         assert_eq!(receiver.try_recv().unwrap(), 123);
     }
     drop(receiver);
@@ -712,7 +712,7 @@ fn send_value_removes_waker_from_list_on_drop() {
 fn send_value_removes_waker_from_list_on_drop_polled_with_different_wakers() {
     let (mut sender, mut receiver) = new_small::<usize>();
 
-    for _ in 0..LEN {
+    for _ in 0..SMALL_CAP {
         sender.try_send(123).unwrap();
     }
 
@@ -729,7 +729,7 @@ fn send_value_removes_waker_from_list_on_drop_polled_with_different_wakers() {
     drop(future);
     assert!(receiver.channel().next_waker().is_none());
 
-    for _ in 0..LEN {
+    for _ in 0..SMALL_CAP {
         assert_eq!(receiver.try_recv().unwrap(), 123);
     }
     drop(receiver);

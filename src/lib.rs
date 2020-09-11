@@ -86,13 +86,14 @@ const RECEIVER_ALIVE: usize = 1 << (size_of::<usize>() * 8 - 1);
 /// Bit mask to mark the manager as alive.
 const MANAGER_ALIVE: usize = 1 << (size_of::<usize>() * 8 - 2);
 
-const LEN: usize = 8;
+/// The capacity of a small channel.
+const SMALL_CAP: usize = 8;
 
 // Bits to mark the status of a slot.
 const STATUS_BITS: usize = 2; // Number of bits used per slot.
 const STATUS_MASK: usize = (1 << STATUS_BITS) - 1;
 #[cfg(test)]
-const ALL_STATUSES_MASK: usize = (1 << (LEN * STATUS_BITS)) - 1;
+const ALL_STATUSES_MASK: usize = (1 << (SMALL_CAP * STATUS_BITS)) - 1;
 // The possible statuses of a slot.
 const EMPTY: usize = 0b00; // Slot is empty (initial state).
 const TAKEN: usize = 0b01; // `Sender` acquired write access, currently writing.
@@ -126,7 +127,7 @@ fn has_status(status: usize, slot: usize, expected: usize) -> bool {
 /// Returns the `STATUS_BITS` for `slot` in `status`.
 #[inline(always)]
 fn slot_status(status: usize, slot: usize) -> usize {
-    debug_assert!(slot <= LEN);
+    debug_assert!(slot <= SMALL_CAP);
     (status >> (STATUS_BITS * slot)) & STATUS_MASK
 }
 
@@ -134,7 +135,7 @@ fn slot_status(status: usize, slot: usize) -> usize {
 /// one of the `MARK_*` constants.
 #[inline(always)]
 fn mark_slot(slot: usize, transition: usize) -> usize {
-    debug_assert!(slot <= LEN);
+    debug_assert!(slot <= SMALL_CAP);
     transition << (STATUS_BITS * slot)
 }
 
@@ -150,14 +151,14 @@ fn dbg_status(slot_status: usize) -> &'static str {
 }
 
 // Bits to mark the position of the receiver.
-const POS_BITS: usize = 3; // Must be `2 ^ POS_BITS == LEN`.
+const POS_BITS: usize = 3; // Must be `2 ^ POS_BITS == SMALL_CAP`.
 const POS_MASK: usize = (1 << POS_BITS) - 1;
-const MARK_NEXT_POS: usize = 1 << (STATUS_BITS * LEN); // Add to increase position by 1.
+const MARK_NEXT_POS: usize = 1 << (STATUS_BITS * SMALL_CAP); // Add to increase position by 1.
 
-/// Returns the position of the receiver. Will be in 0..LEN range.
+/// Returns the position of the receiver. Will be in 0..SMALL_CAP range.
 #[inline(always)]
 fn receiver_pos(status: usize) -> usize {
-    status >> (STATUS_BITS * LEN) & POS_MASK
+    status >> (STATUS_BITS * SMALL_CAP) & POS_MASK
 }
 
 /// Sending side of the channel.
@@ -199,7 +200,7 @@ impl<T> Sender<T> {
         // we have to do no matter the ordering.
         let mut status: usize = channel.status.load(Ordering::Relaxed);
         let start = receiver_pos(status);
-        for slot in (0..LEN).cycle().skip(start).take(LEN) {
+        for slot in (0..SMALL_CAP).cycle().skip(start).take(SMALL_CAP) {
             if !is_available(status, slot) {
                 continue;
             }
@@ -263,6 +264,11 @@ impl<T> Sender<T> {
             waker_node: UnsafeCell::new(None),
             _unpin: PhantomPinned,
         }
+    }
+
+    /// Returns the capacity of the channel.
+    pub fn capacity(&self) -> usize {
+        SMALL_CAP
     }
 
     /// Returns `true` if the [`Receiver`] and the [`Manager`] are disconnected.
@@ -527,7 +533,7 @@ impl<T> Receiver<T> {
             // wrap-around).
             let mut status = channel.status.fetch_add(MARK_NEXT_POS, Ordering::AcqRel);
             let start = receiver_pos(status);
-            for slot in (0..LEN).cycle().skip(start).take(LEN) {
+            for slot in (0..SMALL_CAP).cycle().skip(start).take(SMALL_CAP) {
                 if !is_filled(status, slot) {
                     continue;
                 }
@@ -611,6 +617,11 @@ impl<T> Receiver<T> {
         Sender {
             channel: self.channel,
         }
+    }
+
+    /// Returns the capacity of the channel.
+    pub fn capacity(&self) -> usize {
+        SMALL_CAP
     }
 
     /// Returns `true` if all [`Sender`]s are disconnected.
@@ -738,12 +749,12 @@ struct Channel<T> {
     /// This contains the status of the slots. Each status consists of
     /// [`STATUS_BITS`] bits to describe if the slot is taken or not.
     ///
-    /// The first `STATUS_BITS * LEN` bits are the statuses for the `slots`
-    /// field. The remaining bits are used by the `Sender` to indicate its
-    /// current reading position (modulo `LEN`).
+    /// The first `STATUS_BITS * SMALL_CAP` bits are the statuses for the
+    /// `slots` field. The remaining bits are used by the `Sender` to indicate
+    /// its current reading position (modulo `SMALL_CAP`).
     status: AtomicUsize,
     /// The slots in the channel, see `status` for what slots are used/unused.
-    slots: [UnsafeCell<MaybeUninit<T>>; LEN],
+    slots: [UnsafeCell<MaybeUninit<T>>; SMALL_CAP],
     /// The number of senders alive. If the [`RECEIVER_ALIVE`] bit is set the
     /// [`Receiver`] is alive. If the [`MANAGER_ALIVE`] bit is the [`Manager`]
     /// is alive.
@@ -980,7 +991,7 @@ impl<T> Drop for Channel<T> {
         // Safety: we have unique access, per the mutable reference, so relaxed
         // is fine.
         let status: usize = self.status.load(Ordering::Relaxed);
-        for slot in 0..LEN {
+        for slot in 0..SMALL_CAP {
             if is_filled(status, slot) {
                 // Safety: we have unique access to the slot and it's properly
                 // aligned.
