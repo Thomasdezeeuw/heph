@@ -42,7 +42,7 @@ macro_rules! r#loop {
         for i in 0..1000 {
             $($arg)*
 
-            if i == 1000 {
+            if i >= 1000 {
                 panic!("too many iterations");
             }
         }

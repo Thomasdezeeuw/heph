@@ -8,22 +8,22 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
 jobs:
-  build:
+  test_debug:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - name: Install nightly compiler
-      run: rustup toolchain install nightly
-    - name: Set nightly compiler as default
-      run: rustup default nightly
-    - name: Rustc version
-      run: rustc -Vv
-    - name: Cargo version
-      run: cargo -V
+      run: .github/install.bash
     - name: Run tests
       run: cargo test --verbose
     - name: Run stress tests
       run: cargo test --verbose --features stress_testing
+  miri:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install nightly compiler
+      run: .github/install.bash
     - name: Add Miri
       run: rustup component add miri
     - name: Run tests in Miri
