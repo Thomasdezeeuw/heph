@@ -18,6 +18,16 @@ jobs:
       run: cargo test --verbose
     - name: Run stress tests
       run: cargo test --verbose --features stress_testing
+  test_release:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install nightly compiler
+      run: .github/install.bash
+    - name: Run tests
+      run: cargo test --verbose --release
+    - name: Run stress tests
+      run: cargo test --verbose --release --features stress_testing
   miri:
     runs-on: ubuntu-latest
     steps:
