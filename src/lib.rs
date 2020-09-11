@@ -524,69 +524,70 @@ impl<T> Receiver<T> {
     pub fn try_recv(&mut self) -> Result<T, RecvError> {
         let channel = self.channel();
 
-        // See the last `if` statement on why `second_try` and the loop.
-        let mut second_try = false;
-        loop {
-            // Since we substract from the `status` this will overflow at some
-            // point. But `fetch_add` wraps-around on overflow, so the position will
-            // "reset" itself to 0. The status bits will not be touched (even on
-            // wrap-around).
-            let mut status = channel.status.fetch_add(MARK_NEXT_POS, Ordering::AcqRel);
-            let start = receiver_pos(status);
-            for slot in (0..SMALL_CAP).cycle().skip(start).take(SMALL_CAP) {
-                if !is_filled(status, slot) {
-                    continue;
-                }
+        // We check if we are connected **before** checking for messages. This
+        // is important because there is a time between 1) the checking of the
+        // messages in the channel and 2) checking if we're connected (if we
+        // would do it in the last `if` statement of this method) in which the
+        // sender could send a message and be dropped.
+        // In this case, if we would check if we're connected after checking for
+        // messages, we would incorrectly return `RecvError::Disconnected` (all
+        // senders are dropped after all), however we would miss the last
+        // message send.
+        // Checking before hand causes us to return `RecvError::Empty`, which
+        // technically isn't correct either but it will cause the user to check
+        // again later. In `RecvValue` this is solved by calling `try_recv`
+        // after registering the task waker, ensuring no wake-up events are
+        // missed.
+        let is_connected = self.is_connected();
 
-                // Mark the slot as being read.
-                status = channel
-                    .status
-                    .fetch_xor(mark_slot(slot, MARK_READING), Ordering::AcqRel);
-                if !is_filled(status, slot) {
-                    // Slot isn't available after all.
-                    continue;
-                }
-
-                // Safety: we've acquired unique access the slot above and we're
-                // ensured the slot is filled.
-                let value = unsafe { (&mut *channel.slots[slot].get()).read() };
-
-                // Mark the slot as empty.
-                let old_status = channel
-                    .status
-                    .fetch_and(!mark_slot(slot, MARK_EMPTIED), Ordering::AcqRel);
-
-                // Debug assertion to check the slot was in the READING or FILLED
-                // status. The slot can be in the FILLED status if the sender tried
-                // to mark this slot as TAKEN (01) after we marked it as READING
-                // (10) (01 | 10 = 11 (FILLED)).
-                debug_assert!(
-                    has_status(old_status, slot, READING) || has_status(old_status, slot, FILLED)
-                );
-
-                if let Some(waker) = self.channel().next_waker() {
-                    waker.wake()
-                }
-
-                return Ok(value);
+        // Since we substract from the `status` this will overflow at some
+        // point. But `fetch_add` wraps-around on overflow, so the position will
+        // "reset" itself to 0. The status bits will not be touched (even on
+        // wrap-around).
+        let mut status = channel.status.fetch_add(MARK_NEXT_POS, Ordering::AcqRel);
+        let start = receiver_pos(status);
+        for slot in (0..SMALL_CAP).cycle().skip(start).take(SMALL_CAP) {
+            if !is_filled(status, slot) {
+                continue;
             }
 
-            if !self.is_connected() {
-                // In between the time we checked the channel for messages and
-                // the time we checked if any senders are connected it could be
-                // that a sender send a message and dropped itself. To ensure we
-                // don't miss that message we need try to receive a message a
-                // second time before returning `RecvError::Disconnected`.
-                if !second_try {
-                    second_try = true;
-                    // Try to receive a message again.
-                    continue;
-                } else {
-                    return Err(RecvError::Disconnected);
-                }
-            } else {
-                return Err(RecvError::Empty);
+            // Mark the slot as being read.
+            status = channel
+                .status
+                .fetch_xor(mark_slot(slot, MARK_READING), Ordering::AcqRel);
+            if !is_filled(status, slot) {
+                // Slot isn't available after all.
+                continue;
             }
+
+            // Safety: we've acquired unique access the slot above and we're
+            // ensured the slot is filled.
+            let value = unsafe { (&mut *channel.slots[slot].get()).read() };
+
+            // Mark the slot as empty.
+            let old_status = channel
+                .status
+                .fetch_and(!mark_slot(slot, MARK_EMPTIED), Ordering::AcqRel);
+
+            // Debug assertion to check the slot was in the READING or FILLED
+            // status. The slot can be in the FILLED status if the sender tried
+            // to mark this slot as TAKEN (01) after we marked it as READING
+            // (10) (01 | 10 = 11 (FILLED)).
+            debug_assert!(
+                has_status(old_status, slot, READING) || has_status(old_status, slot, FILLED)
+            );
+
+            if let Some(waker) = self.channel().next_waker() {
+                waker.wake()
+            }
+
+            return Ok(value);
+        }
+
+        if !is_connected {
+            Err(RecvError::Disconnected)
+        } else {
+            Err(RecvError::Empty)
         }
     }
 
