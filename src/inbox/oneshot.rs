@@ -109,7 +109,7 @@ impl<T> Receiver<T> {
             .status
             .store(RECEIVER_ALIVE | SENDER_ALIVE | EMPTY, Ordering::Relaxed);
 
-        let msg = unsafe { (&*shared.message.get()).read() };
+        let msg = unsafe { (&*shared.message.get()).assume_init_read() };
         Ok((
             msg,
             Sender {
