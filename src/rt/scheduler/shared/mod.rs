@@ -88,7 +88,7 @@ impl Scheduler {
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub(in crate::rt) fn mark_ready(&mut self, pid: ProcessId) {
         trace!("marking process as ready: pid={}", pid);
-        if !self.move_process_to_ready(pid) {
+        if !self.shared.move_process_to_ready(pid) {
             // We can't mark the process as ready. This can mean one of two
             // things:
             // 1) The process has already completed and is thus removed from the
@@ -96,8 +96,8 @@ impl Scheduler {
             // 2) The process is currently being run, but triggered an event on
             //    the coordinator thread.
             // In the second case we **must** still mark the process as ready
-            // because we don't know in which state the process is. It could be
-            // that the process has run, but hasn't yet been returned to the
+            // because we don't know in which state the process is in. It could
+            // be that the process has run, but hasn't yet been returned to the
             // inactive list while we're trying to mark it as ready. If we would
             // simple drop the event here (as we did previously) it would mean
             // that the process missed a wake-up event, causing problems later
@@ -116,23 +116,12 @@ impl Scheduler {
             // added to the `inactive` queue. To not miss the event we try to
             // move it again, ensuring the process is move here or once its
             // added back again in `SchedulerRef::add_process`.
-            if !self.move_process_to_ready(pid) {
+            if !self.shared.move_process_to_ready(pid) {
                 trace!(
                     "failed to mark process as ready, trying again later: pid={}",
                     pid
                 );
             }
-        }
-    }
-
-    /// Moves a process to the `RunQueue`, returns `true` if this succeeds,
-    /// false otherwise.
-    fn move_process_to_ready(&mut self, pid: ProcessId) -> bool {
-        if let Some(process) = { self.shared.inactive.lock().remove(pid) } {
-            self.shared.ready.add(process);
-            true
-        } else {
-            false
         }
     }
 
@@ -186,13 +175,17 @@ impl SchedulerRef {
     /// [`SchedulerRef::try_steal`].
     pub(in crate::rt) fn add_process(&self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
-        // If the process received a wake-up event we'll mark it as ready.
+
+        trace!("adding back process as inactive: pid={}", pid);
+        self.shared.inactive.lock().add(process);
+
+        // It could be in between the time between we've last checked if the
+        // process was to marked ready and we adding it to the inactive
+        // queue above, the process was added to the to mark ready list. To
+        // avoid missing any wake-ups we need to check again.
         if self.shared.to_mark_ready.lock().remove(&pid) {
-            trace!("adding back process as ready: pid={}", pid);
-            self.shared.ready.add(process);
-        } else {
-            trace!("adding back process as inactive: pid={}", pid);
-            self.shared.inactive.lock().add(process)
+            trace!("marking process as ready: pid={}", pid);
+            let _ = self.shared.move_process_to_ready(pid);
         }
     }
 
@@ -205,6 +198,19 @@ impl SchedulerRef {
         drop(process);
         // Next remove any ready events for the process.
         let _ = self.shared.to_mark_ready.lock().remove(&pid);
+    }
+}
+
+impl Shared {
+    /// Moves the process with `pid` from the inactive list to the `RunQueue`,
+    /// returns `true` if this succeeds, false otherwise.
+    fn move_process_to_ready(&self, pid: ProcessId) -> bool {
+        if let Some(process) = { self.inactive.lock().remove(pid) } {
+            self.ready.add(process);
+            true
+        } else {
+            false
+        }
     }
 }
 
