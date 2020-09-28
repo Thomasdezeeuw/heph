@@ -48,7 +48,7 @@ impl fmt::Debug for ProcessId {
 
 impl fmt::Display for ProcessId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:016x}", self.0)
+        write!(f, "{}", self.0)
     }
 }
 
