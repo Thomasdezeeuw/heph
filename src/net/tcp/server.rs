@@ -49,6 +49,13 @@ struct ServerSetupInner<S, NA> {
     options: ActorOptions,
 }
 
+impl<S, NA> ServerSetup<S, NA> {
+    /// Returns the address this server is bound to.
+    pub fn local_addr(&self) -> SocketAddr {
+        self.inner.address
+    }
+}
+
 impl<S, NA, K> NewActor for ServerSetup<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
@@ -172,7 +179,9 @@ fn new_listener(address: &SocketAddr, backlog: libc::c_int) -> io::Result<TcpLis
 
     let (raw_addr, raw_addr_length) = socket_addr(&address);
     syscall!(bind(socket.fd, raw_addr, raw_addr_length)).map(|_| ())?;
-    syscall!(listen(socket.fd, backlog)).map(|_| ())?;
+    if backlog != 0 {
+        syscall!(listen(socket.fd, backlog)).map(|_| ())?;
+    }
 
     let fd = socket.fd;
     forget(socket); // Don't close the file descriptor.
@@ -502,7 +511,7 @@ where
     ///   and
     /// * `options`: the actor options used to spawn the new actors.
     pub fn setup(
-        address: SocketAddr,
+        mut address: SocketAddr,
         supervisor: S,
         new_actor: NA,
         options: ActorOptions,
@@ -512,20 +521,25 @@ where
         // later, where $n is the number of cpu cores when spawning a new server
         // on each worker thread.
         //
-        // Also note that we use a backlog of `0`, this is to avoid adding
-        // connections to the queue. But it's only a hint (per the POSIX spec),
-        // so most OSes actually completely ignore it.
-        //
-        // In any case any connections that get added to this sockets queue will
-        // be dropped (as they are never accepted).
-        new_listener(&address, 0).map(|listener| ServerSetup {
-            inner: Arc::new(ServerSetupInner {
-                listener,
-                address,
-                supervisor,
-                new_actor,
-                options,
-            }),
+        // Also note that we use a backlog of `0`, which causes `new_listener`
+        // to never call `listen(2)` on the socket.
+        new_listener(&address, 0).and_then(|listener| {
+            // Using a port of 0 means the OS can select one for us. However
+            // we still consistently want to use the same port instead of
+            // binding to a number of random ports.
+            if address.port() == 0 {
+                address = listener.local_addr()?;
+            }
+
+            Ok(ServerSetup {
+                inner: Arc::new(ServerSetupInner {
+                    listener,
+                    address,
+                    supervisor,
+                    new_actor,
+                    options,
+                }),
+            })
         })
     }
 }

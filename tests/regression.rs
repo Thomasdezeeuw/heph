@@ -5,5 +5,6 @@
 #![feature(never_type)]
 
 mod regression {
+    mod issue_145;
     mod issue_294;
 }
