@@ -501,7 +501,7 @@ impl<'a> Future for Peek<'a> {
             ref mut stream,
             ref mut buf,
         } = self.deref_mut();
-        try_io!(stream.socket.peek(buf), NotConnected => break Poll::Pending)
+        try_io!(stream.socket.peek(buf))
     }
 }
 
@@ -511,11 +511,7 @@ impl AsyncRead for TcpStream {
         _ctx: &mut task::Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
-        // If the socket is just created it could be the case that it isn't yet
-        // connected. Then we'll return pending as we'll be awoken later, when
-        // it failed to connected or when the socket is connected, and the user
-        // can try again.
-        try_io!(self.socket.read(buf), NotConnected => break Poll::Pending)
+        try_io!(self.socket.read(buf))
     }
 
     fn poll_read_vectored(
@@ -523,8 +519,7 @@ impl AsyncRead for TcpStream {
         _ctx: &mut task::Context<'_>,
         bufs: &mut [IoSliceMut<'_>],
     ) -> Poll<io::Result<usize>> {
-        // See `AsyncRead::poll_read` why `NotConnected` is special.
-        try_io!(self.socket.read_vectored(bufs), NotConnected => break Poll::Pending)
+        try_io!(self.socket.read_vectored(bufs))
     }
 }
 
@@ -534,8 +529,7 @@ impl AsyncWrite for TcpStream {
         _ctx: &mut task::Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
-        // See `AsyncRead::poll_read` why `NotConnected` is special.
-        try_io!(self.socket.write(buf), NotConnected => break Poll::Pending)
+        try_io!(self.socket.write(buf))
     }
 
     fn poll_write_vectored(
@@ -543,13 +537,11 @@ impl AsyncWrite for TcpStream {
         _ctx: &mut task::Context<'_>,
         bufs: &[IoSlice<'_>],
     ) -> Poll<io::Result<usize>> {
-        // See `AsyncRead::poll_read` why `NotConnected` is special.
-        try_io!(self.socket.write_vectored(bufs), NotConnected => break Poll::Pending)
+        try_io!(self.socket.write_vectored(bufs))
     }
 
     fn poll_flush(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
-        // See `AsyncRead::poll_read` why `NotConnected` is special.
-        try_io!(self.socket.flush(), NotConnected => break Poll::Pending)
+        try_io!(self.socket.flush())
     }
 
     fn poll_close(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
