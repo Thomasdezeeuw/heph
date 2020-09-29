@@ -257,9 +257,8 @@ impl<M> ActorRef<M> {
     /// that can reuse the allocation mentioned above.
     pub fn map<Msg>(self) -> ActorRef<Msg>
     where
-        M: From<Msg>,
-        Self: 'static,
-        ActorRef<Msg>: 'static,
+        M: From<Msg> + 'static,
+        Msg: 'static,
     {
         if TypeId::of::<ActorRef<M>>() == TypeId::of::<ActorRef<Msg>>() {
             // Safety: If `M` == `Msg`, then the following `transmute` is a
@@ -292,9 +291,8 @@ impl<M> ActorRef<M> {
     /// that can reuse the allocation mentioned above.
     pub fn try_map<Msg>(self) -> ActorRef<Msg>
     where
-        M: TryFrom<Msg>,
-        Self: 'static,
-        ActorRef<Msg>: 'static,
+        M: TryFrom<Msg> + 'static,
+        Msg: 'static,
     {
         if TypeId::of::<ActorRef<M>>() == TypeId::of::<ActorRef<Msg>>() {
             // Safety: If `M` == `Msg`, then the following `transmute` is a
