@@ -274,17 +274,47 @@ where
 /// This creates a new type that implements the [`Supervisor`] trait. The macro
 /// accepts the following arguments:
 ///
-/// * Visibility indicator (optional), defaults to private (i.e. no indicator).
-/// * Name of the supervisor type.
-/// * Name of the actor, used in logging.
-/// * Type of the arguments used to restart the actor. Multiple arguments must
+/// * Visibility indicator (*optional*), defaults to private (i.e. no
+///   indicator).
+/// * Name of the new supervisor type.
+/// * Log friendly name of the actor, used in logging.
+/// * Type of the argument(s) used to restart the actor. Multiple arguments must
 ///   be in the tuple format (same as for the [`NewActor::Argument`] type).
-/// * Maximum number of restarts (optional), defaults to 5.
-/// * Maximum duration before the restart counter get reset (optional), defaults
-///   to 5 seconds.
+/// * Maximum number of restarts (*optional*), defaults to 5. To use the
+///   default value and specify one of the following argument use `default`.
+/// * Maximum duration before the restart counter get reset (*optional*),
+///   defaults to 5 seconds. To use the default value and specify one of the
+///   following argument use `default`.
+/// * Additional logging message, defaults to nothing extra. This uses normal
+///   [rust formatting rules] and is added at the end of the default message,
+///   after the error. The `args` keyword gives access to the arguments. See
+///   example 7 restart_supervisor (in the example directory of the source
+///   code).
 ///
 /// The new type can be created using the `new` function, e.g.
 /// `MySupervisor::new(args)`, see the example below.
+///
+/// [rust formatting rules]: std::fmt
+///
+/// # Logged messages
+///
+/// When the actor failed and is restarted:
+///
+/// ```text
+/// $actor_name failed, restarting it ($left/$max restarts left): ${error}$log_extra
+/// # For example, using the supervisor created in the example below.
+/// my_actor failed, restarting it (1/2 restarts left): some I/O error: actor arguments (true, 0): (true, 0)
+/// ```
+///
+/// If the actor failed too many times to quickly it will log the following.
+///
+/// ```text
+/// $actor_name failed, stopping it (no restarts left): ${error}$log_extra
+/// # For example, using the supervisor created in the example below.
+/// my_actor failed, stopping it (no restarts left): some I/O error: actor arguments (true, 0): (true, 0)
+/// ```
+///
+/// Similar messages will be logged if the actor fails to restart.
 ///
 /// # Examples
 ///
@@ -299,13 +329,19 @@ where
 ///
 /// // Creates the `MySupervisor` type.
 /// restart_supervisor!(
-///     pub                     // Visibility indicator.
-///     MySupervisor,           // Name of the supervisor type.
-///     "my actor",             // Name of the actor.
-///     (bool, u32),            // Type of the arguments for the actor.
-///     2,                      // Maximum number of restarts.
-///     Duration::from_secs(30) // Maximum duration before the restart counter
-///                             // get reset, defaults to 5 seconds (optional).
+///     pub                      // Visibility indicator.
+///     MySupervisor,            // Name of the supervisor type.
+///     "my actor",              // Name of the actor.
+///     (bool, u32),             // Type of the arguments for the actor.
+///     2,                       // Maximum number of restarts.
+///     Duration::from_secs(30), // Maximum duration before the restart counter
+///                              // get reset, defaults to 5 seconds (optional).
+///     // This string is added to the log message after the error. `args`
+///     // gives access to the arguments.
+///     ": actor arguments {:?} ({}, {})",
+///     args,
+///     args.0,
+///     args.1,
 /// );
 ///
 /// // Create a new supervisor.
@@ -314,6 +350,7 @@ where
 /// ```
 #[macro_export]
 macro_rules! restart_supervisor {
+    // No non-optional arguments.
     (
         $vis: vis
         $supervisor_name: ident,
@@ -323,6 +360,7 @@ macro_rules! restart_supervisor {
     ) => {
         $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 3);
     };
+    // With `max_restarts`.
     (
         $vis: vis
         $supervisor_name: ident,
@@ -333,6 +371,7 @@ macro_rules! restart_supervisor {
     ) => {
         $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, $max_restarts, std::time::Duration::from_secs(5));
     };
+    // With `max_restarts` and `max_duration`.
     (
         $vis: vis
         $supervisor_name: ident,
@@ -340,6 +379,58 @@ macro_rules! restart_supervisor {
         $args: ty,
         $max_restarts: expr,
         $max_duration: expr
+        $(,)*
+    ) => {
+        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, $max_restarts, $max_duration, "",);
+    };
+    // Using default `max_restarts` and `max_duration`, but with `log_extra`.
+    (
+        $vis: vis
+        $supervisor_name: ident,
+        $actor_name: expr,
+        $args: ty,
+        default,
+        default,
+        $log_extra: expr,
+        $( args $(. $log_arg_field: tt )* ),*
+    ) => {
+        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 3, std::time::Duration::from_secs(5), $log_extra, $( args $(. $log_arg_field )* ),*);
+    };
+    // Using default `max_duration`, but with `max_restarts` and `log_extra`.
+    (
+        $vis: vis
+        $supervisor_name: ident,
+        $actor_name: expr,
+        $args: ty,
+        $max_restarts: expr,
+        default,
+        $( args $(. $log_arg_field: tt )* ),*
+    ) => {
+        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, $max_restarts, std::time::Duration::from_secs(5), $log_extra, $( args $(. $log_arg_field )* ),*);
+    };
+    // Using default `max_restarts`, but with `max_duration` and `log_extra`.
+    (
+        $vis: vis
+        $supervisor_name: ident,
+        $actor_name: expr,
+        $args: ty,
+        default,
+        $max_duration: expr,
+        $log_extra: expr,
+        $( args $(. $log_arg_field: tt )* ),*
+    ) => {
+        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 3, $max_duration, $log_extra, $( args $(. $log_arg_field )* ),*);
+    };
+    // All arguments.
+    (
+        $vis: vis
+        $supervisor_name: ident,
+        $actor_name: expr,
+        $args: ty,
+        $max_restarts: expr,
+        $max_duration: expr,
+        $log_extra: expr,
+        $( args $(. $log_arg_field: tt )* ),*
         $(,)*
     ) => {
         $crate::__heph_doc!(
@@ -360,7 +451,8 @@ macro_rules! restart_supervisor {
         );
 
         impl $supervisor_name {
-            /// Maximum number of restarts before the actor is stopped.
+            /// Maximum number of restarts within a [`Self::MAX_DURATION`] time
+            /// period before the actor is stopped.
             $vis const MAX_RESTARTS: usize = $max_restarts;
 
             /// Maximum duration between errors to be considered of the same
@@ -373,7 +465,7 @@ macro_rules! restart_supervisor {
             $crate::__heph_doc!(
                 std::concat!("Create a new `", stringify!($supervisor_name), "`."),
                 #[allow(dead_code)]
-                $vis fn new(args: $args) -> $supervisor_name {
+                $vis const fn new(args: $args) -> $supervisor_name {
                     $supervisor_name {
                         restarts_left: Self::MAX_RESTARTS,
                         last_restart: None,
@@ -391,7 +483,7 @@ macro_rules! restart_supervisor {
         {
             fn decide(&mut self, err: <NA::Actor as $crate::Actor>::Error) -> $crate::SupervisorStrategy<NA::Argument> {
                 let now = std::time::Instant::now();
-                let last_restart = std::mem::replace(&mut self.last_restart, Some(now));
+                let last_restart = self.last_restart.replace(now);
 
                 // If enough time has passed between the last restart and now we
                 // reset the `restarts_left` left counter.
@@ -405,14 +497,14 @@ macro_rules! restart_supervisor {
                 if self.restarts_left >= 1 {
                     self.restarts_left -= 1;
                     $crate::log::warn!(
-                        std::concat!($actor_name, " actor failed, restarting it ({}/{} restarts left): {}"),
-                        self.restarts_left, $max_restarts, err,
+                        std::concat!($actor_name, " failed, restarting it ({}/{} restarts left): {}", $log_extra),
+                        self.restarts_left, $max_restarts, err, $( self.args $(. $log_arg_field )* ),*
                     );
                     $crate::SupervisorStrategy::Restart(self.args.clone())
                 } else {
                     $crate::log::warn!(
-                        std::concat!($actor_name, " actor failed, stopping it (no restarts left): {}"),
-                        err,
+                        std::concat!($actor_name, " failed, stopping it (no restarts left): {}", $log_extra),
+                        err, $( self.args $(. $log_arg_field )* ),*
                     );
                     $crate::SupervisorStrategy::Stop
                 }
@@ -424,14 +516,14 @@ macro_rules! restart_supervisor {
                 if self.restarts_left >= 1 {
                     self.restarts_left -= 1;
                     $crate::log::warn!(
-                        std::concat!($actor_name, " actor failed to restart, trying again ({}/{} restarts left): {}"),
-                        self.restarts_left, $max_restarts, err,
+                        std::concat!($actor_name, " actor failed to restart, trying again ({}/{} restarts left): {}", $log_extra),
+                        self.restarts_left, $max_restarts, err, $( self.args $(. $log_arg_field )* ),*
                     );
                     $crate::SupervisorStrategy::Restart(self.args.clone())
                 } else {
                     $crate::log::warn!(
-                        std::concat!($actor_name, " actor failed to restart, stopping it (no restarts left): {}"),
-                        err,
+                        std::concat!($actor_name, " actor failed to restart, stopping it (no restarts left): {}", $log_extra),
+                        err, $( self.args $(. $log_arg_field )* ),*
                     );
                     $crate::SupervisorStrategy::Stop
                 }
@@ -439,8 +531,8 @@ macro_rules! restart_supervisor {
 
             fn second_restart_error(&mut self, err: NA::Error) {
                 $crate::log::warn!(
-                    std::concat!($actor_name, " actor failed to restart a second time, stopping it: {}"),
-                    err,
+                    std::concat!($actor_name, " actor failed to restart a second time, stopping it: {}", $log_extra),
+                    err, $( self.args $(. $log_arg_field )* ),*
                 );
             }
         }

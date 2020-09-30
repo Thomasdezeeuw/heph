@@ -126,8 +126,8 @@ sequential_tests! {
         // Example timestamp "2020-08-05T13:51:53.687353Z ".
         const TIMESTAMP_OFFSET: usize = 28;
         // Index of the "?" in the string below.
-        const LEFT_INDEX: usize = 70;
-        let mut expected = "[WARN] 7_restart_supervisor: print actor actor failed, restarting it (?/3 restarts left): can't print!".to_owned();
+        const LEFT_INDEX: usize = 64;
+        let mut expected = "[WARN] 7_restart_supervisor: print actor failed, restarting it (?/3 restarts left): can't print message 'Hello world!': actor message 'Hello world!'".to_owned();
 
         for left in (0..3).rev() {
             let line = lines.next().unwrap();
@@ -137,7 +137,7 @@ sequential_tests! {
             assert_eq!(line, expected);
         }
 
-        let expected = "[WARN] 7_restart_supervisor: print actor actor failed, stopping it (no restarts left): can't print!";
+        let expected = "[WARN] 7_restart_supervisor: print actor failed, stopping it (no restarts left): can't print message 'Hello world!': actor message 'Hello world!'";
         let last_line = lines.next().unwrap();
         let last_line = &last_line[TIMESTAMP_OFFSET..];
         assert_eq!(last_line, expected);

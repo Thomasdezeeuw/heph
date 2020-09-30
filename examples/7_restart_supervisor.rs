@@ -17,9 +17,17 @@ fn main() -> Result<(), rt::Error> {
 }
 
 // Create a restart supervisor for the [`print_actor`].
-restart_supervisor!(PrintSupervisor, "print actor", String);
+restart_supervisor!(
+    PrintSupervisor,
+    "print actor",
+    String,
+    default,
+    default,
+    ": actor message '{}'",
+    args
+);
 
 /// A very bad printing error.
-async fn print_actor(_ctx: actor::Context<()>, _msg: String) -> Result<(), String> {
-    Err("can't print!".to_owned())
+async fn print_actor(_ctx: actor::Context<()>, msg: String) -> Result<(), String> {
+    Err(format!("can't print message '{}'", msg))
 }
