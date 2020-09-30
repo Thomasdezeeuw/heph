@@ -48,6 +48,16 @@
 //! [`Supervisor`]: crate::supervisor::Supervisor
 //! [`SyncSupervisor`]: crate::supervisor::SyncSupervisor
 //!
+//!
+//! # Provided implementations
+//!
+//! There are two [`Supervisor`] implementations provided by Heph. First, the
+//! [`NoSupervisor`] can be used when the actor never returns an error (i.e.
+//! `Result<(), !>`) and thus doesn't need supervision.
+//!
+//! Second, the [`restart_supervisor!`] macro, which can be used to easily
+//! create a supervisor implementation that restarts the actor.
+//!
 //! # Examples
 //!
 //! Supervisor that logs the errors of a badly behaving actor and stops it.
@@ -101,6 +111,9 @@ use crate::actor::{Actor, NewActor};
 /// of different actors. But a word of caution, supervisors should generally be
 /// small and simple, which means that having a different supervisor for each
 /// actor is often a good thing.
+///
+/// The [`restart_supervisor!`] macro can be used to easily create a supervisor
+/// implementation that restarts the actor.
 ///
 /// `Supervisor` can be implemented using a simple function if the `NewActor`
 /// implementation doesn't return an error (i.e. `NewActor::Error = !`), which
@@ -158,7 +171,7 @@ where
 /// See the [module documentation] for deciding on whether to restart an or not.
 ///
 /// [module documentation]: index.html#restarting-or-stopping
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum SupervisorStrategy<Arg> {
     /// Restart the actor with the provided argument `Arg`.
@@ -264,11 +277,6 @@ where
     }
 }
 
-// TODO: add additional data to log, e.g. `remote_addres={}`, to
-// `restart_supervisor`.
-//
-// TODO: better support tuple arguments in `new` function.
-
 /// Macro to create a supervisor that log the error and restarts the actor.
 ///
 /// This creates a new type that implements the [`Supervisor`] trait. The macro
@@ -358,7 +366,7 @@ macro_rules! restart_supervisor {
         $args: ty
         $(,)*
     ) => {
-        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 3);
+        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 5);
     };
     // With `max_restarts`.
     (
@@ -394,7 +402,7 @@ macro_rules! restart_supervisor {
         $log_extra: expr,
         $( args $(. $log_arg_field: tt )* ),*
     ) => {
-        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 3, std::time::Duration::from_secs(5), $log_extra, $( args $(. $log_arg_field )* ),*);
+        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 5, std::time::Duration::from_secs(5), $log_extra, $( args $(. $log_arg_field )* ),*);
     };
     // Using default `max_duration`, but with `max_restarts` and `log_extra`.
     (
@@ -419,7 +427,7 @@ macro_rules! restart_supervisor {
         $log_extra: expr,
         $( args $(. $log_arg_field: tt )* ),*
     ) => {
-        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 3, $max_duration, $log_extra, $( args $(. $log_arg_field )* ),*);
+        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 5, $max_duration, $log_extra, $( args $(. $log_arg_field )* ),*);
     };
     // All arguments.
     (
