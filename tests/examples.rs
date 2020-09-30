@@ -127,9 +127,9 @@ sequential_tests! {
         const TIMESTAMP_OFFSET: usize = 28;
         // Index of the "?" in the string below.
         const LEFT_INDEX: usize = 64;
-        let mut expected = "[WARN] 7_restart_supervisor: print actor failed, restarting it (?/3 restarts left): can't print message 'Hello world!': actor message 'Hello world!'".to_owned();
+        let mut expected = "[WARN] 7_restart_supervisor: print actor failed, restarting it (?/5 restarts left): can't print message 'Hello world!': actor message 'Hello world!'".to_owned();
 
-        for left in (0..3).rev() {
+        for left in (0..5).rev() {
             let line = lines.next().unwrap();
             let line = &line[TIMESTAMP_OFFSET..];
 
