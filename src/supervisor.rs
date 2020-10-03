@@ -277,10 +277,10 @@ where
     }
 }
 
-/// Macro to create a supervisor that log the error and restarts the actor.
+/// Macro to create a supervisor that logs the error and restarts the actor.
 ///
-/// This creates a new type that implements the [`Supervisor`] trait. The macro
-/// accepts the following arguments:
+/// This creates a new type that implements the [`Supervisor`] and
+/// [`SyncSupervisor`] traits. The macro accepts the following arguments:
 ///
 /// * Visibility indicator (*optional*), defaults to private (i.e. no
 ///   indicator).
@@ -490,32 +490,7 @@ macro_rules! restart_supervisor {
             <NA::Actor as $crate::Actor>::Error: std::fmt::Display,
         {
             fn decide(&mut self, err: <NA::Actor as $crate::Actor>::Error) -> $crate::SupervisorStrategy<NA::Argument> {
-                let now = std::time::Instant::now();
-                let last_restart = self.last_restart.replace(now);
-
-                // If enough time has passed between the last restart and now we
-                // reset the `restarts_left` left counter.
-                if let Some(last_restart) = last_restart {
-                    let duration_since_last_crash = now - last_restart;
-                    if duration_since_last_crash > Self::MAX_DURATION {
-                        self.restarts_left = Self::MAX_RESTARTS;
-                    }
-                }
-
-                if self.restarts_left >= 1 {
-                    self.restarts_left -= 1;
-                    $crate::log::warn!(
-                        std::concat!($actor_name, " failed, restarting it ({}/{} restarts left): {}", $log_extra),
-                        self.restarts_left, $max_restarts, err, $( self.args $(. $log_arg_field )* ),*
-                    );
-                    $crate::SupervisorStrategy::Restart(self.args.clone())
-                } else {
-                    $crate::log::warn!(
-                        std::concat!($actor_name, " failed, stopping it (no restarts left): {}", $log_extra),
-                        err, $( self.args $(. $log_arg_field )* ),*
-                    );
-                    $crate::SupervisorStrategy::Stop
-                }
+                $crate::restart_supervisor!{_priv_decide_impl self, err, $actor_name, $max_restarts, $log_extra, $( args $(. $log_arg_field )* ),*}
             }
 
             fn decide_on_restart_error(&mut self, err: NA::Error) -> $crate::SupervisorStrategy<NA::Argument> {
@@ -543,6 +518,53 @@ macro_rules! restart_supervisor {
                     err, $( self.args $(. $log_arg_field )* ),*
                 );
             }
+        }
+
+        impl<A> $crate::supervisor::SyncSupervisor<A> for $supervisor_name
+        where
+            A: $crate::actor::sync::SyncActor<Argument = $args>,
+            A::Error: std::fmt::Display,
+        {
+            fn decide(&mut self, err: A::Error) -> $crate::SupervisorStrategy<A::Argument> {
+                $crate::restart_supervisor!{_priv_decide_impl self, err, $actor_name, $max_restarts, $log_extra, $( args $(. $log_arg_field )* ),*}
+            }
+        }
+    };
+    (
+        _priv_decide_impl
+        $self: ident,
+        $err: ident,
+        $actor_name: expr,
+        $max_restarts: expr,
+        $log_extra: expr,
+        $( args $(. $log_arg_field: tt )* ),*
+        $(,)*
+    ) => {
+        let now = std::time::Instant::now();
+        let last_restart = $self.last_restart.replace(now);
+
+        // If enough time has passed between the last restart and now we
+        // reset the `restarts_left` left counter.
+        if let Some(last_restart) = last_restart {
+            let duration_since_last_crash = now - last_restart;
+            if duration_since_last_crash > Self::MAX_DURATION {
+                $self.restarts_left = Self::MAX_RESTARTS;
+            }
+        }
+
+        if $self.restarts_left >= 1 {
+            $self.restarts_left -= 1;
+            $crate::log::warn!(
+                std::concat!($actor_name, " failed, restarting it ({}/{} restarts left): {}", $log_extra),
+                $self.restarts_left, $max_restarts, $err, $( $self.args $(. $log_arg_field )* ),*
+            );
+            $crate::SupervisorStrategy::Restart($self.args.clone())
+        } else {
+            $crate::log::warn!(
+                std::concat!($actor_name, " failed, stopping it (no restarts left): {}", $log_extra),
+                $err, $( $self.args $(. $log_arg_field )* ),*
+            );
+            $crate::SupervisorStrategy::Stop
         }
     };
 }

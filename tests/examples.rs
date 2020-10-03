@@ -127,8 +127,22 @@ sequential_tests! {
         const TIMESTAMP_OFFSET: usize = 28;
         // Index of the "?" in the string below.
         const LEFT_INDEX: usize = 64;
-        let mut expected = "[WARN] 7_restart_supervisor: print actor failed, restarting it (?/5 restarts left): can't print message 'Hello world!': actor message 'Hello world!'".to_owned();
 
+        let mut expected = "[WARN] 7_restart_supervisor: print actor failed, restarting it (?/5 restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'".to_owned();
+        for left in (0..5).rev() {
+            let line = lines.next().unwrap();
+            let line = &line[TIMESTAMP_OFFSET..];
+
+            unsafe { expected.as_bytes_mut()[LEFT_INDEX] = b'0' + left; }
+            assert_eq!(line, expected);
+        }
+
+        let expected = "[WARN] 7_restart_supervisor: print actor failed, stopping it (no restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'";
+        let last_line = lines.next().unwrap();
+        let last_line = &last_line[TIMESTAMP_OFFSET..];
+        assert_eq!(last_line, expected);
+
+        let mut expected = "[WARN] 7_restart_supervisor: print actor failed, restarting it (?/5 restarts left): can't print message 'Hello world!': actor message 'Hello world!'".to_owned();
         for left in (0..5).rev() {
             let line = lines.next().unwrap();
             let line = &line[TIMESTAMP_OFFSET..];
