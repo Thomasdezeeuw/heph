@@ -35,7 +35,7 @@ fn actor_ref() {
     let pid = ProcessId(0);
     let waker = test::new_waker(pid);
     let (mut inbox, inbox_ref) = Inbox::new(waker);
-    let mut actor_ref = ActorRef::from_inbox(inbox_ref.clone());
+    let mut actor_ref = ActorRef::from_inbox(inbox_ref);
 
     // Sending messages.
     actor_ref.send(1).unwrap();

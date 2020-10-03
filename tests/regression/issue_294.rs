@@ -24,8 +24,6 @@ fn issue_294() {
 }
 
 fn actor(mut ctx: SyncContext<()>) -> Result<(), !> {
-    while let Ok(msg) = ctx.receive_next() {
-        drop(msg);
-    }
+    while let Ok(_msg) = ctx.receive_next() {}
     Ok(())
 }

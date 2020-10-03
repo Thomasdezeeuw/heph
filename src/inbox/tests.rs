@@ -127,7 +127,7 @@ mod oneshot {
         let (send, mut recv) = channel(waker);
 
         send.try_send(()).unwrap();
-        assert_eq!(recv.try_recv().unwrap().0, ());
+        recv.try_recv().unwrap();
     }
 
     #[test]
@@ -175,9 +175,9 @@ mod oneshot {
         let (send, mut recv) = channel(waker);
 
         send.try_send(()).unwrap();
-        assert_eq!(recv.try_peek().unwrap(), ());
-        assert_eq!(recv.try_peek().unwrap(), ());
-        assert_eq!(recv.try_recv().unwrap().0, ());
+        recv.try_peek().unwrap();
+        recv.try_peek().unwrap();
+        recv.try_recv().unwrap();
     }
 
     #[test]
@@ -571,8 +571,8 @@ mod oneshot_threaded {
             },
             {
                 expect_peek!(recv, ());
-                assert_eq!(recv.try_peek().unwrap(), ());
-                assert_eq!(recv.try_recv().unwrap().0, ());
+                recv.try_peek().unwrap();
+                recv.try_recv().unwrap();
             }
         );
     }

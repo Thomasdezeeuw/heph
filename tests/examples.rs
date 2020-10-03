@@ -100,7 +100,7 @@ sequential_tests! {
         let mut lines = output.lines();
         // Greeting messages.
         let mut got_greetings: Vec<&str> = (&mut lines).take(3).collect();
-        got_greetings.sort();
+        got_greetings.sort_unstable();
         let want_greetings = &[
             "Got a message: Hello sync actor",
             "Got a message: Hello thread local actor",
@@ -110,7 +110,7 @@ sequential_tests! {
 
         // Shutdown messages.
         let mut got_shutdown: Vec<&str> = lines.collect();
-        got_shutdown.sort();
+        got_shutdown.sort_unstable();
         let want_shutdown = [
             "shutting down the synchronous actor",
             "shutting down the thread local actor",
