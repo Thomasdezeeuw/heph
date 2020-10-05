@@ -9,6 +9,7 @@ use mio::{event, Interest, Registry, Token};
 use mio_pipe::new_pipe;
 
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
+use crate::rt::options::SyncActorOptions;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 use crate::ActorRef;
 
@@ -29,6 +30,7 @@ impl SyncWorker {
         supervisor: Sv,
         actor: A,
         arg: Arg,
+        options: SyncActorOptions,
     ) -> io::Result<(SyncWorker, ActorRef<M>)>
     where
         Sv: SyncSupervisor<A> + Send + 'static,
@@ -39,8 +41,11 @@ impl SyncWorker {
         new_pipe().and_then(|(sender, receiver)| {
             let (send, inbox) = channel::unbounded();
             let actor_ref = ActorRef::for_sync_actor(send);
+            let thread_name = options
+                .thread_name
+                .unwrap_or_else(|| format!("Sync actor {}", id));
             thread::Builder::new()
-                .name(format!("heph_sync_actor{}", id))
+                .name(thread_name)
                 .spawn(move || main(supervisor, actor, arg, inbox, receiver))
                 .map(|handle| SyncWorker { id, handle, sender })
                 .map(|worker| (worker, actor_ref))

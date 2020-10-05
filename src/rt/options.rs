@@ -4,7 +4,7 @@
 
 pub use crate::rt::scheduler::Priority;
 
-/// Options for adding an actor to an [`Runtime`].
+/// Options for adding an actor to a [`Runtime`].
 ///
 /// [`Runtime`]: crate::Runtime
 ///
@@ -73,5 +73,54 @@ impl Default for ActorOptions {
             priority: Priority::default(),
             ready: false,
         }
+    }
+}
+
+/// Options for adding an synchronous actor to a [`Runtime`].
+///
+/// [`Runtime`]: crate::Runtime
+///
+/// # Examples
+///
+/// Using the default options.
+///
+/// ```
+/// use heph::rt::SyncActorOptions;
+///
+/// let opts = SyncActorOptions::default();
+/// # drop(opts); // Silence unused variable warning.
+/// ```
+///
+/// Setting the name of the thread that runs the synchronous actor.
+///
+/// ```
+/// use heph::rt::SyncActorOptions;
+///
+/// let opts = SyncActorOptions::default().with_name("My sync actor".to_owned());
+/// # drop(opts); // Silence unused variable warning.
+/// ```
+#[derive(Debug)]
+pub struct SyncActorOptions {
+    pub(super) thread_name: Option<String>,
+}
+
+impl SyncActorOptions {
+    /// Returns the name of thread if any.
+    pub fn name(&self) -> Option<&str> {
+        self.thread_name.as_deref()
+    }
+
+    /// Set the name of the thread.
+    ///
+    /// Defaults to `Sync actor $n`, where `$n` is some number.
+    pub fn with_name(mut self, thread_name: String) -> Self {
+        self.thread_name = Some(thread_name);
+        self
+    }
+}
+
+impl Default for SyncActorOptions {
+    fn default() -> SyncActorOptions {
+        SyncActorOptions { thread_name: None }
     }
 }

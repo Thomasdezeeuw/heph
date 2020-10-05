@@ -2,7 +2,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use heph::actor::sync::SyncContext;
-use heph::rt::{self, ActorOptions, Runtime, RuntimeRef};
+use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, SyncActorOptions};
 use heph::{actor, restart_supervisor};
 
 fn main() -> Result<(), rt::Error> {
@@ -12,7 +12,8 @@ fn main() -> Result<(), rt::Error> {
     let sync_actor = sync_print_actor as fn(_, _) -> _;
     let arg = "Hello world!".to_owned();
     let supervisor = PrintSupervisor::new(arg.clone());
-    runtime.spawn_sync_actor(supervisor, sync_actor, arg)?;
+    let options = SyncActorOptions::default();
+    runtime.spawn_sync_actor(supervisor, sync_actor, arg, options)?;
 
     // NOTE: this is only here to make the test pass.
     sleep(Duration::from_millis(100));

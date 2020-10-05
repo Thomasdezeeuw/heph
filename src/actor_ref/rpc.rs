@@ -85,7 +85,8 @@
 //! use heph::actor::sync::SyncContext;
 //! use heph::actor_ref::{ActorRef, RpcMessage};
 //! use heph::supervisor::NoSupervisor;
-//! use heph::{actor, rt, Runtime, ActorOptions};
+//! use heph::actor;
+//! use heph::rt::{self, Runtime, ActorOptions, SyncActorOptions};
 //!
 //! /// Message type for [`counter`].
 //! enum Message {
@@ -151,7 +152,8 @@
 //! # fn main() -> Result<(), rt::Error> {
 //! #    let mut runtime = Runtime::new()?;
 //! #    let counter = counter as fn(_) -> _;
-//! #    let actor_ref = runtime.spawn_sync_actor(NoSupervisor, counter, ())?;
+//! #    let options = SyncActorOptions::default();
+//! #    let actor_ref = runtime.spawn_sync_actor(NoSupervisor, counter, (), options)?;
 //! #    runtime.with_setup(|mut runtime_ref| {
 //! #        let requester = requester as fn(_, _) -> _;
 //! #        runtime_ref.spawn_local(NoSupervisor, requester, actor_ref, ActorOptions::default().mark_ready());

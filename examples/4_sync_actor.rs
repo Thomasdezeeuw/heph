@@ -1,8 +1,8 @@
 #![feature(never_type)]
 
 use heph::actor::sync::SyncContext;
+use heph::rt::{self, Runtime, SyncActorOptions};
 use heph::supervisor::NoSupervisor;
-use heph::{rt, Runtime};
 
 fn main() -> Result<(), rt::Error> {
     // Spawning synchronous actor works slightly differently the spawning
@@ -12,7 +12,10 @@ fn main() -> Result<(), rt::Error> {
 
     // Spawn a new synchronous actor, returning an actor reference to it.
     let actor = actor as fn(_, _) -> _;
-    let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye")?;
+    // Options used to spawn the synchronous actor. Here we'll set the name of
+    // the thread that runs the actor.
+    let options = SyncActorOptions::default().with_name("My actor".to_owned());
+    let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye", options)?;
 
     // Just like with any actor reference we can send the actor a message.
     actor_ref <<= "Hello world".to_string();

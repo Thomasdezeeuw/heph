@@ -58,7 +58,7 @@ pub(crate) use waker::Waker;
 pub mod options;
 
 pub use error::Error;
-pub use options::ActorOptions;
+pub use options::{ActorOptions, SyncActorOptions};
 pub use signal::Signal;
 
 use coordinator::Coordinator;
@@ -370,6 +370,7 @@ impl<S> Runtime<S> {
         supervisor: Sv,
         actor: A,
         arg: Arg,
+        options: SyncActorOptions,
     ) -> Result<ActorRef<M>, Error>
     where
         Sv: SyncSupervisor<A> + Send + 'static,
@@ -379,7 +380,7 @@ impl<S> Runtime<S> {
     {
         let id = SYNC_WORKER_ID_START + self.sync_actors.len();
         debug!("spawning synchronous actor: pid={}", id);
-        SyncWorker::start(id, supervisor, actor, arg)
+        SyncWorker::start(id, supervisor, actor, arg, options)
             .map(|(worker, actor_ref)| {
                 self.sync_actors.push(worker);
                 actor_ref

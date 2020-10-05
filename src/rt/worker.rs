@@ -90,7 +90,7 @@ impl<E> Worker<E> {
     {
         channel::new().and_then(|(channel, worker_handle)| {
             thread::Builder::new()
-                .name(format!("heph_worker{}", id))
+                .name(format!("Worker {}", id))
                 .spawn(move || main(setup, worker_handle, shared_internals))
                 .map(|handle| Worker {
                     id,

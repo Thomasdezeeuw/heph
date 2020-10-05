@@ -4,15 +4,18 @@
 //! the sync actor to stop and not prevent the test from returning.
 
 use heph::actor::sync::SyncContext;
+use heph::rt::{Runtime, SyncActorOptions};
 use heph::supervisor::NoSupervisor;
-use heph::Runtime;
 
 #[test]
 fn issue_294() {
     let mut runtime = Runtime::new().unwrap();
 
     let actor = actor as fn(_) -> _;
-    let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, ()).unwrap();
+    let options = SyncActorOptions::default();
+    let actor_ref = runtime
+        .spawn_sync_actor(NoSupervisor, actor, (), options)
+        .unwrap();
 
     runtime
         .with_setup::<_, !>(move |_| {

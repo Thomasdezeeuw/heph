@@ -9,7 +9,7 @@
 //!
 //! use heph::actor::sync::SyncContext;
 //! use heph::supervisor::NoSupervisor;
-//! use heph::{Runtime, rt};
+//! use heph::rt::{self, Runtime, SyncActorOptions};
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     // Spawning synchronous actor works slightly different from spawning
@@ -19,7 +19,8 @@
 //!
 //!     // Spawn a new synchronous actor, returning an actor reference to it.
 //!     let actor = actor as fn(_, _) -> _;
-//!     let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye")?;
+//!     let options = SyncActorOptions::default();
+//!     let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye", options)?;
 //!
 //!     // Just like with any actor reference we can send the actor a message.
 //!     actor_ref <<= "Hello world".to_string();
@@ -77,8 +78,7 @@ use crate::actor::message_select::{MessageSelector, Messages};
 /// use heph::actor::sync::SyncContext;
 /// # use heph::actor_ref::ActorRef;
 /// use heph::supervisor::NoSupervisor;
-/// use heph::{Runtime, rt};
-/// use heph::rt::Signal;
+/// use heph::rt::{self, Runtime, SyncActorOptions, Signal};
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     // Spawning synchronous actor works slightly differently the spawning
@@ -88,7 +88,8 @@ use crate::actor::message_select::{MessageSelector, Messages};
 ///
 ///     // Spawn a new synchronous actor, returning an actor reference to it.
 ///     let actor = actor as fn(_) -> _;
-///     let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, ())?;
+///     let options = SyncActorOptions::default();
+///     let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, (), options)?;
 ///
 ///     // Just like with any actor reference we can send the actor a message.
 ///     actor_ref <<= "Hello world".to_string();

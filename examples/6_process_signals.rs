@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use heph::actor;
 use heph::actor::context::ThreadSafe;
 use heph::actor::sync::SyncContext;
-use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, Signal};
+use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, Signal, SyncActorOptions};
 use heph::supervisor::NoSupervisor;
 
 fn main() -> Result<(), rt::Error> {
@@ -18,7 +18,8 @@ fn main() -> Result<(), rt::Error> {
     // Synchronous actor.
     // Spawn our actor.
     let sync_actor = sync_actor as fn(_) -> _;
-    let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, sync_actor, ())?;
+    let options = SyncActorOptions::default();
+    let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, sync_actor, (), options)?;
     // Send it message
     actor_ref <<= "Hello sync actor";
     // Register our actor reference to receive process signals.
