@@ -659,15 +659,3 @@ where
         )
     }
 }
-
-// Needed by Stored, not sure if I like it.
-#[doc(hidden)]
-impl Read for TcpStream {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.socket.read(buf)
-    }
-
-    fn read_vectored(&mut self, bufs: &mut [IoSliceMut<'_>]) -> io::Result<usize> {
-        self.socket.read_vectored(bufs)
-    }
-}
