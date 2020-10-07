@@ -13,7 +13,7 @@
 
 use std::future::Future;
 use std::io::{self, IoSlice, IoSliceMut, Read, Write};
-use std::mem::size_of;
+use std::mem::{size_of, MaybeUninit};
 use std::net::{Shutdown, SocketAddr};
 use std::ops::DerefMut;
 use std::os::unix::io::AsRawFd;
@@ -193,6 +193,7 @@ pub use server::{Server, ServerError, ServerMessage, ServerSetup};
 ///         })
 ///     }).await
 /// }
+/// ```
 #[derive(Debug)]
 pub struct TcpListener {
     /// The underlying TCP listener, backed by Mio.
@@ -458,6 +459,29 @@ impl TcpStream {
         .map(|_| ())
     }
 
+    /// Attempt to receive message(s) from the stream, writing them into `buf`.
+    ///
+    /// If no bytes can currently be received this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`TcpStream::recv`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_recv(&mut self, buf: &mut [MaybeUninit<u8>]) -> io::Result<usize> {
+        syscall!(recv(
+            self.socket.as_raw_fd(),
+            MaybeUninit::slice_as_mut_ptr(buf).cast(),
+            buf.len(),
+            0, // Flags.
+        ))
+        .map(|read| read as usize)
+    }
+
+    /// Receive messages from the stream, writing them into `buf`.
+    pub fn recv<'a>(&'a mut self, buf: &'a mut [MaybeUninit<u8>]) -> Recv<'a> {
+        Recv { stream: self, buf }
+    }
+
     /// Receives data on the socket from the remote address to which it is
     /// connected, without removing that data from the queue. On success,
     /// returns the number of bytes peeked. Successive calls return the same
@@ -535,6 +559,25 @@ impl Future for Connect {
             }
             None => panic!("polled `tcp::Connect` after completion"),
         }
+    }
+}
+
+/// The [`Future`] behind [`TcpStream::recv`].
+#[derive(Debug)]
+pub struct Recv<'a> {
+    stream: &'a mut TcpStream,
+    buf: &'a mut [MaybeUninit<u8>],
+}
+
+impl<'a> Future for Recv<'a> {
+    type Output = io::Result<usize>;
+
+    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let Recv {
+            ref mut stream,
+            ref mut buf,
+        } = self.deref_mut();
+        try_io!(stream.try_recv(buf))
     }
 }
 
