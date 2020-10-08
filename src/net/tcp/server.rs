@@ -570,15 +570,14 @@ where
         //
         // We don't return immediately here because we're using `SO_REUSEPORT`,
         // which on most OSes causes each listener (file descriptor) to have
-        // there own accept queue. This means that connections in *our* would be
-        // dropped if we would close the file descriptor immediately. So we
+        // there own accept queue. This means that connections in *ours* would
+        // be dropped if we would close the file descriptor immediately. So we
         // first accept all pending connections and start actors for them. Note
         // however that there is still a race condition between our last call to
         // `accept` and the time the file descriptor is actually closed,
         // currently we can't avoid this.
         let should_stop = ctx.try_receive_next().is_some();
 
-        // Next start accepting streams.
         loop {
             let (mut stream, addr) = match listener.accept() {
                 Ok(ok) => ok,

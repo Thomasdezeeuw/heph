@@ -160,7 +160,7 @@ impl Coordinator {
                 self.scheduler.mark_ready(pid);
             }
 
-            trace!("polling wakup events");
+            trace!("polling wake-up events");
             for pid in self.waker_events.try_iter() {
                 trace!("waking thread-safe actor: pid={}", pid);
                 wake_workers = true;

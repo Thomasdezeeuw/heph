@@ -155,9 +155,9 @@ impl SchedulerRef {
     /// Add a thread-safe actor to the scheduler.
     pub(in crate::rt) fn add_actor<'s>(
         &'s self,
-    ) -> AddActor<&'s Mutex<Inactive>, dyn Process + Send + Sync> {
+    ) -> AddActor<&'s SchedulerRef, dyn Process + Send + Sync> {
         AddActor {
-            processes: &self.shared.inactive,
+            processes: &self,
             alloc: Box::new_uninit(),
         }
     }
@@ -177,13 +177,16 @@ impl SchedulerRef {
         let pid = process.as_ref().id();
 
         trace!("adding back process as inactive: pid={}", pid);
-        self.shared.inactive.lock().add(process);
+        {
+            self.shared.inactive.lock().add(process);
+        }
 
         // It could be in between the time between we've last checked if the
         // process was to marked ready and we adding it to the inactive
         // queue above, the process was added to the to mark ready list. To
         // avoid missing any wake-ups we need to check again.
-        if self.shared.to_mark_ready.lock().remove(&pid) {
+        let is_ready = { self.shared.to_mark_ready.lock().remove(&pid) };
+        if is_ready {
             trace!("marking process as ready: pid={}", pid);
             let _ = self.shared.move_process_to_ready(pid);
         }
@@ -220,7 +223,7 @@ impl fmt::Debug for SchedulerRef {
     }
 }
 
-impl<'s> AddActor<&'s Mutex<Inactive>, dyn Process + Send + Sync> {
+impl<'s> AddActor<&'s SchedulerRef, dyn Process + Send + Sync> {
     /// Add a new inactive thread-safe actor to the scheduler.
     pub(in crate::rt) fn add<S, NA>(
         self,
@@ -258,6 +261,6 @@ impl<'s> AddActor<&'s Mutex<Inactive>, dyn Process + Send + Sync> {
             // Safe because we write into the allocation above.
             alloc.assume_init().into()
         };
-        processes.lock().add(process)
+        processes.add_process(process)
     }
 }
