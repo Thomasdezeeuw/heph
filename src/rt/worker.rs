@@ -169,7 +169,7 @@ pub(crate) struct RunningRuntime {
 /// This number is chosen arbitrarily, if you can improve it please do.
 // TODO: find a good balance between polling, polling user space events only and
 // running processes.
-const RUN_POLL_RATIO: usize = 64;
+const RUN_POLL_RATIO: usize = 32;
 
 /// Id used for the awakener.
 const WAKER: Token = Token(usize::max_value());
