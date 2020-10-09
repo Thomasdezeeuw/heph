@@ -209,7 +209,7 @@ impl Future for Connect {
                 self.socket = Some(socket);
                 Poll::Pending
             }
-            None => panic!("polled `tcp::Connect` after completion"),
+            None => panic!("polled `tcp::stream::Connect` after completion"),
         }
     }
 }

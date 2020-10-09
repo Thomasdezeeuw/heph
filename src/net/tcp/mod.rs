@@ -4,14 +4,11 @@
 //!
 //!  * [`TcpListener`] listens for incoming connections.
 //!  * [`TcpStream`] represents a single TCP connection.
-//!  * [`tcp::Server`] is an [`Actor`] that listens for incoming connections and
+//!  * [`TcpServer`] is an [`Actor`] that listens for incoming connections and
 //!    starts a new actor for each.
 //!
-//! [`tcp::Server`]: crate::net::tcp::Server
 //! [`Actor`]: crate::actor::Actor
-//! [`tcp::NewListener`]: crate::net::tcp::NewListener
 
-// Used in the `server` module.
 macro_rules! syscall {
     ($fn: ident ( $($arg: expr),* $(,)* ) ) => {{
         let res = unsafe { libc::$fn($($arg, )*) };
@@ -23,11 +20,13 @@ macro_rules! syscall {
     }};
 }
 
-mod server;
-
 pub mod listener;
+pub mod server;
 pub mod stream;
 
+#[doc(no_inline)]
 pub use listener::TcpListener;
-pub use server::{Server, ServerError, ServerMessage, ServerSetup};
+#[doc(no_inline)]
+pub use server::TcpServer;
+#[doc(no_inline)]
 pub use stream::TcpStream;

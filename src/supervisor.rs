@@ -30,12 +30,12 @@
 //! Sometimes just restarting an actor is the easiest way to deal with errors.
 //! Starting the actor from a clean slate will often allow it to continue
 //! processing. However this is not possible in all cases, for example when a
-//! new argument can't be provided (think actors started by a [`tcp::Server`]).
-//! In those cases the supervisor should still log the error encountered.
+//! new argument can't be provided (think actors started by a [`TcpServer`]). In
+//! those cases the supervisor should still log the error encountered.
 //!
 //! [stopped]: crate::supervisor::SupervisorStrategy::Stop
 //! [restarted]: crate::supervisor::SupervisorStrategy::Restart
-//! [`tcp::Server`]: crate::net::tcp::Server
+//! [`TcpServer`]: crate::net::TcpServer
 //!
 //! # Actors and sync actors
 //!

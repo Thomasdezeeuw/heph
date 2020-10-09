@@ -160,7 +160,7 @@ pub trait NewActor {
     /// The arguments passed to the actor are much like arguments passed to a
     /// regular function. If more then one argument is needed the arguments can
     /// be in the form of a tuple, e.g. `(123, "Hello")`. For example
-    /// [`tcp::Server`] requires a `NewActor` where the argument  is a tuple
+    /// [`TcpServer`] requires a `NewActor` where the argument  is a tuple
     /// `(TcpStream, SocketAddr)`.
     ///
     /// An empty tuple can be used for actors that don't accept any arguments
@@ -170,7 +170,7 @@ pub trait NewActor {
     /// not in the form of a tuple, however they do have be passed as a tuple to
     /// the [`try_spawn_local`] method. See there [implementations] below.
     ///
-    /// [`tcp::Server`]: crate::net::tcp::Server
+    /// [`TcpServer`]: crate::net::TcpServer
     /// [`new`]: NewActor::new
     /// [`try_spawn_local`]: crate::RuntimeRef::try_spawn_local
     /// [implementations]: #foreign-impls
@@ -206,15 +206,15 @@ pub trait NewActor {
     ///
     /// This can be used when additional arguments are needed to be passed to an
     /// actor, where another function requires a certain argument list. For
-    /// example when using [`tcp::Server`].
+    /// example when using [`TcpServer`].
     ///
-    /// [`tcp::Server`]: crate::net::tcp::Server
+    /// [`TcpServer`]: crate::net::TcpServer
     ///
     /// # Examples
     ///
-    /// Using [`tcp::Server`] requires a `NewActor` that accepts
-    /// `(TcpStream, SocketAddr)` as arguments, but we need to pass the actor
-    /// additional arguments.
+    /// Using [`TcpServer`] requires a `NewActor` that accepts `(TcpStream,
+    /// SocketAddr)` as arguments, but we need to pass the actor additional
+    /// arguments.
     ///
     /// ```
     /// #![feature(never_type)]
@@ -228,7 +228,8 @@ pub trait NewActor {
     /// # use heph::actor::context;
     /// use heph::actor::{self, NewActor};
     /// # use heph::log::error;
-    /// use heph::net::tcp::{self, TcpStream};
+    /// use heph::net::{TcpServer, TcpStream};
+    /// # use heph::net::tcp::server;
     /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
     /// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
     ///
@@ -237,7 +238,7 @@ pub trait NewActor {
     ///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
     /// }
     ///
-    /// /// In this setup function we'll spawn the `tcp::Server` actor.
+    /// /// In this setup function we'll spawn the `TcpServer` actor.
     /// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
     ///     // Prepare for humans' expand to Mars.
     ///     let greet_mars = true;
@@ -247,9 +248,9 @@ pub trait NewActor {
     ///         .map_arg(move |(stream, address)| (stream, address, greet_mars));
     ///
     ///     // For more information about the remainder of this example see
-    ///     // `tcp::Server`.
+    ///     // `TcpServer`.
     ///     let address = "127.0.0.1:7890".parse().unwrap();
-    ///     let server = tcp::Server::setup(address, conn_supervisor, new_actor,
+    ///     let server = TcpServer::setup(address, conn_supervisor, new_actor,
     ///         ActorOptions::default())?;
     ///     # let mut actor_ref =
     ///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), ActorOptions::default())?;
@@ -260,13 +261,13 @@ pub trait NewActor {
     /// # #[derive(Copy, Clone, Debug)]
     /// # struct ServerSupervisor;
     /// #
-    /// # impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
+    /// # impl<S, NA> Supervisor<server::Setup<S, NA>> for ServerSupervisor
     /// # where
     /// #     S: Supervisor<NA> + Clone + 'static,
     /// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = context::ThreadLocal> + Clone + 'static,
     /// # {
-    /// #     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
-    /// #         use tcp::ServerError::*;
+    /// #     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
+    /// #         use server::Error::*;
     /// #         match err {
     /// #             Accept(err) => {
     /// #                 error!("error accepting new connection: {}", err);

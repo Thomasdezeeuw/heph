@@ -12,7 +12,7 @@
 //! [Transmission Control Protocol]: crate::net::tcp
 //! [TCP stream]: crate::net::TcpStream
 //! [TCP listening socket]: crate::net::TcpListener
-//! [TCP server]: crate::net::tcp::Server
+//! [TCP server]: crate::net::TcpServer
 //! [User Datagram Protocol]: crate::net::udp
 //! [`UdpSocket`]: crate::net::UdpSocket
 
@@ -39,7 +39,7 @@ pub mod tcp;
 pub mod udp;
 
 #[doc(no_inline)]
-pub use tcp::{TcpListener, TcpStream};
+pub use tcp::{TcpListener, TcpServer, TcpStream};
 #[doc(no_inline)]
 pub use udp::UdpSocket;
 

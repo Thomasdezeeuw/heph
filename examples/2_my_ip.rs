@@ -7,7 +7,7 @@ use futures_util::AsyncWriteExt;
 
 use heph::actor::{self, context, NewActor};
 use heph::log::{self, error, info};
-use heph::net::tcp::{self, TcpStream};
+use heph::net::{tcp, TcpServer, TcpStream};
 use heph::rt::options::Priority;
 use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph::{rt, ActorOptions, Runtime};
@@ -27,7 +27,7 @@ fn main() -> Result<(), rt::Error<io::Error>> {
     // the defaults options here.
     let actor = conn_actor as fn(_, _, _) -> _;
     let address = "127.0.0.1:7890".parse().unwrap();
-    let server = tcp::Server::setup(address, conn_supervisor, actor, ActorOptions::default())?;
+    let server = TcpServer::setup(address, conn_supervisor, actor, ActorOptions::default())?;
 
     // Just like in examples 1 and 2 we'll create our runtime and run our setup
     // function. But for this example we'll create a worker thread per available
@@ -58,16 +58,16 @@ fn main() -> Result<(), rt::Error<io::Error>> {
 #[derive(Copy, Clone, Debug)]
 struct ServerSupervisor;
 
-impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
+impl<S, NA> Supervisor<tcp::server::Setup<S, NA>> for ServerSupervisor
 where
-    // Trait bounds needed by `tcp::ServerSetup`.
+    // Trait bounds needed by `tcp::server::Setup`.
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = context::ThreadLocal>
         + Clone
         + 'static,
 {
-    fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
-        use tcp::ServerError::*;
+    fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
+        use tcp::server::Error::*;
         match err {
             // When we hit an error accepting a connection we'll drop the old
             // listener and create a new one.

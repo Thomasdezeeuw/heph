@@ -39,8 +39,8 @@ pub struct Context<M, K = ThreadLocal> {
     /// references. It's owned by the context, the actor references only have a
     /// weak reference.
     ///
-    /// This field is public because it is used by `tcp::Server`, as we don't
-    /// need entire context there.
+    /// This field is public because it is used by `TcpServer`, as we don't need
+    /// entire context there.
     pub(crate) inbox: Inbox<M>,
     /// Reference to `inbox` above, used to create `ActorRef`s to this actor.
     inbox_ref: InboxRef<M>,

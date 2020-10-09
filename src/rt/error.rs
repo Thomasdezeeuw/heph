@@ -116,11 +116,11 @@ fn convert_panic(err: Box<dyn Any + Send + 'static>) -> StringError {
 }
 
 /// Method to create a setup error, for use outside of the setup function. This
-/// is useful for example when setting up a [`tcp::Server`] outside the [setup
-/// function in `Runtime`] and want to use `Error` as error returned by
-/// main. See example 2 for example usage.
+/// is useful for example when setting up a [`TcpServer`] outside the [setup
+/// function in `Runtime`] and want to use `Error` as error returned by main.
+/// See example 2 for example usage.
 ///
-/// [`tcp::Server`]: crate::net::tcp::Server::setup
+/// [`TcpServer`]: crate::net::TcpServer::setup
 /// [setup function in `Runtime`]: crate::Runtime::with_setup
 impl<SetupError> From<SetupError> for Error<SetupError> {
     fn from(err: SetupError) -> Error<SetupError> {

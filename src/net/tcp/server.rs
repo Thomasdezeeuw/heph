@@ -1,3 +1,5 @@
+//! Module with [`TcpServer`] and related types.
+
 use std::convert::TryFrom;
 use std::mem::{forget, size_of};
 use std::net::SocketAddr;
@@ -18,22 +20,18 @@ use crate::rt::{ActorOptions, ProcessId, RuntimeAccess, Signal};
 use crate::supervisor::Supervisor;
 
 /// A intermediate structure that implements [`NewActor`], creating
-/// [`tcp::Server`].
+/// [`TcpServer`].
 ///
-/// See [`tcp::Server::setup`] to create this and [`tcp::Server`] for examples.
-///
-/// [`tcp::Server`]: Server
-/// [`tcp::Server::setup`]: Server::setup
+/// See [`TcpServer::setup`] to create this and [`TcpServer`] for examples.
 #[derive(Debug)]
-pub struct ServerSetup<S, NA> {
-    /// All fields are in an `Arc` to allow `ServerSetup` to cheaply be cloned
-    /// and still be `Send` and `Sync` for use in the setup function of
-    /// `Runtime`.
-    inner: Arc<ServerSetupInner<S, NA>>,
+pub struct Setup<S, NA> {
+    /// All fields are in an `Arc` to allow `Setup` to cheaply be cloned and
+    /// still be `Send` and `Sync` for use in the setup function of `Runtime`.
+    inner: Arc<SetupInner<S, NA>>,
 }
 
 #[derive(Debug)]
-struct ServerSetupInner<S, NA> {
+struct SetupInner<S, NA> {
     /// The underlying TCP listener.
     ///
     /// NOTE: This is never registered with any `mio::Poll` instance, it is just
@@ -49,22 +47,22 @@ struct ServerSetupInner<S, NA> {
     options: ActorOptions,
 }
 
-impl<S, NA> ServerSetup<S, NA> {
+impl<S, NA> Setup<S, NA> {
     /// Returns the address this server is bound to.
     pub fn local_addr(&self) -> SocketAddr {
         self.inner.address
     }
 }
 
-impl<S, NA, K> NewActor for ServerSetup<S, NA>
+impl<S, NA, K> NewActor for Setup<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
     K: RuntimeAccess + Spawnable<S, NA>,
 {
-    type Message = ServerMessage;
+    type Message = Message;
     type Argument = ();
-    type Actor = Server<S, NA, K>;
+    type Actor = TcpServer<S, NA, K>;
     type Error = io::Error;
     type Context = K;
 
@@ -79,7 +77,7 @@ where
         ctx.kind()
             .register(&mut listener, token, Interest::READABLE)?;
 
-        Ok(Server {
+        Ok(TcpServer {
             ctx,
             listener,
             supervisor: this.supervisor.clone(),
@@ -188,9 +186,9 @@ fn new_listener(address: &SocketAddr, backlog: libc::c_int) -> io::Result<TcpLis
     Ok(unsafe { TcpListener::from_raw_fd(fd) })
 }
 
-impl<S, NA> Clone for ServerSetup<S, NA> {
-    fn clone(&self) -> ServerSetup<S, NA> {
-        ServerSetup {
+impl<S, NA> Clone for Setup<S, NA> {
+    fn clone(&self) -> Setup<S, NA> {
+        Setup {
             inner: self.inner.clone(),
         }
     }
@@ -201,11 +199,11 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// This actor can start as a thread-local or thread-safe actor. When using the
 /// thread-local variant one actor runs per worker thread which spawns
 /// thread-local actors to handle the [`TcpStream`]s. See the first example
-/// below on how to run this `tcp::Server` as a thread-local actor.
+/// below on how to run this `TcpServer` as a thread-local actor.
 ///
 /// This actor can also run as thread-safe actor in which case it also spawns
 /// thread-safe actors. Note however that using thread-*local* version is
-/// recommended. The third example below shows how to run the `tcp::Server` as
+/// recommended. The third example below shows how to run the `TcpServer` as
 /// thread-safe actor.
 ///
 /// # Graceful shutdown
@@ -231,7 +229,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// use heph::actor::{self, context, NewActor};
 /// # use heph::actor::messages::Terminate;
 /// use heph::log::error;
-/// use heph::net::tcp::{self, TcpStream};
+/// use heph::net::tcp::{server, TcpServer, TcpStream};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::rt::options::Priority;
 /// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
@@ -247,7 +245,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     // Create our TCP server. We'll use the default actor options.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let server = tcp::Server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
+///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
 ///
 ///     // We advice to give the TCP server a low priority to prioritise
 ///     // handling of ongoing requests over accepting new requests possibly
@@ -264,14 +262,14 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// #[derive(Copy, Clone, Debug)]
 /// struct ServerSupervisor;
 ///
-/// impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
+/// impl<S, NA> Supervisor<server::Setup<S, NA>> for ServerSupervisor
 /// where
-///     // Trait bounds needed by `tcp::ServerSetup`.
+///     // Trait bounds needed by `server::Setup`.
 ///     S: Supervisor<NA> + Clone + 'static,
 ///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = context::ThreadLocal> + Clone + 'static,
 /// {
-///     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
-///         use tcp::ServerError::*;
+///     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
+///         use server::Error::*;
 ///         match err {
 ///             // When we hit an error accepting a connection we'll drop the old
 ///             // server and create a new one.
@@ -324,7 +322,8 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// use heph::actor::messages::Terminate;
 /// use heph::{actor, NewActor};
 /// use heph::log::error;
-/// use heph::net::tcp::{self, TcpStream};
+/// use heph::net::{TcpServer, TcpStream};
+/// # use heph::net::tcp;
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::rt::options::Priority;
 /// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
@@ -340,7 +339,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///     // Adding the TCP server is the same as in the example above.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
 ///     let address = "127.0.0.1:7890".parse().unwrap();
-///     let server = tcp::Server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
+///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     let mut server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
 ///
@@ -356,13 +355,13 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// # #[derive(Copy, Clone, Debug)]
 /// # struct ServerSupervisor;
 /// #
-/// # impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
+/// # impl<S, NA> Supervisor<tcp::server::Setup<S, NA>> for ServerSupervisor
 /// # where
 /// #     S: Supervisor<NA> + Clone + 'static,
 /// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = context::ThreadLocal> + Clone + 'static,
 /// # {
-/// #     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
-/// #         use tcp::ServerError::*;
+/// #     fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
+/// #         use tcp::server::Error::*;
 /// #         match err {
 /// #             Accept(err) => {
 /// #                 error!("error accepting new connection: {}", err);
@@ -396,9 +395,9 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// }
 /// ```
 ///
-/// This example is similar to the first example, but runs the `tcp::Server`
-/// actor as thread-safe actor. *It's recommended to run the server as
-/// thread-local actor!* This is just an example show its possible.
+/// This example is similar to the first example, but runs the `TcpServer` actor
+/// as thread-safe actor. *It's recommended to run the server as thread-local
+/// actor!* This is just an example show its possible.
 ///
 /// ```
 /// #![feature(never_type)]
@@ -412,7 +411,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// use heph::actor::context::ThreadSafe;
 /// # use heph::actor::messages::Terminate;
 /// use heph::log::error;
-/// use heph::net::tcp::{self, TcpStream};
+/// use heph::net::tcp::{server, TcpServer, TcpStream};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::rt::options::Priority;
 /// use heph::{rt, ActorOptions, Runtime};
@@ -424,7 +423,7 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     // Create our TCP server. We'll use the default actor options.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let server = tcp::Server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
+///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
 ///
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let mut actor_ref =
@@ -438,16 +437,16 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 /// #[derive(Copy, Clone, Debug)]
 /// struct ServerSupervisor;
 ///
-/// impl<S, NA> Supervisor<tcp::ServerSetup<S, NA>> for ServerSupervisor
+/// impl<S, NA> Supervisor<server::Setup<S, NA>> for ServerSupervisor
 /// where
-///     // Trait bounds needed by `tcp::ServerSetup` using a thread-safe actor.
+///     // Trait bounds needed by `server::Setup` using a thread-safe actor.
 ///     S: Supervisor<NA> + Send + Sync + Clone + 'static,
 ///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = ThreadSafe> + Send + Sync + Clone + 'static,
 ///     NA::Actor: Send + Sync + 'static,
 ///     NA::Message: Send,
 /// {
-///     fn decide(&mut self, err: tcp::ServerError<!>) -> SupervisorStrategy<()> {
-///         use tcp::ServerError::*;
+///     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
+///         use server::Error::*;
 ///         match err {
 ///             // When we hit an error accepting a connection we'll drop the old
 ///             // server and create a new one.
@@ -484,9 +483,9 @@ impl<S, NA> Clone for ServerSetup<S, NA> {
 ///     stream.write_all(b"Hello World").await
 /// }
 #[derive(Debug)]
-pub struct Server<S, NA, K> {
+pub struct TcpServer<S, NA, K> {
     /// Actor context in which this actor is running.
-    ctx: actor::Context<ServerMessage, K>,
+    ctx: actor::Context<Message, K>,
     /// The underlying TCP listener, backed by Mio.
     listener: TcpListener,
     /// Supervisor for all actors created by `NewActor`.
@@ -497,12 +496,12 @@ pub struct Server<S, NA, K> {
     options: ActorOptions,
 }
 
-impl<S, NA, K> Server<S, NA, K>
+impl<S, NA, K> TcpServer<S, NA, K>
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
 {
-    /// Create a new [`ServerSetup`].
+    /// Create a new [`Setup`].
     ///
     /// Arguments:
     /// * `address`: the address to listen on.
@@ -515,7 +514,7 @@ where
         supervisor: S,
         new_actor: NA,
         options: ActorOptions,
-    ) -> io::Result<ServerSetup<S, NA>> {
+    ) -> io::Result<Setup<S, NA>> {
         // We create a listener which don't actually use. However it gives a
         // nicer user-experience to get an error up-front rather than $n errors
         // later, where $n is the number of cpu cores when spawning a new server
@@ -531,8 +530,8 @@ where
                 address = listener.local_addr()?;
             }
 
-            Ok(ServerSetup {
-                inner: Arc::new(ServerSetupInner {
+            Ok(Setup {
+                inner: Arc::new(SetupInner {
                     listener,
                     address,
                     supervisor,
@@ -544,13 +543,13 @@ where
     }
 }
 
-impl<S, NA, K> Actor for Server<S, NA, K>
+impl<S, NA, K> Actor for TcpServer<S, NA, K>
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
     K: RuntimeAccess + Spawnable<S, NA>,
 {
-    type Error = ServerError<NA::Error>;
+    type Error = Error<NA::Error>;
 
     fn try_poll(
         self: Pin<&mut Self>,
@@ -558,7 +557,7 @@ where
     ) -> Poll<Result<(), Self::Error>> {
         // This is safe because only the `RuntimeRef`, `TcpListener` and
         // the `MailBox` are mutably borrowed and all are `Unpin`.
-        let &mut Server {
+        let &mut TcpServer {
             ref listener,
             ref mut ctx,
             ref supervisor,
@@ -583,9 +582,9 @@ where
                 Ok(ok) => ok,
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break,
                 Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue, // Try again.
-                Err(err) => return Poll::Ready(Err(ServerError::Accept(err))),
+                Err(err) => return Poll::Ready(Err(Error::Accept(err))),
             };
-            debug!("tcp::Server accepted connection: remote_address={}", addr);
+            debug!("TcpServer accepted connection: remote_address={}", addr);
 
             let setup_actor = move |pid: ProcessId, ctx: &mut K| {
                 ctx.register(
@@ -615,41 +614,37 @@ where
     }
 }
 
-/// The message type used by [`tcp::Server`].
+/// The message type used by [`TcpServer`].
 ///
 /// The message implements [`From`]`<`[`Terminate`]`>` and
 /// [`TryFrom`]`<`[`Signal`]`>` for the message, allowing for graceful shutdown.
-///
-/// [`tcp::Server`]: Server
 #[derive(Debug)]
-pub struct ServerMessage {
+pub struct Message {
     // Allow for future expansion.
     inner: (),
 }
 
-impl From<Terminate> for ServerMessage {
-    fn from(_: Terminate) -> ServerMessage {
-        ServerMessage { inner: () }
+impl From<Terminate> for Message {
+    fn from(_: Terminate) -> Message {
+        Message { inner: () }
     }
 }
 
-impl TryFrom<Signal> for ServerMessage {
+impl TryFrom<Signal> for Message {
     type Error = ();
 
     /// Converts [`Signal::Interrupt`], [`Signal::Terminate`] and
     /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
     fn try_from(signal: Signal) -> Result<Self, Self::Error> {
         match signal {
-            Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(ServerMessage { inner: () }),
+            Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(Message { inner: () }),
         }
     }
 }
 
-/// Error returned by the [`tcp::Server`] actor.
-///
-/// [`tcp::Server`]: Server
+/// Error returned by the [`TcpServer`] actor.
 #[derive(Debug)]
-pub enum ServerError<E> {
+pub enum Error<E> {
     /// Error accepting TCP stream.
     Accept(io::Error),
     /// Error creating a new actor to handle the TCP stream.
@@ -658,18 +653,18 @@ pub enum ServerError<E> {
 
 // Not part of the public API.
 #[doc(hidden)]
-impl<E> From<AddActorError<E, io::Error>> for ServerError<E> {
-    fn from(err: AddActorError<E, io::Error>) -> ServerError<E> {
+impl<E> From<AddActorError<E, io::Error>> for Error<E> {
+    fn from(err: AddActorError<E, io::Error>) -> Error<E> {
         match err {
-            AddActorError::NewActor(err) => ServerError::NewActor(err),
-            AddActorError::ArgFn(err) => ServerError::Accept(err),
+            AddActorError::NewActor(err) => Error::NewActor(err),
+            AddActorError::ArgFn(err) => Error::Accept(err),
         }
     }
 }
 
-impl<E: fmt::Display> fmt::Display for ServerError<E> {
+impl<E: fmt::Display> fmt::Display for Error<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use ServerError::*;
+        use Error::*;
         match self {
             Accept(ref err) => write!(f, "error accepting TCP stream: {}", err),
             NewActor(ref err) => write!(f, "error creating new actor: {}", err),

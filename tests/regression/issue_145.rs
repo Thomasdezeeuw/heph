@@ -1,5 +1,5 @@
-//! The `TcpListener` and `tcp::Server` should bind to port 0, using the same
-//! port on each worker thread.
+//! The `TcpListener` and `TcpServer` should bind to port 0, using the same port
+//! on each worker thread.
 
 use std::io::{self, Read};
 use std::net::SocketAddr;
@@ -8,7 +8,7 @@ use std::thread;
 use std::time::Duration;
 
 use heph::actor::messages::Terminate;
-use heph::net::tcp::{self, TcpListener, TcpStream};
+use heph::net::{tcp, TcpListener, TcpServer, TcpStream};
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::{actor, Actor, ActorOptions, ActorRef, NewActor, Runtime};
 
@@ -24,7 +24,7 @@ fn issue_145_tcp_server() {
     let conn_actor = (conn_actor as fn(_, _, _, _) -> _)
         .map_arg(move |(stream, address)| (stream, address, addresses2.clone()));
     let server =
-        tcp::Server::setup(address, NoSupervisor, conn_actor, ActorOptions::default()).unwrap();
+        TcpServer::setup(address, NoSupervisor, conn_actor, ActorOptions::default()).unwrap();
     let expected_address = server.local_addr();
 
     let shared = Arc::new((
@@ -101,10 +101,10 @@ struct ServerSupervisor;
 
 impl<L, A> Supervisor<L> for ServerSupervisor
 where
-    L: NewActor<Message = tcp::ServerMessage, Argument = (), Actor = A, Error = io::Error>,
-    A: Actor<Error = tcp::ServerError<!>>,
+    L: NewActor<Message = tcp::server::Message, Argument = (), Actor = A, Error = io::Error>,
+    A: Actor<Error = tcp::server::Error<!>>,
 {
-    fn decide(&mut self, _: tcp::ServerError<!>) -> SupervisorStrategy<()> {
+    fn decide(&mut self, _: tcp::server::Error<!>) -> SupervisorStrategy<()> {
         SupervisorStrategy::Stop
     }
 
