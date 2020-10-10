@@ -134,14 +134,6 @@ impl TcpStream {
         Recv { stream: self, buf }
     }
 
-    /// Receives data on the socket from the remote address to which it is
-    /// connected, without removing that data from the queue. On success,
-    /// returns the number of bytes peeked. Successive calls return the same
-    /// data.
-    pub fn peek<'a>(&'a mut self, buf: &'a mut [u8]) -> Peek<'a> {
-        Peek { stream: self, buf }
-    }
-
     /// Shuts down the read, write, or both halves of this connection.
     ///
     /// This function will cause all pending and future I/O on the specified
@@ -230,25 +222,6 @@ impl<'a> Future for Recv<'a> {
             ref mut buf,
         } = self.deref_mut();
         try_io!(stream.try_recv(buf))
-    }
-}
-
-/// The [`Future`] behind [`TcpStream::peek`].
-#[derive(Debug)]
-pub struct Peek<'a> {
-    stream: &'a mut TcpStream,
-    buf: &'a mut [u8],
-}
-
-impl<'a> Future for Peek<'a> {
-    type Output = io::Result<usize>;
-
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let Peek {
-            ref mut stream,
-            ref mut buf,
-        } = self.deref_mut();
-        try_io!(stream.socket.peek(buf))
     }
 }
 
