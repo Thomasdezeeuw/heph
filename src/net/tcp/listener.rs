@@ -210,6 +210,32 @@ impl TcpListener {
         self.socket.ttl()
     }
 
+    /// Attempts to accept a new incoming [`TcpStream`].
+    ///
+    /// If an accepted TCP stream is returned, the remote address of the peer is
+    /// returned along with it.
+    ///
+    /// If no streams are currently queued this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`TcpListener::accept`].
+    ///
+    /// See the [`TcpListener`] documentation for an example.
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    ///
+    /// # Notes
+    ///
+    /// After accepting a stream it needs to be [bound] to an actor to ensure
+    /// the actor is run once the stream is ready.
+    ///
+    /// [bound]: actor::Bound::bind_to
+    pub fn try_accept(&mut self) -> io::Result<(TcpStream, SocketAddr)> {
+        self.socket
+            .accept()
+            .map(|(socket, address)| (TcpStream { socket }, address))
+    }
+
     /// Accepts a new incoming [`TcpStream`].
     ///
     /// If an accepted TCP stream is returned, the remote address of the peer is
@@ -223,8 +249,7 @@ impl TcpListener {
     /// the actor is run once the stream is ready.
     ///
     /// [bound]: actor::Bound::bind_to
-    #[allow(clippy::needless_lifetimes)]
-    pub fn accept<'a>(&'a mut self) -> Accept<'a> {
+    pub fn accept(&mut self) -> Accept<'_> {
         Accept {
             listener: Some(self),
         }
@@ -241,8 +266,7 @@ impl TcpListener {
     /// the actor is run once the stream is ready.
     ///
     /// [bound]: actor::Bound::bind_to
-    #[allow(clippy::needless_lifetimes)]
-    pub fn incoming<'a>(&'a mut self) -> Incoming<'a> {
+    pub fn incoming(&mut self) -> Incoming<'_> {
         Incoming { listener: self }
     }
 
@@ -275,12 +299,11 @@ impl<'a> Future for Accept<'a> {
 
     fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match self.listener {
-            Some(ref mut listener) => try_io!(listener.socket.accept())
-                .map(|res| {
-                    drop(self.listener.take());
-                    res
-                })
-                .map_ok(|(socket, address)| (TcpStream { socket }, address)),
+            Some(ref mut listener) => try_io!(listener.try_accept()).map(|res| {
+                // Only remove the listener if we return a stream.
+                self.listener = None;
+                res
+            }),
             None => panic!("polled Accept after it return Poll::Ready"),
         }
     }
@@ -309,10 +332,11 @@ pub struct Incoming<'a> {
 impl<'a> Stream for Incoming<'a> {
     type Item = io::Result<(TcpStream, SocketAddr)>;
 
-    fn poll_next(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
-        try_io!(self.listener.socket.accept())
-            .map_ok(|(socket, address)| (TcpStream { socket }, address))
-            .map(Some)
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        _ctx: &mut task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        try_io!(self.listener.try_accept()).map(Some)
     }
 }
 
