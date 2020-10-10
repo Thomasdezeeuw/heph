@@ -341,10 +341,7 @@ where
     type Output = io::Result<usize>;
 
     fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let Recv {
-            ref mut stream,
-            ref mut buf,
-        } = Pin::into_inner(self);
+        let Recv { stream, buf } = Pin::into_inner(self);
         try_io!(stream.try_recv(&mut *buf))
     }
 }
@@ -365,11 +362,7 @@ where
     type Output = io::Result<()>;
 
     fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let RecvN {
-            ref mut stream,
-            ref mut buf,
-            ref mut left,
-        } = Pin::into_inner(self);
+        let RecvN { stream, buf, left } = Pin::into_inner(self);
         loop {
             match stream.try_recv(&mut *buf) {
                 Ok(0) => return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())),

@@ -4,15 +4,16 @@
 
 use std::future::Future;
 use std::marker::PhantomData;
-use std::net::SocketAddr;
-use std::ops::DerefMut;
+use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
+use std::os::unix::io::AsRawFd;
 use std::pin::Pin;
 use std::task::{self, Poll};
-use std::{fmt, io};
+use std::{fmt, io, mem};
 
 use mio::{net, Interest};
 
 use crate::actor;
+use crate::net::Bytes;
 use crate::rt::RuntimeAccess;
 
 /// The unconnected mode of an [`UdpSocket`].
@@ -165,8 +166,7 @@ impl<M> UdpSocket<M> {
     /// Connects the UDP socket by setting the default destination and limiting
     /// packets that are read, written and peeked to the `remote` address.
     pub fn connect(self, remote: SocketAddr) -> io::Result<UdpSocket<Connected>> {
-        self.socket.connect(remote)?;
-        Ok(UdpSocket {
+        self.socket.connect(remote).map(|()| UdpSocket {
             socket: self.socket,
             mode: PhantomData,
         })
@@ -188,9 +188,21 @@ impl<M> UdpSocket<M> {
 }
 
 impl UdpSocket<Unconnected> {
+    /// Attempt to send data to the given `target` address.
+    ///
+    /// If the buffer currently can't be send this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`UdpSocket::send_to`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_send_to(&mut self, buf: &[u8], target: SocketAddr) -> io::Result<usize> {
+        self.socket.send_to(buf, target)
+    }
+
     /// Sends data to the given `target` address. Returns a [`Future`] that on
     /// success returns the number of bytes written (`io::Result<usize>`).
-    pub fn send_to<'a>(&'a mut self, buf: &'a [u8], target: SocketAddr) -> SendTo<'a> {
+    pub fn send_to<'a, 'b>(&'a mut self, buf: &'b [u8], target: SocketAddr) -> SendTo<'a, 'b> {
         SendTo {
             socket: self,
             buf,
@@ -198,163 +210,330 @@ impl UdpSocket<Unconnected> {
         }
     }
 
+    /// Attempt to receive data from the socket, writing them into `buf`.
+    ///
+    /// If no bytes can currently be received this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`UdpSocket::recv_from`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_recv_from<B>(&mut self, mut buf: B) -> io::Result<(usize, SocketAddr)>
+    where
+        B: Bytes,
+    {
+        let dst = buf.as_bytes();
+        debug_assert!(
+            !dst.is_empty(),
+            "called `UdpSocket::try_recv_from` with an empty buffer"
+        );
+        self.recvfrom(buf, 0)
+    }
+
     /// Receives data from the socket. Returns a [`Future`] that on success
     /// returns the number of bytes read and the address from whence the data
     /// came (`io::Result<(usize, SocketAddr>`).
-    pub fn recv_from<'a>(&'a mut self, buf: &'a mut [u8]) -> RecvFrom<'a> {
+    pub fn recv_from<B>(&mut self, buf: B) -> RecvFrom<'_, B>
+    where
+        B: Bytes,
+    {
         RecvFrom { socket: self, buf }
+    }
+
+    /// Attempt to peek data from the socket, writing them into `buf`.
+    ///
+    /// If no bytes can currently be peeked this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`UdpSocket::peek_from`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_peek_from<B>(&mut self, mut buf: B) -> io::Result<(usize, SocketAddr)>
+    where
+        B: Bytes,
+    {
+        let dst = buf.as_bytes();
+        debug_assert!(
+            !dst.is_empty(),
+            "called `UdpSocket::try_peek_from` with an empty buffer"
+        );
+        self.recvfrom(buf, libc::MSG_PEEK)
     }
 
     /// Receives data from the socket, without removing it from the input queue.
     /// Returns a [`Future`] that on success returns the number of bytes read
     /// and the address from whence the data came (`io::Result<(usize,
     /// SocketAddr>`).
-    pub fn peek_from<'a>(&'a mut self, buf: &'a mut [u8]) -> PeekFrom<'a> {
+    pub fn peek_from<B>(&mut self, buf: B) -> PeekFrom<'_, B>
+    where
+        B: Bytes,
+    {
         PeekFrom { socket: self, buf }
+    }
+
+    #[track_caller]
+    fn recvfrom<B>(&mut self, mut buf: B, flags: libc::c_int) -> io::Result<(usize, SocketAddr)>
+    where
+        B: Bytes,
+    {
+        // Safety: `sockaddr_storage` filled with zeros is valid.
+        let mut address: libc::sockaddr_storage = unsafe { mem::zeroed() };
+        let mut address_length = mem::size_of_val(&address) as libc::socklen_t;
+
+        let dst = buf.as_bytes();
+        syscall!(recvfrom(
+            self.socket.as_raw_fd(),
+            dst.as_mut_ptr().cast(),
+            dst.len(),
+            flags,
+            &mut address as *mut _ as *mut _,
+            &mut address_length,
+        ))
+        .and_then(|read| {
+            let address = socket_addr_from_storage(&address, address_length as usize)?;
+            let read = read as usize;
+            // Safety: just read the bytes.
+            unsafe { buf.update_length(read) }
+            Ok((read, address))
+        })
+    }
+}
+
+/// Creates a [`SocketAddr`] from [`libc::sockaddr_storage`].
+fn socket_addr_from_storage(
+    storage: &libc::sockaddr_storage,
+    len: usize,
+) -> io::Result<SocketAddr> {
+    match storage.ss_family as libc::c_int {
+        libc::AF_INET => {
+            assert!(len >= mem::size_of::<libc::sockaddr_in>());
+            // Safety: just checked the variant above.
+            let addr: SocketAddrV4 = unsafe { *(storage as *const _ as *const _) };
+            Ok(SocketAddr::V4(addr))
+        }
+        libc::AF_INET6 => {
+            assert!(len >= mem::size_of::<libc::sockaddr_in6>());
+            // Safety: just checked the variant above.
+            let addr: SocketAddrV6 = unsafe { *(storage as *const _ as *const _) };
+            Ok(SocketAddr::V6(addr))
+        }
+        _ => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "address is not IPv4 or IPv6",
+        )),
     }
 }
 
 /// The [`Future`] behind [`UdpSocket::send_to`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct SendTo<'a> {
+pub struct SendTo<'a, 'b> {
     socket: &'a mut UdpSocket<Unconnected>,
-    buf: &'a [u8],
+    buf: &'b [u8],
     target: SocketAddr,
 }
 
-impl<'a> Future for SendTo<'a> {
+impl<'a, 'b> Future for SendTo<'a, 'b> {
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let SendTo {
-            ref mut socket,
-            ref buf,
-            ref target,
-        } = self.deref_mut();
-        try_io!(socket.socket.send_to(buf, *target))
+            socket,
+            buf,
+            target,
+        } = Pin::into_inner(self);
+        try_io!(socket.try_send_to(buf, *target))
     }
 }
 
 /// The [`Future`] behind [`UdpSocket::recv_from`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct RecvFrom<'a> {
+pub struct RecvFrom<'a, B> {
     socket: &'a mut UdpSocket<Unconnected>,
-    buf: &'a mut [u8],
+    buf: B,
 }
 
-impl<'a> Future for RecvFrom<'a> {
+impl<'a, B> Future for RecvFrom<'a, B>
+where
+    B: Bytes + Unpin,
+{
     type Output = io::Result<(usize, SocketAddr)>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let RecvFrom {
-            ref mut socket,
-            ref mut buf,
-        } = self.deref_mut();
-        try_io!(socket.socket.recv_from(buf))
+    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let RecvFrom { socket, buf } = Pin::into_inner(self);
+        try_io!(socket.try_recv_from(&mut *buf))
     }
 }
 
 /// The [`Future`] behind [`UdpSocket::peek_from`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct PeekFrom<'a> {
+pub struct PeekFrom<'a, B> {
     socket: &'a mut UdpSocket<Unconnected>,
-    buf: &'a mut [u8],
+    buf: B,
 }
 
-impl<'a> Future for PeekFrom<'a> {
+impl<'a, B> Future for PeekFrom<'a, B>
+where
+    B: Bytes + Unpin,
+{
     type Output = io::Result<(usize, SocketAddr)>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let PeekFrom {
-            ref mut socket,
-            ref mut buf,
-        } = self.deref_mut();
-        try_io!(socket.socket.peek_from(buf))
+    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let PeekFrom { socket, buf } = Pin::into_inner(self);
+        try_io!(socket.try_peek_from(&mut *buf))
     }
 }
 
 impl UdpSocket<Connected> {
+    /// Attempt to send data to the peer.
+    ///
+    /// If the buffer currently can't be send this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`UdpSocket::send_to`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_send(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.socket.send(buf)
+    }
+
     /// Sends data on the socket to the connected socket. Returns a [`Future`]
     /// that on success returns the number of bytes written
     /// (`io::Result<usize>`).
-    pub fn send<'a>(&'a mut self, buf: &'a [u8]) -> Send<'a> {
+    pub fn send<'a, 'b>(&'a mut self, buf: &'b [u8]) -> Send<'a, 'b> {
         Send { socket: self, buf }
+    }
+
+    /// Attempt to receive data from the socket, writing them into `buf`.
+    ///
+    /// If no bytes can currently be received this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`UdpSocket::recv`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_recv<B>(&mut self, mut buf: B) -> io::Result<usize>
+    where
+        B: Bytes,
+    {
+        let dst = buf.as_bytes();
+        debug_assert!(
+            !dst.is_empty(),
+            "called `UdpSocket::try_recv_from` with an empty buffer"
+        );
+        self._recv(buf, 0)
     }
 
     /// Receives data from the socket. Returns a [`Future`] that on success
     /// returns the number of bytes read (`io::Result<usize>`).
-    pub fn recv<'a>(&'a mut self, buf: &'a mut [u8]) -> Recv<'a> {
+    pub fn recv<B>(&mut self, buf: B) -> Recv<'_, B> {
         Recv { socket: self, buf }
+    }
+
+    /// Attempt to peek data from the socket, writing them into `buf`.
+    ///
+    /// If no bytes can currently be peeked this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`UdpSocket::peek`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_peek<B>(&mut self, mut buf: B) -> io::Result<usize>
+    where
+        B: Bytes,
+    {
+        let dst = buf.as_bytes();
+        debug_assert!(
+            !dst.is_empty(),
+            "called `UdpSocket::try_peek` with an empty buffer"
+        );
+        self._recv(buf, libc::MSG_PEEK)
     }
 
     /// Receives data from the socket, without removing it from the input queue.
     /// Returns a [`Future`] that on success returns the number of bytes read
     /// (`io::Result<usize>`).
-    pub fn peek<'a>(&'a mut self, buf: &'a mut [u8]) -> Peek<'a> {
+    pub fn peek<B>(&mut self, buf: B) -> Peek<'_, B> {
         Peek { socket: self, buf }
+    }
+
+    #[track_caller]
+    fn _recv<B>(&mut self, mut buf: B, flags: libc::c_int) -> io::Result<usize>
+    where
+        B: Bytes,
+    {
+        let dst = buf.as_bytes();
+        syscall!(recv(
+            self.socket.as_raw_fd(),
+            dst.as_mut_ptr().cast(),
+            dst.len(),
+            flags,
+        ))
+        .map(|read| {
+            let read = read as usize;
+            // Safety: just read the bytes.
+            unsafe { buf.update_length(read) }
+            read
+        })
     }
 }
 
 /// The [`Future`] behind [`UdpSocket::send`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Send<'a> {
+pub struct Send<'a, 'b> {
     socket: &'a mut UdpSocket<Connected>,
-    buf: &'a [u8],
+    buf: &'b [u8],
 }
 
-impl<'a> Future for Send<'a> {
+impl<'a, 'b> Future for Send<'a, 'b> {
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let Send {
-            ref mut socket,
-            ref buf,
-        } = self.deref_mut();
-        try_io!(socket.socket.send(buf))
+    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let Send { socket, buf } = Pin::into_inner(self);
+        try_io!(socket.try_send(buf))
     }
 }
 
 /// The [`Future`] behind [`UdpSocket::recv`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Recv<'a> {
+pub struct Recv<'a, B> {
     socket: &'a mut UdpSocket<Connected>,
-    buf: &'a mut [u8],
+    buf: B,
 }
 
-impl<'a> Future for Recv<'a> {
+impl<'a, B> Future for Recv<'a, B>
+where
+    B: Bytes + Unpin,
+{
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let Recv {
-            ref mut socket,
-            ref mut buf,
-        } = self.deref_mut();
-        try_io!(socket.socket.recv(buf))
+    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let Recv { socket, buf } = Pin::into_inner(self);
+        try_io!(socket.try_recv(&mut *buf))
     }
 }
 
 /// The [`Future`] behind [`UdpSocket::peek`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Peek<'a> {
+pub struct Peek<'a, B> {
     socket: &'a mut UdpSocket<Connected>,
-    buf: &'a mut [u8],
+    buf: B,
 }
 
-impl<'a> Future for Peek<'a> {
+impl<'a, B> Future for Peek<'a, B>
+where
+    B: Bytes + Unpin,
+{
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let Peek {
-            ref mut socket,
-            ref mut buf,
-        } = self.deref_mut();
-        try_io!(socket.socket.peek(buf))
+    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let Peek { socket, buf } = Pin::into_inner(self);
+        try_io!(socket.try_peek(&mut *buf))
     }
 }
 
