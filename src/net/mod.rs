@@ -19,6 +19,18 @@
 use std::mem::MaybeUninit;
 use std::slice;
 
+/// Macro to make a system call, return the error properly.
+macro_rules! syscall {
+    ($fn: ident ( $($arg: expr),* $(,)* ) ) => {{
+        let res = unsafe { libc::$fn($($arg, )*) };
+        if res == -1 {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(res)
+        }
+    }};
+}
+
 /// A macro to try an I/O function.
 ///
 /// Note that this is used in the tcp and udp modules and has to be defined
@@ -97,6 +109,26 @@ impl Bytes for [u8] {
 
     unsafe fn update_length(&mut self, _: usize) {
         // Can't update the length of a slice.
+    }
+}
+
+impl<const N: usize> Bytes for [MaybeUninit<u8>; N] {
+    fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
+        self.as_mut_slice().as_bytes()
+    }
+
+    unsafe fn update_length(&mut self, _: usize) {
+        // Can't update the length of an array.
+    }
+}
+
+impl<const N: usize> Bytes for [u8; N] {
+    fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
+        self.as_mut_slice().as_bytes()
+    }
+
+    unsafe fn update_length(&mut self, _: usize) {
+        // Can't update the length of an array.
     }
 }
 

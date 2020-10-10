@@ -66,6 +66,7 @@
 //! the `test` module which adds testing facilities.
 
 #![feature(
+    array_methods,
     const_fn,
     const_raw_ptr_to_usize_cast,
     duration_zero,
@@ -73,6 +74,7 @@
     maybe_uninit_extra,
     maybe_uninit_ref,
     maybe_uninit_slice,
+    min_const_generics,
     never_type,
     new_uninit
 )]
