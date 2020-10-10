@@ -2,9 +2,8 @@
 
 use std::future::Future;
 use std::io::{self, IoSlice, IoSliceMut, Read, Write};
-use std::mem::{size_of, MaybeUninit};
+use std::mem::size_of;
 use std::net::{Shutdown, SocketAddr};
-use std::ops::DerefMut;
 use std::os::unix::io::AsRawFd;
 use std::pin::Pin;
 use std::task::{self, Poll};
@@ -13,6 +12,7 @@ use futures_io::{AsyncRead, AsyncWrite};
 use mio::{net, Interest};
 
 use crate::actor;
+use crate::net::Bytes;
 use crate::rt::RuntimeAccess;
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
@@ -119,18 +119,34 @@ impl TcpStream {
     ///
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
-    pub fn try_recv(&mut self, buf: &mut [MaybeUninit<u8>]) -> io::Result<usize> {
+    pub fn try_recv<B>(&mut self, mut buf: B) -> io::Result<usize>
+    where
+        B: Bytes,
+    {
+        let dst = buf.as_bytes();
+        debug_assert!(
+            !dst.is_empty(),
+            "called `TcpStream::try_recv with an empty buffer"
+        );
         syscall!(recv(
             self.socket.as_raw_fd(),
-            MaybeUninit::slice_as_mut_ptr(buf).cast(),
-            buf.len(),
+            dst.as_mut_ptr().cast(),
+            dst.len(),
             0, // Flags.
         ))
-        .map(|read| read as usize)
+        .map(|read| {
+            let read = read as usize;
+            // Safety: just read the bytes.
+            unsafe { buf.update_length(read) }
+            read
+        })
     }
 
     /// Receive messages from the stream, writing them into `buf`.
-    pub fn recv<'a>(&'a mut self, buf: &'a mut [MaybeUninit<u8>]) -> Recv<'a> {
+    pub fn recv<'a, B>(&'a mut self, buf: B) -> Recv<'a, B>
+    where
+        B: Bytes,
+    {
         Recv { stream: self, buf }
     }
 
@@ -208,20 +224,23 @@ impl Future for Connect {
 
 /// The [`Future`] behind [`TcpStream::recv`].
 #[derive(Debug)]
-pub struct Recv<'a> {
+pub struct Recv<'a, B> {
     stream: &'a mut TcpStream,
-    buf: &'a mut [MaybeUninit<u8>],
+    buf: B,
 }
 
-impl<'a> Future for Recv<'a> {
+impl<'a, B> Future for Recv<'a, B>
+where
+    B: Bytes + Unpin,
+{
     type Output = io::Result<usize>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Recv {
             ref mut stream,
             ref mut buf,
-        } = self.deref_mut();
-        try_io!(stream.try_recv(buf))
+        } = Pin::into_inner(self);
+        try_io!(stream.try_recv(&mut *buf))
     }
 }
 
