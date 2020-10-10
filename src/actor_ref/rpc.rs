@@ -174,6 +174,7 @@ use crate::rt::Waker;
 
 /// [`Future`] that resolves to a Remote Procedure Call (RPC) response.
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Rpc<Res> {
     recv: Receiver<Res>,
 }

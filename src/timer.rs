@@ -83,6 +83,7 @@ impl From<DeadlinePassed> for io::Error {
 /// }
 /// ```
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Timer {
     deadline: Instant,
 }
@@ -222,6 +223,7 @@ where
 /// }
 /// ```
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Deadline<Fut> {
     deadline: Instant,
     future: Fut,
@@ -399,6 +401,7 @@ where
 /// }
 /// ```
 #[derive(Debug)]
+#[must_use = "streams do nothing unless polled"]
 pub struct Interval {
     interval: Duration,
     deadline: Instant,

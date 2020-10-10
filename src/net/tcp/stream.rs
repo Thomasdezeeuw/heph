@@ -274,6 +274,7 @@ impl TcpStream {
 
 /// The [`Future`] behind [`TcpStream::connect`].
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Connect {
     socket: Option<net::TcpStream>,
 }

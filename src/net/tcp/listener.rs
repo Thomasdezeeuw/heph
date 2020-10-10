@@ -265,6 +265,7 @@ impl TcpListener {
 ///
 /// [bound]: actor::Bound::bind_to
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Accept<'a> {
     listener: Option<&'a mut TcpListener>,
 }
@@ -300,6 +301,7 @@ impl<'a> FusedFuture for Accept<'a> {
 ///
 /// [bound]: actor::Bound::bind_to
 #[derive(Debug)]
+#[must_use = "streams do nothing unless polled"]
 pub struct Incoming<'a> {
     listener: &'a mut TcpListener,
 }

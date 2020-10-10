@@ -216,6 +216,7 @@ impl UdpSocket<Unconnected> {
 
 /// The [`Future`] behind [`UdpSocket::send_to`].
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct SendTo<'a> {
     socket: &'a mut UdpSocket<Unconnected>,
     buf: &'a [u8],
@@ -237,6 +238,7 @@ impl<'a> Future for SendTo<'a> {
 
 /// The [`Future`] behind [`UdpSocket::recv_from`].
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct RecvFrom<'a> {
     socket: &'a mut UdpSocket<Unconnected>,
     buf: &'a mut [u8],
@@ -256,6 +258,7 @@ impl<'a> Future for RecvFrom<'a> {
 
 /// The [`Future`] behind [`UdpSocket::peek_from`].
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct PeekFrom<'a> {
     socket: &'a mut UdpSocket<Unconnected>,
     buf: &'a mut [u8],
@@ -297,6 +300,7 @@ impl UdpSocket<Connected> {
 
 /// The [`Future`] behind [`UdpSocket::send`].
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Send<'a> {
     socket: &'a mut UdpSocket<Connected>,
     buf: &'a [u8],
@@ -316,6 +320,7 @@ impl<'a> Future for Send<'a> {
 
 /// The [`Future`] behind [`UdpSocket::recv`].
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Recv<'a> {
     socket: &'a mut UdpSocket<Connected>,
     buf: &'a mut [u8],
@@ -335,6 +340,7 @@ impl<'a> Future for Recv<'a> {
 
 /// The [`Future`] behind [`UdpSocket::peek`].
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Peek<'a> {
     socket: &'a mut UdpSocket<Connected>,
     buf: &'a mut [u8],

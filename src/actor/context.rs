@@ -601,6 +601,7 @@ impl fmt::Debug for ThreadSafe {
 ///
 /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct ReceiveMessage<'ctx, M, S = First> {
     inbox: &'ctx mut Inbox<M>,
     selector: S,
@@ -648,6 +649,7 @@ impl<'ctx, M> Future for ReceiveMessage<'ctx, M, First> {
 /// [`actor::Context::peek`]: crate::actor::Context::peek
 /// [`actor::Context::peek_next`]: crate::actor::Context::peek_next
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct PeekMessage<'ctx, M, S = First> {
     inbox: &'ctx mut Inbox<M>,
     selector: S,

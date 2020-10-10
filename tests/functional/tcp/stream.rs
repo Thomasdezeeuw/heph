@@ -35,6 +35,7 @@ const fn wait_once() -> WaitOnce {
     WaitOnce(false)
 }
 
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 struct WaitOnce(bool);
 
 impl Future for WaitOnce {
