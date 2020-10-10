@@ -362,3 +362,85 @@ fn recv_n_from_multiple_writes() {
 
     loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
 }
+
+#[test]
+fn send() {
+    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+
+        let n = stream.send(&DATA).await?;
+        assert_eq!(n, DATA.len());
+
+        // Return pending once.
+        wait_once().await;
+
+        drop(stream);
+        Ok(())
+    }
+
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
+    let address = listener.local_addr().unwrap();
+
+    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
+    pin_mut!(actor);
+
+    // Stream should not yet be connected.
+    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+
+    let (mut stream, _) = listener.accept().unwrap();
+
+    // Should send the bytes.
+    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+
+    let mut buf = [0; DATA.len() + 1];
+    let n = stream.read(&mut buf).unwrap();
+    assert_eq!(n, DATA.len());
+    assert_eq!(&buf[..n], DATA);
+
+    // Should drop the stream.
+    expect_ready_ok(poll_actor(Pin::as_mut(&mut actor)), ());
+    let n = stream.read(&mut buf).unwrap();
+    assert_eq!(n, 0);
+}
+
+#[test]
+fn send_all() {
+    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+
+        stream.send_all(&DATA).await?;
+
+        // Return pending once.
+        wait_once().await;
+
+        drop(stream);
+        Ok(())
+    }
+
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
+    let address = listener.local_addr().unwrap();
+
+    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
+    pin_mut!(actor);
+
+    // Stream should not yet be connected.
+    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+
+    let (mut stream, _) = listener.accept().unwrap();
+
+    // Should send the bytes.
+    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+
+    let mut buf = [0; DATA.len() + 1];
+    let n = stream.read(&mut buf).unwrap();
+    assert_eq!(n, DATA.len());
+    assert_eq!(&buf[..n], DATA);
+
+    // Should drop the stream.
+    expect_ready_ok(poll_actor(Pin::as_mut(&mut actor)), ());
+    let n = stream.read(&mut buf).unwrap();
+    assert_eq!(n, 0);
+}
+
+// TODO: add test for TcpStream::send_all that requires at least two `try_recv`
+// calls.

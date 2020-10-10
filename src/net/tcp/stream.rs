@@ -111,11 +111,48 @@ impl TcpStream {
         .map(|_| ())
     }
 
+    /// Attempt to send bytes in `buf` to the peer.
+    ///
+    /// If no bytes can currently be send this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`TcpStream::send`] or [`TcpStream::send_all`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_send(&mut self, buf: &[u8]) -> io::Result<usize> {
+        syscall!(send(
+            self.socket.as_raw_fd(),
+            buf.as_ptr().cast(),
+            buf.len(),
+            0, // Flags.
+        ))
+        .map(|n| n as usize)
+    }
+
+    /// Send the bytes in `buf` to the peer.
+    ///
+    /// Return the number of bytes written. This may we fewer then the length of
+    /// `buf`. To ensure that all bytes are written use [`TcpStream::send_all`].
+    pub fn send<'a, 'b>(&'a mut self, buf: &'b [u8]) -> Send<'a, 'b> {
+        Send { stream: self, buf }
+    }
+
+    /// Send the all bytes in `buf` to the peer.
+    ///
+    /// If this fails to send all bytes (this happens if a write returns
+    /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
+    pub fn send_all<'a, 'b>(&'a mut self, buf: &'b [u8]) -> SendAll<'a, 'b> {
+        SendAll { stream: self, buf }
+    }
+
     /// Attempt to receive message(s) from the stream, writing them into `buf`.
     ///
     /// If no bytes can currently be received this will return an error with the
     /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
     /// [`TcpStream::recv`] or [`TcpStream::recv_n`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
     ///
     /// # Examples
     ///
@@ -148,9 +185,6 @@ impl TcpStream {
     /// #
     /// # drop(actor); // Silent dead code warnings.
     /// ```
-    ///
-    /// [kind]: io::Error::kind
-    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
     pub fn try_recv<B>(&mut self, mut buf: B) -> io::Result<usize>
     where
         B: Bytes,
@@ -322,6 +356,53 @@ impl Future for Connect {
                 Poll::Pending
             }
             None => panic!("polled `tcp::stream::Connect` after completion"),
+        }
+    }
+}
+
+/// The [`Future`] behind [`TcpStream::send`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct Send<'a, 'b> {
+    stream: &'a mut TcpStream,
+    buf: &'b [u8],
+}
+
+impl<'a, 'b> Future for Send<'a, 'b> {
+    type Output = io::Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let Send { stream, buf } = Pin::into_inner(self);
+        try_io!(stream.try_send(buf))
+    }
+}
+
+/// The [`Future`] behind [`TcpStream::send_all`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct SendAll<'a, 'b> {
+    stream: &'a mut TcpStream,
+    buf: &'b [u8],
+}
+
+impl<'a, 'b> Future for SendAll<'a, 'b> {
+    type Output = io::Result<()>;
+
+    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let SendAll { stream, buf } = Pin::into_inner(self);
+        loop {
+            match stream.try_send(buf) {
+                Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
+                Ok(n) if buf.len() <= n => return Poll::Ready(Ok(())),
+                Ok(n) => {
+                    *buf = &buf[n..];
+                    // Try to send some more bytes.
+                    continue;
+                }
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break Poll::Pending,
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => break Poll::Ready(Err(err)),
+            }
         }
     }
 }
