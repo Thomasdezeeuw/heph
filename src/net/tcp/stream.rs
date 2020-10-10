@@ -115,7 +115,39 @@ impl TcpStream {
     ///
     /// If no bytes can currently be received this will return an error with the
     /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
-    /// [`TcpStream::recv`].
+    /// [`TcpStream::recv`] or [`TcpStream::recv_n`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(never_type)]
+    ///
+    /// use std::io;
+    ///
+    /// use heph::actor;
+    /// use heph::net::TcpStream;
+    ///
+    /// async fn actor(mut ctx: actor::Context<!>) -> io::Result<()> {
+    ///     let address = "127.0.0.1:12345".parse().unwrap();
+    ///     let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+    ///
+    ///     let mut buf = Vec::with_capacity(4 * 1024); // 4 KB.
+    ///     match stream.try_recv(&mut buf) {
+    ///         Ok(n) => println!("read {} bytes: {:?}", n, buf),
+    ///         Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+    ///             println!("no bytes can't be read at this time");
+    ///         },
+    ///         Err(ref err) if err.kind() == io::ErrorKind::Interrupted => {
+    ///             println!("read got interrupted");
+    ///         },
+    ///         Err(err) => return Err(err),
+    ///     }
+    ///
+    ///     Ok(())
+    /// }
+    /// #
+    /// # drop(actor); // Silent dead code warnings.
+    /// ```
     ///
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
@@ -143,11 +175,82 @@ impl TcpStream {
     }
 
     /// Receive messages from the stream, writing them into `buf`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(never_type)]
+    ///
+    /// use std::io;
+    ///
+    /// use heph::actor;
+    /// use heph::net::TcpStream;
+    ///
+    /// async fn actor(mut ctx: actor::Context<!>) -> io::Result<()> {
+    ///     let address = "127.0.0.1:12345".parse().unwrap();
+    ///     let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+    ///
+    ///     let mut buf = Vec::with_capacity(4 * 1024); // 4 KB.
+    ///     let n = stream.recv(&mut buf).await?;
+    ///     println!("read {} bytes: {:?}", n, buf);
+    ///
+    ///     Ok(())
+    /// }
+    /// #
+    /// # drop(actor); // Silent dead code warnings.
+    /// ```
     pub fn recv<'a, B>(&'a mut self, buf: B) -> Recv<'a, B>
     where
         B: Bytes,
     {
         Recv { stream: self, buf }
+    }
+
+    /// Receive at least `n` bytes from the stream, writing them into `buf`.
+    ///
+    /// This returns a [`Future`] that receives at least `n` bytes from a
+    /// `TcpStream` and writes them into buffer `B`, or returns
+    /// [`io::ErrorKind::UnexpectedEof`] if less then `n` bytes could be read.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(never_type)]
+    ///
+    /// use std::io;
+    ///
+    /// use heph::actor;
+    /// use heph::net::TcpStream;
+    ///
+    /// async fn actor(mut ctx: actor::Context<!>) -> io::Result<()> {
+    ///     let address = "127.0.0.1:12345".parse().unwrap();
+    ///     let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+    ///
+    ///     let mut buf = Vec::with_capacity(4 * 1024); // 4 KB.
+    ///     // NOTE: this will return an error if the peer sends less than 1 KB
+    ///     // of data before shutting down or closing the connection.
+    ///     let n = 1024;
+    ///     stream.recv_n(&mut buf, n).await?;
+    ///     println!("read {} bytes: {:?}", n, buf);
+    ///
+    ///     Ok(())
+    /// }
+    /// #
+    /// # drop(actor); // Silent dead code warnings.
+    /// ```
+    pub fn recv_n<'a, B>(&'a mut self, mut buf: B, n: usize) -> RecvN<'a, B>
+    where
+        B: Bytes,
+    {
+        debug_assert!(
+            buf.as_bytes().len() >= n,
+            "called `TcpStream::recv_n` with a buffer smaller then `n`"
+        );
+        RecvN {
+            stream: self,
+            buf,
+            left: n,
+        }
     }
 
     /// Shuts down the read, write, or both halves of this connection.
@@ -224,12 +327,13 @@ impl Future for Connect {
 
 /// The [`Future`] behind [`TcpStream::recv`].
 #[derive(Debug)]
-pub struct Recv<'a, B> {
-    stream: &'a mut TcpStream,
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct Recv<'b, B> {
+    stream: &'b mut TcpStream,
     buf: B,
 }
 
-impl<'a, B> Future for Recv<'a, B>
+impl<'b, B> Future for Recv<'b, B>
 where
     B: Bytes + Unpin,
 {
@@ -241,6 +345,44 @@ where
             ref mut buf,
         } = Pin::into_inner(self);
         try_io!(stream.try_recv(&mut *buf))
+    }
+}
+
+/// The [`Future`] behind [`TcpStream::recv_n`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct RecvN<'b, B> {
+    stream: &'b mut TcpStream,
+    buf: B,
+    left: usize,
+}
+
+impl<'b, B> Future for RecvN<'b, B>
+where
+    B: Bytes + Unpin,
+{
+    type Output = io::Result<()>;
+
+    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let RecvN {
+            ref mut stream,
+            ref mut buf,
+            ref mut left,
+        } = Pin::into_inner(self);
+        loop {
+            match stream.try_recv(&mut *buf) {
+                Ok(0) => return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())),
+                Ok(n) if *left <= n => return Poll::Ready(Ok(())),
+                Ok(n) => {
+                    *left -= n;
+                    // Try to read some more bytes.
+                    continue;
+                }
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break Poll::Pending,
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => break Poll::Ready(Err(err)),
+            }
+        }
     }
 }
 
