@@ -46,9 +46,6 @@ pub use tcp::{TcpListener, TcpServer, TcpStream};
 #[doc(no_inline)]
 pub use udp::UdpSocket;
 
-#[cfg(test)]
-mod tests;
-
 /// Trait to make easier to work with slices of (uninitialised) bytes.
 ///
 /// This is implemented for common types such as `&mut[u8]` and `Vec<u8>`, [see

@@ -1,4 +1,4 @@
-//! Tests related to `net` types.
+//! Tests related to `UdpSocket`.
 
 use std::io;
 use std::net::SocketAddr;
@@ -9,36 +9,34 @@ use std::time::Duration;
 
 use futures_util::pin_mut;
 
-use crate::actor::{self, context, Actor, NewActor};
-use crate::net::UdpSocket;
-use crate::test::{init_local_actor, poll_actor};
+use heph::actor::{self, context, Actor, NewActor};
+use heph::net::UdpSocket;
+use heph::test::{init_local_actor, poll_actor};
+
+use crate::util::{any_local_address, any_local_ipv6_address};
 
 const DATA: &[u8] = b"Hello world";
 
 #[test]
 fn unconnected_udp_socket_ipv4() {
-    #[allow(trivial_casts)]
     let new_actor = unconnected_udp_actor as fn(_, _) -> _;
     test_udp_socket(any_local_address(), new_actor)
 }
 
 #[test]
 fn unconnected_udp_socket_ipv6() {
-    #[allow(trivial_casts)]
     let new_actor = unconnected_udp_actor as fn(_, _) -> _;
     test_udp_socket(any_local_ipv6_address(), new_actor)
 }
 
 #[test]
 fn connected_udp_socket_ipv4() {
-    #[allow(trivial_casts)]
     let new_actor = connected_udp_actor as fn(_, _) -> _;
     test_udp_socket(any_local_address(), new_actor)
 }
 
 #[test]
 fn connected_udp_socket_ipv6() {
-    #[allow(trivial_casts)]
     let new_actor = connected_udp_actor as fn(_, _) -> _;
     test_udp_socket(any_local_ipv6_address(), new_actor)
 }
@@ -209,14 +207,4 @@ async fn reconnecting_actor(
     assert!(socket.take_error().unwrap().is_none());
 
     Ok(())
-}
-
-/// Bind to any IPv4 port on localhost.
-pub fn any_local_address() -> SocketAddr {
-    "127.0.0.1:0".parse().unwrap()
-}
-
-/// Bind to any IPv6 port on localhost.
-pub fn any_local_ipv6_address() -> SocketAddr {
-    "[::1]:0".parse().unwrap()
 }

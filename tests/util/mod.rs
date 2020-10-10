@@ -1,9 +1,20 @@
 #![allow(dead_code)] // Not all tests use all functions/types.
 
 use std::fmt;
+use std::net::SocketAddr;
 use std::task::Poll;
 use std::thread::sleep;
 use std::time::Duration;
+
+/// Bind to any IPv4 port on localhost.
+pub fn any_local_address() -> SocketAddr {
+    "127.0.0.1:0".parse().unwrap()
+}
+
+/// Bind to any IPv6 port on localhost.
+pub fn any_local_ipv6_address() -> SocketAddr {
+    "[::1]:0".parse().unwrap()
+}
 
 #[track_caller]
 pub fn expect_pending<T>(poll: Poll<T>)

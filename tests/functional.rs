@@ -14,4 +14,5 @@ mod functional {
     mod from_message;
     mod restart_supervisor;
     mod tcp;
+    mod udp;
 }

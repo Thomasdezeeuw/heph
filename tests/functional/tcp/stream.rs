@@ -1,3 +1,5 @@
+//! Tests for `TcpStream`.
+
 use std::future::Future;
 use std::io::{self, Read, Write};
 use std::net::{self, SocketAddr};
@@ -12,14 +14,9 @@ use heph::actor;
 use heph::net::TcpStream;
 use heph::test::{init_local_actor, poll_actor};
 
-use crate::util::{expect_pending, expect_ready_ok, loop_expect_ready_ok};
+use crate::util::{any_local_address, expect_pending, expect_ready_ok, loop_expect_ready_ok};
 
 const DATA: &[u8] = b"Hello world";
-
-/// Returns: "127.0.0.1:0".
-fn any_port() -> SocketAddr {
-    SocketAddr::V4(net::SocketAddrV4::new(net::Ipv4Addr::LOCALHOST, 0))
-}
 
 /// Sort of flush a `TcpStream`.
 fn sorta_flush(stream: &mut net::TcpStream) {
@@ -80,7 +77,7 @@ fn smoke() {
         Ok(())
     }
 
-    let listener = net::TcpListener::bind(any_port()).unwrap();
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
     let (actor, actor_ref) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
@@ -143,7 +140,7 @@ fn try_recv() {
         }
     }
 
-    let listener = net::TcpListener::bind(any_port()).unwrap();
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
@@ -182,7 +179,7 @@ fn recv() {
         Ok(())
     }
 
-    let listener = net::TcpListener::bind(any_port()).unwrap();
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
@@ -224,7 +221,7 @@ fn recv_n_read_exact_amount() {
         }
     }
 
-    let listener = net::TcpListener::bind(any_port()).unwrap();
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
@@ -270,7 +267,7 @@ fn recv_n_read_more_bytes() {
         }
     }
 
-    let listener = net::TcpListener::bind(any_port()).unwrap();
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
@@ -307,7 +304,7 @@ fn recv_n_less() {
         }
     }
 
-    let listener = net::TcpListener::bind(any_port()).unwrap();
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
@@ -343,7 +340,7 @@ fn recv_n_from_multiple_writes() {
         }
     }
 
-    let listener = net::TcpListener::bind(any_port()).unwrap();
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
