@@ -513,7 +513,6 @@ impl ContextKind for ThreadSafe {
 // public because it used in trait bound for methods like `UdpSocket::bind`.
 pub trait Spawnable<S, NA>
 where
-    Self: Sized,
     S: Supervisor<NA>,
     NA: NewActor<Context = Self>,
 {
