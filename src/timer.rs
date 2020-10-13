@@ -23,6 +23,7 @@ use std::time::{Duration, Instant};
 use futures_core::stream::{FusedStream, Stream};
 
 use crate::actor::context::ThreadLocal;
+use crate::rt::access::Private;
 use crate::rt::{ProcessId, RuntimeAccess};
 use crate::{actor, RuntimeRef};
 
@@ -92,10 +93,10 @@ impl Timer {
     /// Create a new `Timer`.
     pub fn new<M, K>(ctx: &mut actor::Context<M, K>, deadline: Instant) -> Timer
     where
-        K: RuntimeAccess,
+        actor::Context<M, K>: RuntimeAccess,
     {
         let pid = ctx.pid();
-        ctx.kind().add_deadline(pid, deadline);
+        ctx.add_deadline(pid, deadline);
         Timer { deadline }
     }
 
@@ -104,7 +105,7 @@ impl Timer {
     /// Same as calling `Timer::new(&mut ctx, Instant::now() + timeout)`.
     pub fn timeout<M, K>(ctx: &mut actor::Context<M, K>, timeout: Duration) -> Timer
     where
-        K: RuntimeAccess,
+        actor::Context<M, K>: RuntimeAccess,
     {
         Timer::new(ctx, Instant::now() + timeout)
     }
@@ -141,17 +142,17 @@ impl Future for Timer {
     }
 }
 
-impl<K> actor::Bound<K> for Timer
-where
-    K: RuntimeAccess,
-{
-    type Error = !;
+impl<K> actor::Bound<K> for Timer {
+    type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> Result<(), !> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
+    where
+        actor::Context<M, K>: RuntimeAccess,
+    {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
-        ctx.kind().add_deadline(pid, self.deadline);
+        ctx.add_deadline(pid, self.deadline);
         Ok(())
     }
 }
@@ -237,10 +238,10 @@ impl<Fut> Deadline<Fut> {
         future: Fut,
     ) -> Deadline<Fut>
     where
-        K: RuntimeAccess,
+        actor::Context<M, K>: RuntimeAccess,
     {
         let pid = ctx.pid();
-        ctx.kind().add_deadline(pid, deadline);
+        ctx.add_deadline(pid, deadline);
         Deadline { deadline, future }
     }
 
@@ -254,7 +255,7 @@ impl<Fut> Deadline<Fut> {
         future: Fut,
     ) -> Deadline<Fut>
     where
-        K: RuntimeAccess,
+        actor::Context<M, K>: RuntimeAccess,
     {
         Deadline::new(ctx, Instant::now() + timeout, future)
     }
@@ -326,17 +327,17 @@ where
     }
 }
 
-impl<Fut, K> actor::Bound<K> for Deadline<Fut>
-where
-    K: RuntimeAccess,
-{
-    type Error = !;
+impl<Fut, K> actor::Bound<K> for Deadline<Fut> {
+    type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> Result<(), !> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
+    where
+        actor::Context<M, K>: RuntimeAccess,
+    {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
-        ctx.kind().add_deadline(pid, self.deadline);
+        ctx.add_deadline(pid, self.deadline);
         Ok(())
     }
 }

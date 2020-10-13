@@ -12,6 +12,7 @@ use mio::{net, Interest};
 
 use crate::actor;
 use crate::net::TcpStream;
+use crate::rt::access::Private;
 use crate::rt::RuntimeAccess;
 
 /// A TCP socket listener.
@@ -186,12 +187,11 @@ impl TcpListener {
         address: SocketAddr,
     ) -> io::Result<TcpListener>
     where
-        K: RuntimeAccess,
+        actor::Context<M, K>: RuntimeAccess,
     {
         let mut socket = net::TcpListener::bind(address)?;
         let pid = ctx.pid();
-        ctx.kind()
-            .register(&mut socket, pid.into(), Interest::READABLE)?;
+        ctx.register(&mut socket, pid.into(), Interest::READABLE)?;
         Ok(TcpListener { socket })
     }
 
@@ -346,15 +346,14 @@ impl<'a> FusedStream for Incoming<'a> {
     }
 }
 
-impl<K> actor::Bound<K> for TcpListener
-where
-    K: RuntimeAccess,
-{
+impl<K> actor::Bound<K> for TcpListener {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
+    where
+        actor::Context<M, K>: RuntimeAccess,
+    {
         let pid = ctx.pid();
-        ctx.kind()
-            .reregister(&mut self.socket, pid.into(), Interest::READABLE)
+        ctx.reregister(&mut self.socket, pid.into(), Interest::READABLE)
     }
 }

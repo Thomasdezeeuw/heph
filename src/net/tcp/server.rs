@@ -14,9 +14,10 @@ use mio::net::TcpListener;
 use mio::Interest;
 
 use crate::actor::messages::Terminate;
-use crate::actor::{self, Actor, AddActorError, NewActor, Spawnable};
+use crate::actor::{self, Actor, AddActorError, NewActor, Spawn};
 use crate::net::TcpStream;
-use crate::rt::{ActorOptions, ProcessId, RuntimeAccess, Signal};
+use crate::rt::access::Private;
+use crate::rt::{ActorOptions, RuntimeAccess, Signal};
 use crate::supervisor::Supervisor;
 
 /// A intermediate structure that implements [`NewActor`], creating
@@ -58,7 +59,8 @@ impl<S, NA, K> NewActor for Setup<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
-    K: RuntimeAccess + Spawnable<S, NA>,
+    actor::Context<Message, K>: RuntimeAccess + Spawn<S, NA, K>,
+    actor::Context<NA::Message, K>: RuntimeAccess,
 {
     type Message = Message;
     type Argument = ();
@@ -74,8 +76,7 @@ where
         let this = &*self.inner;
         let mut listener = new_listener(&this.address, 1024)?;
         let token = ctx.pid().into();
-        ctx.kind()
-            .register(&mut listener, token, Interest::READABLE)?;
+        ctx.register(&mut listener, token, Interest::READABLE)?;
 
         Ok(TcpServer {
             ctx,
@@ -547,7 +548,8 @@ impl<S, NA, K> Actor for TcpServer<S, NA, K>
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
-    K: RuntimeAccess + Spawnable<S, NA>,
+    actor::Context<Message, K>: Spawn<S, NA, K>,
+    actor::Context<NA::Message, K>: RuntimeAccess,
 {
     type Error = Error<NA::Error>;
 
@@ -586,15 +588,16 @@ where
             };
             debug!("TcpServer accepted connection: remote_address={}", addr);
 
-            let setup_actor = move |pid: ProcessId, ctx: &mut K| {
+            let setup_actor = move |ctx: &mut actor::Context<NA::Message, K>| {
                 ctx.register(
                     &mut stream,
-                    pid.into(),
+                    ctx.pid().into(),
                     Interest::READABLE | Interest::WRITABLE,
                 )?;
                 Ok((TcpStream { socket: stream }, addr))
             };
-            let res = ctx.kind().spawn(
+            let res = actor::private::Spawn::<S, NA, K>::try_spawn_setup(
+                ctx,
                 supervisor.clone(),
                 new_actor.clone(),
                 setup_actor,

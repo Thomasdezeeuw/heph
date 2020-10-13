@@ -13,6 +13,7 @@ use mio::{net, Interest};
 
 use crate::actor;
 use crate::net::Bytes;
+use crate::rt::access::Private;
 use crate::rt::RuntimeAccess;
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
@@ -35,11 +36,11 @@ impl TcpStream {
     /// [bound]: crate::actor::Bound
     pub fn connect<M, K>(ctx: &mut actor::Context<M, K>, address: SocketAddr) -> io::Result<Connect>
     where
-        K: RuntimeAccess,
+        actor::Context<M, K>: RuntimeAccess,
     {
         let mut socket = net::TcpStream::connect(address)?;
         let pid = ctx.pid();
-        ctx.kind().register(
+        ctx.register(
             &mut socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,
@@ -505,15 +506,15 @@ impl AsyncWrite for TcpStream {
     }
 }
 
-impl<K> actor::Bound<K> for TcpStream
-where
-    K: RuntimeAccess,
-{
+impl<K> actor::Bound<K> for TcpStream {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()> {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
+    where
+        actor::Context<M, K>: RuntimeAccess,
+    {
         let pid = ctx.pid();
-        ctx.kind().reregister(
+        ctx.reregister(
             &mut self.socket,
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,

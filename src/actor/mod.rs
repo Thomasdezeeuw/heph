@@ -2,31 +2,68 @@
 //!
 //! Actors come in three different kinds:
 //!
-//! * Asynchronous thread-local actors, spawned using
-//!   [`RuntimeRef::try_spawn_local`], often referred to as just thread-local
-//!   actors. These should be the most used as they are the cheapest to run. The
-//!   upside of running a thread-local actor is that it doesn't have to be
-//!   `Send` or `Sync`, allowing it to use cheaper types that don't require
-//!   synchronisation. The downside is that if single actor blocks the thread
-//!   all thread-local actors running on that thread will be blocked.
-//! * Asynchronous thread-safe actors, spawned using [`RuntimeRef::try_spawn`],
-//!   often referred to as just thread-safe actors. These actors can run on any
-//!   thread and thus require to be `Send` and `Sync`. These actors are more
-//!   expansive to run than thread-local actors.
-//! * Synchronous actors that run own there own thread and can use blocking
-//!   operations. See the [`SyncActor`] for more information, the remainder of
-//!   the documentatio in this module is for asynchronous actors.
+//! * Asynchronous thread-local actors,
+//! * Asynchronous thread-safe actors, and
+//! * Synchronous actors.
 //!
-//! All asynchornous actors must implement the [`Actor`] trait, which defines
-//! how an actor is run. The [`NewActor`] defines how an actor is created. The
-//! easiest way to implement these traits is to use asynchronous functions, see
-//! the example below.
+//! Both asynchronous actors must implement the [`Actor`] trait, which defines
+//! how an actor is run. The [`NewActor`] defines how an actor is created and is
+//! used in staring, or spawning, new actors. The easiest way to implement these
+//! traits is to use asynchronous functions, see the example below.
 //!
-//! [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
-//! [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
-//! [`SyncActor`]: crate::actor::sync::SyncActor
+//! The sections below describe each, including up- and downsides of each kind.
+//!
 //! [`Actor`]: crate::actor::Actor
 //! [`NewActor`]: crate::actor::NewActor
+//!
+//! # Asynchronous thread-local actors
+//!
+//! Asynchronous thread-local actors, often referred to as just thread-local
+//! actors, are actors that will remain on the thread on which they are started.
+//! They can be started, or spawned, using [`RuntimeRef::try_spawn_local`], or
+//! any type that implements the [`Spawn`] trait using the [`ThreadLocal`]
+//! context. These should be the most used as they are the cheapest to run.
+//!
+//! The upside of running a thread-local actor is that it doesn't have to be
+//! [`Send`] or [`Sync`], allowing it to use cheaper types that don't require
+//! synchronisation. The downside is that if a single actor blocks it will block
+//! *all* actors on the thread. Something that some frameworks work around with
+//! actor/tasks that transparently move between threads and hide blocking/bad
+//! actors, Heph does not however (for thread-local actor).
+//!
+//! [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
+//! [`ThreadLocal`]: context::ThreadLocal
+//!
+//! # Asynchronous thread-safe actors
+//!
+//! Asynchronous thread-safe actors, or just thread-safe actor, are actors that
+//! can be run on any of the worker threads and transparently move between them.
+//! They can be spawned using [`RuntimeRef::try_spawn`], or any type that
+//! implements the [`Spawn`] trait using the [`ThreadSafe`] context. Because
+//! these actor move between threads they are required to be [`Send`] and
+//! [`Sync`].
+//!
+//! An upside to using thread-safe actors is that a bad actor (that blocks) only
+//! blocks a single worker thread at a time, allowing the other worker threads
+//! to run the other thread-safe actors (but not the thread-local actors!). A
+//! downside is that these actors are more expansive to run than thread-local
+//! actors.
+//!
+//! [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
+//! [`ThreadSafe`]: context::ThreadSafe
+//!
+//! # Synchronous actors
+//!
+//! The previous two actors, thread-local and thread-safe actors, are not
+//! allowed to block the thread they run on, as that would block all other
+//! actors on that thread. However sometimes blocking operations is exactly what
+//! we need to do, for that purpose Heph has synchronous actors.
+//!
+//! Synchronous actors run own there own thread and can use blocking operations,
+//! such as blocking I/O. The [`sync`] module and the [`SyncActor`] trait have
+//! more information about synchronous actors.
+//!
+//! [`SyncActor`]: crate::actor::sync::SyncActor
 //!
 //! # Example
 //!
@@ -57,6 +94,9 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
+use crate::rt::RuntimeAccess;
+use crate::{ActorOptions, ActorRef, Supervisor};
+
 #[path = "context.rs"]
 mod context_priv;
 
@@ -84,7 +124,7 @@ pub mod message_select {
     pub use crate::inbox::{First, MessageSelection, MessageSelector, Messages, Priority};
 }
 
-pub(crate) use context_priv::{AddActorError, ContextKind, Spawnable};
+pub(crate) use context_priv::ContextKind;
 #[doc(inline)]
 pub use context_priv::{Context, /*PeekMessage, */ ReceiveMessage};
 
@@ -555,5 +595,108 @@ pub trait Bound<C> {
     type Error;
 
     /// Bind a type to the [`Actor`] that owns the `ctx`.
-    fn bind_to<M>(&mut self, ctx: &mut Context<M, C>) -> Result<(), Self::Error>;
+    fn bind_to<M>(&mut self, ctx: &mut Context<M, C>) -> Result<(), Self::Error>
+    where
+        Context<M, C>: RuntimeAccess;
 }
+
+/// The `Spawn` trait defines how new actors are added to the runtime.
+pub trait Spawn<S, NA, C>: private::Spawn<S, NA, C> {
+    /// Attempts to spawn an actor.
+    ///
+    /// Arguments:
+    /// * `supervisor`: all actors need supervision, the `supervisor` is the
+    ///   supervisor for this actor, see the [`Supervisor`] trait for more
+    ///   information.
+    /// * `new_actor`: the [`NewActor`] implementation that defines how to start
+    ///   the actor.
+    /// * `arg`: the argument(s) passed when starting the actor, and
+    /// * `options`: the actor options used to spawn the new actors.
+    ///
+    /// When using a [`NewActor`] implementation that never returns an error,
+    /// such as the implementation provided by async functions, it's easier to
+    /// use the [`spawn`] method.
+    ///
+    /// [`spawn`]: Spawn::spawn
+    fn try_spawn(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
+    where
+        S: Supervisor<NA> + 'static,
+        NA: NewActor<Context = C> + 'static,
+        NA::Actor: 'static,
+    {
+        self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
+            .map_err(|err| match err {
+                AddActorError::NewActor(err) => err,
+                AddActorError::<_, !>::ArgFn(_) => unreachable!(),
+            })
+    }
+
+    /// Spawn an actor.
+    ///
+    /// This is a convenience method for `NewActor` implementations that never
+    /// return an error, such as asynchronous functions.
+    ///
+    /// See [`Spawn::try_spawn`] for more information.
+    fn spawn(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> ActorRef<NA::Message>
+    where
+        S: Supervisor<NA> + 'static,
+        NA: NewActor<Error = !, Context = C> + 'static,
+        NA::Actor: 'static,
+    {
+        self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
+            .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
+    }
+}
+
+pub(crate) mod private {
+    //! Module with the private version of the [`Spawn`] trait.
+
+    use crate::{actor, ActorOptions, ActorRef, NewActor, Supervisor};
+
+    /// Private version of the [`Spawn`]  trait.
+    ///
+    /// [`Spawn`]: super::Spawn
+    pub trait Spawn<S, NA, C> {
+        /// Spawn an actor that needs to be initialised.
+        ///
+        /// See the public [`Spawn`] trait for documentation on the arguments.
+        ///
+        /// [`Spawn`]: super::Spawn
+        #[allow(clippy::type_complexity)] // Not part of the public API, so it's OK.
+        fn try_spawn_setup<ArgFn, ArgFnE>(
+            &mut self,
+            supervisor: S,
+            new_actor: NA,
+            arg_fn: ArgFn,
+            options: ActorOptions,
+        ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+        where
+            S: Supervisor<NA> + 'static,
+            NA: NewActor<Context = C> + 'static,
+            NA::Actor: 'static,
+            ArgFn: FnOnce(&mut actor::Context<NA::Message, C>) -> Result<NA::Argument, ArgFnE>;
+    }
+
+    /// Internal error returned by spawning a actor.
+    #[derive(Debug)]
+    pub enum AddActorError<NewActorE, ArgFnE> {
+        /// Calling `NewActor::new` actor resulted in an error.
+        NewActor(NewActorE),
+        /// Calling the argument function resulted in an error.
+        ArgFn(ArgFnE),
+    }
+}
+
+pub(crate) use private::AddActorError;

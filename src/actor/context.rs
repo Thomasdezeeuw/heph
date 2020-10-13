@@ -10,6 +10,7 @@ use std::{fmt, io};
 use mio::{event, Interest, Token};
 
 use crate::actor::message_select::First;
+use crate::actor::{private, AddActorError, Spawn};
 use crate::actor_ref::ActorRef;
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::{self, ActorOptions, ProcessId, RuntimeRef, SharedRuntimeInternal};
@@ -349,9 +350,66 @@ impl<M, C> Context<M, C> {
     pub(crate) fn pid(&self) -> ProcessId {
         self.pid
     }
+}
 
-    pub(crate) fn kind(&mut self) -> &mut C {
-        &mut self.kind
+impl<M, S, NA> Spawn<S, NA, ThreadLocal> for Context<M, ThreadLocal> {}
+
+impl<M, S, NA> private::Spawn<S, NA, ThreadLocal> for Context<M, ThreadLocal> {
+    fn try_spawn_setup<ArgFn, ArgFnE>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg_fn: ArgFn,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    where
+        S: Supervisor<NA> + 'static,
+        NA: NewActor<Context = ThreadLocal> + 'static,
+        NA::Actor: 'static,
+        ArgFn: FnOnce(&mut Context<NA::Message, ThreadLocal>) -> Result<NA::Argument, ArgFnE>,
+    {
+        private::Spawn::try_spawn_setup(
+            &mut self.kind.runtime_ref,
+            supervisor,
+            new_actor,
+            arg_fn,
+            options,
+        )
+    }
+}
+
+impl<M, S, NA> Spawn<S, NA, ThreadSafe> for Context<M, ThreadSafe>
+where
+    S: Send + Sync,
+    NA: NewActor<Context = ThreadSafe> + Send + Sync,
+    NA::Actor: Send + Sync,
+    NA::Message: Send,
+{
+}
+
+impl<M, S, NA> private::Spawn<S, NA, ThreadSafe> for Context<M, ThreadSafe>
+where
+    S: Send + Sync,
+    NA: NewActor<Context = ThreadSafe> + Send + Sync,
+    NA::Actor: Send + Sync,
+    NA::Message: Send,
+{
+    fn try_spawn_setup<ArgFn, ArgFnE>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg_fn: ArgFn,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    where
+        S: Supervisor<NA> + 'static,
+        NA: NewActor<Context = ThreadSafe> + 'static,
+        NA::Actor: 'static,
+        ArgFn: FnOnce(&mut Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
+    {
+        self.kind
+            .runtime_ref
+            .spawn_setup(supervisor, new_actor, arg_fn, options)
     }
 }
 
@@ -363,9 +421,9 @@ impl<M> Context<M, ThreadLocal> {
 }
 
 impl<M> Context<M, ThreadSafe> {
-    /// Attempts to spawn a thread-safe actor.
+    /// Attempt to spawn a new thead-safe actor.
     ///
-    /// See [`RuntimeRef::try_spawn`].
+    /// See the [`Spawn`] trait for more information.
     pub fn try_spawn<Sv, NA>(
         &mut self,
         supervisor: Sv,
@@ -379,18 +437,12 @@ impl<M> Context<M, ThreadSafe> {
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
-        self.kind
-            .runtime_ref
-            .spawn_setup(supervisor, new_actor, move |_, _| Ok(arg), options)
-            .map_err(|err| match err {
-                AddActorError::NewActor(err) => err,
-                AddActorError::<_, !>::ArgFn(_) => unreachable!(),
-            })
+        Spawn::try_spawn(self, supervisor, new_actor, arg, options)
     }
 
-    /// Spawn an thread-safe actor.
+    /// Spawn a new thead-safe actor.
     ///
-    /// See [`RuntimeRef::spawn`].
+    /// See the [`Spawn`] trait for more information.
     pub fn spawn<Sv, NA>(
         &mut self,
         supervisor: Sv,
@@ -404,58 +456,55 @@ impl<M> Context<M, ThreadSafe> {
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
-        self.kind
-            .runtime_ref
-            .spawn_setup(supervisor, new_actor, move |_, _| Ok(arg), options)
-            .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
+        Spawn::spawn(self, supervisor, new_actor, arg, options)
     }
 }
 
-impl rt::access::Private for ThreadLocal {
+impl<M> rt::access::Private for Context<M, ThreadLocal> {
     fn new_waker(&mut self, pid: ProcessId) -> Waker {
-        self.runtime_ref.new_waker(pid)
+        self.kind.runtime_ref.new_waker(pid)
     }
 
     fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.runtime_ref.register(source, token, interest)
+        self.kind.runtime_ref.register(source, token, interest)
     }
 
     fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.runtime_ref.reregister(source, token, interest)
+        self.kind.runtime_ref.reregister(source, token, interest)
     }
 
     fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.runtime_ref.add_deadline(pid, deadline)
+        self.kind.runtime_ref.add_deadline(pid, deadline)
     }
 }
 
-impl rt::access::Private for ThreadSafe {
+impl<M> rt::access::Private for Context<M, ThreadSafe> {
     fn new_waker(&mut self, pid: ProcessId) -> Waker {
-        self.runtime_ref.new_waker(pid)
+        self.kind.runtime_ref.new_waker(pid)
     }
 
     fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.runtime_ref.register(source, token, interest)
+        self.kind.runtime_ref.register(source, token, interest)
     }
 
     fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.runtime_ref.reregister(source, token, interest)
+        self.kind.runtime_ref.reregister(source, token, interest)
     }
 
     fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.runtime_ref.add_deadline(pid, deadline)
+        self.kind.runtime_ref.add_deadline(pid, deadline)
     }
 }
 
@@ -505,80 +554,6 @@ impl ContextKind for ThreadSafe {
         runtime_ref: &mut RuntimeRef,
     ) -> Context<M, ThreadSafe> {
         Context::new_shared(pid, inbox, inbox_ref, runtime_ref.clone_shared())
-    }
-}
-
-/// Implementation detail to support [`ThreadSafe`] and [`ThreadLocal`] contexts
-/// within the same implementation.
-// public because it used in trait bound for methods like `UdpSocket::bind`.
-pub trait Spawnable<S, NA>
-where
-    S: Supervisor<NA>,
-    NA: NewActor<Context = Self>,
-{
-    /// Spawn a new actor.
-    fn spawn<ArgFn, ArgFnE>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg_fn: ArgFn,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
-    where
-        ArgFn: FnOnce(ProcessId, &mut Self) -> Result<NA::Argument, ArgFnE>;
-}
-
-/// Internal error returned by spawning a actor.
-#[derive(Debug)]
-pub enum AddActorError<NewActorE, ArgFnE> {
-    /// Calling `NewActor::new` actor resulted in an error.
-    NewActor(NewActorE),
-    /// Calling the argument function resulted in an error.
-    ArgFn(ArgFnE),
-}
-
-impl<S, NA> Spawnable<S, NA> for ThreadLocal
-where
-    Self: Sized,
-    S: Supervisor<NA> + 'static,
-    NA: NewActor<Context = Self> + 'static,
-    NA::Actor: 'static,
-{
-    fn spawn<ArgFn, ArgFnE>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg_fn: ArgFn,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
-    where
-        ArgFn: FnOnce(ProcessId, &mut Self) -> Result<NA::Argument, ArgFnE>,
-    {
-        self.runtime_ref
-            .try_spawn_local_setup(supervisor, new_actor, arg_fn, options)
-    }
-}
-
-impl<S, NA> Spawnable<S, NA> for ThreadSafe
-where
-    Self: Sized,
-    S: Supervisor<NA> + Send + Sync + 'static,
-    NA: NewActor<Context = Self> + Send + Sync + 'static,
-    NA::Actor: Send + Sync + 'static,
-    NA::Message: Send,
-{
-    fn spawn<ArgFn, ArgFnE>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg_fn: ArgFn,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
-    where
-        ArgFn: FnOnce(ProcessId, &mut Self) -> Result<NA::Argument, ArgFnE>,
-    {
-        self.runtime_ref
-            .spawn_setup(supervisor, new_actor, arg_fn, options)
     }
 }
 
