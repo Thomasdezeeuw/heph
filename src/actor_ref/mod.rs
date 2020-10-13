@@ -170,6 +170,10 @@ enum ActorRefKind<M> {
 unsafe impl<M: Send> Send for ActorRefKind<M> {}
 unsafe impl<M: Send> Sync for ActorRefKind<M> {}
 
+// `ActorRefKind` is safe to move around independent of `M` as it's already heap
+// allocated.
+impl<M> Unpin for ActorRefKind<M> {}
+
 impl<M> ActorRef<M> {
     /// Create a new `ActorRef` for an actor using `inbox_ref`.
     pub(crate) const fn from_inbox(inbox_ref: InboxRef<M>) -> ActorRef<M> {
