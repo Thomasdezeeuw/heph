@@ -329,12 +329,7 @@ impl<S> Runtime<S> {
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
-        self.shared
-            .spawn_setup(supervisor, new_actor, move |_| Ok(arg), options)
-            .map_err(|err| match err {
-                AddActorError::NewActor(err) => err,
-                AddActorError::<_, !>::ArgFn(_) => unreachable!(),
-            })
+        Spawn::try_spawn(self, supervisor, new_actor, arg, options)
     }
 
     /// Spawn a new thead-safe actor.
@@ -353,9 +348,7 @@ impl<S> Runtime<S> {
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
-        self.shared
-            .spawn_setup(supervisor, new_actor, move |_| Ok(arg), options)
-            .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
+        Spawn::spawn(self, supervisor, new_actor, arg, options)
     }
 
     /// Spawn an synchronous actor that runs on its own thread.
@@ -438,31 +431,31 @@ where
     }
 }
 
-impl<S, NA> Spawn<S, NA, ThreadSafe> for Runtime
+impl<S, Sv, NA> Spawn<Sv, NA, ThreadSafe> for Runtime<S>
 where
-    S: Send + Sync,
+    Sv: Send + Sync,
     NA: NewActor<Context = ThreadSafe> + Send + Sync,
     NA::Actor: Send + Sync,
     NA::Message: Send,
 {
 }
 
-impl<S, NA> private::Spawn<S, NA, ThreadSafe> for Runtime
+impl<S, Sv, NA> private::Spawn<Sv, NA, ThreadSafe> for Runtime<S>
 where
-    S: Send + Sync,
+    Sv: Send + Sync,
     NA: NewActor<Context = ThreadSafe> + Send + Sync,
     NA::Actor: Send + Sync,
     NA::Message: Send,
 {
     fn try_spawn_setup<ArgFn, ArgFnE>(
         &mut self,
-        supervisor: S,
+        supervisor: Sv,
         new_actor: NA,
         arg_fn: ArgFn,
         options: ActorOptions,
     ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
-        S: Supervisor<NA> + 'static,
+        Sv: Supervisor<NA> + 'static,
         NA: NewActor<Context = ThreadSafe> + 'static,
         NA::Actor: 'static,
         ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
