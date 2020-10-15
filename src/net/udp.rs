@@ -161,6 +161,27 @@ impl UdpSocket {
             mode: PhantomData,
         })
     }
+
+    /// Create a new `UdpSocket` that is not registered with Mio.
+    pub(crate) fn new(local: SocketAddr) -> io::Result<UdpSocket<Unconnected>> {
+        net::UdpSocket::bind(local).map(|socket| UdpSocket {
+            socket,
+            mode: PhantomData,
+        })
+    }
+
+    /// Register an unregistered `UdpSocket` with Mio.
+    pub(crate) fn register<M, K>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
+    where
+        actor::Context<M, K>: RuntimeAccess,
+    {
+        let pid = ctx.pid();
+        ctx.register(
+            &mut self.socket,
+            pid.into(),
+            Interest::READABLE | Interest::WRITABLE,
+        )
+    }
 }
 
 impl<M> UdpSocket<M> {

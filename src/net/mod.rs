@@ -48,6 +48,7 @@ macro_rules! try_io {
     };
 }
 
+pub mod relay;
 // TODO: better name than rpc.
 pub mod rpc;
 pub mod tcp;

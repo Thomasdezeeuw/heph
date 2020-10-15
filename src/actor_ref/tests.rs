@@ -26,7 +26,8 @@ fn mapped_actor_ref_is_send_sync() {
 
 #[test]
 fn size_assertions() {
-    assert_eq!(size_of::<ActorRef<()>>(), 56);
+    // FIXME: size of ActorRef was 56, reduce the size again.
+    assert_eq!(size_of::<ActorRef<()>>(), 72);
     assert_eq!(size_of::<ActorGroup<()>>(), 24);
 }
 

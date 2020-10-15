@@ -108,6 +108,7 @@ use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt;
 use std::iter::FromIterator;
+use std::net::SocketAddr;
 use std::ops::ShlAssign;
 use std::sync::Arc;
 
@@ -155,6 +156,12 @@ enum ActorRefKind<M> {
     Mapped(Arc<dyn MappedActorRef<M>>),
     /// Reference that attempts to map the message to a different type first.
     TryMapped(Arc<dyn TryMappedActorRef<M>>),
+    Relay {
+        inbox: InboxRef<(M, SocketAddr)>,
+        // TODO: `SocketAddr` is 32 bytes, which is a lot for an address. IPv6 +
+        // port is 18 bytes. Maybe make our own smaller type?
+        address: SocketAddr,
+    },
     /// Reference that supplies a name of the actor to send the message to.
     Named {
         /// Name of the remote actor.
@@ -219,6 +226,7 @@ impl<M> ActorRef<M> {
             Sync(sender) => sender.try_send(msg).map_err(|_err| SendError),
             Mapped(actor_ref) => actor_ref.mapped_send(msg),
             TryMapped(actor_ref) => actor_ref.try_mapped_send(msg),
+            Relay { inbox, address } => inbox.try_send((msg, *address)).map_err(|_| SendError),
             Named { actor, inbox_ref } => inbox_ref.try_send((actor, msg)).map_err(|_| SendError),
         }
     }
@@ -311,6 +319,22 @@ impl<M> ActorRef<M> {
     }
 }
 
+impl<M> ActorRef<(M, SocketAddr)> {
+    /// Attempts to convert the reference into a relay reference.
+    pub(crate) fn relay_to(&self, target: SocketAddr) -> Option<ActorRef<M>> {
+        if let ActorRefKind::Node(inbox) = &self.kind {
+            Some(ActorRef {
+                kind: ActorRefKind::Relay {
+                    inbox: inbox.clone(),
+                    address: target,
+                },
+            })
+        } else {
+            None
+        }
+    }
+}
+
 impl<M> ActorRef<(&'static str, M)> {
     /// Attempts to convert the reference into a named reference.
     pub(crate) fn into_named(self, name: &'static str) -> Option<ActorRef<M>> {
@@ -336,6 +360,10 @@ impl<M> Clone for ActorRef<M> {
                 Sync(sender) => Sync(sender.clone()),
                 Mapped(actor_ref) => Mapped(actor_ref.clone()),
                 TryMapped(actor_ref) => TryMapped(actor_ref.clone()),
+                Relay { inbox, address } => Relay {
+                    inbox: inbox.clone(),
+                    address: *address,
+                },
                 Named { actor, inbox_ref } => Named {
                     actor,
                     inbox_ref: inbox_ref.clone(),

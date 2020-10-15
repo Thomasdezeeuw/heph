@@ -48,9 +48,9 @@ I/O without stalling other actors.
 ## 5. Remote actor references
 
 Examples 5a and 5b should be run together. Example 5a shows how to create a
-`RemoteRegistry` allow remote actors to send messages to local actors. Example
-5b shows how to create and use an remote actor reference, referencing the actor
-created in example 5a.
+`RemoteRelay` which allow remote actors to send messages to local actors.
+Example 5b shows how to create and use an remote actor reference, referencing
+the actor created in example 5a.
 
 ## 6. Process signal handling
 
