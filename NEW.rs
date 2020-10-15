@@ -1,4 +1,3 @@
-    /*
     /// [`MessageMux`] implementation that start a new actor for each message.
     #[derive(Debug)]
     pub struct ActorStarter<R, NA, Arg> {
@@ -57,4 +56,10 @@
             Poll::Ready(res)
         }
     }
-    */
+
+# TODO.
+
+Relay message to the correct actor based on some key. Keep actor refs in a
+hashmap, if not in the hash map start a new actor for the message. Called `Mux`?
+
+Use case: consensus actors of Stored.
