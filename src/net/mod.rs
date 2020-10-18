@@ -100,6 +100,7 @@ impl Bytes for [MaybeUninit<u8>] {
     }
 }
 
+/* TODO: this implementation is unsound, see issue #308.
 impl Bytes for [u8] {
     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
         // Safety: `MaybeUninit<u8>` is guaranteed to have the same layout as
@@ -111,6 +112,7 @@ impl Bytes for [u8] {
         // Can't update the length of a slice.
     }
 }
+*/
 
 impl<const N: usize> Bytes for [MaybeUninit<u8>; N] {
     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
@@ -122,6 +124,7 @@ impl<const N: usize> Bytes for [MaybeUninit<u8>; N] {
     }
 }
 
+/* TODO: this implementation is unsound, see issue #308.
 impl<const N: usize> Bytes for [u8; N] {
     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
         self.as_mut_slice().as_bytes()
@@ -131,6 +134,7 @@ impl<const N: usize> Bytes for [u8; N] {
         // Can't update the length of an array.
     }
 }
+*/
 
 /// The implementation for `Vec<u8>` only uses the uninitialised capacity of the
 /// vector. In other words the bytes currently in the vector remain untouched.

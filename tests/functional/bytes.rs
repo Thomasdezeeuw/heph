@@ -25,6 +25,7 @@ where
     len
 }
 
+/* TODO: this implementation is unsound, see issue #308.
 #[test]
 fn impl_for_slice() {
     let mut buf = vec![0; DATA.len() * 2].into_boxed_slice();
@@ -32,6 +33,7 @@ fn impl_for_slice() {
     assert_eq!(n, DATA.len());
     assert_eq!(&buf[..n], DATA);
 }
+*/
 
 #[test]
 fn impl_for_maybe_uninit_slice() {
@@ -44,6 +46,7 @@ fn impl_for_maybe_uninit_slice() {
     );
 }
 
+/* TODO: this implementation is unsound, see issue #308.
 #[test]
 fn impl_for_array() {
     let mut buf = [0; DATA.len() * 2];
@@ -51,6 +54,7 @@ fn impl_for_array() {
     assert_eq!(n, DATA.len());
     assert_eq!(&buf[..n], DATA);
 }
+*/
 
 #[test]
 fn impl_for_maybe_uninit_array() {

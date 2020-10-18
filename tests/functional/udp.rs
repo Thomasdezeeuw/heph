@@ -95,12 +95,13 @@ async fn unconnected_udp_actor(
     let bytes_written = socket.send_to(&DATA, peer_address).await?;
     assert_eq!(bytes_written, DATA.len());
 
-    let mut buf = [0; DATA.len() + 2];
+    let mut buf = Vec::with_capacity(DATA.len() + 2);
     let (bytes_peeked, address) = socket.peek_from(&mut buf).await?;
     assert_eq!(bytes_peeked, DATA.len());
     assert_eq!(&buf[..bytes_peeked], &*DATA);
     assert_eq!(address, peer_address);
 
+    buf.clear();
     let (bytes_read, address) = socket.recv_from(&mut buf).await?;
     assert_eq!(bytes_read, DATA.len());
     assert_eq!(&buf[..bytes_read], &*DATA);
@@ -122,11 +123,12 @@ async fn connected_udp_actor(
     let bytes_written = socket.send(&DATA).await?;
     assert_eq!(bytes_written, DATA.len());
 
-    let mut buf = [0; DATA.len() + 2];
+    let mut buf = Vec::with_capacity(DATA.len() + 2);
     let bytes_peeked = socket.peek(&mut buf).await?;
     assert_eq!(bytes_peeked, DATA.len());
     assert_eq!(&buf[..bytes_peeked], &*DATA);
 
+    buf.clear();
     let bytes_read = socket.recv(&mut buf).await?;
     assert_eq!(bytes_read, DATA.len());
     assert_eq!(&buf[..bytes_read], &*DATA);

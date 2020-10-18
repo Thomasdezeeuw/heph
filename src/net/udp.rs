@@ -92,8 +92,9 @@ pub enum Connected {}
 /// // echos the message to standard out.
 /// async fn echo_server(mut ctx: actor::Context<Terminate>, local: SocketAddr) -> io::Result<()> {
 ///     let mut socket = UdpSocket::bind(&mut ctx, local)?;
-///     let mut buf = [0; 4096];
+///     let mut buf = Vec::with_capacity(4096);
 ///     loop {
+///         buf.clear();
 ///         let mut receive_msg = ctx.receive_next().fuse();
 ///         let mut read = socket.recv_from(&mut buf).fuse();
 ///         let (n, address) = select! {
