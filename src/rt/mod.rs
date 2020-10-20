@@ -676,9 +676,6 @@ impl<S, NA> private::Spawn<S, NA, ThreadLocal> for RuntimeRef {
         debug!("spawning thread-local actor: pid={}", pid);
 
         let waker = self.new_waker(pid);
-        if options.is_ready() {
-            waker.wake();
-        }
 
         // Create our actor context and our actor with it.
         let (inbox, inbox_ref) = Inbox::new(waker);
@@ -697,6 +694,7 @@ impl<S, NA> private::Spawn<S, NA, ThreadLocal> for RuntimeRef {
             actor,
             inbox,
             inbox_ref,
+            options.is_ready(),
         );
 
         Ok(actor_ref)
@@ -870,15 +868,8 @@ impl SharedRuntimeInternal {
             actor,
             inbox,
             inbox_ref,
+            options.is_ready(),
         );
-
-        // Note: this must happen after the adding to the scheduler above,
-        // unlike is the case for the local version. Otherwise there is a race
-        // condition between adding the actor to the scheduler and the
-        // coordinator mark it as ready.
-        if options.is_ready() {
-            Waker::new(self.waker_id, pid).wake();
-        }
 
         Ok(actor_ref)
     }

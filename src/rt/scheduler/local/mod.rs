@@ -54,9 +54,9 @@ impl LocalScheduler {
     /// Add an actor to the scheduler.
     pub(in crate::rt) fn add_actor<'s>(
         &'s mut self,
-    ) -> AddActor<&'s mut Inactive, dyn process::Process> {
+    ) -> AddActor<&'s mut LocalScheduler, dyn process::Process> {
         AddActor {
-            processes: &mut self.inactive,
+            processes: self,
             alloc: Box::new_uninit(),
         }
     }
@@ -91,7 +91,7 @@ impl fmt::Debug for LocalScheduler {
     }
 }
 
-impl<'s> AddActor<&'s mut Inactive, dyn process::Process> {
+impl<'s> AddActor<&'s mut LocalScheduler, dyn process::Process> {
     /// Add a new inactive actor to the scheduler.
     pub(in crate::rt) fn add<S, NA>(
         self,
@@ -101,6 +101,7 @@ impl<'s> AddActor<&'s mut Inactive, dyn process::Process> {
         actor: NA::Actor,
         inbox: Inbox<NA::Message>,
         inbox_ref: InboxRef<NA::Message>,
+        is_ready: bool,
     ) where
         S: Supervisor<NA> + 'static,
         NA: NewActor<Context = context::ThreadLocal> + 'static,
@@ -126,6 +127,10 @@ impl<'s> AddActor<&'s mut Inactive, dyn process::Process> {
             // Safe because we write into the allocation above.
             alloc.assume_init().into()
         };
-        processes.add(process);
+        if is_ready {
+            processes.ready.push(process)
+        } else {
+            processes.inactive.add(process);
+        }
     }
 }

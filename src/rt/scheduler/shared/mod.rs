@@ -182,6 +182,7 @@ impl<'s> AddActor<&'s SchedulerRef, dyn Process + Send + Sync> {
         actor: NA::Actor,
         inbox: Inbox<NA::Message>,
         inbox_ref: InboxRef<NA::Message>,
+        is_ready: bool,
     ) where
         S: Supervisor<NA> + Send + Sync + 'static,
         NA: NewActor<Context = context::ThreadSafe> + Send + Sync + 'static,
@@ -210,6 +211,11 @@ impl<'s> AddActor<&'s SchedulerRef, dyn Process + Send + Sync> {
             // Safe because we write into the allocation above.
             alloc.assume_init().into()
         };
-        processes.add_process(process)
+
+        if is_ready {
+            processes.shared.ready.add(process);
+        } else {
+            processes.add_process(process)
+        }
     }
 }
