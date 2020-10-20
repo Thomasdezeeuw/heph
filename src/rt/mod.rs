@@ -760,7 +760,7 @@ struct RuntimeInternal {
 pub(crate) struct SharedRuntimeInternal {
     /// Waker id used to create a `Waker` for thread-safe actors.
     waker_id: WakerId,
-    /// Waker used to wake the `Coordinator`, but not scheduler any particular
+    /// Waker used to wake the `Coordinator`, but not schedule any particular
     /// process.
     waker: Waker,
     /// Scheduler for thread-safe actors.

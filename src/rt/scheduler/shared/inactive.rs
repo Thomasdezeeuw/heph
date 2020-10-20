@@ -53,22 +53,34 @@ impl Inactive {
         self.length != 0
     }
 
-    /// Add a `process`.
-    pub(super) fn add(&mut self, process: Pin<Box<ProcessData>>) {
+    /// Attempts to add the `process`. Returns the `process` if it was marked as
+    /// ready-to-run while it was removed from the `Inactive` list.
+    pub(super) fn add(&mut self, process: Pin<Box<ProcessData>>) -> Option<Pin<Box<ProcessData>>> {
         let pid = process.as_ref().id();
         // Ensure `SKIP_BITS` is correct.
         debug_assert!(pid.0 & SKIP_MASK == 0);
-        self.root.add(process, pid.0 >> SKIP_BITS, 0);
-        self.length += 1;
+        if let Some(process) = self.root.add(process, pid.0 >> SKIP_BITS, 0) {
+            // Process was marked as ready-to-run.
+            Some(process)
+        } else {
+            self.length += 1;
+            None
+        }
     }
 
-    /// Removes the process with id `pid`, if any.
-    pub(super) fn remove(&mut self, pid: ProcessId) -> Option<Pin<Box<ProcessData>>> {
-        self.root.remove(pid, pid.0 >> SKIP_BITS).map(|process| {
-            debug_assert_eq!(process.as_ref().id(), pid);
-            self.length -= 1;
-            process
-        })
+    /// Removes the process with id `pid`, if the process is currently not
+    /// stored in the `Inactive` list it is marked as ready and
+    /// [`Inactive::add`] will return it once added back.
+    pub(super) fn mark_ready(&mut self, pid: ProcessId) -> Option<Pin<Box<ProcessData>>> {
+        debug_assert!(ok_ptr(pid.0 as *mut ()));
+
+        self.root
+            .mark_ready(pid, pid.0 >> SKIP_BITS, 0)
+            .map(|process| {
+                debug_assert_eq!(process.as_ref().id(), pid);
+                self.length -= 1;
+                process
+            })
     }
 }
 
@@ -95,44 +107,70 @@ impl Branch {
         }
     }
 
-    fn add(&mut self, process: Pin<Box<ProcessData>>, w_pid: usize, depth: usize) {
-        match Pointer::take_process(&mut self.branches[w_pid & LEVEL_MASK]) {
-            Some(Ok(other_process)) => {
-                // This branch ends in another process.
-                self.add_both(process, other_process, w_pid, depth);
+    fn add(
+        &mut self,
+        process: Pin<Box<ProcessData>>,
+        w_pid: usize,
+        depth: usize,
+    ) -> Option<Pin<Box<ProcessData>>> {
+        let node = &mut self.branches[w_pid & LEVEL_MASK];
+        match Pointer::take(node) {
+            Some(Pointee::Process(other_process)) => {
+                // This branch ends in another process, add them both.
+                self.add_both(other_process.into(), process.into(), w_pid, depth);
+                None
             }
-            Some(Err(mut branch)) => branch.add(process, w_pid >> LEVEL_SHIFT, depth + 1),
-            None => self.branches[w_pid & LEVEL_MASK] = Some(process.into()),
+            Some(Pointee::Branch(mut branch)) => {
+                // Try at the next level.
+                branch.add(process, w_pid >> LEVEL_SHIFT, depth + 1)
+            }
+            Some(Pointee::ReadyToRun(other_pid)) if process.as_ref().id() == other_pid => {
+                // Process was marked as ready to run, so return it.
+                *node = None;
+                Some(process)
+            }
+            Some(Pointee::ReadyToRun(other_pid)) => {
+                let other = Pointer::ready_to_run(other_pid);
+                *node = None;
+                self.add_both(other, process.into(), w_pid, depth);
+                None
+            }
+            None => {
+                self.branches[w_pid & LEVEL_MASK] = Some(process.into());
+                None
+            }
         }
     }
 
-    /// Add two processes at a time.
+    /// Add two pointers at a time.
     ///
-    /// Used when a process is added but another process is encountered. Instead
-    /// of adding one process (by creating a new level) and then add the other,
-    /// possibly creating another conflict. We first create enough levels to not
-    /// have conflicting branches and then add both processes.
-    fn add_both(
-        &mut self,
-        process1: Pin<Box<ProcessData>>,
-        process2: Pin<Box<ProcessData>>,
-        w_pid: usize,
-        depth: usize,
-    ) {
+    /// Used when a process is added but another process or marker is
+    /// encountered. Instead of adding one process (by creating a new level) and
+    /// then add the other, possibly creating another conflict. We first create
+    /// enough levels to not have conflicting branches and then add both
+    /// processes.
+    ///
+    /// # Notes
+    ///
+    /// Both `ptr1` and `ptr2` must be of kind process or ready-to-run marker.
+    fn add_both(&mut self, ptr1: Pointer, ptr2: Pointer, w_pid: usize, depth: usize) {
         debug_assert!(self.branches[w_pid & LEVEL_MASK].is_none());
-        let pid1 = process1.as_ref().id();
-        let pid2 = process2.as_ref().id();
+        debug_assert!(ptr1.is_process() || ptr1.is_ready_marker());
+        debug_assert!(ptr2.is_process() || ptr2.is_ready_marker());
+
+        let pid1 = ptr1.as_pid();
+        let pid2 = ptr2.as_pid();
 
         // Build the part of the branch in reverse, starting at the lowest
         // branch.
         let mut branch = Box::pin(Branch::empty());
         // Required depth to go were the pointers are in different slots.
         let req_depth = diff_branch_depth(pid1, pid2, depth);
-        // Add the two processes.
+        // Add the two pointers.
         let w_pid1 = skip_bits(pid1, depth + req_depth);
-        branch.branches[w_pid1 & LEVEL_MASK] = Some(process1.into());
+        branch.branches[w_pid1 & LEVEL_MASK] = Some(ptr1);
         let w_pid2 = skip_bits(pid2, depth + req_depth);
-        branch.branches[w_pid2 & LEVEL_MASK] = Some(process2.into());
+        branch.branches[w_pid2 & LEVEL_MASK] = Some(ptr2);
         debug_assert!(w_pid1 & LEVEL_MASK != w_pid2 & LEVEL_MASK);
         // Build up to route to the branch.
         for depth in 1..req_depth {
@@ -143,17 +181,40 @@ impl Branch {
         self.branches[w_pid & LEVEL_MASK] = Some(branch.into());
     }
 
-    fn remove(&mut self, pid: ProcessId, w_pid: usize) -> Option<Pin<Box<ProcessData>>> {
+    fn mark_ready(
+        &mut self,
+        pid: ProcessId,
+        w_pid: usize,
+        depth: usize,
+    ) -> Option<Pin<Box<ProcessData>>> {
         let node = &mut self.branches[w_pid & LEVEL_MASK];
-        match Pointer::take_process(node) {
-            Some(Ok(process)) if process.as_ref().id() == pid => Some(process),
-            Some(Ok(process)) => {
-                // Wrong process so put it back.
-                *node = Some(process.into());
+        match Pointer::take(node) {
+            Some(Pointee::Process(process)) if process.as_ref().id() == pid => Some(process),
+            Some(Pointee::Process(process)) => {
+                // Found another process, create a ready-to-run marker and add
+                // the marker and the process both.
+                let marker = Pointer::ready_to_run(pid);
+                self.add_both(process.into(), marker, w_pid, depth);
                 None
             }
-            Some(Err(mut next_branch)) => next_branch.remove(pid, w_pid >> LEVEL_SHIFT),
-            None => None,
+            Some(Pointee::Branch(mut next_branch)) => {
+                next_branch.mark_ready(pid, w_pid >> LEVEL_SHIFT, depth + 1)
+            }
+            Some(Pointee::ReadyToRun(other_pid)) if pid == other_pid => {
+                // Already has a ready-to-run marker, don't have to do anything.
+                None
+            }
+            Some(Pointee::ReadyToRun(other_pid)) => {
+                let other = Pointer::ready_to_run(other_pid);
+                let marker = Pointer::ready_to_run(pid);
+                *node = None;
+                self.add_both(other, marker, w_pid, depth);
+                None
+            }
+            None => {
+                *node = Some(Pointer::ready_to_run(pid));
+                None
+            }
         }
     }
 }
@@ -165,30 +226,44 @@ struct Pointer {
 }
 
 /// Tags used for the `Pointer`.
-const PROCESS_TAG: usize = 0b1;
-const BRANCH_TAG: usize = 0b0;
+const TAG_BITS: usize = 0b11;
+const READY_TO_RUN: usize = 0b01;
+const PROCESS_TAG: usize = 0b10;
+const BRANCH_TAG: usize = 0b00;
+
+/// Returned by [`Pointer::take`].
+enum Pointee<'a> {
+    Process(Pin<Box<ProcessData>>),
+    Branch(Pin<&'a mut Branch>),
+    ReadyToRun(ProcessId),
+}
 
 impl Pointer {
-    /// Attempts to take a process pointer from `this`.
-    ///
-    /// Returns:
-    /// * `None` if `this` is `None`.
-    /// * `Some(Ok(..))` if the pointer is `Some` and points to a process.
-    /// * `Some(Err(..))` if the pointer is `Some` and points to a branch.
-    fn take_process<'a>(
-        this: &'a mut Option<Pointer>,
-    ) -> Option<Result<Pin<Box<ProcessData>>, Pin<&'a mut Branch>>> {
+    /// Create a mark ready-to-run `Pointer`.
+    fn ready_to_run(pid: ProcessId) -> Pointer {
+        debug_assert!(ok_ptr(pid.0 as *mut ()));
+        let ptr = (pid.0 | READY_TO_RUN) as *mut ();
+        Pointer {
+            tagged_ptr: unsafe { NonNull::new_unchecked(ptr) },
+        }
+    }
+
+    /// Attempts to take this pointer if its a process or ready-to-run marker.
+    fn take<'a>(this: &'a mut Option<Pointer>) -> Option<Pointee<'a>> {
         match this {
+            Some(pointer) if pointer.is_ready_marker() => {
+                Some(Pointee::ReadyToRun(pointer.as_pid()))
+            }
             Some(pointer) if pointer.is_process() => {
                 let p = unsafe { Box::from_raw(pointer.as_ptr() as *mut _) };
                 // We just read the pointer so now we have to forget it.
                 forget(this.take());
-                Some(Ok(Pin::new(p)))
+                Some(Pointee::Process(Pin::new(p)))
             }
             Some(pointer) => {
                 debug_assert!(!pointer.is_process());
                 let p: &mut Branch = unsafe { &mut *(pointer.as_ptr() as *mut _) };
-                Some(Err(unsafe { Pin::new_unchecked(p) }))
+                Some(Pointee::Branch(unsafe { Pin::new_unchecked(p) }))
             }
             None => None,
         }
@@ -196,7 +271,22 @@ impl Pointer {
 
     /// Returns the raw pointer without its tag.
     fn as_ptr(&self) -> *mut () {
-        (self.tagged_ptr.as_ptr() as usize & !(PROCESS_TAG)) as *mut ()
+        (self.tagged_ptr.as_ptr() as usize & !TAG_BITS) as *mut ()
+    }
+
+    /// Returns this pointer `ProcessId`.
+    ///
+    /// # Notes
+    ///
+    /// This is only valid for process pointers and ready-to-run markers.
+    fn as_pid(&self) -> ProcessId {
+        ProcessId(self.tagged_ptr.as_ptr() as usize & !TAG_BITS)
+    }
+
+    /// Returns `true` is the tagged pointer is a marker that the process is
+    /// ready-to-run.
+    fn is_ready_marker(&self) -> bool {
+        (self.tagged_ptr.as_ptr() as usize & READY_TO_RUN) != 0
     }
 
     /// Returns `true` is the tagged pointer points to a process.
@@ -235,7 +325,9 @@ impl From<Pin<Box<Branch>>> for Pointer {
 impl Drop for Pointer {
     fn drop(&mut self) {
         let ptr = self.as_ptr();
-        if self.is_process() {
+        if self.is_ready_marker() {
+            // Nothing to do.
+        } else if self.is_process() {
             let p: Box<ProcessData> = unsafe { Box::from_raw(ptr as *mut _) };
             drop(p);
         } else {
@@ -298,7 +390,7 @@ mod tests {
     use crate::rt::scheduler::Priority;
     use crate::rt::RuntimeRef;
 
-    use super::{Branch, Inactive, Pointer, ProcessData};
+    use super::{Branch, Inactive, Pointee, Pointer, ProcessData};
 
     #[test]
     fn pointer_is_send() {
@@ -340,6 +432,7 @@ mod tests {
     fn process_data_alignment() {
         // Ensure that the pointer tag doesn't overwrite any pointer data.
         assert!(align_of::<ProcessData>() >= 2);
+        assert!(align_of::<Branch>() >= 2);
     }
 
     #[test]
@@ -349,29 +442,69 @@ mod tests {
     }
 
     #[test]
-    fn pointer_take_process() {
+    fn pointer_take() {
         // None.
         let mut ptr: Option<Pointer> = None;
-        assert!(Pointer::take_process(&mut ptr).is_none());
+        assert!(Pointer::take(&mut ptr).is_none());
         assert!(ptr.is_none());
 
-        // Process -> Some(Ok(..)).
+        // Process.
         let mut ptr: Option<Pointer> = Some(test_process().into());
-        match Pointer::take_process(&mut ptr) {
-            Some(Ok(_)) => {}
+        match Pointer::take(&mut ptr) {
+            Some(Pointee::Process(_)) => {}
             _ => panic!("unexpected result"),
         }
         // Process is removed.
         assert!(ptr.is_none());
 
-        // Branch -> Some(Err(..)).
+        // Branch.
         let mut ptr: Option<Pointer> = Some(Box::pin(Branch::empty()).into());
-        match Pointer::take_process(&mut ptr) {
-            Some(Err(_)) => {}
+        match Pointer::take(&mut ptr) {
+            Some(Pointee::Branch(_)) => {}
             _ => panic!("unexpected result"),
         }
         // Pointer unchanged.
         assert!(ptr.is_some());
+
+        // Ready-to-run marker.
+        let pid = ProcessId(1 << 4);
+        let mut ptr: Option<Pointer> = Some(Pointer::ready_to_run(pid));
+        match Pointer::take(&mut ptr) {
+            Some(Pointee::ReadyToRun(p)) => assert_eq!(p, pid),
+            _ => panic!("unexpected result"),
+        }
+        // Pointer unchanged.
+        assert!(ptr.is_some());
+    }
+
+    #[test]
+    fn pointer_as_pid() {
+        // Process.
+        let process = test_process();
+        let pid = process.as_ref().id();
+        let got = Pointer::from(process).as_pid();
+        assert_eq!(pid, got);
+
+        // Ready-to-run marker.
+        let pid = ProcessId(1 << 4);
+        let ptr = Pointer::ready_to_run(pid);
+        assert_eq!(ptr.as_pid(), pid);
+    }
+
+    #[test]
+    fn pointer_is_marker_ready() {
+        // Process.
+        let process = Pointer::from(test_process());
+        assert!(!process.is_ready_marker());
+
+        // Branch.
+        let branch = Pointer::from(Box::pin(Branch::empty()));
+        assert!(!branch.is_ready_marker());
+
+        // Ready-to-run marker.
+        let pid = ProcessId(1 << 4);
+        let marker = Pointer::ready_to_run(pid);
+        assert!(marker.is_ready_marker());
     }
 
     #[test]
@@ -413,10 +546,39 @@ mod tests {
         assert_eq!(dropped.load(Ordering::Acquire), 1);
     }
 
+    #[test]
+    fn marking_as_ready_to_run() {
+        let tests = &[1, 2, 3, 4, 5, 100, 200];
+
+        for n in tests {
+            let mut queue = Inactive::empty();
+
+            let processes = (0..*n)
+                .map(|_| {
+                    let process = test_process();
+                    let pid = process.as_ref().id();
+
+                    // Process not in the queue.
+                    assert!(queue.mark_ready(pid).is_none());
+                    process
+                })
+                .collect::<Vec<_>>();
+
+            for process in processes {
+                // Process should be marked as ready.
+                assert!(queue.add(process).is_some());
+            }
+        }
+    }
+
     fn add_process(queue: &mut Inactive) -> ProcessId {
         let process = test_process();
         let pid = process.as_ref().id();
-        queue.add(process);
+        let mut p = Some(process);
+        // Remove any ready-to-run markers.
+        while let Some(process) = p.take() {
+            p = queue.add(process);
+        }
         pid
     }
 
@@ -433,7 +595,7 @@ mod tests {
 
         for index in remove_order {
             let pid = pids[index];
-            let process = if let Some(p) = queue.remove(pid) {
+            let process = if let Some(p) = queue.mark_ready(pid) {
                 p
             } else {
                 panic!(
@@ -445,7 +607,7 @@ mod tests {
                 );
             };
             assert_eq!(process.as_ref().id(), pid);
-            assert!(queue.remove(pid).is_none());
+            assert!(queue.mark_ready(pid).is_none());
         }
         println!("Ok.");
     }

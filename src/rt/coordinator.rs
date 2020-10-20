@@ -164,7 +164,9 @@ impl Coordinator {
             for pid in self.waker_events.try_iter() {
                 trace!("waking thread-safe actor: pid={}", pid);
                 wake_workers = true;
-                self.scheduler.mark_ready(pid);
+                if pid.0 != WAKER.0 {
+                    self.scheduler.mark_ready(pid);
+                }
             }
             // In case the worker threads are polling we need to wake them up.
             // TODO: optimise this.
