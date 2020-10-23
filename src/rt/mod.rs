@@ -14,7 +14,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Instant;
-use std::{fmt, io, task};
+use std::{fmt, io, task, thread};
 
 use log::{debug, trace};
 use mio::{event, Interest, Poll, Registry, Token};
@@ -294,6 +294,8 @@ impl<S> Runtime<S> {
                 "Can't create {} worker threads, {} is the maximum",
                 n, MAX_THREADS
             );
+        } else if n == 0 {
+            panic!("Can't create zero worker threads, one is the minimum");
         }
         self.threads = n;
         self
@@ -303,7 +305,10 @@ impl<S> Runtime<S> {
     ///
     /// See [`Runtime::num_threads`].
     pub fn use_all_cores(self) -> Self {
-        self.num_threads(num_cpus::get())
+        let n = thread::available_concurrency()
+            .map(|n| n.get())
+            .unwrap_or(1);
+        self.num_threads(n)
     }
 
     /// Returns the number of worker threads to use.

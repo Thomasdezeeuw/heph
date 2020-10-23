@@ -67,6 +67,7 @@
 
 #![feature(
     array_methods,
+    available_concurrency,
     const_fn,
     const_raw_ptr_to_usize_cast,
     duration_zero,
