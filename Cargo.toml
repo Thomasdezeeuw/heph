@@ -22,7 +22,7 @@ default = []
 test = []
 
 [dependencies]
-crossbeam-channel = { version = "0.4.4", default-features = false }
+crossbeam-channel = { version = "0.5.0", default-features = false, features = ["std"] }
 erased-serde      = { version = "0.3.11", default-features = false, features = ["std"] }
 fnv               = { version = "1.0.6", default-features = false }
 futures-core      = { version = "0.3.6", default-features = false }
