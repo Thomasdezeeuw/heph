@@ -1,6 +1,7 @@
 //! Coordinator thread code.
 
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 use std::{fmt, io};
 
@@ -9,7 +10,6 @@ use log::{debug, trace, warn};
 use mio::event::Event;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
-use parking_lot::Mutex;
 
 use crate::rt::process::ProcessId;
 use crate::rt::scheduler::Scheduler;
@@ -154,7 +154,7 @@ impl Coordinator {
             }
 
             trace!("polling timers");
-            for pid in self.timers.lock().deadlines() {
+            for pid in self.timers.lock().unwrap().deadlines() {
                 trace!("waking thread-safe actor: pid={}", pid);
                 wake_workers = true;
                 self.scheduler.mark_ready(pid);
@@ -210,7 +210,7 @@ impl Coordinator {
 
     /// Determine the timeout to be used in `Poll::poll`.
     fn determine_timeout(&self) -> Option<Duration> {
-        if let Some(deadline) = self.timers.lock().next_deadline() {
+        if let Some(deadline) = self.timers.lock().unwrap().next_deadline() {
             let now = Instant::now();
             if deadline <= now {
                 // Deadline has already expired, so no blocking.

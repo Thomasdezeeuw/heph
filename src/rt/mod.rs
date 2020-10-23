@@ -12,12 +12,12 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Instant;
 use std::{fmt, io, task};
 
 use log::{debug, trace};
 use mio::{event, Interest, Poll, Registry, Token};
-use parking_lot::Mutex;
 
 use crate::actor::context::{ThreadLocal, ThreadSafe};
 use crate::actor::sync::SyncActor;
@@ -822,7 +822,7 @@ impl SharedRuntimeInternal {
     }
 
     pub(crate) fn add_deadline(&self, pid: ProcessId, deadline: Instant) {
-        self.timers.lock().add_deadline(pid, deadline);
+        self.timers.lock().unwrap().add_deadline(pid, deadline);
         // Ensure that the coordinator isn't polling and miss the deadline.
         self.wake();
     }

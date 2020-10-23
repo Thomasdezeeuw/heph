@@ -7,10 +7,10 @@
 use std::fmt;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use log::trace;
-use parking_lot::Mutex;
 
 use crate::actor::{context, NewActor};
 use crate::inbox::{Inbox, InboxRef};
@@ -84,7 +84,7 @@ impl Scheduler {
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub(in crate::rt) fn mark_ready(&mut self, pid: ProcessId) {
         trace!("marking process as ready: pid={}", pid);
-        if let Some(process) = { self.shared.inactive.lock().mark_ready(pid) } {
+        if let Some(process) = { self.shared.inactive.lock().unwrap().mark_ready(pid) } {
             // The process was in the `Inactive` list, so we move it to the run
             // queue.
             self.shared.ready.add(process)
@@ -112,7 +112,7 @@ impl SchedulerRef {
     /// Returns `true` if the schedule has any processes (in any state), `false`
     /// otherwise.
     pub(in crate::rt) fn has_process(&self) -> bool {
-        let has_inactive = { self.shared.inactive.lock().has_process() };
+        let has_inactive = { self.shared.inactive.lock().unwrap().has_process() };
         has_inactive || self.has_ready_process()
     }
 
@@ -147,7 +147,7 @@ impl SchedulerRef {
         let pid = process.as_ref().id();
 
         trace!("adding back process: pid={}", pid);
-        if let Some(process) = { self.shared.inactive.lock().add(process) } {
+        if let Some(process) = { self.shared.inactive.lock().unwrap().add(process) } {
             // If the process was marked as ready-to-run we need to add to the
             // run queue instead.
             self.shared.ready.add(process);

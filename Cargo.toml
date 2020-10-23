@@ -35,7 +35,6 @@ mio               = { version = "0.7.2", default-features = false, features = ["
 mio-pipe          = { version = "0.1.0", default-features = false }
 mio-signals       = { version = "0.1.2", default-features = false }
 num_cpus          = { version = "1.12.0", default-features = false }
-parking_lot       = { version = "0.11.0", default-features = false, features = ["nightly"] }
 rand              = { version = "0.7.3", default-features = false, features = ["std"] }
 serde             = { version = "1.0.116", default-features = false, features = ["derive"] }
 serde_json        = { version = "1.0.58", default-features = false, features = ["std"] }

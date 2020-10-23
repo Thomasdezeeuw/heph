@@ -23,11 +23,10 @@ use std::future::Future;
 use std::mem::size_of;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
 
 use lazy_static::lazy_static;
-use parking_lot::Mutex;
 use rand::Rng;
 
 use crate::actor::{self, context, Actor, NewActor};

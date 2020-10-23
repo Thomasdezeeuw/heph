@@ -1,7 +1,6 @@
 use std::mem::replace;
 use std::pin::Pin;
-
-use parking_lot::RwLock;
+use std::sync::Mutex;
 
 use crate::rt::scheduler::shared::ProcessData;
 
@@ -14,7 +13,7 @@ use crate::rt::scheduler::shared::ProcessData;
 /// Implemented as a simple binary tree.
 #[derive(Debug)]
 pub(super) struct RunQueue {
-    root: RwLock<Branch>,
+    root: Mutex<Branch>,
 }
 
 type Branch = Option<Box<Node>>;
@@ -28,20 +27,20 @@ struct Node {
 
 impl RunQueue {
     /// Returns an empty `RunQueue`.
-    pub(super) const fn empty() -> RunQueue {
+    pub(super) fn empty() -> RunQueue {
         RunQueue {
-            root: RwLock::new(None),
+            root: Mutex::new(None),
         }
     }
 
     /// Returns `true` if the queue contains any process.
     pub(super) fn has_process(&self) -> bool {
-        self.root.read().is_some()
+        self.root.lock().unwrap().is_some()
     }
 
     /// Add `process` to the queue of running processes.
     pub(super) fn add(&self, process: Pin<Box<ProcessData>>) {
-        let mut next_node = &mut *self.root.write();
+        let mut next_node = &mut *self.root.lock().unwrap();
         loop {
             match next_node {
                 Some(node) => {
@@ -64,7 +63,7 @@ impl RunQueue {
 
     /// Remove the next process to run from the queue.
     pub(super) fn remove(&self) -> Option<Pin<Box<ProcessData>>> {
-        let mut next_node = &mut *self.root.write();
+        let mut next_node = &mut *self.root.lock().unwrap();
         loop {
             match next_node {
                 Some(node) if node.left.is_none() => {
@@ -112,7 +111,7 @@ mod tests {
 
     #[test]
     fn size_assertions() {
-        assert_eq!(size_of::<RunQueue>(), 16);
+        assert_eq!(size_of::<RunQueue>(), 24);
         assert_eq!(size_of::<Node>(), 24);
     }
 
