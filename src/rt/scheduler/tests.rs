@@ -183,12 +183,13 @@ mod local_scheduler {
     use std::rc::Rc;
     use std::time::Duration;
 
-    use super::{NopTestProcess, TestAssertUnmovedNewActor};
     use crate::actor;
     use crate::rt::process::{Process, ProcessId, ProcessResult};
     use crate::rt::scheduler::{LocalScheduler, Priority, ProcessData};
     use crate::supervisor::NoSupervisor;
     use crate::test::{self, init_local_actor_inbox};
+
+    use super::{NopTestProcess, TestAssertUnmovedNewActor};
 
     async fn simple_actor(_ctx: actor::Context<!>) -> Result<(), !> {
         Ok(())
@@ -225,6 +226,7 @@ mod local_scheduler {
             actor,
             inbox,
             inbox_ref,
+            false,
         );
         assert!(scheduler.has_process());
         assert!(!scheduler.has_ready_process());
@@ -249,6 +251,7 @@ mod local_scheduler {
             actor,
             inbox,
             inbox_ref,
+            false,
         );
 
         scheduler.mark_ready(pid);
@@ -272,6 +275,7 @@ mod local_scheduler {
             actor,
             inbox,
             inbox_ref,
+            false,
         );
         scheduler.mark_ready(pid);
 
@@ -301,6 +305,7 @@ mod local_scheduler {
             actor,
             inbox,
             inbox_ref,
+            true,
         );
         // Actor 2.
         let actor_entry = scheduler.add_actor();
@@ -313,6 +318,7 @@ mod local_scheduler {
             actor,
             inbox,
             inbox_ref,
+            true,
         );
         // Actor 3.
         let actor_entry = scheduler.add_actor();
@@ -325,11 +331,8 @@ mod local_scheduler {
             actor,
             inbox,
             inbox_ref,
+            true,
         );
-
-        scheduler.mark_ready(pid1);
-        scheduler.mark_ready(pid2);
-        scheduler.mark_ready(pid3);
 
         assert!(scheduler.has_process());
         assert!(scheduler.has_ready_process());
@@ -368,8 +371,38 @@ mod local_scheduler {
             actor,
             inbox,
             inbox_ref,
+            false,
         );
+
+        assert!(scheduler.next_process().is_none());
+        assert!(scheduler.has_process());
+        assert!(!scheduler.has_ready_process());
+
         scheduler.mark_ready(pid);
+        assert!(scheduler.has_process());
+        assert!(scheduler.has_ready_process());
+        let process = scheduler.next_process().unwrap();
+        assert_eq!(process.as_ref().id(), pid);
+    }
+
+    #[test]
+    fn add_process_marked_ready() {
+        let mut scheduler = LocalScheduler::new();
+
+        let actor_entry = scheduler.add_actor();
+        let pid = actor_entry.pid();
+        #[allow(trivial_casts)]
+        let new_actor = simple_actor as fn(_) -> _;
+        let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, ()).unwrap();
+        actor_entry.add(
+            Priority::NORMAL,
+            NoSupervisor,
+            new_actor,
+            actor,
+            inbox,
+            inbox_ref,
+            true,
+        );
 
         let process = scheduler.next_process().unwrap();
         scheduler.add_process(process);
@@ -410,13 +443,17 @@ mod local_scheduler {
             pids.push(actor_entry.pid());
             let (actor, inbox, inbox_ref) =
                 init_local_actor_inbox(new_actor, (id, run_order.clone())).unwrap();
-            actor_entry.add(*priority, NoSupervisor, new_actor, actor, inbox, inbox_ref);
+            actor_entry.add(
+                *priority,
+                NoSupervisor,
+                new_actor,
+                actor,
+                inbox,
+                inbox_ref,
+                true,
+            );
         }
 
-        // Schedule all processes.
-        for pid in pids {
-            scheduler.mark_ready(pid);
-        }
         assert!(scheduler.has_process());
         assert!(scheduler.has_ready_process());
 
@@ -450,11 +487,10 @@ mod local_scheduler {
             actor,
             inbox,
             inbox_ref,
+            true,
         );
 
-        // Schedule and run the process multiple times, ensure it's not moved in the
-        // process.
-        scheduler.mark_ready(pid);
+        // Run the process multiple times, ensure it's not moved in the process.
         let mut process = scheduler.next_process().unwrap();
         assert_eq!(
             process.as_mut().run(&mut runtime_ref),
@@ -480,6 +516,7 @@ mod local_scheduler {
 }
 
 mod shared_scheduler {
+    use std::marker::PhantomData;
     use std::sync::{Arc, Mutex};
 
     use crate::actor::{self, context};
@@ -488,6 +525,8 @@ mod shared_scheduler {
     use crate::rt::scheduler::{Priority, Scheduler};
     use crate::supervisor::NoSupervisor;
     use crate::test::{self, init_actor_inbox};
+
+    use super::TestAssertUnmovedNewActor;
 
     async fn simple_actor(_ctx: actor::Context<!, context::ThreadSafe>) -> Result<(), !> {
         Ok(())
@@ -522,6 +561,7 @@ mod shared_scheduler {
             actor,
             inbox,
             inbox_ref,
+            false,
         );
 
         // Newly added processes aren't ready by default.
@@ -576,7 +616,7 @@ mod shared_scheduler {
 
     #[test]
     fn scheduler_run_order() {
-        let mut scheduler = Scheduler::new();
+        let scheduler = Scheduler::new();
         let scheduler_ref = scheduler.create_ref();
         let mut runtime_ref = test::runtime();
 
@@ -602,13 +642,17 @@ mod shared_scheduler {
             pids.push(actor_entry.pid());
             let (actor, inbox, inbox_ref) =
                 init_actor_inbox(new_actor, (id, run_order.clone())).unwrap();
-            actor_entry.add(*priority, NoSupervisor, new_actor, actor, inbox, inbox_ref);
+            actor_entry.add(
+                *priority,
+                NoSupervisor,
+                new_actor,
+                actor,
+                inbox,
+                inbox_ref,
+                true,
+            );
         }
 
-        // Schedule all processes.
-        for pid in pids {
-            scheduler.mark_ready(pid);
-        }
         assert!(scheduler_ref.has_process());
         assert!(scheduler_ref.has_ready_process());
 
@@ -625,13 +669,10 @@ mod shared_scheduler {
         assert_eq!(*run_order.lock().unwrap(), vec![2usize, 1, 0]);
     }
 
-    /*
-    // TODO: enable this once https://github.com/rust-lang/futures-rs/pull/2146
-    // is merged.
     #[test]
     fn assert_process_unmoved() {
         let mut scheduler = Scheduler::new();
-        let mut scheduler_ref = scheduler.create_ref();
+        let scheduler_ref = scheduler.create_ref();
         let mut runtime_ref = test::runtime();
 
         let new_actor = TestAssertUnmovedNewActor(PhantomData);
@@ -646,12 +687,12 @@ mod shared_scheduler {
             actor,
             inbox,
             inbox_ref,
+            true,
         );
 
-        // Schedule and run the process multiple times, ensure it's not moved in the
+        // Run the process multiple times, ensure it's not moved in the
         // process.
-        scheduler.mark_ready(pid);
-        let mut process = scheduler_ref.try_steal().unwrap().unwrap();
+        let mut process = scheduler_ref.try_steal().unwrap();
         assert_eq!(
             process.as_mut().run(&mut runtime_ref),
             ProcessResult::Pending
@@ -659,7 +700,7 @@ mod shared_scheduler {
         scheduler_ref.add_process(process);
 
         scheduler.mark_ready(pid);
-        let mut process = scheduler_ref.try_steal().unwrap().unwrap();
+        let mut process = scheduler_ref.try_steal().unwrap();
         assert_eq!(
             process.as_mut().run(&mut runtime_ref),
             ProcessResult::Pending
@@ -667,11 +708,10 @@ mod shared_scheduler {
         scheduler_ref.add_process(process);
 
         scheduler.mark_ready(pid);
-        let mut process = scheduler_ref.try_steal().unwrap().unwrap();
+        let mut process = scheduler_ref.try_steal().unwrap();
         assert_eq!(
             process.as_mut().run(&mut runtime_ref),
             ProcessResult::Pending
         );
     }
-    */
 }
