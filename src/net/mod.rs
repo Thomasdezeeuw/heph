@@ -48,8 +48,6 @@ macro_rules! try_io {
     };
 }
 
-// TODO: better name than rpc.
-pub mod rpc;
 pub mod tcp;
 pub mod udp;
 

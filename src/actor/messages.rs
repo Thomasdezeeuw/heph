@@ -59,13 +59,11 @@
 //! # drop(Message::Ack(0));
 //! ```
 
-use serde::{Deserialize, Serialize};
-
 /// A start signal
 ///
 /// Useful for example when you want to delay the start of an actor. This
 /// message has an optional id.
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(transparent)]
 pub struct Start<Id = ()>(pub Id);
 
@@ -73,21 +71,21 @@ pub struct Start<Id = ()>(pub Id);
 ///
 /// Useful for example when you want to know if a message was received. This
 /// message has an optional id.
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(transparent)]
 pub struct Ack<Id = ()>(pub Id);
 
 /// Signal to an actor that we're done.
 ///
 /// This message has an optional id.
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(transparent)]
 pub struct Done<Id = ()>(pub Id);
 
 /// Signal to an actor to cancel an operation.
 ///
 /// This message has an optional id.
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 #[repr(transparent)]
 pub struct Cancel<Id = ()>(pub Id);
 
@@ -97,7 +95,7 @@ pub struct Cancel<Id = ()>(pub Id);
 ///
 /// This message is not special in anyway, this means the receiving actor can
 /// simply ignore this message and continue living.
-#[derive(Copy, Clone, Debug, Serialize, Deserialize, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Terminate;
 
 /// Macro to implement [`From`] for an enum message type.

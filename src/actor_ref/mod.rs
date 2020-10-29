@@ -155,13 +155,6 @@ enum ActorRefKind<M> {
     Mapped(Arc<dyn MappedActorRef<M>>),
     /// Reference that attempts to map the message to a different type first.
     TryMapped(Arc<dyn TryMappedActorRef<M>>),
-    /// Reference that supplies a name of the actor to send the message to.
-    Named {
-        /// Name of the remote actor.
-        actor: &'static str,
-        /// Inbox of the receiving actor.
-        inbox_ref: InboxRef<(&'static str, M)>,
-    },
 }
 
 // We know that `Node` and `Sync` variants are `Send` and `Sync` and since the
@@ -219,7 +212,6 @@ impl<M> ActorRef<M> {
             Sync(sender) => sender.try_send(msg).map_err(|_err| SendError),
             Mapped(actor_ref) => actor_ref.mapped_send(msg),
             TryMapped(actor_ref) => actor_ref.try_mapped_send(msg),
-            Named { actor, inbox_ref } => inbox_ref.try_send((actor, msg)).map_err(|_| SendError),
         }
     }
 
@@ -311,22 +303,6 @@ impl<M> ActorRef<M> {
     }
 }
 
-impl<M> ActorRef<(&'static str, M)> {
-    /// Attempts to convert the reference into a named reference.
-    pub(crate) fn into_named(self, name: &'static str) -> Option<ActorRef<M>> {
-        if let ActorRefKind::Node(inbox_ref) = self.kind {
-            Some(ActorRef {
-                kind: ActorRefKind::Named {
-                    actor: name,
-                    inbox_ref,
-                },
-            })
-        } else {
-            None
-        }
-    }
-}
-
 impl<M> Clone for ActorRef<M> {
     fn clone(&self) -> ActorRef<M> {
         use ActorRefKind::*;
@@ -336,10 +312,6 @@ impl<M> Clone for ActorRef<M> {
                 Sync(sender) => Sync(sender.clone()),
                 Mapped(actor_ref) => Mapped(actor_ref.clone()),
                 TryMapped(actor_ref) => TryMapped(actor_ref.clone()),
-                Named { actor, inbox_ref } => Named {
-                    actor,
-                    inbox_ref: inbox_ref.clone(),
-                },
             },
         }
     }
