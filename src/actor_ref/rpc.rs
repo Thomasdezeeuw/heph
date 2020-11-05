@@ -238,4 +238,15 @@ impl<Res> RpcResponse<Res> {
     pub fn respond(self, response: Res) -> Result<(), SendError> {
         self.send.try_send(response).map_err(|_| SendError)
     }
+
+    /// Returns `false` if the receiving side is disconnected.
+    ///
+    /// # Notes
+    ///
+    /// If this method returns `true` it doesn't mean that `respond` will
+    /// succeed. In factor the moment this function returns a result it could
+    /// already be invalid.
+    pub fn is_connected(&self) -> bool {
+        self.send.is_connected()
+    }
 }
