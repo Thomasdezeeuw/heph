@@ -267,6 +267,18 @@ impl RunningRuntime {
                 // process. This allow a `RuntimeRef` to also mutable borrow the
                 // `Scheduler` to add new actors to it.
 
+                let process = self.internal.scheduler.borrow_mut().next_process();
+                if let Some(mut process) = process {
+                    match process.as_mut().run(&mut runtime_ref) {
+                        ProcessResult::Complete => {}
+                        ProcessResult::Pending => {
+                            self.internal.scheduler.borrow_mut().add_process(process);
+                        }
+                    }
+                    // Only run a single process per iteration.
+                    continue;
+                }
+
                 let process = self.internal.shared.scheduler.try_steal();
                 if let Some(mut process) = process {
                     match process.as_mut().run(&mut runtime_ref) {
@@ -281,15 +293,7 @@ impl RunningRuntime {
                     continue;
                 }
 
-                let process = self.internal.scheduler.borrow_mut().next_process();
-                if let Some(mut process) = process {
-                    match process.as_mut().run(&mut runtime_ref) {
-                        ProcessResult::Complete => {}
-                        ProcessResult::Pending => {
-                            self.internal.scheduler.borrow_mut().add_process(process);
-                        }
-                    }
-                } else if !self.internal.scheduler.borrow().has_process()
+                if !self.internal.scheduler.borrow().has_process()
                     && !self.internal.shared.scheduler.has_process()
                 {
                     debug!("no processes to run, stopping runtime");
