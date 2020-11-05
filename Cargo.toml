@@ -25,16 +25,20 @@ test = ["lazy_static", "rand"]
 crossbeam-channel = { version = "0.5.0", default-features = false, features = ["std"] }
 futures-core      = { version = "0.3.6", default-features = false }
 futures-io        = { version = "0.3.6", default-features = false, features = ["std"] }
-lazy_static       = { version = "1.4.0", default-features = false, optional = true }
 libc              = { version = "0.2.79", default-features = false }
 log               = { version = "0.4.8", default-features = false }
 mio               = { version = "0.7.2", default-features = false, features = ["os-poll", "tcp", "udp"] }
 mio-pipe          = { version = "0.1.0", default-features = false }
 mio-signals       = { version = "0.1.2", default-features = false }
-rand              = { version = "0.7.3", default-features = false, features = ["std"], optional = true }
 # Enable logging panics via `std-logger` and add timestamps to each log message.
 std-logger        = { version = "0.3.6", default-features = false, features = ["log-panic", "timestamp"] }
 
+# Required by the `test` feature.
+# TODO: replace `lazy_static` with `std::lazy::SyncLazy` once stable (tracking
+# issue: https://github.com/rust-lang/rust/issues/74465).
+lazy_static       = { version = "1.4.0", default-features = false, optional = true }
+rand              = { version = "0.7.3", default-features = false, features = ["std"], optional = true }
+
 [dev-dependencies]
-futures-test = { version = "0.3.4", default-features = false, features = ["std"] }
-futures-util = { version = "0.3.4", default-features = false, features = ["async-await-macro"] }
+futures-test      = { version = "0.3.4", default-features = false, features = ["std"] }
+futures-util      = { version = "0.3.4", default-features = false, features = ["async-await-macro"] }
