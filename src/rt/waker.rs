@@ -2,7 +2,7 @@
 
 use std::mem::size_of;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::task;
+use std::{io, task};
 
 use crossbeam_channel::Sender;
 use log::{error, trace};
@@ -154,11 +154,14 @@ impl ThreadWaker {
             return;
         }
 
-        self.wake_thread();
+        if let Err(err) = self.wake_thread() {
+            error!("unable to wake up worker: {}", err);
+        }
     }
 
-    /// Wake up the thread if it's not currently polling.
-    pub(crate) fn wake_thread(&self) {
+    /// Wake up the thread if it's not currently polling. Returns `true` if the
+    /// thread is awoken, `false` otherwise.
+    pub(crate) fn wake_thread(&self) -> io::Result<bool> {
         // If the thread is currently polling we're going to wake it. To avoid
         // additional calls to `Waker::wake` we use compare_exchange and let
         // only a single call to `Thread::wake` wake the thread.
@@ -172,10 +175,9 @@ impl ThreadWaker {
             )
             .is_ok()
         {
-            if let Err(err) = self.waker.wake() {
-                error!("unable to wake up worker thread: {}", err);
-                return;
-            }
+            self.waker.wake().map(|()| true)
+        } else {
+            Ok(false)
         }
     }
 

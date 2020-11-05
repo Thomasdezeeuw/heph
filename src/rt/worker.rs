@@ -124,13 +124,12 @@ impl<E> Worker<E> {
     }
 
     /// Wake the worker threads.
-    pub(super) fn wake(&mut self) -> io::Result<()> {
+    pub(super) fn wake(&mut self) -> io::Result<bool> {
         if let Some(thread_waker) = self.thread_waker {
-            thread_waker.wake_thread();
-            Ok(())
+            thread_waker.wake_thread()
         } else {
             let msg = CoordinatorMessage::Wake;
-            self.channel.try_send(msg)
+            self.channel.try_send(msg).map(|()| true)
         }
     }
 

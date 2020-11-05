@@ -1,6 +1,5 @@
 //! Coordinator thread code.
 
-use std::cmp::max;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::{fmt, io};
@@ -126,11 +125,15 @@ impl Coordinator {
             .map_err(|err| rt::Error::coordinator(Error::RegisteringSyncActors(err)))?;
 
         let mut events = Events::with_capacity(16);
+
+        // Index of the last worker we waked, must never be larger then
+        // `worker.len()` (which changes throughout the loop).
         let mut workers_waker_idx = 0;
         loop {
             self.poll(&mut events)
                 .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
 
+            // Counter for how many workers to wake.
             let mut wake_workers = 0;
             for event in events.iter() {
                 trace!("event: {:?}", event);
@@ -169,24 +172,31 @@ impl Coordinator {
                     self.scheduler.mark_ready(pid);
                 }
             }
+
             // In case the worker threads are polling we need to wake them up.
-            // TODO: optimise this.
             if wake_workers > 0 {
                 trace!("waking worker threads");
                 // To prevent the Thundering herd problem [1] we don't wake all
-                // workers, only enough worker threads to handle all events.
+                // workers, only enough worker threads to handle all events. To
+                // spread the workload (somewhat more) evenly we wake the
+                // workers in a Round-Robin [2] fashion.
                 //
                 // [1]: https://en.wikipedia.org/wiki/Thundering_herd_problem
-                let wake_workers = max(wake_workers, workers.len());
-                let workers_to_wake = workers
-                    .iter_mut()
-                    .skip(workers_waker_idx)
-                    .take(wake_workers);
+                // [2]: https://en.wikipedia.org/wiki/Round-robin_scheduling
+                let (wake_second, wake_first) = workers.split_at_mut(workers_waker_idx);
+                let workers_to_wake = wake_first.iter_mut().chain(wake_second.iter_mut());
+                let mut wakes_left = wake_workers;
                 for worker in workers_to_wake {
-                    // Can't deal with the error.
-                    trace!("waking worker thread: id={}", worker.id());
-                    if let Err(err) = worker.wake() {
-                        warn!("error waking working thread: {}: id={}", err, worker.id());
+                    trace!("waking worker: id={}", worker.id());
+                    match worker.wake() {
+                        Ok(true) => {
+                            wakes_left -= 1;
+                            if wakes_left == 0 {
+                                break;
+                            }
+                        }
+                        Ok(false) => {}
+                        Err(err) => warn!("error waking worker: {}: id={}", err, worker.id()),
                     }
                 }
                 workers_waker_idx = (workers_waker_idx + wake_workers) % workers.len();
