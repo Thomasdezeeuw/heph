@@ -1,7 +1,7 @@
 //! Coordinator thread code.
 
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::cmp::max;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::{fmt, io};
 
@@ -126,11 +126,12 @@ impl Coordinator {
             .map_err(|err| rt::Error::coordinator(Error::RegisteringSyncActors(err)))?;
 
         let mut events = Events::with_capacity(16);
+        let mut workers_waker_idx = 0;
         loop {
             self.poll(&mut events)
                 .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
 
-            let mut wake_workers = false;
+            let mut wake_workers = 0;
             for event in events.iter() {
                 trace!("event: {:?}", event);
                 match event.token() {
@@ -145,7 +146,7 @@ impl Coordinator {
                         handle_sync_worker_event(&mut sync_workers, event)?
                     }
                     token => {
-                        wake_workers = true;
+                        wake_workers += 1;
                         let pid = token.into();
                         trace!("waking thread-safe actor: pid={}", pid);
                         self.scheduler.mark_ready(pid);
@@ -156,29 +157,39 @@ impl Coordinator {
             trace!("polling timers");
             for pid in self.timers.lock().unwrap().deadlines() {
                 trace!("waking thread-safe actor: pid={}", pid);
-                wake_workers = true;
+                wake_workers += 1;
                 self.scheduler.mark_ready(pid);
             }
 
             trace!("polling wake-up events");
             for pid in self.waker_events.try_iter() {
                 trace!("waking thread-safe actor: pid={}", pid);
-                wake_workers = true;
+                wake_workers += 1;
                 if pid.0 != WAKER.0 {
                     self.scheduler.mark_ready(pid);
                 }
             }
             // In case the worker threads are polling we need to wake them up.
             // TODO: optimise this.
-            if wake_workers {
+            if wake_workers > 0 {
                 trace!("waking worker threads");
-                for worker in workers.iter_mut() {
+                // To prevent the Thundering herd problem [1] we don't wake all
+                // workers, only enough worker threads to handle all events.
+                //
+                // [1]: https://en.wikipedia.org/wiki/Thundering_herd_problem
+                let wake_workers = max(wake_workers, workers.len());
+                let workers_to_wake = workers
+                    .iter_mut()
+                    .skip(workers_waker_idx)
+                    .take(wake_workers);
+                for worker in workers_to_wake {
                     // Can't deal with the error.
                     trace!("waking worker thread: id={}", worker.id());
                     if let Err(err) = worker.wake() {
                         warn!("error waking working thread: {}: id={}", err, worker.id());
                     }
                 }
+                workers_waker_idx = (workers_waker_idx + wake_workers) % workers.len();
             }
 
             if workers.is_empty() && sync_workers.is_empty() {

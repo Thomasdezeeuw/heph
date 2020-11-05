@@ -183,12 +183,12 @@ impl RunningRuntime {
     ) -> io::Result<RunningRuntime> {
         // System queue for event notifications.
         let poll = Poll::new()?;
-        let awakener = mio::Waker::new(poll.registry(), WAKER)?;
+        let waker = mio::Waker::new(poll.registry(), WAKER)?;
         channel.register(poll.registry(), COORDINATOR)?;
 
         // Channel used in the `Waker` implementation.
         let (waker_sender, waker_recv) = crossbeam_channel::unbounded();
-        let waker_id = waker::init(awakener, waker_sender);
+        let waker_id = waker::init(waker, waker_sender);
 
         // Scheduler for scheduling and running local processes.
         let scheduler = LocalScheduler::new();
