@@ -12,8 +12,9 @@ use crate::rt::hack::SetupFn;
 use crate::rt::process::ProcessResult;
 use crate::rt::scheduler::LocalScheduler;
 use crate::rt::timers::Timers;
+use crate::rt::waker::{self, ThreadWaker};
 use crate::rt::{
-    self, channel, waker, ProcessId, RuntimeInternal, RuntimeRef, SharedRuntimeInternal, Signal,
+    self, channel, ProcessId, RuntimeInternal, RuntimeRef, SharedRuntimeInternal, Signal,
 };
 
 /// Error running a [`Worker`].
@@ -66,7 +67,9 @@ pub(crate) enum CoordinatorMessage {
 
 /// Message send by the worker thread.
 #[derive(Debug)]
-pub(crate) enum WorkerMessage {}
+pub(crate) enum WorkerMessage {
+    Waker(&'static ThreadWaker),
+}
 
 pub(super) struct Worker<E> {
     /// Unique id (among all threads in the `Runtime`).
@@ -75,6 +78,10 @@ pub(super) struct Worker<E> {
     handle: thread::JoinHandle<Result<(), rt::Error<E>>>,
     /// Two-way communication channel to share messages with the worker thread.
     channel: channel::Handle<CoordinatorMessage, WorkerMessage>,
+    /// Initialy this will be `None`, but once the worker thread is setup this
+    /// will be set to `Some` and can be used as an optimisation over sending
+    /// `CoordinatorMessage::Waker` messages.
+    thread_waker: Option<&'static ThreadWaker>,
 }
 
 impl<E> Worker<E> {
@@ -96,6 +103,7 @@ impl<E> Worker<E> {
                     id,
                     handle,
                     channel,
+                    thread_waker: None,
                 })
         })
     }
@@ -115,9 +123,25 @@ impl<E> Worker<E> {
         self.channel.try_send(msg)
     }
 
+    /// Wake the worker threads.
     pub(super) fn wake(&mut self) -> io::Result<()> {
-        let msg = CoordinatorMessage::Wake;
-        self.channel.try_send(msg)
+        if let Some(thread_waker) = self.thread_waker {
+            thread_waker.wake_thread();
+            Ok(())
+        } else {
+            let msg = CoordinatorMessage::Wake;
+            self.channel.try_send(msg)
+        }
+    }
+
+    /// Handle all incoming messages.
+    pub(super) fn handle_messages(&mut self) -> io::Result<()> {
+        while let Some(msg) = self.channel.try_recv()? {
+            match msg {
+                WorkerMessage::Waker(thread_waker) => self.thread_waker = Some(thread_waker),
+            }
+        }
+        Ok(())
     }
 
     /// See [`thread::JoinHandle::join`].
@@ -189,6 +213,9 @@ impl RunningRuntime {
         // Channel used in the `Waker` implementation.
         let (waker_sender, waker_recv) = crossbeam_channel::unbounded();
         let waker_id = waker::init(waker, waker_sender);
+
+        let thread_waker = waker::get_thread_waker(waker_id);
+        channel.try_send(WorkerMessage::Waker(thread_waker))?;
 
         // Scheduler for scheduling and running local processes.
         let scheduler = LocalScheduler::new();

@@ -15,7 +15,7 @@ use crate::rt::process::ProcessId;
 use crate::rt::scheduler::Scheduler;
 use crate::rt::waker::{self, WakerId};
 use crate::rt::{
-    self, SharedRuntimeInternal, Signal, SyncWorker, Timers, Worker, SYNC_WORKER_ID_END,
+    self, worker, SharedRuntimeInternal, Signal, SyncWorker, Timers, Worker, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
 use crate::ActorRef;
@@ -313,8 +313,12 @@ fn handle_worker_event<E>(workers: &mut Vec<Worker<E>>, event: &Event) -> Result
                 .map_err(rt::Error::worker_panic)
                 .and_then(|res| res)
         } else {
-            // Sporadic event, we can ignore it.
-            Ok(())
+            let worker = &mut workers[i];
+            debug!("handling worker messages: id={}", worker.id());
+            match worker.handle_messages() {
+                Ok(()) => Ok(()),
+                Err(err) => Err(rt::Error::worker(worker::Error::RecvMsg(err))),
+            }
         }
     } else {
         // Sporadic event, we can ignore it.

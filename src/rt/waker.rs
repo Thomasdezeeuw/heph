@@ -21,7 +21,7 @@ impl Waker {
     /// `waker_id`.
     pub(crate) fn new(waker_id: WakerId, pid: ProcessId) -> Waker {
         Waker {
-            waker: get_waker(waker_id),
+            waker: get_thread_waker(waker_id),
             pid,
         }
     }
@@ -86,7 +86,7 @@ pub(crate) fn new(waker_id: WakerId, pid: ProcessId) -> task::Waker {
 /// This is used by the `task::Waker` implementation to wake the worker thread
 /// up from polling.
 pub(crate) fn mark_polling(waker_id: WakerId, polling: bool) {
-    get_waker(waker_id).mark_polling(polling);
+    get_thread_waker(waker_id).mark_polling(polling);
 }
 
 /// Each worker thread of the `Runtime` has a unique `WakeId` which is used as
@@ -116,7 +116,7 @@ static mut THREAD_WAKERS: [Option<ThreadWaker>; MAX_THREADS] = [
 ];
 
 /// Get waker data for `waker_id`
-fn get_waker(waker_id: WakerId) -> &'static ThreadWaker {
+pub(crate) fn get_thread_waker(waker_id: WakerId) -> &'static ThreadWaker {
     unsafe {
         // This is safe because the only way the `waker_id` is created is by
         // `init`, which ensure that the particular index is set. See
@@ -136,7 +136,7 @@ const WAKING: u8 = 2;
 
 /// A `Waker` implementation.
 #[derive(Debug)]
-struct ThreadWaker {
+pub(crate) struct ThreadWaker {
     notifications: Sender<ProcessId>,
     /// If the worker thread is polling (without a timeout) we need to wake it
     /// to ensure it doesn't poll for ever. This status is used to determine
@@ -154,6 +154,11 @@ impl ThreadWaker {
             return;
         }
 
+        self.wake_thread();
+    }
+
+    /// Wake up the thread if it's not currently polling.
+    pub(crate) fn wake_thread(&self) {
         // If the thread is currently polling we're going to wake it. To avoid
         // additional calls to `Waker::wake` we use compare_exchange and let
         // only a single call to `Thread::wake` wake the thread.
@@ -245,7 +250,7 @@ unsafe fn wake(data: *const ()) {
     // This is safe because we received the data from the `RawWaker`, which
     // doesn't modify the data.
     let data = WakerData::from_raw_data(data);
-    get_waker(data.waker_id()).wake(data.pid())
+    get_thread_waker(data.waker_id()).wake(data.pid())
 }
 
 unsafe fn wake_by_ref(data: *const ()) {
