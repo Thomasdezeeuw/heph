@@ -149,9 +149,9 @@ impl Coordinator {
                         handle_sync_worker_event(&mut sync_workers, event)?
                     }
                     token => {
-                        wake_workers += 1;
                         let pid = token.into();
                         trace!("waking thread-safe actor: pid={}", pid);
+                        wake_workers += 1;
                         self.scheduler.mark_ready(pid);
                     }
                 }
@@ -322,13 +322,16 @@ fn handle_worker_event<E>(workers: &mut Vec<Worker<E>>, event: &Event) -> Result
                 .join()
                 .map_err(rt::Error::worker_panic)
                 .and_then(|res| res)
-        } else {
+        } else if event.is_readable() {
             let worker = &mut workers[i];
             debug!("handling worker messages: id={}", worker.id());
             match worker.handle_messages() {
                 Ok(()) => Ok(()),
                 Err(err) => Err(rt::Error::worker(worker::Error::RecvMsg(err))),
             }
+        } else {
+            // Sporadic event, we can ignore it.
+            Ok(())
         }
     } else {
         // Sporadic event, we can ignore it.
