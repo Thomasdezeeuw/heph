@@ -6,159 +6,132 @@ use std::net::{SocketAddr, TcpStream};
 use std::ops::{Deref, DerefMut};
 use std::panic;
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
 use std::thread::sleep;
 use std::time::Duration;
 
-use lazy_static::lazy_static;
 use mio_signals::{send_signal, Signal};
 
-// The tests need to run in sequentially here because Cargo can only build one
-// example at a time. This would cause problems with the example that don't wait
-// for the full execution of the example, this is for example the case in
-// example 2 which needs to send a request to the running example.
-
-/// Macro to create a group of sequential tests.
-macro_rules! sequential_tests {
-    (
-        $(
-            $( #[$meta: meta] )*
-            fn $name: ident () $body: block
-        )+
-    ) => {
-        lazy_static! {
-            /// A global lock for testing sequentially.
-            static ref SEQUENTIAL_TESTS: Mutex<()> = Mutex::new(());
-        }
-
-        $(
-                $( #[$meta] )*
-        #[test]
-        fn $name() {
-            let guard = SEQUENTIAL_TESTS.lock().unwrap();
-            // Catch any panics to not poison the lock.
-            if let Err(err) = panic::catch_unwind(|| $body) {
-                drop(guard);
-                panic::resume_unwind(err);
-            }
-        }
-        )+
-    };
+#[test]
+fn test_1_hello_world() {
+    let output = run_example_output("1_hello_world");
+    assert_eq!(output, "Hello World\n");
 }
 
-sequential_tests! {
-    fn test_1_hello_world() {
-        let output = run_example_output("1_hello_world");
-        assert_eq!(output, "Hello World\n");
+#[test]
+fn test_1b_hello_world() {
+    let output = run_example_output("1b_hello_world");
+    assert_eq!(output, "Hello World\n");
+}
+
+#[test]
+fn test_2_my_ip() {
+    let _child = run_example("2_my_ip");
+
+    let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
+    let mut stream = tcp_retry_connect(address);
+
+    let mut output = String::new();
+    stream
+        .read_to_string(&mut output)
+        .expect("unable to to read from stream");
+    assert_eq!(output, "127.0.0.1");
+}
+
+#[test]
+fn test_3_rpc() {
+    let output = run_example_output("3_rpc");
+    assert_eq!(
+        output,
+        "Got a RPC request: Ping\nGot a RPC response: Pong\n"
+    );
+}
+
+#[test]
+fn test_4_sync_actor() {
+    let output = run_example_output("4_sync_actor");
+    assert_eq!(output, "Got a message: Hello world\nBye\n");
+}
+
+#[test]
+fn test_6_process_signals() {
+    let child = run_example("6_process_signals");
+    // Give the process some time to setup signal handling.
+    sleep(Duration::from_millis(300));
+
+    if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
+        panic!("unexpected error sending signal to process: {}", err);
     }
 
-    fn test_1b_hello_world() {
-        let output = run_example_output("1b_hello_world");
-        assert_eq!(output, "Hello World\n");
-    }
+    // Because the order in which the actors are run is not defined we don't
+    // know the order of the output. We do know that the greeting messages
+    // come before the shutdown messages.
+    let output = read_output(child);
+    let mut lines = output.lines();
+    // Greeting messages.
+    let mut got_greetings: Vec<&str> = (&mut lines).take(3).collect();
+    got_greetings.sort_unstable();
+    let want_greetings = &[
+        "Got a message: Hello sync actor",
+        "Got a message: Hello thread local actor",
+        "Got a message: Hello thread safe actor",
+    ];
+    assert_eq!(got_greetings, want_greetings);
 
-    fn test_2_my_ip() {
-        let _child = run_example("2_my_ip");
+    // Shutdown messages.
+    let mut got_shutdown: Vec<&str> = lines.collect();
+    got_shutdown.sort_unstable();
+    let want_shutdown = [
+        "shutting down the synchronous actor",
+        "shutting down the thread local actor",
+        "shutting down the thread safe actor",
+    ];
+    assert_eq!(got_shutdown, want_shutdown);
+}
 
-        let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
-        let mut stream = tcp_retry_connect(address);
+#[test]
+fn test_7_restart_supervisor() {
+    let output = run_example_output("7_restart_supervisor");
+    let mut lines = output.lines();
 
-        let mut output = String::new();
-        stream.read_to_string(&mut output)
-            .expect("unable to to read from stream");
-        assert_eq!(output, "127.0.0.1");
-    }
+    // Example timestamp "2020-08-05T13:51:53.687353Z ".
+    const TIMESTAMP_OFFSET: usize = 28;
+    // Index of the "?" in the string below.
+    const LEFT_INDEX: usize = 64;
 
-    fn test_3_rpc() {
-        let output = run_example_output("3_rpc");
-        assert_eq!(output, "Got a RPC request: Ping\nGot a RPC response: Pong\n");
-    }
+    let mut expected = "[WARN] 7_restart_supervisor: print actor failed, restarting it (?/5 restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'".to_owned();
+    for left in (0..5).rev() {
+        let line = lines.next().unwrap();
+        let line = &line[TIMESTAMP_OFFSET..];
 
-    fn test_4_sync_actor() {
-        let output = run_example_output("4_sync_actor");
-        assert_eq!(output, "Got a message: Hello world\nBye\n");
-    }
-
-    #[ignore]
-    fn test_5_remote_actors() {
-        todo!("TODO: add test for example 5: remote actors");
-    }
-
-    fn test_6_process_signals() {
-        let child = run_example("6_process_signals");
-        // Give the process some time to setup signal handling.
-        sleep(Duration::from_millis(300));
-
-        if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
-            panic!("unexpected error sending signal to process: {}", err);
+        unsafe {
+            expected.as_bytes_mut()[LEFT_INDEX] = b'0' + left;
         }
-
-        // Because the order in which the actors are run is not defined we don't
-        // know the order of the output. We do know that the greeting messages
-        // come before the shutdown messages.
-        let output = read_output(child);
-        let mut lines = output.lines();
-        // Greeting messages.
-        let mut got_greetings: Vec<&str> = (&mut lines).take(3).collect();
-        got_greetings.sort_unstable();
-        let want_greetings = &[
-            "Got a message: Hello sync actor",
-            "Got a message: Hello thread local actor",
-            "Got a message: Hello thread safe actor",
-        ];
-        assert_eq!(got_greetings, want_greetings);
-
-        // Shutdown messages.
-        let mut got_shutdown: Vec<&str> = lines.collect();
-        got_shutdown.sort_unstable();
-        let want_shutdown = [
-            "shutting down the synchronous actor",
-            "shutting down the thread local actor",
-            "shutting down the thread safe actor",
-        ];
-        assert_eq!(got_shutdown, want_shutdown);
+        assert_eq!(line, expected);
     }
 
-    fn test_7_restart_supervisor() {
-        let output = run_example_output("7_restart_supervisor");
-        let mut lines = output.lines();
+    let expected = "[WARN] 7_restart_supervisor: print actor failed, stopping it (no restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'";
+    let last_line = lines.next().unwrap();
+    let last_line = &last_line[TIMESTAMP_OFFSET..];
+    assert_eq!(last_line, expected);
 
-        // Example timestamp "2020-08-05T13:51:53.687353Z ".
-        const TIMESTAMP_OFFSET: usize = 28;
-        // Index of the "?" in the string below.
-        const LEFT_INDEX: usize = 64;
+    let mut expected = "[WARN] 7_restart_supervisor: print actor failed, restarting it (?/5 restarts left): can't print message 'Hello world!': actor message 'Hello world!'".to_owned();
+    for left in (0..5).rev() {
+        let line = lines.next().unwrap();
+        let line = &line[TIMESTAMP_OFFSET..];
 
-        let mut expected = "[WARN] 7_restart_supervisor: print actor failed, restarting it (?/5 restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'".to_owned();
-        for left in (0..5).rev() {
-            let line = lines.next().unwrap();
-            let line = &line[TIMESTAMP_OFFSET..];
-
-            unsafe { expected.as_bytes_mut()[LEFT_INDEX] = b'0' + left; }
-            assert_eq!(line, expected);
+        unsafe {
+            expected.as_bytes_mut()[LEFT_INDEX] = b'0' + left;
         }
-
-        let expected = "[WARN] 7_restart_supervisor: print actor failed, stopping it (no restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'";
-        let last_line = lines.next().unwrap();
-        let last_line = &last_line[TIMESTAMP_OFFSET..];
-        assert_eq!(last_line, expected);
-
-        let mut expected = "[WARN] 7_restart_supervisor: print actor failed, restarting it (?/5 restarts left): can't print message 'Hello world!': actor message 'Hello world!'".to_owned();
-        for left in (0..5).rev() {
-            let line = lines.next().unwrap();
-            let line = &line[TIMESTAMP_OFFSET..];
-
-            unsafe { expected.as_bytes_mut()[LEFT_INDEX] = b'0' + left; }
-            assert_eq!(line, expected);
-        }
-
-        let expected = "[WARN] 7_restart_supervisor: print actor failed, stopping it (no restarts left): can't print message 'Hello world!': actor message 'Hello world!'";
-        let last_line = lines.next().unwrap();
-        let last_line = &last_line[TIMESTAMP_OFFSET..];
-        assert_eq!(last_line, expected);
-
-        // Expect no more output.
-        assert_eq!(lines.next(), None);
+        assert_eq!(line, expected);
     }
+
+    let expected = "[WARN] 7_restart_supervisor: print actor failed, stopping it (no restarts left): can't print message 'Hello world!': actor message 'Hello world!'";
+    let last_line = lines.next().unwrap();
+    let last_line = &last_line[TIMESTAMP_OFFSET..];
+    assert_eq!(last_line, expected);
+
+    // Expect no more output.
+    assert_eq!(lines.next(), None);
 }
 
 /// Wrapper around a `command::Child` that kills the process when dropped, even
