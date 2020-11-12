@@ -227,6 +227,37 @@ pub struct RpcMessage<Req, Res> {
     pub response: RpcResponse<Res>,
 }
 
+impl<Req, Res> RpcMessage<Req, Res> {
+    /// Convenience method to handle a `Req`uest and return a `Res`ponse.
+    ///
+    /// The function `f` is called with [`self.request`], the response returned by
+    /// the function `f` is than returned to the request maker via
+    /// [`self.response.respond`].
+    ///
+    /// [`self.request`]: RpcMessage::request
+    /// [`self.response.respond`]: RpcResponse::respond
+    ///
+    /// # Notes
+    ///
+    /// If the receiving end is [no longer connected] the function `f` is not
+    /// called and `Ok(())` is returned instead.
+    ///
+    /// [no longer connected]: RpcResponse::is_connected
+    pub fn handle<F>(self, f: F) -> Result<(), SendError>
+    where
+        F: FnOnce(Req) -> Res,
+    {
+        if !self.response.is_connected() {
+            // If the receiving actor is no longer waiting we can skip the
+            // request.
+            Ok(())
+        } else {
+            let response = f(self.request);
+            self.response.respond(response)
+        }
+    }
+}
+
 /// Structure to respond to an [`Rpc`] request.
 #[derive(Debug)]
 pub struct RpcResponse<Res> {
@@ -244,7 +275,7 @@ impl<Res> RpcResponse<Res> {
     /// # Notes
     ///
     /// If this method returns `true` it doesn't mean that `respond` will
-    /// succeed. In factor the moment this function returns a result it could
+    /// succeed. In fact the moment this function returns a result it could
     /// already be invalid.
     pub fn is_connected(&self) -> bool {
         self.send.is_connected()

@@ -44,13 +44,16 @@ type PongMessage = RpcMessage<Ping, Pong>;
 
 async fn pong_actor(mut ctx: actor::Context<PongMessage>) -> Result<(), !> {
     // Await a message, same as all other messages.
-    let RpcMessage { request, response } = ctx.receive_next().await;
-
-    // Handle the RPC request.
-    println!("Got a RPC request: {}", request);
+    let msg = ctx.receive_next().await;
 
     // Next we respond to the request.
-    if let Err(err) = response.respond(Pong) {
+    let res = msg.handle(|request| {
+        println!("Got a RPC request: {}", request);
+        // Return a response.
+        Pong
+    });
+
+    if let Err(err) = res {
         eprintln!("failed to respond to RPC: {}", err);
     }
 
