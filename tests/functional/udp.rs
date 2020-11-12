@@ -1,5 +1,7 @@
 //! Tests related to `UdpSocket`.
 
+#![cfg(feature = "test")]
+
 use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;

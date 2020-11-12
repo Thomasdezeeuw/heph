@@ -42,3 +42,5 @@ rand              = { version = "0.7.3", default-features = false, features = ["
 [dev-dependencies]
 futures-test      = { version = "0.3.4", default-features = false, features = ["std"] }
 futures-util      = { version = "0.3.4", default-features = false, features = ["async-await-macro"] }
+lazy_static       = { version = "1.4.0", default-features = false }
+rand              = { version = "0.7.3", default-features = false, features = ["std"] }

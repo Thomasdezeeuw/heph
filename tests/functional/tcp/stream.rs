@@ -1,5 +1,7 @@
 //! Tests for `TcpStream`.
 
+#![cfg(feature = "test")]
+
 use std::future::Future;
 use std::io::{self, Read, Write};
 use std::net::{self, SocketAddr};
