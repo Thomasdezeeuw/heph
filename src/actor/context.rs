@@ -535,55 +535,6 @@ where
     }
 }
 
-/// Implementation detail to support [`ThreadSafe`] and [`ThreadLocal`] contexts
-/// within the same implementation of [`ActorProcess`].
-///
-/// [`ActorProcess`]: crate::rt::process::ActorProcess
-pub(crate) trait ContextKind {
-    /// Create a new [`task::Waker`].
-    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
-
-    /// Creates a new context.
-    fn new_context<M>(
-        pid: ProcessId,
-        inbox: Inbox<M>,
-        inbox_ref: InboxRef<M>,
-        runtime_ref: &mut RuntimeRef,
-    ) -> Context<M, Self>
-    where
-        Self: Sized;
-}
-
-impl ContextKind for ThreadLocal {
-    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
-        runtime_ref.new_local_task_waker(pid)
-    }
-
-    fn new_context<M>(
-        pid: ProcessId,
-        inbox: Inbox<M>,
-        inbox_ref: InboxRef<M>,
-        runtime_ref: &mut RuntimeRef,
-    ) -> Context<M, ThreadLocal> {
-        Context::new_local(pid, inbox, inbox_ref, runtime_ref.clone())
-    }
-}
-
-impl ContextKind for ThreadSafe {
-    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
-        runtime_ref.new_shared_task_waker(pid)
-    }
-
-    fn new_context<M>(
-        pid: ProcessId,
-        inbox: Inbox<M>,
-        inbox_ref: InboxRef<M>,
-        runtime_ref: &mut RuntimeRef,
-    ) -> Context<M, ThreadSafe> {
-        Context::new_shared(pid, inbox, inbox_ref, runtime_ref.clone_shared())
-    }
-}
-
 impl fmt::Debug for ThreadLocal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("ThreadLocal")

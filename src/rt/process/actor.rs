@@ -3,7 +3,8 @@
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use crate::actor::{Actor, ContextKind, NewActor};
+use crate::actor::context::{ThreadLocal, ThreadSafe};
+use crate::actor::{self, Actor, NewActor};
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::supervisor::SupervisorStrategy;
@@ -142,5 +143,52 @@ where
             },
             Poll::Pending => ProcessResult::Pending,
         }
+    }
+}
+
+/// Support all kinds of actor context's (e.g. [`ThreadSafe`] and
+/// [`ThreadLocal`]) within the same implementation of [`ActorProcess`].
+pub(in crate::rt) trait ContextKind {
+    /// Create a new [`task::Waker`].
+    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
+
+    /// Creates a new context.
+    fn new_context<M>(
+        pid: ProcessId,
+        inbox: Inbox<M>,
+        inbox_ref: InboxRef<M>,
+        runtime_ref: &mut RuntimeRef,
+    ) -> actor::Context<M, Self>
+    where
+        Self: Sized;
+}
+
+impl ContextKind for ThreadLocal {
+    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
+        runtime_ref.new_local_task_waker(pid)
+    }
+
+    fn new_context<M>(
+        pid: ProcessId,
+        inbox: Inbox<M>,
+        inbox_ref: InboxRef<M>,
+        runtime_ref: &mut RuntimeRef,
+    ) -> actor::Context<M, ThreadLocal> {
+        actor::Context::new_local(pid, inbox, inbox_ref, runtime_ref.clone())
+    }
+}
+
+impl ContextKind for ThreadSafe {
+    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
+        runtime_ref.new_shared_task_waker(pid)
+    }
+
+    fn new_context<M>(
+        pid: ProcessId,
+        inbox: Inbox<M>,
+        inbox_ref: InboxRef<M>,
+        runtime_ref: &mut RuntimeRef,
+    ) -> actor::Context<M, ThreadSafe> {
+        actor::Context::new_shared(pid, inbox, inbox_ref, runtime_ref.clone_shared())
     }
 }
