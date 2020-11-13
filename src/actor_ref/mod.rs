@@ -115,8 +115,7 @@ use crossbeam_channel::Sender;
 
 use crate::actor;
 use crate::inbox::InboxRef;
-use crate::rt::access::Private;
-use crate::rt::RuntimeAccess;
+use crate::rt::PrivateAccess;
 
 pub mod rpc;
 #[doc(no_inline)]
@@ -231,7 +230,7 @@ impl<M> ActorRef<M> {
     ) -> Result<Rpc<Res>, SendError>
     where
         M: From<RpcMessage<Req, Res>>,
-        actor::Context<CM, K>: RuntimeAccess,
+        actor::Context<CM, K>: PrivateAccess,
     {
         let pid = ctx.pid();
         let waker = ctx.new_waker(pid);

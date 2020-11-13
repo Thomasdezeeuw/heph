@@ -12,8 +12,7 @@ use mio::{net, Interest};
 
 use crate::actor;
 use crate::net::TcpStream;
-use crate::rt::access::Private;
-use crate::rt::RuntimeAccess;
+use crate::rt::{self, PrivateAccess};
 
 /// A TCP socket listener.
 ///
@@ -187,7 +186,7 @@ impl TcpListener {
         address: SocketAddr,
     ) -> io::Result<TcpListener>
     where
-        actor::Context<M, K>: RuntimeAccess,
+        actor::Context<M, K>: rt::Access,
     {
         let mut socket = net::TcpListener::bind(address)?;
         let pid = ctx.pid();
@@ -351,7 +350,7 @@ impl<K> actor::Bound<K> for TcpListener {
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
     where
-        actor::Context<M, K>: RuntimeAccess,
+        actor::Context<M, K>: rt::Access,
     {
         let pid = ctx.pid();
         ctx.reregister(&mut self.socket, pid.into(), Interest::READABLE)

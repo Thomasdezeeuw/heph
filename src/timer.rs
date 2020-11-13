@@ -23,8 +23,7 @@ use std::time::{Duration, Instant};
 use futures_core::stream::{FusedStream, Stream};
 
 use crate::actor::context::ThreadLocal;
-use crate::rt::access::Private;
-use crate::rt::{ProcessId, RuntimeAccess};
+use crate::rt::{self, PrivateAccess, ProcessId};
 use crate::{actor, RuntimeRef};
 
 /// Type returned when the deadline has passed.
@@ -93,7 +92,7 @@ impl Timer {
     /// Create a new `Timer`.
     pub fn new<M, K>(ctx: &mut actor::Context<M, K>, deadline: Instant) -> Timer
     where
-        actor::Context<M, K>: RuntimeAccess,
+        actor::Context<M, K>: rt::Access,
     {
         let pid = ctx.pid();
         ctx.add_deadline(pid, deadline);
@@ -105,7 +104,7 @@ impl Timer {
     /// Same as calling `Timer::new(&mut ctx, Instant::now() + timeout)`.
     pub fn timeout<M, K>(ctx: &mut actor::Context<M, K>, timeout: Duration) -> Timer
     where
-        actor::Context<M, K>: RuntimeAccess,
+        actor::Context<M, K>: rt::Access,
     {
         Timer::new(ctx, Instant::now() + timeout)
     }
@@ -147,7 +146,7 @@ impl<K> actor::Bound<K> for Timer {
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
     where
-        actor::Context<M, K>: RuntimeAccess,
+        actor::Context<M, K>: rt::Access,
     {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
@@ -238,7 +237,7 @@ impl<Fut> Deadline<Fut> {
         future: Fut,
     ) -> Deadline<Fut>
     where
-        actor::Context<M, K>: RuntimeAccess,
+        actor::Context<M, K>: rt::Access,
     {
         let pid = ctx.pid();
         ctx.add_deadline(pid, deadline);
@@ -255,7 +254,7 @@ impl<Fut> Deadline<Fut> {
         future: Fut,
     ) -> Deadline<Fut>
     where
-        actor::Context<M, K>: RuntimeAccess,
+        actor::Context<M, K>: rt::Access,
     {
         Deadline::new(ctx, Instant::now() + timeout, future)
     }
@@ -332,7 +331,7 @@ impl<Fut, K> actor::Bound<K> for Deadline<Fut> {
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
     where
-        actor::Context<M, K>: RuntimeAccess,
+        actor::Context<M, K>: rt::Access,
     {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.

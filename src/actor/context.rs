@@ -460,51 +460,78 @@ impl<M> Context<M, ThreadSafe> {
     }
 }
 
-impl<M> rt::access::Private for Context<M, ThreadLocal> {
+impl rt::PrivateAccess for ThreadLocal {
     fn new_waker(&mut self, pid: ProcessId) -> Waker {
-        self.kind.runtime_ref.new_waker(pid)
+        self.runtime_ref.new_waker(pid)
     }
 
     fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.kind.runtime_ref.register(source, token, interest)
+        self.runtime_ref.register(source, token, interest)
     }
 
     fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.kind.runtime_ref.reregister(source, token, interest)
+        self.runtime_ref.reregister(source, token, interest)
     }
 
     fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.kind.runtime_ref.add_deadline(pid, deadline)
+        self.runtime_ref.add_deadline(pid, deadline)
     }
 }
 
-impl<M> rt::access::Private for Context<M, ThreadSafe> {
+impl rt::PrivateAccess for ThreadSafe {
     fn new_waker(&mut self, pid: ProcessId) -> Waker {
-        self.kind.runtime_ref.new_waker(pid)
+        self.runtime_ref.new_waker(pid)
     }
 
     fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.kind.runtime_ref.register(source, token, interest)
+        self.runtime_ref.register(source, token, interest)
     }
 
     fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.kind.runtime_ref.reregister(source, token, interest)
+        self.runtime_ref.reregister(source, token, interest)
     }
 
     fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.kind.runtime_ref.add_deadline(pid, deadline)
+        self.runtime_ref.add_deadline(pid, deadline)
+    }
+}
+
+impl<M, K> rt::PrivateAccess for Context<M, K>
+where
+    K: rt::PrivateAccess,
+{
+    fn new_waker(&mut self, pid: ProcessId) -> Waker {
+        self.kind.new_waker(pid)
+    }
+
+    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    where
+        S: event::Source + ?Sized,
+    {
+        self.kind.register(source, token, interest)
+    }
+
+    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    where
+        S: event::Source + ?Sized,
+    {
+        self.kind.reregister(source, token, interest)
+    }
+
+    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
+        self.kind.add_deadline(pid, deadline)
     }
 }
 

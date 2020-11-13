@@ -94,8 +94,7 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use crate::rt::RuntimeAccess;
-use crate::{ActorOptions, ActorRef, Supervisor};
+use crate::{rt, ActorOptions, ActorRef, Supervisor};
 
 #[path = "context.rs"]
 mod context_priv;
@@ -597,7 +596,7 @@ pub trait Bound<C> {
     /// Bind a type to the [`Actor`] that owns the `ctx`.
     fn bind_to<M>(&mut self, ctx: &mut Context<M, C>) -> Result<(), Self::Error>
     where
-        Context<M, C>: RuntimeAccess;
+        Context<M, C>: rt::Access;
 }
 
 /// The `Spawn` trait defines how new actors are added to the runtime.

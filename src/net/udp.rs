@@ -14,8 +14,7 @@ use mio::{net, Interest};
 
 use crate::actor;
 use crate::net::Bytes;
-use crate::rt::access::Private;
-use crate::rt::RuntimeAccess;
+use crate::rt::{self, PrivateAccess};
 
 /// The unconnected mode of an [`UdpSocket`].
 #[allow(missing_debug_implementations)]
@@ -148,7 +147,7 @@ impl UdpSocket {
         local: SocketAddr,
     ) -> io::Result<UdpSocket<Unconnected>>
     where
-        actor::Context<M, K>: RuntimeAccess,
+        actor::Context<M, K>: rt::Access,
     {
         let mut socket = net::UdpSocket::bind(local)?;
         let pid = ctx.pid();
@@ -550,7 +549,7 @@ impl<K> actor::Bound<K> for UdpSocket {
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
     where
-        actor::Context<M, K>: RuntimeAccess,
+        actor::Context<M, K>: rt::Access,
     {
         ctx.reregister(
             &mut self.socket,

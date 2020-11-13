@@ -34,6 +34,7 @@ mod signal;
 mod sync_worker;
 mod timers;
 
+pub(crate) mod access;
 pub(crate) mod waker;
 
 // Modules that are public (in the crate) when testing and private otherwise.
@@ -51,12 +52,14 @@ macro_rules! cfg_pub_test {
 // Modules used in testing.
 cfg_pub_test!(channel, scheduler, worker);
 
+pub(crate) use access::PrivateAccess;
 pub(crate) use process::ProcessId;
 pub(crate) use timers::Timers; // Needed by the `test` module.
 pub(crate) use waker::Waker;
 
 pub mod options;
 
+pub use access::Access;
 pub use error::Error;
 pub use options::{ActorOptions, SyncActorOptions};
 pub use signal::Signal;
@@ -67,65 +70,6 @@ use scheduler::{LocalScheduler, SchedulerRef};
 use sync_worker::SyncWorker;
 use waker::{WakerId, MAX_THREADS};
 use worker::Worker;
-
-/// Trait to indicate an API needs access to the runtime.
-///
-/// This is used by various API to get access to the runtime, but its only
-/// usable inside the Heph crate.
-///
-/// # Notes
-///
-/// This trait can't be implemented by types outside of the Heph crate.
-pub trait RuntimeAccess: access::Private {}
-
-impl<T> RuntimeAccess for T where T: access::Private {}
-
-pub(crate) mod access {
-    //! Module to make `Private` "public in private", allowing [`RuntimeAccess`]
-    //! to be public, but only implementable by types in this crate.
-    //!
-    //! [`RuntimeAccess`]: super::RuntimeAccess
-
-    use std::io;
-    use std::time::Instant;
-
-    use mio::{event, Interest, Token};
-
-    use crate::rt::{ProcessId, Waker};
-
-    /// Actual trait that defines [`RuntimeAccess`].
-    ///
-    /// [`RuntimeAccess`]: super::RuntimeAccess
-    pub trait Private {
-        /// Create a new [`Waker`].
-        fn new_waker(&mut self, pid: ProcessId) -> Waker;
-
-        /// Registers the `source` at the correct `Poll` instance using `token`
-        /// and `interest`.
-        fn register<S>(
-            &mut self,
-            source: &mut S,
-            token: Token,
-            interest: Interest,
-        ) -> io::Result<()>
-        where
-            S: event::Source + ?Sized;
-
-        /// Reregisters the `source` at the correct `Poll` instance using
-        /// `token` and `interest`.
-        fn reregister<S>(
-            &mut self,
-            source: &mut S,
-            token: Token,
-            interest: Interest,
-        ) -> io::Result<()>
-        where
-            S: event::Source + ?Sized;
-
-        /// Add a deadline for `pid` at `deadline`.
-        fn add_deadline(&mut self, pid: ProcessId, deadline: Instant);
-    }
-}
 
 const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
 const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;

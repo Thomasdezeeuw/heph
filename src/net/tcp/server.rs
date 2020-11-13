@@ -16,8 +16,7 @@ use mio::Interest;
 use crate::actor::messages::Terminate;
 use crate::actor::{self, Actor, AddActorError, NewActor, Spawn};
 use crate::net::TcpStream;
-use crate::rt::access::Private;
-use crate::rt::{ActorOptions, RuntimeAccess, Signal};
+use crate::rt::{self, ActorOptions, PrivateAccess, Signal};
 use crate::supervisor::Supervisor;
 
 /// A intermediate structure that implements [`NewActor`], creating
@@ -59,8 +58,8 @@ impl<S, NA, K> NewActor for Setup<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
-    actor::Context<Message, K>: RuntimeAccess + Spawn<S, NA, K>,
-    actor::Context<NA::Message, K>: RuntimeAccess,
+    actor::Context<Message, K>: rt::Access + Spawn<S, NA, K>,
+    actor::Context<NA::Message, K>: rt::Access,
 {
     type Message = Message;
     type Argument = ();
@@ -549,7 +548,7 @@ where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
     actor::Context<Message, K>: Spawn<S, NA, K>,
-    actor::Context<NA::Message, K>: RuntimeAccess,
+    actor::Context<NA::Message, K>: rt::Access,
 {
     type Error = Error<NA::Error>;
 
