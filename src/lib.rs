@@ -1050,7 +1050,7 @@ impl<T> Manager<T> {
             .channel()
             .ref_count
             .fetch_or(MANAGER_ALIVE, Ordering::Relaxed);
-        assert!(old_count & MANAGER_ALIVE == 0);
+        debug_assert!(old_count & MANAGER_ALIVE == 0);
         let manager = Manager {
             channel: sender.channel,
         };
