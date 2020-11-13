@@ -562,7 +562,7 @@ impl<T> Receiver<T> {
 
             // Safety: we've acquired unique access the slot above and we're
             // ensured the slot is filled.
-            let value = unsafe { (&mut *channel.slots[slot].get()).read() };
+            let value = unsafe { (&mut *channel.slots[slot].get()).assume_init_read() };
 
             // Mark the slot as empty.
             let old_status = channel
