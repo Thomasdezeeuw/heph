@@ -13,11 +13,8 @@ use crate::actor::message_select::First;
 use crate::actor::{private, AddActorError, Spawn};
 use crate::actor_ref::ActorRef;
 use crate::inbox::{Inbox, InboxRef};
-use crate::rt::{self, ActorOptions, ProcessId, RuntimeRef, SharedRuntimeInternal};
+use crate::rt::{self, ActorOptions, ProcessId, RuntimeRef, SharedRuntimeInternal, Waker};
 use crate::{NewActor, Supervisor};
-
-// Used in `ContextKind` trait.
-pub use crate::rt::waker::Waker;
 
 /// The context in which an actor is executed.
 ///
@@ -51,14 +48,13 @@ pub struct Context<M, K = ThreadLocal> {
 
 /// Provides a thread-local actor context.
 ///
-/// This is optimised version of [`ThreadSafe`], but doesn't allow the actor to
-/// move between threads.
+/// This is an optimised version of [`ThreadSafe`], but doesn't allow the actor
+/// to move between threads.
 ///
 /// See [`actor::Context`] for more information.
 ///
 /// [`actor::Context`]: crate::actor::Context
 pub struct ThreadLocal {
-    /// A reference to the runtime, used to get access to `mio::Poll`.
     runtime_ref: RuntimeRef,
 }
 
@@ -69,40 +65,6 @@ pub struct ThreadLocal {
 /// [`actor::Context`]: crate::actor::Context
 pub struct ThreadSafe {
     runtime_ref: Arc<SharedRuntimeInternal>,
-}
-
-impl<M> Context<M, ThreadLocal> {
-    /// Create a new local `actor::Context`.
-    pub(crate) fn new_local(
-        pid: ProcessId,
-        inbox: Inbox<M>,
-        inbox_ref: InboxRef<M>,
-        runtime_ref: RuntimeRef,
-    ) -> Context<M, ThreadLocal> {
-        Context {
-            pid,
-            inbox,
-            inbox_ref,
-            kind: ThreadLocal { runtime_ref },
-        }
-    }
-}
-
-impl<M> Context<M, ThreadSafe> {
-    /// Create a new local `actor::Context`.
-    pub(crate) fn new_shared(
-        pid: ProcessId,
-        inbox: Inbox<M>,
-        inbox_ref: InboxRef<M>,
-        runtime_ref: Arc<SharedRuntimeInternal>,
-    ) -> Context<M, ThreadSafe> {
-        Context {
-            pid,
-            inbox,
-            inbox_ref,
-            kind: ThreadSafe { runtime_ref },
-        }
-    }
 }
 
 impl<M, C> Context<M, C> {
@@ -352,6 +314,83 @@ impl<M, C> Context<M, C> {
     }
 }
 
+impl<M> Context<M, ThreadLocal> {
+    /// Create a new local `actor::Context`.
+    pub(crate) fn new_local(
+        pid: ProcessId,
+        inbox: Inbox<M>,
+        inbox_ref: InboxRef<M>,
+        runtime_ref: RuntimeRef,
+    ) -> Context<M, ThreadLocal> {
+        Context {
+            pid,
+            inbox,
+            inbox_ref,
+            kind: ThreadLocal { runtime_ref },
+        }
+    }
+
+    /// Get a reference to the runtime this actor is running in.
+    pub fn runtime(&mut self) -> &mut RuntimeRef {
+        &mut self.kind.runtime_ref
+    }
+}
+
+impl<M> Context<M, ThreadSafe> {
+    /// Create a new local `actor::Context`.
+    pub(crate) fn new_shared(
+        pid: ProcessId,
+        inbox: Inbox<M>,
+        inbox_ref: InboxRef<M>,
+        runtime_ref: Arc<SharedRuntimeInternal>,
+    ) -> Context<M, ThreadSafe> {
+        Context {
+            pid,
+            inbox,
+            inbox_ref,
+            kind: ThreadSafe { runtime_ref },
+        }
+    }
+
+    /// Attempt to spawn a new thead-safe actor.
+    ///
+    /// See the [`Spawn`] trait for more information.
+    pub fn try_spawn<Sv, NA>(
+        &mut self,
+        supervisor: Sv,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
+    where
+        Sv: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<Context = ThreadSafe> + Sync + Send + 'static,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
+    {
+        Spawn::try_spawn(self, supervisor, new_actor, arg, options)
+    }
+
+    /// Spawn a new thead-safe actor.
+    ///
+    /// See the [`Spawn`] trait for more information.
+    pub fn spawn<Sv, NA>(
+        &mut self,
+        supervisor: Sv,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> ActorRef<NA::Message>
+    where
+        Sv: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<Error = !, Context = ThreadSafe> + Sync + Send + 'static,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
+    {
+        Spawn::spawn(self, supervisor, new_actor, arg, options)
+    }
+}
+
 impl<M, S, NA> Spawn<S, NA, ThreadLocal> for Context<M, ThreadLocal> {}
 
 impl<M, S, NA> private::Spawn<S, NA, ThreadLocal> for Context<M, ThreadLocal> {
@@ -410,53 +449,6 @@ where
         self.kind
             .runtime_ref
             .spawn_setup(supervisor, new_actor, arg_fn, options)
-    }
-}
-
-impl<M> Context<M, ThreadLocal> {
-    /// Get a reference to the runtime this actor is running in.
-    pub fn runtime(&mut self) -> &mut RuntimeRef {
-        &mut self.kind.runtime_ref
-    }
-}
-
-impl<M> Context<M, ThreadSafe> {
-    /// Attempt to spawn a new thead-safe actor.
-    ///
-    /// See the [`Spawn`] trait for more information.
-    pub fn try_spawn<Sv, NA>(
-        &mut self,
-        supervisor: Sv,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
-    where
-        Sv: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Context = ThreadSafe> + Sync + Send + 'static,
-        NA::Actor: Send + Sync + 'static,
-        NA::Message: Send,
-    {
-        Spawn::try_spawn(self, supervisor, new_actor, arg, options)
-    }
-
-    /// Spawn a new thead-safe actor.
-    ///
-    /// See the [`Spawn`] trait for more information.
-    pub fn spawn<Sv, NA>(
-        &mut self,
-        supervisor: Sv,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> ActorRef<NA::Message>
-    where
-        Sv: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Error = !, Context = ThreadSafe> + Sync + Send + 'static,
-        NA::Actor: Send + Sync + 'static,
-        NA::Message: Send,
-    {
-        Spawn::spawn(self, supervisor, new_actor, arg, options)
     }
 }
 
