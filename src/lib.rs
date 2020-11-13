@@ -1,10 +1,20 @@
 //! Bounded capacity channel.
 //!
-//! The channel is a multi-producer, single-consumer (MPSC) first in, first
-//! out (FIFO) bounded queue. It is designed to be used as inbox for actors,
-//! following the [actor model].
+//! The channel is a multi-producer, single-consumer (MPSC) bounded queue. It is
+//! designed to be used as inbox for actors, following the [actor model].
 //!
 //! [actor model]: https://en.wikipedia.org/wiki/Actor_model
+//!
+//! # Notes
+//!
+//! The implementation assumes the access to the channel is mostly uncontested
+//! and optimises for this use case. Furthermore it optimises for small memory
+//! footprint, sometimes over faster access.
+//!
+//! The implementation doesn't provide a lot of guarantees. For example this
+//! channel is **not** guaranteed to be First In First Out (FIFO), it does this
+//! on a best effort basis. In return it means that a slow `Sender` does not
+//! block the receiving of other messages.
 //!
 //! # Examples
 //!
