@@ -57,14 +57,14 @@
 
 use std::cell::UnsafeCell;
 use std::error::Error;
+use std::fmt;
 use std::future::Future;
 use std::marker::PhantomPinned;
 use std::mem::{size_of, MaybeUninit};
 use std::pin::Pin;
-use std::ptr::NonNull;
+use std::ptr::{self, NonNull};
 use std::sync::atomic::{fence, AtomicBool, AtomicPtr, AtomicUsize, Ordering};
 use std::task::{self, Poll};
-use std::{fmt, ptr};
 
 use parking_lot::{const_rwlock, Mutex, RwLock, RwLockUpgradableReadGuard};
 
@@ -239,7 +239,10 @@ impl<T> Sender<T> {
             // Debug assertion to check the slot was in the TAKEN status.
             debug_assert!(has_status(old_status, slot, TAKEN));
 
-            channel.wake_receiver();
+            // If the receiver is waiting for this lot we wake it.
+            if receiver_pos(old_status) == slot {
+                channel.wake_receiver();
+            }
 
             return Ok(());
         }
@@ -665,7 +668,7 @@ impl<T> Receiver<T> {
     fn need_receiver_wakeup(&self) {
         self.channel()
             .receiver_needs_wakeup
-            .store(true, Ordering::Relaxed);
+            .store(true, Ordering::SeqCst);
     }
 
     fn channel(&self) -> &Channel<T> {
@@ -946,14 +949,14 @@ impl<T> Channel<T> {
 
     /// Wake the `Receiver`.
     fn wake_receiver(&self) {
-        if !self.receiver_needs_wakeup.load(Ordering::Relaxed) {
+        if !self.receiver_needs_wakeup.load(Ordering::SeqCst) {
             // Receiver doesn't need a wake-up.
             return;
         }
 
         // Mark that we've woken the `Sender` and after actually wake the
         // `Sender`.
-        if self.receiver_needs_wakeup.swap(false, Ordering::Relaxed) {
+        if self.receiver_needs_wakeup.swap(false, Ordering::SeqCst) {
             if let Some(receiver_waker) = &*self.receiver_waker.read() {
                 receiver_waker.wake_by_ref();
             }
