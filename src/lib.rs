@@ -86,9 +86,7 @@ pub mod oneshot;
 /// Create a small bounded channel.
 pub fn new_small<T>() -> (Sender<T>, Receiver<T>) {
     let channel = NonNull::from(Box::leak(Box::new(Channel::new())));
-    let sender = Sender {
-        channel: channel.clone(),
-    };
+    let sender = Sender { channel };
     let receiver = Receiver { channel };
     (sender, receiver)
 }
@@ -577,7 +575,7 @@ impl<T> Receiver<T> {
 
             // Safety: we've acquired unique access the slot above and we're
             // ensured the slot is filled.
-            let value = unsafe { (&mut *channel.slots[slot].get()).assume_init_read() };
+            let value = unsafe { (&*channel.slots[slot].get()).assume_init_read() };
 
             // Mark the slot as empty.
             let old_status = channel
