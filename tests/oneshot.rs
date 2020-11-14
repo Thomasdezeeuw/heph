@@ -370,6 +370,7 @@ mod drop {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore)] // `sleep` not supported.
         fn send_value() {
             let (sender, receiver) = new_oneshot();
             let (value, _check) = DropTest::new();
@@ -387,6 +388,7 @@ mod drop {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore)] // `sleep` not supported.
         fn value_send_and_received() {
             let (sender, mut receiver) = new_oneshot();
             let (value, _check) = DropTest::new();
@@ -404,6 +406,7 @@ mod drop {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore)] // `sleep` not supported.
         fn value_send_and_received_and_send() {
             let (sender, mut receiver) = new_oneshot();
             let (value, _check) = DropTest::new();
@@ -425,6 +428,7 @@ mod drop {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore)] // `sleep` not supported.
         fn value_send_and_received_and_send_received() {
             let (sender, mut receiver) = new_oneshot();
             let (value, _check) = DropTest::new();
@@ -446,6 +450,7 @@ mod drop {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore)] // `sleep` not supported.
         fn reset() {
             let (sender, mut receiver) = new_oneshot::<NeverDrop>();
 
@@ -480,6 +485,7 @@ mod drop {
         }
 
         #[test]
+        #[cfg_attr(miri, ignore)] // `sleep` not supported.
         fn send_and_reset() {
             let (sender, mut receiver) = new_oneshot();
             let (value, _check) = DropTest::new();
@@ -539,6 +545,7 @@ mod threaded {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // Doesn't finish.
     fn single_value_send_and_received() {
         let (sender, mut receiver) = new_oneshot();
 
@@ -553,6 +560,7 @@ mod threaded {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // Doesn't finish.
     fn single_value_send_and_received_zero_sized_types() {
         let (sender, mut receiver) = new_oneshot();
 
@@ -567,6 +575,7 @@ mod threaded {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // Doesn't finish.
     fn receiver_no_sender() {
         let (sender, mut receiver) = new_oneshot::<usize>();
 
@@ -621,6 +630,7 @@ mod threaded {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // Doesn't finish.
     fn receiver_is_connected() {
         let (sender, receiver) = new_oneshot::<()>();
 
@@ -639,6 +649,7 @@ mod threaded {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // Doesn't finish.
     fn sender_usage_after_try_recv() {
         let (sender, mut receiver) = new_oneshot();
 

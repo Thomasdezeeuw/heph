@@ -294,6 +294,7 @@ mod threaded {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // `sleep` not supported.
     fn send_single_value() {
         let (mut sender, receiver) = new_small();
         let (value, _check) = DropTest::new();
@@ -312,6 +313,7 @@ mod threaded {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // `sleep` not supported.
     fn send_single_value_with_manager() {
         let (manager, mut sender, receiver) = Manager::new_small_channel();
         let (value, _check) = DropTest::new();
@@ -333,6 +335,7 @@ mod threaded {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // `sleep` not supported.
     fn full_channel() {
         let (mut sender, receiver) = new_small();
         let (values, _checks) = DropTest::many(SMALL_CAP);
@@ -353,6 +356,7 @@ mod threaded {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // `sleep` not supported.
     fn full_channel_with_manager() {
         let (manager, mut sender, receiver) = Manager::new_small_channel();
         let (values, _checks) = DropTest::many(SMALL_CAP);
@@ -376,6 +380,7 @@ mod threaded {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // `sleep` not supported.
     fn value_received() {
         let (mut sender, mut receiver) = new_small();
         let (values, _checks) = DropTest::many(SMALL_CAP);
@@ -405,6 +410,7 @@ mod threaded {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore)] // `sleep` not supported.
     fn value_received_with_manager() {
         let (manager, mut sender, mut receiver) = Manager::new_small_channel();
         let (values, _checks) = DropTest::many(SMALL_CAP);

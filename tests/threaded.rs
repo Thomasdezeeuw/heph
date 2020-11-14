@@ -11,6 +11,7 @@ use inbox::{new_small, RecvError, SendError};
 mod util;
 
 #[test]
+#[cfg_attr(miri, ignore)] // Doesn't finish.
 fn send_single_value() {
     let (mut sender, mut receiver) = new_small::<usize>();
 
@@ -25,6 +26,7 @@ fn send_single_value() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)] // Doesn't finish.
 fn zero_sized_types() {
     let (mut sender, mut receiver) = new_small();
 
@@ -39,6 +41,7 @@ fn zero_sized_types() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)] // Doesn't finish.
 fn receive_no_sender() {
     let (sender, mut receiver) = new_small::<usize>();
 
@@ -59,6 +62,7 @@ fn receive_no_sender() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)] // Doesn't support `sleep`.
 fn send_no_receiver() {
     let (mut sender, receiver) = new_small::<usize>();
 
@@ -98,6 +102,7 @@ fn sender_is_connected() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)] // Doesn't finish.
 fn receiver_is_connected() {
     let (sender, receiver) = new_small::<usize>();
 
