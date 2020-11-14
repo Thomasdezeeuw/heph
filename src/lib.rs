@@ -81,6 +81,8 @@ use parking_lot::{const_rwlock, Mutex, RwLock, RwLockUpgradableReadGuard};
 #[cfg(test)]
 mod tests;
 
+pub mod oneshot;
+
 /// Create a small bounded channel.
 pub fn new_small<T>() -> (Sender<T>, Receiver<T>) {
     let channel = NonNull::from(Box::leak(Box::new(Channel::new())));
