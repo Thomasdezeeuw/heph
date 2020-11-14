@@ -37,6 +37,4 @@ jobs:
     - name: Add Miri
       run: rustup component add miri
     - name: Run tests in Miri
-      # Enable again once Miri supports `libc::nanosleep` without disable-isolation.
-      #run: cargo miri test
-      run: cargo miri test -- -Zmiri-disable-isolation
+      run: cargo miri test
