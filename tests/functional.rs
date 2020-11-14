@@ -6,10 +6,7 @@ use inbox::{new_small, Manager, Receiver, RecvError, SendError, Sender};
 
 mod util;
 
-use util::SMALL_CAP;
-
-fn assert_send<T: Send>() {}
-fn assert_sync<T: Sync>() {}
+use util::{assert_send, assert_sync, SMALL_CAP};
 
 #[test]
 fn sender_is_send() {

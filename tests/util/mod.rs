@@ -9,6 +9,9 @@ use std::sync::Mutex;
 // NOTE: keep in sync with the actual capacity.
 pub const SMALL_CAP: usize = 8;
 
+pub fn assert_send<T: Send>() {}
+pub fn assert_sync<T: Sync>() {}
+
 /// To not create too many threads concurrently this lock is used to run the
 /// tests using `start_threads` sequentially.
 pub static THREAD_LOCK: SyncLazy<Mutex<()>> = SyncLazy::new(|| Mutex::new(()));
