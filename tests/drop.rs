@@ -2,26 +2,12 @@
 
 #![feature(once_cell)]
 
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::thread;
-
 use inbox::{new_small, Manager};
 
 #[macro_use]
 mod util;
 
-use util::SMALL_CAP;
-
-/// Message type used in drop tests to ensure we don't drop undefined memory.
-#[derive(Debug)]
-pub struct NeverDrop;
-
-impl Drop for NeverDrop {
-    fn drop(&mut self) {
-        panic!("Dropped uninitialised memory!");
-    }
-}
+use util::{DropTest, IsDropped, NeverDrop, SMALL_CAP};
 
 #[test]
 fn empty() {
@@ -101,54 +87,6 @@ fn empty_cloned_with_manager() {
     drop(sender);
     drop(sender2);
     drop(receiver);
-}
-
-/// Message type used in drop tests.
-#[derive(Debug)]
-pub struct DropTest(Arc<AtomicUsize>);
-
-impl DropTest {
-    /// Create a new `DropTest` message.
-    pub fn new() -> (DropTest, IsDropped) {
-        let shared = Arc::new(AtomicUsize::new(0));
-        (DropTest(shared.clone()), IsDropped(shared))
-    }
-
-    /// Returns two vectors of `DropTest`s and `IsDropped` checks, both of
-    /// length `n`.
-    pub fn many(n: usize) -> (Vec<DropTest>, Vec<IsDropped>) {
-        let mut values = Vec::with_capacity(n);
-        let mut checks = Vec::with_capacity(n);
-        for _ in 0..n {
-            let (value, check) = DropTest::new();
-            values.push(value);
-            checks.push(check);
-        }
-        (values, checks)
-    }
-}
-
-impl Drop for DropTest {
-    fn drop(&mut self) {
-        let _ = self.0.fetch_add(1, Ordering::AcqRel);
-    }
-}
-
-/// Type that checks if `DropTest` is actually dropped once and only once.
-#[derive(Debug)]
-pub struct IsDropped(Arc<AtomicUsize>);
-
-impl Drop for IsDropped {
-    fn drop(&mut self) {
-        let dropped = self.0.load(Ordering::Acquire);
-        if dropped != 1 {
-            if thread::panicking() {
-                eprintln!("Dropped item {} times, but already panicking", dropped);
-            } else {
-                panic!("Dropped item {} times", dropped);
-            }
-        }
-    }
 }
 
 #[test]
