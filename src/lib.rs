@@ -284,7 +284,7 @@ impl<T> Sender<T> {
         SMALL_CAP
     }
 
-    /// Returns `true` if the [`Receiver`] and the [`Manager`] are disconnected.
+    /// Returns `true` if the [`Receiver`] and or the [`Manager`] are connected.
     ///
     /// # Notes
     ///
@@ -309,7 +309,7 @@ impl<T> Sender<T> {
         self.channel == other.channel
     }
 
-    /// Returns `true` if this sender send to the `receiver`.
+    /// Returns `true` if this sender sends to the `receiver`.
     pub fn sends_to(&self, receiver: &Receiver<T>) -> bool {
         self.channel == receiver.channel
     }
@@ -607,13 +607,13 @@ impl<T> Receiver<T> {
     /// Returns a future that receives a value from the channel, waiting if the
     /// channel is empty.
     ///
-    /// If the returned [`Future`] returns `None` it means all [`Receiver`]s are
+    /// If the returned [`Future`] returns `None` it means all [`Sender`]s are
     /// [disconnected]. This is the same error as [`RecvError::Disconnected`].
     /// [`RecvError::Empty`] will never be returned, the `Future` will return
     /// [`Poll::Pending`] instead.
     ///
     /// [disconnected]: Receiver::is_connected
-    pub fn recv<'s>(&'s mut self) -> RecvValue<'s, T> {
+    pub fn recv<'r>(&'r mut self) -> RecvValue<'r, T> {
         RecvValue { receiver: self }
     }
 
@@ -722,11 +722,11 @@ impl<T> Drop for Receiver<T> {
 
 /// [`Future`] implementation behind [`Receiver::recv`].
 #[derive(Debug)]
-pub struct RecvValue<'s, T> {
-    receiver: &'s mut Receiver<T>,
+pub struct RecvValue<'r, T> {
+    receiver: &'r mut Receiver<T>,
 }
 
-impl<'s, T> Future for RecvValue<'s, T> {
+impl<'r, T> Future for RecvValue<'r, T> {
     type Output = Option<T>;
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
@@ -753,7 +753,7 @@ impl<'s, T> Future for RecvValue<'s, T> {
     }
 }
 
-impl<T> Unpin for RecvValue<'_, T> {}
+impl<'r, T> Unpin for RecvValue<'r, T> {}
 
 /// Channel internals shared between zero or more [`Sender`]s, zero or one
 /// [`Receiver`] and zero or one [`Manager`].
