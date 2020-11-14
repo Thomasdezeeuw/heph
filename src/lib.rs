@@ -660,25 +660,25 @@ impl<T> Receiver<T> {
     }
 
     /// Set the receiver waker to `waker`, if they are different.
-    fn set_waker(&mut self, waker: &task::Waker) {
-        let receiver_waker = self.channel().receiver_waker.upgradable_read();
+    ///
+    /// Returns `true` if the waker is changed, `false` otherwise.
+    fn set_waker(&mut self, waker: &task::Waker) -> bool {
+        let channel = self.channel();
+        let receiver_waker = channel.receiver_waker.upgradable_read();
 
         if let Some(receiver_waker) = &*receiver_waker {
             if receiver_waker.will_wake(waker) {
-                return;
+                return false;
             }
         }
 
         let waker = Some(waker.clone());
         let mut receiver_waker = RwLockUpgradableReadGuard::upgrade(receiver_waker);
         *receiver_waker = waker;
-    }
+        drop(receiver_waker);
 
-    /// Mark that the `Receiver` needs to be woken up.
-    fn need_receiver_wakeup(&self) {
-        self.channel()
-            .receiver_needs_wakeup
-            .store(true, Ordering::SeqCst);
+        channel.receiver_needs_wakeup.store(true, Ordering::SeqCst);
+        true
     }
 
     fn channel(&self) -> &Channel<T> {
@@ -733,10 +733,11 @@ impl<'r, T> Future for RecvValue<'r, T> {
         match self.receiver.try_recv() {
             Ok(value) => Poll::Ready(Some(value)),
             Err(RecvError::Empty) => {
-                // The channel is empty, we'll set the waker and register
-                // ourselves as wanting to be woken once a value is added.
-                self.receiver.set_waker(ctx.waker());
-                self.receiver.need_receiver_wakeup();
+                // The channel is empty, we'll set the waker.
+                if !self.receiver.set_waker(ctx.waker()) {
+                    // Waker already set.
+                    return Poll::Pending;
+                }
 
                 // But it could be the case that a sender send a value in the
                 // time between we last checked and we actually marked ourselves
