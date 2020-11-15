@@ -77,7 +77,8 @@
     maybe_uninit_slice,
     min_const_generics,
     never_type,
-    new_uninit
+    new_uninit,
+    wake_trait
 )]
 #![warn(
     anonymous_parameters,

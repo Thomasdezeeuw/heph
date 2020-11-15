@@ -8,6 +8,7 @@ mod functional {
     mod bytes;
     mod from_message;
     mod restart_supervisor;
+    mod sync_actor;
     mod tcp;
     mod udp;
 }

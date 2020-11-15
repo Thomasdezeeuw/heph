@@ -43,7 +43,11 @@
 
 use std::collections::VecDeque;
 use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
 use std::ptr::NonNull;
+use std::sync::{Arc, Condvar, Mutex};
+use std::task::{self, Poll};
 
 use crossbeam_channel::Receiver;
 
@@ -263,6 +267,7 @@ pub(crate) struct SyncContextData<M> {
     /// The messages in the inbox.
     messages: VecDeque<M>,
     inbox: Receiver<M>,
+    future_waker: Option<Arc<SyncWaker>>,
 }
 
 impl<M> SyncContextData<M> {
@@ -271,6 +276,7 @@ impl<M> SyncContextData<M> {
         SyncContextData {
             messages: VecDeque::new(),
             inbox,
+            future_waker: None,
         }
     }
 }
@@ -510,6 +516,52 @@ impl<M> SyncContext<M> {
         Ok(())
     }
 
+    /// Block on a [`Future`] waiting for it's completion.
+    ///
+    /// # Limitations
+    ///
+    /// Any [`Future`] returned by a type that is [bound] to an actor **cannot**
+    /// be used by this function. Those types use specialised wake-up mechanisms
+    /// bypassing the `Future`'s [`task`] system. This currently includes all
+    /// types in the [`net`] and [`timer`] modules.
+    ///
+    /// [bound]: crate::actor::Bound
+    /// [`net`]: crate::net
+    /// [`timer`]: crate::timer
+    pub fn block_on<Fut>(&mut self, fut: Fut) -> Fut::Output
+    where
+        Fut: Future,
+    {
+        // Pin the `Future` to stack.
+        let mut future = fut;
+        let mut future = unsafe { Pin::new_unchecked(&mut future) };
+
+        let waker = self.future_waker();
+        let task_waker = task::Waker::from(waker.clone());
+        let mut task_ctx = task::Context::from_waker(&task_waker);
+        loop {
+            match Future::poll(future.as_mut(), &mut task_ctx) {
+                Poll::Ready(res) => return res,
+                Poll::Pending => waker.wait(),
+            }
+        }
+    }
+
+    /// Returns the [`SyncWaker`] used as [`task::Waker`] in futures.
+    fn future_waker(&mut self) -> Arc<SyncWaker> {
+        let data = self.data();
+        if let Some(waker) = data.future_waker.as_ref() {
+            waker.clone()
+        } else {
+            let waker = Arc::new(SyncWaker {
+                awoken: Mutex::new(false),
+                cond: Condvar::new(),
+            });
+            data.future_waker = Some(waker.clone());
+            waker
+        }
+    }
+
     /// Get access to the context data.
     fn data(&mut self) -> &mut SyncContextData<M> {
         unsafe {
@@ -528,5 +580,36 @@ pub struct NoMessages;
 impl fmt::Display for NoMessages {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("no messages in inbox")
+    }
+}
+
+/// [`task::Waker`] implementation for blocking on [`Future`]s.
+struct SyncWaker {
+    awoken: Mutex<bool>,
+    cond: Condvar,
+}
+
+impl task::Wake for SyncWaker {
+    fn wake(self: Arc<Self>) {
+        self.wake_by_ref()
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        *self.awoken.lock().unwrap() = true;
+        self.cond.notify_one();
+    }
+}
+
+impl SyncWaker {
+    /// Wait until the waker is woken up.
+    fn wait(&self) {
+        let mut awoken = self.awoken.lock().unwrap();
+        loop {
+            if *awoken {
+                *awoken = false;
+                return;
+            }
+            awoken = self.cond.wait(awoken).unwrap();
+        }
     }
 }
