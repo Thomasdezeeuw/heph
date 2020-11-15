@@ -20,10 +20,10 @@
 //!     // Spawn a new synchronous actor, returning an actor reference to it.
 //!     let actor = actor as fn(_, _) -> _;
 //!     let options = SyncActorOptions::default();
-//!     let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye", options)?;
+//!     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye", options)?;
 //!
 //!     // Just like with any actor reference we can send the actor a message.
-//!     actor_ref <<= "Hello world".to_string();
+//!     actor_ref.send("Hello world".to_string()).unwrap();
 //!
 //!     // And now we start the runtime.
 //!     runtime.start()
@@ -89,13 +89,13 @@ use crate::actor::message_select::{MessageSelector, Messages};
 ///     // Spawn a new synchronous actor, returning an actor reference to it.
 ///     let actor = actor as fn(_) -> _;
 ///     let options = SyncActorOptions::default();
-///     let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, (), options)?;
+///     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, (), options)?;
 ///
 ///     // Just like with any actor reference we can send the actor a message.
-///     actor_ref <<= "Hello world".to_string();
+///     actor_ref.send("Hello world".to_string()).unwrap();
 ///
-///     # let mut actor_ref: ActorRef<Signal> = actor_ref.try_map();
-///     # actor_ref <<= Signal::Interrupt;
+///     # let actor_ref: ActorRef<Signal> = actor_ref.try_map();
+///     # actor_ref.send(Signal::Interrupt).unwrap();
 ///
 ///     // And now we start the runtime.
 ///     runtime.start()

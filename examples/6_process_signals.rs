@@ -19,24 +19,24 @@ fn main() -> Result<(), rt::Error> {
     // Spawn our actor.
     let sync_actor = sync_actor as fn(_) -> _;
     let options = SyncActorOptions::default();
-    let mut actor_ref = runtime.spawn_sync_actor(NoSupervisor, sync_actor, (), options)?;
+    let actor_ref = runtime.spawn_sync_actor(NoSupervisor, sync_actor, (), options)?;
     // Send it message
-    actor_ref <<= "Hello sync actor";
+    actor_ref.send("Hello sync actor").unwrap();
     // Register our actor reference to receive process signals.
     runtime.receive_signals(actor_ref.try_map());
 
     // Thread-safe actor (following the same structure as synchronous actors).
     let thread_safe_actor = thread_safe_actor as fn(_) -> _;
-    let mut actor_ref = runtime.spawn(NoSupervisor, thread_safe_actor, (), ActorOptions::default());
-    actor_ref <<= "Hello thread safe actor";
+    let actor_ref = runtime.spawn(NoSupervisor, thread_safe_actor, (), ActorOptions::default());
+    actor_ref.send("Hello thread safe actor").unwrap();
     runtime.receive_signals(actor_ref.try_map());
 
     // Thread-local actor (following the same structure as synchronous actors).
     let setup = |mut runtime_ref: RuntimeRef| {
         let local_actor = local_actor as fn(_) -> _;
-        let mut actor_ref =
+        let actor_ref =
             runtime_ref.spawn_local(NoSupervisor, local_actor, (), ActorOptions::default());
-        actor_ref <<= "Hello thread local actor";
+        actor_ref.send("Hello thread local actor").unwrap();
         runtime_ref.receive_signals(actor_ref.try_map());
 
         Ok(())

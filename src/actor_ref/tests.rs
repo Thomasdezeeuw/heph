@@ -35,17 +35,17 @@ fn actor_ref() {
     let pid = ProcessId(0);
     let waker = test::new_waker(pid);
     let (mut inbox, inbox_ref) = Inbox::new(waker);
-    let mut actor_ref = ActorRef::from_inbox(inbox_ref);
+    let actor_ref = ActorRef::from_inbox(inbox_ref);
 
     // Sending messages.
     actor_ref.send(1).unwrap();
-    actor_ref <<= 2;
+    actor_ref.send(2).unwrap();
     assert_eq!(inbox.receive_next(), Some(1));
     assert_eq!(inbox.receive_next(), Some(2));
 
     // Cloning should send to the same inbox.
-    let mut actor_ref2 = actor_ref.clone();
-    actor_ref2 <<= 3;
+    let actor_ref2 = actor_ref.clone();
+    actor_ref2.send(3).unwrap();
     assert_eq!(inbox.receive_next(), Some(3));
 
     // Test Debug implementation.
@@ -55,17 +55,17 @@ fn actor_ref() {
 #[test]
 fn sync_actor_ref() {
     let (sender, inbox) = channel::unbounded();
-    let mut actor_ref = ActorRef::for_sync_actor(sender);
+    let actor_ref = ActorRef::for_sync_actor(sender);
 
     // Sending messages.
     actor_ref.send(1).unwrap();
-    actor_ref <<= 2;
+    actor_ref.send(2).unwrap();
     assert_eq!(inbox.try_recv(), Ok(1));
     assert_eq!(inbox.try_recv(), Ok(2));
 
     // Cloning should send to the same inbox.
-    let mut actor_ref2 = actor_ref.clone();
-    actor_ref2 <<= 3;
+    let actor_ref2 = actor_ref.clone();
+    actor_ref2.send(3).unwrap();
     assert_eq!(inbox.try_recv(), Ok(3));
 
     // Test Debug implementation.
@@ -82,13 +82,13 @@ fn actor_ref_message_order() {
     let waker = test::new_waker(pid);
     let (mut inbox, inbox_ref) = Inbox::new(waker);
 
-    let mut actor_ref = ActorRef::from_inbox(inbox_ref);
+    let actor_ref = ActorRef::from_inbox(inbox_ref);
 
     // Send a number messages.
-    actor_ref <<= 1;
-    actor_ref <<= 2;
-    actor_ref <<= 3;
-    actor_ref <<= 4;
+    actor_ref.send(1).unwrap();
+    actor_ref.send(2).unwrap();
+    actor_ref.send(3).unwrap();
+    actor_ref.send(4).unwrap();
     // The message should arrive in order, but this is just an best effort.
     assert_eq!(inbox.receive_next(), Some(1));
     assert_eq!(inbox.receive_next(), Some(2));
@@ -273,7 +273,7 @@ fn add_actor_to_empty_group() {
     let mut group = ActorGroup::<usize>::empty();
     group.add(actor_ref);
 
-    group <<= 1usize;
+    group.send(1usize).unwrap();
     assert_eq!(inbox.receive_next(), Some(1));
     assert_eq!(inbox.receive_next(), None);
 }
@@ -297,7 +297,7 @@ fn add_actor_to_group() {
     inboxes.push(inbox);
     group.add(actor_ref);
 
-    group <<= 1usize;
+    group.send(1usize).unwrap();
     for inbox in inboxes.iter_mut() {
         assert_eq!(inbox.receive_next(), Some(1));
         assert_eq!(inbox.receive_next(), None);
@@ -320,7 +320,7 @@ fn extend_empty_actor_group() {
 
     group.extend(actor_refs);
 
-    group <<= 1usize;
+    group.send(1usize).unwrap();
     for inbox in inboxes.iter_mut() {
         assert_eq!(inbox.receive_next(), Some(1));
         assert_eq!(inbox.receive_next(), None);
@@ -352,7 +352,7 @@ fn extend_actor_group() {
 
     group.extend(actor_refs);
 
-    group <<= 1usize;
+    group.send(1usize).unwrap();
     for inbox in inboxes.iter_mut() {
         assert_eq!(inbox.receive_next(), Some(1));
         assert_eq!(inbox.receive_next(), None);
@@ -397,7 +397,7 @@ fn send_to_actor_group() {
     group.add(ActorRef::for_sync_actor(send).try_map());
 
     // Send the message.
-    group <<= 1u32;
+    group.send(1u32).unwrap();
 
     // Kind: `ActorRefKind::Node`.
     assert_eq!(inbox1.receive_next(), Some(1));

@@ -153,13 +153,13 @@ pub trait NewActor {
     ///         .with_setup(|mut runtime_ref| {
     ///             // Spawn the actor.
     ///             let new_actor = actor as fn(_) -> _;
-    ///             let mut actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
+    ///             let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
     ///                 ActorOptions::default());
     ///
     ///             // Now we can use the reference to send the actor a message.
     ///             // We don't have to use `Message` type we can just use
     ///             // `String`, because `Message` implements `From<String>`.
-    ///             actor_ref <<= "Hello world".to_owned();
+    ///             actor_ref.send("Hello world".to_owned()).unwrap();
     ///             Ok(())
     ///         })
     ///         .start()
@@ -290,9 +290,9 @@ pub trait NewActor {
     ///     let address = "127.0.0.1:7890".parse().unwrap();
     ///     let server = TcpServer::setup(address, conn_supervisor, new_actor,
     ///         ActorOptions::default())?;
-    ///     # let mut actor_ref =
+    ///     # let actor_ref =
     ///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), ActorOptions::default())?;
-    ///     # actor_ref <<= Terminate;
+    ///     # actor_ref.send(Terminate).unwrap();
     ///     Ok(())
     /// }
     ///

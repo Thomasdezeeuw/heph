@@ -156,10 +156,10 @@ const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
 ///     let arg = "Hello";
 ///     // Spawn the actor to run on our actor runtime. We get an actor reference
 ///     // back which can be used to send the actor messages, see below.
-///     let mut actor_ref = runtime_ref.spawn_local(supervisor, actor, arg, ActorOptions::default());
+///     let actor_ref = runtime_ref.spawn_local(supervisor, actor, arg, ActorOptions::default());
 ///
 ///     // Send a message to the actor we just spawned.
-///     actor_ref <<= "World";
+///     actor_ref.send("World").unwrap();
 ///
 ///     Ok(())
 /// }

@@ -7,8 +7,9 @@
 //!
 //! All types of actor references have a [`send`] method. These methods don't
 //! block, even the remote actor reference, but the method doesn't provided a
-//! lot of guarantees. What [`send`] does is asynchronously add the message to
-//! the queue of messages for the actor.
+//! lot of guarantees. It doesn't even guarantee the order in which the messages
+//! arive. What [`send`] does is asynchronously add the message to the queue of
+//! messages for the actor.
 //!
 //! In case of the local actor reference this can be done directly. But for
 //! machine local actor references the message must first be send across thread
@@ -19,11 +20,6 @@
 //! If guarantees are needed that a message is received or processed the
 //! receiving actor should send back an acknowledgment that the message is
 //! received and/or processed correctly.
-//!
-//! Other then the `send` method the `<<=` operator can be used to send
-//! messages, which does the same thing as `send` but with nicer syntax. The
-//! following example shows how messages can be send using this operator. It
-//! uses a local actor reference but it's the same for all flavours.
 //!
 //! [`send`]: crate::actor_ref::ActorRef::send
 //!
@@ -38,13 +34,11 @@
 //!         .with_setup(|mut runtime_ref| {
 //!             // Spawn the actor.
 //!             let new_actor = actor as fn(_) -> _;
-//!             let mut actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
+//!             let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
 //!                 ActorOptions::default());
 //!
 //!             // Now we can use the reference to send the actor a message.
-//!             actor_ref <<= "Hello world".to_owned();
-//!             // Above is the same as:
-//!             // let _ = actor_ref.send("Hello world".to_owned());
+//!             actor_ref.send("Hello world".to_owned()).unwrap();
 //!
 //!             Ok(())
 //!         })
@@ -76,16 +70,16 @@
 //!     Runtime::new()?
 //!         .with_setup(|mut runtime_ref| {
 //!             let new_actor = actor as fn(_) -> _;
-//!             let mut actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
+//!             let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
 //!                 ActorOptions::default());
 //!
 //!             // To create another actor reference we can simply clone the
 //!             // first one.
-//!             let mut second_actor_ref = actor_ref.clone();
+//!             let second_actor_ref = actor_ref.clone();
 //!
 //!             // Now we can use both references to send a message.
-//!             actor_ref <<= "Hello world".to_owned();
-//!             second_actor_ref <<= "Bye world".to_owned();
+//!             actor_ref.send("Hello world".to_owned()).unwrap();
+//!             second_actor_ref.send("Bye world".to_owned()).unwrap();
 //!
 //!             Ok(())
 //!         })
@@ -108,7 +102,6 @@ use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt;
 use std::iter::FromIterator;
-use std::ops::ShlAssign;
 use std::sync::Arc;
 
 use crossbeam_channel::Sender;
@@ -316,24 +309,6 @@ impl<M> Clone for ActorRef<M> {
     }
 }
 
-impl<M, Msg> ShlAssign<Msg> for ActorRef<M>
-where
-    Msg: Into<M>,
-{
-    fn shl_assign(&mut self, msg: Msg) {
-        let _ = self.send(msg);
-    }
-}
-
-impl<M, Msg> ShlAssign<Msg> for &ActorRef<M>
-where
-    Msg: Into<M>,
-{
-    fn shl_assign(&mut self, msg: Msg) {
-        let _ = self.send(msg);
-    }
-}
-
 impl<M> fmt::Debug for ActorRef<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("ActorRef")
@@ -462,24 +437,6 @@ impl<M> Extend<ActorRef<M>> for ActorGroup<M> {
         I: IntoIterator<Item = ActorRef<M>>,
     {
         self.actor_refs.extend(iter);
-    }
-}
-
-impl<M, Msg> ShlAssign<Msg> for ActorGroup<M>
-where
-    Msg: Into<M> + Clone,
-{
-    fn shl_assign(&mut self, msg: Msg) {
-        let _ = self.send(msg);
-    }
-}
-
-impl<M, Msg> ShlAssign<Msg> for &ActorGroup<M>
-where
-    Msg: Into<M> + Clone,
-{
-    fn shl_assign(&mut self, msg: Msg) {
-        let _ = self.send(msg);
     }
 }
 

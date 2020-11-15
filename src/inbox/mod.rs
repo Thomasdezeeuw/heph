@@ -249,12 +249,12 @@ where
 /// }
 ///
 /// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-///     let mut actor_ref = runtime_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
+///     let actor_ref = runtime_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
 ///         ActorOptions::default());
 ///
 ///     // We'll send our actor two messages.
-///     actor_ref <<= "Message 1".to_owned();
-///     actor_ref <<= "Message 2".to_owned();
+///     actor_ref.send("Message 1".to_owned()).unwrap();
+///     actor_ref.send("Message 2".to_owned()).unwrap();
 ///     Ok(())
 /// }
 ///
@@ -298,18 +298,18 @@ impl<M> MessageSelector<M> for First {
 /// }
 ///
 /// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-///     let mut actor_ref = runtime_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
+///     let actor_ref = runtime_ref.spawn(NoSupervisor, actor as fn(_) -> _, (),
 ///         ActorOptions::default());
 ///
 ///     // We'll send our actor two messages, one normal one and a priority one.
-///     actor_ref <<= Message {
+///     actor_ref.send(Message {
 ///         priority: 1,
 ///         msg: "Normal message".to_owned(),
-///     };
-///     actor_ref <<= Message {
+///     }).unwrap();
+///     actor_ref.send(Message {
 ///         priority: 100,
 ///         msg: "Priority message".to_owned(),
-///     };
+///     }).unwrap();
 ///     Ok(())
 /// }
 ///

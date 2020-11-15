@@ -31,14 +31,14 @@ fn test_local_actor_context() {
         actor::Context::new_local(pid, inbox, inbox_ref, runtime_ref);
 
     assert_eq!(ctx.pid(), pid);
-    let mut actor_ref = ctx.actor_ref();
+    let actor_ref = ctx.actor_ref();
 
     // Initially the mailbox should be empty.
     let mut recv_future = ctx.receive_next();
     assert_eq!(test::poll_future(Pin::new(&mut recv_future)), Poll::Pending);
 
     // Send my self a message, and we should be able to retrieve it.
-    actor_ref <<= ();
+    actor_ref.send(()).unwrap();
     let res = test::poll_future(Pin::new(&mut recv_future));
     assert_eq!(res, Poll::Ready(()));
 }

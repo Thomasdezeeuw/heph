@@ -251,9 +251,9 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     // handling of ongoing requests over accepting new requests possibly
 ///     // overloading the system.
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
-///     # let mut actor_ref =
+///     # let actor_ref =
 ///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
-///     # actor_ref <<= Terminate;
+///     # actor_ref.send(Terminate).unwrap();
 ///
 ///     Ok(())
 /// }
@@ -341,12 +341,12 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
-///     let mut server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
+///     let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
 ///
 ///     // Because the server is just another actor we can send it messages.
 ///     // Here we'll send it a terminate message so it will gracefully
 ///     // shutdown.
-///     server_ref <<= Terminate;
+///     server_ref.send(Terminate).unwrap();
 ///
 ///     Ok(())
 /// }
@@ -426,9 +426,9 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
 ///
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
-///     # let mut actor_ref =
+///     # let actor_ref =
 ///     runtime.try_spawn(ServerSupervisor, server, (), options)?;
-///     # actor_ref <<= Terminate;
+///     # actor_ref.send(Terminate).unwrap();
 ///
 ///     runtime.start().map_err(rt::Error::map_type)
 /// }

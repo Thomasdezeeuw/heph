@@ -22,16 +22,14 @@ fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
     // We'll use the default actor options here, other examples expand on the
     // options available.
     let actor = greeter_actor as fn(_) -> _;
-    let mut actor_ref = runtime_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
+    let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
 
     // By default actors don't do anything when spawned. We need to wake them,
     // for example by sending them a message. If we didn't send this message the
     // runtime would run forever, without ever making progress (try this by
     // commenting out the send below!). So we'll send our actor a message via an
     // actor reference, which is a reference to the actor inside the runtime.
-    // This can be done in two ways, by calling the `send` method or using the
-    // `<<=` operator (both do the same thing).
-    actor_ref <<= "World";
+    actor_ref.send("World").unwrap();
 
     Ok(())
 }
