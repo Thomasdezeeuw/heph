@@ -22,20 +22,27 @@ use std::cmp::max;
 use std::future::Future;
 use std::mem::size_of;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
+use std::{io, thread};
 
 use lazy_static::lazy_static;
 use rand::Rng;
 
+use crate::actor::sync::SyncActor;
 use crate::actor::{self, context, Actor, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::inbox::Inbox;
 use crate::rt::scheduler::Scheduler;
+use crate::rt::sync_worker::SyncWorker;
 use crate::rt::waker::{self, WakerId};
 use crate::rt::worker::RunningRuntime;
-use crate::rt::{self, ProcessId, RuntimeRef, SharedRuntimeInternal, Timers};
+use crate::rt::{
+    self, ProcessId, RuntimeRef, SharedRuntimeInternal, SyncActorOptions, Timers,
+    SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
+};
+use crate::supervisor::SyncSupervisor;
 
 #[cfg(test)]
 use crate::inbox::InboxRef;
@@ -145,6 +152,34 @@ where
     let actor = new_actor.new(ctx, arg)?;
 
     Ok((actor, inbox, inbox_ref))
+}
+
+/// Spawn a synchronous actor.
+///
+/// This returns the thread handle for the thread the synchronous actor is
+/// running on and an actor reference to the actor.
+pub fn spawn_sync_actor<Sv, A, E, Arg, M>(
+    supervisor: Sv,
+    actor: A,
+    arg: Arg,
+    options: SyncActorOptions,
+) -> io::Result<(thread::JoinHandle<()>, ActorRef<M>)>
+where
+    Sv: SyncSupervisor<A> + Send + 'static,
+    A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
+    Arg: Send + 'static,
+    M: Send + 'static,
+{
+    static SYNC_WORKER_TEST_ID: AtomicUsize = AtomicUsize::new(SYNC_WORKER_ID_START);
+    let id = SYNC_WORKER_TEST_ID.fetch_add(1, Ordering::SeqCst);
+    if id >= SYNC_WORKER_ID_END {
+        panic!("spawned too many synchronous test actors");
+    }
+
+    SyncWorker::start(id, supervisor, actor, arg, options).map(|(worker, actor_ref)| {
+        let handle = worker.into_handle();
+        (handle, actor_ref)
+    })
 }
 
 /// Initialise a thread-safe actor.

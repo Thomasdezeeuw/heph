@@ -31,7 +31,6 @@ mod error;
 mod hack;
 mod process;
 mod signal;
-mod sync_worker;
 mod timers;
 
 pub(crate) mod access;
@@ -50,7 +49,7 @@ macro_rules! cfg_pub_test {
 }
 
 // Modules used in testing.
-cfg_pub_test!(channel, scheduler, worker);
+cfg_pub_test!(channel, scheduler, worker, sync_worker);
 
 pub(crate) use access::PrivateAccess;
 pub(crate) use process::ProcessId;
@@ -71,8 +70,8 @@ use sync_worker::SyncWorker;
 use waker::{WakerId, MAX_THREADS};
 use worker::Worker;
 
-const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
-const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
+pub(crate) const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
+pub(crate) const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
 
 /// The runtime that runs all actors.
 ///

@@ -14,7 +14,7 @@ use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 use crate::ActorRef;
 
 /// Handle to a synchronous worker.
-pub(super) struct SyncWorker {
+pub(crate) struct SyncWorker {
     /// Unique id (among all threads in the `Runtime`).
     id: usize,
     /// Handle for the actual thread.
@@ -25,7 +25,7 @@ pub(super) struct SyncWorker {
 
 impl SyncWorker {
     /// Start a new thread that runs a synchronous actor.
-    pub(super) fn start<Sv, A, E, Arg, M>(
+    pub(crate) fn start<Sv, A, E, Arg, M>(
         id: usize,
         supervisor: Sv,
         actor: A,
@@ -60,6 +60,12 @@ impl SyncWorker {
     /// See [`thread::JoinHandle::join`].
     pub(super) fn join(self) -> thread::Result<()> {
         self.handle.join()
+    }
+
+    /// Returns the [`thread::Handle`].
+    #[cfg(any(test, feature = "test"))]
+    pub(crate) fn into_handle(self) -> thread::JoinHandle<()> {
+        self.handle
     }
 }
 
