@@ -5,8 +5,8 @@ use std::{io, thread};
 
 use crossbeam_channel::{self as channel, Receiver};
 use log::trace;
+use mio::unix::pipe;
 use mio::{event, Interest, Registry, Token};
-use mio_pipe::new_pipe;
 
 use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
 use crate::rt::options::SyncActorOptions;
@@ -20,7 +20,7 @@ pub(crate) struct SyncWorker {
     /// Handle for the actual thread.
     handle: thread::JoinHandle<()>,
     /// Sending half of the Unix pipe, used to communicate with the thread.
-    sender: mio_pipe::Sender,
+    sender: pipe::Sender,
 }
 
 impl SyncWorker {
@@ -38,7 +38,7 @@ impl SyncWorker {
         Arg: Send + 'static,
         M: Send + 'static,
     {
-        new_pipe().and_then(|(sender, receiver)| {
+        pipe::new().and_then(|(sender, receiver)| {
             let (send, inbox) = channel::unbounded();
             let actor_ref = ActorRef::for_sync_actor(send);
             let thread_name = options
@@ -101,7 +101,7 @@ fn main<S, E, Arg, A, M>(
     actor: A,
     mut arg: Arg,
     inbox: Receiver<M>,
-    receiver: mio_pipe::Receiver,
+    receiver: pipe::Receiver,
 ) where
     S: SyncSupervisor<A> + 'static,
     A: SyncActor<Message = M, Argument = Arg, Error = E>,

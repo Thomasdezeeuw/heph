@@ -5,8 +5,8 @@ use std::io::{self, Read, Write};
 
 use crossbeam_channel as crossbeam;
 use log::trace;
+use mio::unix::pipe;
 use mio::{Interest, Registry, Token};
-use mio_pipe::{self, new_pipe};
 
 /// A handle to a two-way communication channel, which can send messages `S` and
 /// receive messages `R`.
@@ -14,10 +14,10 @@ use mio_pipe::{self, new_pipe};
 pub(crate) struct Handle<S, R> {
     /// Sending side.
     send_channel: crossbeam::Sender<S>,
-    send_pipe: mio_pipe::Sender,
+    send_pipe: pipe::Sender,
     /// Receiving side.
     recv_channel: crossbeam::Receiver<R>,
-    recv_pipe: mio_pipe::Receiver,
+    recv_pipe: pipe::Receiver,
 }
 
 /// Create a new two-way communication channel.
@@ -25,8 +25,8 @@ pub(crate) fn new<S, R>() -> io::Result<(Handle<S, R>, Handle<R, S>)> {
     let (c_send1, c_recv2) = crossbeam::unbounded();
     let (c_send2, c_recv1) = crossbeam::unbounded();
 
-    let (p_send1, p_recv2) = new_pipe()?;
-    let (p_send2, p_recv1) = new_pipe()?;
+    let (p_send1, p_recv2) = pipe::new()?;
+    let (p_send2, p_recv1) = pipe::new()?;
 
     let handle1 = Handle {
         send_channel: c_send1,
