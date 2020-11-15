@@ -94,10 +94,11 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use crate::{rt, ActorOptions, ActorRef, Supervisor};
+use crate::rt;
 
 #[path = "context.rs"]
 mod context_priv;
+mod spawn;
 
 #[cfg(test)]
 mod tests;
@@ -124,7 +125,11 @@ pub mod message_select {
 }
 
 #[doc(inline)]
-pub use context_priv::{Context, /*PeekMessage, */ ReceiveMessage};
+pub use context_priv::{Context, ReceiveMessage};
+#[doc(inline)]
+pub use spawn::Spawn;
+
+pub(crate) use spawn::{AddActorError, PrivateSpawn};
 
 /// The trait that defines how to create a new [`Actor`].
 ///
@@ -597,104 +602,3 @@ pub trait Bound<C> {
     where
         Context<M, C>: rt::Access;
 }
-
-/// The `Spawn` trait defines how new actors are added to the runtime.
-pub trait Spawn<S, NA, C>: private::Spawn<S, NA, C> {
-    /// Attempts to spawn an actor.
-    ///
-    /// Arguments:
-    /// * `supervisor`: all actors need supervision, the `supervisor` is the
-    ///   supervisor for this actor, see the [`Supervisor`] trait for more
-    ///   information.
-    /// * `new_actor`: the [`NewActor`] implementation that defines how to start
-    ///   the actor.
-    /// * `arg`: the argument(s) passed when starting the actor, and
-    /// * `options`: the actor options used to spawn the new actors.
-    ///
-    /// When using a [`NewActor`] implementation that never returns an error,
-    /// such as the implementation provided by async functions, it's easier to
-    /// use the [`spawn`] method.
-    ///
-    /// [`spawn`]: Spawn::spawn
-    fn try_spawn(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
-    where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<Context = C> + 'static,
-        NA::Actor: 'static,
-    {
-        self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
-            .map_err(|err| match err {
-                AddActorError::NewActor(err) => err,
-                AddActorError::<_, !>::ArgFn(_) => unreachable!(),
-            })
-    }
-
-    /// Spawn an actor.
-    ///
-    /// This is a convenience method for `NewActor` implementations that never
-    /// return an error, such as asynchronous functions.
-    ///
-    /// See [`Spawn::try_spawn`] for more information.
-    fn spawn(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> ActorRef<NA::Message>
-    where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<Error = !, Context = C> + 'static,
-        NA::Actor: 'static,
-    {
-        self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
-            .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
-    }
-}
-
-pub(crate) mod private {
-    //! Module with the private version of the [`Spawn`] trait.
-
-    use crate::{actor, ActorOptions, ActorRef, NewActor, Supervisor};
-
-    /// Private version of the [`Spawn`]  trait.
-    ///
-    /// [`Spawn`]: super::Spawn
-    pub trait Spawn<S, NA, C> {
-        /// Spawn an actor that needs to be initialised.
-        ///
-        /// See the public [`Spawn`] trait for documentation on the arguments.
-        ///
-        /// [`Spawn`]: super::Spawn
-        #[allow(clippy::type_complexity)] // Not part of the public API, so it's OK.
-        fn try_spawn_setup<ArgFn, ArgFnE>(
-            &mut self,
-            supervisor: S,
-            new_actor: NA,
-            arg_fn: ArgFn,
-            options: ActorOptions,
-        ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
-        where
-            S: Supervisor<NA> + 'static,
-            NA: NewActor<Context = C> + 'static,
-            NA::Actor: 'static,
-            ArgFn: FnOnce(&mut actor::Context<NA::Message, C>) -> Result<NA::Argument, ArgFnE>;
-    }
-
-    /// Internal error returned by spawning a actor.
-    #[derive(Debug)]
-    pub enum AddActorError<NewActorE, ArgFnE> {
-        /// Calling `NewActor::new` actor resulted in an error.
-        NewActor(NewActorE),
-        /// Calling the argument function resulted in an error.
-        ArgFn(ArgFnE),
-    }
-}
-
-pub(crate) use private::AddActorError;

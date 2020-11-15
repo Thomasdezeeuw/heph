@@ -21,7 +21,7 @@ use mio::{event, Interest, Poll, Registry, Token};
 
 use crate::actor::context::{ThreadLocal, ThreadSafe};
 use crate::actor::sync::SyncActor;
-use crate::actor::{self, private, AddActorError, NewActor, Spawn};
+use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn};
 use crate::actor_ref::ActorRef;
 use crate::inbox::Inbox;
 use crate::supervisor::{Supervisor, SyncSupervisor};
@@ -388,7 +388,7 @@ where
 {
 }
 
-impl<S, Sv, NA> private::Spawn<Sv, NA, ThreadSafe> for Runtime<S>
+impl<S, Sv, NA> PrivateSpawn<Sv, NA, ThreadSafe> for Runtime<S>
 where
     Sv: Send + Sync,
     NA: NewActor<Context = ThreadSafe> + Send + Sync,
@@ -602,7 +602,7 @@ impl RuntimeRef {
 
 impl<S, NA> Spawn<S, NA, ThreadLocal> for RuntimeRef {}
 
-impl<S, NA> private::Spawn<S, NA, ThreadLocal> for RuntimeRef {
+impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef {
     fn try_spawn_setup<ArgFn, ArgFnE>(
         &mut self,
         supervisor: S,
@@ -658,7 +658,7 @@ where
 {
 }
 
-impl<S, NA> private::Spawn<S, NA, ThreadSafe> for RuntimeRef
+impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for RuntimeRef
 where
     S: Send + Sync,
     NA: NewActor<Context = ThreadSafe> + Send + Sync,

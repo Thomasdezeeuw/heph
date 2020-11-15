@@ -10,7 +10,7 @@ use std::{fmt, io};
 use mio::{event, Interest, Token};
 
 use crate::actor::message_select::First;
-use crate::actor::{private, AddActorError, Spawn};
+use crate::actor::{AddActorError, PrivateSpawn, Spawn};
 use crate::actor_ref::ActorRef;
 use crate::inbox::{Inbox, InboxRef};
 use crate::rt::{self, ActorOptions, ProcessId, RuntimeRef, SharedRuntimeInternal, Waker};
@@ -393,7 +393,7 @@ impl<M> Context<M, ThreadSafe> {
 
 impl<M, S, NA> Spawn<S, NA, ThreadLocal> for Context<M, ThreadLocal> {}
 
-impl<M, S, NA> private::Spawn<S, NA, ThreadLocal> for Context<M, ThreadLocal> {
+impl<M, S, NA> PrivateSpawn<S, NA, ThreadLocal> for Context<M, ThreadLocal> {
     fn try_spawn_setup<ArgFn, ArgFnE>(
         &mut self,
         supervisor: S,
@@ -407,13 +407,9 @@ impl<M, S, NA> private::Spawn<S, NA, ThreadLocal> for Context<M, ThreadLocal> {
         NA::Actor: 'static,
         ArgFn: FnOnce(&mut Context<NA::Message, ThreadLocal>) -> Result<NA::Argument, ArgFnE>,
     {
-        private::Spawn::try_spawn_setup(
-            &mut self.kind.runtime_ref,
-            supervisor,
-            new_actor,
-            arg_fn,
-            options,
-        )
+        self.kind
+            .runtime_ref
+            .try_spawn_setup(supervisor, new_actor, arg_fn, options)
     }
 }
 
@@ -426,7 +422,7 @@ where
 {
 }
 
-impl<M, S, NA> private::Spawn<S, NA, ThreadSafe> for Context<M, ThreadSafe>
+impl<M, S, NA> PrivateSpawn<S, NA, ThreadSafe> for Context<M, ThreadSafe>
 where
     S: Send + Sync,
     NA: NewActor<Context = ThreadSafe> + Send + Sync,

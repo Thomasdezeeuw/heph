@@ -14,7 +14,7 @@ use mio::net::TcpListener;
 use mio::Interest;
 
 use crate::actor::messages::Terminate;
-use crate::actor::{self, Actor, AddActorError, NewActor, Spawn};
+use crate::actor::{self, Actor, AddActorError, NewActor, PrivateSpawn, Spawn};
 use crate::net::TcpStream;
 use crate::rt::{self, ActorOptions, PrivateAccess, Signal};
 use crate::supervisor::Supervisor;
@@ -595,8 +595,7 @@ where
                 )?;
                 Ok((TcpStream { socket: stream }, addr))
             };
-            let res = actor::private::Spawn::<S, NA, K>::try_spawn_setup(
-                ctx,
+            let res = ctx.try_spawn_setup(
                 supervisor.clone(),
                 new_actor.clone(),
                 setup_actor,
