@@ -34,6 +34,13 @@ pub(super) fn ok_ptr(ptr: *const ()) -> bool {
 /// but longer total lifetime they quickly move into and out from the structure.
 /// To ensure operations remain quick we keep the structure of tree in place
 /// when removing processes.
+///
+/// The implementation is effectively a hash set based on Hash array mapped trie
+/// (HAMT). Some resources:
+/// * https://en.wikipedia.org/wiki/Hash_array_mapped_trie,
+/// * https://idea.popcount.org/2012-07-25-introduction-to-hamt,
+/// * Ideal Hash Trees by Phil Bagwell
+/// * Fast And Space Efficient Trie Searches by Phil Bagwell
 // `pub(in crate::rt)` because its used in `AddActor`.
 #[derive(Debug)]
 pub(in crate::rt) struct Inactive {
