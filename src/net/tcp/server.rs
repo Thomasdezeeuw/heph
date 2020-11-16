@@ -253,7 +253,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let actor_ref =
 ///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
-///     # actor_ref.send(Terminate).unwrap();
+///     # actor_ref.try_send(Terminate).unwrap();
 ///
 ///     Ok(())
 /// }
@@ -346,7 +346,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     // Because the server is just another actor we can send it messages.
 ///     // Here we'll send it a terminate message so it will gracefully
 ///     // shutdown.
-///     server_ref.send(Terminate).unwrap();
+///     server_ref.try_send(Terminate).unwrap();
 ///
 ///     Ok(())
 /// }
@@ -428,7 +428,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let actor_ref =
 ///     runtime.try_spawn(ServerSupervisor, server, (), options)?;
-///     # actor_ref.send(Terminate).unwrap();
+///     # actor_ref.try_send(Terminate).unwrap();
 ///
 ///     runtime.start().map_err(rt::Error::map_type)
 /// }

@@ -62,7 +62,7 @@ fn actor_process() {
     assert_eq!(res, ProcessResult::Pending);
 
     // Send the message and the actor should return Ok.
-    actor_ref.send(()).unwrap();
+    actor_ref.try_send(()).unwrap();
     let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
     assert_eq!(res, ProcessResult::Complete);
 }
@@ -145,7 +145,7 @@ fn restarting_erroneous_actor_process() {
     assert!(supervisor_called.load(atomic::Ordering::SeqCst));
 
     // Now we send a message to the restarted actor, which should return `Ok`.
-    actor_ref.send(()).unwrap();
+    actor_ref.try_send(()).unwrap();
     let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
     assert_eq!(res, ProcessResult::Complete);
 }

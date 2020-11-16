@@ -38,7 +38,7 @@
 //!                 ActorOptions::default());
 //!
 //!             // Now we can use the reference to send the actor a message.
-//!             actor_ref.send("Hello world".to_owned()).unwrap();
+//!             actor_ref.try_send("Hello world".to_owned()).unwrap();
 //!
 //!             Ok(())
 //!         })
@@ -78,8 +78,8 @@
 //!             let second_actor_ref = actor_ref.clone();
 //!
 //!             // Now we can use both references to send a message.
-//!             actor_ref.send("Hello world".to_owned()).unwrap();
-//!             second_actor_ref.send("Bye world".to_owned()).unwrap();
+//!             actor_ref.try_send("Hello world".to_owned()).unwrap();
+//!             second_actor_ref.try_send("Bye world".to_owned()).unwrap();
 //!
 //!             Ok(())
 //!         })
@@ -175,7 +175,7 @@ impl<M> ActorRef<M> {
         }
     }
 
-    /// Asynchronously send a message to the actor.
+    /// Attempt to asynchronously send a message to the actor.
     ///
     /// Some types of actor references can detect errors in sending a message,
     /// however not all actor references can. This means that even if this
@@ -185,7 +185,7 @@ impl<M> ActorRef<M> {
     /// See [Sending messages] for more details.
     ///
     /// [Sending messages]: index.html#sending-messages
-    pub fn send<Msg>(&self, msg: Msg) -> Result<(), SendError>
+    pub fn try_send<Msg>(&self, msg: Msg) -> Result<(), SendError>
     where
         Msg: Into<M>,
     {
@@ -228,7 +228,7 @@ impl<M> ActorRef<M> {
         let pid = ctx.pid();
         let waker = ctx.new_waker(pid);
         let (msg, rpc) = Rpc::new(waker, request);
-        self.send(msg).map(|()| rpc)
+        self.try_send(msg).map(|()| rpc)
     }
 
     /// Changes the message type of the actor reference.
@@ -320,7 +320,7 @@ where
     M: From<Msg>,
 {
     fn mapped_send(&self, msg: Msg) -> Result<(), SendError> {
-        self.send(msg)
+        self.try_send(msg)
     }
 }
 
@@ -331,7 +331,7 @@ where
     fn try_mapped_send(&self, msg: Msg) -> Result<(), SendError> {
         M::try_from(msg)
             .map_err(|_msg| SendError)
-            .and_then(|msg| self.send(msg))
+            .and_then(|msg| self.try_send(msg))
     }
 }
 
@@ -382,7 +382,8 @@ impl<M> ActorGroup<M> {
         self.actor_refs.push(actor_ref)
     }
 
-    /// Asynchronously send a message to all the actors in the group.
+    /// Attempts to asynchronously send a message to all the actors in the
+    /// group.
     ///
     /// This will first `clone` the message and `send` it to each actor in the
     /// group. Note that this means it will `clone` before calling
@@ -396,7 +397,7 @@ impl<M> ActorGroup<M> {
     /// See [Sending messages] for more details.
     ///
     /// [Sending messages]: index.html#sending-messages
-    pub fn send<Msg>(&self, msg: Msg) -> Result<(), SendError>
+    pub fn try_send<Msg>(&self, msg: Msg) -> Result<(), SendError>
     where
         Msg: Into<M> + Clone,
     {
@@ -415,7 +416,7 @@ impl<M> ActorGroup<M> {
             Err(SendError)
         } else {
             for actor_ref in self.actor_refs.iter() {
-                let _ = actor_ref.send(msg.clone());
+                let _ = actor_ref.try_send(msg.clone());
             }
             Ok(())
         }

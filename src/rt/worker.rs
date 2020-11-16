@@ -411,7 +411,7 @@ impl RunningRuntime {
 
                     for receiver in receivers.iter_mut() {
                         // Don't care if we succeed in sending the message.
-                        let _ = receiver.send(signal);
+                        let _ = receiver.try_send(signal);
                     }
                 }
                 Wake => { /* Just need to wake up. */ }

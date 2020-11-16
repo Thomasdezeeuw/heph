@@ -253,8 +253,8 @@ where
 ///         ActorOptions::default());
 ///
 ///     // We'll send our actor two messages.
-///     actor_ref.send("Message 1".to_owned()).unwrap();
-///     actor_ref.send("Message 2".to_owned()).unwrap();
+///     actor_ref.try_send("Message 1".to_owned()).unwrap();
+///     actor_ref.try_send("Message 2".to_owned()).unwrap();
 ///     Ok(())
 /// }
 ///
@@ -302,11 +302,11 @@ impl<M> MessageSelector<M> for First {
 ///         ActorOptions::default());
 ///
 ///     // We'll send our actor two messages, one normal one and a priority one.
-///     actor_ref.send(Message {
+///     actor_ref.try_send(Message {
 ///         priority: 1,
 ///         msg: "Normal message".to_owned(),
 ///     }).unwrap();
-///     actor_ref.send(Message {
+///     actor_ref.try_send(Message {
 ///         priority: 100,
 ///         msg: "Priority message".to_owned(),
 ///     }).unwrap();

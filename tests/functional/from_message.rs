@@ -34,7 +34,7 @@ fn from_message() {
 }
 
 async fn ping_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<Message>) -> Result<(), !> {
-    actor_ref.send("Hello!".to_owned()).unwrap();
+    actor_ref.try_send("Hello!".to_owned()).unwrap();
 
     let response = actor_ref
         .rpc(&mut ctx, "Rpc".to_owned())

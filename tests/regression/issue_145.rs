@@ -63,7 +63,7 @@ fn issue_145_tcp_server() {
                 .unwrap()
                 .take()
                 .unwrap()
-                .send(Terminate)
+                .try_send(Terminate)
                 .unwrap();
         }
     });

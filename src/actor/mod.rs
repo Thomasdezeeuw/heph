@@ -164,7 +164,7 @@ pub trait NewActor {
     ///             // Now we can use the reference to send the actor a message.
     ///             // We don't have to use `Message` type we can just use
     ///             // `String`, because `Message` implements `From<String>`.
-    ///             actor_ref.send("Hello world".to_owned()).unwrap();
+    ///             actor_ref.try_send("Hello world".to_owned()).unwrap();
     ///             Ok(())
     ///         })
     ///         .start()
@@ -297,7 +297,7 @@ pub trait NewActor {
     ///         ActorOptions::default())?;
     ///     # let actor_ref =
     ///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), ActorOptions::default())?;
-    ///     # actor_ref.send(Terminate).unwrap();
+    ///     # actor_ref.try_send(Terminate).unwrap();
     ///     Ok(())
     /// }
     ///
