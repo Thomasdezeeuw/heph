@@ -3,9 +3,10 @@
 use std::pin::Pin;
 use std::task::{self, Poll};
 
+use inbox::{Manager, Receiver};
+
 use crate::actor::context::{ThreadLocal, ThreadSafe};
 use crate::actor::{self, Actor, NewActor};
-use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::supervisor::SupervisorStrategy;
 use crate::{RuntimeRef, Supervisor};
@@ -19,8 +20,7 @@ pub(in crate::rt) struct ActorProcess<S, NA: NewActor> {
     new_actor: NA,
     /// The inbox of the actor, used in creating a new [`actor::Context`]
     /// if the actor is restarted.
-    inbox: Inbox<NA::Message>,
-    inbox_ref: InboxRef<NA::Message>,
+    inbox: Manager<NA::Message>,
     /// The running actors.
     actor: NA::Actor,
 }
@@ -36,15 +36,13 @@ where
         supervisor: S,
         new_actor: NA,
         actor: NA::Actor,
-        inbox: Inbox<NA::Message>,
-        inbox_ref: InboxRef<NA::Message>,
+        inbox: Manager<NA::Message>,
     ) -> ActorProcess<S, NA> {
         ActorProcess {
             supervisor,
             new_actor,
             actor,
             inbox,
-            inbox_ref,
         }
     }
 
@@ -87,13 +85,10 @@ where
         pid: ProcessId,
         arg: NA::Argument,
     ) -> Result<(), NA::Error> {
-        // Create a new actor.
-        let ctx = C::new_context(
-            pid,
-            self.inbox.ctx_inbox(),
-            self.inbox_ref.clone(),
-            runtime_ref,
+        let receiver = self.inbox.new_receiver().expect(
+            "failed to create new receiver for actor's inbox. Was the `actor::Context` leaked?",
         );
+        let ctx = C::new_context(pid, receiver, runtime_ref);
         self.new_actor.new(ctx, arg).map(|actor| {
             // We pin the actor here to ensure its dropped in place when
             // replacing it with out new actor.
@@ -155,8 +150,7 @@ pub(in crate::rt) trait ContextKind {
     /// Creates a new context.
     fn new_context<M>(
         pid: ProcessId,
-        inbox: Inbox<M>,
-        inbox_ref: InboxRef<M>,
+        inbox: Receiver<M>,
         runtime_ref: &mut RuntimeRef,
     ) -> actor::Context<M, Self>
     where
@@ -170,11 +164,10 @@ impl ContextKind for ThreadLocal {
 
     fn new_context<M>(
         pid: ProcessId,
-        inbox: Inbox<M>,
-        inbox_ref: InboxRef<M>,
+        inbox: Receiver<M>,
         runtime_ref: &mut RuntimeRef,
     ) -> actor::Context<M, ThreadLocal> {
-        actor::Context::new_local(pid, inbox, inbox_ref, runtime_ref.clone())
+        actor::Context::new_local(pid, inbox, runtime_ref.clone())
     }
 }
 
@@ -185,10 +178,9 @@ impl ContextKind for ThreadSafe {
 
     fn new_context<M>(
         pid: ProcessId,
-        inbox: Inbox<M>,
-        inbox_ref: InboxRef<M>,
+        inbox: Receiver<M>,
         runtime_ref: &mut RuntimeRef,
     ) -> actor::Context<M, ThreadSafe> {
-        actor::Context::new_shared(pid, inbox, inbox_ref, runtime_ref.clone_shared())
+        actor::Context::new_shared(pid, inbox, runtime_ref.clone_shared())
     }
 }

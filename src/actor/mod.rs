@@ -100,9 +100,6 @@ use crate::rt;
 mod context_priv;
 mod spawn;
 
-#[cfg(test)]
-mod tests;
-
 pub mod messages;
 pub mod sync;
 
@@ -117,15 +114,8 @@ pub mod context {
     pub use super::context_priv::{ThreadLocal, ThreadSafe};
 }
 
-pub mod message_select {
-    //! Module containing the `MessageSelector` trait and related types.
-
-    #[doc(inline)]
-    pub use crate::inbox::{First, MessageSelection, MessageSelector, Messages, Priority};
-}
-
 #[doc(inline)]
-pub use context_priv::{Context, ReceiveMessage};
+pub use context_priv::{Context, NoMessages, ReceiveMessage, RecvError};
 #[doc(inline)]
 pub use spawn::Spawn;
 
@@ -190,9 +180,10 @@ pub trait NewActor {
     ///
     /// /// Our actor implementation that prints all messages it receives.
     /// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
-    ///     let msg = ctx.receive_next().await;
-    /// #   assert_eq!(msg, Message::String("Hello world".to_owned()));
-    ///     println!("received message: {:?}", msg);
+    ///     if let Ok(msg) = ctx.receive_next().await {
+    /// #       assert_eq!(msg, Message::String("Hello world".to_owned()));
+    ///         println!("received message: {:?}", msg);
+    ///     }
     ///     Ok(())
     /// }
     /// ```

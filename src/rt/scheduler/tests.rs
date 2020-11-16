@@ -187,7 +187,7 @@ mod local_scheduler {
     use crate::rt::process::{Process, ProcessId, ProcessResult};
     use crate::rt::scheduler::{LocalScheduler, Priority, ProcessData};
     use crate::supervisor::NoSupervisor;
-    use crate::test::{self, init_local_actor_inbox};
+    use crate::test::{self, init_local_actor_with_inbox};
 
     use super::{NopTestProcess, TestAssertUnmovedNewActor};
 
@@ -216,16 +216,14 @@ mod local_scheduler {
         let mut scheduler = LocalScheduler::new();
 
         let actor_entry = scheduler.add_actor();
-        #[allow(trivial_casts)]
         let new_actor = simple_actor as fn(_) -> _;
-        let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, ()).unwrap();
+        let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
         actor_entry.add(
             Priority::NORMAL,
             NoSupervisor,
             new_actor,
             actor,
             inbox,
-            inbox_ref,
             false,
         );
         assert!(scheduler.has_process());
@@ -241,16 +239,14 @@ mod local_scheduler {
 
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
-        #[allow(trivial_casts)]
         let new_actor = simple_actor as fn(_) -> _;
-        let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, ()).unwrap();
+        let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
         actor_entry.add(
             Priority::NORMAL,
             NoSupervisor,
             new_actor,
             actor,
             inbox,
-            inbox_ref,
             false,
         );
 
@@ -265,16 +261,14 @@ mod local_scheduler {
 
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
-        #[allow(trivial_casts)]
         let new_actor = simple_actor as fn(_) -> _;
-        let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, ()).unwrap();
+        let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
         actor_entry.add(
             Priority::NORMAL,
             NoSupervisor,
             new_actor,
             actor,
             inbox,
-            inbox_ref,
             false,
         );
         scheduler.mark_ready(pid);
@@ -292,45 +286,27 @@ mod local_scheduler {
     fn next_process_order() {
         let mut scheduler = LocalScheduler::new();
 
-        #[allow(trivial_casts)]
         let new_actor = simple_actor as fn(_) -> _;
         // Actor 1.
         let actor_entry = scheduler.add_actor();
         let pid1 = actor_entry.pid();
-        let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, ()).unwrap();
-        actor_entry.add(
-            Priority::LOW,
-            NoSupervisor,
-            new_actor,
-            actor,
-            inbox,
-            inbox_ref,
-            true,
-        );
+        let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
+        actor_entry.add(Priority::LOW, NoSupervisor, new_actor, actor, inbox, true);
         // Actor 2.
         let actor_entry = scheduler.add_actor();
         let pid2 = actor_entry.pid();
-        let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, ()).unwrap();
-        actor_entry.add(
-            Priority::HIGH,
-            NoSupervisor,
-            new_actor,
-            actor,
-            inbox,
-            inbox_ref,
-            true,
-        );
+        let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
+        actor_entry.add(Priority::HIGH, NoSupervisor, new_actor, actor, inbox, true);
         // Actor 3.
         let actor_entry = scheduler.add_actor();
         let pid3 = actor_entry.pid();
-        let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, ()).unwrap();
+        let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
         actor_entry.add(
             Priority::NORMAL,
             NoSupervisor,
             new_actor,
             actor,
             inbox,
-            inbox_ref,
             true,
         );
 
@@ -361,16 +337,14 @@ mod local_scheduler {
 
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
-        #[allow(trivial_casts)]
         let new_actor = simple_actor as fn(_) -> _;
-        let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, ()).unwrap();
+        let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
         actor_entry.add(
             Priority::NORMAL,
             NoSupervisor,
             new_actor,
             actor,
             inbox,
-            inbox_ref,
             false,
         );
 
@@ -391,16 +365,14 @@ mod local_scheduler {
 
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
-        #[allow(trivial_casts)]
         let new_actor = simple_actor as fn(_) -> _;
-        let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, ()).unwrap();
+        let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
         actor_entry.add(
             Priority::NORMAL,
             NoSupervisor,
             new_actor,
             actor,
             inbox,
-            inbox_ref,
             true,
         );
 
@@ -434,24 +406,15 @@ mod local_scheduler {
         }
 
         // Add our processes.
-        #[allow(trivial_casts)]
         let new_actor = order_actor as fn(_, _, _) -> _;
         let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
         let mut pids = vec![];
         for (id, priority) in priorities.iter().enumerate() {
             let actor_entry = scheduler.add_actor();
             pids.push(actor_entry.pid());
-            let (actor, inbox, inbox_ref) =
-                init_local_actor_inbox(new_actor, (id, run_order.clone())).unwrap();
-            actor_entry.add(
-                *priority,
-                NoSupervisor,
-                new_actor,
-                actor,
-                inbox,
-                inbox_ref,
-                true,
-            );
+            let (actor, inbox, _) =
+                init_local_actor_with_inbox(new_actor, (id, run_order.clone())).unwrap();
+            actor_entry.add(*priority, NoSupervisor, new_actor, actor, inbox, true);
         }
 
         assert!(scheduler.has_process());
@@ -476,7 +439,7 @@ mod local_scheduler {
         let mut runtime_ref = test::runtime();
 
         let new_actor = TestAssertUnmovedNewActor(PhantomData);
-        let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, ()).unwrap();
+        let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
 
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
@@ -486,7 +449,6 @@ mod local_scheduler {
             new_actor,
             actor,
             inbox,
-            inbox_ref,
             true,
         );
 
@@ -524,7 +486,7 @@ mod shared_scheduler {
     use crate::rt::process::ProcessResult;
     use crate::rt::scheduler::{Priority, Scheduler};
     use crate::supervisor::NoSupervisor;
-    use crate::test::{self, init_actor_inbox};
+    use crate::test::{self, init_actor_with_inbox};
 
     use super::TestAssertUnmovedNewActor;
 
@@ -551,16 +513,14 @@ mod shared_scheduler {
         // Add an actor to the scheduler.
         let actor_entry = scheduler_ref.add_actor();
         let pid = actor_entry.pid();
-        #[allow(trivial_casts)]
         let new_actor = simple_actor as fn(_) -> _;
-        let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+        let (actor, inbox, _) = init_actor_with_inbox(new_actor, ()).unwrap();
         actor_entry.add(
             Priority::NORMAL,
             NoSupervisor,
             new_actor,
             actor,
             inbox,
-            inbox_ref,
             false,
         );
 
@@ -633,24 +593,15 @@ mod shared_scheduler {
         }
 
         // Add our processes.
-        #[allow(trivial_casts)]
         let new_actor = order_actor as fn(_, _, _) -> _;
         let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
         let mut pids = vec![];
         for (id, priority) in priorities.iter().enumerate() {
             let actor_entry = scheduler_ref.add_actor();
             pids.push(actor_entry.pid());
-            let (actor, inbox, inbox_ref) =
-                init_actor_inbox(new_actor, (id, run_order.clone())).unwrap();
-            actor_entry.add(
-                *priority,
-                NoSupervisor,
-                new_actor,
-                actor,
-                inbox,
-                inbox_ref,
-                true,
-            );
+            let (actor, inbox, _) =
+                init_actor_with_inbox(new_actor, (id, run_order.clone())).unwrap();
+            actor_entry.add(*priority, NoSupervisor, new_actor, actor, inbox, true);
         }
 
         assert!(scheduler_ref.has_process());
@@ -676,7 +627,7 @@ mod shared_scheduler {
         let mut runtime_ref = test::runtime();
 
         let new_actor = TestAssertUnmovedNewActor(PhantomData);
-        let (actor, inbox, inbox_ref) = init_actor_inbox(new_actor, ()).unwrap();
+        let (actor, inbox, _) = init_actor_with_inbox(new_actor, ()).unwrap();
 
         let actor_entry = scheduler_ref.add_actor();
         let pid = actor_entry.pid();
@@ -686,7 +637,6 @@ mod shared_scheduler {
             new_actor,
             actor,
             inbox,
-            inbox_ref,
             true,
         );
 

@@ -27,13 +27,13 @@ use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
 use std::{io, thread};
 
+use inbox::Manager;
 use lazy_static::lazy_static;
 use rand::Rng;
 
 use crate::actor::sync::SyncActor;
 use crate::actor::{self, context, Actor, NewActor};
 use crate::actor_ref::ActorRef;
-use crate::inbox::Inbox;
 use crate::rt::scheduler::Scheduler;
 use crate::rt::sync_worker::SyncWorker;
 use crate::rt::waker::{self, WakerId};
@@ -44,10 +44,7 @@ use crate::rt::{
 };
 use crate::supervisor::SyncSupervisor;
 
-#[cfg(test)]
-use crate::inbox::InboxRef;
-#[cfg(test)]
-use crate::rt::waker::Waker;
+pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 
 lazy_static! {
     static ref COORDINATOR_ID: WakerId = {
@@ -86,72 +83,44 @@ pub fn runtime() -> RuntimeRef {
 /// Initialise a thread-local actor.
 #[allow(clippy::type_complexity)]
 pub fn init_local_actor<NA>(
-    mut new_actor: NA,
+    new_actor: NA,
     arg: NA::Argument,
 ) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
 where
     NA: NewActor<Context = context::ThreadLocal>,
 {
-    let runtime_ref = runtime();
-    let pid = ProcessId(0);
-
-    let waker = runtime_ref.new_waker(pid);
-    let (inbox, inbox_ref) = Inbox::new(waker);
-    let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
-
-    let ctx = actor::Context::new_local(pid, inbox, inbox_ref, runtime_ref);
-    let actor = new_actor.new(ctx, arg)?;
-
-    Ok((actor, actor_ref))
+    init_local_actor_with_inbox(new_actor, arg).map(|(actor, _, actor_ref)| (actor, actor_ref))
 }
 
-/*
-/// Initialise a thread-safe actor.
+/// Initialise a thread-local actor with access to it's inbox.
 #[allow(clippy::type_complexity)]
-pub fn init_actor<NA>(
+pub(crate) fn init_local_actor_with_inbox<NA>(
     mut new_actor: NA,
     arg: NA::Argument,
-) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
+) -> Result<(NA::Actor, Manager<NA::Message>, ActorRef<NA::Message>), NA::Error>
+where
+    NA: NewActor<Context = context::ThreadLocal>,
+{
+    let (manager, sender, receiver) = Manager::new_small_channel();
+    let ctx = actor::Context::new_local(TEST_PID, receiver, runtime());
+    let actor = new_actor.new(ctx, arg)?;
+    Ok((actor, manager, ActorRef::local(sender)))
+}
+
+/// Initialise a thread-safe actor with access to it's inbox.
+#[allow(clippy::type_complexity)]
+#[cfg(test)]
+pub(crate) fn init_actor_with_inbox<NA>(
+    mut new_actor: NA,
+    arg: NA::Argument,
+) -> Result<(NA::Actor, Manager<NA::Message>, ActorRef<NA::Message>), NA::Error>
 where
     NA: NewActor<Context = context::ThreadSafe>,
 {
-    let runtime_ref = runtime();
-    let pid = ProcessId(0);
-
-    let waker = runtime_ref.new_waker(pid);
-    let (inbox, inbox_ref) = Inbox::new(waker);
-    let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
-
-    let ctx = actor::Context::new(pid, inbox, inbox_ref, runtime_ref);
+    let (manager, sender, receiver) = Manager::new_small_channel();
+    let ctx = actor::Context::new_shared(TEST_PID, receiver, SHARED_INTERNAL.clone());
     let actor = new_actor.new(ctx, arg)?;
-
-    Ok((actor, actor_ref))
-}
-*/
-
-/// Initialise a thread-local actor.
-///
-/// Same as `init_local_actor`, but returns the inbox of the actor instead of an
-/// actor reference.
-#[allow(clippy::type_complexity)]
-#[cfg(test)]
-pub(crate) fn init_local_actor_inbox<NA>(
-    mut new_actor: NA,
-    arg: NA::Argument,
-) -> Result<(NA::Actor, Inbox<NA::Message>, InboxRef<NA::Message>), NA::Error>
-where
-    NA: NewActor<Context = context::ThreadLocal>,
-{
-    let runtime_ref = runtime();
-    let pid = ProcessId(0);
-
-    let waker = runtime_ref.new_waker(pid);
-    let (inbox, inbox_ref) = Inbox::new(waker);
-
-    let ctx = actor::Context::new_local(pid, inbox.ctx_inbox(), inbox_ref.clone(), runtime_ref);
-    let actor = new_actor.new(ctx, arg)?;
-
-    Ok((actor, inbox, inbox_ref))
+    Ok((actor, manager, ActorRef::local(sender)))
 }
 
 /// Spawn a synchronous actor.
@@ -182,36 +151,6 @@ where
     })
 }
 
-/// Initialise a thread-safe actor.
-///
-/// Same as `init_actor`, but returns the inbox of the actor instead of an actor
-/// reference.
-#[allow(clippy::type_complexity)]
-#[cfg(test)]
-pub(crate) fn init_actor_inbox<NA>(
-    mut new_actor: NA,
-    arg: NA::Argument,
-) -> Result<(NA::Actor, Inbox<NA::Message>, InboxRef<NA::Message>), NA::Error>
-where
-    NA: NewActor<Context = context::ThreadSafe>,
-{
-    let runtime_ref = runtime();
-    let pid = ProcessId(0);
-
-    let waker = runtime_ref.new_waker(pid);
-    let (inbox, inbox_ref) = Inbox::new(waker);
-
-    let ctx = actor::Context::new_shared(
-        pid,
-        inbox.ctx_inbox(),
-        inbox_ref.clone(),
-        runtime_ref.clone_shared(),
-    );
-    let actor = new_actor.new(ctx, arg)?;
-
-    Ok((actor, inbox, inbox_ref))
-}
-
 /// Poll a future.
 ///
 /// The [`task::Context`] will be provided by the *test* runtime.
@@ -224,8 +163,7 @@ pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
 where
     Fut: Future,
 {
-    let pid = ProcessId(0);
-    let waker = runtime().new_local_task_waker(pid);
+    let waker = runtime().new_local_task_waker(TEST_PID);
     let mut ctx = task::Context::from_waker(&waker);
     Future::poll(future, &mut ctx)
 }
@@ -243,16 +181,9 @@ pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
 where
     A: Actor,
 {
-    let pid = ProcessId(0);
-    let waker = runtime().new_local_task_waker(pid);
+    let waker = runtime().new_local_task_waker(TEST_PID);
     let mut ctx = task::Context::from_waker(&waker);
     Actor::try_poll(actor, &mut ctx)
-}
-
-/// Returns a new `Waker` for `pid`.
-#[cfg(test)]
-pub(crate) fn new_waker(pid: ProcessId) -> Waker {
-    runtime().new_waker(pid)
 }
 
 /// Percentage of messages lost on purpose.
@@ -301,14 +232,15 @@ where
 ///
 /// async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
 ///     // Receive a message.
-///     let msg = ctx.receive_next().await;
-///     // Print the message.
-///     println!("got a message: {}", msg);
+///     if let Ok(msg) = ctx.receive_next().await {
+///         // Print the message.
+///         println!("got a message: {}", msg);
+///     }
 ///     // And we're done.
 ///     Ok(())
 /// }
 ///
-/// assert_eq!(size_of_actor_val(&(actor as fn(_) -> _)), 144);
+/// assert_eq!(size_of_actor_val(&(actor as fn(_) -> _)), 64);
 /// ```
 pub const fn size_of_actor_val<NA>(_new_actor: &NA) -> usize
 where
@@ -323,6 +255,11 @@ fn test_size_of_actor() {
 
     async fn actor1(_: actor::Context<!>) -> Result<(), !> {
         Ok(())
+    }
+
+    #[allow(trivial_casts)]
+    {
+        assert_eq!(size_of_actor_val(&(actor1 as fn(_) -> _)), 32);
     }
 
     struct NA;
@@ -355,11 +292,7 @@ fn test_size_of_actor() {
         }
     }
 
-    assert_eq!(size_of::<actor::Context<!>>(), 64);
-    #[allow(trivial_casts)]
-    {
-        assert_eq!(size_of_actor_val(&(actor1 as fn(_) -> _)), 72);
-    }
+    assert_eq!(size_of::<A>(), 0);
     assert_eq!(size_of_actor::<NA>(), 0);
     assert_eq!(size_of_actor_val(&NA), 0);
 }

@@ -1,14 +1,13 @@
 //! Synchronous actor thread code.
 
-use std::ptr::NonNull;
 use std::{io, thread};
 
-use crossbeam_channel::{self as channel, Receiver};
+use inbox::Manager;
 use log::trace;
 use mio::unix::pipe;
 use mio::{event, Interest, Registry, Token};
 
-use crate::actor::sync::{SyncActor, SyncContext, SyncContextData};
+use crate::actor::sync::{SyncActor, SyncContext};
 use crate::rt::options::SyncActorOptions;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 use crate::ActorRef;
@@ -39,14 +38,14 @@ impl SyncWorker {
         M: Send + 'static,
     {
         pipe::new().and_then(|(sender, receiver)| {
-            let (send, inbox) = channel::unbounded();
-            let actor_ref = ActorRef::for_sync_actor(send);
+            let (manager, send, ..) = inbox::Manager::new_small_channel();
+            let actor_ref = ActorRef::local(send);
             let thread_name = options
                 .thread_name
                 .unwrap_or_else(|| format!("Sync actor {}", id));
             thread::Builder::new()
                 .name(thread_name)
-                .spawn(move || main(supervisor, actor, arg, inbox, receiver))
+                .spawn(move || main(supervisor, actor, arg, manager, receiver))
                 .map(|handle| SyncWorker { id, handle, sender })
                 .map(|worker| (worker, actor_ref))
         })
@@ -100,19 +99,18 @@ fn main<S, E, Arg, A, M>(
     mut supervisor: S,
     actor: A,
     mut arg: Arg,
-    inbox: Receiver<M>,
+    inbox: Manager<M>,
     receiver: pipe::Receiver,
 ) where
     S: SyncSupervisor<A> + 'static,
     A: SyncActor<Message = M, Argument = Arg, Error = E>,
 {
     trace!("running synchronous actor");
-    let mut ctx_data = SyncContextData::new(inbox);
-
     loop {
-        // This is safe because the context data doesn't outlive the pointer
-        // and the pointer is not null.
-        let ctx = unsafe { SyncContext::new(NonNull::new_unchecked(&mut ctx_data)) };
+        let receiver = inbox.new_receiver().expect(
+            "failed to create new receiver for actor's inbox. Was the `SyncContext` leaked?",
+        );
+        let ctx = SyncContext::new(receiver);
 
         match actor.run(ctx, arg) {
             Ok(()) => break,

@@ -79,6 +79,7 @@ where
 
         Ok(TcpServer {
             ctx,
+            set_waker: false,
             listener,
             supervisor: this.supervisor.clone(),
             new_actor: this.new_actor.clone(),
@@ -245,7 +246,9 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     // Create our TCP server. We'll use the default actor options.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
+///     // Wait for the `TcpStream` to become ready before running the actor.
+///     let options = ActorOptions::default().mark_not_ready();
+///     let server = TcpServer::setup(address, conn_supervisor, new_actor, options)?;
 ///
 ///     // We advice to give the TCP server a low priority to prioritise
 ///     // handling of ongoing requests over accepting new requests possibly
@@ -486,6 +489,8 @@ impl<S, NA> Clone for Setup<S, NA> {
 pub struct TcpServer<S, NA, K> {
     /// Actor context in which this actor is running.
     ctx: actor::Context<Message, K>,
+    /// Whether or not we set the waker for the inbox.
+    set_waker: bool,
     /// The underlying TCP listener, backed by Mio.
     listener: TcpListener,
     /// Supervisor for all actors created by `NewActor`.
@@ -554,17 +559,18 @@ where
 
     fn try_poll(
         self: Pin<&mut Self>,
-        _ctx: &mut task::Context<'_>,
+        ctx: &mut task::Context<'_>,
     ) -> Poll<Result<(), Self::Error>> {
-        // This is safe because only the `RuntimeRef`, `TcpListener` and
-        // the `MailBox` are mutably borrowed and all are `Unpin`.
-        let &mut TcpServer {
-            ref listener,
-            ref mut ctx,
-            ref supervisor,
-            ref new_actor,
-            ref options,
-        } = unsafe { self.get_unchecked_mut() };
+        // Safety: This is safe because only the `actor::Context` and
+        // `set_waker` are mutably borrowed and both are `Unpin`.
+        let this = unsafe { Pin::into_inner_unchecked(self) };
+
+        if !this.set_waker {
+            // Set the waker of the inbox to ensure we get run when we receive a
+            // message.
+            this.ctx.register_inbox_waker(ctx.waker());
+            this.set_waker = true
+        }
 
         // See if we need to shutdown.
         //
@@ -576,10 +582,10 @@ where
         // however that there is still a race condition between our last call to
         // `accept` and the time the file descriptor is actually closed,
         // currently we can't avoid this.
-        let should_stop = ctx.try_receive_next().is_some();
+        let should_stop = this.ctx.try_receive_next().is_ok();
 
         loop {
-            let (mut stream, addr) = match listener.accept() {
+            let (mut stream, addr) = match this.listener.accept() {
                 Ok(ok) => ok,
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break,
                 Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue, // Try again.
@@ -595,11 +601,11 @@ where
                 )?;
                 Ok((TcpStream { socket: stream }, addr))
             };
-            let res = ctx.try_spawn_setup(
-                supervisor.clone(),
-                new_actor.clone(),
+            let res = this.ctx.try_spawn_setup(
+                this.supervisor.clone(),
+                this.new_actor.clone(),
                 setup_actor,
-                options.clone(),
+                this.options.clone(),
             );
             if let Err(err) = res {
                 return Poll::Ready(Err(err.into()));

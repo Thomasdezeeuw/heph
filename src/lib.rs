@@ -18,9 +18,10 @@
 //! #
 //! async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
 //!     // Receive a message.
-//!     let msg = ctx.receive_next().await;
-//!     // Print the message.
-//!     println!("got a message: {}", msg);
+//!     if let Ok(msg) = ctx.receive_next().await {
+//!         // Print the message.
+//!         println!("got a message: {}", msg);
+//!     }
 //!     // And we're done.
 //!     Ok(())
 //! }
@@ -108,8 +109,6 @@ pub mod timer;
 
 #[cfg(any(test, feature = "test"))]
 pub mod test;
-
-mod inbox;
 
 #[doc(no_inline)]
 pub use crate::actor::{Actor, NewActor};

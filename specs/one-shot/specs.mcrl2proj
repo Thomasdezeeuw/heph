@@ -1,6 +1,0 @@
-<root>
- <spec>specs_spec.mcrl2</spec>
- <properties>
-  <property>Deadlock free</property>
- </properties>
-</root>

@@ -1,6 +1,5 @@
 //! Tests for the process module.
 
-use std::mem::forget;
 use std::pin::Pin;
 use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
@@ -10,10 +9,9 @@ use futures_util::future::{pending, Pending};
 use mio::Token;
 
 use crate::actor::{self, context, Actor, NewActor};
-use crate::actor_ref::ActorRef;
 use crate::rt::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use crate::test::{self, init_local_actor_inbox};
+use crate::test::{self, init_local_actor_with_inbox, TEST_PID};
 
 #[test]
 fn pid() {
@@ -39,31 +37,29 @@ fn pid_and_evented_id() {
 }
 
 async fn ok_actor(mut ctx: actor::Context<()>) -> Result<(), !> {
-    ctx.receive_next().await;
+    assert_eq!(ctx.receive_next().await, Ok(()));
     Ok(())
 }
 
 #[test]
 fn actor_process() {
     // Create our actor.
-    #[allow(trivial_casts)]
     let new_actor = ok_actor as fn(_) -> _;
-    let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, ()).unwrap();
-    let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
+    let (actor, inbox, actor_ref) = init_local_actor_with_inbox(new_actor, ()).unwrap();
 
     // Create our process.
-    let process = ActorProcess::new(NoSupervisor, new_actor, actor, inbox, inbox_ref);
+    let process = ActorProcess::new(NoSupervisor, new_actor, actor, inbox);
     let mut process = Box::pin(process);
 
     // Actor should return `Poll::Pending` in the first call, since no message
     // is available.
     let mut runtime_ref = test::runtime();
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    let res = process.as_mut().run(&mut runtime_ref, TEST_PID);
     assert_eq!(res, ProcessResult::Pending);
 
     // Send the message and the actor should return Ok.
     actor_ref.try_send(()).unwrap();
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    let res = process.as_mut().run(&mut runtime_ref, TEST_PID);
     assert_eq!(res, ProcessResult::Complete);
 }
 
@@ -71,7 +67,7 @@ async fn error_actor(mut ctx: actor::Context<()>, fail: bool) -> Result<(), ()> 
     if fail {
         Err(())
     } else {
-        ctx.receive_next().await;
+        assert_eq!(ctx.receive_next().await, Ok(()));
         Ok(())
     }
 }
@@ -79,33 +75,24 @@ async fn error_actor(mut ctx: actor::Context<()>, fail: bool) -> Result<(), ()> 
 #[test]
 fn erroneous_actor_process() {
     // Create our actor.
-    #[allow(trivial_casts)]
     let new_actor = error_actor as fn(_, _) -> _;
-    let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, true).unwrap();
+    let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, true).unwrap();
 
     // Create our process.
-    let process = ActorProcess::new(
-        |_| SupervisorStrategy::Stop,
-        new_actor,
-        actor,
-        inbox,
-        inbox_ref,
-    );
+    let process = ActorProcess::new(|_| SupervisorStrategy::Stop, new_actor, actor, inbox);
     let mut process = Box::pin(process);
 
     // Actor should return Err.
     let mut runtime_ref = test::runtime();
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    let res = process.as_mut().run(&mut runtime_ref, TEST_PID);
     assert_eq!(res, ProcessResult::Complete);
 }
 
 #[test]
 fn restarting_erroneous_actor_process() {
     // Create our actor.
-    #[allow(trivial_casts)]
     let new_actor = error_actor as fn(_, _) -> _;
-    let (actor, inbox, inbox_ref) = init_local_actor_inbox(new_actor, true).unwrap();
-    let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
+    let (actor, inbox, actor_ref) = init_local_actor_with_inbox(new_actor, true).unwrap();
 
     struct TestSupervisor(Arc<AtomicBool>);
 
@@ -132,7 +119,7 @@ fn restarting_erroneous_actor_process() {
     let supervisor = TestSupervisor(Arc::clone(&supervisor_called));
 
     // Create our process.
-    let process = ActorProcess::new(supervisor, new_actor, actor, inbox, inbox_ref);
+    let process = ActorProcess::new(supervisor, new_actor, actor, inbox);
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
     // In the first call to run the actor should return an error. Then it should
@@ -161,29 +148,17 @@ impl NewActor for TestAssertUnmovedNewActor {
 
     fn new(
         &mut self,
-        ctx: actor::Context<Self::Message>,
-        _arg: Self::Argument,
+        _: actor::Context<Self::Message>,
+        _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
-        // In the test we need the access to the inbox, to achieve that we can't
-        // drop the context, so we forget about it here leaking the inbox.
-        forget(ctx);
         Ok(pending().assert_unmoved())
     }
 }
 
 #[test]
 fn actor_process_assert_actor_unmoved() {
-    // Create our actor.
-    let (actor, inbox, inbox_ref) = init_local_actor_inbox(TestAssertUnmovedNewActor, ()).unwrap();
-
-    // Create our process.
-    let process = ActorProcess::new(
-        NoSupervisor,
-        TestAssertUnmovedNewActor,
-        actor,
-        inbox,
-        inbox_ref,
-    );
+    let (actor, inbox, _) = init_local_actor_with_inbox(TestAssertUnmovedNewActor, ()).unwrap();
+    let process = ActorProcess::new(NoSupervisor, TestAssertUnmovedNewActor, actor, inbox);
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
     // All we do is run it a couple of times, it should panic if the actor is

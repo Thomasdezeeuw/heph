@@ -73,7 +73,7 @@ fn smoke() {
 
         assert!(stream.take_error().unwrap().is_none());
 
-        let expected_address = ctx.receive_next().await;
+        let expected_address = ctx.receive_next().await.unwrap();
         assert_eq!(local_address, expected_address);
 
         Ok(())

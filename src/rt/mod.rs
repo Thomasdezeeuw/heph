@@ -23,7 +23,6 @@ use crate::actor::context::{ThreadLocal, ThreadSafe};
 use crate::actor::sync::SyncActor;
 use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn};
 use crate::actor_ref::ActorRef;
-use crate::inbox::Inbox;
 use crate::supervisor::{Supervisor, SyncSupervisor};
 
 mod coordinator;
@@ -170,9 +169,10 @@ pub(crate) const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
 ///
 ///     // Using the context we can receive messages send to this actor, so here
 ///     // we'll receive the "World" message we send in the `setup` function.
-///     let name = ctx.receive_next().await;
-///     // This should print "Hello world"!
-///     println!("{} {}", msg, name);
+///     if let Ok(name) = ctx.receive_next().await {
+///         // This should print "Hello world"!
+///         println!("{} {}", msg, name);
+///     }
 ///     Ok(())
 /// }
 /// ```
@@ -188,6 +188,7 @@ pub struct Runtime<S = !> {
     /// Optional setup function.
     setup: Option<S>,
     /// List of actor references that want to receive process signals.
+    // TODO: replace with an `ActorGroup`.
     signals: Vec<ActorRef<Signal>>,
 }
 
@@ -623,13 +624,10 @@ impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef {
         let pid = actor_entry.pid();
         debug!("spawning thread-local actor: pid={}", pid);
 
-        let waker = self.new_waker(pid);
-
         // Create our actor context and our actor with it.
-        let (inbox, inbox_ref) = Inbox::new(waker);
-        let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
-        let mut ctx =
-            actor::Context::new_local(pid, inbox.ctx_inbox(), inbox_ref.clone(), self.clone());
+        let (manager, sender, receiver) = inbox::Manager::new_small_channel();
+        let actor_ref = ActorRef::local(sender);
+        let mut ctx = actor::Context::new_local(pid, receiver, self.clone());
         // Create our actor argument, running any setup required by the caller.
         let arg = arg_fn(&mut ctx).map_err(AddActorError::ArgFn)?;
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
@@ -640,8 +638,7 @@ impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef {
             supervisor,
             new_actor,
             actor,
-            inbox,
-            inbox_ref,
+            manager,
             options.is_ready(),
         );
 
@@ -800,11 +797,9 @@ impl SharedRuntimeInternal {
         debug!("spawning thread-safe actor: pid={}", pid);
 
         // Create our actor context and our actor with it.
-        let waker = Waker::new(self.waker_id, pid);
-        let (inbox, inbox_ref) = Inbox::new(waker);
-        let actor_ref = ActorRef::from_inbox(inbox_ref.clone());
-        let mut ctx =
-            actor::Context::new_shared(pid, inbox.ctx_inbox(), inbox_ref.clone(), self.clone());
+        let (manager, sender, receiver) = inbox::Manager::new_small_channel();
+        let actor_ref = ActorRef::local(sender);
+        let mut ctx = actor::Context::new_shared(pid, receiver, self.clone());
         let arg = arg_fn(&mut ctx).map_err(AddActorError::ArgFn)?;
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
@@ -814,8 +809,7 @@ impl SharedRuntimeInternal {
             supervisor,
             new_actor,
             actor,
-            inbox,
-            inbox_ref,
+            manager,
             options.is_ready(),
         );
 
