@@ -18,7 +18,7 @@ fn main() -> Result<(), rt::Error> {
     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye", options)?;
 
     // Just like with any actor reference we can send the actor a message.
-    actor_ref.send("Hello world".to_string()).unwrap();
+    actor_ref.try_send("Hello world".to_string()).unwrap();
     // We need to drop the reference here to ensure the actor stops.
     // The actor contains a `while` loop receiving messages (see the `actor`
     // function), that only stops iterating once all actor reference to it are

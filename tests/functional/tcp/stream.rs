@@ -91,7 +91,7 @@ fn smoke() {
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
 
     let (mut stream, address) = listener.accept().unwrap();
-    let _ = actor_ref.send(address);
+    let _ = actor_ref.try_send(address);
 
     // Now we expect the stream to be connected and ready.
     expect_ready_ok(poll_actor(Pin::as_mut(&mut actor)), ());

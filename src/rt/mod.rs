@@ -158,7 +158,7 @@ pub(crate) const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
 ///     let actor_ref = runtime_ref.spawn_local(supervisor, actor, arg, ActorOptions::default());
 ///
 ///     // Send a message to the actor we just spawned.
-///     actor_ref.send("World").unwrap();
+///     actor_ref.try_send("World").unwrap();
 ///
 ///     Ok(())
 /// }

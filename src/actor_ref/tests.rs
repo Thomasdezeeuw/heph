@@ -38,14 +38,14 @@ fn actor_ref() {
     let actor_ref = ActorRef::from_inbox(inbox_ref);
 
     // Sending messages.
-    actor_ref.send(1).unwrap();
-    actor_ref.send(2).unwrap();
+    actor_ref.try_send(1).unwrap();
+    actor_ref.try_send(2).unwrap();
     assert_eq!(inbox.receive_next(), Some(1));
     assert_eq!(inbox.receive_next(), Some(2));
 
     // Cloning should send to the same inbox.
     let actor_ref2 = actor_ref.clone();
-    actor_ref2.send(3).unwrap();
+    actor_ref2.try_send(3).unwrap();
     assert_eq!(inbox.receive_next(), Some(3));
 
     // Test Debug implementation.
@@ -58,14 +58,14 @@ fn sync_actor_ref() {
     let actor_ref = ActorRef::for_sync_actor(sender);
 
     // Sending messages.
-    actor_ref.send(1).unwrap();
-    actor_ref.send(2).unwrap();
+    actor_ref.try_send(1).unwrap();
+    actor_ref.try_send(2).unwrap();
     assert_eq!(inbox.try_recv(), Ok(1));
     assert_eq!(inbox.try_recv(), Ok(2));
 
     // Cloning should send to the same inbox.
     let actor_ref2 = actor_ref.clone();
-    actor_ref2.send(3).unwrap();
+    actor_ref2.try_send(3).unwrap();
     assert_eq!(inbox.try_recv(), Ok(3));
 
     // Test Debug implementation.
@@ -73,7 +73,7 @@ fn sync_actor_ref() {
 
     // After the inbox is dropped sending messages should also return an error.
     drop(inbox);
-    assert!(actor_ref.send(10).is_err());
+    assert!(actor_ref.try_send(10).is_err());
 }
 
 #[test]
@@ -85,10 +85,10 @@ fn actor_ref_message_order() {
     let actor_ref = ActorRef::from_inbox(inbox_ref);
 
     // Send a number messages.
-    actor_ref.send(1).unwrap();
-    actor_ref.send(2).unwrap();
-    actor_ref.send(3).unwrap();
-    actor_ref.send(4).unwrap();
+    actor_ref.try_send(1).unwrap();
+    actor_ref.try_send(2).unwrap();
+    actor_ref.try_send(3).unwrap();
+    actor_ref.try_send(4).unwrap();
     // The message should arrive in order, but this is just an best effort.
     assert_eq!(inbox.receive_next(), Some(1));
     assert_eq!(inbox.receive_next(), Some(2));
@@ -129,9 +129,9 @@ fn mapped_actor_ref() {
     let mapped_actor_ref: ActorRef<Msg> = actor_ref.clone().map();
     assert!(matches!(&mapped_actor_ref.kind, ActorRefKind::Mapped(_)));
 
-    actor_ref.send(M(1)).expect("unable to send message");
+    actor_ref.try_send(M(1)).expect("unable to send message");
     mapped_actor_ref
-        .send(Msg(2))
+        .try_send(Msg(2))
         .expect("unable to send message");
 
     assert_eq!(inbox.receive_next(), Some(M(1))); // Actor ref.
@@ -150,9 +150,9 @@ fn mapped_actor_ref_same_type() {
     let mapped_actor_ref: ActorRef<M> = actor_ref.clone().map();
     assert!(matches!(&mapped_actor_ref.kind, ActorRefKind::Node(_)));
 
-    actor_ref.send(M(1)).expect("unable to send message");
+    actor_ref.try_send(M(1)).expect("unable to send message");
     mapped_actor_ref
-        .send(Msg(2))
+        .try_send(Msg(2))
         .expect("unable to send message");
 
     assert_eq!(inbox.receive_next(), Some(M(1))); // Actor ref.
@@ -170,9 +170,9 @@ fn try_mapped_actor_ref() {
     let mapped_actor_ref: ActorRef<Msg2> = actor_ref.clone().try_map();
     assert!(matches!(&mapped_actor_ref.kind, ActorRefKind::TryMapped(_)));
 
-    actor_ref.send(M(1)).expect("unable to send message");
+    actor_ref.try_send(M(1)).expect("unable to send message");
     mapped_actor_ref
-        .send(Msg2(2))
+        .try_send(Msg2(2))
         .expect("unable to send message");
 
     assert_eq!(inbox.receive_next(), Some(M(1))); // Actor ref.
@@ -190,8 +190,10 @@ fn try_mapped_actor_ref_same_type() {
     let mapped_actor_ref: ActorRef<M> = actor_ref.clone().try_map();
     assert!(matches!(&mapped_actor_ref.kind, ActorRefKind::Node(_)));
 
-    actor_ref.send(M(1)).expect("unable to send message");
-    mapped_actor_ref.send(M(2)).expect("unable to send message");
+    actor_ref.try_send(M(1)).expect("unable to send message");
+    mapped_actor_ref
+        .try_send(M(2))
+        .expect("unable to send message");
 
     assert_eq!(inbox.receive_next(), Some(M(1))); // Actor ref.
     assert_eq!(inbox.receive_next(), Some(M(2))); // Try mapped ref.
@@ -204,9 +206,9 @@ fn mapped_sync_actor_ref() {
     let actor_ref = ActorRef::<M>::for_sync_actor(sender);
     let mapped_actor_ref: ActorRef<Msg> = actor_ref.clone().map();
 
-    actor_ref.send(M(1)).expect("unable to send message");
+    actor_ref.try_send(M(1)).expect("unable to send message");
     mapped_actor_ref
-        .send(Msg(2))
+        .try_send(Msg(2))
         .expect("unable to send message");
 
     assert_eq!(inbox.try_recv(), Ok(M(1))); // Sync actor ref.
@@ -220,9 +222,9 @@ fn try_mapped_sync_actor_ref() {
     let actor_ref = ActorRef::<M>::for_sync_actor(sender);
     let mapped_actor_ref: ActorRef<Msg2> = actor_ref.clone().try_map();
 
-    actor_ref.send(M(1)).expect("unable to send message");
+    actor_ref.try_send(M(1)).expect("unable to send message");
     mapped_actor_ref
-        .send(Msg2(2))
+        .try_send(Msg2(2))
         .expect("unable to send message");
 
     assert_eq!(inbox.try_recv(), Ok(M(1))); // Actor ref.
@@ -233,7 +235,7 @@ fn try_mapped_sync_actor_ref() {
 #[test]
 fn empty_actor_group() {
     let group = ActorGroup::<()>::empty();
-    assert!(group.send(()).is_err());
+    assert!(group.try_send(()).is_err());
 }
 
 #[test]
@@ -248,7 +250,7 @@ fn new_actor_group() {
         .collect();
 
     let group = ActorGroup::new(actor_refs);
-    assert!(group.send(()).is_ok());
+    assert!(group.try_send(()).is_ok());
 }
 
 #[test]
@@ -261,7 +263,7 @@ fn new_actor_group_from_iter() {
             ActorRef::from_inbox(inbox_ref)
         })
         .collect();
-    assert!(group.send(()).is_ok());
+    assert!(group.try_send(()).is_ok());
 }
 
 #[test]
@@ -273,7 +275,7 @@ fn add_actor_to_empty_group() {
     let mut group = ActorGroup::<usize>::empty();
     group.add(actor_ref);
 
-    group.send(1usize).unwrap();
+    group.try_send(1usize).unwrap();
     assert_eq!(inbox.receive_next(), Some(1));
     assert_eq!(inbox.receive_next(), None);
 }
@@ -297,7 +299,7 @@ fn add_actor_to_group() {
     inboxes.push(inbox);
     group.add(actor_ref);
 
-    group.send(1usize).unwrap();
+    group.try_send(1usize).unwrap();
     for inbox in inboxes.iter_mut() {
         assert_eq!(inbox.receive_next(), Some(1));
         assert_eq!(inbox.receive_next(), None);
@@ -320,7 +322,7 @@ fn extend_empty_actor_group() {
 
     group.extend(actor_refs);
 
-    group.send(1usize).unwrap();
+    group.try_send(1usize).unwrap();
     for inbox in inboxes.iter_mut() {
         assert_eq!(inbox.receive_next(), Some(1));
         assert_eq!(inbox.receive_next(), None);
@@ -352,7 +354,7 @@ fn extend_actor_group() {
 
     group.extend(actor_refs);
 
-    group.send(1usize).unwrap();
+    group.try_send(1usize).unwrap();
     for inbox in inboxes.iter_mut() {
         assert_eq!(inbox.receive_next(), Some(1));
         assert_eq!(inbox.receive_next(), None);
@@ -362,7 +364,7 @@ fn extend_actor_group() {
 #[test]
 fn send_to_empty_actor_group() {
     let group = ActorGroup::<usize>::empty();
-    assert!(group.send(1usize).is_err());
+    assert!(group.try_send(1usize).is_err());
 }
 
 #[test]
@@ -397,7 +399,7 @@ fn send_to_actor_group() {
     group.add(ActorRef::for_sync_actor(send).try_map());
 
     // Send the message.
-    group.send(1u32).unwrap();
+    group.try_send(1u32).unwrap();
 
     // Kind: `ActorRefKind::Node`.
     assert_eq!(inbox1.receive_next(), Some(1));

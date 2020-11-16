@@ -29,7 +29,7 @@ fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
     // runtime would run forever, without ever making progress (try this by
     // commenting out the send below!). So we'll send our actor a message via an
     // actor reference, which is a reference to the actor inside the runtime.
-    actor_ref.send("World").unwrap();
+    actor_ref.try_send("World").unwrap();
 
     Ok(())
 }

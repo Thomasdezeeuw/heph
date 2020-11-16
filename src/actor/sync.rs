@@ -23,7 +23,7 @@
 //!     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye", options)?;
 //!
 //!     // Just like with any actor reference we can send the actor a message.
-//!     actor_ref.send("Hello world".to_string()).unwrap();
+//!     actor_ref.try_send("Hello world".to_string()).unwrap();
 //!
 //!     // And now we start the runtime.
 //!     runtime.start()
@@ -96,10 +96,10 @@ use crate::actor::message_select::{MessageSelector, Messages};
 ///     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, (), options)?;
 ///
 ///     // Just like with any actor reference we can send the actor a message.
-///     actor_ref.send("Hello world".to_string()).unwrap();
+///     actor_ref.try_send("Hello world".to_string()).unwrap();
 ///
 ///     # let actor_ref: ActorRef<Signal> = actor_ref.try_map();
-///     # actor_ref.send(Signal::Interrupt).unwrap();
+///     # actor_ref.try_send(Signal::Interrupt).unwrap();
 ///
 ///     // And now we start the runtime.
 ///     runtime.start()

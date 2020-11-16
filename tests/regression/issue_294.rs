@@ -19,7 +19,7 @@ fn issue_294() {
 
     runtime
         .with_setup::<_, !>(move |_| {
-            actor_ref.send(()).unwrap();
+            actor_ref.try_send(()).unwrap();
             Ok(())
         })
         .start()

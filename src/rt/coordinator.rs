@@ -301,7 +301,7 @@ fn relay_signals<E>(
             worker.send_signal(signal)?;
         }
         for actor_ref in signal_refs.iter() {
-            if let Err(err) = actor_ref.send(signal) {
+            if let Err(err) = actor_ref.try_send(signal) {
                 warn!("failed to send process signal to actor: {}", err);
             }
         }
