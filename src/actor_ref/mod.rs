@@ -101,8 +101,11 @@ use std::any::TypeId;
 use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt;
+use std::future::Future;
 use std::iter::FromIterator;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{self, Poll};
 
 use crossbeam_channel::Sender;
 
@@ -172,6 +175,22 @@ impl<M> ActorRef<M> {
     pub(crate) const fn for_sync_actor(sender: Sender<M>) -> ActorRef<M> {
         ActorRef {
             kind: ActorRefKind::Sync(sender),
+        }
+    }
+
+    /// Asynchronously send a message to the actor.
+    ///
+    /// See [Sending messages] and [`ActorRef::try_send`] for more details.
+    ///
+    /// [Sending messages]: index.html#sending-messages
+    pub fn send<'r, Msg>(&'r mut self, msg: Msg) -> SendValue<'r, M>
+    where
+        Msg: Into<M>,
+        M: Unpin,
+    {
+        SendValue {
+            actor_ref: self,
+            msg: Some(msg.into()),
         }
     }
 
@@ -332,6 +351,28 @@ where
         M::try_from(msg)
             .map_err(|_msg| SendError)
             .and_then(|msg| self.try_send(msg))
+    }
+}
+
+/// [`Future`] behind [`ActorRef::send`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct SendValue<'r, M> {
+    actor_ref: &'r mut ActorRef<M>,
+    msg: Option<M>,
+}
+
+impl<'r, M: Unpin> Future for SendValue<'r, M> {
+    type Output = Result<(), SendError>;
+
+    #[track_caller]
+    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let msg = self
+            .msg
+            .take()
+            .expect("polled `SendValue` after completion");
+
+        Poll::Ready(self.actor_ref.try_send(msg))
     }
 }
 

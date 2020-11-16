@@ -11,7 +11,7 @@ fn main() -> Result<(), rt::Error> {
 
 /// The is the setup function used in the runtime.
 fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-    // spawn our `greeter_actor` onto the runtime.
+    // Spawn our `greeter_actor` onto the runtime.
     // All actors need supervision, however our actor doesn't return an error
     // (it uses `!`, the never type, as error), because of this we'll use the
     // `NoSupervisor`, which is a supervisor that does nothing and can't be
@@ -28,7 +28,7 @@ fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
     // for example by sending them a message. If we didn't send this message the
     // runtime would run forever, without ever making progress (try this by
     // commenting out the send below!). So we'll send our actor a message via an
-    // actor reference, which is a reference to the actor inside the runtime.
+    // actor reference.
     actor_ref.try_send("World").unwrap();
 
     Ok(())
@@ -39,7 +39,7 @@ fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 /// We'll receive a single message and print it.
 async fn greeter_actor(mut ctx: actor::Context<&'static str>) -> Result<(), !> {
     // All actors have an actor context, which give the actor access to, among
-    // other things, its inbox from which we can receive a message.
+    // other things, its inbox from which it can receive a message.
     let name = ctx.receive_next().await;
     println!("Hello {}", name);
     Ok(())
