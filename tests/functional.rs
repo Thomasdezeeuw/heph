@@ -511,15 +511,18 @@ mod future {
     #[test]
     fn recv_value_wake_up_optimised() {
         let (waker, count) = new_count_waker();
-        let (sender, mut receiver) = new_small::<usize>();
-
-        sender.try_send(10).unwrap();
-        assert_eq!(count.get(), 0); // Wake-up optimised away.
-
         let mut ctx = task::Context::from_waker(&waker);
+        let (sender, mut receiver) = new_small::<usize>();
 
         let future = receiver.recv();
         pin_stack!(future);
+
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+        sender.try_send(10).unwrap();
+        assert_eq!(count.get(), 1);
+        sender.try_send(20).unwrap();
+        assert_eq!(count.get(), 1); // Second wake-up optimised away.
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
     }
