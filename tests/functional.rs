@@ -5,6 +5,7 @@
 mod util;
 
 mod functional {
+    mod actor_ref;
     mod bytes;
     mod from_message;
     mod restart_supervisor;
