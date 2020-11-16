@@ -11,7 +11,7 @@
 //!
 //! The sending actor needs to call [`ActorRef::rpc`] with the correct request
 //! type. That will return an [`Rpc`] [`Future`] which returns the response to
-//! the call, or [`NoResponse`] in case the actor didn't send a response.
+//! the call, or [`RpcError`] in case of an error.
 //!
 //! [`ActorRef::rpc`]: crate::actor_ref::ActorRef::rpc
 //!
@@ -23,7 +23,7 @@
 //! # #![feature(never_type)]
 //! #
 //! use heph::{actor, rt, Runtime, ActorOptions};
-//! use heph::actor_ref::{ActorRef, RpcMessage, NoResponse};
+//! use heph::actor_ref::{ActorRef, RpcMessage};
 //! use heph::supervisor::NoSupervisor;
 //!
 //! /// Message type for [`counter`].
@@ -41,24 +41,25 @@
 //!     // State of the counter.
 //!     let mut count: usize = 0;
 //!     // Receive a message like normal.
-//!     let RpcMessage { request, response } = ctx.receive_next().await.0;
-//!     count += request;
-//!     // Send back the current state, ignoring any errors.
-//!     let _ = response.respond(count);
+//!     while let Ok(Add(RpcMessage { request, response })) = ctx.receive_next().await {
+//!         count += request;
+//!         // Send back the current state, ignoring any errors.
+//!         let _ = response.respond(count);
+//!     }
 //!     // And we're done.
 //!     Ok(())
 //! }
 //!
 //! /// Sending actor of the RPC.
-//! async fn requester(mut ctx: actor::Context<!>, actor_ref: ActorRef<Add>) -> Result<(), !> {
+//! async fn requester(_ctx: actor::Context<!>, actor_ref: ActorRef<Add>) -> Result<(), !> {
 //!     // Make the procedure call.
-//!     let response = actor_ref.rpc(&mut ctx, 10).unwrap().await;
+//!     let response = actor_ref.rpc(10).await;
 //! #   assert!(response.is_ok());
 //!     match response {
 //!         // We got a response.
 //!         Ok(count) => println!("Current count: {}", count),
 //!         // Actor failed to respond.
-//!         Err(NoResponse) => eprintln!("Counter didn't reply"),
+//!         Err(err) => eprintln!("Counter didn't reply: {}", err),
 //!     }
 //!     Ok(())
 //! }
@@ -135,15 +136,15 @@
 //! }
 //!
 //! /// Sending actor of the RPC.
-//! async fn requester(mut ctx: actor::Context<!>, actor_ref: ActorRef<Message>) -> Result<(), !> {
+//! async fn requester(_ctx: actor::Context<!>, actor_ref: ActorRef<Message>) -> Result<(), !> {
 //!     // Increase the counter by ten.
 //!     // NOTE: do handle the errors correctly in practice, this is just an
 //!     // example.
-//!     let count = actor_ref.rpc(&mut ctx, 10).unwrap().await.unwrap();
+//!     let count = actor_ref.rpc(10).await.unwrap();
 //!     println!("Increased count to {}", count);
 //!
 //!     // Retrieve the current count.
-//!     let count = actor_ref.rpc(&mut ctx, ()).unwrap().await.unwrap();
+//!     let count = actor_ref.rpc(()).await.unwrap();
 //! #   assert_eq!(count, 10);
 //!     println!("Current count {}", count);
 //!     Ok(())
@@ -168,51 +169,92 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use crate::actor_ref::SendError;
-use crate::inbox::oneshot::{self, Receiver, RecvError, Sender};
-use crate::rt::Waker;
+use inbox::oneshot::{new_oneshot, RecvOnce, Sender};
+
+use crate::actor_ref::{ActorRef, SendError, SendValue};
 
 /// [`Future`] that resolves to a Remote Procedure Call (RPC) response.
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Rpc<Res> {
-    recv: Receiver<Res>,
+pub struct Rpc<'r, 'fut, M, Res> {
+    send: Option<SendValue<'r, 'fut, M>>,
+    recv: RecvOnce<Res>,
 }
 
-impl<Res> Rpc<Res> {
+impl<'r, 'fut, M, Res> Rpc<'r, 'fut, M, Res>
+where
+    'r: 'fut,
+{
     /// Create a new RPC.
-    pub(super) fn new<Req>(waker: Waker, request: Req) -> (RpcMessage<Req, Res>, Rpc<Res>) {
-        let (send, recv) = oneshot::channel(waker);
-        let response = RpcResponse { send };
+    pub(super) fn new<Req>(actor_ref: &'r ActorRef<M>, request: Req) -> Rpc<'r, 'fut, M, Res>
+    where
+        M: From<RpcMessage<Req, Res>> + Unpin,
+    {
+        let (sender, receiver) = new_oneshot();
+        let response = RpcResponse { sender };
         let msg = RpcMessage { request, response };
-        let rpc = Rpc { recv };
-        (msg, rpc)
-    }
-}
-
-impl<Res> Future for Rpc<Res> {
-    type Output = Result<Res, NoResponse>;
-
-    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        match self.get_mut().recv.try_recv() {
-            Ok((response, _)) => Poll::Ready(Ok(response)),
-            Err(RecvError::NoValue) => Poll::Pending,
-            Err(RecvError::Disconnected) => Poll::Ready(Err(NoResponse)),
+        let send = actor_ref.send(msg);
+        Rpc {
+            send: Some(send),
+            recv: receiver.recv_once(),
         }
     }
 }
 
-/// Error returned when an [`Rpc`] returned no response.
-#[derive(Copy, Clone, Debug)]
-pub struct NoResponse;
+impl<'r, 'fut, M, Res> Future for Rpc<'r, 'fut, M, Res>
+where
+    M: Unpin,
+{
+    type Output = Result<Res, RpcError>;
 
-impl fmt::Display for NoResponse {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("no RPC response")
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // Safety: we're not moving `send` so this is safe.
+        let send = unsafe { self.as_mut().map_unchecked_mut(|s| &mut s.send) }.as_pin_mut();
+        if let Some(send) = send {
+            match send.poll(ctx) {
+                Poll::Ready(Ok(())) => {}
+                Poll::Ready(Err(err)) => return Poll::Ready(Err(err.into())),
+                Poll::Pending => return Poll::Pending,
+            }
+            // Don't take this branch again.
+            // Safety: we're not moving `send` so this is safe.
+            unsafe { self.as_mut().map_unchecked_mut(|s| &mut s.send) }.set(None);
+        }
+
+        // Safety: we're not moving `recv` so this is safe.
+        match unsafe { self.map_unchecked_mut(|s| &mut s.recv) }.poll(ctx) {
+            Poll::Ready(Some(response)) => Poll::Ready(Ok(response)),
+            Poll::Ready(None) => Poll::Ready(Err(RpcError::NoResponse)),
+            Poll::Pending => Poll::Pending,
+        }
     }
 }
 
-impl Error for NoResponse {}
+/// Error returned by [`Rpc`].
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum RpcError {
+    /// Same error as [`SendError`].
+    SendError,
+    /// Returned when the other side returned no response.
+    NoResponse,
+}
+
+impl From<SendError> for RpcError {
+    fn from(_: SendError) -> RpcError {
+        RpcError::SendError
+    }
+}
+
+impl fmt::Display for RpcError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RpcError::SendError => SendError.fmt(f),
+            RpcError::NoResponse => f.write_str("no RPC response"),
+        }
+    }
+}
+
+impl Error for RpcError {}
 
 /// Message type that holds an RPC request.
 ///
@@ -261,13 +303,13 @@ impl<Req, Res> RpcMessage<Req, Res> {
 /// Structure to respond to an [`Rpc`] request.
 #[derive(Debug)]
 pub struct RpcResponse<Res> {
-    send: Sender<Res>,
+    sender: Sender<Res>,
 }
 
 impl<Res> RpcResponse<Res> {
     /// Respond to a RPC request.
     pub fn respond(self, response: Res) -> Result<(), SendError> {
-        self.send.try_send(response).map_err(|_| SendError)
+        self.sender.try_send(response).map_err(|_| SendError)
     }
 
     /// Returns `false` if the receiving side is disconnected.
@@ -278,6 +320,6 @@ impl<Res> RpcResponse<Res> {
     /// succeed. In fact the moment this function returns a result it could
     /// already be invalid.
     pub fn is_connected(&self) -> bool {
-        self.send.is_connected()
+        self.sender.is_connected()
     }
 }

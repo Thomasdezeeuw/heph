@@ -1,10 +1,20 @@
 #![allow(dead_code)] // Not all tests use all functions/types.
 
 use std::fmt;
+use std::mem::size_of;
 use std::net::SocketAddr;
 use std::task::Poll;
 use std::thread::sleep;
 use std::time::Duration;
+
+pub fn assert_send<T: Send>() {}
+
+pub fn assert_sync<T: Sync>() {}
+
+#[track_caller]
+pub fn assert_size<T>(expected: usize) {
+    assert_eq!(size_of::<T>(), expected);
+}
 
 /// Bind to any IPv4 port on localhost.
 pub fn any_local_address() -> SocketAddr {

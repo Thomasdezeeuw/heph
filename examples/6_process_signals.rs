@@ -81,8 +81,8 @@ fn sync_actor(mut ctx: SyncContext<Message>) -> Result<(), !> {
 }
 
 async fn thread_safe_actor(mut ctx: actor::Context<Message, ThreadSafe>) -> Result<(), !> {
-    loop {
-        match ctx.receive_next().await {
+    while let Ok(msg) = ctx.receive_next().await {
+        match msg {
             Message::Print(msg) => println!("Got a message: {}", msg),
             Message::Terminate => break,
         }
@@ -93,8 +93,8 @@ async fn thread_safe_actor(mut ctx: actor::Context<Message, ThreadSafe>) -> Resu
 }
 
 async fn local_actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
-    loop {
-        match ctx.receive_next().await {
+    while let Ok(msg) = ctx.receive_next().await {
+        match msg {
             Message::Print(msg) => println!("Got a message: {}", msg),
             Message::Terminate => break,
         }

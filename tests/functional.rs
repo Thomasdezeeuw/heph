@@ -5,6 +5,8 @@
 mod util;
 
 mod functional {
+    mod actor_context;
+    mod actor_group;
     mod actor_ref;
     mod bytes;
     mod from_message;

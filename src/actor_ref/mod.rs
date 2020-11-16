@@ -47,8 +47,9 @@
 //!
 //! /// Our actor.
 //! async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
-//!     let msg = ctx.receive_next().await;
-//!     println!("got message: {}", msg);
+//!     if let Ok(msg) = ctx.receive_next().await {
+//!         println!("got message: {}", msg);
+//!     }
 //!     Ok(())
 //! }
 //! ```
@@ -88,11 +89,13 @@
 //!
 //! /// Our actor.
 //! async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
-//!     let msg = ctx.receive_next().await;
-//!     println!("First message: {}", msg);
+//!     if let Ok(msg) = ctx.receive_next().await {
+//!         println!("First message: {}", msg);
+//!     }
 //!
-//!     let msg = ctx.receive_next().await;
-//!     println!("Second message: {}", msg);
+//!     if let Ok(msg) = ctx.receive_next().await {
+//!         println!("Second message: {}", msg);
+//!     }
 //!     Ok(())
 //! }
 //! ```
@@ -107,28 +110,11 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
 
-use crossbeam_channel::Sender;
-
-use crate::actor;
-use crate::inbox::InboxRef;
-use crate::rt::PrivateAccess;
+use inbox::Sender;
 
 pub mod rpc;
 #[doc(no_inline)]
-pub use rpc::{NoResponse, Rpc, RpcMessage, RpcResponse};
-
-#[cfg(test)]
-mod tests;
-
-/// Trait to erase the original message type of the actor reference.
-trait MappedActorRef<M> {
-    fn mapped_send(&self, msg: M) -> Result<(), SendError>;
-}
-
-/// Trait to erase the original message type of the actor reference.
-trait TryMappedActorRef<M> {
-    fn try_mapped_send(&self, msg: M) -> Result<(), SendError>;
-}
+pub use rpc::{Rpc, RpcError, RpcMessage, RpcResponse};
 
 /// Actor reference.
 ///
@@ -141,21 +127,16 @@ pub struct ActorRef<M> {
 }
 
 enum ActorRefKind<M> {
-    /// Reference to an actor that might be on another thread, but on the same
-    /// node.
-    Node(InboxRef<M>),
-    /// Reference to a synchronous actor.
-    Sync(Sender<M>),
-    /// Reference that maps the message to a different type first.
-    Mapped(Arc<dyn MappedActorRef<M>>),
+    /// Reference to an actor running on the same machine.
+    Local(Sender<M>),
     /// Reference that attempts to map the message to a different type first.
-    TryMapped(Arc<dyn TryMappedActorRef<M>>),
+    Mapped(Arc<dyn MappedActorRef<M>>),
 }
 
-// We know that `Node` and `Sync` variants are `Send` and `Sync` and since the
-// `Mapped` and `TryMapped` variants are only one of those two so are those
-// variants, which makes the entire `ActorRefKind` `Send` and `Sync`, as long as
-// `M` is `Send` (as we would be sending the message across thread bounds).
+// We know that the `Local` variant is `Send` and `Sync`. S since the `Mapped`
+// variant is a boxed version of `Local` so is that variant. This makes the
+// entire `ActorRefKind` `Send` and `Sync`, as long as `M` is `Send` (as we
+// could be sending the message across thread bounds).
 unsafe impl<M: Send> Send for ActorRefKind<M> {}
 unsafe impl<M: Send> Sync for ActorRefKind<M> {}
 
@@ -165,16 +146,9 @@ impl<M> Unpin for ActorRefKind<M> {}
 
 impl<M> ActorRef<M> {
     /// Create a new `ActorRef` for an actor using `inbox_ref`.
-    pub(crate) const fn from_inbox(inbox_ref: InboxRef<M>) -> ActorRef<M> {
+    pub(crate) const fn local(sender: Sender<M>) -> ActorRef<M> {
         ActorRef {
-            kind: ActorRefKind::Node(inbox_ref),
-        }
-    }
-
-    /// Create a new `ActorRef` for a synchronous actor.
-    pub(crate) const fn for_sync_actor(sender: Sender<M>) -> ActorRef<M> {
-        ActorRef {
-            kind: ActorRefKind::Sync(sender),
+            kind: ActorRefKind::Local(sender),
         }
     }
 
@@ -183,14 +157,27 @@ impl<M> ActorRef<M> {
     /// See [Sending messages] and [`ActorRef::try_send`] for more details.
     ///
     /// [Sending messages]: index.html#sending-messages
-    pub fn send<'r, Msg>(&'r mut self, msg: Msg) -> SendValue<'r, M>
+    ///
+    /// # Notes
+    ///
+    /// Mapped actor references, see [`ActorRef::map`] and
+    /// [`ActorRef::try_map`], require an allocation and might be expansive. If
+    /// possible try [`ActorRef::try_send`] first, which does not require an
+    /// allocation. Regular (i.e. non-mapped) actor references do not require an
+    /// allocation.
+    pub fn send<'r, 'fut, Msg>(&'r self, msg: Msg) -> SendValue<'r, 'fut, M>
     where
+        'r: 'fut,
         Msg: Into<M>,
         M: Unpin,
     {
+        let msg = msg.into();
+        use ActorRefKind::*;
         SendValue {
-            actor_ref: self,
-            msg: Some(msg.into()),
+            kind: match &self.kind {
+                Local(sender) => SendValueKind::Local(sender.send(msg)),
+                Mapped(actor_ref) => SendValueKind::Mapped(actor_ref.mapped_send(msg)),
+            },
         }
     }
 
@@ -219,10 +206,8 @@ impl<M> ActorRef<M> {
         let msg = msg.into();
         use ActorRefKind::*;
         match &self.kind {
-            Node(inbox_ref) => inbox_ref.try_send(msg).map_err(|_| SendError),
-            Sync(sender) => sender.try_send(msg).map_err(|_err| SendError),
-            Mapped(actor_ref) => actor_ref.mapped_send(msg),
-            TryMapped(actor_ref) => actor_ref.try_mapped_send(msg),
+            Local(sender) => sender.try_send(msg).map_err(|_| SendError),
+            Mapped(actor_ref) => actor_ref.try_mapped_send(msg),
         }
     }
 
@@ -235,26 +220,22 @@ impl<M> ActorRef<M> {
     /// See the [`rpc`] module for more details.
     ///
     /// [`Future`]: std::future::Future
-    pub fn rpc<CM, K, Req, Res>(
-        &self,
-        ctx: &mut actor::Context<CM, K>,
-        request: Req,
-    ) -> Result<Rpc<Res>, SendError>
+    pub fn rpc<'r, 'fut, Req, Res>(&'r self, request: Req) -> Rpc<'r, 'fut, M, Res>
     where
-        M: From<RpcMessage<Req, Res>>,
-        actor::Context<CM, K>: PrivateAccess,
+        'r: 'fut,
+        M: From<RpcMessage<Req, Res>> + Unpin,
     {
-        let pid = ctx.pid();
-        let waker = ctx.new_waker(pid);
-        let (msg, rpc) = Rpc::new(waker, request);
-        self.try_send(msg).map(|()| rpc)
+        Rpc::new(self, request)
     }
 
     /// Changes the message type of the actor reference.
     ///
     /// Before sending the message this will first change the message into a
     /// different type. This is useful when you need to send to different types
-    /// of actors (using different message types) from a central location.
+    /// of actors (using different message types) from a central location. For
+    /// example in process signal handling, see [`RuntimeRef::receive_signals`].
+    ///
+    /// [`RuntimeRef::receive_signals`]: crate::RuntimeRef::receive_signals
     ///
     /// # Notes
     ///
@@ -267,23 +248,18 @@ impl<M> ActorRef<M> {
     where
         M: From<Msg> + 'static,
         Msg: 'static,
+        M: Unpin,
     {
-        if TypeId::of::<ActorRef<M>>() == TypeId::of::<ActorRef<Msg>>() {
-            // Safety: If `M` == `Msg`, then the following `transmute` is a
-            // no-op and thus safe.
-            unsafe { std::mem::transmute(self) }
-        } else {
-            ActorRef {
-                kind: ActorRefKind::Mapped(Arc::new(self)),
-            }
-        }
+        // There is a blanket implementation for `TryFrom` for `T: From` so we
+        // can use the `TryFrom` knowning that it will never return an error.
+        self.try_map()
     }
 
     /// Much like [`map`], but uses the [`TryFrom`] trait.
     ///
-    /// This creates a new local actor reference that attempts to map from one
-    /// message type to another before sending. This is useful when you need to
-    /// send to different types of actors from a central location.
+    /// This creates a new actor reference that attempts to map from one message
+    /// type to another before sending. This is useful when you need to send to
+    /// different types of actors from a central location.
     ///
     /// [`map`]: ActorRef::map
     ///
@@ -301,6 +277,7 @@ impl<M> ActorRef<M> {
     where
         M: TryFrom<Msg> + 'static,
         Msg: 'static,
+        M: Unpin,
     {
         if TypeId::of::<ActorRef<M>>() == TypeId::of::<ActorRef<Msg>>() {
             // Safety: If `M` == `Msg`, then the following `transmute` is a
@@ -308,7 +285,7 @@ impl<M> ActorRef<M> {
             unsafe { std::mem::transmute(self) }
         } else {
             ActorRef {
-                kind: ActorRefKind::TryMapped(Arc::new(self)),
+                kind: ActorRefKind::Mapped(Arc::new(self)),
             }
         }
     }
@@ -319,10 +296,8 @@ impl<M> Clone for ActorRef<M> {
         use ActorRefKind::*;
         ActorRef {
             kind: match &self.kind {
-                Node(inbox_ref) => Node(inbox_ref.clone()),
-                Sync(sender) => Sync(sender.clone()),
+                Local(sender) => Local(sender.clone()),
                 Mapped(actor_ref) => Mapped(actor_ref.clone()),
-                TryMapped(actor_ref) => TryMapped(actor_ref.clone()),
             },
         }
     }
@@ -334,52 +309,108 @@ impl<M> fmt::Debug for ActorRef<M> {
     }
 }
 
-impl<M, Msg> MappedActorRef<Msg> for ActorRef<M>
-where
-    M: From<Msg>,
-{
-    fn mapped_send(&self, msg: Msg) -> Result<(), SendError> {
-        self.try_send(msg)
-    }
+/// Trait to erase the original message type of the actor reference.
+///
+/// # Notes
+///
+/// For correctness this may only be implemented on [`ActorRef`].
+trait MappedActorRef<M> {
+    /// Same as [`ActorRef::try_send`] but converts the message first.
+    fn try_mapped_send(&self, msg: M) -> Result<(), SendError>;
+
+    fn mapped_send<'r, 'fut>(
+        &'r self,
+        msg: M,
+    ) -> Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>
+    where
+        'r: 'fut,
+        M: Unpin + 'fut;
 }
 
-impl<M, Msg> TryMappedActorRef<Msg> for ActorRef<M>
+impl<M, Msg> MappedActorRef<Msg> for ActorRef<M>
 where
     M: TryFrom<Msg>,
+    M: Unpin,
 {
     fn try_mapped_send(&self, msg: Msg) -> Result<(), SendError> {
         M::try_from(msg)
             .map_err(|_msg| SendError)
             .and_then(|msg| self.try_send(msg))
     }
+
+    fn mapped_send<'r, 'fut>(
+        &'r self,
+        msg: Msg,
+    ) -> Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>
+    where
+        'r: 'fut,
+        Msg: Unpin + 'fut,
+    {
+        Box::pin(async move {
+            let msg = M::try_from(msg).map_err(|_msg| SendError)?;
+            self.send(msg).await
+        })
+    }
 }
 
 /// [`Future`] behind [`ActorRef::send`].
-#[derive(Debug)]
+///
+/// # Safety
+///
+/// It is not safe to leak this `SendValue` (by using [`mem::forget`]). Always
+/// make sure the destructor is run, by calling [`drop`], or letting it go out
+/// of scope.
+///
+/// [`mem::forget`]: std::mem::forget
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct SendValue<'r, M> {
-    actor_ref: &'r mut ActorRef<M>,
-    msg: Option<M>,
+pub struct SendValue<'r, 'fut, M> {
+    kind: SendValueKind<'r, 'fut, M>,
 }
 
-impl<'r, M: Unpin> Future for SendValue<'r, M> {
+enum SendValueKind<'r, 'fut, M> {
+    Local(inbox::SendValue<'r, M>),
+    Mapped(Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>),
+}
+
+impl<'r, 'fut, M> Future for SendValue<'r, 'fut, M>
+where
+    M: Unpin,
+{
     type Output = Result<(), SendError>;
 
     #[track_caller]
-    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let msg = self
-            .msg
-            .take()
-            .expect("polled `SendValue` after completion");
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        #[cfg(any(test, feature = "test"))]
+        {
+            if crate::test::should_lose_msg() {
+                log::debug!("dropping message on purpose");
+                return Poll::Ready(Ok(()));
+            }
+        }
 
-        Poll::Ready(self.actor_ref.try_send(msg))
+        // This is safe because we're not moving the actor.
+        let this = unsafe { self.get_unchecked_mut() };
+        use SendValueKind::*;
+        match &mut this.kind {
+            // Safety: we're not moving `inner` so this is safe.
+            Local(send_value) => unsafe { Pin::new_unchecked(send_value) }
+                .poll(ctx)
+                .map_err(|_| SendError),
+            Mapped(fut) => fut.as_mut().poll(ctx),
+        }
+    }
+}
+
+impl<'r, 'fut, M> fmt::Debug for SendValue<'r, 'fut, M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("SendValue")
     }
 }
 
 /// Error returned when sending a message fails.
 ///
 /// The reason why the sending of the message failed is unspecified.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct SendError;
 
 impl fmt::Display for SendError {
@@ -426,8 +457,8 @@ impl<M> ActorGroup<M> {
     /// Attempts to asynchronously send a message to all the actors in the
     /// group.
     ///
-    /// This will first `clone` the message and `send` it to each actor in the
-    /// group. Note that this means it will `clone` before calling
+    /// This will first `clone` the message and then [`try_send`]ing it to each
+    /// actor in the group. Note that this means it will `clone` before calling
     /// [`Into::into`] on the message. If the call to [`Into::into`] is
     /// expansive, or `M` is cheaper to clone than `Msg` it might be worthwhile
     /// to call `msg.into()` before calling this method.
@@ -437,6 +468,7 @@ impl<M> ActorGroup<M> {
     ///
     /// See [Sending messages] for more details.
     ///
+    /// [`try_send`]: ActorRef::try_send
     /// [Sending messages]: index.html#sending-messages
     pub fn try_send<Msg>(&self, msg: Msg) -> Result<(), SendError>
     where

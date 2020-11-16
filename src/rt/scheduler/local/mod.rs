@@ -9,10 +9,10 @@ use std::fmt;
 use std::pin::Pin;
 use std::time::Duration;
 
+use inbox::Manager;
 use log::trace;
 
 use crate::actor::context;
-use crate::inbox::{Inbox, InboxRef};
 use crate::rt::process::{self, ActorProcess, ProcessId};
 use crate::rt::scheduler::{self, AddActor, Priority};
 use crate::{NewActor, Supervisor};
@@ -99,8 +99,7 @@ impl<'s> AddActor<&'s mut LocalScheduler, dyn process::Process> {
         supervisor: S,
         new_actor: NA,
         actor: NA::Actor,
-        inbox: Inbox<NA::Message>,
-        inbox_ref: InboxRef<NA::Message>,
+        inbox: Manager<NA::Message>,
         is_ready: bool,
     ) where
         S: Supervisor<NA> + 'static,
@@ -114,9 +113,7 @@ impl<'s> AddActor<&'s mut LocalScheduler, dyn process::Process> {
         let process = ProcessData {
             priority,
             fair_runtime: Duration::from_nanos(0),
-            process: Box::pin(ActorProcess::new(
-                supervisor, new_actor, actor, inbox, inbox_ref,
-            )),
+            process: Box::pin(ActorProcess::new(supervisor, new_actor, actor, inbox)),
         };
         let AddActor {
             processes,
