@@ -224,6 +224,14 @@ impl<T> Receiver<T> {
         RecvValue { receiver: self }
     }
 
+    /// Returns an owned version of [`Receiver::recv`] that can only be used
+    /// once.
+    ///
+    /// See [`Receiver::recv`] for more information.
+    pub fn recv_once(self) -> RecvOnce<T> {
+        RecvOnce { receiver: self }
+    }
+
     /// Attempt to reset the channel.
     ///
     /// If the sender is disconnected this will return a new `Sender`. If the
@@ -316,15 +324,13 @@ pub struct RecvValue<'r, T> {
     receiver: &'r mut Receiver<T>,
 }
 
-impl<'r, T> Future for RecvValue<'r, T> {
-    type Output = Option<(T, Sender<T>)>;
-
-    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
-        match self.receiver.try_recv() {
+macro_rules! recv_future_impl {
+    ($self: ident, $ctx: ident) => {
+        match $self.receiver.try_recv() {
             Ok(ok) => Poll::Ready(Some(ok)),
             Err(RecvError::NoValue) => {
                 // The sender hasn't send a value yet, we'll set the waker.
-                if !self.receiver.set_waker(ctx.waker()) {
+                if !$self.receiver.set_waker($ctx.waker()) {
                     // Waker already set.
                     return Poll::Pending;
                 }
@@ -332,8 +338,8 @@ impl<'r, T> Future for RecvValue<'r, T> {
                 // It could be the case that the sender send a value in the time
                 // between we last checked and we actually marked ourselves as
                 // needing a wake up, so we need to check again.
-                match self.receiver.try_recv() {
-                    Ok(value) => Poll::Ready(Some(value)),
+                match $self.receiver.try_recv() {
+                    Ok(ok) => Poll::Ready(Some(ok)),
                     // The `Sender` will wake us when the message is send.
                     Err(RecvError::NoValue) => Poll::Pending,
                     Err(RecvError::Disconnected) => Poll::Ready(None),
@@ -341,10 +347,38 @@ impl<'r, T> Future for RecvValue<'r, T> {
             }
             Err(RecvError::Disconnected) => Poll::Ready(None),
         }
+    };
+}
+
+impl<'r, T> Future for RecvValue<'r, T> {
+    type Output = Option<(T, Sender<T>)>;
+
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
+        recv_future_impl!(self, ctx)
     }
 }
 
 impl<'r, T> Unpin for RecvValue<'r, T> {}
+
+/// [`Future`] implementation behind [`Receiver::recv_once`].
+#[derive(Debug)]
+pub struct RecvOnce<T> {
+    receiver: Receiver<T>,
+}
+
+impl<T> Future for RecvOnce<T> {
+    type Output = Option<T>;
+
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
+        match recv_future_impl!(self, ctx) {
+            Poll::Ready(Some((value, _))) => Poll::Ready(Some(value)),
+            Poll::Ready(None) => Poll::Ready(None),
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+impl<T> Unpin for RecvOnce<T> {}
 
 /// Data shared between [`Sender`] and [`Receiver`].
 struct Shared<T> {
