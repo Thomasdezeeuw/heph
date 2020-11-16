@@ -13,7 +13,7 @@ mod util;
 #[test]
 #[cfg_attr(miri, ignore)] // Doesn't finish.
 fn send_single_value() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (sender, mut receiver) = new_small::<usize>();
 
     start_threads!(
         {
@@ -28,7 +28,7 @@ fn send_single_value() {
 #[test]
 #[cfg_attr(miri, ignore)] // Doesn't finish.
 fn zero_sized_types() {
-    let (mut sender, mut receiver) = new_small();
+    let (sender, mut receiver) = new_small();
 
     start_threads!(
         {
@@ -64,7 +64,7 @@ fn receive_no_sender() {
 #[test]
 #[cfg_attr(miri, ignore)] // Doesn't support `sleep`.
 fn send_no_receiver() {
-    let (mut sender, receiver) = new_small::<usize>();
+    let (sender, receiver) = new_small::<usize>();
 
     start_threads!(
         {

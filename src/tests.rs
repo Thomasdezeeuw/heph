@@ -684,7 +684,7 @@ fn channel_remove_waker_null_pointer() {
 
 #[test]
 fn send_value_removes_waker_from_list_on_drop() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (sender, mut receiver) = new_small::<usize>();
 
     for _ in 0..SMALL_CAP {
         sender.try_send(123).unwrap();
@@ -710,7 +710,7 @@ fn send_value_removes_waker_from_list_on_drop() {
 
 #[test]
 fn send_value_removes_waker_from_list_on_drop_polled_with_different_wakers() {
-    let (mut sender, mut receiver) = new_small::<usize>();
+    let (sender, mut receiver) = new_small::<usize>();
 
     for _ in 0..SMALL_CAP {
         sender.try_send(123).unwrap();

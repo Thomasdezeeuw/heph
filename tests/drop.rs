@@ -91,7 +91,7 @@ fn empty_cloned_with_manager() {
 
 #[test]
 fn send_single_value_sr() {
-    let (mut sender, receiver) = new_small();
+    let (sender, receiver) = new_small();
     let (value, _check) = DropTest::new();
     sender.try_send(value).unwrap();
     drop(sender);
@@ -100,7 +100,7 @@ fn send_single_value_sr() {
 
 #[test]
 fn send_single_value_rs() {
-    let (mut sender, receiver) = new_small();
+    let (sender, receiver) = new_small();
     let (value, _check) = DropTest::new();
     sender.try_send(value).unwrap();
     drop(receiver);
@@ -109,7 +109,7 @@ fn send_single_value_rs() {
 
 #[test]
 fn send_single_value_with_manager() {
-    let (manager, mut sender, receiver) = Manager::new_small_channel();
+    let (manager, sender, receiver) = Manager::new_small_channel();
     let (value, _check) = DropTest::new();
     sender.try_send(value).unwrap();
     drop(sender);
@@ -119,7 +119,7 @@ fn send_single_value_with_manager() {
 
 #[test]
 fn full_channel_sr() {
-    let (mut sender, receiver) = new_small();
+    let (sender, receiver) = new_small();
     let _checks: Vec<IsDropped> = (0..SMALL_CAP)
         .into_iter()
         .map(|_| {
@@ -134,7 +134,7 @@ fn full_channel_sr() {
 
 #[test]
 fn full_channel_rs() {
-    let (mut sender, receiver) = new_small();
+    let (sender, receiver) = new_small();
     let _checks: Vec<IsDropped> = (0..SMALL_CAP)
         .into_iter()
         .map(|_| {
@@ -149,7 +149,7 @@ fn full_channel_rs() {
 
 #[test]
 fn full_channel_with_manager() {
-    let (manager, mut sender, receiver) = Manager::new_small_channel();
+    let (manager, sender, receiver) = Manager::new_small_channel();
     let _checks: Vec<IsDropped> = (0..SMALL_CAP)
         .into_iter()
         .map(|_| {
@@ -165,7 +165,7 @@ fn full_channel_with_manager() {
 
 #[test]
 fn value_received_sr() {
-    let (mut sender, mut receiver) = new_small();
+    let (sender, mut receiver) = new_small();
     let _checks: Vec<IsDropped> = (0..SMALL_CAP)
         .into_iter()
         .map(|_| {
@@ -182,7 +182,7 @@ fn value_received_sr() {
 
 #[test]
 fn value_received_rs() {
-    let (mut sender, mut receiver) = new_small();
+    let (sender, mut receiver) = new_small();
     let _checks: Vec<IsDropped> = (0..SMALL_CAP)
         .into_iter()
         .map(|_| {
@@ -199,7 +199,7 @@ fn value_received_rs() {
 
 #[test]
 fn value_received_with_manager() {
-    let (manager, mut sender, mut receiver) = Manager::new_small_channel();
+    let (manager, sender, mut receiver) = Manager::new_small_channel();
     let _checks: Vec<IsDropped> = (0..SMALL_CAP)
         .into_iter()
         .map(|_| {
@@ -296,7 +296,7 @@ mod threaded {
     #[test]
     #[cfg_attr(miri, ignore)] // `sleep` not supported.
     fn send_single_value() {
-        let (mut sender, receiver) = new_small();
+        let (sender, receiver) = new_small();
         let (value, _check) = DropTest::new();
 
         start_threads!(
@@ -315,7 +315,7 @@ mod threaded {
     #[test]
     #[cfg_attr(miri, ignore)] // `sleep` not supported.
     fn send_single_value_with_manager() {
-        let (manager, mut sender, receiver) = Manager::new_small_channel();
+        let (manager, sender, receiver) = Manager::new_small_channel();
         let (value, _check) = DropTest::new();
 
         start_threads!(
@@ -337,7 +337,7 @@ mod threaded {
     #[test]
     #[cfg_attr(miri, ignore)] // `sleep` not supported.
     fn full_channel() {
-        let (mut sender, receiver) = new_small();
+        let (sender, receiver) = new_small();
         let (values, _checks) = DropTest::many(SMALL_CAP);
 
         start_threads!(
@@ -358,7 +358,7 @@ mod threaded {
     #[test]
     #[cfg_attr(miri, ignore)] // `sleep` not supported.
     fn full_channel_with_manager() {
-        let (manager, mut sender, receiver) = Manager::new_small_channel();
+        let (manager, sender, receiver) = Manager::new_small_channel();
         let (values, _checks) = DropTest::many(SMALL_CAP);
 
         start_threads!(
@@ -382,7 +382,7 @@ mod threaded {
     #[test]
     #[cfg_attr(miri, ignore)] // `sleep` not supported.
     fn value_received() {
-        let (mut sender, mut receiver) = new_small();
+        let (sender, mut receiver) = new_small();
         let (values, _checks) = DropTest::many(SMALL_CAP);
 
         start_threads!(
@@ -412,7 +412,7 @@ mod threaded {
     #[test]
     #[cfg_attr(miri, ignore)] // `sleep` not supported.
     fn value_received_with_manager() {
-        let (manager, mut sender, mut receiver) = Manager::new_small_channel();
+        let (manager, sender, mut receiver) = Manager::new_small_channel();
         let (values, _checks) = DropTest::many(SMALL_CAP);
 
         start_threads!(

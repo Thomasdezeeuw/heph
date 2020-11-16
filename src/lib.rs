@@ -26,7 +26,7 @@
 //! use inbox::RecvError;
 //!
 //! // Create a new small channel.
-//! let (mut sender, mut receiver) = inbox::new_small();
+//! let (sender, mut receiver) = inbox::new_small();
 //!
 //! let sender_handle = thread::spawn(move || {
 //!     if let Err(err) = sender.try_send("Hello world!".to_owned()) {
@@ -199,7 +199,7 @@ impl<T: fmt::Debug> Error for SendError<T> {}
 
 impl<T> Sender<T> {
     /// Attempts to send the `value` into the channel.
-    pub fn try_send(&mut self, value: T) -> Result<(), SendError<T>> {
+    pub fn try_send(&self, value: T) -> Result<(), SendError<T>> {
         if !self.is_connected() {
             return Err(SendError::Disconnected(value));
         }
@@ -270,7 +270,7 @@ impl<T> Sender<T> {
     /// [`Poll::Pending`] instead.
     ///
     /// [disconnected]: Sender::is_connected
-    pub fn send<'s>(&'s mut self, value: T) -> SendValue<'s, T> {
+    pub fn send<'s>(&'s self, value: T) -> SendValue<'s, T> {
         SendValue {
             sender: self,
             value: Some(value),
@@ -395,7 +395,7 @@ impl<T> Drop for Sender<T> {
 /// [`Future`] implementation behind [`Sender::send`].
 #[derive(Debug)]
 pub struct SendValue<'s, T> {
-    sender: &'s mut Sender<T>,
+    sender: &'s Sender<T>,
     value: Option<T>,
     /// This future's `task::Waker`, maybe registered in `Channel`s list.
     ///
