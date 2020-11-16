@@ -668,6 +668,7 @@ impl<T> Receiver<T> {
 
         if let Some(receiver_waker) = &*receiver_waker {
             if receiver_waker.will_wake(waker) {
+                channel.receiver_needs_wakeup.store(true, Ordering::SeqCst);
                 return false;
             }
         }

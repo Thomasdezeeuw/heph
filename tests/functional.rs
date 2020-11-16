@@ -528,6 +528,60 @@ mod future {
     }
 
     #[test]
+    fn recv_value_twice() {
+        let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
+        let (sender, mut receiver) = new_small::<usize>();
+
+        // Create Future and register waker (by polling).
+        let future = receiver.recv();
+        pin_stack!(future);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+        // Send value.
+        sender.try_send(10).unwrap();
+        assert_eq!(count.get(), 1);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+
+        // Create second Future with and use the same waker.
+        let future = receiver.recv();
+        pin_stack!(future);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+        // Send second value.
+        sender.try_send(20).unwrap();
+        assert_eq!(count.get(), 2);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(20)));
+    }
+
+    #[test]
+    fn recv_value_twice_senders_dropped() {
+        let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
+        let (sender, mut receiver) = new_small::<usize>();
+
+        // Create Future and register waker (by polling).
+        let future = receiver.recv();
+        pin_stack!(future);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+        // Send value.
+        sender.try_send(10).unwrap();
+        assert_eq!(count.get(), 1);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+
+        // Create second Future with and use the same waker.
+        let future = receiver.recv();
+        pin_stack!(future);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+        // Dropping the second should wake up the receiver.
+        drop(sender);
+        assert_eq!(count.get(), 2);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+    }
+
+    #[test]
     fn recv_value_empty() {
         let (waker, count) = new_count_waker();
 
