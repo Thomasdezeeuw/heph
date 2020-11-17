@@ -402,6 +402,7 @@ impl<T> Drop for Sender<T> {
 ///
 /// [`mem::forget`]: std::mem::forget
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct SendValue<'s, T> {
     sender: &'s Sender<T>,
     value: Option<T>,
@@ -731,6 +732,7 @@ impl<T> Drop for Receiver<T> {
 
 /// [`Future`] implementation behind [`Receiver::recv`].
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct RecvValue<'r, T> {
     receiver: &'r mut Receiver<T>,
 }

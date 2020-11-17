@@ -320,6 +320,7 @@ impl<T> Drop for Receiver<T> {
 
 /// [`Future`] implementation behind [`Receiver::recv`].
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct RecvValue<'r, T> {
     receiver: &'r mut Receiver<T>,
 }
@@ -362,6 +363,7 @@ impl<'r, T> Unpin for RecvValue<'r, T> {}
 
 /// [`Future`] implementation behind [`Receiver::recv_once`].
 #[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct RecvOnce<T> {
     receiver: Receiver<T>,
 }
