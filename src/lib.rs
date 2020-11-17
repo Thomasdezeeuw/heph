@@ -393,6 +393,14 @@ impl<T> Drop for Sender<T> {
 }
 
 /// [`Future`] implementation behind [`Sender::send`].
+///
+/// # Safety
+///
+/// It is not safe to leak this `SendValue` (by using [`mem::forget`]). Always
+/// make sure the destructor is run, by calling [`drop`], or letting it go out
+/// of scope.
+///
+/// [`mem::forget`]: std::mem::forget
 #[derive(Debug)]
 pub struct SendValue<'s, T> {
     sender: &'s Sender<T>,

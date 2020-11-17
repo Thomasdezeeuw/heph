@@ -686,6 +686,30 @@ mod future {
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
     }
+
+    #[test]
+    #[ignore = "`forget`ting `SendValue` is memory unsafe"]
+    fn forget_send_value() {
+        let (sender, mut receiver) = new_small::<usize>();
+
+        // Fill the channel.
+        for n in 0..SMALL_CAP {
+            sender.try_send(n).unwrap();
+        }
+
+        // Create the `SendValue` future and poll it once to register the waker.
+        let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
+        let future = sender.send(10);
+        pin_stack!(future);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+        std::mem::forget(future);
+
+        // FIXME: because we `forget` the future above the waker count should
+        // remain zero.
+        assert_eq!(receiver.try_recv(), Ok(0));
+        assert_eq!(count.get(), 0);
+    }
 }
 
 mod manager {
