@@ -301,7 +301,7 @@ mod future {
         pin_stack!(future);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         assert_eq!(receiver.try_recv(), Ok(10));
     }
 
@@ -321,11 +321,11 @@ mod future {
 
         // Channel should be full.
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
 
         // Receiving a value should wake a sender.
         assert_eq!(receiver.try_recv(), Ok(0));
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
 
         for want in 1..SMALL_CAP + 1 {
@@ -345,7 +345,7 @@ mod future {
             pin_stack!(future);
 
             assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
-            assert_eq!(count.get(), 0);
+            assert_eq!(count, 0);
         }
 
         for value in 0..SMALL_CAP {
@@ -365,7 +365,7 @@ mod future {
             pin_stack!(future);
 
             assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
-            assert_eq!(count.get(), 0);
+            assert_eq!(count, 0);
 
             assert_eq!(receiver.try_recv(), Ok(value));
         }
@@ -398,7 +398,7 @@ mod future {
             let mut future = Box::pin(head.send(index + SMALL_CAP));
 
             assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-            assert_eq!(count.get(), 0);
+            assert_eq!(count, 0);
 
             futures.push((waker, count, future));
         }
@@ -407,16 +407,16 @@ mod future {
             // Receiving a value should wake the correct future.
             assert_eq!(receiver.try_recv(), Ok(value));
             if value < n {
-                assert_eq!(futures[value].1.get(), 1);
+                assert_eq!(futures[value].1, 1);
             }
         }
 
         for (waker, count, mut future) in futures.drain(..min(SMALL_CAP, futures.len())) {
-            assert_eq!(count.get(), 1);
+            assert_eq!(count, 1);
 
             let mut ctx = task::Context::from_waker(&waker);
             assert_eq!(Pin::new(&mut future).poll(&mut ctx), Poll::Ready(Ok(())));
-            assert_eq!(count.get(), 1);
+            assert_eq!(count, 1);
         }
 
         while !futures.is_empty() {
@@ -425,11 +425,11 @@ mod future {
             }
 
             for (waker, count, mut future) in futures.drain(..min(SMALL_CAP, futures.len())) {
-                assert_eq!(count.get(), 1);
+                assert_eq!(count, 1);
 
                 let mut ctx = task::Context::from_waker(&waker);
                 assert_eq!(Pin::new(&mut future).poll(&mut ctx), Poll::Ready(Ok(())));
-                assert_eq!(count.get(), 1);
+                assert_eq!(count, 1);
             }
         }
     }
@@ -486,8 +486,8 @@ mod future {
         }
         drop(receiver);
 
-        assert_eq!(count1.get(), 0);
-        assert_eq!(count2.get(), 1);
+        assert_eq!(count1, 0);
+        assert_eq!(count2, 1);
     }
 
     #[test]
@@ -503,7 +503,7 @@ mod future {
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
 
         sender.try_send(10).unwrap();
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
     }
@@ -520,9 +520,9 @@ mod future {
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
 
         sender.try_send(10).unwrap();
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         sender.try_send(20).unwrap();
-        assert_eq!(count.get(), 1); // Second wake-up optimised away.
+        assert_eq!(count, 1); // Second wake-up optimised away.
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
     }
@@ -540,7 +540,7 @@ mod future {
 
         // Send value.
         sender.try_send(10).unwrap();
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
 
         // Create second Future with and use the same waker.
@@ -550,7 +550,7 @@ mod future {
 
         // Send second value.
         sender.try_send(20).unwrap();
-        assert_eq!(count.get(), 2);
+        assert_eq!(count, 2);
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(20)));
     }
 
@@ -567,7 +567,7 @@ mod future {
 
         // Send value.
         sender.try_send(10).unwrap();
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
 
         // Create second Future with and use the same waker.
@@ -577,7 +577,7 @@ mod future {
 
         // Dropping the second should wake up the receiver.
         drop(sender);
-        assert_eq!(count.get(), 2);
+        assert_eq!(count, 2);
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
     }
 
@@ -593,11 +593,11 @@ mod future {
         pin_stack!(future);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
 
         sender.try_send(10).unwrap();
 
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
     }
 
@@ -616,7 +616,7 @@ mod future {
 
         // Dropping the last sender should notify the receiver.
         drop(sender);
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
     }
@@ -636,9 +636,9 @@ mod future {
 
         // Sending and dropping the last sender should wake the receiver.
         sender.try_send(10).unwrap();
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         drop(sender);
-        assert_eq!(count.get(), 1); // Wake-up optimised away.
+        assert_eq!(count, 1); // Wake-up optimised away.
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
         let mut future = receiver.recv();
@@ -661,9 +661,9 @@ mod future {
 
         // Only dropping the last sender should wake the receiver.
         drop(sender);
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
         drop(sender2);
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
     }
@@ -682,7 +682,7 @@ mod future {
         drop(sender);
         // `RecvValue` isn't polled yet, so we shouldn't receive a wake-up
         // notification.
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
 
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
     }
@@ -708,7 +708,7 @@ mod future {
         // FIXME: because we `forget` the future above the waker count should
         // remain zero.
         assert_eq!(receiver.try_recv(), Ok(0));
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
     }
 }
 

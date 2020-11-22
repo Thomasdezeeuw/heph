@@ -123,10 +123,10 @@ mod future {
         pin_stack!(future);
 
         assert!(future.as_mut().poll(&mut ctx).is_pending());
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
 
         sender.try_send(1).unwrap();
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         assert_eq!(
             future.as_mut().poll(&mut ctx).map(|ok| ok.map(|v| v.0)),
             Poll::Ready(Some(1))
@@ -144,10 +144,10 @@ mod future {
         pin_stack!(future);
 
         assert!(future.as_mut().poll(&mut ctx).is_pending());
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
 
         drop(sender);
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         assert_eq!(
             future.as_mut().poll(&mut ctx).map(|ok| ok.map(|v| v.0)),
             Poll::Ready(None)
@@ -168,12 +168,12 @@ mod future {
 
         assert!(future.as_mut().poll(&mut ctx1).is_pending());
         assert!(future.as_mut().poll(&mut ctx2).is_pending());
-        assert_eq!(count1.get(), 0);
-        assert_eq!(count2.get(), 0);
+        assert_eq!(count1, 0);
+        assert_eq!(count2, 0);
 
         sender.try_send(1).unwrap();
-        assert_eq!(count1.get(), 0);
-        assert_eq!(count2.get(), 1);
+        assert_eq!(count1, 0);
+        assert_eq!(count2, 1);
         assert_eq!(
             future.as_mut().poll(&mut ctx2).map(|ok| ok.map(|v| v.0)),
             Poll::Ready(Some(1))
@@ -194,12 +194,12 @@ mod future {
 
         assert!(future.as_mut().poll(&mut ctx1).is_pending());
         assert!(future.as_mut().poll(&mut ctx2).is_pending());
-        assert_eq!(count1.get(), 0);
-        assert_eq!(count2.get(), 0);
+        assert_eq!(count1, 0);
+        assert_eq!(count2, 0);
 
         drop(sender);
-        assert_eq!(count1.get(), 0);
-        assert_eq!(count2.get(), 1);
+        assert_eq!(count1, 0);
+        assert_eq!(count2, 1);
         assert_eq!(
             future.as_mut().poll(&mut ctx2).map(|ok| ok.map(|v| v.0)),
             Poll::Ready(None)
@@ -219,10 +219,10 @@ mod future {
         pin_stack!(future);
 
         assert!(future.as_mut().poll(&mut ctx).is_pending());
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
 
         sender.try_send(1).unwrap();
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         assert_eq!(
             future.as_mut().poll(&mut ctx).map(|ok| ok.map(|v| v.0)),
             Poll::Ready(Some(1))
@@ -242,10 +242,10 @@ mod future {
         pin_stack!(future);
 
         assert!(future.as_mut().poll(&mut ctx).is_pending());
-        assert_eq!(count.get(), 0);
+        assert_eq!(count, 0);
 
         drop(sender);
-        assert_eq!(count.get(), 1);
+        assert_eq!(count, 1);
         assert_eq!(
             future.as_mut().poll(&mut ctx).map(|ok| ok.map(|v| v.0)),
             Poll::Ready(None)
