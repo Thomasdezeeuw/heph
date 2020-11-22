@@ -96,6 +96,12 @@ const RECEIVER_ALIVE: usize = 1 << (size_of::<usize>() * 8 - 1);
 /// Bit mask to mark the manager as alive.
 const MANAGER_ALIVE: usize = 1 << (size_of::<usize>() * 8 - 2);
 
+/// Returns `true` if the manager is alive in `status`.
+#[inline(always)]
+const fn has_manager(status: usize) -> bool {
+    status & MANAGER_ALIVE != 0
+}
+
 /// The capacity of a small channel.
 const SMALL_CAP: usize = 8;
 
@@ -665,7 +671,7 @@ impl<T> Receiver<T> {
     pub fn has_manager(&self) -> bool {
         // Relaxed is fine here since there is always a bit of a race condition
         // when using this method (and then doing something based on it).
-        self.channel().ref_count.load(Ordering::Relaxed) & MANAGER_ALIVE != 0
+        has_manager(self.channel().ref_count.load(Ordering::Relaxed))
     }
 
     /// Set the receiver waker to `waker`, if they are different.
@@ -712,21 +718,42 @@ unsafe impl<T> Sync for Receiver<T> {}
 impl<T> Unpin for Receiver<T> {}
 
 impl<T> Drop for Receiver<T> {
-    #[rustfmt::skip] // For the if statement, its complicated enough.
     fn drop(&mut self) {
-        // If the previous value was `RECEIVER_ALIVE` it means that all senders
-        // and the manager were dropped, so we need to do the deallocating.
-        //
-        // Safety: for the reasoning behind this ordering see `Arc::drop`.
-        if self.channel().ref_count.fetch_and(!RECEIVER_ALIVE, Ordering::Release) != RECEIVER_ALIVE {
-            return;
+        // See the `if` statement why we do this.
+        let sender = self.new_sender();
+
+        // First mark the receiver as dropped.
+        let channel = self.channel();
+        let status = channel
+            .ref_count
+            .fetch_and(!RECEIVER_ALIVE, Ordering::Release);
+
+        if !has_manager(status) {
+            // If the channel doesn't have a manager we empty the channel.
+            //
+            // We do this to support the use case were the channel holds a
+            // `oneshot::Sender` and the receiver of the oneshot channel is
+            // holding a `Sender` to this channel.
+            // Effectively this creates a cyclic drop dependency: `Sender` ->
+            // `Channel` -> `oneshot::Sender` which blocks
+            // `oneshot::Receiver::recv`.
+            // If the actor holding a `Sender` calls `oneshot::Receiver::recv`
+            // it will wait for a response or until the `oneshot::Sender` is
+            // dropped, while the actor is holding a `Sender` to this channel.
+            // However if this `Receiver` is dropped it won't drop the
+            // `oneshot::Sender` without the emptying below. This causes
+            // `oneshot::Receiver::recv` to wait forever, while holding a
+            // `Sender`.
+            //
+            // NOTE: we use `self` here, this is only safe because we created a
+            // new `sender` above ensure the channel is not deallocated.
+            while let Ok(msg) = self.try_recv() {
+                drop(msg);
+            }
         }
 
-        // For the reasoning behind this ordering see `Arc::drop`.
-        fence(Ordering::Acquire);
-
-        // Drop the memory.
-        unsafe { drop(Box::from_raw(self.channel.as_ptr())) }
+        // Now we can deallocate the channel safety.
+        drop(sender);
     }
 }
 
