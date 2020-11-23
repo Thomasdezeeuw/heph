@@ -29,6 +29,7 @@ fn size_assertions() {
 }
 
 #[test]
+#[allow(clippy::eq_op)] // Need to compare `ProcessData` to itself.
 fn process_data_equality() {
     let process1 = ProcessData {
         priority: Priority::LOW,
