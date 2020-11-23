@@ -4,6 +4,7 @@
 
 #![feature(never_type)]
 
+#[path = "./regression/"] // rustfmt can't find the files.
 mod regression {
     mod issue_145;
     mod issue_294;
