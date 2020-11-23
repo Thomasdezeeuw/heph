@@ -22,3 +22,19 @@ jobs:
       run: cargo -Vv
     - name: Run tests
       run: cargo test --verbose --all-features
+  clippy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install nightly compiler
+      run: rustup toolchain install nightly
+    - name: Set default to nightly compiler
+      run: rustup default nightly
+    - name: Add Clippy
+      run: rustup component add clippy
+    - name: Rustc version
+      run: rustc -Vv
+    - name: Cargo version
+      run: cargo -Vv
+    - name: Check Clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::cognitive-complexity -A clippy::needless_lifetimes
