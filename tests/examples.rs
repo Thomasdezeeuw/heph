@@ -47,6 +47,10 @@ fn test_4_sync_actor() {
 }
 
 #[test]
+#[cfg_attr(
+    target_os = "linux",
+    ignore = "multi-threaded process signal handling is broken on Linux; tracked in #325"
+)]
 fn test_6_process_signals() {
     let child = run_example("6_process_signals");
     // Give the process some time to setup signal handling.
