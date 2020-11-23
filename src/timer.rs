@@ -270,12 +270,12 @@ impl<Fut> Deadline<Fut> {
     }
 
     /// Returns a reference to the wrapped future.
-    pub fn as_ref(&self) -> &Fut {
+    pub fn get_ref(&self) -> &Fut {
         &self.future
     }
 
     /// Returns a mutable reference to the wrapped future.
-    pub fn as_mut(&mut self) -> &mut Fut {
+    pub fn get_mut(&mut self) -> &mut Fut {
         &mut self.future
     }
 
