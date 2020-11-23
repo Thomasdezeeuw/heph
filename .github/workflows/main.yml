@@ -1,4 +1,4 @@
-name: Test
+name: CI
 on:
   push:
     branches: [ master ]
@@ -8,7 +8,7 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
 jobs:
-  test:
+  Test:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
@@ -22,7 +22,7 @@ jobs:
       run: cargo -Vv
     - name: Run tests
       run: cargo test --verbose --all-features
-  clippy:
+  Clippy:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
