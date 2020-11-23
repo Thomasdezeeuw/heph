@@ -370,6 +370,16 @@ fn try_mapped_cloned() {
 }
 
 #[test]
+fn is_connected() {
+    let expect_msgs = expect_msgs as fn(_, Vec<()>) -> _;
+    let (actor, actor_ref) = init_local_actor(expect_msgs, Vec::new()).unwrap();
+    assert!(actor_ref.is_connected());
+
+    drop(actor);
+    assert!(!actor_ref.is_connected());
+}
+
+#[test]
 fn send_error_format() {
     assert_eq!(format!("{}", SendError), "unable to send message");
 }
