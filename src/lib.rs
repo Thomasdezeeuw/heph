@@ -674,10 +674,12 @@ impl<T> Receiver<T> {
         has_manager(self.channel().ref_count.load(Ordering::Relaxed))
     }
 
-    /// Set the receiver waker to `waker`, if they are different.
+    /// Set the receiver's waker to `waker`, if they are different. Returns
+    /// `true` if the waker is changed, `false` otherwise.
     ///
-    /// Returns `true` if the waker is changed, `false` otherwise.
-    fn set_waker(&mut self, waker: &task::Waker) -> bool {
+    /// This is useful if you can't call [`Receiver::recv`] but still want a
+    /// wake-up notification once messages are added to the inbox.
+    pub fn register_waker(&mut self, waker: &task::Waker) -> bool {
         let channel = self.channel();
         let receiver_waker = channel.receiver_waker.upgradable_read();
 
@@ -772,7 +774,7 @@ impl<'r, T> Future for RecvValue<'r, T> {
             Ok(value) => Poll::Ready(Some(value)),
             Err(RecvError::Empty) => {
                 // The channel is empty, we'll set the waker.
-                if !self.receiver.set_waker(ctx.waker()) {
+                if !self.receiver.register_waker(ctx.waker()) {
                     // Waker already set.
                     return Poll::Pending;
                 }

@@ -688,6 +688,19 @@ mod future {
     }
 
     #[test]
+    fn registered_receiver_waker() {
+        let (sender, mut receiver) = new_small::<usize>();
+
+        let (waker, count) = new_count_waker();
+        receiver.register_waker(&waker);
+
+        assert_eq!(count, 0);
+        assert_eq!(sender.try_send(10), Ok(()));
+        assert_eq!(count, 1);
+        assert_eq!(receiver.try_recv(), Ok(10));
+    }
+
+    #[test]
     #[ignore = "`forget`ting `SendValue` is memory unsafe"]
     fn forget_send_value() {
         let (sender, mut receiver) = new_small::<usize>();
