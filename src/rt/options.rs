@@ -47,22 +47,24 @@ impl ActorOptions {
 
     /// Returns `true` if the actor is ready to run when spawned.
     ///
-    /// See [`mark_ready`] for more information.
+    /// See [`mark_not_ready`] for more information.
     ///
-    /// [`mark_ready`]: ActorOptions::mark_ready
+    /// [`mark_not_ready`]: ActorOptions::mark_not_ready
     pub const fn is_ready(&self) -> bool {
         self.ready
     }
 
-    /// This option will mark the actor as ready to run when spawned.
+    /// This option will mark the actor as not ready to run when spawned.
     ///
-    /// By default newly spawned actors will wait for an external event before
-    /// they start running. This external event can for example be a message
-    /// send to them, or a [`TcpStream`] becoming ready to read or write.
+    /// By default newly spawned actors will be considered to be ready to run
+    /// once they are spawned. However some actors might not want to run
+    /// immediately and wait for an external event before running. Such an
+    /// external event can for example be a [`TcpStream`] becoming ready to read
+    /// or write.
     ///
     /// [`TcpStream`]: crate::net::TcpStream
-    pub const fn mark_ready(mut self) -> Self {
-        self.ready = true;
+    pub const fn mark_not_ready(mut self) -> Self {
+        self.ready = false;
         self
     }
 }
@@ -71,7 +73,7 @@ impl Default for ActorOptions {
     fn default() -> ActorOptions {
         ActorOptions {
             priority: Priority::default(),
-            ready: false,
+            ready: true,
         }
     }
 }

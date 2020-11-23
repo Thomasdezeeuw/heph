@@ -69,7 +69,7 @@
 //! #        let actor_ref = runtime_ref.spawn_local(NoSupervisor, counter, (), ActorOptions::default());
 //! #
 //! #        let requester = requester as fn(_, _) -> _;
-//! #        runtime_ref.spawn_local(NoSupervisor, requester, actor_ref, ActorOptions::default().mark_ready());
+//! #        runtime_ref.spawn_local(NoSupervisor, requester, actor_ref, ActorOptions::default());
 //! #        Ok(())
 //! #    }).start()
 //! # }
@@ -154,9 +154,9 @@
 //! #    let counter = counter as fn(_) -> _;
 //! #    let options = SyncActorOptions::default();
 //! #    let actor_ref = runtime.spawn_sync_actor(NoSupervisor, counter, (), options)?;
-//! #    runtime.with_setup(|mut runtime_ref| {
+//! #    runtime.with_setup(move |mut runtime_ref| {
 //! #        let requester = requester as fn(_, _) -> _;
-//! #        runtime_ref.spawn_local(NoSupervisor, requester, actor_ref, ActorOptions::default().mark_ready());
+//! #        runtime_ref.spawn_local(NoSupervisor, requester, actor_ref, ActorOptions::default());
 //! #        Ok(())
 //! #    }).start()
 //! # }

@@ -64,7 +64,7 @@ impl From<DeadlinePassed> for io::Error {
 /// #
 /// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 /// #   let actor = actor as fn(_) -> _;
-/// #   let options = ActorOptions::default().mark_ready();
+/// #   let options = ActorOptions::default();
 /// #   runtime_ref.spawn_local(NoSupervisor, actor, (), options);
 /// #   Ok(())
 /// # }
@@ -190,7 +190,7 @@ impl<K> actor::Bound<K> for Timer {
 ///
 /// # fn main() -> Result<(), rt::Error> {
 /// #     let actor = actor as fn(_) -> _;
-/// #     let options = ActorOptions::default().mark_ready();
+/// #     let options = ActorOptions::default();
 /// #     let mut rt = Runtime::new()?;
 /// #     let _ = rt.spawn(NoSupervisor, actor, (), options);
 /// #     rt.start()
@@ -379,7 +379,7 @@ impl<Fut, K> actor::Bound<K> for Deadline<Fut> {
 /// #
 /// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 /// #   let actor = actor as fn(_) -> _;
-/// #   let options = ActorOptions::default().mark_ready();
+/// #   let options = ActorOptions::default();
 /// #   runtime_ref.spawn_local(NoSupervisor, actor, (), options);
 /// #   Ok(())
 /// # }

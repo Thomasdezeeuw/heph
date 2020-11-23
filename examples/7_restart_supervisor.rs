@@ -21,7 +21,7 @@ fn main() -> Result<(), rt::Error> {
     runtime
         .with_setup(|mut runtime_ref: RuntimeRef| {
             let print_actor = print_actor as fn(_, _) -> _;
-            let options = ActorOptions::default().mark_ready();
+            let options = ActorOptions::default();
             let arg = "Hello world!".to_owned();
             let supervisor = PrintSupervisor::new(arg.clone());
             runtime_ref.spawn_local(supervisor, print_actor, arg, options);

@@ -76,7 +76,7 @@
 //!     Runtime::new().map_err(rt::Error::map_type)?
 //!         .with_setup(|mut runtime_ref| {
 //!             runtime_ref.spawn_local(supervisor, bad_actor as fn(_) -> _, (),
-//!                 ActorOptions::default().mark_ready());
+//!                 ActorOptions::default());
 //!             Ok(())
 //!         })
 //!         .start()
@@ -232,7 +232,7 @@ where
 ///     Runtime::new()?
 ///         .with_setup(|mut runtime_ref| {
 ///             runtime_ref.spawn_local(NoSupervisor, actor as fn(_) -> _, (),
-///                 ActorOptions::default().mark_ready());
+///                 ActorOptions::default());
 ///             Ok(())
 ///         })
 ///         .start()

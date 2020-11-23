@@ -25,8 +25,7 @@ fn from_message() {
                 runtime_ref.spawn_local(NoSupervisor, pong_actor, (), ActorOptions::default());
 
             let ping_actor = ping_actor as fn(_, _) -> _;
-            let options = ActorOptions::default().mark_ready();
-            runtime_ref.spawn_local(NoSupervisor, ping_actor, actor_ref, options);
+            runtime_ref.spawn_local(NoSupervisor, ping_actor, actor_ref, ActorOptions::default());
             Ok(())
         })
         .start()

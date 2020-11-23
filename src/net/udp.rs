@@ -72,11 +72,11 @@ pub enum Connected {}
 ///
 ///     // Add our server actor.
 ///     runtime.spawn_local(supervisor, echo_server as fn(_, _) -> _, address,
-///         ActorOptions::default().mark_ready());
+///         ActorOptions::default());
 ///
 ///     // Add our client actor.
 ///     runtime.spawn_local(supervisor, client as fn(_, _) -> _, address,
-///         ActorOptions::default().mark_ready());
+///         ActorOptions::default());
 ///
 ///     Ok(())
 /// }

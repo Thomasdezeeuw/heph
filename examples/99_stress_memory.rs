@@ -20,7 +20,9 @@ fn main() -> Result<(), rt::Error> {
             let start = std::time::Instant::now();
             for _ in 0..N {
                 let actor = actor as fn(_) -> _;
-                runtime_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
+                // Don't run the actors at that will remove them from memory.
+                let options = ActorOptions::default().mark_not_ready();
+                runtime_ref.spawn_local(NoSupervisor, actor, (), options);
             }
             info!("Spawning took {:?}", start.elapsed());
 
@@ -28,7 +30,7 @@ fn main() -> Result<(), rt::Error> {
                 NoSupervisor,
                 control_actor as fn(_) -> _,
                 (),
-                ActorOptions::default().mark_ready(),
+                ActorOptions::default(),
             );
 
             Ok(())
