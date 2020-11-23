@@ -38,3 +38,19 @@ jobs:
       run: cargo -Vv
     - name: Check Clippy
       run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::cognitive-complexity -A clippy::needless_lifetimes
+  Rustfmt:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install nightly compiler
+      run: rustup toolchain install nightly
+    - name: Set default to nightly compiler
+      run: rustup default nightly
+    - name: Add rustfmt
+      run: rustup component add rustfmt
+    - name: Rustc version
+      run: rustc -Vv
+    - name: Cargo version
+      run: cargo -Vv
+    - name: Check formatting
+      run: cargo fmt --all -- --check
