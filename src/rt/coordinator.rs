@@ -264,26 +264,20 @@ fn setup_signals(registry: &Registry) -> io::Result<Signals> {
 
 /// Register all `workers`' sending end of the pipe with `registry`.
 fn register_workers<E>(registry: &Registry, workers: &mut [Worker<E>]) -> io::Result<()> {
-    workers
-        .iter_mut()
-        .map(|worker| {
-            let id = worker.id();
-            trace!("registering worker thread: id={}", id);
-            worker.register(&registry, Token(id))
-        })
-        .collect()
+    workers.iter_mut().try_for_each(|worker| {
+        let id = worker.id();
+        trace!("registering worker thread: id={}", id);
+        worker.register(&registry, Token(id))
+    })
 }
 
 /// Register all `sync_workers`' sending end of the pipe with `registry`.
 fn register_sync_workers(registry: &Registry, sync_workers: &mut [SyncWorker]) -> io::Result<()> {
-    sync_workers
-        .iter_mut()
-        .map(|worker| {
-            let id = worker.id();
-            trace!("registering sync actor worker thread: id={}", id);
-            registry.register(worker, Token(id), Interest::WRITABLE)
-        })
-        .collect()
+    sync_workers.iter_mut().try_for_each(|worker| {
+        let id = worker.id();
+        trace!("registering sync actor worker thread: id={}", id);
+        registry.register(worker, Token(id), Interest::WRITABLE)
+    })
 }
 
 /// Relay all signals receive from `signals` to the `workers` and

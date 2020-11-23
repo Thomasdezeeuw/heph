@@ -41,6 +41,10 @@
 //! }
 //! ```
 
+// Clippy warns we should use an `AtomicBool` for `SyncWaker::awoken`, but we
+// need a mutex for the `Condvar` in `SyncWaker::cond`.
+#![allow(clippy::mutex_atomic)]
+
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Condvar, Mutex};

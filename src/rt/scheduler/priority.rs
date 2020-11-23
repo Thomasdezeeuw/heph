@@ -90,6 +90,7 @@ mod tests {
     use super::Priority;
 
     #[test]
+    #[allow(clippy::eq_op)] // Need to compare `Priority` to itself.
     fn priority() {
         assert!(Priority::HIGH > Priority::NORMAL);
         assert!(Priority::NORMAL > Priority::LOW);

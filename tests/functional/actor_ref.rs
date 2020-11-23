@@ -127,7 +127,7 @@ fn send_full_inbox() {
     let mut actor = Box::pin(actor);
 
     let relay_msgs = relay_msgs as fn(_, _, _) -> _;
-    let (relay_actor, _) = init_local_actor(relay_msgs, (actor_ref, expected.clone())).unwrap();
+    let (relay_actor, _) = init_local_actor(relay_msgs, (actor_ref, expected)).unwrap();
     let mut relay_actor = Box::pin(relay_actor);
 
     // Fill the inbox.
