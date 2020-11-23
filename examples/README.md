@@ -3,6 +3,7 @@
 This directory contains a number of examples that highlight certain parts of the
 system.
 
+
 ## 1. Hello World
 
 Conforming to the tradition that is "Hello World", a simple program that prints
@@ -10,17 +11,6 @@ Conforming to the tradition that is "Hello World", a simple program that prints
 
 The code can be found in `1_hello_world.rs` and run with `cargo run --example
 1_hello_world`, and it should print "Hello World".
-
-
-## 1b. Hello World, again
-
-This example is the same as example 1, but uses the `schedule` actor option.
-This shows the event driven nature of Heph. Actors by default are not scheduled
-and run, but need an external event, such as sending them a message, to active
-and run them.
-
-The code can be found in `1b_hello_world.rs` and run with `cargo run --example
-1b_hello_world`, and it should print "Hello World".
 
 
 ## 2. Ip server
@@ -48,6 +38,7 @@ I/O without stalling other actors.
 ## 5. Remote actor references
 
 TODO: reimplement this.
+
 
 ## 6. Process signal handling
 

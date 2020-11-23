@@ -35,7 +35,7 @@
 //!
 //! fn add_greeter_actor(mut system_ref: RuntimeRef) -> Result<(), !> {
 //!     let actor = greeter_actor as fn(_) -> _;
-//!     system_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default().mark_ready());
+//!     system_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
 //!     Ok(())
 //! }
 //!

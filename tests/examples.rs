@@ -18,12 +18,6 @@ fn test_1_hello_world() {
 }
 
 #[test]
-fn test_1b_hello_world() {
-    let output = run_example_output("1b_hello_world");
-    assert_eq!(output, "Hello World\n");
-}
-
-#[test]
 fn test_2_my_ip() {
     let _child = run_example("2_my_ip");
 

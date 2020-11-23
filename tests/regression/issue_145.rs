@@ -77,9 +77,8 @@ fn issue_145_tcp_server() {
             let setup_lock = setup_lock.lock().unwrap();
             let _g = setup_cvar.wait(setup_lock).unwrap();
 
-            let options = ActorOptions::default();
             let srv_ref = runtime_ref
-                .try_spawn_local(ServerSupervisor, server, (), options)
+                .try_spawn_local(ServerSupervisor, server, (), ActorOptions::default())
                 .unwrap();
             assert!(server_ref.lock().unwrap().replace(srv_ref).is_none());
 
@@ -131,10 +130,9 @@ fn issue_145_tcp_listener() {
     Runtime::new()
         .unwrap()
         .with_setup::<_, !>(move |mut runtime_ref| {
-            let options = ActorOptions::default().mark_ready();
             let actor = listener_actor as fn(_) -> _;
             runtime_ref
-                .try_spawn_local(NoSupervisor, actor, (), options)
+                .try_spawn_local(NoSupervisor, actor, (), ActorOptions::default())
                 .unwrap();
             Ok(())
         })
