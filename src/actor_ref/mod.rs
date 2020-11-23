@@ -289,6 +289,28 @@ impl<M> ActorRef<M> {
             }
         }
     }
+
+    /// Returns `true` if the actor to which this reference sends to is still
+    /// connected.
+    ///
+    /// # Notes
+    ///
+    /// Even if this returns `true` it doesn't mean [`ActorRef::try_send`] will
+    /// succeeded (even if the inbox isn't full). There is always a race
+    /// condition between using this method and doing something based on it.
+    ///
+    /// This does provide one useful feature: once this returns `false` it will
+    /// never return `true` again. This makes it useful in the use case where
+    /// creating a message is expansive, which is wasted if the actor is no
+    /// longer running. Thus this should only be used as optimisation to not do
+    /// work.
+    pub fn is_connected(&self) -> bool {
+        use ActorRefKind::*;
+        match &self.kind {
+            Local(sender) => sender.is_connected(),
+            Mapped(actor_ref) => actor_ref.is_connected(),
+        }
+    }
 }
 
 impl<M> Clone for ActorRef<M> {
@@ -325,6 +347,8 @@ trait MappedActorRef<M> {
     where
         'r: 'fut,
         M: Unpin + 'fut;
+
+    fn is_connected(&self) -> bool;
 }
 
 impl<M, Msg> MappedActorRef<Msg> for ActorRef<M>
@@ -350,6 +374,10 @@ where
             let msg = M::try_from(msg).map_err(|_msg| SendError)?;
             self.send(msg).await
         })
+    }
+
+    fn is_connected(&self) -> bool {
+        self.is_connected()
     }
 }
 
