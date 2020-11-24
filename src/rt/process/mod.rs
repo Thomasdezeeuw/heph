@@ -57,6 +57,9 @@ impl fmt::Display for ProcessId {
 /// This currently has a single implementation:
 /// - `ActorProcess`, which wraps an `Actor` to implement this trait.
 pub(crate) trait Process {
+    /// Return the name of this process, used in logging.
+    fn name(&self) -> &'static str;
+
     /// Run the process.
     ///
     /// Once the process returns `ProcessResult::Complete` it will be removed

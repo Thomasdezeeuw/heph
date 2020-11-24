@@ -118,6 +118,10 @@ mod tests {
     struct TestProcess;
 
     impl Process for TestProcess {
+        fn name(&self) -> &'static str {
+            "TestProcess"
+        }
+
         fn run(self: Pin<&mut Self>, _: &mut RuntimeRef, _: ProcessId) -> ProcessResult {
             ProcessResult::Complete
         }

@@ -329,6 +329,10 @@ mod tests {
     struct TestProcess;
 
     impl Process for TestProcess {
+        fn name(&self) -> &'static str {
+            "TestProcess"
+        }
+
         fn run(self: Pin<&mut Self>, _: &mut RuntimeRef, _: ProcessId) -> ProcessResult {
             unimplemented!()
         }
@@ -418,6 +422,10 @@ mod tests {
         }
 
         impl Process for DropTest {
+            fn name(&self) -> &'static str {
+                "DropTest"
+            }
+
             fn run(self: Pin<&mut Self>, _: &mut RuntimeRef, _: ProcessId) -> ProcessResult {
                 unimplemented!()
             }
