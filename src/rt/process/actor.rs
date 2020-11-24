@@ -103,6 +103,10 @@ where
     NA: NewActor<Context = C>,
     C: ContextKind,
 {
+    fn name(&self) -> &'static str {
+        actor::name::<NA::Actor>()
+    }
+
     fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult {
         // This is safe because we're not moving the actor.
         let this = unsafe { Pin::get_unchecked_mut(self) };

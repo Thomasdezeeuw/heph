@@ -320,6 +320,13 @@ impl<S> Runtime<S> {
         M: Send + 'static,
     {
         let id = SYNC_WORKER_ID_START + self.sync_actors.len();
+        // TODO: add actor's name to this.
+        // This doesn't work with `actor::name` because the sync actors are
+        // often converted into function pointers (using `as fn(_) -> _`) before
+        // calling this. This results in a name which is something like
+        // `fn(SyncContext<_>, ...) -> ...`, which is useless.
+        // NOTE: a sync actor function (not pointer) *does* work with
+        // `actor::name`.
         debug!("spawning synchronous actor: pid={}", id);
         SyncWorker::start(id, supervisor, actor, arg, options)
             .map(|(worker, actor_ref)| {
@@ -622,7 +629,8 @@ impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef {
         let mut scheduler = self.internal.scheduler.borrow_mut();
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
-        debug!("spawning thread-local actor: pid={}", pid);
+        let name = actor::name::<NA::Actor>();
+        debug!("spawning thread-local actor: pid={}, name={}", pid, name);
 
         // Create our actor context and our actor with it.
         let (manager, sender, receiver) = inbox::Manager::new_small_channel();
@@ -794,7 +802,8 @@ impl SharedRuntimeInternal {
         // Setup adding a new process to the scheduler.
         let actor_entry = self.scheduler.add_actor();
         let pid = actor_entry.pid();
-        debug!("spawning thread-safe actor: pid={}", pid);
+        let name = actor::name::<NA::Actor>();
+        debug!("spawning thread-safe actor: pid={}, name={}", pid, name);
 
         // Create our actor context and our actor with it.
         let (manager, sender, receiver) = inbox::Manager::new_small_channel();

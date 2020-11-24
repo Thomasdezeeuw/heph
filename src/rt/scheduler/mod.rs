@@ -58,7 +58,8 @@ impl<P: Process + ?Sized> ProcessData<P> {
     /// Returns the completion state of the process.
     pub(super) fn run(mut self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef) -> ProcessResult {
         let pid = self.as_ref().id();
-        trace!("running process: pid={}", pid);
+        let name = self.process.name();
+        trace!("running process: pid={}, name={}", pid, name);
 
         let start = Instant::now();
         let result = self.process.as_mut().run(runtime_ref, pid);
@@ -67,8 +68,9 @@ impl<P: Process + ?Sized> ProcessData<P> {
         self.fair_runtime += fair_elapsed;
 
         trace!(
-            "finished running process: pid={}, elapsed_time={:?}, result={:?}",
+            "finished running process: pid={}, name={}, elapsed_time={:?}, result={:?}",
             pid,
+            name,
             elapsed,
             result
         );

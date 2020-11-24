@@ -89,6 +89,7 @@
 //! }
 //! ```
 
+use std::any::type_name;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -120,6 +121,9 @@ pub use context_priv::{Context, NoMessages, ReceiveMessage, RecvError};
 pub use spawn::Spawn;
 
 pub(crate) use spawn::{AddActorError, PrivateSpawn};
+
+#[cfg(test)]
+mod tests;
 
 /// The trait that defines how to create a new [`Actor`].
 ///
@@ -561,6 +565,93 @@ where
     ) -> Poll<Result<(), Self::Error>> {
         self.poll(ctx)
     }
+}
+
+/// Returns the name of an actor based on its type name.
+///
+/// The generic parameter should be an [`Actor`] (or [`NewActor::Actor`]).
+/// [`SyncActor`]s converted into function pointers (using `fn(_) -> _)`) do
+/// **not** work, unconverted it does work.
+///
+/// # Notes
+///
+/// This uses [`type_name`] under the hood which does not have a stable output.
+/// Like the `type_name` function is function is provided on a best effort
+/// basis.
+pub(crate) fn name<A>() -> &'static str {
+    format_name(type_name::<A>())
+}
+
+// NOTE: split for easier testing.
+fn format_name(full_name: &'static str) -> &'static str {
+    let mut name = full_name;
+
+    if name.starts_with("fn(") {
+        // If this function is called with a type converted into a function
+        // pointer (using `fn(_) -> _`) there is little we can do to improve the
+        // readability, so we just return the full name.
+        return name;
+    }
+
+    // Async functions are wrapped in the `GenFuture` type; remove that, e.g.
+    // from
+    // `core::future::from_generator::GenFuture<1_hello_world::greeter_actor::{{closure}}>`
+    // to `1_hello_world::greeter_actor::{{closure}}`.
+    const GEN_FUTURE: &str = "GenFuture<";
+    const GENERIC_START: &str = "<";
+    const GENERIC_END: &str = ">";
+    match (name.find(GEN_FUTURE), name.find(GENERIC_START)) {
+        (Some(start_index), Some(i)) if start_index < i => {
+            // Outer type is `GenFuture`, remove that.
+            name = &name[start_index + GEN_FUTURE.len()..name.len() - GENERIC_END.len()];
+
+            // Async functions often end with `{{::closure}}`; also remove that,
+            // e.g. from `1_hello_world::greeter_actor::{{closure}}` to
+            // `1_hello_world::greeter_actor`.
+            const CLOSURE: &str = "{{closure}}";
+            if let Some(start_index) = name.rfind("::") {
+                let last_part = &name[start_index + 2..];
+                if last_part == CLOSURE {
+                    name = &name[..start_index];
+                }
+            }
+
+            // Either take the last part of the name's path, e.g. from
+            // `1_hello_world::greeter_actor` to `greeter_actor`.
+            // Or keep the module name in case the actor's name would be `actor`,
+            // e.g. from `1_hello_world::some::nested::module::greeter::actor` to
+            // `greeter::actor`.
+            if let Some(start_index) = name.rfind("::") {
+                let actor_name = &name[start_index + 2..];
+                if actor_name == "actor" {
+                    // If the actor's name is `actor` will keep the last module name
+                    // as part of the name.
+                    if let Some(module_index) = name[..start_index].rfind("::") {
+                        name = &name[module_index + 2..];
+                    } // Else only a single module in path.
+                } else {
+                    name = actor_name
+                }
+            }
+        }
+        _ => {
+            // Otherwise we trait it like a normal type and remove the generic
+            // parameters from it, e.g. from
+            // `heph::net::tcp::server::TcpServer<2_my_ip::conn_supervisor, fn(heph::actor::context_priv::Context<!>, heph::net::tcp::stream::TcpStream, std::net::addr::SocketAddr) -> core::future::from_generator::GenFuture<2_my_ip::conn_actor::{{closure}}>, heph::actor::context_priv::ThreadLocal>`
+            // to `heph::net::tcp::server::TcpServer`.
+            if let Some(start_index) = name.find(GENERIC_START) {
+                name = &name[..start_index];
+
+                if let Some(start_index) = name.rfind("::") {
+                    // Next we remove the module path, e.g. from
+                    // `heph::net::tcp::server::TcpServer` to `TcpServer`.
+                    name = &name[start_index + 2..];
+                }
+            }
+        }
+    }
+
+    name
 }
 
 /// Types that are bound to an [`Actor`].

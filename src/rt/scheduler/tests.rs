@@ -133,6 +133,10 @@ fn process_data_runtime_increase() {
 struct NopTestProcess;
 
 impl Process for NopTestProcess {
+    fn name(&self) -> &'static str {
+        "NopTestProcess"
+    }
+
     fn run(self: Pin<&mut Self>, _: &mut RuntimeRef, _: ProcessId) -> ProcessResult {
         unimplemented!();
     }
@@ -142,6 +146,10 @@ impl Process for NopTestProcess {
 struct SleepyProcess(Duration);
 
 impl Process for SleepyProcess {
+    fn name(&self) -> &'static str {
+        "SleepyProcess"
+    }
+
     fn run(self: Pin<&mut Self>, _runtime_ref: &mut RuntimeRef, _pid: ProcessId) -> ProcessResult {
         sleep(self.0);
         ProcessResult::Pending
