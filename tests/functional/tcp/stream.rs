@@ -423,10 +423,12 @@ fn send() {
 
 #[test]
 fn send_all() {
+    // A lot of data to get at least two write calls.
+    const DATA: &[u8] = &[213; 40 * 1024];
     async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
-        stream.send_all(&DATA).await?;
+        stream.send_all(DATA).await?;
 
         // Return pending once.
         wait_once().await;
@@ -446,19 +448,32 @@ fn send_all() {
 
     let (mut stream, _) = listener.accept().unwrap();
 
-    // Should send the bytes.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    let mut buf = [0; 8 * 1024];
+    let mut total = 0;
+    let mut dont_poll = false;
+    loop {
+        if !dont_poll {
+            // Should send the bytes.
+            match poll_actor(Pin::as_mut(&mut actor)) {
+                Poll::Pending => {}
+                Poll::Ready(Ok(())) => dont_poll = true,
+                Poll::Ready(Err(err)) => panic!("unexpected error: {}", err),
+            }
+        }
 
-    let mut buf = [0; DATA.len() + 1];
-    let n = stream.read(&mut buf).unwrap();
-    assert_eq!(n, DATA.len());
-    assert_eq!(&buf[..n], DATA);
+        let n = stream.read(&mut buf).unwrap();
+        if n == 0 {
+            break;
+        }
+        assert_eq!(&buf[..n], &DATA[total..total + n]);
+        total += n;
+    }
+    assert_eq!(total, DATA.len());
 
     // Should drop the stream.
-    expect_ready_ok(poll_actor(Pin::as_mut(&mut actor)), ());
     let n = stream.read(&mut buf).unwrap();
     assert_eq!(n, 0);
 }
 
-// TODO: add test for TcpStream::send_all that requires at least two `try_recv`
-// calls.
+// TODO: test:
+// * TcpStream::shutdown.
