@@ -380,6 +380,17 @@ fn is_connected() {
 }
 
 #[test]
+fn mapped_is_connected() {
+    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
+    let (actor, actor_ref) = init_local_actor(expect_msgs, Vec::new()).unwrap();
+    let actor_ref: ActorRef<usize> = actor_ref.map();
+    assert!(actor_ref.is_connected());
+
+    drop(actor);
+    assert!(!actor_ref.is_connected());
+}
+
+#[test]
 fn send_error_format() {
     assert_eq!(format!("{}", SendError), "unable to send message");
 }
