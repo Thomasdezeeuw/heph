@@ -193,9 +193,10 @@ static MSG_LOSS: AtomicU8 = AtomicU8::new(0);
 ///
 /// This is useful to test the resilience of actors with respect to message
 /// loss. Any and all messages send, thus including remote and local messages,
-/// could be lost on purpose when using this function. Note that the send of the
-/// messages will not return an error if the message is lost using this
-/// function.
+/// could be lost on purpose when using this function.
+///
+/// Note that the sending of the messages will not return an error if the
+/// message is lost using this function.
 ///
 /// `percent` must be number between `0` and `100`, setting this to `0` (the
 /// default) will disable the message loss.
