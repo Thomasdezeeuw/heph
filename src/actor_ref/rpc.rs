@@ -207,6 +207,7 @@ where
 {
     type Output = Result<Res, RpcError>;
 
+    #[track_caller]
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         // Safety: we're not moving `send` so this is safe.
         let send = unsafe { self.as_mut().map_unchecked_mut(|s| &mut s.send) }.as_pin_mut();
