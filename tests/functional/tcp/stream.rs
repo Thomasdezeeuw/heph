@@ -16,7 +16,9 @@ use heph::actor;
 use heph::net::TcpStream;
 use heph::test::{init_local_actor, poll_actor};
 
-use crate::util::{any_local_address, expect_pending, expect_ready_ok, loop_expect_ready_ok};
+use crate::util::{
+    any_local_address, expect_pending, expect_ready_ok, loop_expect_ready_ok, Stage,
+};
 
 const DATA: &[u8] = b"Hello world";
 
@@ -105,7 +107,10 @@ fn smoke() {
 
 #[test]
 fn try_recv() {
+    static STAGE: Stage = Stage::new();
+
     async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+        STAGE.update(0);
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf = Vec::with_capacity(128);
@@ -114,32 +119,44 @@ fn try_recv() {
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {}
             Err(err) => return Err(err),
         }
+        STAGE.update(1);
 
         // Return pending once.
         wait_once().await;
 
-        let n = loop {
-            match stream.try_recv(&mut buf) {
-                Ok(n) => break n,
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => continue,
-                Err(err) => return Err(err),
-            }
-        };
-        assert_eq!(n, DATA.len());
-        assert_eq!(&*buf, DATA);
-
-        // The stream is dropped, so we should read 0.
-        buf.clear();
-        loop {
+        limited_loop! {
             match stream.try_recv(&mut buf) {
                 Ok(n) => {
-                    assert_eq!(n, 0);
-                    return Ok(());
+                    assert_eq!(n, DATA.len());
+                    assert_eq!(&*buf, DATA);
+                    break;
                 }
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => continue,
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    sleep(Duration::from_millis(1));
+                    continue;
+                }
                 Err(err) => return Err(err),
             }
         }
+
+        // The stream is dropped, so we should read 0.
+        buf.clear();
+        limited_loop! {
+            match stream.try_recv(&mut buf) {
+                Ok(n) => {
+                    assert_eq!(n, 0);
+                    break;
+                }
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                    sleep(Duration::from_millis(1));
+                    continue;
+                },
+                Err(err) => return Err(err),
+            }
+        }
+
+        STAGE.update(2);
+        Ok(())
     }
 
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
@@ -149,18 +166,17 @@ fn try_recv() {
     pin_mut!(actor);
 
     // Stream should not yet be connected.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
-
-    let (mut stream, _) = listener.accept().unwrap();
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 0));
 
     // Connected, but shouldn't yet read anything.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    let (mut stream, _) = listener.accept().unwrap();
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
 
+    // Should be able to read what we write.
     stream.write_all(&DATA).unwrap();
     sorta_flush(&mut stream);
     drop(stream);
-
-    expect_ready_ok(poll_actor(Pin::as_mut(&mut actor)), ());
+    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 2), ());
 }
 
 #[test]
