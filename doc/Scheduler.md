@@ -1,4 +1,5 @@
 # Scheduler Design
+
 The design of the scheduler is based on Linux' Completely Fair Scheduler (CFS).
 [1]
 
