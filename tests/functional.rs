@@ -2,10 +2,11 @@
 
 #![feature(never_type, maybe_uninit_slice)]
 
-#[path = "./util/mod.rs"] // rustfmt can't find the file.
+#[path = "util/mod.rs"] // rustfmt can't find the file.
+#[macro_use]
 mod util;
 
-#[path = "./functional/"] // rustfmt can't find the files.
+#[path = "functional/"] // rustfmt can't find the files.
 mod functional {
     mod actor_context;
     mod actor_group;

@@ -3,9 +3,28 @@
 use std::fmt;
 use std::mem::size_of;
 use std::net::SocketAddr;
+use std::pin::Pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::Poll;
 use std::thread::sleep;
 use std::time::Duration;
+
+use heph::test::poll_actor;
+use heph::Actor;
+
+#[track_caller]
+macro_rules! limited_loop {
+    ($($arg: tt)*) => {{
+        let mut range = (0..1_000);
+        while range.next().is_some() {
+            $($arg)*
+        }
+
+        if range.is_empty() {
+            panic!("looped too many iterations");
+        }
+    }}
+}
 
 pub fn assert_send<T: Send>() {}
 
@@ -24,6 +43,54 @@ pub fn any_local_address() -> SocketAddr {
 /// Bind to any IPv6 port on localhost.
 pub fn any_local_ipv6_address() -> SocketAddr {
     "[::1]:0".parse().unwrap()
+}
+
+/// Stage of a test actor.
+///
+/// When testing `Future`s it sometimes hard to tell which futures have and
+/// haven't been completed. If a test depends on the fact that a certrain future
+/// inside an actor has been completed, but another has not this can be help to
+/// determine that.
+///
+/// For example, we want to test that a `TcpStream` is connected, but can't read
+/// anything yet (because we haven't written anything), before writing to the
+/// connection and testing that it can be read. This depends on the fact that
+/// the actor will return pending the moment it can't read anything, with
+/// `Stage` we know the actor is connected but hasn't read anything.
+pub struct Stage(AtomicUsize);
+
+impl Stage {
+    pub const fn new() -> Stage {
+        Stage(AtomicUsize::new(0))
+    }
+
+    /// Polls `actor` until `stage` is at `wanted` stage.
+    #[track_caller]
+    pub fn poll_till<A>(&self, mut actor: Pin<&mut A>, want: usize) -> Poll<Result<(), A::Error>>
+    where
+        A: Actor,
+    {
+        let mut n = 0;
+        loop {
+            let res = poll_actor(actor.as_mut());
+            if res.is_ready() || self.0.load(Ordering::SeqCst) >= want {
+                return res;
+            }
+
+            if n > 100 {
+                panic!("looped too many times");
+            }
+            n += 1;
+
+            // Don't want to busy loop.
+            sleep(Duration::from_millis(1));
+        }
+    }
+
+    /// Updates the stage to `stage`.
+    pub fn update(&self, stage: usize) {
+        self.0.store(stage, Ordering::SeqCst)
+    }
 }
 
 #[track_caller]
