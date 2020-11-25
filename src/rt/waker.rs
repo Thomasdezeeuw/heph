@@ -104,16 +104,10 @@ pub(crate) fn mark_polling(waker_id: WakerId, polling: bool) {
 /// single write happens to each element of the array. And because after the
 /// initial write each element is read only there are no further data races
 /// possible.
-static mut THREAD_WAKERS: [Option<ThreadWaker>; MAX_THREADS] = [
-    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-    None, None, None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-];
+static mut THREAD_WAKERS: [Option<ThreadWaker>; MAX_THREADS] = [NO_WAKER; MAX_THREADS];
+// NOTE: this is only here because `NO_WAKER` is not `Copy`, thus
+// `[None; MAX_THREADS]` doesn't work, but explicitly using a `const` does.
+const NO_WAKER: Option<ThreadWaker> = None;
 
 /// Get waker data for `waker_id`
 pub(crate) fn get_thread_waker(waker_id: WakerId) -> &'static ThreadWaker {

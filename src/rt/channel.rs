@@ -69,7 +69,7 @@ impl<S, R> Handle<S, R> {
                 Ok(0) => {
                     return Err(io::Error::new(
                         io::ErrorKind::NotConnected,
-                        "failed into channel pipe",
+                        "failed to send into channel pipe",
                     ))
                 }
                 Ok(..) => return Ok(()),
