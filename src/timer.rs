@@ -12,8 +12,6 @@
 //!
 //! [`Stream`]: futures_core::stream::Stream
 
-// TODO: support thread-safe actors.
-
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
