@@ -1,7 +1,7 @@
 //! Module containing actor references.
 //!
 //! An actor reference is a generic reference to an actor that can run on the
-//! same thread, another thread on the same machine or even running remotely.
+//! same thread, another thread on the same node or even running remotely.
 //!
 //! ## Sending messages
 //!
@@ -11,8 +11,8 @@
 //! arive. What [`send`] does is asynchronously add the message to the queue of
 //! messages for the actor.
 //!
-//! In case of the local actor reference this can be done directly. But for
-//! machine local actor references the message must first be send across thread
+//! In case of thread-local actor reference this can be done directly. But for
+//! thread-safe actor references the message must first be send across thread
 //! bounds before being added to the actor's message queue. Remote actor
 //! references even need to send this message across a network, a lot can go
 //! wrong here.
@@ -127,7 +127,7 @@ pub struct ActorRef<M> {
 }
 
 enum ActorRefKind<M> {
-    /// Reference to an actor running on the same machine.
+    /// Reference to an actor running on the same node.
     Local(Sender<M>),
     /// Reference that attempts to map the message to a different type first.
     Mapped(Arc<dyn MappedActorRef<M>>),
