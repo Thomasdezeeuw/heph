@@ -16,6 +16,7 @@ use crate::rt::scheduler::{local, shared, Priority, ProcessData};
 use crate::rt::RuntimeRef;
 use crate::test;
 
+#[track_caller]
 fn assert_size<T>(expected: usize) {
     assert_eq!(mem::size_of::<T>(), expected);
 }
@@ -24,28 +25,24 @@ fn assert_size<T>(expected: usize) {
 fn size_assertions() {
     assert_size::<ProcessId>(8);
     assert_size::<Priority>(1);
-    assert_size::<local::ProcessData>(40);
-    assert_size::<shared::ProcessData>(40);
+    #[cfg(not(feature = "tracing"))]
+    {
+        assert_size::<local::ProcessData>(40);
+        assert_size::<shared::ProcessData>(40);
+    }
+    #[cfg(feature = "tracing")]
+    {
+        assert_size::<local::ProcessData>(112);
+        assert_size::<shared::ProcessData>(112);
+    }
 }
 
 #[test]
 #[allow(clippy::eq_op)] // Need to compare `ProcessData` to itself.
 fn process_data_equality() {
-    let process1 = ProcessData {
-        priority: Priority::LOW,
-        fair_runtime: Duration::from_millis(0),
-        process: Box::pin(NopTestProcess),
-    };
-    let process2 = ProcessData {
-        priority: Priority::NORMAL,
-        fair_runtime: Duration::from_millis(0),
-        process: Box::pin(NopTestProcess),
-    };
-    let process3 = ProcessData {
-        priority: Priority::HIGH,
-        fair_runtime: Duration::from_millis(0),
-        process: Box::pin(NopTestProcess),
-    };
+    let process1 = ProcessData::new(Priority::LOW, Box::pin(NopTestProcess));
+    let process2 = ProcessData::new(Priority::NORMAL, Box::pin(NopTestProcess));
+    let process3 = ProcessData::new(Priority::HIGH, Box::pin(NopTestProcess));
 
     // Equality is only based on id alone.
     assert_eq!(process1, process1);
@@ -63,21 +60,9 @@ fn process_data_equality() {
 
 #[test]
 fn process_data_ordering() {
-    let mut process1 = ProcessData {
-        priority: Priority::HIGH,
-        fair_runtime: Duration::from_millis(10),
-        process: Box::pin(NopTestProcess),
-    };
-    let mut process2 = ProcessData {
-        priority: Priority::NORMAL,
-        fair_runtime: Duration::from_millis(10),
-        process: Box::pin(NopTestProcess),
-    };
-    let mut process3 = ProcessData {
-        priority: Priority::LOW,
-        fair_runtime: Duration::from_millis(10),
-        process: Box::pin(NopTestProcess),
-    };
+    let mut process1 = ProcessData::new(Priority::HIGH, Box::pin(NopTestProcess));
+    let mut process2 = ProcessData::new(Priority::NORMAL, Box::pin(NopTestProcess));
+    let mut process3 = ProcessData::new(Priority::LOW, Box::pin(NopTestProcess));
 
     // Ordering only on runtime and priority.
     assert_eq!(process1.cmp(&process1), Ordering::Equal);
@@ -116,11 +101,10 @@ fn process_data_ordering() {
 fn process_data_runtime_increase() {
     const SLEEP_TIME: Duration = Duration::from_millis(10);
 
-    let mut process = Box::pin(ProcessData {
-        priority: Priority::HIGH,
-        fair_runtime: Duration::from_millis(10),
-        process: Box::pin(SleepyProcess(SLEEP_TIME)),
-    });
+    let mut process = Box::pin(ProcessData::new(
+        Priority::HIGH,
+        Box::pin(SleepyProcess(SLEEP_TIME)),
+    ));
 
     // Runtime must increase after running.
     let mut runtime_ref = test::runtime();
@@ -190,7 +174,6 @@ mod local_scheduler {
     use std::marker::PhantomData;
     use std::pin::Pin;
     use std::rc::Rc;
-    use std::time::Duration;
 
     use crate::actor;
     use crate::rt::process::{Process, ProcessId, ProcessResult};
@@ -210,11 +193,10 @@ mod local_scheduler {
         assert!(!scheduler.has_process());
         assert!(!scheduler.has_ready_process());
 
-        let process: Pin<Box<ProcessData<dyn Process>>> = Box::pin(ProcessData {
-            priority: Priority::default(),
-            fair_runtime: Duration::from_secs(0),
-            process: Box::pin(NopTestProcess),
-        });
+        let process: Pin<Box<ProcessData<dyn Process>>> = Box::pin(ProcessData::new(
+            Priority::default(),
+            Box::pin(NopTestProcess),
+        ));
         scheduler.add_process(process);
         assert!(scheduler.has_process());
         assert!(!scheduler.has_ready_process());

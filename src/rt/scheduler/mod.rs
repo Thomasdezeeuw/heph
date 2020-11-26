@@ -9,6 +9,8 @@ use std::time::{Duration, Instant};
 use log::trace;
 
 use crate::rt::process::{Process, ProcessId, ProcessResult};
+#[cfg(feature = "tracing")]
+use crate::tracing::{TimeSpans, Timestamp};
 use crate::RuntimeRef;
 
 mod local;
@@ -38,9 +40,40 @@ pub(super) struct ProcessData<P: ?Sized> {
     /// Fair runtime of the process, which is `actual runtime * priority`.
     fair_runtime: Duration,
     process: Pin<Box<P>>,
+    #[cfg(feature = "tracing")]
+    trace: ProcessTraceData,
+}
+
+/// Tracing data for [`ProcessData`].
+#[cfg(feature = "tracing")]
+#[derive(Debug)]
+struct ProcessTraceData {
+    /// First time the process ran, `None` if it never ran.
+    first_run: Option<Timestamp>,
+    /// Last time the process ran, `None` if it never ran.
+    last_ran: Option<Timestamp>,
+    /// The times the process ran.
+    times_run: TimeSpans,
+    /// Total time this process ran.
+    total_runtime: Duration,
 }
 
 impl<P: ?Sized> ProcessData<P> {
+    const fn new(priority: Priority, process: Pin<Box<P>>) -> ProcessData<P> {
+        ProcessData {
+            priority,
+            fair_runtime: Duration::from_nanos(0),
+            process,
+            #[cfg(feature = "tracing")]
+            trace: ProcessTraceData {
+                first_run: None,
+                last_ran: None,
+                times_run: TimeSpans::new(),
+                total_runtime: Duration::from_nanos(0),
+            },
+        }
+    }
+
     /// Returns the process identifier, or pid for short.
     fn id(self: Pin<&Self>) -> ProcessId {
         // Since the pid only job is to be unique we just use the pointer to
@@ -63,9 +96,23 @@ impl<P: Process + ?Sized> ProcessData<P> {
 
         let start = Instant::now();
         let result = self.process.as_mut().run(runtime_ref, pid);
-        let elapsed = start.elapsed();
+        let end = Instant::now();
+        let elapsed = end - start;
+
+        // Update the policy required data.
         let fair_elapsed = elapsed * self.priority;
         self.fair_runtime += fair_elapsed;
+
+        // Update tracing data.
+        #[cfg(feature = "tracing")]
+        {
+            if self.trace.first_run.is_none() {
+                self.trace.first_run = Some(start);
+            }
+            self.trace.last_ran = Some(end);
+            self.trace.times_run.add(start, end);
+            self.trace.total_runtime += elapsed;
+        }
 
         trace!(
             "finished running process: pid={}, name={}, elapsed_time={:?}, result={:?}",
@@ -104,12 +151,15 @@ impl<P: ?Sized> PartialOrd for ProcessData<P> {
 
 impl<P: ?Sized> fmt::Debug for ProcessData<P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Process")
+        let mut f = f.debug_struct("Process");
+        let _ = f
             // FIXME: is this unsafe?
             .field("id", &Pin::new(self).id())
             .field("priority", &self.priority)
-            .field("fair_runtime", &self.fair_runtime)
-            .finish()
+            .field("fair_runtime", &self.fair_runtime);
+        #[cfg(feature = "tracing")]
+        let _ = f.field("trace_data", &self.trace);
+        f.finish()
     }
 }
 
