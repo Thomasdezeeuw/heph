@@ -294,8 +294,8 @@ where
         if self.has_passed() {
             Poll::Ready(Err(DeadlinePassed))
         } else {
+            // Safety: this is safe because we're not moving the future.
             let future = unsafe {
-                // This is safe because we're not moving the future.
                 Pin::map_unchecked_mut(self, |this| &mut this.future)
             };
             future.poll(ctx).map(Ok)
@@ -315,10 +315,8 @@ where
         if self.has_passed() {
             Poll::Ready(Err(DeadlinePassed.into()))
         } else {
-            let future = unsafe {
-                // This is safe because we're not moving the future.
-                Pin::map_unchecked_mut(self, |this| &mut this.future)
-            };
+            // Safety: this is safe because we're not moving the future.
+            let future = unsafe { Pin::map_unchecked_mut(self, |this| &mut this.future) };
             future.poll(ctx)
         }
     }

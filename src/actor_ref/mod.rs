@@ -416,7 +416,7 @@ where
             }
         }
 
-        // This is safe because we're not moving the actor.
+        // Safety: we're not moving the future to this is safe.
         let this = unsafe { self.get_unchecked_mut() };
         use SendValueKind::*;
         match &mut this.kind {

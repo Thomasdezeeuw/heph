@@ -60,8 +60,8 @@ pub(crate) fn init(waker: mio::Waker, notifications: Sender<ProcessId>) -> Waker
         panic!("Created too many Heph worker threads");
     }
 
-    // This is safe because we are the only thread that has write access to the
-    // given index. See documentation of `THREAD_WAKERS` for more.
+    // Safety: this is safe because we are the only thread that has write access
+    // to the given index. See documentation of `THREAD_WAKERS` for more.
     unsafe {
         THREAD_WAKERS[thread_id as usize] = Some(ThreadWaker {
             notifications,
@@ -78,6 +78,7 @@ pub(crate) fn init(waker: mio::Waker, notifications: Sender<ProcessId>) -> Waker
 pub(crate) fn new(waker_id: WakerId, pid: ProcessId) -> task::Waker {
     let data = WakerData::new(waker_id, pid).into_raw_data();
     let raw_waker = task::RawWaker::new(data, WAKER_VTABLE);
+    // Safety: we follow the contract on `RawWaker`.
     unsafe { task::Waker::from_raw(raw_waker) }
 }
 
@@ -111,10 +112,11 @@ const NO_WAKER: Option<ThreadWaker> = None;
 
 /// Get waker data for `waker_id`
 pub(crate) fn get_thread_waker(waker_id: WakerId) -> &'static ThreadWaker {
+    // Safety: `WakerId` is only created by `init`, which ensures it's a valid
+    // invalid. Furthermore `init` ensures that `THREAD_WAKER[waker_id]`
+    // initialised and is read-only after that. See `THREAD_WAKERS`
+    // documentation for more.
     unsafe {
-        // This is safe because the only way the `waker_id` is created is by
-        // `init`, which ensure that the particular index is set. See
-        // `THREAD_WAKERS` documentation for more.
         THREAD_WAKERS[waker_id.0 as usize]
             .as_ref()
             .expect("tried to get waker data of a thread that isn't initialised")
