@@ -18,6 +18,9 @@ travis-ci = { repository = "Thomasdezeeuw/heph", branch = "master" }
 [features]
 default = []
 
+# Feature enables tracing of the Heph runtime, actors and there inboxes.
+tracing = []
+
 # Feature that enables the `test` module.
 test = ["lazy_static", "rand"]
 

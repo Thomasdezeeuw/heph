@@ -110,6 +110,9 @@ pub mod timer;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 
+#[cfg(feature = "tracing")]
+mod tracing;
+
 #[doc(no_inline)]
 pub use crate::actor::{Actor, NewActor};
 #[doc(no_inline)]
