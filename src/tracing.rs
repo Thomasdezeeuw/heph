@@ -2,6 +2,38 @@
 
 use std::time::Instant;
 
+/// Structure to keep track on what time is spend.
+#[derive(Debug)]
+pub(crate) struct TimeSpend<T> {
+    start: Timestamp,
+    events: Vec<Event<T>>,
+}
+
+impl<T> TimeSpend<T> {
+    /// Create a new `TimeSpend`.
+    pub(crate) fn new() -> TimeSpend<T> {
+        TimeSpend {
+            start: Timestamp::now(),
+            events: Vec::new(),
+        }
+    }
+
+    /// Mark the end of a phase.
+    pub(crate) fn mark_end(&mut self, event: T) {
+        let event = Event {
+            kind: event,
+            end: Timestamp::now(),
+        };
+        self.events.push(event);
+    }
+}
+
+#[derive(Debug)]
+struct Event<T> {
+    kind: T,
+    end: Timestamp,
+}
+
 /// A collection of [`TimeSpan`]s.
 #[derive(Debug)]
 pub(crate) struct TimeSpans {

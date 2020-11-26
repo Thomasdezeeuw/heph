@@ -16,6 +16,8 @@ use crate::rt::waker::{self, ThreadWaker};
 use crate::rt::{
     self, channel, ProcessId, RuntimeInternal, RuntimeRef, SharedRuntimeInternal, Signal,
 };
+#[cfg(feature = "tracing")]
+use crate::tracing::TimeSpend;
 
 /// Error running a [`Worker`].
 #[derive(Debug)]
@@ -160,13 +162,20 @@ fn main<S>(
 where
     S: SetupFn,
 {
-    let runtime = RunningRuntime::init(receiver, shared_internals)
+    #[cfg_attr(not(feature = "tracing"), allow(unused_mut))]
+    let mut runtime = RunningRuntime::init(receiver, shared_internals)
         .map_err(|err| rt::Error::worker(Error::Init(err)))?;
+
+    #[cfg(feature = "tracing")]
+    runtime.trace.mark_end(WakerTraceEvent::SetupComplete);
 
     // Run optional setup.
     if let Some(setup) = setup {
         let runtime_ref = runtime.create_ref();
         setup.setup(runtime_ref).map_err(rt::Error::setup)?;
+
+        #[cfg(feature = "tracing")]
+        runtime.trace.mark_end(WakerTraceEvent::UserSetupComplete);
     }
 
     // All setup is done, so we're ready to run the event loop.
@@ -185,6 +194,34 @@ pub(crate) struct RunningRuntime {
     waker_events: Receiver<ProcessId>,
     /// Two-way communication channel to share messages with the coordinator.
     channel: channel::Handle<WorkerMessage, CoordinatorMessage>,
+    #[cfg(feature = "tracing")]
+    trace: TimeSpend<WakerTraceEvent>,
+}
+
+/// Kind of trace events in [`RunningRuntime`].
+#[cfg(feature = "tracing")]
+#[derive(Debug)]
+enum WakerTraceEvent {
+    /// Completed the runtime setup.
+    SetupComplete,
+    /// Ran the optional user setup function.
+    UserSetupComplete,
+    /// Ran a local process.
+    RanLocalProcess,
+    /// Ran a shared process.
+    RanSharedProcess,
+    /// Polled the OS for events.
+    Polled,
+    /// Processed all events received from polling.
+    ProcessedPollEvents,
+    /// Processed all wake-ups.
+    ProcessedWakeup,
+    /// Processed all timers.
+    ProcessedTimers,
+    /// Processed the messages send by the coordinator.
+    ProcessedCoordinatorMessages,
+    /// Ran all local and shared process, worker thread is done.
+    Completed,
 }
 
 /// Number of processes to run before polling.
@@ -204,6 +241,9 @@ impl RunningRuntime {
         mut channel: channel::Handle<WorkerMessage, CoordinatorMessage>,
         shared_internals: Arc<SharedRuntimeInternal>,
     ) -> io::Result<RunningRuntime> {
+        #[cfg(feature = "tracing")]
+        let trace = TimeSpend::new();
+
         // System queue for event notifications.
         let poll = Poll::new()?;
         let waker = mio::Waker::new(poll.registry(), WAKER)?;
@@ -234,6 +274,8 @@ impl RunningRuntime {
             events: Events::with_capacity(128),
             waker_events: waker_recv,
             channel,
+            #[cfg(feature = "tracing")]
+            trace,
         })
     }
 
@@ -275,6 +317,8 @@ impl RunningRuntime {
                             self.internal.scheduler.borrow_mut().add_process(process);
                         }
                     }
+                    #[cfg(feature = "tracing")]
+                    self.trace.mark_end(WakerTraceEvent::RanLocalProcess);
                     // Only run a single process per iteration.
                     continue;
                 }
@@ -289,6 +333,8 @@ impl RunningRuntime {
                             self.internal.shared.scheduler.add_process(process);
                         }
                     }
+                    #[cfg(feature = "tracing")]
+                    self.trace.mark_end(WakerTraceEvent::RanSharedProcess);
                     // Only run a single process per iteration.
                     continue;
                 }
@@ -297,6 +343,8 @@ impl RunningRuntime {
                     && !self.internal.shared.scheduler.has_process()
                 {
                     debug!("no processes to run, stopping runtime");
+                    #[cfg(feature = "tracing")]
+                    self.trace.mark_end(WakerTraceEvent::Completed);
                     return Ok(());
                 } else {
                     // No processes ready to run, try polling again.
@@ -315,6 +363,8 @@ impl RunningRuntime {
         trace!("polling event sources to schedule processes");
 
         self.poll().map_err(Error::Polling)?;
+        #[cfg(feature = "tracing")]
+        self.trace.mark_end(WakerTraceEvent::Polled);
 
         let mut scheduler = self.internal.scheduler.borrow_mut();
         let mut check_coordinator = false;
@@ -325,20 +375,31 @@ impl RunningRuntime {
                 token => scheduler.mark_ready(token.into()),
             }
         }
+        #[cfg(feature = "tracing")]
+        self.trace.mark_end(WakerTraceEvent::ProcessedPollEvents);
 
         trace!("polling wakup events");
         for pid in self.waker_events.try_iter() {
             scheduler.mark_ready(pid);
         }
+        #[cfg(feature = "tracing")]
+        self.trace.mark_end(WakerTraceEvent::ProcessedWakeup);
 
         trace!("polling timers");
         for pid in self.internal.timers.borrow_mut().deadlines() {
             scheduler.mark_ready(pid);
         }
+        #[cfg(feature = "tracing")]
+        self.trace.mark_end(WakerTraceEvent::ProcessedTimers);
 
         if check_coordinator {
             drop(scheduler); // Com'on rustc, this one isn't that hard...
-            self.check_coordinator()
+            let res = self.check_coordinator();
+
+            #[cfg(feature = "tracing")]
+            self.trace
+                .mark_end(WakerTraceEvent::ProcessedCoordinatorMessages);
+            res
         } else {
             Ok(())
         }
