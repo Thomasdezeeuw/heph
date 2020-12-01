@@ -124,6 +124,16 @@ impl Coordinator {
         register_sync_workers(&registry, &mut sync_workers)
             .map_err(|err| rt::Error::coordinator(Error::RegisteringSyncActors(err)))?;
 
+        // It could be that before we're able to register the (sync) worker
+        // above they already completed. On macOS and Linux this will still
+        // create an kqueue/epoll event, even if the other side of the Unix pipe
+        // was already disconnected before registering it with `Poll`.
+        // However this doesn't seem to be the case on FreeBSD, so we explicitly
+        // check if the (sync) workers are still alive *after* we registered
+        // them.
+        check_worker_alive(&mut workers)?;
+        check_sync_worker_alive(&mut sync_workers)?;
+
         let mut events = Events::with_capacity(16);
 
         // Index of the last worker we waked, must never be larger then
@@ -278,6 +288,30 @@ fn register_sync_workers(registry: &Registry, sync_workers: &mut [SyncWorker]) -
         trace!("registering sync actor worker thread: id={}", id);
         registry.register(worker, Token(id), Interest::WRITABLE)
     })
+}
+
+/// Checks all `workers` if they're alive and removes any that have stopped.
+fn check_worker_alive<E>(workers: &mut Vec<Worker<E>>) -> Result<(), rt::Error<E>> {
+    workers
+        .drain_filter(|worker| !worker.is_alive())
+        .try_for_each(|worker| {
+            debug!("worker thread stopped: id={}", worker.id());
+            worker
+                .join()
+                .map_err(rt::Error::worker_panic)
+                .and_then(|res| res)
+        })
+}
+
+/// Checks all `sync_workers` if they're alive and removes any that have
+/// stopped.
+fn check_sync_worker_alive<E>(sync_workers: &mut Vec<SyncWorker>) -> Result<(), rt::Error<E>> {
+    sync_workers
+        .drain_filter(|sync_worker| !sync_worker.is_alive())
+        .try_for_each(|sync_worker| {
+            debug!("sync actor worker thread stopped: id={}", sync_worker.id());
+            sync_worker.join().map_err(rt::Error::sync_actor_panic)
+        })
 }
 
 /// Relay all signals receive from `signals` to the `workers` and

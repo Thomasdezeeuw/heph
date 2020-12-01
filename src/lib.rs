@@ -71,6 +71,7 @@
     available_concurrency,
     const_fn,
     const_raw_ptr_to_usize_cast,
+    drain_filter,
     duration_zero,
     is_sorted,
     maybe_uninit_extra,
