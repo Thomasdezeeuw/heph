@@ -113,6 +113,11 @@ impl<E> Worker<E> {
         self.id
     }
 
+    /// Checks if the `Worker` is alive.
+    pub(super) fn is_alive(&mut self) -> bool {
+        self.channel.is_alive()
+    }
+
     pub(super) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
         self.channel.register(registry, token)
     }

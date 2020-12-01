@@ -8,4 +8,5 @@
 mod regression {
     mod issue_145;
     mod issue_294;
+    mod issue_323;
 }

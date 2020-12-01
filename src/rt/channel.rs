@@ -108,4 +108,13 @@ impl<S, R> Handle<S, R> {
             }
         }
     }
+
+    /// Checks if the other side is alive.
+    pub(super) fn is_alive(&mut self) -> bool {
+        match self.send_pipe.write(&[]) {
+            Ok(..) => true,
+            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => true,
+            Err(..) => false,
+        }
+    }
 }

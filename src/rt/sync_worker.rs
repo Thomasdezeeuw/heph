@@ -1,6 +1,7 @@
 //! Synchronous actor thread code.
 
-use std::{io, thread};
+use std::io::{self, Write};
+use std::thread;
 
 use inbox::Manager;
 use log::trace;
@@ -54,6 +55,15 @@ impl SyncWorker {
     /// Return the worker's id.
     pub(super) const fn id(&self) -> usize {
         self.id
+    }
+
+    /// Checks if the `SyncWorker` is alive.
+    pub(super) fn is_alive(&mut self) -> bool {
+        match self.sender.write(&[]) {
+            Ok(..) => true,
+            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => true,
+            Err(..) => false,
+        }
     }
 
     /// See [`thread::JoinHandle::join`].
