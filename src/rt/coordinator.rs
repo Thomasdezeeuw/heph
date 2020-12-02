@@ -10,6 +10,7 @@ use mio::event::Event;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
+use crate::actor_ref::ActorGroup;
 use crate::rt::process::ProcessId;
 use crate::rt::scheduler::Scheduler;
 use crate::rt::waker::{self, WakerId};
@@ -17,7 +18,6 @@ use crate::rt::{
     self, worker, SharedRuntimeInternal, Signal, SyncWorker, Timers, Worker, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
-use crate::ActorRef;
 
 /// Error running the [`Coordinator`].
 #[derive(Debug)]
@@ -112,7 +112,7 @@ impl Coordinator {
         mut self,
         mut workers: Vec<Worker<E>>,
         mut sync_workers: Vec<SyncWorker>,
-        mut signal_refs: Vec<ActorRef<Signal>>,
+        mut signal_refs: ActorGroup<Signal>,
     ) -> Result<(), rt::Error<E>> {
         debug_assert!(workers.is_sorted_by_key(|w| w.id()));
 
@@ -317,11 +317,9 @@ fn check_sync_worker_alive<E>(sync_workers: &mut Vec<SyncWorker>) -> Result<(), 
 fn relay_signals<E>(
     signals: &mut Signals,
     workers: &mut [Worker<E>],
-    signal_refs: &mut Vec<ActorRef<Signal>>,
+    signal_refs: &mut ActorGroup<Signal>,
 ) -> io::Result<()> {
-    // Remove any references to stopped actors to reduce the warnings below (on
-    // send failure).
-    signal_refs.retain(ActorRef::is_connected);
+    signal_refs.remove_disconnected();
 
     while let Some(signal) = signals.receive()? {
         debug!("received signal on coordinator: signal={:?}", signal);
@@ -329,10 +327,9 @@ fn relay_signals<E>(
         for worker in workers.iter_mut() {
             worker.send_signal(signal)?;
         }
-        for actor_ref in signal_refs.iter() {
-            if let Err(err) = actor_ref.try_send(signal) {
-                // TODO: try sending again later?
-                warn!("failed to send process signal to actor: {}", err);
+        if !signal_refs.is_empty() {
+            if let Err(err) = signal_refs.try_send(signal) {
+                warn!("failed to send process signal: {}", err);
             }
         }
     }

@@ -22,7 +22,7 @@ use mio::{event, Interest, Poll, Registry, Token};
 use crate::actor::context::{ThreadLocal, ThreadSafe};
 use crate::actor::sync::SyncActor;
 use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn};
-use crate::actor_ref::ActorRef;
+use crate::actor_ref::{ActorGroup, ActorRef};
 use crate::supervisor::{Supervisor, SyncSupervisor};
 
 mod coordinator;
@@ -188,8 +188,7 @@ pub struct Runtime<S = !> {
     /// Optional setup function.
     setup: Option<S>,
     /// List of actor references that want to receive process signals.
-    // TODO: replace with an `ActorGroup`.
-    signals: Vec<ActorRef<Signal>>,
+    signals: ActorGroup<Signal>,
 }
 
 impl Runtime {
@@ -203,7 +202,7 @@ impl Runtime {
             threads: 1,
             sync_actors: Vec::new(),
             setup: None,
-            signals: Vec::new(),
+            signals: ActorGroup::empty(),
         })
     }
 
@@ -343,7 +342,7 @@ impl<S> Runtime<S> {
     ///
     /// [process signals]: Signal
     pub fn receive_signals(&mut self, actor_ref: ActorRef<Signal>) {
-        self.signals.push(actor_ref);
+        self.signals.add(actor_ref);
     }
 }
 
