@@ -107,6 +107,7 @@ use std::fmt;
 use std::future::Future;
 use std::iter::FromIterator;
 use std::pin::Pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{self, Poll};
 
@@ -452,6 +453,23 @@ impl Error for SendError {}
 /// A group of [`ActorRef`]s used to send a message to multiple actors.
 pub struct ActorGroup<M> {
     actor_refs: Vec<ActorRef<M>>,
+    /// Index of the actor reference to send the [single delivery] message to.
+    /// Using relaxed ordering on this field is fine because we make no
+    /// gaurantees about to which actor the message will be delivered. E.g. we
+    /// could always send to the first actor in the group and still forfill the
+    /// contract.
+    ///
+    /// [single delivery]: Delivery::ToOne
+    send_next: AtomicUsize,
+}
+
+/// The kind of delivery to use in [`ActorGroup::try_send`].
+#[derive(Copy, Clone, Debug)]
+pub enum Delivery {
+    /// Delivery a copy of the message to all actors in the group.
+    ToAll,
+    /// Delivery the message to one of the actors.
+    ToOne,
 }
 
 impl<M> ActorGroup<M> {
@@ -459,6 +477,7 @@ impl<M> ActorGroup<M> {
     pub const fn empty() -> ActorGroup<M> {
         ActorGroup {
             actor_refs: Vec::new(),
+            send_next: AtomicUsize::new(0),
         }
     }
 
@@ -469,6 +488,7 @@ impl<M> ActorGroup<M> {
     {
         ActorGroup {
             actor_refs: actor_refs.into_iter().collect(),
+            send_next: AtomicUsize::new(0),
         }
     }
 
@@ -508,28 +528,28 @@ impl<M> ActorGroup<M> {
     ///
     /// [`try_send`]: ActorRef::try_send
     /// [Sending messages]: index.html#sending-messages
-    pub fn try_send<Msg>(&self, msg: Msg) -> Result<(), SendError>
+    pub fn try_send<Msg>(&self, msg: Msg, delivery: Delivery) -> Result<(), SendError>
     where
         Msg: Into<M> + Clone,
     {
-        #[cfg(any(test, feature = "test"))]
-        {
-            if crate::test::should_lose_msg() {
-                log::debug!("dropping message on purpose");
-                return Ok(());
-            }
+        if self.actor_refs.is_empty() {
+            return Err(SendError);
         }
 
-        // This lock can only not be acquired when an actor ref is added to the
-        // group, which shouldn't take too long (notwithstanding the thread
-        // being descheduled).
-        if self.actor_refs.is_empty() {
-            Err(SendError)
-        } else {
-            for actor_ref in self.actor_refs.iter() {
-                let _ = actor_ref.try_send(msg.clone());
+        match delivery {
+            Delivery::ToAll => {
+                for actor_ref in self.actor_refs.iter() {
+                    let _ = actor_ref.try_send(msg.clone());
+                }
+                Ok(())
             }
-            Ok(())
+            Delivery::ToOne => {
+                // NOTE: this wraps around on overflow.
+                let idx = self.send_next.fetch_add(1, Ordering::Relaxed) % self.actor_refs.len();
+                let actor_ref = &self.actor_refs[idx];
+                // TODO: try to send it to another actor on send failure?
+                actor_ref.try_send(msg)
+            }
         }
     }
 }

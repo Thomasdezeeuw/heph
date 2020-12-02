@@ -10,7 +10,7 @@ use mio::event::Event;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
-use crate::actor_ref::ActorGroup;
+use crate::actor_ref::{ActorGroup, Delivery};
 use crate::rt::process::ProcessId;
 use crate::rt::scheduler::Scheduler;
 use crate::rt::waker::{self, WakerId};
@@ -328,7 +328,7 @@ fn relay_signals<E>(
             worker.send_signal(signal)?;
         }
         if !signal_refs.is_empty() {
-            if let Err(err) = signal_refs.try_send(signal) {
+            if let Err(err) = signal_refs.try_send(signal, Delivery::ToAll) {
                 warn!("failed to send process signal: {}", err);
             }
         }
