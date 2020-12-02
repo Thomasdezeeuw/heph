@@ -118,8 +118,12 @@ impl<E> Worker<E> {
         self.channel.is_alive()
     }
 
-    pub(super) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
-        self.channel.register(registry, token)
+    /// Registers the channel used to communicate with the thread. Uses the
+    /// [`id`] as [`Token`].
+    ///
+    /// [`id`]: Worker::id
+    pub(super) fn register(&mut self, registry: &Registry) -> io::Result<()> {
+        self.channel.register(registry, Token(self.id))
     }
 
     /// Send the worker thread a `signal`.
@@ -324,6 +328,7 @@ impl RunningRuntime {
         let mut scheduler = self.internal.scheduler.borrow_mut();
         let mut check_coordinator = false;
         for event in self.events.iter() {
+            trace!("event: {:?}", event);
             match event.token() {
                 WAKER => {}
                 COORDINATOR => check_coordinator = true,

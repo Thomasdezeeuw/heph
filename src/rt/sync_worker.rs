@@ -6,7 +6,7 @@ use std::thread;
 use inbox::Manager;
 use log::trace;
 use mio::unix::pipe;
-use mio::{event, Interest, Registry, Token};
+use mio::{Interest, Registry, Token};
 
 use crate::actor::sync::{SyncActor, SyncContext};
 use crate::rt::options::SyncActorOptions;
@@ -57,6 +57,14 @@ impl SyncWorker {
         self.id
     }
 
+    /// Registers the sending end of the Unix pipe used to communicate with the
+    /// thread. Uses the [`id`] as [`Token`].
+    ///
+    /// [`id`]: SyncWorker::id
+    pub(super) fn register(&mut self, registry: &Registry) -> io::Result<()> {
+        registry.register(&mut self.sender, Token(self.id), Interest::WRITABLE)
+    }
+
     /// Checks if the `SyncWorker` is alive.
     pub(super) fn is_alive(&mut self) -> bool {
         match self.sender.write(&[]) {
@@ -75,32 +83,6 @@ impl SyncWorker {
     #[cfg(any(test, feature = "test"))]
     pub(crate) fn into_handle(self) -> thread::JoinHandle<()> {
         self.handle
-    }
-}
-
-/// Registers the sending end of the Unix pipe used to communicate with the
-/// thread.
-impl event::Source for SyncWorker {
-    fn register(
-        &mut self,
-        registry: &Registry,
-        token: Token,
-        interests: Interest,
-    ) -> io::Result<()> {
-        self.sender.register(registry, token, interests)
-    }
-
-    fn reregister(
-        &mut self,
-        registry: &Registry,
-        token: Token,
-        interests: Interest,
-    ) -> io::Result<()> {
-        self.sender.reregister(registry, token, interests)
-    }
-
-    fn deregister(&mut self, registry: &Registry) -> io::Result<()> {
-        self.sender.deregister(registry)
     }
 }
 

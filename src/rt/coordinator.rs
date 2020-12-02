@@ -275,18 +275,16 @@ fn setup_signals(registry: &Registry) -> io::Result<Signals> {
 /// Register all `workers`' sending end of the pipe with `registry`.
 fn register_workers<E>(registry: &Registry, workers: &mut [Worker<E>]) -> io::Result<()> {
     workers.iter_mut().try_for_each(|worker| {
-        let id = worker.id();
-        trace!("registering worker thread: id={}", id);
-        worker.register(&registry, Token(id))
+        trace!("registering worker thread: id={}", worker.id());
+        worker.register(&registry)
     })
 }
 
 /// Register all `sync_workers`' sending end of the pipe with `registry`.
 fn register_sync_workers(registry: &Registry, sync_workers: &mut [SyncWorker]) -> io::Result<()> {
     sync_workers.iter_mut().try_for_each(|worker| {
-        let id = worker.id();
-        trace!("registering sync actor worker thread: id={}", id);
-        registry.register(worker, Token(id), Interest::WRITABLE)
+        trace!("registering sync actor worker thread: id={}", worker.id());
+        worker.register(registry)
     })
 }
 
@@ -342,30 +340,23 @@ fn relay_signals<E>(
 fn handle_worker_event<E>(workers: &mut Vec<Worker<E>>, event: &Event) -> Result<(), rt::Error<E>> {
     if let Ok(i) = workers.binary_search_by_key(&event.token().0, |w| w.id()) {
         if event.is_error() || event.is_write_closed() {
-            // Receiving end of the pipe is dropped, which means the
-            // worker has shut down.
+            // Receiving end of the pipe is dropped, which means the worker has
+            // shut down.
             let worker = workers.remove(i);
             debug!("worker thread stopped: id={}", worker.id());
-
             worker
                 .join()
                 .map_err(rt::Error::worker_panic)
-                .and_then(|res| res)
+                .and_then(|res| res)?;
         } else if event.is_readable() {
             let worker = &mut workers[i];
             debug!("handling worker messages: id={}", worker.id());
-            match worker.handle_messages() {
-                Ok(()) => Ok(()),
-                Err(err) => Err(rt::Error::worker(worker::Error::RecvMsg(err))),
-            }
-        } else {
-            // Sporadic event, we can ignore it.
-            Ok(())
+            worker
+                .handle_messages()
+                .map_err(|err| rt::Error::worker(worker::Error::RecvMsg(err)))?;
         }
-    } else {
-        // Sporadic event, we can ignore it.
-        Ok(())
     }
+    Ok(())
 }
 
 /// Handle an `event` for a sync actor worker.
@@ -375,16 +366,12 @@ fn handle_sync_worker_event<E>(
 ) -> Result<(), rt::Error<E>> {
     if let Ok(i) = sync_workers.binary_search_by_key(&event.token().0, |w| w.id()) {
         if event.is_error() || event.is_write_closed() {
-            // Receiving end of the pipe is dropped, which means the
-            // worker has shut down.
+            // Receiving end of the pipe is dropped, which means the worker has
+            // shut down.
             let sync_worker = sync_workers.remove(i);
             debug!("sync actor worker thread stopped: id={}", sync_worker.id());
-
-            sync_worker.join().map_err(rt::Error::sync_actor_panic)
-        } else {
-            Ok(())
+            sync_worker.join().map_err(rt::Error::sync_actor_panic)?;
         }
-    } else {
-        Ok(())
     }
+    Ok(())
 }
