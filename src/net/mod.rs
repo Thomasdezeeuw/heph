@@ -17,7 +17,6 @@
 //! [`UdpSocket`]: crate::net::UdpSocket
 
 use std::mem::MaybeUninit;
-use std::slice;
 
 /// Macro to make a system call, return the error properly.
 macro_rules! syscall {
@@ -168,19 +167,12 @@ impl<const N: usize> Bytes for [u8; N] {
 impl Bytes for Vec<u8> {
     // NOTE: keep this function in sync with the impl below.
     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
-        // Safety: `Vec` ensures the pointer is correct for us. The pointer is
-        // at least valid for start + `Vec::capacity` bytes, a range we stay
-        // within.
-        unsafe {
-            let len = self.len();
-            let data_ptr = self.as_mut_ptr().add(len).cast();
-            // NOTE: `Vec` ensure capacity >= len, so this is always >= 0.
-            let capacity_left = self.capacity() - len;
-            slice::from_raw_parts_mut(data_ptr, capacity_left)
-        }
+        self.spare_capacity_mut()
     }
 
     unsafe fn update_length(&mut self, n: usize) {
-        self.set_len(self.len() + n);
+        let new = self.len() + n;
+        debug_assert!(self.capacity() >= new);
+        self.set_len(new);
     }
 }

@@ -80,6 +80,7 @@
     min_const_generics,
     never_type,
     new_uninit,
+    vec_spare_capacity,
     wake_trait
 )]
 #![warn(
