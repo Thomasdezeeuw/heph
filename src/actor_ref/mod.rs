@@ -472,6 +472,11 @@ impl<M> ActorGroup<M> {
         }
     }
 
+    /// Returns the number of actor references in the group.
+    pub fn len(&self) -> usize {
+        self.actor_refs.len()
+    }
+
     /// Returns `true` if the group is empty.
     pub fn is_empty(&self) -> bool {
         self.actor_refs.is_empty()

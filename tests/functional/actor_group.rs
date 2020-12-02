@@ -32,6 +32,7 @@ fn is_send_sync() {
 fn empty() {
     let group = ActorGroup::<()>::empty();
     assert!(group.try_send(()).is_err());
+    assert_eq!(group.len(), 0);
     assert!(group.is_empty());
 }
 
@@ -58,6 +59,7 @@ fn new() {
     }
 
     let group = ActorGroup::new(actor_refs);
+    assert_eq!(group.len(), 3);
     assert!(!group.is_empty());
 
     assert!(group.try_send(123usize).is_ok());
@@ -78,6 +80,7 @@ fn from_iter() {
             actor_ref
         })
         .collect();
+    assert_eq!(group.len(), 3);
 
     assert!(group.try_send(()).is_ok());
     for mut actor in actors {
