@@ -170,3 +170,28 @@ fn extend_actor_group() {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
 }
+
+#[test]
+fn remove_disconnected() {
+    let mut actors = Vec::new();
+    let mut group = ActorGroup::empty();
+    for _ in 0..3 {
+        let expect_msgs = expect_msgs as fn(_, _) -> _;
+        let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
+        actors.push(Box::pin(actor));
+        group.add(actor_ref);
+    }
+
+    assert_eq!(group.len(), actors.len());
+
+    // All actors are still connected.
+    group.remove_disconnected();
+    assert_eq!(group.len(), actors.len());
+
+    let mut iter = actors.into_iter();
+    while let Some(actor) = iter.next() {
+        drop(actor);
+        group.remove_disconnected();
+        assert_eq!(group.len(), iter.len());
+    }
+}

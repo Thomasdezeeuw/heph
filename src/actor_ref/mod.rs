@@ -487,6 +487,11 @@ impl<M> ActorGroup<M> {
         self.actor_refs.push(actor_ref)
     }
 
+    /// Remove all actor references that have been disconnected.
+    pub fn remove_disconnected(&mut self) {
+        self.actor_refs.retain(ActorRef::is_connected);
+    }
+
     /// Attempts to asynchronously send a message to all the actors in the
     /// group.
     ///
