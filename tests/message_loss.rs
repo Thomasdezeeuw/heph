@@ -6,6 +6,7 @@
 //! globally.
 
 #![feature(never_type)]
+#![cfg(feature = "test")]
 
 use std::pin::Pin;
 use std::task::Poll;

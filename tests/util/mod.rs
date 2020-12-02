@@ -1,4 +1,5 @@
 #![allow(dead_code)] // Not all tests use all functions/types.
+#![cfg(feature = "test")]
 
 use std::fmt;
 use std::mem::size_of;
