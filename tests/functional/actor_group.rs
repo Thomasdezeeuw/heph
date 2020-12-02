@@ -7,14 +7,14 @@ use std::pin::Pin;
 use std::task::Poll;
 
 use heph::actor;
-use heph::actor_ref::ActorGroup;
+use heph::actor_ref::{ActorGroup, Delivery};
 use heph::test::{init_local_actor, poll_actor};
 
 use crate::util::{assert_send, assert_size, assert_sync};
 
 #[test]
 fn size() {
-    assert_size::<ActorGroup<()>>(24);
+    assert_size::<ActorGroup<()>>(32);
 }
 
 #[test]
@@ -31,7 +31,8 @@ fn is_send_sync() {
 #[test]
 fn empty() {
     let group = ActorGroup::<()>::empty();
-    assert!(group.try_send(()).is_err());
+    assert!(group.try_send((), Delivery::ToAll).is_err());
+    assert!(group.try_send((), Delivery::ToOne).is_err());
     assert_eq!(group.len(), 0);
     assert!(group.is_empty());
 }
@@ -62,7 +63,7 @@ fn new() {
     assert_eq!(group.len(), 3);
     assert!(!group.is_empty());
 
-    assert!(group.try_send(123usize).is_ok());
+    assert!(group.try_send(123usize, Delivery::ToAll).is_ok());
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -82,7 +83,7 @@ fn from_iter() {
         .collect();
     assert_eq!(group.len(), 3);
 
-    assert!(group.try_send(()).is_ok());
+    assert!(group.try_send((), Delivery::ToAll).is_ok());
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -97,7 +98,7 @@ fn add_to_empty_group() {
     let mut actor = Box::pin(actor);
     group.add(actor_ref);
 
-    group.try_send(1usize).unwrap();
+    group.try_send(1usize, Delivery::ToAll).unwrap();
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
 }
 
@@ -120,9 +121,9 @@ fn add_actor_to_group() {
     actors.push(Box::pin(actor));
     group.add(actor_ref);
 
-    group.try_send(123usize).unwrap();
-    group.try_send(456usize).unwrap();
-    group.try_send(789usize).unwrap();
+    group.try_send(123usize, Delivery::ToAll).unwrap();
+    group.try_send(456usize, Delivery::ToAll).unwrap();
+    group.try_send(789usize, Delivery::ToAll).unwrap();
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -140,7 +141,7 @@ fn extend_empty_actor_group() {
         actor_ref
     }));
 
-    group.try_send(123usize).unwrap();
+    group.try_send(123usize, Delivery::ToAll).unwrap();
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -165,7 +166,7 @@ fn extend_actor_group() {
         actor_ref
     }));
 
-    group.try_send(123usize).unwrap();
+    group.try_send(123usize, Delivery::ToAll).unwrap();
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -193,5 +194,42 @@ fn remove_disconnected() {
         drop(actor);
         group.remove_disconnected();
         assert_eq!(group.len(), iter.len());
+    }
+}
+
+#[test]
+fn send_delivery_to_all() {
+    let mut actors = Vec::new();
+    let mut group = ActorGroup::empty();
+    for _ in 0..10 {
+        let expect_msgs = expect_msgs as fn(_, _) -> _;
+        let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
+        actors.push(Box::pin(actor));
+        group.add(actor_ref);
+    }
+
+    assert!(group.try_send(123usize, Delivery::ToAll).is_ok());
+    for mut actor in actors {
+        assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+    }
+}
+
+#[test]
+fn send_delivery_to_one() {
+    const N: usize = 10;
+    let mut actors = Vec::new();
+    let mut group = ActorGroup::empty();
+    for _ in 0..N {
+        let expect_msgs = expect_msgs as fn(_, _) -> _;
+        let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
+        actors.push(Box::pin(actor));
+        group.add(actor_ref);
+    }
+
+    // NOTE: sending order is not gauranteed so this test is too strict.
+    for mut actor in actors {
+        assert!(group.try_send(123usize, Delivery::ToOne).is_ok());
+
+        assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
 }
