@@ -456,7 +456,7 @@ pub struct ActorGroup<M> {
 
 impl<M> ActorGroup<M> {
     /// Creates an empty `ActorGroup`.
-    pub fn empty() -> ActorGroup<M> {
+    pub const fn empty() -> ActorGroup<M> {
         ActorGroup {
             actor_refs: Vec::new(),
         }
