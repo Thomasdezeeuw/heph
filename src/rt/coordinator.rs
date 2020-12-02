@@ -319,9 +319,12 @@ fn relay_signals<E>(
     workers: &mut [Worker<E>],
     signal_refs: &mut Vec<ActorRef<Signal>>,
 ) -> io::Result<()> {
+    // Remove any references to stopped actors to reduce the warnings below (on
+    // send failure).
+    signal_refs.retain(ActorRef::is_connected);
+
     while let Some(signal) = signals.receive()? {
         debug!("received signal on coordinator: signal={:?}", signal);
-
         let signal = Signal::from_mio(signal);
         for worker in workers.iter_mut() {
             worker.send_signal(signal)?;
