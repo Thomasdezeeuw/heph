@@ -37,7 +37,7 @@ jobs:
     - name: Cargo version
       run: cargo -Vv
     - name: Check Clippy
-      run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::cognitive-complexity -A clippy::needless_lifetimes
+      run: cargo clippy --all-targets --all-features -- -D warnings -A clippy::cognitive-complexity -A clippy::needless_lifetimes -A clippy::unnecessary-wraps
   Rustfmt:
     runs-on: ubuntu-latest
     steps:
