@@ -402,25 +402,38 @@ where
     }
 }
 
-impl<M, C, A> NewActor for fn(ctx: Context<M, C>) -> A
-where
-    A: Actor,
-{
-    type Message = M;
-    type Argument = ();
-    type Actor = A;
-    type Error = !;
-    type Context = C;
-    fn new(
-        &mut self,
-        ctx: Context<Self::Message, Self::Context>,
-        _arg: Self::Argument,
-    ) -> Result<Self::Actor, Self::Error> {
-        Ok((self)(ctx))
-    }
+/// Macro to implement the [`NewActor`] trait on function pointers.
+macro_rules! impl_new_actor {
+    (
+        $( ( $( $arg: ident ),* ) ),*
+        $(,)*
+    ) => {
+        $(
+            impl<M, C, $( $arg, )* A> NewActor for fn(Context<M, C>, $( $arg ),*) -> A
+            where
+                A: Actor,
+            {
+                type Message = M;
+                type Argument = ($( $arg ),*);
+                type Actor = A;
+                type Error = !;
+                type Context = C;
+
+                #[allow(non_snake_case)]
+                fn new(
+                    &mut self,
+                    ctx: Context<Self::Message, Self::Context>,
+                    arg: Self::Argument,
+                ) -> Result<Self::Actor, Self::Error> {
+                    let ($( $arg ),*) = arg;
+                    Ok((self)(ctx, $( $arg ),*))
+                }
+            }
+        )*
+    };
 }
 
-impl<M, C, Arg, A> NewActor for fn(ctx: Context<M, C>, arg: Arg) -> A
+impl<M, C, Arg, A> NewActor for fn(Context<M, C>, Arg) -> A
 where
     A: Actor,
 {
@@ -429,6 +442,7 @@ where
     type Actor = A;
     type Error = !;
     type Context = C;
+
     fn new(
         &mut self,
         ctx: Context<Self::Message, Self::Context>,
@@ -438,80 +452,15 @@ where
     }
 }
 
-impl<M, C, Arg1, Arg2, A> NewActor for fn(ctx: Context<M, C>, arg1: Arg1, arg2: Arg2) -> A
-where
-    A: Actor,
-{
-    type Message = M;
-    type Argument = (Arg1, Arg2);
-    type Actor = A;
-    type Error = !;
-    type Context = C;
-    fn new(
-        &mut self,
-        ctx: Context<Self::Message, Self::Context>,
-        arg: Self::Argument,
-    ) -> Result<Self::Actor, Self::Error> {
-        Ok((self)(ctx, arg.0, arg.1))
-    }
-}
-
-impl<M, C, Arg1, Arg2, Arg3, A> NewActor
-    for fn(ctx: Context<M, C>, arg1: Arg1, arg2: Arg2, arg3: Arg3) -> A
-where
-    A: Actor,
-{
-    type Message = M;
-    type Argument = (Arg1, Arg2, Arg3);
-    type Actor = A;
-    type Error = !;
-    type Context = C;
-    fn new(
-        &mut self,
-        ctx: Context<Self::Message, Self::Context>,
-        arg: Self::Argument,
-    ) -> Result<Self::Actor, Self::Error> {
-        Ok((self)(ctx, arg.0, arg.1, arg.2))
-    }
-}
-
-impl<M, C, Arg1, Arg2, Arg3, Arg4, A> NewActor
-    for fn(ctx: Context<M, C>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4) -> A
-where
-    A: Actor,
-{
-    type Message = M;
-    type Argument = (Arg1, Arg2, Arg3, Arg4);
-    type Actor = A;
-    type Error = !;
-    type Context = C;
-    fn new(
-        &mut self,
-        ctx: Context<Self::Message, Self::Context>,
-        arg: Self::Argument,
-    ) -> Result<Self::Actor, Self::Error> {
-        Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3))
-    }
-}
-
-impl<M, C, Arg1, Arg2, Arg3, Arg4, Arg5, A> NewActor
-    for fn(ctx: Context<M, C>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5) -> A
-where
-    A: Actor,
-{
-    type Message = M;
-    type Argument = (Arg1, Arg2, Arg3, Arg4, Arg5);
-    type Actor = A;
-    type Error = !;
-    type Context = C;
-    fn new(
-        &mut self,
-        ctx: Context<Self::Message, Self::Context>,
-        arg: Self::Argument,
-    ) -> Result<Self::Actor, Self::Error> {
-        Ok((self)(ctx, arg.0, arg.1, arg.2, arg.3, arg.4))
-    }
-}
+impl_new_actor!(
+    (),
+    // NOTE: we don't want a single argument into tuple form so we implement
+    // that manually above.
+    (Arg1, Arg2),
+    (Arg1, Arg2, Arg3),
+    (Arg1, Arg2, Arg3, Arg4),
+    (Arg1, Arg2, Arg3, Arg4, Arg5),
+);
 
 /// The `Actor` trait defines how the actor is run.
 ///
