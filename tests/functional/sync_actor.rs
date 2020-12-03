@@ -48,12 +48,11 @@ impl Future for BlockFuture {
     }
 }
 
-fn block_on_actor<Fut>(mut ctx: SyncContext<String>, fut: Fut) -> Result<(), !>
+fn block_on_actor<Fut>(mut ctx: SyncContext<String>, fut: Fut)
 where
     Fut: Future,
 {
     let _ = ctx.block_on(fut);
-    Ok(())
 }
 
 #[test]

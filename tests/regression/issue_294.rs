@@ -11,7 +11,7 @@ use heph::supervisor::NoSupervisor;
 fn issue_294() {
     let mut runtime = Runtime::new().unwrap();
 
-    let actor = actor as fn(_) -> _;
+    let actor = actor as fn(_);
     let options = SyncActorOptions::default();
     let actor_ref = runtime
         .spawn_sync_actor(NoSupervisor, actor, (), options)
@@ -26,7 +26,6 @@ fn issue_294() {
         .unwrap();
 }
 
-fn actor(mut ctx: SyncContext<()>) -> Result<(), !> {
+fn actor(mut ctx: SyncContext<()>) {
     while let Ok(_msg) = ctx.receive_next() {}
-    Ok(())
 }

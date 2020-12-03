@@ -227,6 +227,7 @@ impl<M, Arg> SyncActor for fn(SyncContext<M>, Arg) {
     type Error = !;
 
     fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
+        #[allow(clippy::unit_arg)]
         Ok((self)(ctx, arg))
     }
 }

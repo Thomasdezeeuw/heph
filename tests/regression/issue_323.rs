@@ -26,6 +26,4 @@ fn issue_323() {
 }
 
 /// Short running synchronous actor.
-fn actor(_: SyncContext<()>) -> Result<(), !> {
-    Ok(())
-}
+fn actor(_: SyncContext<()>) {}
