@@ -180,20 +180,29 @@ pub trait SyncActor {
     fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error>;
 }
 
-impl<M, E> SyncActor for fn(ctx: SyncContext<M>) -> Result<(), E> {
-    type Message = M;
-    type Argument = ();
-    type Error = E;
-    fn run(
-        &self,
-        ctx: SyncContext<Self::Message>,
-        _arg: Self::Argument,
-    ) -> Result<(), Self::Error> {
-        (self)(ctx)
-    }
+/// Macro to implement the [`SyncActor`] trait on function pointers.
+macro_rules! impl_sync_actor {
+    (
+        $( ( $( $arg: ident ),* ) ),*
+        $(,)*
+    ) => {
+        $(
+            impl<M, E, $( $arg ),*> SyncActor for fn(SyncContext<M>, $( $arg ),*) -> Result<(), E> {
+                type Message = M;
+                type Argument = ($( $arg ),*);
+                type Error = E;
+
+                #[allow(non_snake_case)]
+                fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
+                    let ($( $arg ),*) = arg;
+                    (self)(ctx, $( $arg ),*)
+                }
+            }
+        )*
+    };
 }
 
-impl<M, E, Arg> SyncActor for fn(ctx: SyncContext<M>, arg: Arg) -> Result<(), E> {
+impl<M, E, Arg> SyncActor for fn(SyncContext<M>, Arg) -> Result<(), E> {
     type Message = M;
     type Argument = Arg;
     type Error = E;
@@ -202,56 +211,15 @@ impl<M, E, Arg> SyncActor for fn(ctx: SyncContext<M>, arg: Arg) -> Result<(), E>
     }
 }
 
-impl<M, E, Arg1, Arg2> SyncActor
-    for fn(ctx: SyncContext<M>, arg1: Arg1, arg2: Arg2) -> Result<(), E>
-{
-    type Message = M;
-    type Argument = (Arg1, Arg2);
-    type Error = E;
-    fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
-        (self)(ctx, arg.0, arg.1)
-    }
-}
-
-impl<M, E, Arg1, Arg2, Arg3> SyncActor
-    for fn(ctx: SyncContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3) -> Result<(), E>
-{
-    type Message = M;
-    type Argument = (Arg1, Arg2, Arg3);
-    type Error = E;
-    fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
-        (self)(ctx, arg.0, arg.1, arg.2)
-    }
-}
-
-impl<M, E, Arg1, Arg2, Arg3, Arg4> SyncActor
-    for fn(ctx: SyncContext<M>, arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4) -> Result<(), E>
-{
-    type Message = M;
-    type Argument = (Arg1, Arg2, Arg3, Arg4);
-    type Error = E;
-    fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
-        (self)(ctx, arg.0, arg.1, arg.2, arg.3)
-    }
-}
-
-impl<M, E, Arg1, Arg2, Arg3, Arg4, Arg5> SyncActor
-    for fn(
-        ctx: SyncContext<M>,
-        arg1: Arg1,
-        arg2: Arg2,
-        arg3: Arg3,
-        arg4: Arg4,
-        arg5: Arg5,
-    ) -> Result<(), E>
-{
-    type Message = M;
-    type Argument = (Arg1, Arg2, Arg3, Arg4, Arg5);
-    type Error = E;
-    fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
-        (self)(ctx, arg.0, arg.1, arg.2, arg.3, arg.4)
-    }
-}
+impl_sync_actor!(
+    (),
+    // NOTE: we don't want a single argument into tuple form so we implement
+    // that manually above.
+    (Arg1, Arg2),
+    (Arg1, Arg2, Arg3),
+    (Arg1, Arg2, Arg3, Arg4),
+    (Arg1, Arg2, Arg3, Arg4, Arg5),
+);
 
 /// The context in which a synchronous actor is executed.
 ///
