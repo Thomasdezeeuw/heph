@@ -11,7 +11,7 @@ fn main() -> Result<(), rt::Error> {
     let mut runtime = Runtime::new()?;
 
     // Spawn a new synchronous actor, returning an actor reference to it.
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor as fn(_, _);
     // Options used to spawn the synchronous actor. Here we'll set the name of
     // the thread that runs the actor.
     let options = SyncActorOptions::default().with_name("My actor".to_owned());
@@ -32,10 +32,9 @@ fn main() -> Result<(), rt::Error> {
     runtime.start()
 }
 
-fn actor(mut ctx: SyncContext<String>, exit_msg: &'static str) -> Result<(), !> {
+fn actor(mut ctx: SyncContext<String>, exit_msg: &'static str) {
     while let Ok(msg) = ctx.receive_next() {
         println!("Got a message: {}", msg);
     }
     println!("{}", exit_msg);
-    Ok(())
 }

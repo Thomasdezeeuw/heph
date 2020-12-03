@@ -18,7 +18,7 @@
 //!     let mut runtime = Runtime::new()?;
 //!
 //!     // Spawn a new synchronous actor, returning an actor reference to it.
-//!     let actor = actor as fn(_, _) -> _;
+//!     let actor = actor as fn(_, _);
 //!     let options = SyncActorOptions::default();
 //!     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye", options)?;
 //!
@@ -29,7 +29,7 @@
 //!     runtime.start()
 //! }
 //!
-//! fn actor(mut ctx: SyncContext<String>, exit_msg: &'static str) -> Result<(), !> {
+//! fn actor(mut ctx: SyncContext<String>, exit_msg: &'static str) {
 //!     if let Ok(msg) = ctx.receive_next() {
 //! #       assert_eq!(msg, "Hello world");
 //!         println!("Got a message: {}", msg);
@@ -37,7 +37,6 @@
 //!         eprintln!("Receive no messages");
 //!     }
 //!     println!("{}", exit_msg);
-//!     Ok(())
 //! }
 //! ```
 
@@ -77,7 +76,6 @@ use crate::actor::{NoMessages, RecvError};
 /// reference into `ActorRef<TryMap<Signal>>`, see [`ActorRef::try_map`].
 ///
 /// ```
-/// #![feature(never_type)]
 /// use std::convert::TryFrom;
 ///
 /// use heph::actor::sync::SyncContext;
@@ -92,7 +90,7 @@ use crate::actor::{NoMessages, RecvError};
 ///     let mut runtime = Runtime::new()?;
 ///
 ///     // Spawn a new synchronous actor, returning an actor reference to it.
-///     let actor = actor as fn(_) -> _;
+///     let actor = actor as fn(_);
 ///     let options = SyncActorOptions::default();
 ///     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, (), options)?;
 ///
@@ -126,14 +124,13 @@ use crate::actor::{NoMessages, RecvError};
 ///     }
 /// }
 ///
-/// fn actor(mut ctx: SyncContext<Message>) -> Result<(), !> {
+/// fn actor(mut ctx: SyncContext<Message>) {
 ///     while let Ok(msg) = ctx.receive_next() {
 ///         match msg {
 ///             Message::Print(msg) => println!("Got a message: {}", msg),
 ///             Message::Signal(_signal) => break,
 ///         }
 ///     }
-///     Ok(())
 /// }
 /// ```
 ///
@@ -198,6 +195,18 @@ macro_rules! impl_sync_actor {
                     (self)(ctx, $( $arg ),*)
                 }
             }
+
+            impl<M, $( $arg ),*> SyncActor for fn(SyncContext<M>, $( $arg ),*) {
+                type Message = M;
+                type Argument = ($( $arg ),*);
+                type Error = !;
+
+                #[allow(non_snake_case)]
+                fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
+                    let ($( $arg ),*) = arg;
+                    Ok((self)(ctx, $( $arg ),*))
+                }
+            }
         )*
     };
 }
@@ -206,8 +215,19 @@ impl<M, E, Arg> SyncActor for fn(SyncContext<M>, Arg) -> Result<(), E> {
     type Message = M;
     type Argument = Arg;
     type Error = E;
+
     fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
         (self)(ctx, arg)
+    }
+}
+
+impl<M, Arg> SyncActor for fn(SyncContext<M>, Arg) {
+    type Message = M;
+    type Argument = Arg;
+    type Error = !;
+
+    fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
+        Ok((self)(ctx, arg))
     }
 }
 
@@ -254,17 +274,14 @@ impl<M> SyncContext<M> {
     /// world.
     ///
     /// ```
-    /// #![feature(never_type)]
-    ///
     /// use heph::actor::sync::SyncContext;
     ///
-    /// fn greeter_actor(mut ctx: SyncContext<String>) -> Result<(), !> {
+    /// fn greeter_actor(mut ctx: SyncContext<String>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
     ///         println!("Hello: {}", name);
     ///     } else {
     ///         println!("Hello world");
     ///     }
-    ///     Ok(())
     /// }
     ///
     /// # fn assert_sync_actor<A: heph::actor::sync::SyncActor>(_a: A) { }
@@ -285,17 +302,14 @@ impl<M> SyncContext<M> {
     /// An actor that waits for a message and prints it.
     ///
     /// ```
-    /// #![feature(never_type)]
-    ///
     /// use heph::actor::sync::SyncContext;
     ///
-    /// fn print_actor(mut ctx: SyncContext<String>) -> Result<(), !> {
+    /// fn print_actor(mut ctx: SyncContext<String>) {
     ///     if let Ok(msg) = ctx.receive_next() {
     ///         println!("Got a message: {}", msg);
     ///     } else {
     ///         eprintln!("No message received");
     ///     }
-    ///     Ok(())
     /// }
     ///
     /// # fn assert_sync_actor<A: heph::actor::sync::SyncActor>(_a: A) { }

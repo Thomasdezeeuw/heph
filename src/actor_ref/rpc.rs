@@ -112,7 +112,7 @@
 //! }
 //!
 //! /// Receiving synchronous actor of the RPC.
-//! fn counter(mut ctx: SyncContext<Message>) -> Result<(), !> {
+//! fn counter(mut ctx: SyncContext<Message>) {
 //!     // State of the counter.
 //!     let mut count: usize = 0;
 //!
@@ -130,9 +130,6 @@
 //!             },
 //!         }
 //!     }
-//!
-//!     // And we're done.
-//!     Ok(())
 //! }
 //!
 //! /// Sending actor of the RPC.

@@ -17,7 +17,7 @@ fn main() -> Result<(), rt::Error> {
 
     // Synchronous actor.
     // Spawn our actor.
-    let sync_actor = sync_actor as fn(_) -> _;
+    let sync_actor = sync_actor as fn(_);
     let options = SyncActorOptions::default();
     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, sync_actor, (), options)?;
     // Send it message
@@ -68,7 +68,7 @@ impl TryFrom<Signal> for Message {
     }
 }
 
-fn sync_actor(mut ctx: SyncContext<Message>) -> Result<(), !> {
+fn sync_actor(mut ctx: SyncContext<Message>) {
     while let Ok(msg) = ctx.receive_next() {
         match msg {
             Message::Print(msg) => println!("Got a message: {}", msg),
@@ -77,7 +77,6 @@ fn sync_actor(mut ctx: SyncContext<Message>) -> Result<(), !> {
     }
 
     println!("shutting down the synchronous actor");
-    Ok(())
 }
 
 async fn thread_safe_actor(mut ctx: actor::Context<Message, ThreadSafe>) -> Result<(), !> {
