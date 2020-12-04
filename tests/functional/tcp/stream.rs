@@ -447,16 +447,27 @@ fn recv_n_from_multiple_writes() {
 
 #[test]
 fn send() {
+    static STAGE: Stage = Stage::new();
+
     async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        STAGE.update(0);
+        let connect = TcpStream::connect(&mut ctx, address)?;
+        STAGE.update(1);
+        wait_once().await;
+
+        let mut stream = connect.await?;
+        STAGE.update(2);
+        wait_once().await;
 
         let n = stream.send(&DATA).await?;
         assert_eq!(n, DATA.len());
+        STAGE.update(3);
 
         // Return pending once.
         wait_once().await;
 
         drop(stream);
+        STAGE.update(4);
         Ok(())
     }
 
@@ -467,12 +478,14 @@ fn send() {
     pin_mut!(actor);
 
     // Stream should not yet be connected.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
 
+    // Once we accept the connecting the actor should be able to proceed.
     let (mut stream, _) = listener.accept().unwrap();
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 2));
 
     // Should send the bytes.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 3));
 
     let mut buf = [0; DATA.len() + 1];
     let n = stream.read(&mut buf).unwrap();
@@ -480,7 +493,7 @@ fn send() {
     assert_eq!(&buf[..n], DATA);
 
     // Should drop the stream.
-    expect_ready_ok(poll_actor(Pin::as_mut(&mut actor)), ());
+    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 4), ());
     let n = stream.read(&mut buf).unwrap();
     assert_eq!(n, 0);
 }
