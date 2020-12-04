@@ -63,6 +63,7 @@ pub fn refused_address() -> SocketAddr {
 /// connection and testing that it can be read. This depends on the fact that
 /// the actor will return pending the moment it can't read anything, with
 /// `Stage` we know the actor is connected but hasn't read anything.
+#[derive(Debug)]
 pub struct Stage(AtomicUsize);
 
 impl Stage {
@@ -79,7 +80,9 @@ impl Stage {
         let mut n = 0;
         loop {
             let res = poll_actor(actor.as_mut());
-            if res.is_ready() || self.0.load(Ordering::SeqCst) >= want {
+            let state = self.0.load(Ordering::SeqCst);
+            if res.is_ready() || state >= want {
+                assert_eq!(state, want, "unexpected state");
                 return res;
             }
 
@@ -106,7 +109,7 @@ where
 {
     match poll {
         Poll::Pending => {} // Ok.
-        Poll::Ready(value) => panic!("unexpected `Poll::Ready({:?})`", value),
+        Poll::Ready(value) => panic!("expected pending, got `Poll::Ready({:?})`", value),
     }
 }
 
