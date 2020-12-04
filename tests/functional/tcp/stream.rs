@@ -17,7 +17,8 @@ use heph::net::TcpStream;
 use heph::test::{init_local_actor, poll_actor};
 
 use crate::util::{
-    any_local_address, expect_pending, expect_ready_ok, loop_expect_ready_ok, Stage,
+    any_local_address, expect_pending, expect_ready_ok, loop_expect_ready_ok, refused_address,
+    Stage,
 };
 
 const DATA: &[u8] = b"Hello world";
@@ -103,6 +104,69 @@ fn smoke() {
     let mut buf = [0; 8];
     let n = stream.read(&mut buf).unwrap();
     assert_eq!(n, 0);
+}
+
+#[test]
+fn connect() {
+    static STAGE: Stage = Stage::new();
+
+    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+        STAGE.update(0);
+        let connect = TcpStream::connect(&mut ctx, address)?;
+        STAGE.update(1);
+        wait_once().await;
+
+        let stream = connect.await?;
+        STAGE.update(2);
+        wait_once().await;
+
+        drop(stream);
+        STAGE.update(3);
+        Ok(())
+    }
+
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
+    let address = listener.local_addr().unwrap();
+
+    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
+    pin_mut!(actor);
+
+    // Stream should not yet be connected.
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
+
+    // Once we accept the connecting the actor should be able to proceed.
+    let (mut stream, _) = listener.accept().unwrap();
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 2));
+
+    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 3), ());
+
+    let mut buf = [0; 2];
+    assert_eq!(stream.read(&mut buf).unwrap(), 0);
+    drop(stream);
+}
+
+#[test]
+fn connect_connection_refused() {
+    async fn actor(mut ctx: actor::Context<!>) -> io::Result<()> {
+        let connect = TcpStream::connect(&mut ctx, refused_address()).unwrap();
+        match connect.await {
+            Ok(..) => panic!("unexpected success"),
+            Err(err) => {
+                assert_eq!(
+                    err.kind(),
+                    io::ErrorKind::ConnectionRefused,
+                    "unexpected error: {:?}",
+                    err
+                );
+            }
+        }
+        Ok(())
+    }
+    let (actor, _) = init_local_actor(actor as fn(_) -> _, ()).unwrap();
+    pin_mut!(actor);
+
+    // Should drop the stream.
+    expect_ready_ok(poll_actor(Pin::as_mut(&mut actor)), ());
 }
 
 #[test]

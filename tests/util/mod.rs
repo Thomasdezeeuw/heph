@@ -46,6 +46,11 @@ pub fn any_local_ipv6_address() -> SocketAddr {
     "[::1]:0".parse().unwrap()
 }
 
+/// Returns an address to which the connection will be refused.
+pub fn refused_address() -> SocketAddr {
+    "127.0.0.1:65535".parse().unwrap()
+}
+
 /// Stage of a test actor.
 ///
 /// When testing `Future`s it sometimes hard to tell which futures have and
