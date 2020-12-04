@@ -316,9 +316,10 @@ pub struct Connect {
 impl Future for Connect {
     type Output = io::Result<TcpStream>;
 
+    #[track_caller]
     fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         // This relates directly Mio and `kqueue(2)` and `epoll(2)`. To do a
-        // non-blocking TCP connect properly we need to a couple of this.
+        // non-blocking TCP connect properly we need to a couple of things.
         //
         // 1. Setup a socket and call `connect(2)`. Mio does this for us.
         //    However it doesn't mean the socket is connected, as we can't
@@ -329,31 +330,37 @@ impl Future for Connect {
         //    not. To determine if the socket is connected we need to use
         //    `getpeername` (`TcpStream::peer_addr`). But before checking if
         //    we're connected we need to check for a connection error, by
-        //    checking `SO_ERROR` (`TcpStream::take_error`) to not loose that
+        //    checking `SO_ERROR` (`TcpStream::take_error`) to not lose that
         //    information.
         //    However if we get an event (and thus get scheduled) and
-        //    `getpeername` fails it doesn't actually mean the socket will never
-        //    connect properly. So we loop (by returned `Poll::Pending`) until
-        //    either `SO_ERROR` is set or the socket is connected.
+        //    `getpeername` fails with `ENOTCONN` it doesn't actually mean the
+        //    socket will never connect properly. So we loop (by returned
+        //    `Poll::Pending`) until either `SO_ERROR` is set or the socket is
+        //    connected.
         //
         // Sources:
         // * https://cr.yp.to/docs/connect.html
         // * https://stackoverflow.com/questions/17769964/linux-sockets-non-blocking-connect
         match self.socket.take() {
             Some(socket) => {
-                // If we hit an error while connecting return that.
+                // If we hit an error while connecting return that error.
                 if let Ok(Some(err)) = socket.take_error() {
                     return Poll::Ready(Err(err));
                 }
 
                 // If we can get a peer address it means the stream is
                 // connected.
-                if let Ok(..) = socket.peer_addr() {
-                    return Poll::Ready(Ok(TcpStream { socket }));
+                match socket.peer_addr() {
+                    Ok(..) => Poll::Ready(Ok(TcpStream { socket })),
+                    Err(err) if err.kind() == io::ErrorKind::NotConnected => {
+                        // Socket is not (yet) connected but haven't hit an
+                        // error either. So we return `Pending` and wait for
+                        // another event.
+                        self.socket = Some(socket);
+                        Poll::Pending
+                    }
+                    Err(err) => Poll::Ready(Err(err)),
                 }
-
-                self.socket = Some(socket);
-                Poll::Pending
             }
             None => panic!("polled `tcp::stream::Connect` after completion"),
         }
