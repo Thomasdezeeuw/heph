@@ -25,18 +25,18 @@ impl Priority {
     /// Low priority.
     ///
     /// Other actors have priority over this actor.
-    pub const LOW: Priority = Priority(unsafe { NonZeroU8::new_unchecked(15) });
+    pub const LOW: Priority = Priority(NonZeroU8::new(15).unwrap());
 
     /// Normal priority.
     ///
     /// Most actors should run at this priority, hence its also the default
     /// priority.
-    pub const NORMAL: Priority = Priority(unsafe { NonZeroU8::new_unchecked(10) });
+    pub const NORMAL: Priority = Priority(NonZeroU8::new(10).unwrap());
 
     /// High priority.
     ///
     /// Takes priority over other actors.
-    pub const HIGH: Priority = Priority(unsafe { NonZeroU8::new_unchecked(5) });
+    pub const HIGH: Priority = Priority(NonZeroU8::new(5).unwrap());
 }
 
 impl Default for Priority {

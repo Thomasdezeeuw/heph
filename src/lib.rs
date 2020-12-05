@@ -70,6 +70,7 @@
     array_methods,
     available_concurrency,
     const_fn,
+    const_option,
     const_raw_ptr_to_usize_cast,
     drain_filter,
     duration_zero,
