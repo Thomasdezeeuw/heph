@@ -175,7 +175,13 @@ fn try_recv() {
 
     async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
         STAGE.update(0);
-        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        let connect = TcpStream::connect(&mut ctx, address)?;
+        STAGE.update(1);
+        wait_once().await;
+
+        let mut stream = connect.await?;
+        STAGE.update(2);
+        wait_once().await;
 
         let mut buf = Vec::with_capacity(128);
         match stream.try_recv(&mut buf) {
@@ -183,7 +189,7 @@ fn try_recv() {
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {}
             Err(err) => return Err(err),
         }
-        STAGE.update(1);
+        STAGE.update(3);
 
         // Return pending once.
         wait_once().await;
@@ -219,7 +225,7 @@ fn try_recv() {
             }
         }
 
-        STAGE.update(2);
+        STAGE.update(4);
         Ok(())
     }
 
@@ -230,17 +236,17 @@ fn try_recv() {
     pin_mut!(actor);
 
     // Stream should not yet be connected.
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 0));
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
 
     // Connected, but shouldn't yet read anything.
     let (mut stream, _) = listener.accept().unwrap();
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 3));
 
     // Should be able to read what we write.
     stream.write_all(&DATA).unwrap();
     sorta_flush(&mut stream);
     drop(stream);
-    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 2), ());
+    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 4), ());
 }
 
 #[test]
