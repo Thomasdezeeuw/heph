@@ -112,10 +112,9 @@ const NO_WAKER: Option<ThreadWaker> = None;
 
 /// Get waker data for `waker_id`
 pub(crate) fn get_thread_waker(waker_id: WakerId) -> &'static ThreadWaker {
-    // Safety: `WakerId` is only created by `init`, which ensures it's a valid
-    // invalid. Furthermore `init` ensures that `THREAD_WAKER[waker_id]`
-    // initialised and is read-only after that. See `THREAD_WAKERS`
-    // documentation for more.
+    // Safety: `WakerId` is only created by `init`, which ensures its valid.
+    // Furthermore `init` ensures that `THREAD_WAKER[waker_id]` initialised and
+    // is read-only after that. See `THREAD_WAKERS` documentation for more.
     unsafe {
         THREAD_WAKERS[waker_id.0 as usize]
             .as_ref()
