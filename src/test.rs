@@ -20,6 +20,7 @@
 use std::cell::RefCell;
 use std::cmp::max;
 use std::future::Future;
+use std::lazy::SyncLazy;
 use std::mem::size_of;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
@@ -28,7 +29,6 @@ use std::task::{self, Poll};
 use std::{io, thread};
 
 use inbox::Manager;
-use lazy_static::lazy_static;
 use rand::Rng;
 
 use crate::actor::sync::SyncActor;
@@ -46,25 +46,25 @@ use crate::supervisor::SyncSupervisor;
 
 pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 
-lazy_static! {
-    static ref COORDINATOR_ID: WakerId = {
-        let poll = mio::Poll::new().unwrap();
-        let waker = mio::Waker::new(poll.registry(), mio::Token(0)).unwrap();
-        let (sender, _) = crossbeam_channel::unbounded();
-        waker::init(waker, sender)
-    };
-    static ref SHARED_INTERNAL: Arc<SharedRuntimeInternal> = {
-        let poll = mio::Poll::new().expect("failed to create Poll instance for test module");
-        let registry = poll
-            .registry()
-            .try_clone()
-            .expect("failed to create Registry for test module");
-        let scheduler = Scheduler::new();
-        let scheduler = scheduler.create_ref();
-        let timers = Arc::new(Mutex::new(Timers::new()));
-        SharedRuntimeInternal::new(*COORDINATOR_ID, scheduler, registry, timers)
-    };
-}
+static POLL: SyncLazy<mio::Poll> =
+    SyncLazy::new(|| mio::Poll::new().expect("failed to create `Poll` instance for test module"));
+
+static COORDINATOR_ID: SyncLazy<WakerId> = SyncLazy::new(|| {
+    let waker = mio::Waker::new(POLL.registry(), mio::Token(0)).unwrap();
+    let (sender, _) = crossbeam_channel::unbounded();
+    waker::init(waker, sender)
+});
+
+static SHARED_INTERNAL: SyncLazy<Arc<SharedRuntimeInternal>> = SyncLazy::new(|| {
+    let registry = POLL
+        .registry()
+        .try_clone()
+        .expect("failed to clone `Registry` for test module");
+    let scheduler = Scheduler::new();
+    let scheduler = scheduler.create_ref();
+    let timers = Arc::new(Mutex::new(Timers::new()));
+    SharedRuntimeInternal::new(*COORDINATOR_ID, scheduler, registry, timers)
+});
 
 thread_local! {
     /// Per thread active, but not running, runtime.

@@ -19,7 +19,7 @@ travis-ci = { repository = "Thomasdezeeuw/heph", branch = "master" }
 default = []
 
 # Feature that enables the `test` module.
-test = ["lazy_static", "rand"]
+test = ["rand"]
 
 [dependencies]
 crossbeam-channel = { version = "0.5.0", default-features = false, features = ["std"] }
@@ -35,13 +35,9 @@ mio-signals       = { version = "0.1.2", default-features = false }
 std-logger        = { version = "0.3.6", default-features = false, features = ["log-panic", "timestamp"] }
 
 # Required by the `test` feature.
-# TODO: replace `lazy_static` with `std::lazy::SyncLazy` once stable (tracking
-# issue: https://github.com/rust-lang/rust/issues/74465).
-lazy_static       = { version = "1.4.0", default-features = false, optional = true }
 rand              = { version = "0.7.3", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
 futures-test      = { version = "0.3.4", default-features = false, features = ["std"] }
 futures-util      = { version = "0.3.4", default-features = false, features = ["async-await-macro"] }
-lazy_static       = { version = "1.4.0", default-features = false }
 rand              = { version = "0.7.3", default-features = false, features = ["std"] }
