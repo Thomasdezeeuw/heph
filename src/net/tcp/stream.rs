@@ -352,7 +352,13 @@ impl Future for Connect {
                 // connected.
                 match socket.peer_addr() {
                     Ok(..) => Poll::Ready(Ok(TcpStream { socket })),
-                    Err(err) if err.kind() == io::ErrorKind::NotConnected => {
+                    Err(err)
+                        if err.kind() == io::ErrorKind::NotConnected
+                        // It seems that macOS sometimes returns `EINVAL` when
+                        // the socket is not (yet) connected. Since we ensure
+                        // all arguments are valid we can safely ignore it.
+                            || err.kind() == io::ErrorKind::InvalidInput =>
+                    {
                         // Socket is not (yet) connected but haven't hit an
                         // error either. So we return `Pending` and wait for
                         // another event.
