@@ -147,8 +147,12 @@ fn connect() {
 
 #[test]
 fn connect_connection_refused() {
+    static STAGE: Stage = Stage::new();
+
     async fn actor(mut ctx: actor::Context<!>) -> io::Result<()> {
+        STAGE.update(0);
         let connect = TcpStream::connect(&mut ctx, refused_address()).unwrap();
+        STAGE.update(1);
         match connect.await {
             Ok(..) => panic!("unexpected success"),
             Err(err) => {
@@ -160,13 +164,13 @@ fn connect_connection_refused() {
                 );
             }
         }
+        STAGE.update(2);
         Ok(())
     }
+
     let (actor, _) = init_local_actor(actor as fn(_) -> _, ()).unwrap();
     pin_mut!(actor);
-
-    // Should drop the stream.
-    expect_ready_ok(poll_actor(Pin::as_mut(&mut actor)), ());
+    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 2), ());
 }
 
 #[test]
