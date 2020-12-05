@@ -83,6 +83,7 @@
     vec_spare_capacity,
     wake_trait
 )]
+#![cfg_attr(any(test, feature = "test"), feature(once_cell))]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,
