@@ -371,14 +371,42 @@ where
         'r: 'fut,
         Msg: Unpin + 'fut,
     {
-        Box::pin(async move {
-            let msg = M::try_from(msg).map_err(|_msg| SendError)?;
-            self.send(msg).await
-        })
+        let mapped_send = match M::try_from(msg) {
+            Ok(msg) => MappedSendValue::Send(self.send(msg)),
+            Err(..) => MappedSendValue::MapErr,
+        };
+        Box::pin(mapped_send)
     }
 
     fn is_connected(&self) -> bool {
         self.is_connected()
+    }
+}
+
+enum MappedSendValue<'r, 'fut, M> {
+    Send(SendValue<'r, 'fut, M>),
+    /// Error mapping the message type.
+    MapErr,
+}
+
+impl<'r, 'fut, M> Future for MappedSendValue<'r, 'fut, M>
+where
+    M: Unpin,
+{
+    type Output = Result<(), SendError>;
+
+    #[track_caller]
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // Safety: we're not moving the future to this is safe.
+        let this = unsafe { self.get_unchecked_mut() };
+        use MappedSendValue::*;
+        match this {
+            // Safety: we're not moving `send_value` so this is safe.
+            Send(send_value) => unsafe { Pin::new_unchecked(send_value) }
+                .poll(ctx)
+                .map_err(|_| SendError),
+            MapErr => Poll::Ready(Err(SendError)),
+        }
     }
 }
 
