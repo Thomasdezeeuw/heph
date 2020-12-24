@@ -31,6 +31,9 @@ libc              = { version = "0.2.79", default-features = false }
 log               = { version = "0.4.8", default-features = false }
 mio               = { version = "0.7.5", default-features = false, features = ["os-poll", "tcp", "udp", "pipe"] }
 mio-signals       = { version = "0.1.2", default-features = false }
+# FIXME: not sure if we want this as dependency, it's missing issues. For
+# example: https://github.com/andylokandy/smallbox/issues/2.
+smallbox          = { version = "0.8.0", default-features = false, features = ["std", "coerce"] }
 # Enable logging panics via `std-logger` and add timestamps to each log message.
 std-logger        = { version = "0.3.6", default-features = false, features = ["log-panic", "timestamp"] }
 

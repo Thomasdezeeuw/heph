@@ -112,6 +112,7 @@ use std::sync::Arc;
 use std::task::{self, Poll};
 
 use inbox::Sender;
+use smallbox::{smallbox, SmallBox};
 
 pub mod rpc;
 #[doc(no_inline)]
@@ -174,11 +175,11 @@ impl<M> ActorRef<M> {
     {
         let msg = msg.into();
         use ActorRefKind::*;
-        SendValue {
-            kind: match &self.kind {
-                Local(sender) => SendValueKind::Local(sender.send(msg)),
-                Mapped(actor_ref) => SendValueKind::Mapped(actor_ref.mapped_send(msg)),
+        match &self.kind {
+            Local(sender) => SendValue {
+                kind: SendValueKind::Local(sender.send(msg)),
             },
+            Mapped(actor_ref) => actor_ref.mapped_send(msg),
         }
     }
 
@@ -341,13 +342,10 @@ trait MappedActorRef<M> {
     /// Same as [`ActorRef::try_send`] but converts the message first.
     fn try_mapped_send(&self, msg: M) -> Result<(), SendError>;
 
-    fn mapped_send<'r, 'fut>(
-        &'r self,
-        msg: M,
-    ) -> Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>
+    fn mapped_send<'r, 'fut>(&'r self, msg: M) -> SendValue<'r, 'fut, M>
     where
         'r: 'fut,
-        M: Unpin + 'fut;
+        M: Unpin;
 
     fn is_connected(&self) -> bool;
 }
@@ -359,23 +357,27 @@ where
 {
     fn try_mapped_send(&self, msg: Msg) -> Result<(), SendError> {
         M::try_from(msg)
-            .map_err(|_msg| SendError)
+            .map_err(|_err| SendError)
             .and_then(|msg| self.try_send(msg))
     }
 
-    fn mapped_send<'r, 'fut>(
-        &'r self,
-        msg: Msg,
-    ) -> Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>
+    fn mapped_send<'r, 'fut>(&'r self, msg: Msg) -> SendValue<'r, 'fut, Msg>
     where
         'r: 'fut,
-        Msg: Unpin + 'fut,
+        Msg: Unpin,
     {
-        let mapped_send = match M::try_from(msg) {
-            Ok(msg) => MappedSendValue::Send(self.send(msg)),
-            Err(..) => MappedSendValue::MapErr,
-        };
-        Box::pin(mapped_send)
+        use ActorRefKind::*;
+        match M::try_from(msg) {
+            Ok(msg) => match &self.kind {
+                Local(sender) => SendValue {
+                    kind: SendValueKind::Mapped(smallbox!(MappedSendValue(sender.send(msg)))),
+                },
+                Mapped(mapped_ref) => mapped_ref.mapped_send(msg).force_into(),
+            },
+            Err(..) => SendValue {
+                kind: SendValueKind::MapErr,
+            },
+        }
     }
 
     fn is_connected(&self) -> bool {
@@ -383,13 +385,9 @@ where
     }
 }
 
-enum MappedSendValue<'r, 'fut, M> {
-    Send(SendValue<'r, 'fut, M>),
-    /// Error mapping the message type.
-    MapErr,
-}
+struct MappedSendValue<'r, M>(inbox::SendValue<'r, M>);
 
-impl<'r, 'fut, M> Future for MappedSendValue<'r, 'fut, M>
+impl<'r, M> Future for MappedSendValue<'r, M>
 where
     M: Unpin,
 {
@@ -398,15 +396,9 @@ where
     #[track_caller]
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         // Safety: we're not moving the future to this is safe.
-        let this = unsafe { self.get_unchecked_mut() };
-        use MappedSendValue::*;
-        match this {
-            // Safety: we're not moving `send_value` so this is safe.
-            Send(send_value) => unsafe { Pin::new_unchecked(send_value) }
-                .poll(ctx)
-                .map_err(|_| SendError),
-            MapErr => Poll::Ready(Err(SendError)),
-        }
+        unsafe { self.map_unchecked_mut(|s| &mut s.0) }
+            .poll(ctx)
+            .map_err(|_| SendError)
     }
 }
 
@@ -424,9 +416,34 @@ pub struct SendValue<'r, 'fut, M> {
     kind: SendValueKind<'r, 'fut, M>,
 }
 
+/// For messages smaller than 128 bytes we don't allocate.
+// TODO: The size of `SendValue` is `size_of::<M> + 64`. `SmallBox` fields need
+// 16 bytes. So we could do `max(size_of::<M> + 48, S16)`, for large messages
+// this would make full use of the unused spaces.
+type SendValueSpace = smallbox::space::S16;
+
 enum SendValueKind<'r, 'fut, M> {
     Local(inbox::SendValue<'r, M>),
-    Mapped(Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>),
+    Mapped(SmallBox<dyn Future<Output = Result<(), SendError>> + 'fut, SendValueSpace>),
+    MapErr,
+}
+
+impl<'r, 'fut, M> SendValue<'r, 'fut, M> {
+    /// Forces `SendValue` to be mapped into a different type.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if the `SendValueKind` is local.
+    fn force_into<Msg>(self) -> SendValue<'r, 'fut, Msg> {
+        use SendValueKind::*;
+        SendValue {
+            kind: match self.kind {
+                Local(..) => unreachable!(),
+                Mapped(small_box) => Mapped(small_box),
+                MapErr => MapErr,
+            },
+        }
+    }
 }
 
 impl<'r, 'fut, M> Future for SendValue<'r, 'fut, M>
@@ -453,7 +470,8 @@ where
             Local(send_value) => unsafe { Pin::new_unchecked(send_value) }
                 .poll(ctx)
                 .map_err(|_| SendError),
-            Mapped(fut) => fut.as_mut().poll(ctx),
+            Mapped(fut) => unsafe { Pin::new_unchecked(&mut **fut) }.as_mut().poll(ctx),
+            MapErr => Poll::Ready(Err(SendError)),
         }
     }
 }
