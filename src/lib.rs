@@ -69,7 +69,9 @@
 #![feature(
     array_methods,
     available_concurrency,
+    const_evaluatable_checked,
     const_fn,
+    const_generics,
     const_option,
     const_raw_ptr_to_usize_cast,
     drain_filter,
@@ -78,7 +80,7 @@
     maybe_uninit_extra,
     maybe_uninit_ref,
     maybe_uninit_slice,
-    min_const_generics,
+    //min_const_generics,
     never_type,
     new_uninit,
     vec_spare_capacity,

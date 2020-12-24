@@ -106,6 +106,8 @@ use std::error::Error;
 use std::fmt;
 use std::future::Future;
 use std::iter::FromIterator;
+use std::marker::PhantomData;
+use std::mem::size_of;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -416,15 +418,40 @@ pub struct SendValue<'r, 'fut, M> {
     kind: SendValueKind<'r, 'fut, M>,
 }
 
+// TODO: check if heap allocated!
+
 /// For messages smaller than 128 bytes we don't allocate.
 // TODO: The size of `SendValue` is `size_of::<M> + 64`. `SmallBox` fields need
 // 16 bytes. So we could do `max(size_of::<M> + 48, S16)`, for large messages
 // this would make full use of the unused spaces.
-type SendValueSpace = smallbox::space::S16;
+//type SendValueSpace = smallbox::space::S16;
+struct SendValueSpace<M: Space> {
+    _space: [usize; M::SIZE],
+    _phantom: PhantomData<M>,
+}
+
+trait Space {
+    const SIZE: usize;
+}
+
+impl<T: Sized> Space for T {
+    const SIZE: usize = send_value_stack_space::<T>();
+}
+
+/// Function to calculate `SendValueSpace`.
+const fn send_value_stack_space<M>() -> usize {
+    // Space unused by `SendValue`.
+    let left = size_of::<SendValue<'_, '_, M>>() - size_of::<M>();
+    // Space required by `SmallBox` for it's internals.
+    let required = size_of::<SmallBox<(), [u8; 0]>>();
+    // The space we can use is difference between both, plus the size of mapped
+    // message (`M`).
+    (left - required) + size_of::<M>()
+}
 
 enum SendValueKind<'r, 'fut, M> {
     Local(inbox::SendValue<'r, M>),
-    Mapped(SmallBox<dyn Future<Output = Result<(), SendError>> + 'fut, SendValueSpace>),
+    Mapped(SmallBox<dyn Future<Output = Result<(), SendError>> + 'fut, SendValueSpace<M>>),
     MapErr,
 }
 
