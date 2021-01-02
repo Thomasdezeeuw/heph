@@ -78,7 +78,6 @@
     maybe_uninit_extra,
     maybe_uninit_ref,
     maybe_uninit_slice,
-    min_const_generics,
     never_type,
     new_uninit,
     vec_spare_capacity,
