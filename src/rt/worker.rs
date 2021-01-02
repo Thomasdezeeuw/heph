@@ -11,7 +11,7 @@ use mio::{Events, Poll, Registry, Token};
 use crate::rt::hack::SetupFn;
 use crate::rt::process::ProcessResult;
 use crate::rt::scheduler::LocalScheduler;
-use crate::rt::timers::Timers;
+use crate::rt::timers::TimingWheel;
 use crate::rt::waker::{self, ThreadWaker};
 use crate::rt::{
     self, channel, ProcessId, RuntimeInternal, RuntimeRef, SharedRuntimeInternal, Signal,
@@ -234,7 +234,7 @@ impl RunningRuntime {
             waker_id,
             scheduler: RefCell::new(scheduler),
             poll: RefCell::new(poll),
-            timers: RefCell::new(Timers::new()),
+            timers: RefCell::new(TimingWheel::new()),
             signal_receivers: RefCell::new(Vec::new()),
         };
 
@@ -342,7 +342,8 @@ impl RunningRuntime {
         }
 
         trace!("polling timers");
-        for pid in self.internal.timers.borrow_mut().deadlines() {
+        let now = Instant::now();
+        for pid in self.internal.timers.borrow_mut().deadlines(now) {
             scheduler.mark_ready(pid);
         }
 

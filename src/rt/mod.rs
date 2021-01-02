@@ -52,7 +52,7 @@ cfg_pub_test!(channel, scheduler, worker, sync_worker);
 
 pub(crate) use access::PrivateAccess;
 pub(crate) use process::ProcessId;
-pub(crate) use timers::Timers; // Needed by the `test` module.
+pub(crate) use timers::TimingWheel; // Needed by the `test` module.
 pub(crate) use waker::Waker;
 
 pub mod options;
@@ -700,7 +700,7 @@ struct RuntimeInternal {
     /// System poll, used for event notifications to support non-blocking I/O.
     poll: RefCell<Poll>,
     /// Timers, deadlines and timeouts.
-    timers: RefCell<Timers>,
+    timers: RefCell<TimingWheel>,
     /// Actor references to relay received `Signal`s to.
     signal_receivers: RefCell<Vec<ActorRef<Signal>>>,
 }
@@ -717,8 +717,8 @@ pub(crate) struct SharedRuntimeInternal {
     scheduler: SchedulerRef,
     /// Registry for the `Coordinator`'s `Poll` instance.
     registry: Registry,
-    // FIXME: `Timers` is not up to this job.
-    timers: Arc<Mutex<Timers>>,
+    // FIXME: make a thread safe version of `TimingWheel`.
+    timers: Arc<Mutex<TimingWheel>>,
 }
 
 impl SharedRuntimeInternal {
@@ -726,7 +726,7 @@ impl SharedRuntimeInternal {
         waker_id: WakerId,
         scheduler: SchedulerRef,
         registry: Registry,
-        timers: Arc<Mutex<Timers>>,
+        timers: Arc<Mutex<TimingWheel>>,
     ) -> Arc<SharedRuntimeInternal> {
         let waker = Waker::new(waker_id, coordinator::WAKER.into());
         Arc::new(SharedRuntimeInternal {

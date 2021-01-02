@@ -39,12 +39,12 @@ use crate::rt::sync_worker::SyncWorker;
 use crate::rt::waker::{self, WakerId};
 use crate::rt::worker::RunningRuntime;
 use crate::rt::{
-    self, ProcessId, RuntimeRef, SharedRuntimeInternal, SyncActorOptions, Timers,
+    self, ProcessId, RuntimeRef, SharedRuntimeInternal, SyncActorOptions, TimingWheel,
     SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
 };
 use crate::supervisor::SyncSupervisor;
 
-pub(crate) const TEST_PID: ProcessId = ProcessId::INVALID;
+pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 
 static POLL: SyncLazy<mio::Poll> =
     SyncLazy::new(|| mio::Poll::new().expect("failed to create `Poll` instance for test module"));
@@ -62,7 +62,7 @@ static SHARED_INTERNAL: SyncLazy<Arc<SharedRuntimeInternal>> = SyncLazy::new(|| 
         .expect("failed to clone `Registry` for test module");
     let scheduler = Scheduler::new();
     let scheduler = scheduler.create_ref();
-    let timers = Arc::new(Mutex::new(Timers::new()));
+    let timers = Arc::new(Mutex::new(TimingWheel::new()));
     SharedRuntimeInternal::new(*COORDINATOR_ID, scheduler, registry, timers)
 });
 

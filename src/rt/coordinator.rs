@@ -15,8 +15,8 @@ use crate::rt::process::ProcessId;
 use crate::rt::scheduler::Scheduler;
 use crate::rt::waker::{self, WakerId};
 use crate::rt::{
-    self, worker, SharedRuntimeInternal, Signal, SyncWorker, Timers, Worker, SYNC_WORKER_ID_END,
-    SYNC_WORKER_ID_START,
+    self, worker, SharedRuntimeInternal, Signal, SyncWorker, TimingWheel, Worker,
+    SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
 };
 
 /// Error running the [`Coordinator`].
@@ -75,7 +75,7 @@ pub(super) struct Coordinator {
     waker_id: WakerId,
     waker_events: Receiver<ProcessId>,
     scheduler: Scheduler,
-    timers: Arc<Mutex<Timers>>,
+    timers: Arc<Mutex<TimingWheel>>,
 }
 
 impl Coordinator {
@@ -88,7 +88,7 @@ impl Coordinator {
         let waker = mio::Waker::new(&registry, WAKER).map_err(Error::Init)?;
         let waker_id = waker::init(waker, waker_sender);
         let scheduler = Scheduler::new();
-        let timers = Arc::new(Mutex::new(Timers::new()));
+        let timers = Arc::new(Mutex::new(TimingWheel::new()));
 
         let shared_internals =
             SharedRuntimeInternal::new(waker_id, scheduler.create_ref(), registry, timers.clone());
@@ -168,7 +168,8 @@ impl Coordinator {
             }
 
             trace!("polling timers");
-            for pid in self.timers.lock().unwrap().deadlines() {
+            let now = Instant::now();
+            for pid in self.timers.lock().unwrap().deadlines(now) {
                 trace!("waking thread-safe actor: pid={}", pid);
                 wake_workers += 1;
                 self.scheduler.mark_ready(pid);
