@@ -278,8 +278,8 @@ mod tests {
     use super::{MAX_THREADS, THREAD_BITS, THREAD_MASK};
 
     const WAKER: Token = Token(0);
-    const PID1: ProcessId = ProcessId(0);
-    const PID2: ProcessId = ProcessId(1);
+    const PID1: ProcessId = ProcessId(1);
+    const PID2: ProcessId = ProcessId(2);
 
     #[test]
     fn assert_waker_data_size() {

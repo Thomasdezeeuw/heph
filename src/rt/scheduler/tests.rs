@@ -577,7 +577,7 @@ mod shared_scheduler {
         assert_eq!(scheduler_ref.try_steal(), None);
 
         // Scheduling an unknown process should do nothing.
-        scheduler.mark_ready(ProcessId(0));
+        scheduler.mark_ready(ProcessId(1000));
         assert!(!scheduler_ref.has_process());
         assert!(!scheduler_ref.has_ready_process());
         assert_eq!(scheduler_ref.try_steal(), None);

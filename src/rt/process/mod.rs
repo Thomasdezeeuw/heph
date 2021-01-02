@@ -28,6 +28,21 @@ pub(in crate::rt) use actor::ActorProcess;
 #[repr(transparent)]
 pub struct ProcessId(pub usize);
 
+impl ProcessId {
+    /// Process id that can be used as invalid.
+    pub(crate) const INVALID: ProcessId = ProcessId(0);
+
+    /// Returns `true` if the process id is valid.
+    pub(crate) const fn is_valid(self) -> bool {
+        self.0 != Self::INVALID.0
+    }
+
+    /// Make the `ProcessId` invalid.
+    pub(crate) fn invalidate(&mut self) {
+        self.0 = Self::INVALID.0
+    }
+}
+
 impl From<Token> for ProcessId {
     fn from(id: Token) -> ProcessId {
         ProcessId(id.0)

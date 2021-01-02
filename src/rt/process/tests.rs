@@ -15,10 +15,13 @@ use crate::test::{self, init_local_actor_with_inbox, TEST_PID};
 
 #[test]
 fn pid() {
+    assert_eq!(ProcessId::INVALID, ProcessId::INVALID);
     assert_eq!(ProcessId(0), ProcessId(0));
+    assert_eq!(ProcessId(1), ProcessId(1));
     assert_eq!(ProcessId(100), ProcessId(100));
 
-    assert!(ProcessId(0) < ProcessId(100));
+    assert!(ProcessId::INVALID < ProcessId(100));
+    assert!(ProcessId(1) < ProcessId(100));
 
     assert_eq!(ProcessId(0).to_string(), "0");
     assert_eq!(ProcessId(100).to_string(), "100");
@@ -26,14 +29,21 @@ fn pid() {
 }
 
 #[test]
-fn pid_and_evented_id() {
-    let pid = ProcessId(0);
-    let id: Token = pid.into();
-    assert_eq!(id, Token(0));
+fn pid_is_valid() {
+    assert!(!ProcessId::INVALID.is_valid());
+    assert!(ProcessId(1).is_valid());
+    assert!(ProcessId(100).is_valid());
+}
 
-    let id = Token(0);
+#[test]
+fn pid_and_evented_id() {
+    let pid = ProcessId(1);
+    let id: Token = pid.into();
+    assert_eq!(id, Token(1));
+
+    let id = Token(1);
     let pid: ProcessId = id.into();
-    assert_eq!(pid, ProcessId(0));
+    assert_eq!(pid, ProcessId(1));
 }
 
 async fn ok_actor(mut ctx: actor::Context<()>) -> Result<(), !> {
@@ -88,6 +98,8 @@ fn erroneous_actor_process() {
     assert_eq!(res, ProcessResult::Complete);
 }
 
+const PID1: ProcessId = ProcessId(1);
+
 #[test]
 fn restarting_erroneous_actor_process() {
     // Create our actor.
@@ -126,14 +138,14 @@ fn restarting_erroneous_actor_process() {
     // be restarted. The restarted actor waits for a message, returning
     // `Poll::Pending`.
     let mut runtime_ref = test::runtime();
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    let res = process.as_mut().run(&mut runtime_ref, PID1);
     assert_eq!(res, ProcessResult::Pending);
     // Supervisor must be called and the actor restarted.
     assert!(supervisor_called.load(atomic::Ordering::SeqCst));
 
     // Now we send a message to the restarted actor, which should return `Ok`.
     actor_ref.try_send(()).unwrap();
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    let res = process.as_mut().run(&mut runtime_ref, PID1);
     assert_eq!(res, ProcessResult::Complete);
 }
 
@@ -164,10 +176,10 @@ fn actor_process_assert_actor_unmoved() {
     // All we do is run it a couple of times, it should panic if the actor is
     // moved.
     let mut runtime_ref = test::runtime();
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    let res = process.as_mut().run(&mut runtime_ref, PID1);
     assert_eq!(res, ProcessResult::Pending);
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    let res = process.as_mut().run(&mut runtime_ref, PID1);
     assert_eq!(res, ProcessResult::Pending);
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    let res = process.as_mut().run(&mut runtime_ref, PID1);
     assert_eq!(res, ProcessResult::Pending);
 }

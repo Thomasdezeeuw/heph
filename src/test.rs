@@ -44,7 +44,7 @@ use crate::rt::{
 };
 use crate::supervisor::SyncSupervisor;
 
-pub(crate) const TEST_PID: ProcessId = ProcessId(0);
+pub(crate) const TEST_PID: ProcessId = ProcessId::INVALID;
 
 static POLL: SyncLazy<mio::Poll> =
     SyncLazy::new(|| mio::Poll::new().expect("failed to create `Poll` instance for test module"));
