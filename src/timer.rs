@@ -11,6 +11,19 @@
 //!   after the deadline has passed each interval.
 //!
 //! [`Stream`]: futures_core::stream::Stream
+//!
+//! # Notes
+//!
+//! There are two limitations that affect the precision of timers in the current
+//! implementation.
+//!
+//! First, the current implementation only considers millisecond granularity.
+//! Timers with smaller granularity are silently truncated, e.g. a timeout of 1
+//! millisecond + 500 nanoseconds is truncated to 1 millisecond.
+//!
+//! Second, the actor will always be run *after* the timer has passed, due to
+//! the use of cooperative scheduling how long after depends (mostly) on other
+//! actors.
 
 use std::future::Future;
 use std::io;
