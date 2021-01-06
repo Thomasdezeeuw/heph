@@ -3,9 +3,8 @@
 use std::io::{self, Write};
 use std::thread;
 
-use inbox::Manager;
 use log::trace;
-use mio::unix::pipe;
+use mio::unix;
 use mio::{Interest, Registry, Token};
 
 use crate::actor::sync::{SyncActor, SyncContext};
@@ -15,12 +14,12 @@ use crate::ActorRef;
 
 /// Handle to a synchronous worker.
 pub(crate) struct SyncWorker {
-    /// Unique id (among all threads in the `Runtime`).
+    /// Unique id among all threads in the `Runtime`.
     id: usize,
     /// Handle for the actual thread.
     handle: thread::JoinHandle<()>,
     /// Sending half of the Unix pipe, used to communicate with the thread.
-    sender: pipe::Sender,
+    sender: unix::pipe::Sender,
 }
 
 impl SyncWorker {
@@ -38,7 +37,7 @@ impl SyncWorker {
         Arg: Send + 'static,
         M: Send + 'static,
     {
-        pipe::new().and_then(|(sender, receiver)| {
+        unix::pipe::new().and_then(|(sender, receiver)| {
             let (manager, send, ..) = inbox::Manager::new_small_channel();
             let actor_ref = ActorRef::local(send);
             let thread_name = options
@@ -91,8 +90,8 @@ fn main<S, E, Arg, A, M>(
     mut supervisor: S,
     actor: A,
     mut arg: Arg,
-    inbox: Manager<M>,
-    receiver: pipe::Receiver,
+    inbox: inbox::Manager<M>,
+    receiver: unix::pipe::Receiver,
 ) where
     S: SyncSupervisor<A> + 'static,
     A: SyncActor<Message = M, Argument = Arg, Error = E>,
@@ -103,7 +102,6 @@ fn main<S, E, Arg, A, M>(
             "failed to create new receiver for actor's inbox. Was the `SyncContext` leaked?",
         );
         let ctx = SyncContext::new(receiver);
-
         match actor.run(ctx, arg) {
             Ok(()) => break,
             Err(err) => match supervisor.decide(err) {
