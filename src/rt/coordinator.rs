@@ -167,13 +167,6 @@ impl Coordinator {
                 }
             }
 
-            trace!("polling timers");
-            for pid in self.timers.lock().unwrap().deadlines() {
-                trace!("waking thread-safe actor: pid={}", pid);
-                wake_workers += 1;
-                self.scheduler.mark_ready(pid);
-            }
-
             trace!("polling wake-up events");
             for pid in self.waker_events.try_iter() {
                 trace!("waking thread-safe actor: pid={}", pid);
@@ -181,6 +174,13 @@ impl Coordinator {
                 if pid.0 != WAKER.0 {
                     self.scheduler.mark_ready(pid);
                 }
+            }
+
+            trace!("polling timers");
+            for pid in self.timers.lock().unwrap().deadlines() {
+                trace!("waking thread-safe actor: pid={}", pid);
+                wake_workers += 1;
+                self.scheduler.mark_ready(pid);
             }
 
             // In case the worker threads are polling we need to wake them up.
