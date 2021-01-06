@@ -1,5 +1,6 @@
 //! Coordinator thread code.
 
+use std::cmp::min;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::{fmt, io};
@@ -76,11 +77,13 @@ impl Coordinator {
         mut workers: Vec<Worker<E>>,
         mut sync_workers: Vec<SyncWorker>,
         mut signal_refs: ActorGroup<Signal>,
+        mut trace_log: Option<rt::trace::Log>,
     ) -> Result<(), rt::Error<E>> {
         debug_assert!(workers.is_sorted_by_key(|w| w.id()));
 
         // Register various sources of OS events that need to wake us from
         // polling events.
+        let timing = rt::trace::start(&trace_log);
         let registry = self.poll.registry();
         let mut signals = setup_signals(&registry)
             .map_err(|err| rt::Error::coordinator(Error::SetupSignals(err)))?;
@@ -98,6 +101,11 @@ impl Coordinator {
         // them.
         check_worker_alive(&mut workers)?;
         check_sync_worker_alive(&mut sync_workers)?;
+        rt::trace::finish(
+            &mut trace_log,
+            timing,
+            event!("Initialising the coordinator thread"),
+        );
 
         // Index of the last worker we waked, must never be larger then
         // `worker.len()` (which changes throughout the loop).
@@ -107,32 +115,64 @@ impl Coordinator {
             // Counter for how many workers to wake.
             let mut wake_workers = 0;
 
+            let timing = rt::trace::start(&trace_log);
             // Process OS events.
             self.poll(&mut events)
                 .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
+            rt::trace::finish(&mut trace_log, timing, event!("Polling for OS events"));
+
+            let timing = rt::trace::start(&trace_log);
             for event in events.iter() {
                 trace!("event: {:?}", event);
                 match event.token() {
-                    SIGNAL => relay_signals(&mut signals, &mut workers, &mut signal_refs)
-                        .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?,
+                    SIGNAL => {
+                        let timing = rt::trace::start(&trace_log);
+                        relay_signals(&mut signals, &mut workers, &mut signal_refs)
+                            .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?;
+                        rt::trace::finish(
+                            &mut trace_log,
+                            timing,
+                            event!("Relaying process signal"),
+                        );
+                    }
                     // We always check for waker events below.
                     WAKER => {}
                     token if token.0 < SYNC_WORKER_ID_START => {
-                        handle_worker_event(&mut workers, event)?
+                        let timing = rt::trace::start(&trace_log);
+                        handle_worker_event(&mut workers, event)?;
+                        rt::trace::finish(
+                            &mut trace_log,
+                            timing,
+                            event!("Processing worker event"),
+                        );
                     }
                     token if token.0 <= SYNC_WORKER_ID_END => {
-                        handle_sync_worker_event(&mut sync_workers, event)?
+                        let timing = rt::trace::start(&trace_log);
+                        handle_sync_worker_event(&mut sync_workers, event)?;
+                        rt::trace::finish(
+                            &mut trace_log,
+                            timing,
+                            event!("Processing sync worker event"),
+                        );
                     }
                     token => {
+                        let timing = rt::trace::start(&trace_log);
                         let pid = token.into();
                         trace!("waking thread-safe actor: pid={}", pid);
                         self.scheduler.mark_ready(pid);
                         wake_workers += 1;
+                        rt::trace::finish(
+                            &mut trace_log,
+                            timing,
+                            event!("Scheduling thread-safe process"),
+                        );
                     }
                 }
             }
+            rt::trace::finish(&mut trace_log, timing, event!("Handling OS events"));
 
             trace!("polling wake-up events");
+            let timing = rt::trace::start(&trace_log);
             for pid in self.waker_events.try_iter() {
                 trace!("waking thread-safe actor: pid={}", pid);
                 if pid.0 != WAKER.0 {
@@ -140,17 +180,29 @@ impl Coordinator {
                     wake_workers += 1;
                 }
             }
+            rt::trace::finish(
+                &mut trace_log,
+                timing,
+                event!("Scheduling thread-safe processes based on wake-up events"),
+            );
 
             trace!("polling timers");
+            let timing = rt::trace::start(&trace_log);
             for pid in self.timers.lock().unwrap().deadlines() {
                 trace!("waking thread-safe actor: pid={}", pid);
                 self.scheduler.mark_ready(pid);
                 wake_workers += 1;
             }
+            rt::trace::finish(
+                &mut trace_log,
+                timing,
+                event!("Scheduling thread-safe processes based on timers"),
+            );
 
             // In case the worker threads are polling we need to wake them up.
             if wake_workers > 0 {
                 trace!("waking worker threads");
+                let timing = rt::trace::start(&trace_log);
                 // To prevent the Thundering herd problem [1] we don't wake all
                 // workers, only enough worker threads to handle all events. To
                 // spread the workload (somewhat more) evenly we wake the
@@ -158,6 +210,7 @@ impl Coordinator {
                 //
                 // [1]: https://en.wikipedia.org/wiki/Thundering_herd_problem
                 // [2]: https://en.wikipedia.org/wiki/Round-robin_scheduling
+                wake_workers = min(wake_workers, workers.len());
                 let (wake_second, wake_first) = workers.split_at_mut(workers_waker_idx);
                 let workers_to_wake = wake_first.iter_mut().chain(wake_second.iter_mut());
                 let mut wakes_left = wake_workers;
@@ -175,6 +228,11 @@ impl Coordinator {
                     }
                 }
                 workers_waker_idx = (workers_waker_idx + wake_workers) % workers.len();
+                rt::trace::finish(
+                    &mut trace_log,
+                    timing,
+                    event!("Waking worker threads", { amount: usize = wake_workers }),
+                );
             }
 
             // Once all (sync) worker threads are done running we can return.
