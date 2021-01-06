@@ -19,15 +19,22 @@ use crate::rt::{
     SYNC_WORKER_ID_START,
 };
 
-/// Tokens used to receive events.
+/// Token used to receive process signals.
 const SIGNAL: Token = Token(usize::max_value());
+/// Token used to wake-up the coordinator thread.
 pub(super) const WAKER: Token = Token(usize::max_value() - 1);
 
 pub(super) struct Coordinator {
+    /// OS poll, used to poll the status of the (sync) worker threads and
+    /// process signals.
     poll: Poll,
+    /// Waker id for the `rt::waker` mechanism.
     waker_id: WakerId,
+    /// Receiving end of the wake-up events used in the `rt::waker` mechanism.
     waker_events: Receiver<ProcessId>,
+    /// Scheduler for the thread-safe processes.
     scheduler: Scheduler,
+    /// Timers for the thread-safe processes.
     timers: Arc<Mutex<Timers>>,
 }
 
@@ -69,6 +76,8 @@ impl Coordinator {
     ) -> Result<(), rt::Error<E>> {
         debug_assert!(workers.is_sorted_by_key(|w| w.id()));
 
+        // Register various sources of OS events that need to wake us from
+        // polling events.
         let registry = self.poll.registry();
         let mut signals = setup_signals(&registry)
             .map_err(|err| rt::Error::coordinator(Error::SetupSignals(err)))?;
@@ -78,7 +87,7 @@ impl Coordinator {
             .map_err(|err| rt::Error::coordinator(Error::RegisteringSyncActors(err)))?;
 
         // It could be that before we're able to register the (sync) worker
-        // above they already completed. On macOS and Linux this will still
+        // above they've already completed. On macOS and Linux this will still
         // create an kqueue/epoll event, even if the other side of the Unix pipe
         // was already disconnected before registering it with `Poll`.
         // However this doesn't seem to be the case on FreeBSD, so we explicitly
@@ -87,17 +96,17 @@ impl Coordinator {
         check_worker_alive(&mut workers)?;
         check_sync_worker_alive(&mut sync_workers)?;
 
-        let mut events = Events::with_capacity(16);
-
         // Index of the last worker we waked, must never be larger then
         // `worker.len()` (which changes throughout the loop).
         let mut workers_waker_idx = 0;
+        let mut events = Events::with_capacity(16);
         loop {
-            self.poll(&mut events)
-                .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
-
             // Counter for how many workers to wake.
             let mut wake_workers = 0;
+
+            // Process OS events.
+            self.poll(&mut events)
+                .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
             for event in events.iter() {
                 trace!("event: {:?}", event);
                 match event.token() {
@@ -114,8 +123,8 @@ impl Coordinator {
                     token => {
                         let pid = token.into();
                         trace!("waking thread-safe actor: pid={}", pid);
-                        wake_workers += 1;
                         self.scheduler.mark_ready(pid);
+                        wake_workers += 1;
                     }
                 }
             }
@@ -123,17 +132,17 @@ impl Coordinator {
             trace!("polling wake-up events");
             for pid in self.waker_events.try_iter() {
                 trace!("waking thread-safe actor: pid={}", pid);
-                wake_workers += 1;
                 if pid.0 != WAKER.0 {
                     self.scheduler.mark_ready(pid);
+                    wake_workers += 1;
                 }
             }
 
             trace!("polling timers");
             for pid in self.timers.lock().unwrap().deadlines() {
                 trace!("waking thread-safe actor: pid={}", pid);
-                wake_workers += 1;
                 self.scheduler.mark_ready(pid);
+                wake_workers += 1;
             }
 
             // In case the worker threads are polling we need to wake them up.
@@ -165,6 +174,7 @@ impl Coordinator {
                 workers_waker_idx = (workers_waker_idx + wake_workers) % workers.len();
             }
 
+            // Once all (sync) worker threads are done running we can return.
             if workers.is_empty() && sync_workers.is_empty() {
                 return Ok(());
             }
@@ -172,7 +182,6 @@ impl Coordinator {
     }
 
     fn poll(&mut self, events: &mut Events) -> io::Result<()> {
-        trace!("polling event sources");
         let timeout = self.determine_timeout();
 
         // Only mark ourselves as polling if the timeout is not zero.
@@ -183,6 +192,7 @@ impl Coordinator {
             false
         };
 
+        trace!("polling OS: timeout={:?}", timeout);
         let res = self.poll.poll(events, timeout);
 
         if mark_waker {
@@ -198,12 +208,14 @@ impl Coordinator {
             let now = Instant::now();
             if deadline <= now {
                 // Deadline has already expired, so no blocking.
-                Some(Duration::from_millis(0))
+                Some(Duration::ZERO)
             } else {
                 // Time between the deadline and right now.
                 Some(deadline.duration_since(now))
             }
         } else {
+            // We don't have any reason to return early from polling with an OS
+            // event.
             None
         }
     }
@@ -229,7 +241,7 @@ fn setup_signals(registry: &Registry) -> io::Result<Signals> {
 fn register_workers<E>(registry: &Registry, workers: &mut [Worker<E>]) -> io::Result<()> {
     workers.iter_mut().try_for_each(|worker| {
         trace!("registering worker thread: id={}", worker.id());
-        worker.register(&registry)
+        worker.register(registry)
     })
 }
 
