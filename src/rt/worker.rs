@@ -17,43 +17,17 @@ use crate::rt::{
     self, channel, ProcessId, RuntimeInternal, RuntimeRef, SharedRuntimeInternal, Signal,
 };
 
-/// Error running a [`Worker`].
-#[derive(Debug)]
-pub(super) enum Error {
-    /// Error in [`RunningRuntime::init`].
-    Init(io::Error),
-    /// Error polling [`mio::Poll`].
-    Polling(io::Error),
-    /// Error receiving message on coordinator channel.
-    RecvMsg(io::Error),
-    /// Process was interrupted (i.e. received process signal), but no actor can
-    /// receive the signal.
-    ProcessInterrupted,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Error::*;
-        match self {
-            Init(err) => write!(f, "error initialising worker: {}", err),
-            Polling(err) => write!(f, "error polling for events: {}", err),
-            RecvMsg(err) => write!(f, "error receiving message from coordinator: {}", err),
-            ProcessInterrupted => write!(
-                f,
-                "received process signal, but no receivers for it: stopped running"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use Error::*;
-        match self {
-            Init(ref err) | Polling(ref err) | RecvMsg(ref err) => Some(err),
-            ProcessInterrupted => None,
-        }
-    }
+pub(super) struct Worker<E> {
+    /// Unique id (among all threads in the `Runtime`).
+    id: usize,
+    /// Handle for the actual thread.
+    handle: thread::JoinHandle<Result<(), rt::Error<E>>>,
+    /// Two-way communication channel to share messages with the worker thread.
+    channel: channel::Handle<CoordinatorMessage, WorkerMessage>,
+    /// Initialy this will be `None`, but once the worker thread is setup this
+    /// will be set to `Some` and can be used as an optimisation over sending
+    /// `CoordinatorMessage::Waker` messages.
+    thread_waker: Option<&'static ThreadWaker>,
 }
 
 /// Message send by the coordinator thread.
@@ -69,19 +43,6 @@ pub(crate) enum CoordinatorMessage {
 #[derive(Debug)]
 pub(crate) enum WorkerMessage {
     Waker(&'static ThreadWaker),
-}
-
-pub(super) struct Worker<E> {
-    /// Unique id (among all threads in the `Runtime`).
-    id: usize,
-    /// Handle for the actual thread.
-    handle: thread::JoinHandle<Result<(), rt::Error<E>>>,
-    /// Two-way communication channel to share messages with the worker thread.
-    channel: channel::Handle<CoordinatorMessage, WorkerMessage>,
-    /// Initialy this will be `None`, but once the worker thread is setup this
-    /// will be set to `Some` and can be used as an optimisation over sending
-    /// `CoordinatorMessage::Waker` messages.
-    thread_waker: Option<&'static ThreadWaker>,
 }
 
 impl<E> Worker<E> {
@@ -180,6 +141,45 @@ where
 
     // All setup is done, so we're ready to run the event loop.
     runtime.run_event_loop()
+}
+
+/// Error running a [`Worker`].
+#[derive(Debug)]
+pub(super) enum Error {
+    /// Error in [`RunningRuntime::init`].
+    Init(io::Error),
+    /// Error polling [`mio::Poll`].
+    Polling(io::Error),
+    /// Error receiving message on coordinator channel.
+    RecvMsg(io::Error),
+    /// Process was interrupted (i.e. received process signal), but no actor can
+    /// receive the signal.
+    ProcessInterrupted,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Error::*;
+        match self {
+            Init(err) => write!(f, "error initialising worker: {}", err),
+            Polling(err) => write!(f, "error polling for events: {}", err),
+            RecvMsg(err) => write!(f, "error receiving message from coordinator: {}", err),
+            ProcessInterrupted => write!(
+                f,
+                "received process signal, but no receivers for it: stopped running"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use Error::*;
+        match self {
+            Init(ref err) | Polling(ref err) | RecvMsg(ref err) => Some(err),
+            ProcessInterrupted => None,
+        }
+    }
 }
 
 /// The runtime that runs all processes.
