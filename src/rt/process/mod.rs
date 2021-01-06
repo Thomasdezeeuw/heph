@@ -34,9 +34,9 @@ impl From<Token> for ProcessId {
     }
 }
 
-impl Into<Token> for ProcessId {
-    fn into(self) -> Token {
-        Token(self.0)
+impl From<ProcessId> for Token {
+    fn from(id: ProcessId) -> Token {
+        Token(id.0)
     }
 }
 
