@@ -69,7 +69,7 @@ use sync_worker::SyncWorker;
 use waker::{WakerId, MAX_THREADS};
 use worker::Worker;
 
-pub(crate) const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1;
+pub(crate) const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1 + 1; // Worker ids start at 1.
 pub(crate) const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
 
 /// The runtime that runs all actors.
@@ -368,7 +368,7 @@ where
         );
 
         // Start our worker threads.
-        let handles = (0..self.threads)
+        let handles = (1..=self.threads)
             .map(|id| {
                 let setup = self.setup.clone();
                 Worker::start(id, setup, self.shared.clone())
