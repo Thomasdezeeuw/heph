@@ -42,7 +42,7 @@ pub(super) struct ProcessData<P: ?Sized> {
 
 impl<P: ?Sized> ProcessData<P> {
     /// Returns the process identifier, or pid for short.
-    fn id(self: Pin<&Self>) -> ProcessId {
+    pub(super) fn id(self: Pin<&Self>) -> ProcessId {
         // Since the pid only job is to be unique we just use the pointer to
         // this structure as pid. This way we don't have to store any additional
         // pid in the structure itself or in the scheduler.
@@ -53,6 +53,11 @@ impl<P: ?Sized> ProcessData<P> {
 }
 
 impl<P: Process + ?Sized> ProcessData<P> {
+    /// Returns the name of the process.
+    pub(super) fn name(self: Pin<&Self>) -> &'static str {
+        self.process.name()
+    }
+
     /// Run the process.
     ///
     /// Returns the completion state of the process.

@@ -54,6 +54,7 @@ impl<E> Worker<E> {
         id: usize,
         setup: Option<S>,
         shared_internals: Arc<SharedRuntimeInternal>,
+        trace_log: Option<rt::trace::Log>,
     ) -> io::Result<Worker<S::Error>>
     where
         S: SetupFn<Error = E>,
@@ -62,7 +63,7 @@ impl<E> Worker<E> {
         rt::channel::new().and_then(|(channel, worker_handle)| {
             thread::Builder::new()
                 .name(format!("Worker {}", id))
-                .spawn(move || main(setup, worker_handle, shared_internals))
+                .spawn(move || main(setup, worker_handle, shared_internals, trace_log))
                 .map(|handle| Worker {
                     id,
                     handle,
@@ -128,21 +129,34 @@ fn main<S>(
     setup: Option<S>,
     receiver: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
     shared_internals: Arc<SharedRuntimeInternal>,
+    mut trace_log: Option<rt::trace::Log>,
 ) -> Result<(), rt::Error<S::Error>>
 where
     S: SetupFn,
 {
+    let timing = rt::trace::start(&trace_log);
     let runtime = RunningRuntime::init(receiver, shared_internals)
         .map_err(|err| rt::Error::worker(Error::Init(err)))?;
+    rt::trace::finish(
+        &mut trace_log,
+        timing,
+        event!("Initialising the worker thread"),
+    );
 
     // Run optional setup.
     if let Some(setup) = setup {
+        let timing = rt::trace::start(&trace_log);
         let runtime_ref = runtime.create_ref();
         setup.setup(runtime_ref).map_err(rt::Error::setup)?;
+        rt::trace::finish(
+            &mut trace_log,
+            timing,
+            event!("Running user setup function"),
+        );
     }
 
     // All setup is done, so we're ready to run the event loop.
-    runtime.run_event_loop()
+    runtime.run_event_loop(&mut trace_log)
 }
 
 /// Error running a [`Worker`].
@@ -258,7 +272,10 @@ impl RunningRuntime {
     }
 
     /// Run the runtime's event loop.
-    fn run_event_loop<E>(mut self) -> Result<(), rt::Error<E>> {
+    fn run_event_loop<E>(
+        mut self,
+        trace_log: &mut Option<rt::trace::Log>,
+    ) -> Result<(), rt::Error<E>> {
         debug!("running runtime's event loop");
         // Runtime reference used in running the processes.
         let mut runtime_ref = self.create_ref();
@@ -280,18 +297,32 @@ impl RunningRuntime {
 
                 let process = self.internal.scheduler.borrow_mut().next_process();
                 if let Some(mut process) = process {
+                    let timing = rt::trace::start(&trace_log);
+                    let pid = process.as_ref().id();
+                    let name = process.as_ref().name();
                     match process.as_mut().run(&mut runtime_ref) {
                         ProcessResult::Complete => {}
                         ProcessResult::Pending => {
                             self.internal.scheduler.borrow_mut().add_process(process);
                         }
                     }
+                    rt::trace::finish(
+                        trace_log,
+                        timing,
+                        event!("Running thread-local process", {
+                            id: usize = pid.0,
+                            name: &'static str = name,
+                        }),
+                    );
                     // Only run a single process per iteration.
                     continue;
                 }
 
                 let process = self.internal.shared.scheduler.try_steal();
                 if let Some(mut process) = process {
+                    let timing = rt::trace::start(&trace_log);
+                    let pid = process.as_ref().id();
+                    let name = process.as_ref().name();
                     match process.as_mut().run(&mut runtime_ref) {
                         ProcessResult::Complete => {
                             self.internal.shared.scheduler.complete(process);
@@ -300,6 +331,14 @@ impl RunningRuntime {
                             self.internal.shared.scheduler.add_process(process);
                         }
                     }
+                    rt::trace::finish(
+                        trace_log,
+                        timing,
+                        event!("Running thread-safe process", {
+                            id: usize = pid.0,
+                            name: &'static str = name,
+                        }),
+                    );
                     // Only run a single process per iteration.
                     continue;
                 }
@@ -315,20 +354,24 @@ impl RunningRuntime {
                 }
             }
 
-            self.schedule_processes().map_err(rt::Error::worker)?;
+            self.schedule_processes(trace_log)
+                .map_err(rt::Error::worker)?;
         }
     }
 
     /// Schedule processes.
     ///
     /// This polls all event subsystems and schedules processes based on them.
-    fn schedule_processes(&mut self) -> Result<(), Error> {
+    fn schedule_processes(&mut self, trace_log: &mut Option<rt::trace::Log>) -> Result<(), Error> {
         trace!("polling event sources to schedule processes");
 
         // Start with polling for OS events.
+        let timing = rt::trace::start(&trace_log);
         self.poll().map_err(Error::Polling)?;
+        rt::trace::finish(trace_log, timing, event!("Polling for OS events"));
 
         // Based on the OS event scheduler thread-local processes.
+        let timing = rt::trace::start(&trace_log);
         let mut scheduler = self.internal.scheduler.borrow_mut();
         let mut check_coordinator = false;
         for event in self.events.iter() {
@@ -339,27 +382,41 @@ impl RunningRuntime {
                 token => scheduler.mark_ready(token.into()),
             }
         }
+        rt::trace::finish(trace_log, timing, event!("Handling OS events"));
 
         // User space wake up events, e.g. used by the `Future` task system.
         trace!("polling wakup events");
+        let timing = rt::trace::start(&trace_log);
         for pid in self.waker_events.try_iter() {
             scheduler.mark_ready(pid);
         }
+        rt::trace::finish(
+            trace_log,
+            timing,
+            event!("Scheduling thread-local processes based on wake-up events"),
+        );
 
         // User space timers, powers the `timer` module.
         trace!("polling timers");
+        let timing = rt::trace::start(&trace_log);
         for pid in self.internal.timers.borrow_mut().deadlines() {
             scheduler.mark_ready(pid);
         }
+        rt::trace::finish(
+            trace_log,
+            timing,
+            event!("Scheduling thread-local processes based on timers"),
+        );
 
         if check_coordinator {
             // Don't need this anymore.
             drop(scheduler);
             // Process coordinator messages.
-            self.check_coordinator()
-        } else {
-            Ok(())
+            let timing = rt::trace::start(&trace_log);
+            self.check_coordinator()?;
+            rt::trace::finish(trace_log, timing, event!("Process coordinator messages"));
         }
+        Ok(())
     }
 
     /// Poll for OS events.

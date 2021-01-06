@@ -378,7 +378,7 @@ where
     /// In addition to waiting for all worker threads it will also watch for
     /// all process signals in [`Signal`] and relay them to actors that want to
     /// handle them, see the [`Signal`] type for more information.
-    pub fn start(self) -> Result<(), Error<S::Error>> {
+    pub fn start(mut self) -> Result<(), Error<S::Error>> {
         debug!(
             "starting Heph runtime: worker_threads={}, sync_actors={}",
             self.threads,
@@ -386,13 +386,24 @@ where
         );
 
         // Start our worker threads.
+        let timing = trace::start(&self.trace_log);
         let handles = (1..=self.threads)
             .map(|id| {
                 let setup = self.setup.clone();
-                Worker::start(id, setup, self.shared.clone())
+                let trace_log = if let Some(trace_log) = &self.trace_log {
+                    Some(trace_log.new_stream(id as u32)?)
+                } else {
+                    None
+                };
+                Worker::start(id, setup, self.shared.clone(), trace_log)
             })
             .collect::<io::Result<Vec<Worker<S::Error>>>>()
             .map_err(Error::start_worker)?;
+        trace::finish(
+            &mut self.trace_log,
+            timing,
+            event!("Creating worker threads", { amount: usize = self.threads }),
+        );
 
         // Drop stuff we don't need anymore. For the setup function this is
         // extra important if it contains e.g. actor references.
@@ -400,7 +411,7 @@ where
         drop(self.shared);
 
         self.coordinator
-            .run(handles, self.sync_actors, self.signals)
+            .run(handles, self.sync_actors, self.signals, self.trace_log)
     }
 }
 
