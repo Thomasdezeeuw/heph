@@ -10,6 +10,7 @@
 //! see the examples directory in the source code.
 
 use std::cell::RefCell;
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -24,6 +25,9 @@ use crate::actor::sync::SyncActor;
 use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn};
 use crate::actor_ref::{ActorGroup, ActorRef};
 use crate::supervisor::{Supervisor, SyncSupervisor};
+
+#[macro_use] // NOTE: must be first because we use the macro in the modules below.
+mod trace;
 
 mod coordinator;
 mod error;
@@ -189,6 +193,8 @@ pub struct Runtime<S = !> {
     setup: Option<S>,
     /// List of actor references that want to receive process signals.
     signals: ActorGroup<Signal>,
+    /// Trace log.
+    trace_log: Option<trace::Log>,
 }
 
 impl Runtime {
@@ -203,6 +209,7 @@ impl Runtime {
             sync_actors: Vec::new(),
             setup: None,
             signals: ActorGroup::empty(),
+            trace_log: None,
         })
     }
 
@@ -222,6 +229,7 @@ impl Runtime {
             sync_actors: self.sync_actors,
             setup: Some(setup),
             signals: self.signals,
+            trace_log: self.trace_log,
         }
     }
 }
@@ -259,6 +267,16 @@ impl<S> Runtime<S> {
     /// See [`Runtime::num_threads`].
     pub fn get_threads(&self) -> usize {
         self.threads
+    }
+
+    /// Generate a trace of the runtime, writing it to the file specified by
+    /// `path`.
+    ///
+    /// TODO: document the trace format. It's currently a sort-of JSON.
+    pub fn enable_tracing<P: AsRef<Path>>(&mut self, path: P) -> io::Result<()> {
+        let trace_log = trace::Log::open(path.as_ref(), coordinator::TRACE_ID)?;
+        self.trace_log = Some(trace_log);
+        Ok(())
     }
 
     /// Attempt to spawn a new thead-safe actor.
