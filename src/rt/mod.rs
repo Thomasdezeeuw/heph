@@ -697,7 +697,7 @@ struct RuntimeInternal {
     waker_id: WakerId,
     /// Scheduler for thread-local actors.
     scheduler: RefCell<LocalScheduler>,
-    /// System poll, used for event notifications to support non-blocking I/O.
+    /// OS poll, used for event notifications to support non-blocking I/O.
     poll: RefCell<Poll>,
     /// Timers, deadlines and timeouts.
     timers: RefCell<Timers>,
