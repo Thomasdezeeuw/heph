@@ -5,8 +5,7 @@ use std::io::{self, Read, Write};
 
 use crossbeam_channel as crossbeam;
 use log::trace;
-use mio::unix::pipe;
-use mio::{Interest, Registry, Token};
+use mio::{unix, Interest, Registry, Token};
 
 /// A handle to a two-way communication channel, which can send messages `S` and
 /// receive messages `R`.
@@ -14,10 +13,10 @@ use mio::{Interest, Registry, Token};
 pub(crate) struct Handle<S, R> {
     /// Sending side.
     send_channel: crossbeam::Sender<S>,
-    send_pipe: pipe::Sender,
+    send_pipe: unix::pipe::Sender,
     /// Receiving side.
     recv_channel: crossbeam::Receiver<R>,
-    recv_pipe: pipe::Receiver,
+    recv_pipe: unix::pipe::Receiver,
 }
 
 /// Create a new two-way communication channel.
@@ -25,8 +24,8 @@ pub(crate) fn new<S, R>() -> io::Result<(Handle<S, R>, Handle<R, S>)> {
     let (c_send1, c_recv2) = crossbeam::unbounded();
     let (c_send2, c_recv1) = crossbeam::unbounded();
 
-    let (p_send1, p_recv2) = pipe::new()?;
-    let (p_send2, p_recv1) = pipe::new()?;
+    let (p_send1, p_recv2) = unix::pipe::new()?;
+    let (p_send2, p_recv1) = unix::pipe::new()?;
 
     let handle1 = Handle {
         send_channel: c_send1,
@@ -51,9 +50,8 @@ const DATA: &[u8] = b"DATA";
 impl<S, R> Handle<S, R> {
     /// Register both ends of the Unix pipe of this channel.
     pub(super) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
-        registry
-            .register(&mut self.send_pipe, token, Interest::WRITABLE)
-            .and_then(|()| registry.register(&mut self.recv_pipe, token, Interest::READABLE))
+        registry.register(&mut self.send_pipe, token, Interest::WRITABLE)?;
+        registry.register(&mut self.recv_pipe, token, Interest::READABLE)
     }
 
     /// Try to send a message onto the channel.
@@ -103,7 +101,8 @@ impl<S, R> Handle<S, R> {
                 }
                 // Try one last time in case the coordinator send a message
                 // in between the time we last checked and we emptied the pipe
-                // above.
+                // above (for which we won't get another event as we just
+                // emptied the pipe).
                 Ok(self.recv_channel.try_recv().ok())
             }
         }
