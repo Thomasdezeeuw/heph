@@ -19,53 +19,6 @@ use crate::rt::{
     SYNC_WORKER_ID_START,
 };
 
-/// Error running the [`Coordinator`].
-#[derive(Debug)]
-pub(super) enum Error {
-    /// Error in [`Coordinator::init`].
-    Init(io::Error),
-    /// Error in [`setup_signals`].
-    SetupSignals(io::Error),
-    /// Error in [`register_workers`].
-    RegisteringWorkers(io::Error),
-    /// Error in [`register_sync_workers`].
-    RegisteringSyncActors(io::Error),
-    /// Error polling [`mio::Poll`].
-    Polling(io::Error),
-    /// Error relaying process signal.
-    SignalRelay(io::Error),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Error::*;
-        match self {
-            Init(err) => write!(f, "error initialising coordinator: {}", err),
-            SetupSignals(err) => write!(f, "error setting up process signal handling: {}", err),
-            RegisteringWorkers(err) => write!(f, "error registering worker threads: {}", err),
-            RegisteringSyncActors(err) => {
-                write!(f, "error registering synchronous actor threads: {}", err)
-            }
-            Polling(err) => write!(f, "error polling for events: {}", err),
-            SignalRelay(err) => write!(f, "error relay process signal: {}", err),
-        }
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use Error::*;
-        match self {
-            Init(ref err)
-            | SetupSignals(ref err)
-            | RegisteringWorkers(ref err)
-            | RegisteringSyncActors(ref err)
-            | Polling(ref err)
-            | SignalRelay(ref err) => Some(err),
-        }
-    }
-}
-
 /// Tokens used to receive events.
 const SIGNAL: Token = Token(usize::max_value());
 pub(super) const WAKER: Token = Token(usize::max_value() - 1);
@@ -374,4 +327,51 @@ fn handle_sync_worker_event<E>(
         }
     }
     Ok(())
+}
+
+/// Error running the [`Coordinator`].
+#[derive(Debug)]
+pub(super) enum Error {
+    /// Error in [`Coordinator::init`].
+    Init(io::Error),
+    /// Error in [`setup_signals`].
+    SetupSignals(io::Error),
+    /// Error in [`register_workers`].
+    RegisteringWorkers(io::Error),
+    /// Error in [`register_sync_workers`].
+    RegisteringSyncActors(io::Error),
+    /// Error polling [`mio::Poll`].
+    Polling(io::Error),
+    /// Error relaying process signal.
+    SignalRelay(io::Error),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Error::*;
+        match self {
+            Init(err) => write!(f, "error initialising coordinator: {}", err),
+            SetupSignals(err) => write!(f, "error setting up process signal handling: {}", err),
+            RegisteringWorkers(err) => write!(f, "error registering worker threads: {}", err),
+            RegisteringSyncActors(err) => {
+                write!(f, "error registering synchronous actor threads: {}", err)
+            }
+            Polling(err) => write!(f, "error polling for events: {}", err),
+            SignalRelay(err) => write!(f, "error relay process signal: {}", err),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use Error::*;
+        match self {
+            Init(ref err)
+            | SetupSignals(ref err)
+            | RegisteringWorkers(ref err)
+            | RegisteringSyncActors(ref err)
+            | Polling(ref err)
+            | SignalRelay(ref err) => Some(err),
+        }
+    }
 }
