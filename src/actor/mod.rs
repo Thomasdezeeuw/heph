@@ -522,6 +522,8 @@ where
 /// [`SyncActor`]s converted into function pointers (using `fn(_) -> _)`) do
 /// **not** work, unconverted it does work.
 ///
+/// [`SyncActor`]: sync::SyncActor
+///
 /// # Notes
 ///
 /// This uses [`type_name`] under the hood which does not have a stable output.
