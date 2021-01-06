@@ -51,7 +51,7 @@ pub(crate) struct WakerId(u8);
 /// `new`.
 pub(crate) fn init(waker: mio::Waker, notifications: Sender<ProcessId>) -> WakerId {
     /// Each worker thread that uses a `Waker` implementation needs an unique
-    /// `WakerId`, which serves as index to `THREAD_WAKERS`, this variable
+    /// `WakerId`, which serves as index to `THREAD_WAKERS`, this static
     /// determines that.
     static THREAD_IDS: AtomicU8 = AtomicU8::new(0);
 
@@ -77,14 +77,14 @@ pub(crate) fn init(waker: mio::Waker, notifications: Sender<ProcessId>) -> Waker
 /// `init` must be called before calling this function to get a `WakerId`.
 pub(crate) fn new(waker_id: WakerId, pid: ProcessId) -> task::Waker {
     let data = WakerData::new(waker_id, pid).into_raw_data();
-    let raw_waker = task::RawWaker::new(data, WAKER_VTABLE);
+    let raw_waker = task::RawWaker::new(data, &WAKER_VTABLE);
     // Safety: we follow the contract on `RawWaker`.
     unsafe { task::Waker::from_raw(raw_waker) }
 }
 
 /// Let the `Waker` know the worker thread is currently `polling` (or not).
 ///
-/// This is used by the `task::Waker` implementation to wake the worker thread
+/// This is used by the `ThreadWaker` implementation to wake the worker thread
 /// up from polling.
 pub(crate) fn mark_polling(waker_id: WakerId, polling: bool) {
     get_thread_waker(waker_id).mark_polling(polling);
@@ -113,23 +113,16 @@ const NO_WAKER: Option<ThreadWaker> = None;
 /// Get waker data for `waker_id`
 pub(crate) fn get_thread_waker(waker_id: WakerId) -> &'static ThreadWaker {
     // Safety: `WakerId` is only created by `init`, which ensures its valid.
-    // Furthermore `init` ensures that `THREAD_WAKER[waker_id]` initialised and
-    // is read-only after that. See `THREAD_WAKERS` documentation for more.
+    // Furthermore `init` ensures that `THREAD_WAKER[waker_id]` is initialised
+    // and is read-only after that. See `THREAD_WAKERS` documentation for more.
     unsafe {
         THREAD_WAKERS[waker_id.0 as usize]
             .as_ref()
-            .expect("tried to get waker data of a thread that isn't initialised")
+            .expect("tried to get a waker for a thread that isn't initialised")
     }
 }
 
-/// Not currently polling.
-const NOT_POLLING: u8 = 0;
-/// Currently polling.
-const IS_POLLING: u8 = 1;
-/// Going to wake the polling thread.
-const WAKING: u8 = 2;
-
-/// A `Waker` implementation.
+/// Waker mechanism.
 #[derive(Debug)]
 pub(crate) struct ThreadWaker {
     notifications: Sender<ProcessId>,
@@ -139,6 +132,14 @@ pub(crate) struct ThreadWaker {
     polling_status: AtomicU8,
     waker: mio::Waker,
 }
+
+// See [`ThreadWaker::polling_status`].
+/// Not currently polling.
+const NOT_POLLING: u8 = 0;
+/// Currently polling.
+const IS_POLLING: u8 = 1;
+/// Going to wake the polling thread.
+const WAKING: u8 = 2;
 
 impl ThreadWaker {
     /// Wake up the process with `pid`.
@@ -150,7 +151,7 @@ impl ThreadWaker {
         }
 
         if let Err(err) = self.wake_thread() {
-            error!("unable to wake up worker: {}", err);
+            error!("unable to wake up worker thread: {}", err);
         }
     }
 
@@ -206,12 +207,12 @@ impl WakerData {
     }
 
     /// Get the thread id of from the waker data.
-    fn waker_id(self) -> WakerId {
+    const fn waker_id(self) -> WakerId {
         WakerId((self.0 >> THREAD_SHIFT) as u8)
     }
 
     /// Get the process id from the waker data.
-    fn pid(self) -> ProcessId {
+    const fn pid(self) -> ProcessId {
         ProcessId(self.0 & !THREAD_MASK)
     }
 
@@ -221,26 +222,26 @@ impl WakerData {
     ///
     /// This doesn't check if the provided `data` is valid, the caller is
     /// responsible for this.
-    unsafe fn from_raw_data(data: *const ()) -> WakerData {
+    const unsafe fn from_raw_data(data: *const ()) -> WakerData {
         WakerData(data as usize)
     }
 
     /// Convert `WakerData` into raw data for `RawWaker`.
-    fn into_raw_data(self) -> *const () {
+    const fn into_raw_data(self) -> *const () {
         self.0 as *const ()
     }
 }
 
 /// Virtual table used by the `Waker` implementation.
-static WAKER_VTABLE: &task::RawWakerVTable =
-    &task::RawWakerVTable::new(clone_wake_data, wake, wake_by_ref, drop_wake_data);
+static WAKER_VTABLE: task::RawWakerVTable =
+    task::RawWakerVTable::new(clone_wake_data, wake, wake_by_ref, drop_wake_data);
 
 fn assert_copy<T: Copy>() {}
 
 unsafe fn clone_wake_data(data: *const ()) -> task::RawWaker {
     assert_copy::<WakerData>();
     // Since the data is `Copy`, so we just copy it.
-    task::RawWaker::new(data, WAKER_VTABLE)
+    task::RawWaker::new(data, &WAKER_VTABLE)
 }
 
 unsafe fn wake(data: *const ()) {
