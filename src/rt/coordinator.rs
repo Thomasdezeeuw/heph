@@ -24,6 +24,9 @@ const SIGNAL: Token = Token(usize::max_value());
 /// Token used to wake-up the coordinator thread.
 pub(super) const WAKER: Token = Token(usize::max_value() - 1);
 
+/// Stream id for the coordinator.
+pub(super) const TRACE_ID: u32 = 0;
+
 pub(super) struct Coordinator {
     /// OS poll, used to poll the status of the (sync) worker threads and
     /// process signals.
