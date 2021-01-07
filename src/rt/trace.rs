@@ -29,12 +29,17 @@ pub(crate) struct Log {
     buf: Vec<u8>,
     /// Id of the stream, used in writing events.
     stream_id: u32,
+    /// Time which we use as zero, or epoch, time for all events.
+    epoch: Instant,
 }
 
 impl Log {
     /// Open a new trace `Log`.
     pub(super) fn open(path: &Path, stream_id: u32) -> io::Result<Log> {
-        OpenOptions::new()
+        let timestamp = SystemTime::now();
+        let epoch = Instant::now();
+
+        let mut log = OpenOptions::new()
             .append(true)
             .create(true)
             .open(path)
@@ -42,7 +47,17 @@ impl Log {
                 file,
                 stream_id,
                 buf: Vec::with_capacity(BUF_SIZE),
-            })
+                epoch,
+            })?;
+
+        // Write the metadata for the trace log, currently that's only the time
+        // at which it's recorded.
+        // TODO: use a better format.
+        write!(&mut log.buf, "{{\"timestamp\":\"{:?}\"}}\n", timestamp)
+            .unwrap_or_else(|_| unreachable!());
+        write_once(&log.file, &log.buf)?;
+
+        Ok(log)
     }
 
     /// Create a new stream with `stream_id`, writing to the same (duplicated)
@@ -52,6 +67,7 @@ impl Log {
             file,
             stream_id,
             buf: Vec::with_capacity(BUF_SIZE),
+            epoch: self.epoch,
         })
     }
 
@@ -68,18 +84,27 @@ impl Log {
                 \"stream_id\":{},\
                 \"description\":\"{}\",\
                 \"start\":{},\
-                \"elapsed\":\"{:?}\",\
+                \"end\":{},\
                 \"attributes\":",
             self.stream_id,
             E::DESCRIPTION,
-            nanos_since_unix_epoch(event.start),
-            event.elapsed,
+            nanos_since_epoch(self.epoch, event.start),
+            nanos_since_epoch(self.epoch, event.end),
         )
         .unwrap_or_else(|_| unreachable!());
         event.event.write_attributes(&mut self.buf);
         self.buf.extend_from_slice(b"}\n");
         write_once(&self.file, &self.buf)
     }
+}
+
+/// Returns the number of nanoseconds since `epoch`.
+///
+/// (2 ^ 64) / 1000000000 / (365 * 24 * 60 * 60) ~= 584 years.
+/// So restart the application once every 500 years and you're good.
+#[track_caller]
+fn nanos_since_epoch(epoch: Instant, time: Instant) -> u64 {
+    time.duration_since(epoch).as_nanos() as u64
 }
 
 /// Start timing for an event (using [`EventTiming`]) if we're tracing, i.e. if
@@ -109,18 +134,6 @@ where
     }
 }
 
-/// Returns the number of nanoseconds since Unix epoch.
-///
-/// (2 ^ 64) / 1000000000 / (365 * 24 * 60 * 60) ~= 584 years are supported.
-/// Thus in the year 2554 we should start thinking about fixing this problem...
-/// You know in a timely manner (without panicking) like always.
-#[track_caller]
-fn nanos_since_unix_epoch(time: SystemTime) -> u64 {
-    time.duration_since(SystemTime::UNIX_EPOCH)
-        .unwrap()
-        .as_nanos() as u64
-}
-
 /// Write the entire `buf`fer into the `output` or return an error.
 #[inline(always)]
 fn write_once<W>(mut output: W, buf: &[u8]) -> io::Result<()>
@@ -144,35 +157,30 @@ where
 /// Metadata wrapping an [`Event`].
 #[derive(Debug)]
 pub(crate) struct Metadata<E> {
-    start: SystemTime,
-    elapsed: Duration,
+    start: Instant,
+    end: Instant,
     event: E,
 }
 
 /// Time an [`Event`].
 #[derive(Debug)]
 pub(crate) struct EventTiming {
-    /// Real time the event was started.
-    start: SystemTime,
-    /// Timestamp used to determine the duration of the event as real-clocks can
-    /// go backwards.
-    timing: Instant,
+    start: Instant,
 }
 
 impl EventTiming {
     /// Start timing.
     pub(crate) fn start() -> EventTiming {
-        let start = SystemTime::now();
-        let timing = Instant::now();
-        EventTiming { start, timing }
+        let start = Instant::now();
+        EventTiming { start }
     }
 
     /// Finish timing `event`.
     pub(crate) fn finish<E>(self, event: E) -> Metadata<E> {
-        let elapsed = self.timing.elapsed();
+        let end = Instant::now();
         Metadata {
             start: self.start,
-            elapsed,
+            end,
             event,
         }
     }
