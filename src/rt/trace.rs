@@ -53,7 +53,7 @@ impl Log {
         // Write the metadata for the trace log, currently that's only the time
         // at which it's recorded.
         // TODO: use a better format.
-        write!(&mut log.buf, "{{\"timestamp\":\"{:?}\"}}\n", timestamp)
+        writeln!(&mut log.buf, "{{\"timestamp\":\"{:?}\"}}", timestamp)
             .unwrap_or_else(|_| unreachable!());
         write_once(&log.file, &log.buf)?;
 
@@ -269,7 +269,9 @@ macro_rules! event {
             }
         }
 
+        #[allow(clippy::redundant_field_names)]
         Event {
+
             $( $attribute_key : $attribute_value ),+
         }
     }};
