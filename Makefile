@@ -14,7 +14,7 @@ test:
 # NOTE: when using this command you might want to change the `test` target to
 # only run a subset of the tests you're actively working on.
 dev:
-	find src/ tests/ Makefile Cargo.toml | entr -d -c $(MAKE) test
+	find src/ tests/ examples/ Makefile Cargo.toml | entr -d -c $(MAKE) test
 
 clippy: lint
 lint:
