@@ -44,7 +44,10 @@ impl Log {
         // (i.e. the epoch for this trace).
         let epoch = Instant::now();
 
-        let file = OpenOptions::new().append(true).create(true).open(path)?;
+        let file = OpenOptions::new()
+            .append(true)
+            .create_new(true)
+            .open(path)?;
 
         // Write the metadata for the trace log, currently it only sets the
         // epoch time.
