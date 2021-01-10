@@ -16,6 +16,8 @@ pub struct Error<SetupError = !> {
 enum ErrorInner<SetupError> {
     /// Error returned by user defined setup function.
     Setup(SetupError),
+    /// Error setting up tracing infrastructure.
+    SetupTrace(io::Error),
 
     /// Error in coordinator.
     Coordinator(coordinator::Error),
@@ -41,12 +43,13 @@ impl Error<!> {
     pub fn map_type<SetupError>(self) -> Error<SetupError> {
         Error {
             inner: match self.inner {
-                ErrorInner::StartWorker(err) => ErrorInner::StartWorker(err),
-                ErrorInner::StartSyncActor(err) => ErrorInner::StartSyncActor(err),
+                ErrorInner::Setup(_) => unreachable!(),
+                ErrorInner::SetupTrace(err) => ErrorInner::SetupTrace(err),
                 ErrorInner::Coordinator(err) => ErrorInner::Coordinator(err),
+                ErrorInner::StartWorker(err) => ErrorInner::StartWorker(err),
                 ErrorInner::Worker(err) => ErrorInner::Worker(err),
-                ErrorInner::<!>::Setup(_) => unreachable!(),
                 ErrorInner::WorkerPanic(err) => ErrorInner::WorkerPanic(err),
+                ErrorInner::StartSyncActor(err) => ErrorInner::StartSyncActor(err),
                 ErrorInner::SyncActorPanic(err) => ErrorInner::SyncActorPanic(err),
             },
         }
@@ -59,6 +62,12 @@ impl<SetupError> Error<SetupError> {
     pub(super) const fn setup(err: SetupError) -> Error<SetupError> {
         Error {
             inner: ErrorInner::Setup(err),
+        }
+    }
+
+    pub(super) const fn setup_trace(err: io::Error) -> Error<SetupError> {
+        Error {
+            inner: ErrorInner::SetupTrace(err),
         }
     }
 
@@ -145,21 +154,27 @@ impl<SetupError: fmt::Display> fmt::Display for Error<SetupError> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use ErrorInner::*;
         match self.inner {
-            StartWorker(ref err) => {
-                write!(f, "{}: error starting worker thread: {}", Self::DESC, err)
-            }
-            StartSyncActor(ref err) => write!(
+            Setup(ref err) => write!(f, "{}: error running setup function: {}", Self::DESC, err),
+            SetupTrace(ref err) => write!(
                 f,
-                "{}: error starting synchronous actor: {}",
+                "{}: error setting up trace infrastructure: {}",
                 Self::DESC,
                 err
             ),
             Coordinator(ref err) => {
                 write!(f, "{}: error in coordinator thread: {}", Self::DESC, err)
             }
+            StartWorker(ref err) => {
+                write!(f, "{}: error starting worker thread: {}", Self::DESC, err)
+            }
             Worker(ref err) => write!(f, "{}: error in worker thread: {}", Self::DESC, err),
-            Setup(ref err) => write!(f, "{}: error running setup function: {}", Self::DESC, err),
             WorkerPanic(ref msg) => write!(f, "{}: panic in worker thread: {}", Self::DESC, msg),
+            StartSyncActor(ref err) => write!(
+                f,
+                "{}: error starting synchronous actor: {}",
+                Self::DESC,
+                err
+            ),
             SyncActorPanic(ref msg) => write!(
                 f,
                 "{}: panic in synchronous actor thread: {}",
@@ -175,9 +190,11 @@ impl<SetupError: std::error::Error + 'static> std::error::Error for Error<SetupE
         use ErrorInner::*;
         match self.inner {
             Setup(ref err) => Some(err),
+            // All `io::Error`.
+            SetupTrace(ref err) | StartWorker(ref err) | StartSyncActor(ref err) => Some(err),
             Coordinator(ref err) => Some(err),
-            StartWorker(ref err) | StartSyncActor(ref err) => Some(err),
             Worker(ref err) => Some(err),
+            // All `StringError`.
             WorkerPanic(ref err) | SyncActorPanic(ref err) => Some(err),
         }
     }
