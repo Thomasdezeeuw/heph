@@ -13,7 +13,7 @@ The code can be found in `1_hello_world.rs` and run with `cargo run --example
 1_hello_world`, and it should print "Hello World".
 
 
-## 2. Ip server
+## 2. IP Server
 
 The second example is a simple TCP server that writes the ip of the connection
 to the connection.
@@ -28,19 +28,19 @@ address, e.g. "127.0.0.1".
 Example three shows how Heph makes Remote Procedure Calls (RPC) easy.
 
 
-## 4. Synchronous actor
+## 4. Synchronous Actor
 
 The fourth example how to use synchronous actors. These are actors that have the
 thread all to themselves, which means that can do heavy computation and blocking
 I/O without stalling other actors.
 
 
-## 5. Remote actor references
+## 5. Remote Actor References
 
 TODO: reimplement this.
 
 
-## 6. Process signal handling
+## 6. Process Signal Handling
 
 Heph has build-in support for handling process signals. This example shows this
 can be used to cleanly shutdown your application.
@@ -50,7 +50,14 @@ The code can be found in `6_process_signals.rs` and run with `cargo run
 `SIGINT`) should shutdown the example cleanly.
 
 
-## 8. Runtime tracing
+## 7. Restart Supervisor Macro
+
+Example seven shows how the `restart_supervisor!` macro can be used to easily
+create a new `Supervisor` implementation that attempts to restart the actor with
+cloned arguments.
+
+
+## 8. Runtime Tracing
 
 Heph supports generating trace files in its own custom format, described in the
 [Trace Format design document]. This format can be converted into [Chrome's
