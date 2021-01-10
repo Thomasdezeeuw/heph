@@ -48,3 +48,24 @@ can be used to cleanly shutdown your application.
 The code can be found in `6_process_signals.rs` and run with `cargo run
 --example 6_process_signals`, pressing ctrl-c (sending it an interrupt signal
 `SIGINT`) should shutdown the example cleanly.
+
+
+## 8. Runtime tracing
+
+Heph supports generating trace files in its own custom format, described in the
+[Trace Format design document]. This format can be converted into [Chrome's
+Trace Event Format] so it can be opened by [Catapult trace view].
+
+```bash
+ $ cargo run --example 8_tracing       # Run the example, to generate the trace.
+ $ cd tools                            # Got into the tools directory.
+                                       # Convert the trace to Chrome's format.
+ $ cargo run --bin convert_trace ../heph_tracing_example.bin.log heph_tracing_example.json
+                                       # Make the trace viewable in HTML.
+ $ $(CAPAPULT_REPO)/tracing/bin/trace2html heph_tracing_example.json
+ $ open heph_tracing_example.json      # Finally open the trace in your browser.
+```
+
+[Trace Format design document]: ../doc/Trace%20Format.md
+[Chrome's Trace Event Format]: https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
+[Catapult trace view]: https://chromium.googlesource.com/catapult/+/refs/heads/master/tracing/README.md
