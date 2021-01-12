@@ -9,6 +9,8 @@ use std::sync::Arc;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
+#[cfg(target_os = "linux")]
+use log::warn;
 use log::{debug, error};
 use mio::net::TcpListener;
 use mio::Interest;
@@ -76,7 +78,6 @@ where
         let mut listener = new_listener(&this.address, 1024)?;
         let token = ctx.pid().into();
         ctx.register(&mut listener, token, Interest::READABLE)?;
-
         Ok(TcpServer {
             ctx,
             set_waker: false,
@@ -599,7 +600,15 @@ where
                     ctx.pid().into(),
                     Interest::READABLE | Interest::WRITABLE,
                 )?;
-                Ok((TcpStream { socket: stream }, addr))
+                #[allow(unused_mut)]
+                let mut stream = TcpStream { socket: stream };
+                #[cfg(target_os = "linux")]
+                if let Some(cpu) = ctx.cpu() {
+                    if let Err(err) = stream.set_cpu_affinity(cpu) {
+                        warn!("failed to set CPU affinity on TcpStream: {}", err);
+                    }
+                }
+                Ok((stream, addr))
             };
             let res = this.ctx.try_spawn_setup(
                 this.supervisor.clone(),

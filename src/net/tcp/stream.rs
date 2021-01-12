@@ -59,6 +59,20 @@ impl TcpStream {
         self.socket.local_addr()
     }
 
+    /// Set the CPU affinity to `cpu`.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn set_cpu_affinity(&mut self, cpu: usize) -> io::Result<()> {
+        let cpu = cpu as libc::c_int;
+        syscall!(setsockopt(
+            self.socket.as_raw_fd(),
+            libc::SOL_SOCKET,
+            libc::SO_INCOMING_CPU,
+            &cpu as *const _ as *const _,
+            size_of::<libc::c_int>() as libc::socklen_t,
+        ))
+        .map(|_| ())
+    }
+
     /// Sets the value for the `IP_TTL` option on this socket.
     pub fn set_ttl(&mut self, ttl: u32) -> io::Result<()> {
         self.socket.set_ttl(ttl)
