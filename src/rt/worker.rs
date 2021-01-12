@@ -309,7 +309,7 @@ impl RunningRuntime {
                     rt::trace::finish(
                         trace_log,
                         timing,
-                        event!("Running thread-local process", {
+                        event!("Running thread-local process", attributes: {
                             id: usize = pid.0,
                             name: &'static str = name,
                         }),
@@ -334,7 +334,7 @@ impl RunningRuntime {
                     rt::trace::finish(
                         trace_log,
                         timing,
-                        event!("Running thread-safe process", {
+                        event!("Running thread-safe process", attributes: {
                             id: usize = pid.0,
                             name: &'static str = name,
                         }),

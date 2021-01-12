@@ -413,7 +413,9 @@ where
         trace::finish(
             &mut self.trace_log,
             timing,
-            event!("Creating worker threads", { amount: usize = self.threads }),
+            event!("Creating worker threads", attributes: {
+                amount: usize = self.threads,
+            }),
         );
 
         // Drop stuff we don't need anymore. For the setup function this is

@@ -231,7 +231,9 @@ impl Coordinator {
                 rt::trace::finish(
                     &mut trace_log,
                     timing,
-                    event!("Waking worker threads", { amount: usize = wake_workers }),
+                    event!("Waking worker threads", attributes: {
+                        amount: usize = wake_workers,
+                    }),
                 );
             }
 
