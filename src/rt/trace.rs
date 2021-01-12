@@ -257,6 +257,8 @@ const UNSIGNED_INTEGER_BYTE: u8 = 0b001;
 const SIGNED_INTEGER_BYTE: u8 = 0b010;
 const FLOAT_BYTE: u8 = 0b011;
 pub(crate) const STRING_BYTE: u8 = 0b100; // Used in `event!` macro.
+/// Marks a type bytes as array.
+const ARRAY_MARKER_BYTE: u8 = 1 << 7;
 
 // Use in `event!` macro.
 pub(crate) trait WriteAttribute {
@@ -278,7 +280,7 @@ macro_rules! impl_write_attribute {
             const TYPE_BYTE: u8 = $type_byte;
 
             fn write_attribute(&self, buf: &mut Vec<u8>) {
-                #[allow(trivial_numeric_casts)] // for `u64 as u64`.
+                #[allow(trivial_numeric_casts)] // for `u64 as u64`, etc.
                 let value = *self as $f_ty;
                 buf.extend_from_slice(&value.to_be_bytes());
             }
@@ -313,7 +315,7 @@ impl WriteAttribute for str {
 }
 
 impl WriteAttribute for String {
-    const TYPE_BYTE: u8 = STRING_BYTE;
+    const TYPE_BYTE: u8 = <str as WriteAttribute>::TYPE_BYTE;
 
     fn write_attribute(&self, buf: &mut Vec<u8>) {
         (&**self).write_attribute(buf)
@@ -324,12 +326,11 @@ impl<T> WriteAttribute for [T]
 where
     T: WriteAttribute,
 {
-    const TYPE_BYTE: u8 = T::TYPE_BYTE | (1 << 7); // Mark for array.
+    const TYPE_BYTE: u8 = T::TYPE_BYTE | ARRAY_MARKER_BYTE;
 
     fn write_attribute(&self, buf: &mut Vec<u8>) {
         let length = self.len() as u16;
         buf.extend_from_slice(&length.to_be_bytes());
-
         for attribute in self.iter() {
             attribute.write_attribute(buf)
         }
@@ -340,7 +341,7 @@ impl<T, const N: usize> WriteAttribute for [T; N]
 where
     T: WriteAttribute,
 {
-    const TYPE_BYTE: u8 = T::TYPE_BYTE | (1 << 7); // Mark for array.
+    const TYPE_BYTE: u8 = <[T] as WriteAttribute>::TYPE_BYTE;
 
     fn write_attribute(&self, buf: &mut Vec<u8>) {
         (&self[..]).write_attribute(buf)
@@ -376,7 +377,7 @@ macro_rules! event {
 
         Event
     }};
-    ($msg: expr, {
+    ($msg: expr, attributes: {
         $( $attribute_name: ident : $attribute_type: ty = $attribute_value: expr),+ $(,)*
     }) => {{
         #[allow(missing_docs)]
