@@ -1,12 +1,17 @@
 //! Worker thread code.
 
 use std::cell::RefCell;
+#[cfg(target_os = "linux")]
+use std::mem;
+use std::num::NonZeroUsize;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{fmt, io, thread};
 
 use crossbeam_channel::{self, Receiver};
+#[cfg(target_os = "linux")]
+use log::warn;
 use log::{debug, error, trace};
 use mio::{Events, Poll, Registry, Token};
 
@@ -20,7 +25,7 @@ use crate::rt::{self, ProcessId, RuntimeInternal, RuntimeRef, SharedRuntimeInter
 /// Handle to a worker thread.
 pub(super) struct Worker<E> {
     /// Unique id (among all threads in the `Runtime`).
-    id: usize,
+    id: NonZeroUsize,
     /// Handle for the actual thread.
     handle: thread::JoinHandle<Result<(), rt::Error<E>>>,
     /// Two-way communication channel to share messages with the worker thread.
@@ -51,9 +56,10 @@ pub(crate) enum WorkerMessage {
 impl<E> Worker<E> {
     /// Start a new worker thread.
     pub(super) fn start<S>(
-        id: usize,
+        id: NonZeroUsize,
         setup: Option<S>,
         shared_internals: Arc<SharedRuntimeInternal>,
+        auto_cpu_affinity: bool,
         trace_log: Option<rt::trace::Log>,
     ) -> io::Result<Worker<S::Error>>
     where
@@ -63,7 +69,16 @@ impl<E> Worker<E> {
         rt::channel::new().and_then(|(channel, worker_handle)| {
             thread::Builder::new()
                 .name(format!("Worker {}", id))
-                .spawn(move || main(setup, worker_handle, shared_internals, trace_log))
+                .spawn(move || {
+                    main(
+                        id,
+                        setup,
+                        worker_handle,
+                        shared_internals,
+                        auto_cpu_affinity,
+                        trace_log,
+                    )
+                })
                 .map(|handle| Worker {
                     id,
                     handle,
@@ -75,7 +90,7 @@ impl<E> Worker<E> {
 
     /// Return the worker's id.
     pub(super) fn id(&self) -> usize {
-        self.id
+        self.id.get()
     }
 
     /// Checks if the `Worker` is alive.
@@ -88,7 +103,7 @@ impl<E> Worker<E> {
     ///
     /// [`id`]: Worker::id
     pub(super) fn register(&mut self, registry: &Registry) -> io::Result<()> {
-        self.channel.register(registry, Token(self.id))
+        self.channel.register(registry, Token(self.id()))
     }
 
     /// Send the worker thread a `signal`.
@@ -126,17 +141,37 @@ impl<E> Worker<E> {
 
 /// Run a worker thread, with an optional `setup` function.
 fn main<S>(
+    id: NonZeroUsize,
     setup: Option<S>,
     receiver: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
     shared_internals: Arc<SharedRuntimeInternal>,
+    auto_cpu_affinity: bool,
     mut trace_log: Option<rt::trace::Log>,
 ) -> Result<(), rt::Error<S::Error>>
 where
     S: SetupFn,
 {
     let timing = rt::trace::start(&trace_log);
+
+    #[cfg(target_os = "linux")]
+    if auto_cpu_affinity {
+        let cpu = id.get() - 1; // Worker ids start at 1, cpus at 0.
+        let cpu_set = cpu_set(cpu);
+        match set_affinity(&cpu_set) {
+            Ok(()) => {
+                debug!("worker thread using CPU '{}'", cpu);
+            }
+            Err(err) => {
+                warn!("error setting CPU affinity: {}", err);
+            }
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = (id, auto_cpu_affinity);
+
     let runtime = RunningRuntime::init(receiver, shared_internals)
         .map_err(|err| rt::Error::worker(Error::Init(err)))?;
+
     rt::trace::finish(
         &mut trace_log,
         timing,
@@ -157,6 +192,27 @@ where
 
     // All setup is done, so we're ready to run the event loop.
     runtime.run_event_loop(&mut trace_log)
+}
+
+/// Create a cpu set that may only run on `cpu`.
+#[cfg(target_os = "linux")]
+fn cpu_set(cpu: usize) -> libc::cpu_set_t {
+    let mut cpu_set = unsafe { mem::zeroed() };
+    unsafe { libc::CPU_ZERO(&mut cpu_set) };
+    unsafe { libc::CPU_SET(cpu % libc::CPU_SETSIZE as usize, &mut cpu_set) };
+    cpu_set
+}
+
+/// Set the affinity of this thread to the `cpu_set`.
+#[cfg(target_os = "linux")]
+fn set_affinity(cpu_set: &libc::cpu_set_t) -> io::Result<()> {
+    let thread = unsafe { libc::pthread_self() };
+    let res = unsafe { libc::pthread_setaffinity_np(thread, mem::size_of_val(cpu_set), cpu_set) };
+    if res == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
 }
 
 /// Error running a [`Worker`].

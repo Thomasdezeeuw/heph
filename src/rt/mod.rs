@@ -10,6 +10,7 @@
 //! see the examples directory in the source code.
 
 use std::cell::RefCell;
+use std::num::NonZeroUsize;
 use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -187,6 +188,8 @@ pub struct Runtime<S = !> {
     shared: Arc<SharedRuntimeInternal>,
     /// Number of worker threads to create.
     threads: usize,
+    /// Whether or not to automatically set CPU affinity.
+    auto_cpu_affinity: bool,
     /// Synchronous actor thread handles.
     sync_actors: Vec<SyncWorker>,
     /// Optional setup function.
@@ -206,6 +209,7 @@ impl Runtime {
             coordinator,
             shared,
             threads: 1,
+            auto_cpu_affinity: false,
             sync_actors: Vec::new(),
             setup: None,
             signals: ActorGroup::empty(),
@@ -226,6 +230,7 @@ impl Runtime {
             coordinator: self.coordinator,
             shared: self.shared,
             threads: self.threads,
+            auto_cpu_affinity: self.auto_cpu_affinity,
             sync_actors: self.sync_actors,
             setup: Some(setup),
             signals: self.signals,
@@ -267,6 +272,15 @@ impl<S> Runtime<S> {
     /// See [`Runtime::num_threads`].
     pub fn get_threads(&self) -> usize {
         self.threads
+    }
+
+    /// Automatically set CPU affinity.
+    ///
+    /// The is mostly usefull when using [`Runtime::use_all_cores`] to create a
+    /// single worker thread per CPU core.
+    pub fn auto_cpu_affinity(mut self) -> Self {
+        self.auto_cpu_affinity = true;
+        self
     }
 
     /// Attempt to spawn a new thead-safe actor.
@@ -400,13 +414,20 @@ where
         let timing = trace::start(&self.trace_log);
         let handles = (1..=self.threads)
             .map(|id| {
+                let id = NonZeroUsize::new(id).unwrap();
                 let setup = self.setup.clone();
                 let trace_log = if let Some(trace_log) = &self.trace_log {
-                    Some(trace_log.new_stream(id as u32)?)
+                    Some(trace_log.new_stream(id.get() as u32)?)
                 } else {
                     None
                 };
-                Worker::start(id, setup, self.shared.clone(), trace_log)
+                Worker::start(
+                    id,
+                    setup,
+                    self.shared.clone(),
+                    self.auto_cpu_affinity,
+                    trace_log,
+                )
             })
             .collect::<io::Result<Vec<Worker<S::Error>>>>()
             .map_err(Error::start_worker)?;
