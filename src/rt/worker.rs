@@ -154,22 +154,29 @@ where
     let timing = rt::trace::start(&trace_log);
 
     #[cfg(target_os = "linux")]
-    if auto_cpu_affinity {
+    let cpu = if auto_cpu_affinity {
         let cpu = id.get() - 1; // Worker ids start at 1, cpus at 0.
         let cpu_set = cpu_set(cpu);
         match set_affinity(&cpu_set) {
             Ok(()) => {
                 debug!("worker thread using CPU '{}'", cpu);
+                Some(cpu)
             }
             Err(err) => {
                 warn!("error setting CPU affinity: {}", err);
+                None
             }
         }
-    }
+    } else {
+        None
+    };
     #[cfg(not(target_os = "linux"))]
-    let _ = (id, auto_cpu_affinity);
+    let cpu = {
+        let _ = (id, auto_cpu_affinity); // Silence unused variables warnings.
+        None
+    };
 
-    let runtime = RunningRuntime::init(receiver, shared_internals)
+    let runtime = RunningRuntime::init(receiver, shared_internals, cpu)
         .map_err(|err| rt::Error::worker(Error::Init(err)))?;
 
     rt::trace::finish(
@@ -285,6 +292,7 @@ impl RunningRuntime {
     pub(crate) fn init(
         mut channel: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
         shared_internals: Arc<SharedRuntimeInternal>,
+        cpu: Option<usize>,
     ) -> io::Result<RunningRuntime> {
         // OS poll for OS event notifications (e.g. TCP connection readable).
         let poll = Poll::new()?;
@@ -311,6 +319,7 @@ impl RunningRuntime {
             poll: RefCell::new(poll),
             timers: RefCell::new(Timers::new()),
             signal_receivers: RefCell::new(Vec::new()),
+            cpu,
         };
         Ok(RunningRuntime {
             internal: Rc::new(internal),

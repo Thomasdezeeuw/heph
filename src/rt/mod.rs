@@ -668,6 +668,10 @@ impl RuntimeRef {
     pub(crate) fn clone_shared(&self) -> Arc<SharedRuntimeInternal> {
         self.internal.shared.clone()
     }
+
+    pub(crate) fn cpu(&self) -> Option<usize> {
+        self.internal.cpu
+    }
 }
 
 impl<S, NA> Spawn<S, NA, ThreadLocal> for RuntimeRef {}
@@ -766,6 +770,8 @@ struct RuntimeInternal {
     timers: RefCell<Timers>,
     /// Actor references to relay received `Signal`s to.
     signal_receivers: RefCell<Vec<ActorRef<Signal>>>,
+    /// CPU the worker thread is bound to, or `None` if not set.
+    cpu: Option<usize>,
 }
 
 /// Shared internals of the runtime.

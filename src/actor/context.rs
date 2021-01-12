@@ -335,6 +335,10 @@ impl rt::PrivateAccess for ThreadLocal {
     fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         self.runtime_ref.add_deadline(pid, deadline)
     }
+
+    fn cpu(&self) -> Option<usize> {
+        self.runtime_ref.cpu()
+    }
 }
 
 impl rt::PrivateAccess for ThreadSafe {
@@ -358,6 +362,10 @@ impl rt::PrivateAccess for ThreadSafe {
 
     fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         self.runtime_ref.add_deadline(pid, deadline)
+    }
+
+    fn cpu(&self) -> Option<usize> {
+        None
     }
 }
 
@@ -385,6 +393,10 @@ where
 
     fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         self.kind.add_deadline(pid, deadline)
+    }
+
+    fn cpu(&self) -> Option<usize> {
+        self.kind.cpu()
     }
 }
 

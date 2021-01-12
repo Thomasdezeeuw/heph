@@ -42,4 +42,7 @@ pub trait PrivateAccess {
 
     /// Add a deadline for `pid` at `deadline`.
     fn add_deadline(&mut self, pid: ProcessId, deadline: Instant);
+
+    /// Returns the CPU the thread is bound to, if any.
+    fn cpu(&self) -> Option<usize>;
 }
