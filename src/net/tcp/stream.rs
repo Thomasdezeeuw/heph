@@ -9,6 +9,8 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 
 use futures_io::{AsyncRead, AsyncWrite};
+#[cfg(target_os = "linux")]
+use log::warn;
 use mio::{net, Interest};
 
 use crate::actor;
@@ -46,6 +48,7 @@ impl TcpStream {
         )?;
         Ok(Connect {
             socket: Some(socket),
+            cpu_affinity: ctx.cpu(),
         })
     }
 
@@ -325,6 +328,7 @@ impl TcpStream {
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Connect {
     socket: Option<net::TcpStream>,
+    cpu_affinity: Option<usize>,
 }
 
 impl Future for Connect {
@@ -365,7 +369,17 @@ impl Future for Connect {
                 // If we can get a peer address it means the stream is
                 // connected.
                 match socket.peer_addr() {
-                    Ok(..) => Poll::Ready(Ok(TcpStream { socket })),
+                    Ok(..) => {
+                        #[allow(unused_mut)]
+                        let mut stream = TcpStream { socket };
+                        #[cfg(target_os = "linux")]
+                        if let Some(cpu) = self.cpu_affinity {
+                            if let Err(err) = stream.set_cpu_affinity(cpu) {
+                                warn!("failed to set CPU affinity on TcpStream: {}", err);
+                            }
+                        }
+                        Poll::Ready(Ok(stream))
+                    }
                     Err(err)
                         if err.kind() == io::ErrorKind::NotConnected
                         // It seems that macOS sometimes returns `EINVAL` when
