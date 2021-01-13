@@ -134,7 +134,7 @@ enum ActorRefKind<M> {
     Mapped(Arc<dyn MappedActorRef<M>>),
 }
 
-// We know that the `Local` variant is `Send` and `Sync`. S since the `Mapped`
+// We know that the `Local` variant is `Send` and `Sync`. Since the `Mapped`
 // variant is a boxed version of `Local` so is that variant. This makes the
 // entire `ActorRefKind` `Send` and `Sync`, as long as `M` is `Send` (as we
 // could be sending the message across thread bounds).
@@ -428,6 +428,13 @@ enum SendValueKind<'r, 'fut, M> {
     Local(inbox::SendValue<'r, M>),
     Mapped(Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>),
 }
+
+// We know that the `Local` variant is `Send` and `Sync`. Since the `Mapped`
+// variant is a boxed version of `Local` so is that variant. This makes the
+// entire `SendValueKind` `Send` and `Sync`, as long as `M` is `Send` (as we
+// could be sending the message across thread bounds).
+unsafe impl<'r, 'fut, M: Send> Send for SendValueKind<'r, 'fut, M> {}
+unsafe impl<'r, 'fut, M: Send> Sync for SendValueKind<'r, 'fut, M> {}
 
 impl<'r, 'fut, M> Future for SendValue<'r, 'fut, M>
 where
