@@ -2,7 +2,7 @@
 
 #![feature(once_cell)]
 
-use inbox::{new_small, Manager, Receiver, RecvError, SendError, Sender};
+use inbox::{new_small, Manager, Receiver, RecvError, SendError, SendValue, Sender};
 
 mod util;
 
@@ -36,6 +36,16 @@ fn manager_is_send() {
 #[test]
 fn manager_is_sync() {
     assert_sync::<Manager<()>>();
+}
+
+#[test]
+fn send_value_is_send() {
+    assert_send::<SendValue<'_, ()>>();
+}
+
+#[test]
+fn send_value_is_sync() {
+    assert_sync::<SendValue<'_, ()>>();
 }
 
 #[test]

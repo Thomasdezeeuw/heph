@@ -503,6 +503,8 @@ impl<'s, T: Unpin> Future for SendValue<'s, T> {
     }
 }
 
+unsafe impl<'s, T> Sync for SendValue<'s, T> {}
+
 impl<'s, T> Drop for SendValue<'s, T> {
     fn drop(&mut self) {
         if let Some(waker_node) = unsafe { (*self.waker_node.get()).as_ref() } {
