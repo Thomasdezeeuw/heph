@@ -381,9 +381,9 @@ fn is_connected() {
 
 #[test]
 fn mapped_is_connected() {
-    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
+    let expect_msgs = expect_msgs as fn(actor::Context<usize>, Vec<usize>) -> _;
     let (actor, actor_ref) = init_local_actor(expect_msgs, Vec::new()).unwrap();
-    let actor_ref: ActorRef<usize> = actor_ref.map();
+    let actor_ref: ActorRef<u8> = actor_ref.map();
     assert!(actor_ref.is_connected());
 
     drop(actor);
