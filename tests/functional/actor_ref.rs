@@ -39,6 +39,12 @@ fn is_send_sync() {
     assert_sync::<ActorRef<std::cell::UnsafeCell<()>>>();
 }
 
+#[test]
+fn send_value_future_is_send_sync() {
+    assert_send::<SendValue<()>>();
+    assert_sync::<SendValue<()>>();
+}
+
 async fn expect_msgs<M>(mut ctx: actor::Context<M>, expected: Vec<M>) -> Result<(), !>
 where
     M: Eq + fmt::Debug,
