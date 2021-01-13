@@ -104,7 +104,8 @@ impl Coordinator {
         rt::trace::finish(
             &mut trace_log,
             timing,
-            event!("Initialising the coordinator thread"),
+            "Initialising the coordinator thread",
+            &[],
         );
 
         // Index of the last worker we waked, must never be larger then
@@ -119,7 +120,7 @@ impl Coordinator {
             // Process OS events.
             self.poll(&mut events)
                 .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
-            rt::trace::finish(&mut trace_log, timing, event!("Polling for OS events"));
+            rt::trace::finish(&mut trace_log, timing, "Polling for OS events", &[]);
 
             let timing = rt::trace::start(&trace_log);
             for event in events.iter() {
@@ -129,22 +130,14 @@ impl Coordinator {
                         let timing = rt::trace::start(&trace_log);
                         relay_signals(&mut signals, &mut workers, &mut signal_refs)
                             .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?;
-                        rt::trace::finish(
-                            &mut trace_log,
-                            timing,
-                            event!("Relaying process signal"),
-                        );
+                        rt::trace::finish(&mut trace_log, timing, "Relaying process signal", &[]);
                     }
                     // We always check for waker events below.
                     WAKER => {}
                     token if token.0 < SYNC_WORKER_ID_START => {
                         let timing = rt::trace::start(&trace_log);
                         handle_worker_event(&mut workers, event)?;
-                        rt::trace::finish(
-                            &mut trace_log,
-                            timing,
-                            event!("Processing worker event"),
-                        );
+                        rt::trace::finish(&mut trace_log, timing, "Processing worker event", &[]);
                     }
                     token if token.0 <= SYNC_WORKER_ID_END => {
                         let timing = rt::trace::start(&trace_log);
@@ -152,7 +145,8 @@ impl Coordinator {
                         rt::trace::finish(
                             &mut trace_log,
                             timing,
-                            event!("Processing sync worker event"),
+                            "Processing sync worker event",
+                            &[],
                         );
                     }
                     token => {
@@ -164,12 +158,13 @@ impl Coordinator {
                         rt::trace::finish(
                             &mut trace_log,
                             timing,
-                            event!("Scheduling thread-safe process"),
+                            "Scheduling thread-safe process",
+                            &[],
                         );
                     }
                 }
             }
-            rt::trace::finish(&mut trace_log, timing, event!("Handling OS events"));
+            rt::trace::finish(&mut trace_log, timing, "Handling OS events", &[]);
 
             trace!("polling wake-up events");
             let timing = rt::trace::start(&trace_log);
@@ -183,7 +178,8 @@ impl Coordinator {
             rt::trace::finish(
                 &mut trace_log,
                 timing,
-                event!("Scheduling thread-safe processes based on wake-up events"),
+                "Scheduling thread-safe processes based on wake-up events",
+                &[],
             );
 
             trace!("polling timers");
@@ -196,7 +192,8 @@ impl Coordinator {
             rt::trace::finish(
                 &mut trace_log,
                 timing,
-                event!("Scheduling thread-safe processes based on timers"),
+                "Scheduling thread-safe processes based on timers",
+                &[],
             );
 
             // In case the worker threads are polling we need to wake them up.
@@ -231,9 +228,8 @@ impl Coordinator {
                 rt::trace::finish(
                     &mut trace_log,
                     timing,
-                    event!("Waking worker threads", attributes: {
-                        amount: usize = wake_workers,
-                    }),
+                    "Waking worker threads",
+                    &[("amount", &wake_workers)],
                 );
             }
 

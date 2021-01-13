@@ -182,7 +182,8 @@ where
     rt::trace::finish(
         &mut trace_log,
         timing,
-        event!("Initialising the worker thread"),
+        "Initialising the worker thread",
+        &[],
     );
 
     // Run optional setup.
@@ -190,11 +191,7 @@ where
         let timing = rt::trace::start(&trace_log);
         let runtime_ref = runtime.create_ref();
         setup.setup(runtime_ref).map_err(rt::Error::setup)?;
-        rt::trace::finish(
-            &mut trace_log,
-            timing,
-            event!("Running user setup function"),
-        );
+        rt::trace::finish(&mut trace_log, timing, "Running user setup function", &[]);
     }
 
     // All setup is done, so we're ready to run the event loop.
@@ -374,10 +371,8 @@ impl RunningRuntime {
                     rt::trace::finish(
                         trace_log,
                         timing,
-                        event!("Running thread-local process", attributes: {
-                            id: usize = pid.0,
-                            name: &'static str = name,
-                        }),
+                        "Running thread-local process",
+                        &[("id", &pid.0), ("name", &name)],
                     );
                     // Only run a single process per iteration.
                     continue;
@@ -399,10 +394,8 @@ impl RunningRuntime {
                     rt::trace::finish(
                         trace_log,
                         timing,
-                        event!("Running thread-safe process", attributes: {
-                            id: usize = pid.0,
-                            name: &'static str = name,
-                        }),
+                        "Running thread-safe process",
+                        &[("id", &pid.0), ("name", &name)],
                     );
                     // Only run a single process per iteration.
                     continue;
@@ -433,7 +426,7 @@ impl RunningRuntime {
         // Start with polling for OS events.
         let timing = rt::trace::start(&trace_log);
         self.poll().map_err(Error::Polling)?;
-        rt::trace::finish(trace_log, timing, event!("Polling for OS events"));
+        rt::trace::finish(trace_log, timing, "Polling for OS events", &[]);
 
         // Based on the OS event scheduler thread-local processes.
         let timing = rt::trace::start(&trace_log);
@@ -447,7 +440,7 @@ impl RunningRuntime {
                 token => scheduler.mark_ready(token.into()),
             }
         }
-        rt::trace::finish(trace_log, timing, event!("Handling OS events"));
+        rt::trace::finish(trace_log, timing, "Handling OS events", &[]);
 
         // User space wake up events, e.g. used by the `Future` task system.
         trace!("polling wakup events");
@@ -458,7 +451,8 @@ impl RunningRuntime {
         rt::trace::finish(
             trace_log,
             timing,
-            event!("Scheduling thread-local processes based on wake-up events"),
+            "Scheduling thread-local processes based on wake-up events",
+            &[],
         );
 
         // User space timers, powers the `timer` module.
@@ -470,7 +464,8 @@ impl RunningRuntime {
         rt::trace::finish(
             trace_log,
             timing,
-            event!("Scheduling thread-local processes based on timers"),
+            "Scheduling thread-local processes based on timers",
+            &[],
         );
 
         if check_coordinator {
@@ -479,7 +474,7 @@ impl RunningRuntime {
             // Process coordinator messages.
             let timing = rt::trace::start(&trace_log);
             self.check_coordinator()?;
-            rt::trace::finish(trace_log, timing, event!("Process coordinator messages"));
+            rt::trace::finish(trace_log, timing, "Process coordinator messages", &[]);
         }
         Ok(())
     }
