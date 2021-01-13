@@ -276,7 +276,7 @@ impl<S> Runtime<S> {
 
     /// Automatically set CPU affinity.
     ///
-    /// The is mostly usefull when using [`Runtime::use_all_cores`] to create a
+    /// The is mostly useful when using [`Runtime::use_all_cores`] to create a
     /// single worker thread per CPU core.
     pub fn auto_cpu_affinity(mut self) -> Self {
         self.auto_cpu_affinity = true;
