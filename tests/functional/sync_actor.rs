@@ -8,6 +8,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use heph::actor::sync::SyncContext;
+use heph::actor::RecvError;
 use heph::rt::SyncActorOptions;
 use heph::supervisor::NoSupervisor;
 use heph::test::spawn_sync_actor;
@@ -72,5 +73,32 @@ fn block_on() {
     }
 
     future.unblock();
+    handle.join().unwrap();
+}
+
+fn try_receive_next_actor(mut ctx: SyncContext<String>) {
+    loop {
+        match ctx.try_receive_next() {
+            Ok(msg) => {
+                assert_eq!(msg, "Hello world");
+                return;
+            }
+            Err(RecvError::Empty) => continue,
+            Err(RecvError::Disconnected) => panic!("unexpected disconnected error"),
+        }
+    }
+}
+
+#[test]
+fn context_try_receive_next() {
+    let (handle, actor_ref) = spawn_sync_actor(
+        NoSupervisor,
+        try_receive_next_actor as fn(_) -> _,
+        (),
+        SyncActorOptions::default(),
+    )
+    .unwrap();
+
+    actor_ref.try_send("Hello world".to_owned()).unwrap();
     handle.join().unwrap();
 }
