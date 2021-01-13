@@ -185,7 +185,7 @@ impl<M, C> Context<M, C> {
 
 impl<M> Context<M, ThreadLocal> {
     /// Create a new local `actor::Context`.
-    pub(crate) fn new_local(
+    pub(crate) const fn new_local(
         pid: ProcessId,
         inbox: Receiver<M>,
         runtime_ref: RuntimeRef,
@@ -205,7 +205,7 @@ impl<M> Context<M, ThreadLocal> {
 
 impl<M> Context<M, ThreadSafe> {
     /// Create a new local `actor::Context`.
-    pub(crate) fn new_shared(
+    pub(crate) const fn new_shared(
         pid: ProcessId,
         inbox: Receiver<M>,
         runtime_ref: Arc<SharedRuntimeInternal>,
