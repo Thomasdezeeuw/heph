@@ -494,6 +494,9 @@ impl<S> fmt::Debug for Runtime<S> {
             .field("threads", &self.threads)
             .field("sync_actors (length)", &self.sync_actors.len())
             .field("setup", setup)
+            .field("auto_cpu_affinity", &self.auto_cpu_affinity)
+            .field("signals", &self.signals)
+            .field("trace_log", &self.trace_log)
             .finish()
     }
 }
