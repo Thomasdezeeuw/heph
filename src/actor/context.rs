@@ -168,7 +168,7 @@ impl<M, C> Context<M, C> {
     }
 
     /// Returns a reference to this actor.
-    pub fn actor_ref(&mut self) -> ActorRef<M> {
+    pub fn actor_ref(&self) -> ActorRef<M> {
         ActorRef::local(self.inbox.new_sender())
     }
 
