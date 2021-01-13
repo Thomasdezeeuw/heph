@@ -5,8 +5,10 @@
 use std::pin::Pin;
 use std::task::Poll;
 
+use heph::actor::context::ThreadSafe;
 use heph::actor::{self, context, NoMessages, RecvError};
-use heph::rt::Signal;
+use heph::rt::{ActorOptions, Runtime, Signal};
+use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
 
 use crate::util::{assert_send, assert_sync};
@@ -66,4 +68,61 @@ fn actor_ref() {
 
     drop(actor_ref);
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+}
+
+async fn runtime_actor(mut ctx: actor::Context<Signal>) -> Result<(), !> {
+    let actor_ref = ctx.actor_ref();
+    ctx.runtime().receive_signals(actor_ref);
+    Ok(())
+}
+
+#[test]
+fn runtime() {
+    let runtime_actor = runtime_actor as fn(_) -> _;
+    let (actor, actor_ref) = init_local_actor(runtime_actor, ()).unwrap();
+    let mut actor = Box::pin(actor);
+
+    drop(actor_ref);
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+}
+
+async fn thread_safe_try_spawn_actor(mut ctx: actor::Context<usize, ThreadSafe>) -> Result<(), !> {
+    let actor_ref1 = ctx
+        .try_spawn(
+            NoSupervisor,
+            spawned_actor1 as fn(_) -> _,
+            (),
+            ActorOptions::default(),
+        )
+        .unwrap();
+    let actor_ref2 = ctx.spawn(
+        NoSupervisor,
+        spawned_actor1 as fn(_) -> _,
+        (),
+        ActorOptions::default(),
+    );
+
+    actor_ref1.send(123usize).await.unwrap();
+    actor_ref2.send(123usize).await.unwrap();
+
+    Ok(())
+}
+
+async fn spawned_actor1(mut ctx: actor::Context<usize, ThreadSafe>) -> Result<(), !> {
+    let msg = ctx.receive_next().await.unwrap();
+    assert_eq!(msg, 123);
+    Ok(())
+}
+
+#[test]
+fn thread_safe_try_spawn() {
+    let thread_safe_try_spawn_actor = thread_safe_try_spawn_actor as fn(_) -> _;
+    let mut runtime = Runtime::new().unwrap();
+    let _ = runtime.spawn(
+        NoSupervisor,
+        thread_safe_try_spawn_actor,
+        (),
+        ActorOptions::default(),
+    );
+    runtime.start().unwrap();
 }
