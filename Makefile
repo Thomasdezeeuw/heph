@@ -7,9 +7,15 @@ RUSTUP_TARGET    ?= "$(shell echo $(RUSTUP_TOOLCHAIN) | cut -d'-' -f2,3,4)"
 LLVM_BIN         ?= "$(shell rustc --print sysroot)/lib/rustlib/$(RUSTUP_TARGET)/bin"
 # Where we put the coverage output.
 COVERAGE_OUTPUT  ?= "./target/coverage"
+# Targets available via Rustup that are supported.
+TARGETS ?= "x86_64-apple-darwin" "x86_64-unknown-linux-gnu"
 
 test:
 	cargo test --all-features
+
+check_all_targets: $(TARGETS)
+$(TARGETS):
+	cargo check --all-features --target $@
 
 # NOTE: when using this command you might want to change the `test` target to
 # only run a subset of the tests you're actively working on.
