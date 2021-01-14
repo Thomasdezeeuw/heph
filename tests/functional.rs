@@ -17,5 +17,6 @@ mod functional {
     mod runtime;
     mod sync_actor;
     mod tcp;
+    mod timer;
     mod udp;
 }
