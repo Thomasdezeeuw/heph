@@ -63,17 +63,53 @@ impl TcpStream {
     }
 
     /// Set the CPU affinity to `cpu`.
-    #[cfg(target_os = "linux")]
-    pub(crate) fn set_cpu_affinity(&mut self, cpu: usize) -> io::Result<()> {
-        let cpu = cpu as libc::c_int;
-        syscall!(setsockopt(
-            self.socket.as_raw_fd(),
-            libc::SOL_SOCKET,
-            libc::SO_INCOMING_CPU,
-            &cpu as *const _ as *const _,
-            size_of::<libc::c_int>() as libc::socklen_t,
-        ))
-        .map(|_| ())
+    ///
+    /// On Linux this uses `SO_INCOMING_CPU`, on other platforms this is
+    /// currently a no-op.
+    pub fn set_cpu_affinity(&mut self, cpu: usize) -> io::Result<()> {
+        #[cfg(target_os = "linux")]
+        {
+            let cpu = cpu as libc::c_int;
+            syscall!(setsockopt(
+                self.socket.as_raw_fd(),
+                libc::SOL_SOCKET,
+                libc::SO_INCOMING_CPU,
+                &cpu as *const _ as *const _,
+                size_of::<libc::c_int>() as libc::socklen_t,
+            ))
+            .map(|_| ())
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = cpu; // Silence unused variables warnings.
+            Ok(())
+        }
+    }
+
+    /// Returns the CPU affinity.
+    ///
+    /// On Linux this uses `SO_INCOMING_CPU`, on other platforms this returns
+    /// `Ok(0)`.
+    pub fn cpu_affinity(&mut self) -> io::Result<usize> {
+        #[cfg(target_os = "linux")]
+        {
+            let mut cpu: libc::c_int = 0;
+            let mut cpu_len = size_of::<libc::c_int>() as libc::socklen_t;
+            syscall!(getsockopt(
+                self.socket.as_raw_fd(),
+                libc::SOL_SOCKET,
+                libc::SO_INCOMING_CPU,
+                &mut cpu as *mut _ as *mut _,
+                &mut cpu_len,
+            ))
+            .map(|_| cpu as usize)
+        }
+
+        #[cfg(not(target_os = "linux"))]
+        {
+            Ok(0)
+        }
     }
 
     /// Sets the value for the `IP_TTL` option on this socket.
