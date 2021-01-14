@@ -14,6 +14,7 @@ mod functional {
     mod bytes;
     mod from_message;
     mod restart_supervisor;
+    mod runtime;
     mod sync_actor;
     mod tcp;
     mod udp;
