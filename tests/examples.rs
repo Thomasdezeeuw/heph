@@ -163,34 +163,12 @@ impl Drop for ChildCommand {
 
 /// Run an example and return it's output.
 fn run_example_output(name: &'static str) -> String {
-    build_example(name);
-    let child = start_example(name);
+    let child = run_example(name);
     read_output(child)
 }
 
-/// Run an example, not waiting for it to complete, but it does wait for it to
-/// be build.
+/// Run an already build example
 fn run_example(name: &'static str) -> ChildCommand {
-    build_example(name);
-    start_example(name)
-}
-
-/// Build the example with the given name.
-fn build_example(name: &'static str) {
-    let output = Command::new("cargo")
-        .args(&["build", "--example", name])
-        .output()
-        .expect("unable to build example");
-
-    if !output.status.success() {
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        panic!("failed to build example: {}\n\n{}", stdout, stderr);
-    }
-}
-
-/// Start and already build example
-fn start_example(name: &'static str) -> ChildCommand {
     Command::new(format!("target/debug/examples/{}", name))
         .stdin(Stdio::null())
         .stderr(Stdio::piped())
