@@ -50,7 +50,7 @@ struct SetupInner<S, NA> {
 }
 
 impl<S, NA> Setup<S, NA> {
-    /// Returns the address this server is bound to.
+    /// Returns the address the server is bound to.
     pub fn local_addr(&self) -> SocketAddr {
         self.inner.address
     }

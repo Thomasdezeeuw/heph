@@ -179,7 +179,7 @@ where
 /// test with a completely functional runtime instead.
 pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
 where
-    A: Actor,
+    A: Actor + ?Sized,
 {
     let waker = runtime().new_local_task_waker(TEST_PID);
     let mut ctx = task::Context::from_waker(&waker);

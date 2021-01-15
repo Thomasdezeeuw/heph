@@ -12,6 +12,8 @@ use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
 use heph::{rt, Actor, ActorOptions, ActorRef, Runtime, RuntimeRef};
 
+use crate::util::{any_local_address, any_local_ipv6_address, run_actors};
+
 #[test]
 fn local_addr() {
     async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
@@ -36,14 +38,14 @@ fn local_addr() {
 #[test]
 fn local_addr_port_zero() {
     async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
-        let address = "127.0.0.1:0".parse().unwrap();
+        let address = any_local_address();
         let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
         let got = listener.local_addr().unwrap();
         assert_eq!(got.ip(), address.ip());
         assert!(got.port() != 0);
         drop(listener);
 
-        let address = "[::1]:0".parse().unwrap();
+        let address = any_local_ipv6_address();
         let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
         let got = listener.local_addr().unwrap();
         assert_eq!(got.ip(), address.ip());
@@ -61,8 +63,7 @@ fn local_addr_port_zero() {
 #[test]
 fn ttl() {
     async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
-        let address = "127.0.0.1:0".parse().unwrap();
-        let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
+        let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let initial = listener.ttl().unwrap();
         let expected = initial + 10;
@@ -119,8 +120,7 @@ fn try_accept() {
         mut ctx: actor::Context<!>,
         actor_ref: ActorRef<SocketAddr>,
     ) -> Result<(), !> {
-        let address = "127.0.0.1:0".parse().unwrap();
-        let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
+        let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
@@ -148,13 +148,13 @@ fn try_accept() {
 
     let stream_actor = stream_actor as fn(_) -> _;
     let (stream_actor, actor_ref) = init_local_actor(stream_actor, ()).unwrap();
-    let stream_actor = Box::pin(stream_actor);
+    let stream_actor: Box<dyn Actor<Error = !>> = Box::new(stream_actor);
 
     let listener_actor = listener_actor as fn(_, _) -> _;
     let (listener_actor, _) = init_local_actor(listener_actor, actor_ref).unwrap();
-    let listener_actor = Box::pin(listener_actor);
+    let listener_actor: Box<dyn Actor<Error = !>> = Box::new(listener_actor);
 
-    run_both(listener_actor, stream_actor);
+    run_actors(vec![listener_actor.into(), stream_actor.into()]);
 }
 
 #[test]
@@ -163,8 +163,7 @@ fn accept() {
         mut ctx: actor::Context<!>,
         actor_ref: ActorRef<SocketAddr>,
     ) -> Result<(), !> {
-        let address = "127.0.0.1:0".parse().unwrap();
-        let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
+        let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
@@ -183,13 +182,13 @@ fn accept() {
 
     let stream_actor = stream_actor as fn(_) -> _;
     let (stream_actor, actor_ref) = init_local_actor(stream_actor, ()).unwrap();
-    let stream_actor = Box::pin(stream_actor);
+    let stream_actor: Box<dyn Actor<Error = !>> = Box::new(stream_actor);
 
     let listener_actor = listener_actor as fn(_, _) -> _;
     let (listener_actor, _) = init_local_actor(listener_actor, actor_ref).unwrap();
-    let listener_actor = Box::pin(listener_actor);
+    let listener_actor: Box<dyn Actor<Error = !>> = Box::new(listener_actor);
 
-    run_both(listener_actor, stream_actor);
+    run_actors(vec![listener_actor.into(), stream_actor.into()]);
 }
 
 #[test]
@@ -198,8 +197,7 @@ fn incoming() {
         mut ctx: actor::Context<!>,
         actor_ref: ActorRef<SocketAddr>,
     ) -> Result<(), !> {
-        let address = "127.0.0.1:0".parse().unwrap();
-        let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
+        let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
@@ -219,44 +217,13 @@ fn incoming() {
 
     let stream_actor = stream_actor as fn(_) -> _;
     let (stream_actor, actor_ref) = init_local_actor(stream_actor, ()).unwrap();
-    let stream_actor = Box::pin(stream_actor);
+    let stream_actor: Box<dyn Actor<Error = !>> = Box::new(stream_actor);
 
     let listener_actor = listener_actor as fn(_, _) -> _;
     let (listener_actor, _) = init_local_actor(listener_actor, actor_ref).unwrap();
-    let listener_actor = Box::pin(listener_actor);
+    let listener_actor: Box<dyn Actor<Error = !>> = Box::new(listener_actor);
 
-    run_both(listener_actor, stream_actor);
-}
-
-fn run_both<A1: Actor, A2: Actor>(actor1: Pin<Box<A1>>, actor2: Pin<Box<A2>>) {
-    let mut actor1 = Some(actor1);
-    let mut actor2 = Some(actor2);
-    for _ in 0..10 {
-        if let Some(actor) = actor1.as_mut() {
-            match poll_actor(Pin::as_mut(actor)) {
-                Poll::Pending => {}
-                Poll::Ready(Ok(())) => {
-                    drop(actor);
-                    actor1 = None;
-                }
-                Poll::Ready(Err(_)) => unreachable!(),
-            }
-        }
-
-        if let Some(actor) = actor2.as_mut() {
-            match poll_actor(Pin::as_mut(actor)) {
-                Poll::Pending => {}
-                Poll::Ready(Ok(())) => {
-                    drop(actor);
-                    actor2 = None;
-                }
-                Poll::Ready(Err(_)) => unreachable!(),
-            }
-        } else if actor2.is_none() {
-            // Both `None`.
-            return;
-        }
-    }
+    run_actors(vec![listener_actor.into(), stream_actor.into()]);
 }
 
 #[test]
@@ -268,8 +235,7 @@ fn actor_bound() {
     where
         actor::Context<!, K>: rt::Access,
     {
-        let address = "127.0.0.1:0".parse().unwrap();
-        let listener = TcpListener::bind(&mut ctx, address).unwrap();
+        let listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
         actor_ref.send(listener).await.unwrap();
         Ok(())
     }
