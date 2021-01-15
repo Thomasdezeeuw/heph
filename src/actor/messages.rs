@@ -114,7 +114,7 @@ pub struct Terminate;
 ///     Rpc2(RpcMessage<(String, usize), (usize, usize)>),
 /// }
 ///
-/// // This implements `From<Strig>` for `Message`.
+/// // This implements `From<String>` for `Message`.
 /// from_message!(Message::Msg(String));
 ///
 /// // RPC is also supported:
