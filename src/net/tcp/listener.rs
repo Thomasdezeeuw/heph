@@ -35,12 +35,9 @@ use crate::rt::{self, PrivateAccess};
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// use futures_util::AsyncWriteExt;
-/// # use futures_util::AsyncReadExt;
 /// use log::error;
 ///
 /// # use heph::net::TcpStream;
-/// use heph::actor::Bound;
 /// use heph::log::request;
 /// use heph::net::TcpListener;
 /// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
@@ -64,9 +61,8 @@ use crate::rt::{self, PrivateAccess};
 /// # async fn client(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
 /// #   let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 /// #   let local_address = stream.local_addr()?.to_string();
-/// #   let mut buf = [0; 64];
-/// #   let buf = &mut buf[..local_address.len()];
-/// #   stream.read_exact(buf).await?;
+/// #   let mut buf = Vec::with_capacity(local_address.len() + 1);
+/// #   stream.recv_n(&mut buf, local_address.len()).await?;
 /// #   assert_eq!(buf, local_address.as_bytes());
 /// #   Ok(())
 /// # }
@@ -82,16 +78,15 @@ use crate::rt::{self, PrivateAccess};
 ///     let mut listener = TcpListener::bind(&mut ctx, address)?;
 ///
 ///     // Accept a connection.
-///     let (mut stream, peer_address) = listener.accept().await?;
+///     let (unbound_stream, peer_address) = listener.accept().await?;
 ///     request!("accepted connection from: {}", peer_address);
 ///
 ///     // Next we need to bind the stream to this actor.
-///     // NOTE: if we don't do this the actor will (likely) never be run (again).
-///     stream.bind_to(&mut ctx)?;
+///     let mut stream = unbound_stream.bind_to(&mut ctx)?;
 ///
 ///     // Next we write the IP address to the connection.
 ///     let ip = peer_address.to_string();
-///     stream.write_all(ip.as_bytes()).await
+///     stream.send_all(ip.as_bytes()).await
 /// }
 /// ```
 ///
@@ -104,12 +99,10 @@ use crate::rt::{self, PrivateAccess};
 /// use std::net::SocketAddr;
 ///
 /// use futures_util::future::ready;
-/// use futures_util::{AsyncWriteExt, TryFutureExt, TryStreamExt};
-/// # use futures_util::{AsyncReadExt, StreamExt};
+/// use futures_util::{TryFutureExt, StreamExt, TryStreamExt};
 /// use log::error;
 ///
 /// # use heph::net::TcpStream;
-/// use heph::actor::Bound;
 /// use heph::log::request;
 /// use heph::net::TcpListener;
 /// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
@@ -133,9 +126,8 @@ use crate::rt::{self, PrivateAccess};
 /// # async fn client(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
 /// #   let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 /// #   let local_address = stream.local_addr()?.to_string();
-/// #   let mut buf = [0; 64];
-/// #   let buf = &mut buf[..local_address.len()];
-/// #   stream.read_exact(buf).await?;
+/// #   let mut buf = Vec::with_capacity(local_address.len() + 1);
+/// #   stream.recv_n(&mut buf, local_address.len()).await?;
 /// #   assert_eq!(buf, local_address.as_bytes());
 /// #   Ok(())
 /// # }
@@ -152,14 +144,13 @@ use crate::rt::{self, PrivateAccess};
 ///     let streams = listener.incoming();
 /// #   let streams = streams.take(1);
 ///
-///     streams.try_for_each(|(mut stream, peer_address)| {
+///     streams.try_for_each(|(unbound_stream, peer_address)| {
 ///         request!("accepted connection from: {}", peer_address);
 ///         // Next we need to bind the stream to this actor.
-///         // NOTE: if we don't do this the actor will (likely) never be run (again).
-///         ready(stream.bind_to(&mut ctx)).and_then(async move |()| {
+///         ready(unbound_stream.bind_to(&mut ctx)).and_then(async move |mut stream| {
 ///             // Next we write the IP address to the connection.
 ///             let ip = peer_address.to_string();
-///             stream.write_all(ip.as_bytes()).await
+///             stream.send_all(ip.as_bytes()).await
 ///         })
 ///     }).await
 /// }
@@ -222,17 +213,15 @@ impl TcpListener {
     ///
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
-    ///
-    /// # Notes
-    ///
-    /// After accepting a stream it needs to be [bound] to an actor to ensure
-    /// the actor is run once the stream is ready.
-    ///
-    /// [bound]: actor::Bound::bind_to
-    pub fn try_accept(&mut self) -> io::Result<(TcpStream, SocketAddr)> {
-        self.socket
-            .accept()
-            .map(|(socket, address)| (TcpStream { socket }, address))
+    pub fn try_accept(&mut self) -> io::Result<(UnboundTcpStream, SocketAddr)> {
+        self.socket.accept().map(|(socket, address)| {
+            (
+                UnboundTcpStream {
+                    stream: TcpStream { socket },
+                },
+                address,
+            )
+        })
     }
 
     /// Accepts a new incoming [`TcpStream`].
@@ -241,13 +230,6 @@ impl TcpListener {
     /// returned along with it.
     ///
     /// See the [`TcpListener`] documentation for an example.
-    ///
-    /// # Notes
-    ///
-    /// After accepting a stream it needs to be [bound] to an actor to ensure
-    /// the actor is run once the stream is ready.
-    ///
-    /// [bound]: actor::Bound::bind_to
     pub fn accept(&mut self) -> Accept<'_> {
         Accept {
             listener: Some(self),
@@ -258,13 +240,6 @@ impl TcpListener {
     /// this listener.
     ///
     /// See the [`TcpListener`] documentation for an example.
-    ///
-    /// # Notes
-    ///
-    /// After accepting a stream it needs to be [bound] to an actor to ensure
-    /// the actor is run once the stream is ready.
-    ///
-    /// [bound]: actor::Bound::bind_to
     pub fn incoming(&mut self) -> Incoming<'_> {
         Incoming { listener: self }
     }
@@ -279,14 +254,34 @@ impl TcpListener {
     }
 }
 
+/// An unbound [`TcpStream`].
+///
+/// The stream first has to be bound to an actor (using [`bind_to`]), before it
+/// can be used.
+///
+/// [`bind_to`]: UnboundTcpStream::bind_to
+#[derive(Debug)]
+pub struct UnboundTcpStream {
+    stream: TcpStream,
+}
+
+impl UnboundTcpStream {
+    /// Bind this TCP stream to the actor's `ctx`, allowing it to be used.
+    pub fn bind_to<M, K>(mut self, ctx: &mut actor::Context<M, K>) -> io::Result<TcpStream>
+    where
+        actor::Context<M, K>: rt::Access,
+    {
+        let pid = ctx.pid();
+        ctx.register(
+            &mut self.stream.socket,
+            pid.into(),
+            Interest::READABLE | Interest::WRITABLE,
+        )
+        .map(|()| self.stream)
+    }
+}
+
 /// The [`Future`] behind [`TcpListener::accept`].
-///
-/// # Notes
-///
-/// After accepting a stream it needs to be [bound] to an actor to ensure the
-/// actor is run once the stream is ready.
-///
-/// [bound]: actor::Bound::bind_to
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Accept<'a> {
@@ -294,7 +289,7 @@ pub struct Accept<'a> {
 }
 
 impl<'a> Future for Accept<'a> {
-    type Output = io::Result<(TcpStream, SocketAddr)>;
+    type Output = io::Result<(UnboundTcpStream, SocketAddr)>;
 
     fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match self.listener {
@@ -315,13 +310,6 @@ impl<'a> FusedFuture for Accept<'a> {
 }
 
 /// The [`Stream`] behind [`TcpListener::incoming`].
-///
-/// # Notes
-///
-/// After accepting a stream it needs to be [bound] to an actor to ensure the
-/// actor is run once the stream is ready.
-///
-/// [bound]: actor::Bound::bind_to
 #[derive(Debug)]
 #[must_use = "streams do nothing unless polled"]
 pub struct Incoming<'a> {
@@ -329,7 +317,7 @@ pub struct Incoming<'a> {
 }
 
 impl<'a> Stream for Incoming<'a> {
-    type Item = io::Result<(TcpStream, SocketAddr)>;
+    type Item = io::Result<(UnboundTcpStream, SocketAddr)>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
