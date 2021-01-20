@@ -1,19 +1,19 @@
 //! Module with [`TcpServer`] and related types.
 
 use std::convert::TryFrom;
-use std::mem::{forget, size_of};
 use std::net::SocketAddr;
-use std::os::unix::io::{FromRawFd, RawFd};
+use std::os::unix::io::{FromRawFd, IntoRawFd};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
+use log::debug;
 #[cfg(target_os = "linux")]
 use log::warn;
-use log::{debug, error};
 use mio::net::TcpListener;
 use mio::Interest;
+use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::actor::messages::Terminate;
 use crate::actor::{self, Actor, AddActorError, NewActor, PrivateSpawn, Spawn};
@@ -34,11 +34,9 @@ pub struct Setup<S, NA> {
 
 #[derive(Debug)]
 struct SetupInner<S, NA> {
-    /// The underlying TCP listener.
-    ///
-    /// NOTE: This is never registered with any `mio::Poll` instance, it is just
-    /// used to return an error quickly if we can't create the socket.
-    listener: TcpListener,
+    /// Unused socket bound to the `address`, it is just used to return an error
+    /// quickly if we can't create the socket or bind to the address.
+    socket: Socket,
     /// Address of the `listener`, used to create new sockets.
     address: SocketAddr,
     /// Supervisor for all actors created by `NewActor`.
@@ -75,7 +73,8 @@ where
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let this = &*self.inner;
-        let mut listener = new_listener(&this.address, 1024)?;
+        let socket = new_listener(this.address, 1024)?;
+        let mut listener = unsafe { TcpListener::from_raw_fd(socket.into_raw_fd()) };
         let token = ctx.pid().into();
         ctx.register(&mut listener, token, Interest::READABLE)?;
         Ok(TcpServer {
@@ -89,103 +88,31 @@ where
     }
 }
 
-fn new_listener(address: &SocketAddr, backlog: libc::c_int) -> io::Result<TcpListener> {
-    // Currently Mio doesn't provide a way to set socket options before binding,
-    // so we have to do that ourselves. The following is mostly copied from the
-    // Mio source, which I also wrote. Most of this code should live in the
-    // `socket2` crate, once that is ready.
-
-    let domain = match address {
-        SocketAddr::V4(..) => libc::AF_INET,
-        SocketAddr::V6(..) => libc::AF_INET6,
-    };
-
+fn new_listener(address: SocketAddr, backlog: libc::c_int) -> io::Result<Socket> {
+    // Create a new non-blocking socket.
+    let domain = Domain::for_address(address);
+    let ty = Type::STREAM;
     #[cfg(any(target_os = "freebsd", target_os = "linux"))]
-    let socket_type = libc::SOCK_STREAM | libc::SOCK_NONBLOCK | libc::SOCK_CLOEXEC;
-    #[cfg(target_vendor = "apple")]
-    let socket_type = libc::SOCK_STREAM;
+    let ty = ty.nonblocking();
+    let protocol = Protocol::TCP;
+    let socket = Socket::new(domain, ty, Some(protocol))?;
+    // For OSs that don't support `SOCK_NONBLOCK`.
+    #[cfg(not(any(target_os = "freebsd", target_os = "linux")))]
+    socket.set_nonblocking(true)?;
 
-    // Gives a warning for platforms without SOCK_NONBLOCK.
-    let socket = syscall!(socket(domain, socket_type, 0))?;
+    // Allow the other worker threads and processes to reuse the address and
+    // port we're binding to. This allow reload the process without dropping
+    // clients.
+    socket.set_reuse_address(true)?;
+    socket.set_reuse_port(true)?; // TODO: use `SO_REUSEPORT_LB` on FreeBSD.
 
-    struct CloseFd {
-        fd: RawFd,
-    }
-    impl Drop for CloseFd {
-        fn drop(&mut self) {
-            if let Err(err) = syscall!(close(self.fd)) {
-                error!("error closing socket: {}", err);
-            }
-        }
-    }
-    let socket = CloseFd { fd: socket };
-
-    // For platforms that don't support flags in socket, we need to set the
-    // flags ourselves.
-    #[cfg(target_vendor = "apple")]
-    syscall!(fcntl(socket.fd, libc::F_SETFL, libc::O_NONBLOCK))
-        .and_then(|_| syscall!(fcntl(socket.fd, libc::F_SETFD, libc::FD_CLOEXEC)))
-        .map(|_| ())?;
-
-    // Mimick `libstd` and set `SO_NOSIGPIPE` on apple systems.
-    #[cfg(target_vendor = "apple")]
-    syscall!(setsockopt(
-        socket.fd,
-        libc::SOL_SOCKET,
-        libc::SO_NOSIGPIPE,
-        &1 as *const libc::c_int as *const libc::c_void,
-        size_of::<libc::c_int>() as libc::socklen_t
-    ))
-    .map(|_| ())?;
-
-    // Set `SO_REUSEADDR` (mirrors what libstd does).
-    syscall!(setsockopt(
-        socket.fd,
-        libc::SOL_SOCKET,
-        libc::SO_REUSEADDR,
-        &1 as *const libc::c_int as *const libc::c_void,
-        size_of::<libc::c_int>() as libc::socklen_t,
-    ))
-    .map(|_| ())?;
-
-    // Finally, the stuff we actually care about: setting `SO_REUSEPORT(_LB)`.
-    #[cfg(any(target_vendor = "apple", target_os = "linux"))]
-    let reuseport = libc::SO_REUSEPORT;
-    #[cfg(target_os = "freebsd")]
-    let reuseport = libc::SO_REUSEPORT_LB; // Improved load balancing.
-    syscall!(setsockopt(
-        socket.fd,
-        libc::SOL_SOCKET,
-        reuseport,
-        &1 as *const libc::c_int as *const libc::c_void,
-        size_of::<libc::c_int>() as libc::socklen_t,
-    ))
-    .map(|_| ())?;
-
-    fn socket_addr(addr: &SocketAddr) -> (*const libc::sockaddr, libc::socklen_t) {
-        use std::mem::size_of_val;
-
-        match addr {
-            SocketAddr::V4(ref addr) => (
-                addr as *const _ as *const libc::sockaddr,
-                size_of_val(addr) as libc::socklen_t,
-            ),
-            SocketAddr::V6(ref addr) => (
-                addr as *const _ as *const libc::sockaddr,
-                size_of_val(addr) as libc::socklen_t,
-            ),
-        }
-    }
-
-    let (raw_addr, raw_addr_length) = socket_addr(&address);
-    syscall!(bind(socket.fd, raw_addr, raw_addr_length)).map(|_| ())?;
+    // Bind the socket and start listening if required.
+    socket.bind(&address.into())?;
     if backlog != 0 {
-        syscall!(listen(socket.fd, backlog)).map(|_| ())?;
+        socket.listen(backlog)?;
     }
 
-    let fd = socket.fd;
-    forget(socket); // Don't close the file descriptor.
-    Ok(unsafe { TcpListener::from_raw_fd(fd) })
+    Ok(socket)
 }
 
 impl<S, NA> Clone for Setup<S, NA> {
@@ -528,17 +455,19 @@ where
         //
         // Also note that we use a backlog of `0`, which causes `new_listener`
         // to never call `listen(2)` on the socket.
-        new_listener(&address, 0).and_then(|listener| {
+        new_listener(address, 0).and_then(|socket| {
             // Using a port of 0 means the OS can select one for us. However
             // we still consistently want to use the same port instead of
             // binding to a number of random ports.
             if address.port() == 0 {
-                address = listener.local_addr()?;
+                // NOTE: we just created the socket above so we know it's either
+                // IPv4 or IPv6, meaning this `unwrap` never fails.
+                address = socket.local_addr()?.as_socket().unwrap();
             }
 
             Ok(Setup {
                 inner: Arc::new(SetupInner {
-                    listener,
+                    socket,
                     address,
                     supervisor,
                     new_actor,
