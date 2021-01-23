@@ -136,7 +136,7 @@ impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
         // Mark ourselves as dropped.
         let shared = self.shared();
-        let old_status = shared.status.fetch_and(!SENDER_ALIVE, Ordering::Release);
+        let old_status = shared.status.fetch_and(!SENDER_ALIVE, Ordering::AcqRel);
 
         if (old_status & !SENDER_ALIVE) & RECEIVER_ALIVE != 0 {
             // Receiver is still alive, no need to drop. But we do need to wake
@@ -306,7 +306,7 @@ impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
         // Mark ourselves as dropped.
         let shared = self.shared();
-        let old_status = shared.status.fetch_and(!RECEIVER_ALIVE, Ordering::Release);
+        let old_status = shared.status.fetch_and(!RECEIVER_ALIVE, Ordering::AcqRel);
 
         if (old_status & !RECEIVER_ALIVE) & SENDER_ALIVE != 0 {
             // Sender is still alive, no need to drop.
