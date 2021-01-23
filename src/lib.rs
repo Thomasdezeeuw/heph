@@ -206,64 +206,7 @@ impl<T: fmt::Debug> Error for SendError<T> {}
 impl<T> Sender<T> {
     /// Attempts to send the `value` into the channel.
     pub fn try_send(&self, value: T) -> Result<(), SendError<T>> {
-        if !self.is_connected() {
-            return Err(SendError::Disconnected(value));
-        }
-
-        let channel = self.channel();
-        // NOTE: relaxed ordering here is ok because we acquire unique
-        // permission to write to the slot later before writing to it. Something
-        // we have to do no matter the ordering.
-        let mut status: usize = channel.status.load(Ordering::Relaxed);
-        let start = receiver_pos(status);
-        for slot in (0..SMALL_CAP).cycle().skip(start).take(SMALL_CAP) {
-            if !is_available(status, slot) {
-                continue;
-            }
-
-            // In our local status the slot is available, however another sender
-            // could have taken it between the time we read the status and the
-            // time we got here. So we write our `TAKEN` status and check if in
-            // the *previous* (up-to-date) status (returned by `fetch_or`) the
-            // slot was still available. If it was it means we have acquired the
-            // slot, otherwise another sender beat us to it.
-            //
-            // NOTE: The OR operation here is safe: if another sender already
-            // wrote TAKEN (01) or FILLED (11) we're not overwriting anything.
-            // If a reader wrote READING (10) we won't use the slot and the
-            // reader will overwrite it with EMPTY later. If we overwrite EMPTY
-            // (00) we can reuse the slot safely, but the message will be in a
-            // different order.
-            status = channel
-                .status
-                .fetch_or(mark_slot(slot, MARK_TAKEN), Ordering::AcqRel);
-            if !is_available(status, slot) {
-                // Another thread beat us to taking the slot.
-                continue;
-            }
-
-            // Safety: we've acquired the slot above so we're ensured unique
-            // access to the slot.
-            unsafe {
-                let _ = (&mut *channel.slots[slot].get()).write(value);
-            }
-
-            // Now we've writing to the slot we can mark it slot as filled.
-            let old_status = channel
-                .status
-                .fetch_or(mark_slot(slot, MARK_FILLED), Ordering::AcqRel);
-            // Debug assertion to check the slot was in the TAKEN status.
-            debug_assert!(has_status(old_status, slot, TAKEN));
-
-            // If the receiver is waiting for this lot we wake it.
-            if receiver_pos(old_status) == slot {
-                channel.wake_receiver();
-            }
-
-            return Ok(());
-        }
-
-        Err(SendError::Full(value))
+        try_send(self.channel(), value)
     }
 
     /// Returns a future that sends a value into the channel, waiting if the
@@ -278,7 +221,7 @@ impl<T> Sender<T> {
     /// [disconnected]: Sender::is_connected
     pub fn send<'s>(&'s self, value: T) -> SendValue<'s, T> {
         SendValue {
-            sender: self,
+            channel: self.channel(),
             value: Some(value),
             waker_node: UnsafeCell::new(None),
             _unpin: PhantomPinned,
@@ -298,9 +241,7 @@ impl<T> Sender<T> {
     /// account. This is done to support the use case in which an actor is
     /// restarted and a new receiver is created for it.
     pub fn is_connected(&self) -> bool {
-        // Relaxed is fine here since there is always a bit of a race condition
-        // when using this method (and then doing something based on it).
-        self.channel().ref_count.load(Ordering::Relaxed) & (RECEIVER_ALIVE | MANAGER_ALIVE) != 0
+        is_sender_connected(self.channel())
     }
 
     /// Returns `true` if the [`Manager`] is connected.
@@ -330,6 +271,74 @@ impl<T> Sender<T> {
     fn channel(&self) -> &Channel<T> {
         unsafe { self.channel.as_ref() }
     }
+}
+
+/// See [`Sender::try_send`].
+fn try_send<T>(channel: &Channel<T>, value: T) -> Result<(), SendError<T>> {
+    if !is_sender_connected(channel) {
+        return Err(SendError::Disconnected(value));
+    }
+
+    // NOTE: relaxed ordering here is ok because we acquire unique
+    // permission to write to the slot later before writing to it. Something
+    // we have to do no matter the ordering.
+    let mut status: usize = channel.status.load(Ordering::Relaxed);
+    let start = receiver_pos(status);
+    for slot in (0..SMALL_CAP).cycle().skip(start).take(SMALL_CAP) {
+        if !is_available(status, slot) {
+            continue;
+        }
+
+        // In our local status the slot is available, however another sender
+        // could have taken it between the time we read the status and the
+        // time we got here. So we write our `TAKEN` status and check if in
+        // the *previous* (up-to-date) status (returned by `fetch_or`) the
+        // slot was still available. If it was it means we have acquired the
+        // slot, otherwise another sender beat us to it.
+        //
+        // NOTE: The OR operation here is safe: if another sender already
+        // wrote TAKEN (01) or FILLED (11) we're not overwriting anything.
+        // If a reader wrote READING (10) we won't use the slot and the
+        // reader will overwrite it with EMPTY later. If we overwrite EMPTY
+        // (00) we can reuse the slot safely, but the message will be in a
+        // different order.
+        status = channel
+            .status
+            .fetch_or(mark_slot(slot, MARK_TAKEN), Ordering::AcqRel);
+        if !is_available(status, slot) {
+            // Another thread beat us to taking the slot.
+            continue;
+        }
+
+        // Safety: we've acquired the slot above so we're ensured unique
+        // access to the slot.
+        unsafe {
+            let _ = (&mut *channel.slots[slot].get()).write(value);
+        }
+
+        // Now we've writing to the slot we can mark it slot as filled.
+        let old_status = channel
+            .status
+            .fetch_or(mark_slot(slot, MARK_FILLED), Ordering::AcqRel);
+        // Debug assertion to check the slot was in the TAKEN status.
+        debug_assert!(has_status(old_status, slot, TAKEN));
+
+        // If the receiver is waiting for this lot we wake it.
+        if receiver_pos(old_status) == slot {
+            channel.wake_receiver();
+        }
+
+        return Ok(());
+    }
+
+    Err(SendError::Full(value))
+}
+
+/// See [`Sender::is_connected`].
+fn is_sender_connected<T>(channel: &Channel<T>) -> bool {
+    // Relaxed is fine here since there is always a bit of a race condition
+    // when using this method (and then doing something based on it).
+    channel.ref_count.load(Ordering::Relaxed) & (RECEIVER_ALIVE | MANAGER_ALIVE) != 0
 }
 
 /// # Safety
@@ -410,7 +419,7 @@ impl<T> Drop for Sender<T> {
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct SendValue<'s, T> {
-    sender: &'s Sender<T>,
+    channel: &'s Channel<T>,
     value: Option<T>,
     /// This future's `task::Waker`, maybe registered in `Channel`s list.
     ///
@@ -456,7 +465,7 @@ impl<'s, T: Unpin> SendValue<'s, T> {
             // Safety: just initialised it above, so `unwrap` is safe.
             let waker_ref = waker_node.as_mut().unwrap();
             // Then add our node the `Channel`s list.
-            self.sender.channel().add_waker(waker_ref);
+            self.channel.add_waker(waker_ref);
         }
     }
 }
@@ -475,7 +484,7 @@ impl<'s, T: Unpin> Future for SendValue<'s, T> {
 
         // First we try to send the value, if this succeeds we don't have to
         // allocate in the waker list.
-        match this.sender.try_send(value) {
+        match try_send(this.channel, value) {
             Ok(()) => Poll::Ready(Ok(())),
             Err(SendError::Full(value)) => {
                 // The channel is full, we'll register ourselves as wanting to
@@ -488,7 +497,7 @@ impl<'s, T: Unpin> Future for SendValue<'s, T> {
                 // added the our waker to list. So we try to send a value again
                 // to ensure we don't awoken and the channel has a slot
                 // available.
-                match this.sender.try_send(value) {
+                match try_send(this.channel, value) {
                     Ok(()) => Poll::Ready(Ok(())),
                     Err(SendError::Full(value)) => {
                         // Channel is still full, we'll have to wait.
@@ -517,7 +526,7 @@ impl<'s, T> Drop for SendValue<'s, T> {
             drop(waker);
 
             // Remove our waker from the list in `Channel`.
-            self.sender.channel().remove_waker(waker_node);
+            self.channel.remove_waker(waker_node);
         }
     }
 }
