@@ -561,73 +561,7 @@ impl Error for RecvError {}
 impl<T> Receiver<T> {
     /// Attempts to receive a value from this channel.
     pub fn try_recv(&mut self) -> Result<T, RecvError> {
-        let channel = self.channel();
-
-        // We check if we are connected **before** checking for messages. This
-        // is important because there is a time between 1) the checking of the
-        // messages in the channel and 2) checking if we're connected (if we
-        // would do it in the last `if` statement of this method) in which the
-        // sender could send a message and be dropped.
-        // In this case, if we would check if we're connected after checking for
-        // messages, we would incorrectly return `RecvError::Disconnected` (all
-        // senders are dropped after all), however we would miss the last
-        // message send.
-        // Checking before hand causes us to return `RecvError::Empty`, which
-        // technically isn't correct either but it will cause the user to check
-        // again later. In `RecvValue` this is solved by calling `try_recv`
-        // after registering the task waker, ensuring no wake-up events are
-        // missed.
-        let is_connected = self.is_connected();
-
-        // Since we substract from the `status` this will overflow at some
-        // point. But `fetch_add` wraps-around on overflow, so the position will
-        // "reset" itself to 0. The status bits will not be touched (even on
-        // wrap-around).
-        let mut status = channel.status.fetch_add(MARK_NEXT_POS, Ordering::AcqRel);
-        let start = receiver_pos(status);
-        for slot in (0..SMALL_CAP).cycle().skip(start).take(SMALL_CAP) {
-            if !is_filled(status, slot) {
-                continue;
-            }
-
-            // Mark the slot as being read.
-            status = channel
-                .status
-                .fetch_xor(mark_slot(slot, MARK_READING), Ordering::AcqRel);
-            if !is_filled(status, slot) {
-                // Slot isn't available after all.
-                continue;
-            }
-
-            // Safety: we've acquired unique access the slot above and we're
-            // ensured the slot is filled.
-            let value = unsafe { (&*channel.slots[slot].get()).assume_init_read() };
-
-            // Mark the slot as empty.
-            let old_status = channel
-                .status
-                .fetch_and(!mark_slot(slot, MARK_EMPTIED), Ordering::AcqRel);
-
-            // Debug assertion to check the slot was in the READING or FILLED
-            // status. The slot can be in the FILLED status if the sender tried
-            // to mark this slot as TAKEN (01) after we marked it as READING
-            // (10) (01 | 10 = 11 (FILLED)).
-            debug_assert!(
-                has_status(old_status, slot, READING) || has_status(old_status, slot, FILLED)
-            );
-
-            if let Some(waker) = self.channel().next_waker() {
-                waker.wake()
-            }
-
-            return Ok(value);
-        }
-
-        if !is_connected {
-            Err(RecvError::Disconnected)
-        } else {
-            Err(RecvError::Empty)
-        }
+        try_recv(self.channel())
     }
 
     /// Returns a future that receives a value from the channel, waiting if the
@@ -640,7 +574,9 @@ impl<T> Receiver<T> {
     ///
     /// [disconnected]: Receiver::is_connected
     pub fn recv<'r>(&'r mut self) -> RecvValue<'r, T> {
-        RecvValue { receiver: self }
+        RecvValue {
+            channel: self.channel(),
+        }
     }
 
     /// Create a new [`Sender`] that sends to this channel.
@@ -664,7 +600,7 @@ impl<T> Receiver<T> {
         SMALL_CAP
     }
 
-    /// Returns `true` if all [`Sender`]s are disconnected.
+    /// Returns `false` if all [`Sender`]s are disconnected.
     ///
     /// # Notes
     ///
@@ -673,9 +609,7 @@ impl<T> Receiver<T> {
     /// `true` (if the `Manager` created another `Sender`), which might be
     /// unexpected.
     pub fn is_connected(&self) -> bool {
-        // Relaxed is fine here since there is always a bit of a race condition
-        // when using this method (and then doing something based on it).
-        self.channel().ref_count.load(Ordering::Relaxed) & !(RECEIVER_ALIVE | MANAGER_ALIVE) > 0
+        is_receiver_connected(self.channel())
     }
 
     /// Returns `true` if the [`Manager`] is connected.
@@ -691,28 +625,108 @@ impl<T> Receiver<T> {
     /// This is useful if you can't call [`Receiver::recv`] but still want a
     /// wake-up notification once messages are added to the inbox.
     pub fn register_waker(&mut self, waker: &task::Waker) -> bool {
-        let channel = self.channel();
-        let receiver_waker = channel.receiver_waker.upgradable_read();
-
-        if let Some(receiver_waker) = &*receiver_waker {
-            if receiver_waker.will_wake(waker) {
-                channel.receiver_needs_wakeup.store(true, Ordering::SeqCst);
-                return false;
-            }
-        }
-
-        let waker = Some(waker.clone());
-        let mut receiver_waker = RwLockUpgradableReadGuard::upgrade(receiver_waker);
-        *receiver_waker = waker;
-        drop(receiver_waker);
-
-        channel.receiver_needs_wakeup.store(true, Ordering::SeqCst);
-        true
+        register_receiver_waker(self.channel(), waker)
     }
 
     fn channel(&self) -> &Channel<T> {
         unsafe { self.channel.as_ref() }
     }
+}
+
+/// See [`Receiver::try_recv`].
+fn try_recv<T>(channel: &Channel<T>) -> Result<T, RecvError> {
+    // We check if we are connected **before** checking for messages. This
+    // is important because there is a time between 1) the checking of the
+    // messages in the channel and 2) checking if we're connected (if we
+    // would do it in the last `if` statement of this method) in which the
+    // sender could send a message and be dropped.
+    // In this case, if we would check if we're connected after checking for
+    // messages, we would incorrectly return `RecvError::Disconnected` (all
+    // senders are dropped after all), however we would miss the last
+    // message send.
+    // Checking before hand causes us to return `RecvError::Empty`, which
+    // technically isn't correct either but it will cause the user to check
+    // again later. In `RecvValue` this is solved by calling `try_recv`
+    // after registering the task waker, ensuring no wake-up events are
+    // missed.
+    let is_connected = is_receiver_connected(channel);
+
+    // Since we substract from the `status` this will overflow at some
+    // point. But `fetch_add` wraps-around on overflow, so the position will
+    // "reset" itself to 0. The status bits will not be touched (even on
+    // wrap-around).
+    let mut status = channel.status.fetch_add(MARK_NEXT_POS, Ordering::AcqRel);
+    let start = receiver_pos(status);
+    for slot in (0..SMALL_CAP).cycle().skip(start).take(SMALL_CAP) {
+        if !is_filled(status, slot) {
+            continue;
+        }
+
+        // Mark the slot as being read.
+        status = channel
+            .status
+            .fetch_xor(mark_slot(slot, MARK_READING), Ordering::AcqRel);
+        if !is_filled(status, slot) {
+            // Slot isn't available after all.
+            continue;
+        }
+
+        // Safety: we've acquired unique access the slot above and we're
+        // ensured the slot is filled.
+        let value = unsafe { (&*channel.slots[slot].get()).assume_init_read() };
+
+        // Mark the slot as empty.
+        let old_status = channel
+            .status
+            .fetch_and(!mark_slot(slot, MARK_EMPTIED), Ordering::AcqRel);
+
+        // Debug assertion to check the slot was in the READING or FILLED
+        // status. The slot can be in the FILLED status if the sender tried
+        // to mark this slot as TAKEN (01) after we marked it as READING
+        // (10) (01 | 10 = 11 (FILLED)).
+        debug_assert!(
+            has_status(old_status, slot, READING) || has_status(old_status, slot, FILLED)
+        );
+
+        if let Some(waker) = channel.next_waker() {
+            waker.wake()
+        }
+
+        return Ok(value);
+    }
+
+    if !is_connected {
+        Err(RecvError::Disconnected)
+    } else {
+        Err(RecvError::Empty)
+    }
+}
+
+/// See [`Receiver::is_connected`].
+fn is_receiver_connected<T>(channel: &Channel<T>) -> bool {
+    // Relaxed is fine here since there is always a bit of a race condition
+    // when using this method (and then doing something based on it).
+    channel.ref_count.load(Ordering::Relaxed) & !(RECEIVER_ALIVE | MANAGER_ALIVE) > 0
+}
+
+/// See [`Receiver::register_waker`].
+fn register_receiver_waker<T>(channel: &Channel<T>, waker: &task::Waker) -> bool {
+    let receiver_waker = channel.receiver_waker.upgradable_read();
+
+    if let Some(receiver_waker) = &*receiver_waker {
+        if receiver_waker.will_wake(waker) {
+            channel.receiver_needs_wakeup.store(true, Ordering::SeqCst);
+            return false;
+        }
+    }
+
+    let waker = Some(waker.clone());
+    let mut receiver_waker = RwLockUpgradableReadGuard::upgrade(receiver_waker);
+    *receiver_waker = waker;
+    drop(receiver_waker);
+
+    channel.receiver_needs_wakeup.store(true, Ordering::SeqCst);
+    true
 }
 
 impl<T: fmt::Debug> fmt::Debug for Receiver<T> {
@@ -774,18 +788,18 @@ impl<T> Drop for Receiver<T> {
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct RecvValue<'r, T> {
-    receiver: &'r mut Receiver<T>,
+    channel: &'r Channel<T>,
 }
 
 impl<'r, T> Future for RecvValue<'r, T> {
     type Output = Option<T>;
 
-    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
-        match self.receiver.try_recv() {
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
+        match try_recv(self.channel) {
             Ok(value) => Poll::Ready(Some(value)),
             Err(RecvError::Empty) => {
                 // The channel is empty, we'll set the waker.
-                if !self.receiver.register_waker(ctx.waker()) {
+                if !register_receiver_waker(self.channel, ctx.waker()) {
                     // Waker already set.
                     return Poll::Pending;
                 }
@@ -793,7 +807,7 @@ impl<'r, T> Future for RecvValue<'r, T> {
                 // But it could be the case that a sender send a value in the
                 // time between we last checked and we actually marked ourselves
                 // as needing a wake up, so we need to check again.
-                match self.receiver.try_recv() {
+                match try_recv(self.channel) {
                     Ok(value) => Poll::Ready(Some(value)),
                     // The `Sender` will wake us when a new message is send.
                     Err(RecvError::Empty) => Poll::Pending,
@@ -835,6 +849,11 @@ struct Channel<T> {
     /// see the `wake_receiver` method.
     receiver_needs_wakeup: AtomicBool,
 }
+
+// Safety: if the value can be send across thread than so can the channel.
+unsafe impl<T: Send> Send for Channel<T> {}
+
+unsafe impl<T> Sync for Channel<T> {}
 
 /// Atomic linked list of `task::Waker`s.
 #[derive(Debug)]
