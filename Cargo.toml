@@ -9,7 +9,7 @@ repository    = "https://github.com/Thomasdezeeuw/inbox"
 readme        = "README.md"
 keywords      = ["inbox", "channel", "actor", "async"]
 categories    = ["asynchronous"]
-include       = ["/Cargo.toml", "/src/lib.rs", "/README.md", "/LICENSE"]
+include       = ["/Cargo.toml", "src/**/*.rs", "/README.md", "/LICENSE"]
 edition       = "2018"
 
 [features]
