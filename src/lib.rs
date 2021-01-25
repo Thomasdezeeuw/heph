@@ -73,15 +73,18 @@ use std::marker::PhantomPinned;
 use std::mem::{size_of, MaybeUninit};
 use std::pin::Pin;
 use std::ptr::{self, NonNull};
-use std::sync::atomic::{fence, AtomicBool, AtomicPtr, AtomicUsize, Ordering};
+use std::sync::atomic::{fence, AtomicPtr, AtomicUsize, Ordering};
 use std::task::{self, Poll};
 
-use parking_lot::{const_rwlock, Mutex, RwLock, RwLockUpgradableReadGuard};
+use parking_lot::Mutex;
 
 #[cfg(test)]
 mod tests;
 
 pub mod oneshot;
+
+mod waker;
+use waker::WakerRegistration;
 
 /// Create a small bounded channel.
 pub fn new_small<T>() -> (Sender<T>, Receiver<T>) {
@@ -625,7 +628,7 @@ impl<T> Receiver<T> {
     /// This is useful if you can't call [`Receiver::recv`] but still want a
     /// wake-up notification once messages are added to the inbox.
     pub fn register_waker(&mut self, waker: &task::Waker) -> bool {
-        register_receiver_waker(self.channel(), waker)
+        self.channel().receiver_waker.register(waker)
     }
 
     fn channel(&self) -> &Channel<T> {
@@ -709,26 +712,6 @@ fn is_receiver_connected<T>(channel: &Channel<T>) -> bool {
     channel.ref_count.load(Ordering::Relaxed) & !(RECEIVER_ALIVE | MANAGER_ALIVE) > 0
 }
 
-/// See [`Receiver::register_waker`].
-fn register_receiver_waker<T>(channel: &Channel<T>, waker: &task::Waker) -> bool {
-    let receiver_waker = channel.receiver_waker.upgradable_read();
-
-    if let Some(receiver_waker) = &*receiver_waker {
-        if receiver_waker.will_wake(waker) {
-            channel.receiver_needs_wakeup.store(true, Ordering::SeqCst);
-            return false;
-        }
-    }
-
-    let waker = Some(waker.clone());
-    let mut receiver_waker = RwLockUpgradableReadGuard::upgrade(receiver_waker);
-    *receiver_waker = waker;
-    drop(receiver_waker);
-
-    channel.receiver_needs_wakeup.store(true, Ordering::SeqCst);
-    true
-}
-
 impl<T: fmt::Debug> fmt::Debug for Receiver<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Receiver")
@@ -799,7 +782,7 @@ impl<'r, T> Future for RecvValue<'r, T> {
             Ok(value) => Poll::Ready(Some(value)),
             Err(RecvError::Empty) => {
                 // The channel is empty, we'll set the waker.
-                if !register_receiver_waker(self.channel, ctx.waker()) {
+                if !self.channel.receiver_waker.register(ctx.waker()) {
                     // Waker already set.
                     return Poll::Pending;
                 }
@@ -843,11 +826,7 @@ struct Channel<T> {
     ///
     /// If this is not null it must point to valid memory.
     sender_waker_head: AtomicPtr<WakerList>,
-    /// `task::Waker` to wake the `Receiver`.
-    receiver_waker: RwLock<Option<task::Waker>>,
-    /// `true` if `receiver_waker` needs to be awoken after sending a message,
-    /// see the `wake_receiver` method.
-    receiver_needs_wakeup: AtomicBool,
+    receiver_waker: WakerRegistration,
 }
 
 // Safety: if the value can be send across thread than so can the channel.
@@ -880,8 +859,7 @@ impl<T> Channel<T> {
             status: AtomicUsize::new(0),
             ref_count: AtomicUsize::new(RECEIVER_ALIVE | 1),
             sender_waker_head: AtomicPtr::new(ptr::null_mut()),
-            receiver_waker: const_rwlock(None),
-            receiver_needs_wakeup: AtomicBool::new(false),
+            receiver_waker: WakerRegistration::new(),
         }
     }
 
@@ -1030,18 +1008,7 @@ impl<T> Channel<T> {
 
     /// Wake the `Receiver`.
     fn wake_receiver(&self) {
-        if !self.receiver_needs_wakeup.load(Ordering::SeqCst) {
-            // Receiver doesn't need a wake-up.
-            return;
-        }
-
-        // Mark that we've woken the `Sender` and after actually wake the
-        // `Sender`.
-        if self.receiver_needs_wakeup.swap(false, Ordering::SeqCst) {
-            if let Some(receiver_waker) = &*self.receiver_waker.read() {
-                receiver_waker.wake_by_ref();
-            }
-        }
+        self.receiver_waker.wake()
     }
 }
 
