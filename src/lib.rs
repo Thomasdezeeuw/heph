@@ -440,7 +440,7 @@ pub struct SendValue<'s, T> {
     _unpin: PhantomPinned,
 }
 
-impl<'s, T: Unpin> SendValue<'s, T> {
+impl<'s, T> SendValue<'s, T> {
     /// Register `new_waker` with list in `Channel`.
     fn register_waker(self: Pin<&Self>, new_waker: &task::Waker) {
         if let Some(waker_node) = unsafe { (*self.waker_node.get()).as_ref() } {
@@ -473,7 +473,7 @@ impl<'s, T: Unpin> SendValue<'s, T> {
     }
 }
 
-impl<'s, T: Unpin> Future for SendValue<'s, T> {
+impl<'s, T> Future for SendValue<'s, T> {
     type Output = Result<(), T>;
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
