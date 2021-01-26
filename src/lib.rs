@@ -73,7 +73,7 @@ use std::future::Future;
 use std::mem::{drop as unlock, replace, size_of, MaybeUninit};
 use std::pin::Pin;
 use std::ptr::NonNull;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::task::{self, Poll};
 
 use parking_lot::{const_mutex, Mutex};
@@ -149,57 +149,57 @@ const fn sender_count(ref_count: usize) -> usize {
 const SMALL_CAP: usize = 8;
 
 // Bits to mark the status of a slot.
-const STATUS_BITS: usize = 2; // Number of bits used per slot.
-const STATUS_MASK: usize = (1 << STATUS_BITS) - 1;
+const STATUS_BITS: u64 = 2; // Number of bits used per slot.
+const STATUS_MASK: u64 = (1 << STATUS_BITS) - 1;
 #[cfg(test)]
-const ALL_STATUSES_MASK: usize = (1 << (SMALL_CAP * STATUS_BITS)) - 1;
+const ALL_STATUSES_MASK: u64 = (1 << (SMALL_CAP as u64 * STATUS_BITS)) - 1;
 // The possible statuses of a slot.
-const EMPTY: usize = 0b00; // Slot is empty (initial state).
-const TAKEN: usize = 0b01; // `Sender` acquired write access, currently writing.
-const FILLED: usize = 0b11; // `Sender` wrote a value into the slot.
-const READING: usize = 0b10; // A `Receiver` is reading from the slot.
+const EMPTY: u64 = 0b00; // Slot is empty (initial state).
+const TAKEN: u64 = 0b01; // `Sender` acquired write access, currently writing.
+const FILLED: u64 = 0b11; // `Sender` wrote a value into the slot.
+const READING: u64 = 0b10; // A `Receiver` is reading from the slot.
 
 // Status transitions.
-const MARK_TAKEN: usize = 0b01; // OR to go from EMPTY -> TAKEN.
-const MARK_FILLED: usize = 0b11; // OR to go from TAKEN -> FILLED.
-const MARK_READING: usize = 0b01; // XOR to go from FILLED -> READING.
-const MARK_EMPTIED: usize = 0b11; // ! AND to go from FILLED or READING -> EMPTY.
+const MARK_TAKEN: u64 = 0b01; // OR to go from EMPTY -> TAKEN.
+const MARK_FILLED: u64 = 0b11; // OR to go from TAKEN -> FILLED.
+const MARK_READING: u64 = 0b01; // XOR to go from FILLED -> READING.
+const MARK_EMPTIED: u64 = 0b11; // ! AND to go from FILLED or READING -> EMPTY.
 
 /// Returns `true` if `slot` in `status` is empty.
 #[inline(always)]
-fn is_available(status: usize, slot: usize) -> bool {
+fn is_available(status: u64, slot: usize) -> bool {
     has_status(status, slot, EMPTY)
 }
 
 /// Returns `true` if `slot` in `status` is filled.
 #[inline(always)]
-fn is_filled(status: usize, slot: usize) -> bool {
+fn is_filled(status: u64, slot: usize) -> bool {
     has_status(status, slot, FILLED)
 }
 
 /// Returns `true` if `slot` (in `status`) equals the `expected` status.
 #[inline(always)]
-fn has_status(status: usize, slot: usize, expected: usize) -> bool {
+fn has_status(status: u64, slot: usize, expected: u64) -> bool {
     slot_status(status, slot) == expected
 }
 
 /// Returns the `STATUS_BITS` for `slot` in `status`.
 #[inline(always)]
-fn slot_status(status: usize, slot: usize) -> usize {
+fn slot_status(status: u64, slot: usize) -> u64 {
     debug_assert!(slot <= SMALL_CAP);
-    (status >> (STATUS_BITS * slot)) & STATUS_MASK
+    (status >> (STATUS_BITS * slot as u64)) & STATUS_MASK
 }
 
 /// Creates a mask to transition `slot` using `transition`. `transition` must be
 /// one of the `MARK_*` constants.
 #[inline(always)]
-fn mark_slot(slot: usize, transition: usize) -> usize {
+fn mark_slot(slot: usize, transition: u64) -> u64 {
     debug_assert!(slot <= SMALL_CAP);
-    transition << (STATUS_BITS * slot)
+    transition << (STATUS_BITS * slot as u64)
 }
 
 /// Returns a string name for the `slot_status`.
-fn dbg_status(slot_status: usize) -> &'static str {
+fn dbg_status(slot_status: u64) -> &'static str {
     match slot_status {
         EMPTY => "EMPTY",
         TAKEN => "TAKEN",
@@ -210,14 +210,14 @@ fn dbg_status(slot_status: usize) -> &'static str {
 }
 
 // Bits to mark the position of the receiver.
-const POS_BITS: usize = 3; // Must be `2 ^ POS_BITS == SMALL_CAP`.
-const POS_MASK: usize = (1 << POS_BITS) - 1;
-const MARK_NEXT_POS: usize = 1 << (STATUS_BITS * SMALL_CAP); // Add to increase position by 1.
+const POS_BITS: u64 = 3; // Must be `2 ^ POS_BITS == SMALL_CAP`.
+const POS_MASK: u64 = (1 << POS_BITS) - 1;
+const MARK_NEXT_POS: u64 = 1 << (STATUS_BITS * SMALL_CAP as u64); // Add to increase position by 1.
 
 /// Returns the position of the receiver. Will be in 0..SMALL_CAP range.
 #[inline(always)]
-fn receiver_pos(status: usize) -> usize {
-    status >> (STATUS_BITS * SMALL_CAP) & POS_MASK
+fn receiver_pos(status: u64) -> usize {
+    (status >> (STATUS_BITS * SMALL_CAP as u64) & POS_MASK) as usize
 }
 
 /// Sending side of the channel.
@@ -335,7 +335,7 @@ fn try_send<T>(channel: &Channel<T>, value: T) -> Result<(), SendError<T>> {
     // NOTE: relaxed ordering here is ok because we acquire unique
     // permission to write to the slot later before writing to it. Something
     // we have to do no matter the ordering.
-    let mut status: usize = channel.status.load(Ordering::Relaxed);
+    let mut status: u64 = channel.status.load(Ordering::Relaxed);
     let start = receiver_pos(status);
     for slot in (0..SMALL_CAP).cycle().skip(start).take(SMALL_CAP) {
         if !is_available(status, slot) {
@@ -899,7 +899,7 @@ struct Channel<T> {
     /// The first `STATUS_BITS * SMALL_CAP` bits are the statuses for the
     /// `slots` field. The remaining bits are used by the `Sender` to indicate
     /// its current reading position (modulo `SMALL_CAP`).
-    status: AtomicUsize,
+    status: AtomicU64,
     /// The slots in the channel, see `status` for what slots are used/unused.
     slots: [UnsafeCell<MaybeUninit<T>>; SMALL_CAP],
     /// The number of senders alive. If the [`RECEIVER_ALIVE`] bit is set the
@@ -930,7 +930,7 @@ impl<T> Channel<T> {
                 UnsafeCell::new(MaybeUninit::uninit()),
                 UnsafeCell::new(MaybeUninit::uninit()),
             ],
-            status: AtomicUsize::new(0),
+            status: AtomicU64::new(0),
             ref_count: AtomicUsize::new(RECEIVER_ALIVE | RECEIVER_ACCESS | SENDER_ACCESS | 1),
             sender_wakers: const_mutex(Vec::new()),
             join_wakers: const_mutex(Vec::new()),
@@ -994,7 +994,7 @@ impl<T> Drop for Channel<T> {
     fn drop(&mut self) {
         // Safety: we have unique access, per the mutable reference, so relaxed
         // is fine.
-        let status: usize = self.status.load(Ordering::Relaxed);
+        let status: u64 = self.status.load(Ordering::Relaxed);
         for slot in 0..SMALL_CAP {
             if is_filled(status, slot) {
                 // Safety: we have unique access to the slot and we've checked

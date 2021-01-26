@@ -83,12 +83,12 @@ fn assertions() {
     assert_eq!(READING & !MARK_EMPTIED, EMPTY);
 
     // Changing `Receiver` position doesn't change status of slots.
-    const ORIGINAL_STATUS: usize = 0b1110010011100100;
+    const ORIGINAL_STATUS: u64 = 0b1110010011100100;
     assert_eq!(
         (size_of::<usize>() * 8) - (ORIGINAL_STATUS.leading_zeros() as usize),
         2 * SMALL_CAP
     );
-    let mut status: usize = ORIGINAL_STATUS.wrapping_sub(MARK_NEXT_POS);
+    let mut status: u64 = ORIGINAL_STATUS.wrapping_sub(MARK_NEXT_POS);
     status = status.wrapping_add(MARK_NEXT_POS);
     assert_eq!(status, ORIGINAL_STATUS);
     status = status.wrapping_add(MARK_NEXT_POS);
