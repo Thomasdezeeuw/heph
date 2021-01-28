@@ -381,7 +381,7 @@ impl SyncWaker {
         let mut future = fut;
         let mut future = unsafe { Pin::new_unchecked(&mut future) };
 
-        let task_waker = task::Waker::from(self.clone());
+        let task_waker = task::Waker::from(self);
         let mut task_ctx = task::Context::from_waker(&task_waker);
         loop {
             match Future::poll(future.as_mut(), &mut task_ctx) {
