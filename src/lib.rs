@@ -74,6 +74,7 @@
     const_raw_ptr_to_usize_cast,
     drain_filter,
     duration_zero,
+    io_slice_advance,
     is_sorted,
     maybe_uninit_extra,
     maybe_uninit_ref,
