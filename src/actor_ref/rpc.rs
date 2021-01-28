@@ -185,7 +185,7 @@ where
     /// Create a new RPC.
     pub(super) fn new<Req>(actor_ref: &'r ActorRef<M>, request: Req) -> Rpc<'r, 'fut, M, Res>
     where
-        M: From<RpcMessage<Req, Res>> + Unpin,
+        M: From<RpcMessage<Req, Res>>,
     {
         let (sender, receiver) = new_oneshot();
         let response = RpcResponse { sender };
@@ -198,10 +198,7 @@ where
     }
 }
 
-impl<'r, 'fut, M, Res> Future for Rpc<'r, 'fut, M, Res>
-where
-    M: Unpin,
-{
+impl<'r, 'fut, M, Res> Future for Rpc<'r, 'fut, M, Res> {
     type Output = Result<Res, RpcError>;
 
     #[track_caller]
