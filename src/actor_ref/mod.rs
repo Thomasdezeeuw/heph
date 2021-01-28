@@ -170,7 +170,6 @@ impl<M> ActorRef<M> {
     where
         'r: 'fut,
         Msg: Into<M>,
-        M: Unpin,
     {
         let msg = msg.into();
         use ActorRefKind::*;
@@ -224,7 +223,7 @@ impl<M> ActorRef<M> {
     pub fn rpc<'r, 'fut, Req, Res>(&'r self, request: Req) -> Rpc<'r, 'fut, M, Res>
     where
         'r: 'fut,
-        M: From<RpcMessage<Req, Res>> + Unpin,
+        M: From<RpcMessage<Req, Res>>,
     {
         Rpc::new(self, request)
     }
@@ -249,7 +248,6 @@ impl<M> ActorRef<M> {
     where
         M: From<Msg> + 'static,
         Msg: 'static,
-        M: Unpin,
     {
         // There is a blanket implementation for `TryFrom` for `T: From` so we
         // can use the `TryFrom` knowning that it will never return an error.
@@ -278,7 +276,6 @@ impl<M> ActorRef<M> {
     where
         M: TryFrom<Msg> + 'static,
         Msg: 'static,
-        M: Unpin,
     {
         if TypeId::of::<ActorRef<M>>() == TypeId::of::<ActorRef<Msg>>() {
             // Safety: If `M` == `Msg`, then the following `transmute` is a
@@ -347,7 +344,7 @@ trait MappedActorRef<M> {
     ) -> Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>
     where
         'r: 'fut,
-        M: Unpin + 'fut;
+        M: 'fut;
 
     fn is_connected(&self) -> bool;
 }
@@ -355,7 +352,6 @@ trait MappedActorRef<M> {
 impl<M, Msg> MappedActorRef<Msg> for ActorRef<M>
 where
     M: TryFrom<Msg>,
-    M: Unpin,
 {
     fn try_mapped_send(&self, msg: Msg) -> Result<(), SendError> {
         M::try_from(msg)
@@ -369,7 +365,7 @@ where
     ) -> Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>
     where
         'r: 'fut,
-        Msg: Unpin + 'fut,
+        Msg: 'fut,
     {
         let mapped_send = match M::try_from(msg) {
             Ok(msg) => MappedSendValue::Send(self.send(msg)),
@@ -389,10 +385,7 @@ enum MappedSendValue<'r, 'fut, M> {
     MapErr,
 }
 
-impl<'r, 'fut, M> Future for MappedSendValue<'r, 'fut, M>
-where
-    M: Unpin,
-{
+impl<'r, 'fut, M> Future for MappedSendValue<'r, 'fut, M> {
     type Output = Result<(), SendError>;
 
     #[track_caller]
@@ -436,10 +429,7 @@ enum SendValueKind<'r, 'fut, M> {
 unsafe impl<'r, 'fut, M: Send> Send for SendValueKind<'r, 'fut, M> {}
 unsafe impl<'r, 'fut, M: Send> Sync for SendValueKind<'r, 'fut, M> {}
 
-impl<'r, 'fut, M> Future for SendValue<'r, 'fut, M>
-where
-    M: Unpin,
-{
+impl<'r, 'fut, M> Future for SendValue<'r, 'fut, M> {
     type Output = Result<(), SendError>;
 
     #[track_caller]
