@@ -2,9 +2,7 @@
 
 use std::future::Future;
 use std::io::{self, IoSlice, IoSliceMut, Read, Write};
-use std::mem::size_of;
 use std::net::{Shutdown, SocketAddr};
-use std::os::unix::io::AsRawFd;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
@@ -12,6 +10,8 @@ use futures_io::{AsyncRead, AsyncWrite};
 #[cfg(target_os = "linux")]
 use log::warn;
 use mio::{net, Interest};
+
+use socket2::SockRef;
 
 use crate::actor;
 use crate::net::Bytes;
@@ -69,15 +69,8 @@ impl TcpStream {
     pub fn set_cpu_affinity(&mut self, cpu: usize) -> io::Result<()> {
         #[cfg(target_os = "linux")]
         {
-            let cpu = cpu as libc::c_int;
-            syscall!(setsockopt(
-                self.socket.as_raw_fd(),
-                libc::SOL_SOCKET,
-                libc::SO_INCOMING_CPU,
-                &cpu as *const _ as *const _,
-                size_of::<libc::c_int>() as libc::socklen_t,
-            ))
-            .map(|_| ())
+            let socket = SockRef::from(&self.socket);
+            socket.set_cpu_affinity(cpu)
         }
 
         #[cfg(not(target_os = "linux"))]
@@ -94,16 +87,8 @@ impl TcpStream {
     pub fn cpu_affinity(&mut self) -> io::Result<usize> {
         #[cfg(target_os = "linux")]
         {
-            let mut cpu: libc::c_int = 0;
-            let mut cpu_len = size_of::<libc::c_int>() as libc::socklen_t;
-            syscall!(getsockopt(
-                self.socket.as_raw_fd(),
-                libc::SOL_SOCKET,
-                libc::SO_INCOMING_CPU,
-                &mut cpu as *mut _ as *mut _,
-                &mut cpu_len,
-            ))
-            .map(|_| cpu as usize)
+            let socket = SockRef::from(&self.socket);
+            socket.cpu_affinity()
         }
 
         #[cfg(not(target_os = "linux"))]
@@ -134,34 +119,14 @@ impl TcpStream {
 
     /// Returns `true` if `SO_KEEPALIVE` is set.
     pub fn keepalive(&self) -> io::Result<bool> {
-        // NOTE: this belongs in the socket2 crate.
-        let mut keepalive: libc::c_int = -1;
-        let mut keepalive_size = size_of::<libc::c_int>() as libc::socklen_t;
-        syscall!(getsockopt(
-            self.socket.as_raw_fd(),
-            libc::SOL_SOCKET,
-            libc::SO_KEEPALIVE,
-            &mut keepalive as *mut _ as *mut _,
-            &mut keepalive_size,
-        ))
-        .map(|_| {
-            debug_assert_eq!(keepalive_size as usize, size_of::<libc::c_int>());
-            keepalive != 0
-        })
+        let socket = SockRef::from(&self.socket);
+        socket.keepalive()
     }
 
     /// Enables or disables `SO_KEEPALIVE`.
     pub fn set_keepalive(&self, enable: bool) -> io::Result<()> {
-        // NOTE: this belongs in the socket2 crate.
-        let enable = enable as libc::c_int;
-        syscall!(setsockopt(
-            self.socket.as_raw_fd(),
-            libc::SOL_SOCKET,
-            libc::SO_KEEPALIVE,
-            &enable as *const _ as *const _,
-            size_of::<libc::c_int>() as libc::socklen_t,
-        ))
-        .map(|_| ())
+        let socket = SockRef::from(&self.socket);
+        socket.set_keepalive(enable)
     }
 
     /// Attempt to send bytes in `buf` to the peer.
@@ -173,13 +138,7 @@ impl TcpStream {
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
     pub fn try_send(&mut self, buf: &[u8]) -> io::Result<usize> {
-        syscall!(send(
-            self.socket.as_raw_fd(),
-            buf.as_ptr().cast(),
-            buf.len(),
-            0, // Flags.
-        ))
-        .map(|n| n as usize)
+        self.socket.write(buf)
     }
 
     /// Send the bytes in `buf` to the peer.
@@ -247,14 +206,10 @@ impl TcpStream {
             !dst.is_empty(),
             "called `TcpStream::try_recv with an empty buffer"
         );
-        syscall!(recv(
-            self.socket.as_raw_fd(),
-            dst.as_mut_ptr().cast(),
-            dst.len(),
-            0, // Flags.
-        ))
-        .map(|read| {
-            let read = read as usize;
+        // TODO: use Mio directly once that uses Socket2 here. This doesn't work
+        // on Windows with Mio, which we don't support so it's fine.
+        // Tracking issue: https://github.com/tokio-rs/mio/pull/1431.
+        SockRef::from(&self.socket).recv(dst).map(|read| {
             // Safety: just read the bytes.
             unsafe { buf.update_length(read) }
             read
