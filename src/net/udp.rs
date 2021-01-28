@@ -9,6 +9,8 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
+#[cfg(target_os = "linux")]
+use log::warn;
 use mio::{net, Interest};
 use socket2::SockRef;
 
@@ -156,6 +158,12 @@ impl UdpSocket {
             pid.into(),
             Interest::READABLE | Interest::WRITABLE,
         )?;
+        #[cfg(target_os = "linux")]
+        if let Some(cpu) = ctx.cpu() {
+            if let Err(err) = SockRef::from(&socket).set_cpu_affinity(cpu) {
+                warn!("failed to set CPU affinity on UdpSocket: {}", err);
+            }
+        }
         Ok(UdpSocket {
             socket,
             mode: PhantomData,
