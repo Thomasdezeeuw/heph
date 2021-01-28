@@ -4,16 +4,16 @@
 
 use std::future::Future;
 use std::marker::PhantomData;
-use std::net::{SocketAddr, SocketAddrV4, SocketAddrV6};
-use std::os::unix::io::AsRawFd;
+use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{self, Poll};
-use std::{fmt, io, mem};
+use std::{fmt, io};
 
 use mio::{net, Interest};
+use socket2::SockRef;
 
 use crate::actor;
-use crate::net::Bytes;
+use crate::net::{convert_address, Bytes};
 use crate::rt::{self, PrivateAccess};
 
 /// The unconnected mode of an [`UdpSocket`].
@@ -228,7 +228,14 @@ impl UdpSocket<Unconnected> {
             !dst.is_empty(),
             "called `UdpSocket::try_recv_from` with an empty buffer"
         );
-        self.recvfrom(buf, 0)
+        SockRef::from(&self.socket)
+            .recv_from(dst)
+            .and_then(|(read, address)| {
+                // Safety: just read the bytes.
+                unsafe { buf.update_length(read) }
+                let address = convert_address(address)?;
+                Ok((read, address))
+            })
     }
 
     /// Receives data from the socket. Returns a [`Future`] that on success
@@ -258,7 +265,14 @@ impl UdpSocket<Unconnected> {
             !dst.is_empty(),
             "called `UdpSocket::try_peek_from` with an empty buffer"
         );
-        self.recvfrom(buf, libc::MSG_PEEK)
+        SockRef::from(&self.socket)
+            .peek_from(dst)
+            .and_then(|(read, address)| {
+                // Safety: just read the bytes.
+                unsafe { buf.update_length(read) }
+                let address = convert_address(address)?;
+                Ok((read, address))
+            })
     }
 
     /// Receives data from the socket, without removing it from the input queue.
@@ -270,58 +284,6 @@ impl UdpSocket<Unconnected> {
         B: Bytes,
     {
         PeekFrom { socket: self, buf }
-    }
-
-    #[track_caller]
-    fn recvfrom<B>(&mut self, mut buf: B, flags: libc::c_int) -> io::Result<(usize, SocketAddr)>
-    where
-        B: Bytes,
-    {
-        // Safety: `sockaddr_storage` filled with zeros is valid.
-        let mut address: libc::sockaddr_storage = unsafe { mem::zeroed() };
-        let mut address_length = mem::size_of_val(&address) as libc::socklen_t;
-
-        let dst = buf.as_bytes();
-        syscall!(recvfrom(
-            self.socket.as_raw_fd(),
-            dst.as_mut_ptr().cast(),
-            dst.len(),
-            flags,
-            &mut address as *mut _ as *mut _,
-            &mut address_length,
-        ))
-        .and_then(|read| {
-            let address = socket_addr_from_storage(&address, address_length as usize)?;
-            let read = read as usize;
-            // Safety: just read the bytes.
-            unsafe { buf.update_length(read) }
-            Ok((read, address))
-        })
-    }
-}
-
-/// Creates a [`SocketAddr`] from [`libc::sockaddr_storage`].
-fn socket_addr_from_storage(
-    storage: &libc::sockaddr_storage,
-    len: usize,
-) -> io::Result<SocketAddr> {
-    match storage.ss_family as libc::c_int {
-        libc::AF_INET => {
-            assert!(len >= mem::size_of::<libc::sockaddr_in>());
-            // Safety: just checked the variant above.
-            let addr: SocketAddrV4 = unsafe { *(storage as *const _ as *const _) };
-            Ok(SocketAddr::V4(addr))
-        }
-        libc::AF_INET6 => {
-            assert!(len >= mem::size_of::<libc::sockaddr_in6>());
-            // Safety: just checked the variant above.
-            let addr: SocketAddrV6 = unsafe { *(storage as *const _ as *const _) };
-            Ok(SocketAddr::V6(addr))
-        }
-        _ => Err(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "address is not IPv4 or IPv6",
-        )),
     }
 }
 
@@ -422,9 +384,13 @@ impl UdpSocket<Connected> {
         let dst = buf.as_bytes();
         debug_assert!(
             !dst.is_empty(),
-            "called `UdpSocket::try_recv_from` with an empty buffer"
+            "called `UdpSocket::try_recv` with an empty buffer"
         );
-        self._recv(buf, 0)
+        SockRef::from(&self.socket).recv(dst).map(|read| {
+            // Safety: just read the bytes.
+            unsafe { buf.update_length(read) }
+            read
+        })
     }
 
     /// Receives data from the socket. Returns a [`Future`] that on success
@@ -450,7 +416,11 @@ impl UdpSocket<Connected> {
             !dst.is_empty(),
             "called `UdpSocket::try_peek` with an empty buffer"
         );
-        self._recv(buf, libc::MSG_PEEK)
+        SockRef::from(&self.socket).peek(dst).map(|read| {
+            // Safety: just read the bytes.
+            unsafe { buf.update_length(read) }
+            read
+        })
     }
 
     /// Receives data from the socket, without removing it from the input queue.
@@ -458,26 +428,6 @@ impl UdpSocket<Connected> {
     /// (`io::Result<usize>`).
     pub fn peek<B>(&mut self, buf: B) -> Peek<'_, B> {
         Peek { socket: self, buf }
-    }
-
-    #[track_caller]
-    fn _recv<B>(&mut self, mut buf: B, flags: libc::c_int) -> io::Result<usize>
-    where
-        B: Bytes,
-    {
-        let dst = buf.as_bytes();
-        syscall!(recv(
-            self.socket.as_raw_fd(),
-            dst.as_mut_ptr().cast(),
-            dst.len(),
-            flags,
-        ))
-        .map(|read| {
-            let read = read as usize;
-            // Safety: just read the bytes.
-            unsafe { buf.update_length(read) }
-            read
-        })
     }
 }
 

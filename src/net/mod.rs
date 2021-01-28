@@ -16,19 +16,11 @@
 //! [User Datagram Protocol]: crate::net::udp
 //! [`UdpSocket`]: crate::net::UdpSocket
 
+use std::io;
 use std::mem::MaybeUninit;
+use std::net::SocketAddr;
 
-/// Macro to make a system call, return the error properly.
-macro_rules! syscall {
-    ($fn: ident ( $($arg: expr),* $(,)* ) ) => {{
-        let res = unsafe { libc::$fn($($arg, )*) };
-        if res == -1 {
-            Err(std::io::Error::last_os_error())
-        } else {
-            Ok(res)
-        }
-    }};
-}
+use socket2::SockAddr;
 
 /// A macro to try an I/O function.
 ///
@@ -174,5 +166,16 @@ impl Bytes for Vec<u8> {
         let new = self.len() + n;
         debug_assert!(self.capacity() >= new);
         self.set_len(new);
+    }
+}
+
+/// Convert a `socket2:::SockAddr` into a `std::net::SocketAddr`.
+fn convert_address(address: SockAddr) -> io::Result<SocketAddr> {
+    match address.as_socket() {
+        Some(address) => Ok(address),
+        None => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "invalid address family (not IPv4 or IPv6)",
+        )),
     }
 }
