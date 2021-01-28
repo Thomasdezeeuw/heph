@@ -1,7 +1,13 @@
 //! Module with [`TcpStream`] and related types.
 
+// TODO: a number of send/recv methods don't use Mio directly, this is fine on
+// Unix but doesn't work on Windows (which we don't support). We need to fix
+// that once Mio uses Socket2 and supports all the methods we need, Mio's
+// tracking issue: https://github.com/tokio-rs/mio/issues/1381.
+
 use std::future::Future;
 use std::io::{self, IoSlice, IoSliceMut, Read, Write};
+use std::mem::{replace, swap};
 use std::net::{Shutdown, SocketAddr};
 use std::pin::Pin;
 use std::task::{self, Poll};
@@ -130,6 +136,41 @@ impl TcpStream {
         SendAll { stream: self, buf }
     }
 
+    /// Attempt to send bytes in `bufs` to the peer.
+    ///
+    /// If no bytes can currently be send this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`TcpStream::send_vectored`] or [`TcpStream::send_vectored_all`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_send_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
+        SockRef::from(&self.socket).send_vectored(bufs)
+    }
+
+    /// Send the bytes in `bufs` to the peer.
+    ///
+    /// Return the number of bytes written. This may we fewer then the length of
+    /// `buf`. To ensure that all bytes are written use
+    /// [`TcpStream::send_vectored_all`].
+    pub fn send_vectored<'a, 'b>(
+        &'a mut self,
+        bufs: &'b mut [IoSlice<'b>],
+    ) -> SendVectored<'a, 'b> {
+        SendVectored { stream: self, bufs }
+    }
+
+    /// Send the all bytes in `bufs` to the peer.
+    ///
+    /// If this fails to send all bytes (this happens if a write returns
+    /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
+    pub fn send_vectored_all<'a, 'b>(
+        &'a mut self,
+        bufs: &'b mut [IoSlice<'b>],
+    ) -> SendVectoredAll<'a, 'b> {
+        SendVectoredAll { stream: self, bufs }
+    }
+
     /// Attempt to receive message(s) from the stream, writing them into `buf`.
     ///
     /// If no bytes can currently be received this will return an error with the
@@ -179,9 +220,6 @@ impl TcpStream {
             !dst.is_empty(),
             "called `TcpStream::try_recv with an empty buffer"
         );
-        // TODO: use Mio directly once that uses Socket2 here. This doesn't work
-        // on Windows with Mio, which we don't support so it's fine.
-        // Tracking issue: https://github.com/tokio-rs/mio/pull/1431.
         SockRef::from(&self.socket).recv(dst).map(|read| {
             // Safety: just read the bytes.
             unsafe { buf.update_length(read) }
@@ -409,6 +447,56 @@ impl<'a, 'b> Future for SendAll<'a, 'b> {
                 Err(err) => break Poll::Ready(Err(err)),
             }
         }
+    }
+}
+
+/// The [`Future`] behind [`TcpStream::send_vectored`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct SendVectored<'a, 'b> {
+    stream: &'a mut TcpStream,
+    bufs: &'b mut [IoSlice<'b>],
+}
+
+impl<'a, 'b> Future for SendVectored<'a, 'b> {
+    type Output = io::Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let SendVectored { stream, bufs } = Pin::into_inner(self);
+        try_io!(stream.try_send_vectored(bufs))
+    }
+}
+
+/// The [`Future`] behind [`TcpStream::send_vectored_all`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct SendVectoredAll<'a, 'b> {
+    stream: &'a mut TcpStream,
+    bufs: &'b mut [IoSlice<'b>],
+}
+
+impl<'a, 'b> Future for SendVectoredAll<'a, 'b> {
+    type Output = io::Result<()>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let SendVectoredAll { stream, bufs } = Pin::into_inner(self);
+        while !bufs.is_empty() {
+            match stream.try_send_vectored(bufs) {
+                Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
+                Ok(n) => {
+                    // TODO: use the below at some point, didn't want to figure
+                    // the lifetime issue(s).
+                    //*bufs = IoSlice::advance(bufs, n);
+                    let b: &mut [IoSlice<'_>] = replace(bufs, &mut []);
+                    let mut b = IoSlice::advance(b, n);
+                    swap(bufs, &mut b);
+                }
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => return Poll::Ready(Err(err)),
+            }
+        }
+        Poll::Ready(Ok(()))
     }
 }
 

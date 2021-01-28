@@ -2,8 +2,9 @@
 
 #![cfg(feature = "test")]
 
+use std::cmp::min;
 use std::future::Future;
-use std::io::{self, Read, Write};
+use std::io::{self, IoSlice, Read, Write};
 use std::net::{self, Shutdown, SocketAddr};
 use std::pin::Pin;
 use std::task::{self, Poll};
@@ -556,6 +557,136 @@ fn send_all() {
         total += n;
     }
     assert_eq!(total, DATA.len());
+
+    // Should drop the stream.
+    let n = stream.read(&mut buf).unwrap();
+    assert_eq!(n, 0);
+}
+
+#[test]
+fn send_vectored() {
+    static STAGE: Stage = Stage::new();
+
+    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+        STAGE.update(0);
+        let connect = TcpStream::connect(&mut ctx, address)?;
+        STAGE.update(1);
+        wait_once().await;
+
+        let mut stream = connect.await?;
+        STAGE.update(2);
+        wait_once().await;
+
+        let bufs = &mut [
+            IoSlice::new(DATA),
+            IoSlice::new(DATA),
+            IoSlice::new(DATA),
+            IoSlice::new(DATA),
+        ];
+        let n = stream.send_vectored(bufs).await?;
+        assert_eq!(n, 4 * DATA.len());
+        STAGE.update(3);
+
+        // Return pending once.
+        wait_once().await;
+
+        drop(stream);
+        STAGE.update(4);
+        Ok(())
+    }
+
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
+    let address = listener.local_addr().unwrap();
+
+    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
+    pin_mut!(actor);
+
+    // Stream should not yet be connected.
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
+
+    // Once we accept the connecting the actor should be able to proceed.
+    let (mut stream, _) = listener.accept().unwrap();
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 2));
+
+    // Should send the bytes.
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 3));
+
+    let mut buf = [0; (4 * DATA.len()) + 1];
+    let n = stream.read(&mut buf).unwrap();
+    assert_eq!(n, 4 * DATA.len());
+    for n in 0..4 {
+        assert_eq!(&buf[n * DATA.len()..(n + 1) * DATA.len()], DATA);
+    }
+
+    // Should drop the stream.
+    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 4), ());
+    let n = stream.read(&mut buf).unwrap();
+    assert_eq!(n, 0);
+}
+
+#[test]
+fn send_vectored_all() {
+    // A lot of data to get at least two write calls.
+    const DATA1: &[u8] = &[213; 40 * 1023];
+    const DATA2: &[u8] = &[155; 30 * 1024];
+    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+
+        let bufs = &mut [IoSlice::new(DATA1), IoSlice::new(DATA2)];
+        stream.send_vectored_all(bufs).await?;
+
+        // Return pending once.
+        wait_once().await;
+
+        drop(stream);
+        Ok(())
+    }
+
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
+    let address = listener.local_addr().unwrap();
+
+    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
+    pin_mut!(actor);
+
+    // Stream should not yet be connected.
+    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+
+    let (mut stream, _) = listener.accept().unwrap();
+
+    let mut buf = [0; 8 * 1024];
+    let mut total = 0;
+    let mut dont_poll = false;
+    loop {
+        if !dont_poll {
+            // Should send the bytes.
+            match poll_actor(Pin::as_mut(&mut actor)) {
+                Poll::Pending => {}
+                Poll::Ready(Ok(())) => dont_poll = true,
+                Poll::Ready(Err(err)) => panic!("unexpected error: {}", err),
+            }
+        }
+
+        let n = stream.read(&mut buf).unwrap();
+        if n == 0 {
+            break;
+        }
+        if total >= DATA1.len() {
+            // All in DATA2.
+            let start = total - DATA1.len();
+            assert_eq!(&buf[..n], &DATA2[start..start + n]);
+        } else if total + n <= DATA1.len() {
+            // All in DATA1.
+            assert_eq!(&buf[..n], &DATA1[total..total + n]);
+        } else {
+            let m = min(total + n, DATA1.len());
+            let n1 = m - total;
+            assert_eq!(&buf[..n1], &DATA1[total..m]);
+            let left = n - n1;
+            assert_eq!(&buf[n1..n], &DATA2[..left]);
+        }
+        total += n;
+    }
+    assert_eq!(total, DATA1.len() + DATA2.len());
 
     // Should drop the stream.
     let n = stream.read(&mut buf).unwrap();
