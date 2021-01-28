@@ -64,37 +64,10 @@ impl TcpStream {
 
     /// Set the CPU affinity to `cpu`.
     ///
-    /// On Linux this uses `SO_INCOMING_CPU`, on other platforms this is
-    /// currently a no-op.
-    pub fn set_cpu_affinity(&mut self, cpu: usize) -> io::Result<()> {
-        #[cfg(target_os = "linux")]
-        {
-            let socket = SockRef::from(&self.socket);
-            socket.set_cpu_affinity(cpu)
-        }
-
-        #[cfg(not(target_os = "linux"))]
-        {
-            let _ = cpu; // Silence unused variables warnings.
-            Ok(())
-        }
-    }
-
-    /// Returns the CPU affinity.
-    ///
-    /// On Linux this uses `SO_INCOMING_CPU`, on other platforms this returns
-    /// `Ok(0)`.
-    pub fn cpu_affinity(&mut self) -> io::Result<usize> {
-        #[cfg(target_os = "linux")]
-        {
-            let socket = SockRef::from(&self.socket);
-            socket.cpu_affinity()
-        }
-
-        #[cfg(not(target_os = "linux"))]
-        {
-            Ok(0)
-        }
+    /// On Linux this uses `SO_INCOMING_CPU`.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn set_cpu_affinity(&mut self, cpu: usize) -> io::Result<()> {
+        SockRef::from(&self.socket).set_cpu_affinity(cpu)
     }
 
     /// Sets the value for the `IP_TTL` option on this socket.
