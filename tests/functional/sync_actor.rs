@@ -31,6 +31,10 @@ impl BlockFuture {
         data.1.take().unwrap().wake();
     }
 
+    fn wake(&self) {
+        self.data.lock().unwrap().1.take().unwrap().wake_by_ref();
+    }
+
     fn has_waker(&self) -> bool {
         self.data.lock().unwrap().1.is_some()
     }
@@ -38,6 +42,7 @@ impl BlockFuture {
 
 impl Future for BlockFuture {
     type Output = ();
+
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let mut data = self.data.lock().unwrap();
         if data.0 {
@@ -72,6 +77,34 @@ fn block_on() {
         sleep(Duration::from_millis(10));
     }
 
+    future.unblock();
+    handle.join().unwrap();
+}
+
+#[test]
+fn block_on_spurious_wake_up() {
+    let future = BlockFuture::new();
+
+    let (handle, _) = spawn_sync_actor(
+        NoSupervisor,
+        block_on_actor as fn(_, _) -> _,
+        future.clone(),
+        SyncActorOptions::default(),
+    )
+    .unwrap();
+
+    // Wait until the future is polled a first time.
+    while !future.has_waker() {
+        sleep(Duration::from_millis(10));
+    }
+    // Wake up the sync actor, but don't yet let it continue.
+    future.wake();
+
+    // Wait until the sync actor is run again.
+    while !future.has_waker() {
+        sleep(Duration::from_millis(10));
+    }
+    // Now let the sync actor complete.
     future.unblock();
     handle.join().unwrap();
 }

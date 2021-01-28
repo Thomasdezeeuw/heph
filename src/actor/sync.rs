@@ -40,14 +40,11 @@
 //! }
 //! ```
 
-// Clippy warns we should use an `AtomicBool` for `SyncWaker::awoken`, but we
-// need a mutex for the `Condvar` in `SyncWaker::cond`.
-#![allow(clippy::mutex_atomic)]
-
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::Arc;
 use std::task::{self, Poll};
+use std::thread::{self, Thread};
 
 use inbox::Receiver;
 
@@ -347,8 +344,7 @@ impl<M> SyncContext<M> {
             waker.clone()
         } else {
             let waker = Arc::new(SyncWaker {
-                awoken: Mutex::new(false),
-                cond: Condvar::new(),
+                handle: thread::current(),
             });
             self.future_waker = Some(waker.clone());
             waker
@@ -357,36 +353,26 @@ impl<M> SyncContext<M> {
 }
 
 /// [`task::Waker`] implementation for blocking on [`Future`]s.
+// TODO: a `Thread` is already wrapped in an `Arc`, which mean we're double
+// `Arc`ing for the `Waker` implementation, try to remove that.
 #[derive(Debug)]
 struct SyncWaker {
-    awoken: Mutex<bool>,
-    cond: Condvar,
+    handle: Thread,
 }
 
 impl task::Wake for SyncWaker {
     fn wake(self: Arc<Self>) {
-        self.wake_by_ref()
+        self.handle.unpark();
     }
 
     fn wake_by_ref(self: &Arc<Self>) {
-        *self.awoken.lock().unwrap() = true;
-        self.cond.notify_one();
+        self.handle.unpark();
     }
 }
 
 impl SyncWaker {
-    /// Wait until the waker is woken up.
-    fn wait(&self) {
-        let mut awoken = self.awoken.lock().unwrap();
-        loop {
-            if *awoken {
-                *awoken = false;
-                return;
-            }
-            awoken = self.cond.wait(awoken).unwrap();
-        }
-    }
-
+    /// Poll the `fut`ure until completion, blocking when it can't make
+    /// progress.
     fn block_on<Fut>(self: Arc<SyncWaker>, fut: Fut) -> Fut::Output
     where
         Fut: Future,
@@ -400,7 +386,8 @@ impl SyncWaker {
         loop {
             match Future::poll(future.as_mut(), &mut task_ctx) {
                 Poll::Ready(res) => return res,
-                Poll::Pending => self.wait(),
+                // The waking implementation will `unpark` us.
+                Poll::Pending => thread::park(),
             }
         }
     }
