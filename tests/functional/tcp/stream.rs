@@ -4,7 +4,7 @@
 
 use std::future::Future;
 use std::io::{self, Read, Write};
-use std::net::{self, SocketAddr};
+use std::net::{self, Shutdown, SocketAddr};
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::thread::sleep;
@@ -12,13 +12,13 @@ use std::time::Duration;
 
 use futures_util::pin_mut;
 
-use heph::actor;
-use heph::net::TcpStream;
+use heph::net::{TcpListener, TcpStream};
 use heph::test::{init_local_actor, poll_actor};
+use heph::{actor, Actor, ActorRef};
 
 use crate::util::{
     any_local_address, expect_pending, expect_ready_ok, loop_expect_ready_ok, refused_address,
-    Stage,
+    run_actors, Stage,
 };
 
 const DATA: &[u8] = b"Hello world";
@@ -562,5 +562,163 @@ fn send_all() {
     assert_eq!(n, 0);
 }
 
-// TODO: test:
-// * TcpStream::shutdown.
+#[test]
+fn shutdown_read() {
+    async fn listener_actor(
+        mut ctx: actor::Context<!>,
+        actor_ref: ActorRef<SocketAddr>,
+    ) -> Result<(), !> {
+        let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
+
+        let address = listener.local_addr().unwrap();
+        actor_ref.send(address).await.unwrap();
+
+        let (stream, remote_address) = listener.accept().await.unwrap();
+        let mut stream = stream.bind_to(&mut ctx).unwrap();
+        assert!(remote_address.ip().is_loopback());
+
+        // Shutting down the reading side of the peer should return 0 bytes
+        // here.
+        let mut buf = Vec::with_capacity(DATA.len() + 1);
+        let n = stream.recv(&mut buf).await.unwrap();
+        assert_eq!(n, DATA.len());
+        assert_eq!(buf, DATA);
+
+        Ok(())
+    }
+
+    async fn stream_actor(mut ctx: actor::Context<SocketAddr>) -> Result<(), !> {
+        let address = ctx.receive_next().await.unwrap();
+        let mut stream = TcpStream::connect(&mut ctx, address)
+            .unwrap()
+            .await
+            .unwrap();
+
+        stream.shutdown(Shutdown::Read).unwrap();
+
+        let mut buf = Vec::with_capacity(2);
+        let n = stream.recv(&mut buf).await.unwrap();
+        assert_eq!(n, 0);
+
+        stream.send_all(DATA).await.unwrap();
+
+        Ok(())
+    }
+
+    let stream_actor = stream_actor as fn(_) -> _;
+    let (stream_actor, actor_ref) = init_local_actor(stream_actor, ()).unwrap();
+    let stream_actor: Box<dyn Actor<Error = !>> = Box::new(stream_actor);
+
+    let listener_actor = listener_actor as fn(_, _) -> _;
+    let (listener_actor, _) = init_local_actor(listener_actor, actor_ref).unwrap();
+    let listener_actor: Box<dyn Actor<Error = !>> = Box::new(listener_actor);
+
+    run_actors(vec![listener_actor.into(), stream_actor.into()]);
+}
+
+#[test]
+fn shutdown_write() {
+    async fn listener_actor(
+        mut ctx: actor::Context<!>,
+        actor_ref: ActorRef<SocketAddr>,
+    ) -> Result<(), !> {
+        let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
+
+        let address = listener.local_addr().unwrap();
+        actor_ref.send(address).await.unwrap();
+
+        let (stream, remote_address) = listener.accept().await.unwrap();
+        let mut stream = stream.bind_to(&mut ctx).unwrap();
+        assert!(remote_address.ip().is_loopback());
+
+        // Shutting down the writing side of the peer should return EOF here.
+        let mut buf = Vec::with_capacity(2);
+        let n = stream.recv(&mut buf).await.unwrap();
+        assert_eq!(n, 0);
+
+        stream.send_all(DATA).await.unwrap();
+        Ok(())
+    }
+
+    async fn stream_actor(mut ctx: actor::Context<SocketAddr>) -> Result<(), !> {
+        let address = ctx.receive_next().await.unwrap();
+        let mut stream = TcpStream::connect(&mut ctx, address)
+            .unwrap()
+            .await
+            .unwrap();
+
+        stream.shutdown(Shutdown::Write).unwrap();
+
+        let err = stream.send(DATA).await.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
+
+        let mut buf = Vec::with_capacity(DATA.len() + 1);
+        let n = stream.recv(&mut buf).await.unwrap();
+        assert_eq!(n, DATA.len());
+        assert_eq!(buf, DATA);
+
+        Ok(())
+    }
+
+    let stream_actor = stream_actor as fn(_) -> _;
+    let (stream_actor, actor_ref) = init_local_actor(stream_actor, ()).unwrap();
+    let stream_actor: Box<dyn Actor<Error = !>> = Box::new(stream_actor);
+
+    let listener_actor = listener_actor as fn(_, _) -> _;
+    let (listener_actor, _) = init_local_actor(listener_actor, actor_ref).unwrap();
+    let listener_actor: Box<dyn Actor<Error = !>> = Box::new(listener_actor);
+
+    run_actors(vec![listener_actor.into(), stream_actor.into()]);
+}
+
+#[test]
+fn shutdown_both() {
+    async fn listener_actor(
+        mut ctx: actor::Context<!>,
+        actor_ref: ActorRef<SocketAddr>,
+    ) -> Result<(), !> {
+        let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
+
+        let address = listener.local_addr().unwrap();
+        actor_ref.send(address).await.unwrap();
+
+        let (stream, remote_address) = listener.accept().await.unwrap();
+        let mut stream = stream.bind_to(&mut ctx).unwrap();
+        assert!(remote_address.ip().is_loopback());
+
+        let mut buf = Vec::with_capacity(2);
+        let n = stream.recv(&mut buf).await.unwrap();
+        assert_eq!(n, 0);
+
+        Ok(())
+    }
+
+    async fn stream_actor(mut ctx: actor::Context<SocketAddr>) -> Result<(), !> {
+        let address = ctx.receive_next().await.unwrap();
+        let mut stream = TcpStream::connect(&mut ctx, address)
+            .unwrap()
+            .await
+            .unwrap();
+
+        stream.shutdown(Shutdown::Both).unwrap();
+
+        let err = stream.send(DATA).await.unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
+
+        let mut buf = Vec::with_capacity(2);
+        let n = stream.recv(&mut buf).await.unwrap();
+        assert_eq!(n, 0);
+
+        Ok(())
+    }
+
+    let stream_actor = stream_actor as fn(_) -> _;
+    let (stream_actor, actor_ref) = init_local_actor(stream_actor, ()).unwrap();
+    let stream_actor: Box<dyn Actor<Error = !>> = Box::new(stream_actor);
+
+    let listener_actor = listener_actor as fn(_, _) -> _;
+    let (listener_actor, _) = init_local_actor(listener_actor, actor_ref).unwrap();
+    let listener_actor: Box<dyn Actor<Error = !>> = Box::new(listener_actor);
+
+    run_actors(vec![listener_actor.into(), stream_actor.into()]);
+}
