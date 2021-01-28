@@ -161,6 +161,7 @@ pub fn run_actors(mut actors: Vec<Pin<Box<dyn Actor<Error = !>>>>) {
             Poll::Ready(Ok(())) => true,
             Poll::Ready(Err(_)) => unreachable!(),
         });
+        sleep(Duration::from_millis(10));
     }
 
     assert!(actors.is_empty(), "not all actors have completed");
