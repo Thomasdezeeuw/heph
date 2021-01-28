@@ -282,7 +282,7 @@ impl<M> SyncContext<M> {
     ///     }
     /// }
     ///
-    /// # fn assert_sync_actor<A: heph::actor::sync::SyncActor>(_a: A) { }
+    /// # fn assert_sync_actor<A: heph::actor::sync::SyncActor>(_: A) { }
     /// # assert_sync_actor(greeter_actor as fn(_) -> _);
     /// ```
     pub fn try_receive_next(&mut self) -> Result<M, RecvError> {
@@ -310,7 +310,7 @@ impl<M> SyncContext<M> {
     ///     }
     /// }
     ///
-    /// # fn assert_sync_actor<A: heph::actor::sync::SyncActor>(_a: A) { }
+    /// # fn assert_sync_actor<A: heph::actor::sync::SyncActor>(_: A) { }
     /// # assert_sync_actor(print_actor as fn(_) -> _);
     /// ```
     pub fn receive_next(&mut self) -> Result<M, NoMessages> {

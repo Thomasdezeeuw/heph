@@ -243,7 +243,7 @@ where
 ///
 /// assert_eq!(size_of_actor_val(&(actor as fn(_) -> _)), 64);
 /// ```
-pub const fn size_of_actor_val<NA>(_new_actor: &NA) -> usize
+pub const fn size_of_actor_val<NA>(_: &NA) -> usize
 where
     NA: NewActor,
 {

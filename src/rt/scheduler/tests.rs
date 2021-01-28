@@ -150,7 +150,7 @@ impl Process for SleepyProcess {
         "SleepyProcess"
     }
 
-    fn run(self: Pin<&mut Self>, _runtime_ref: &mut RuntimeRef, _pid: ProcessId) -> ProcessResult {
+    fn run(self: Pin<&mut Self>, _: &mut RuntimeRef, _: ProcessId) -> ProcessResult {
         sleep(self.0);
         ProcessResult::Pending
     }
@@ -176,7 +176,7 @@ impl<C> NewActor for TestAssertUnmovedNewActor<C> {
     fn new(
         &mut self,
         ctx: actor::Context<Self::Message, Self::Context>,
-        _arg: Self::Argument,
+        _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         // In the test we need the access to the inbox, to achieve that we can't
         // drop the context, so we forget about it here leaking the inbox.
@@ -200,7 +200,7 @@ mod local_scheduler {
 
     use super::{NopTestProcess, TestAssertUnmovedNewActor};
 
-    async fn simple_actor(_ctx: actor::Context<!>) -> Result<(), !> {
+    async fn simple_actor(_: actor::Context<!>) -> Result<(), !> {
         Ok(())
     }
 
@@ -406,7 +406,7 @@ mod local_scheduler {
         let run_order = Rc::new(RefCell::new(Vec::new()));
 
         async fn order_actor(
-            _ctx: actor::Context<!>,
+            _: actor::Context<!>,
             id: usize,
             order: Rc<RefCell<Vec<usize>>>,
         ) -> Result<(), !> {
@@ -499,7 +499,7 @@ mod shared_scheduler {
 
     use super::TestAssertUnmovedNewActor;
 
-    async fn simple_actor(_ctx: actor::Context<!, context::ThreadSafe>) -> Result<(), !> {
+    async fn simple_actor(_: actor::Context<!, context::ThreadSafe>) -> Result<(), !> {
         Ok(())
     }
 
@@ -593,7 +593,7 @@ mod shared_scheduler {
         let run_order = Arc::new(Mutex::new(Vec::new()));
 
         async fn order_actor(
-            _ctx: actor::Context<!, context::ThreadSafe>,
+            _: actor::Context<!, context::ThreadSafe>,
             id: usize,
             order: Arc<Mutex<Vec<usize>>>,
         ) -> Result<(), !> {

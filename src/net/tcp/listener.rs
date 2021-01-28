@@ -291,7 +291,7 @@ pub struct Accept<'a> {
 impl<'a> Future for Accept<'a> {
     type Output = io::Result<(UnboundTcpStream, SocketAddr)>;
 
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         match self.listener {
             Some(ref mut listener) => try_io!(listener.try_accept()).map(|res| {
                 // Only remove the listener if we return a stream.
@@ -319,10 +319,7 @@ pub struct Incoming<'a> {
 impl<'a> Stream for Incoming<'a> {
     type Item = io::Result<(UnboundTcpStream, SocketAddr)>;
 
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        _ctx: &mut task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
         try_io!(self.listener.try_accept()).map(Some)
     }
 }

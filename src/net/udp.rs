@@ -299,7 +299,7 @@ pub struct SendTo<'a, 'b> {
 impl<'a, 'b> Future for SendTo<'a, 'b> {
     type Output = io::Result<usize>;
 
-    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let SendTo {
             socket,
             buf,
@@ -323,7 +323,7 @@ where
 {
     type Output = io::Result<(usize, SocketAddr)>;
 
-    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let RecvFrom { socket, buf } = Pin::into_inner(self);
         try_io!(socket.try_recv_from(&mut *buf))
     }
@@ -343,7 +343,7 @@ where
 {
     type Output = io::Result<(usize, SocketAddr)>;
 
-    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let PeekFrom { socket, buf } = Pin::into_inner(self);
         try_io!(socket.try_peek_from(&mut *buf))
     }
@@ -442,7 +442,7 @@ pub struct Send<'a, 'b> {
 impl<'a, 'b> Future for Send<'a, 'b> {
     type Output = io::Result<usize>;
 
-    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Send { socket, buf } = Pin::into_inner(self);
         try_io!(socket.try_send(buf))
     }
@@ -462,7 +462,7 @@ where
 {
     type Output = io::Result<usize>;
 
-    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Recv { socket, buf } = Pin::into_inner(self);
         try_io!(socket.try_recv(&mut *buf))
     }
@@ -482,7 +482,7 @@ where
 {
     type Output = io::Result<usize>;
 
-    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Peek { socket, buf } = Pin::into_inner(self);
         try_io!(socket.try_peek(&mut *buf))
     }
