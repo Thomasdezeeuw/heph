@@ -232,7 +232,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// }
 ///
 /// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+/// async fn conn_actor(_: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
 ///     stream.write_all(b"Hello World").await
 /// }
@@ -320,7 +320,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// # }
 /// #
 /// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_ctx: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+/// async fn conn_actor(_: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
 ///     stream.write_all(b"Hello World").await
 /// }
@@ -409,7 +409,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// }
 ///
 /// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_ctx: actor::Context<!, ThreadSafe>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+/// async fn conn_actor(_: actor::Context<!, ThreadSafe>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
 ///     stream.write_all(b"Hello World").await
 /// }

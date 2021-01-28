@@ -93,7 +93,7 @@
 //! }
 //!
 //! /// Our badly behaving actor.
-//! async fn bad_actor(_ctx: actor::Context<!>) -> Result<(), Error> {
+//! async fn bad_actor(_: actor::Context<!>) -> Result<(), Error> {
 //!     Err(Error)
 //! }
 //! ```

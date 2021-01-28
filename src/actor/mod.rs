@@ -333,7 +333,7 @@ pub trait NewActor {
     /// #
     /// // Actor that handles a connection.
     /// async fn conn_actor(
-    ///     _ctx: actor::Context<!>,
+    ///     _: actor::Context<!>,
     ///     mut stream: TcpStream,
     ///     address: SocketAddr,
     ///     greet_mars: bool

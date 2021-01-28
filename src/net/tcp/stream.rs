@@ -326,7 +326,7 @@ impl Future for Connect {
     type Output = io::Result<TcpStream>;
 
     #[track_caller]
-    fn poll(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         // This relates directly Mio and `kqueue(2)` and `epoll(2)`. To do a
         // non-blocking TCP connect properly we need to a couple of things.
         //
@@ -403,7 +403,7 @@ pub struct Send<'a, 'b> {
 impl<'a, 'b> Future for Send<'a, 'b> {
     type Output = io::Result<usize>;
 
-    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Send { stream, buf } = Pin::into_inner(self);
         try_io!(stream.try_send(buf))
     }
@@ -420,7 +420,7 @@ pub struct SendAll<'a, 'b> {
 impl<'a, 'b> Future for SendAll<'a, 'b> {
     type Output = io::Result<()>;
 
-    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let SendAll { stream, buf } = Pin::into_inner(self);
         loop {
             match stream.try_send(buf) {
@@ -453,7 +453,7 @@ where
 {
     type Output = io::Result<usize>;
 
-    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Recv { stream, buf } = Pin::into_inner(self);
         try_io!(stream.try_recv(&mut *buf))
     }
@@ -474,7 +474,7 @@ where
 {
     type Output = io::Result<()>;
 
-    fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let RecvN { stream, buf, left } = Pin::into_inner(self);
         loop {
             match stream.try_recv(&mut *buf) {
@@ -496,7 +496,7 @@ where
 impl AsyncRead for TcpStream {
     fn poll_read(
         mut self: Pin<&mut Self>,
-        _ctx: &mut task::Context<'_>,
+        _: &mut task::Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
         try_io!(self.socket.read(buf))
@@ -504,7 +504,7 @@ impl AsyncRead for TcpStream {
 
     fn poll_read_vectored(
         mut self: Pin<&mut Self>,
-        _ctx: &mut task::Context<'_>,
+        _: &mut task::Context<'_>,
         bufs: &mut [IoSliceMut<'_>],
     ) -> Poll<io::Result<usize>> {
         try_io!(self.socket.read_vectored(bufs))
@@ -514,7 +514,7 @@ impl AsyncRead for TcpStream {
 impl AsyncWrite for TcpStream {
     fn poll_write(
         mut self: Pin<&mut Self>,
-        _ctx: &mut task::Context<'_>,
+        _: &mut task::Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         try_io!(self.socket.write(buf))
@@ -522,13 +522,13 @@ impl AsyncWrite for TcpStream {
 
     fn poll_write_vectored(
         mut self: Pin<&mut Self>,
-        _ctx: &mut task::Context<'_>,
+        _: &mut task::Context<'_>,
         bufs: &[IoSlice<'_>],
     ) -> Poll<io::Result<usize>> {
         try_io!(self.socket.write_vectored(bufs))
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<io::Result<()>> {
         try_io!(self.socket.flush())
     }
 
