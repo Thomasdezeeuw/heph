@@ -20,7 +20,7 @@ use mio::{net, Interest};
 use socket2::SockRef;
 
 use crate::actor;
-use crate::net::Bytes;
+use crate::net::{Bytes, BytesVectored, MaybeUninitSlice};
 use crate::rt::{self, PrivateAccess};
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
@@ -306,6 +306,73 @@ impl TcpStream {
         }
     }
 
+    /// Attempt to receive message(s) from the stream, writing them into `bufs`.
+    ///
+    /// If no bytes can currently be received this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`TcpStream::recv_vectored`] or [`TcpStream::recv_n_vectored`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    ///
+    pub fn try_recv_vectored<B>(&mut self, mut bufs: B) -> io::Result<usize>
+    where
+        B: BytesVectored,
+    {
+        let mut dst = bufs.as_bufs();
+        // Remove all empty buffers from `bufs`, this is required for
+        // `RecvNVectored`.
+        let mut remove = 0;
+        for buf in dst.as_mut().iter() {
+            if !buf.is_empty() {
+                break;
+            }
+            remove += 1;
+        }
+        debug_assert!(
+            !dst.as_mut()[remove..].is_empty(),
+            "called `UdpSocket::try_recv_vectored` with an empty buffer"
+        );
+        let res = SockRef::from(&self.socket)
+            .recv_vectored(MaybeUninitSlice::as_socket2(&mut dst.as_mut()[remove..]));
+        match res {
+            Ok((read, _)) => {
+                drop(dst);
+                // Safety: just read the bytes.
+                unsafe { bufs.update_lengths(read) }
+                Ok(read)
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Receive messages from the stream, writing them into `bufs`.
+    pub fn recv_vectored<B>(&mut self, bufs: B) -> RecvVectored<'_, B>
+    where
+        B: BytesVectored,
+    {
+        RecvVectored { stream: self, bufs }
+    }
+
+    /// Receive messages from the stream, writing them into `bufs`.
+    pub fn recv_n_vectored<B>(&mut self, mut bufs: B, n: usize) -> RecvNVectored<'_, B>
+    where
+        B: BytesVectored,
+    {
+        let mut dst = bufs.as_bufs();
+        debug_assert!(
+            !dst.as_mut().iter().map(|buf| buf.len()).sum::<usize>() >= n,
+            "called `TcpStream::recv_n_vectored` with a buffer smaller then `n`"
+        );
+        drop(dst);
+
+        RecvNVectored {
+            stream: self,
+            bufs,
+            left: n,
+        }
+    }
+
     /// Shuts down the read, write, or both halves of this connection.
     ///
     /// This function will cause all pending and future I/O on the specified
@@ -539,6 +606,60 @@ where
         let RecvN { stream, buf, left } = Pin::into_inner(self);
         loop {
             match stream.try_recv(&mut *buf) {
+                Ok(0) => return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())),
+                Ok(n) if *left <= n => return Poll::Ready(Ok(())),
+                Ok(n) => {
+                    *left -= n;
+                    // Try to read some more bytes.
+                    continue;
+                }
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break Poll::Pending,
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => break Poll::Ready(Err(err)),
+            }
+        }
+    }
+}
+
+/// The [`Future`] behind [`TcpStream::recv_vectored`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct RecvVectored<'b, B> {
+    stream: &'b mut TcpStream,
+    bufs: B,
+}
+
+impl<'b, B> Future for RecvVectored<'b, B>
+where
+    B: BytesVectored + Unpin,
+{
+    type Output = io::Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let RecvVectored { stream, bufs } = Pin::into_inner(self);
+        try_io!(stream.try_recv_vectored(&mut *bufs))
+    }
+}
+
+/// The [`Future`] behind [`TcpStream::recv_n_vectored`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct RecvNVectored<'b, B> {
+    stream: &'b mut TcpStream,
+    bufs: B,
+    left: usize,
+}
+
+impl<'b, B> Future for RecvNVectored<'b, B>
+where
+    B: BytesVectored + Unpin,
+{
+    type Output = io::Result<()>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let RecvNVectored { stream, bufs, left } = Pin::into_inner(self);
+        loop {
+            match stream.try_recv_vectored(&mut *bufs) {
                 Ok(0) => return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())),
                 Ok(n) if *left <= n => return Poll::Ready(Ok(())),
                 Ok(n) => {
