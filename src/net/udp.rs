@@ -2,17 +2,23 @@
 //!
 //! See [`UdpSocket`].
 
+// TODO: a number of send/recv methods don't use Mio directly, this is fine on
+// Unix but doesn't work on Windows (which we don't support). We need to fix
+// that once Mio uses Socket2 and supports all the methods we need, Mio's
+// tracking issue: https://github.com/tokio-rs/mio/issues/1381.
+
+use std::fmt;
 use std::future::Future;
+use std::io::{self, IoSlice};
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{self, Poll};
-use std::{fmt, io};
 
 #[cfg(target_os = "linux")]
 use log::warn;
 use mio::{net, Interest};
-use socket2::SockRef;
+use socket2::{SockAddr, SockRef};
 
 use crate::actor;
 use crate::net::{convert_address, Bytes};
@@ -219,6 +225,38 @@ impl UdpSocket<Unconnected> {
         }
     }
 
+    /// Attempt to send bytes in `bufs` to the peer.
+    ///
+    /// If no bytes can currently be send this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`UdpSocket::send_to_vectored`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_send_to_vectored(
+        &mut self,
+        bufs: &[IoSlice<'_>],
+        target: SocketAddr,
+    ) -> io::Result<usize> {
+        SockRef::from(&self.socket).send_to_vectored(bufs, &target.into())
+    }
+
+    /// Send the bytes in `bufs` to the peer.
+    ///
+    /// Return the number of bytes written. This may we fewer then the length of
+    /// `bufs`.
+    pub fn send_to_vectored<'a, 'b>(
+        &'a mut self,
+        bufs: &'b mut [IoSlice<'b>],
+        target: SocketAddr,
+    ) -> SendToVectored<'a, 'b> {
+        SendToVectored {
+            socket: self,
+            bufs,
+            target: target.into(),
+        }
+    }
+
     /// Attempt to receive data from the socket, writing them into `buf`.
     ///
     /// If no bytes can currently be received this will return an error with the
@@ -317,6 +355,28 @@ impl<'a, 'b> Future for SendTo<'a, 'b> {
     }
 }
 
+/// The [`Future`] behind [`UdpSocket::send_vectored`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct SendToVectored<'a, 'b> {
+    socket: &'a mut UdpSocket<Unconnected>,
+    bufs: &'b mut [IoSlice<'b>],
+    target: SockAddr,
+}
+
+impl<'a, 'b> Future for SendToVectored<'a, 'b> {
+    type Output = io::Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let SendToVectored {
+            socket,
+            bufs,
+            target,
+        } = Pin::into_inner(self);
+        try_io!(SockRef::from(&socket.socket).send_to_vectored(bufs, target))
+    }
+}
+
 /// The [`Future`] behind [`UdpSocket::recv_from`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -375,6 +435,29 @@ impl UdpSocket<Connected> {
     /// (`io::Result<usize>`).
     pub fn send<'a, 'b>(&'a mut self, buf: &'b [u8]) -> Send<'a, 'b> {
         Send { socket: self, buf }
+    }
+
+    /// Attempt to send bytes in `bufs` to the peer.
+    ///
+    /// If no bytes can currently be send this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`UdpSocket::send_vectored`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_send_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
+        SockRef::from(&self.socket).send_vectored(bufs)
+    }
+
+    /// Send the bytes in `bufs` to the peer.
+    ///
+    /// Return the number of bytes written. This may we fewer then the length of
+    /// `bufs`.
+    pub fn send_vectored<'a, 'b>(
+        &'a mut self,
+        bufs: &'b mut [IoSlice<'b>],
+    ) -> SendVectored<'a, 'b> {
+        SendVectored { socket: self, bufs }
     }
 
     /// Attempt to receive data from the socket, writing them into `buf`.
@@ -453,6 +536,23 @@ impl<'a, 'b> Future for Send<'a, 'b> {
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Send { socket, buf } = Pin::into_inner(self);
         try_io!(socket.try_send(buf))
+    }
+}
+
+/// The [`Future`] behind [`UdpSocket::send_vectored`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct SendVectored<'a, 'b> {
+    socket: &'a mut UdpSocket<Connected>,
+    bufs: &'b mut [IoSlice<'b>],
+}
+
+impl<'a, 'b> Future for SendVectored<'a, 'b> {
+    type Output = io::Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let SendVectored { socket, bufs } = Pin::into_inner(self);
+        try_io!(socket.try_send_vectored(bufs))
     }
 }
 
