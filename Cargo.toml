@@ -24,7 +24,6 @@ test = ["rand"]
 [dependencies]
 crossbeam-channel = { version = "0.5.0", default-features = false, features = ["std"] }
 futures-core      = { version = "0.3.6", default-features = false }
-futures-io        = { version = "0.3.6", default-features = false, features = ["std"] }
 # FIXME: use released version.
 inbox             = { git = "https://github.com/Thomasdezeeuw/inbox", rev = "6e11ff5d8bb947c93b5067f22071022baf8bd2d4" }
 libc              = { version = "0.2.79", default-features = false }

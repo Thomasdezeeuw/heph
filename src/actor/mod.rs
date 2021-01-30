@@ -260,8 +260,6 @@ pub trait NewActor {
     /// use std::io;
     /// use std::net::SocketAddr;
     ///
-    /// use futures_util::AsyncWriteExt;
-    ///
     /// # use heph::actor::messages::Terminate;
     /// # use heph::actor::context;
     /// use heph::actor::{self, NewActor};
@@ -341,9 +339,9 @@ pub trait NewActor {
     /// #   drop(address); // Silence dead code warnings.
     ///     if greet_mars {
     ///         // In case this example ever reaches Mars.
-    ///         stream.write_all(b"Hello Mars").await
+    ///         stream.send_all(b"Hello Mars").await
     ///     } else {
-    ///         stream.write_all(b"Hello World").await
+    ///         stream.send_all(b"Hello World").await
     ///     }
     /// }
     /// ```

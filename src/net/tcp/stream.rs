@@ -6,13 +6,12 @@
 // tracking issue: https://github.com/tokio-rs/mio/issues/1381.
 
 use std::future::Future;
-use std::io::{self, IoSlice, IoSliceMut, Read, Write};
+use std::io::{self, IoSlice};
 use std::mem::{replace, swap};
 use std::net::{Shutdown, SocketAddr};
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use futures_io::{AsyncRead, AsyncWrite};
 #[cfg(target_os = "linux")]
 use log::warn;
 use mio::{net, Interest};
@@ -117,7 +116,7 @@ impl TcpStream {
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
     pub fn try_send(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.socket.write(buf)
+        SockRef::from(&self.socket).send(buf)
     }
 
     /// Send the bytes in `buf` to the peer.
@@ -672,50 +671,6 @@ where
                 Err(err) => break Poll::Ready(Err(err)),
             }
         }
-    }
-}
-
-impl AsyncRead for TcpStream {
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        _: &mut task::Context<'_>,
-        buf: &mut [u8],
-    ) -> Poll<io::Result<usize>> {
-        try_io!(self.socket.read(buf))
-    }
-
-    fn poll_read_vectored(
-        mut self: Pin<&mut Self>,
-        _: &mut task::Context<'_>,
-        bufs: &mut [IoSliceMut<'_>],
-    ) -> Poll<io::Result<usize>> {
-        try_io!(self.socket.read_vectored(bufs))
-    }
-}
-
-impl AsyncWrite for TcpStream {
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        _: &mut task::Context<'_>,
-        buf: &[u8],
-    ) -> Poll<io::Result<usize>> {
-        try_io!(self.socket.write(buf))
-    }
-
-    fn poll_write_vectored(
-        mut self: Pin<&mut Self>,
-        _: &mut task::Context<'_>,
-        bufs: &[IoSlice<'_>],
-    ) -> Poll<io::Result<usize>> {
-        try_io!(self.socket.write_vectored(bufs))
-    }
-
-    fn poll_flush(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<io::Result<()>> {
-        try_io!(self.socket.flush())
-    }
-
-    fn poll_close(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
-        self.poll_flush(ctx)
     }
 }
 
