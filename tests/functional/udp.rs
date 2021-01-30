@@ -351,7 +351,7 @@ where
 }
 
 fn assert_read(mut got: &[u8], expected: &[&[u8]]) {
-    for expected in expected.into_iter().copied() {
+    for expected in expected.iter().copied() {
         let len = expected.len();
         assert_eq!(&got[..len], expected);
         let (_, g) = got.split_at(len);
