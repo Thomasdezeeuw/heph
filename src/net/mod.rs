@@ -212,6 +212,15 @@ impl<'a> MaybeUninitSlice<'a> {
     pub fn from_vec(buf: &'a mut Vec<u8>) -> MaybeUninitSlice<'a> {
         MaybeUninitSlice(socket2::MaybeUninitSlice::new(buf.as_bytes()))
     }
+
+    /// Returns `bufs` as [`socket2::MaybeUninitSlice`].
+    fn as_socket2<'b>(
+        bufs: &'b mut [MaybeUninitSlice<'a>],
+    ) -> &'b mut [socket2::MaybeUninitSlice<'a>] {
+        // Safety: this is safe because `MaybeUninitSlice` has the
+        // `repr(transparent)` attribute.
+        unsafe { &mut *(bufs as *mut _ as *mut _) }
+    }
 }
 
 impl<'a> Deref for MaybeUninitSlice<'a> {
@@ -361,6 +370,21 @@ pub trait BytesVectored {
     ///
     /// [`as_bufs`]: BytesVectored::as_bufs
     unsafe fn update_lengths(&mut self, n: usize);
+}
+
+impl<B> BytesVectored for &mut B
+where
+    B: BytesVectored + ?Sized,
+{
+    type Bufs<'b> = B::Bufs<'b>;
+
+    fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
+        (&mut **self).as_bufs()
+    }
+
+    unsafe fn update_lengths(&mut self, n: usize) {
+        (&mut **self).update_lengths(n)
+    }
 }
 
 impl<B, const N: usize> BytesVectored for [B; N]

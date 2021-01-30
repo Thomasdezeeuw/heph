@@ -248,18 +248,26 @@ async fn unconnected_vectored_io_actor(
     let bytes_written = socket.send_to_vectored(bufs, peer_address).await?;
     assert_eq!(bytes_written, DATAV_LEN);
 
-    // TODO: replace with vectored peeking.
-    let mut buf = Vec::with_capacity(DATAV_LEN + 2);
-    let (bytes_peeked, address) = socket.peek_from(&mut buf).await?;
+    let mut buf1 = Vec::with_capacity(DATAV[0].len());
+    let mut buf2 = Vec::with_capacity(DATAV[1].len());
+    let mut buf3 = Vec::with_capacity(DATAV[2].len() + 2);
+    let mut bufs = [&mut buf1, &mut buf2, &mut buf3];
+    let (bytes_peeked, address) = socket.peek_from_vectored(&mut bufs).await?;
     assert_eq!(bytes_peeked, DATAV_LEN);
-    assert_read(&buf, DATAV);
+    assert_eq!(buf1, DATAV[0]);
+    assert_eq!(buf2, DATAV[1]);
+    assert_eq!(buf3, DATAV[2]);
     assert_eq!(address, peer_address);
 
-    // TODO: replace with vectored reading.
-    buf.clear();
-    let (bytes_read, address) = socket.recv_from(&mut buf).await?;
+    buf1.clear();
+    buf2.clear();
+    buf3.clear();
+    let mut bufs = [&mut buf1, &mut buf2, &mut buf3];
+    let (bytes_read, address) = socket.recv_from_vectored(&mut bufs).await?;
     assert_eq!(bytes_read, DATAV_LEN);
-    assert_read(&buf, DATAV);
+    assert_eq!(buf1, DATAV[0]);
+    assert_eq!(buf2, DATAV[1]);
+    assert_eq!(buf3, DATAV[2]);
     assert_eq!(address, peer_address);
 
     Ok(())
@@ -281,17 +289,25 @@ async fn connected_vectored_io_actor(
     let bytes_written = socket.send_vectored(bufs).await?;
     assert_eq!(bytes_written, DATAV_LEN);
 
-    // TODO: replace with vectored peeking.
-    let mut buf = Vec::with_capacity(DATAV_LEN + 2);
-    let bytes_peeked = socket.peek(&mut buf).await?;
+    let mut buf1 = Vec::with_capacity(DATAV[0].len());
+    let mut buf2 = Vec::with_capacity(DATAV[1].len());
+    let mut buf3 = Vec::with_capacity(DATAV[2].len() + 2);
+    let mut bufs = [&mut buf1, &mut buf2, &mut buf3];
+    let bytes_peeked = socket.peek_vectored(&mut bufs).await?;
     assert_eq!(bytes_peeked, DATAV_LEN);
-    assert_read(&buf, DATAV);
+    assert_eq!(buf1, DATAV[0]);
+    assert_eq!(buf2, DATAV[1]);
+    assert_eq!(buf3, DATAV[2]);
 
-    // TODO: replace with vectored reading.
-    buf.clear();
-    let bytes_read = socket.recv(&mut buf).await?;
+    buf1.clear();
+    buf2.clear();
+    buf3.clear();
+    let mut bufs = [&mut buf1, &mut buf2, &mut buf3];
+    let bytes_read = socket.recv_vectored(&mut bufs).await?;
     assert_eq!(bytes_read, DATAV_LEN);
-    assert_read(&buf, DATAV);
+    assert_eq!(buf1, DATAV[0]);
+    assert_eq!(buf2, DATAV[1]);
+    assert_eq!(buf3, DATAV[2]);
 
     Ok(())
 }

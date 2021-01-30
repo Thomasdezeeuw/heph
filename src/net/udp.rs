@@ -21,7 +21,7 @@ use mio::{net, Interest};
 use socket2::{SockAddr, SockRef};
 
 use crate::actor;
-use crate::net::{convert_address, Bytes};
+use crate::net::{convert_address, Bytes, BytesVectored, MaybeUninitSlice};
 use crate::rt::{self, PrivateAccess};
 
 /// The unconnected mode of an [`UdpSocket`].
@@ -294,6 +294,50 @@ impl UdpSocket<Unconnected> {
         RecvFrom { socket: self, buf }
     }
 
+    /// Attempt to receive data from the socket, writing them into `buf`.
+    ///
+    /// If no bytes can currently be received this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`UdpSocket::recv_from`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_recv_from_vectored<B>(&mut self, mut bufs: B) -> io::Result<(usize, SocketAddr)>
+    where
+        B: BytesVectored,
+    {
+        let mut dst = bufs.as_bufs();
+        debug_assert!(
+            !dst.as_mut()
+                .first()
+                .map(|buf| buf.is_empty())
+                .unwrap_or(true),
+            "called `UdpSocket::try_recv_from` with an empty buffer"
+        );
+        let res = SockRef::from(&self.socket)
+            .recv_from_vectored(MaybeUninitSlice::as_socket2(dst.as_mut()));
+        match res {
+            Ok((read, _, address)) => {
+                drop(dst);
+                // Safety: just read the bytes.
+                unsafe { bufs.update_lengths(read) }
+                let address = convert_address(address)?;
+                Ok((read, address))
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Receives data from the socket. Returns a [`Future`] that on success
+    /// returns the number of bytes read and the address from whence the data
+    /// came (`io::Result<(usize, SocketAddr>`).
+    pub fn recv_from_vectored<B>(&mut self, bufs: B) -> RecvFromVectored<'_, B>
+    where
+        B: BytesVectored,
+    {
+        RecvFromVectored { socket: self, bufs }
+    }
+
     /// Attempt to peek data from the socket, writing them into `buf`.
     ///
     /// If no bytes can currently be peeked this will return an error with the
@@ -331,6 +375,53 @@ impl UdpSocket<Unconnected> {
     {
         PeekFrom { socket: self, buf }
     }
+
+    /// Attempt to peek data from the socket, writing them into `bufs`.
+    ///
+    /// If no bytes can currently be received this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`UdpSocket::recv_vectored`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_peek_from_vectored<B>(&mut self, mut bufs: B) -> io::Result<(usize, SocketAddr)>
+    where
+        B: BytesVectored,
+    {
+        let mut dst = bufs.as_bufs();
+        debug_assert!(
+            !dst.as_mut()
+                .first()
+                .map(|buf| buf.is_empty())
+                .unwrap_or(true),
+            "called `UdpSocket::try_peek_from_vectored` with an empty buffer"
+        );
+        let res = SockRef::from(&self.socket).recv_from_vectored_with_flags(
+            MaybeUninitSlice::as_socket2(dst.as_mut()),
+            libc::MSG_PEEK,
+        );
+        match res {
+            Ok((read, _, address)) => {
+                drop(dst);
+                // Safety: just read the bytes.
+                unsafe { bufs.update_lengths(read) }
+                let address = convert_address(address)?;
+                Ok((read, address))
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Receives data from the socket, without removing it from the input queue.
+    /// Returns a [`Future`] that on success returns the number of bytes read
+    /// and the address from whence the data came (`io::Result<(usize,
+    /// SocketAddr>`).
+    pub fn peek_from_vectored<B>(&mut self, bufs: B) -> PeekFromVectored<'_, B>
+    where
+        B: BytesVectored,
+    {
+        PeekFromVectored { socket: self, bufs }
+    }
 }
 
 /// The [`Future`] behind [`UdpSocket::send_to`].
@@ -355,7 +446,7 @@ impl<'a, 'b> Future for SendTo<'a, 'b> {
     }
 }
 
-/// The [`Future`] behind [`UdpSocket::send_vectored`].
+/// The [`Future`] behind [`UdpSocket::send_to_vectored`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct SendToVectored<'a, 'b> {
@@ -397,6 +488,26 @@ where
     }
 }
 
+/// The [`Future`] behind [`UdpSocket::recv_from_vectored`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct RecvFromVectored<'a, B> {
+    socket: &'a mut UdpSocket<Unconnected>,
+    bufs: B,
+}
+
+impl<'a, B> Future for RecvFromVectored<'a, B>
+where
+    B: BytesVectored + Unpin,
+{
+    type Output = io::Result<(usize, SocketAddr)>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let RecvFromVectored { socket, bufs } = Pin::into_inner(self);
+        try_io!(socket.try_recv_from_vectored(&mut *bufs))
+    }
+}
+
 /// The [`Future`] behind [`UdpSocket::peek_from`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -414,6 +525,26 @@ where
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let PeekFrom { socket, buf } = Pin::into_inner(self);
         try_io!(socket.try_peek_from(&mut *buf))
+    }
+}
+
+/// The [`Future`] behind [`UdpSocket::peek_from_vectored`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct PeekFromVectored<'a, B> {
+    socket: &'a mut UdpSocket<Unconnected>,
+    bufs: B,
+}
+
+impl<'a, B> Future for PeekFromVectored<'a, B>
+where
+    B: BytesVectored + Unpin,
+{
+    type Output = io::Result<(usize, SocketAddr)>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let PeekFromVectored { socket, bufs } = Pin::into_inner(self);
+        try_io!(socket.try_peek_from_vectored(&mut *bufs))
     }
 }
 
@@ -486,8 +617,53 @@ impl UdpSocket<Connected> {
 
     /// Receives data from the socket. Returns a [`Future`] that on success
     /// returns the number of bytes read (`io::Result<usize>`).
-    pub fn recv<B>(&mut self, buf: B) -> Recv<'_, B> {
+    pub fn recv<B>(&mut self, buf: B) -> Recv<'_, B>
+    where
+        B: Bytes,
+    {
         Recv { socket: self, buf }
+    }
+
+    /// Attempt to receive data from the socket, writing them into `bufs`.
+    ///
+    /// If no bytes can currently be received this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`UdpSocket::recv_vectored`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_recv_vectored<B>(&mut self, mut bufs: B) -> io::Result<usize>
+    where
+        B: BytesVectored,
+    {
+        let mut dst = bufs.as_bufs();
+        debug_assert!(
+            !dst.as_mut()
+                .first()
+                .map(|buf| buf.is_empty())
+                .unwrap_or(true),
+            "called `UdpSocket::try_recv_vectored` with an empty buffer"
+        );
+        let res =
+            SockRef::from(&self.socket).recv_vectored(MaybeUninitSlice::as_socket2(dst.as_mut()));
+        match res {
+            Ok((read, _)) => {
+                drop(dst);
+                // Safety: just read the bytes.
+                unsafe { bufs.update_lengths(read) }
+                Ok(read)
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Receives data from the socket. Returns a [`Future`] that on success
+    /// returns the number of bytes read (`io::Result<usize>`).
+    pub fn recv_vectored<B>(&mut self, bufs: B) -> RecvVectored<'_, B>
+    where
+        B: BytesVectored,
+    {
+        RecvVectored { socket: self, bufs }
     }
 
     /// Attempt to peek data from the socket, writing them into `buf`.
@@ -517,8 +693,54 @@ impl UdpSocket<Connected> {
     /// Receives data from the socket, without removing it from the input queue.
     /// Returns a [`Future`] that on success returns the number of bytes read
     /// (`io::Result<usize>`).
-    pub fn peek<B>(&mut self, buf: B) -> Peek<'_, B> {
+    pub fn peek<B>(&mut self, buf: B) -> Peek<'_, B>
+    where
+        B: Bytes,
+    {
         Peek { socket: self, buf }
+    }
+
+    /// Attempt to peek data from the socket, writing them into `bufs`.
+    ///
+    /// If no bytes can currently be received this will return an error with the
+    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
+    /// [`UdpSocket::recv_vectored`].
+    ///
+    /// [kind]: io::Error::kind
+    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    pub fn try_peek_vectored<B>(&mut self, mut bufs: B) -> io::Result<usize>
+    where
+        B: BytesVectored,
+    {
+        let mut dst = bufs.as_bufs();
+        debug_assert!(
+            !dst.as_mut()
+                .first()
+                .map(|buf| buf.is_empty())
+                .unwrap_or(true),
+            "called `UdpSocket::try_peek_vectored` with an empty buffer"
+        );
+        let res = SockRef::from(&self.socket)
+            .recv_vectored_with_flags(MaybeUninitSlice::as_socket2(dst.as_mut()), libc::MSG_PEEK);
+        match res {
+            Ok((read, _)) => {
+                drop(dst);
+                // Safety: just read the bytes.
+                unsafe { bufs.update_lengths(read) }
+                Ok(read)
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Receives data from the socket, without removing it from the input queue.
+    /// Returns a [`Future`] that on success returns the number of bytes read
+    /// (`io::Result<usize>`).
+    pub fn peek_vectored<B>(&mut self, bufs: B) -> PeekVectored<'_, B>
+    where
+        B: BytesVectored,
+    {
+        PeekVectored { socket: self, bufs }
     }
 }
 
@@ -576,6 +798,26 @@ where
     }
 }
 
+/// The [`Future`] behind [`UdpSocket::recv_vectored`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct PeekVectored<'a, B> {
+    socket: &'a mut UdpSocket<Connected>,
+    bufs: B,
+}
+
+impl<'a, B> Future for PeekVectored<'a, B>
+where
+    B: BytesVectored + Unpin,
+{
+    type Output = io::Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let PeekVectored { socket, bufs } = Pin::into_inner(self);
+        try_io!(socket.try_peek_vectored(&mut *bufs))
+    }
+}
+
 /// The [`Future`] behind [`UdpSocket::peek`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -593,6 +835,26 @@ where
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Peek { socket, buf } = Pin::into_inner(self);
         try_io!(socket.try_peek(&mut *buf))
+    }
+}
+
+/// The [`Future`] behind [`UdpSocket::recv_vectored`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct RecvVectored<'a, B> {
+    socket: &'a mut UdpSocket<Connected>,
+    bufs: B,
+}
+
+impl<'a, B> Future for RecvVectored<'a, B>
+where
+    B: BytesVectored + Unpin,
+{
+    type Output = io::Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let RecvVectored { socket, bufs } = Pin::into_inner(self);
+        try_io!(socket.try_recv_vectored(&mut *bufs))
     }
 }
 
