@@ -2,7 +2,7 @@
 
 #![cfg(feature = "test")]
 
-use std::io;
+use std::io::{self, IoSlice};
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::Poll;
@@ -211,4 +211,138 @@ async fn reconnecting_actor(
     assert!(socket.take_error().unwrap().is_none());
 
     Ok(())
+}
+
+#[test]
+fn connected_vectored_io_ipv4() {
+    let new_actor = connected_vectored_io_actor as fn(_, _) -> _;
+    test_vectored_io(any_local_address(), new_actor)
+}
+
+#[test]
+fn connected_vectored_io_ipv6() {
+    let new_actor = connected_vectored_io_actor as fn(_, _) -> _;
+    test_vectored_io(any_local_ipv6_address(), new_actor)
+}
+
+#[test]
+fn unconnected_vectored_io_ipv4() {
+    let new_actor = unconnected_vectored_io_actor as fn(_, _) -> _;
+    test_vectored_io(any_local_address(), new_actor)
+}
+
+#[test]
+fn unconnected_vectored_io_ipv6() {
+    let new_actor = unconnected_vectored_io_actor as fn(_, _) -> _;
+    test_vectored_io(any_local_ipv6_address(), new_actor)
+}
+
+async fn unconnected_vectored_io_actor(
+    mut ctx: actor::Context<!>,
+    peer_address: SocketAddr,
+) -> io::Result<()> {
+    let local_address = SocketAddr::new(peer_address.ip(), 0);
+    let mut socket = UdpSocket::bind(&mut ctx, local_address)?;
+
+    let bufs = &mut [
+        IoSlice::new(DATAV[0]),
+        IoSlice::new(DATAV[1]),
+        IoSlice::new(DATAV[2]),
+    ];
+    let bytes_written = socket.send_to_vectored(bufs, peer_address).await?;
+    assert_eq!(bytes_written, DATAV_LEN);
+
+    // TODO: replace with vectored peeking.
+    let mut buf = Vec::with_capacity(DATAV_LEN + 2);
+    let (bytes_peeked, address) = socket.peek_from(&mut buf).await?;
+    assert_eq!(bytes_peeked, DATAV_LEN);
+    assert_read(&buf, DATAV);
+    assert_eq!(address, peer_address);
+
+    // TODO: replace with vectored reading.
+    buf.clear();
+    let (bytes_read, address) = socket.recv_from(&mut buf).await?;
+    assert_eq!(bytes_read, DATAV_LEN);
+    assert_read(&buf, DATAV);
+    assert_eq!(address, peer_address);
+
+    Ok(())
+}
+
+async fn connected_vectored_io_actor(
+    mut ctx: actor::Context<!>,
+    peer_address: SocketAddr,
+) -> io::Result<()> {
+    let local_address = SocketAddr::new(peer_address.ip(), 0);
+    let socket = UdpSocket::bind(&mut ctx, local_address)?;
+    let mut socket = socket.connect(peer_address)?;
+
+    let bufs = &mut [
+        IoSlice::new(DATAV[0]),
+        IoSlice::new(DATAV[1]),
+        IoSlice::new(DATAV[2]),
+    ];
+    let bytes_written = socket.send_vectored(bufs).await?;
+    assert_eq!(bytes_written, DATAV_LEN);
+
+    // TODO: replace with vectored peeking.
+    let mut buf = Vec::with_capacity(DATAV_LEN + 2);
+    let bytes_peeked = socket.peek(&mut buf).await?;
+    assert_eq!(bytes_peeked, DATAV_LEN);
+    assert_read(&buf, DATAV);
+
+    // TODO: replace with vectored reading.
+    buf.clear();
+    let bytes_read = socket.recv(&mut buf).await?;
+    assert_eq!(bytes_read, DATAV_LEN);
+    assert_read(&buf, DATAV);
+
+    Ok(())
+}
+
+fn test_vectored_io<NA>(local_address: SocketAddr, new_actor: NA)
+where
+    NA: NewActor<Argument = SocketAddr, Error = !, Context = context::ThreadLocal>,
+    <NA as NewActor>::Actor: Actor<Error = io::Error>,
+{
+    let echo_socket = std::net::UdpSocket::bind(local_address).unwrap();
+    let address = echo_socket.local_addr().unwrap();
+
+    let (actor, _) = init_local_actor(new_actor, address).unwrap();
+    pin_mut!(actor);
+
+    // Send the data.
+    match poll_actor(Pin::as_mut(&mut actor)) {
+        Poll::Ready(Ok(())) => unreachable!(),
+        Poll::Ready(Err(err)) => panic!("unexpected error from actor: {:?}", err),
+        Poll::Pending => {} // Ok.
+    }
+
+    let mut buf = [0; DATAV_LEN + 1];
+    let (bytes_read, peer_address) = echo_socket.recv_from(&mut buf).unwrap();
+    assert_eq!(bytes_read, DATAV_LEN);
+    assert_read(&buf, DATAV);
+
+    let bytes_written = echo_socket
+        .send_to(&buf[..bytes_read], peer_address)
+        .unwrap();
+    assert_eq!(bytes_written, DATAV_LEN);
+
+    // The reading.
+    loop {
+        match poll_actor(Pin::as_mut(&mut actor)) {
+            Poll::Ready(Ok(())) => return, // Ok.
+            Poll::Ready(Err(err)) => panic!("unexpected error from actor: {:?}", err),
+            Poll::Pending => sleep(Duration::from_millis(1)),
+        }
+    }
+}
+
+fn assert_read(mut got: &[u8], expected: &[&[u8]]) {
+    for expected in expected.into_iter().copied() {
+        let len = expected.len();
+        assert_eq!(&got[..len], expected);
+        let (_, g) = got.split_at(len);
+        got = g;
+    }
 }
