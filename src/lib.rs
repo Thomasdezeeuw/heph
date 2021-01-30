@@ -74,16 +74,20 @@
     const_raw_ptr_to_usize_cast,
     drain_filter,
     duration_zero,
+    generic_associated_types,
     io_slice_advance,
     is_sorted,
+    maybe_uninit_array_assume_init,
     maybe_uninit_extra,
     maybe_uninit_ref,
     maybe_uninit_slice,
+    maybe_uninit_uninit_array,
     never_type,
     new_uninit,
     vec_spare_capacity,
     wake_trait
 )]
+#![allow(incomplete_features)] // NOTE: for `generic_associated_types`.
 #![cfg_attr(any(test, feature = "test"), feature(once_cell))]
 #![warn(
     anonymous_parameters,
