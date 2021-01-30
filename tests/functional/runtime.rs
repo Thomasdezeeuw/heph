@@ -10,6 +10,8 @@ use heph::rt::Runtime;
 fn auto_cpu_affinity() {
     use std::net::SocketAddr;
 
+    use socket2::SockRef;
+
     use heph::actor::context::ThreadLocal;
     use heph::actor::messages::Terminate;
     use heph::net::tcp::server;
@@ -17,14 +19,21 @@ fn auto_cpu_affinity() {
     use heph::supervisor::{Supervisor, SupervisorStrategy};
     use heph::{actor, ActorOptions, ActorRef, NewActor, RuntimeRef};
 
+    fn cpu_affinity(stream: &TcpStream) -> io::Result<usize> {
+        // TODO: do this better.
+        let socket =
+            SockRef::from(unsafe { &*(stream as *const TcpStream as *const mio::net::TcpStream) });
+        socket.cpu_affinity()
+    }
+
     async fn stream_actor(
         mut ctx: actor::Context<!>,
         address: SocketAddr,
         server_ref: ActorRef<server::Message>,
     ) -> io::Result<()> {
-        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        let stream = TcpStream::connect(&mut ctx, address)?.await?;
 
-        let cpu = stream.cpu_affinity().unwrap();
+        let cpu = cpu_affinity(&stream).unwrap();
         assert_eq!(cpu, 0);
 
         server_ref.send(Terminate).await.unwrap();
@@ -33,10 +42,10 @@ fn auto_cpu_affinity() {
 
     async fn accepted_stream_actor(
         _: actor::Context<!>,
-        mut stream: TcpStream,
+        stream: TcpStream,
         _: SocketAddr,
     ) -> io::Result<()> {
-        let cpu = stream.cpu_affinity()?;
+        let cpu = cpu_affinity(&stream)?;
         assert_eq!(cpu, 0);
         Ok(())
     }

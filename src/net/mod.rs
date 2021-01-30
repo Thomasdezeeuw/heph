@@ -214,6 +214,7 @@ impl<'a> MaybeUninitSlice<'a> {
     }
 
     /// Returns `bufs` as [`socket2::MaybeUninitSlice`].
+    #[allow(clippy::wrong_self_convention)]
     fn as_socket2<'b>(
         bufs: &'b mut [MaybeUninitSlice<'a>],
     ) -> &'b mut [socket2::MaybeUninitSlice<'a>] {
