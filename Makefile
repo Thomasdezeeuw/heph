@@ -15,7 +15,7 @@ test:
 
 check_all_targets: $(TARGETS)
 $(TARGETS):
-	cargo check --all-features --target $@
+	cargo check --all-features --all-targets --target $@
 
 # NOTE: when using this command you might want to change the `test` target to
 # only run a subset of the tests you're actively working on.
