@@ -3,8 +3,6 @@
 use std::io;
 use std::net::SocketAddr;
 
-use futures_util::AsyncWriteExt;
-
 use heph::actor::{self, context, NewActor};
 use heph::log::{self, error, info};
 use heph::net::{tcp, TcpServer, TcpStream};
@@ -118,5 +116,5 @@ async fn conn_actor(
     let ip = address.ip().to_string();
 
     // Next we'll write the IP address to the connection.
-    stream.write_all(ip.as_bytes()).await
+    stream.send_all(ip.as_bytes()).await
 }

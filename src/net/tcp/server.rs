@@ -153,8 +153,6 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// use futures_util::AsyncWriteExt;
-///
 /// use heph::actor::{self, context, NewActor};
 /// # use heph::actor::messages::Terminate;
 /// use heph::log::error;
@@ -234,7 +232,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// /// The actor responsible for a single TCP stream.
 /// async fn conn_actor(_: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
-///     stream.write_all(b"Hello World").await
+///     stream.send_all(b"Hello World").await
 /// }
 /// ```
 ///
@@ -246,8 +244,6 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///
 /// use std::io;
 /// use std::net::SocketAddr;
-///
-/// use futures_util::AsyncWriteExt;
 ///
 /// # use heph::actor::context;
 /// use heph::actor::messages::Terminate;
@@ -322,7 +318,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// /// The actor responsible for a single TCP stream.
 /// async fn conn_actor(_: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
-///     stream.write_all(b"Hello World").await
+///     stream.send_all(b"Hello World").await
 /// }
 /// ```
 ///
@@ -335,8 +331,6 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///
 /// use std::io;
 /// use std::net::SocketAddr;
-///
-/// use futures_util::AsyncWriteExt;
 ///
 /// use heph::actor::{self, NewActor};
 /// use heph::actor::context::ThreadSafe;
@@ -411,7 +405,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// /// The actor responsible for a single TCP stream.
 /// async fn conn_actor(_: actor::Context<!, ThreadSafe>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
-///     stream.write_all(b"Hello World").await
+///     stream.send_all(b"Hello World").await
 /// }
 #[derive(Debug)]
 pub struct TcpServer<S, NA, K> {
