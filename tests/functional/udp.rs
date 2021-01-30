@@ -18,41 +18,37 @@ use heph::test::{init_local_actor, poll_actor};
 use crate::util::{any_local_address, any_local_ipv6_address};
 
 const DATA: &[u8] = b"Hello world";
+const DATAV: &[&[u8]] = &[b"Hello world!", b" ", b"From mars."];
+const DATAV_LEN: usize = DATAV[0].len() + DATAV[1].len() + DATAV[2].len();
 
 #[test]
-fn unconnected_udp_socket_ipv4() {
+fn unconnected_ipv4() {
     let new_actor = unconnected_udp_actor as fn(_, _) -> _;
-    test_udp_socket(any_local_address(), new_actor)
+    test(any_local_address(), new_actor)
 }
 
 #[test]
-fn unconnected_udp_socket_ipv6() {
+fn unconnected_ipv6() {
     let new_actor = unconnected_udp_actor as fn(_, _) -> _;
-    test_udp_socket(any_local_ipv6_address(), new_actor)
+    test(any_local_ipv6_address(), new_actor)
 }
 
 #[test]
-fn connected_udp_socket_ipv4() {
+fn connected_ipv4() {
     let new_actor = connected_udp_actor as fn(_, _) -> _;
-    test_udp_socket(any_local_address(), new_actor)
+    test(any_local_address(), new_actor)
 }
 
 #[test]
-fn connected_udp_socket_ipv6() {
+fn connected_ipv6() {
     let new_actor = connected_udp_actor as fn(_, _) -> _;
-    test_udp_socket(any_local_ipv6_address(), new_actor)
+    test(any_local_ipv6_address(), new_actor)
 }
 
-fn test_udp_socket<NA, A>(local_address: SocketAddr, new_actor: NA)
+fn test<NA>(local_address: SocketAddr, new_actor: NA)
 where
-    NA: NewActor<
-        Message = !,
-        Argument = SocketAddr,
-        Actor = A,
-        Error = !,
-        Context = context::ThreadLocal,
-    >,
-    A: Actor<Error = io::Error>,
+    NA: NewActor<Argument = SocketAddr, Error = !, Context = context::ThreadLocal>,
+    <NA as NewActor>::Actor: Actor<Error = io::Error>,
 {
     let echo_socket = std::net::UdpSocket::bind(local_address).unwrap();
     let address = echo_socket.local_addr().unwrap();
@@ -141,16 +137,16 @@ async fn connected_udp_actor(
 }
 
 #[test]
-fn reconnecting_udp_socket_ipv4() {
-    test_reconnecting_udp_socket(any_local_address())
+fn reconnecting_ipv4() {
+    test_reconnecting(any_local_address())
 }
 
 #[test]
-fn reconnecting_udp_socket_ipv6() {
-    test_reconnecting_udp_socket(any_local_ipv6_address())
+fn reconnecting_ipv6() {
+    test_reconnecting(any_local_ipv6_address())
 }
 
-fn test_reconnecting_udp_socket(local_address: SocketAddr) {
+fn test_reconnecting(local_address: SocketAddr) {
     let local_address = SocketAddr::new(local_address.ip(), 0);
     let socket1 = std::net::UdpSocket::bind(local_address).unwrap();
     let socket2 = std::net::UdpSocket::bind(local_address).unwrap();
