@@ -1,6 +1,6 @@
 //! Functional tests.
 
-#![feature(drain_filter, never_type, maybe_uninit_slice)]
+#![feature(drain_filter, never_type, maybe_uninit_slice, write_all_vectored)]
 
 #[path = "util/mod.rs"] // rustfmt can't find the file.
 #[macro_use]
