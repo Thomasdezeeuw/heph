@@ -928,6 +928,128 @@ fn recv_n_vectored_from_multiple_writes() {
 }
 
 #[test]
+fn peek() {
+    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+
+        let mut buf = Vec::with_capacity(128);
+
+        let n = stream.peek(&mut buf).await?;
+        assert_eq!(n, DATA.len());
+        assert_eq!(&*buf, DATA);
+
+        // We peeked the data above so we should receive the same data again.
+        buf.clear();
+        let n = stream.recv(&mut buf).await?;
+        assert_eq!(n, DATA.len());
+        assert_eq!(&*buf, DATA);
+
+        // The stream is dropped so next we should read 0.
+        buf.clear();
+        assert_eq!(stream.recv(&mut buf).await?, 0);
+
+        Ok(())
+    }
+
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
+    let address = listener.local_addr().unwrap();
+
+    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
+    pin_mut!(actor);
+
+    // Stream should not yet be connected.
+    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+
+    let (mut stream, _) = listener.accept().unwrap();
+
+    // Connected, but shouldn't yet read anything.
+    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+
+    stream.write_all(&DATA).unwrap();
+    sorta_flush(&mut stream);
+
+    drop(stream);
+
+    loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
+}
+
+#[test]
+fn peek_vectored() {
+    static STAGE: Stage = Stage::new();
+
+    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+        STAGE.update(0);
+        let connect = TcpStream::connect(&mut ctx, address)?;
+        STAGE.update(1);
+        wait_once().await;
+
+        let mut stream = connect.await?;
+        STAGE.update(2);
+        wait_once().await;
+
+        let mut buf1 = Vec::with_capacity(2 * DATA.len());
+        let mut buf2 = Vec::with_capacity(2 * DATA.len() + 1);
+        let bufs = [&mut buf1, &mut buf2];
+        let n = stream.peek_vectored(bufs).await?;
+        assert_eq!(n, 4 * DATA.len());
+        assert_eq!(&buf1[..DATA.len()], DATA);
+        assert_eq!(&buf1[DATA.len()..], DATA);
+        assert_eq!(&buf2[..DATA.len()], DATA);
+        assert_eq!(&buf2[DATA.len()..], DATA);
+        STAGE.update(3);
+
+        // We should receive the same data again after peeking.
+        buf1.clear();
+        buf2.clear();
+        let bufs = [&mut buf1, &mut buf2];
+        let n = stream.recv_vectored(bufs).await?;
+        assert_eq!(n, 4 * DATA.len());
+        assert_eq!(&buf1[..DATA.len()], DATA);
+        assert_eq!(&buf1[DATA.len()..], DATA);
+        assert_eq!(&buf2[..DATA.len()], DATA);
+        assert_eq!(&buf2[DATA.len()..], DATA);
+        STAGE.update(3);
+
+        // Return pending once.
+        wait_once().await;
+
+        drop(stream);
+        STAGE.update(4);
+        Ok(())
+    }
+
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
+    let address = listener.local_addr().unwrap();
+
+    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
+    pin_mut!(actor);
+
+    // Stream should not yet be connected.
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
+
+    // Once we accept the connecting the actor should be able to proceed.
+    let (mut stream, _) = listener.accept().unwrap();
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 2));
+
+    let bufs = &mut [
+        IoSlice::new(DATA),
+        IoSlice::new(DATA),
+        IoSlice::new(DATA),
+        IoSlice::new(DATA),
+    ];
+    stream.write_all_vectored(bufs).unwrap();
+
+    // Should receive the bytes.
+    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 3));
+
+    // Should drop the stream.
+    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 4), ());
+    let mut buf = [0; 2];
+    let n = stream.read(&mut buf).unwrap();
+    assert_eq!(n, 0);
+}
+
+#[test]
 fn shutdown_read() {
     async fn listener_actor(
         mut ctx: actor::Context<!>,

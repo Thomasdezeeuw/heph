@@ -372,6 +372,72 @@ impl TcpStream {
         }
     }
 
+    /// Attempt to receive messages from the stream, writing them into `buf`,
+    /// without removing that data from the queue. On success, returns the
+    /// number of bytes peeked.
+    pub fn try_peek<B>(&mut self, mut buf: B) -> io::Result<usize>
+    where
+        B: Bytes,
+    {
+        let dst = buf.as_bytes();
+        debug_assert!(
+            !dst.is_empty(),
+            "called `TcpStream::try_peek with an empty buffer"
+        );
+        SockRef::from(&self.socket).peek(dst).map(|read| {
+            // Safety: just read the bytes.
+            unsafe { buf.update_length(read) }
+            read
+        })
+    }
+
+    /// Receive messages from the stream, writing them into `buf`, without
+    /// removing that data from the queue. On success, returns the number of
+    /// bytes peeked.
+    pub fn peek<'a, B>(&'a mut self, buf: B) -> Peek<'a, B>
+    where
+        B: Bytes,
+    {
+        Peek { stream: self, buf }
+    }
+
+    /// Attempt to receive messages from the stream using vectored I/O, writing
+    /// them into `bufs`, without removing that data from the queue. On success,
+    /// returns the number of bytes peeked.
+    pub fn try_peek_vectored<B>(&mut self, mut bufs: B) -> io::Result<usize>
+    where
+        B: BytesVectored,
+    {
+        let mut dst = bufs.as_bufs();
+        debug_assert!(
+            !dst.as_mut().is_empty(),
+            "called `UdpSocket::try_peek_vectored` with an empty buffer"
+        );
+        let res = SockRef::from(&self.socket).recv_vectored_with_flags(
+            MaybeUninitSlice::as_socket2(&mut dst.as_mut()),
+            libc::MSG_PEEK,
+        );
+        match res {
+            Ok((read, _)) => {
+                drop(dst);
+                // Safety: just read the bytes.
+                unsafe { bufs.update_lengths(read) }
+                Ok(read)
+            }
+            Err(err) => Err(err),
+        }
+    }
+
+    /// Receive messages from the stream using vectored I/O, writing them into
+    /// `bufs`, without removing that data from the queue. On success, returns
+    /// the number of bytes peeked.
+    pub fn peek_vectored<B>(&mut self, bufs: B) -> PeekVectored<'_, B>
+    where
+        B: BytesVectored,
+    {
+        PeekVectored { stream: self, bufs }
+    }
+
     /// Shuts down the read, write, or both halves of this connection.
     ///
     /// This function will cause all pending and future I/O on the specified
@@ -586,6 +652,26 @@ where
     }
 }
 
+/// The [`Future`] behind [`TcpStream::peek`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct Peek<'b, B> {
+    stream: &'b mut TcpStream,
+    buf: B,
+}
+
+impl<'b, B> Future for Peek<'b, B>
+where
+    B: Bytes + Unpin,
+{
+    type Output = io::Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let Peek { stream, buf } = Pin::into_inner(self);
+        try_io!(stream.try_peek(&mut *buf))
+    }
+}
+
 /// The [`Future`] behind [`TcpStream::recv_n`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -671,6 +757,26 @@ where
                 Err(err) => break Poll::Ready(Err(err)),
             }
         }
+    }
+}
+
+/// The [`Future`] behind [`TcpStream::peek_vectored`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct PeekVectored<'b, B> {
+    stream: &'b mut TcpStream,
+    bufs: B,
+}
+
+impl<'b, B> Future for PeekVectored<'b, B>
+where
+    B: BytesVectored + Unpin,
+{
+    type Output = io::Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let PeekVectored { stream, bufs } = Pin::into_inner(self);
+        try_io!(stream.try_peek_vectored(&mut *bufs))
     }
 }
 
