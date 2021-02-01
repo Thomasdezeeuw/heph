@@ -225,9 +225,19 @@ pub struct Event<'e> {
     attributes: &'e [(&'e str, &'e dyn AttributeValue)],
 }
 
+/// The [`AttributeValue`] defines what kind of types are supported as attribute
+/// values in tracing.
+///
+/// This trait is private and is implemented for only a limited number of types,
+/// specficically:
+/// * Unsigned integers, i.e. `u8`, `u16`, etc.
+/// * Signed integers, i.e. `i8`, `i16`, etc.
+/// * Floating point numbers, i.e. `f32` and `f64`.
+/// * Strings, i.e. `&str` and `String`.
+/// * Array or slice of one of the types above.
 pub trait AttributeValue: private::AttributeValue {}
 
-impl<T> AttributeValue for T where T: private::AttributeValue {}
+impl<'a, T> AttributeValue for &'a T where T: AttributeValue + ?Sized {}
 
 mod private {
     //! Module with private version of [`AttributeValue`].
@@ -240,6 +250,7 @@ mod private {
     /// Marks a type bytes as array.
     const ARRAY_MARKER_BYTE: u8 = 1 << 7;
 
+    /// Trait that defines how to write an attribute value.
     pub trait AttributeValue {
         /// The type byte for this attribute value.
         // NOTE: this should be a assiociated constant, however that is not
@@ -278,6 +289,8 @@ mod private {
                     buf.extend_from_slice(&value.to_be_bytes());
                 }
             }
+
+            impl super::AttributeValue for $ty {}
         };
     }
 
@@ -310,6 +323,8 @@ mod private {
         }
     }
 
+    impl super::AttributeValue for str {}
+
     impl AttributeValue for String {
         #[inline(always)]
         fn type_byte(&self) -> u8 {
@@ -320,6 +335,8 @@ mod private {
             (&**self).write_attribute(buf)
         }
     }
+
+    impl super::AttributeValue for String {}
 
     impl<T> AttributeValue for [T]
     where
@@ -344,6 +361,8 @@ mod private {
         }
     }
 
+    impl<T> super::AttributeValue for [T] where T: super::AttributeValue + Default {}
+
     impl<T, const N: usize> AttributeValue for [T; N]
     where
         T: AttributeValue + Default,
@@ -357,4 +376,6 @@ mod private {
             (&self[..]).write_attribute(buf)
         }
     }
+
+    impl<T, const N: usize> super::AttributeValue for [T; N] where T: super::AttributeValue + Default {}
 }
