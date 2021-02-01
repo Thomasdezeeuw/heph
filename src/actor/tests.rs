@@ -19,6 +19,11 @@ fn actor_name() {
             "core::future::from_generator::GenFuture<2_my_ip::conn_actor::{{closure}}>",
             "conn_actor"
         ),
+        // Async function named actor in an actor module.
+        (
+            "core::future::from_generator::GenFuture<heph::actor::tests::storage::actor::actor::{{closure}}>",
+            "storage::actor",
+        ),
         // Type implementing `Actor`.
         (
             "heph::net::tcp::server::TcpServer<2_my_ip::conn_supervisor, fn(heph::actor::context_priv::Context<!>, heph::net::tcp::stream::TcpStream, std::net::addr::SocketAddr) -> core::future::from_generator::GenFuture<2_my_ip::conn_actor::{{closure}}>, heph::actor::context_priv::ThreadLocal>",
