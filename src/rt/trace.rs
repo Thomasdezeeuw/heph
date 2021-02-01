@@ -7,7 +7,7 @@ use std::time::{Instant, SystemTime};
 
 use log::warn;
 
-/// Default buffer size of `Log`.
+/// Default buffer size, only needs to hold a single trace event.
 const BUF_SIZE: usize = 128;
 
 /// Trace log.
@@ -16,7 +16,7 @@ pub(crate) struct Log {
     /// File to write the trace to.
     ///
     /// This file is shared between one or more thread, thus writes to it should
-    /// be atomic, e.g. no partial writes. Most OSs support atomic writes up to
+    /// be atomic, i.e. no partial writes. Most OSs support atomic writes up to
     /// a page size (usally 4kB).
     file: File,
     /// Used to buffer writes for a single event.
@@ -169,9 +169,9 @@ pub(crate) fn start(log: &Option<Log>) -> Option<EventTiming> {
     }
 }
 
-/// Finish a trace, partner function to [`start`].
+/// Finish tracing an event, partner function to [`start`].
 ///
-/// If `log` is `Some` `timing` must also be `Some`.
+/// If `log` or `timing` is `None` this does nothing.
 pub(crate) fn finish(
     log: &mut Option<Log>,
     timing: Option<EventTiming>,
@@ -240,7 +240,7 @@ impl<'a, T> AttributeValue for &'a T where T: AttributeValue + ?Sized {}
 mod private {
     //! Module with private version of [`AttributeValue`].
 
-    /// The [`WriteAttribute::TYPE_BYTE`] constants.
+    /// The [`WriteAttribute::type_byte`] constants.
     const UNSIGNED_INTEGER_BYTE: u8 = 0b001;
     const SIGNED_INTEGER_BYTE: u8 = 0b010;
     const FLOAT_BYTE: u8 = 0b011;

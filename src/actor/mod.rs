@@ -565,6 +565,14 @@ fn format_name(full_name: &'static str) -> &'static str {
                 }
             }
 
+            // Function named `actor` in a module named `actor`. We'll drop the
+            // function name and keep the `actor` part of the module, e.g.
+            // `storage::actor::actor` to `storage::actor`.
+            if name.ends_with("actor::actor") {
+                // Remove `::actor`.
+                name = &name[..name.len() - 7];
+            }
+
             // Either take the last part of the name's path, e.g. from
             // `1_hello_world::greeter_actor` to `greeter_actor`.
             // Or keep the module name in case the actor's name would be `actor`,
@@ -573,8 +581,8 @@ fn format_name(full_name: &'static str) -> &'static str {
             if let Some(start_index) = name.rfind("::") {
                 let actor_name = &name[start_index + 2..];
                 if actor_name == "actor" {
-                    // If the actor's name is `actor` will keep the last module name
-                    // as part of the name.
+                    // If the actor's name is `actor` will keep the last module
+                    // name as part of the name.
                     if let Some(module_index) = name[..start_index].rfind("::") {
                         name = &name[module_index + 2..];
                     } // Else only a single module in path.
