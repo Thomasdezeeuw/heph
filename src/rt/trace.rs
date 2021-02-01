@@ -172,15 +172,13 @@ pub(crate) fn start(log: &Option<Log>) -> Option<EventTiming> {
 /// Finish a trace, partner function to [`start`].
 ///
 /// If `log` is `Some` `timing` must also be `Some`.
-#[track_caller]
 pub(crate) fn finish(
     log: &mut Option<Log>,
     timing: Option<EventTiming>,
     description: &str,
     attributes: &[(&str, &dyn AttributeValue)],
 ) {
-    if let Some(log) = log.as_mut() {
-        let timing = timing.unwrap();
+    if let (Some(log), Some(timing)) = (log, timing) {
         let event = timing.finish(description, attributes);
         if let Err(err) = log.append(&event) {
             warn!("error writing trace data: {}", err);
@@ -188,7 +186,7 @@ pub(crate) fn finish(
     }
 }
 
-/// Time an [`Event`].
+/// Timing an event.
 #[derive(Debug)]
 pub struct EventTiming {
     start: Instant,
@@ -218,7 +216,7 @@ impl EventTiming {
 }
 
 /// A trace event.
-pub struct Event<'e> {
+struct Event<'e> {
     start: Instant,
     end: Instant,
     description: &'e str,
