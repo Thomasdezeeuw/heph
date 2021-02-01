@@ -8,7 +8,7 @@ LLVM_BIN         ?= "$(shell rustc --print sysroot)/lib/rustlib/$(RUSTUP_TARGET)
 # Where we put the coverage output.
 COVERAGE_OUTPUT  ?= "./target/coverage"
 # Targets available via Rustup that are supported.
-TARGETS ?= "x86_64-apple-darwin" "x86_64-unknown-linux-gnu"
+TARGETS ?= "x86_64-apple-darwin" "x86_64-unknown-linux-gnu" "x86_64-unknown-freebsd"
 
 test:
 	cargo test --all-features
