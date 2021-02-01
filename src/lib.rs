@@ -107,6 +107,9 @@
 // Disallow warnings in examples, we want to set a good example after all.
 #![doc(test(attr(deny(warnings))))]
 
+#[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos")))]
+compile_error!("Heph currently only supports Linux, FreeBSD and macOS.");
+
 pub mod actor;
 pub mod actor_ref;
 pub mod log;
