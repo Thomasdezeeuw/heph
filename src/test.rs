@@ -263,9 +263,9 @@ fn test_size_of_actor() {
         assert_eq!(size_of_actor_val(&(actor1 as fn(_) -> _)), 32);
     }
 
-    struct NA;
+    struct Na;
 
-    impl NewActor for NA {
+    impl NewActor for Na {
         type Message = !;
         type Argument = ();
         type Actor = A;
@@ -294,6 +294,6 @@ fn test_size_of_actor() {
     }
 
     assert_eq!(size_of::<A>(), 0);
-    assert_eq!(size_of_actor::<NA>(), 0);
-    assert_eq!(size_of_actor_val(&NA), 0);
+    assert_eq!(size_of_actor::<Na>(), 0);
+    assert_eq!(size_of_actor_val(&Na), 0);
 }
