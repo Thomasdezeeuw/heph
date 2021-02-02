@@ -1,4 +1,4 @@
-//! The module with the supervisor, and related, types.
+//! The module with the supervisor and related types.
 //!
 //! # Supervisor
 //!
