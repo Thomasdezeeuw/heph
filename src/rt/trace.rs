@@ -269,6 +269,7 @@ pub(crate) fn finish(
 
 /// Timing an event.
 #[derive(Debug)]
+#[must_use = "tracing events must be finished, otherwise they aren't recorded"]
 pub struct EventTiming {
     start: Instant,
 }
