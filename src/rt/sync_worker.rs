@@ -9,9 +9,9 @@ use mio::unix;
 use mio::{Interest, Registry, Token};
 
 use crate::actor::sync::{SyncActor, SyncContext};
-use crate::rt;
 use crate::rt::options::SyncActorOptions;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
+use crate::trace;
 use crate::ActorRef;
 
 /// Handle to a synchronous worker.
@@ -32,7 +32,7 @@ impl SyncWorker {
         actor: A,
         arg: Arg,
         options: SyncActorOptions,
-        trace_log: Option<rt::trace::Log>,
+        trace_log: Option<trace::Log>,
     ) -> io::Result<(SyncWorker, ActorRef<M>)>
     where
         Sv: SyncSupervisor<A> + Send + 'static,
@@ -94,44 +94,34 @@ fn main<S, E, Arg, A, M>(
     mut arg: Arg,
     inbox: inbox::Manager<M>,
     receiver: unix::pipe::Receiver,
-    mut trace_log: Option<rt::trace::Log>,
+    mut trace_log: Option<trace::Log>,
 ) where
     S: SyncSupervisor<A> + 'static,
     A: SyncActor<Message = M, Argument = Arg, Error = E>,
 {
     trace!("running synchronous actor");
     loop {
-        let timing = rt::trace::start(&trace_log);
+        let timing = trace::start(&trace_log);
         let receiver = inbox.new_receiver().unwrap_or_else(inbox_failure);
         let ctx = SyncContext::new(receiver, clone_trace_log(&mut trace_log));
-        rt::trace::finish(&mut trace_log, timing, "setting up synchronous actor", &[]);
+        trace::finish(&mut trace_log, timing, "setting up synchronous actor", &[]);
 
-        let timing = rt::trace::start(&trace_log);
+        let timing = trace::start(&trace_log);
         let res = actor.run(ctx, arg);
-        rt::trace::finish(&mut trace_log, timing, "running synchronous actor", &[]);
+        trace::finish(&mut trace_log, timing, "running synchronous actor", &[]);
 
         match res {
             Ok(()) => break,
             Err(err) => {
-                let timing = rt::trace::start(&trace_log);
+                let timing = trace::start(&trace_log);
                 match supervisor.decide(err) {
                     SupervisorStrategy::Restart(new_arg) => {
                         trace!("restarting synchronous actor");
                         arg = new_arg;
-                        rt::trace::finish(
-                            &mut trace_log,
-                            timing,
-                            "restarting synchronous actor",
-                            &[],
-                        );
+                        trace::finish(&mut trace_log, timing, "restarting synchronous actor", &[]);
                     }
                     SupervisorStrategy::Stop => {
-                        rt::trace::finish(
-                            &mut trace_log,
-                            timing,
-                            "stopping synchronous actor",
-                            &[],
-                        );
+                        trace::finish(&mut trace_log, timing, "stopping synchronous actor", &[]);
                         break;
                     }
                 }
@@ -154,7 +144,7 @@ fn inbox_failure<T>(_: ReceiverConnected) -> T {
     panic!("failed to create new receiver for synchronous actor's inbox. Was the `SyncContext` leaked?");
 }
 
-fn clone_trace_log(trace_log: &mut Option<rt::trace::Log>) -> Option<rt::trace::Log> {
+fn clone_trace_log(trace_log: &mut Option<trace::Log>) -> Option<trace::Log> {
     if let Some(t_log) = trace_log.as_ref() {
         match t_log.try_clone() {
             Ok(trace_log) => Some(trace_log),

@@ -49,7 +49,7 @@ use std::thread::{self, Thread};
 use inbox::Receiver;
 
 use crate::actor::{NoMessages, RecvError};
-use crate::rt::trace;
+use crate::trace;
 
 /// Synchronous actor.
 ///
@@ -360,7 +360,7 @@ impl<M> SyncContext<M> {
     /// more information.
     ///
     /// [`finish_trace`]: SyncContext::finish_trace
-    /// [`trace`]: crate::rt::trace
+    /// [`trace`]: crate::trace
     pub fn start_trace(&self) -> Option<trace::EventTiming> {
         trace::start(&self.trace_log)
     }
@@ -371,7 +371,7 @@ impl<M> SyncContext<M> {
     /// means.
     ///
     /// [`start_trace`]: SyncContext::start_trace
-    /// [`trace`]: crate::rt::trace
+    /// [`trace`]: crate::trace
     pub fn finish_trace(
         &mut self,
         timing: Option<trace::EventTiming>,
