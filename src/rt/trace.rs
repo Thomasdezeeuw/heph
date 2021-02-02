@@ -70,6 +70,17 @@ impl Log {
         })
     }
 
+    /// Attempt to clone the log, writing the same stream.
+    pub(super) fn try_clone(&self) -> io::Result<Log> {
+        self.file.try_clone().map(|file| Log {
+            file,
+            stream_id: self.stream_id,
+            stream_counter: 0,
+            buf: Vec::with_capacity(BUF_SIZE),
+            epoch: self.epoch,
+        })
+    }
+
     /// Append `event` to trace `Log`.
     fn append(&mut self, event: &Event<'_>) -> io::Result<()> {
         const MAGIC: u32 = 0xC1FC1FB7;

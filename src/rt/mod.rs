@@ -27,9 +27,6 @@ use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn};
 use crate::actor_ref::{ActorGroup, ActorRef};
 use crate::supervisor::{Supervisor, SyncSupervisor};
 
-#[macro_use] // NOTE: must be first because we use the macro in the modules below.
-mod trace;
-
 mod coordinator;
 mod error;
 mod hack;
@@ -61,6 +58,7 @@ pub(crate) use timers::Timers; // Needed by the `test` module.
 pub(crate) use waker::Waker;
 
 pub mod options;
+pub mod trace;
 
 pub use access::Access;
 pub use error::Error;
