@@ -145,7 +145,7 @@ where
         panic!("spawned too many synchronous test actors");
     }
 
-    SyncWorker::start(id, supervisor, actor, arg, options).map(|(worker, actor_ref)| {
+    SyncWorker::start(id, supervisor, actor, arg, options, None).map(|(worker, actor_ref)| {
         let handle = worker.into_handle();
         (handle, actor_ref)
     })

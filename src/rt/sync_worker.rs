@@ -103,7 +103,7 @@ fn main<S, E, Arg, A, M>(
     loop {
         let timing = rt::trace::start(&trace_log);
         let receiver = inbox.new_receiver().unwrap_or_else(inbox_failure);
-        let ctx = SyncContext::new(receiver);
+        let ctx = SyncContext::new(receiver, clone_trace_log(&mut trace_log));
         rt::trace::finish(&mut trace_log, timing, "setting up synchronous actor", &[]);
 
         let timing = rt::trace::start(&trace_log);
