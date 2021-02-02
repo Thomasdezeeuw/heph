@@ -21,6 +21,7 @@ use crate::rt::scheduler::LocalScheduler;
 use crate::rt::timers::Timers;
 use crate::rt::waker::ThreadWaker;
 use crate::rt::{self, ProcessId, RuntimeInternal, RuntimeRef, SharedRuntimeInternal, Signal};
+use crate::trace;
 
 /// Handle to a worker thread.
 pub(super) struct Worker<E> {
@@ -60,7 +61,7 @@ impl<E> Worker<E> {
         setup: Option<S>,
         shared_internals: Arc<SharedRuntimeInternal>,
         auto_cpu_affinity: bool,
-        trace_log: Option<rt::trace::Log>,
+        trace_log: Option<trace::Log>,
     ) -> io::Result<Worker<S::Error>>
     where
         S: SetupFn<Error = E>,
@@ -146,12 +147,12 @@ fn main<S>(
     receiver: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
     shared_internals: Arc<SharedRuntimeInternal>,
     auto_cpu_affinity: bool,
-    mut trace_log: Option<rt::trace::Log>,
+    mut trace_log: Option<trace::Log>,
 ) -> Result<(), rt::Error<S::Error>>
 where
     S: SetupFn,
 {
-    let timing = rt::trace::start(&trace_log);
+    let timing = trace::start(&trace_log);
 
     #[cfg(target_os = "linux")]
     let cpu = if auto_cpu_affinity {
@@ -179,7 +180,7 @@ where
     let runtime = RunningRuntime::init(receiver, shared_internals, cpu)
         .map_err(|err| rt::Error::worker(Error::Init(err)))?;
 
-    rt::trace::finish(
+    trace::finish(
         &mut trace_log,
         timing,
         "Initialising the worker thread",
@@ -188,10 +189,10 @@ where
 
     // Run optional setup.
     if let Some(setup) = setup {
-        let timing = rt::trace::start(&trace_log);
+        let timing = trace::start(&trace_log);
         let runtime_ref = runtime.create_ref();
         setup.setup(runtime_ref).map_err(rt::Error::setup)?;
-        rt::trace::finish(&mut trace_log, timing, "Running user setup function", &[]);
+        trace::finish(&mut trace_log, timing, "Running user setup function", &[]);
     }
 
     // All setup is done, so we're ready to run the event loop.
@@ -334,10 +335,7 @@ impl RunningRuntime {
     }
 
     /// Run the runtime's event loop.
-    fn run_event_loop<E>(
-        mut self,
-        trace_log: &mut Option<rt::trace::Log>,
-    ) -> Result<(), rt::Error<E>> {
+    fn run_event_loop<E>(mut self, trace_log: &mut Option<trace::Log>) -> Result<(), rt::Error<E>> {
         debug!("running runtime's event loop");
         // Runtime reference used in running the processes.
         let mut runtime_ref = self.create_ref();
@@ -359,7 +357,7 @@ impl RunningRuntime {
 
                 let process = self.internal.scheduler.borrow_mut().next_process();
                 if let Some(mut process) = process {
-                    let timing = rt::trace::start(&trace_log);
+                    let timing = trace::start(&trace_log);
                     let pid = process.as_ref().id();
                     let name = process.as_ref().name();
                     match process.as_mut().run(&mut runtime_ref) {
@@ -368,7 +366,7 @@ impl RunningRuntime {
                             self.internal.scheduler.borrow_mut().add_process(process);
                         }
                     }
-                    rt::trace::finish(
+                    trace::finish(
                         trace_log,
                         timing,
                         "Running thread-local process",
@@ -380,7 +378,7 @@ impl RunningRuntime {
 
                 let process = self.internal.shared.scheduler.try_steal();
                 if let Some(mut process) = process {
-                    let timing = rt::trace::start(&trace_log);
+                    let timing = trace::start(&trace_log);
                     let pid = process.as_ref().id();
                     let name = process.as_ref().name();
                     match process.as_mut().run(&mut runtime_ref) {
@@ -391,7 +389,7 @@ impl RunningRuntime {
                             self.internal.shared.scheduler.add_process(process);
                         }
                     }
-                    rt::trace::finish(
+                    trace::finish(
                         trace_log,
                         timing,
                         "Running thread-safe process",
@@ -420,16 +418,16 @@ impl RunningRuntime {
     /// Schedule processes.
     ///
     /// This polls all event subsystems and schedules processes based on them.
-    fn schedule_processes(&mut self, trace_log: &mut Option<rt::trace::Log>) -> Result<(), Error> {
+    fn schedule_processes(&mut self, trace_log: &mut Option<trace::Log>) -> Result<(), Error> {
         trace!("polling event sources to schedule processes");
 
         // Start with polling for OS events.
-        let timing = rt::trace::start(&trace_log);
+        let timing = trace::start(&trace_log);
         self.poll().map_err(Error::Polling)?;
-        rt::trace::finish(trace_log, timing, "Polling for OS events", &[]);
+        trace::finish(trace_log, timing, "Polling for OS events", &[]);
 
         // Based on the OS event scheduler thread-local processes.
-        let timing = rt::trace::start(&trace_log);
+        let timing = trace::start(&trace_log);
         let mut scheduler = self.internal.scheduler.borrow_mut();
         let mut check_coordinator = false;
         for event in self.events.iter() {
@@ -440,15 +438,15 @@ impl RunningRuntime {
                 token => scheduler.mark_ready(token.into()),
             }
         }
-        rt::trace::finish(trace_log, timing, "Handling OS events", &[]);
+        trace::finish(trace_log, timing, "Handling OS events", &[]);
 
         // User space wake up events, e.g. used by the `Future` task system.
         trace!("polling wakup events");
-        let timing = rt::trace::start(&trace_log);
+        let timing = trace::start(&trace_log);
         for pid in self.waker_events.try_iter() {
             scheduler.mark_ready(pid);
         }
-        rt::trace::finish(
+        trace::finish(
             trace_log,
             timing,
             "Scheduling thread-local processes based on wake-up events",
@@ -457,11 +455,11 @@ impl RunningRuntime {
 
         // User space timers, powers the `timer` module.
         trace!("polling timers");
-        let timing = rt::trace::start(&trace_log);
+        let timing = trace::start(&trace_log);
         for pid in self.internal.timers.borrow_mut().deadlines() {
             scheduler.mark_ready(pid);
         }
-        rt::trace::finish(
+        trace::finish(
             trace_log,
             timing,
             "Scheduling thread-local processes based on timers",
@@ -472,9 +470,9 @@ impl RunningRuntime {
             // Don't need this anymore.
             drop(scheduler);
             // Process coordinator messages.
-            let timing = rt::trace::start(&trace_log);
+            let timing = trace::start(&trace_log);
             self.check_coordinator()?;
-            rt::trace::finish(trace_log, timing, "Process coordinator messages", &[]);
+            trace::finish(trace_log, timing, "Process coordinator messages", &[]);
         }
         Ok(())
     }

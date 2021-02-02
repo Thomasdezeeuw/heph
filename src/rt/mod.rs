@@ -26,6 +26,7 @@ use crate::actor::sync::SyncActor;
 use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn};
 use crate::actor_ref::{ActorGroup, ActorRef};
 use crate::supervisor::{Supervisor, SyncSupervisor};
+use crate::trace;
 
 mod coordinator;
 mod error;
@@ -58,7 +59,6 @@ pub(crate) use timers::Timers; // Needed by the `test` module.
 pub(crate) use waker::Waker;
 
 pub mod options;
-pub mod trace;
 
 pub use access::Access;
 pub use error::Error;
