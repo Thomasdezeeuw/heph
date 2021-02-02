@@ -3,11 +3,13 @@
 use std::io::{self, Write};
 use std::thread;
 
-use log::trace;
+use inbox::ReceiverConnected;
+use log::{trace, warn};
 use mio::unix;
 use mio::{Interest, Registry, Token};
 
 use crate::actor::sync::{SyncActor, SyncContext};
+use crate::rt;
 use crate::rt::options::SyncActorOptions;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 use crate::ActorRef;
@@ -30,6 +32,7 @@ impl SyncWorker {
         actor: A,
         arg: Arg,
         options: SyncActorOptions,
+        trace_log: Option<rt::trace::Log>,
     ) -> io::Result<(SyncWorker, ActorRef<M>)>
     where
         Sv: SyncSupervisor<A> + Send + 'static,
@@ -38,16 +41,15 @@ impl SyncWorker {
         M: Send + 'static,
     {
         unix::pipe::new().and_then(|(sender, receiver)| {
-            let (manager, send, ..) = inbox::Manager::new_small_channel();
+            let (manager, send, _) = inbox::Manager::new_small_channel();
             let actor_ref = ActorRef::local(send);
             let thread_name = options
                 .thread_name
                 .unwrap_or_else(|| format!("Sync actor {}", id));
             thread::Builder::new()
                 .name(thread_name)
-                .spawn(move || main(supervisor, actor, arg, manager, receiver))
-                .map(|handle| SyncWorker { id, handle, sender })
-                .map(|worker| (worker, actor_ref))
+                .spawn(move || main(supervisor, actor, arg, manager, receiver, trace_log))
+                .map(|handle| (SyncWorker { id, handle, sender }, actor_ref))
         })
     }
 
@@ -92,29 +94,76 @@ fn main<S, E, Arg, A, M>(
     mut arg: Arg,
     inbox: inbox::Manager<M>,
     receiver: unix::pipe::Receiver,
+    mut trace_log: Option<rt::trace::Log>,
 ) where
     S: SyncSupervisor<A> + 'static,
     A: SyncActor<Message = M, Argument = Arg, Error = E>,
 {
     trace!("running synchronous actor");
     loop {
-        let receiver = inbox.new_receiver().expect(
-            "failed to create new receiver for actor's inbox. Was the `SyncContext` leaked?",
-        );
+        let timing = rt::trace::start(&trace_log);
+        let receiver = inbox.new_receiver().unwrap_or_else(inbox_failure);
         let ctx = SyncContext::new(receiver);
-        match actor.run(ctx, arg) {
+        rt::trace::finish(&mut trace_log, timing, "setting up synchronous actor", &[]);
+
+        let timing = rt::trace::start(&trace_log);
+        let res = actor.run(ctx, arg);
+        rt::trace::finish(&mut trace_log, timing, "running synchronous actor", &[]);
+
+        match res {
             Ok(()) => break,
-            Err(err) => match supervisor.decide(err) {
-                SupervisorStrategy::Restart(new_arg) => {
-                    trace!("restarting synchronous actor");
-                    arg = new_arg
+            Err(err) => {
+                let timing = rt::trace::start(&trace_log);
+                match supervisor.decide(err) {
+                    SupervisorStrategy::Restart(new_arg) => {
+                        trace!("restarting synchronous actor");
+                        arg = new_arg;
+                        rt::trace::finish(
+                            &mut trace_log,
+                            timing,
+                            "restarting synchronous actor",
+                            &[],
+                        );
+                    }
+                    SupervisorStrategy::Stop => {
+                        rt::trace::finish(
+                            &mut trace_log,
+                            timing,
+                            "stopping synchronous actor",
+                            &[],
+                        );
+                        break;
+                    }
                 }
-                SupervisorStrategy::Stop => break,
-            },
+            }
         }
     }
 
     trace!("stopping synchronous actor");
-    // Let the coordinator know we're done.
+    // First drop all values as this might take an arbiterary time.
+    drop(actor);
+    drop(supervisor);
+    drop(inbox);
+    drop(trace_log);
+    // After dropping all values let the coordinator know we're done.
     drop(receiver);
+}
+
+#[cold]
+fn inbox_failure<T>(_: ReceiverConnected) -> T {
+    panic!("failed to create new receiver for synchronous actor's inbox. Was the `SyncContext` leaked?");
+}
+
+fn clone_trace_log(trace_log: &mut Option<rt::trace::Log>) -> Option<rt::trace::Log> {
+    if let Some(t_log) = trace_log.as_ref() {
+        match t_log.try_clone() {
+            Ok(trace_log) => Some(trace_log),
+            Err(err) => {
+                warn!("failed to clone trace log: {}, disabling tracing for synchronous actor on next restart", err);
+                trace_log.take()
+            }
+        }
+    } else {
+        None
+    }
 }
