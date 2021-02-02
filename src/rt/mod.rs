@@ -72,8 +72,15 @@ use sync_worker::SyncWorker;
 use waker::{WakerId, MAX_THREADS};
 use worker::Worker;
 
-pub(crate) const SYNC_WORKER_ID_START: usize = MAX_THREADS + 1 + 1; // Worker ids start at 1.
+pub(crate) const SYNC_WORKER_ID_START: usize = 10000;
 pub(crate) const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
+
+#[test]
+#[allow(clippy::assertions_on_constants)] // This is the point of the test.
+fn sync_worker_id() {
+    // Sync worker and worker thread ids may not overlap.
+    assert!(SYNC_WORKER_ID_START > MAX_THREADS + 1); // Worker ids start at 1.
+}
 
 /// The runtime that runs all actors.
 ///
