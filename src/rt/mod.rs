@@ -281,6 +281,27 @@ impl<S> Runtime<S> {
         self
     }
 
+    /// Generate a trace of the runtime, writing it to the file specified by
+    /// `path`.
+    ///
+    /// See the [`mod@trace`] module for more information.
+    ///
+    /// # Notes
+    ///
+    /// To enable tracing of synchronous actors this must be called before
+    /// calling [`spawn_sync_actor`].
+    ///
+    /// [`spawn_sync_actor`]: Runtime::spawn_sync_actor
+    pub fn enable_tracing<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error> {
+        match trace::Log::open(path.as_ref(), coordinator::TRACE_ID) {
+            Ok(trace_log) => {
+                self.trace_log = Some(trace_log);
+                Ok(())
+            }
+            Err(err) => Err(Error::setup_trace(err)),
+        }
+    }
+
     /// Attempt to spawn a new thead-safe actor.
     ///
     /// See the [`Spawn`] trait for more information.
@@ -379,27 +400,6 @@ impl<S> Runtime<S>
 where
     S: SetupFn,
 {
-    /// Generate a trace of the runtime, writing it to the file specified by
-    /// `path`.
-    ///
-    /// The [Trace Format] design document describes the layout of the trace,
-    /// found in the `doc` directory of the repository. It can be converted into
-    /// [Chrome's Trace Event Format] use the convertion tool found in the
-    /// `tools` directory. Also see example 8 Runtime Tracing in
-    /// examples/README.md which shows a complete example.
-    ///
-    /// [Trace Format]:  https://github.com/Thomasdezeeuw/heph/blob/master/doc/Trace%20Format.md
-    /// [Chrome's Trace Event Format]: https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
-    pub fn enable_tracing<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error<S::Error>> {
-        match trace::Log::open(path.as_ref(), coordinator::TRACE_ID) {
-            Ok(trace_log) => {
-                self.trace_log = Some(trace_log);
-                Ok(())
-            }
-            Err(err) => Err(Error::setup_trace(err)),
-        }
-    }
-
     /// Run the runtime.
     ///
     /// This will spawn a number of worker threads (see
