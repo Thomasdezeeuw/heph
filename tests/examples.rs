@@ -169,13 +169,16 @@ fn run_example_output(name: &'static str) -> String {
 
 /// Run an already build example
 fn run_example(name: &'static str) -> ChildCommand {
-    Command::new(format!("target/debug/examples/{}", name))
+    let cmd = Command::new(format!("target/debug/examples/{}", name))
         .stdin(Stdio::null())
         .stderr(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
         .map(|inner| ChildCommand { inner })
-        .expect("unable to run example")
+        .expect("unable to run example");
+    // Give the process some time to start.
+    sleep(Duration::from_millis(100));
+    cmd
 }
 
 /// Read the standard output of the child command.
