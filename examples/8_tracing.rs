@@ -5,29 +5,35 @@ use std::time::Duration;
 
 use log::warn;
 
+use heph::actor::sync::SyncContext;
 use heph::actor_ref::{ActorRef, SendError};
+use heph::rt::options::SyncActorOptions;
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
 use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 
 fn main() -> Result<(), rt::Error> {
-    let mut runtime = Runtime::new()?.with_setup(setup);
-
+    let mut runtime = Runtime::new()?;
     // Enable tracing of the runtime.
     runtime.enable_tracing("heph_tracing_example.bin.log")?;
 
-    runtime.start()
+    // Spawn our printing actor.
+    // NOTE: to enable tracing for this sync actor it must be spawned after
+    // enabling tracing.
+    let options = SyncActorOptions::default().with_name("Printer".to_owned());
+    let print_actor = print_actor as fn(_) -> _;
+    let actor_ref = runtime.spawn_sync_actor(NoSupervisor, print_actor, (), options)?;
+
+    runtime
+        .with_setup(|runtime_ref| setup(runtime_ref, actor_ref))
+        .start()
 }
 
 const CHAIN_SIZE: usize = 5;
 
-/// Setup function will start a chain of `relay_actors` and a final
-/// `print_actor`, just to create some activity for the trace.
-fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-    let print_actor = print_actor as fn(_) -> _;
+/// Setup function will start a chain of `relay_actors`, just to create some
+/// activity for the trace.
+fn setup(mut runtime_ref: RuntimeRef, actor_ref: ActorRef<&'static str>) -> Result<(), !> {
     let relay_actor = relay_actor as fn(_, _) -> _;
-
-    // Spawn our printing actor.
-    let actor_ref = runtime_ref.spawn_local(NoSupervisor, print_actor, (), ActorOptions::default());
 
     // Create a chain of relay actors that will relay messages to the next
     // actor.
@@ -70,12 +76,24 @@ async fn relay_actor(
     Ok(())
 }
 
-/// Actor that prints all messages it receives.
-async fn print_actor(mut ctx: actor::Context<&'static str>) -> Result<(), !> {
-    while let Ok(msg) = ctx.receive_next().await {
+/// Sync actor that prints all messages it receives.
+fn print_actor(mut ctx: SyncContext<&'static str>) -> Result<(), !> {
+    loop {
+        // Start timing of receiving a message.
+        let timing = ctx.start_trace();
+        let msg = if let Ok(msg) = ctx.receive_next() {
+            msg
+        } else {
+            break;
+        };
+        // Finish timing.
+        ctx.finish_trace(timing, "receiving message", &[]);
+
+        let timing = ctx.start_trace();
         // Sleep to extend the duration of the trace.
         sleep(Duration::from_millis(5));
         println!("Received message: {}", msg);
+        ctx.finish_trace(timing, "printing message", &[("message", &msg)]);
     }
     Ok(())
 }

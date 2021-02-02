@@ -70,7 +70,7 @@ Trace Event Format] so it can be opened by [Catapult trace view].
  $ cargo run --bin convert_trace ../heph_tracing_example.bin.log heph_tracing_example.json
                                        # Make the trace viewable in HTML.
  $ $(CAPAPULT_REPO)/tracing/bin/trace2html heph_tracing_example.json
- $ open heph_tracing_example.json      # Finally open the trace in your browser.
+ $ open heph_tracing_example.html      # Finally open the trace in your browser.
 ```
 
 [Trace Format design document]: ../doc/Trace%20Format.md
