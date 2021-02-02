@@ -50,15 +50,17 @@
 //! [actor]: https://en.wikipedia.org/wiki/Actor_model
 //! [`TcpListener`]: crate::net::TcpListener
 //! [`Mutex`]: std::sync::Mutex
-//! [atomic]: https://doc.rust-lang.org/std/sync/atomic/index.html
+//! [atomic]: std::sync::atomic
 //! [actor model]: https://en.wikipedia.org/wiki/Actor_model
 //!
 //!
 //! ## Getting started
 //!
-//! The easiest way to get start with Heph is looking at the examples in the
+//! The easiest way to get start with Heph is looking at the [examples] in the
 //! examples directory of the source code. Or by looking through the API
 //! documentation, starting with [`Runtime`].
+//!
+//! [examples]: https://github.com/Thomasdezeeuw/heph/blob/master/examples/README.md
 //!
 //!
 //! ## Features
