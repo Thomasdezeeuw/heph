@@ -349,7 +349,16 @@ impl<S> Runtime<S> {
         // NOTE: a sync actor function (not pointer) *does* work with
         // `actor::name`.
         debug!("spawning synchronous actor: pid={}", id);
-        SyncWorker::start(id, supervisor, actor, arg, options)
+
+        let trace_log = if let Some(trace_log) = &self.trace_log {
+            let trace_log = trace_log
+                .new_stream(id as u32)
+                .map_err(Error::start_sync_actor)?;
+            Some(trace_log)
+        } else {
+            None
+        };
+        SyncWorker::start(id, supervisor, actor, arg, options, trace_log)
             .map(|(worker, actor_ref)| {
                 self.sync_actors.push(worker);
                 actor_ref
