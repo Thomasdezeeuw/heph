@@ -1,4 +1,74 @@
 //! Tracing utilities.
+//!
+//! Using the tracing facilities of Heph is a three step process.
+//!
+//! 1. Enabling tracing.
+//! 2. Creating trace events.
+//! 3. Interpreting the trace output.
+//!
+//! # Enabling Tracing
+//!
+//! Tracing is enabled by calling [`Runtime::enable_tracing`] when creating the
+//! runtime.
+//!
+//! Note that this should be one of the first calls to make after creating the
+//! runtime. If a synchronous actor is spawned before the call to
+//! `enable_tracing` **tracing will not be enabled for this actor**.
+//!
+//! [`Runtime::enable_tracing`]: crate::rt::Runtime::enable_tracing
+//!
+//! # Creating Trace Events
+//!
+//! The runtime internals already add their own trace events, e.g. when running
+//! actors, but users can also log their own events. Actors can log trace event
+//! using the `start_trace` and `finish_trace` methods on there context, i.e.
+//! [`actor::Context`] or [`SyncContext`].
+//!
+//! Calling `start_trace` will start timing an event by returning
+//! [`EventTiming`]. Next the actor should execute the action(s) it wants to
+//! trace, e.g. receiving a message.
+//!
+//! After the actions have finished `finish_trace` should be called with the
+//! timing returned by `start_trace`. In addition to the timing it should also
+//! include a human readable `description` and optional `attributes`. The
+//! attributes are a slice of key-value pairs, where the key is a string and the
+//! value is of the type [`AttributeValue`]. [`AttributeValue`] supports most
+//! primitives types, compound types are not supported and should be split into
+//! multiple key-value pairs.
+//!
+//! Nested trace events are supported, simply call `start_trace` (and
+//! `finish_trace`) twice. In the interpreting of the trace log events are
+//! parsed in such a way that parent-child relations become clear if trace
+//! events are created by the same actor.
+//!
+//! [`actor::Context`]: crate::actor::Context
+//! [`SyncContext`]: crate::actor::sync::SyncContext
+//!
+//! ## Notes
+//!
+//! You might notice that the `start_trace` doesn't actually return
+//! `EventTiming`, but `Option<EventTiming>`, and `finish_trace` accepts
+//! `Option<EventTiming>`. This is to support the case when tracing is disabled.
+//! This makes it easier to leave the code in-place and don't have to deal with
+//! `#[cfg(is_tracing_enabled)]` attributes etc. When tracing it disabled
+//! `start_trace` will return `None` and if `None` is passed to `finish_trace`
+//! is effectively a no-op.
+//!
+//! # Interpreting the trace output
+//!
+//! Once a trace log is created its now time to interpret it. The [Trace Format]
+//! design document describes the layout of the trace, found in the `doc`
+//! directory of the repository.
+//!
+//! However as it's a binary format it can be hard to read. So tools are
+//! provided to convert into [Chrome's Trace Event Format], which can be viewed
+//! using [Catapult]. [Example 8 "Runtime Tracing"] shows a complete example of
+//! this.
+//!
+//! [Trace Format]: https://github.com/Thomasdezeeuw/heph/blob/master/doc/Trace%20Format.md
+//! [Chrome's Trace Event Format]: https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
+//! [Catapult]: https://chromium.googlesource.com/catapult/+/refs/heads/master/tracing/README.md
+//! [Example 8 "Runtime Tracing"]: https://github.com/Thomasdezeeuw/heph/blob/master/examples/README.md#8-runtime-tracing
 
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
