@@ -11,8 +11,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use heph::actor::context::ThreadSafe;
-use heph::restart_supervisor;
-use heph::{actor, Actor, NewActor, Supervisor, SupervisorStrategy};
+use heph::{actor, restart_supervisor, Actor, NewActor, Supervisor, SupervisorStrategy};
 
 // NOTE: keep in sync with the documentation.
 const DEFAULT_MAX_RESTARTS: usize = 5;
@@ -49,7 +48,7 @@ fn new_actor_single_argument() {
 fn new_actor_tuple_argument() {
     restart_supervisor!(Supervisor, "my actor", (String, usize));
     // Should be able to directly pass argument.
-    let _supervisor = Supervisor::new(("Hello World".to_owned(), 123));
+    let _supervisor = Supervisor::new("Hello World".to_owned(), 123);
     assert_eq!(Supervisor::MAX_RESTARTS, DEFAULT_MAX_RESTARTS);
     assert_eq!(Supervisor::MAX_DURATION, DEFAULT_MAX_DURATION);
 }
@@ -79,7 +78,7 @@ fn no_log_tuple_argument() {
         2,
         Duration::from_secs(10)
     );
-    let _supervisor = Supervisor::new((123, 456));
+    let _supervisor = Supervisor::new(123, 456);
     assert_eq!(Supervisor::MAX_RESTARTS, 2);
     assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(10));
 }
@@ -127,9 +126,55 @@ fn all_tuple_argument() {
         args.0,
         args.1,
     );
-    let _supervisor = Supervisor::new((123, 456));
+    let _supervisor = Supervisor::new(123, 456);
     assert_eq!(Supervisor::MAX_RESTARTS, 2);
     assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(10));
+}
+
+#[test]
+fn typle_2() {
+    restart_supervisor!(Supervisor, "my actor", (String, usize));
+    // Should be able to directly pass argument.
+    let _supervisor = Supervisor::new("Hello World".to_owned(), 123);
+}
+
+#[test]
+fn typle_3() {
+    restart_supervisor!(Supervisor, "my actor", (String, usize, u8));
+    // Should be able to directly pass argument.
+    let _supervisor = Supervisor::new("Hello World".to_owned(), 123, 1);
+}
+
+#[test]
+fn typle_4() {
+    restart_supervisor!(Supervisor, "my actor", (String, usize, u8, &'static str));
+    // Should be able to directly pass argument.
+    let _supervisor = Supervisor::new("Hello World".to_owned(), 123, 1, "arg");
+}
+
+#[test]
+fn typle_5() {
+    restart_supervisor!(
+        Supervisor,
+        "my actor",
+        (String, usize, u8, &'static str, u8)
+    );
+    // Should be able to directly pass argument.
+    let _supervisor = Supervisor::new("Hello World".to_owned(), 123, 1, "arg", 1);
+}
+
+#[test]
+fn typle_6() {
+    restart_supervisor!(Supervisor, "my actor", (String, usize, u8, u8, u8, u8));
+    // Should be able to directly pass argument.
+    let _supervisor = Supervisor::new("Hello World".to_owned(), 123, 1, 2, 3, 4);
+}
+
+#[test]
+fn typle_7() {
+    restart_supervisor!(Supervisor, "my actor", (String, usize, u8, u8, u8, u8, u8));
+    // Need to use tuple format.
+    let _supervisor = Supervisor::new(("Hello World".to_owned(), 123, 1, 2, 3, 4, 5));
 }
 
 const ERROR1: &str = "error 1";

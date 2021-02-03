@@ -351,7 +351,7 @@ where
 /// );
 ///
 /// // Create a new supervisor.
-/// let supervisor = MySupervisor::new((true, 23));
+/// let supervisor = MySupervisor::new(true, 23);
 /// # drop(supervisor);
 /// ```
 #[macro_export]
@@ -400,6 +400,7 @@ macro_rules! restart_supervisor {
 }
 
 /// Private macro to implement the [`restart_supervisor`].
+#[doc(hidden)]
 #[macro_export]
 macro_rules! __heph_restart_supervisor_impl {
     (
@@ -420,6 +421,7 @@ macro_rules! __heph_restart_supervisor_impl {
                 "within a duration of: `", stringify!($max_duration), "`.",
             ),
             #[derive(Debug)]
+            #[allow(unused_qualifications)]
             $vis struct $supervisor_name {
                 /// The number of restarts left.
                 restarts_left: std::primitive::usize,
@@ -430,6 +432,7 @@ macro_rules! __heph_restart_supervisor_impl {
             }
         );
 
+        #[allow(unused_qualifications)]
         impl $supervisor_name {
             /// Maximum number of restarts within a [`Self::MAX_DURATION`] time
             /// period before the actor is stopped.
@@ -563,7 +566,77 @@ macro_rules! __heph_restart_supervisor_impl {
         );
     };
     // Tuple type as argument.
-    // TODO: expand arguments passed to the `new` function.
+    // Tuple of 2.
+    (impl_new $vis: vis $supervisor_name: ident, ($arg0: ty, $arg1: ty)) => {
+        $crate::__heph_doc!(
+            std::concat!("Create a new `", stringify!($supervisor_name), "`."),
+            #[allow(dead_code)]
+            $vis const fn new(arg0: $arg0, arg1: $arg1) -> $supervisor_name {
+                $supervisor_name {
+                    restarts_left: Self::MAX_RESTARTS,
+                    last_restart: None,
+                    args: (arg0, arg1),
+                }
+            }
+        );
+    };
+    // Tuple of 3.
+    (impl_new $vis: vis $supervisor_name: ident, ($arg0: ty, $arg1: ty, $arg2: ty)) => {
+        $crate::__heph_doc!(
+            std::concat!("Create a new `", stringify!($supervisor_name), "`."),
+            #[allow(dead_code)]
+            $vis const fn new(arg0: $arg0, arg1: $arg1, arg2: $arg2) -> $supervisor_name {
+                $supervisor_name {
+                    restarts_left: Self::MAX_RESTARTS,
+                    last_restart: None,
+                    args: (arg0, arg1, arg2),
+                }
+            }
+        );
+    };
+    // Tuple of 4.
+    (impl_new $vis: vis $supervisor_name: ident, ($arg0: ty, $arg1: ty, $arg2: ty, $arg3: ty)) => {
+        $crate::__heph_doc!(
+            std::concat!("Create a new `", stringify!($supervisor_name), "`."),
+            #[allow(dead_code)]
+            $vis const fn new(arg0: $arg0, arg1: $arg1, arg2: $arg2, arg3: $arg3) -> $supervisor_name {
+                $supervisor_name {
+                    restarts_left: Self::MAX_RESTARTS,
+                    last_restart: None,
+                    args: (arg0, arg1, arg2, arg3),
+                }
+            }
+        );
+    };
+    // Tuple of 5.
+    (impl_new $vis: vis $supervisor_name: ident, ($arg0: ty, $arg1: ty, $arg2: ty, $arg3: ty, $arg4: ty)) => {
+        $crate::__heph_doc!(
+            std::concat!("Create a new `", stringify!($supervisor_name), "`."),
+            #[allow(dead_code)]
+            $vis const fn new(arg0: $arg0, arg1: $arg1, arg2: $arg2, arg3: $arg3, arg4: $arg4) -> $supervisor_name {
+                $supervisor_name {
+                    restarts_left: Self::MAX_RESTARTS,
+                    last_restart: None,
+                    args: (arg0, arg1, arg2, arg3, arg4),
+                }
+            }
+        );
+    };
+    // Tuple of 6.
+    (impl_new $vis: vis $supervisor_name: ident, ($arg0: ty, $arg1: ty, $arg2: ty, $arg3: ty, $arg4: ty, $arg5: ty)) => {
+        $crate::__heph_doc!(
+            std::concat!("Create a new `", stringify!($supervisor_name), "`."),
+            #[allow(dead_code)]
+            $vis const fn new(arg0: $arg0, arg1: $arg1, arg2: $arg2, arg3: $arg3, arg4: $arg4, arg5: $arg5) -> $supervisor_name {
+                $supervisor_name {
+                    restarts_left: Self::MAX_RESTARTS,
+                    last_restart: None,
+                    args: (arg0, arg1, arg2, arg3, arg4, arg5),
+                }
+            }
+        );
+    };
+    // Tuple of 6+.
     (impl_new $vis: vis $supervisor_name: ident, ( $( $arg: ty ),* )) => {
         $crate::__heph_doc!(
             std::concat!("Create a new `", stringify!($supervisor_name), "`."),
@@ -580,8 +653,8 @@ macro_rules! __heph_restart_supervisor_impl {
 }
 
 /// Helper macro to document type created in [`restart_supervisor`].
-#[macro_export]
 #[doc(hidden)]
+#[macro_export]
 macro_rules! __heph_doc {
     ($doc: expr, $( $tt: tt )*) => {
         #[doc = $doc]
