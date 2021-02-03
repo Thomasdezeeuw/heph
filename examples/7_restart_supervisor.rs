@@ -6,7 +6,7 @@ use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, SyncActorOptions};
 use heph::{actor, restart_supervisor};
 
 fn main() -> Result<(), rt::Error> {
-    heph::log::init();
+    std_logger::init();
     let mut runtime = Runtime::new()?;
 
     let sync_actor = sync_print_actor as fn(_, _) -> _;

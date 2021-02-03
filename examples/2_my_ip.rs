@@ -4,11 +4,11 @@ use std::io;
 use std::net::SocketAddr;
 
 use heph::actor::{self, context, NewActor};
-use heph::log::{self, error, info};
 use heph::net::{tcp, TcpServer, TcpStream};
 use heph::rt::options::Priority;
 use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph::{rt, ActorOptions, Runtime};
+use log::{error, info};
 
 fn main() -> Result<(), rt::Error<io::Error>> {
     // For this example we'll enable logging, this give us a bit more insight
@@ -16,7 +16,7 @@ fn main() -> Result<(), rt::Error<io::Error>> {
     // messages, the environment variable `LOG_LEVEL` can be set to change this.
     // For example enabling logging of trace severity message can be done by
     // setting `LOG_LEVEL=trace`.
-    log::init();
+    std_logger::init();
 
     // Create our TCP server. This server will create a new actor for each
     // incoming TCP connection. As always, actors needs supervision, this is

@@ -263,11 +263,11 @@ pub trait NewActor {
     /// # use heph::actor::messages::Terminate;
     /// # use heph::actor::context;
     /// use heph::actor::{self, NewActor};
-    /// # use heph::log::error;
     /// use heph::net::{TcpServer, TcpStream};
     /// # use heph::net::tcp::server;
     /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
     /// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
+    /// # use log::error;
     ///
     /// fn main() -> Result<(), rt::Error<io::Error>> {
     ///     // Create and run runtime

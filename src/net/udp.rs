@@ -70,7 +70,7 @@ pub enum Connected {}
 /// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
 ///
 /// fn main() -> Result<(), rt::Error> {
-///     heph::log::init();
+///     std_logger::init();
 ///
 ///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
 /// }
