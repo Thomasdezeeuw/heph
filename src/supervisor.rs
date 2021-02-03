@@ -65,13 +65,13 @@
 //! ```
 //! #![feature(never_type)]
 //!
-//! use heph::log::{self, error};
 //! use heph::supervisor::SupervisorStrategy;
 //! use heph::{actor, rt, ActorOptions, Runtime};
+//! use log::error;
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     // Enable logging so we can see the error message.
-//!     log::init();
+//!     std_logger::init();
 //!
 //!     Runtime::new().map_err(rt::Error::map_type)?
 //!         .with_setup(|mut runtime_ref| {

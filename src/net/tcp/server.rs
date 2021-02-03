@@ -155,11 +155,11 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///
 /// use heph::actor::{self, context, NewActor};
 /// # use heph::actor::messages::Terminate;
-/// use heph::log::error;
 /// use heph::net::tcp::{server, TcpServer, TcpStream};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::rt::options::Priority;
 /// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
+/// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error<io::Error>> {
 ///     // Create and start the Heph runtime.
@@ -248,12 +248,12 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// # use heph::actor::context;
 /// use heph::actor::messages::Terminate;
 /// use heph::{actor, NewActor};
-/// use heph::log::error;
 /// use heph::net::{TcpServer, TcpStream};
 /// # use heph::net::tcp;
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::rt::options::Priority;
 /// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
+/// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error<io::Error>> {
 ///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
@@ -335,11 +335,11 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use heph::actor::{self, NewActor};
 /// use heph::actor::context::ThreadSafe;
 /// # use heph::actor::messages::Terminate;
-/// use heph::log::error;
 /// use heph::net::tcp::{server, TcpServer, TcpStream};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::rt::options::Priority;
 /// use heph::{rt, ActorOptions, Runtime};
+/// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error<io::Error>> {
 ///     let mut runtime = Runtime::new().map_err(rt::Error::map_type)?;

@@ -11,7 +11,7 @@ use heph::supervisor::NoSupervisor;
 use heph::{actor, rt, ActorOptions, Runtime};
 
 fn main() -> Result<(), rt::Error> {
-    heph::log::init();
+    std_logger::init();
     Runtime::new()?
         .with_setup(move |mut runtime_ref| {
             const N: usize = 10_000_000;

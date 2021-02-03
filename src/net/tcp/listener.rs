@@ -38,12 +38,12 @@ use crate::rt::{self, PrivateAccess};
 /// use log::error;
 ///
 /// # use heph::net::TcpStream;
-/// use heph::log::request;
 /// use heph::net::TcpListener;
 /// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
+/// use log::info;
 ///
 /// fn main() -> Result<(), rt::Error> {
-///     heph::log::init();
+///     std_logger::init();
 ///
 ///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
 /// }
@@ -79,7 +79,7 @@ use crate::rt::{self, PrivateAccess};
 ///
 ///     // Accept a connection.
 ///     let (unbound_stream, peer_address) = listener.accept().await?;
-///     request!("accepted connection from: {}", peer_address);
+///     info!("accepted connection from: {}", peer_address);
 ///
 ///     // Next we need to bind the stream to this actor.
 ///     let mut stream = unbound_stream.bind_to(&mut ctx)?;
@@ -103,12 +103,12 @@ use crate::rt::{self, PrivateAccess};
 /// use log::error;
 ///
 /// # use heph::net::TcpStream;
-/// use heph::log::request;
 /// use heph::net::TcpListener;
 /// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
+/// use log::info;
 ///
 /// fn main() -> Result<(), rt::Error> {
-///     heph::log::init();
+///     std_logger::init();
 ///
 ///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
 /// }
@@ -145,7 +145,7 @@ use crate::rt::{self, PrivateAccess};
 /// #   let streams = streams.take(1);
 ///
 ///     streams.try_for_each(|(unbound_stream, peer_address)| {
-///         request!("accepted connection from: {}", peer_address);
+///         info!("accepted connection from: {}", peer_address);
 ///         // Next we need to bind the stream to this actor.
 ///         ready(unbound_stream.bind_to(&mut ctx)).and_then(async move |mut stream| {
 ///             // Next we write the IP address to the connection.
