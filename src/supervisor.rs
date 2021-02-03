@@ -288,11 +288,9 @@ where
 /// * Log friendly name of the actor, used in logging.
 /// * Type of the argument(s) used to restart the actor. Multiple arguments must
 ///   be in the tuple format (same as for the [`NewActor::Argument`] type).
-/// * Maximum number of restarts (*optional*), defaults to 5. To use the
-///   default value and specify one of the following argument use `default`.
+/// * Maximum number of restarts (*optional*), defaults to 5.
 /// * Maximum duration before the restart counter get reset (*optional*),
-///   defaults to 5 seconds. To use the default value and specify one of the
-///   following argument use `default`.
+///   defaults to 5 seconds.
 /// * Additional logging message, defaults to nothing extra. This uses normal
 ///   [rust formatting rules] and is added at the end of the default message,
 ///   after the error. The `args` keyword gives access to the arguments. See
@@ -358,83 +356,57 @@ where
 /// ```
 #[macro_export]
 macro_rules! restart_supervisor {
-    // No non-optional arguments.
-    (
-        $vis: vis
-        $supervisor_name: ident,
-        $actor_name: expr,
-        $args: ty
-        $(,)*
-    ) => {
-        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 5);
+    // No non-optional arguments, unit `NewActor::Argument`.
+    ($vis: vis $supervisor_name: ident, $actor_name: expr $(,)*) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, $actor_name, (), 5, std::time::Duration::from_secs(5), "",);
     };
-    // With `max_restarts`.
-    (
-        $vis: vis
-        $supervisor_name: ident,
-        $actor_name: expr,
-        $args: ty,
-        $max_restarts: expr
-        $(,)*
-    ) => {
-        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, $max_restarts, std::time::Duration::from_secs(5));
+    ($vis: vis $supervisor_name: ident, $actor_name: expr, () $(,)*) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, $actor_name, (), 5, std::time::Duration::from_secs(5), "",);
     };
-    // With `max_restarts` and `max_duration`.
-    (
-        $vis: vis
-        $supervisor_name: ident,
-        $actor_name: expr,
-        $args: ty,
-        $max_restarts: expr,
-        $max_duration: expr
-        $(,)*
-    ) => {
-        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, $max_restarts, $max_duration, "",);
+    // No non-optional arguments, tuple `NewActor::Argument`.
+    ($vis: vis $supervisor_name: ident, $actor_name: expr, ( $( $arg: ty),* ) $(,)*) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, $actor_name, ( $( $arg ),* ), 5, std::time::Duration::from_secs(5), "",);
     };
-    // Using default `max_restarts` and `max_duration`, but with `log_extra`.
-    (
-        $vis: vis
-        $supervisor_name: ident,
-        $actor_name: expr,
-        $args: ty,
-        default,
-        default,
-        $log_extra: expr,
-        $( args $(. $log_arg_field: tt )* ),*
-    ) => {
-        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 5, std::time::Duration::from_secs(5), $log_extra, $( args $(. $log_arg_field )* ),*);
+    // No non-optional arguments, single `NewActor::Argument`.
+    ($vis: vis $supervisor_name: ident, $actor_name: expr, $arg: ty $(,)*) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, $actor_name, ( $arg ), 5, std::time::Duration::from_secs(5), "",);
     };
-    // Using default `max_duration`, but with `max_restarts` and `log_extra`.
-    (
-        $vis: vis
-        $supervisor_name: ident,
-        $actor_name: expr,
-        $args: ty,
-        $max_restarts: expr,
-        default,
-        $( args $(. $log_arg_field: tt )* ),*
-    ) => {
-        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, $max_restarts, std::time::Duration::from_secs(5), $log_extra, $( args $(. $log_arg_field )* ),*);
+
+    // No log extra, unit `NewActor::Argument`.
+    ($vis: vis $supervisor_name: ident, $actor_name: expr, (), $max_restarts: expr, $max_duration: expr $(,)*) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, $actor_name, (), $max_restarts, $max_duration, "",);
     };
-    // Using default `max_restarts`, but with `max_duration` and `log_extra`.
-    (
-        $vis: vis
-        $supervisor_name: ident,
-        $actor_name: expr,
-        $args: ty,
-        default,
-        $max_duration: expr,
-        $log_extra: expr,
-        $( args $(. $log_arg_field: tt )* ),*
-    ) => {
-        $crate::restart_supervisor!($vis $supervisor_name, $actor_name, $args, 5, $max_duration, $log_extra, $( args $(. $log_arg_field )* ),*);
+    // No log extra, tuple `NewActor::Argument`.
+    ($vis: vis $supervisor_name: ident, $actor_name: expr, ( $( $arg: ty ),* ), $max_restarts: expr, $max_duration: expr $(,)*) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, $actor_name, ( $( $arg ),* ), $max_restarts, $max_duration, "",);
     };
-    // All arguments.
+    // No log extra, single `NewActor::Argument`.
+    ($vis: vis $supervisor_name: ident, $actor_name: expr, $arg: ty, $max_restarts: expr, $max_duration: expr $(,)*) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, $actor_name, ( $arg ), $max_restarts, $max_duration, "",);
+    };
+
+    // All arguments, unit `NewActor::Argument`.
+    ($vis: vis $supervisor_name: ident, $actor_name: expr, (), $max_restarts: expr, $max_duration: expr, $log_extra: expr, $( args $(. $log_arg_field: tt )* ),* $(,)*) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, $actor_name, (), $max_restarts, $max_duration, $log_extra, $( args $(. $log_arg_field )* ),*);
+    };
+    // All arguments, tuple `NewActor::Argument`.
+    ($vis: vis $supervisor_name: ident, $actor_name: expr, ( $( $arg: ty ),* ), $max_restarts: expr, $max_duration: expr, $log_extra: expr, $( args $(. $log_arg_field: tt )* ),* $(,)*) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, $actor_name, ( $( $arg ),* ), $max_restarts, $max_duration, $log_extra, $( args $(. $log_arg_field )* ),*);
+    };
+    // All arguments, single `NewActor::Argument`.
+    ($vis: vis $supervisor_name: ident, $actor_name: expr, $arg: ty, $max_restarts: expr, $max_duration: expr, $log_extra: expr, $( args $(. $log_arg_field: tt )* ),* $(,)*) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, $actor_name, ( $arg ), $max_restarts, $max_duration, $log_extra, $( args $(. $log_arg_field )* ),*);
+    };
+}
+
+/// Private macro to implement the [`restart_supervisor`].
+#[macro_export]
+macro_rules! __heph_restart_supervisor_impl {
     (
         $vis: vis
         $supervisor_name: ident,
         $actor_name: expr,
-        $args: ty,
+        ( $( $arg: ty ),* ),
         $max_restarts: expr,
         $max_duration: expr,
         $log_extra: expr,
@@ -450,18 +422,18 @@ macro_rules! restart_supervisor {
             #[derive(Debug)]
             $vis struct $supervisor_name {
                 /// The number of restarts left.
-                restarts_left: usize,
+                restarts_left: std::primitive::usize,
                 /// Time of the last restart.
-                last_restart: Option<std::time::Instant>,
+                last_restart: std::option::Option<std::time::Instant>,
                 /// Arguments used to restart the actor.
-                args: $args,
+                args: ( $( $arg ),* ),
             }
         );
 
         impl $supervisor_name {
             /// Maximum number of restarts within a [`Self::MAX_DURATION`] time
             /// period before the actor is stopped.
-            $vis const MAX_RESTARTS: usize = $max_restarts;
+            $vis const MAX_RESTARTS: std::primitive::usize = $max_restarts;
 
             /// Maximum duration between errors to be considered of the same
             /// cause. If `MAX_DURATION` has elapsed between errors the restart
@@ -470,27 +442,17 @@ macro_rules! restart_supervisor {
             /// [`MAX_RESTARTS`]: Self::MAX_RESTARTS
             $vis const MAX_DURATION: std::time::Duration = $max_duration;
 
-            $crate::__heph_doc!(
-                std::concat!("Create a new `", stringify!($supervisor_name), "`."),
-                #[allow(dead_code)]
-                $vis const fn new(args: $args) -> $supervisor_name {
-                    $supervisor_name {
-                        restarts_left: Self::MAX_RESTARTS,
-                        last_restart: None,
-                        args,
-                    }
-                }
-            );
+            $crate::__heph_restart_supervisor_impl!(impl_new $vis $supervisor_name, ( $( $arg ),* ));
         }
 
         impl<NA> $crate::supervisor::Supervisor<NA> for $supervisor_name
         where
-            NA: $crate::NewActor<Argument = $args>,
+            NA: $crate::NewActor<Argument = ( $( $arg ),* )>,
             NA::Error: std::fmt::Display,
             <NA::Actor as $crate::Actor>::Error: std::fmt::Display,
         {
             fn decide(&mut self, err: <NA::Actor as $crate::Actor>::Error) -> $crate::SupervisorStrategy<NA::Argument> {
-                $crate::restart_supervisor!{_priv_decide_impl self, err, $actor_name, $max_restarts, $log_extra, $( args $(. $log_arg_field )* ),*}
+                $crate::__heph_restart_supervisor_impl!{decide_impl self, err, $actor_name, $max_restarts, $log_extra, $( args $(. $log_arg_field )* ),*}
             }
 
             fn decide_on_restart_error(&mut self, err: NA::Error) -> $crate::SupervisorStrategy<NA::Argument> {
@@ -522,16 +484,18 @@ macro_rules! restart_supervisor {
 
         impl<A> $crate::supervisor::SyncSupervisor<A> for $supervisor_name
         where
-            A: $crate::actor::sync::SyncActor<Argument = $args>,
+            A: $crate::actor::sync::SyncActor<Argument = ( $( $arg ),* )>,
             A::Error: std::fmt::Display,
         {
             fn decide(&mut self, err: A::Error) -> $crate::SupervisorStrategy<A::Argument> {
-                $crate::restart_supervisor!{_priv_decide_impl self, err, $actor_name, $max_restarts, $log_extra, $( args $(. $log_arg_field )* ),*}
+                $crate::__heph_restart_supervisor_impl!{decide_impl self, err, $actor_name, $max_restarts, $log_extra, $( args $(. $log_arg_field )* ),*}
             }
         }
     };
+
+    // The `decide` implementation of `Supervisor` and `SyncSupervisor`.
     (
-        _priv_decide_impl
+        decide_impl
         $self: ident,
         $err: ident,
         $actor_name: expr,
@@ -566,6 +530,52 @@ macro_rules! restart_supervisor {
             );
             $crate::SupervisorStrategy::Stop
         }
+    };
+
+    // TODO: DRY the implementations below.
+
+    // Unit (`()`) type as argument.
+    (impl_new $vis: vis $supervisor_name: ident, ()) => {
+        $crate::__heph_doc!(
+            std::concat!("Create a new `", stringify!($supervisor_name), "`."),
+            #[allow(dead_code)]
+            $vis const fn new() -> $supervisor_name {
+                $supervisor_name {
+                    restarts_left: Self::MAX_RESTARTS,
+                    last_restart: None,
+                    args: (),
+                }
+            }
+        );
+    };
+    // Single argument.
+    (impl_new $vis: vis $supervisor_name: ident, ( $arg: ty )) => {
+        $crate::__heph_doc!(
+            std::concat!("Create a new `", stringify!($supervisor_name), "`."),
+            #[allow(dead_code)]
+            $vis const fn new(arg: $arg) -> $supervisor_name {
+                $supervisor_name {
+                    restarts_left: Self::MAX_RESTARTS,
+                    last_restart: None,
+                    args: (arg),
+                }
+            }
+        );
+    };
+    // Tuple type as argument.
+    // TODO: expand arguments passed to the `new` function.
+    (impl_new $vis: vis $supervisor_name: ident, ( $( $arg: ty ),* )) => {
+        $crate::__heph_doc!(
+            std::concat!("Create a new `", stringify!($supervisor_name), "`."),
+            #[allow(dead_code)]
+            $vis const fn new(args: ( $( $arg ),* )) -> $supervisor_name {
+                $supervisor_name {
+                    restarts_left: Self::MAX_RESTARTS,
+                    last_restart: None,
+                    args,
+                }
+            }
+        );
     };
 }
 

@@ -35,8 +35,8 @@ restart_supervisor!(
     PrintSupervisor,
     "print actor",
     String,
-    default,
-    default,
+    5,
+    Duration::from_secs(5),
     ": actor message '{}'",
     args
 );

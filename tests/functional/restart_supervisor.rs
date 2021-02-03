@@ -19,85 +19,117 @@ const DEFAULT_MAX_RESTARTS: usize = 5;
 const DEFAULT_MAX_DURATION: Duration = Duration::from_secs(5);
 
 #[test]
-fn defaults_not_specified() {
-    restart_supervisor!(Supervisor, "my actor", ());
+fn new_actor_unit_argument() {
+    restart_supervisor!(Supervisor, "my actor");
+    // Should be able to create it without arguments passed to `new`.
+    let _supervisor = Supervisor::new();
     assert_eq!(Supervisor::MAX_RESTARTS, DEFAULT_MAX_RESTARTS);
     assert_eq!(Supervisor::MAX_DURATION, DEFAULT_MAX_DURATION);
 }
 
 #[test]
-fn defaults_with_max_restarts() {
-    restart_supervisor!(Supervisor, "my actor", (), 2);
-    assert_eq!(Supervisor::MAX_RESTARTS, 2);
+fn new_actor_unit_argument_explicit() {
+    restart_supervisor!(Supervisor, "my actor", ());
+    // Should be able to create it without arguments passed to `new`.
+    let _supervisor = Supervisor::new();
+    assert_eq!(Supervisor::MAX_RESTARTS, DEFAULT_MAX_RESTARTS);
     assert_eq!(Supervisor::MAX_DURATION, DEFAULT_MAX_DURATION);
 }
 
 #[test]
-fn defaults_with_max_restarts_and_duration() {
+fn new_actor_single_argument() {
+    restart_supervisor!(Supervisor, "my actor", String);
+    // Should be able to directly pass argument.
+    let _supervisor = Supervisor::new("Hello World".to_owned());
+    assert_eq!(Supervisor::MAX_RESTARTS, DEFAULT_MAX_RESTARTS);
+    assert_eq!(Supervisor::MAX_DURATION, DEFAULT_MAX_DURATION);
+}
+
+#[test]
+fn new_actor_tuple_argument() {
+    restart_supervisor!(Supervisor, "my actor", (String, usize));
+    // Should be able to directly pass argument.
+    let _supervisor = Supervisor::new(("Hello World".to_owned(), 123));
+    assert_eq!(Supervisor::MAX_RESTARTS, DEFAULT_MAX_RESTARTS);
+    assert_eq!(Supervisor::MAX_DURATION, DEFAULT_MAX_DURATION);
+}
+
+#[test]
+fn no_log_unit_argument() {
     restart_supervisor!(Supervisor, "my actor", (), 2, Duration::from_secs(10));
+    let _supervisor = Supervisor::new();
     assert_eq!(Supervisor::MAX_RESTARTS, 2);
     assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(10));
 }
 
 #[test]
-fn defaults_with_log_extra() {
+fn no_log_single_argument() {
+    restart_supervisor!(Supervisor, "my actor", usize, 2, Duration::from_secs(10));
+    let _supervisor = Supervisor::new(123);
+    assert_eq!(Supervisor::MAX_RESTARTS, 2);
+    assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(10));
+}
+
+#[test]
+fn no_log_tuple_argument() {
+    restart_supervisor!(
+        Supervisor,
+        "my actor",
+        (u8, u16),
+        2,
+        Duration::from_secs(10)
+    );
+    let _supervisor = Supervisor::new((123, 456));
+    assert_eq!(Supervisor::MAX_RESTARTS, 2);
+    assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(10));
+}
+
+#[test]
+fn all_unit_argument() {
     restart_supervisor!(
         Supervisor,
         "my actor",
         (),
-        default,
-        default,
-        "something extra",
-    );
-    assert_eq!(Supervisor::MAX_RESTARTS, DEFAULT_MAX_RESTARTS);
-    assert_eq!(Supervisor::MAX_DURATION, DEFAULT_MAX_DURATION);
-}
-
-#[test]
-fn defaults_with_log_extra_and_arg() {
-    restart_supervisor!(
-        Supervisor,
-        "my actor",
-        bool,
-        default,
-        default,
-        "something extra: {}",
-        args
-    );
-    assert_eq!(Supervisor::MAX_RESTARTS, DEFAULT_MAX_RESTARTS);
-    assert_eq!(Supervisor::MAX_DURATION, DEFAULT_MAX_DURATION);
-}
-
-/* FIXME: can't use default twice as it will be picked up as `expr`.
-#[test]
-fn defaults_with_max_restarts_and_log_extra_and_arg() {
-    restart_supervisor!(
-        Supervisor,
-        "my actor",
-        bool,
         2,
-        default,
-        "something extra: {}",
-        args
+        Duration::from_secs(10),
+        ": log extra",
     );
+    let _supervisor = Supervisor::new();
     assert_eq!(Supervisor::MAX_RESTARTS, 2);
-    assert_eq!(Supervisor::MAX_DURATION, DEFAULT_MAX_DURATION);
+    assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(10));
 }
-*/
 
 #[test]
-fn defaults_with_max_duration_and_log_extra_and_arg() {
+fn all_single_argument() {
     restart_supervisor!(
         Supervisor,
         "my actor",
-        bool,
-        default,
-        Duration::from_secs(60),
-        "something extra: {}",
+        usize,
+        2,
+        Duration::from_secs(10),
+        ": log extra: {}",
         args
     );
-    assert_eq!(Supervisor::MAX_RESTARTS, DEFAULT_MAX_RESTARTS);
-    assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(60));
+    let _supervisor = Supervisor::new(123);
+    assert_eq!(Supervisor::MAX_RESTARTS, 2);
+    assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(10));
+}
+
+#[test]
+fn all_tuple_argument() {
+    restart_supervisor!(
+        Supervisor,
+        "my actor",
+        (u8, u16),
+        2,
+        Duration::from_secs(10),
+        ": log extra: {}, {}",
+        args.0,
+        args.1,
+    );
+    let _supervisor = Supervisor::new((123, 456));
+    assert_eq!(Supervisor::MAX_RESTARTS, 2);
+    assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(10));
 }
 
 const ERROR1: &str = "error 1";
