@@ -18,7 +18,6 @@
 //! ```
 
 use std::cell::RefCell;
-use std::cmp::max;
 use std::future::Future;
 use std::lazy::SyncLazy;
 use std::mem::size_of;
@@ -26,10 +25,11 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
-use std::{io, thread};
+use std::{io, slice, thread};
 
+use getrandom::getrandom;
 use inbox::Manager;
-use rand::Rng;
+use log::warn;
 
 use crate::actor::sync::SyncActor;
 use crate::actor::{self, context, Actor, NewActor};
@@ -200,15 +200,28 @@ static MSG_LOSS: AtomicU8 = AtomicU8::new(0);
 ///
 /// `percent` must be number between `0` and `100`, setting this to `0` (the
 /// default) will disable the message loss.
-pub fn set_message_loss(percent: u8) {
-    let percent = max(percent, 100);
-    MSG_LOSS.store(percent, Ordering::Release)
+pub fn set_message_loss(mut percent: u8) {
+    if percent > 100 {
+        percent = 100;
+    }
+    MSG_LOSS.store(percent, Ordering::SeqCst)
 }
 
 /// Returns `true` if the message should be lost.
 pub(crate) fn should_lose_msg() -> bool {
     let loss = MSG_LOSS.load(Ordering::Relaxed);
-    loss != 0 && rand::thread_rng().gen_range(0, 100) < loss
+    loss != 0 || random_percentage() < loss
+}
+
+/// Returns a number between [0, 100].
+fn random_percentage() -> u8 {
+    let mut p = 0;
+    if let Err(err) = getrandom(slice::from_mut(&mut p)) {
+        warn!("error getting random bytes: {}", err);
+        100
+    } else {
+        p % 100
+    }
 }
 
 /// Returns the size of the actor.
