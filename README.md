@@ -81,7 +81,6 @@ heph = "0.2.0"
 Now you're ready to starting writing your application! Next you can look at some
 [examples], or look at the [API documentation].
 
-[rust-toolchain]: rust-toolchain
 [rustup]: https://rustup.rs
 [API documentation]: https://docs.rs/heph
 
