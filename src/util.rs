@@ -4,6 +4,8 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
+use futures_core::stream::Stream;
+
 /// Helper [`Future`] that poll `future1` and `future2` and returns the output
 /// of the future that completes first.
 pub const fn either<Fut1, Fut2>(future1: Fut1, future2: Fut2) -> Either<Fut1, Fut2> {
@@ -39,5 +41,29 @@ where
                 }
             }
         }
+    }
+}
+
+/// Returns a [`Future`] that get the next item from `stream`.
+pub const fn next<S>(stream: S) -> Next<S> {
+    Next { stream }
+}
+
+/// The [`Future`] behind [`either`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct Next<S> {
+    stream: S,
+}
+
+impl<S> Future for Next<S>
+where
+    S: Stream,
+{
+    type Output = Option<S::Item>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // Safety: not moving `stream`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.stream).poll_next(ctx) }
     }
 }
