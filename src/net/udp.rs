@@ -61,13 +61,12 @@ pub enum Connected {}
 /// use std::net::SocketAddr;
 /// use std::{io, str};
 ///
-/// use futures_util::future::FutureExt;
-/// use futures_util::select;
 /// use log::error;
 ///
 /// use heph::actor::messages::Terminate;
 /// use heph::net::UdpSocket;
 /// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
+/// use heph::util::either;
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     std_logger::init();
@@ -102,13 +101,15 @@ pub enum Connected {}
 ///     let mut buf = Vec::with_capacity(4096);
 ///     loop {
 ///         buf.clear();
-///         let mut receive_msg = ctx.receive_next().fuse();
-///         let mut read = socket.recv_from(&mut buf).fuse();
-///         let (n, address) = select! {
+///         let receive_msg = ctx.receive_next();
+///         let read = socket.recv_from(&mut buf);
+///         let (n, address) = match either(read, receive_msg).await {
+///             // Received a packet.
+///             Ok(Ok((n, address))) => (n, address),
+///             // Read error.
+///             Ok(Err(err)) => return Err(err),
 ///             // If we receive a terminate message we'll stop the actor.
-///             _ = receive_msg => return Ok(()),
-///             // Or we received an packet.
-///             res = read => res?,
+///             Err(_) => return Ok(()),
 ///         };
 ///
 ///         let buf = &buf[.. n];

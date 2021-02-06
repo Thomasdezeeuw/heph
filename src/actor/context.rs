@@ -130,29 +130,23 @@ impl<M, C> Context<M, C> {
     ///
     /// use std::time::Duration;
     ///
-    /// use futures_util::future::FutureExt;
-    /// use futures_util::select;
     /// use heph::actor;
     /// use heph::timer::Timer;
+    /// use heph::util::either;
     ///
     /// async fn print_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
     ///     // Create a timer, this will be ready once the timeout has
     ///     // passed.
-    ///     let mut timeout = Timer::timeout(&mut ctx, Duration::from_millis(100)).fuse();
+    ///     let timeout = Timer::timeout(&mut ctx, Duration::from_millis(100));
     ///     // Create a future to receive a message.
-    ///     let mut msg_future = ctx.receive_next().fuse();
+    ///     let msg_future = ctx.receive_next();
     ///
     ///     // Now let them race!
-    ///     // This is basically a match statement for futures, whichever
-    ///     // future is ready first will be the winner and we'll take that
-    ///     // branch.
-    ///     select! {
-    ///         msg = msg_future => match msg {
-    ///             Ok(msg) => println!("Got a message: {}", msg),
-    ///             Err(_) => println!("No message"),
-    ///         },
-    ///         _ = timeout => println!("No message"),
-    ///     };
+    ///     match either(msg_future, timeout).await {
+    ///         Ok(Ok(msg)) => println!("Got a message: {}", msg),
+    ///         Ok(Err(_)) => println!("No message"),
+    ///         Err(_) => println!("Timed out receiving message"),
+    ///     }
     ///
     ///     Ok(())
     /// }
