@@ -7,14 +7,13 @@ use std::pin::Pin;
 use std::thread::sleep;
 use std::time::Duration;
 
-use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{pending, Pending};
 
 use crate::actor::{self, NewActor};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::rt::scheduler::{local, shared, Priority, ProcessData};
 use crate::rt::RuntimeRef;
-use crate::test;
+use crate::test::{self, AssertUnmoved};
 
 fn assert_size<T>(expected: usize) {
     assert_eq!(mem::size_of::<T>(), expected);
@@ -181,7 +180,7 @@ impl<C> NewActor for TestAssertUnmovedNewActor<C> {
         // In the test we need the access to the inbox, to achieve that we can't
         // drop the context, so we forget about it here leaking the inbox.
         forget(ctx);
-        Ok(pending().assert_unmoved())
+        Ok(AssertUnmoved::new(pending()))
     }
 }
 

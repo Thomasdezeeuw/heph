@@ -4,14 +4,13 @@ use std::pin::Pin;
 use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 
-use futures_test::future::{AssertUnmoved, FutureTestExt};
 use futures_util::future::{pending, Pending};
 use mio::Token;
 
 use crate::actor::{self, context, Actor, NewActor};
 use crate::rt::process::{ActorProcess, Process, ProcessId, ProcessResult};
 use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use crate::test::{self, init_local_actor_with_inbox, TEST_PID};
+use crate::test::{self, init_local_actor_with_inbox, AssertUnmoved, TEST_PID};
 
 #[test]
 fn pid() {
@@ -151,7 +150,7 @@ impl NewActor for TestAssertUnmovedNewActor {
         _: actor::Context<Self::Message>,
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
-        Ok(pending().assert_unmoved())
+        Ok(AssertUnmoved::new(pending()))
     }
 }
 
