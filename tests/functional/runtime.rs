@@ -1,9 +1,10 @@
-use std::fs::remove_file;
 use std::io::{self, Write};
 
 use std::process::Command;
 
 use heph::rt::Runtime;
+
+use crate::util::temp_file;
 
 #[test]
 #[cfg(target_os = "linux")] // Only works on Linux.
@@ -128,14 +129,12 @@ fn auto_cpu_affinity() {
 
 #[test]
 fn tracing() {
-    const TRACE_PATH: &str = "/tmp/heph_runtime_tracing_test.bin.trace";
-    const OUTPUT_PATH: &str = "/tmp/heph_runtime_tracing_test.json";
-    let _ = remove_file(TRACE_PATH);
-    let _ = remove_file(OUTPUT_PATH);
+    let trace_path = temp_file("runtime_trace.bin.trace");
+    let output_path = temp_file("runtime_trace.json");
 
     // Generate a simple trace.
     let mut runtime = Runtime::new().unwrap();
-    runtime.enable_tracing(TRACE_PATH).unwrap();
+    runtime.enable_tracing(&trace_path).unwrap();
     runtime.start().unwrap();
 
     // Convert the trace just to make sure it's valid.
@@ -143,8 +142,8 @@ fn tracing() {
         .arg("run")
         .arg("--bin")
         .arg("convert_trace")
-        .arg(TRACE_PATH)
-        .arg(OUTPUT_PATH)
+        .arg(trace_path)
+        .arg(output_path)
         .current_dir("./tools")
         .output()
         .expect("failed to convert trace");

@@ -1,12 +1,16 @@
 #![allow(dead_code)] // Not all tests use all functions/types.
 #![cfg(feature = "test")]
 
+use std::env::temp_dir;
 use std::fmt;
+use std::fs::{create_dir_all, remove_dir_all};
 use std::future::Future;
 use std::mem::size_of;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Once;
 use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
@@ -50,6 +54,24 @@ pub fn any_local_ipv6_address() -> SocketAddr {
 /// Returns an address to which the connection will be refused.
 pub fn refused_address() -> SocketAddr {
     "127.0.0.1:65535".parse().unwrap()
+}
+
+/// Returns a path to a non-existing temporary file.
+pub fn temp_file(name: &str) -> PathBuf {
+    static CLEANUP: Once = Once::new();
+
+    let mut dir = temp_dir();
+    dir.push("heph.test/");
+
+    CLEANUP.call_once(|| {
+        let _ = remove_dir_all(&dir);
+        if let Err(err) = create_dir_all(&dir) {
+            panic!("failed to create temporary directory: {}", err);
+        }
+    });
+
+    dir.push(name);
+    dir
 }
 
 /// Stage of a test actor.
