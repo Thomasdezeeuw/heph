@@ -310,3 +310,49 @@ fn test_size_of_actor() {
     assert_eq!(size_of_actor::<Na>(), 0);
     assert_eq!(size_of_actor_val(&Na), 0);
 }
+
+/// Assert that a `Future` is not moved between calls.
+#[cfg(test)]
+pub(crate) struct AssertUnmoved<Fut> {
+    future: Fut,
+    /// Last place the future was polled, or null if never pulled.
+    last_place: *const Self,
+}
+
+#[cfg(test)]
+impl<Fut> AssertUnmoved<Fut> {
+    /// Create a new `AssertUnmoved`.
+    pub(crate) const fn new(future: Fut) -> AssertUnmoved<Fut> {
+        AssertUnmoved {
+            future,
+            last_place: std::ptr::null(),
+        }
+    }
+}
+
+#[cfg(test)]
+impl<Fut> Future for AssertUnmoved<Fut>
+where
+    Fut: Future,
+{
+    type Output = Fut::Output;
+
+    #[track_caller]
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let place = &*self as *const Self;
+        if self.last_place.is_null() {
+            unsafe { Pin::map_unchecked_mut(self.as_mut(), |s| &mut s.last_place).set(place) }
+        } else {
+            assert_eq!(
+                self.last_place, place,
+                "AssertUnmoved moved between poll calls"
+            );
+        }
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.future).poll(ctx) }
+    }
+}
+
+#[cfg(test)]
+unsafe impl<Fut: Send> Send for AssertUnmoved<Fut> {}
+#[cfg(test)]
+unsafe impl<Fut: Sync> Sync for AssertUnmoved<Fut> {}
