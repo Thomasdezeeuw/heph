@@ -2,9 +2,8 @@
 
 use std::future::Future;
 use std::pin::Pin;
+use std::stream::Stream;
 use std::task::{self, Poll};
-
-use futures_core::stream::Stream;
 
 /// Helper [`Future`] that poll `future1` and `future2` and returns the output
 /// of the future that completes first.
