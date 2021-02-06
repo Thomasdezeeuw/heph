@@ -196,11 +196,9 @@ impl<M> ActorRef<M> {
         Msg: Into<M>,
     {
         #[cfg(any(test, feature = "test"))]
-        {
-            if crate::test::should_lose_msg() {
-                log::debug!("dropping message on purpose");
-                return Ok(());
-            }
+        if crate::test::should_lose_msg() {
+            log::debug!("dropping message on purpose");
+            return Ok(());
         }
 
         let msg = msg.into();
@@ -435,11 +433,9 @@ impl<'r, 'fut, M> Future for SendValue<'r, 'fut, M> {
     #[track_caller]
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         #[cfg(any(test, feature = "test"))]
-        {
-            if crate::test::should_lose_msg() {
-                log::debug!("dropping message on purpose");
-                return Poll::Ready(Ok(()));
-            }
+        if crate::test::should_lose_msg() {
+            log::debug!("dropping message on purpose");
+            return Poll::Ready(Ok(()));
         }
 
         // Safety: we're not moving the future to this is safe.
