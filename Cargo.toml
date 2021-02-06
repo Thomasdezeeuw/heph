@@ -38,7 +38,6 @@ socket2           = { version = "0.4.0-alpha.5", default-features = false, featu
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
-futures-test      = { version = "0.3.4", default-features = false, features = ["std"] }
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
 # Enable logging panics via `std-logger` and add timestamps to each log message.
 std-logger        = { version = "0.3.6", default-features = false, features = ["log-panic", "timestamp"] }
