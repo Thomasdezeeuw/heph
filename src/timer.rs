@@ -361,13 +361,11 @@ impl<Fut, K> actor::Bound<K> for Deadline<Fut> {
 /// use std::time::Duration;
 /// # use std::time::Instant;
 ///
-/// use futures_util::future::ready;
-/// use futures_util::stream::StreamExt;
-///
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
 /// # use heph::{rt, ActorOptions, Runtime, RuntimeRef};
 /// use heph::timer::Interval;
+/// use heph::util::next;
 /// #
 /// # fn main() -> Result<(), rt::Error> {
 /// #     Runtime::new()?.with_setup(setup).start()
@@ -381,18 +379,16 @@ impl<Fut, K> actor::Bound<K> for Deadline<Fut> {
 /// # }
 ///
 /// async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
-/// #   let mut start = Instant::now();
-///     let interval = Interval::new(&mut ctx, Duration::from_millis(200));
+/// #   let start = Instant::now();
+///     let mut interval = Interval::new(&mut ctx, Duration::from_millis(200));
 /// #   assert!(interval.next_deadline() >= start + Duration::from_millis(200));
-///     interval
-/// #       .take(1)
-///         .for_each(|_| {
-/// #           assert!(Instant::now() >= start + Duration::from_millis(200));
-/// #           start = Instant::now();
-///             println!("Hello world");
-///             ready(())
-///         })
-///         .await;
+///     loop {
+///         // Wait until the next timer expires.
+///         let _ = next(&mut interval).await;
+/// #       assert!(start.elapsed() >= Duration::from_millis(200));
+///         println!("Hello world");
+/// #       break;
+///     }
 ///     Ok(())
 /// }
 /// ```

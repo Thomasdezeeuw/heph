@@ -98,14 +98,12 @@ use crate::rt::{self, PrivateAccess};
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// use futures_util::future::ready;
-/// use futures_util::{TryFutureExt, StreamExt, TryStreamExt};
-/// use log::error;
+/// use log::{error, info};
 ///
 /// # use heph::net::TcpStream;
 /// use heph::net::TcpListener;
 /// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
-/// use log::info;
+/// use heph::util::next;
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     std_logger::init();
@@ -141,18 +139,22 @@ use crate::rt::{self, PrivateAccess};
 /// async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
 ///     let mut listener = TcpListener::bind(&mut ctx, address)?;
-///     let streams = listener.incoming();
-/// #   let streams = streams.take(1);
+///     let mut incoming = listener.incoming();
+///     loop {
+///         let (unbound_stream, peer_address) = match next(&mut incoming).await {
+///             Some(Ok((unbound_stream, peer_address))) => (unbound_stream, peer_address),
+///             Some(Err(err)) => return Err(err),
+///             None => return Ok(()),
+///         };
 ///
-///     streams.try_for_each(|(unbound_stream, peer_address)| {
 ///         info!("accepted connection from: {}", peer_address);
-///         // Next we need to bind the stream to this actor.
-///         ready(unbound_stream.bind_to(&mut ctx)).and_then(async move |mut stream| {
-///             // Next we write the IP address to the connection.
-///             let ip = peer_address.to_string();
-///             stream.send_all(ip.as_bytes()).await
-///         })
-///     }).await
+///         let mut stream = unbound_stream.bind_to(&mut ctx)?;
+///
+///         // Next we write the IP address to the connection.
+///         let ip = peer_address.to_string();
+///         stream.send_all(ip.as_bytes()).await?;
+/// #       return Ok(());
+///     }
 /// }
 /// ```
 #[derive(Debug)]
