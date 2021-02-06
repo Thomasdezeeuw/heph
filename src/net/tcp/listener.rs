@@ -4,10 +4,9 @@ use std::future::Future;
 use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::stream::Stream;
 use std::task::{self, Poll};
 
-use futures_core::future::FusedFuture;
-use futures_core::stream::{FusedStream, Stream};
 use mio::{net, Interest};
 
 use crate::actor;
@@ -305,12 +304,6 @@ impl<'a> Future for Accept<'a> {
     }
 }
 
-impl<'a> FusedFuture for Accept<'a> {
-    fn is_terminated(&self) -> bool {
-        self.listener.is_none()
-    }
-}
-
 /// The [`Stream`] behind [`TcpListener::incoming`].
 #[derive(Debug)]
 #[must_use = "streams do nothing unless polled"]
@@ -323,12 +316,6 @@ impl<'a> Stream for Incoming<'a> {
 
     fn poll_next(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
         try_io!(self.listener.try_accept()).map(Some)
-    }
-}
-
-impl<'a> FusedStream for Incoming<'a> {
-    fn is_terminated(&self) -> bool {
-        false
     }
 }
 

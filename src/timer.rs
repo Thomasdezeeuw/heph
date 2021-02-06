@@ -9,16 +9,13 @@
 //!   deadline has passed.
 //! - [`Interval`](Interval) implements [`Stream`] which yields an item
 //!   after the deadline has passed each interval.
-//!
-//! [`Stream`]: futures_core::stream::Stream
 
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
+use std::stream::Stream;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
-
-use futures_core::stream::{FusedStream, Stream};
 
 use crate::actor::context::ThreadLocal;
 use crate::rt::{self, PrivateAccess, ProcessId};
@@ -342,8 +339,6 @@ impl<Fut, K> actor::Bound<K> for Deadline<Fut> {
 /// This stream will never return `None`, it will always set another deadline
 /// and yield another item after the deadline has passed.
 ///
-/// [`Stream`]: futures_core::stream::Stream
-///
 /// # Notes
 ///
 /// The next deadline will always will be set after this returns `Poll::Ready`.
@@ -436,12 +431,6 @@ impl Stream for Interval {
         } else {
             Poll::Pending
         }
-    }
-}
-
-impl FusedStream for Interval {
-    fn is_terminated(&self) -> bool {
-        false
     }
 }
 
