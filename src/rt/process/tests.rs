@@ -1,11 +1,11 @@
 //! Tests for the process module.
 
+use std::future::{pending, Pending};
 use std::pin::Pin;
 use std::sync::atomic::{self, AtomicBool};
 use std::sync::Arc;
 
 use futures_test::future::{AssertUnmoved, FutureTestExt};
-use futures_util::future::{pending, Pending};
 use mio::Token;
 
 use crate::actor::{self, context, Actor, NewActor};

@@ -11,8 +11,6 @@ use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
-use futures_util::pin_mut;
-
 use heph::net::{TcpListener, TcpStream};
 use heph::test::{init_local_actor, poll_actor};
 use heph::{actor, Actor, ActorRef};
@@ -87,7 +85,7 @@ fn smoke() {
     let address = listener.local_addr().unwrap();
 
     let (actor, actor_ref) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -130,7 +128,7 @@ fn connect() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
@@ -170,7 +168,7 @@ fn connect_connection_refused() {
     }
 
     let (actor, _) = init_local_actor(actor as fn(_) -> _, ()).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
     expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 2), ());
 }
 
@@ -238,7 +236,7 @@ fn try_recv() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
@@ -276,7 +274,7 @@ fn recv() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -318,7 +316,7 @@ fn recv_n_read_exact_amount() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -364,7 +362,7 @@ fn recv_n_read_more_bytes() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -401,7 +399,7 @@ fn recv_n_less_bytes() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -436,7 +434,7 @@ fn recv_n_from_multiple_writes() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -485,7 +483,7 @@ fn send() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
@@ -528,7 +526,7 @@ fn send_all() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -598,7 +596,7 @@ fn send_vectored() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
@@ -645,7 +643,7 @@ fn send_vectored_all() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -729,7 +727,7 @@ fn recv_vectored() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
@@ -784,7 +782,7 @@ fn recv_n_vectored_exact_amount() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -831,7 +829,7 @@ fn recv_n_vectored_more_bytes() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -869,7 +867,7 @@ fn recv_n_vectored_less_bytes() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -908,7 +906,7 @@ fn recv_n_vectored_from_multiple_writes() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -955,7 +953,7 @@ fn peek() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(poll_actor(Pin::as_mut(&mut actor)));
@@ -1022,7 +1020,7 @@ fn peek_vectored() {
     let address = listener.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Stream should not yet be connected.
     expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));

@@ -7,15 +7,13 @@ use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::task::Poll;
 
-use futures_util::pending;
-
 use heph::actor_ref::{ActorRef, RpcError, RpcMessage, SendError, SendValue};
 use heph::rt::options::Priority;
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
 use heph::{actor, ActorOptions, Runtime};
 
-use crate::util::{assert_send, assert_size, assert_sync};
+use crate::util::{assert_send, assert_size, assert_sync, pending_once};
 
 /// Default size of the inbox, keep in sync with the inbox crate.
 const INBOX_SIZE: usize = 8;
@@ -645,7 +643,7 @@ async fn pong_is_connected(mut ctx: actor::Context<RpcTestMessage>) -> Result<()
             RpcTestMessage::Ping(RpcMessage { response, .. }) => {
                 response.is_connected();
 
-                pending!();
+                pending_once().await;
 
                 assert!(!response.is_connected());
                 assert_eq!(response.respond(Pong), Err(SendError));

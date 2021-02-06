@@ -6,12 +6,11 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use futures_util::StreamExt;
-
 use heph::actor::{self, Bound};
 use heph::net::{TcpListener, TcpStream};
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
+use heph::util::next;
 use heph::{rt, Actor, ActorOptions, ActorRef, Runtime, RuntimeRef};
 
 use crate::util::{any_local_address, any_local_ipv6_address, run_actors};
@@ -205,7 +204,7 @@ fn incoming() {
         actor_ref.send(address).await.unwrap();
 
         let mut incoming = listener.incoming();
-        let (stream, remote_address) = incoming.next().await.unwrap().unwrap();
+        let (stream, remote_address) = next(&mut incoming).await.unwrap().unwrap();
         let mut stream = stream.bind_to(&mut ctx).unwrap();
         assert!(remote_address.ip().is_loopback());
 
