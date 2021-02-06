@@ -7,12 +7,11 @@ use std::task::{self, Poll};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use futures_util::stream::StreamExt;
-
 use heph::actor::{self, Bound};
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
 use heph::timer::{Deadline, DeadlinePassed, Interval, Timer};
+use heph::util::next;
 use heph::{rt, ActorOptions, ActorRef, Runtime, RuntimeRef};
 
 const TIMEOUT: Duration = Duration::from_millis(100);
@@ -118,7 +117,7 @@ fn interval() {
         let start = Instant::now();
         let mut interval = Interval::new(&mut ctx, TIMEOUT);
         assert!(interval.next_deadline() >= start + TIMEOUT);
-        let _ = interval.next().await;
+        let _ = next(&mut interval).await;
         Ok(())
     }
 
@@ -155,7 +154,7 @@ fn triggered_timers_run_actors() {
 
     async fn interval_actor(mut ctx: actor::Context<!>) -> Result<(), !> {
         let mut interval = Interval::new(&mut ctx, TIMEOUT);
-        let _ = interval.next().await;
+        let _ = next(&mut interval).await;
         Ok(())
     }
 
@@ -261,7 +260,7 @@ fn timers_actor_bound() {
     async fn interval_actor2(mut ctx: actor::Context<Interval>) -> Result<(), !> {
         let mut interval = ctx.receive_next().await.unwrap();
         interval.bind_to(&mut ctx).unwrap();
-        let _ = interval.next().await;
+        let _ = next(&mut interval).await;
         Ok(())
     }
 

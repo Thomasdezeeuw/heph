@@ -2,11 +2,12 @@
 #![cfg(feature = "test")]
 
 use std::fmt;
+use std::future::Future;
 use std::mem::size_of;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::task::Poll;
+use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -165,4 +166,25 @@ pub fn run_actors(mut actors: Vec<Pin<Box<dyn Actor<Error = !>>>>) {
     }
 
     assert!(actors.is_empty(), "not all actors have completed");
+}
+
+/// Returns a [`Future`] that return [`Poll::Pending`] once, without waking
+/// itself.
+pub const fn pending_once() -> PendingOnce {
+    PendingOnce(false)
+}
+
+pub struct PendingOnce(bool);
+
+impl Future for PendingOnce {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        if self.0 {
+            Poll::Ready(())
+        } else {
+            self.0 = true;
+            Poll::Pending
+        }
+    }
 }

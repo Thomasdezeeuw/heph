@@ -1,6 +1,7 @@
 //! Tests for the scheduler.
 
 use std::cmp::Ordering;
+use std::future::{pending, Pending};
 use std::marker::PhantomData;
 use std::mem::{self, forget};
 use std::pin::Pin;
@@ -8,7 +9,6 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use futures_test::future::{AssertUnmoved, FutureTestExt};
-use futures_util::future::{pending, Pending};
 
 use crate::actor::{self, NewActor};
 use crate::rt::process::{Process, ProcessId, ProcessResult};

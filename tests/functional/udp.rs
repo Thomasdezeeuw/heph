@@ -9,8 +9,6 @@ use std::task::Poll;
 use std::thread::sleep;
 use std::time::Duration;
 
-use futures_util::pin_mut;
-
 use heph::actor::{self, context, Actor, NewActor};
 use heph::net::UdpSocket;
 use heph::test::{init_local_actor, poll_actor};
@@ -54,7 +52,7 @@ where
     let address = echo_socket.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(new_actor, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Send the data, peeking should return pending.
     match poll_actor(Pin::as_mut(&mut actor)) {
@@ -157,7 +155,7 @@ fn test_reconnecting(local_address: SocketAddr) {
     #[allow(trivial_casts)]
     let reconnecting_actor = reconnecting_actor as fn(_, _, _) -> _;
     let (actor, _) = init_local_actor(reconnecting_actor, (address1, address2)).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Let the actor send all data.
     loop {
@@ -321,7 +319,7 @@ where
     let address = echo_socket.local_addr().unwrap();
 
     let (actor, _) = init_local_actor(new_actor, address).unwrap();
-    pin_mut!(actor);
+    let mut actor = Box::pin(actor);
 
     // Send the data.
     match poll_actor(Pin::as_mut(&mut actor)) {
