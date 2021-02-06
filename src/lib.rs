@@ -120,6 +120,7 @@ pub mod rt;
 pub mod supervisor;
 pub mod timer;
 pub mod trace;
+pub mod util;
 
 #[cfg(any(test, feature = "test"))]
 pub mod test;
