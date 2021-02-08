@@ -20,7 +20,7 @@ mod tests;
 
 pub(super) use local::LocalScheduler;
 // Use in `test` module.
-pub(crate) use shared::{Scheduler, SchedulerRef};
+pub(crate) use shared::Scheduler;
 
 pub use priority::Priority;
 

@@ -510,15 +510,14 @@ mod shared_scheduler {
     #[test]
     fn adding_actor() {
         let mut scheduler = Scheduler::new();
-        let scheduler_ref = scheduler.create_ref();
 
         // Shouldn't run any process yet, since none are added.
-        assert!(!scheduler_ref.has_process());
-        assert!(!scheduler_ref.has_ready_process());
-        assert_eq!(scheduler_ref.try_steal(), None);
+        assert!(!scheduler.has_process());
+        assert!(!scheduler.has_ready_process());
+        assert_eq!(scheduler.try_steal(), None);
 
         // Add an actor to the scheduler.
-        let actor_entry = scheduler_ref.add_actor();
+        let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
         let new_actor = simple_actor as fn(_) -> _;
         let (actor, inbox, _) = init_actor_with_inbox(new_actor, ()).unwrap();
@@ -532,59 +531,57 @@ mod shared_scheduler {
         );
 
         // Newly added processes aren't ready by default.
-        assert!(scheduler_ref.has_process());
-        assert!(!scheduler_ref.has_ready_process());
-        assert_eq!(scheduler_ref.try_steal(), None);
+        assert!(scheduler.has_process());
+        assert!(!scheduler.has_ready_process());
+        assert_eq!(scheduler.try_steal(), None);
 
         // After scheduling the process should be ready to run.
         scheduler.mark_ready(pid);
-        assert!(scheduler_ref.has_process());
-        assert!(scheduler_ref.has_ready_process());
-        let process = scheduler_ref.try_steal().unwrap();
+        assert!(scheduler.has_process());
+        assert!(scheduler.has_ready_process());
+        let process = scheduler.try_steal().unwrap();
         assert_eq!(process.as_ref().id(), pid);
 
         // After the process is run, and returned `ProcessResult::Complete`, it
         // should be removed.
-        assert!(!scheduler_ref.has_process());
-        assert!(!scheduler_ref.has_ready_process());
-        assert_eq!(scheduler_ref.try_steal(), None);
-        assert!(!scheduler_ref.has_process());
-        assert!(!scheduler_ref.has_ready_process());
+        assert!(!scheduler.has_process());
+        assert!(!scheduler.has_ready_process());
+        assert_eq!(scheduler.try_steal(), None);
+        assert!(!scheduler.has_process());
+        assert!(!scheduler.has_ready_process());
 
         // Adding the process back means its not ready.
-        scheduler_ref.add_process(process);
-        assert!(scheduler_ref.has_process());
-        assert!(!scheduler_ref.has_ready_process());
-        assert_eq!(scheduler_ref.try_steal(), None);
+        scheduler.add_process(process);
+        assert!(scheduler.has_process());
+        assert!(!scheduler.has_ready_process());
+        assert_eq!(scheduler.try_steal(), None);
 
         // Marking the same process as ready again.
         scheduler.mark_ready(pid);
-        assert!(scheduler_ref.has_process());
-        assert!(scheduler_ref.has_ready_process());
-        let process = scheduler_ref.try_steal().unwrap();
+        assert!(scheduler.has_process());
+        assert!(scheduler.has_ready_process());
+        let process = scheduler.try_steal().unwrap();
         assert_eq!(process.as_ref().id(), pid);
     }
 
     #[test]
     fn marking_unknown_pid_as_ready() {
         let mut scheduler = Scheduler::new();
-        let scheduler_ref = scheduler.create_ref();
 
-        assert!(!scheduler_ref.has_process());
-        assert!(!scheduler_ref.has_ready_process());
-        assert_eq!(scheduler_ref.try_steal(), None);
+        assert!(!scheduler.has_process());
+        assert!(!scheduler.has_ready_process());
+        assert_eq!(scheduler.try_steal(), None);
 
         // Scheduling an unknown process should do nothing.
         scheduler.mark_ready(ProcessId(0));
-        assert!(!scheduler_ref.has_process());
-        assert!(!scheduler_ref.has_ready_process());
-        assert_eq!(scheduler_ref.try_steal(), None);
+        assert!(!scheduler.has_process());
+        assert!(!scheduler.has_ready_process());
+        assert_eq!(scheduler.try_steal(), None);
     }
 
     #[test]
     fn scheduler_run_order() {
         let scheduler = Scheduler::new();
-        let scheduler_ref = scheduler.create_ref();
         let mut runtime_ref = test::runtime();
 
         // The order in which the processes have been run.
@@ -604,39 +601,38 @@ mod shared_scheduler {
         let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
         let mut pids = vec![];
         for (id, priority) in priorities.iter().enumerate() {
-            let actor_entry = scheduler_ref.add_actor();
+            let actor_entry = scheduler.add_actor();
             pids.push(actor_entry.pid());
             let (actor, inbox, _) =
                 init_actor_with_inbox(new_actor, (id, run_order.clone())).unwrap();
             actor_entry.add(*priority, NoSupervisor, new_actor, actor, inbox, true);
         }
 
-        assert!(scheduler_ref.has_process());
-        assert!(scheduler_ref.has_ready_process());
+        assert!(scheduler.has_process());
+        assert!(scheduler.has_ready_process());
 
         // Run all processes, should be in order of priority (since there runtimes
         // are equal).
         for _ in 0..3 {
-            let mut process = scheduler_ref.try_steal().unwrap();
+            let mut process = scheduler.try_steal().unwrap();
             assert_eq!(
                 process.as_mut().run(&mut runtime_ref),
                 ProcessResult::Complete
             );
         }
-        assert!(!scheduler_ref.has_process());
+        assert!(!scheduler.has_process());
         assert_eq!(*run_order.lock().unwrap(), vec![2usize, 1, 0]);
     }
 
     #[test]
     fn assert_process_unmoved() {
         let mut scheduler = Scheduler::new();
-        let scheduler_ref = scheduler.create_ref();
         let mut runtime_ref = test::runtime();
 
         let new_actor = TestAssertUnmovedNewActor(PhantomData);
         let (actor, inbox, _) = init_actor_with_inbox(new_actor, ()).unwrap();
 
-        let actor_entry = scheduler_ref.add_actor();
+        let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
         actor_entry.add(
             Priority::NORMAL,
@@ -649,23 +645,23 @@ mod shared_scheduler {
 
         // Run the process multiple times, ensure it's not moved in the
         // process.
-        let mut process = scheduler_ref.try_steal().unwrap();
+        let mut process = scheduler.try_steal().unwrap();
         assert_eq!(
             process.as_mut().run(&mut runtime_ref),
             ProcessResult::Pending
         );
-        scheduler_ref.add_process(process);
+        scheduler.add_process(process);
 
         scheduler.mark_ready(pid);
-        let mut process = scheduler_ref.try_steal().unwrap();
+        let mut process = scheduler.try_steal().unwrap();
         assert_eq!(
             process.as_mut().run(&mut runtime_ref),
             ProcessResult::Pending
         );
-        scheduler_ref.add_process(process);
+        scheduler.add_process(process);
 
         scheduler.mark_ready(pid);
-        let mut process = scheduler_ref.try_steal().unwrap();
+        let mut process = scheduler.try_steal().unwrap();
         assert_eq!(
             process.as_mut().run(&mut runtime_ref),
             ProcessResult::Pending
