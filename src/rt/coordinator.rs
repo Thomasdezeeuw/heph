@@ -13,7 +13,7 @@ use mio_signals::{SignalSet, Signals};
 
 use crate::actor_ref::{ActorGroup, Delivery};
 use crate::rt::process::ProcessId;
-use crate::rt::scheduler::Scheduler;
+use crate::rt::shared::Scheduler;
 use crate::rt::{
     self, waker, worker, SharedRuntimeInternal, Signal, SyncWorker, Timers, Worker,
     SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,

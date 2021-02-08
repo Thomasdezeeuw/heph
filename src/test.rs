@@ -34,7 +34,7 @@ use log::warn;
 use crate::actor::sync::SyncActor;
 use crate::actor::{self, context, Actor, NewActor};
 use crate::actor_ref::ActorRef;
-use crate::rt::scheduler::Scheduler;
+use crate::rt::shared::Scheduler;
 use crate::rt::sync_worker::SyncWorker;
 use crate::rt::waker::{self, WakerId};
 use crate::rt::worker::RunningRuntime;

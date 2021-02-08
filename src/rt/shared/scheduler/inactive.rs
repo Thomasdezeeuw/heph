@@ -3,8 +3,8 @@ use std::mem::{forget, replace};
 use std::pin::Pin;
 use std::ptr::NonNull;
 
-use crate::rt::scheduler::shared::ProcessData;
-use crate::rt::scheduler::ProcessId;
+use super::ProcessData;
+use crate::rt::ProcessId;
 
 /// Number of branches per level of the tree, must be a power of 2.
 const N_BRANCHES: usize = 4;

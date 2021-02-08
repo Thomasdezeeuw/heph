@@ -13,16 +13,16 @@ use crate::RuntimeRef;
 
 mod local;
 mod priority;
-mod shared;
 
 #[cfg(test)]
 mod tests;
 
 pub(super) use local::LocalScheduler;
-// Use in `test` module.
-pub(crate) use shared::Scheduler;
 
 pub use priority::Priority;
+
+// TODO: make all fields in `ProcessData` private.
+// TODO: make all fields in `AddActor` private.
 
 /// Data related to a process.
 ///
@@ -34,10 +34,10 @@ pub use priority::Priority;
 /// `PartialOrd` and `Ord` however are implemented based on runtime and
 /// priority.
 pub(super) struct ProcessData<P: ?Sized> {
-    priority: Priority,
+    pub(crate) priority: Priority,
     /// Fair runtime of the process, which is `actual runtime * priority`.
-    fair_runtime: Duration,
-    process: Pin<Box<P>>,
+    pub(crate) fair_runtime: Duration,
+    pub(crate) process: Pin<Box<P>>,
 }
 
 impl<P: ?Sized> ProcessData<P> {
@@ -123,9 +123,9 @@ impl<P: ?Sized> fmt::Debug for ProcessData<P> {
 /// This allows the `ProcessId` to be determined before the process is actually
 /// added. This is used in registering with the system poller.
 pub(super) struct AddActor<I, P: ?Sized> {
-    processes: I,
+    pub(crate) processes: I,
     /// Already allocated `ProcessData`, used to determine the `ProcessId`.
-    alloc: Box<MaybeUninit<ProcessData<P>>>,
+    pub(crate) alloc: Box<MaybeUninit<ProcessData<P>>>,
 }
 
 impl<I, P: ?Sized> AddActor<I, P> {

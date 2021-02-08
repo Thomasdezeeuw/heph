@@ -22,6 +22,9 @@ mod runqueue;
 use inactive::Inactive;
 use runqueue::RunQueue;
 
+#[cfg(test)]
+mod tests;
+
 pub(super) type ProcessData = scheduler::ProcessData<dyn Process + Send + Sync>;
 
 // # How the `Scheduler` works.

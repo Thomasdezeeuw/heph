@@ -11,11 +11,14 @@ use mio::{event, Interest, Registry, Token};
 use crate::actor::context::ThreadSafe;
 use crate::actor::{self, AddActorError, NewActor};
 use crate::actor_ref::ActorRef;
-use crate::rt::scheduler::Scheduler;
 use crate::rt::timers::Timers;
 use crate::rt::waker::{self, Waker, WakerId};
 use crate::rt::{coordinator, ActorOptions, ProcessId};
 use crate::supervisor::Supervisor;
+
+mod scheduler;
+
+pub(crate) use scheduler::Scheduler;
 
 // TODO: make all fields in `SharedRuntimeInternal` private.
 

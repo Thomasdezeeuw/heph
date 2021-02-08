@@ -2,7 +2,7 @@ use std::mem::replace;
 use std::pin::Pin;
 use std::sync::Mutex;
 
-use crate::rt::scheduler::shared::ProcessData;
+use super::ProcessData;
 
 // TODO: currently this creates and drops Node on almost every operation. Maybe
 // we can keep (some of) the structure in place, changing `Node.process` into an

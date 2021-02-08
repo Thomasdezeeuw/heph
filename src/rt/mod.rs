@@ -31,13 +31,13 @@ mod coordinator;
 mod error;
 mod hack;
 mod process;
-mod shared;
 mod signal;
 mod timers;
 
 pub(crate) mod access;
 pub(crate) mod channel;
 pub(crate) mod scheduler;
+pub(crate) mod shared;
 pub(crate) mod sync_worker;
 pub(crate) mod waker;
 pub(crate) mod worker;
