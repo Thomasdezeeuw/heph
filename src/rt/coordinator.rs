@@ -14,10 +14,9 @@ use mio_signals::{SignalSet, Signals};
 use crate::actor_ref::{ActorGroup, Delivery};
 use crate::rt::process::ProcessId;
 use crate::rt::scheduler::Scheduler;
-use crate::rt::waker::{self, WakerId};
 use crate::rt::{
-    self, worker, SharedRuntimeInternal, Signal, SyncWorker, Timers, Worker, SYNC_WORKER_ID_END,
-    SYNC_WORKER_ID_START,
+    self, waker, worker, SharedRuntimeInternal, Signal, SyncWorker, Timers, Worker,
+    SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
 };
 use crate::trace;
 
@@ -33,14 +32,10 @@ pub(super) struct Coordinator {
     /// OS poll, used to poll the status of the (sync) worker threads and
     /// process signals.
     poll: Poll,
-    /// Waker id for the `rt::waker` mechanism.
-    waker_id: WakerId,
     /// Receiving end of the wake-up events used in the `rt::waker` mechanism.
     waker_events: Receiver<ProcessId>,
-    /// Scheduler for the thread-safe processes.
-    scheduler: Scheduler,
-    /// Timers for the thread-safe processes.
-    timers: Arc<Mutex<Timers>>,
+    /// Internals shared between the coordinator and workers.
+    internals: Arc<SharedRuntimeInternal>,
 }
 
 impl Coordinator {
@@ -60,9 +55,7 @@ impl Coordinator {
         let coordinator = Coordinator {
             poll,
             waker_events,
-            waker_id,
-            scheduler,
-            timers,
+            internals: shared_internals.clone(),
         };
 
         Ok((coordinator, shared_internals))
@@ -149,7 +142,7 @@ impl Coordinator {
                         let timing = trace::start(&trace_log);
                         let pid = token.into();
                         trace!("waking thread-safe actor: pid={}", pid);
-                        self.scheduler.mark_ready(pid);
+                        self.internals.scheduler.mark_ready(pid);
                         wake_workers += 1;
                         trace::finish(
                             &mut trace_log,
@@ -167,7 +160,7 @@ impl Coordinator {
             for pid in self.waker_events.try_iter() {
                 trace!("waking thread-safe actor: pid={}", pid);
                 if pid.0 != WAKER.0 {
-                    self.scheduler.mark_ready(pid);
+                    self.internals.scheduler.mark_ready(pid);
                     wake_workers += 1;
                 }
             }
@@ -180,9 +173,9 @@ impl Coordinator {
 
             trace!("polling timers");
             let timing = trace::start(&trace_log);
-            for pid in self.timers.lock().unwrap().deadlines() {
+            for pid in self.internals.timers.lock().unwrap().deadlines() {
                 trace!("waking thread-safe actor: pid={}", pid);
-                self.scheduler.mark_ready(pid);
+                self.internals.scheduler.mark_ready(pid);
                 wake_workers += 1;
             }
             trace::finish(
@@ -241,7 +234,7 @@ impl Coordinator {
 
         // Only mark ourselves as polling if the timeout is not zero.
         let mark_waker = if !is_zero(timeout) {
-            waker::mark_polling(self.waker_id, true);
+            waker::mark_polling(self.internals.waker_id, true);
             true
         } else {
             false
@@ -251,7 +244,7 @@ impl Coordinator {
         let res = self.poll.poll(events, timeout);
 
         if mark_waker {
-            waker::mark_polling(self.waker_id, false);
+            waker::mark_polling(self.internals.waker_id, false);
         }
 
         res
@@ -259,7 +252,7 @@ impl Coordinator {
 
     /// Determine the timeout to be used in `Poll::poll`.
     fn determine_timeout(&self) -> Option<Duration> {
-        if let Some(deadline) = self.timers.lock().unwrap().next_deadline() {
+        if let Some(deadline) = self.internals.timers.lock().unwrap().next_deadline() {
             let now = Instant::now();
             if deadline <= now {
                 // Deadline has already expired, so no blocking.
