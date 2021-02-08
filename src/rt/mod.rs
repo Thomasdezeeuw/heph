@@ -36,29 +36,18 @@ mod signal;
 mod timers;
 
 pub(crate) mod access;
+pub(crate) mod channel;
+pub(crate) mod scheduler;
+pub(crate) mod sync_worker;
 pub(crate) mod waker;
+pub(crate) mod worker;
 
-// Modules that are public (in the crate) when testing and private otherwise.
-macro_rules! cfg_pub_test {
-    ($( $mod_name: ident ),+) => {
-        $(
-            #[cfg(not(any(test, feature = "test")))]
-            mod $mod_name;
-            #[cfg(any(test, feature = "test"))]
-            pub(crate) mod $mod_name;
-        )+
-    };
-}
-
-// Modules used in testing.
-cfg_pub_test!(channel, scheduler, worker, sync_worker);
+pub mod options;
 
 pub(crate) use access::PrivateAccess;
 pub(crate) use process::ProcessId;
 pub(crate) use timers::Timers; // Needed by the `test` module.
 pub(crate) use waker::Waker;
-
-pub mod options;
 
 pub use access::Access;
 pub use error::Error;
