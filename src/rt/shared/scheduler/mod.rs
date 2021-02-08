@@ -200,9 +200,7 @@ impl<'s> AddActor<'s> {
         #[allow(trivial_casts)]
         ProcessId(unsafe { &*self.alloc as *const _ as *const u8 as usize })
     }
-}
 
-impl<'s> AddActor<'s> {
     /// Add a new thread-safe actor to the scheduler.
     pub(crate) fn add<S, NA>(
         self,

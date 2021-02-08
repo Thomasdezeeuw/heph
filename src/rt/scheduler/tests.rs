@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use crate::actor::{self, context, NewActor};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
-use crate::rt::scheduler::{local, LocalScheduler, Priority, ProcessData};
+use crate::rt::scheduler::{LocalScheduler, Priority, ProcessData};
 use crate::rt::RuntimeRef;
 use crate::supervisor::NoSupervisor;
 use crate::test::{self, init_local_actor_with_inbox, AssertUnmoved};
@@ -20,7 +20,7 @@ fn assert_size<T>(expected: usize) {
 
 #[test]
 fn size_assertions() {
-    assert_size::<local::ProcessData>(40);
+    assert_size::<ProcessData>(40);
 }
 
 #[derive(Debug)]
@@ -42,7 +42,7 @@ fn has_process() {
     assert!(!scheduler.has_process());
     assert!(!scheduler.has_ready_process());
 
-    let process: Pin<Box<ProcessData<dyn Process>>> = Box::pin(ProcessData::new(
+    let process: Pin<Box<ProcessData>> = Box::pin(ProcessData::new(
         Priority::default(),
         Duration::from_secs(0),
         Box::pin(NopTestProcess),
@@ -51,6 +51,7 @@ fn has_process() {
     assert!(scheduler.has_process());
     assert!(!scheduler.has_ready_process());
 }
+
 async fn simple_actor(_: actor::Context<!>) -> Result<(), !> {
     Ok(())
 }
