@@ -68,21 +68,9 @@ impl Process for NopTestProcess {
 #[test]
 #[allow(clippy::eq_op)] // Need to compare `ProcessData` to itself.
 fn process_data_equality() {
-    let process1 = ProcessData::new(
-        Priority::LOW,
-        Duration::from_millis(0),
-        Box::pin(NopTestProcess),
-    );
-    let process2 = ProcessData::new(
-        Priority::NORMAL,
-        Duration::from_millis(0),
-        Box::pin(NopTestProcess),
-    );
-    let process3 = ProcessData::new(
-        Priority::HIGH,
-        Duration::from_millis(0),
-        Box::pin(NopTestProcess),
-    );
+    let process1 = ProcessData::new(Priority::LOW, Box::pin(NopTestProcess));
+    let process2 = ProcessData::new(Priority::NORMAL, Box::pin(NopTestProcess));
+    let process3 = ProcessData::new(Priority::HIGH, Box::pin(NopTestProcess));
 
     // Equality is only based on id alone.
     assert_eq!(process1, process1);
@@ -100,21 +88,9 @@ fn process_data_equality() {
 
 #[test]
 fn process_data_ordering() {
-    let mut process1 = ProcessData::new(
-        Priority::HIGH,
-        Duration::from_millis(10),
-        Box::pin(NopTestProcess),
-    );
-    let mut process2 = ProcessData::new(
-        Priority::NORMAL,
-        Duration::from_millis(10),
-        Box::pin(NopTestProcess),
-    );
-    let mut process3 = ProcessData::new(
-        Priority::LOW,
-        Duration::from_millis(10),
-        Box::pin(NopTestProcess),
-    );
+    let mut process1 = ProcessData::new(Priority::HIGH, Box::pin(NopTestProcess));
+    let mut process2 = ProcessData::new(Priority::NORMAL, Box::pin(NopTestProcess));
+    let mut process3 = ProcessData::new(Priority::LOW, Box::pin(NopTestProcess));
 
     // Ordering only on runtime and priority.
     assert_eq!(process1.cmp(&process1), Ordering::Equal);
@@ -169,9 +145,9 @@ fn process_data_runtime_increase() {
 
     let mut process = Box::pin(ProcessData::new(
         Priority::HIGH,
-        Duration::from_millis(10),
         Box::pin(SleepyProcess(SLEEP_TIME)),
     ));
+    process.fair_runtime = Duration::from_millis(10);
 
     // Runtime must increase after running.
     let mut runtime_ref = test::runtime();

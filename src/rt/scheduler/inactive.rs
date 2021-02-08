@@ -315,7 +315,6 @@ mod tests {
     use std::pin::Pin;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
-    use std::time::Duration;
 
     use crate::rt::process::{Process, ProcessId, ProcessResult};
     use crate::rt::scheduler::Priority;
@@ -339,11 +338,7 @@ mod tests {
     }
 
     fn test_process() -> Pin<Box<ProcessData>> {
-        Box::pin(ProcessData::new(
-            Priority::default(),
-            Duration::from_secs(0),
-            Box::pin(TestProcess),
-        ))
+        Box::pin(ProcessData::new(Priority::default(), Box::pin(TestProcess)))
     }
 
     fn pow2(exp: usize) -> usize {
@@ -434,12 +429,7 @@ mod tests {
         let dropped = Arc::new(AtomicUsize::new(0));
 
         let process = Box::pin(DropTest(dropped.clone()));
-        let ptr: Pointer = Box::pin(ProcessData::new(
-            Priority::default(),
-            Duration::from_secs(0),
-            process,
-        ))
-        .into();
+        let ptr: Pointer = Box::pin(ProcessData::new(Priority::default(), process)).into();
 
         assert_eq!(dropped.load(Ordering::Acquire), 0);
         drop(ptr);

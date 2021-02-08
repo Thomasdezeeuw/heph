@@ -113,16 +113,17 @@ pub(crate) struct ProcessData<P: ?Sized> {
 }
 
 impl<P: ?Sized> ProcessData<P> {
-    pub(crate) const fn new(
-        priority: Priority,
-        fair_runtime: Duration,
-        process: Pin<Box<P>>,
-    ) -> ProcessData<P> {
+    pub(crate) const fn new(priority: Priority, process: Pin<Box<P>>) -> ProcessData<P> {
         ProcessData {
             priority,
-            fair_runtime,
+            fair_runtime: Duration::ZERO,
             process,
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_fair_runtime(&mut self, fair_runtime: Duration) {
+        self.fair_runtime = fair_runtime;
     }
 
     /// Returns the process identifier, or pid for short.

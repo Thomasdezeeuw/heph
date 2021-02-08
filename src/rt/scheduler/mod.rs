@@ -8,7 +8,6 @@ use std::collections::BinaryHeap;
 use std::fmt;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
-use std::time::Duration;
 
 use inbox::Manager;
 use log::trace;
@@ -132,7 +131,6 @@ impl<'s> AddActor<'s> {
         );
         let process = ProcessData::new(
             priority,
-            Duration::from_nanos(0),
             Box::pin(ActorProcess::new(supervisor, new_actor, actor, inbox)),
         );
         let AddActor {

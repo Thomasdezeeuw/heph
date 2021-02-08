@@ -5,7 +5,6 @@ use std::future::{pending, Pending};
 use std::mem::{self, forget};
 use std::pin::Pin;
 use std::rc::Rc;
-use std::time::Duration;
 
 use crate::actor::{self, context, NewActor};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
@@ -44,7 +43,6 @@ fn has_process() {
 
     let process: Pin<Box<ProcessData>> = Box::pin(ProcessData::new(
         Priority::default(),
-        Duration::from_secs(0),
         Box::pin(NopTestProcess),
     ));
     scheduler.add_process(process);
