@@ -13,18 +13,16 @@ use inbox::Manager;
 use log::trace;
 
 use crate::actor::context;
+use crate::rt::options::Priority;
 use crate::rt::process::{self, ActorProcess, ProcessId};
 use crate::{NewActor, Supervisor};
 
 mod inactive;
-mod priority;
 
 #[cfg(test)]
 mod tests;
 
 use inactive::Inactive;
-
-pub use priority::Priority;
 
 type ProcessData = process::ProcessData<dyn process::Process>;
 

@@ -2,9 +2,23 @@ use std::io::{self, Write};
 
 use std::process::Command;
 
+use heph::rt::options::Priority;
 use heph::rt::Runtime;
 
 use crate::util::temp_file;
+
+#[test]
+#[allow(clippy::eq_op)] // Need to compare `Priority` to itself.
+fn priority() {
+    assert!(Priority::HIGH > Priority::NORMAL);
+    assert!(Priority::NORMAL > Priority::LOW);
+    assert!(Priority::HIGH > Priority::LOW);
+
+    assert_eq!(Priority::HIGH, Priority::HIGH);
+    assert_ne!(Priority::HIGH, Priority::NORMAL);
+
+    assert_eq!(Priority::default(), Priority::NORMAL);
+}
 
 #[test]
 #[cfg(target_os = "linux")] // Only works on Linux.

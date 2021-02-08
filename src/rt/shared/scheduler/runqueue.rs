@@ -101,8 +101,8 @@ mod tests {
     use std::pin::Pin;
     use std::time::Duration;
 
+    use crate::rt::options::Priority;
     use crate::rt::process::{Process, ProcessId, ProcessResult};
-    use crate::rt::scheduler::Priority;
     use crate::rt::RuntimeRef;
 
     use super::{Node, ProcessData, RunQueue};
