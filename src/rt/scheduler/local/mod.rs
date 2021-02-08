@@ -110,11 +110,11 @@ impl<'s> AddActor<&'s mut LocalScheduler, dyn process::Process> {
             inactive::ok_ptr(self.alloc.as_ptr() as *const ()),
             "SKIP_BITS invalid"
         );
-        let process = ProcessData {
+        let process = ProcessData::new(
             priority,
-            fair_runtime: Duration::from_nanos(0),
-            process: Box::pin(ActorProcess::new(supervisor, new_actor, actor, inbox)),
-        };
+            Duration::from_nanos(0),
+            Box::pin(ActorProcess::new(supervisor, new_actor, actor, inbox)),
+        );
         let AddActor {
             processes,
             mut alloc,

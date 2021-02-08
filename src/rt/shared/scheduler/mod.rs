@@ -12,8 +12,9 @@ use inbox::Manager;
 use log::trace;
 
 use crate::actor::{context, NewActor};
-use crate::rt::process::{ActorProcess, Process, ProcessId};
-use crate::rt::scheduler::{self, AddActor, Priority};
+use crate::rt::options::Priority;
+use crate::rt::process::{self, ActorProcess, Process, ProcessId};
+use crate::rt::scheduler::AddActor;
 use crate::Supervisor;
 
 mod inactive;
@@ -25,7 +26,7 @@ use runqueue::RunQueue;
 #[cfg(test)]
 mod tests;
 
-pub(super) type ProcessData = scheduler::ProcessData<dyn Process + Send + Sync>;
+pub(super) type ProcessData = process::ProcessData<dyn Process + Send + Sync>;
 
 // # How the `Scheduler` works.
 //
@@ -167,11 +168,11 @@ impl<'s> AddActor<&'s Scheduler, dyn Process + Send + Sync> {
             "SKIP_BITS invalid"
         );
 
-        let process = ProcessData {
+        let process = ProcessData::new(
             priority,
-            fair_runtime: Duration::from_nanos(0),
-            process: Box::pin(ActorProcess::new(supervisor, new_actor, actor, inbox)),
-        };
+            Duration::from_nanos(0),
+            Box::pin(ActorProcess::new(supervisor, new_actor, actor, inbox)),
+        );
         let AddActor {
             processes,
             mut alloc,

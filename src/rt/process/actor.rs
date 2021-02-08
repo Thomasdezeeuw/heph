@@ -13,7 +13,7 @@ use crate::supervisor::SupervisorStrategy;
 use crate::{RuntimeRef, Supervisor};
 
 /// A process that represent an [`Actor`].
-pub(in crate::rt) struct ActorProcess<S, NA: NewActor> {
+pub(crate) struct ActorProcess<S, NA: NewActor> {
     /// The actor's supervisor used to determine what to do when the actor, or
     /// [`NewActor`] implementation, returns an error.
     supervisor: S,
@@ -148,7 +148,7 @@ where
 
 /// Support all kinds of actor context's (e.g. [`ThreadSafe`] and
 /// [`ThreadLocal`]) within the same implementation of [`ActorProcess`].
-pub(in crate::rt) trait ContextKind {
+pub(crate) trait ContextKind {
     /// Create a new [`task::Waker`].
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
 

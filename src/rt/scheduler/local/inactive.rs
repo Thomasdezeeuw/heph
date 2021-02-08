@@ -339,11 +339,11 @@ mod tests {
     }
 
     fn test_process() -> Pin<Box<ProcessData>> {
-        Box::pin(ProcessData {
-            priority: Priority::default(),
-            fair_runtime: Duration::from_secs(0),
-            process: Box::pin(TestProcess),
-        })
+        Box::pin(ProcessData::new(
+            Priority::default(),
+            Duration::from_secs(0),
+            Box::pin(TestProcess),
+        ))
     }
 
     fn pow2(exp: usize) -> usize {
@@ -434,11 +434,11 @@ mod tests {
         let dropped = Arc::new(AtomicUsize::new(0));
 
         let process = Box::pin(DropTest(dropped.clone()));
-        let ptr: Pointer = Box::pin(ProcessData {
-            priority: Priority::default(),
-            fair_runtime: Duration::from_secs(0),
+        let ptr: Pointer = Box::pin(ProcessData::new(
+            Priority::default(),
+            Duration::from_secs(0),
             process,
-        })
+        ))
         .into();
 
         assert_eq!(dropped.load(Ordering::Acquire), 0);
