@@ -23,10 +23,10 @@ pub(in crate::rt) use actor::ActorProcess;
 ///
 /// [`Runtime`]: crate::Runtime
 /// [schedulers]: crate::rt::scheduler
-// public because it used in the `RuntimeAccess` trait.
+// NOTE: public because it used in the `RuntimeAccess` trait.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[repr(transparent)]
-pub struct ProcessId(pub usize);
+pub struct ProcessId(pub(crate) usize);
 
 impl From<Token> for ProcessId {
     fn from(id: Token) -> ProcessId {
@@ -75,7 +75,7 @@ pub(crate) trait Process {
 /// See [`Process::run`].
 #[must_use]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub enum ProcessResult {
+pub(crate) enum ProcessResult {
     /// The process is complete.
     ///
     /// Similar to [`Poll::Ready`].

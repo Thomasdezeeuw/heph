@@ -1,4 +1,5 @@
-//! Module containing the implementation of the `Process` trait for `Actor`s.
+//! Module containing the implementation of the [`Process`] trait for
+//! [`Actor`]s.
 
 use std::pin::Pin;
 use std::task::{self, Poll};
@@ -32,7 +33,7 @@ where
     C: ContextKind,
 {
     /// Create a new `ActorProcess`.
-    pub(in crate::rt) const fn new(
+    pub(crate) const fn new(
         supervisor: S,
         new_actor: NA,
         actor: NA::Actor,
@@ -46,20 +47,20 @@ where
         }
     }
 
-    /// Returns `Ok(true)` if the actor was successfully restarted, `Ok(false)`
-    /// if the actor wasn't restarted or an error if the actor failed to
-    /// restart.
+    /// Returns `Ok(ProcessResult::Pending)` if the actor was successfully
+    /// restarted, `Ok(ProcessResult::Complete)` if the actor wasn't restarted
+    /// or an error if the actor failed to restart.
     fn handle_actor_error(
         &mut self,
         runtime_ref: &mut RuntimeRef,
         pid: ProcessId,
         err: <NA::Actor as Actor>::Error,
-    ) -> Result<bool, NA::Error> {
+    ) -> Result<ProcessResult, NA::Error> {
         match self.supervisor.decide(err) {
-            SupervisorStrategy::Restart(arg) => {
-                self.create_new_actor(runtime_ref, pid, arg).map(|()| true)
-            }
-            SupervisorStrategy::Stop => Ok(false),
+            SupervisorStrategy::Restart(arg) => self
+                .create_new_actor(runtime_ref, pid, arg)
+                .map(|()| ProcessResult::Pending),
+            SupervisorStrategy::Stop => Ok(ProcessResult::Complete),
         }
     }
 
@@ -69,12 +70,12 @@ where
         runtime_ref: &mut RuntimeRef,
         pid: ProcessId,
         err: NA::Error,
-    ) -> Result<bool, NA::Error> {
+    ) -> Result<ProcessResult, NA::Error> {
         match self.supervisor.decide_on_restart_error(err) {
-            SupervisorStrategy::Restart(arg) => {
-                self.create_new_actor(runtime_ref, pid, arg).map(|()| true)
-            }
-            SupervisorStrategy::Stop => Ok(false),
+            SupervisorStrategy::Restart(arg) => self
+                .create_new_actor(runtime_ref, pid, arg)
+                .map(|()| ProcessResult::Pending),
+            SupervisorStrategy::Stop => Ok(ProcessResult::Complete),
         }
     }
 
@@ -119,20 +120,20 @@ where
         match actor.as_mut().try_poll(&mut task_ctx) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
             Poll::Ready(Err(err)) => match this.handle_actor_error(runtime_ref, pid, err) {
-                Ok(true) => {
+                Ok(ProcessResult::Pending) => {
                     // Run the actor just in case progress can be made already,
                     // this required because we use edge triggers for I/O.
                     unsafe { Pin::new_unchecked(this) }.run(runtime_ref, pid)
                 }
                 // Actor wasn't restarted.
-                Ok(false) => ProcessResult::Complete,
+                Ok(ProcessResult::Complete) => ProcessResult::Complete,
                 Err(err) => match this.handle_restart_error(runtime_ref, pid, err) {
-                    Ok(true) => {
+                    Ok(ProcessResult::Pending) => {
                         // Run the actor, same reason as above.
                         unsafe { Pin::new_unchecked(this) }.run(runtime_ref, pid)
                     }
                     // Actor wasn't restarted.
-                    Ok(false) => ProcessResult::Complete,
+                    Ok(ProcessResult::Complete) => ProcessResult::Complete,
                     Err(err) => {
                         // Let the supervisor know.
                         this.supervisor.second_restart_error(err);
