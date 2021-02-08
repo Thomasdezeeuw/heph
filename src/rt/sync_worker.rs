@@ -80,7 +80,7 @@ impl SyncWorker {
         self.handle.join()
     }
 
-    /// Returns the [`thread::Handle`].
+    /// Returns the [`thread::JoinHandle`].
     #[cfg(any(test, feature = "test"))]
     pub(crate) fn into_handle(self) -> thread::JoinHandle<()> {
         self.handle

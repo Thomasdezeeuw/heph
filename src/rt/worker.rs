@@ -376,7 +376,7 @@ impl RunningRuntime {
                     continue;
                 }
 
-                let process = self.internal.shared.scheduler.try_steal();
+                let process = self.internal.shared.scheduler.remove();
                 if let Some(mut process) = process {
                     let timing = trace::start(&trace_log);
                     let pid = process.as_ref().id();

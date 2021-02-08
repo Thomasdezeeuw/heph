@@ -322,7 +322,7 @@ impl<'a, T> AttributeValue for &'a T where T: AttributeValue + ?Sized {}
 mod private {
     //! Module with private version of [`AttributeValue`].
 
-    /// The [`WriteAttribute::type_byte`] constants.
+    /// The [`AttributeValue::type_byte`] constants.
     const UNSIGNED_INTEGER_BYTE: u8 = 0b001;
     const SIGNED_INTEGER_BYTE: u8 = 0b010;
     const FLOAT_BYTE: u8 = 0b011;

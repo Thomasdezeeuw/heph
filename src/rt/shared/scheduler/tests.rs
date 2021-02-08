@@ -36,7 +36,7 @@ fn adding_actor() {
     // Shouldn't run any process yet, since none are added.
     assert!(!scheduler.has_process());
     assert!(!scheduler.has_ready_process());
-    assert_eq!(scheduler.try_steal(), None);
+    assert_eq!(scheduler.remove(), None);
 
     // Add an actor to the scheduler.
     let actor_entry = scheduler.add_actor();
@@ -55,20 +55,20 @@ fn adding_actor() {
     // Newly added processes aren't ready by default.
     assert!(scheduler.has_process());
     assert!(!scheduler.has_ready_process());
-    assert_eq!(scheduler.try_steal(), None);
+    assert_eq!(scheduler.remove(), None);
 
     // After scheduling the process should be ready to run.
     scheduler.mark_ready(pid);
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
-    let process = scheduler.try_steal().unwrap();
+    let process = scheduler.remove().unwrap();
     assert_eq!(process.as_ref().id(), pid);
 
     // After the process is run, and returned `ProcessResult::Complete`, it
     // should be removed.
     assert!(!scheduler.has_process());
     assert!(!scheduler.has_ready_process());
-    assert_eq!(scheduler.try_steal(), None);
+    assert_eq!(scheduler.remove(), None);
     assert!(!scheduler.has_process());
     assert!(!scheduler.has_ready_process());
 
@@ -76,13 +76,13 @@ fn adding_actor() {
     scheduler.add_process(process);
     assert!(scheduler.has_process());
     assert!(!scheduler.has_ready_process());
-    assert_eq!(scheduler.try_steal(), None);
+    assert_eq!(scheduler.remove(), None);
 
     // Marking the same process as ready again.
     scheduler.mark_ready(pid);
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
-    let process = scheduler.try_steal().unwrap();
+    let process = scheduler.remove().unwrap();
     assert_eq!(process.as_ref().id(), pid);
 }
 
@@ -92,13 +92,13 @@ fn marking_unknown_pid_as_ready() {
 
     assert!(!scheduler.has_process());
     assert!(!scheduler.has_ready_process());
-    assert_eq!(scheduler.try_steal(), None);
+    assert_eq!(scheduler.remove(), None);
 
     // Scheduling an unknown process should do nothing.
     scheduler.mark_ready(ProcessId(0));
     assert!(!scheduler.has_process());
     assert!(!scheduler.has_ready_process());
-    assert_eq!(scheduler.try_steal(), None);
+    assert_eq!(scheduler.remove(), None);
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn scheduler_run_order() {
     // Run all processes, should be in order of priority (since there runtimes
     // are equal).
     for _ in 0..3 {
-        let mut process = scheduler.try_steal().unwrap();
+        let mut process = scheduler.remove().unwrap();
         assert_eq!(
             process.as_mut().run(&mut runtime_ref),
             ProcessResult::Complete
@@ -183,7 +183,7 @@ fn assert_process_unmoved() {
 
     // Run the process multiple times, ensure it's not moved in the
     // process.
-    let mut process = scheduler.try_steal().unwrap();
+    let mut process = scheduler.remove().unwrap();
     assert_eq!(
         process.as_mut().run(&mut runtime_ref),
         ProcessResult::Pending
@@ -191,7 +191,7 @@ fn assert_process_unmoved() {
     scheduler.add_process(process);
 
     scheduler.mark_ready(pid);
-    let mut process = scheduler.try_steal().unwrap();
+    let mut process = scheduler.remove().unwrap();
     assert_eq!(
         process.as_mut().run(&mut runtime_ref),
         ProcessResult::Pending
@@ -199,7 +199,7 @@ fn assert_process_unmoved() {
     scheduler.add_process(process);
 
     scheduler.mark_ready(pid);
-    let mut process = scheduler.try_steal().unwrap();
+    let mut process = scheduler.remove().unwrap();
     assert_eq!(
         process.as_mut().run(&mut runtime_ref),
         ProcessResult::Pending
