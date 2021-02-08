@@ -61,7 +61,6 @@ static SHARED_INTERNAL: SyncLazy<Arc<SharedRuntimeInternal>> = SyncLazy::new(|| 
         .try_clone()
         .expect("failed to clone `Registry` for test module");
     let scheduler = Scheduler::new();
-    let scheduler = scheduler.create_ref();
     let timers = Arc::new(Mutex::new(Timers::new()));
     SharedRuntimeInternal::new(*COORDINATOR_ID, scheduler, registry, timers)
 });

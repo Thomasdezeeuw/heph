@@ -67,7 +67,7 @@ pub use signal::Signal;
 
 use coordinator::Coordinator;
 use hack::SetupFn;
-use scheduler::{LocalScheduler, SchedulerRef};
+use scheduler::{LocalScheduler, Scheduler};
 use sync_worker::SyncWorker;
 use waker::{WakerId, MAX_THREADS};
 use worker::Worker;
@@ -799,7 +799,7 @@ pub(crate) struct SharedRuntimeInternal {
     /// process.
     waker: Waker,
     /// Scheduler for thread-safe actors.
-    scheduler: SchedulerRef,
+    scheduler: Scheduler,
     /// Registry for the `Coordinator`'s `Poll` instance.
     registry: Registry,
     // FIXME: `Timers` is not up to this job.
@@ -809,7 +809,7 @@ pub(crate) struct SharedRuntimeInternal {
 impl SharedRuntimeInternal {
     pub(crate) fn new(
         waker_id: WakerId,
-        scheduler: SchedulerRef,
+        scheduler: Scheduler,
         registry: Registry,
         timers: Arc<Mutex<Timers>>,
     ) -> Arc<SharedRuntimeInternal> {

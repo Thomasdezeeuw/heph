@@ -56,7 +56,7 @@ impl Coordinator {
         let timers = Arc::new(Mutex::new(Timers::new()));
 
         let shared_internals =
-            SharedRuntimeInternal::new(waker_id, scheduler.create_ref(), registry, timers.clone());
+            SharedRuntimeInternal::new(waker_id, scheduler.clone(), registry, timers.clone());
         let coordinator = Coordinator {
             poll,
             waker_events,
