@@ -27,27 +27,30 @@ pub(crate) fn new<S, R>() -> io::Result<(Handle<S, R>, Handle<R, S>)> {
     let (p_send1, p_recv2) = unix::pipe::new()?;
     let (p_send2, p_recv1) = unix::pipe::new()?;
 
-    let handle1 = Handle {
-        send_channel: c_send1,
-        send_pipe: p_send1,
-        recv_channel: c_recv1,
-        recv_pipe: p_recv1,
-    };
-
-    let handle2 = Handle {
-        send_channel: c_send2,
-        send_pipe: p_send2,
-        recv_channel: c_recv2,
-        recv_pipe: p_recv2,
-    };
+    let handle1 = Handle::new(c_send1, p_send1, c_recv1, p_recv1);
+    let handle2 = Handle::new(c_send2, p_send2, c_recv2, p_recv2);
 
     Ok((handle1, handle2))
 }
 
 /// Data send across the channel to create a `mio::Event`.
-const DATA: &[u8] = b"DATA";
+const WAKE: &[u8] = b"WAKE";
 
 impl<S, R> Handle<S, R> {
+    const fn new(
+        send_channel: crossbeam::Sender<S>,
+        send_pipe: unix::pipe::Sender,
+        recv_channel: crossbeam::Receiver<R>,
+        recv_pipe: unix::pipe::Receiver,
+    ) -> Handle<S, R> {
+        Handle {
+            send_channel,
+            send_pipe,
+            recv_channel,
+            recv_pipe,
+        }
+    }
+
     /// Register both ends of the Unix pipe of this channel.
     pub(super) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
         registry.register(&mut self.send_pipe, token, Interest::WRITABLE)?;
@@ -63,7 +66,7 @@ impl<S, R> Handle<S, R> {
         // Generate an `mio::Event` for the receiving end.
         loop {
             trace!("notifying worker-coordinator channel of new message");
-            match self.send_pipe.write(DATA) {
+            match self.send_pipe.write(WAKE) {
                 Ok(0) => {
                     return Err(io::Error::new(
                         io::ErrorKind::NotConnected,
@@ -87,7 +90,7 @@ impl<S, R> Handle<S, R> {
                 // If the channel is empty this will likely be the last call in
                 // a while, so we'll empty the pipe to ensure we'll get another
                 // notification once the coordinator sends us another message.
-                let mut buf = [0; 5 * DATA.len()];
+                let mut buf = [0; 24]; // Fits 6 messages.
                 loop {
                     trace!("emptying worker-coordinator channel pipe");
                     match self.recv_pipe.read(&mut buf) {
@@ -99,8 +102,8 @@ impl<S, R> Handle<S, R> {
                         Err(err) => return Err(err),
                     }
                 }
-                // Try one last time in case the coordinator send a message
-                // in between the time we last checked and we emptied the pipe
+                // Try one last time in case the coordinator send a message in
+                // between the time we last checked and we emptied the pipe
                 // above (for which we won't get another event as we just
                 // emptied the pipe).
                 Ok(self.recv_channel.try_recv().ok())
