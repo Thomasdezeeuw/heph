@@ -18,12 +18,7 @@
 //! The restarted actor will have the same message inbox as the old (stopped)
 //! actor. Note however that if an actor retrieved a message from its inbox, and
 //! returned an error when processing it, the new (restarted) actor won't
-//! retrieve that message again (messages aren't cloned after all). If you want
-//! to ensure that all messages are handled instead of receiving message they
-// can be [peeked], which clones the message.
-//! can be peeked, which clones the message.
-//!
-// [peeked]: crate::actor::Context::peek
+//! retrieve that message again (messages aren't cloned after all).
 //!
 //! # Restarting or stopping?
 //!
