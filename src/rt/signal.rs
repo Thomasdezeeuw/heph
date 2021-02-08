@@ -38,7 +38,7 @@ pub enum Signal {
 
 impl Signal {
     /// Convert a [`mio_signals::Signal`] into our own `Signal`.
-    pub(super) fn from_mio(signal: mio_signals::Signal) -> Signal {
+    pub(super) const fn from_mio(signal: mio_signals::Signal) -> Signal {
         match signal {
             mio_signals::Signal::Interrupt => Signal::Interrupt,
             mio_signals::Signal::Terminate => Signal::Terminate,
@@ -47,7 +47,7 @@ impl Signal {
     }
 
     /// Whether or not the `Signal` is considered a "stopping" signal.
-    pub(super) fn should_stop(self) -> bool {
+    pub(super) const fn should_stop(self) -> bool {
         true
     }
 }
