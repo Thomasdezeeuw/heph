@@ -803,7 +803,7 @@ pub(crate) struct SharedRuntimeInternal {
     /// Registry for the `Coordinator`'s `Poll` instance.
     registry: Registry,
     // FIXME: `Timers` is not up to this job.
-    timers: Arc<Mutex<Timers>>,
+    timers: Mutex<Timers>,
 }
 
 impl SharedRuntimeInternal {
@@ -811,7 +811,7 @@ impl SharedRuntimeInternal {
         waker_id: WakerId,
         scheduler: Scheduler,
         registry: Registry,
-        timers: Arc<Mutex<Timers>>,
+        timers: Mutex<Timers>,
     ) -> Arc<SharedRuntimeInternal> {
         let waker = Waker::new(waker_id, coordinator::WAKER.into());
         Arc::new(SharedRuntimeInternal {

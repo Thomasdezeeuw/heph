@@ -48,10 +48,10 @@ impl Coordinator {
         let waker = mio::Waker::new(&registry, WAKER).map_err(Error::Init)?;
         let waker_id = waker::init(waker, waker_sender);
         let scheduler = Scheduler::new();
-        let timers = Arc::new(Mutex::new(Timers::new()));
+        let timers = Mutex::new(Timers::new());
 
         let shared_internals =
-            SharedRuntimeInternal::new(waker_id, scheduler.clone(), registry, timers.clone());
+            SharedRuntimeInternal::new(waker_id, scheduler.clone(), registry, timers);
         let coordinator = Coordinator {
             poll,
             waker_events,
