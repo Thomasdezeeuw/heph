@@ -118,19 +118,18 @@ pub mod log;
 pub mod net;
 pub mod rt;
 pub mod supervisor;
+#[cfg(any(test, feature = "test"))]
+pub mod test;
 pub mod timer;
 pub mod trace;
 #[doc(hidden)]
 pub mod util;
 
-#[cfg(any(test, feature = "test"))]
-pub mod test;
-
 #[doc(no_inline)]
-pub use crate::actor::{Actor, NewActor};
+pub use actor::{Actor, NewActor};
 #[doc(no_inline)]
-pub use crate::actor_ref::ActorRef;
+pub use actor_ref::ActorRef;
 #[doc(no_inline)]
-pub use crate::rt::{ActorOptions, Runtime, RuntimeRef};
+pub use rt::{ActorOptions, Runtime, RuntimeRef};
 #[doc(no_inline)]
-pub use crate::supervisor::{Supervisor, SupervisorStrategy};
+pub use supervisor::{Supervisor, SupervisorStrategy};
