@@ -509,7 +509,7 @@ mod shared_scheduler {
 
     #[test]
     fn adding_actor() {
-        let mut scheduler = Scheduler::new();
+        let scheduler = Scheduler::new();
 
         // Shouldn't run any process yet, since none are added.
         assert!(!scheduler.has_process());
@@ -566,7 +566,7 @@ mod shared_scheduler {
 
     #[test]
     fn marking_unknown_pid_as_ready() {
-        let mut scheduler = Scheduler::new();
+        let scheduler = Scheduler::new();
 
         assert!(!scheduler.has_process());
         assert!(!scheduler.has_ready_process());
@@ -626,7 +626,7 @@ mod shared_scheduler {
 
     #[test]
     fn assert_process_unmoved() {
-        let mut scheduler = Scheduler::new();
+        let scheduler = Scheduler::new();
         let mut runtime_ref = test::runtime();
 
         let new_actor = TestAssertUnmovedNewActor(PhantomData);

@@ -104,7 +104,7 @@ impl Scheduler {
     /// # Notes
     ///
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
-    pub(in crate::rt) fn mark_ready(&mut self, pid: ProcessId) {
+    pub(in crate::rt) fn mark_ready(&self, pid: ProcessId) {
         trace!("marking process as ready: pid={}", pid);
         if let Some(process) = { self.shared.inactive.lock().unwrap().mark_ready(pid) } {
             // The process was in the `Inactive` list, so we move it to the run
