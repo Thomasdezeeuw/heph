@@ -21,21 +21,19 @@ pub trait Access: PrivateAccess {}
 
 impl<T> Access for T where T: PrivateAccess {}
 
-/// Actual behind [`rt::Access`].
+/// Actual trait behind [`rt::Access`].
 ///
 /// [`rt::Access`]: crate::rt::Access
 pub trait PrivateAccess {
     /// Create a new [`Waker`].
     fn new_waker(&mut self, pid: ProcessId) -> Waker;
 
-    /// Registers the `source` at the correct `Poll` instance using `token`
-    /// and `interest`.
+    /// Registers the `source` using `token` and `interest`.
     fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized;
 
-    /// Reregisters the `source` at the correct `Poll` instance using
-    /// `token` and `interest`.
+    /// Reregisters the `source` using `token` and `interest`.
     fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized;
