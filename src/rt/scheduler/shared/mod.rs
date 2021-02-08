@@ -5,7 +5,6 @@
 //! [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
 
 use std::pin::Pin;
-use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -52,14 +51,8 @@ pub(super) type ProcessData = scheduler::ProcessData<dyn Process + Send + Sync>;
 //   resources cleaned up.
 
 /// The thread-safe scheduler, responsible for scheduling processes.
-#[derive(Clone, Debug)]
-pub(crate) struct Scheduler {
-    shared: Arc<Shared>,
-}
-
-/// Internal of the `Scheduler`, shared with zero or more `WorkStealer`s.
 #[derive(Debug)]
-struct Shared {
+pub(crate) struct Scheduler {
     /// Processes that are ready to run.
     ready: RunQueue,
     /// Inactive processes that are not ready to run.
@@ -69,24 +62,23 @@ struct Shared {
 impl Scheduler {
     /// Create a new `Scheduler` and accompanying reference.
     pub(crate) fn new() -> Scheduler {
-        let shared = Arc::new(Shared {
+        Scheduler {
             ready: RunQueue::empty(),
             inactive: Mutex::new(Inactive::empty()),
-        });
-        Scheduler { shared }
+        }
     }
 
     /// Returns `true` if the schedule has any processes (in any state), `false`
     /// otherwise.
     pub(in crate::rt) fn has_process(&self) -> bool {
-        let has_inactive = { self.shared.inactive.lock().unwrap().has_process() };
+        let has_inactive = { self.inactive.lock().unwrap().has_process() };
         has_inactive || self.has_ready_process()
     }
 
     /// Returns `true` if the schedule has any processes that are ready to run,
     /// `false` otherwise.
     pub(in crate::rt) fn has_ready_process(&self) -> bool {
-        self.shared.ready.has_process()
+        self.ready.has_process()
     }
 
     /// Add a thread-safe actor to the scheduler.
@@ -106,10 +98,10 @@ impl Scheduler {
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub(in crate::rt) fn mark_ready(&self, pid: ProcessId) {
         trace!("marking process as ready: pid={}", pid);
-        if let Some(process) = { self.shared.inactive.lock().unwrap().mark_ready(pid) } {
+        if let Some(process) = { self.inactive.lock().unwrap().mark_ready(pid) } {
             // The process was in the `Inactive` list, so we move it to the run
             // queue.
-            self.shared.ready.add(process)
+            self.ready.add(process)
         }
         // NOTE: if the process in currently not in the `Inactive` list it will
         // be marked as ready-to-run and `Scheduler::add_process` will add it to
@@ -122,7 +114,7 @@ impl Scheduler {
     /// * `Ok(Some(..))` if a process was successfully stolen.
     /// * `Ok(None)` if no processes are available to run.
     pub(in crate::rt) fn try_steal(&self) -> Option<Pin<Box<ProcessData>>> {
-        self.shared.ready.remove()
+        self.ready.remove()
     }
 
     /// Add back a process that was previously removed via
@@ -131,10 +123,10 @@ impl Scheduler {
         let pid = process.as_ref().id();
 
         trace!("adding back process: pid={}", pid);
-        if let Some(process) = { self.shared.inactive.lock().unwrap().add(process) } {
+        if let Some(process) = { self.inactive.lock().unwrap().add(process) } {
             // If the process was marked as ready-to-run we need to add to the
             // run queue instead.
-            self.shared.ready.add(process);
+            self.ready.add(process);
         }
     }
 
@@ -188,7 +180,7 @@ impl<'s> AddActor<&'s Scheduler, dyn Process + Send + Sync> {
         };
 
         if is_ready {
-            processes.shared.ready.add(process);
+            processes.ready.add(process);
         } else {
             processes.add_process(process)
         }

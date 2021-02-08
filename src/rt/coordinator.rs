@@ -50,8 +50,7 @@ impl Coordinator {
         let scheduler = Scheduler::new();
         let timers = Mutex::new(Timers::new());
 
-        let shared_internals =
-            SharedRuntimeInternal::new(waker_id, scheduler.clone(), registry, timers);
+        let shared_internals = SharedRuntimeInternal::new(waker_id, scheduler, registry, timers);
         let coordinator = Coordinator {
             poll,
             waker_events,
