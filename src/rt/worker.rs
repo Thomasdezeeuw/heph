@@ -376,17 +376,17 @@ impl RunningRuntime {
                     continue;
                 }
 
-                let process = self.internal.shared.scheduler.remove();
+                let process = self.internal.shared.remove_process();
                 if let Some(mut process) = process {
                     let timing = trace::start(&trace_log);
                     let pid = process.as_ref().id();
                     let name = process.as_ref().name();
                     match process.as_mut().run(&mut runtime_ref) {
                         ProcessResult::Complete => {
-                            self.internal.shared.scheduler.complete(process);
+                            self.internal.shared.complete(process);
                         }
                         ProcessResult::Pending => {
-                            self.internal.shared.scheduler.add_process(process);
+                            self.internal.shared.add_process(process);
                         }
                     }
                     trace::finish(
@@ -400,7 +400,7 @@ impl RunningRuntime {
                 }
 
                 if !self.internal.scheduler.borrow().has_process()
-                    && !self.internal.shared.scheduler.has_process()
+                    && !self.internal.shared.has_process()
                 {
                     debug!("no processes to run, stopping runtime");
                     return Ok(());
@@ -509,7 +509,7 @@ impl RunningRuntime {
         // space events we don't want to block.
         if self.internal.scheduler.borrow().has_ready_process()
             || !self.waker_events.is_empty()
-            || self.internal.shared.scheduler.has_ready_process()
+            || self.internal.shared.has_ready_process()
         {
             Some(Duration::ZERO)
         } else if let Some(deadline) = self.internal.timers.borrow().next_deadline() {

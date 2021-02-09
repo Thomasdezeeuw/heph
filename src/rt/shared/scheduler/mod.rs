@@ -25,7 +25,7 @@ use runqueue::RunQueue;
 #[cfg(test)]
 mod tests;
 
-type ProcessData = process::ProcessData<dyn Process + Send + Sync>;
+pub(crate) type ProcessData = process::ProcessData<dyn Process + Send + Sync>;
 
 /// The thread-safe scheduler, responsible for scheduling processes that can run
 /// one any of the worker threads, e.g. thread-safe actors.

@@ -141,7 +141,7 @@ impl Coordinator {
                         let timing = trace::start(&trace_log);
                         let pid = token.into();
                         trace!("waking thread-safe actor: pid={}", pid);
-                        self.internals.scheduler.mark_ready(pid);
+                        self.internals.mark_ready(pid);
                         wake_workers += 1;
                         trace::finish(
                             &mut trace_log,
@@ -159,7 +159,7 @@ impl Coordinator {
             for pid in self.waker_events.try_iter() {
                 trace!("waking thread-safe actor: pid={}", pid);
                 if pid.0 != WAKER.0 {
-                    self.internals.scheduler.mark_ready(pid);
+                    self.internals.mark_ready(pid);
                     wake_workers += 1;
                 }
             }
@@ -172,9 +172,9 @@ impl Coordinator {
 
             trace!("polling timers");
             let timing = trace::start(&trace_log);
-            for pid in self.internals.timers.lock().unwrap().deadlines() {
+            for pid in self.internals.timers().lock().unwrap().deadlines() {
                 trace!("waking thread-safe actor: pid={}", pid);
-                self.internals.scheduler.mark_ready(pid);
+                self.internals.mark_ready(pid);
                 wake_workers += 1;
             }
             trace::finish(
@@ -233,7 +233,7 @@ impl Coordinator {
 
         // Only mark ourselves as polling if the timeout is not zero.
         let mark_waker = if !is_zero(timeout) {
-            waker::mark_polling(self.internals.waker_id, true);
+            waker::mark_polling(self.internals.coordinator_id(), true);
             true
         } else {
             false
@@ -243,7 +243,7 @@ impl Coordinator {
         let res = self.poll.poll(events, timeout);
 
         if mark_waker {
-            waker::mark_polling(self.internals.waker_id, false);
+            waker::mark_polling(self.internals.coordinator_id(), false);
         }
 
         res
@@ -251,7 +251,7 @@ impl Coordinator {
 
     /// Determine the timeout to be used in `Poll::poll`.
     fn determine_timeout(&self) -> Option<Duration> {
-        if let Some(deadline) = self.internals.timers.lock().unwrap().next_deadline() {
+        if let Some(deadline) = self.internals.timers().lock().unwrap().next_deadline() {
             let now = Instant::now();
             if deadline <= now {
                 // Deadline has already expired, so no blocking.

@@ -1,5 +1,6 @@
 //! Module with shared runtime internals.
 
+use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Instant;
@@ -18,45 +19,47 @@ use crate::supervisor::Supervisor;
 
 mod scheduler;
 
-pub(crate) use scheduler::Scheduler;
-
-// TODO: make all fields in `SharedRuntimeInternal` private.
+pub(crate) use scheduler::{ProcessData, Scheduler};
 
 /// Shared internals of the runtime.
 #[derive(Debug)]
 pub(crate) struct SharedRuntimeInternal {
     /// Waker id used to create a `Waker` for thread-safe actors.
-    pub(crate) waker_id: WakerId,
+    coordinator_id: WakerId,
     /// Scheduler for thread-safe actors.
-    pub(crate) scheduler: Scheduler,
+    scheduler: Scheduler,
     /// Registry for the `Coordinator`'s `Poll` instance.
     registry: Registry,
     // FIXME: `Timers` is not up to this job.
-    pub(crate) timers: Mutex<Timers>,
+    timers: Mutex<Timers>,
 }
 
 impl SharedRuntimeInternal {
     pub(crate) fn new(
-        waker_id: WakerId,
+        coordinator_id: WakerId,
         scheduler: Scheduler,
         registry: Registry,
         timers: Mutex<Timers>,
     ) -> Arc<SharedRuntimeInternal> {
         Arc::new(SharedRuntimeInternal {
-            waker_id,
+            coordinator_id,
             scheduler,
             registry,
             timers,
         })
     }
 
+    pub(crate) fn coordinator_id(&self) -> WakerId {
+        self.coordinator_id
+    }
+
     /// Returns a new [`task::Waker`] for the thread-safe actor with `pid`.
     pub(crate) fn new_task_waker(&self, pid: ProcessId) -> task::Waker {
-        waker::new(self.waker_id, pid)
+        waker::new(self.coordinator_id, pid)
     }
 
     pub(crate) fn new_waker(&self, pid: ProcessId) -> Waker {
-        Waker::new(self.waker_id, pid)
+        Waker::new(self.coordinator_id, pid)
     }
 
     /// Register an `event::Source`, see [`mio::Registry::register`].
@@ -94,7 +97,7 @@ impl SharedRuntimeInternal {
     /// Waker used to wake the `Coordinator`, but not schedule any particular
     /// process.
     fn wake_coordinator(&self) {
-        Waker::new(self.waker_id, coordinator::WAKER.into()).wake()
+        Waker::new(self.coordinator_id, coordinator::WAKER.into()).wake()
     }
 
     pub(crate) fn spawn_setup<S, NA, ArgFn, ArgFnE>(
@@ -135,5 +138,37 @@ impl SharedRuntimeInternal {
         );
 
         Ok(actor_ref)
+    }
+
+    // Worker only API.
+
+    pub(crate) fn has_process(&self) -> bool {
+        self.scheduler.has_process()
+    }
+
+    pub(crate) fn has_ready_process(&self) -> bool {
+        self.scheduler.has_ready_process()
+    }
+
+    pub(crate) fn remove_process(&self) -> Option<Pin<Box<ProcessData>>> {
+        self.scheduler.remove()
+    }
+
+    pub(crate) fn add_process(&self, process: Pin<Box<ProcessData>>) {
+        self.scheduler.add_process(process);
+    }
+
+    pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
+        self.scheduler.complete(process);
+    }
+
+    // Coordinator only API.
+
+    pub(crate) fn timers(&self) -> &Mutex<Timers> {
+        &self.timers
+    }
+
+    pub(crate) fn mark_ready(&self, pid: ProcessId) {
+        self.scheduler.mark_ready(pid)
     }
 }
