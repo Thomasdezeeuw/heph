@@ -46,7 +46,6 @@ pub mod options;
 
 pub(crate) use access::PrivateAccess;
 pub(crate) use process::ProcessId;
-pub(crate) use shared::SharedRuntimeInternal;
 pub(crate) use timers::Timers; // Needed by the `test` module.
 pub(crate) use waker::Waker;
 
@@ -180,7 +179,7 @@ pub struct Runtime<S = !> {
     /// Coordinator thread data.
     coordinator: Coordinator,
     /// Internals shared between the coordinator and the worker threads.
-    shared: Arc<SharedRuntimeInternal>,
+    shared: Arc<shared::RuntimeInternals>,
     /// Number of worker threads to create.
     threads: usize,
     /// Whether or not to automatically set CPU affinity.
@@ -671,7 +670,7 @@ impl RuntimeRef {
     }
 
     /// Returns a copy of the shared internals.
-    pub(crate) fn clone_shared(&self) -> Arc<SharedRuntimeInternal> {
+    pub(crate) fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
         self.internal.shared.clone()
     }
 
@@ -765,7 +764,7 @@ where
 #[derive(Debug)]
 struct RuntimeInternal {
     /// Runtime internals shared between threads, owned by the `Coordinator`.
-    shared: Arc<SharedRuntimeInternal>,
+    shared: Arc<shared::RuntimeInternals>,
     /// Waker id used to create a `Waker` for thread-local actors.
     waker_id: WakerId,
     /// Scheduler for thread-local actors.

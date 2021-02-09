@@ -20,7 +20,7 @@ use crate::rt::process::ProcessResult;
 use crate::rt::scheduler::LocalScheduler;
 use crate::rt::timers::Timers;
 use crate::rt::waker::ThreadWaker;
-use crate::rt::{self, ProcessId, RuntimeInternal, RuntimeRef, SharedRuntimeInternal, Signal};
+use crate::rt::{self, shared, ProcessId, RuntimeInternal, RuntimeRef, Signal};
 use crate::trace;
 
 /// Handle to a worker thread.
@@ -59,7 +59,7 @@ impl<E> Worker<E> {
     pub(super) fn start<S>(
         id: NonZeroUsize,
         setup: Option<S>,
-        shared_internals: Arc<SharedRuntimeInternal>,
+        shared_internals: Arc<shared::RuntimeInternals>,
         auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
     ) -> io::Result<Worker<S::Error>>
@@ -145,7 +145,7 @@ fn main<S>(
     id: NonZeroUsize,
     setup: Option<S>,
     receiver: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
-    shared_internals: Arc<SharedRuntimeInternal>,
+    shared_internals: Arc<shared::RuntimeInternals>,
     auto_cpu_affinity: bool,
     mut trace_log: Option<trace::Log>,
 ) -> Result<(), rt::Error<S::Error>>
@@ -289,7 +289,7 @@ impl RunningRuntime {
     /// Create a new running runtime.
     pub(crate) fn init(
         mut channel: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
-        shared_internals: Arc<SharedRuntimeInternal>,
+        shared_internals: Arc<shared::RuntimeInternals>,
         cpu: Option<usize>,
     ) -> io::Result<RunningRuntime> {
         // OS poll for OS event notifications (e.g. TCP connection readable).

@@ -12,7 +12,7 @@ use mio::{event, Interest, Token};
 
 use crate::actor::{AddActorError, PrivateSpawn, Spawn};
 use crate::actor_ref::ActorRef;
-use crate::rt::{self, ActorOptions, ProcessId, RuntimeRef, SharedRuntimeInternal, Waker};
+use crate::rt::{self, shared, ActorOptions, ProcessId, RuntimeRef, Waker};
 use crate::{NewActor, Supervisor};
 
 /// The context in which an actor is executed.
@@ -60,7 +60,7 @@ pub struct ThreadLocal {
 ///
 /// [`actor::Context`]: crate::actor::Context
 pub struct ThreadSafe {
-    runtime_ref: Arc<SharedRuntimeInternal>,
+    runtime_ref: Arc<shared::RuntimeInternals>,
 }
 
 impl<M, C> Context<M, C> {
@@ -202,7 +202,7 @@ impl<M> Context<M, ThreadSafe> {
     pub(crate) const fn new_shared(
         pid: ProcessId,
         inbox: Receiver<M>,
-        runtime_ref: Arc<SharedRuntimeInternal>,
+        runtime_ref: Arc<shared::RuntimeInternals>,
     ) -> Context<M, ThreadSafe> {
         Context {
             pid,

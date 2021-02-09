@@ -39,8 +39,8 @@ use crate::rt::sync_worker::SyncWorker;
 use crate::rt::waker::{self, WakerId};
 use crate::rt::worker::RunningRuntime;
 use crate::rt::{
-    self, ProcessId, RuntimeRef, SharedRuntimeInternal, SyncActorOptions, Timers,
-    SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
+    self, shared, ProcessId, RuntimeRef, SyncActorOptions, Timers, SYNC_WORKER_ID_END,
+    SYNC_WORKER_ID_START,
 };
 use crate::supervisor::SyncSupervisor;
 
@@ -55,14 +55,14 @@ static COORDINATOR_ID: SyncLazy<WakerId> = SyncLazy::new(|| {
     waker::init(waker, sender)
 });
 
-static SHARED_INTERNAL: SyncLazy<Arc<SharedRuntimeInternal>> = SyncLazy::new(|| {
+static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(|| {
     let registry = POLL
         .registry()
         .try_clone()
         .expect("failed to clone `Registry` for test module");
     let scheduler = Scheduler::new();
     let timers = Mutex::new(Timers::new());
-    SharedRuntimeInternal::new(*COORDINATOR_ID, scheduler, registry, timers)
+    shared::RuntimeInternals::new(*COORDINATOR_ID, scheduler, registry, timers)
 });
 
 thread_local! {

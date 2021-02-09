@@ -23,25 +23,26 @@ pub(crate) use scheduler::{ProcessData, Scheduler};
 
 /// Shared internals of the runtime.
 #[derive(Debug)]
-pub(crate) struct SharedRuntimeInternal {
+pub(crate) struct RuntimeInternals {
     /// Waker id used to create a `Waker` for thread-safe actors.
     coordinator_id: WakerId,
     /// Scheduler for thread-safe actors.
     scheduler: Scheduler,
     /// Registry for the `Coordinator`'s `Poll` instance.
     registry: Registry,
+    /// Timers for thread-safe actors.
     // FIXME: `Timers` is not up to this job.
     timers: Mutex<Timers>,
 }
 
-impl SharedRuntimeInternal {
+impl RuntimeInternals {
     pub(crate) fn new(
         coordinator_id: WakerId,
         scheduler: Scheduler,
         registry: Registry,
         timers: Mutex<Timers>,
-    ) -> Arc<SharedRuntimeInternal> {
-        Arc::new(SharedRuntimeInternal {
+    ) -> Arc<RuntimeInternals> {
+        Arc::new(RuntimeInternals {
             coordinator_id,
             scheduler,
             registry,

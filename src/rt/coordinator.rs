@@ -15,8 +15,8 @@ use crate::actor_ref::{ActorGroup, Delivery};
 use crate::rt::process::ProcessId;
 use crate::rt::shared::Scheduler;
 use crate::rt::{
-    self, waker, worker, SharedRuntimeInternal, Signal, SyncWorker, Timers, Worker,
-    SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
+    self, shared, waker, worker, Signal, SyncWorker, Timers, Worker, SYNC_WORKER_ID_END,
+    SYNC_WORKER_ID_START,
 };
 use crate::trace;
 
@@ -35,12 +35,12 @@ pub(super) struct Coordinator {
     /// Receiving end of the wake-up events used in the `rt::waker` mechanism.
     waker_events: Receiver<ProcessId>,
     /// Internals shared between the coordinator and workers.
-    internals: Arc<SharedRuntimeInternal>,
+    internals: Arc<shared::RuntimeInternals>,
 }
 
 impl Coordinator {
     /// Initialise the `Coordinator` thread.
-    pub(super) fn init() -> Result<(Coordinator, Arc<SharedRuntimeInternal>), Error> {
+    pub(super) fn init() -> Result<(Coordinator, Arc<shared::RuntimeInternals>), Error> {
         let poll = Poll::new().map_err(Error::Init)?;
         let registry = poll.registry().try_clone().map_err(Error::Init)?;
 
@@ -50,7 +50,7 @@ impl Coordinator {
         let scheduler = Scheduler::new();
         let timers = Mutex::new(Timers::new());
 
-        let shared_internals = SharedRuntimeInternal::new(waker_id, scheduler, registry, timers);
+        let shared_internals = shared::RuntimeInternals::new(waker_id, scheduler, registry, timers);
         let coordinator = Coordinator {
             poll,
             waker_events,
