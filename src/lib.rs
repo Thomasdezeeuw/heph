@@ -67,6 +67,7 @@
 //! the `test` module which adds testing facilities.
 
 #![feature(
+    arc_new_cyclic,
     array_methods,
     async_stream,
     available_concurrency,
