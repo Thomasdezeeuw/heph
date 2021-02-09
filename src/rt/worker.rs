@@ -20,7 +20,7 @@ use crate::rt::process::ProcessResult;
 use crate::rt::scheduler::LocalScheduler;
 use crate::rt::timers::Timers;
 use crate::rt::waker::ThreadWaker;
-use crate::rt::{self, shared, ProcessId, RuntimeInternal, RuntimeRef, Signal};
+use crate::rt::{self, local, shared, ProcessId, RuntimeRef, Signal};
 use crate::trace;
 
 /// Handle to a worker thread.
@@ -265,7 +265,7 @@ impl std::error::Error for Error {
 #[derive(Debug)]
 pub(crate) struct RunningRuntime {
     /// Inside of the runtime, shared with zero or more `RuntimeRef`s.
-    internal: Rc<RuntimeInternal>,
+    internal: Rc<local::RuntimeInternals>,
     /// Mio events container.
     events: Events,
     /// Receiving side of the channel for `Waker` events.
@@ -310,7 +310,7 @@ impl RunningRuntime {
         channel.try_send(WorkerMessage::Waker(thread_waker))?;
 
         // Finally create all the runtime internals.
-        let internal = RuntimeInternal {
+        let internal = local::RuntimeInternals {
             shared: shared_internals,
             waker_id,
             scheduler: RefCell::new(LocalScheduler::new()),

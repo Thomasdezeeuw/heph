@@ -9,7 +9,6 @@
 //! See [`Runtime`] for documentation on how to run an actor. For more examples
 //! see the examples directory in the source code.
 
-use std::cell::RefCell;
 use std::num::NonZeroUsize;
 use std::path::Path;
 use std::rc::Rc;
@@ -18,7 +17,7 @@ use std::time::Instant;
 use std::{fmt, io, task, thread};
 
 use log::{debug, trace};
-use mio::{event, Interest, Poll, Token};
+use mio::{event, Interest, Token};
 
 use crate::actor::context::{ThreadLocal, ThreadSafe};
 use crate::actor::sync::SyncActor;
@@ -30,6 +29,7 @@ use crate::trace;
 mod coordinator;
 mod error;
 mod hack;
+mod local;
 mod process;
 mod signal;
 mod timers;
@@ -516,7 +516,7 @@ impl<S> fmt::Debug for Runtime<S> {
 #[derive(Clone, Debug)]
 pub struct RuntimeRef {
     /// A shared reference to the runtime's internals.
-    internal: Rc<RuntimeInternal>,
+    internal: Rc<local::RuntimeInternals>,
 }
 
 impl RuntimeRef {
@@ -758,23 +758,4 @@ where
             .shared
             .spawn_setup(supervisor, new_actor, arg_fn, options)
     }
-}
-
-/// Internals of the runtime, to which `RuntimeRef`s have a reference.
-#[derive(Debug)]
-struct RuntimeInternal {
-    /// Runtime internals shared between threads, owned by the `Coordinator`.
-    shared: Arc<shared::RuntimeInternals>,
-    /// Waker id used to create a `Waker` for thread-local actors.
-    waker_id: WakerId,
-    /// Scheduler for thread-local actors.
-    scheduler: RefCell<LocalScheduler>,
-    /// OS poll, used for event notifications to support non-blocking I/O.
-    poll: RefCell<Poll>,
-    /// Timers, deadlines and timeouts.
-    timers: RefCell<Timers>,
-    /// Actor references to relay received `Signal`s to.
-    signal_receivers: RefCell<Vec<ActorRef<Signal>>>,
-    /// CPU the worker thread is bound to, or `None` if not set.
-    cpu: Option<usize>,
 }
