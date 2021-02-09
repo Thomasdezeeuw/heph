@@ -27,9 +27,6 @@ pub(crate) use scheduler::Scheduler;
 pub(crate) struct SharedRuntimeInternal {
     /// Waker id used to create a `Waker` for thread-safe actors.
     pub(crate) waker_id: WakerId,
-    /// Waker used to wake the `Coordinator`, but not schedule any particular
-    /// process.
-    coordinator_waker: Waker,
     /// Scheduler for thread-safe actors.
     pub(crate) scheduler: Scheduler,
     /// Registry for the `Coordinator`'s `Poll` instance.
@@ -45,10 +42,8 @@ impl SharedRuntimeInternal {
         registry: Registry,
         timers: Mutex<Timers>,
     ) -> Arc<SharedRuntimeInternal> {
-        let coordinator_waker = Waker::new(waker_id, coordinator::WAKER.into());
         Arc::new(SharedRuntimeInternal {
             waker_id,
-            coordinator_waker,
             scheduler,
             registry,
             timers,
@@ -93,7 +88,13 @@ impl SharedRuntimeInternal {
     pub(crate) fn add_deadline(&self, pid: ProcessId, deadline: Instant) {
         self.timers.lock().unwrap().add_deadline(pid, deadline);
         // Ensure that the coordinator isn't polling and misses the deadline.
-        self.coordinator_waker.wake()
+        self.wake_coordinator()
+    }
+
+    /// Waker used to wake the `Coordinator`, but not schedule any particular
+    /// process.
+    fn wake_coordinator(&self) {
+        Waker::new(self.waker_id, coordinator::WAKER.into()).wake()
     }
 
     pub(crate) fn spawn_setup<S, NA, ArgFn, ArgFnE>(
