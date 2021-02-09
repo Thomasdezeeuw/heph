@@ -18,8 +18,8 @@ use mio::{Events, Poll, Registry, Token};
 use crate::rt::hack::SetupFn;
 use crate::rt::process::ProcessResult;
 use crate::rt::scheduler::LocalScheduler;
+use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::timers::Timers;
-use crate::rt::waker::ThreadWaker;
 use crate::rt::{self, local, shared, ProcessId, RuntimeRef, Signal};
 use crate::trace;
 
@@ -49,7 +49,7 @@ pub(crate) enum CoordinatorMessage {
 /// Message send by the worker thread.
 #[derive(Debug)]
 pub(crate) enum WorkerMessage {
-    /// Worker thread is setup and send `ThreadWaker` as an optimised way to
+    /// Worker thread is setup and send `Waker` as an optimised way to
     /// wake the thread.
     Waker(&'static ThreadWaker),
 }
@@ -117,7 +117,7 @@ impl<E> Worker<E> {
     /// otherwise.
     pub(super) fn wake(&mut self) -> io::Result<bool> {
         if let Some(thread_waker) = self.thread_waker {
-            thread_waker.wake_thread()
+            thread_waker.wake()
         } else {
             let msg = CoordinatorMessage::Wake;
             self.channel.try_send(msg).map(|()| true)
@@ -302,9 +302,9 @@ impl RunningRuntime {
         let (waker_sender, waker_recv) = crossbeam_channel::unbounded();
         // Next a way to wake us from polling the OS.
         let waker = mio::Waker::new(poll.registry(), WAKER)?;
-        // With both we create a `rt::waker::ThreadWaker`.
+        // With both we create a `rt::waker::Waker`.
         let waker_id = rt::waker::init(waker, waker_sender);
-        let thread_waker = rt::waker::get_thread_waker(waker_id);
+        let thread_waker = rt::waker::get(waker_id).thread_waker();
         // And send it to the coordinator so it can optimise the waking process
         // (of waking this worker thread).
         channel.try_send(WorkerMessage::Waker(thread_waker))?;

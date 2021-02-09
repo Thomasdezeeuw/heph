@@ -13,8 +13,8 @@ use crate::actor::context::ThreadSafe;
 use crate::actor::{self, AddActorError, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::rt::timers::Timers;
-use crate::rt::waker::{self, Waker, WakerId};
-use crate::rt::{coordinator, ActorOptions, ProcessId};
+use crate::rt::waker::{self, WakerId};
+use crate::rt::{ActorOptions, ProcessId};
 use crate::supervisor::Supervisor;
 
 mod scheduler;
@@ -94,7 +94,7 @@ impl RuntimeInternals {
     /// Waker used to wake the `Coordinator`, but not schedule any particular
     /// process.
     fn wake_coordinator(&self) {
-        Waker::new(self.coordinator_id, coordinator::WAKER.into()).wake()
+        waker::get(self.coordinator_id).wake_thread()
     }
 
     pub(crate) fn spawn_setup<S, NA, ArgFn, ArgFnE>(

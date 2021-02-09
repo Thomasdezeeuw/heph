@@ -32,6 +32,7 @@ mod hack;
 mod local;
 mod process;
 mod signal;
+mod thread_waker;
 mod timers;
 
 pub(crate) mod access;

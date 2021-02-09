@@ -2,35 +2,13 @@
 
 use std::mem::size_of;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::{io, task};
+use std::task;
 
 use crossbeam_channel::Sender;
 use log::{error, trace};
 
+use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::ProcessId;
-
-/// Waker used to wake a process.
-#[derive(Debug, Clone)]
-pub struct Waker {
-    waker: &'static ThreadWaker,
-    pid: ProcessId,
-}
-
-impl Waker {
-    /// Create a new `Waker` for the process with `pid`, running on thread with
-    /// `waker_id`.
-    pub(crate) fn new(waker_id: WakerId, pid: ProcessId) -> Waker {
-        Waker {
-            waker: get_thread_waker(waker_id),
-            pid,
-        }
-    }
-
-    /// Wake the process.
-    pub(crate) fn wake(&self) {
-        self.waker.wake(self.pid)
-    }
-}
 
 /// Maximum number of threads currently supported by this `Waker`
 /// implementation.
@@ -63,10 +41,9 @@ pub(crate) fn init(waker: mio::Waker, notifications: Sender<ProcessId>) -> Waker
     // Safety: this is safe because we are the only thread that has write access
     // to the given index. See documentation of `THREAD_WAKERS` for more.
     unsafe {
-        THREAD_WAKERS[thread_id as usize] = Some(ThreadWaker {
+        THREAD_WAKERS[thread_id as usize] = Some(Waker {
             notifications,
-            polling_status: AtomicU8::new(NOT_POLLING),
-            waker,
+            thread_waker: ThreadWaker::new(waker),
         });
     }
     WakerId(thread_id)
@@ -84,10 +61,10 @@ pub(crate) fn new(waker_id: WakerId, pid: ProcessId) -> task::Waker {
 
 /// Let the `Waker` know the worker thread is currently `polling` (or not).
 ///
-/// This is used by the `ThreadWaker` implementation to wake the worker thread
-/// up from polling.
+/// This is used by the `Waker` implementation to wake the worker thread up from
+/// polling.
 pub(crate) fn mark_polling(waker_id: WakerId, polling: bool) {
-    get_thread_waker(waker_id).mark_polling(polling);
+    get(waker_id).thread_waker.mark_polling(polling);
 }
 
 /// Each worker thread of the `Runtime` has a unique `WakeId` which is used as
@@ -105,13 +82,13 @@ pub(crate) fn mark_polling(waker_id: WakerId, polling: bool) {
 /// single write happens to each element of the array. And because after the
 /// initial write each element is read only there are no further data races
 /// possible.
-static mut THREAD_WAKERS: [Option<ThreadWaker>; MAX_THREADS] = [NO_WAKER; MAX_THREADS];
+static mut THREAD_WAKERS: [Option<Waker>; MAX_THREADS] = [NO_WAKER; MAX_THREADS];
 // NOTE: this is only here because `NO_WAKER` is not `Copy`, thus
 // `[None; MAX_THREADS]` doesn't work, but explicitly using a `const` does.
-const NO_WAKER: Option<ThreadWaker> = None;
+const NO_WAKER: Option<Waker> = None;
 
 /// Get waker data for `waker_id`
-pub(crate) fn get_thread_waker(waker_id: WakerId) -> &'static ThreadWaker {
+pub(crate) fn get(waker_id: WakerId) -> &'static Waker {
     // Safety: `WakerId` is only created by `init`, which ensures its valid.
     // Furthermore `init` ensures that `THREAD_WAKER[waker_id]` is initialised
     // and is read-only after that. See `THREAD_WAKERS` documentation for more.
@@ -124,24 +101,12 @@ pub(crate) fn get_thread_waker(waker_id: WakerId) -> &'static ThreadWaker {
 
 /// Waker mechanism.
 #[derive(Debug)]
-pub(crate) struct ThreadWaker {
+pub(crate) struct Waker {
     notifications: Sender<ProcessId>,
-    /// If the worker thread is polling (without a timeout) we need to wake it
-    /// to ensure it doesn't poll for ever. This status is used to determine
-    /// whether or not we need use `mio::Waker` to wake the thread from polling.
-    polling_status: AtomicU8,
-    waker: mio::Waker,
+    thread_waker: ThreadWaker,
 }
 
-// See [`ThreadWaker::polling_status`].
-/// Not currently polling.
-const NOT_POLLING: u8 = 0;
-/// Currently polling.
-const IS_POLLING: u8 = 1;
-/// Going to wake the polling thread.
-const WAKING: u8 = 2;
-
-impl ThreadWaker {
+impl Waker {
     /// Wake up the process with `pid`.
     fn wake(&self, pid: ProcessId) {
         trace!("waking: pid={}", pid);
@@ -150,37 +115,19 @@ impl ThreadWaker {
             return;
         }
 
-        if let Err(err) = self.wake_thread() {
+        self.wake_thread()
+    }
+
+    /// Wake up the thread, without waking a specific process.
+    pub(crate) fn wake_thread(&self) {
+        if let Err(err) = self.thread_waker.wake() {
             error!("unable to wake up worker thread: {}", err);
         }
     }
 
-    /// Wake up the thread if it's not currently polling. Returns `true` if the
-    /// thread is awoken, `false` otherwise.
-    pub(crate) fn wake_thread(&self) -> io::Result<bool> {
-        // If the thread is currently polling we're going to wake it. To avoid
-        // additional calls to `Waker::wake` we use compare_exchange and let
-        // only a single call to `Thread::wake` wake the thread.
-        if self
-            .polling_status
-            .compare_exchange(
-                IS_POLLING,
-                WAKING,
-                Ordering::AcqRel,
-                Ordering::Relaxed, // We don't care about the result.
-            )
-            .is_ok()
-        {
-            self.waker.wake().map(|()| true)
-        } else {
-            Ok(false)
-        }
-    }
-
-    /// Mark the thread as currently polling (or not).
-    fn mark_polling(&self, is_polling: bool) {
-        let status = if is_polling { IS_POLLING } else { NOT_POLLING };
-        self.polling_status.store(status, Ordering::Release);
+    /// Returns the [`ThreadWaker`].
+    pub(crate) fn thread_waker(&self) -> &ThreadWaker {
+        &self.thread_waker
     }
 }
 
@@ -248,7 +195,7 @@ unsafe fn wake(data: *const ()) {
     // This is safe because we received the data from the `RawWaker`, which
     // doesn't modify the data.
     let data = WakerData::from_raw_data(data);
-    get_thread_waker(data.waker_id()).wake(data.pid())
+    get(data.waker_id()).wake(data.pid())
 }
 
 unsafe fn wake_by_ref(data: *const ()) {
