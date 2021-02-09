@@ -59,10 +59,6 @@ impl RuntimeInternals {
         waker::new(self.coordinator_id, pid)
     }
 
-    pub(crate) fn new_waker(&self, pid: ProcessId) -> Waker {
-        Waker::new(self.coordinator_id, pid)
-    }
-
     /// Register an `event::Source`, see [`mio::Registry::register`].
     pub(crate) fn register<S>(
         &self,

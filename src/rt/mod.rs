@@ -47,7 +47,6 @@ pub mod options;
 pub(crate) use access::PrivateAccess;
 pub(crate) use process::ProcessId;
 pub(crate) use timers::Timers; // Needed by the `test` module.
-pub(crate) use waker::Waker;
 
 pub use access::Access;
 pub use error::Error;
@@ -636,11 +635,6 @@ impl RuntimeRef {
             .borrow()
             .registry()
             .reregister(source, token, interest)
-    }
-
-    /// Create a new `Waker` implementation.
-    pub(crate) fn new_waker(&self, pid: ProcessId) -> Waker {
-        Waker::new(self.internal.waker_id, pid)
     }
 
     /// Get a clone of the sending end of the notification channel.

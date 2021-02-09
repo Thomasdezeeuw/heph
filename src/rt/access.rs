@@ -7,7 +7,7 @@ use std::time::Instant;
 
 use mio::{event, Interest, Token};
 
-use crate::rt::{ProcessId, Waker};
+use crate::rt::ProcessId;
 
 /// Trait to indicate an API needs access to the Heph runtime.
 ///
@@ -25,9 +25,6 @@ impl<T> Access for T where T: PrivateAccess {}
 ///
 /// [`rt::Access`]: crate::rt::Access
 pub trait PrivateAccess {
-    /// Create a new [`Waker`].
-    fn new_waker(&mut self, pid: ProcessId) -> Waker;
-
     /// Registers the `source` using `token` and `interest`.
     fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where

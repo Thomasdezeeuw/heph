@@ -12,7 +12,7 @@ use mio::{event, Interest, Token};
 
 use crate::actor::{AddActorError, PrivateSpawn, Spawn};
 use crate::actor_ref::ActorRef;
-use crate::rt::{self, shared, ActorOptions, ProcessId, RuntimeRef, Waker};
+use crate::rt::{self, shared, ActorOptions, ProcessId, RuntimeRef};
 use crate::{NewActor, Supervisor};
 
 /// The context in which an actor is executed.
@@ -308,10 +308,6 @@ where
 }
 
 impl rt::PrivateAccess for ThreadLocal {
-    fn new_waker(&mut self, pid: ProcessId) -> Waker {
-        self.runtime_ref.new_waker(pid)
-    }
-
     fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
@@ -336,10 +332,6 @@ impl rt::PrivateAccess for ThreadLocal {
 }
 
 impl rt::PrivateAccess for ThreadSafe {
-    fn new_waker(&mut self, pid: ProcessId) -> Waker {
-        self.runtime_ref.new_waker(pid)
-    }
-
     fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
@@ -367,10 +359,6 @@ impl<M, K> rt::PrivateAccess for Context<M, K>
 where
     K: rt::PrivateAccess,
 {
-    fn new_waker(&mut self, pid: ProcessId) -> Waker {
-        self.kind.new_waker(pid)
-    }
-
     fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
