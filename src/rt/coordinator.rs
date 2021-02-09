@@ -5,17 +5,15 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::{fmt, io};
 
-use crossbeam_channel::Receiver;
 use log::{debug, trace, warn};
 use mio::event::Event;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
 use crate::actor_ref::{ActorGroup, Delivery};
-use crate::rt::process::ProcessId;
-use crate::rt::shared::Scheduler;
+use crate::rt::shared::{waker, Scheduler};
 use crate::rt::{
-    self, shared, waker, worker, Signal, SyncWorker, Timers, Worker, SYNC_WORKER_ID_END,
+    self, shared, worker, Signal, SyncWorker, Timers, Worker, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
 use crate::trace;
@@ -32,8 +30,6 @@ pub(super) struct Coordinator {
     /// OS poll, used to poll the status of the (sync) worker threads and
     /// process signals.
     poll: Poll,
-    /// Receiving end of the wake-up events used in the `rt::waker` mechanism.
-    waker_events: Receiver<ProcessId>,
     /// Internals shared between the coordinator and workers.
     internals: Arc<shared::RuntimeInternals>,
 }
@@ -44,16 +40,16 @@ impl Coordinator {
         let poll = Poll::new().map_err(Error::Init)?;
         let registry = poll.registry().try_clone().map_err(Error::Init)?;
 
-        let (waker_sender, waker_events) = crossbeam_channel::unbounded();
         let waker = mio::Waker::new(&registry, WAKER).map_err(Error::Init)?;
-        let waker_id = waker::init(waker, waker_sender);
         let scheduler = Scheduler::new();
         let timers = Mutex::new(Timers::new());
+        let shared_internals = Arc::new_cyclic(|shared_internals| {
+            let waker_id = waker::init(shared_internals.clone());
+            shared::RuntimeInternals::new(waker_id, waker, scheduler, registry, timers)
+        });
 
-        let shared_internals = shared::RuntimeInternals::new(waker_id, scheduler, registry, timers);
         let coordinator = Coordinator {
             poll,
-            waker_events,
             internals: shared_internals.clone(),
         };
 
@@ -154,22 +150,6 @@ impl Coordinator {
             }
             trace::finish(&mut trace_log, timing, "Handling OS events", &[]);
 
-            trace!("polling wake-up events");
-            let timing = trace::start(&trace_log);
-            for pid in self.waker_events.try_iter() {
-                trace!("waking thread-safe actor: pid={}", pid);
-                if pid.0 != WAKER.0 {
-                    self.internals.mark_ready(pid);
-                    wake_workers += 1;
-                }
-            }
-            trace::finish(
-                &mut trace_log,
-                timing,
-                "Scheduling thread-safe processes based on wake-up events",
-                &[],
-            );
-
             trace!("polling timers");
             let timing = trace::start(&trace_log);
             for pid in self.internals.timers().lock().unwrap().deadlines() {
@@ -233,7 +213,7 @@ impl Coordinator {
 
         // Only mark ourselves as polling if the timeout is not zero.
         let mark_waker = if !is_zero(timeout) {
-            waker::mark_polling(self.internals.coordinator_id(), true);
+            self.internals.mark_polling(true);
             true
         } else {
             false
@@ -243,7 +223,7 @@ impl Coordinator {
         let res = self.poll.poll(events, timeout);
 
         if mark_waker {
-            waker::mark_polling(self.internals.coordinator_id(), false);
+            self.internals.mark_polling(false);
         }
 
         res

@@ -34,9 +34,8 @@ use log::warn;
 use crate::actor::sync::SyncActor;
 use crate::actor::{self, context, Actor, NewActor};
 use crate::actor_ref::ActorRef;
-use crate::rt::shared::Scheduler;
+use crate::rt::shared::{waker, Scheduler};
 use crate::rt::sync_worker::SyncWorker;
-use crate::rt::waker::{self, WakerId};
 use crate::rt::worker::RunningRuntime;
 use crate::rt::{
     self, shared, ProcessId, RuntimeRef, SyncActorOptions, Timers, SYNC_WORKER_ID_END,
@@ -49,20 +48,19 @@ pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 static POLL: SyncLazy<mio::Poll> =
     SyncLazy::new(|| mio::Poll::new().expect("failed to create `Poll` instance for test module"));
 
-static COORDINATOR_ID: SyncLazy<WakerId> = SyncLazy::new(|| {
-    let waker = mio::Waker::new(POLL.registry(), mio::Token(0)).unwrap();
-    let (sender, _) = crossbeam_channel::unbounded();
-    waker::init(waker, sender)
-});
-
 static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(|| {
     let registry = POLL
         .registry()
         .try_clone()
         .expect("failed to clone `Registry` for test module");
+    let waker = mio::Waker::new(&registry, mio::Token(0))
+        .expect("failed to create `mio::Waker` for test module");
     let scheduler = Scheduler::new();
     let timers = Mutex::new(Timers::new());
-    shared::RuntimeInternals::new(*COORDINATOR_ID, scheduler, registry, timers)
+    Arc::new_cyclic(|shared_internals| {
+        let waker_id = waker::init(shared_internals.clone());
+        shared::RuntimeInternals::new(waker_id, waker, scheduler, registry, timers)
+    })
 });
 
 thread_local! {

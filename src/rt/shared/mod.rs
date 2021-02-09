@@ -6,18 +6,21 @@ use std::sync::Mutex;
 use std::time::Instant;
 use std::{io, task};
 
-use log::debug;
+use log::{debug, error};
 use mio::{event, Interest, Registry, Token};
 
 use crate::actor::context::ThreadSafe;
 use crate::actor::{self, AddActorError, NewActor};
 use crate::actor_ref::ActorRef;
+use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::timers::Timers;
-use crate::rt::waker::{self, WakerId};
 use crate::rt::{ActorOptions, ProcessId};
 use crate::supervisor::Supervisor;
 
 mod scheduler;
+pub(crate) mod waker;
+
+use waker::WakerId;
 
 pub(crate) use scheduler::{ProcessData, Scheduler};
 
@@ -26,6 +29,8 @@ pub(crate) use scheduler::{ProcessData, Scheduler};
 pub(crate) struct RuntimeInternals {
     /// Waker id used to create a `Waker` for thread-safe actors.
     coordinator_id: WakerId,
+    /// Thread waker for the coordinator.
+    coordinator_waker: ThreadWaker,
     /// Scheduler for thread-safe actors.
     scheduler: Scheduler,
     /// Registry for the `Coordinator`'s `Poll` instance.
@@ -38,20 +43,18 @@ pub(crate) struct RuntimeInternals {
 impl RuntimeInternals {
     pub(crate) fn new(
         coordinator_id: WakerId,
+        coordinator_waker: mio::Waker,
         scheduler: Scheduler,
         registry: Registry,
         timers: Mutex<Timers>,
-    ) -> Arc<RuntimeInternals> {
-        Arc::new(RuntimeInternals {
+    ) -> RuntimeInternals {
+        RuntimeInternals {
             coordinator_id,
+            coordinator_waker: ThreadWaker::new(coordinator_waker),
             scheduler,
             registry,
             timers,
-        })
-    }
-
-    pub(crate) fn coordinator_id(&self) -> WakerId {
-        self.coordinator_id
+        }
     }
 
     /// Returns a new [`task::Waker`] for the thread-safe actor with `pid`.
@@ -94,7 +97,9 @@ impl RuntimeInternals {
     /// Waker used to wake the `Coordinator`, but not schedule any particular
     /// process.
     fn wake_coordinator(&self) {
-        waker::get(self.coordinator_id).wake_thread()
+        if let Err(err) = self.coordinator_waker.wake() {
+            error!("unable to wake up coordinator: {}", err);
+        }
     }
 
     pub(crate) fn spawn_setup<S, NA, ArgFn, ArgFnE>(
@@ -167,5 +172,9 @@ impl RuntimeInternals {
 
     pub(crate) fn mark_ready(&self, pid: ProcessId) {
         self.scheduler.mark_ready(pid)
+    }
+
+    pub(crate) fn mark_polling(&self, polling: bool) {
+        self.coordinator_waker.mark_polling(polling)
     }
 }
