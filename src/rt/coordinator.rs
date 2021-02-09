@@ -209,22 +209,24 @@ impl Coordinator {
     }
 
     fn poll(&mut self, events: &mut Events) -> io::Result<()> {
+        // Mark ourselves as polling and only **after** that determine the
+        // timeout.
+        // This order, mark polling then determine timeout, is important because
+        // otherwise we could miss a wake-up. Consider the following,
+        //
+        // | Coordinator       | Worker              |
+        // | Determine timeout |                     |
+        // |                   | Adds timeout        | // Coordinator timeout is now outdated.
+        // |                   | Checks need wake-up | // Not polling, not waking.
+        // | Mark polling      |                     |
+        // | Poll              |                     | // **Misses new timeout**!
+        self.internals.mark_polling(true);
+
         let timeout = self.determine_timeout();
-
-        // Only mark ourselves as polling if the timeout is not zero.
-        let mark_waker = if !is_zero(timeout) {
-            self.internals.mark_polling(true);
-            true
-        } else {
-            false
-        };
-
         trace!("polling OS: timeout={:?}", timeout);
         let res = self.poll.poll(events, timeout);
 
-        if mark_waker {
-            self.internals.mark_polling(false);
-        }
+        self.internals.mark_polling(false);
 
         res
     }
@@ -246,11 +248,6 @@ impl Coordinator {
             None
         }
     }
-}
-
-/// Returns `true` is timeout is `Some(Duration::from_nanos(0))`.
-fn is_zero(timeout: Option<Duration>) -> bool {
-    timeout.map(|t| t.is_zero()).unwrap_or(false)
 }
 
 /// Setup a new `Signals` instance, registering it with `registry`.
