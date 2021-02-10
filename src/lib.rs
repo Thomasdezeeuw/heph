@@ -111,6 +111,8 @@
 
 #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos")))]
 compile_error!("Heph currently only supports Linux, FreeBSD and macOS.");
+#[cfg(not(target_pointer_width = "64"))]
+compile_error!("Heph currently only supports 64 bit architectures.");
 
 pub mod actor;
 pub mod actor_ref;
