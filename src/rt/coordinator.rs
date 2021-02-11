@@ -36,24 +36,22 @@ pub(super) struct Coordinator {
 
 impl Coordinator {
     /// Initialise the `Coordinator` thread.
-    pub(super) fn init() -> Result<(Coordinator, Arc<shared::RuntimeInternals>), Error> {
+    pub(super) fn init() -> Result<Coordinator, Error> {
         let poll = Poll::new().map_err(Error::Init)?;
         let registry = poll.registry().try_clone().map_err(Error::Init)?;
-
         let waker = mio::Waker::new(&registry, WAKER).map_err(Error::Init)?;
         let scheduler = Scheduler::new();
         let timers = Mutex::new(Timers::new());
-        let shared_internals = Arc::new_cyclic(|shared_internals| {
+        let internals = Arc::new_cyclic(|shared_internals| {
             let waker_id = waker::init(shared_internals.clone());
             shared::RuntimeInternals::new(waker_id, waker, scheduler, registry, timers)
         });
+        Ok(Coordinator { poll, internals })
+    }
 
-        let coordinator = Coordinator {
-            poll,
-            internals: shared_internals.clone(),
-        };
-
-        Ok((coordinator, shared_internals))
+    /// Get access to the shared runtime internals.
+    pub(super) fn shared_internals(&self) -> &Arc<shared::RuntimeInternals> {
+        &self.internals
     }
 
     /// Run the coordinator.
