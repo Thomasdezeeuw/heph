@@ -1,8 +1,18 @@
+use std::future::Future;
 use std::io::{self, Write};
+use std::pin::Pin;
 use std::process::Command;
+use std::sync::{Arc, Condvar, Mutex};
+use std::task::{self, Poll};
+use std::thread::{self, sleep};
+use std::time::Duration;
 
-use heph::rt::options::Priority;
+use heph::actor;
+use heph::actor::context::{ThreadLocal, ThreadSafe};
+use heph::actor::sync::SyncContext;
+use heph::rt::options::{ActorOptions, Priority, SyncActorOptions};
 use heph::rt::Runtime;
+use heph::supervisor::NoSupervisor;
 
 use crate::util::temp_file;
 
@@ -170,4 +180,117 @@ fn tracing() {
         stderr.write_all(b"\nStandard err:").unwrap();
         stderr.write_all(&output.stderr).unwrap();
     }
+}
+
+#[derive(Clone)] // Needed in setup function.
+struct WaitFuture {
+    inner: Arc<(Mutex<(Option<task::Waker>, bool)>, Condvar)>,
+}
+
+impl Future for WaitFuture {
+    type Output = Result<(), !>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let mut guard = self.inner.0.lock().unwrap();
+        match &mut *guard {
+            (_, true) => Poll::Ready(Ok(())),
+            (waker, false) => {
+                *waker = Some(ctx.waker().clone());
+                self.inner.1.notify_all();
+                Poll::Pending
+            }
+        }
+    }
+}
+
+impl WaitFuture {
+    fn new() -> (WaitFuture, thread::JoinHandle<()>) {
+        let inner = Arc::new((Mutex::new((None, false)), Condvar::new()));
+        let future = WaitFuture {
+            inner: inner.clone(),
+        };
+
+        let handle = thread::spawn(move || {
+            let mut guard = inner.0.lock().unwrap();
+            loop {
+                match &mut *guard {
+                    (Some(waker), called) => {
+                        // Ensure the worker thread is sleeping.
+                        sleep(Duration::from_millis(100));
+
+                        waker.wake_by_ref();
+                        *called = true;
+                        break;
+                    }
+                    (None, _) => {
+                        guard = inner.1.wait(guard).unwrap();
+                    }
+                }
+            }
+        });
+        (future, handle)
+    }
+}
+
+#[test]
+fn external_thread_wakes_thread_local_actor() {
+    async fn actor(_: actor::Context<!, ThreadLocal>, future: WaitFuture) -> Result<(), !> {
+        future.await
+    }
+
+    let (future, handle) = WaitFuture::new();
+
+    let runtime = Runtime::new().unwrap();
+    let runtime = runtime.with_setup::<_, !>(|mut runtime_ref| {
+        let _ = runtime_ref.spawn_local(
+            NoSupervisor,
+            actor as fn(_, _) -> _,
+            future,
+            ActorOptions::default(),
+        );
+        Ok(())
+    });
+
+    runtime.start().unwrap();
+    handle.join().unwrap();
+}
+
+#[test]
+fn external_thread_wakes_thread_safe_actor() {
+    async fn actor(_: actor::Context<!, ThreadSafe>, future: WaitFuture) -> Result<(), !> {
+        future.await
+    }
+
+    let (future, handle) = WaitFuture::new();
+
+    let mut runtime = Runtime::new().unwrap();
+    let _ = runtime.spawn(
+        NoSupervisor,
+        actor as fn(_, _) -> _,
+        future,
+        ActorOptions::default(),
+    );
+
+    runtime.start().unwrap();
+    handle.join().unwrap();
+}
+
+#[test]
+fn external_thread_wakes_sync_actor() {
+    fn actor(mut ctx: SyncContext<!>, future: WaitFuture) -> Result<(), !> {
+        ctx.block_on(future)
+    }
+
+    let (future, handle) = WaitFuture::new();
+
+    let mut runtime = Runtime::new().unwrap();
+    let _ = runtime.spawn_sync_actor(
+        NoSupervisor,
+        actor as fn(_, _) -> _,
+        future,
+        SyncActorOptions::default(),
+    );
+
+    runtime.start().unwrap();
+    handle.join().unwrap();
 }
