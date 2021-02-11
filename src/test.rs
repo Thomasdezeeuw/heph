@@ -160,7 +160,7 @@ where
 /// test with a completely functional runtime instead.
 pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
 where
-    Fut: Future,
+    Fut: Future + ?Sized,
 {
     let waker = runtime().new_local_task_waker(TEST_PID);
     let mut ctx = task::Context::from_waker(&waker);
