@@ -178,8 +178,6 @@ pub struct Runtime<S = !> {
     /// Coordinator thread data.
     coordinator: Coordinator,
     /// Internals shared between the coordinator and the worker threads.
-    shared: Arc<shared::RuntimeInternals>,
-    /// Number of worker threads to create.
     threads: usize,
     /// Whether or not to automatically set CPU affinity.
     auto_cpu_affinity: bool,
@@ -197,10 +195,8 @@ impl Runtime {
     /// Create a `Runtime` with the default configuration.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Result<Runtime<!>, Error> {
-        let (coordinator, shared) = Coordinator::init().map_err(Error::coordinator)?;
         Ok(Runtime {
-            coordinator,
-            shared,
+            coordinator: Coordinator::init().map_err(Error::coordinator)?,
             threads: 1,
             auto_cpu_affinity: false,
             sync_actors: Vec::new(),
@@ -221,7 +217,6 @@ impl Runtime {
     {
         Runtime {
             coordinator: self.coordinator,
-            shared: self.shared,
             threads: self.threads,
             auto_cpu_affinity: self.auto_cpu_affinity,
             sync_actors: self.sync_actors,
@@ -426,7 +421,7 @@ where
                 Worker::start(
                     id,
                     setup,
-                    self.shared.clone(),
+                    self.coordinator.shared_internals().clone(),
                     self.auto_cpu_affinity,
                     trace_log,
                 )
@@ -443,7 +438,6 @@ where
         // Drop stuff we don't need anymore. For the setup function this is
         // extra important if it contains e.g. actor references.
         drop(self.setup);
-        drop(self.shared);
 
         self.coordinator
             .run(handles, self.sync_actors, self.signals, self.trace_log)
@@ -479,7 +473,8 @@ where
         NA::Actor: 'static,
         ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
     {
-        self.shared
+        self.coordinator
+            .shared_internals()
             .spawn_setup(supervisor, new_actor, arg_fn, options)
     }
 }
