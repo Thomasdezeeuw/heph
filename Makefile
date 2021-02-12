@@ -13,6 +13,9 @@ TARGETS ?= "x86_64-apple-darwin" "x86_64-unknown-linux-gnu" "x86_64-unknown-free
 test:
 	cargo test --all-features
 
+check:
+	cargo check --all-features --all-targets
+
 check_all_targets: $(TARGETS)
 $(TARGETS):
 	cargo check --all-features --all-targets --target $@
@@ -64,7 +67,13 @@ install_coverage: install_llvm_tools
 install_llvm_tools:
 	rustup component add llvm-tools-preview
 
+doc:
+	cargo doc --all-features
+
+doc_private:
+	cargo doc --all-features --document-private-items
+
 clean:
 	cargo clean
 
-.PHONY: test dev clippy lint install_clippy coverage install_coverage install_llvm_tools clean
+.PHONY: test check check_all_targets dev clippy lint install_clippy coverage install_coverage install_llvm_tools doc doc_private clean
