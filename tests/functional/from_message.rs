@@ -53,7 +53,7 @@ fn from_message() {
     );
 }
 
-async fn ping_actor(_: actor::Context<!>, actor_ref: ActorRef<Message>) -> Result<(), !> {
+async fn ping_actor(_: actor::Context<!>, actor_ref: ActorRef<Message>) {
     actor_ref.send("Hello!".to_owned()).await.unwrap();
 
     let response = actor_ref.rpc("Rpc".to_owned()).await.unwrap();
@@ -61,11 +61,9 @@ async fn ping_actor(_: actor::Context<!>, actor_ref: ActorRef<Message>) -> Resul
 
     let response = actor_ref.rpc(("Rpc2".to_owned(), 2)).await.unwrap();
     assert_eq!(response, (1, 2));
-
-    Ok(())
 }
 
-async fn pong_actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
+async fn pong_actor(mut ctx: actor::Context<Message>) {
     let msg = ctx.receive_next().await.unwrap();
     assert!(matches!(msg, Message::Msg(msg) if msg == "Hello!"));
 
@@ -84,5 +82,4 @@ async fn pong_actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
     }
 
     assert_eq!(count, 3);
-    Ok(())
 }

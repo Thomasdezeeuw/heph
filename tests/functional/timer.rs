@@ -24,7 +24,7 @@ fn deadline_passed_into_io_error() {
 
 #[test]
 fn timer() {
-    async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+    async fn actor(mut ctx: actor::Context<!>) {
         let start = Instant::now();
         let mut timer = Timer::timeout(&mut ctx, TIMEOUT);
         assert!(timer.deadline() >= start + TIMEOUT);
@@ -33,7 +33,6 @@ fn timer() {
         let _ = (&mut timer).await;
         assert!(timer.deadline() >= start + TIMEOUT);
         assert!(timer.has_passed());
-        Ok(())
     }
 
     let actor = actor as fn(_) -> _;
@@ -58,7 +57,7 @@ impl Future for Pending {
 
 #[test]
 fn timer_wrap() {
-    async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+    async fn actor(mut ctx: actor::Context<!>) {
         let start = Instant::now();
         let future = Pending(123);
         let mut deadline = Timer::timeout(&mut ctx, TIMEOUT).wrap(future);
@@ -69,7 +68,6 @@ fn timer_wrap() {
         assert_eq!(res, Err(DeadlinePassed));
         assert!(deadline.deadline() >= start + TIMEOUT);
         assert!(deadline.has_passed());
-        Ok(())
     }
 
     let actor = actor as fn(_) -> _;
@@ -83,7 +81,7 @@ fn timer_wrap() {
 
 #[test]
 fn deadline() {
-    async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+    async fn actor(mut ctx: actor::Context<!>) {
         let start = Instant::now();
         let future = Pending(123);
         let mut deadline = Deadline::timeout(&mut ctx, TIMEOUT, future.clone());
@@ -99,7 +97,6 @@ fn deadline() {
         assert_eq!(*deadline.get_ref(), future);
         assert_eq!(*deadline.get_mut(), future);
         assert_eq!(deadline.into_inner(), future);
-        Ok(())
     }
 
     let actor = actor as fn(_) -> _;
@@ -113,12 +110,11 @@ fn deadline() {
 
 #[test]
 fn interval() {
-    async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+    async fn actor(mut ctx: actor::Context<!>) {
         let start = Instant::now();
         let mut interval = Interval::new(&mut ctx, TIMEOUT);
         assert!(interval.next_deadline() >= start + TIMEOUT);
         let _ = next(&mut interval).await;
-        Ok(())
     }
 
     let actor = actor as fn(_) -> _;
@@ -132,16 +128,15 @@ fn interval() {
 
 #[test]
 fn triggered_timers_run_actors() {
-    async fn timer_actor<K>(mut ctx: actor::Context<!, K>) -> Result<(), !>
+    async fn timer_actor<K>(mut ctx: actor::Context<!, K>)
     where
         actor::Context<!, K>: rt::Access,
     {
         let timer = Timer::timeout(&mut ctx, TIMEOUT);
         let _ = timer.await;
-        Ok(())
     }
 
-    async fn deadline_actor<K>(mut ctx: actor::Context<!, K>) -> Result<(), !>
+    async fn deadline_actor<K>(mut ctx: actor::Context<!, K>)
     where
         actor::Context<!, K>: rt::Access,
     {
@@ -149,13 +144,11 @@ fn triggered_timers_run_actors() {
         let deadline = Deadline::timeout(&mut ctx, TIMEOUT, future);
         let res: Result<(), DeadlinePassed> = deadline.await;
         assert_eq!(res, Err(DeadlinePassed));
-        Ok(())
     }
 
-    async fn interval_actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+    async fn interval_actor(mut ctx: actor::Context<!>) {
         let mut interval = Interval::new(&mut ctx, TIMEOUT);
         let _ = next(&mut interval).await;
-        Ok(())
     }
 
     fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
@@ -202,42 +195,35 @@ fn triggered_timers_run_actors() {
 
 #[test]
 fn timers_actor_bound() {
-    async fn timer_actor1<K>(
-        mut ctx: actor::Context<!, K>,
-        actor_ref: ActorRef<Timer>,
-    ) -> Result<(), !>
+    async fn timer_actor1<K>(mut ctx: actor::Context<!, K>, actor_ref: ActorRef<Timer>)
     where
         actor::Context<!, K>: rt::Access,
     {
         let timer = Timer::timeout(&mut ctx, TIMEOUT);
         actor_ref.send(timer).await.unwrap();
-        Ok(())
     }
 
-    async fn timer_actor2<K>(mut ctx: actor::Context<Timer, K>) -> Result<(), !>
+    async fn timer_actor2<K>(mut ctx: actor::Context<Timer, K>)
     where
         actor::Context<Timer, K>: rt::Access,
     {
         let mut timer = ctx.receive_next().await.unwrap();
         timer.bind_to(&mut ctx).unwrap();
         let _ = timer.await;
-        Ok(())
     }
 
     async fn deadline_actor1<K>(
         mut ctx: actor::Context<!, K>,
         actor_ref: ActorRef<Deadline<Pending>>,
-    ) -> Result<(), !>
-    where
+    ) where
         actor::Context<!, K>: rt::Access,
     {
         let future = Pending(123);
         let deadline = Deadline::timeout(&mut ctx, TIMEOUT, future);
         actor_ref.send(deadline).await.unwrap();
-        Ok(())
     }
 
-    async fn deadline_actor2<K>(mut ctx: actor::Context<Deadline<Pending>, K>) -> Result<(), !>
+    async fn deadline_actor2<K>(mut ctx: actor::Context<Deadline<Pending>, K>)
     where
         actor::Context<Deadline<Pending>, K>: rt::Access,
     {
@@ -245,23 +231,17 @@ fn timers_actor_bound() {
         deadline.bind_to(&mut ctx).unwrap();
         let res: Result<(), DeadlinePassed> = deadline.await;
         assert_eq!(res, Err(DeadlinePassed));
-        Ok(())
     }
 
-    async fn interval_actor1(
-        mut ctx: actor::Context<!>,
-        actor_ref: ActorRef<Interval>,
-    ) -> Result<(), !> {
+    async fn interval_actor1(mut ctx: actor::Context<!>, actor_ref: ActorRef<Interval>) {
         let interval = Interval::new(&mut ctx, TIMEOUT);
         actor_ref.send(interval).await.unwrap();
-        Ok(())
     }
 
-    async fn interval_actor2(mut ctx: actor::Context<Interval>) -> Result<(), !> {
+    async fn interval_actor2(mut ctx: actor::Context<Interval>) {
         let mut interval = ctx.receive_next().await.unwrap();
         interval.bind_to(&mut ctx).unwrap();
         let _ = next(&mut interval).await;
-        Ok(())
     }
 
     fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {

@@ -50,9 +50,7 @@ fn has_process() {
     assert!(!scheduler.has_ready_process());
 }
 
-async fn simple_actor(_: actor::Context<!>) -> Result<(), !> {
-    Ok(())
-}
+async fn simple_actor(_: actor::Context<!>) {}
 
 #[test]
 fn add_actor() {
@@ -239,13 +237,8 @@ fn scheduler_run_order() {
     // The order in which the processes have been run.
     let run_order = Rc::new(RefCell::new(Vec::new()));
 
-    async fn order_actor(
-        _: actor::Context<!>,
-        id: usize,
-        order: Rc<RefCell<Vec<usize>>>,
-    ) -> Result<(), !> {
+    async fn order_actor(_: actor::Context<!>, id: usize, order: Rc<RefCell<Vec<usize>>>) {
         order.borrow_mut().push(id);
-        Ok(())
     }
 
     // Add our processes.

@@ -14,13 +14,13 @@ use std::task::Poll;
 use heph::actor::{self, NoMessages};
 use heph::test::{init_local_actor, poll_actor, set_message_loss};
 
-async fn expect_1_messages(mut ctx: actor::Context<usize>) -> Result<(), !> {
+async fn expect_1_messages(mut ctx: actor::Context<usize>) {
     let msg = ctx.receive_next().await.expect("missing first message");
     assert_eq!(msg, 123);
 
     match ctx.receive_next().await {
         Ok(msg) => panic!("unexpected message: {:?}", msg),
-        Err(NoMessages) => Ok(()),
+        Err(NoMessages) => return,
     }
 }
 

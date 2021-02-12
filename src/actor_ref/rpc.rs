@@ -37,7 +37,7 @@
 //! }
 //!
 //! /// Receiving actor of the RPC.
-//! async fn counter(mut ctx: actor::Context<Add>) -> Result<(), !> {
+//! async fn counter(mut ctx: actor::Context<Add>) {
 //!     // State of the counter.
 //!     let mut count: usize = 0;
 //!     // Receive a message like normal.
@@ -46,12 +46,10 @@
 //!         // Send back the current state, ignoring any errors.
 //!         let _ = response.respond(count);
 //!     }
-//!     // And we're done.
-//!     Ok(())
 //! }
 //!
 //! /// Sending actor of the RPC.
-//! async fn requester(_: actor::Context<!>, actor_ref: ActorRef<Add>) -> Result<(), !> {
+//! async fn requester(_: actor::Context<!>, actor_ref: ActorRef<Add>) {
 //!     // Make the procedure call.
 //!     let response = actor_ref.rpc(10).await;
 //! #   assert!(response.is_ok());
@@ -61,7 +59,6 @@
 //!         // Actor failed to respond.
 //!         Err(err) => eprintln!("Counter didn't reply: {}", err),
 //!     }
-//!     Ok(())
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {
@@ -133,7 +130,7 @@
 //! }
 //!
 //! /// Sending actor of the RPC.
-//! async fn requester(_: actor::Context<!>, actor_ref: ActorRef<Message>) -> Result<(), !> {
+//! async fn requester(_: actor::Context<!>, actor_ref: ActorRef<Message>) {
 //!     // Increase the counter by ten.
 //!     // NOTE: do handle the errors correctly in practice, this is just an
 //!     // example.
@@ -144,7 +141,6 @@
 //!     let count = actor_ref.rpc(()).await.unwrap();
 //! #   assert_eq!(count, 10);
 //!     println!("Current count {}", count);
-//!     Ok(())
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {

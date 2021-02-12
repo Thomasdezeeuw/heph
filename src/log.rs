@@ -36,11 +36,9 @@
 //!     Ok(())
 //! }
 //!
-//! async fn greeter_actor(_: actor::Context<!>) -> Result<(), !> {
+//! async fn greeter_actor(_: actor::Context<!>) {
 //!     // Log an informational message.
 //!     info!("Hello world");
-//!
-//!     Ok(())
 //! }
 //! ```
 

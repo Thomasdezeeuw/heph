@@ -55,7 +55,7 @@ where
     }
 }
 
-async fn actor<K>(_: actor::Context<!, K>, mut stream: TcpStream, _: SocketAddr) -> Result<(), !>
+async fn actor<K>(_: actor::Context<!, K>, mut stream: TcpStream, _: SocketAddr)
 where
     actor::Context<SocketAddr, K>: rt::Access,
 {
@@ -63,7 +63,6 @@ where
     let n = stream.recv(&mut buf).await.unwrap();
     assert_eq!(n, DATA.len());
     assert_eq!(buf, DATA);
-    Ok(())
 }
 
 const DATA: &[u8] = b"Hello world";
@@ -72,8 +71,7 @@ async fn stream_actor<K>(
     mut ctx: actor::Context<!, K>,
     address: SocketAddr,
     actor_ref: ActorRef<server::Message>,
-) -> Result<(), !>
-where
+) where
     actor::Context<!, K>: rt::Access,
 {
     let mut stream = TcpStream::connect(&mut ctx, address)
@@ -86,8 +84,6 @@ where
 
     // Send a message to stop the listener.
     actor_ref.send(Terminate).await.unwrap();
-
-    Ok(())
 }
 
 #[test]
@@ -258,7 +254,7 @@ fn new_actor_error() {
     let (server_actor, _) = init_local_actor(server, ()).unwrap();
     let server_actor: Box<dyn Actor<Error = !>> = Box::new(ServerWrapper(server_actor));
 
-    async fn stream_actor<K>(mut ctx: actor::Context<!, K>, address: SocketAddr) -> Result<(), !>
+    async fn stream_actor<K>(mut ctx: actor::Context<!, K>, address: SocketAddr)
     where
         actor::Context<!, K>: rt::Access,
     {
@@ -269,8 +265,6 @@ fn new_actor_error() {
 
         // Just need to create the connection.
         drop(stream);
-
-        Ok(())
     }
 
     let stream_actor = stream_actor as fn(_, _) -> _;

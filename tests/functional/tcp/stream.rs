@@ -1049,10 +1049,7 @@ fn peek_vectored() {
 
 #[test]
 fn shutdown_read() {
-    async fn listener_actor(
-        mut ctx: actor::Context<!>,
-        actor_ref: ActorRef<SocketAddr>,
-    ) -> Result<(), !> {
+    async fn listener_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<SocketAddr>) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
@@ -1068,11 +1065,9 @@ fn shutdown_read() {
         let n = stream.recv(&mut buf).await.unwrap();
         assert_eq!(n, DATA.len());
         assert_eq!(buf, DATA);
-
-        Ok(())
     }
 
-    async fn stream_actor(mut ctx: actor::Context<SocketAddr>) -> Result<(), !> {
+    async fn stream_actor(mut ctx: actor::Context<SocketAddr>) {
         let address = ctx.receive_next().await.unwrap();
         let mut stream = TcpStream::connect(&mut ctx, address)
             .unwrap()
@@ -1086,8 +1081,6 @@ fn shutdown_read() {
         assert_eq!(n, 0);
 
         stream.send_all(DATA).await.unwrap();
-
-        Ok(())
     }
 
     let stream_actor = stream_actor as fn(_) -> _;
@@ -1103,10 +1096,7 @@ fn shutdown_read() {
 
 #[test]
 fn shutdown_write() {
-    async fn listener_actor(
-        mut ctx: actor::Context<!>,
-        actor_ref: ActorRef<SocketAddr>,
-    ) -> Result<(), !> {
+    async fn listener_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<SocketAddr>) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
@@ -1122,10 +1112,9 @@ fn shutdown_write() {
         assert_eq!(n, 0);
 
         stream.send_all(DATA).await.unwrap();
-        Ok(())
     }
 
-    async fn stream_actor(mut ctx: actor::Context<SocketAddr>) -> Result<(), !> {
+    async fn stream_actor(mut ctx: actor::Context<SocketAddr>) {
         let address = ctx.receive_next().await.unwrap();
         let mut stream = TcpStream::connect(&mut ctx, address)
             .unwrap()
@@ -1141,8 +1130,6 @@ fn shutdown_write() {
         let n = stream.recv(&mut buf).await.unwrap();
         assert_eq!(n, DATA.len());
         assert_eq!(buf, DATA);
-
-        Ok(())
     }
 
     let stream_actor = stream_actor as fn(_) -> _;
@@ -1158,10 +1145,7 @@ fn shutdown_write() {
 
 #[test]
 fn shutdown_both() {
-    async fn listener_actor(
-        mut ctx: actor::Context<!>,
-        actor_ref: ActorRef<SocketAddr>,
-    ) -> Result<(), !> {
+    async fn listener_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<SocketAddr>) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
@@ -1174,11 +1158,9 @@ fn shutdown_both() {
         let mut buf = Vec::with_capacity(2);
         let n = stream.recv(&mut buf).await.unwrap();
         assert_eq!(n, 0);
-
-        Ok(())
     }
 
-    async fn stream_actor(mut ctx: actor::Context<SocketAddr>) -> Result<(), !> {
+    async fn stream_actor(mut ctx: actor::Context<SocketAddr>) {
         let address = ctx.receive_next().await.unwrap();
         let mut stream = TcpStream::connect(&mut ctx, address)
             .unwrap()
@@ -1193,8 +1175,6 @@ fn shutdown_both() {
         let mut buf = Vec::with_capacity(2);
         let n = stream.recv(&mut buf).await.unwrap();
         assert_eq!(n, 0);
-
-        Ok(())
     }
 
     let stream_actor = stream_actor as fn(_) -> _;

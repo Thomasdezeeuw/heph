@@ -17,7 +17,7 @@ use crate::util::{any_local_address, any_local_ipv6_address, run_actors};
 
 #[test]
 fn local_addr() {
-    async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+    async fn actor(mut ctx: actor::Context<!>) {
         let address = "127.0.0.1:12345".parse().unwrap();
         let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
         assert_eq!(listener.local_addr().unwrap(), address);
@@ -26,8 +26,6 @@ fn local_addr() {
         let address = "[::1]:12345".parse().unwrap();
         let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
         assert_eq!(listener.local_addr().unwrap(), address);
-
-        Ok(())
     }
 
     let actor = actor as fn(_) -> _;
@@ -38,7 +36,7 @@ fn local_addr() {
 
 #[test]
 fn local_addr_port_zero() {
-    async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+    async fn actor(mut ctx: actor::Context<!>) {
         let address = any_local_address();
         let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
         let got = listener.local_addr().unwrap();
@@ -51,8 +49,6 @@ fn local_addr_port_zero() {
         let got = listener.local_addr().unwrap();
         assert_eq!(got.ip(), address.ip());
         assert!(got.port() != 0);
-
-        Ok(())
     }
 
     let actor = actor as fn(_) -> _;
@@ -63,15 +59,13 @@ fn local_addr_port_zero() {
 
 #[test]
 fn ttl() {
-    async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+    async fn actor(mut ctx: actor::Context<!>) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let initial = listener.ttl().unwrap();
         let expected = initial + 10;
         listener.set_ttl(expected).unwrap();
         assert_eq!(listener.ttl().unwrap(), expected);
-
-        Ok(())
     }
 
     let actor = actor as fn(_) -> _;
@@ -82,7 +76,7 @@ fn ttl() {
 
 const DATA: &[u8] = b"Hello world";
 
-async fn stream_actor<K>(mut ctx: actor::Context<SocketAddr, K>) -> Result<(), !>
+async fn stream_actor<K>(mut ctx: actor::Context<SocketAddr, K>)
 where
     actor::Context<SocketAddr, K>: rt::Access,
 {
@@ -94,7 +88,6 @@ where
 
     let n = stream.send(DATA).await.unwrap();
     assert_eq!(n, DATA.len());
-    Ok(())
 }
 
 #[test]
@@ -117,10 +110,7 @@ fn try_accept() {
         YieldOnce(false)
     }
 
-    async fn listener_actor(
-        mut ctx: actor::Context<!>,
-        actor_ref: ActorRef<SocketAddr>,
-    ) -> Result<(), !> {
+    async fn listener_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<SocketAddr>) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
@@ -143,8 +133,6 @@ fn try_accept() {
         let n = stream.recv(&mut buf).await.unwrap();
         assert_eq!(n, DATA.len());
         assert_eq!(buf, DATA);
-
-        Ok(())
     }
 
     let stream_actor = stream_actor as fn(_) -> _;
@@ -160,10 +148,7 @@ fn try_accept() {
 
 #[test]
 fn accept() {
-    async fn listener_actor(
-        mut ctx: actor::Context<!>,
-        actor_ref: ActorRef<SocketAddr>,
-    ) -> Result<(), !> {
+    async fn listener_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<SocketAddr>) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
@@ -177,8 +162,6 @@ fn accept() {
         let n = stream.recv(&mut buf).await.unwrap();
         assert_eq!(n, DATA.len());
         assert_eq!(buf, DATA);
-
-        Ok(())
     }
 
     let stream_actor = stream_actor as fn(_) -> _;
@@ -194,10 +177,7 @@ fn accept() {
 
 #[test]
 fn incoming() {
-    async fn listener_actor(
-        mut ctx: actor::Context<!>,
-        actor_ref: ActorRef<SocketAddr>,
-    ) -> Result<(), !> {
+    async fn listener_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<SocketAddr>) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
@@ -212,8 +192,6 @@ fn incoming() {
         let n = stream.recv(&mut buf).await.unwrap();
         assert_eq!(n, DATA.len());
         assert_eq!(buf, DATA);
-
-        Ok(())
     }
 
     let stream_actor = stream_actor as fn(_) -> _;
@@ -229,23 +207,18 @@ fn incoming() {
 
 #[test]
 fn actor_bound() {
-    async fn listener_actor1<K>(
-        mut ctx: actor::Context<!, K>,
-        actor_ref: ActorRef<TcpListener>,
-    ) -> Result<(), !>
+    async fn listener_actor1<K>(mut ctx: actor::Context<!, K>, actor_ref: ActorRef<TcpListener>)
     where
         actor::Context<!, K>: rt::Access,
     {
         let listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
         actor_ref.send(listener).await.unwrap();
-        Ok(())
     }
 
     async fn listener_actor2<K>(
         mut ctx: actor::Context<TcpListener, K>,
         actor_ref: ActorRef<SocketAddr>,
-    ) -> Result<(), !>
-    where
+    ) where
         actor::Context<TcpListener, K>: rt::Access,
     {
         let mut listener = ctx.receive_next().await.unwrap();
@@ -265,7 +238,6 @@ fn actor_bound() {
         let n = stream.recv(&mut buf).await.unwrap();
         assert_eq!(n, DATA.len());
         assert_eq!(buf, DATA);
-        Ok(())
     }
 
     fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {

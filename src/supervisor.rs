@@ -234,9 +234,8 @@ where
 /// }
 ///
 /// /// Our actor that never returns an error.
-/// async fn actor(ctx: actor::Context<&'static str>) -> Result<(), !> {
+/// async fn actor(ctx: actor::Context<&'static str>) {
 /// #   drop(ctx); // Silence dead code warnings.
-///     Ok(())
 /// }
 /// ```
 #[derive(Copy, Clone, Debug)]
