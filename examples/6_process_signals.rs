@@ -79,7 +79,7 @@ fn sync_actor(mut ctx: SyncContext<Message>) {
     println!("shutting down the synchronous actor");
 }
 
-async fn thread_safe_actor(mut ctx: actor::Context<Message, ThreadSafe>) -> Result<(), !> {
+async fn thread_safe_actor(mut ctx: actor::Context<Message, ThreadSafe>) {
     while let Ok(msg) = ctx.receive_next().await {
         match msg {
             Message::Print(msg) => println!("Got a message: {}", msg),
@@ -88,10 +88,9 @@ async fn thread_safe_actor(mut ctx: actor::Context<Message, ThreadSafe>) -> Resu
     }
 
     println!("shutting down the thread local actor");
-    Ok(())
 }
 
-async fn local_actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
+async fn local_actor(mut ctx: actor::Context<Message>) {
     while let Ok(msg) = ctx.receive_next().await {
         match msg {
             Message::Print(msg) => println!("Got a message: {}", msg),
@@ -100,5 +99,4 @@ async fn local_actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
     }
 
     println!("shutting down the thread safe actor");
-    Ok(())
 }

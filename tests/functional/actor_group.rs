@@ -37,7 +37,7 @@ fn empty() {
     assert!(group.is_empty());
 }
 
-async fn expect_msgs<M>(mut ctx: actor::Context<M>, expected: Vec<M>) -> Result<(), !>
+async fn expect_msgs<M>(mut ctx: actor::Context<M>, expected: Vec<M>)
 where
     M: Eq + fmt::Debug,
 {
@@ -45,7 +45,6 @@ where
         let got = ctx.receive_next().await.expect("missing message");
         assert_eq!(got, expected);
     }
-    Ok(())
 }
 
 #[test]

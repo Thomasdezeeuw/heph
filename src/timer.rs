@@ -64,7 +64,7 @@ impl From<DeadlinePassed> for io::Error {
 /// #   Ok(())
 /// # }
 /// #
-/// async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::Context<!>) {
 /// #   let start = Instant::now();
 ///     // Create a timer, this will be ready once the timeout has passed.
 ///     let timeout = Timer::timeout(&mut ctx, Duration::from_millis(200));
@@ -74,7 +74,6 @@ impl From<DeadlinePassed> for io::Error {
 ///     timeout.await;
 /// #   assert!(Instant::now() >= start + Duration::from_millis(200));
 ///     println!("One second has passed!");
-///     Ok(())
 /// }
 /// ```
 #[derive(Debug)]
@@ -200,7 +199,7 @@ impl<K> actor::Bound<K> for Timer {
 /// #     }
 /// # }
 /// #
-/// async fn actor(mut ctx: actor::Context<String, ThreadSafe>) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::Context<String, ThreadSafe>) {
 ///     // `OtherFuture` is a type that implements `Future`.
 ///     let future = IoFuture;
 ///     // Create our deadline.
@@ -214,7 +213,6 @@ impl<K> actor::Bound<K> for Timer {
 ///     // However the other future is rather slow, so the timeout will pass.
 ///     assert!(result.is_err());
 ///     assert_eq!(result.unwrap_err().kind(), io::ErrorKind::TimedOut);
-///     Ok(())
 /// }
 /// ```
 #[derive(Debug)]
@@ -373,7 +371,7 @@ impl<Fut, K> actor::Bound<K> for Deadline<Fut> {
 /// #   Ok(())
 /// # }
 ///
-/// async fn actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::Context<!>) {
 /// #   let start = Instant::now();
 ///     let mut interval = Interval::new(&mut ctx, Duration::from_millis(200));
 /// #   assert!(interval.next_deadline() >= start + Duration::from_millis(200));
@@ -384,7 +382,6 @@ impl<Fut, K> actor::Bound<K> for Deadline<Fut> {
 ///         println!("Hello world");
 /// #       break;
 ///     }
-///     Ok(())
 /// }
 /// ```
 #[derive(Debug)]

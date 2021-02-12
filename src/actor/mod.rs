@@ -183,12 +183,11 @@ pub trait NewActor {
     /// }
     ///
     /// /// Our actor implementation that prints all messages it receives.
-    /// async fn actor(mut ctx: actor::Context<Message>) -> Result<(), !> {
+    /// async fn actor(mut ctx: actor::Context<Message>) {
     ///     if let Ok(msg) = ctx.receive_next().await {
     /// #       assert_eq!(msg, Message::String("Hello world".to_owned()));
     ///         println!("received message: {:?}", msg);
     ///     }
-    ///     Ok(())
     /// }
     /// ```
     type Message;
@@ -463,13 +462,13 @@ impl_new_actor!(
 /// The `Actor` trait defines how the actor is run.
 ///
 /// Effectively an `Actor` is a [`Future`] which returns a `Result<(), Error>`,
-/// where `Error` is defined on the trait. That is why there is a blanket
-/// implementation for all `Future`s with a `Result<(), Error>` as `Output`
-/// type.
+/// where `Error` is defined on the trait. All `Future`s where the [`Output`]
+/// type is `Result<(), Error>` or `()` implement the `Actor` trait.
 ///
 /// The easiest way to implement this by using an async function, see the
 /// [module level] documentation.
 ///
+/// [`Output`]: Future::Output
 /// [module level]: crate::actor
 ///
 /// # Panics
@@ -500,9 +499,13 @@ pub trait Actor {
         -> Poll<Result<(), Self::Error>>;
 }
 
-impl<Fut, E> Actor for Fut
+/// Supported are [`Future`]s with `Result<(), E>` or `()` [`Output`].
+///
+/// [`Output`]: Future::Output
+impl<Fut, O, E> Actor for Fut
 where
-    Fut: Future<Output = Result<(), E>>,
+    Fut: Future<Output = O>,
+    O: private::ActorResult<Error = E>,
 {
     type Error = E;
 
@@ -510,7 +513,34 @@ where
         self: Pin<&mut Self>,
         ctx: &mut task::Context<'_>,
     ) -> Poll<Result<(), Self::Error>> {
-        self.poll(ctx)
+        self.poll(ctx).map(private::ActorResult::into)
+    }
+}
+
+mod private {
+    /// Trait to support [`Actor`] for `Result<(), E>` and `()`.
+    pub trait ActorResult {
+        /// See [`Actor::Error`].
+        type Error;
+
+        /// Convert the return type in an `Result<(), Self::Error>`.
+        fn into(self) -> Result<(), Self::Error>;
+    }
+
+    impl<E> ActorResult for Result<(), E> {
+        type Error = E;
+
+        fn into(self) -> Result<(), E> {
+            self
+        }
+    }
+
+    impl ActorResult for () {
+        type Error = !;
+
+        fn into(self) -> Result<(), !> {
+            Ok(())
+        }
     }
 }
 

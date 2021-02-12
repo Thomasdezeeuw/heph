@@ -19,7 +19,7 @@ fn thread_safe_is_send_sync() {
     assert_sync::<actor::Context<(), context::ThreadSafe>>();
 }
 
-async fn local_actor_context_actor(mut ctx: actor::Context<usize>) -> Result<(), !> {
+async fn local_actor_context_actor(mut ctx: actor::Context<usize>) {
     assert_eq!(ctx.try_receive_next(), Err(RecvError::Empty));
 
     let msg = ctx.receive_next().await.unwrap();
@@ -27,7 +27,6 @@ async fn local_actor_context_actor(mut ctx: actor::Context<usize>) -> Result<(),
 
     assert_eq!(ctx.receive_next().await, Err(NoMessages));
     assert_eq!(ctx.try_receive_next(), Err(RecvError::Disconnected));
-    Ok(())
 }
 
 #[test]
@@ -48,7 +47,7 @@ fn local_actor_context() {
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
 }
 
-async fn actor_ref_actor(mut ctx: actor::Context<usize>) -> Result<(), !> {
+async fn actor_ref_actor(mut ctx: actor::Context<usize>) {
     assert_eq!(ctx.receive_next().await, Err(NoMessages));
 
     // Send a message to ourselves.
@@ -56,8 +55,6 @@ async fn actor_ref_actor(mut ctx: actor::Context<usize>) -> Result<(), !> {
     self_ref.send(123usize).await.unwrap();
     let msg = ctx.receive_next().await.unwrap();
     assert_eq!(msg, 123);
-
-    Ok(())
 }
 
 #[test]
@@ -70,10 +67,9 @@ fn actor_ref() {
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
 }
 
-async fn runtime_actor(mut ctx: actor::Context<Signal>) -> Result<(), !> {
+async fn runtime_actor(mut ctx: actor::Context<Signal>) {
     let actor_ref = ctx.actor_ref();
     ctx.runtime().receive_signals(actor_ref);
-    Ok(())
 }
 
 #[test]
@@ -86,7 +82,7 @@ fn runtime() {
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
 }
 
-async fn thread_safe_try_spawn_actor(mut ctx: actor::Context<usize, ThreadSafe>) -> Result<(), !> {
+async fn thread_safe_try_spawn_actor(mut ctx: actor::Context<usize, ThreadSafe>) {
     let actor_ref1 = ctx
         .try_spawn(
             NoSupervisor,
@@ -104,14 +100,11 @@ async fn thread_safe_try_spawn_actor(mut ctx: actor::Context<usize, ThreadSafe>)
 
     actor_ref1.send(123usize).await.unwrap();
     actor_ref2.send(123usize).await.unwrap();
-
-    Ok(())
 }
 
-async fn spawned_actor1(mut ctx: actor::Context<usize, ThreadSafe>) -> Result<(), !> {
+async fn spawned_actor1(mut ctx: actor::Context<usize, ThreadSafe>) {
     let msg = ctx.receive_next().await.unwrap();
     assert_eq!(msg, 123);
-    Ok(())
 }
 
 #[test]

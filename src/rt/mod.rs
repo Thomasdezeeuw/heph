@@ -162,7 +162,7 @@ fn sync_worker_id() {
 /// }
 ///
 /// /// Our actor that greets people.
-/// async fn actor(mut ctx: actor::Context<&'static str>, msg: &'static str) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::Context<&'static str>, msg: &'static str) {
 ///     // `msg` is the argument passed to `spawn` in the `setup` function
 ///     // above, in this example it was "Hello".
 ///
@@ -172,7 +172,6 @@ fn sync_worker_id() {
 ///         // This should print "Hello world"!
 ///         println!("{} {}", msg, name);
 ///     }
-///     Ok(())
 /// }
 /// ```
 pub struct Runtime<S = !> {

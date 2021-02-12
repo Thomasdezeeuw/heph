@@ -243,14 +243,12 @@ where
 /// use heph::actor;
 /// use heph::test::size_of_actor_val;
 ///
-/// async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+/// async fn actor(mut ctx: actor::Context<String>) {
 ///     // Receive a message.
 ///     if let Ok(msg) = ctx.receive_next().await {
 ///         // Print the message.
 ///         println!("got a message: {}", msg);
 ///     }
-///     // And we're done.
-///     Ok(())
 /// }
 ///
 /// assert_eq!(size_of_actor_val(&(actor as fn(_) -> _)), 64);
@@ -266,8 +264,8 @@ where
 fn test_size_of_actor() {
     use crate::actor::context::ThreadLocal;
 
-    async fn actor1(_: actor::Context<!>) -> Result<(), !> {
-        Ok(())
+    async fn actor1(_: actor::Context<!>) {
+        /* Nothing. */
     }
 
     #[allow(trivial_casts)]

@@ -39,12 +39,11 @@ fn main() -> Result<(), rt::Error> {
 }
 
 /// Our "actor", but it doesn't do much.
-async fn actor(_: actor::Context<!>) -> Result<(), !> {
-    Ok(())
+async fn actor(_: actor::Context<!>) {
+    /* Nothing. */
 }
 
-async fn control_actor(_: actor::Context<!>) -> Result<(), !> {
+async fn control_actor(_: actor::Context<!>) {
     info!("Running, check the memory usage!");
     info!("Send a signal (e.g. by pressing Ctrl-C) to stop.");
-    Ok(())
 }

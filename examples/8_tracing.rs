@@ -77,7 +77,7 @@ async fn relay_actor(
 }
 
 /// Sync actor that prints all messages it receives.
-fn print_actor(mut ctx: SyncContext<&'static str>) -> Result<(), !> {
+fn print_actor(mut ctx: SyncContext<&'static str>) {
     loop {
         // Start timing of receiving a message.
         let timing = ctx.start_trace();
@@ -95,5 +95,4 @@ fn print_actor(mut ctx: SyncContext<&'static str>) -> Result<(), !> {
         println!("Received message: {}", msg);
         ctx.finish_trace(timing, "printing message", &[("message", &msg)]);
     }
-    Ok(())
 }

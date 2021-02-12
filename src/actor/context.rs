@@ -82,13 +82,12 @@ impl<M, C> Context<M, C> {
     ///
     /// use heph::actor;
     ///
-    /// async fn greeter_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+    /// async fn greeter_actor(mut ctx: actor::Context<String>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
     ///         println!("Hello: {}", name);
     ///     } else {
     ///         println!("Hello world");
     ///     }
-    ///     Ok(())
     /// }
     ///
     /// # // Use the `greeter_actor` function to silence dead code warning.
@@ -111,11 +110,10 @@ impl<M, C> Context<M, C> {
     ///
     /// use heph::actor;
     ///
-    /// async fn print_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: actor::Context<String>) {
     ///     if let Ok(msg) = ctx.receive_next().await {
     ///         println!("Got a message: {}", msg);
     ///     }
-    ///     Ok(())
     /// }
     ///
     /// # // Use the `print_actor` function to silence dead code warning.
@@ -134,7 +132,7 @@ impl<M, C> Context<M, C> {
     /// use heph::timer::Timer;
     /// use heph::util::either;
     ///
-    /// async fn print_actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+    /// async fn print_actor(mut ctx: actor::Context<String>) {
     ///     // Create a timer, this will be ready once the timeout has
     ///     // passed.
     ///     let timeout = Timer::timeout(&mut ctx, Duration::from_millis(100));
@@ -147,8 +145,6 @@ impl<M, C> Context<M, C> {
     ///         Ok(Err(_)) => println!("No message"),
     ///         Err(_) => println!("Timed out receiving message"),
     ///     }
-    ///
-    ///     Ok(())
     /// }
     ///
     /// # // Use the `print_actor` function to silence dead code warning.

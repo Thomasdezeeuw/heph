@@ -156,9 +156,8 @@ fn process_data_runtime_increase() {
     assert!(process.fair_runtime >= SLEEP_TIME);
 }
 
-async fn ok_actor(mut ctx: actor::Context<()>) -> Result<(), !> {
+async fn ok_actor(mut ctx: actor::Context<()>) {
     assert_eq!(ctx.receive_next().await, Ok(()));
-    Ok(())
 }
 
 #[test]

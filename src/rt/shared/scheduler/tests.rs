@@ -25,9 +25,7 @@ fn is_send() {
     assert_send::<Scheduler>();
 }
 
-async fn simple_actor(_: actor::Context<!, context::ThreadSafe>) -> Result<(), !> {
-    Ok(())
-}
+async fn simple_actor(_: actor::Context<!, context::ThreadSafe>) {}
 
 #[test]
 fn adding_actor() {
@@ -113,9 +111,8 @@ fn scheduler_run_order() {
         _: actor::Context<!, context::ThreadSafe>,
         id: usize,
         order: Arc<Mutex<Vec<usize>>>,
-    ) -> Result<(), !> {
+    ) {
         order.lock().unwrap().push(id);
-        Ok(())
     }
 
     // Add our processes.

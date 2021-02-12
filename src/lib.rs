@@ -16,14 +16,12 @@
 //! #
 //! # use heph::actor;
 //! #
-//! async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+//! async fn actor(mut ctx: actor::Context<String>) {
 //!     // Receive a message.
 //!     if let Ok(msg) = ctx.receive_next().await {
 //!         // Print the message.
 //!         println!("got a message: {}", msg);
 //!     }
-//!     // And we're done.
-//!     Ok(())
 //! }
 //! #
 //! # drop(actor); // Silence dead code warnings.
