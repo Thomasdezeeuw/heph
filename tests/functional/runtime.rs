@@ -184,6 +184,7 @@ fn tracing() {
 
 #[derive(Clone)] // Needed in setup function.
 struct WaitFuture {
+    #[allow(clippy::type_complexity)]
     inner: Arc<(Mutex<(Option<task::Waker>, bool)>, Condvar)>,
 }
 
