@@ -256,7 +256,6 @@ fn external_thread_wakes_thread_local_actor() {
 }
 
 #[test]
-#[ignore = "doesn't work"] // FIXME.
 fn external_thread_wakes_thread_safe_actor() {
     async fn actor(_: actor::Context<!, ThreadSafe>, future: WaitFuture) -> Result<(), !> {
         future.await

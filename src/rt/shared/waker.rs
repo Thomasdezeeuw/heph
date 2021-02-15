@@ -152,7 +152,8 @@ unsafe fn wake(data: *const ()) {
     // doesn't modify the data.
     let data = WakerData::from_raw_data(data);
     if let Some(shared_internals) = get(data.waker_id()).upgrade() {
-        shared_internals.mark_ready(data.pid())
+        shared_internals.mark_ready(data.pid());
+        shared_internals.wake_workers(1);
     }
 }
 
@@ -183,6 +184,7 @@ mod tests {
     use crate::rt::shared::waker::{self, WakerData};
     use crate::rt::shared::{RuntimeInternals, Scheduler};
     use crate::rt::{RuntimeRef, Timers};
+    use crate::test;
 
     const WAKER: Token = Token(0);
     const PID1: ProcessId = ProcessId(1);
@@ -325,7 +327,8 @@ mod tests {
         let timers = Mutex::new(Timers::new());
         Arc::new_cyclic(|shared_internals| {
             let waker_id = waker::init(shared_internals.clone());
-            RuntimeInternals::new(waker_id, waker, scheduler, registry, timers)
+            let worker_wakers = vec![&*test::NOOP_WAKER].into_boxed_slice();
+            RuntimeInternals::new(waker_id, waker, worker_wakers, scheduler, registry, timers)
         })
     }
 

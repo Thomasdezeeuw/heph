@@ -21,6 +21,7 @@ use std::cell::RefCell;
 use std::future::Future;
 use std::lazy::SyncLazy;
 use std::mem::size_of;
+use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -36,7 +37,8 @@ use crate::actor::{self, context, Actor, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::rt::shared::{waker, Scheduler};
 use crate::rt::sync_worker::SyncWorker;
-use crate::rt::worker::RunningRuntime;
+use crate::rt::thread_waker::ThreadWaker;
+use crate::rt::worker::{self, RunningRuntime};
 use crate::rt::{
     self, shared, ProcessId, RuntimeRef, SyncActorOptions, Timers, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
@@ -45,11 +47,18 @@ use crate::supervisor::SyncSupervisor;
 
 pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 
-static POLL: SyncLazy<mio::Poll> =
+static COORDINATOR_POLL: SyncLazy<mio::Poll> =
     SyncLazy::new(|| mio::Poll::new().expect("failed to create `Poll` instance for test module"));
 
+pub(crate) static NOOP_WAKER: SyncLazy<ThreadWaker> = SyncLazy::new(|| {
+    let poll = mio::Poll::new().expect("failed to create `Poll` instance for test module");
+    let waker = mio::Waker::new(poll.registry(), mio::Token(0))
+        .expect("failed to create `Waker` instance for test module");
+    ThreadWaker::new(waker)
+});
+
 static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(|| {
-    let registry = POLL
+    let registry = COORDINATOR_POLL
         .registry()
         .try_clone()
         .expect("failed to clone `Registry` for test module");
@@ -59,16 +68,18 @@ static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(
     let timers = Mutex::new(Timers::new());
     Arc::new_cyclic(|shared_internals| {
         let waker_id = waker::init(shared_internals.clone());
-        shared::RuntimeInternals::new(waker_id, waker, scheduler, registry, timers)
+        let worker_wakers = vec![&*NOOP_WAKER].into_boxed_slice();
+        shared::RuntimeInternals::new(waker_id, waker, worker_wakers, scheduler, registry, timers)
     })
 });
 
 thread_local! {
     /// Per thread active, but not running, runtime.
     static TEST_RT: RefCell<RunningRuntime> = {
-        // NOTE: `sender` needs to live during `RunningRuntime::init`.
-        let (_sender, receiver) = rt::channel::new().expect("failed to create Channel for test module");
-        RefCell::new(RunningRuntime::init(receiver, SHARED_INTERNAL.clone(), None).expect("failed to create local Runtime for test module"))
+        let (setup, _) = worker::setup(NonZeroUsize::new(1).unwrap()).expect("failed to setup worker for test module");
+         // NOTE: `sender` needs to live during `RunningRuntime::init`.
+        let (_, receiver) = rt::channel::new().expect("failed to create `Channel` for test module");
+        RefCell::new(RunningRuntime::init(setup, receiver, SHARED_INTERNAL.clone(), None).expect("failed to create local `Runtime` for test module"))
     };
 }
 

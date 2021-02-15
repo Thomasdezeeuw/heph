@@ -9,9 +9,9 @@ use std::{io, thread};
 use log::{debug, warn};
 
 use crate::actor_ref::ActorGroup;
-use crate::rt::trace;
-use crate::rt::{coordinator, Coordinator};
-use crate::rt::{Error, Runtime, Worker, MAX_THREADS};
+use crate::rt::coordinator::{self, Coordinator};
+use crate::rt::{worker, Error, Runtime, Worker, MAX_THREADS};
+use crate::trace;
 
 /// Setup a [`Runtime`].
 ///
@@ -125,20 +125,32 @@ impl Setup {
     pub fn build(mut self) -> Result<Runtime, Error> {
         debug!("building Heph runtime: worker_threads={}", self.threads);
 
-        let coordinator = Coordinator::init().map_err(Error::init_coordinator)?;
-
-        // Start our worker threads.
+        // Setup the worker threads.
         let timing = trace::start(&self.trace_log);
-        let workers = (1..=self.threads)
-            .map(|id| {
-                let id = NonZeroUsize::new(id).unwrap();
+        let mut worker_setups = Vec::with_capacity(self.threads);
+        let mut thread_wakers = Vec::with_capacity(self.threads);
+        for id in 1..=self.threads {
+            // Coordinator has id 0.
+            let id = NonZeroUsize::new(id).unwrap();
+            let (worker_setup, thread_waker) = worker::setup(id).map_err(Error::start_worker)?;
+            worker_setups.push(worker_setup);
+            thread_wakers.push(thread_waker);
+        }
+
+        // Create the coordinator to oversee all workers.
+        let thread_wakers = thread_wakers.into_boxed_slice();
+        let coordinator = Coordinator::init(thread_wakers).map_err(Error::init_coordinator)?;
+
+        // Spawn the worker threads.
+        let workers = worker_setups
+            .into_iter()
+            .map(|worker_setup| {
                 let trace_log = if let Some(trace_log) = &self.trace_log {
-                    Some(trace_log.new_stream(id.get() as u32)?)
+                    Some(trace_log.new_stream(worker_setup.id() as u32)?)
                 } else {
                     None
                 };
-                Worker::start(
-                    id,
+                worker_setup.start(
                     coordinator.shared_internals().clone(),
                     self.auto_cpu_affinity,
                     trace_log,
@@ -146,6 +158,7 @@ impl Setup {
             })
             .collect::<io::Result<Vec<Worker>>>()
             .map_err(Error::start_worker)?;
+
         trace::finish(
             &mut self.trace_log,
             timing,

@@ -1,12 +1,13 @@
 //! Module with shared runtime internals.
 
+use std::cmp::min;
 use std::pin::Pin;
-use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use std::{io, task};
 
-use log::{debug, error};
+use log::{debug, error, trace};
 use mio::{event, Interest, Registry, Token};
 
 use crate::actor::context::ThreadSafe;
@@ -31,6 +32,11 @@ pub(crate) struct RuntimeInternals {
     coordinator_id: WakerId,
     /// Thread waker for the coordinator.
     coordinator_waker: ThreadWaker,
+    /// Thread wakers for all the workers.
+    worker_wakers: Box<[&'static ThreadWaker]>,
+    /// Index into `worker_wakers` to wake next, see
+    /// [`RuntimeInternals::wake_workers`].
+    wake_worker_idx: AtomicUsize,
     /// Scheduler for thread-safe actors.
     scheduler: Scheduler,
     /// Registry for the `Coordinator`'s `Poll` instance.
@@ -44,13 +50,18 @@ impl RuntimeInternals {
     pub(crate) fn new(
         coordinator_id: WakerId,
         coordinator_waker: mio::Waker,
+        worker_wakers: Box<[&'static ThreadWaker]>,
         scheduler: Scheduler,
         registry: Registry,
         timers: Mutex<Timers>,
     ) -> RuntimeInternals {
+        // Needed by `RuntimeInternals::wake_workers`.
+        debug_assert!(worker_wakers.len() >= 1);
         RuntimeInternals {
             coordinator_id,
             coordinator_waker: ThreadWaker::new(coordinator_waker),
+            worker_wakers,
+            wake_worker_idx: AtomicUsize::new(0),
             scheduler,
             registry,
             timers,
@@ -142,24 +153,64 @@ impl RuntimeInternals {
         Ok(actor_ref)
     }
 
+    /// See [`Scheduler::mark_ready`].
+    pub(crate) fn mark_ready(&self, pid: ProcessId) {
+        self.scheduler.mark_ready(pid)
+    }
+
+    /// Wake `n` worker threads.
+    pub(crate) fn wake_workers(&self, n: usize) {
+        trace!("waking {} worker thread(s)", n);
+        // To prevent the Thundering herd problem [1] we don't wake all workers,
+        // only enough worker threads to handle all events. To spread the
+        // workload (somewhat more) evenly we wake the workers in a Round-Robin
+        // [2] fashion.
+        //
+        // [1]: https://en.wikipedia.org/wiki/Thundering_herd_problem
+        // [2]: https://en.wikipedia.org/wiki/Round-robin_scheduling
+        let n = min(n, self.worker_wakers.len());
+        let wake_worker_idx =
+            self.wake_worker_idx.fetch_add(n, Ordering::AcqRel) % self.worker_wakers.len();
+        let (wake_second, wake_first) = self.worker_wakers.split_at(wake_worker_idx);
+        let workers_to_wake = wake_first.iter().chain(wake_second.iter());
+        let mut wakes_left = n;
+        for worker in workers_to_wake {
+            match worker.wake() {
+                Ok(true) => {
+                    wakes_left -= 1;
+                    if wakes_left == 0 {
+                        break;
+                    }
+                }
+                Ok(false) => {}
+                Err(err) => error!("error waking worker: {}", err),
+            }
+        }
+    }
+
     // Worker only API.
 
+    /// See [`Scheduler::has_process`].
     pub(crate) fn has_process(&self) -> bool {
         self.scheduler.has_process()
     }
 
+    /// See [`Scheduler::has_ready_process`].
     pub(crate) fn has_ready_process(&self) -> bool {
         self.scheduler.has_ready_process()
     }
 
+    /// See [`Scheduler::remove_process`].
     pub(crate) fn remove_process(&self) -> Option<Pin<Box<ProcessData>>> {
         self.scheduler.remove()
     }
 
+    /// See [`Scheduler::add_process`].
     pub(crate) fn add_process(&self, process: Pin<Box<ProcessData>>) {
         self.scheduler.add_process(process);
     }
 
+    /// See [`Scheduler::complete`].
     pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
         self.scheduler.complete(process);
     }
@@ -168,10 +219,6 @@ impl RuntimeInternals {
 
     pub(crate) fn timers(&self) -> &Mutex<Timers> {
         &self.timers
-    }
-
-    pub(crate) fn mark_ready(&self, pid: ProcessId) {
-        self.scheduler.mark_ready(pid)
     }
 
     pub(crate) fn mark_polling(&self, polling: bool) {
