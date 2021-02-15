@@ -1,6 +1,5 @@
 //! Coordinator thread code.
 
-use std::cmp::min;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use std::{fmt, io};
@@ -12,6 +11,7 @@ use mio_signals::{SignalSet, Signals};
 
 use crate::actor_ref::{ActorGroup, Delivery};
 use crate::rt::shared::{waker, Scheduler};
+use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
     self, shared, worker, Signal, SyncWorker, Timers, Worker, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
@@ -37,7 +37,7 @@ pub(super) struct Coordinator {
 
 impl Coordinator {
     /// Initialise the `Coordinator` thread.
-    pub(super) fn init() -> io::Result<Coordinator> {
+    pub(super) fn init(worker_wakers: Box<[&'static ThreadWaker]>) -> io::Result<Coordinator> {
         let poll = Poll::new()?;
         let registry = poll.registry().try_clone()?;
         let waker = mio::Waker::new(&registry, WAKER)?;
@@ -45,7 +45,14 @@ impl Coordinator {
         let timers = Mutex::new(Timers::new());
         let internals = Arc::new_cyclic(|shared_internals| {
             let waker_id = waker::init(shared_internals.clone());
-            shared::RuntimeInternals::new(waker_id, waker, scheduler, registry, timers)
+            shared::RuntimeInternals::new(
+                waker_id,
+                waker,
+                worker_wakers,
+                scheduler,
+                registry,
+                timers,
+            )
         });
         Ok(Coordinator { poll, internals })
     }
@@ -105,7 +112,6 @@ impl Coordinator {
 
         // Index of the last worker we waked, must never be larger then
         // `worker.len()` (which changes throughout the loop).
-        let mut workers_waker_idx = 0;
         let mut events = Events::with_capacity(16);
         loop {
             // Counter for how many workers to wake.
@@ -172,33 +178,8 @@ impl Coordinator {
 
             // In case the worker threads are polling we need to wake them up.
             if wake_workers > 0 {
-                trace!("waking worker threads");
                 let timing = trace::start(&trace_log);
-                // To prevent the Thundering herd problem [1] we don't wake all
-                // workers, only enough worker threads to handle all events. To
-                // spread the workload (somewhat more) evenly we wake the
-                // workers in a Round-Robin [2] fashion.
-                //
-                // [1]: https://en.wikipedia.org/wiki/Thundering_herd_problem
-                // [2]: https://en.wikipedia.org/wiki/Round-robin_scheduling
-                wake_workers = min(wake_workers, workers.len());
-                let (wake_second, wake_first) = workers.split_at_mut(workers_waker_idx);
-                let workers_to_wake = wake_first.iter_mut().chain(wake_second.iter_mut());
-                let mut wakes_left = wake_workers;
-                for worker in workers_to_wake {
-                    trace!("waking worker: id={}", worker.id());
-                    match worker.wake() {
-                        Ok(true) => {
-                            wakes_left -= 1;
-                            if wakes_left == 0 {
-                                break;
-                            }
-                        }
-                        Ok(false) => {}
-                        Err(err) => warn!("error waking worker: {}: id={}", err, worker.id()),
-                    }
-                }
-                workers_waker_idx = (workers_waker_idx + wake_workers) % workers.len();
+                self.internals.wake_workers(wake_workers);
                 trace::finish(
                     &mut trace_log,
                     timing,

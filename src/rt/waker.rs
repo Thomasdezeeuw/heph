@@ -88,7 +88,7 @@ static mut THREAD_WAKERS: [Option<Waker>; MAX_THREADS] = [NO_WAKER; MAX_THREADS]
 const NO_WAKER: Option<Waker> = None;
 
 /// Get waker data for `waker_id`
-pub(crate) fn get(waker_id: WakerId) -> &'static Waker {
+fn get(waker_id: WakerId) -> &'static Waker {
     // Safety: `WakerId` is only created by `init`, which ensures its valid.
     // Furthermore `init` ensures that `THREAD_WAKER[waker_id]` is initialised
     // and is read-only after that. See `THREAD_WAKERS` documentation for more.
@@ -99,9 +99,14 @@ pub(crate) fn get(waker_id: WakerId) -> &'static Waker {
     }
 }
 
+/// Returns the `ThreadWaker` for `waker_id`.
+pub(crate) fn get_thread_waker(waker_id: WakerId) -> &'static ThreadWaker {
+    &get(waker_id).thread_waker
+}
+
 /// Waker mechanism.
 #[derive(Debug)]
-pub(crate) struct Waker {
+struct Waker {
     notifications: Sender<ProcessId>,
     thread_waker: ThreadWaker,
 }
@@ -119,15 +124,10 @@ impl Waker {
     }
 
     /// Wake up the thread, without waking a specific process.
-    pub(crate) fn wake_thread(&self) {
+    fn wake_thread(&self) {
         if let Err(err) = self.thread_waker.wake() {
             error!("unable to wake up worker thread: {}", err);
         }
-    }
-
-    /// Returns the [`ThreadWaker`].
-    pub(crate) fn thread_waker(&self) -> &ThreadWaker {
-        &self.thread_waker
     }
 }
 

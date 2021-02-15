@@ -111,11 +111,9 @@ impl fmt::Debug for Branch {
 impl Branch {
     /// Create an empty `Branch`.
     const fn empty() -> Branch {
+        const NONE: Option<Pointer> = None;
         Branch {
-            branches: [
-                None, None, None, None, None, None, None, None, None, None, None, None, None, None,
-                None, None,
-            ],
+            branches: [NONE; N_BRANCHES],
         }
     }
 

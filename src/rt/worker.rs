@@ -20,8 +20,39 @@ use crate::rt::process::ProcessResult;
 use crate::rt::scheduler::LocalScheduler;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::timers::Timers;
+use crate::rt::waker::WakerId;
 use crate::rt::{self, local, shared, ProcessId, RuntimeRef, Signal};
 use crate::trace;
+
+pub(crate) struct WorkerSetup {
+    id: NonZeroUsize,
+    poll: Poll,
+    /// Waker id used to create a `Waker` for thread-local actors.
+    waker_id: WakerId,
+    /// Receiving side of the channel for `Waker` events.
+    waker_events: Receiver<ProcessId>,
+}
+
+/// Setup a new worker thread.
+///
+/// Use [`WorkerSetup::spawn`] to spawn the worker thread.
+pub(crate) fn setup(id: NonZeroUsize) -> io::Result<(WorkerSetup, &'static ThreadWaker)> {
+    let poll = Poll::new()?;
+
+    // Setup the waking mechanism.
+    let (waker_sender, waker_events) = crossbeam_channel::unbounded();
+    let waker = mio::Waker::new(poll.registry(), WAKER)?;
+    let waker_id = rt::waker::init(waker, waker_sender);
+    let thread_waker = rt::waker::get_thread_waker(waker_id);
+
+    let setup = WorkerSetup {
+        id,
+        poll,
+        waker_id,
+        waker_events,
+    };
+    Ok((setup, thread_waker))
+}
 
 /// Handle to a worker thread.
 #[derive(Debug)]
@@ -32,10 +63,6 @@ pub(super) struct Worker {
     handle: thread::JoinHandle<Result<(), rt::Error>>,
     /// Two-way communication channel to share messages with the worker thread.
     channel: rt::channel::Handle<CoordinatorMessage, WorkerMessage>,
-    /// Initialy this will be `None`, but once the worker thread is setup this
-    /// will be set to `Some` and can be used as an optimisation over sending
-    /// `CoordinatorMessage::Waker` messages.
-    thread_waker: Option<&'static ThreadWaker>,
 }
 
 /// Message send by the coordinator thread.
@@ -47,32 +74,29 @@ pub(crate) enum CoordinatorMessage {
     Signal(Signal),
     /// Run a function on the worker thread.
     Run(Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>),
-    /// Signal to wake-up the worker thread.
-    Wake,
 }
 
 /// Message send by the worker thread.
 #[derive(Debug)]
-pub(crate) enum WorkerMessage {
-    /// Worker thread is setup and send `Waker` as an optimised way to
-    /// wake the thread.
-    Waker(&'static ThreadWaker),
-}
+pub(crate) enum WorkerMessage {}
 
-impl Worker {
+impl WorkerSetup {
     /// Start a new worker thread.
     pub(super) fn start(
-        id: NonZeroUsize,
+        self,
         shared_internals: Arc<shared::RuntimeInternals>,
         auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
     ) -> io::Result<Worker> {
         rt::channel::new().and_then(|(channel, worker_handle)| {
+            // Copy id to move into `Worker`, `self` moves into the spawned
+            // thread.
+            let id = self.id;
             thread::Builder::new()
                 .name(format!("Worker {}", id))
                 .spawn(move || {
                     main(
-                        id,
+                        self,
                         worker_handle,
                         shared_internals,
                         auto_cpu_affinity,
@@ -83,11 +107,17 @@ impl Worker {
                     id,
                     handle,
                     channel,
-                    thread_waker: None,
                 })
         })
     }
 
+    /// Return the worker's id.
+    pub(super) fn id(&self) -> usize {
+        self.id.get()
+    }
+}
+
+impl Worker {
     /// Return the worker's id.
     pub(super) fn id(&self) -> usize {
         self.id.get()
@@ -122,23 +152,10 @@ impl Worker {
         self.channel.try_send(msg)
     }
 
-    /// Wake the worker thread. Returns `true` if the thread is awoken, `false`
-    /// otherwise.
-    pub(super) fn wake(&mut self) -> io::Result<bool> {
-        if let Some(thread_waker) = self.thread_waker {
-            thread_waker.wake()
-        } else {
-            let msg = CoordinatorMessage::Wake;
-            self.channel.try_send(msg).map(|()| true)
-        }
-    }
-
     /// Handle all incoming messages.
     pub(super) fn handle_messages(&mut self) -> io::Result<()> {
         while let Some(msg) = self.channel.try_recv()? {
-            match msg {
-                WorkerMessage::Waker(thread_waker) => self.thread_waker = Some(thread_waker),
-            }
+            match msg {}
         }
         Ok(())
     }
@@ -151,7 +168,7 @@ impl Worker {
 
 /// Run a worker thread, with an optional `setup` function.
 fn main(
-    id: NonZeroUsize,
+    setup: WorkerSetup,
     receiver: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
     shared_internals: Arc<shared::RuntimeInternals>,
     auto_cpu_affinity: bool,
@@ -161,7 +178,7 @@ fn main(
 
     #[cfg(target_os = "linux")]
     let cpu = if auto_cpu_affinity {
-        let cpu = id.get() - 1; // Worker ids start at 1, cpus at 0.
+        let cpu = setup.id.get() - 1; // Worker ids start at 1, cpus at 0.
         let cpu_set = cpu_set(cpu);
         match set_affinity(&cpu_set) {
             Ok(()) => {
@@ -178,11 +195,11 @@ fn main(
     };
     #[cfg(not(target_os = "linux"))]
     let cpu = {
-        let _ = (id, auto_cpu_affinity); // Silence unused variables warnings.
+        let _ = auto_cpu_affinity; // Silence unused variables warnings.
         None
     };
 
-    let runtime = RunningRuntime::init(receiver, shared_internals, cpu)
+    let runtime = RunningRuntime::init(setup, receiver, shared_internals, cpu)
         .map_err(|err| rt::Error::worker(Error::Init(err)))?;
 
     trace::finish(
@@ -296,33 +313,20 @@ const COORDINATOR: Token = Token(usize::max_value() - 1);
 impl RunningRuntime {
     /// Create a new running runtime.
     pub(crate) fn init(
+        setup: WorkerSetup,
         mut channel: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
         shared_internals: Arc<shared::RuntimeInternals>,
         cpu: Option<usize>,
     ) -> io::Result<RunningRuntime> {
-        // OS poll for OS event notifications (e.g. TCP connection readable).
-        let poll = Poll::new()?;
         // Register the channel to the coordinator.
-        channel.register(poll.registry(), COORDINATOR)?;
-
-        // Setup the waking mechanism.
-        // First it needs a user-space queue.
-        let (waker_sender, waker_recv) = crossbeam_channel::unbounded();
-        // Next a way to wake us from polling the OS.
-        let waker = mio::Waker::new(poll.registry(), WAKER)?;
-        // With both we create a `rt::waker::Waker`.
-        let waker_id = rt::waker::init(waker, waker_sender);
-        let thread_waker = rt::waker::get(waker_id).thread_waker();
-        // And send it to the coordinator so it can optimise the waking process
-        // (of waking this worker thread).
-        channel.try_send(WorkerMessage::Waker(thread_waker))?;
+        channel.register(setup.poll.registry(), COORDINATOR)?;
 
         // Finally create all the runtime internals.
         let internal = local::RuntimeInternals {
             shared: shared_internals,
-            waker_id,
+            waker_id: setup.waker_id,
             scheduler: RefCell::new(LocalScheduler::new()),
-            poll: RefCell::new(poll),
+            poll: RefCell::new(setup.poll),
             timers: RefCell::new(Timers::new()),
             signal_receivers: RefCell::new(Vec::new()),
             cpu,
@@ -330,7 +334,7 @@ impl RunningRuntime {
         Ok(RunningRuntime {
             internal: Rc::new(internal),
             events: Events::with_capacity(128),
-            waker_events: waker_recv,
+            waker_events: setup.waker_events,
             channel,
             started: false,
         })
@@ -587,7 +591,6 @@ impl RunningRuntime {
                         return Err(Error::UserFunction(StringError(err)));
                     }
                 }
-                Wake => { /* Just need to wake up. */ }
             }
         }
         Ok(())
