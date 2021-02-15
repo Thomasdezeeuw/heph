@@ -50,18 +50,33 @@ impl Signal {
     pub(super) const fn should_stop(self) -> bool {
         true
     }
+
+    /// Returns a human readable name for the signal.
+    pub(super) const fn as_str(self) -> &'static str {
+        match self {
+            Signal::Interrupt => "interrupt",
+            Signal::Terminate => "terminate",
+            Signal::Quit => "quit",
+        }
+    }
+
+    /// Returns the name of the Posix constant of the signal.
+    const fn as_posix(self) -> &'static str {
+        match self {
+            Signal::Interrupt => "SIGINT",
+            Signal::Terminate => "SIGTERM",
+            Signal::Quit => "SIGQUIT",
+        }
+    }
 }
 
 impl fmt::Display for Signal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let alternate = f.alternate();
-        f.write_str(match (self, alternate) {
-            (Signal::Interrupt, false) => "interrupt",
-            (Signal::Interrupt, true) => "interrupt (SIGINT)",
-            (Signal::Terminate, false) => "terminate",
-            (Signal::Terminate, true) => "terminate (SIGTERM)",
-            (Signal::Quit, false) => "quit",
-            (Signal::Quit, true) => "quit (SIGQUIT)",
-        })
+        f.write_str(self.as_str())?;
+        if f.alternate() {
+            f.write_str(" ")?;
+            f.write_str(self.as_posix())?;
+        }
+        Ok(())
     }
 }

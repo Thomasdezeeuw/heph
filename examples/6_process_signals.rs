@@ -9,46 +9,45 @@ use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, Signal, SyncActorOptions
 use heph::supervisor::NoSupervisor;
 
 fn main() -> Result<(), rt::Error> {
-    let mut runtime = Runtime::new()?;
-
     // Signal handling is support for all actor and its as simple as receiving
     // `Signal` messages from the runtime and handling them accordingly in the
     // actors.
 
-    // Synchronous actor.
-    // Spawn our actor.
+    let mut runtime = Runtime::setup().build()?;
+
+    // Thread-local actors.
+    runtime.run_on_workers(|mut runtime_ref: RuntimeRef| -> Result<(), !> {
+        // Spawn our actor.
+        let local_actor = local_actor as fn(_) -> _;
+        let actor_ref =
+            runtime_ref.spawn_local(NoSupervisor, local_actor, (), ActorOptions::default());
+        actor_ref.try_send("Hello thread local actor").unwrap();
+        // Register our actor reference to receive process signals.
+        runtime_ref.receive_signals(actor_ref.try_map());
+
+        Ok(())
+    })?;
+
+    // Synchronous actors (following the same structure as thread-local actors).
     let sync_actor = sync_actor as fn(_);
-    let options = SyncActorOptions::default();
-    let actor_ref = runtime.spawn_sync_actor(NoSupervisor, sync_actor, (), options)?;
-    // Send it message
+    let actor_ref =
+        runtime.spawn_sync_actor(NoSupervisor, sync_actor, (), SyncActorOptions::default())?;
     actor_ref.try_send("Hello sync actor").unwrap();
-    // Register our actor reference to receive process signals.
     runtime.receive_signals(actor_ref.try_map());
 
-    // Thread-safe actor (following the same structure as synchronous actors).
+    // Thread-safe actor (following the same structure as thread-local actors).
     let thread_safe_actor = thread_safe_actor as fn(_) -> _;
     let actor_ref = runtime.spawn(NoSupervisor, thread_safe_actor, (), ActorOptions::default());
     actor_ref.try_send("Hello thread safe actor").unwrap();
     runtime.receive_signals(actor_ref.try_map());
 
-    // Thread-local actor (following the same structure as synchronous actors).
-    let setup = |mut runtime_ref: RuntimeRef| {
-        let local_actor = local_actor as fn(_) -> _;
-        let actor_ref =
-            runtime_ref.spawn_local(NoSupervisor, local_actor, (), ActorOptions::default());
-        actor_ref.try_send("Hello thread local actor").unwrap();
-        runtime_ref.receive_signals(actor_ref.try_map());
-
-        Ok(())
-    };
-
-    runtime.with_setup(setup).start()
+    runtime.start()
 }
 
 enum Message {
     /// Print the string.
     Print(String),
-    /// Shutdown
+    /// Shutdown.
     Terminate,
 }
 
@@ -87,7 +86,7 @@ async fn thread_safe_actor(mut ctx: actor::Context<Message, ThreadSafe>) {
         }
     }
 
-    println!("shutting down the thread local actor");
+    println!("shutting down the thread safe actor");
 }
 
 async fn local_actor(mut ctx: actor::Context<Message>) {
@@ -98,5 +97,5 @@ async fn local_actor(mut ctx: actor::Context<Message>) {
         }
     }
 
-    println!("shutting down the thread safe actor");
+    println!("shutting down the thread local actor");
 }

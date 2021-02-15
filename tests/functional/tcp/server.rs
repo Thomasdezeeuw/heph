@@ -106,9 +106,9 @@ fn smoke() {
         ActorOptions::default(),
     )
     .unwrap();
-    let mut runtime = Runtime::new()
-        .unwrap()
-        .with_setup(move |mut runtime_ref| -> Result<(), !> {
+    let mut runtime = Runtime::setup().build().unwrap();
+    runtime
+        .run_on_workers(move |mut runtime_ref| -> Result<(), !> {
             let server_address = local_server.local_addr();
             // Spawn thread-local version.
             let server_ref = runtime_ref
@@ -121,7 +121,8 @@ fn smoke() {
                 ActorOptions::default(),
             );
             Ok(())
-        });
+        })
+        .unwrap();
 
     // Spawn thread-safe version.
     let server_ref = runtime

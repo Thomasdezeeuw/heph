@@ -1,6 +1,7 @@
 //! Runtime channel for use in communicating between the coordinator and a
 //! (sync) worker thread.
 
+use std::fmt;
 use std::io::{self, Read, Write};
 
 use crossbeam_channel as crossbeam;
@@ -9,7 +10,6 @@ use mio::{unix, Interest, Registry, Token};
 
 /// A handle to a two-way communication channel, which can send messages `S` and
 /// receive messages `R`.
-#[derive(Debug)]
 pub(crate) struct Handle<S, R> {
     /// Sending side.
     send_channel: crossbeam::Sender<S>,
@@ -110,13 +110,15 @@ impl<S, R> Handle<S, R> {
             }
         }
     }
+}
 
-    /// Checks if the other side is alive.
-    pub(super) fn is_alive(&mut self) -> bool {
-        match self.send_pipe.write(&[]) {
-            Ok(..) => true,
-            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => true,
-            Err(..) => false,
-        }
+impl<S, R> fmt::Debug for Handle<S, R> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Handle")
+            .field("send_channel", &self.send_channel)
+            .field("send_pipe", &self.send_pipe)
+            .field("recv_channel", &self.recv_channel)
+            .field("recv_pipe", &self.recv_pipe)
+            .finish()
     }
 }

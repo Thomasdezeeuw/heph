@@ -68,13 +68,12 @@
 //!     // Enable logging so we can see the error message.
 //!     std_logger::init();
 //!
-//!     Runtime::new().map_err(rt::Error::map_type)?
-//!         .with_setup(|mut runtime_ref| {
-//!             runtime_ref.spawn_local(supervisor, bad_actor as fn(_) -> _, (),
-//!                 ActorOptions::default());
-//!             Ok(())
-//!         })
-//!         .start()
+//!     let mut runtime = Runtime::new()?;
+//!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+//!         runtime_ref.spawn_local(supervisor, bad_actor as fn(_) -> _, (), ActorOptions::default());
+//!         Ok(())
+//!     })?;
+//!     runtime.start()
 //! }
 //!
 //! /// The error returned by our actor.
@@ -224,13 +223,12 @@ where
 /// use heph::{actor, rt, ActorOptions, Runtime};
 ///
 /// fn main() -> Result<(), rt::Error> {
-///     Runtime::new()?
-///         .with_setup(|mut runtime_ref| {
-///             runtime_ref.spawn_local(NoSupervisor, actor as fn(_) -> _, (),
-///                 ActorOptions::default());
-///             Ok(())
-///         })
-///         .start()
+///     let mut runtime = Runtime::new()?;
+///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+///         runtime_ref.spawn_local(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
+///         Ok(())
+///     })?;
+///     runtime.start()
 /// }
 ///
 /// /// Our actor that never returns an error.

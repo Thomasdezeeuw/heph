@@ -30,19 +30,19 @@
 //! use heph::{actor, rt, ActorOptions, Runtime};
 //!
 //! fn main() -> Result<(), rt::Error> {
-//!     Runtime::new()?
-//!         .with_setup(|mut runtime_ref| {
-//!             // Spawn the actor.
-//!             let new_actor = actor as fn(_) -> _;
-//!             let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
-//!                 ActorOptions::default());
+//!     let mut runtime = Runtime::new()?;
+//!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+//!         // Spawn the actor.
+//!         let new_actor = actor as fn(_) -> _;
+//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
+//!             ActorOptions::default());
 //!
-//!             // Now we can use the reference to send the actor a message.
-//!             actor_ref.try_send("Hello world".to_owned()).unwrap();
+//!         // Now we can use the reference to send the actor a message.
+//!         actor_ref.try_send("Hello world".to_owned()).unwrap();
 //!
-//!             Ok(())
-//!         })
-//!         .start()
+//!         Ok(())
+//!     })?;
+//!     runtime.start()
 //! }
 //!
 //! /// Our actor.
@@ -67,23 +67,22 @@
 //! use heph::{actor, rt, ActorOptions, Runtime};
 //!
 //! fn main() -> Result<(), rt::Error> {
-//!     Runtime::new()?
-//!         .with_setup(|mut runtime_ref| {
-//!             let new_actor = actor as fn(_) -> _;
-//!             let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
-//!                 ActorOptions::default());
+//!     let mut runtime = Runtime::new()?;
+//!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+//!         let new_actor = actor as fn(_) -> _;
+//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
 //!
-//!             // To create another actor reference we can simply clone the
-//!             // first one.
-//!             let second_actor_ref = actor_ref.clone();
+//!         // To create another actor reference we can simply clone the
+//!         // first one.
+//!         let second_actor_ref = actor_ref.clone();
 //!
-//!             // Now we can use both references to send a message.
-//!             actor_ref.try_send("Hello world".to_owned()).unwrap();
-//!             second_actor_ref.try_send("Bye world".to_owned()).unwrap();
+//!         // Now we can use both references to send a message.
+//!         actor_ref.try_send("Hello world".to_owned()).unwrap();
+//!         second_actor_ref.try_send("Bye world".to_owned()).unwrap();
 //!
-//!             Ok(())
-//!         })
-//!         .start()
+//!         Ok(())
+//!     })?;
+//!     runtime.start()
 //! }
 //!
 //! /// Our actor.

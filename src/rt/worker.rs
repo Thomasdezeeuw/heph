@@ -15,7 +15,7 @@ use log::warn;
 use log::{debug, error, trace};
 use mio::{Events, Poll, Registry, Token};
 
-use crate::rt::hack::SetupFn;
+use crate::rt::error::StringError;
 use crate::rt::process::ProcessResult;
 use crate::rt::scheduler::LocalScheduler;
 use crate::rt::thread_waker::ThreadWaker;
@@ -24,11 +24,12 @@ use crate::rt::{self, local, shared, ProcessId, RuntimeRef, Signal};
 use crate::trace;
 
 /// Handle to a worker thread.
-pub(super) struct Worker<E> {
+#[derive(Debug)]
+pub(super) struct Worker {
     /// Unique id (among all threads in the `Runtime`).
     id: NonZeroUsize,
     /// Handle for the actual thread.
-    handle: thread::JoinHandle<Result<(), rt::Error<E>>>,
+    handle: thread::JoinHandle<Result<(), rt::Error>>,
     /// Two-way communication channel to share messages with the worker thread.
     channel: rt::channel::Handle<CoordinatorMessage, WorkerMessage>,
     /// Initialy this will be `None`, but once the worker thread is setup this
@@ -38,10 +39,14 @@ pub(super) struct Worker<E> {
 }
 
 /// Message send by the coordinator thread.
-#[derive(Debug)]
+#[allow(variant_size_differences)] // Can't make `Run` smaller.
 pub(crate) enum CoordinatorMessage {
+    /// Runtime has started, i.e. [`Runtime::start`] was called.
+    Started,
     /// Process received a signal.
     Signal(Signal),
+    /// Run a function on the worker thread.
+    Run(Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>),
     /// Signal to wake-up the worker thread.
     Wake,
 }
@@ -54,26 +59,20 @@ pub(crate) enum WorkerMessage {
     Waker(&'static ThreadWaker),
 }
 
-impl<E> Worker<E> {
+impl Worker {
     /// Start a new worker thread.
-    pub(super) fn start<S>(
+    pub(super) fn start(
         id: NonZeroUsize,
-        setup: Option<S>,
         shared_internals: Arc<shared::RuntimeInternals>,
         auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
-    ) -> io::Result<Worker<S::Error>>
-    where
-        S: SetupFn<Error = E>,
-        E: Send + 'static,
-    {
+    ) -> io::Result<Worker> {
         rt::channel::new().and_then(|(channel, worker_handle)| {
             thread::Builder::new()
                 .name(format!("Worker {}", id))
                 .spawn(move || {
                     main(
                         id,
-                        setup,
                         worker_handle,
                         shared_internals,
                         auto_cpu_affinity,
@@ -94,11 +93,6 @@ impl<E> Worker<E> {
         self.id.get()
     }
 
-    /// Checks if the `Worker` is alive.
-    pub(super) fn is_alive(&mut self) -> bool {
-        self.channel.is_alive()
-    }
-
     /// Registers the channel used to communicate with the thread. Uses the
     /// [`id`] as [`Token`].
     ///
@@ -107,9 +101,24 @@ impl<E> Worker<E> {
         self.channel.register(registry, Token(self.id()))
     }
 
+    /// Send the worker thread a signal that the runtime has started.
+    pub(super) fn send_runtime_started(&mut self) -> io::Result<()> {
+        let msg = CoordinatorMessage::Started;
+        self.channel.try_send(msg)
+    }
+
     /// Send the worker thread a `signal`.
     pub(super) fn send_signal(&mut self, signal: Signal) -> io::Result<()> {
         let msg = CoordinatorMessage::Signal(signal);
+        self.channel.try_send(msg)
+    }
+
+    /// Send the worker thread the function `f` to run.
+    pub(super) fn send_function(
+        &mut self,
+        f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>,
+    ) -> io::Result<()> {
+        let msg = CoordinatorMessage::Run(f);
         self.channel.try_send(msg)
     }
 
@@ -135,23 +144,19 @@ impl<E> Worker<E> {
     }
 
     /// See [`thread::JoinHandle::join`].
-    pub(super) fn join(self) -> thread::Result<Result<(), rt::Error<E>>> {
+    pub(super) fn join(self) -> thread::Result<Result<(), rt::Error>> {
         self.handle.join()
     }
 }
 
 /// Run a worker thread, with an optional `setup` function.
-fn main<S>(
+fn main(
     id: NonZeroUsize,
-    setup: Option<S>,
     receiver: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
     shared_internals: Arc<shared::RuntimeInternals>,
     auto_cpu_affinity: bool,
     mut trace_log: Option<trace::Log>,
-) -> Result<(), rt::Error<S::Error>>
-where
-    S: SetupFn,
-{
+) -> Result<(), rt::Error> {
     let timing = trace::start(&trace_log);
 
     #[cfg(target_os = "linux")]
@@ -186,14 +191,6 @@ where
         "Initialising the worker thread",
         &[],
     );
-
-    // Run optional setup.
-    if let Some(setup) = setup {
-        let timing = trace::start(&trace_log);
-        let runtime_ref = runtime.create_ref();
-        setup.setup(runtime_ref).map_err(rt::Error::setup)?;
-        trace::finish(&mut trace_log, timing, "Running user setup function", &[]);
-    }
 
     // All setup is done, so we're ready to run the event loop.
     runtime.run_event_loop(&mut trace_log)
@@ -232,6 +229,8 @@ pub(super) enum Error {
     /// Process was interrupted (i.e. received process signal), but no actor can
     /// receive the signal.
     ProcessInterrupted,
+    /// Error running user function.
+    UserFunction(StringError),
 }
 
 impl fmt::Display for Error {
@@ -245,6 +244,7 @@ impl fmt::Display for Error {
                 f,
                 "received process signal, but no receivers for it: stopped running"
             ),
+            UserFunction(err) => write!(f, "error running user function: {}", err),
         }
     }
 }
@@ -255,6 +255,7 @@ impl std::error::Error for Error {
         match self {
             Init(ref err) | Polling(ref err) | RecvMsg(ref err) => Some(err),
             ProcessInterrupted => None,
+            UserFunction(ref err) => Some(err),
         }
     }
 }
@@ -272,6 +273,13 @@ pub(crate) struct RunningRuntime {
     waker_events: Receiver<ProcessId>,
     /// Two-way communication channel to share messages with the coordinator.
     channel: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
+    /// Whether or not the runtime was started.
+    /// This is here because the worker threads are started before
+    /// [`Runtime::start`] is called and before any actors are added to the
+    /// runtime. Because of this the worker could check all scheduler, see that
+    /// no actors are in them and determine it's done before even starting the
+    /// runtime.
+    started: bool,
 }
 
 /// Number of processes to run before polling.
@@ -324,6 +332,7 @@ impl RunningRuntime {
             events: Events::with_capacity(128),
             waker_events: waker_recv,
             channel,
+            started: false,
         })
     }
 
@@ -335,7 +344,7 @@ impl RunningRuntime {
     }
 
     /// Run the runtime's event loop.
-    fn run_event_loop<E>(mut self, trace_log: &mut Option<trace::Log>) -> Result<(), rt::Error<E>> {
+    fn run_event_loop(mut self, trace_log: &mut Option<trace::Log>) -> Result<(), rt::Error> {
         debug!("running runtime's event loop");
         // Runtime reference used in running the processes.
         let mut runtime_ref = self.create_ref();
@@ -401,6 +410,8 @@ impl RunningRuntime {
 
                 if !self.internal.scheduler.borrow().has_process()
                     && !self.internal.shared.has_process()
+                    // Don't want to exit before the runtime was started.
+                    && self.started
                 {
                     debug!("no processes to run, stopping runtime");
                     return Ok(());
@@ -471,7 +482,7 @@ impl RunningRuntime {
             drop(scheduler);
             // Process coordinator messages.
             let timing = trace::start(&trace_log);
-            self.check_coordinator()?;
+            self.check_coordinator(trace_log)?;
             trace::finish(trace_log, timing, "Process coordinator messages", &[]);
         }
         Ok(())
@@ -529,13 +540,15 @@ impl RunningRuntime {
     }
 
     /// Process messages from the coordinator.
-    fn check_coordinator(&mut self) -> Result<(), Error> {
+    fn check_coordinator(&mut self, trace_log: &mut Option<trace::Log>) -> Result<(), Error> {
         use CoordinatorMessage::*;
         while let Some(msg) = self.channel.try_recv().map_err(Error::RecvMsg)? {
             match msg {
+                Started => self.started = true,
                 // Relay a process signal to all actors that wanted to receive
                 // it.
                 Signal(signal) => {
+                    let timing = trace::start(&trace_log);
                     trace!("received process signal: {:?}", signal);
                     let mut receivers = self.internal.signal_receivers.borrow_mut();
 
@@ -544,12 +557,34 @@ impl RunningRuntime {
                             "received {:#} process signal, but there are no receivers for it, stopping runtime",
                             signal
                         );
+                        trace::finish(
+                            trace_log,
+                            timing,
+                            "Handling process signal",
+                            &[("signal", &signal.as_str())],
+                        );
                         return Err(Error::ProcessInterrupted);
                     }
 
                     for receiver in receivers.iter_mut() {
                         // Don't care if we succeed in sending the message.
                         let _ = receiver.try_send(signal);
+                    }
+                    trace::finish(
+                        trace_log,
+                        timing,
+                        "Handling process signal",
+                        &[("signal", &signal.as_str())],
+                    );
+                }
+                Run(f) => {
+                    let timing = trace::start(&trace_log);
+                    trace!("running user function");
+                    // Run the user defined function.
+                    let res = f(self.create_ref());
+                    trace::finish(trace_log, timing, "Running user function", &[]);
+                    if let Err(err) = res {
+                        return Err(Error::UserFunction(StringError(err)));
                     }
                 }
                 Wake => { /* Just need to wake up. */ }

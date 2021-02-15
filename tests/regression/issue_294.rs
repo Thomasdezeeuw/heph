@@ -18,12 +18,12 @@ fn issue_294() {
         .unwrap();
 
     runtime
-        .with_setup::<_, !>(move |_| {
+        .run_on_workers::<_, !>(move |_| {
             actor_ref.try_send(()).unwrap();
             Ok(())
         })
-        .start()
         .unwrap();
+    runtime.start().unwrap();
 }
 
 fn actor(mut ctx: SyncContext<()>) {

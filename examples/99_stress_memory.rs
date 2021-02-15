@@ -12,30 +12,30 @@ use heph::{actor, rt, ActorOptions, Runtime};
 
 fn main() -> Result<(), rt::Error> {
     std_logger::init();
-    Runtime::new()?
-        .with_setup(move |mut runtime_ref| {
-            const N: usize = 10_000_000;
+    let mut runtime = Runtime::setup().build()?;
+    runtime.run_on_workers(move |mut runtime_ref| -> Result<(), !> {
+        const N: usize = 10_000_000;
 
-            info!("Spawning {} actors, this might take a while", N);
-            let start = std::time::Instant::now();
-            for _ in 0..N {
-                let actor = actor as fn(_) -> _;
-                // Don't run the actors at that will remove them from memory.
-                let options = ActorOptions::default().mark_not_ready();
-                runtime_ref.spawn_local(NoSupervisor, actor, (), options);
-            }
-            info!("Spawning took {:?}", start.elapsed());
+        info!("Spawning {} actors, this might take a while", N);
+        let start = std::time::Instant::now();
+        for _ in 0..N {
+            let actor = actor as fn(_) -> _;
+            // Don't run the actors at that will remove them from memory.
+            let options = ActorOptions::default().mark_not_ready();
+            runtime_ref.spawn_local(NoSupervisor, actor, (), options);
+        }
+        info!("Spawning took {:?}", start.elapsed());
 
-            runtime_ref.spawn_local(
-                NoSupervisor,
-                control_actor as fn(_) -> _,
-                (),
-                ActorOptions::default(),
-            );
+        runtime_ref.spawn_local(
+            NoSupervisor,
+            control_actor as fn(_) -> _,
+            (),
+            ActorOptions::default(),
+        );
 
-            Ok(())
-        })
-        .start()
+        Ok(())
+    })?;
+    runtime.start()
 }
 
 /// Our "actor", but it doesn't do much.

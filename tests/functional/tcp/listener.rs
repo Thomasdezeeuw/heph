@@ -263,7 +263,8 @@ fn actor_bound() {
         Ok(())
     }
 
-    let mut runtime = Runtime::new().unwrap().with_setup(setup);
+    let mut runtime = Runtime::setup().build().unwrap();
+    runtime.run_on_workers(setup).unwrap();
 
     // Spawn thread-safe actors.
     let stream_ref = runtime.spawn(

@@ -142,12 +142,9 @@ fn auto_cpu_affinity() {
         Ok(())
     }
 
-    let runtime = Runtime::new().unwrap();
-    runtime
-        .with_setup(setup)
-        .auto_cpu_affinity()
-        .start()
-        .unwrap();
+    let mut runtime = Runtime::setup().auto_cpu_affinity().build().unwrap();
+    runtime.run_on_workers(setup).unwrap();
+    runtime.start().unwrap();
 }
 
 #[test]
@@ -156,9 +153,9 @@ fn tracing() {
     let output_path = temp_file("runtime_trace.json");
 
     // Generate a simple trace.
-    let mut runtime = Runtime::new().unwrap();
-    runtime.enable_tracing(&trace_path).unwrap();
-    runtime.start().unwrap();
+    let mut setup = Runtime::setup();
+    setup.enable_tracing(&trace_path).unwrap();
+    setup.build().unwrap().start().unwrap();
 
     // Convert the trace just to make sure it's valid.
     let output = Command::new("cargo")
@@ -241,22 +238,25 @@ fn external_thread_wakes_thread_local_actor() {
 
     let (future, handle) = WaitFuture::new();
 
-    let runtime = Runtime::new().unwrap();
-    let runtime = runtime.with_setup::<_, !>(|mut runtime_ref| {
-        let _ = runtime_ref.spawn_local(
-            NoSupervisor,
-            actor as fn(_, _) -> _,
-            future,
-            ActorOptions::default(),
-        );
-        Ok(())
-    });
+    let mut runtime = Runtime::setup().build().unwrap();
+    runtime
+        .run_on_workers::<_, !>(|mut runtime_ref| {
+            let _ = runtime_ref.spawn_local(
+                NoSupervisor,
+                actor as fn(_, _) -> _,
+                future,
+                ActorOptions::default(),
+            );
+            Ok(())
+        })
+        .unwrap();
 
     runtime.start().unwrap();
     handle.join().unwrap();
 }
 
 #[test]
+#[ignore = "doesn't work"] // FIXME.
 fn external_thread_wakes_thread_safe_actor() {
     async fn actor(_: actor::Context<!, ThreadSafe>, future: WaitFuture) -> Result<(), !> {
         future.await

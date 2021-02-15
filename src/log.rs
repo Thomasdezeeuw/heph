@@ -27,7 +27,9 @@
 //!     // Enable logging.
 //!     std_logger::init();
 //!
-//!     Runtime::new()?.with_setup(add_greeter_actor).start()
+//!     let mut runtime = Runtime::new()?;
+//!     runtime.run_on_workers(add_greeter_actor)?;
+//!     runtime.start()
 //! }
 //!
 //! fn add_greeter_actor(mut system_ref: RuntimeRef) -> Result<(), !> {

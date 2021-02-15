@@ -7,18 +7,20 @@ use crate::rt::{coordinator, worker};
 
 /// Error returned by running an [`Runtime`].
 ///
-/// [`Runtime`]: crate::Runtime
-pub struct Error<SetupError = !> {
-    inner: ErrorInner<SetupError>,
+/// [`Runtime`]: crate::rt::Runtime
+pub struct Error {
+    inner: ErrorInner,
 }
 
 /// Inside of `Error` error.
-enum ErrorInner<SetupError> {
-    /// Error returned by user defined setup function.
-    Setup(SetupError),
+enum ErrorInner {
+    /// User setup error, created via [`Error::setup`].
+    Setup(StringError),
     /// Error setting up tracing infrastructure.
     SetupTrace(io::Error),
 
+    /// Error initialising coordinator.
+    InitCoordinator(io::Error),
     /// Error in coordinator.
     Coordinator(coordinator::Error),
 
@@ -35,74 +37,66 @@ enum ErrorInner<SetupError> {
     SyncActorPanic(StringError),
 }
 
-impl Error<!> {
-    /// Helper method to map `Error<!>` to `Error<SetupError>`.
-    //
-    // TODO: replace this with `From<Error<!>> for
-    // Error<SetupError>` impl.
-    pub fn map_type<SetupError>(self) -> Error<SetupError> {
-        Error {
-            inner: match self.inner {
-                ErrorInner::Setup(_) => unreachable!(),
-                ErrorInner::SetupTrace(err) => ErrorInner::SetupTrace(err),
-                ErrorInner::Coordinator(err) => ErrorInner::Coordinator(err),
-                ErrorInner::StartWorker(err) => ErrorInner::StartWorker(err),
-                ErrorInner::Worker(err) => ErrorInner::Worker(err),
-                ErrorInner::WorkerPanic(err) => ErrorInner::WorkerPanic(err),
-                ErrorInner::StartSyncActor(err) => ErrorInner::StartSyncActor(err),
-                ErrorInner::SyncActorPanic(err) => ErrorInner::SyncActorPanic(err),
-            },
-        }
-    }
-}
-
-impl<SetupError> Error<SetupError> {
+impl Error {
     const DESC: &'static str = "error running Heph runtime";
 
-    pub(super) const fn setup(err: SetupError) -> Error<SetupError> {
+    /// Create an error to act as user-defined setup error.
+    ///
+    /// The `err` will be converted into a [`String`] (using [`ToString`], which
+    /// is implemented for all type that implement [`fmt::Display`]).
+    pub fn setup<E>(err: E) -> Error
+    where
+        E: ToString,
+    {
         Error {
-            inner: ErrorInner::Setup(err),
+            inner: ErrorInner::Setup(StringError(err.to_string())),
         }
     }
 
-    pub(super) const fn setup_trace(err: io::Error) -> Error<SetupError> {
+    pub(super) const fn setup_trace(err: io::Error) -> Error {
         Error {
             inner: ErrorInner::SetupTrace(err),
         }
     }
 
-    pub(super) const fn coordinator(err: coordinator::Error) -> Error<SetupError> {
+    pub(super) const fn init_coordinator(err: io::Error) -> Error {
+        Error {
+            inner: ErrorInner::InitCoordinator(err),
+        }
+    }
+
+    pub(super) const fn coordinator(err: coordinator::Error) -> Error {
         Error {
             inner: ErrorInner::Coordinator(err),
         }
     }
 
-    pub(super) const fn start_worker(err: io::Error) -> Error<SetupError> {
+    pub(super) const fn start_worker(err: io::Error) -> Error {
         Error {
             inner: ErrorInner::StartWorker(err),
         }
     }
 
-    pub(super) const fn worker(err: worker::Error) -> Error<SetupError> {
+    pub(super) const fn worker(err: worker::Error) -> Error {
         Error {
             inner: ErrorInner::Worker(err),
         }
     }
 
-    pub(super) fn worker_panic(err: Box<dyn Any + Send + 'static>) -> Error<SetupError> {
+    pub(super) fn worker_panic(err: Box<dyn Any + Send + 'static>) -> Error {
         let msg = convert_panic(err);
         Error {
             inner: ErrorInner::WorkerPanic(msg),
         }
     }
 
-    pub(super) const fn start_sync_actor(err: io::Error) -> Error<SetupError> {
+    pub(super) const fn start_sync_actor(err: io::Error) -> Error {
         Error {
             inner: ErrorInner::StartSyncActor(err),
         }
     }
 
-    pub(super) fn sync_actor_panic(err: Box<dyn Any + Send + 'static>) -> Error<SetupError> {
+    pub(super) fn sync_actor_panic(err: Box<dyn Any + Send + 'static>) -> Error {
         let msg = convert_panic(err);
         Error {
             inner: ErrorInner::SyncActorPanic(msg),
@@ -124,19 +118,6 @@ fn convert_panic(err: Box<dyn Any + Send + 'static>) -> StringError {
     StringError(msg)
 }
 
-/// Method to create a setup error, for use outside of the setup function. This
-/// is useful for example when setting up a [`TcpServer`] outside the [setup
-/// function in `Runtime`] and want to use `Error` as error returned by main.
-/// See example 2 for example usage.
-///
-/// [`TcpServer`]: crate::net::TcpServer::setup
-/// [setup function in `Runtime`]: crate::Runtime::with_setup
-impl<SetupError> From<SetupError> for Error<SetupError> {
-    fn from(err: SetupError) -> Error<SetupError> {
-        Error::setup(err)
-    }
-}
-
 /// We implement [`Debug`] by using [`Display`] implementation because the
 /// [`Termination`] trait uses `Debug` rather then `Display` when returning an
 /// `Result`.
@@ -144,23 +125,28 @@ impl<SetupError> From<SetupError> for Error<SetupError> {
 /// [`Termination`]: std::process::Termination
 /// [`Debug`]: std::fmt::Debug
 /// [`Display`]: std::fmt::Display
-impl<SetupError: fmt::Display> fmt::Debug for Error<SetupError> {
+impl fmt::Debug for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
 }
 
-impl<SetupError: fmt::Display> fmt::Display for Error<SetupError> {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use ErrorInner::*;
         match self.inner {
-            Setup(ref err) => write!(f, "{}: error running setup function: {}", Self::DESC, err),
+            Setup(ref err) => {
+                write!(f, "{}: error in user-defined setup: {}", Self::DESC, err)
+            }
             SetupTrace(ref err) => write!(
                 f,
                 "{}: error setting up trace infrastructure: {}",
                 Self::DESC,
                 err
             ),
+            InitCoordinator(ref err) => {
+                write!(f, "{}: error creating coordinator: {}", Self::DESC, err)
+            }
             Coordinator(ref err) => {
                 write!(f, "{}: error in coordinator thread: {}", Self::DESC, err)
             }
@@ -185,17 +171,19 @@ impl<SetupError: fmt::Display> fmt::Display for Error<SetupError> {
     }
 }
 
-impl<SetupError: std::error::Error + 'static> std::error::Error for Error<SetupError> {
+impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use ErrorInner::*;
         match self.inner {
-            Setup(ref err) => Some(err),
             // All `io::Error`.
-            SetupTrace(ref err) | StartWorker(ref err) | StartSyncActor(ref err) => Some(err),
+            SetupTrace(ref err)
+            | InitCoordinator(ref err)
+            | StartWorker(ref err)
+            | StartSyncActor(ref err) => Some(err),
             Coordinator(ref err) => Some(err),
             Worker(ref err) => Some(err),
             // All `StringError`.
-            WorkerPanic(ref err) | SyncActorPanic(ref err) => Some(err),
+            Setup(ref err) | WorkerPanic(ref err) | SyncActorPanic(ref err) => Some(err),
         }
     }
 }
@@ -203,7 +191,7 @@ impl<SetupError: std::error::Error + 'static> std::error::Error for Error<SetupE
 /// Wrapper around `String` to implement the [`Error`] trait.
 ///
 /// [`Error`]: std::error::Error
-struct StringError(String);
+pub(super) struct StringError(pub(super) String);
 
 impl fmt::Debug for StringError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

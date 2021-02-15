@@ -161,9 +161,11 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
 /// use log::error;
 ///
-/// fn main() -> Result<(), rt::Error<io::Error>> {
+/// fn main() -> Result<(), rt::Error> {
 ///     // Create and start the Heph runtime.
-///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
+///     let mut runtime = Runtime::new()?;
+///     runtime.run_on_workers(setup)?;
+///     runtime.start()
 /// }
 ///
 /// /// In this setup function we'll spawn the TCP server.
@@ -255,8 +257,10 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
 /// use log::error;
 ///
-/// fn main() -> Result<(), rt::Error<io::Error>> {
-///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
+/// fn main() -> Result<(), rt::Error> {
+///     let mut runtime = Runtime::new()?;
+///     runtime.run_on_workers(setup)?;
+///     runtime.start()
 /// }
 ///
 /// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
@@ -341,21 +345,23 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use heph::{rt, ActorOptions, Runtime};
 /// use log::error;
 ///
-/// fn main() -> Result<(), rt::Error<io::Error>> {
-///     let mut runtime = Runtime::new().map_err(rt::Error::map_type)?;
+/// fn main() -> Result<(), rt::Error> {
+///     let mut runtime = Runtime::new()?;
 ///
 ///     // The address to listen on.
 ///     let address = "127.0.0.1:7890".parse().unwrap();
 ///     // Create our TCP server. We'll use the default actor options.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
+///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())
+///         .map_err(rt::Error::setup)?;
 ///
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     # let actor_ref =
-///     runtime.try_spawn(ServerSupervisor, server, (), options)?;
+///     runtime.try_spawn(ServerSupervisor, server, (), options)
+///         .map_err(rt::Error::setup)?;
 ///     # actor_ref.try_send(Terminate).unwrap();
 ///
-///     runtime.start().map_err(rt::Error::map_type)
+///     runtime.start()
 /// }
 ///
 /// /// Our supervisor for the TCP server.

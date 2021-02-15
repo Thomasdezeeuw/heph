@@ -6,7 +6,9 @@ use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 fn main() -> Result<(), rt::Error> {
     // We create a new runtime. Add a setup function, which adds our greeter
     // actor. And finally we start it.
-    Runtime::new()?.with_setup(add_greeter_actor).start()
+    let mut runtime = Runtime::setup().build()?;
+    runtime.run_on_workers(add_greeter_actor)?;
+    runtime.start()
 }
 
 /// The is the setup function used in the runtime.
@@ -26,7 +28,6 @@ fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 
     // Now we can send our actor a message using its `actor_ref`.
     actor_ref.try_send("World").unwrap();
-
     Ok(())
 }
 

@@ -53,7 +53,9 @@ impl From<DeadlinePassed> for io::Error {
 /// use heph::timer::Timer;
 ///
 /// # fn main() -> Result<(), rt::Error> {
-/// #     Runtime::new()?.with_setup(setup).start()
+/// #     let mut runtime = Runtime::new()?;
+/// #     runtime.run_on_workers(setup)?;
+/// #     runtime.start()
 /// # }
 /// #
 /// #
@@ -361,7 +363,9 @@ impl<Fut, K> actor::Bound<K> for Deadline<Fut> {
 /// use heph::util::next;
 /// #
 /// # fn main() -> Result<(), rt::Error> {
-/// #     Runtime::new()?.with_setup(setup).start()
+/// #     let mut runtime = Runtime::new()?;
+/// #     runtime.run_on_workers(setup)?;
+/// #     runtime.start()
 /// # }
 /// #
 /// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {

@@ -71,7 +71,9 @@ pub enum Connected {}
 /// fn main() -> Result<(), rt::Error> {
 ///     std_logger::init();
 ///
-///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
+///     let mut runtime = Runtime::new()?;
+///     runtime.run_on_workers(setup)?;
+///     runtime.start()
 /// }
 ///
 /// fn setup(mut runtime: RuntimeRef) -> Result<(), !> {
