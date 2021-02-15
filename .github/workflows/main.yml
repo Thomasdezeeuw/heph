@@ -21,7 +21,7 @@ jobs:
     - name: Cargo version
       run: cargo -Vv
     - name: Run tests
-      run: cargo test --verbose --all-features
+      run: timeout --kill-after 6m 5m cargo test --verbose --all-features
   Clippy:
     runs-on: ubuntu-latest
     steps:
