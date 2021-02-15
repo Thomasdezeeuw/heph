@@ -411,10 +411,9 @@ async fn wake_on_receive(mut ctx: actor::Context<usize>, expected: Vec<usize>) {
 
 #[test]
 fn waking() {
-    Runtime::new()
-        .unwrap()
-        .num_threads(1)
-        .with_setup::<_, !>(|mut runtime_ref| {
+    let mut runtime = Runtime::setup().num_threads(1).build().unwrap();
+    runtime
+        .run_on_workers::<_, !>(|mut runtime_ref| {
             let mut expected: Vec<usize> = (0..INBOX_SIZE).into_iter().collect();
             expected.push(123);
             let wake_on_receive = wake_on_receive as fn(_, _) -> _;
@@ -440,8 +439,8 @@ fn waking() {
 
             Ok(())
         })
-        .start()
         .unwrap();
+    runtime.start().unwrap();
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -682,10 +681,9 @@ async fn wake_on_rpc_receive(mut ctx: actor::Context<RpcTestMessage>) {
 
 #[test]
 fn rpc_waking() {
-    Runtime::new()
-        .unwrap()
-        .num_threads(1)
-        .with_setup::<_, !>(|mut runtime_ref| {
+    let mut runtime = Runtime::setup().num_threads(1).build().unwrap();
+    runtime
+        .run_on_workers::<_, !>(|mut runtime_ref| {
             let wake_on_rpc_receive = wake_on_rpc_receive as fn(_) -> _;
             let options = ActorOptions::default().with_priority(Priority::LOW);
             let actor_ref = runtime_ref.spawn_local(NoSupervisor, wake_on_rpc_receive, (), options);
@@ -710,6 +708,6 @@ fn rpc_waking() {
 
             Ok(())
         })
-        .start()
         .unwrap();
+    runtime.start().unwrap();
 }

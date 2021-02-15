@@ -1,6 +1,6 @@
 //! Module with Heph's runtime and related types.
 //!
-//! The module has two main types and a submodule:
+//! The two main types of this module are:
 //!
 //! - [`Runtime`] is Heph's runtime, used to run all actors.
 //! - [`RuntimeRef`] is a reference to a running runtime, used for example to
@@ -9,12 +9,10 @@
 //! See [`Runtime`] for documentation on how to run an actor. For more examples
 //! see the examples directory in the source code.
 
-use std::num::NonZeroUsize;
-use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
-use std::{fmt, io, task, thread};
+use std::{io, task};
 
 use log::{debug, trace};
 use mio::{event, Interest, Token};
@@ -28,9 +26,9 @@ use crate::trace;
 
 mod coordinator;
 mod error;
-mod hack;
 mod local;
 mod process;
+mod setup;
 mod signal;
 mod thread_waker;
 mod timers;
@@ -52,10 +50,10 @@ pub(crate) use timers::Timers; // Needed by the `test` module.
 pub use access::Access;
 pub use error::Error;
 pub use options::{ActorOptions, SyncActorOptions};
+pub use setup::Setup;
 pub use signal::Signal;
 
 use coordinator::Coordinator;
-use hack::SetupFn;
 use scheduler::LocalScheduler;
 use sync_worker::SyncWorker;
 use waker::{WakerId, MAX_THREADS};
@@ -73,45 +71,51 @@ fn sync_worker_id() {
 
 /// The runtime that runs all actors.
 ///
-/// This type implements a builder pattern to build and start a runtime. It has
-/// a single generic parameter `S` which is the type of the setup function. The
-/// setup function is optional, which is represented by `!` (the never type).
-///
 /// The runtime will start workers threads that will run all actors, these
 /// threads will run until all actors have returned.
 ///
 /// ## Usage
 ///
-/// Building an runtime starts with calling [`new`], this will create a new
-/// runtime without a setup function, using a single worker thread.
+/// Building a runtime starts with calling [`setup`], this will create a new
+/// [`Setup`](Setup) builder type, which allows configuration of the
+/// [`Runtime`]. The [`new`] function can also be used, but is really only meant
+/// for quick prototyping or testing.
 ///
-/// An optional setup function can be added by calling [`with_setup`]. This
-/// setup function will be called on each worker thread the runtime starts, and
-/// thus has to be [`Clone`] and [`Send`]. This will change the `S` parameter
-/// from `!` to an actual type (that of the provided setup function). Only a
-/// single setup function can be used per runtime.
+/// [`Setup`](Setup) has a number of configuration options. An example of one
+/// such option is the number of threads the runtime uses, this can configured
+/// with the [`num_threads`] and [`use_all_cores`] methods. When using
+/// `use_all_cores` the CPU affinity can automatically be set using
+/// [`auto_cpu_affinity`].
 ///
-/// Now that the generic parameter is optionally defined we also have some more
-/// configuration options. One such option is the number of threads the runtime
-/// uses, this can configured with the [`num_threads`] method, or
-/// [`use_all_cores`].
+/// Once the runtime is fully configured it can be [`build`], which returns the
+/// [`Runtime`] type.
 ///
-/// It is also possible to already start thread-safe actors using [`Spawn`]
-/// implementation on `Runtime` , or synchronous actors using
-/// [`spawn_sync_actor`]. Note that most actors should run as thread-*local*
-/// actors however. To spawn such an actor see the [`Spawn`] implementation for
-/// [`RuntimeRef`], which can spawn both thread-safe and thread-local actors.
-/// For the different kind of actors see the [`actor`] module.
+/// After the runtime is build it is also possible to start thread-safe actors
+/// using [`Spawn`] implementation on `Runtime` or [`try_spawn`]. Synchronous
+/// actors can be spawned using [`spawn_sync_actor`]. Note however that most
+/// actors should run as thread-*local* actors however. To spawn a thread-local
+/// actor see the [`Spawn`] implementation for [`RuntimeRef`] or
+/// [`RuntimeRef::try_spawn_local`], which can spawn both thread-safe and
+/// thread-local actors. For documentation on the different kind of actors see
+/// the [`actor`] module.
 ///
-/// Finally after setting all the configuration options the runtime can be
-/// [`start`]ed. This will spawn a number of worker threads to actually run the
-/// actors.
+/// To help with initialisation and spawning of thread-local actor it's possible
+/// to run functions on all worker threads using [`run_on_workers`]. This will
+/// run the same (cloned) function on all workers threads with access to a
+/// [`RuntimeRef`].
 ///
+/// Finally after configurating the runtime and spawning actors the runtime can
+/// be [`start`]ed, which runs all actors and waits for them to complete.
+///
+/// [`setup`]: Runtime::setup
 /// [`new`]: Runtime::new
-/// [`with_setup`]: Runtime::with_setup
-/// [`num_threads`]: Runtime::num_threads
-/// [`use_all_cores`]: Runtime::use_all_cores
+/// [`num_threads`]: Setup::num_threads
+/// [`use_all_cores`]: Setup::use_all_cores
+/// [`auto_cpu_affinity`]: Setup::auto_cpu_affinity
+/// [`build`]: Setup::build
+/// [`try_spawn`]: Runtime::try_spawn
 /// [`spawn_sync_actor`]: Runtime::spawn_sync_actor
+/// [`run_on_workers`]: Runtime::run_on_workers
 /// [`start`]: Runtime::start
 ///
 /// ## Examples
@@ -128,13 +132,14 @@ fn sync_worker_id() {
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     // Build a new `Runtime`.
-///     Runtime::new()?
+///     let mut runtime = Runtime::setup()
 ///         // Start two worker threads.
 ///         .num_threads(2)
-///         // On each worker thread run our setup function.
-///         .with_setup(setup)
-///         // And start the runtime.
-///         .start()
+///         .build()?;
+///     // On each worker thread run our setup function.
+///     runtime.run_on_workers(setup)?;
+///     // And start the runtime.
+///     runtime.start()
 /// }
 ///
 /// // This setup function will on run on each created thread. In the case of
@@ -174,17 +179,14 @@ fn sync_worker_id() {
 ///     }
 /// }
 /// ```
-pub struct Runtime<S = !> {
+#[derive(Debug)]
+pub struct Runtime {
     /// Coordinator thread data.
     coordinator: Coordinator,
-    /// Internals shared between the coordinator and the worker threads.
-    threads: usize,
-    /// Whether or not to automatically set CPU affinity.
-    auto_cpu_affinity: bool,
-    /// Synchronous actor thread handles.
+    /// Worker threads.
+    workers: Vec<Worker>,
+    /// Synchronous actor threads.
     sync_actors: Vec<SyncWorker>,
-    /// Optional setup function.
-    setup: Option<S>,
     /// List of actor references that want to receive process signals.
     signals: ActorGroup<Signal>,
     /// Trace log.
@@ -192,118 +194,39 @@ pub struct Runtime<S = !> {
 }
 
 impl Runtime {
+    /// Setup a new `Runtime`.
+    ///
+    /// See [`Setup`] for the available configuration options.
+    pub const fn setup() -> Setup {
+        Setup::new()
+    }
+
     /// Create a `Runtime` with the default configuration.
-    #[allow(clippy::new_without_default)]
-    pub fn new() -> Result<Runtime<!>, Error> {
-        Ok(Runtime {
-            coordinator: Coordinator::init().map_err(Error::coordinator)?,
-            threads: 1,
-            auto_cpu_affinity: false,
-            sync_actors: Vec::new(),
-            setup: None,
-            signals: ActorGroup::empty(),
-            trace_log: None,
-        })
-    }
-
-    /// Add a setup function.
-    ///
-    /// This function will be run on each worker thread the runtime creates.
-    /// Only a single setup function can be added to the runtime.
-    pub fn with_setup<F, E>(self, setup: F) -> Runtime<F>
-    where
-        F: FnOnce(RuntimeRef) -> Result<(), E> + Send + Clone + 'static,
-        E: Send,
-    {
-        Runtime {
-            coordinator: self.coordinator,
-            threads: self.threads,
-            auto_cpu_affinity: self.auto_cpu_affinity,
-            sync_actors: self.sync_actors,
-            setup: Some(setup),
-            signals: self.signals,
-            trace_log: self.trace_log,
-        }
-    }
-}
-
-impl<S> Runtime<S> {
-    /// Set the number of worker threads to use, defaults to one.
-    ///
-    /// Most applications would want to use [`Runtime::use_all_cores`] which
-    /// sets the number of threads equal to the number of CPU cores.
-    pub fn num_threads(mut self, n: usize) -> Self {
-        if n > MAX_THREADS {
-            panic!(
-                "Can't create {} worker threads, {} is the maximum",
-                n, MAX_THREADS
-            );
-        } else if n == 0 {
-            panic!("Can't create zero worker threads, one is the minimum");
-        }
-        self.threads = n;
-        self
-    }
-
-    /// Set the number of worker threads equal to the number of CPU cores.
-    ///
-    /// See [`Runtime::num_threads`].
-    pub fn use_all_cores(self) -> Self {
-        let n = thread::available_concurrency()
-            .map(|n| n.get())
-            .unwrap_or(1);
-        self.num_threads(n)
-    }
-
-    /// Returns the number of worker threads to use.
-    ///
-    /// See [`Runtime::num_threads`].
-    pub fn get_threads(&self) -> usize {
-        self.threads
-    }
-
-    /// Automatically set CPU affinity.
-    ///
-    /// The is mostly useful when using [`Runtime::use_all_cores`] to create a
-    /// single worker thread per CPU core.
-    pub fn auto_cpu_affinity(mut self) -> Self {
-        self.auto_cpu_affinity = true;
-        self
-    }
-
-    /// Generate a trace of the runtime, writing it to the file specified by
-    /// `path`.
-    ///
-    /// See the [`mod@trace`] module for more information.
     ///
     /// # Notes
     ///
-    /// To enable tracing of synchronous actors this must be called before
-    /// calling [`spawn_sync_actor`].
+    /// This is mainly useful for quick prototyping and testing. When moving to
+    /// production you'll likely want [setup] the runtime, at the very least to
+    /// run all available threads.
     ///
-    /// [`spawn_sync_actor`]: Runtime::spawn_sync_actor
-    pub fn enable_tracing<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error> {
-        match trace::Log::open(path.as_ref(), coordinator::TRACE_ID) {
-            Ok(trace_log) => {
-                self.trace_log = Some(trace_log);
-                Ok(())
-            }
-            Err(err) => Err(Error::setup_trace(err)),
-        }
+    /// [setup]: Runtime::setup
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Result<Runtime, Error> {
+        Setup::new().build()
     }
 
     /// Attempt to spawn a new thead-safe actor.
     ///
     /// See the [`Spawn`] trait for more information.
-    pub fn try_spawn<Sv, NA>(
+    pub fn try_spawn<S, NA>(
         &mut self,
-        supervisor: Sv,
+        supervisor: S,
         new_actor: NA,
         arg: NA::Argument,
         options: ActorOptions,
     ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
-        Sv: Supervisor<NA> + Send + Sync + 'static,
+        S: Supervisor<NA> + Send + Sync + 'static,
         NA: NewActor<Context = ThreadSafe> + Sync + Send + 'static,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
@@ -314,15 +237,15 @@ impl<S> Runtime<S> {
     /// Spawn a new thead-safe actor.
     ///
     /// See the [`Spawn`] trait for more information.
-    pub fn spawn<Sv, NA>(
+    pub fn spawn<S, NA>(
         &mut self,
-        supervisor: Sv,
+        supervisor: S,
         new_actor: NA,
         arg: NA::Argument,
         options: ActorOptions,
     ) -> ActorRef<NA::Message>
     where
-        Sv: Supervisor<NA> + Send + Sync + 'static,
+        S: Supervisor<NA> + Send + Sync + 'static,
         NA: NewActor<Error = !, Context = ThreadSafe> + Sync + Send + 'static,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
@@ -336,18 +259,18 @@ impl<S> Runtime<S> {
     /// [`actor::sync`] module.
     ///
     /// [`actor::sync`]: crate::actor::sync
-    pub fn spawn_sync_actor<Sv, A, E, Arg, M>(
+    pub fn spawn_sync_actor<S, A>(
         &mut self,
-        supervisor: Sv,
+        supervisor: S,
         actor: A,
-        arg: Arg,
+        arg: A::Argument,
         options: SyncActorOptions,
-    ) -> Result<ActorRef<M>, Error>
+    ) -> Result<ActorRef<A::Message>, Error>
     where
-        Sv: SyncSupervisor<A> + Send + 'static,
-        A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
-        Arg: Send + 'static,
-        M: Send + 'static,
+        S: SyncSupervisor<A> + Send + 'static,
+        A: SyncActor + Send + 'static,
+        A::Message: Send + 'static,
+        A::Argument: Send + 'static,
     {
         let id = SYNC_WORKER_ID_START + self.sync_actors.len();
         // TODO: add actor's name to this.
@@ -375,6 +298,29 @@ impl<S> Runtime<S> {
             .map_err(Error::start_sync_actor)
     }
 
+    /// Run the function `f` on all worker threads.
+    ///
+    /// This can be used to spawn thread-local actors, e.g. [`TcpServer`], or to
+    /// initialise thread-local data on each worker thread ensuring that it's
+    /// properly initialised without impacting the performance of the first
+    /// request(s).
+    ///
+    /// [`TcpServer`]: crate::net::TcpServer
+    pub fn run_on_workers<F, E>(&mut self, f: F) -> Result<(), Error>
+    where
+        F: FnOnce(RuntimeRef) -> Result<(), E> + Send + Clone + 'static,
+        E: ToString,
+    {
+        for worker in self.workers.iter_mut() {
+            let f = f.clone();
+            let f = Box::new(move |runtime_ref| f(runtime_ref).map_err(|err| err.to_string()));
+            worker
+                .send_function(f)
+                .map_err(|err| Error::coordinator(coordinator::Error::SendingFunc(err)))?;
+        }
+        Ok(())
+    }
+
     /// Receive [process signals] as messages.
     ///
     /// This adds the `actor_ref` to the list of actor references that will
@@ -384,91 +330,49 @@ impl<S> Runtime<S> {
     pub fn receive_signals(&mut self, actor_ref: ActorRef<Signal>) {
         self.signals.add(actor_ref);
     }
-}
 
-impl<S> Runtime<S>
-where
-    S: SetupFn,
-{
     /// Run the runtime.
     ///
-    /// This will spawn a number of worker threads (see
-    /// [`Runtime::num_threads`]) to run. After spawning all worker threads it
-    /// will wait until all worker threads have returned, which happens when all
-    /// actors have returned.
-    ///
-    /// In addition to waiting for all worker threads it will also watch for
-    /// all process signals in [`Signal`] and relay them to actors that want to
-    /// handle them, see the [`Signal`] type for more information.
-    pub fn start(mut self) -> Result<(), Error<S::Error>> {
+    /// This will wait until all spawned workers have finished, which happens
+    /// when all actors have finished. In addition to waiting for all worker
+    /// threads it will also watch for all process signals in [`Signal`] and
+    /// relay them to actors that want to handle them, see the [`Signal`] type
+    /// for more information.
+    pub fn start(self) -> Result<(), Error> {
         debug!(
-            "starting Heph runtime: worker_threads={}, sync_actors={}",
-            self.threads,
+            "starting Heph runtime: sync_actors={}",
             self.sync_actors.len()
         );
-
-        // Start our worker threads.
-        let timing = trace::start(&self.trace_log);
-        let handles = (1..=self.threads)
-            .map(|id| {
-                let id = NonZeroUsize::new(id).unwrap();
-                let setup = self.setup.clone();
-                let trace_log = if let Some(trace_log) = &self.trace_log {
-                    Some(trace_log.new_stream(id.get() as u32)?)
-                } else {
-                    None
-                };
-                Worker::start(
-                    id,
-                    setup,
-                    self.coordinator.shared_internals().clone(),
-                    self.auto_cpu_affinity,
-                    trace_log,
-                )
-            })
-            .collect::<io::Result<Vec<Worker<S::Error>>>>()
-            .map_err(Error::start_worker)?;
-        trace::finish(
-            &mut self.trace_log,
-            timing,
-            "Creating worker threads",
-            &[("amount", &self.threads)],
-        );
-
-        // Drop stuff we don't need anymore. For the setup function this is
-        // extra important if it contains e.g. actor references.
-        drop(self.setup);
-
         self.coordinator
-            .run(handles, self.sync_actors, self.signals, self.trace_log)
+            .run(self.workers, self.sync_actors, self.signals, self.trace_log)
     }
 }
 
-impl<S, Sv, NA> Spawn<Sv, NA, ThreadSafe> for Runtime<S>
+impl<S, NA> Spawn<S, NA, ThreadSafe> for Runtime
 where
-    Sv: Send + Sync,
+    S: Send + Sync,
     NA: NewActor<Context = ThreadSafe> + Send + Sync,
     NA::Actor: Send + Sync,
     NA::Message: Send,
 {
 }
 
-impl<S, Sv, NA> PrivateSpawn<Sv, NA, ThreadSafe> for Runtime<S>
+impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for Runtime
 where
-    Sv: Send + Sync,
+    S: Send + Sync,
     NA: NewActor<Context = ThreadSafe> + Send + Sync,
     NA::Actor: Send + Sync,
     NA::Message: Send,
 {
     fn try_spawn_setup<ArgFn, ArgFnE>(
         &mut self,
-        supervisor: Sv,
+        supervisor: S,
         new_actor: NA,
         arg_fn: ArgFn,
         options: ActorOptions,
     ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
-        Sv: Supervisor<NA> + 'static,
+        S: Supervisor<NA> + 'static,
         NA: NewActor<Context = ThreadSafe> + 'static,
         NA::Actor: 'static,
         ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
@@ -479,34 +383,11 @@ where
     }
 }
 
-impl<S> fmt::Debug for Runtime<S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let setup = if self.setup.is_some() {
-            &"Some"
-        } else {
-            &"None"
-        };
-        f.debug_struct("Runtime")
-            .field("threads", &self.threads)
-            .field("sync_actors (length)", &self.sync_actors.len())
-            .field("setup", setup)
-            .field("auto_cpu_affinity", &self.auto_cpu_affinity)
-            .field("signals", &self.signals)
-            .field("trace_log", &self.trace_log)
-            .finish()
-    }
-}
-
 /// A reference to a [`Runtime`].
 ///
 /// This reference refers to the thread-local runtime, and thus can't be shared
 /// across thread bounds. To share this reference (within the same thread) it
 /// can be cloned.
-///
-/// This is passed to the [setup function] when starting the runtime and can be
-/// accessed inside an actor by using the [`actor::Context::runtime`] method.
-///
-/// [setup function]: Runtime::with_setup
 #[derive(Clone, Debug)]
 pub struct RuntimeRef {
     /// A shared reference to the runtime's internals.

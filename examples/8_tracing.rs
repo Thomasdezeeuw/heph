@@ -12,9 +12,9 @@ use heph::supervisor::{NoSupervisor, SupervisorStrategy};
 use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 
 fn main() -> Result<(), rt::Error> {
-    let mut runtime = Runtime::new()?;
-    // Enable tracing of the runtime.
-    runtime.enable_tracing("heph_tracing_example.bin.log")?;
+    let mut runtime_setup = Runtime::setup();
+    runtime_setup.enable_tracing("heph_tracing_example.bin.log")?;
+    let mut runtime = runtime_setup.build()?;
 
     // Spawn our printing actor.
     // NOTE: to enable tracing for this sync actor it must be spawned after
@@ -23,9 +23,9 @@ fn main() -> Result<(), rt::Error> {
     let print_actor = print_actor as fn(_) -> _;
     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, print_actor, (), options)?;
 
-    runtime
-        .with_setup(|runtime_ref| setup(runtime_ref, actor_ref))
-        .start()
+    runtime.run_on_workers(|runtime_ref| setup(runtime_ref, actor_ref))?;
+
+    runtime.start()
 }
 
 const CHAIN_SIZE: usize = 5;

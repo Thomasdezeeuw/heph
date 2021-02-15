@@ -148,20 +148,19 @@ pub trait NewActor {
     ///
     /// fn main() -> Result<(), rt::Error> {
     ///     // Create and run the runtime.
-    ///     Runtime::new()?
-    ///         .with_setup(|mut runtime_ref| {
-    ///             // Spawn the actor.
-    ///             let new_actor = actor as fn(_) -> _;
-    ///             let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
-    ///                 ActorOptions::default());
+    ///     let mut runtime = Runtime::new()?;
+    ///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+    ///         // Spawn the actor.
+    ///         let new_actor = actor as fn(_) -> _;
+    ///         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
     ///
-    ///             // Now we can use the reference to send the actor a message.
-    ///             // We don't have to use `Message` type we can just use
-    ///             // `String`, because `Message` implements `From<String>`.
-    ///             actor_ref.try_send("Hello world".to_owned()).unwrap();
-    ///             Ok(())
-    ///         })
-    ///         .start()
+    ///         // Now we can use the reference to send the actor a message. We
+    ///         // don't have to use `Message` type we can just use `String`,
+    ///         // because `Message` implements `From<String>`.
+    ///         actor_ref.try_send("Hello world".to_owned()).unwrap();
+    ///         Ok(())
+    ///     })?;
+    ///     runtime.start()
     /// }
     ///
     /// /// The message type for the actor.
@@ -268,9 +267,11 @@ pub trait NewActor {
     /// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
     /// # use log::error;
     ///
-    /// fn main() -> Result<(), rt::Error<io::Error>> {
+    /// fn main() -> Result<(), rt::Error> {
     ///     // Create and run runtime
-    ///     Runtime::new().map_err(rt::Error::map_type)?.with_setup(setup).start()
+    ///     let mut runtime = Runtime::new()?;
+    ///     runtime.run_on_workers(setup)?;
+    ///     runtime.start()
     /// }
     ///
     /// /// In this setup function we'll spawn the `TcpServer` actor.

@@ -1,3 +1,5 @@
+#![feature(never_type)]
+
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -7,7 +9,7 @@ use heph::{actor, restart_supervisor};
 
 fn main() -> Result<(), rt::Error> {
     std_logger::init();
-    let mut runtime = Runtime::new()?;
+    let mut runtime = Runtime::setup().build()?;
 
     let sync_actor = sync_print_actor as fn(_, _) -> _;
     let arg = "Hello world!".to_owned();
@@ -18,16 +20,16 @@ fn main() -> Result<(), rt::Error> {
     // NOTE: this is only here to make the test pass.
     sleep(Duration::from_millis(100));
 
-    runtime
-        .with_setup(|mut runtime_ref: RuntimeRef| {
-            let print_actor = print_actor as fn(_, _) -> _;
-            let options = ActorOptions::default();
-            let arg = "Hello world!".to_owned();
-            let supervisor = PrintSupervisor::new(arg.clone());
-            runtime_ref.spawn_local(supervisor, print_actor, arg, options);
-            Ok(())
-        })
-        .start()
+    runtime.run_on_workers(|mut runtime_ref: RuntimeRef| -> Result<(), !> {
+        let print_actor = print_actor as fn(_, _) -> _;
+        let options = ActorOptions::default();
+        let arg = "Hello world!".to_owned();
+        let supervisor = PrintSupervisor::new(arg.clone());
+        runtime_ref.spawn_local(supervisor, print_actor, arg, options);
+        Ok(())
+    })?;
+
+    runtime.start()
 }
 
 // Create a restart supervisor for the [`print_actor`].

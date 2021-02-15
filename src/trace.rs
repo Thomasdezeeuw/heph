@@ -8,14 +8,14 @@
 //!
 //! # Enabling Tracing
 //!
-//! Tracing is enabled by calling [`Runtime::enable_tracing`] when creating the
+//! Tracing is enabled by calling [`Setup::enable_tracing`] when setting up the
 //! runtime.
 //!
 //! Note that this should be one of the first calls to make after creating the
 //! runtime. If a synchronous actor is spawned before the call to
 //! `enable_tracing` **tracing will not be enabled for this actor**.
 //!
-//! [`Runtime::enable_tracing`]: crate::rt::Runtime::enable_tracing
+//! [`Setup::enable_tracing`]: crate::rt::Setup::enable_tracing
 //!
 //! # Creating Trace Events
 //!

@@ -15,6 +15,7 @@ use crate::trace;
 use crate::ActorRef;
 
 /// Handle to a synchronous worker.
+#[derive(Debug)]
 pub(crate) struct SyncWorker {
     /// Unique id among all threads in the `Runtime`.
     id: usize,

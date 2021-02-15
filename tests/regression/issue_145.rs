@@ -16,7 +16,7 @@ const N: usize = 4;
 
 #[test]
 fn issue_145_tcp_server() {
-    let runtime = Runtime::new().unwrap();
+    let mut runtime = Runtime::setup().num_threads(N).build().unwrap();
 
     let addresses = Arc::new(Mutex::new(Vec::<SocketAddr>::new()));
     let address = "127.0.0.1:0".parse().unwrap();
@@ -69,8 +69,7 @@ fn issue_145_tcp_server() {
     });
 
     runtime
-        .num_threads(N)
-        .with_setup::<_, !>(move |mut runtime_ref| {
+        .run_on_workers::<_, !>(move |mut runtime_ref| {
             let (setup_lock, setup_cvar, server_ref, _, barrier) = &*shared;
             // By grabbing the `setup_lock` we block the other workers, so we
             // can ensure the thread above send a message the server we start.
@@ -87,8 +86,8 @@ fn issue_145_tcp_server() {
 
             Ok(())
         })
-        .start()
         .unwrap();
+    runtime.start().unwrap();
 
     handle.join().unwrap();
     for address in addresses.lock().unwrap().iter() {
@@ -127,17 +126,17 @@ async fn conn_actor(
 
 #[test]
 fn issue_145_tcp_listener() {
-    Runtime::new()
-        .unwrap()
-        .with_setup::<_, !>(move |mut runtime_ref| {
+    let mut runtime = Runtime::new().unwrap();
+    runtime
+        .run_on_workers::<_, !>(move |mut runtime_ref| {
             let actor = listener_actor as fn(_) -> _;
             runtime_ref
                 .try_spawn_local(NoSupervisor, actor, (), ActorOptions::default())
                 .unwrap();
             Ok(())
         })
-        .start()
         .unwrap();
+    runtime.start().unwrap();
 }
 
 async fn listener_actor(mut ctx: actor::Context<!>) -> Result<(), !> {

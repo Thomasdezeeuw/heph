@@ -10,7 +10,7 @@ use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph::{rt, ActorOptions, Runtime};
 use log::{error, info};
 
-fn main() -> Result<(), rt::Error<io::Error>> {
+fn main() -> Result<(), rt::Error> {
     // For this example we'll enable logging, this give us a bit more insight
     // into the runtime. By default it only logs informational or more severe
     // messages, the environment variable `LOG_LEVEL` can be set to change this.
@@ -25,31 +25,29 @@ fn main() -> Result<(), rt::Error<io::Error>> {
     // the defaults options here.
     let actor = conn_actor as fn(_, _, _) -> _;
     let address = "127.0.0.1:7890".parse().unwrap();
-    let server = TcpServer::setup(address, conn_supervisor, actor, ActorOptions::default())?;
+    let server = TcpServer::setup(address, conn_supervisor, actor, ActorOptions::default())
+        .map_err(rt::Error::setup)?;
 
     // Just like in examples 1 and 2 we'll create our runtime and run our setup
     // function. But for this example we'll create a worker thread per available
     // CPU core using `use_all_cores`.
-    Runtime::new()
-        .map_err(rt::Error::map_type)?
-        .use_all_cores()
-        .with_setup(move |mut runtime_ref| {
-            // As the TCP listener is just another actor we need to spawn it
-            // like any other actor. And again actors needs supervision, thus we
-            // provide `ServerSupervisor` as supervisor.
-            // We'll give our server a low priority to prioritise handling of
-            // ongoing requests over accepting new requests possibly overloading
-            // the system.
-            let options = ActorOptions::default().with_priority(Priority::LOW);
-            let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
+    let mut runtime = Runtime::setup().use_all_cores().build()?;
+    runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {
+        // As the TCP listener is just another actor we need to spawn it
+        // like any other actor. And again actors needs supervision, thus we
+        // provide `ServerSupervisor` as supervisor.
+        // We'll give our server a low priority to prioritise handling of
+        // ongoing requests over accepting new requests possibly overloading
+        // the system.
+        let options = ActorOptions::default().with_priority(Priority::LOW);
+        let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
 
-            // The server can handle the interrupt, terminate and quit signals,
-            // so it will perform a clean shutdown for us.
-            runtime_ref.receive_signals(server_ref.try_map());
-
-            Ok(())
-        })
-        .start()
+        // The server can handle the interrupt, terminate and quit signals,
+        // so it will perform a clean shutdown for us.
+        runtime_ref.receive_signals(server_ref.try_map());
+        Ok(())
+    })?;
+    runtime.start()
 }
 
 /// Our supervisor for the TCP server.
