@@ -1,5 +1,7 @@
-//! Options for adding an `Actor` to a [`Runtime`].
+//! Options for adding an [`Actor`] or [`SyncActor`] to a [`Runtime`].
 //!
+//! [`Actor`]: crate::actor::Actor
+//! [`SyncActor`]: crate::actor::sync::SyncActor
 //! [`Runtime`]: crate::Runtime
 
 use std::cmp::Ordering;
@@ -166,7 +168,7 @@ fn priority_duration_multiplication() {
     assert!(high < low);
 }
 
-/// Options for adding an synchronous actor to a [`Runtime`].
+/// Options for adding a synchronous actor to a [`Runtime`].
 ///
 /// [`Runtime`]: crate::Runtime
 ///
