@@ -168,8 +168,8 @@ impl<M> ActorRef<M> {
         'r: 'fut,
         Msg: Into<M>,
     {
-        let msg = msg.into();
         use ActorRefKind::*;
+        let msg = msg.into();
         SendValue {
             kind: match &self.kind {
                 Local(sender) => SendValueKind::Local(sender.send(msg)),
@@ -192,6 +192,7 @@ impl<M> ActorRef<M> {
     where
         Msg: Into<M>,
     {
+        use ActorRefKind::*;
         #[cfg(any(test, feature = "test"))]
         if crate::test::should_lose_msg() {
             log::debug!("dropping message on purpose");
@@ -199,7 +200,6 @@ impl<M> ActorRef<M> {
         }
 
         let msg = msg.into();
-        use ActorRefKind::*;
         match &self.kind {
             Local(sender) => sender.try_send(msg).map_err(|_| SendError),
             Mapped(actor_ref) => actor_ref.try_mapped_send(msg),
@@ -385,9 +385,9 @@ impl<'r, 'fut, M> Future for MappedSendValue<'r, 'fut, M> {
 
     #[track_caller]
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        use MappedSendValue::*;
         // Safety: we're not moving the future to this is safe.
         let this = unsafe { self.get_unchecked_mut() };
-        use MappedSendValue::*;
         match this {
             // Safety: we're not moving `send_value` so this is safe.
             Send(send_value) => unsafe { Pin::new_unchecked(send_value) }
@@ -429,6 +429,7 @@ impl<'r, 'fut, M> Future for SendValue<'r, 'fut, M> {
 
     #[track_caller]
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        use SendValueKind::*;
         #[cfg(any(test, feature = "test"))]
         if crate::test::should_lose_msg() {
             log::debug!("dropping message on purpose");
@@ -437,7 +438,6 @@ impl<'r, 'fut, M> Future for SendValue<'r, 'fut, M> {
 
         // Safety: we're not moving the future to this is safe.
         let this = unsafe { self.get_unchecked_mut() };
-        use SendValueKind::*;
         match &mut this.kind {
             // Safety: we're not moving `inner` so this is safe.
             Local(send_value) => unsafe { Pin::new_unchecked(send_value) }
@@ -556,7 +556,7 @@ impl<M> ActorGroup<M> {
 
         match delivery {
             Delivery::ToAll => {
-                for actor_ref in self.actor_refs.iter() {
+                for actor_ref in &self.actor_refs {
                     let _ = actor_ref.try_send(msg.clone());
                 }
                 Ok(())

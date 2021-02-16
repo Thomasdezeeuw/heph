@@ -370,7 +370,7 @@ impl RunningRuntime {
 
                 let process = self.internal.scheduler.borrow_mut().next_process();
                 if let Some(mut process) = process {
-                    let timing = trace::start(&trace_log);
+                    let timing = trace::start(trace_log);
                     let pid = process.as_ref().id();
                     let name = process.as_ref().name();
                     match process.as_mut().run(&mut runtime_ref) {
@@ -391,7 +391,7 @@ impl RunningRuntime {
 
                 let process = self.internal.shared.remove_process();
                 if let Some(mut process) = process {
-                    let timing = trace::start(&trace_log);
+                    let timing = trace::start(trace_log);
                     let pid = process.as_ref().id();
                     let name = process.as_ref().name();
                     match process.as_mut().run(&mut runtime_ref) {
@@ -419,10 +419,10 @@ impl RunningRuntime {
                 {
                     debug!("no processes to run, stopping runtime");
                     return Ok(());
-                } else {
-                    // No processes ready to run.
-                    break;
                 }
+
+                // No processes ready to run.
+                break;
             }
 
             self.schedule_processes(trace_log)
@@ -437,12 +437,12 @@ impl RunningRuntime {
         trace!("polling event sources to schedule processes");
 
         // Start with polling for OS events.
-        let timing = trace::start(&trace_log);
+        let timing = trace::start(trace_log);
         self.poll().map_err(Error::Polling)?;
         trace::finish(trace_log, timing, "Polling for OS events", &[]);
 
         // Based on the OS event scheduler thread-local processes.
-        let timing = trace::start(&trace_log);
+        let timing = trace::start(trace_log);
         let mut scheduler = self.internal.scheduler.borrow_mut();
         let mut check_coordinator = false;
         for event in self.events.iter() {
@@ -457,7 +457,7 @@ impl RunningRuntime {
 
         // User space wake up events, e.g. used by the `Future` task system.
         trace!("polling wakup events");
-        let timing = trace::start(&trace_log);
+        let timing = trace::start(trace_log);
         for pid in self.waker_events.try_iter() {
             scheduler.mark_ready(pid);
         }
@@ -470,7 +470,7 @@ impl RunningRuntime {
 
         // User space timers, powers the `timer` module.
         trace!("polling timers");
-        let timing = trace::start(&trace_log);
+        let timing = trace::start(trace_log);
         for pid in self.internal.timers.borrow_mut().deadlines() {
             scheduler.mark_ready(pid);
         }
@@ -485,7 +485,7 @@ impl RunningRuntime {
             // Don't need this anymore.
             drop(scheduler);
             // Process coordinator messages.
-            let timing = trace::start(&trace_log);
+            let timing = trace::start(trace_log);
             self.check_coordinator(trace_log)?;
             trace::finish(trace_log, timing, "Process coordinator messages", &[]);
         }
@@ -497,7 +497,7 @@ impl RunningRuntime {
         let timeout = self.determine_timeout();
 
         // Only mark ourselves as polling if the timeout is non zero.
-        let mark_waker = if !is_zero(timeout) {
+        let mark_waker = if timeout.map_or(true, |t| !t.is_zero()) {
             rt::waker::mark_polling(self.internal.waker_id, true);
             true
         } else {
@@ -552,7 +552,7 @@ impl RunningRuntime {
                 // Relay a process signal to all actors that wanted to receive
                 // it.
                 Signal(signal) => {
-                    let timing = trace::start(&trace_log);
+                    let timing = trace::start(trace_log);
                     trace!("received process signal: {:?}", signal);
                     let mut receivers = self.internal.signal_receivers.borrow_mut();
 
@@ -582,7 +582,7 @@ impl RunningRuntime {
                     );
                 }
                 Run(f) => {
-                    let timing = trace::start(&trace_log);
+                    let timing = trace::start(trace_log);
                     trace!("running user function");
                     // Run the user defined function.
                     let res = f(self.create_ref());
@@ -595,9 +595,4 @@ impl RunningRuntime {
         }
         Ok(())
     }
-}
-
-/// Returns `true` is timeout is `Some(Duration::from_nanos(0))`.
-fn is_zero(timeout: Option<Duration>) -> bool {
-    timeout.map(|t| t.is_zero()).unwrap_or(false)
 }

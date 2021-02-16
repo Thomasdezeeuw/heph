@@ -127,7 +127,7 @@ impl Scheduler {
     /// Add a new actor to the scheduler.
     pub(crate) fn add_actor<'s>(&'s self) -> AddActor<'s> {
         AddActor {
-            scheduler: &self,
+            scheduler: self,
             alloc: Box::new_uninit(),
         }
     }
@@ -171,6 +171,7 @@ impl Scheduler {
     }
 
     /// Mark `process` as complete, removing it from the scheduler.
+    #[allow(clippy::unused_self)] // See NOTE below.
     pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
         trace!("removing process: pid={}", pid);

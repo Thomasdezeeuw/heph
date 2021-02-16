@@ -564,6 +564,11 @@ pub(crate) fn name<A>() -> &'static str {
 
 // NOTE: split for easier testing.
 fn format_name(full_name: &'static str) -> &'static str {
+    const GEN_FUTURE: &str = "GenFuture<";
+    const GENERIC_START: &str = "<";
+    const GENERIC_END: &str = ">";
+    const CLOSURE: &str = "{{closure}}";
+
     let mut name = full_name;
 
     if name.starts_with("fn(") {
@@ -577,9 +582,6 @@ fn format_name(full_name: &'static str) -> &'static str {
     // from
     // `core::future::from_generator::GenFuture<1_hello_world::greeter_actor::{{closure}}>`
     // to `1_hello_world::greeter_actor::{{closure}}`.
-    const GEN_FUTURE: &str = "GenFuture<";
-    const GENERIC_START: &str = "<";
-    const GENERIC_END: &str = ">";
     match (name.find(GEN_FUTURE), name.find(GENERIC_START)) {
         (Some(start_index), Some(i)) if start_index < i => {
             // Outer type is `GenFuture`, remove that.
@@ -588,7 +590,6 @@ fn format_name(full_name: &'static str) -> &'static str {
             // Async functions often end with `{{::closure}}`; also remove that,
             // e.g. from `1_hello_world::greeter_actor::{{closure}}` to
             // `1_hello_world::greeter_actor`.
-            const CLOSURE: &str = "{{closure}}";
             if let Some(start_index) = name.rfind("::") {
                 let last_part = &name[start_index + 2..];
                 if last_part == CLOSURE {

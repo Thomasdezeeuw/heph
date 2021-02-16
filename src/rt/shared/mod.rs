@@ -113,6 +113,7 @@ impl RuntimeInternals {
         }
     }
 
+    #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
     pub(crate) fn spawn_setup<S, NA, ArgFn, ArgFnE>(
         self: &Arc<Self>,
         supervisor: S,

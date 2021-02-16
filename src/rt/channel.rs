@@ -84,30 +84,29 @@ impl<S, R> Handle<S, R> {
 
     /// Try to receive a message from the channel.
     pub(super) fn try_recv(&mut self) -> io::Result<Option<R>> {
-        match self.recv_channel.try_recv().ok() {
-            Some(msg) => Ok(Some(msg)),
-            None => {
-                // If the channel is empty this will likely be the last call in
-                // a while, so we'll empty the pipe to ensure we'll get another
-                // notification once the coordinator sends us another message.
-                let mut buf = [0; 24]; // Fits 6 messages.
-                loop {
-                    trace!("emptying worker-coordinator channel pipe");
-                    match self.recv_pipe.read(&mut buf) {
-                        Ok(n) if n < buf.len() => break,
-                        // Didn't empty it.
-                        Ok(..) => continue,
-                        Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break,
-                        Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                        Err(err) => return Err(err),
-                    }
+        if let Ok(msg) = self.recv_channel.try_recv() {
+            Ok(Some(msg))
+        } else {
+            // If the channel is empty this will likely be the last call in a
+            // while, so we'll empty the pipe to ensure we'll get another
+            // notification once the coordinator sends us another message.
+            let mut buf = [0; 24]; // Fits 6 messages.
+            loop {
+                trace!("emptying worker-coordinator channel pipe");
+                match self.recv_pipe.read(&mut buf) {
+                    Ok(n) if n < buf.len() => break,
+                    // Didn't empty it.
+                    Ok(..) => continue,
+                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break,
+                    Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(err) => return Err(err),
                 }
-                // Try one last time in case the coordinator send a message in
-                // between the time we last checked and we emptied the pipe
-                // above (for which we won't get another event as we just
-                // emptied the pipe).
-                Ok(self.recv_channel.try_recv().ok())
             }
+            // Try one last time in case the coordinator send a message in
+            // between the time we last checked and we emptied the pipe above
+            // (for which we won't get another event as we just emptied the
+            // pipe).
+            Ok(self.recv_channel.try_recv().ok())
         }
     }
 }

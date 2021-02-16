@@ -153,17 +153,20 @@ impl Log {
 
     /// Append `event` to trace `Log`.
     fn append(&mut self, event: &Event<'_>) -> io::Result<()> {
+        #[allow(clippy::unreadable_literal)]
         const MAGIC: u32 = 0xC1FC1FB7;
 
         let stream_count: u32 = self.next_stream_count();
         let start_nanos: u64 = self.nanos_since_epoch(event.start);
         let end_nanos: u64 = self.nanos_since_epoch(event.end);
         let description: &[u8] = event.description.as_bytes();
+        // Safety: length has a debug_assert in `finish`.
+        #[allow(clippy::cast_possible_truncation)]
         let description_len: u16 = description.len() as u16;
 
         self.buf.clear();
         self.buf.extend_from_slice(&MAGIC.to_be_bytes());
-        self.buf.extend_from_slice(&0u32.to_be_bytes()); // Written later.
+        self.buf.extend_from_slice(&0_u32.to_be_bytes()); // Written later.
         self.buf.extend_from_slice(&self.stream_id.to_be_bytes());
         self.buf.extend_from_slice(&stream_count.to_be_bytes());
         self.buf.extend_from_slice(&start_nanos.to_be_bytes());
@@ -176,6 +179,8 @@ impl Log {
             self.buf.push(value.type_byte());
             value.write_attribute(&mut self.buf);
         }
+        // TODO: check maximum packet length.
+        #[allow(clippy::cast_possible_truncation)]
         let packet_size = self.buf.len() as u32;
         self.buf[4..8].copy_from_slice(&packet_size.to_be_bytes());
 
@@ -188,7 +193,9 @@ impl Log {
     /// (2 ^ 64) / 1000000000 / (365 * 24 * 60 * 60) ~= 584 years.
     /// So restart the application once every 500 years and you're good.
     #[track_caller]
+    #[allow(clippy::cast_possible_truncation)]
     fn nanos_since_epoch(&self, time: Instant) -> u64 {
+        // Safety: this overflows after 500+ years as per the function doc.
         time.duration_since(self.epoch).as_nanos() as u64
     }
 
@@ -202,12 +209,18 @@ impl Log {
 
 /// Write an epoch metadata packet to `buf`.
 fn write_epoch_metadata(buf: &mut Vec<u8>, time: SystemTime) {
+    #[allow(clippy::unreadable_literal)]
     const MAGIC: u32 = 0x75D11D4D;
     const PACKET_SIZE: u32 = 23;
+    // Safety: `OPTION` is small enough to fit it's length in `u16`.
+    #[allow(clippy::cast_possible_truncation)]
     const OPTION_LENGTH: u16 = OPTION.len() as u16;
     const OPTION: &[u8] = b"epoch";
 
     // Number of nanoseconds since Unix epoch as u64.
+    // Safety: this overflows in the year 2500+, so this will be good for a
+    // while.
+    #[allow(clippy::cast_possible_truncation)]
     let nanos_since_unix = time
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap()
@@ -227,15 +240,15 @@ where
     W: Write,
 {
     output.write(buf).and_then(|written| {
-        if written != buf.len() {
+        if written == buf.len() {
+            Ok(())
+        } else {
             // Not completely correct when going by the name alone, but it's the
             // closest we can get to a descriptive error.
             Err(io::Error::new(
                 io::ErrorKind::WriteZero,
                 "failed to write entire trace event",
             ))
-        } else {
-            Ok(())
         }
     })
 }
@@ -259,6 +272,10 @@ pub(crate) fn finish(
     description: &str,
     attributes: &[(&str, &dyn AttributeValue)],
 ) {
+    debug_assert!(
+        description.len() < u16::MAX as usize,
+        "description for trace event too long"
+    );
     if let (Some(log), Some(timing)) = (log, timing) {
         let event = timing.finish(description, attributes);
         if let Err(err) = log.append(&event) {
@@ -397,6 +414,8 @@ mod private {
 
         fn write_attribute(&self, buf: &mut Vec<u8>) {
             let bytes = self.as_bytes();
+            debug_assert!(bytes.len() < u16::MAX as usize);
+            #[allow(clippy::cast_possible_truncation)]
             let length = bytes.len() as u16;
             buf.extend_from_slice(&length.to_be_bytes());
             buf.extend_from_slice(bytes);
@@ -433,6 +452,8 @@ mod private {
         }
 
         fn write_attribute(&self, buf: &mut Vec<u8>) {
+            debug_assert!(self.len() < u16::MAX as usize);
+            #[allow(clippy::cast_possible_truncation)]
             let length = self.len() as u16;
             buf.extend_from_slice(&length.to_be_bytes());
             for attribute in self.iter() {

@@ -75,7 +75,7 @@ impl Setup {
     /// Returns the number of worker threads to use.
     ///
     /// See [`Setup::num_threads`].
-    pub fn get_threads(&self) -> usize {
+    pub const fn get_threads(&self) -> usize {
         self.threads
     }
 
@@ -99,7 +99,7 @@ impl Setup {
     /// single worker thread per CPU core.
     ///
     /// This is currently only implementated on Linux.
-    pub fn auto_cpu_affinity(mut self) -> Self {
+    pub const fn auto_cpu_affinity(mut self) -> Self {
         self.auto_cpu_affinity = true;
         self
     }
@@ -146,6 +146,7 @@ impl Setup {
             .into_iter()
             .map(|worker_setup| {
                 let trace_log = if let Some(trace_log) = &self.trace_log {
+                    #[allow(clippy::cast_possible_truncation)]
                     Some(trace_log.new_stream(worker_setup.id() as u32)?)
                 } else {
                     None
