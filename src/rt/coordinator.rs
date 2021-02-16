@@ -102,13 +102,8 @@ impl Coordinator {
                 .map_err(|err| rt::Error::coordinator(Error::SendingStartSignal(err)))?;
         }
 
-        // Index of the last worker we waked, must never be larger then
-        // `worker.len()` (which changes throughout the loop).
         let mut events = Events::with_capacity(16);
         loop {
-            // Counter for how many workers to wake.
-            let mut wake_workers = 0;
-
             let timing = trace::start(&trace_log);
             // Process OS events.
             self.poll
@@ -117,6 +112,7 @@ impl Coordinator {
             trace::finish(&mut trace_log, timing, "Polling for OS events", &[]);
 
             let timing = trace::start(&trace_log);
+            let mut wake_workers = 0; // Counter for how many workers to wake.
             for event in events.iter() {
                 trace!("event: {:?}", event);
                 match event.token() {
@@ -124,7 +120,7 @@ impl Coordinator {
                         let timing = trace::start(&trace_log);
                         relay_signals(&mut signals, &mut workers, &mut signal_refs)
                             .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?;
-                        trace::finish(&mut trace_log, timing, "Relaying process signal", &[]);
+                        trace::finish(&mut trace_log, timing, "Relaying process signal(s)", &[]);
                     }
                     // We always check for waker events below.
                     WAKER => {}
