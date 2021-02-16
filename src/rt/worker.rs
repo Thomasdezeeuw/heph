@@ -462,8 +462,8 @@ impl RunningRuntime {
             &[],
         );
 
-        // User space timers, powers the `timer` module.
-        trace!("polling timers");
+        // User space local timers.
+        trace!("polling local timers");
         let timing = trace::start(trace_log);
         for pid in self.internals.timers.borrow_mut().deadlines() {
             scheduler.mark_ready(pid);
@@ -472,6 +472,20 @@ impl RunningRuntime {
             trace_log,
             timing,
             "Scheduling thread-local processes based on timers",
+            &[],
+        );
+
+        // User space shared timers.
+        trace!("polling shared timers");
+        let timing = trace::start(&trace_log);
+        let now = Instant::now();
+        while let Some(pid) = self.internals.shared.remove_deadline(now) {
+            self.internals.shared.mark_ready(pid);
+        }
+        trace::finish(
+            trace_log,
+            timing,
+            "Scheduling thread-shared processes based on timers",
             &[],
         );
 
@@ -514,27 +528,29 @@ impl RunningRuntime {
 
     /// Determine the timeout to be used in polling.
     fn determine_timeout(&self) -> Option<Duration> {
-        // If there are any processes ready to run, any waker events or user
-        // space events we don't want to block.
         if self.internals.scheduler.borrow().has_ready_process()
             || !self.waker_events.is_empty()
             || self.internals.shared.has_ready_process()
         {
-            Some(Duration::ZERO)
-        } else if let Some(deadline) = self.internals.timers.borrow().next_deadline() {
+            // If there are any processes ready to run (local or shared), or any
+            // waker events we don't want to block.
+            return Some(Duration::ZERO);
+        }
+
+        if let Some(deadline) = self.internals.timers.borrow().next_deadline() {
             let now = Instant::now();
-            if deadline <= now {
+            return if deadline <= now {
                 // Deadline has already expired, so no blocking.
                 Some(Duration::ZERO)
             } else {
-                // Time between the deadline and right now.
-                Some(deadline.duration_since(now))
-            }
-        } else {
-            // We don't have any reason to return early from polling with an OS
-            // event.
-            None
+                // Check the shared timers with the current timeout.
+                let timeout = Some(deadline.duration_since(now));
+                self.internals.shared.next_timeout(now, timeout)
+            };
         }
+
+        // Finally check the shared timers.
+        self.internals.shared.next_timeout(Instant::now(), None)
     }
 
     /// Process messages from the coordinator.

@@ -182,7 +182,7 @@ mod tests {
     use std::thread::{self, sleep};
     use std::time::Duration;
 
-    use mio::{Poll, Token};
+    use mio::Poll;
 
     use crate::rt::options::Priority;
     use crate::rt::process::{Process, ProcessData, ProcessId, ProcessResult};
@@ -191,7 +191,6 @@ mod tests {
     use crate::rt::{RuntimeRef, Timers};
     use crate::test;
 
-    const WAKER: Token = Token(0);
     const PID1: ProcessId = ProcessId(1);
     const PID2: ProcessId = ProcessId(2);
 
@@ -221,7 +220,7 @@ mod tests {
         assert!(!shared_internals.scheduler.has_ready_process());
 
         // Create a new waker.
-        let waker = waker::new(shared_internals.coordinator_id, pid);
+        let waker = waker::new(shared_internals.shared_id, pid);
 
         // Waking should move the process to the ready queue.
         waker.wake_by_ref();
@@ -249,7 +248,7 @@ mod tests {
         assert!(!shared_internals.scheduler.has_ready_process());
 
         // Create a cloned waker.
-        let waker1 = waker::new(shared_internals.coordinator_id, pid);
+        let waker1 = waker::new(shared_internals.shared_id, pid);
         let waker2 = waker1.clone();
         drop(waker1);
 
@@ -271,7 +270,7 @@ mod tests {
 
         let shared_internals2 = shared_internals.clone();
         let handle = thread::spawn(move || {
-            let waker = waker::new(shared_internals2.coordinator_id, pid);
+            let waker = waker::new(shared_internals2.shared_id, pid);
             waker.wake_by_ref();
             waker.wake();
         });
@@ -327,13 +326,12 @@ mod tests {
     fn new_internals() -> Arc<RuntimeInternals> {
         let poll = Poll::new().unwrap();
         let registry = poll.registry().try_clone().unwrap();
-        let waker = mio::Waker::new(&registry, WAKER).unwrap();
         let scheduler = Scheduler::new();
         let timers = Mutex::new(Timers::new());
         Arc::new_cyclic(|shared_internals| {
             let waker_id = waker::init(shared_internals.clone());
             let worker_wakers = vec![&*test::NOOP_WAKER].into_boxed_slice();
-            RuntimeInternals::new(waker_id, waker, worker_wakers, scheduler, registry, timers)
+            RuntimeInternals::new(waker_id, worker_wakers, scheduler, registry, timers)
         })
     }
 
