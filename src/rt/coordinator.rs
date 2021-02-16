@@ -1,7 +1,6 @@
 //! Coordinator thread code.
 
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
 use std::{fmt, io};
 
 use log::{debug, trace, warn};
@@ -40,19 +39,11 @@ impl Coordinator {
     pub(super) fn init(worker_wakers: Box<[&'static ThreadWaker]>) -> io::Result<Coordinator> {
         let poll = Poll::new()?;
         let registry = poll.registry().try_clone()?;
-        let waker = mio::Waker::new(&registry, WAKER)?;
         let scheduler = Scheduler::new();
         let timers = Mutex::new(Timers::new());
         let internals = Arc::new_cyclic(|shared_internals| {
             let waker_id = waker::init(shared_internals.clone());
-            shared::RuntimeInternals::new(
-                waker_id,
-                waker,
-                worker_wakers,
-                scheduler,
-                registry,
-                timers,
-            )
+            shared::RuntimeInternals::new(waker_id, worker_wakers, scheduler, registry, timers)
         });
         Ok(Coordinator { poll, internals })
     }
@@ -120,7 +111,8 @@ impl Coordinator {
 
             let timing = trace::start(&trace_log);
             // Process OS events.
-            self.poll(&mut events)
+            self.poll
+                .poll(&mut events, None)
                 .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
             trace::finish(&mut trace_log, timing, "Polling for OS events", &[]);
 
@@ -163,20 +155,6 @@ impl Coordinator {
             }
             trace::finish(&mut trace_log, timing, "Handling OS events", &[]);
 
-            trace!("polling timers");
-            let timing = trace::start(&trace_log);
-            for pid in self.internals.timers().lock().unwrap().deadlines() {
-                trace!("waking thread-safe actor: pid={}", pid);
-                self.internals.mark_ready(pid);
-                wake_workers += 1;
-            }
-            trace::finish(
-                &mut trace_log,
-                timing,
-                "Scheduling thread-safe processes based on timers",
-                &[],
-            );
-
             // In case the worker threads are polling we need to wake them up.
             if wake_workers > 0 {
                 let timing = trace::start(&trace_log);
@@ -193,47 +171,6 @@ impl Coordinator {
             if workers.is_empty() && sync_workers.is_empty() {
                 return Ok(());
             }
-        }
-    }
-
-    fn poll(&mut self, events: &mut Events) -> io::Result<()> {
-        // Mark ourselves as polling and only **after** that determine the
-        // timeout.
-        // This order, mark polling then determine timeout, is important because
-        // otherwise we could miss a wake-up. Consider the following,
-        //
-        // | Coordinator       | Worker              |
-        // | Determine timeout |                     |
-        // |                   | Adds timeout        | // Coordinator timeout is now outdated.
-        // |                   | Checks need wake-up | // Not polling, not waking.
-        // | Mark polling      |                     |
-        // | Poll              |                     | // **Misses new timeout**!
-        self.internals.mark_polling(true);
-
-        let timeout = self.determine_timeout();
-        trace!("polling OS: timeout={:?}", timeout);
-        let res = self.poll.poll(events, timeout);
-
-        self.internals.mark_polling(false);
-
-        res
-    }
-
-    /// Determine the timeout to be used in `Poll::poll`.
-    fn determine_timeout(&self) -> Option<Duration> {
-        if let Some(deadline) = self.internals.timers().lock().unwrap().next_deadline() {
-            let now = Instant::now();
-            if deadline <= now {
-                // Deadline has already expired, so no blocking.
-                Some(Duration::ZERO)
-            } else {
-                // Time between the deadline and right now.
-                Some(deadline.duration_since(now))
-            }
-        } else {
-            // We don't have any reason to return early from polling with an OS
-            // event.
-            None
         }
     }
 }

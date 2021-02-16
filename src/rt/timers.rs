@@ -49,6 +49,17 @@ impl Timers {
             now: Instant::now(),
         }
     }
+
+    /// Remove the next deadline that passed `now` returning the pid.
+    pub(super) fn remove_deadline(&mut self, now: Instant) -> Option<ProcessId> {
+        match self.deadlines.peek() {
+            Some(deadline) if deadline.0.deadline <= now => {
+                let deadline = self.deadlines.pop().unwrap().0;
+                Some(deadline.pid)
+            }
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -61,13 +72,7 @@ impl<'t> Iterator for Deadlines<'t> {
     type Item = ProcessId;
 
     fn next(&mut self) -> Option<Self::Item> {
-        match self.timers.deadlines.peek() {
-            Some(deadline) if deadline.0.deadline <= self.now => {
-                let deadline = self.timers.deadlines.pop().unwrap().0;
-                Some(deadline.pid)
-            }
-            _ => None,
-        }
+        self.timers.remove_deadline(self.now)
     }
 }
 

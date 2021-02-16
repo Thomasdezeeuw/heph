@@ -4,7 +4,7 @@ use std::cmp::min;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{io, task};
 
 use log::{debug, error, trace};
@@ -28,10 +28,8 @@ pub(crate) use scheduler::{ProcessData, Scheduler};
 /// Shared internals of the runtime.
 #[derive(Debug)]
 pub(crate) struct RuntimeInternals {
-    /// Waker id used to create a `Waker` for thread-safe actors.
-    coordinator_id: WakerId,
-    /// Thread waker for the coordinator.
-    coordinator_waker: ThreadWaker,
+    /// Waker id used to create [`task::Waker`]s for thread-safe actors.
+    shared_id: WakerId,
     /// Thread wakers for all the workers.
     worker_wakers: Box<[&'static ThreadWaker]>,
     /// Index into `worker_wakers` to wake next, see
@@ -48,8 +46,7 @@ pub(crate) struct RuntimeInternals {
 
 impl RuntimeInternals {
     pub(crate) fn new(
-        coordinator_id: WakerId,
-        coordinator_waker: mio::Waker,
+        shared_id: WakerId,
         worker_wakers: Box<[&'static ThreadWaker]>,
         scheduler: Scheduler,
         registry: Registry,
@@ -58,8 +55,7 @@ impl RuntimeInternals {
         // Needed by `RuntimeInternals::wake_workers`.
         debug_assert!(worker_wakers.len() >= 1);
         RuntimeInternals {
-            coordinator_id,
-            coordinator_waker: ThreadWaker::new(coordinator_waker),
+            shared_id,
             worker_wakers,
             wake_worker_idx: AtomicUsize::new(0),
             scheduler,
@@ -70,7 +66,7 @@ impl RuntimeInternals {
 
     /// Returns a new [`task::Waker`] for the thread-safe actor with `pid`.
     pub(crate) fn new_task_waker(&self, pid: ProcessId) -> task::Waker {
-        waker::new(self.coordinator_id, pid)
+        waker::new(self.shared_id, pid)
     }
 
     /// Register an `event::Source`, see [`mio::Registry::register`].
@@ -101,16 +97,6 @@ impl RuntimeInternals {
 
     pub(crate) fn add_deadline(&self, pid: ProcessId, deadline: Instant) {
         self.timers.lock().unwrap().add_deadline(pid, deadline);
-        // Ensure that the coordinator isn't polling and misses the deadline.
-        self.wake_coordinator()
-    }
-
-    /// Waker used to wake the `Coordinator`, but not schedule any particular
-    /// process.
-    fn wake_coordinator(&self) {
-        if let Err(err) = self.coordinator_waker.wake() {
-            error!("unable to wake up coordinator: {}", err);
-        }
     }
 
     #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
@@ -216,13 +202,36 @@ impl RuntimeInternals {
         self.scheduler.complete(process);
     }
 
-    // Coordinator only API.
+    /// Determine the timeout to use in polling based on the current time
+    /// (`now`), the `current` timeout and the next deadline in the shared
+    /// timers.
+    ///
+    /// If there are no timers this will return `current`. If `current` is
+    /// smaller than the next deadline in the timers this will also
+    /// return `current`. Otherwise this will return a timeout based on the
+    /// next deadline.
+    pub(crate) fn next_timeout(&self, now: Instant, current: Option<Duration>) -> Option<Duration> {
+        let deadline = {
+            let timers = self.timers.lock().unwrap();
+            timers.next_deadline()
+        };
 
-    pub(crate) fn timers(&self) -> &Mutex<Timers> {
-        &self.timers
+        match deadline {
+            // Deadline has already expired, so no blocking.
+            Some(deadline) if deadline <= now => Some(Duration::ZERO),
+            Some(deadline) => {
+                let timeout = deadline.duration_since(now);
+                match current {
+                    Some(current) if current < timeout => Some(current),
+                    Some(..) | None => Some(timeout),
+                }
+            }
+            None => current,
+        }
     }
 
-    pub(crate) fn mark_polling(&self, polling: bool) {
-        self.coordinator_waker.mark_polling(polling)
+    /// See [`Timers::remove_deadline`].
+    pub(crate) fn remove_deadline(&self, now: Instant) -> Option<ProcessId> {
+        self.timers.lock().unwrap().remove_deadline(now)
     }
 }
