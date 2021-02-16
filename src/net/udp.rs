@@ -311,10 +311,7 @@ impl UdpSocket<Unconnected> {
     {
         let mut dst = bufs.as_bufs();
         debug_assert!(
-            !dst.as_mut()
-                .first()
-                .map(|buf| buf.is_empty())
-                .unwrap_or(true),
+            !dst.as_mut().first().map_or(true, |buf| buf.is_empty()),
             "called `UdpSocket::try_recv_from` with an empty buffer"
         );
         let res = SockRef::from(&self.socket)
@@ -393,10 +390,7 @@ impl UdpSocket<Unconnected> {
     {
         let mut dst = bufs.as_bufs();
         debug_assert!(
-            !dst.as_mut()
-                .first()
-                .map(|buf| buf.is_empty())
-                .unwrap_or(true),
+            !dst.as_mut().first().map_or(true, |buf| buf.is_empty()),
             "called `UdpSocket::try_peek_from_vectored` with an empty buffer"
         );
         let res = SockRef::from(&self.socket).recv_from_vectored_with_flags(
@@ -641,10 +635,7 @@ impl UdpSocket<Connected> {
     {
         let mut dst = bufs.as_bufs();
         debug_assert!(
-            !dst.as_mut()
-                .first()
-                .map(|buf| buf.is_empty())
-                .unwrap_or(true),
+            !dst.as_mut().first().map_or(true, |buf| buf.is_empty()),
             "called `UdpSocket::try_recv_vectored` with an empty buffer"
         );
         let res =
@@ -717,10 +708,7 @@ impl UdpSocket<Connected> {
     {
         let mut dst = bufs.as_bufs();
         debug_assert!(
-            !dst.as_mut()
-                .first()
-                .map(|buf| buf.is_empty())
-                .unwrap_or(true),
+            !dst.as_mut().first().map_or(true, |buf| buf.is_empty()),
             "called `UdpSocket::try_peek_vectored` with an empty buffer"
         );
         let res = SockRef::from(&self.socket)

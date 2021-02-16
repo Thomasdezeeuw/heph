@@ -25,18 +25,37 @@ $(TARGETS):
 dev:
 	find src/ tests/ examples/ Makefile Cargo.toml | entr -d -c $(MAKE) test
 
+# Reasons to allow lints:
+# debug-assert-with-mut-call: Bytes and BytesVectored traits.
+# missing-const-for-fn : too many false positives.
+# multiple-crate-versions: socket2 is included twice? But `cargo tree` disagrees.
 clippy: lint
 lint:
-	cargo clippy --all-targets --all-features -- \
-		--warn warnings \
-		--warn clippy::correctness \
-		--warn clippy::style \
-		--warn clippy::complexity \
-		--warn clippy::perf \
-		-D warnings \
-		-A clippy::cognitive-complexity \
-		-A clippy::needless_lifetimes \
-		-A clippy::unnecessary-wraps
+	cargo clippy --all-features -- \
+		--deny clippy::all \
+		--deny clippy::correctness \
+		--deny clippy::style \
+		--deny clippy::complexity \
+		--deny clippy::perf \
+		--deny clippy::pedantic \
+		--deny clippy::nursery \
+		--deny clippy::cargo \
+		--allow clippy::debug-assert-with-mut-call \
+		--allow clippy::empty-enum \
+		--allow clippy::enum-glob-use \
+		--allow clippy::inline-always \
+		--allow clippy::missing-const-for-fn \
+		--allow clippy::missing-errors-doc \
+		--allow clippy::missing-panics-doc \
+		--allow clippy::module-name-repetitions \
+		--allow clippy::multiple-crate-versions \
+		--allow clippy::must-use-candidate \
+		--allow clippy::needless-lifetimes \
+		--allow clippy::option-if-let-else \
+		--allow clippy::ptr-as-ptr \
+		--allow clippy::redundant-pub-crate \
+		--allow clippy::shadow-unrelated \
+		--allow clippy::use-self
 
 install_clippy:
 	rustup component add clippy

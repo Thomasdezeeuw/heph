@@ -228,13 +228,13 @@ impl<'a> Deref for MaybeUninitSlice<'a> {
     type Target = [MaybeUninit<u8>];
 
     fn deref(&self) -> &[MaybeUninit<u8>] {
-        self.0.deref()
+        &*self.0
     }
 }
 
 impl<'a> DerefMut for MaybeUninitSlice<'a> {
     fn deref_mut(&mut self) -> &mut [MaybeUninit<u8>] {
-        self.0.deref_mut()
+        &mut *self.0
     }
 }
 
@@ -462,6 +462,7 @@ impl_vectored_bytes_tuple! { 3: B0 0, B1 1, B2 2 }
 impl_vectored_bytes_tuple! { 2: B0 0, B1 1 }
 
 /// Convert a `socket2:::SockAddr` into a `std::net::SocketAddr`.
+#[allow(clippy::needless_pass_by_value)]
 fn convert_address(address: SockAddr) -> io::Result<SocketAddr> {
     match address.as_socket() {
         Some(address) => Ok(address),

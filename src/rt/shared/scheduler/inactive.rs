@@ -56,7 +56,7 @@ impl Inactive {
     }
 
     /// Returns `true` if the queue contains a process.
-    pub(super) fn has_process(&self) -> bool {
+    pub(super) const fn has_process(&self) -> bool {
         self.length != 0
     }
 
@@ -381,7 +381,7 @@ fn diff_branch_depth(pid1: ProcessId, pid2: ProcessId, depth: usize) -> usize {
 }
 
 /// Skip the bits up to `depth`.
-fn skip_bits(pid: ProcessId, depth: usize) -> usize {
+const fn skip_bits(pid: ProcessId, depth: usize) -> usize {
     pid.0 >> ((depth * LEVEL_SHIFT) + SKIP_BITS)
 }
 

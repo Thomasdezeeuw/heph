@@ -69,6 +69,13 @@ fn sync_worker_id() {
     assert!(SYNC_WORKER_ID_START > MAX_THREADS + 1); // Worker ids start at 1.
 }
 
+#[test]
+#[allow(clippy::assertions_on_constants)] // This is the point of the test.
+fn max_threads() {
+    // `trace::Log` uses 32 bit integers as id.
+    assert!(MAX_THREADS < u32::MAX as usize);
+}
+
 /// The runtime that runs all actors.
 ///
 /// The runtime will start workers threads that will run all actors, these
@@ -283,7 +290,9 @@ impl Runtime {
         debug!("spawning synchronous actor: pid={}", id);
 
         let trace_log = if let Some(trace_log) = &self.trace_log {
+            #[allow(clippy::cast_possible_truncation)]
             let trace_log = trace_log
+                // Safety: MAX_THREADS always fits in u32.
                 .new_stream(id as u32)
                 .map_err(Error::start_sync_actor)?;
             Some(trace_log)
@@ -311,7 +320,7 @@ impl Runtime {
         F: FnOnce(RuntimeRef) -> Result<(), E> + Send + Clone + 'static,
         E: ToString,
     {
-        for worker in self.workers.iter_mut() {
+        for worker in &mut self.workers {
             let f = f.clone();
             let f = Box::new(move |runtime_ref| f(runtime_ref).map_err(|err| err.to_string()));
             worker

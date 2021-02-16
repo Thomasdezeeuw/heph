@@ -106,7 +106,7 @@ impl Timer {
     }
 
     /// Returns the deadline set for this `Timer`.
-    pub fn deadline(&self) -> Instant {
+    pub const fn deadline(&self) -> Instant {
         self.deadline
     }
 
@@ -116,7 +116,7 @@ impl Timer {
     }
 
     /// Wrap a future creating a new `Deadline`.
-    pub fn wrap<Fut>(self, future: Fut) -> Deadline<Fut> {
+    pub const fn wrap<Fut>(self, future: Fut) -> Deadline<Fut> {
         // Already added a deadline so no need to do it again.
         Deadline {
             deadline: self.deadline,
@@ -255,7 +255,7 @@ impl<Fut> Deadline<Fut> {
     }
 
     /// Returns the deadline set for this `Deadline`.
-    pub fn deadline(&self) -> Instant {
+    pub const fn deadline(&self) -> Instant {
         self.deadline
     }
 
@@ -265,7 +265,7 @@ impl<Fut> Deadline<Fut> {
     }
 
     /// Returns a reference to the wrapped future.
-    pub fn get_ref(&self) -> &Fut {
+    pub const fn get_ref(&self) -> &Fut {
         &self.future
     }
 
@@ -413,7 +413,7 @@ impl Interval {
     }
 
     /// Returns the next deadline for this `Interval`.
-    pub fn next_deadline(&self) -> Instant {
+    pub const fn next_deadline(&self) -> Instant {
         self.deadline
     }
 }

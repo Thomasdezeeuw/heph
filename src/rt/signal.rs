@@ -47,6 +47,7 @@ impl Signal {
     }
 
     /// Whether or not the `Signal` is considered a "stopping" signal.
+    #[allow(clippy::unused_self)] // When more signals are added `self` is needed.
     pub(super) const fn should_stop(self) -> bool {
         true
     }

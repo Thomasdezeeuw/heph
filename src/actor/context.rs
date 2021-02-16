@@ -163,7 +163,7 @@ impl<M, C> Context<M, C> {
     }
 
     /// Get the pid of this actor.
-    pub(crate) fn pid(&self) -> ProcessId {
+    pub(crate) const fn pid(&self) -> ProcessId {
         self.pid
     }
 
@@ -400,7 +400,7 @@ pub enum RecvError {
 }
 
 impl RecvError {
-    pub(crate) fn from(err: inbox::RecvError) -> RecvError {
+    pub(crate) const fn from(err: inbox::RecvError) -> RecvError {
         match err {
             inbox::RecvError::Empty => RecvError::Empty,
             inbox::RecvError::Disconnected => RecvError::Disconnected,

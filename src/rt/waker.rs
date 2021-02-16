@@ -155,11 +155,15 @@ impl WakerData {
 
     /// Get the thread id of from the waker data.
     const fn waker_id(self) -> WakerId {
+        // Safety: `WakerId` is u8, so no truncating.
+        #[allow(clippy::cast_possible_truncation)]
         WakerId((self.0 >> THREAD_SHIFT) as u8)
     }
 
     /// Get the process id from the waker data.
     const fn pid(self) -> ProcessId {
+        // Safety: checked pid in `WakerData::new`, so no truncation.
+        #[allow(clippy::cast_possible_truncation)]
         ProcessId(self.0 & !THREAD_MASK)
     }
 

@@ -111,11 +111,16 @@ impl WakerData {
 
     /// Get the waker id.
     const fn waker_id(self) -> WakerId {
+        // Safety: we know we won't truncate the waker id as it's an u8.
+        #[allow(clippy::cast_possible_truncation)]
         WakerId((self.0 & WAKER_ID_MASK) as u8)
     }
 
     /// Get the process id.
     const fn pid(self) -> ProcessId {
+        // Safety: we know we won't truncate the pid, we check in
+        // `WakerData::new`.
+        #[allow(clippy::cast_possible_truncation)]
         ProcessId(self.0 >> MAX_RUNTIMES_BITS)
     }
 

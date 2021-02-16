@@ -139,7 +139,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///
 /// Graceful shutdown is done by sending it a [`Terminate`] message, see below
 /// for an example. The TCP server can also handle (shutdown) process signals,
-/// see example 2: my_ip (in the examples directory of the source code) for an
+/// see "Example 2 my ip" (in the examples directory of the source code) for an
 /// example of that.
 ///
 /// # Examples

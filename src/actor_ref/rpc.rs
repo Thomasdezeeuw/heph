@@ -283,13 +283,13 @@ impl<Req, Res> RpcMessage<Req, Res> {
     where
         F: FnOnce(Req) -> Res,
     {
-        if !self.response.is_connected() {
+        if self.response.is_connected() {
+            let response = f(self.request);
+            self.response.respond(response)
+        } else {
             // If the receiving actor is no longer waiting we can skip the
             // request.
             Ok(())
-        } else {
-            let response = f(self.request);
-            self.response.respond(response)
         }
     }
 }

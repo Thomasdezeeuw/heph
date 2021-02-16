@@ -58,7 +58,7 @@ impl Coordinator {
     }
 
     /// Get access to the shared runtime internals.
-    pub(super) fn shared_internals(&self) -> &Arc<shared::RuntimeInternals> {
+    pub(super) const fn shared_internals(&self) -> &Arc<shared::RuntimeInternals> {
         &self.internals
     }
 
@@ -74,17 +74,18 @@ impl Coordinator {
         mut signal_refs: ActorGroup<Signal>,
         mut trace_log: Option<trace::Log>,
     ) -> Result<(), rt::Error> {
-        debug_assert!(workers.is_sorted_by_key(|w| w.id()));
+        debug_assert!(workers.is_sorted_by_key(Worker::id));
+        debug_assert!(sync_workers.is_sorted_by_key(SyncWorker::id));
 
         // Register various sources of OS events that need to wake us from
         // polling events.
         let timing = trace::start(&trace_log);
         let registry = self.poll.registry();
-        let mut signals = setup_signals(&registry)
+        let mut signals = setup_signals(registry)
             .map_err(|err| rt::Error::coordinator(Error::SetupSignals(err)))?;
-        register_workers(&registry, &mut workers)
+        register_workers(registry, &mut workers)
             .map_err(|err| rt::Error::coordinator(Error::RegisteringWorkers(err)))?;
-        register_sync_workers(&registry, &mut sync_workers)
+        register_sync_workers(registry, &mut sync_workers)
             .map_err(|err| rt::Error::coordinator(Error::RegisteringSyncActors(err)))?;
 
         // It could be that before we're able to register the (sync) worker
@@ -104,7 +105,7 @@ impl Coordinator {
 
         // Signal to all worker threads the runtime was started. See
         // RunningRuntime::started why this is needed.
-        for worker in workers.iter_mut() {
+        for worker in &mut workers {
             worker
                 .send_runtime_started()
                 .map_err(|err| rt::Error::coordinator(Error::SendingStartSignal(err)))?;
@@ -301,7 +302,7 @@ fn relay_signals(
 
 /// Handle an `event` for a worker.
 fn handle_worker_event(workers: &mut Vec<Worker>, event: &Event) -> Result<(), rt::Error> {
-    if let Ok(i) = workers.binary_search_by_key(&event.token().0, |w| w.id()) {
+    if let Ok(i) = workers.binary_search_by_key(&event.token().0, Worker::id) {
         if event.is_error() || event.is_write_closed() {
             // Receiving end of the pipe is dropped, which means the worker has
             // shut down.
@@ -327,7 +328,7 @@ fn handle_sync_worker_event(
     sync_workers: &mut Vec<SyncWorker>,
     event: &Event,
 ) -> Result<(), rt::Error> {
-    if let Ok(i) = sync_workers.binary_search_by_key(&event.token().0, |w| w.id()) {
+    if let Ok(i) = sync_workers.binary_search_by_key(&event.token().0, SyncWorker::id) {
         if event.is_error() || event.is_write_closed() {
             // Receiving end of the pipe is dropped, which means the worker has
             // shut down.
