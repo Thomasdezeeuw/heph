@@ -67,11 +67,10 @@ impl<M, C> Context<M, C> {
     /// Attempt to receive the next message.
     ///
     /// This will attempt to receive next message if one is available. If the
-    /// actor wants to wait until a message is received
-    /// [`actor::Context::receive_next`] can be used, which returns a
-    /// `Future<Output = M>`.
+    /// actor wants to wait until a message is received [`receive_next`] can be
+    /// used, which returns a `Future<Output = M>`.
     ///
-    /// [`actor::Context::receive_next`]: crate::actor::Context::receive_next
+    /// [`receive_next`]: Context::receive_next
     ///
     /// # Examples
     ///

@@ -52,8 +52,7 @@ use crate::rt::{self, PrivateAccess};
 /// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 ///     let address = "127.0.0.1:8000".parse().unwrap();
 ///
-///     runtime_ref.spawn_local(supervisor, actor as fn(_, _) -> _, address,
-///         ActorOptions::default());
+///     runtime_ref.spawn_local(supervisor, actor as fn(_, _) -> _, address, ActorOptions::default());
 /// #   runtime_ref.spawn_local(supervisor, client as fn(_, _) -> _, address, ActorOptions::default());
 ///
 ///     Ok(())
@@ -117,8 +116,7 @@ use crate::rt::{self, PrivateAccess};
 /// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 ///     let address = "127.0.0.1:8000".parse().unwrap();
 ///
-///     runtime_ref.spawn_local(supervisor, actor as fn(_, _) -> _, address,
-///         ActorOptions::default());
+///     runtime_ref.spawn_local(supervisor, actor as fn(_, _) -> _, address, ActorOptions::default());
 /// #   runtime_ref.spawn_local(supervisor, client as fn(_, _) -> _, address, ActorOptions::default());
 ///
 ///     Ok(())

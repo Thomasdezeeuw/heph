@@ -4,9 +4,8 @@
 //!
 //! - [`Timer`](Timer) is a stand-alone future that returns
 //!   [`DeadlinePassed`](DeadlinePassed) once the deadline has passed.
-//! - [`Deadline`](Deadline) wraps another `Future` and checks the
-//!   deadline each time it's polled, it returns `Err(DeadlinePassed)` once the
-//!   deadline has passed.
+//! - [`Deadline`](Deadline) wraps another [`Future`] and checks the deadline
+//!   each time it's polled.
 //! - [`Interval`](Interval) implements [`Stream`] which yields an item
 //!   after the deadline has passed each interval.
 
@@ -75,7 +74,7 @@ impl From<DeadlinePassed> for io::Error {
 ///     // Wait for the timer to pass.
 ///     timeout.await;
 /// #   assert!(Instant::now() >= start + Duration::from_millis(200));
-///     println!("One second has passed!");
+///     println!("200 milliseconds have passed!");
 /// }
 /// ```
 #[derive(Debug)]
@@ -155,8 +154,8 @@ impl<K> actor::Bound<K> for Timer {
 /// A [`Future`] that wraps another future setting a deadline for it.
 ///
 /// When this future is polled it first checks if the deadline has passed, if so
-/// it returns [`Poll::Ready`]`(Err(`[`DeadlinePassed`]`))`. Otherwise this will
-/// poll the future it wraps.
+/// it returns [`Poll::Ready`]`(Err(`[`DeadlinePassed`]`.into()))`. Otherwise
+/// this will poll the future it wraps.
 ///
 /// # Notes
 ///
@@ -343,12 +342,13 @@ impl<Fut, K> actor::Bound<K> for Deadline<Fut> {
 ///
 /// The next deadline will always will be set after this returns `Poll::Ready`.
 /// This means that if the interval is very short and the stream is not polled
-/// often enough it's possible that actual time between yielding two values can
-/// become bigger then the specified interval.
+/// often enough it's possible that the actual time between yielding two values
+/// can become bigger then the specified interval.
 ///
 /// # Examples
 ///
-/// The following example will print hello world (roughly) every second.
+/// The following example will print hello world (roughly) every 200
+/// milliseconds.
 ///
 /// ```
 /// #![feature(never_type)]

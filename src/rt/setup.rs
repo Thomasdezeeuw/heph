@@ -108,6 +108,9 @@ impl Setup {
     /// `path`.
     ///
     /// See the [`mod@trace`] module for more information.
+    ///
+    /// Returns an error if a file at `path` already exists or can't create the
+    /// file.
     pub fn enable_tracing<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error> {
         match trace::Log::open(path.as_ref(), coordinator::TRACE_ID) {
             Ok(trace_log) => {

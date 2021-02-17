@@ -48,7 +48,7 @@
 //!
 //! There are two [`Supervisor`] implementations provided by Heph. First, the
 //! [`NoSupervisor`] can be used when the actor never returns an error (i.e.
-//! `Result<(), !>`) and thus doesn't need supervision.
+//! `Result<(), !>` or no return type) and thus doesn't need supervision.
 //!
 //! Second, the [`restart_supervisor!`] macro, which can be used to easily
 //! create a supervisor implementation that restarts the actor.
@@ -95,7 +95,7 @@
 use crate::actor::sync::SyncActor;
 use crate::actor::{Actor, NewActor};
 
-/// The supervisor of an actor.
+/// The supervisor of an [actor].
 ///
 /// For more information about supervisors see the [module documentation], here
 /// only the design of the trait is discussed.
@@ -114,6 +114,7 @@ use crate::actor::{Actor, NewActor};
 /// is the case for asynchronous functions. See the [module documentation] for
 /// an example of this.
 ///
+/// [actor]: crate::actor
 /// [module documentation]: crate::supervisor
 pub trait Supervisor<NA>
 where
@@ -130,10 +131,10 @@ where
     ///
     /// This is only called if [`decide`] returns a restart strategy, the actors
     /// fails to restart, after which [`decide_on_restart_error`] is called and
-    /// also returns a restart strategy and restarting a second time also fails.
-    /// We will not create an endless loop of restarting failures and instead
-    /// call this function before stopping the actor (which can't be restarted
-    /// any more).
+    /// also returns a restart strategy and restarting the actor a second time
+    /// also fails. We will not create an endless loop of restarting failures
+    /// and instead call this function before stopping the actor (which can't be
+    /// restarted any more).
     ///
     /// [`decide`]: Supervisor::decide
     /// [`decide_on_restart_error`]: Supervisor::decide_on_restart_error
@@ -233,6 +234,7 @@ where
 ///
 /// /// Our actor that never returns an error.
 /// async fn actor(ctx: actor::Context<&'static str>) {
+///     println!("Hello world!");
 /// #   drop(ctx); // Silence dead code warnings.
 /// }
 /// ```

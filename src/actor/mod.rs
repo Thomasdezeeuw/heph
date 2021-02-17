@@ -1,4 +1,4 @@
-//! The module with the `Actor` trait and related definitions.
+//! The module with the actor trait and related definitions.
 //!
 //! Actors come in three different kinds:
 //!
@@ -11,12 +11,13 @@
 //! used in staring, or spawning, new actors. The easiest way to implement these
 //! traits is to use asynchronous functions, see the example below.
 //!
-//! The sections below describe each, including up- and downsides of each kind.
+//! The following sections describe each kind of actor, including up- and
+//! downsides of each kind.
 //!
 //! [`Actor`]: crate::actor::Actor
 //! [`NewActor`]: crate::actor::NewActor
 //!
-//! # Asynchronous thread-local actors
+//! ## Asynchronous thread-local actors
 //!
 //! Asynchronous thread-local actors, often referred to as just thread-local
 //! actors, are actors that will remain on the thread on which they are started.
@@ -29,12 +30,12 @@
 //! synchronisation. The downside is that if a single actor blocks it will block
 //! *all* actors on the thread. Something that some frameworks work around with
 //! actor/tasks that transparently move between threads and hide blocking/bad
-//! actors, Heph does not however (for thread-local actor).
+//! actors, Heph does not (for thread-local actor).
 //!
 //! [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
 //! [`ThreadLocal`]: context::ThreadLocal
 //!
-//! # Asynchronous thread-safe actors
+//! ## Asynchronous thread-safe actors
 //!
 //! Asynchronous thread-safe actors, or just thread-safe actor, are actors that
 //! can be run on any of the worker threads and transparently move between them.
@@ -52,18 +53,20 @@
 //! [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
 //! [`ThreadSafe`]: context::ThreadSafe
 //!
-//! # Synchronous actors
+//! ## Synchronous actors
 //!
-//! The previous two actors, thread-local and thread-safe actors, are not
-//! allowed to block the thread they run on, as that would block all other
-//! actors on that thread. However sometimes blocking operations is exactly what
-//! we need to do, for that purpose Heph has synchronous actors.
+//! The previous two asynchronous actors, thread-local and thread-safe actors,
+//! are not allowed to block the thread they run on, as that would block all
+//! other actors on that thread as well. However sometimes blocking operations
+//! is exactly what we need to do, for that purpose Heph has synchronous actors.
 //!
 //! Synchronous actors run own there own thread and can use blocking operations,
 //! such as blocking I/O. The [`sync`] module and the [`SyncActor`] trait have
-//! more information about synchronous actors.
+//! more information about synchronous actors. Because each synchronous requires
+//! their own thread to run on sync actors are the most expansive to run (by an
+//! order of a magnitude).
 //!
-//! [`SyncActor`]: crate::actor::sync::SyncActor
+//! [`SyncActor`]: sync::SyncActor
 //!
 //! # Example
 //!
@@ -72,11 +75,11 @@
 //!
 //! ```
 //! use heph::{actor, NewActor};
+//! use heph::actor::context::ThreadLocal;
 //!
-//! async fn actor(ctx: actor::Context<()>) -> Result<(), ()> {
+//! async fn actor(ctx: actor::Context<(), ThreadLocal>) {
 //! #   drop(ctx); // Use `ctx` to silence dead code warnings.
 //!     println!("Actor is running!");
-//!     Ok(())
 //! }
 //!
 //! // Unfortunately `actor` doesn't yet implement `NewActor`, it first needs
@@ -128,9 +131,9 @@ mod tests;
 /// The trait that defines how to create a new [`Actor`].
 ///
 /// The easiest way to implement this by using an asynchronous function, see the
-/// [module level] documentation.
+/// [actor module] documentation.
 ///
-/// [module level]: crate::actor
+/// [actor module]: crate::actor
 pub trait NewActor {
     /// The type of messages the actor can receive.
     ///
@@ -145,6 +148,7 @@ pub trait NewActor {
     ///
     /// use heph::supervisor::NoSupervisor;
     /// use heph::{actor, rt, ActorOptions, Runtime};
+    /// use heph::from_message;
     ///
     /// fn main() -> Result<(), rt::Error> {
     ///     // Create and run the runtime.
@@ -175,11 +179,8 @@ pub trait NewActor {
     /// // Implementing `From` for the message allows us to just pass a
     /// // `String`, rather then a `Message::String`. See sending of the
     /// // message in the `setup` function.
-    /// impl From<String> for Message {
-    ///     fn from(str: String) -> Message {
-    ///         Message::String(str)
-    ///     }
-    /// }
+    /// from_message!(Message::String(String));
+    /// from_message!(Message::Number(usize));
     ///
     /// /// Our actor implementation that prints all messages it receives.
     /// async fn actor(mut ctx: actor::Context<Message>) {
@@ -286,8 +287,7 @@ pub trait NewActor {
     ///     // For more information about the remainder of this example see
     ///     // `TcpServer`.
     ///     let address = "127.0.0.1:7890".parse().unwrap();
-    ///     let server = TcpServer::setup(address, conn_supervisor, new_actor,
-    ///         ActorOptions::default())?;
+    ///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
     ///     # let actor_ref =
     ///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), ActorOptions::default())?;
     ///     # actor_ref.try_send(Terminate).unwrap();
@@ -467,16 +467,16 @@ impl_new_actor!(
 /// type is `Result<(), Error>` or `()` implement the `Actor` trait.
 ///
 /// The easiest way to implement this by using an async function, see the
-/// [module level] documentation.
+/// [actor module] documentation.
 ///
 /// [`Output`]: Future::Output
-/// [module level]: crate::actor
+/// [actor module]: crate::actor
 ///
 /// # Panics
 ///
 /// Because this is basically a [`Future`] it also shares it's characteristics,
 /// including it's unsafety. Please read the [`Future`] documentation when
-/// implementing or using this by hand.
+/// implementing or using this trait manually.
 pub trait Actor {
     /// An error the actor can return to its [supervisor]. This error will be
     /// considered terminal for this actor and should **not** be an error of
@@ -520,8 +520,12 @@ where
 
 mod private {
     /// Trait to support [`Actor`] for `Result<(), E>` and `()`.
+    ///
+    /// [`Actor`]: crate::actor::Actor
     pub trait ActorResult {
         /// See [`Actor::Error`].
+        ///
+        /// [`Actor::Error`]: crate::actor::Actor::Error
         type Error;
 
         /// Convert the return type in an `Result<(), Self::Error>`.

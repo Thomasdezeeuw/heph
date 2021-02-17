@@ -59,7 +59,7 @@ pub trait Bytes {
     /// Returns itself as a slice of bytes that may or may not be initialised.
     ///
     /// The implementation must guarantee that two calls (without any call to
-    /// [`update_length`] in between returns the same slice of bytes.
+    /// [`update_length`] in between) returns the same slice of bytes.
     ///
     /// [`update_length`]: Bytes::update_length
     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>];

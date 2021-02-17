@@ -172,7 +172,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
 ///     // The address to listen on.
 ///     let address = "127.0.0.1:7890".parse().unwrap();
-///     // Create our TCP server. We'll use the default actor options.
+///     // Create our TCP server.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
 ///     // Wait for the `TcpStream` to become ready before running the actor.
 ///     let options = ActorOptions::default().mark_not_ready();
@@ -264,8 +264,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// }
 ///
 /// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
-///     // This uses the same supervisors as in the previous example, not shown
-///     // here.
+///     // This uses the same supervisors as in the previous example, not shown here.
 ///
 ///     // Adding the TCP server is the same as in the example above.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
@@ -274,9 +273,8 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     let options = ActorOptions::default().with_priority(Priority::LOW);
 ///     let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
 ///
-///     // Because the server is just another actor we can send it messages.
-///     // Here we'll send it a terminate message so it will gracefully
-///     // shutdown.
+///     // Because the server is just another actor we can send it messages. Here
+///     // we'll send it a terminate message so it will gracefully shutdown.
 ///     server_ref.try_send(Terminate).unwrap();
 ///
 ///     Ok(())
@@ -434,7 +432,7 @@ where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
 {
-    /// Create a new [`Setup`].
+    /// Create a new [server setup].
     ///
     /// Arguments:
     /// * `address`: the address to listen on.
@@ -442,6 +440,8 @@ where
     /// * `new_actor`: the [`NewActor`] implementation to start each actor,
     ///   and
     /// * `options`: the actor options used to spawn the new actors.
+    ///
+    /// [server setup]: Setup
     pub fn setup(
         mut address: SocketAddr,
         supervisor: S,
