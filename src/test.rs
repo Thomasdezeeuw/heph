@@ -100,6 +100,18 @@ where
     init_local_actor_with_inbox(new_actor, arg).map(|(actor, _, actor_ref)| (actor, actor_ref))
 }
 
+/// Initialise a thread-safe actor.
+#[allow(clippy::type_complexity)]
+pub fn init_actor<NA>(
+    new_actor: NA,
+    arg: NA::Argument,
+) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
+where
+    NA: NewActor<Context = context::ThreadSafe>,
+{
+    init_actor_with_inbox(new_actor, arg).map(|(actor, _, actor_ref)| (actor, actor_ref))
+}
+
 /// Initialise a thread-local actor with access to it's inbox.
 #[allow(clippy::type_complexity)]
 pub(crate) fn init_local_actor_with_inbox<NA>(
@@ -117,7 +129,6 @@ where
 
 /// Initialise a thread-safe actor with access to it's inbox.
 #[allow(clippy::type_complexity)]
-#[cfg(test)]
 pub(crate) fn init_actor_with_inbox<NA>(
     mut new_actor: NA,
     arg: NA::Argument,
