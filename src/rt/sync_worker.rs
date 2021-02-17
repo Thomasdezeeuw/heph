@@ -49,7 +49,7 @@ impl SyncWorker {
                 .unwrap_or_else(|| format!("Sync actor {}", id));
             thread::Builder::new()
                 .name(thread_name)
-                .spawn(move || main(supervisor, actor, arg, manager, receiver, trace_log))
+                .spawn(move || main(id, supervisor, actor, arg, manager, receiver, trace_log))
                 .map(|handle| (SyncWorker { id, handle, sender }, actor_ref))
         })
     }
@@ -90,6 +90,7 @@ impl SyncWorker {
 
 /// Run a synchronous actor worker thread.
 fn main<S, A>(
+    id: usize,
     mut supervisor: S,
     actor: A,
     mut arg: A::Argument,
@@ -100,7 +101,9 @@ fn main<S, A>(
     S: SyncSupervisor<A> + 'static,
     A: SyncActor,
 {
-    trace!("running synchronous actor");
+    let thread = thread::current();
+    let name = thread.name().unwrap();
+    trace!("running synchronous actor: pid={}, name='{}'", id, name);
     loop {
         let timing = trace::start(&trace_log);
         let receiver = inbox.new_receiver().unwrap_or_else(inbox_failure);
@@ -117,7 +120,7 @@ fn main<S, A>(
                 let timing = trace::start(&trace_log);
                 match supervisor.decide(err) {
                     SupervisorStrategy::Restart(new_arg) => {
-                        trace!("restarting synchronous actor");
+                        trace!("restarting synchronous actor: pid={}, name='{}'", id, name);
                         arg = new_arg;
                         trace::finish(&mut trace_log, timing, "restarting synchronous actor", &[]);
                     }
@@ -130,7 +133,7 @@ fn main<S, A>(
         }
     }
 
-    trace!("stopping synchronous actor");
+    trace!("stopping synchronous actor: pid={}, name='{}'", id, name);
     // First drop all values as this might take an arbiterary time.
     drop(actor);
     drop(supervisor);
