@@ -280,14 +280,10 @@ impl Runtime {
         A::Argument: Send + 'static,
     {
         let id = SYNC_WORKER_ID_START + self.sync_actors.len();
-        // TODO: add actor's name to this.
-        // This doesn't work with `actor::name` because the sync actors are
-        // often converted into function pointers (using `as fn(_) -> _`) before
-        // calling this. This results in a name which is something like
-        // `fn(SyncContext<_>, ...) -> ...`, which is useless.
-        // NOTE: a sync actor function (not pointer) *does* work with
-        // `actor::name`.
-        debug!("spawning synchronous actor: pid={}", id);
+        match options.thread_name.as_ref() {
+            Some(name) => debug!("spawning synchronous actor: pid={}, name='{}'", id, name),
+            None => debug!("spawning synchronous actor: pid={}", id),
+        }
 
         let trace_log = if let Some(trace_log) = &self.trace_log {
             #[allow(clippy::cast_possible_truncation)]
