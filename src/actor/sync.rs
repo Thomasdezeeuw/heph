@@ -1,5 +1,12 @@
 //! Module containing the types for synchronous actors.
 //!
+//! Synchronous actors run own there own thread and can use blocking operations,
+//! such as blocking I/O. Instead of an [`actor::Context`] they use a
+//! [`SyncContext`], which provides a similar API to `actor::Context`, but uses
+//! blocking operations.
+//!
+//! [`actor::Context`]: crate::actor
+//!
 //! # Examples
 //!
 //! Spawn and run a synchronous actor.
@@ -71,30 +78,28 @@ use crate::trace;
 ///
 /// [Process signals] are automatically send to synchronous actors if the
 /// [`Message`] type implements the required trait bound to convert the actor
-/// reference into `ActorRef<TryMap<Signal>>`, see [`ActorRef::try_map`].
+/// reference into mapped actor reference, see [`ActorRef::try_map`].
 ///
 /// ```
-/// use std::convert::TryFrom;
-///
 /// use heph::actor::sync::SyncContext;
 /// # use heph::actor_ref::ActorRef;
 /// use heph::supervisor::NoSupervisor;
 /// use heph::rt::{self, Runtime, SyncActorOptions, Signal};
+/// use heph::from_message;
 ///
 /// fn main() -> Result<(), rt::Error> {
-///     // Spawning synchronous actor works slightly differently the spawning
+///     // Spawning synchronous actor works slightly differently than spawning
 ///     // regular (asynchronous) actors. Mainly, synchronous actors need to be
 ///     // spawned before the runtime is started.
 ///     let mut runtime = Runtime::new()?;
 ///
 ///     // Spawn a new synchronous actor, returning an actor reference to it.
 ///     let actor = actor as fn(_);
-///     let options = SyncActorOptions::default();
+///     let options = SyncActorOptions::default().with_name("My actor".to_string());
 ///     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, (), options)?;
 ///
 ///     // Just like with any actor reference we can send the actor a message.
 ///     actor_ref.try_send("Hello world".to_string()).unwrap();
-///
 ///     # let actor_ref: ActorRef<Signal> = actor_ref.try_map();
 ///     # actor_ref.try_send(Signal::Interrupt).unwrap();
 ///
@@ -107,20 +112,9 @@ use crate::trace;
 ///     Signal(Signal),
 /// }
 ///
-/// impl From<String> for Message {
-///     fn from(msg: String) -> Self {
-///         Message::Print(msg)
-///     }
-/// }
-///
-/// // Required to allow the sync actor to receive signals.
-/// impl TryFrom<Signal> for Message {
-///     type Error = Signal;
-///
-///     fn try_from(signal: Signal) -> Result<Self, Self::Error> {
-///         Ok(Message::Signal(signal))
-///     }
-/// }
+/// from_message!(Message::Print(String));
+/// // This implementation allows the sync actor to receive process signals.
+/// from_message!(Message::Signal(Signal));
 ///
 /// fn actor(mut ctx: SyncContext<Message>) {
 ///     while let Ok(msg) = ctx.receive_next() {
@@ -138,8 +132,9 @@ use crate::trace;
 ///
 /// # Panics
 ///
-/// Panics are not caught, thus bringing down the actor's thread, panics will
-/// **not** be returned to the actor's supervisor.
+/// Panics are not caught and will **not** be returned to the actor's
+/// supervisor. If a synchronous actor panics it will bring down the entire
+/// runtime.
 ///
 /// [actors]: crate::Actor
 /// [context]: SyncContext
@@ -279,7 +274,7 @@ impl<M> SyncContext<M> {
     ///
     /// fn greeter_actor(mut ctx: SyncContext<String>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
-    ///         println!("Hello: {}", name);
+    ///         println!("Hello {}", name);
     ///     } else {
     ///         println!("Hello world");
     ///     }

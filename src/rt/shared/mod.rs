@@ -201,7 +201,7 @@ impl RuntimeInternals {
         self.scheduler.has_ready_process()
     }
 
-    /// See [`Scheduler::remove_process`].
+    /// See [`Scheduler::remove`].
     pub(crate) fn remove_process(&self) -> Option<Pin<Box<ProcessData>>> {
         self.scheduler.remove()
     }

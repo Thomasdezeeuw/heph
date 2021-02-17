@@ -35,7 +35,7 @@ pub(crate) struct WorkerSetup {
 
 /// Setup a new worker thread.
 ///
-/// Use [`WorkerSetup::spawn`] to spawn the worker thread.
+/// Use [`WorkerSetup::start`] to spawn the worker thread.
 pub(crate) fn setup(id: NonZeroUsize) -> io::Result<(WorkerSetup, &'static ThreadWaker)> {
     let poll = Poll::new()?;
 
@@ -69,6 +69,8 @@ pub(super) struct Worker {
 #[allow(variant_size_differences)] // Can't make `Run` smaller.
 pub(crate) enum CoordinatorMessage {
     /// Runtime has started, i.e. [`Runtime::start`] was called.
+    ///
+    /// [`Runtime::start`]: rt::Runtime::start
     Started,
     /// Process received a signal.
     Signal(Signal),
@@ -296,6 +298,8 @@ pub(crate) struct RunningRuntime {
     /// runtime. Because of this the worker could check all scheduler, see that
     /// no actors are in them and determine it's done before even starting the
     /// runtime.
+    ///
+    /// [`Runtime::start`]: rt::Runtime::start
     started: bool,
 }
 

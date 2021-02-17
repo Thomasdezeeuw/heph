@@ -150,7 +150,7 @@ impl TcpStream {
     /// Send the bytes in `bufs` to the peer.
     ///
     /// Return the number of bytes written. This may we fewer then the length of
-    /// `buf`. To ensure that all bytes are written use
+    /// `bufs`. To ensure that all bytes are written use
     /// [`TcpStream::send_vectored_all`].
     pub fn send_vectored<'a, 'b>(
         &'a mut self,
@@ -353,7 +353,7 @@ impl TcpStream {
         RecvVectored { stream: self, bufs }
     }
 
-    /// Receive messages from the stream, writing them into `bufs`.
+    /// Receive at least `n` bytes from the stream, writing them into `bufs`.
     pub fn recv_n_vectored<B>(&mut self, mut bufs: B, n: usize) -> RecvNVectored<'_, B>
     where
         B: BytesVectored,

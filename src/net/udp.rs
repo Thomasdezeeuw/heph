@@ -65,8 +65,8 @@ pub enum Connected {}
 ///
 /// use heph::actor::messages::Terminate;
 /// use heph::net::UdpSocket;
-/// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
 /// use heph::util::either;
+/// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     std_logger::init();
@@ -78,26 +78,21 @@ pub enum Connected {}
 ///
 /// fn setup(mut runtime: RuntimeRef) -> Result<(), !> {
 ///     let address = "127.0.0.1:7000".parse().unwrap();
-///
 ///     // Add our server actor.
-///     runtime.spawn_local(supervisor, echo_server as fn(_, _) -> _, address,
-///         ActorOptions::default());
-///
+///     runtime.spawn_local(supervisor, echo_server as fn(_, _) -> _, address, ActorOptions::default());
 ///     // Add our client actor.
-///     runtime.spawn_local(supervisor, client as fn(_, _) -> _, address,
-///         ActorOptions::default());
-///
+///     runtime.spawn_local(supervisor, client as fn(_, _) -> _, address, ActorOptions::default());
 ///     Ok(())
 /// }
 ///
-/// // Simple supervisor that logs the error and stops the actor.
+/// /// Simple supervisor that logs the error and stops the actor.
 /// fn supervisor<Arg>(err: io::Error) -> SupervisorStrategy<Arg> {
 ///     error!("Encountered an error: {}", err);
 ///     SupervisorStrategy::Stop
 /// }
 ///
-/// // Actor that will bind a UDP socket and waits for incoming packets and
-/// // echos the message to standard out.
+/// /// Actor that will bind a UDP socket and waits for incoming packets and
+/// /// echos the message to standard out.
 /// async fn echo_server(mut ctx: actor::Context<Terminate>, local: SocketAddr) -> io::Result<()> {
 ///     let mut socket = UdpSocket::bind(&mut ctx, local)?;
 ///     let mut buf = Vec::with_capacity(4096);
@@ -105,17 +100,16 @@ pub enum Connected {}
 ///         buf.clear();
 ///         let receive_msg = ctx.receive_next();
 ///         let read = socket.recv_from(&mut buf);
-///         let (n, address) = match either(read, receive_msg).await {
+///         let address = match either(read, receive_msg).await {
 ///             // Received a packet.
-///             Ok(Ok((n, address))) => (n, address),
+///             Ok(Ok((_, address))) => address,
 ///             // Read error.
 ///             Ok(Err(err)) => return Err(err),
 ///             // If we receive a terminate message we'll stop the actor.
 ///             Err(_) => return Ok(()),
 ///         };
 ///
-///         let buf = &buf[.. n];
-///         match str::from_utf8(buf) {
+///         match str::from_utf8(&buf) {
 ///             Ok(str) => println!("Got the following message: `{}`, from {}", str, address),
 ///             Err(_) => println!("Got data: {:?}, from {}", buf, address),
 ///         }
@@ -123,7 +117,7 @@ pub enum Connected {}
 ///     }
 /// }
 ///
-/// // The client that will send a message to the server.
+/// /// The client that will send a message to the server.
 /// async fn client(mut ctx: actor::Context<!>, server_address: SocketAddr) -> io::Result<()> {
 ///     let local_address = "127.0.0.1:7001".parse().unwrap();
 ///     let mut socket = UdpSocket::bind(&mut ctx, local_address)
@@ -150,7 +144,7 @@ impl UdpSocket {
     ///
     /// The UDP socket is also [bound] to the actor that owns the
     /// `actor::Context`, which means the actor will be run every time the
-    /// socket is ready to be read or write to.
+    /// socket is ready to be read from or write to.
     ///
     /// [bound]: crate::actor::Bound
     pub fn bind<M, K>(
@@ -246,8 +240,8 @@ impl UdpSocket<Unconnected> {
 
     /// Send the bytes in `bufs` to the peer.
     ///
-    /// Return the number of bytes written. This may we fewer then the length of
-    /// `bufs`.
+    /// Returns the number of bytes written. This may be fewer then the length
+    /// of `bufs`.
     pub fn send_to_vectored<'a, 'b>(
         &'a mut self,
         bufs: &'b mut [IoSlice<'b>],
@@ -297,7 +291,7 @@ impl UdpSocket<Unconnected> {
         RecvFrom { socket: self, buf }
     }
 
-    /// Attempt to receive data from the socket, writing them into `buf`.
+    /// Attempt to receive data from the socket, writing them into `bufs`.
     ///
     /// If no bytes can currently be received this will return an error with the
     /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
@@ -579,8 +573,8 @@ impl UdpSocket<Connected> {
 
     /// Send the bytes in `bufs` to the peer.
     ///
-    /// Return the number of bytes written. This may we fewer then the length of
-    /// `bufs`.
+    /// Returns the number of bytes written. This may we fewer then the length
+    /// of `bufs`.
     pub fn send_vectored<'a, 'b>(
         &'a mut self,
         bufs: &'b mut [IoSlice<'b>],

@@ -11,17 +11,13 @@
 //! Tracing is enabled by calling [`Setup::enable_tracing`] when setting up the
 //! runtime.
 //!
-//! Note that this should be one of the first calls to make after creating the
-//! runtime. If a synchronous actor is spawned before the call to
-//! `enable_tracing` **tracing will not be enabled for this actor**.
-//!
 //! [`Setup::enable_tracing`]: crate::rt::Setup::enable_tracing
 //!
 //! # Creating Trace Events
 //!
-//! The runtime internals already add their own trace events, e.g. when running
-//! actors, but users can also log their own events. Actors can log trace event
-//! using the `start_trace` and `finish_trace` methods on there context, i.e.
+//! The runtime already add its own trace events, e.g. when running actors, but
+//! users can also log events. Actors can log trace event using the
+//! `start_trace` and `finish_trace` methods on their context, i.e.
 //! [`actor::Context`] or [`SyncContext`].
 //!
 //! Calling `start_trace` will start timing an event by returning
@@ -50,9 +46,9 @@
 //! `EventTiming`, but `Option<EventTiming>`, and `finish_trace` accepts
 //! `Option<EventTiming>`. This is to support the case when tracing is disabled.
 //! This makes it easier to leave the code in-place and don't have to deal with
-//! `#[cfg(is_tracing_enabled)]` attributes etc. When tracing it disabled
+//! `#[cfg(is_tracing_enabled)]` attributes etc. When tracing is disabled
 //! `start_trace` will return `None` and if `None` is passed to `finish_trace`
-//! is effectively a no-op.
+//! it's effectively a no-op.
 //!
 //! # Interpreting the trace output
 //!
@@ -322,8 +318,8 @@ struct Event<'e> {
     attributes: &'e [(&'e str, &'e dyn AttributeValue)],
 }
 
-/// The [`AttributeValue`] defines what kind of types are supported as attribute
-/// values in tracing.
+/// The `AttributeValue` trait defines what kind of types are supported as
+/// attribute values in tracing.
 ///
 /// This trait is private and is implemented for only a limited number of types,
 /// specficically:

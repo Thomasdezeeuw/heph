@@ -5,7 +5,6 @@
 //!
 //! [Hephaestus]: https://en.wikipedia.org/wiki/Hephaestus
 //!
-//!
 //! ## About
 //!
 //! Heph is an [actor] framework based on asynchronous functions. Such an
@@ -51,15 +50,17 @@
 //! [atomic]: std::sync::atomic
 //! [actor model]: https://en.wikipedia.org/wiki/Actor_model
 //!
-//!
 //! ## Getting started
 //!
 //! The easiest way to get start with Heph is looking at the [examples] in the
 //! examples directory of the source code. Or by looking through the API
-//! documentation, starting with [`Runtime`].
+//! documentation.
+//!
+//! For information about actors start with the [`actor`] module. Actors must
+//! always be supervised which are documented in the [`supervisor`] module.
+//! Finally [`Runtime`] has documentation about Heph's runtime.
 //!
 //! [examples]: https://github.com/Thomasdezeeuw/heph/blob/master/examples/README.md
-//!
 //!
 //! ## Features
 //!

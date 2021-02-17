@@ -3,11 +3,12 @@
 //! An actor reference is a generic reference to an actor that can run on the
 //! same thread, another thread on the same node or even running remotely.
 //!
-//! ## Sending messages
+//! # Sending messages
 //!
-//! All types of actor references have a [`send`] method. These methods don't
-//! block, even the remote actor reference, but the method doesn't provided a
-//! lot of guarantees. It doesn't even guarantee the order in which the messages
+//! The primary function of actor references is sending messages. This can be
+//! done by using the [`send`] or [`try_send`] methods. These methods don't
+//! block, even the remote actor reference, but the methods don't provided a lot
+//! of guarantees. It doesn't even guarantee the order in which the messages
 //! arive. What [`send`] does is asynchronously add the message to the queue of
 //! messages for the actor.
 //!
@@ -21,7 +22,10 @@
 //! receiving actor should send back an acknowledgment that the message is
 //! received and/or processed correctly.
 //!
-//! [`send`]: crate::actor_ref::ActorRef::send
+//! [`send`]: ActorRef::send
+//! [`try_send`]: ActorRef::try_send
+//!
+//! This example shows a simple actor that prints all the messages it receives.
 //!
 //! ```
 //! #![feature(never_type)]
@@ -34,10 +38,9 @@
 //!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
 //!         // Spawn the actor.
 //!         let new_actor = actor as fn(_) -> _;
-//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (),
-//!             ActorOptions::default());
+//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
 //!
-//!         // Now we can use the reference to send the actor a message.
+//!         // Now we can use the actor reference to send the actor a message.
 //!         actor_ref.try_send("Hello world".to_owned()).unwrap();
 //!
 //!         Ok(())
@@ -53,12 +56,12 @@
 //! }
 //! ```
 //!
-//! ## Sharing actor references
+//! # Sharing actor references
 //!
 //! All actor references can be cloned, which is the easiest way to share them.
 //!
-//! The example below shows how an local actor reference is cloned to send a
-//! message to the same actor, but it is the same for all types of references.
+//! The example below shows how an actor reference is cloned to send a message
+//! to the same actor.
 //!
 //! ```
 //! #![feature(never_type)]
@@ -150,7 +153,7 @@ impl<M> ActorRef<M> {
         }
     }
 
-    /// Asynchronously send a message to the actor.
+    /// Send a message to the actor.
     ///
     /// See [Sending messages] and [`ActorRef::try_send`] for more details.
     ///
@@ -178,7 +181,7 @@ impl<M> ActorRef<M> {
         }
     }
 
-    /// Attempt to asynchronously send a message to the actor.
+    /// Attempt to send a message to the actor.
     ///
     /// Some types of actor references can detect errors in sending a message,
     /// however not all actor references can. This means that even if this
@@ -223,7 +226,7 @@ impl<M> ActorRef<M> {
         Rpc::new(self, request)
     }
 
-    /// Changes the message type of the actor reference.
+    /// Change the message type of the actor reference.
     ///
     /// Before sending the message this will first change the message into a
     /// different type. This is useful when you need to send to different types
@@ -530,14 +533,18 @@ impl<M> ActorGroup<M> {
         self.actor_refs.retain(ActorRef::is_connected);
     }
 
-    /// Attempts to asynchronously send a message to all the actors in the
-    /// group.
+    /// Attempts to send a message to all the actors in the group.
     ///
-    /// This will first `clone` the message and then [`try_send`]ing it to each
-    /// actor in the group. Note that this means it will `clone` before calling
-    /// [`Into::into`] on the message. If the call to [`Into::into`] is
-    /// expansive, or `M` is cheaper to clone than `Msg` it might be worthwhile
-    /// to call `msg.into()` before calling this method.
+    /// This can either send the message to a single actor, by using
+    /// [`Delivery::ToOne`], or to all actors in the group by using
+    /// [`Delivery::ToAll`].
+    ///
+    /// When deliverying to all actors this will first `clone` the message and
+    /// then [`try_send`]ing it to each actor in the group. Note that this means
+    /// it will `clone` before calling [`Into::into`] on the message. If the
+    /// call to [`Into::into`] is expansive, or `M` is cheaper to clone than
+    /// `Msg` it might be worthwhile to call `msg.into()` before calling this
+    /// method.
     ///
     /// This only returns an error if the group is empty, otherwise this will
     /// always return `Ok(())`.

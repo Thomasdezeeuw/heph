@@ -5,7 +5,7 @@ use std::{fmt, io};
 
 use crate::rt::{coordinator, worker};
 
-/// Error returned by running an [`Runtime`].
+/// Error returned by running a [`Runtime`].
 ///
 /// [`Runtime`]: crate::rt::Runtime
 pub struct Error {

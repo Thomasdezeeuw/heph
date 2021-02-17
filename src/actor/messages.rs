@@ -94,7 +94,7 @@ pub struct Cancel<Id = ()>(pub Id);
 /// # Notes
 ///
 /// This message is not special in anyway, this means the receiving actor can
-/// simply ignore this message and continue living.
+/// simply ignore this message and continue running.
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Terminate;
 

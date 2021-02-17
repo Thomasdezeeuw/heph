@@ -176,7 +176,7 @@ where
 ///
 /// # Notes
 ///
-/// Wake notifications will be ignored. If this is required run an end to end
+/// Wake notifications will be ignored, if this is required run an end to end
 /// test with a completely functional runtime instead.
 pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
 where
@@ -194,7 +194,7 @@ where
 ///
 /// # Notes
 ///
-/// Wake notifications will be ignored. If this is required run an end to end
+/// Wake notifications will be ignored, if this is required run an end to end
 /// test with a completely functional runtime instead.
 pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
 where

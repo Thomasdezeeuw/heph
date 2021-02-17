@@ -7,7 +7,9 @@
 //!   spawn new actors.
 //!
 //! See [`Runtime`] for documentation on how to run an actor. For more examples
-//! see the examples directory in the source code.
+//! see the [examples directory] in the source code.
+//!
+//! [examples directory]: https://github.com/Thomasdezeeuw/heph/tree/master/examples
 
 use std::rc::Rc;
 use std::sync::Arc;
@@ -83,7 +85,7 @@ fn max_threads() {
 ///
 /// ## Usage
 ///
-/// Building a runtime starts with calling [`setup`], this will create a new
+/// Building a runtime starts with calling [`setup`], which will create a new
 /// [`Setup`](Setup) builder type, which allows configuration of the
 /// [`Runtime`]. The [`new`] function can also be used, but is really only meant
 /// for quick prototyping or testing.
@@ -127,9 +129,9 @@ fn max_threads() {
 ///
 /// ## Examples
 ///
-/// This simple example shows how to run an `Runtime` and add how start a
-/// single actor on each thread. This should print "Hello World" twice (once on
-/// each worker thread started).
+/// This simple example shows how to run a `Runtime` and add how start a single
+/// actor on each thread. This should print "Hello World" twice (once on each
+/// worker thread started).
 ///
 /// ```
 /// #![feature(never_type)]
@@ -138,11 +140,8 @@ fn max_threads() {
 /// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 ///
 /// fn main() -> Result<(), rt::Error> {
-///     // Build a new `Runtime`.
-///     let mut runtime = Runtime::setup()
-///         // Start two worker threads.
-///         .num_threads(2)
-///         .build()?;
+///     // Build a new `Runtime` with two worker threads.
+///     let mut runtime = Runtime::setup().num_threads(2).build()?;
 ///     // On each worker thread run our setup function.
 ///     runtime.run_on_workers(setup)?;
 ///     // And start the runtime.

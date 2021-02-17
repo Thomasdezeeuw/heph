@@ -6,14 +6,15 @@
 //!
 //! To support RPC the receiving actor needs to implement
 //! [`From`]`<`[`RpcMessage`]`<Req, Res>>`, where `Req` is the type of the
-//! request message and `Res` the type of the response. The RPC message can then
-//! be received like any other message.
+//! request message and `Res` the type of the response. This can be done easily
+//! by using the [`from_message`] macro. The RPC message can then be received
+//! like any other message.
 //!
 //! The sending actor needs to call [`ActorRef::rpc`] with the correct request
 //! type. That will return an [`Rpc`] [`Future`] which returns the response to
 //! the call, or [`RpcError`] in case of an error.
 //!
-//! [`ActorRef::rpc`]: crate::actor_ref::ActorRef::rpc
+//! [`from_message`]: crate::from_message
 //!
 //! # Examples
 //!
@@ -86,7 +87,7 @@
 //! use heph::actor::sync::SyncContext;
 //! use heph::actor_ref::{ActorRef, RpcMessage};
 //! use heph::supervisor::NoSupervisor;
-//! use heph::actor;
+//! use heph::{actor, from_message};
 //! use heph::rt::{self, Runtime, ActorOptions, SyncActorOptions};
 //!
 //! /// Message type for [`counter`].
@@ -97,19 +98,9 @@
 //!     Get(RpcMessage<(), usize>),
 //! }
 //!
-//! /// Required to support RPC.
-//! impl From<RpcMessage<usize, usize>> for Message {
-//!     fn from(msg: RpcMessage<usize, usize>) -> Message {
-//!         Message::Add(msg)
-//!     }
-//! }
-//!
-//! /// Required to support RPC.
-//! impl From<RpcMessage<(), usize>> for Message {
-//!     fn from(msg: RpcMessage<(), usize>) -> Message {
-//!         Message::Get(msg)
-//!     }
-//! }
+//! // Implement the `From` trait for `Message`.
+//! from_message!(Message::Add(usize) -> usize);
+//! from_message!(Message::Get(()) -> usize);
 //!
 //! /// Receiving synchronous actor of the RPC.
 //! fn counter(mut ctx: SyncContext<Message>) {
@@ -171,6 +162,8 @@ use inbox::oneshot::{new_oneshot, RecvOnce, Sender};
 use crate::actor_ref::{ActorRef, SendError, SendValue};
 
 /// [`Future`] that resolves to a Remote Procedure Call (RPC) response.
+///
+/// Created by [`ActorRef::rpc`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Rpc<'r, 'fut, M, Res> {
