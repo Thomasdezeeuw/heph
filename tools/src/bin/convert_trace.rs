@@ -8,14 +8,25 @@ use std::convert::TryInto;
 use std::env::args;
 use std::fs::{File, OpenOptions};
 use std::io::{self, stdin, Read, Stdin, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 use std::{fmt, str};
 
 fn main() {
     let mut args = args().skip(1);
     let input = args.next().expect("missing input trace file path");
-    let output = args.next().expect("missing ouput path");
+    let output = match args.next() {
+        Some(output) => PathBuf::from(output),
+        None => {
+            let end_idx = input.rfind('.').unwrap_or(input.len());
+            let mut output = PathBuf::from(&input[..end_idx]);
+            // If the input has a single extension this will add `json` to it.
+            // If however it has two extensions, e.g. `.bin.log` this will
+            // overwrite the extension.
+            output.set_extension("json");
+            output
+        }
+    };
 
     let mut trace = Trace::open(input).expect("can't open trace file");
     let mut output = OpenOptions::new()
