@@ -27,19 +27,19 @@ pub(crate) struct SyncWorker {
 
 impl SyncWorker {
     /// Start a new thread that runs a synchronous actor.
-    pub(crate) fn start<Sv, A, E, Arg, M>(
+    pub(crate) fn start<S, A>(
         id: usize,
-        supervisor: Sv,
+        supervisor: S,
         actor: A,
-        arg: Arg,
+        arg: A::Argument,
         options: SyncActorOptions,
         trace_log: Option<trace::Log>,
-    ) -> io::Result<(SyncWorker, ActorRef<M>)>
+    ) -> io::Result<(SyncWorker, ActorRef<A::Message>)>
     where
-        Sv: SyncSupervisor<A> + Send + 'static,
-        A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
-        Arg: Send + 'static,
-        M: Send + 'static,
+        S: SyncSupervisor<A> + Send + 'static,
+        A: SyncActor + Send + 'static,
+        A::Message: Send + 'static,
+        A::Argument: Send + 'static,
     {
         unix::pipe::new().and_then(|(sender, receiver)| {
             let (manager, send, _) = inbox::Manager::new_small_channel();
@@ -89,16 +89,16 @@ impl SyncWorker {
 }
 
 /// Run a synchronous actor worker thread.
-fn main<S, E, Arg, A, M>(
+fn main<S, A>(
     mut supervisor: S,
     actor: A,
-    mut arg: Arg,
-    inbox: inbox::Manager<M>,
+    mut arg: A::Argument,
+    inbox: inbox::Manager<A::Message>,
     receiver: unix::pipe::Receiver,
     mut trace_log: Option<trace::Log>,
 ) where
     S: SyncSupervisor<A> + 'static,
-    A: SyncActor<Message = M, Argument = Arg, Error = E>,
+    A: SyncActor,
 {
     trace!("running synchronous actor");
     loop {
