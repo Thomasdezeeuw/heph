@@ -6,7 +6,11 @@ use std::sync::Arc;
 use mio::Poll;
 
 use crate::actor_ref::ActorRef;
-use crate::rt::{shared, LocalScheduler, Signal, Timers, WakerId};
+use crate::rt::{shared, Signal, Timers, WakerId};
+
+mod scheduler;
+
+pub(super) use scheduler::Scheduler;
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
@@ -16,7 +20,7 @@ pub(super) struct RuntimeInternals {
     /// Waker id used to create a `Waker` for thread-local actors.
     pub(crate) waker_id: WakerId,
     /// Scheduler for thread-local actors.
-    pub(crate) scheduler: RefCell<LocalScheduler>,
+    pub(crate) scheduler: RefCell<Scheduler>,
     /// OS poll, used for event notifications to support non-blocking I/O.
     pub(crate) poll: RefCell<Poll>,
     /// Timers, deadlines and timeouts.

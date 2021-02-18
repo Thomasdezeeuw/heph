@@ -36,7 +36,6 @@ mod timers;
 
 pub(crate) mod access;
 pub(crate) mod channel;
-pub(crate) mod scheduler;
 pub(crate) mod shared;
 pub(crate) mod sync_worker;
 pub(crate) mod thread_waker;
@@ -56,7 +55,6 @@ pub use setup::Setup;
 pub use signal::Signal;
 
 use coordinator::Coordinator;
-use scheduler::LocalScheduler;
 use sync_worker::SyncWorker;
 use waker::{WakerId, MAX_THREADS};
 use worker::Worker;

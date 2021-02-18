@@ -26,17 +26,17 @@ use inactive::Inactive;
 
 type ProcessData = process::ProcessData<dyn process::Process>;
 
-pub(crate) struct LocalScheduler {
+pub(crate) struct Scheduler {
     /// Processes that are ready to run.
     ready: BinaryHeap<Pin<Box<ProcessData>>>,
     /// Processes that are not ready to run.
     inactive: Inactive,
 }
 
-impl LocalScheduler {
-    /// Create a new `LocalScheduler`.
-    pub(crate) fn new() -> LocalScheduler {
-        LocalScheduler {
+impl Scheduler {
+    /// Create a new `Scheduler`.
+    pub(crate) fn new() -> Scheduler {
+        Scheduler {
             ready: BinaryHeap::new(),
             inactive: Inactive::empty(),
         }
@@ -80,15 +80,15 @@ impl LocalScheduler {
     }
 
     /// Add back a process that was previously removed via
-    /// [`LocalScheduler::next_process`].
+    /// [`Scheduler::next_process`].
     pub(crate) fn add_process(&mut self, process: Pin<Box<ProcessData>>) {
         self.inactive.add(process);
     }
 }
 
-impl fmt::Debug for LocalScheduler {
+impl fmt::Debug for Scheduler {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("LocalScheduler")
+        f.write_str("Scheduler")
     }
 }
 
@@ -97,7 +97,7 @@ impl fmt::Debug for LocalScheduler {
 /// This allows the `ProcessId` to be determined before the process is actually
 /// added. This is used in registering with the system poller.
 pub(crate) struct AddActor<'s> {
-    scheduler: &'s mut LocalScheduler,
+    scheduler: &'s mut Scheduler,
     /// Already allocated `ProcessData`, used to determine the `ProcessId`.
     alloc: Box<MaybeUninit<ProcessData>>,
 }
