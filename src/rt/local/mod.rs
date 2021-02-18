@@ -30,3 +30,23 @@ pub(super) struct RuntimeInternals {
     /// CPU affinity of the worker thread, or `None` if not set.
     pub(crate) cpu: Option<usize>,
 }
+
+impl RuntimeInternals {
+    /// Create a local runtime internals.
+    pub(super) fn new(
+        shared_internals: Arc<shared::RuntimeInternals>,
+        waker_id: WakerId,
+        poll: Poll,
+        cpu: Option<usize>,
+    ) -> RuntimeInternals {
+        RuntimeInternals {
+            shared: shared_internals,
+            waker_id,
+            scheduler: RefCell::new(Scheduler::new()),
+            poll: RefCell::new(poll),
+            timers: RefCell::new(Timers::new()),
+            signal_receivers: RefCell::new(Vec::new()),
+            cpu,
+        }
+    }
+}

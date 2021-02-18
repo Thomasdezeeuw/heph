@@ -1,6 +1,5 @@
 //! Worker thread code.
 
-use std::cell::RefCell;
 #[cfg(target_os = "linux")]
 use std::mem;
 use std::num::NonZeroUsize;
@@ -16,10 +15,8 @@ use log::{debug, error, trace};
 use mio::{Events, Poll, Registry, Token};
 
 use crate::rt::error::StringError;
-use crate::rt::local::Scheduler;
 use crate::rt::process::ProcessResult;
 use crate::rt::thread_waker::ThreadWaker;
-use crate::rt::timers::Timers;
 use crate::rt::waker::WakerId;
 use crate::rt::{self, local, shared, ProcessId, RuntimeRef, Signal};
 use crate::trace;
@@ -326,17 +323,10 @@ impl RunningRuntime {
         channel.register(setup.poll.registry(), COORDINATOR)?;
 
         // Finally create all the runtime internals.
-        let internal = local::RuntimeInternals {
-            shared: shared_internals,
-            waker_id: setup.waker_id,
-            scheduler: RefCell::new(Scheduler::new()),
-            poll: RefCell::new(setup.poll),
-            timers: RefCell::new(Timers::new()),
-            signal_receivers: RefCell::new(Vec::new()),
-            cpu,
-        };
+        let internals =
+            local::RuntimeInternals::new(shared_internals, setup.waker_id, setup.poll, cpu);
         Ok(RunningRuntime {
-            internal: Rc::new(internal),
+            internal: Rc::new(internals),
             events: Events::with_capacity(128),
             waker_events: setup.waker_events,
             channel,
