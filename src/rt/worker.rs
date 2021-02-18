@@ -282,7 +282,7 @@ impl std::error::Error for Error {
 #[derive(Debug)]
 pub(crate) struct RunningRuntime {
     /// Inside of the runtime, shared with zero or more `RuntimeRef`s.
-    internal: Rc<local::RuntimeInternals>,
+    internals: Rc<local::RuntimeInternals>,
     /// Mio events container.
     events: Events,
     /// Receiving side of the channel for `Waker` events.
@@ -326,7 +326,7 @@ impl RunningRuntime {
         let internals =
             local::RuntimeInternals::new(shared_internals, setup.waker_id, setup.poll, cpu);
         Ok(RunningRuntime {
-            internal: Rc::new(internals),
+            internals: Rc::new(internals),
             events: Events::with_capacity(128),
             waker_events: setup.waker_events,
             channel,
@@ -362,7 +362,7 @@ impl RunningRuntime {
                 // process. This allow a `RuntimeRef` to also mutable borrow the
                 // `Scheduler` to add new actors to it.
 
-                let process = self.internal.scheduler.borrow_mut().next_process();
+                let process = self.internals.scheduler.borrow_mut().next_process();
                 if let Some(mut process) = process {
                     let timing = trace::start(trace_log);
                     let pid = process.as_ref().id();
@@ -370,7 +370,7 @@ impl RunningRuntime {
                     match process.as_mut().run(&mut runtime_ref) {
                         ProcessResult::Complete => {}
                         ProcessResult::Pending => {
-                            self.internal.scheduler.borrow_mut().add_process(process);
+                            self.internals.scheduler.borrow_mut().add_process(process);
                         }
                     }
                     trace::finish(
@@ -383,17 +383,17 @@ impl RunningRuntime {
                     continue;
                 }
 
-                let process = self.internal.shared.remove_process();
+                let process = self.internals.shared.remove_process();
                 if let Some(mut process) = process {
                     let timing = trace::start(trace_log);
                     let pid = process.as_ref().id();
                     let name = process.as_ref().name();
                     match process.as_mut().run(&mut runtime_ref) {
                         ProcessResult::Complete => {
-                            self.internal.shared.complete(process);
+                            self.internals.shared.complete(process);
                         }
                         ProcessResult::Pending => {
-                            self.internal.shared.add_process(process);
+                            self.internals.shared.add_process(process);
                         }
                     }
                     trace::finish(
@@ -406,8 +406,8 @@ impl RunningRuntime {
                     continue;
                 }
 
-                if !self.internal.scheduler.borrow().has_process()
-                    && !self.internal.shared.has_process()
+                if !self.internals.scheduler.borrow().has_process()
+                    && !self.internals.shared.has_process()
                     // Don't want to exit before the runtime was started.
                     && self.started
                 {
@@ -437,7 +437,7 @@ impl RunningRuntime {
 
         // Based on the OS event scheduler thread-local processes.
         let timing = trace::start(trace_log);
-        let mut scheduler = self.internal.scheduler.borrow_mut();
+        let mut scheduler = self.internals.scheduler.borrow_mut();
         let mut check_coordinator = false;
         for event in self.events.iter() {
             trace!("OS event: {:?}", event);
@@ -465,7 +465,7 @@ impl RunningRuntime {
         // User space timers, powers the `timer` module.
         trace!("polling timers");
         let timing = trace::start(trace_log);
-        for pid in self.internal.timers.borrow_mut().deadlines() {
+        for pid in self.internals.timers.borrow_mut().deadlines() {
             scheduler.mark_ready(pid);
         }
         trace::finish(
@@ -492,7 +492,7 @@ impl RunningRuntime {
 
         // Only mark ourselves as polling if the timeout is non zero.
         let mark_waker = if timeout.map_or(true, |t| !t.is_zero()) {
-            rt::waker::mark_polling(self.internal.waker_id, true);
+            rt::waker::mark_polling(self.internals.waker_id, true);
             true
         } else {
             false
@@ -500,13 +500,13 @@ impl RunningRuntime {
 
         trace!("polling OS: timeout={:?}", timeout);
         let res = self
-            .internal
+            .internals
             .poll
             .borrow_mut()
             .poll(&mut self.events, timeout);
 
         if mark_waker {
-            rt::waker::mark_polling(self.internal.waker_id, false);
+            rt::waker::mark_polling(self.internals.waker_id, false);
         }
 
         res
@@ -516,12 +516,12 @@ impl RunningRuntime {
     fn determine_timeout(&self) -> Option<Duration> {
         // If there are any processes ready to run, any waker events or user
         // space events we don't want to block.
-        if self.internal.scheduler.borrow().has_ready_process()
+        if self.internals.scheduler.borrow().has_ready_process()
             || !self.waker_events.is_empty()
-            || self.internal.shared.has_ready_process()
+            || self.internals.shared.has_ready_process()
         {
             Some(Duration::ZERO)
-        } else if let Some(deadline) = self.internal.timers.borrow().next_deadline() {
+        } else if let Some(deadline) = self.internals.timers.borrow().next_deadline() {
             let now = Instant::now();
             if deadline <= now {
                 // Deadline has already expired, so no blocking.
@@ -548,7 +548,7 @@ impl RunningRuntime {
                 Signal(signal) => {
                     let timing = trace::start(trace_log);
                     trace!("received process signal: {:?}", signal);
-                    let mut receivers = self.internal.signal_receivers.borrow_mut();
+                    let mut receivers = self.internals.signal_receivers.borrow_mut();
 
                     if receivers.is_empty() && signal.should_stop() {
                         error!(
