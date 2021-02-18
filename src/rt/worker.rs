@@ -16,8 +16,8 @@ use log::{debug, error, trace};
 use mio::{Events, Poll, Registry, Token};
 
 use crate::rt::error::StringError;
+use crate::rt::local::Scheduler;
 use crate::rt::process::ProcessResult;
-use crate::rt::scheduler::LocalScheduler;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::timers::Timers;
 use crate::rt::waker::WakerId;
@@ -329,7 +329,7 @@ impl RunningRuntime {
         let internal = local::RuntimeInternals {
             shared: shared_internals,
             waker_id: setup.waker_id,
-            scheduler: RefCell::new(LocalScheduler::new()),
+            scheduler: RefCell::new(Scheduler::new()),
             poll: RefCell::new(setup.poll),
             timers: RefCell::new(Timers::new()),
             signal_receivers: RefCell::new(Vec::new()),

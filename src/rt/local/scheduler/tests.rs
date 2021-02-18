@@ -7,8 +7,9 @@ use std::pin::Pin;
 use std::rc::Rc;
 
 use crate::actor::{self, context, NewActor};
+use crate::rt::local::scheduler::{ProcessData, Scheduler};
+use crate::rt::options::Priority;
 use crate::rt::process::{Process, ProcessId, ProcessResult};
-use crate::rt::scheduler::{LocalScheduler, Priority, ProcessData};
 use crate::rt::RuntimeRef;
 use crate::supervisor::NoSupervisor;
 use crate::test::{self, init_local_actor_with_inbox, AssertUnmoved};
@@ -37,7 +38,7 @@ impl Process for NopTestProcess {
 
 #[test]
 fn has_process() {
-    let mut scheduler = LocalScheduler::new();
+    let mut scheduler = Scheduler::new();
     assert!(!scheduler.has_process());
     assert!(!scheduler.has_ready_process());
 
@@ -54,7 +55,7 @@ async fn simple_actor(_: actor::Context<!>) {}
 
 #[test]
 fn add_actor() {
-    let mut scheduler = LocalScheduler::new();
+    let mut scheduler = Scheduler::new();
 
     let actor_entry = scheduler.add_actor();
     let new_actor = simple_actor as fn(_) -> _;
@@ -73,7 +74,7 @@ fn add_actor() {
 
 #[test]
 fn mark_ready() {
-    let mut scheduler = LocalScheduler::new();
+    let mut scheduler = Scheduler::new();
 
     // Incorrect (outdated) pid should be ok.
     scheduler.mark_ready(ProcessId(1));
@@ -98,7 +99,7 @@ fn mark_ready() {
 
 #[test]
 fn next_process() {
-    let mut scheduler = LocalScheduler::new();
+    let mut scheduler = Scheduler::new();
 
     let actor_entry = scheduler.add_actor();
     let pid = actor_entry.pid();
@@ -125,7 +126,7 @@ fn next_process() {
 
 #[test]
 fn next_process_order() {
-    let mut scheduler = LocalScheduler::new();
+    let mut scheduler = Scheduler::new();
 
     let new_actor = simple_actor as fn(_) -> _;
     // Actor 1.
@@ -174,7 +175,7 @@ fn next_process_order() {
 
 #[test]
 fn add_process() {
-    let mut scheduler = LocalScheduler::new();
+    let mut scheduler = Scheduler::new();
 
     let actor_entry = scheduler.add_actor();
     let pid = actor_entry.pid();
@@ -202,7 +203,7 @@ fn add_process() {
 
 #[test]
 fn add_process_marked_ready() {
-    let mut scheduler = LocalScheduler::new();
+    let mut scheduler = Scheduler::new();
 
     let actor_entry = scheduler.add_actor();
     let pid = actor_entry.pid();
@@ -231,7 +232,7 @@ fn add_process_marked_ready() {
 
 #[test]
 fn scheduler_run_order() {
-    let mut scheduler = LocalScheduler::new();
+    let mut scheduler = Scheduler::new();
     let mut runtime_ref = test::runtime();
 
     // The order in which the processes have been run.
@@ -292,7 +293,7 @@ impl NewActor for TestAssertUnmovedNewActor {
 
 #[test]
 fn assert_process_unmoved() {
-    let mut scheduler = LocalScheduler::new();
+    let mut scheduler = Scheduler::new();
     let mut runtime_ref = test::runtime();
 
     let (actor, inbox, _) = init_local_actor_with_inbox(TestAssertUnmovedNewActor, ()).unwrap();

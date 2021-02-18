@@ -4,8 +4,8 @@ use std::mem::{forget, replace};
 use std::pin::Pin;
 use std::ptr::NonNull;
 
+use crate::rt::local::scheduler::ProcessData;
 use crate::rt::process::ProcessId;
-use crate::rt::scheduler::ProcessData;
 
 /// Number of branches per level of the tree, must be a power of 2.
 const N_BRANCHES: usize = 16;
@@ -314,8 +314,8 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
+    use crate::rt::options::Priority;
     use crate::rt::process::{Process, ProcessId, ProcessResult};
-    use crate::rt::scheduler::Priority;
     use crate::rt::RuntimeRef;
 
     use super::{
