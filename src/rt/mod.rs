@@ -393,7 +393,7 @@ where
 #[derive(Clone, Debug)]
 pub struct RuntimeRef {
     /// A shared reference to the runtime's internals.
-    internal: Rc<local::RuntimeInternals>,
+    internals: Rc<local::RuntimeInternals>,
 }
 
 impl RuntimeRef {
@@ -478,7 +478,7 @@ impl RuntimeRef {
     ///
     /// [process signals]: Signal
     pub fn receive_signals(&mut self, actor_ref: ActorRef<Signal>) {
-        self.internal.signal_receivers.borrow_mut().push(actor_ref)
+        self.internals.signal_receivers.borrow_mut().push(actor_ref)
     }
 
     /// Register an `event::Source`, see [`mio::Registry::register`].
@@ -491,7 +491,7 @@ impl RuntimeRef {
     where
         S: event::Source + ?Sized,
     {
-        self.internal
+        self.internals
             .poll
             .borrow()
             .registry()
@@ -508,7 +508,7 @@ impl RuntimeRef {
     where
         S: event::Source + ?Sized,
     {
-        self.internal
+        self.internals
             .poll
             .borrow()
             .registry()
@@ -521,13 +521,13 @@ impl RuntimeRef {
     ///
     /// Prefer `new_waker` if possible, only use `task::Waker` for `Future`s.
     pub(crate) fn new_local_task_waker(&self, pid: ProcessId) -> task::Waker {
-        waker::new(self.internal.waker_id, pid)
+        waker::new(self.internals.waker_id, pid)
     }
 
     /// Same as [`RuntimeRef::new_local_task_waker`] but provides a waker
     /// implementation for thread-safe actors.
     pub(crate) fn new_shared_task_waker(&self, pid: ProcessId) -> task::Waker {
-        self.internal.shared.new_task_waker(pid)
+        self.internals.shared.new_task_waker(pid)
     }
 
     /// Add a deadline to the event sources.
@@ -535,7 +535,7 @@ impl RuntimeRef {
     /// This is used in the `timer` crate.
     pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         trace!("adding deadline: pid={}, deadline={:?}", pid, deadline);
-        self.internal
+        self.internals
             .timers
             .borrow_mut()
             .add_deadline(pid, deadline);
@@ -543,11 +543,11 @@ impl RuntimeRef {
 
     /// Returns a copy of the shared internals.
     pub(crate) fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
-        self.internal.shared.clone()
+        self.internals.shared.clone()
     }
 
     pub(crate) fn cpu(&self) -> Option<usize> {
-        self.internal.cpu
+        self.internals.cpu
     }
 }
 
@@ -569,7 +569,7 @@ impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef {
             FnOnce(&mut actor::Context<NA::Message, ThreadLocal>) -> Result<NA::Argument, ArgFnE>,
     {
         // Setup adding a new process to the scheduler.
-        let mut scheduler = self.internal.scheduler.borrow_mut();
+        let mut scheduler = self.internals.scheduler.borrow_mut();
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
         let name = actor::name::<NA::Actor>();
@@ -626,7 +626,7 @@ where
         NA::Actor: 'static,
         ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
     {
-        self.internal
+        self.internals
             .shared
             .spawn_setup(supervisor, new_actor, arg_fn, options)
     }

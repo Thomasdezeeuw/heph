@@ -337,7 +337,7 @@ impl RunningRuntime {
     /// Create a new reference to this runtime.
     pub(crate) fn create_ref(&self) -> RuntimeRef {
         RuntimeRef {
-            internal: self.internal.clone(),
+            internals: self.internals.clone(),
         }
     }
 
