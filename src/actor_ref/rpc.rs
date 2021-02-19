@@ -189,6 +189,20 @@ where
             recv: receiver.recv_once(),
         }
     }
+
+    pub fn new2<Req>(request: Req) -> (RpcMessage<Req, Res>, Rpc<'static, 'static, M, Res>)
+    where
+        M: From<RpcMessage<Req, Res>>,
+    {
+        let (sender, receiver) = new_oneshot();
+        let response = RpcResponse { sender };
+        let msg = RpcMessage { request, response };
+        let rpc = Rpc {
+            send: None,
+            recv: receiver.recv_once(),
+        };
+        (msg, rpc)
+    }
 }
 
 impl<'r, 'fut, M, Res> Future for Rpc<'r, 'fut, M, Res> {
