@@ -1,14 +1,15 @@
 //! Tests for the internal API.
 
 use std::future::Future;
-use std::mem::size_of;
+use std::mem::{size_of, size_of_val};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{self, Poll, Wake};
 
 use crate::{
-    has_status, new_small, receiver_pos, slot_status, Channel, Join, SendValue, ALL_STATUSES_MASK,
-    EMPTY, FILLED, MARK_EMPTIED, MARK_NEXT_POS, MARK_READING, POS_BITS, READING, SMALL_CAP, TAKEN,
+    has_status, new_small, receiver_pos, slot_status, Channel, Join, Receiver, SendValue, Sender,
+    ALL_STATUSES_MASK, EMPTY, FILLED, MARK_EMPTIED, MARK_NEXT_POS, MARK_READING, POS_BITS, READING,
+    SMALL_CAP, TAKEN,
 };
 
 /// Number of times the waker was awoken.
@@ -50,9 +51,12 @@ fn new_count_waker() -> (task::Waker, AwokenCount) {
 
 #[test]
 fn size_assertions() {
-    assert_eq!(size_of::<Channel<()>>(), 112);
-    assert_eq!(size_of::<SendValue<()>>(), 32);
-    assert_eq!(size_of::<Join<()>>(), 24);
+    let channel = unsafe { Box::from_raw(Channel::<()>::new(0).as_ptr()) };
+    assert_eq!(size_of_val(&**channel), 112);
+    assert_eq!(size_of::<Sender<()>>(), 16);
+    assert_eq!(size_of::<Receiver<()>>(), 16);
+    assert_eq!(size_of::<SendValue<()>>(), 40);
+    assert_eq!(size_of::<Join<()>>(), 32);
 }
 
 #[test]
@@ -201,15 +205,19 @@ fn test_receiver_pos() {
     }
 }
 
+fn test_channel() -> Box<Channel<usize>> {
+    unsafe { Box::from_raw(Channel::new(SMALL_CAP).as_ptr()) }
+}
+
 #[test]
 fn channel_next_sender_waker_none() {
-    let channel = Channel::<usize>::new();
+    let channel = test_channel();
     channel.wake_next_sender();
 }
 
 #[test]
 fn channel_next_sender_waker_single_waker() {
-    let channel = Channel::<usize>::new();
+    let channel = test_channel();
     let (waker, count) = new_count_waker();
 
     channel.sender_wakers.lock().push(waker);
@@ -221,7 +229,7 @@ fn channel_next_sender_waker_single_waker() {
 
 #[test]
 fn channel_next_sender_waker_two_wakers() {
-    let channel = Channel::<usize>::new();
+    let channel = test_channel();
 
     let (waker1, count1) = new_count_waker();
     let (waker2, count2) = new_count_waker();
@@ -243,7 +251,7 @@ fn channel_next_sender_waker_two_wakers() {
 
 #[test]
 fn channel_next_sender_waker_three_wakers() {
-    let channel = Channel::<usize>::new();
+    let channel = test_channel();
 
     let (waker1, count1) = new_count_waker();
     let (waker2, count2) = new_count_waker();
