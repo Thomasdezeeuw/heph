@@ -172,6 +172,31 @@ fn extend_actor_group() {
 }
 
 #[test]
+fn remove() {
+    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let mut actor_refs = Vec::new();
+    let mut group = ActorGroup::empty();
+    for _ in 0..3 {
+        let (_, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
+        actor_refs.push(actor_ref.clone());
+        group.add(actor_ref);
+    }
+
+    assert_eq!(group.len(), actor_refs.len());
+
+    // Remove an unknown actor ref should do nothing.
+    let (_, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
+    group.remove(actor_ref);
+    assert_eq!(group.len(), actor_refs.len());
+
+    let mut iter = actor_refs.into_iter();
+    while let Some(actor_ref) = iter.next() {
+        group.remove(actor_ref);
+        assert_eq!(group.len(), iter.len());
+    }
+}
+
+#[test]
 fn remove_disconnected() {
     let mut actors = Vec::new();
     let mut group = ActorGroup::empty();

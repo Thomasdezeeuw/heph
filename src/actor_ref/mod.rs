@@ -547,6 +547,13 @@ impl<M> ActorGroup<M> {
         self.actor_refs.push(actor_ref)
     }
 
+    /// Remove all actor references which point to the same actor as
+    /// `actor_ref`.
+    pub fn remove(&mut self, actor_ref: ActorRef<M>) {
+        let id = actor_ref.id();
+        self.actor_refs.retain(|a| a.id() != id);
+    }
+
     /// Remove all actor references that have been disconnected.
     pub fn remove_disconnected(&mut self) {
         self.actor_refs.retain(ActorRef::is_connected);
