@@ -129,6 +129,32 @@ fn add_actor_to_group() {
 }
 
 #[test]
+fn add_unique() {
+    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
+    let mut actors = Vec::new();
+    let mut group = ActorGroup::empty();
+    let mut add_later = Vec::new();
+    const N: usize = 3;
+    for _ in 0..N {
+        let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
+        actors.push(Box::pin(actor));
+        group.add_unique(actor_ref.clone());
+        group.add_unique(actor_ref.clone());
+        add_later.push(actor_ref);
+    }
+    for actor_ref in add_later.into_iter().rev() {
+        group.add_unique(actor_ref);
+    }
+
+    assert_eq!(group.len(), N);
+
+    group.try_send(123usize, Delivery::ToAll).unwrap();
+    for mut actor in actors {
+        assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+    }
+}
+
+#[test]
 fn extend_empty_actor_group() {
     let mut group = ActorGroup::<usize>::empty();
 
