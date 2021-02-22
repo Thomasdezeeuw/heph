@@ -307,6 +307,19 @@ impl<M> ActorRef<M> {
             Mapped(actor_ref) => actor_ref.is_connected(),
         }
     }
+
+    /// Returns true if `self` and `other` send messages to the same actor.
+    pub fn sends_to<Msg>(&self, other: &ActorRef<Msg>) -> bool {
+        self.id() == other.id()
+    }
+
+    fn id(&self) -> inbox::Id {
+        use ActorRefKind::*;
+        match &self.kind {
+            Local(sender) => sender.id(),
+            Mapped(actor_ref) => actor_ref.id(),
+        }
+    }
 }
 
 impl<M> Clone for ActorRef<M> {
@@ -345,6 +358,8 @@ trait MappedActorRef<M> {
         M: 'fut;
 
     fn is_connected(&self) -> bool;
+
+    fn id(&self) -> inbox::Id;
 }
 
 impl<M, Msg> MappedActorRef<Msg> for ActorRef<M>
@@ -374,6 +389,10 @@ where
 
     fn is_connected(&self) -> bool {
         self.is_connected()
+    }
+
+    fn id(&self) -> inbox::Id {
+        self.id()
     }
 }
 

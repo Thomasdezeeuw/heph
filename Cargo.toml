@@ -25,7 +25,7 @@ test = ["getrandom"]
 [dependencies]
 crossbeam-channel = { version = "0.5.0", default-features = false, features = ["std"] }
 # FIXME: use released version.
-inbox             = { git = "https://github.com/Thomasdezeeuw/inbox", rev = "6e11ff5d8bb947c93b5067f22071022baf8bd2d4" }
+inbox             = { git = "https://github.com/Thomasdezeeuw/inbox", rev = "38ca9a6601a50d56c5719fac079ae5e7efc20874" }
 libc              = { version = "0.2.79", default-features = false }
 log               = { version = "0.4.8", default-features = false }
 mio               = { version = "0.7.5", default-features = false, features = ["os-poll", "tcp", "udp", "pipe"] }

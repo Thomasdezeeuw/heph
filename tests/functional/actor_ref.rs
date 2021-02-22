@@ -391,6 +391,31 @@ fn mapped_is_connected() {
 }
 
 #[test]
+fn sends_to() {
+    let expect_msgs = expect_msgs as fn(_, Vec<u16>) -> _;
+    let (_, actor_ref1a) = init_local_actor(expect_msgs, Vec::new()).unwrap();
+    let actor_ref1b: ActorRef<u16> = actor_ref1a.clone();
+    let actor_ref1c: ActorRef<u8> = actor_ref1a.clone().map();
+    let (_, actor_ref2a) = init_local_actor(expect_msgs, Vec::new()).unwrap();
+    let actor_ref2b = actor_ref2a.clone();
+    let actor_ref2c: ActorRef<u8> = actor_ref2a.clone().map();
+
+    assert!(actor_ref1a.sends_to(&actor_ref1a));
+    assert!(actor_ref1a.sends_to(&actor_ref1b));
+    assert!(actor_ref1a.sends_to(&actor_ref1c));
+    assert!(actor_ref2a.sends_to(&actor_ref2a));
+    assert!(actor_ref2a.sends_to(&actor_ref2b));
+    assert!(actor_ref2a.sends_to(&actor_ref2c));
+
+    assert!(!actor_ref1a.sends_to(&actor_ref2a));
+    assert!(!actor_ref1a.sends_to(&actor_ref2b));
+    assert!(!actor_ref1a.sends_to(&actor_ref2c));
+    assert!(!actor_ref2a.sends_to(&actor_ref1a));
+    assert!(!actor_ref2a.sends_to(&actor_ref1b));
+    assert!(!actor_ref2a.sends_to(&actor_ref1c));
+}
+
+#[test]
 fn send_error_format() {
     assert_eq!(format!("{}", SendError), "unable to send message");
 }
