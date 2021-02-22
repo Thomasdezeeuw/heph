@@ -559,6 +559,27 @@ impl<M> ActorGroup<M> {
         self.actor_refs.retain(ActorRef::is_connected);
     }
 
+    /// Make the group of actor references unique.
+    ///
+    /// Removes all duplicate actor references.
+    pub fn make_unique(&mut self) {
+        let mut i = 0;
+        while let Some(id) = self.actor_refs.get(i).map(ActorRef::id) {
+            let mut j = i + 1;
+            while let Some(other_id) = self.actor_refs.get(j).map(ActorRef::id) {
+                if id == other_id {
+                    // NOTE: don't update `j` as it's replaced with another
+                    // actor reference we haven't checked yet.
+                    drop(self.actor_refs.swap_remove(j));
+                } else {
+                    // Move the next actor reference.
+                    j += 1;
+                }
+            }
+            i += 1;
+        }
+    }
+
     /// Attempts to send a message to all the actors in the group.
     ///
     /// This can either send the message to a single actor, by using

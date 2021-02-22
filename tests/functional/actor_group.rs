@@ -222,6 +222,59 @@ fn remove_disconnected() {
 }
 
 #[test]
+fn make_unique() {
+    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
+    let mut actors = Vec::new();
+    let mut group = ActorGroup::empty();
+    let mut add_later = Vec::new();
+    const N: usize = 3;
+    for _ in 0..N {
+        let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
+        actors.push(Box::pin(actor));
+        group.add(actor_ref.clone());
+        group.add(actor_ref.clone());
+        add_later.push(actor_ref);
+    }
+    for actor_ref in add_later.into_iter().rev() {
+        group.add(actor_ref);
+    }
+
+    assert_eq!(group.len(), 3 * N);
+    group.make_unique();
+    assert_eq!(group.len(), N);
+
+    group.try_send(123usize, Delivery::ToAll).unwrap();
+    for mut actor in actors {
+        assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+    }
+}
+
+#[test]
+fn make_unique_empty() {
+    let mut group = ActorGroup::<()>::empty();
+    assert_eq!(group.len(), 0);
+    group.make_unique();
+    assert_eq!(group.len(), 0);
+}
+
+#[test]
+fn make_unique_one() {
+    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
+    let mut group = ActorGroup::empty();
+    let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
+    let mut actor = Box::pin(actor);
+    group.add(actor_ref.clone());
+    group.add(actor_ref);
+
+    assert_eq!(group.len(), 2);
+    group.make_unique();
+    assert_eq!(group.len(), 1);
+
+    group.try_send(123usize, Delivery::ToAll).unwrap();
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+}
+
+#[test]
 fn send_delivery_to_all() {
     let mut actors = Vec::new();
     let mut group = ActorGroup::empty();
