@@ -52,8 +52,6 @@
 //! receiver_handle.join().unwrap();
 //! ```
 
-// TODO: support larger channel, with more slots.
-
 #![feature(cfg_sanitize, maybe_uninit_extra)]
 #![warn(
     missing_debug_implementations,
@@ -103,12 +101,28 @@ use waker::WakerRegistration;
 
 /// The capacity of a small channel.
 const SMALL_CAP: usize = 8;
-/// Maximum capacity of a channel, see [`Channel::new`].
-const MAX_CAP: usize = 29;
+/// Maximum capacity of a channel.
+// NOTE: see [`Channel::new`] why.
+pub const MAX_CAP: usize = 29;
+/// Minimum capacity of a channel.
+pub const MIN_CAP: usize = 1;
 
 /// Create a small bounded channel.
 pub fn new_small<T>() -> (Sender<T>, Receiver<T>) {
-    let channel = Channel::new(SMALL_CAP);
+    new(SMALL_CAP)
+}
+
+/// Create a new bounded channel.
+///
+/// The `capacity` must be in the range [`MIN_CAP`]`..=`[`MAX_CAP`].
+pub fn new<T>(capacity: usize) -> (Sender<T>, Receiver<T>) {
+    assert!(
+        (MIN_CAP..=MAX_CAP).contains(&capacity),
+        "inbox channel capacity must be between {} and {}",
+        MIN_CAP,
+        MAX_CAP
+    );
+    let channel = Channel::new(capacity);
     let sender = Sender { channel };
     let receiver = Receiver { channel };
     (sender, receiver)
@@ -214,14 +228,12 @@ fn dbg_status(slot_status: u64) -> &'static str {
 }
 
 // Bits to mark the position of the receiver.
-const POS_BITS: u64 = 6; // Must be `2 ^ POS_BITS >= MAX_CAP`.
-const POS_MASK: u64 = (1 << POS_BITS) - 1;
 const MARK_NEXT_POS: u64 = 1 << (STATUS_BITS * MAX_CAP as u64); // Add to increase position by 1.
 
-/// Returns the position of the receiver. Will be in 0..MAX_CAP range.
+/// Returns the position of the receiver. Will be in 0..[`MAX_CAP`] range.
 #[inline(always)]
 fn receiver_pos(status: u64, capacity: usize) -> usize {
-    (status >> (STATUS_BITS * MAX_CAP as u64) & POS_MASK) as usize % capacity
+    (status >> (STATUS_BITS * MAX_CAP as u64)) as usize % capacity
 }
 
 /// Sending side of the channel.
@@ -914,7 +926,7 @@ struct Inner {
     ///
     /// The first `STATUS_BITS * MAX_CAP` bits are the statuses for the `slots`
     /// field. The remaining bits are used by the `Sender` to indicate its
-    /// current reading position (modulo `MAX_CAP`).
+    /// current reading position (modulo [`MAX_CAP`]).
     status: AtomicU64,
     /// The number of senders alive. If the [`RECEIVER_ALIVE`] bit is set the
     /// [`Receiver`] is alive. If the [`MANAGER_ALIVE`] bit is the [`Manager`]
@@ -933,20 +945,21 @@ unsafe impl<T> Sync for Channel<T> {}
 impl<T> Channel<T> {
     /// Allocates a new `Channel` on the heap.
     ///
-    /// `length` must small enough to ensure each slot has 2 bits for the
-    /// status, while ensuring that the remaining bits can store `length` (in
+    /// `capacity` must small enough to ensure each slot has 2 bits for the
+    /// status, while ensuring that the remaining bits can store `capacity` (in
     /// binary) to keep track of the reading position. This means following must
-    /// hold true where $N is length: `2 ^ (64 - ($N * 2)) >= $N`. The maximum
+    /// hold true where $N is capacity: `2 ^ (64 - ($N * 2)) >= $N`. The maximum
     /// is 29.
     ///
     /// Marks a single [`Receiver`] and [`Sender`] as alive.
-    fn new(length: usize) -> NonNull<Channel<T>> {
-        assert!(length <= MAX_CAP, "length too large");
+    fn new(capacity: usize) -> NonNull<Channel<T>> {
+        assert!(capacity >= MIN_CAP, "capacity can't be zero");
+        assert!(capacity <= MAX_CAP, "capacity too large");
 
         // Allocate some raw bytes.
         // Safety: returns an error on arithmetic overflow, but it should be OK
-        // with a length <= MAX_CAP.
-        let (layout, _) = Layout::array::<UnsafeCell<MaybeUninit<T>>>(length)
+        // with a capacity <= MAX_CAP.
+        let (layout, _) = Layout::array::<UnsafeCell<MaybeUninit<T>>>(capacity)
             .and_then(|slots_layout| Layout::new::<Inner>().extend(slots_layout))
             .unwrap();
         // Safety: we check if the allocation is successful.
@@ -954,7 +967,7 @@ impl<T> Channel<T> {
         if ptr.is_null() {
             handle_alloc_error(layout);
         }
-        let ptr = ptr::slice_from_raw_parts_mut(ptr as *mut T, length) as *mut Channel<T>;
+        let ptr = ptr::slice_from_raw_parts_mut(ptr as *mut T, capacity) as *mut Channel<T>;
 
         // Initialise all fields (that need it).
         unsafe {
@@ -1071,7 +1084,14 @@ impl<T> Manager<T> {
     ///
     /// Same as [`new_small`] but with a `Manager`.
     pub fn new_small_channel() -> (Manager<T>, Sender<T>, Receiver<T>) {
-        let (sender, receiver) = new_small();
+        Manager::new_channel(SMALL_CAP)
+    }
+
+    /// Create a bounded channel with a `Manager`.
+    ///
+    /// Same as [`new`] but with a `Manager`.
+    pub fn new_channel(capacity: usize) -> (Manager<T>, Sender<T>, Receiver<T>) {
+        let (sender, receiver) = new(capacity);
         let old_count = sender
             .channel()
             .ref_count

@@ -8,8 +8,8 @@ use std::task::{self, Poll, Wake};
 
 use crate::{
     has_status, new_small, receiver_pos, slot_status, Channel, Join, Receiver, SendValue, Sender,
-    ALL_STATUSES_MASK, EMPTY, FILLED, MARK_EMPTIED, MARK_NEXT_POS, MARK_READING, MAX_CAP, POS_BITS,
-    READING, SMALL_CAP, TAKEN,
+    ALL_STATUSES_MASK, EMPTY, FILLED, MARK_EMPTIED, MARK_NEXT_POS, MARK_READING, READING,
+    SMALL_CAP, TAKEN,
 };
 
 /// Number of times the waker was awoken.
@@ -51,7 +51,7 @@ fn new_count_waker() -> (task::Waker, AwokenCount) {
 
 #[test]
 fn size_assertions() {
-    let channel = unsafe { Box::from_raw(Channel::<()>::new(0).as_ptr()) };
+    let channel = unsafe { Box::from_raw(Channel::<()>::new(1).as_ptr()) };
     assert_eq!(size_of_val(&**channel), 112);
     assert_eq!(size_of::<Sender<()>>(), 16);
     assert_eq!(size_of::<Receiver<()>>(), 16);
@@ -63,9 +63,6 @@ fn size_assertions() {
 fn assertions() {
     // Various assertions that must be true for the channel to work
     // correctly.
-
-    // Enough bits for the statuses of the slots.
-    assert!(2_usize.pow(POS_BITS as u32) >= MAX_CAP);
 
     // Status are different.
     assert_ne!(EMPTY, TAKEN);
