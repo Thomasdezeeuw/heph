@@ -547,6 +547,17 @@ impl<M> ActorGroup<M> {
         self.actor_refs.push(actor_ref)
     }
 
+    /// Add an `ActorRef` to the group, iff it's not already in the group.
+    pub fn add_unique(&mut self, actor_ref: ActorRef<M>) {
+        let id = actor_ref.id();
+        for actor_ref in &self.actor_refs {
+            if actor_ref.id() == id {
+                return;
+            }
+        }
+        self.actor_refs.push(actor_ref)
+    }
+
     /// Remove all actor references which point to the same actor as
     /// `actor_ref`.
     pub fn remove(&mut self, actor_ref: ActorRef<M>) {
