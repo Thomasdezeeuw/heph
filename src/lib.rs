@@ -271,6 +271,11 @@ impl<T> Sender<T> {
         self.channel().ref_count.load(Ordering::Relaxed) & !(RECEIVER_ALIVE | MANAGER_ALIVE) == 1
     }
 
+    /// Returns the id of this sender.
+    pub fn id(&self) -> Id {
+        Id(self.channel.as_ptr() as usize)
+    }
+
     fn channel(&self) -> &Channel<T> {
         unsafe { self.channel.as_ref() }
     }
@@ -629,6 +634,11 @@ impl<T> Receiver<T> {
     /// wake-up notification once messages are added to the inbox.
     pub fn register_waker(&mut self, waker: &task::Waker) -> bool {
         self.channel().receiver_waker.register(waker)
+    }
+
+    /// Returns the id of this receiver.
+    pub fn id(&self) -> Id {
+        Id(self.channel.as_ptr() as usize)
     }
 
     fn channel(&self) -> &Channel<T> {
@@ -1167,3 +1177,21 @@ impl<T> Drop for Manager<T> {
         unsafe { drop(Box::from_raw(self.channel.as_ptr())) }
     }
 }
+
+/// Identifier of a channel.
+///
+/// This type can be created by calling [`Sender::id`] or [`Receiver::id`] and
+/// be used to identify channels. It only use case is to compare two ids with
+/// one another, if two id are the same the sender(s) and receiver(s) point to
+/// the same channel.
+///
+/// # Notes
+///
+/// The id is only valid for the lifetime of the channel. Once the channel is
+/// dropped all ids of the channel are invalidated and might return incorrect
+/// results after.
+///
+/// The methods [`Sender::same_channel`] and [`Sender::sends_to`] should be
+/// preferred over using this type as they are less error-prone.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub struct Id(usize);

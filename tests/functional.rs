@@ -56,6 +56,28 @@ fn capacities_are_correct() {
 }
 
 #[test]
+fn identifiers() {
+    let (sender1a, receiver1a) = new_small::<()>();
+    let sender1b = sender1a.clone();
+    let (sender2a, receiver2a) = new_small::<()>();
+    let sender2b = sender2a.clone();
+
+    assert_eq!(sender1a.id(), sender1a.id());
+    assert_eq!(sender1a.id(), sender1b.id());
+    assert_eq!(sender1a.id(), receiver1a.id());
+    assert_eq!(receiver1a.id(), sender1a.id());
+    assert_eq!(receiver1a.id(), sender1b.id());
+    assert_eq!(receiver1a.id(), receiver1a.id());
+
+    assert_ne!(sender1a.id(), sender2a.id());
+    assert_ne!(sender1a.id(), sender2b.id());
+    assert_ne!(sender1a.id(), receiver2a.id());
+    assert_ne!(receiver1a.id(), sender2a.id());
+    assert_ne!(receiver1a.id(), sender2b.id());
+    assert_ne!(receiver1a.id(), receiver2a.id());
+}
+
+#[test]
 fn sending_and_receiving_value() {
     let (sender, mut receiver) = new_small::<usize>();
     sender.try_send(123).unwrap();
