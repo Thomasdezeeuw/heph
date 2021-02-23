@@ -1,7 +1,7 @@
 //! Module with timers.
 
 use std::cmp::Reverse;
-use std::collections::BinaryHeap;
+use std::collections::binary_heap::{BinaryHeap, PeekMut};
 use std::iter::FusedIterator;
 use std::time::Instant;
 
@@ -52,9 +52,9 @@ impl Timers {
 
     /// Remove the next deadline that passed `now` returning the pid.
     pub(super) fn remove_deadline(&mut self, now: Instant) -> Option<ProcessId> {
-        match self.deadlines.peek() {
+        match self.deadlines.peek_mut() {
             Some(deadline) if deadline.0.deadline <= now => {
-                let deadline = self.deadlines.pop().unwrap().0;
+                let deadline = PeekMut::pop(deadline).0;
                 Some(deadline.pid)
             }
             _ => None,
