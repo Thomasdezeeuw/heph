@@ -112,7 +112,7 @@ fn deadline() {
 fn interval() {
     async fn actor(mut ctx: actor::Context<!>) {
         let start = Instant::now();
-        let mut interval = Interval::new(&mut ctx, TIMEOUT);
+        let mut interval = Interval::every(&mut ctx, TIMEOUT);
         assert!(interval.next_deadline() >= start + TIMEOUT);
         let _ = next(&mut interval).await;
     }
@@ -147,7 +147,7 @@ fn triggered_timers_run_actors() {
     }
 
     async fn interval_actor(mut ctx: actor::Context<!>) {
-        let mut interval = Interval::new(&mut ctx, TIMEOUT);
+        let mut interval = Interval::every(&mut ctx, TIMEOUT);
         let _ = next(&mut interval).await;
     }
 
@@ -235,7 +235,7 @@ fn timers_actor_bound() {
     }
 
     async fn interval_actor1(mut ctx: actor::Context<!>, actor_ref: ActorRef<Interval>) {
-        let interval = Interval::new(&mut ctx, TIMEOUT);
+        let interval = Interval::every(&mut ctx, TIMEOUT);
         actor_ref.send(interval).await.unwrap();
     }
 

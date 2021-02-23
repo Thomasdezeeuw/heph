@@ -373,7 +373,7 @@ impl<Fut, K> actor::Bound<K> for Deadline<Fut> {
 ///
 /// async fn actor(mut ctx: actor::Context<!>) {
 /// #   let start = Instant::now();
-///     let mut interval = Interval::new(&mut ctx, Duration::from_millis(200));
+///     let mut interval = Interval::every(&mut ctx, Duration::from_millis(200));
 /// #   assert!(interval.next_deadline() >= start + Duration::from_millis(200));
 ///     loop {
 ///         // Wait until the next timer expires.
@@ -395,7 +395,7 @@ pub struct Interval {
 
 impl Interval {
     /// Create a new `Interval`.
-    pub fn new<M>(ctx: &mut actor::Context<M>, interval: Duration) -> Interval {
+    pub fn every<M>(ctx: &mut actor::Context<M>, interval: Duration) -> Interval {
         let deadline = Instant::now() + interval;
         let mut runtime_ref = ctx.runtime().clone();
         let pid = ctx.pid();
