@@ -26,7 +26,7 @@ fn deadline_passed_into_io_error() {
 fn timer() {
     async fn actor(mut ctx: actor::Context<!>) {
         let start = Instant::now();
-        let mut timer = Timer::timeout(&mut ctx, TIMEOUT);
+        let mut timer = Timer::after(&mut ctx, TIMEOUT);
         assert!(timer.deadline() >= start + TIMEOUT);
         assert!(!timer.has_passed());
 
@@ -60,7 +60,7 @@ fn timer_wrap() {
     async fn actor(mut ctx: actor::Context<!>) {
         let start = Instant::now();
         let future = Pending(123);
-        let mut deadline = Timer::timeout(&mut ctx, TIMEOUT).wrap(future);
+        let mut deadline = Timer::after(&mut ctx, TIMEOUT).wrap(future);
         assert!(deadline.deadline() >= start + TIMEOUT);
         assert!(!deadline.has_passed());
 
@@ -132,7 +132,7 @@ fn triggered_timers_run_actors() {
     where
         actor::Context<!, K>: rt::Access,
     {
-        let timer = Timer::timeout(&mut ctx, TIMEOUT);
+        let timer = Timer::after(&mut ctx, TIMEOUT);
         let _ = timer.await;
     }
 
@@ -200,7 +200,7 @@ fn timers_actor_bound() {
     where
         actor::Context<!, K>: rt::Access,
     {
-        let timer = Timer::timeout(&mut ctx, TIMEOUT);
+        let timer = Timer::after(&mut ctx, TIMEOUT);
         actor_ref.send(timer).await.unwrap();
     }
 
