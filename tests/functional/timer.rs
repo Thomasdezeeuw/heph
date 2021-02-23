@@ -84,7 +84,7 @@ fn deadline() {
     async fn actor(mut ctx: actor::Context<!>) {
         let start = Instant::now();
         let future = Pending(123);
-        let mut deadline = Deadline::timeout(&mut ctx, TIMEOUT, future.clone());
+        let mut deadline = Deadline::after(&mut ctx, TIMEOUT, future.clone());
         assert!(deadline.deadline() >= start + TIMEOUT);
         assert!(!deadline.has_passed());
         assert_eq!(*deadline.get_ref(), future);
@@ -141,7 +141,7 @@ fn triggered_timers_run_actors() {
         actor::Context<!, K>: rt::Access,
     {
         let future = Pending(123);
-        let deadline = Deadline::timeout(&mut ctx, TIMEOUT, future);
+        let deadline = Deadline::after(&mut ctx, TIMEOUT, future);
         let res: Result<(), DeadlinePassed> = deadline.await;
         assert_eq!(res, Err(DeadlinePassed));
     }
@@ -220,7 +220,7 @@ fn timers_actor_bound() {
         actor::Context<!, K>: rt::Access,
     {
         let future = Pending(123);
-        let deadline = Deadline::timeout(&mut ctx, TIMEOUT, future);
+        let deadline = Deadline::after(&mut ctx, TIMEOUT, future);
         actor_ref.send(deadline).await.unwrap();
     }
 

@@ -205,7 +205,7 @@ impl<K> actor::Bound<K> for Timer {
 ///     let future = IoFuture;
 ///     // Create our deadline.
 /// #   let start = Instant::now();
-///     let deadline_future = Deadline::timeout(&mut ctx, Duration::from_millis(100), future);
+///     let deadline_future = Deadline::after(&mut ctx, Duration::from_millis(100), future);
 /// #   assert!(deadline_future.deadline() >= start + Duration::from_millis(100));
 ///
 ///     // Now we await the results.
@@ -225,11 +225,7 @@ pub struct Deadline<Fut> {
 
 impl<Fut> Deadline<Fut> {
     /// Create a new `Deadline`.
-    pub fn new<M, K>(
-        ctx: &mut actor::Context<M, K>,
-        deadline: Instant,
-        future: Fut,
-    ) -> Deadline<Fut>
+    pub fn at<M, K>(ctx: &mut actor::Context<M, K>, deadline: Instant, future: Fut) -> Deadline<Fut>
     where
         actor::Context<M, K>: rt::Access,
     {
@@ -240,9 +236,9 @@ impl<Fut> Deadline<Fut> {
 
     /// Create a new deadline based on a timeout.
     ///
-    /// Same as calling `Deadline::new(&mut ctx, Instant::now() + timeout,
+    /// Same as calling `Deadline::at(&mut ctx, Instant::now() + timeout,
     /// future)`.
-    pub fn timeout<M, K>(
+    pub fn after<M, K>(
         ctx: &mut actor::Context<M, K>,
         timeout: Duration,
         future: Fut,
@@ -250,7 +246,7 @@ impl<Fut> Deadline<Fut> {
     where
         actor::Context<M, K>: rt::Access,
     {
-        Deadline::new(ctx, Instant::now() + timeout, future)
+        Deadline::at(ctx, Instant::now() + timeout, future)
     }
 
     /// Returns the deadline set for this `Deadline`.
