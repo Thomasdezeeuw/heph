@@ -68,7 +68,7 @@ impl From<DeadlinePassed> for io::Error {
 /// async fn actor(mut ctx: actor::Context<!>) {
 /// #   let start = Instant::now();
 ///     // Create a timer, this will be ready once the timeout has passed.
-///     let timeout = Timer::timeout(&mut ctx, Duration::from_millis(200));
+///     let timeout = Timer::after(&mut ctx, Duration::from_millis(200));
 /// #   assert!(timeout.deadline() >= start + Duration::from_millis(200));
 ///
 ///     // Wait for the timer to pass.
@@ -85,7 +85,7 @@ pub struct Timer {
 
 impl Timer {
     /// Create a new `Timer`.
-    pub fn new<M, K>(ctx: &mut actor::Context<M, K>, deadline: Instant) -> Timer
+    pub fn at<M, K>(ctx: &mut actor::Context<M, K>, deadline: Instant) -> Timer
     where
         actor::Context<M, K>: rt::Access,
     {
@@ -96,12 +96,12 @@ impl Timer {
 
     /// Create a new timer, based on a timeout.
     ///
-    /// Same as calling `Timer::new(&mut ctx, Instant::now() + timeout)`.
-    pub fn timeout<M, K>(ctx: &mut actor::Context<M, K>, timeout: Duration) -> Timer
+    /// Same as calling `Timer::at(&mut ctx, Instant::now() + timeout)`.
+    pub fn after<M, K>(ctx: &mut actor::Context<M, K>, timeout: Duration) -> Timer
     where
         actor::Context<M, K>: rt::Access,
     {
-        Timer::new(ctx, Instant::now() + timeout)
+        Timer::at(ctx, Instant::now() + timeout)
     }
 
     /// Returns the deadline set for this `Timer`.
