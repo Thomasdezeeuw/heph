@@ -278,54 +278,6 @@ where
     size_of_actor::<NA>()
 }
 
-#[test]
-fn test_size_of_actor() {
-    use crate::actor::context::ThreadLocal;
-
-    async fn actor1(_: actor::Context<!>) {
-        /* Nothing. */
-    }
-
-    #[allow(trivial_casts)]
-    {
-        assert_eq!(size_of_actor_val(&(actor1 as fn(_) -> _)), 32);
-    }
-
-    struct Na;
-
-    impl NewActor for Na {
-        type Message = !;
-        type Argument = ();
-        type Actor = A;
-        type Error = !;
-        type Context = ThreadLocal;
-
-        fn new(
-            &mut self,
-            _: actor::Context<Self::Message, Self::Context>,
-            _: Self::Argument,
-        ) -> Result<Self::Actor, Self::Error> {
-            Ok(A)
-        }
-    }
-
-    struct A;
-
-    impl Actor for A {
-        type Error = !;
-        fn try_poll(
-            self: Pin<&mut Self>,
-            _: &mut task::Context<'_>,
-        ) -> Poll<Result<(), Self::Error>> {
-            Poll::Ready(Ok(()))
-        }
-    }
-
-    assert_eq!(size_of::<A>(), 0);
-    assert_eq!(size_of_actor::<Na>(), 0);
-    assert_eq!(size_of_actor_val(&Na), 0);
-}
-
 /// Assert that a `Future` is not moved between calls.
 #[cfg(test)]
 pub(crate) struct AssertUnmoved<Fut> {
