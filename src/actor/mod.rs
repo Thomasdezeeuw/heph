@@ -591,12 +591,21 @@ fn format_name(full_name: &'static str) -> &'static str {
             // Outer type is `GenFuture`, remove that.
             name = &name[start_index + GEN_FUTURE.len()..name.len() - GENERIC_END.len()];
 
-            // Async functions often end with `{{::closure}}`; also remove that,
+            // Async functions often end with `::{{closure}}`; also remove that,
             // e.g. from `1_hello_world::greeter_actor::{{closure}}` to
             // `1_hello_world::greeter_actor`.
             if let Some(start_index) = name.rfind("::") {
                 let last_part = &name[start_index + 2..];
                 if last_part == CLOSURE {
+                    name = &name[..start_index];
+                }
+            }
+
+            // Remove generic parameters, e.g.
+            // `deadline_actor<heph::actor::context_priv::ThreadLocal>` to
+            // `deadline_actor`.
+            if name.ends_with('>') {
+                if let Some(start_index) = name.find('<') {
                     name = &name[..start_index];
                 }
             }

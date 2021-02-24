@@ -19,6 +19,35 @@ fn actor_name() {
             "core::future::from_generator::GenFuture<2_my_ip::conn_actor::{{closure}}>",
             "conn_actor"
         ),
+        // Generic parameter(s) wrapped in GenFuture.
+        (
+            "core::future::from_generator::GenFuture<functional::functional::timer::triggered_timers_run_actors::deadline_actor<heph::actor::context_priv::ThreadLocal>::{{closure}}>",
+            "deadline_actor",
+        ),
+        (
+            "core::future::from_generator::GenFuture<functional::functional::timer::triggered_timers_run_actors::timer_actor<heph::actor::context_priv::ThreadSafe>::{{closure}}>",
+            "timer_actor"
+        ),
+        (
+            "core::future::from_generator::GenFuture<my_actor<P1>::{{closure}}>",
+            "my_actor",
+        ),
+        (
+            "core::future::from_generator::GenFuture<my_actor<P1, P2>::{{closure}}>",
+            "my_actor",
+        ),
+        (
+            "core::future::from_generator::GenFuture<my_actor<P1<P1A>, P2>::{{closure}}>",
+            "my_actor",
+        ),
+        (
+            "core::future::from_generator::GenFuture<my_actor<P1<P1A>, P2<P2A>>::{{closure}}>",
+            "my_actor",
+        ),
+        (
+            "core::future::from_generator::GenFuture<my_actor<P1<P1A<P1B>>, P2<P2A>>::{{closure}}>",
+            "my_actor",
+        ),
         // Async function named actor in an actor module.
         (
             "core::future::from_generator::GenFuture<heph::actor::tests::storage::actor::actor::{{closure}}>",
@@ -54,6 +83,6 @@ fn actor_name() {
 
     for (input, expected) in tests {
         let got = actor::format_name(input);
-        assert_eq!(got, *expected);
+        assert_eq!(got, *expected, "input: {}", input);
     }
 }
