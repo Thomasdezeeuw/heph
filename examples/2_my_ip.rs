@@ -3,7 +3,7 @@
 use std::io;
 use std::net::SocketAddr;
 
-use heph::actor::{self, NewActor, ThreadLocal};
+use heph::actor::{self, Actor, NewActor};
 use heph::net::{tcp, TcpServer, TcpStream};
 use heph::rt::options::Priority;
 use heph::supervisor::{Supervisor, SupervisorStrategy};
@@ -54,13 +54,10 @@ fn main() -> Result<(), rt::Error> {
 #[derive(Copy, Clone, Debug)]
 struct ServerSupervisor;
 
-impl<S, NA> Supervisor<tcp::server::Setup<S, NA>> for ServerSupervisor
+impl<NA> Supervisor<NA> for ServerSupervisor
 where
-    // Trait bounds needed by `tcp::server::Setup`.
-    S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = ThreadLocal>
-        + Clone
-        + 'static,
+    NA: NewActor<Argument = (), Error = io::Error>,
+    NA::Actor: Actor<Error = tcp::server::Error<!>>,
 {
     fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
         use tcp::server::Error::*;
