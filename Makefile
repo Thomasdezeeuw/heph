@@ -9,6 +9,8 @@ LLVM_BIN         ?= "$(shell rustc --print sysroot)/lib/rustlib/$(RUSTUP_TARGET)
 COVERAGE_OUTPUT  ?= "./target/coverage"
 # Targets available via Rustup that are supported.
 TARGETS ?= "x86_64-apple-darwin" "x86_64-unknown-linux-gnu" "x86_64-unknown-freebsd"
+# Command to run in `dev` target, e.g. `make RUN=check dev`.
+RUN ?= "test"
 
 test:
 	cargo test --all-features
@@ -23,7 +25,7 @@ $(TARGETS):
 # NOTE: when using this command you might want to change the `test` target to
 # only run a subset of the tests you're actively working on.
 dev:
-	find src/ tests/ examples/ Makefile Cargo.toml | entr -d -c $(MAKE) test
+	find src/ tests/ examples/ Makefile Cargo.toml | entr -d -c $(MAKE) $(RUN)
 
 # Reasons to allow lints:
 # debug-assert-with-mut-call: Bytes and BytesVectored traits.
