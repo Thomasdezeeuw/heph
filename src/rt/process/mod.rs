@@ -21,12 +21,11 @@ pub(crate) use actor::ActorProcess;
 /// Process id, or pid for short, is an identifier for a process in an
 /// [`Runtime`].
 ///
-/// This can only be created by one of the [schedulers] and should be seen as an
+/// This can only be created by one of the schedulers and should be seen as an
 /// opaque type for the rest of the crate. For convince this can converted from
 /// and into an [`Token`] as used by Mio.
 ///
 /// [`Runtime`]: crate::Runtime
-/// [schedulers]: crate::rt::scheduler
 // NOTE: public because it used in the `RuntimeAccess` trait.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[repr(transparent)]
