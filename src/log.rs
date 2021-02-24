@@ -2,9 +2,7 @@
 //!
 //! Logging in Heph is done via the [`log`] crate, much like the entire Rust
 //! ecosystem does (or should). However the log crate doesn't provide an actual
-//! logging implementation, it only defines macros for it. Those macros are
-//! re-exported here, which means that the macros in the `log` crate can also be
-//! used.
+//! logging implementation, it only defines macros for logging.
 //!
 //! Heph doesn't provide a logging implementation, but it recommends the
 //! [`std-logger`] crate.
@@ -44,5 +42,12 @@
 //! }
 //! ```
 
-#[doc(no_inline)]
-pub use log::{debug, error, info, log, log_enabled, trace, warn};
+#[doc(hidden)]
+pub mod _private {
+    //! Private module to support the [`restart_supervisor!`] macro.
+    //!
+    //! [`restart_supervisor!`]: crate::restart_supervisor
+
+    #[doc(no_inline)]
+    pub use log::warn;
+}

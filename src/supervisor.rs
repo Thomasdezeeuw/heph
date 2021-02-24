@@ -457,13 +457,13 @@ macro_rules! __heph_restart_supervisor_impl {
 
                 if self.restarts_left >= 1 {
                     self.restarts_left -= 1;
-                    $crate::log::warn!(
+                    $crate::log::_private::warn!(
                         std::concat!($actor_name, " actor failed to restart, trying again ({}/{} restarts left): {}", $log_extra),
                         self.restarts_left, $max_restarts, err, $( self.args $(. $log_arg_field )* ),*
                     );
                     $crate::SupervisorStrategy::Restart(self.args.clone())
                 } else {
-                    $crate::log::warn!(
+                    $crate::log::_private::warn!(
                         std::concat!($actor_name, " actor failed to restart, stopping it (no restarts left): {}", $log_extra),
                         err, $( self.args $(. $log_arg_field )* ),*
                     );
@@ -472,7 +472,7 @@ macro_rules! __heph_restart_supervisor_impl {
             }
 
             fn second_restart_error(&mut self, err: NA::Error) {
-                $crate::log::warn!(
+                $crate::log::_private::warn!(
                     std::concat!($actor_name, " actor failed to restart a second time, stopping it: {}", $log_extra),
                     err, $( self.args $(. $log_arg_field )* ),*
                 );
@@ -515,13 +515,13 @@ macro_rules! __heph_restart_supervisor_impl {
 
         if $self.restarts_left >= 1 {
             $self.restarts_left -= 1;
-            $crate::log::warn!(
+            $crate::log::_private::warn!(
                 std::concat!($actor_name, " failed, restarting it ({}/{} restarts left): {}", $log_extra),
                 $self.restarts_left, $max_restarts, $err, $( $self.args $(. $log_arg_field )* ),*
             );
             $crate::SupervisorStrategy::Restart($self.args.clone())
         } else {
-            $crate::log::warn!(
+            $crate::log::_private::warn!(
                 std::concat!($actor_name, " failed, stopping it (no restarts left): {}", $log_extra),
                 $err, $( $self.args $(. $log_arg_field )* ),*
             );
