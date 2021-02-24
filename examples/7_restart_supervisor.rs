@@ -3,9 +3,9 @@
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::sync::SyncContext;
+use heph::actor::{self, SyncContext};
+use heph::restart_supervisor;
 use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, SyncActorOptions};
-use heph::{actor, restart_supervisor};
 
 fn main() -> Result<(), rt::Error> {
     std_logger::init();

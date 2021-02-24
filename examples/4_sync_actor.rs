@@ -1,6 +1,6 @@
 #![feature(never_type)]
 
-use heph::actor::sync::SyncContext;
+use heph::actor::SyncContext;
 use heph::rt::{self, Runtime, SyncActorOptions};
 use heph::supervisor::NoSupervisor;
 

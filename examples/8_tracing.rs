@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use log::warn;
 
-use heph::actor::sync::SyncContext;
+use heph::actor::SyncContext;
 use heph::actor_ref::{ActorRef, SendError};
 use heph::rt::options::SyncActorOptions;
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};

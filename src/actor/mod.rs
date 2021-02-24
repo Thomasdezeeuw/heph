@@ -61,14 +61,18 @@
 //! is exactly what we need to do, for that purpose Heph has synchronous actors.
 //!
 //! Synchronous actors run own there own thread and can use blocking operations,
-//! such as blocking I/O. The [`sync`] module and the [`SyncActor`] trait have
-//! more information about synchronous actors. Because each synchronous requires
-//! their own thread to run on sync actors are the most expansive to run (by an
-//! order of a magnitude).
+//! such as blocking I/O. Instead of an [`actor::Context`] they use a
+//! [`SyncContext`], which provides a similar API to `actor::Context`, but uses
+//! blocking operations. To support blocking operations each synchronous actor
+//! requires their own thread to run on, this makes sync actors the most
+//! expansive to run (by an order of a magnitude).
 //!
-//! [`SyncActor`]: sync::SyncActor
+//! The [`SyncActor`] trait defines how an actor is run and is the synchronous
+//! equivalent of [`NewActor`] and [`Actor`] within a single trait.
 //!
-//! # Example
+//! [`actor::Context`]: Context
+//!
+//! # Examples
 //!
 //! Using an asynchronous function to implement the `NewActor` and `Actor`
 //! traits.
@@ -91,6 +95,43 @@
 //! #   drop(new_actor);
 //! }
 //! ```
+//!
+//! Spawning and runing a synchronous actor using a regular function.
+//!
+//! ```
+//! #![feature(never_type)]
+//!
+//! use heph::actor::SyncContext;
+//! use heph::supervisor::NoSupervisor;
+//! use heph::rt::{self, Runtime, SyncActorOptions};
+//!
+//! fn main() -> Result<(), rt::Error> {
+//!     // Spawning synchronous actor works slightly different from spawning
+//!     // regular (asynchronous) actors. Mainly, synchronous actors need to be
+//!     // spawned before the runtime is started.
+//!     let mut runtime = Runtime::new()?;
+//!
+//!     // Spawn a new synchronous actor, returning an actor reference to it.
+//!     let actor = actor as fn(_, _);
+//!     let options = SyncActorOptions::default();
+//!     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye", options)?;
+//!
+//!     // Just like with any actor reference we can send the actor a message.
+//!     actor_ref.try_send("Hello world".to_string()).unwrap();
+//!
+//!     // And now we start the runtime.
+//!     runtime.start()
+//! }
+//!
+//! fn actor(mut ctx: SyncContext<String>, exit_msg: &'static str) {
+//!     if let Ok(msg) = ctx.receive_next() {
+//! #       assert_eq!(msg, "Hello world");
+//!         println!("Got a message: {}", msg);
+//!     } else {
+//!         eprintln!("Receive no messages");
+//!     }
+//!     println!("{}", exit_msg);
+//! }
 
 use std::any::type_name;
 use std::future::Future;
@@ -103,9 +144,9 @@ use crate::rt;
 #[path = "context.rs"]
 mod context_priv;
 mod spawn;
+mod sync;
 
 pub mod messages;
-pub mod sync;
 
 pub mod context {
     //! Module containing the different kinds of contexts.
@@ -122,6 +163,8 @@ pub mod context {
 pub use context_priv::{Context, NoMessages, ReceiveMessage, RecvError};
 #[doc(inline)]
 pub use spawn::Spawn;
+#[doc(inline)]
+pub use sync::{SyncActor, SyncContext};
 
 pub(crate) use spawn::{AddActorError, PrivateSpawn};
 

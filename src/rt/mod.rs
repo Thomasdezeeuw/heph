@@ -20,8 +20,7 @@ use log::{debug, trace};
 use mio::{event, Interest, Token};
 
 use crate::actor::context::{ThreadLocal, ThreadSafe};
-use crate::actor::sync::SyncActor;
-use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn};
+use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn, SyncActor};
 use crate::actor_ref::{ActorGroup, ActorRef};
 use crate::supervisor::{Supervisor, SyncSupervisor};
 use crate::trace;
@@ -260,9 +259,9 @@ impl Runtime {
     /// Spawn an synchronous actor that runs on its own thread.
     ///
     /// For more information and examples of synchronous actors see the
-    /// [`actor::sync`] module.
+    /// [`actor`] module.
     ///
-    /// [`actor::sync`]: crate::actor::sync
+    /// [`actor`]: crate::actor
     pub fn spawn_sync_actor<S, A>(
         &mut self,
         supervisor: S,

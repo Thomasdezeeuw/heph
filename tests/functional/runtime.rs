@@ -7,9 +7,8 @@ use std::task::{self, Poll};
 use std::thread::{self, sleep};
 use std::time::Duration;
 
-use heph::actor;
 use heph::actor::context::{ThreadLocal, ThreadSafe};
-use heph::actor::sync::SyncContext;
+use heph::actor::{self, SyncContext};
 use heph::rt::options::{ActorOptions, Priority, SyncActorOptions};
 use heph::rt::Runtime;
 use heph::supervisor::NoSupervisor;

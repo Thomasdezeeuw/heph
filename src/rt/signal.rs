@@ -7,7 +7,7 @@ use std::fmt;
 ///
 /// [`Runtime::receive_signals`]: crate::Runtime::receive_signals
 /// [`RuntimeRef::receive_signals`]: crate::RuntimeRef::receive_signals
-/// [`SyncActor`]: crate::actor::sync::SyncActor
+/// [`SyncActor`]: crate::actor::SyncActor
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Signal {
     /// Interrupt signal.

@@ -32,8 +32,7 @@ use getrandom::getrandom;
 use inbox::Manager;
 use log::warn;
 
-use crate::actor::sync::SyncActor;
-use crate::actor::{self, context, Actor, NewActor};
+use crate::actor::{self, context, Actor, NewActor, SyncActor};
 use crate::actor_ref::ActorRef;
 use crate::rt::shared::{waker, Scheduler};
 use crate::rt::sync_worker::SyncWorker;
