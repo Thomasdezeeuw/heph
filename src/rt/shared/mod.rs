@@ -12,8 +12,8 @@ use mio::{event, Interest, Registry, Token};
 
 use crate::actor::{self, AddActorError, NewActor, ThreadSafe};
 use crate::actor_ref::ActorRef;
+use crate::rt::local::Timers;
 use crate::rt::thread_waker::ThreadWaker;
-use crate::rt::timers::Timers;
 use crate::rt::{ActorOptions, ProcessId};
 use crate::supervisor::Supervisor;
 
@@ -95,7 +95,7 @@ impl RuntimeInternals {
     }
 
     pub(crate) fn add_deadline(&self, pid: ProcessId, deadline: Instant) {
-        self.timers.lock().unwrap().add_deadline(pid, deadline);
+        self.timers.lock().unwrap().add(pid, deadline);
     }
 
     #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
@@ -211,8 +211,8 @@ impl RuntimeInternals {
     /// next deadline.
     pub(crate) fn next_timeout(&self, now: Instant, current: Option<Duration>) -> Option<Duration> {
         let deadline = {
-            let timers = self.timers.lock().unwrap();
-            timers.next_deadline()
+            let mut timers = self.timers.lock().unwrap();
+            timers.next()
         };
 
         match deadline {
@@ -231,6 +231,6 @@ impl RuntimeInternals {
 
     /// See [`Timers::remove_deadline`].
     pub(crate) fn remove_deadline(&self, now: Instant) -> Option<ProcessId> {
-        self.timers.lock().unwrap().remove_deadline(now)
+        self.timers.lock().unwrap().remove_next(now)
     }
 }

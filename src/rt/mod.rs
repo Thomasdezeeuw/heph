@@ -130,14 +130,13 @@ use crate::trace;
 
 mod coordinator;
 mod error;
-mod local;
 mod process;
 mod setup;
 mod signal;
-mod timers;
 
 pub(crate) mod access;
 pub(crate) mod channel;
+pub(crate) mod local;
 pub(crate) mod shared;
 pub(crate) mod sync_worker;
 pub(crate) mod thread_waker;
@@ -148,7 +147,6 @@ pub mod options;
 
 pub(crate) use access::PrivateAccess;
 pub(crate) use process::ProcessId;
-pub(crate) use timers::Timers; // Needed by the `test` module.
 
 pub use access::Access;
 pub use error::Error;
@@ -537,10 +535,7 @@ impl RuntimeRef {
     /// This is used in the `timer` crate.
     pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         trace!("adding deadline: pid={}, deadline={:?}", pid, deadline);
-        self.internals
-            .timers
-            .borrow_mut()
-            .add_deadline(pid, deadline);
+        self.internals.timers.borrow_mut().add(pid, deadline);
     }
 
     /// Returns a copy of the shared internals.

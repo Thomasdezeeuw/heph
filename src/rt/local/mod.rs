@@ -6,11 +6,13 @@ use std::sync::Arc;
 use mio::Poll;
 
 use crate::actor_ref::ActorRef;
-use crate::rt::{shared, Signal, Timers, WakerId};
+use crate::rt::{shared, Signal, WakerId};
 
 mod scheduler;
+mod timers;
 
-pub(super) use scheduler::Scheduler;
+pub(crate) use scheduler::Scheduler;
+pub(crate) use timers::Timers;
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]

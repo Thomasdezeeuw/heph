@@ -34,13 +34,13 @@ use log::warn;
 
 use crate::actor::{self, Actor, NewActor, SyncActor, ThreadLocal, ThreadSafe};
 use crate::actor_ref::ActorRef;
+use crate::rt::local::Timers;
 use crate::rt::shared::{waker, Scheduler};
 use crate::rt::sync_worker::SyncWorker;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::worker::{self, RunningRuntime};
 use crate::rt::{
-    self, shared, ProcessId, RuntimeRef, SyncActorOptions, Timers, SYNC_WORKER_ID_END,
-    SYNC_WORKER_ID_START,
+    self, shared, ProcessId, RuntimeRef, SyncActorOptions, SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
 };
 use crate::supervisor::SyncSupervisor;
 

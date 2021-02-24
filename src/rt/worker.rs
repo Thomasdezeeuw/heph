@@ -465,7 +465,8 @@ impl RunningRuntime {
         // User space local timers.
         trace!("polling local timers");
         let timing = trace::start(trace_log);
-        for pid in self.internals.timers.borrow_mut().deadlines() {
+        let now = Instant::now();
+        for pid in self.internals.timers.borrow_mut().deadlines(now) {
             scheduler.mark_ready(pid);
         }
         trace::finish(
@@ -478,7 +479,6 @@ impl RunningRuntime {
         // User space shared timers.
         trace!("polling shared timers");
         let timing = trace::start(&trace_log);
-        let now = Instant::now();
         while let Some(pid) = self.internals.shared.remove_deadline(now) {
             self.internals.shared.mark_ready(pid);
         }
@@ -537,7 +537,7 @@ impl RunningRuntime {
             return Some(Duration::ZERO);
         }
 
-        if let Some(deadline) = self.internals.timers.borrow().next_deadline() {
+        if let Some(deadline) = self.internals.timers.borrow_mut().next() {
             let now = Instant::now();
             return if deadline <= now {
                 // Deadline has already expired, so no blocking.

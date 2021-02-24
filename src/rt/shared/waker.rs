@@ -184,11 +184,12 @@ mod tests {
 
     use mio::Poll;
 
+    use crate::rt::local::Timers;
     use crate::rt::options::Priority;
     use crate::rt::process::{Process, ProcessData, ProcessId, ProcessResult};
     use crate::rt::shared::waker::{self, WakerData};
     use crate::rt::shared::{RuntimeInternals, Scheduler};
-    use crate::rt::{RuntimeRef, Timers};
+    use crate::rt::RuntimeRef;
     use crate::test;
 
     const PID1: ProcessId = ProcessId(1);

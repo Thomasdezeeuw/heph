@@ -9,11 +9,11 @@ use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
 use crate::actor_ref::{ActorGroup, Delivery};
+use crate::rt::local::Timers;
 use crate::rt::shared::{waker, Scheduler};
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
-    self, shared, worker, Signal, SyncWorker, Timers, Worker, SYNC_WORKER_ID_END,
-    SYNC_WORKER_ID_START,
+    self, shared, worker, Signal, SyncWorker, Worker, SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
 };
 use crate::trace;
 
