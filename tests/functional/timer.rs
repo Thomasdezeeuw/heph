@@ -45,9 +45,9 @@ fn timer() {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-struct Pending(u8);
+struct AlwaysPending;
 
-impl Future for Pending {
+impl Future for AlwaysPending {
     type Output = Result<(), DeadlinePassed>;
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
@@ -59,7 +59,7 @@ impl Future for Pending {
 fn timer_wrap() {
     async fn actor(mut ctx: actor::Context<!>) {
         let start = Instant::now();
-        let future = Pending(123);
+        let future = AlwaysPending;
         let mut deadline = Timer::after(&mut ctx, TIMEOUT).wrap(future);
         assert!(deadline.deadline() >= start + TIMEOUT);
         assert!(!deadline.has_passed());
@@ -83,7 +83,7 @@ fn timer_wrap() {
 fn deadline() {
     async fn actor(mut ctx: actor::Context<!>) {
         let start = Instant::now();
-        let future = Pending(123);
+        let future = AlwaysPending;
         let mut deadline = Deadline::after(&mut ctx, TIMEOUT, future.clone());
         assert!(deadline.deadline() >= start + TIMEOUT);
         assert!(!deadline.has_passed());
@@ -140,7 +140,7 @@ fn triggered_timers_run_actors() {
     where
         actor::Context<!, K>: rt::Access,
     {
-        let future = Pending(123);
+        let future = AlwaysPending;
         let deadline = Deadline::after(&mut ctx, TIMEOUT, future);
         let res: Result<(), DeadlinePassed> = deadline.await;
         assert_eq!(res, Err(DeadlinePassed));
@@ -215,18 +215,18 @@ fn timers_actor_bound() {
 
     async fn deadline_actor1<K>(
         mut ctx: actor::Context<!, K>,
-        actor_ref: ActorRef<Deadline<Pending>>,
+        actor_ref: ActorRef<Deadline<AlwaysPending>>,
     ) where
         actor::Context<!, K>: rt::Access,
     {
-        let future = Pending(123);
+        let future = AlwaysPending;
         let deadline = Deadline::after(&mut ctx, TIMEOUT, future);
         actor_ref.send(deadline).await.unwrap();
     }
 
-    async fn deadline_actor2<K>(mut ctx: actor::Context<Deadline<Pending>, K>)
+    async fn deadline_actor2<K>(mut ctx: actor::Context<Deadline<AlwaysPending>, K>)
     where
-        actor::Context<Deadline<Pending>, K>: rt::Access,
+        actor::Context<Deadline<AlwaysPending>, K>: rt::Access,
     {
         let mut deadline = ctx.receive_next().await.unwrap();
         deadline.bind_to(&mut ctx).unwrap();
