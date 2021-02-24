@@ -3,7 +3,7 @@
 use std::io;
 use std::net::SocketAddr;
 
-use heph::actor::{self, context, NewActor};
+use heph::actor::{self, NewActor, ThreadLocal};
 use heph::net::{tcp, TcpServer, TcpStream};
 use heph::rt::options::Priority;
 use heph::supervisor::{Supervisor, SupervisorStrategy};
@@ -58,7 +58,7 @@ impl<S, NA> Supervisor<tcp::server::Setup<S, NA>> for ServerSupervisor
 where
     // Trait bounds needed by `tcp::server::Setup`.
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = context::ThreadLocal>
+    NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = ThreadLocal>
         + Clone
         + 'static,
 {

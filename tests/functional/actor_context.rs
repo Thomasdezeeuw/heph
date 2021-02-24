@@ -5,8 +5,7 @@
 use std::pin::Pin;
 use std::task::Poll;
 
-use heph::actor::context::ThreadSafe;
-use heph::actor::{self, context, NoMessages, RecvError};
+use heph::actor::{self, NoMessages, RecvError, ThreadSafe};
 use heph::rt::{ActorOptions, Runtime, Signal};
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
@@ -15,8 +14,8 @@ use crate::util::{assert_send, assert_sync};
 
 #[test]
 fn thread_safe_is_send_sync() {
-    assert_send::<actor::Context<(), context::ThreadSafe>>();
-    assert_sync::<actor::Context<(), context::ThreadSafe>>();
+    assert_send::<actor::Context<(), ThreadSafe>>();
+    assert_sync::<actor::Context<(), ThreadSafe>>();
 }
 
 async fn local_actor_context_actor(mut ctx: actor::Context<usize>) {

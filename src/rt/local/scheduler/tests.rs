@@ -6,7 +6,7 @@ use std::mem::{self, forget};
 use std::pin::Pin;
 use std::rc::Rc;
 
-use crate::actor::{self, context, NewActor};
+use crate::actor::{self, NewActor, ThreadLocal};
 use crate::rt::local::scheduler::{ProcessData, Scheduler};
 use crate::rt::options::Priority;
 use crate::rt::process::{Process, ProcessId, ProcessResult};
@@ -277,7 +277,7 @@ impl NewActor for TestAssertUnmovedNewActor {
     type Argument = ();
     type Actor = AssertUnmoved<Pending<Result<(), !>>>;
     type Error = !;
-    type Context = context::ThreadLocal;
+    type Context = ThreadLocal;
 
     fn new(
         &mut self,

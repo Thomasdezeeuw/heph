@@ -33,7 +33,6 @@
 //! actors, Heph does not (for thread-local actor).
 //!
 //! [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
-//! [`ThreadLocal`]: context::ThreadLocal
 //!
 //! ## Asynchronous thread-safe actors
 //!
@@ -51,7 +50,6 @@
 //! actors.
 //!
 //! [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
-//! [`ThreadSafe`]: context::ThreadSafe
 //!
 //! ## Synchronous actors
 //!
@@ -78,8 +76,7 @@
 //! traits.
 //!
 //! ```
-//! use heph::{actor, NewActor};
-//! use heph::actor::context::ThreadLocal;
+//! use heph::actor::{self, NewActor, ThreadLocal};
 //!
 //! async fn actor(ctx: actor::Context<(), ThreadLocal>) {
 //! #   drop(ctx); // Use `ctx` to silence dead code warnings.
@@ -141,26 +138,14 @@ use std::task::{self, Poll};
 
 use crate::rt;
 
-#[path = "context.rs"]
-mod context_priv;
+mod context;
 mod spawn;
 mod sync;
 
 pub mod messages;
 
-pub mod context {
-    //! Module containing the different kinds of contexts.
-    //!
-    //! See [`actor::Context`] for more information.
-    //!
-    //! [`actor::Context`]: crate::actor::Context
-
-    #[doc(inline)]
-    pub use super::context_priv::{ThreadLocal, ThreadSafe};
-}
-
 #[doc(inline)]
-pub use context_priv::{Context, NoMessages, ReceiveMessage, RecvError};
+pub use context::{Context, NoMessages, ReceiveMessage, RecvError, ThreadLocal, ThreadSafe};
 #[doc(inline)]
 pub use spawn::Spawn;
 #[doc(inline)]
@@ -302,13 +287,12 @@ pub trait NewActor {
     /// use std::io;
     /// use std::net::SocketAddr;
     ///
+    /// # use heph::actor::ThreadLocal;
     /// # use heph::actor::messages::Terminate;
-    /// # use heph::actor::context;
-    /// use heph::actor::{self, NewActor};
-    /// use heph::net::{TcpServer, TcpStream};
     /// # use heph::net::tcp::server;
+    /// use heph::net::{TcpServer, TcpStream};
     /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
-    /// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
+    /// use heph::{rt, actor, NewActor, ActorOptions, Runtime, RuntimeRef};
     /// # use log::error;
     ///
     /// fn main() -> Result<(), rt::Error> {
@@ -343,7 +327,7 @@ pub trait NewActor {
     /// # impl<S, NA> Supervisor<server::Setup<S, NA>> for ServerSupervisor
     /// # where
     /// #     S: Supervisor<NA> + Clone + 'static,
-    /// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = context::ThreadLocal> + Clone + 'static,
+    /// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = ThreadLocal> + Clone + 'static,
     /// # {
     /// #     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
     /// #         use server::Error::*;
@@ -645,7 +629,7 @@ fn format_name(full_name: &'static str) -> &'static str {
             }
 
             // Remove generic parameters, e.g.
-            // `deadline_actor<heph::actor::context_priv::ThreadLocal>` to
+            // `deadline_actor<heph::actor::context::ThreadLocal>` to
             // `deadline_actor`.
             if name.ends_with('>') {
                 if let Some(start_index) = name.find('<') {
@@ -682,7 +666,7 @@ fn format_name(full_name: &'static str) -> &'static str {
         _ => {
             // Otherwise we trait it like a normal type and remove the generic
             // parameters from it, e.g. from
-            // `heph::net::tcp::server::TcpServer<2_my_ip::conn_supervisor, fn(heph::actor::context_priv::Context<!>, heph::net::tcp::stream::TcpStream, std::net::addr::SocketAddr) -> core::future::from_generator::GenFuture<2_my_ip::conn_actor::{{closure}}>, heph::actor::context_priv::ThreadLocal>`
+            // `heph::net::tcp::server::TcpServer<2_my_ip::conn_supervisor, fn(heph::actor::context_priv::Context<!>, heph::net::tcp::stream::TcpStream, std::net::addr::SocketAddr) -> core::future::from_generator::GenFuture<2_my_ip::conn_actor::{{closure}}>, heph::actor::context::ThreadLocal>`
             // to `heph::net::tcp::server::TcpServer`.
             if let Some(start_index) = name.find(GENERIC_START) {
                 name = &name[..start_index];

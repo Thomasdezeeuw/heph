@@ -21,11 +21,11 @@ fn actor_name() {
         ),
         // Generic parameter(s) wrapped in GenFuture.
         (
-            "core::future::from_generator::GenFuture<functional::functional::timer::triggered_timers_run_actors::deadline_actor<heph::actor::context_priv::ThreadLocal>::{{closure}}>",
+            "core::future::from_generator::GenFuture<functional::functional::timer::triggered_timers_run_actors::deadline_actor<heph::actor::context::ThreadLocal>::{{closure}}>",
             "deadline_actor",
         ),
         (
-            "core::future::from_generator::GenFuture<functional::functional::timer::triggered_timers_run_actors::timer_actor<heph::actor::context_priv::ThreadSafe>::{{closure}}>",
+            "core::future::from_generator::GenFuture<functional::functional::timer::triggered_timers_run_actors::timer_actor<heph::actor::context::ThreadSafe>::{{closure}}>",
             "timer_actor"
         ),
         (
@@ -55,7 +55,7 @@ fn actor_name() {
         ),
         // Type implementing `Actor`.
         (
-            "heph::net::tcp::server::TcpServer<2_my_ip::conn_supervisor, fn(heph::actor::context_priv::Context<!>, heph::net::tcp::stream::TcpStream, std::net::addr::SocketAddr) -> core::future::from_generator::GenFuture<2_my_ip::conn_actor::{{closure}}>, heph::actor::context_priv::ThreadLocal>",
+            "heph::net::tcp::server::TcpServer<2_my_ip::conn_supervisor, fn(heph::actor::context::Context<!>, heph::net::tcp::stream::TcpStream, std::net::addr::SocketAddr) -> core::future::from_generator::GenFuture<2_my_ip::conn_actor::{{closure}}>, heph::actor::context::ThreadLocal>",
             "TcpServer",
         ),
         // If the module path is removed from `std::any::type_name`.
@@ -68,7 +68,7 @@ fn actor_name() {
             "greeter::actor",
         ),
         (
-            "TcpServer<2_my_ip::conn_supervisor, fn(heph::actor::context_priv::Context<!>, heph::net::tcp::stream::TcpStream, std::net::addr::SocketAddr) -> core::future::from_generator::GenFuture<2_my_ip::conn_actor::{{closure}}>, heph::actor::context_priv::ThreadLocal>",
+            "TcpServer<2_my_ip::conn_supervisor, fn(heph::actor::context::Context<!>, heph::net::tcp::stream::TcpStream, std::net::addr::SocketAddr) -> core::future::from_generator::GenFuture<2_my_ip::conn_actor::{{closure}}>, heph::actor::context::ThreadLocal>",
             "TcpServer",
         ),
         (

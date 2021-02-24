@@ -16,7 +16,7 @@ use std::stream::Stream;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
-use crate::actor::context::ThreadLocal;
+use crate::actor::ThreadLocal;
 use crate::rt::{self, PrivateAccess, ProcessId};
 use crate::{actor, RuntimeRef};
 
@@ -177,8 +177,7 @@ impl<K> actor::Bound<K> for Timer {
 /// use std::time::Duration;
 /// # use std::time::Instant;
 ///
-/// use heph::actor;
-/// use heph::actor::context::ThreadSafe;
+/// use heph::actor::{self, ThreadSafe};
 /// # use heph::supervisor::NoSupervisor;
 /// # use heph::{rt, ActorOptions, Runtime};
 /// use heph::timer::Deadline;

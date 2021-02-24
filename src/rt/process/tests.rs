@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use mio::Token;
 
-use crate::actor::{self, context, Actor, NewActor};
+use crate::actor::{self, Actor, NewActor, ThreadLocal};
 use crate::rt::options::Priority;
 use crate::rt::process::{ActorProcess, Process, ProcessData, ProcessId, ProcessResult};
 use crate::rt::RuntimeRef;
@@ -263,7 +263,7 @@ impl NewActor for TestAssertUnmovedNewActor {
     type Argument = ();
     type Actor = AssertUnmoved<Pending<Result<(), !>>>;
     type Error = !;
-    type Context = context::ThreadLocal;
+    type Context = ThreadLocal;
 
     fn new(
         &mut self,

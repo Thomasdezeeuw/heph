@@ -6,8 +6,7 @@ use std::task::{self, Poll};
 
 use inbox::{Manager, Receiver};
 
-use crate::actor::context::{ThreadLocal, ThreadSafe};
-use crate::actor::{self, Actor, NewActor};
+use crate::actor::{self, Actor, NewActor, ThreadLocal, ThreadSafe};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::supervisor::SupervisorStrategy;
 use crate::{RuntimeRef, Supervisor};

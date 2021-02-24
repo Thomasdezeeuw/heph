@@ -4,7 +4,7 @@ use std::future::{pending, Pending};
 use std::mem::size_of;
 use std::sync::{Arc, Mutex};
 
-use crate::actor::{self, context, NewActor};
+use crate::actor::{self, NewActor, ThreadSafe};
 use crate::rt::process::{ProcessId, ProcessResult};
 use crate::rt::shared::scheduler::{Priority, ProcessData, Scheduler};
 use crate::supervisor::NoSupervisor;
@@ -25,7 +25,7 @@ fn is_send() {
     assert_send::<Scheduler>();
 }
 
-async fn simple_actor(_: actor::Context<!, context::ThreadSafe>) {}
+async fn simple_actor(_: actor::Context<!, ThreadSafe>) {}
 
 #[test]
 fn adding_actor() {
@@ -108,7 +108,7 @@ fn scheduler_run_order() {
     let run_order = Arc::new(Mutex::new(Vec::new()));
 
     async fn order_actor(
-        _: actor::Context<!, context::ThreadSafe>,
+        _: actor::Context<!, ThreadSafe>,
         id: usize,
         order: Arc<Mutex<Vec<usize>>>,
     ) {
@@ -149,7 +149,7 @@ impl NewActor for TestAssertUnmovedNewActor {
     type Argument = ();
     type Actor = AssertUnmoved<Pending<Result<(), !>>>;
     type Error = !;
-    type Context = context::ThreadSafe;
+    type Context = ThreadSafe;
 
     fn new(
         &mut self,

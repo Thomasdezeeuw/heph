@@ -19,8 +19,9 @@ use std::{io, task};
 use log::{debug, trace};
 use mio::{event, Interest, Token};
 
-use crate::actor::context::{ThreadLocal, ThreadSafe};
-use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn, SyncActor};
+use crate::actor::{
+    self, AddActorError, NewActor, PrivateSpawn, Spawn, SyncActor, ThreadLocal, ThreadSafe,
+};
 use crate::actor_ref::{ActorGroup, ActorRef};
 use crate::supervisor::{Supervisor, SyncSupervisor};
 use crate::trace;
