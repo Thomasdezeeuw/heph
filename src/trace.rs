@@ -38,7 +38,7 @@
 //! events are created by the same actor.
 //!
 //! [`actor::Context`]: crate::actor::Context
-//! [`SyncContext`]: crate::actor::sync::SyncContext
+//! [`SyncContext`]: crate::actor::SyncContext
 //!
 //! ## Notes
 //!

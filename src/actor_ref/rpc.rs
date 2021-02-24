@@ -84,11 +84,11 @@
 //! ```ignore
 //! # #![feature(never_type)]
 //! #
-//! use heph::actor::sync::SyncContext;
+//! use heph::actor::{self, SyncContext};
 //! use heph::actor_ref::{ActorRef, RpcMessage};
-//! use heph::supervisor::NoSupervisor;
-//! use heph::{actor, from_message};
+//! use heph::from_message;
 //! use heph::rt::{self, Runtime, ActorOptions, SyncActorOptions};
+//! use heph::supervisor::NoSupervisor;
 //!
 //! /// Message type for [`counter`].
 //! enum Message {

@@ -7,8 +7,7 @@ use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::sync::SyncContext;
-use heph::actor::RecvError;
+use heph::actor::{RecvError, SyncContext};
 use heph::rt::SyncActorOptions;
 use heph::supervisor::NoSupervisor;
 use heph::test::spawn_sync_actor;

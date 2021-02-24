@@ -1,51 +1,4 @@
 //! Module containing the types for synchronous actors.
-//!
-//! Synchronous actors run own there own thread and can use blocking operations,
-//! such as blocking I/O. Instead of an [`actor::Context`] they use a
-//! [`SyncContext`], which provides a similar API to `actor::Context`, but uses
-//! blocking operations.
-//!
-//! [`actor::Context`]: crate::actor
-//!
-//! # Examples
-//!
-//! Spawn and run a synchronous actor.
-//!
-//! ```
-//! #![feature(never_type)]
-//!
-//! use heph::actor::sync::SyncContext;
-//! use heph::supervisor::NoSupervisor;
-//! use heph::rt::{self, Runtime, SyncActorOptions};
-//!
-//! fn main() -> Result<(), rt::Error> {
-//!     // Spawning synchronous actor works slightly different from spawning
-//!     // regular (asynchronous) actors. Mainly, synchronous actors need to be
-//!     // spawned before the runtime is started.
-//!     let mut runtime = Runtime::new()?;
-//!
-//!     // Spawn a new synchronous actor, returning an actor reference to it.
-//!     let actor = actor as fn(_, _);
-//!     let options = SyncActorOptions::default();
-//!     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye", options)?;
-//!
-//!     // Just like with any actor reference we can send the actor a message.
-//!     actor_ref.try_send("Hello world".to_string()).unwrap();
-//!
-//!     // And now we start the runtime.
-//!     runtime.start()
-//! }
-//!
-//! fn actor(mut ctx: SyncContext<String>, exit_msg: &'static str) {
-//!     if let Ok(msg) = ctx.receive_next() {
-//! #       assert_eq!(msg, "Hello world");
-//!         println!("Got a message: {}", msg);
-//!     } else {
-//!         eprintln!("Receive no messages");
-//!     }
-//!     println!("{}", exit_msg);
-//! }
-//! ```
 
 use std::future::Future;
 use std::pin::Pin;
@@ -69,7 +22,7 @@ use crate::trace;
 /// The easiest way to implement this trait by using regular functions, see the
 /// [module level] documentation for an example of this.
 ///
-/// [module level]: crate::actor::sync
+/// [module level]: crate::actor
 ///
 /// Synchronous actor can only be spawned before starting the runtime, see
 /// [`Runtime::spawn_sync_actor`].
@@ -81,7 +34,7 @@ use crate::trace;
 /// reference into mapped actor reference, see [`ActorRef::try_map`].
 ///
 /// ```
-/// use heph::actor::sync::SyncContext;
+/// use heph::actor::SyncContext;
 /// # use heph::actor_ref::ActorRef;
 /// use heph::supervisor::NoSupervisor;
 /// use heph::rt::{self, Runtime, SyncActorOptions, Signal};
@@ -270,7 +223,7 @@ impl<M> SyncContext<M> {
     /// world.
     ///
     /// ```
-    /// use heph::actor::sync::SyncContext;
+    /// use heph::actor::SyncContext;
     ///
     /// fn greeter_actor(mut ctx: SyncContext<String>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
@@ -280,7 +233,7 @@ impl<M> SyncContext<M> {
     ///     }
     /// }
     ///
-    /// # fn assert_sync_actor<A: heph::actor::sync::SyncActor>(_: A) { }
+    /// # fn assert_sync_actor<A: heph::actor::SyncActor>(_: A) { }
     /// # assert_sync_actor(greeter_actor as fn(_) -> _);
     /// ```
     pub fn try_receive_next(&mut self) -> Result<M, RecvError> {
@@ -298,7 +251,7 @@ impl<M> SyncContext<M> {
     /// An actor that waits for a message and prints it.
     ///
     /// ```
-    /// use heph::actor::sync::SyncContext;
+    /// use heph::actor::SyncContext;
     ///
     /// fn print_actor(mut ctx: SyncContext<String>) {
     ///     if let Ok(msg) = ctx.receive_next() {
@@ -308,7 +261,7 @@ impl<M> SyncContext<M> {
     ///     }
     /// }
     ///
-    /// # fn assert_sync_actor<A: heph::actor::sync::SyncActor>(_: A) { }
+    /// # fn assert_sync_actor<A: heph::actor::SyncActor>(_: A) { }
     /// # assert_sync_actor(print_actor as fn(_) -> _);
     /// ```
     pub fn receive_next(&mut self) -> Result<M, NoMessages> {

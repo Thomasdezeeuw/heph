@@ -8,11 +8,10 @@ use log::{trace, warn};
 use mio::unix;
 use mio::{Interest, Registry, Token};
 
-use crate::actor::sync::{SyncActor, SyncContext};
+use crate::actor::{SyncActor, SyncContext};
 use crate::rt::options::SyncActorOptions;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
-use crate::trace;
-use crate::ActorRef;
+use crate::{trace, ActorRef};
 
 /// Handle to a synchronous worker.
 #[derive(Debug)]

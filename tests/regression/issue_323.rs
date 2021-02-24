@@ -4,7 +4,7 @@
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::sync::SyncContext;
+use heph::actor::SyncContext;
 use heph::rt::{Runtime, SyncActorOptions};
 use heph::supervisor::NoSupervisor;
 

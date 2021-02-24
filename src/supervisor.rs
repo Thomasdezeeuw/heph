@@ -38,8 +38,8 @@
 //! [synchronous actors], thus so do the supervisor traits, [`Supervisor`] and
 //! [`SyncSupervisor`].
 //!
-//! [regular/asynchronous actors]: crate::actor
-//! [synchronous actors]: crate::actor::sync
+//! [regular/asynchronous actors]: crate::actor::Actor
+//! [synchronous actors]: crate::actor::SyncActor
 //! [`Supervisor`]: crate::supervisor::Supervisor
 //! [`SyncSupervisor`]: crate::supervisor::SyncSupervisor
 //!
@@ -92,7 +92,7 @@
 //! }
 //! ```
 
-use crate::actor::sync::SyncActor;
+use crate::actor::SyncActor;
 use crate::actor::{Actor, NewActor};
 
 /// The supervisor of an [actor].
@@ -189,7 +189,7 @@ pub enum SupervisorStrategy<Arg> {
 /// `SyncSupervisor` is implemented for any function that takes an error `E` and
 /// returns `SupervisorStrategy<Arg>` automatically.
 ///
-/// [synchronous actors]: crate::actor::sync
+/// [synchronous actors]: crate::actor::SyncActor
 /// [module documentation]: crate::supervisor
 pub trait SyncSupervisor<A>
 where
@@ -481,7 +481,7 @@ macro_rules! __heph_restart_supervisor_impl {
 
         impl<A> $crate::supervisor::SyncSupervisor<A> for $supervisor_name
         where
-            A: $crate::actor::sync::SyncActor<Argument = ( $( $arg ),* )>,
+            A: $crate::actor::SyncActor<Argument = ( $( $arg ),* )>,
             A::Error: std::fmt::Display,
         {
             fn decide(&mut self, err: A::Error) -> $crate::SupervisorStrategy<A::Argument> {

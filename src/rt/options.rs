@@ -1,7 +1,7 @@
 //! Options for adding an [`Actor`] or [`SyncActor`] to a [`Runtime`].
 //!
 //! [`Actor`]: crate::actor::Actor
-//! [`SyncActor`]: crate::actor::sync::SyncActor
+//! [`SyncActor`]: crate::actor::SyncActor
 //! [`Runtime`]: crate::Runtime
 
 use std::cmp::Ordering;
