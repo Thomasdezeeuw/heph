@@ -12,10 +12,10 @@ use std::pin::Pin;
 use inbox::Manager;
 use log::trace;
 
-use crate::actor::context;
+use crate::actor::{NewActor, ThreadLocal};
 use crate::rt::options::Priority;
 use crate::rt::process::{self, ActorProcess, ProcessId};
-use crate::{NewActor, Supervisor};
+use crate::Supervisor;
 
 mod inactive;
 
@@ -120,7 +120,7 @@ impl<'s> AddActor<'s> {
         is_ready: bool,
     ) where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Context = context::ThreadLocal> + 'static,
+        NA: NewActor<Context = ThreadLocal> + 'static,
     {
         #[allow(trivial_casts)]
         debug_assert!(

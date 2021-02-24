@@ -2,8 +2,7 @@
 
 use std::convert::TryFrom;
 
-use heph::actor::context::ThreadSafe;
-use heph::actor::{self, SyncContext};
+use heph::actor::{self, SyncContext, ThreadSafe};
 use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, Signal, SyncActorOptions};
 use heph::supervisor::NoSupervisor;
 

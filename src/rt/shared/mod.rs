@@ -10,8 +10,7 @@ use std::{io, task};
 use log::{debug, error, trace};
 use mio::{event, Interest, Registry, Token};
 
-use crate::actor::context::ThreadSafe;
-use crate::actor::{self, AddActorError, NewActor};
+use crate::actor::{self, AddActorError, NewActor, ThreadSafe};
 use crate::actor_ref::ActorRef;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::timers::Timers;

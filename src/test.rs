@@ -32,7 +32,7 @@ use getrandom::getrandom;
 use inbox::Manager;
 use log::warn;
 
-use crate::actor::{self, context, Actor, NewActor, SyncActor};
+use crate::actor::{self, Actor, NewActor, SyncActor, ThreadLocal, ThreadSafe};
 use crate::actor_ref::ActorRef;
 use crate::rt::shared::{waker, Scheduler};
 use crate::rt::sync_worker::SyncWorker;
@@ -92,7 +92,7 @@ pub fn init_local_actor<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
 where
-    NA: NewActor<Context = context::ThreadLocal>,
+    NA: NewActor<Context = ThreadLocal>,
 {
     init_local_actor_with_inbox(new_actor, arg).map(|(actor, _, actor_ref)| (actor, actor_ref))
 }
@@ -104,7 +104,7 @@ pub fn init_actor<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
 where
-    NA: NewActor<Context = context::ThreadSafe>,
+    NA: NewActor<Context = ThreadSafe>,
 {
     init_actor_with_inbox(new_actor, arg).map(|(actor, _, actor_ref)| (actor, actor_ref))
 }
@@ -116,7 +116,7 @@ pub(crate) fn init_local_actor_with_inbox<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, Manager<NA::Message>, ActorRef<NA::Message>), NA::Error>
 where
-    NA: NewActor<Context = context::ThreadLocal>,
+    NA: NewActor<Context = ThreadLocal>,
 {
     let (manager, sender, receiver) = Manager::new_small_channel();
     let ctx = actor::Context::new_local(TEST_PID, receiver, runtime());
@@ -131,7 +131,7 @@ pub(crate) fn init_actor_with_inbox<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, Manager<NA::Message>, ActorRef<NA::Message>), NA::Error>
 where
-    NA: NewActor<Context = context::ThreadSafe>,
+    NA: NewActor<Context = ThreadSafe>,
 {
     let (manager, sender, receiver) = Manager::new_small_channel();
     let ctx = actor::Context::new_shared(TEST_PID, receiver, SHARED_INTERNAL.clone());

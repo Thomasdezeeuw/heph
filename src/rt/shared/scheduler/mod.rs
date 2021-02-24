@@ -11,7 +11,7 @@ use std::sync::Mutex;
 use inbox::Manager;
 use log::trace;
 
-use crate::actor::{context, NewActor};
+use crate::actor::{NewActor, ThreadSafe};
 use crate::rt::options::Priority;
 use crate::rt::process::{self, ActorProcess, Process, ProcessId};
 use crate::Supervisor;
@@ -212,7 +212,7 @@ impl<'s> AddActor<'s> {
         is_ready: bool,
     ) where
         S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Context = context::ThreadSafe> + Send + Sync + 'static,
+        NA: NewActor<Context = ThreadSafe> + Send + Sync + 'static,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {

@@ -153,12 +153,12 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// use heph::actor::{self, context, NewActor};
+/// # use heph::actor::ThreadLocal;
 /// # use heph::actor::messages::Terminate;
 /// use heph::net::tcp::{server, TcpServer, TcpStream};
-/// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::rt::options::Priority;
-/// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
+/// use heph::supervisor::{Supervisor, SupervisorStrategy};
+/// use heph::{rt, actor, NewActor, ActorOptions, Runtime, RuntimeRef};
 /// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error> {
@@ -197,7 +197,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// where
 ///     // Trait bounds needed by `server::Setup`.
 ///     S: Supervisor<NA> + Clone + 'static,
-///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = context::ThreadLocal> + Clone + 'static,
+///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = ThreadLocal> + Clone + 'static,
 /// {
 ///     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
 ///         use server::Error::*;
@@ -247,14 +247,13 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// # use heph::actor::context;
+/// # use heph::actor::ThreadLocal;
 /// use heph::actor::messages::Terminate;
-/// use heph::{actor, NewActor};
-/// use heph::net::{TcpServer, TcpStream};
 /// # use heph::net::tcp;
-/// use heph::supervisor::{Supervisor, SupervisorStrategy};
+/// use heph::net::{TcpServer, TcpStream};
 /// use heph::rt::options::Priority;
-/// use heph::{rt, ActorOptions, Runtime, RuntimeRef};
+/// use heph::supervisor::{Supervisor, SupervisorStrategy};
+/// use heph::{actor, NewActor, rt, ActorOptions, Runtime, RuntimeRef};
 /// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error> {
@@ -287,7 +286,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// # impl<S, NA> Supervisor<tcp::server::Setup<S, NA>> for ServerSupervisor
 /// # where
 /// #     S: Supervisor<NA> + Clone + 'static,
-/// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = context::ThreadLocal> + Clone + 'static,
+/// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = ThreadLocal> + Clone + 'static,
 /// # {
 /// #     fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
 /// #         use tcp::server::Error::*;
@@ -334,8 +333,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// use heph::actor::{self, NewActor};
-/// use heph::actor::context::ThreadSafe;
+/// use heph::actor::{self, ThreadSafe, NewActor};
 /// # use heph::actor::messages::Terminate;
 /// use heph::net::tcp::{server, TcpServer, TcpStream};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};

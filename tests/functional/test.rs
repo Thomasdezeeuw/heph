@@ -4,8 +4,7 @@ use std::mem::size_of;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use heph::actor::context::ThreadLocal;
-use heph::actor::{self, Actor, NewActor};
+use heph::actor::{self, Actor, NewActor, ThreadLocal};
 use heph::test::{size_of_actor, size_of_actor_val};
 
 #[test]
