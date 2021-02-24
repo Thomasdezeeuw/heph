@@ -6,8 +6,110 @@
 //! - [`RuntimeRef`] is a reference to a running runtime, used for example to
 //!   spawn new actors.
 //!
-//! See [`Runtime`] for documentation on how to run an actor. For more examples
-//! see the [examples directory] in the source code.
+//! ## Running Heph's runtime
+//!
+//! Building a runtime starts with calling [`setup`], which will create a new
+//! [`Setup`](Setup) builder type, which allows configuration of the
+//! [`Runtime`]. The [`new`] function can also be used, but is really only meant
+//! for quick prototyping or testing.
+//!
+//! [`Setup`](Setup) has a number of configuration options. An example of one
+//! such option is the number of threads the runtime uses, this can configured
+//! with the [`num_threads`] and [`use_all_cores`] methods. When using
+//! `use_all_cores` the CPU affinity can automatically be set using
+//! [`auto_cpu_affinity`].
+//!
+//! Once the runtime is fully configured it can be [`build`], which returns the
+//! [`Runtime`] type.
+//!
+//! After the runtime is build it is also possible to start thread-safe actors
+//! using [`Spawn`] implementation on `Runtime` or [`try_spawn`]. Synchronous
+//! actors can be spawned using [`spawn_sync_actor`]. Note however that most
+//! actors should run as thread-*local* actors however. To spawn a thread-local
+//! actor see the [`Spawn`] implementation for [`RuntimeRef`] or
+//! [`RuntimeRef::try_spawn_local`], which can spawn both thread-safe and
+//! thread-local actors. For documentation on the different kind of actors see
+//! the [`actor`] module.
+//!
+//! To help with initialisation and spawning of thread-local actor it's possible
+//! to run functions on all worker threads using [`run_on_workers`]. This will
+//! run the same (cloned) function on all workers threads with access to a
+//! [`RuntimeRef`].
+//!
+//! Finally after configurating the runtime and spawning actors the runtime can
+//! be [`start`]ed, which runs all actors and waits for them to complete.
+//!
+//! [`setup`]: Runtime::setup
+//! [`new`]: Runtime::new
+//! [`num_threads`]: Setup::num_threads
+//! [`use_all_cores`]: Setup::use_all_cores
+//! [`auto_cpu_affinity`]: Setup::auto_cpu_affinity
+//! [`build`]: Setup::build
+//! [`try_spawn`]: Runtime::try_spawn
+//! [`spawn_sync_actor`]: Runtime::spawn_sync_actor
+//! [`run_on_workers`]: Runtime::run_on_workers
+//! [`start`]: Runtime::start
+//!
+//! ## Examples
+//!
+//! This simple example shows how to run a `Runtime` and add how start a single
+//! actor on each thread. This should print "Hello World" twice (once on each
+//! worker thread started).
+//!
+//! ```
+//! #![feature(never_type)]
+//!
+//! use heph::supervisor::NoSupervisor;
+//! use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
+//!
+//! fn main() -> Result<(), rt::Error> {
+//!     // Build a new `Runtime` with two worker threads.
+//!     let mut runtime = Runtime::setup().num_threads(2).build()?;
+//!     // On each worker thread run our setup function.
+//!     runtime.run_on_workers(setup)?;
+//!     // And start the runtime.
+//!     runtime.start()
+//! }
+//!
+//! // This setup function will on run on each created thread. In the case of
+//! // this example we create two threads (see `main`).
+//! fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
+//!     // Asynchronous function don't yet implement the required `NewActor`
+//!     // trait, but function pointers do so we cast our type to a function
+//!     // pointer.
+//!     let actor = actor as fn(_, _) -> _;
+//!     // Each actors needs to be supervised, but since our actor doesn't
+//!     // return an error (the error type is `!`) we can get away with our
+//!     // `NoSupervisor` which doesn't do anything (as it can never be called).
+//!     let supervisor = NoSupervisor;
+//!     // All actors start with one or more arguments, in our case it's message
+//!     // used to greet people with. See `actor` below.
+//!     let arg = "Hello";
+//!     // Spawn the actor to run on our actor runtime. We get an actor reference
+//!     // back which can be used to send the actor messages, see below.
+//!     let actor_ref = runtime_ref.spawn_local(supervisor, actor, arg, ActorOptions::default());
+//!
+//!     // Send a message to the actor we just spawned.
+//!     actor_ref.try_send("World").unwrap();
+//!
+//!     Ok(())
+//! }
+//!
+//! /// Our actor that greets people.
+//! async fn actor(mut ctx: actor::Context<&'static str>, msg: &'static str) {
+//!     // `msg` is the argument passed to `spawn` in the `setup` function
+//!     // above, in this example it was "Hello".
+//!
+//!     // Using the context we can receive messages send to this actor, so here
+//!     // we'll receive the "World" message we send in the `setup` function.
+//!     if let Ok(name) = ctx.receive_next().await {
+//!         // This should print "Hello world"!
+//!         println!("{} {}", msg, name);
+//!     }
+//! }
+//! ```
+//!
+//! For more examples see the [examples directory] in the source code.
 //!
 //! [examples directory]: https://github.com/Thomasdezeeuw/heph/tree/master/examples
 
@@ -78,110 +180,10 @@ fn max_threads() {
 /// The runtime that runs all actors.
 ///
 /// The runtime will start workers threads that will run all actors, these
-/// threads will run until all actors have returned.
+/// threads will run until all actors have returned. See the [module]
+/// documentation for more information.
 ///
-/// ## Usage
-///
-/// Building a runtime starts with calling [`setup`], which will create a new
-/// [`Setup`](Setup) builder type, which allows configuration of the
-/// [`Runtime`]. The [`new`] function can also be used, but is really only meant
-/// for quick prototyping or testing.
-///
-/// [`Setup`](Setup) has a number of configuration options. An example of one
-/// such option is the number of threads the runtime uses, this can configured
-/// with the [`num_threads`] and [`use_all_cores`] methods. When using
-/// `use_all_cores` the CPU affinity can automatically be set using
-/// [`auto_cpu_affinity`].
-///
-/// Once the runtime is fully configured it can be [`build`], which returns the
-/// [`Runtime`] type.
-///
-/// After the runtime is build it is also possible to start thread-safe actors
-/// using [`Spawn`] implementation on `Runtime` or [`try_spawn`]. Synchronous
-/// actors can be spawned using [`spawn_sync_actor`]. Note however that most
-/// actors should run as thread-*local* actors however. To spawn a thread-local
-/// actor see the [`Spawn`] implementation for [`RuntimeRef`] or
-/// [`RuntimeRef::try_spawn_local`], which can spawn both thread-safe and
-/// thread-local actors. For documentation on the different kind of actors see
-/// the [`actor`] module.
-///
-/// To help with initialisation and spawning of thread-local actor it's possible
-/// to run functions on all worker threads using [`run_on_workers`]. This will
-/// run the same (cloned) function on all workers threads with access to a
-/// [`RuntimeRef`].
-///
-/// Finally after configurating the runtime and spawning actors the runtime can
-/// be [`start`]ed, which runs all actors and waits for them to complete.
-///
-/// [`setup`]: Runtime::setup
-/// [`new`]: Runtime::new
-/// [`num_threads`]: Setup::num_threads
-/// [`use_all_cores`]: Setup::use_all_cores
-/// [`auto_cpu_affinity`]: Setup::auto_cpu_affinity
-/// [`build`]: Setup::build
-/// [`try_spawn`]: Runtime::try_spawn
-/// [`spawn_sync_actor`]: Runtime::spawn_sync_actor
-/// [`run_on_workers`]: Runtime::run_on_workers
-/// [`start`]: Runtime::start
-///
-/// ## Examples
-///
-/// This simple example shows how to run a `Runtime` and add how start a single
-/// actor on each thread. This should print "Hello World" twice (once on each
-/// worker thread started).
-///
-/// ```
-/// #![feature(never_type)]
-///
-/// use heph::supervisor::NoSupervisor;
-/// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
-///
-/// fn main() -> Result<(), rt::Error> {
-///     // Build a new `Runtime` with two worker threads.
-///     let mut runtime = Runtime::setup().num_threads(2).build()?;
-///     // On each worker thread run our setup function.
-///     runtime.run_on_workers(setup)?;
-///     // And start the runtime.
-///     runtime.start()
-/// }
-///
-/// // This setup function will on run on each created thread. In the case of
-/// // this example we create two threads (see `main`).
-/// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-///     // Asynchronous function don't yet implement the required `NewActor`
-///     // trait, but function pointers do so we cast our type to a function
-///     // pointer.
-///     let actor = actor as fn(_, _) -> _;
-///     // Each actors needs to be supervised, but since our actor doesn't
-///     // return an error (the error type is `!`) we can get away with our
-///     // `NoSupervisor` which doesn't do anything (as it can never be called).
-///     let supervisor = NoSupervisor;
-///     // All actors start with one or more arguments, in our case it's message
-///     // used to greet people with. See `actor` below.
-///     let arg = "Hello";
-///     // Spawn the actor to run on our actor runtime. We get an actor reference
-///     // back which can be used to send the actor messages, see below.
-///     let actor_ref = runtime_ref.spawn_local(supervisor, actor, arg, ActorOptions::default());
-///
-///     // Send a message to the actor we just spawned.
-///     actor_ref.try_send("World").unwrap();
-///
-///     Ok(())
-/// }
-///
-/// /// Our actor that greets people.
-/// async fn actor(mut ctx: actor::Context<&'static str>, msg: &'static str) {
-///     // `msg` is the argument passed to `spawn` in the `setup` function
-///     // above, in this example it was "Hello".
-///
-///     // Using the context we can receive messages send to this actor, so here
-///     // we'll receive the "World" message we send in the `setup` function.
-///     if let Ok(name) = ctx.receive_next().await {
-///         // This should print "Hello world"!
-///         println!("{} {}", msg, name);
-///     }
-/// }
-/// ```
+/// [module]: crate::rt
 #[derive(Debug)]
 pub struct Runtime {
     /// Coordinator thread data.
@@ -210,7 +212,7 @@ impl Runtime {
     ///
     /// This is mainly useful for quick prototyping and testing. When moving to
     /// production you'll likely want [setup] the runtime, at the very least to
-    /// run all available threads.
+    /// run a worker thread on all available CPU cores.
     ///
     /// [setup]: Runtime::setup
     #[allow(clippy::new_without_default)]

@@ -16,7 +16,9 @@ use crate::trace;
 /// Setup a [`Runtime`].
 ///
 /// This type implements a builder pattern to build a `Runtime`. It is created
-/// via [`Runtime::setup`], for examples and usage see [`Runtime`].
+/// via [`Runtime::setup`], for examples and usage see [`rt`] module.
+///
+/// [`rt`]: crate::rt
 #[derive(Debug)]
 pub struct Setup {
     /// Number of worker threads to create.

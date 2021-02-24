@@ -58,7 +58,7 @@
 //!
 //! For information about actors start with the [`actor`] module. Actors must
 //! always be supervised which are documented in the [`supervisor`] module.
-//! Finally [`Runtime`] has documentation about Heph's runtime.
+//! Finally the [`rt`] module has documentation about Heph's runtime.
 //!
 //! [examples]: https://github.com/Thomasdezeeuw/heph/blob/master/examples/README.md
 //!
