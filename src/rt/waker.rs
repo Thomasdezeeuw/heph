@@ -249,7 +249,7 @@ mod tests {
     #[test]
     fn thread_mask() {
         assert!(
-            (usize::max_value() & !THREAD_MASK).leading_zeros() as usize == THREAD_BITS,
+            (usize::MAX & !THREAD_MASK).leading_zeros() as usize == THREAD_BITS,
             "Incorrect THREAD_MASK"
         );
     }
@@ -277,7 +277,7 @@ mod tests {
         assert_eq!(wake_receiver.try_recv(), Ok(PID1));
         waker::mark_polling(waker_id, false);
 
-        let pid2 = ProcessId(usize::max_value() & !THREAD_MASK);
+        let pid2 = ProcessId(usize::MAX & !THREAD_MASK);
         let waker = waker::new(waker_id, pid2);
         waker::mark_polling(waker_id, true);
         waker.wake();

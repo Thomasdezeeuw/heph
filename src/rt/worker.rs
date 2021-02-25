@@ -308,8 +308,8 @@ pub(crate) struct RunningRuntime {
 const RUN_POLL_RATIO: usize = 32;
 
 /// Id used for the awakener.
-const WAKER: Token = Token(usize::max_value());
-const COORDINATOR: Token = Token(usize::max_value() - 1);
+const WAKER: Token = Token(usize::MAX);
+const COORDINATOR: Token = Token(usize::MAX - 1);
 
 impl RunningRuntime {
     /// Create a new running runtime.
