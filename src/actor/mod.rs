@@ -383,6 +383,20 @@ pub trait NewActor {
             _phantom: PhantomData,
         }
     }
+
+    /// Returns the name of the actor.
+    ///
+    /// The default implementation creates the name based on the type name of
+    /// the actor.
+    ///
+    /// # Notes
+    ///
+    /// This uses [`type_name`] under the hood which does not have a stable
+    /// output. Like the `type_name` function the default implementation is
+    /// provided on a best effort basis.
+    fn name(&self) -> &'static str {
+        format_name(type_name::<Self::Actor>())
+    }
 }
 
 /// See [`NewActor::map_arg`].
@@ -574,23 +588,6 @@ mod private {
             Ok(())
         }
     }
-}
-
-/// Returns the name of an actor based on its type name.
-///
-/// The generic parameter should be an [`Actor`] (or [`NewActor::Actor`]).
-/// [`SyncActor`]s converted into function pointers (using `fn(_) -> _)`) do
-/// **not** work, unconverted it does work.
-///
-/// [`SyncActor`]: sync::SyncActor
-///
-/// # Notes
-///
-/// This uses [`type_name`] under the hood which does not have a stable output.
-/// Like the `type_name` function is function is provided on a best effort
-/// basis.
-pub(crate) fn name<A>() -> &'static str {
-    format_name(type_name::<A>())
 }
 
 // NOTE: split for easier testing.

@@ -116,7 +116,7 @@ impl RuntimeInternals {
         // Setup adding a new process to the scheduler.
         let actor_entry = self.scheduler.add_actor();
         let pid = actor_entry.pid();
-        let name = actor::name::<NA::Actor>();
+        let name = new_actor.name();
         debug!("spawning thread-safe actor: pid={}, name={}", pid, name);
 
         // Create our actor context and our actor with it.

@@ -574,7 +574,7 @@ impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef {
         let mut scheduler = self.internals.scheduler.borrow_mut();
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
-        let name = actor::name::<NA::Actor>();
+        let name = new_actor.name();
         debug!("spawning thread-local actor: pid={}, name={}", pid, name);
 
         // Create our actor context and our actor with it.
