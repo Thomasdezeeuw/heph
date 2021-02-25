@@ -83,7 +83,7 @@ pub(crate) struct Log {
     ///
     /// This file is shared between one or more thread, thus writes to it should
     /// be atomic, i.e. no partial writes. Most OSs support atomic writes up to
-    /// a page size (usally 4kB).
+    /// a page size (usually 4KB).
     file: File,
     /// Used to buffer writes for a single event.
     buf: Vec<u8>,
