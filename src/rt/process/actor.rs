@@ -104,7 +104,7 @@ where
     C: ContextKind,
 {
     fn name(&self) -> &'static str {
-        actor::name::<NA::Actor>()
+        self.new_actor.name()
     }
 
     fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult {
