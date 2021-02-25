@@ -18,9 +18,9 @@ use crate::rt::{
 use crate::trace;
 
 /// Token used to receive process signals.
-const SIGNAL: Token = Token(usize::max_value());
+const SIGNAL: Token = Token(usize::MAX);
 /// Token used to wake-up the coordinator thread.
-pub(super) const WAKER: Token = Token(usize::max_value() - 1);
+pub(super) const WAKER: Token = Token(usize::MAX - 1);
 
 /// Stream id for the coordinator.
 pub(super) const TRACE_ID: u32 = 0;
