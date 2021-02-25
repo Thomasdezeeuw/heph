@@ -75,8 +75,9 @@ impl fmt::Display for Signal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_str())?;
         if f.alternate() {
-            f.write_str(" ")?;
+            f.write_str(" (")?;
             f.write_str(self.as_posix())?;
+            f.write_str(")")?;
         }
         Ok(())
     }
