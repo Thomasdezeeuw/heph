@@ -9,9 +9,6 @@ use std::sync::{Arc, Mutex};
 use std::task::{self, Wake};
 use std::thread;
 
-// NOTE: keep in sync with the actual capacity.
-pub const SMALL_CAP: usize = 8;
-
 pub fn assert_send<T: Send>() {}
 pub fn assert_sync<T: Sync>() {}
 
@@ -211,6 +208,19 @@ macro_rules! expect_recv {
                 Err(heph_inbox::RecvError::Empty) => {} // Try again.
                 Err(err) => panic!("unexpected error receiving: {}", err),
             }
+        }
+    }};
+}
+
+/// Run a test with all possible capacities.
+macro_rules! with_all_capacities {
+    (|$capacity: ident| $test: block) => {{
+        #[cfg(not(feature = "stress_testing"))]
+        let iter = [inbox::MIN_CAP, 8, inbox::MAX_CAP].iter().copied();
+        #[cfg(feature = "stress_testing")]
+        let iter = inbox::MIN_CAP..=inbox::MAX_CAP;
+        for $capacity in iter {
+            $test
         }
     }};
 }

@@ -1,14 +1,15 @@
 //! Functional tests.
 
-#![feature(once_cell)]
+#![feature(drain_filter, once_cell)]
 
 use heph_inbox::{
-    self as inbox, new_small, Manager, Receiver, RecvError, SendError, SendValue, Sender, MAX_CAP,
+    self as inbox, new, Manager, Receiver, RecvError, SendError, SendValue, Sender, MAX_CAP,
 };
 
+#[macro_use]
 mod util;
 
-use util::{assert_send, assert_sync, SMALL_CAP};
+use util::{assert_send, assert_sync};
 
 #[test]
 fn sender_is_send() {
@@ -73,136 +74,160 @@ fn capacities_are_correct() {
 
 #[test]
 fn identifiers() {
-    let (sender1a, receiver1a) = new_small::<()>();
-    let sender1b = sender1a.clone();
-    let (sender2a, receiver2a) = new_small::<()>();
-    let sender2b = sender2a.clone();
+    with_all_capacities!(|capacity| {
+        let (sender1a, receiver1a) = new::<()>(capacity);
+        let sender1b = sender1a.clone();
+        let (sender2a, receiver2a) = new::<()>(capacity);
+        let sender2b = sender2a.clone();
 
-    assert_eq!(sender1a.id(), sender1a.id());
-    assert_eq!(sender1a.id(), sender1b.id());
-    assert_eq!(sender1a.id(), receiver1a.id());
-    assert_eq!(receiver1a.id(), sender1a.id());
-    assert_eq!(receiver1a.id(), sender1b.id());
-    assert_eq!(receiver1a.id(), receiver1a.id());
+        assert_eq!(sender1a.id(), sender1a.id());
+        assert_eq!(sender1a.id(), sender1b.id());
+        assert_eq!(sender1a.id(), receiver1a.id());
+        assert_eq!(receiver1a.id(), sender1a.id());
+        assert_eq!(receiver1a.id(), sender1b.id());
+        assert_eq!(receiver1a.id(), receiver1a.id());
 
-    assert_ne!(sender1a.id(), sender2a.id());
-    assert_ne!(sender1a.id(), sender2b.id());
-    assert_ne!(sender1a.id(), receiver2a.id());
-    assert_ne!(receiver1a.id(), sender2a.id());
-    assert_ne!(receiver1a.id(), sender2b.id());
-    assert_ne!(receiver1a.id(), receiver2a.id());
+        assert_ne!(sender1a.id(), sender2a.id());
+        assert_ne!(sender1a.id(), sender2b.id());
+        assert_ne!(sender1a.id(), receiver2a.id());
+        assert_ne!(receiver1a.id(), sender2a.id());
+        assert_ne!(receiver1a.id(), sender2b.id());
+        assert_ne!(receiver1a.id(), receiver2a.id());
+    });
 }
 
 #[test]
 fn sending_and_receiving_value() {
-    let (sender, mut receiver) = new_small::<usize>();
-    sender.try_send(123).unwrap();
-    assert_eq!(receiver.try_recv().unwrap(), 123);
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+        sender.try_send(123).unwrap();
+        assert_eq!(receiver.try_recv().unwrap(), 123);
+    });
 }
 
 #[test]
 fn receiving_from_empty_channel() {
-    let (_sender, mut receiver) = new_small::<usize>();
-    assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Empty);
+    with_all_capacities!(|capacity| {
+        let (_sender, mut receiver) = new::<usize>(capacity);
+        assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Empty);
+    });
 }
 
 #[test]
 fn receiving_from_disconnected_channel() {
-    let (sender, mut receiver) = new_small::<usize>();
-    drop(sender);
-    assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Disconnected);
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+        drop(sender);
+        assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Disconnected);
+    });
 }
 
 #[test]
 fn sending_into_full_channel() {
-    let (sender, receiver) = new_small::<usize>();
-    for value in 0..SMALL_CAP {
-        sender.try_send(value).unwrap();
-    }
-    assert_eq!(
-        sender.try_send(SMALL_CAP + 1),
-        Err(SendError::Full(SMALL_CAP + 1))
-    );
-    drop(receiver);
+    with_all_capacities!(|capacity| {
+        let (sender, receiver) = new::<usize>(capacity);
+        for value in 0..capacity {
+            sender.try_send(value).unwrap();
+        }
+        assert_eq!(
+            sender.try_send(capacity + 1),
+            Err(SendError::Full(capacity + 1))
+        );
+        drop(receiver);
+    });
 }
 
 #[test]
 fn send_len_values_send_then_recv() {
-    let (sender, mut receiver) = new_small::<usize>();
-    for value in 0..SMALL_CAP {
-        sender.try_send(value).unwrap();
-    }
-    assert!(sender.try_send(SMALL_CAP + 1).is_err());
-    for value in 0..SMALL_CAP {
-        assert_eq!(receiver.try_recv().unwrap(), value);
-    }
-    assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Empty);
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+        for value in 0..capacity {
+            sender.try_send(value).unwrap();
+        }
+        assert!(sender.try_send(capacity + 1).is_err());
+        for value in 0..capacity {
+            assert_eq!(receiver.try_recv().unwrap(), value);
+        }
+        assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Empty);
+    });
 }
 
 #[test]
 fn send_len_values_interleaved() {
-    let (sender, mut receiver) = new_small::<usize>();
-    for value in 0..SMALL_CAP {
-        sender.try_send(value).unwrap();
-        assert_eq!(receiver.try_recv().unwrap(), value);
-    }
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+        for value in 0..capacity {
+            sender.try_send(value).unwrap();
+            assert_eq!(receiver.try_recv().unwrap(), value);
+        }
+    });
 }
 
 #[test]
 fn send_2_len_values_send_then_recv() {
-    let (sender, mut receiver) = new_small::<usize>();
-    for value in 0..SMALL_CAP {
-        sender.try_send(value).unwrap();
-    }
-    for value in 0..SMALL_CAP {
-        assert_eq!(receiver.try_recv().unwrap(), value);
-        sender.try_send(SMALL_CAP + value).unwrap();
-    }
-    for value in 0..SMALL_CAP {
-        assert_eq!(receiver.try_recv().unwrap(), SMALL_CAP + value);
-    }
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+        for value in 0..capacity {
+            sender.try_send(value).unwrap();
+        }
+        for value in 0..capacity {
+            assert_eq!(receiver.try_recv().unwrap(), value);
+            sender.try_send(capacity + value).unwrap();
+        }
+        for value in 0..capacity {
+            assert_eq!(receiver.try_recv().unwrap(), capacity + value);
+        }
+    });
 }
 
 #[test]
 fn send_2_len_values_interleaved() {
-    let (sender, mut receiver) = new_small::<usize>();
-    for value in 0..2 * SMALL_CAP {
-        sender.try_send(value).unwrap();
-        assert_eq!(receiver.try_recv().unwrap(), value);
-    }
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+        for value in 0..2 * capacity {
+            sender.try_send(value).unwrap();
+            assert_eq!(receiver.try_recv().unwrap(), value);
+        }
+    });
 }
 
 #[test]
 fn sender_disconnected_after_send() {
-    let (sender, mut receiver) = new_small::<usize>();
-    sender.try_send(123).unwrap();
-    drop(sender);
-    assert_eq!(receiver.try_recv().unwrap(), 123);
-    assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Disconnected);
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+        sender.try_send(123).unwrap();
+        drop(sender);
+        assert_eq!(receiver.try_recv().unwrap(), 123);
+        assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Disconnected);
+    });
 }
 
 #[test]
 fn sender_disconnected_after_send_len() {
-    let (sender, mut receiver) = new_small::<usize>();
-    for value in 0..SMALL_CAP {
-        sender.try_send(value).unwrap();
-    }
-    drop(sender);
-    for value in 0..SMALL_CAP {
-        assert_eq!(receiver.try_recv().unwrap(), value);
-    }
-    assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Disconnected);
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+        for value in 0..capacity {
+            sender.try_send(value).unwrap();
+        }
+        drop(sender);
+        for value in 0..capacity {
+            assert_eq!(receiver.try_recv().unwrap(), value);
+        }
+        assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Disconnected);
+    });
 }
 
 #[test]
 fn sender_disconnected_after_send_2_len() {
-    let (sender, mut receiver) = new_small::<usize>();
-    for value in 0..2 * SMALL_CAP {
-        sender.try_send(value).unwrap();
-        assert_eq!(receiver.try_recv().unwrap(), value);
-    }
-    drop(sender);
-    assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Disconnected);
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+        for value in 0..2 * capacity {
+            sender.try_send(value).unwrap();
+            assert_eq!(receiver.try_recv().unwrap(), value);
+        }
+        drop(sender);
+        assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Disconnected);
+    });
 }
 
 const LARGE: usize = 1_000_000;
@@ -210,27 +235,58 @@ const LARGE: usize = 1_000_000;
 #[test]
 #[cfg_attr(not(feature = "stress_testing"), ignore)]
 fn stress_sending_interleaved() {
-    let (sender, mut receiver) = new_small::<usize>();
-    for value in 0..LARGE {
-        sender.try_send(value).unwrap();
-        assert_eq!(receiver.try_recv().unwrap(), value);
-    }
-    assert_eq!(receiver.try_recv(), Err(RecvError::Empty));
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+        for value in 0..LARGE {
+            sender.try_send(value).unwrap();
+            assert_eq!(receiver.try_recv().unwrap(), value);
+        }
+        assert_eq!(receiver.try_recv(), Err(RecvError::Empty));
+    });
 }
 
 #[test]
 #[cfg_attr(not(feature = "stress_testing"), ignore)]
 fn stress_sending_fill() {
-    for n in 1..=(SMALL_CAP - 1) {
-        let (sender, mut receiver) = new_small::<usize>();
+    // NOTE: this test is only run for a limited number of capacities, because
+    // it doesn't work for all of them. The problem is the wrap around of the
+    // receiver position with capacities that are **not** a power of two.
+    //
+    // For example taking a capacity of 5. The maximum receiver position is 63
+    // (6 bits), which is index 3. The next value will be 0 (with wraps around),
+    // which is index 0. This means we've skipped index 4.
+    //
+    // The crate doesn't guaranteed FIFO ordering so it's fine, but this test
+    // assumes it.
 
-        for value in 0..(LARGE / n) {
-            for n in 0..n {
+    /// Iterator for all powers of two in the range `1..=MAX_CAP`.
+    struct PowersOfTwo(usize);
+
+    impl Iterator for PowersOfTwo {
+        type Item = usize;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.0 > MAX_CAP {
+                None
+            } else {
+                let value = self.0;
+                self.0 <<= 1;
+                Some(value)
+            }
+        }
+    }
+    for capacity in PowersOfTwo(1) {
+        let (sender, mut receiver) = new::<usize>(capacity);
+
+        let mut value = 0;
+        for _ in 0..(LARGE / capacity) {
+            for n in 0..capacity {
                 sender.try_send(value + n).unwrap();
             }
-            for n in 0..n {
+            for n in 0..capacity {
                 assert_eq!(receiver.try_recv().unwrap(), value + n);
             }
+            value += capacity;
         }
 
         assert_eq!(receiver.try_recv(), Err(RecvError::Empty));
@@ -239,81 +295,91 @@ fn stress_sending_fill() {
 
 #[test]
 fn sender_is_connected() {
-    let (sender, receiver) = new_small::<usize>();
-    assert!(sender.is_connected());
-    drop(receiver);
-    assert!(!sender.is_connected());
+    with_all_capacities!(|capacity| {
+        let (sender, receiver) = new::<usize>(capacity);
+        assert!(sender.is_connected());
+        drop(receiver);
+        assert!(!sender.is_connected());
+    });
 }
 
 #[test]
 fn receiver_is_connected() {
-    let (sender, receiver) = new_small::<usize>();
-    assert!(receiver.is_connected());
-    drop(sender);
-    assert!(!receiver.is_connected());
+    with_all_capacities!(|capacity| {
+        let (sender, receiver) = new::<usize>(capacity);
+        assert!(receiver.is_connected());
+        drop(sender);
+        assert!(!receiver.is_connected());
+    });
 }
 
 #[test]
 fn same_channel() {
-    let (sender1a, _) = new_small::<usize>();
-    let sender1b = sender1a.clone();
-    let (sender2a, _) = new_small::<usize>();
-    let sender2b = sender2a.clone();
+    with_all_capacities!(|capacity| {
+        let (sender1a, _) = new::<usize>(capacity);
+        let sender1b = sender1a.clone();
+        let (sender2a, _) = new::<usize>(capacity);
+        let sender2b = sender2a.clone();
 
-    assert!(sender1a.same_channel(&sender1a));
-    assert!(sender1a.same_channel(&sender1b));
-    assert!(!sender1a.same_channel(&sender2a));
-    assert!(!sender1a.same_channel(&sender2b));
-    assert!(sender1b.same_channel(&sender1a));
-    assert!(sender1b.same_channel(&sender1b));
-    assert!(!sender1b.same_channel(&sender2a));
-    assert!(!sender1b.same_channel(&sender2b));
+        assert!(sender1a.same_channel(&sender1a));
+        assert!(sender1a.same_channel(&sender1b));
+        assert!(!sender1a.same_channel(&sender2a));
+        assert!(!sender1a.same_channel(&sender2b));
+        assert!(sender1b.same_channel(&sender1a));
+        assert!(sender1b.same_channel(&sender1b));
+        assert!(!sender1b.same_channel(&sender2a));
+        assert!(!sender1b.same_channel(&sender2b));
 
-    assert!(!sender2a.same_channel(&sender1a));
-    assert!(!sender2a.same_channel(&sender1b));
-    assert!(sender2a.same_channel(&sender2a));
-    assert!(sender2a.same_channel(&sender2b));
-    assert!(!sender2b.same_channel(&sender1a));
-    assert!(!sender2b.same_channel(&sender1b));
-    assert!(sender2b.same_channel(&sender2a));
-    assert!(sender2b.same_channel(&sender2b));
+        assert!(!sender2a.same_channel(&sender1a));
+        assert!(!sender2a.same_channel(&sender1b));
+        assert!(sender2a.same_channel(&sender2a));
+        assert!(sender2a.same_channel(&sender2b));
+        assert!(!sender2b.same_channel(&sender1a));
+        assert!(!sender2b.same_channel(&sender1b));
+        assert!(sender2b.same_channel(&sender2a));
+        assert!(sender2b.same_channel(&sender2b));
+    });
 }
 
 #[test]
 fn sends_to() {
-    let (sender1a, receiver1) = new_small::<usize>();
-    let sender1b = sender1a.clone();
-    let (sender2a, receiver2) = new_small::<usize>();
-    let sender2b = sender2a.clone();
+    with_all_capacities!(|capacity| {
+        let (sender1a, receiver1) = new::<usize>(capacity);
+        let sender1b = sender1a.clone();
+        let (sender2a, receiver2) = new::<usize>(capacity);
+        let sender2b = sender2a.clone();
 
-    assert!(sender1a.sends_to(&receiver1));
-    assert!(!sender1a.sends_to(&receiver2));
-    assert!(sender1b.sends_to(&receiver1));
-    assert!(!sender1b.sends_to(&receiver2));
+        assert!(sender1a.sends_to(&receiver1));
+        assert!(!sender1a.sends_to(&receiver2));
+        assert!(sender1b.sends_to(&receiver1));
+        assert!(!sender1b.sends_to(&receiver2));
 
-    assert!(!sender2a.sends_to(&receiver1));
-    assert!(sender2a.sends_to(&receiver2));
-    assert!(!sender2b.sends_to(&receiver1));
-    assert!(sender2b.sends_to(&receiver2));
+        assert!(!sender2a.sends_to(&receiver1));
+        assert!(sender2a.sends_to(&receiver2));
+        assert!(!sender2b.sends_to(&receiver1));
+        assert!(sender2b.sends_to(&receiver2));
+    });
 }
 
 #[test]
 fn receiver_new_sender() {
-    let (sender, mut receiver) = new_small::<usize>();
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
 
-    let sender2 = receiver.new_sender();
-    assert!(sender2.sends_to(&receiver));
-    assert!(sender2.same_channel(&sender));
+        let sender2 = receiver.new_sender();
+        assert!(sender2.sends_to(&receiver));
+        assert!(sender2.same_channel(&sender));
 
-    drop(sender);
-    assert!(sender2.is_connected());
-    assert!(receiver.is_connected());
+        drop(sender);
+        assert!(sender2.is_connected());
+        assert!(receiver.is_connected());
 
-    sender2.try_send(123).unwrap();
-    assert_eq!(receiver.try_recv().unwrap(), 123);
+        sender2.try_send(123).unwrap();
+        assert_eq!(receiver.try_recv().unwrap(), 123);
 
-    drop(receiver);
-    assert!(!sender2.is_connected());
+        drop(receiver);
+        assert!(!sender2.is_connected());
+    });
 }
 
 mod future {
@@ -324,10 +390,9 @@ mod future {
     use std::pin::Pin;
     use std::task::{self, Poll};
 
-    use heph_inbox::{new_small, Sender};
+    use heph_inbox::{self as inbox, new};
 
-    use crate::util::{new_count_waker, AwokenCount};
-    use crate::SMALL_CAP;
+    use crate::util::new_count_waker;
 
     macro_rules! pin_stack {
         ($fut: ident) => {
@@ -339,144 +404,148 @@ mod future {
 
     #[test]
     fn send_value() {
-        let (sender, mut receiver) = new_small::<usize>();
+        with_all_capacities!(|capacity| {
+            let (sender, mut receiver) = new::<usize>(capacity);
 
-        let (waker, count) = new_count_waker();
-        let mut ctx = task::Context::from_waker(&waker);
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
 
-        let future = sender.send(10);
-        pin_stack!(future);
+            let future = sender.send(10);
+            pin_stack!(future);
 
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
-        assert_eq!(count, 0);
-        assert_eq!(receiver.try_recv(), Ok(10));
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
+            assert_eq!(count, 0);
+            assert_eq!(receiver.try_recv(), Ok(10));
+        });
     }
 
     #[test]
     fn send_value_full_channel() {
-        let (sender, mut receiver) = new_small::<usize>();
-        // Fill the channel.
-        for value in 0..SMALL_CAP {
-            sender.try_send(value).unwrap();
-        }
+        with_all_capacities!(|capacity| {
+            let (sender, mut receiver) = new::<usize>(capacity);
+            // Fill the channel.
+            for value in 0..capacity {
+                sender.try_send(value).unwrap();
+            }
 
-        let (waker, count) = new_count_waker();
-        let mut ctx = task::Context::from_waker(&waker);
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
 
-        let future = sender.send(SMALL_CAP);
-        pin_stack!(future);
+            let future = sender.send(capacity);
+            pin_stack!(future);
 
-        // Channel should be full.
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-        assert_eq!(count, 0);
+            // Channel should be full.
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            assert_eq!(count, 0);
 
-        // Receiving a value should wake a sender.
-        assert_eq!(receiver.try_recv(), Ok(0));
-        assert_eq!(count, 1);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
+            // Receiving a value should wake a sender.
+            assert_eq!(receiver.try_recv(), Ok(0));
+            assert_eq!(count, 1);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
 
-        for want in 1..SMALL_CAP + 1 {
-            assert_eq!(receiver.try_recv(), Ok(want));
-        }
+            for want in 1..capacity + 1 {
+                assert_eq!(receiver.try_recv(), Ok(want));
+            }
+        });
     }
 
     #[test]
     fn send_many_values() {
-        let (sender, mut receiver) = new_small::<usize>();
+        with_all_capacities!(|capacity| {
+            let (sender, mut receiver) = new::<usize>(capacity);
 
-        let (waker, count) = new_count_waker();
-        let mut ctx = task::Context::from_waker(&waker);
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
 
-        for value in 0..SMALL_CAP {
-            let future = sender.send(value);
-            pin_stack!(future);
+            for value in 0..capacity {
+                let future = sender.send(value);
+                pin_stack!(future);
 
-            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
-            assert_eq!(count, 0);
-        }
+                assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
+                assert_eq!(count, 0);
+            }
 
-        for value in 0..SMALL_CAP {
-            assert_eq!(receiver.try_recv(), Ok(value));
-        }
+            for value in 0..capacity {
+                assert_eq!(receiver.try_recv(), Ok(value));
+            }
+        });
     }
 
     #[test]
     fn send_many_values_interleaved() {
-        let (sender, mut receiver) = new_small::<usize>();
+        with_all_capacities!(|capacity| {
+            let (sender, mut receiver) = new::<usize>(capacity);
 
-        let (waker, count) = new_count_waker();
-        let mut ctx = task::Context::from_waker(&waker);
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
 
-        for value in 0..SMALL_CAP {
-            let future = sender.send(value);
-            pin_stack!(future);
+            for value in 0..capacity {
+                let future = sender.send(value);
+                pin_stack!(future);
 
-            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
-            assert_eq!(count, 0);
+                assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
+                assert_eq!(count, 0);
 
-            assert_eq!(receiver.try_recv(), Ok(value));
-        }
+                assert_eq!(receiver.try_recv(), Ok(value));
+            }
+        });
     }
 
     // Test where `n` sender try to send into a full channel.
     fn send_many_values_full_channel_test(n: usize) {
-        let (sender, mut receiver) = new_small::<usize>();
-        // Fill the channel.
-        for value in 0..SMALL_CAP {
-            sender.try_send(value).unwrap();
-        }
-
-        // Create a `Sender` for each `SendValue` future.
-        let mut senders = (0..n)
-            .map(|_| sender.clone())
-            .collect::<Vec<Sender<usize>>>();
-        let mut senders = &mut *senders;
-
-        // Create a number of `SendValue` futures.
-        let mut futures: Vec<(task::Waker, AwokenCount, _)> = Vec::with_capacity(n);
-        for index in 0..n {
-            let (waker, count) = new_count_waker();
-            let mut ctx = task::Context::from_waker(&waker);
-
-            // Work around borrow rules: ensure that we only access a single
-            // sender in the vector at a time.
-            let (head, tail) = senders.split_first_mut().unwrap();
-            senders = tail;
-            let mut future = Box::pin(head.send(index + SMALL_CAP));
-
-            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-            assert_eq!(count, 0);
-
-            futures.push((waker, count, future));
-        }
-
-        for value in 0..SMALL_CAP {
-            // Receiving a value should wake the correct future.
-            assert_eq!(receiver.try_recv(), Ok(value));
-        }
-
-        for (waker, count, mut future) in futures.drain(..min(SMALL_CAP, futures.len())) {
-            let c = count.get();
-            assert!(c == 0 || c == 1);
-
-            let mut ctx = task::Context::from_waker(&waker);
-            assert_eq!(Pin::new(&mut future).poll(&mut ctx), Poll::Ready(Ok(())));
-            assert_eq!(count, c);
-        }
-
-        while !futures.is_empty() {
-            for value in (0..futures.len()).take(SMALL_CAP) {
-                assert_eq!(receiver.try_recv(), Ok(value + SMALL_CAP));
+        with_all_capacities!(|capacity| {
+            let (sender, mut receiver) = new::<usize>(capacity);
+            // Fill the channel.
+            for value in 0..capacity {
+                sender.try_send(value).unwrap();
             }
 
-            for (waker, count, mut future) in futures.drain(..min(SMALL_CAP, futures.len())) {
-                assert_eq!(count, 1);
+            // Create a `Sender` for each `SendValue` future.
+            let mut senders = (0..n).map(|_| sender.clone()).collect::<Vec<_>>();
+            let mut senders = &mut *senders;
 
+            // Create a number of `SendValue` futures.
+            let mut futures = Vec::with_capacity(n);
+            for index in 0..n {
+                let (waker, count) = new_count_waker();
                 let mut ctx = task::Context::from_waker(&waker);
-                assert_eq!(Pin::new(&mut future).poll(&mut ctx), Poll::Ready(Ok(())));
-                assert_eq!(count, 1);
+
+                // Work around borrow rules: ensure that we only access a single
+                // sender in the vector at a time.
+                let (head, tail) = senders.split_first_mut().unwrap();
+                senders = tail;
+                let mut future = Box::pin(head.send(index));
+
+                assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+                assert_eq!(count, 0);
+
+                futures.push((waker, count, future));
             }
-        }
+
+            // The sender should be awoken, however because we don't guarantee
+            // FIFO we don't the exact order in which the senders are awoken.
+            // `Channel::wake_next_sender` use of `Vec::swap_remove` makes it a
+            // bit hard to predict so we just check that at least one sender is
+            // awoken for each received message.
+            while !futures.is_empty() {
+                let n = min(capacity, futures.len());
+                for _ in 0..n {
+                    receiver.try_recv().unwrap();
+                }
+
+                let mut send = 0;
+                for (waker, count, mut future) in futures.drain_filter(|(_, c, _)| c.get() == 1) {
+                    let mut ctx = task::Context::from_waker(&waker);
+                    assert_eq!(Pin::new(&mut future).poll(&mut ctx), Poll::Ready(Ok(())));
+                    assert_eq!(count, 1);
+                    send += 1;
+                }
+                assert!(
+                    send == n,
+                    "didn't send enough, thus didn't wake enough senders"
+                );
+            }
+        });
     }
 
     #[test]
@@ -500,377 +569,404 @@ mod future {
     }
 
     #[test]
-    fn send_many_values_full_channel_len_senders() {
-        send_many_values_full_channel_test(SMALL_CAP);
-    }
-
-    #[test]
-    fn send_many_values_full_channel_many_senders() {
-        send_many_values_full_channel_test(2 * SMALL_CAP);
+    fn send_many_values_full_channel_ten_senders() {
+        send_many_values_full_channel_test(10);
     }
 
     #[test]
     fn send_value_supports_polling_with_different_wakers() {
-        let (sender, mut receiver) = new_small::<usize>();
+        with_all_capacities!(|capacity| {
+            let (sender, mut receiver) = new::<usize>(capacity);
 
-        for _ in 0..SMALL_CAP {
-            sender.try_send(123).unwrap();
-        }
+            for _ in 0..capacity {
+                sender.try_send(123).unwrap();
+            }
 
-        let (waker1, count1) = new_count_waker();
-        let (waker2, count2) = new_count_waker();
-        let mut ctx1 = task::Context::from_waker(&waker1);
-        let mut ctx2 = task::Context::from_waker(&waker2);
+            let (waker1, count1) = new_count_waker();
+            let (waker2, count2) = new_count_waker();
+            let mut ctx1 = task::Context::from_waker(&waker1);
+            let mut ctx2 = task::Context::from_waker(&waker2);
 
-        let mut future = Box::pin(sender.send(10));
-        assert_eq!(future.as_mut().poll(&mut ctx1), Poll::Pending);
-        assert_eq!(future.as_mut().poll(&mut ctx2), Poll::Pending);
+            let mut future = Box::pin(sender.send(10));
+            assert_eq!(future.as_mut().poll(&mut ctx1), Poll::Pending);
+            assert_eq!(future.as_mut().poll(&mut ctx2), Poll::Pending);
 
-        for _ in 0..SMALL_CAP {
-            assert_eq!(receiver.try_recv().unwrap(), 123);
-        }
-        drop(receiver);
+            for _ in 0..capacity {
+                assert_eq!(receiver.try_recv().unwrap(), 123);
+            }
+            drop(receiver);
 
-        assert_eq!(count1, 0);
-        assert_eq!(count2, 1);
+            assert_eq!(count1, 0);
+            assert_eq!(count2, 1);
+        });
     }
 
     #[test]
     fn recv_value() {
-        let (waker, count) = new_count_waker();
-        let (sender, mut receiver) = new_small::<usize>();
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
 
-        let mut ctx = task::Context::from_waker(&waker);
+            let mut ctx = task::Context::from_waker(&waker);
 
-        let future = receiver.recv();
-        pin_stack!(future);
+            let future = receiver.recv();
+            pin_stack!(future);
 
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
 
-        sender.try_send(10).unwrap();
-        assert_eq!(count, 1);
+            sender.try_send(10).unwrap();
+            assert_eq!(count, 1);
 
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+        });
     }
 
     #[test]
     fn recv_value_wake_up_optimised() {
-        let (waker, count) = new_count_waker();
-        let mut ctx = task::Context::from_waker(&waker);
-        let (sender, mut receiver) = new_small::<usize>();
+        with_all_capacities!(|capacity| {
+            if capacity < 2 {
+                // Requires us to send a minimum of two values.
+                continue;
+            }
 
-        let future = receiver.recv();
-        pin_stack!(future);
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
+            let (sender, mut receiver) = new::<usize>(capacity);
 
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            let future = receiver.recv();
+            pin_stack!(future);
 
-        sender.try_send(10).unwrap();
-        assert_eq!(count, 1);
-        sender.try_send(20).unwrap();
-        assert_eq!(count, 1); // Second wake-up optimised away.
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
 
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+            sender.try_send(10).unwrap();
+            assert_eq!(count, 1);
+            sender.try_send(20).unwrap();
+            assert_eq!(count, 1); // Second wake-up optimised away.
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+        });
     }
 
     #[test]
     fn recv_value_twice() {
-        let (waker, count) = new_count_waker();
-        let mut ctx = task::Context::from_waker(&waker);
-        let (sender, mut receiver) = new_small::<usize>();
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
+            let (sender, mut receiver) = new::<usize>(capacity);
 
-        // Create Future and register waker (by polling).
-        let future = receiver.recv();
-        pin_stack!(future);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            // Create Future and register waker (by polling).
+            let future = receiver.recv();
+            pin_stack!(future);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
 
-        // Send value.
-        sender.try_send(10).unwrap();
-        assert_eq!(count, 1);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+            // Send value.
+            sender.try_send(10).unwrap();
+            assert_eq!(count, 1);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
 
-        // Create second Future with and use the same waker.
-        let future = receiver.recv();
-        pin_stack!(future);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            // Create second Future with and use the same waker.
+            let future = receiver.recv();
+            pin_stack!(future);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
 
-        // Send second value.
-        sender.try_send(20).unwrap();
-        assert_eq!(count, 2);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(20)));
+            // Send second value.
+            sender.try_send(20).unwrap();
+            assert_eq!(count, 2);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(20)));
+        });
     }
 
     #[test]
     fn recv_value_twice_senders_dropped() {
-        let (waker, count) = new_count_waker();
-        let mut ctx = task::Context::from_waker(&waker);
-        let (sender, mut receiver) = new_small::<usize>();
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
+            let (sender, mut receiver) = new::<usize>(capacity);
 
-        // Create Future and register waker (by polling).
-        let future = receiver.recv();
-        pin_stack!(future);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            // Create Future and register waker (by polling).
+            let future = receiver.recv();
+            pin_stack!(future);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
 
-        // Send value.
-        sender.try_send(10).unwrap();
-        assert_eq!(count, 1);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+            // Send value.
+            sender.try_send(10).unwrap();
+            assert_eq!(count, 1);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
 
-        // Create second Future with and use the same waker.
-        let future = receiver.recv();
-        pin_stack!(future);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            // Create second Future with and use the same waker.
+            let future = receiver.recv();
+            pin_stack!(future);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
 
-        // Dropping the second should wake up the receiver.
-        drop(sender);
-        assert_eq!(count, 2);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+            // Dropping the second should wake up the receiver.
+            drop(sender);
+            assert_eq!(count, 2);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+        });
     }
 
     #[test]
     fn recv_value_empty() {
-        let (waker, count) = new_count_waker();
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
 
-        let (sender, mut receiver) = new_small::<usize>();
+            let mut ctx = task::Context::from_waker(&waker);
 
-        let mut ctx = task::Context::from_waker(&waker);
-
-        let future = receiver.recv();
-        pin_stack!(future);
-
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-        assert_eq!(count, 0);
-
-        sender.try_send(10).unwrap();
-
-        assert_eq!(count, 1);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
-    }
-
-    #[test]
-    fn recv_value_all_senders_disconnected() {
-        let (waker, count) = new_count_waker();
-
-        let (sender, mut receiver) = new_small::<usize>();
-
-        let mut ctx = task::Context::from_waker(&waker);
-
-        let future = receiver.recv();
-        pin_stack!(future);
-
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-
-        // Dropping the last sender should notify the receiver.
-        drop(sender);
-        assert_eq!(count, 1);
-
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
-    }
-
-    #[test]
-    fn recv_value_all_senders_disconnected_not_empty() {
-        let (waker, count) = new_count_waker();
-
-        let (sender, mut receiver) = new_small::<usize>();
-
-        let mut ctx = task::Context::from_waker(&waker);
-
-        let future = receiver.recv();
-        pin_stack!(future);
-
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-
-        // Sending and dropping the last sender should wake the receiver.
-        sender.try_send(10).unwrap();
-        assert_eq!(count, 1);
-        drop(sender);
-        assert_eq!(count, 1); // Wake-up optimised away.
-
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
-        let mut future = receiver.recv();
-        assert_eq!(Pin::new(&mut future).poll(&mut ctx), Poll::Ready(None));
-    }
-
-    #[test]
-    fn recv_value_all_senders_disconnected_cloned_sender() {
-        let (waker, count) = new_count_waker();
-
-        let (sender, mut receiver) = new_small::<usize>();
-        let sender2 = sender.clone();
-
-        let mut ctx = task::Context::from_waker(&waker);
-
-        let future = receiver.recv();
-        pin_stack!(future);
-
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-
-        // Only dropping the last sender should wake the receiver.
-        drop(sender);
-        assert_eq!(count, 0);
-        drop(sender2);
-        assert_eq!(count, 1);
-
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
-    }
-
-    #[test]
-    fn recv_value_only_wake_if_polled() {
-        let (waker, count) = new_count_waker();
-
-        let (sender, mut receiver) = new_small::<usize>();
-
-        let mut ctx = task::Context::from_waker(&waker);
-
-        let future = receiver.recv();
-        pin_stack!(future);
-
-        drop(sender);
-        // `RecvValue` isn't polled yet, so we shouldn't receive a wake-up
-        // notification.
-        assert_eq!(count, 0);
-
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
-    }
-
-    #[test]
-    fn registered_receiver_waker() {
-        let (sender, mut receiver) = new_small::<usize>();
-
-        let (waker, count) = new_count_waker();
-        receiver.register_waker(&waker);
-
-        assert_eq!(count, 0);
-        assert_eq!(sender.try_send(10), Ok(()));
-        assert_eq!(count, 1);
-        assert_eq!(receiver.try_recv(), Ok(10));
-    }
-
-    #[test]
-    fn forget_send_value() {
-        let (sender, mut receiver) = new_small::<usize>();
-
-        // Fill the channel.
-        for n in 0..SMALL_CAP {
-            sender.try_send(n).unwrap();
-        }
-
-        // Create the `SendValue` future and poll it once to register the waker.
-        let (waker, count) = new_count_waker();
-        let mut ctx = task::Context::from_waker(&waker);
-        let future = sender.send(10);
-        pin_stack!(future);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-        std::mem::forget(future);
-
-        assert_eq!(count, 0);
-        assert_eq!(receiver.try_recv(), Ok(0));
-        assert_eq!(count, 1);
-    }
-
-    #[test]
-    fn sender_join() {
-        let (sender, receiver) = new_small::<usize>();
-
-        let (waker, count) = new_count_waker();
-        let mut ctx = task::Context::from_waker(&waker);
-
-        let future = sender.join();
-        pin_stack!(future);
-
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-        assert_eq!(count, 0);
-
-        drop(receiver);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(()));
-        assert_eq!(count, 1);
-    }
-
-    #[test]
-    fn sender_join_drop_before_waker_register() {
-        let (sender, receiver) = new_small::<usize>();
-        drop(receiver);
-
-        let (waker, count) = new_count_waker();
-        let mut ctx = task::Context::from_waker(&waker);
-
-        let future = sender.join();
-        pin_stack!(future);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(()));
-        assert_eq!(count, 0);
-    }
-
-    #[test]
-    fn sender_join_dont_register_waker_twice() {
-        let (sender, receiver) = new_small::<usize>();
-
-        let (waker, count) = new_count_waker();
-        let mut ctx = task::Context::from_waker(&waker);
-
-        let future = sender.join();
-        pin_stack!(future);
-
-        // Poll twice.
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-        assert_eq!(count, 0);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
-        assert_eq!(count, 0);
-
-        drop(receiver);
-        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(()));
-        assert_eq!(count, 1);
-    }
-
-    #[test]
-    fn sender_join_poll_with_different_wakers() {
-        let (sender, receiver) = new_small::<usize>();
-
-        let (waker, count1) = new_count_waker();
-        let mut ctx1 = task::Context::from_waker(&waker);
-        let (waker, count2) = new_count_waker();
-        let mut ctx2 = task::Context::from_waker(&waker);
-
-        let future = sender.join();
-        pin_stack!(future);
-
-        assert_eq!(future.as_mut().poll(&mut ctx1), Poll::Pending);
-        assert_eq!(count1, 0);
-        // Poll with a different waker.
-        assert_eq!(future.as_mut().poll(&mut ctx2), Poll::Pending);
-        assert_eq!(count2, 0);
-
-        drop(receiver);
-        assert_eq!(future.as_mut().poll(&mut ctx2), Poll::Ready(()));
-        assert_eq!(count1, 0);
-        assert_eq!(count2, 1);
-    }
-
-    #[test]
-    fn sender_join_no_wakeup_after_drop() {
-        let (sender, receiver) = new_small::<usize>();
-
-        let (waker, count) = new_count_waker();
-        let mut ctx = task::Context::from_waker(&waker);
-
-        {
-            // NOTE: putting `future` in a code block to ensure it's dropped.
-            let future = Box::pin(sender.join());
+            let future = receiver.recv();
             pin_stack!(future);
 
             assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
             assert_eq!(count, 0);
-        }
 
-        drop(receiver);
-        assert_eq!(count, 0);
+            sender.try_send(10).unwrap();
+
+            assert_eq!(count, 1);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+        });
+    }
+
+    #[test]
+    fn recv_value_all_senders_disconnected() {
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = receiver.recv();
+            pin_stack!(future);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+            // Dropping the last sender should notify the receiver.
+            drop(sender);
+            assert_eq!(count, 1);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+        });
+    }
+
+    #[test]
+    fn recv_value_all_senders_disconnected_not_empty() {
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = receiver.recv();
+            pin_stack!(future);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+            // Sending and dropping the last sender should wake the receiver.
+            sender.try_send(10).unwrap();
+            assert_eq!(count, 1);
+            drop(sender);
+            assert_eq!(count, 1); // Wake-up optimised away.
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(10)));
+            let mut future = receiver.recv();
+            assert_eq!(Pin::new(&mut future).poll(&mut ctx), Poll::Ready(None));
+        });
+    }
+
+    #[test]
+    fn recv_value_all_senders_disconnected_cloned_sender() {
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
+            let sender2 = sender.clone();
+
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = receiver.recv();
+            pin_stack!(future);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+            // Only dropping the last sender should wake the receiver.
+            drop(sender);
+            assert_eq!(count, 0);
+            drop(sender2);
+            assert_eq!(count, 1);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+        });
+    }
+
+    #[test]
+    fn recv_value_only_wake_if_polled() {
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = receiver.recv();
+            pin_stack!(future);
+
+            drop(sender);
+            // `RecvValue` isn't polled yet, so we shouldn't receive a wake-up
+            // notification.
+            assert_eq!(count, 0);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+        });
+    }
+
+    #[test]
+    fn registered_receiver_waker() {
+        with_all_capacities!(|capacity| {
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            let (waker, count) = new_count_waker();
+            receiver.register_waker(&waker);
+
+            assert_eq!(count, 0);
+            assert_eq!(sender.try_send(10), Ok(()));
+            assert_eq!(count, 1);
+            assert_eq!(receiver.try_recv(), Ok(10));
+        });
+    }
+
+    #[test]
+    fn forget_send_value() {
+        with_all_capacities!(|capacity| {
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            // Fill the channel.
+            for n in 0..capacity {
+                sender.try_send(n).unwrap();
+            }
+
+            // Create the `SendValue` future and poll it once to register the waker.
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
+            let future = sender.send(10);
+            pin_stack!(future);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            std::mem::forget(future);
+            assert_eq!(receiver.try_recv(), Ok(0));
+            assert_eq!(count, 1);
+        });
+    }
+
+    #[test]
+    fn sender_join() {
+        with_all_capacities!(|capacity| {
+            let (sender, receiver) = new::<usize>(capacity);
+
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = sender.join();
+            pin_stack!(future);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            assert_eq!(count, 0);
+
+            drop(receiver);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(()));
+            assert_eq!(count, 1);
+        });
+    }
+
+    #[test]
+    fn sender_join_drop_before_waker_register() {
+        with_all_capacities!(|capacity| {
+            let (sender, receiver) = new::<usize>(capacity);
+            drop(receiver);
+
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = sender.join();
+            pin_stack!(future);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(()));
+            assert_eq!(count, 0);
+        });
+    }
+
+    #[test]
+    fn sender_join_dont_register_waker_twice() {
+        with_all_capacities!(|capacity| {
+            let (sender, receiver) = new::<usize>(capacity);
+
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = sender.join();
+            pin_stack!(future);
+
+            // Poll twice.
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            assert_eq!(count, 0);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            assert_eq!(count, 0);
+
+            drop(receiver);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(()));
+            assert_eq!(count, 1);
+        });
+    }
+
+    #[test]
+    fn sender_join_poll_with_different_wakers() {
+        with_all_capacities!(|capacity| {
+            let (sender, receiver) = new::<usize>(capacity);
+
+            let (waker, count1) = new_count_waker();
+            let mut ctx1 = task::Context::from_waker(&waker);
+            let (waker, count2) = new_count_waker();
+            let mut ctx2 = task::Context::from_waker(&waker);
+
+            let future = sender.join();
+            pin_stack!(future);
+
+            assert_eq!(future.as_mut().poll(&mut ctx1), Poll::Pending);
+            assert_eq!(count1, 0);
+            // Poll with a different waker.
+            assert_eq!(future.as_mut().poll(&mut ctx2), Poll::Pending);
+            assert_eq!(count2, 0);
+
+            drop(receiver);
+            assert_eq!(future.as_mut().poll(&mut ctx2), Poll::Ready(()));
+            assert_eq!(count1, 0);
+            assert_eq!(count2, 1);
+        });
+    }
+
+    #[test]
+    fn sender_join_no_wakeup_after_drop() {
+        with_all_capacities!(|capacity| {
+            let (sender, receiver) = new::<usize>(capacity);
+
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
+
+            {
+                // NOTE: putting `future` in a code block to ensure it's dropped.
+                let future = Box::pin(sender.join());
+                pin_stack!(future);
+
+                assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+                assert_eq!(count, 0);
+            }
+
+            drop(receiver);
+            assert_eq!(count, 0);
+        });
     }
 }
 
 mod manager {
-    use heph_inbox::{Manager, ReceiverConnected};
+    use heph_inbox::{self as inbox, Manager, ReceiverConnected};
 
     #[test]
     fn new_sender() {
-        let (manager, sender1, mut receiver) = Manager::<usize>::new_small_channel();
+        let (manager, sender1, mut receiver) = Manager::<usize>::new_channel(2);
         let sender2 = manager.new_sender();
 
         sender1.try_send(123).unwrap();
@@ -882,7 +978,7 @@ mod manager {
 
     #[test]
     fn new_receiver() {
-        let (manager, sender, receiver) = Manager::<usize>::new_small_channel();
+        let (manager, sender, receiver) = Manager::<usize>::new_channel(3);
         sender.try_send(123).unwrap();
 
         drop(receiver);
@@ -896,21 +992,23 @@ mod manager {
 
     #[test]
     fn new_receiver_already_exists() {
-        let (manager, _sender, _receiver) = Manager::<usize>::new_small_channel();
+        let (manager, _sender, _receiver) = Manager::<usize>::new_channel(1);
         assert_eq!(manager.new_receiver().unwrap_err(), ReceiverConnected);
     }
 
     #[test]
     fn sending_and_receiving_value() {
-        let (manager, sender, mut receiver) = Manager::<usize>::new_small_channel();
-        sender.try_send(123).unwrap();
-        assert_eq!(receiver.try_recv().unwrap(), 123);
-        drop(manager);
+        with_all_capacities!(|capacity| {
+            let (manager, sender, mut receiver) = Manager::<usize>::new_channel(capacity);
+            sender.try_send(123).unwrap();
+            assert_eq!(receiver.try_recv().unwrap(), 123);
+            drop(manager);
+        });
     }
 
     #[test]
     fn sender_is_connected() {
-        let (manager, sender, receiver) = Manager::<usize>::new_small_channel();
+        let (manager, sender, receiver) = Manager::<usize>::new_channel(4);
         assert!(sender.is_connected());
         drop(receiver);
         // Manager is still alive.
@@ -921,14 +1019,14 @@ mod manager {
 
     #[test]
     fn receiver_is_connected() {
-        let (manager, sender, receiver) = Manager::<usize>::new_small_channel();
+        let (manager, sender, receiver) = Manager::<usize>::new_channel(5);
         assert!(receiver.is_connected());
         drop(manager);
         assert!(receiver.is_connected());
         drop(sender);
         assert!(!receiver.is_connected());
 
-        let (manager, sender, receiver) = Manager::<usize>::new_small_channel();
+        let (manager, sender, receiver) = Manager::<usize>::new_channel(6);
         assert!(receiver.is_connected());
         drop(sender);
         assert!(!receiver.is_connected());
@@ -960,9 +1058,9 @@ mod manager {
 
     #[test]
     fn same_channel() {
-        let (manager1, sender1a, _) = Manager::<usize>::new_small_channel();
+        let (manager1, sender1a, _) = Manager::<usize>::new_channel(1);
         let sender1b = manager1.new_sender();
-        let (manager2, sender2a, _) = Manager::<usize>::new_small_channel();
+        let (manager2, sender2a, _) = Manager::<usize>::new_channel(1);
         let sender2b = manager2.new_sender();
 
         assert!(sender1a.same_channel(&sender1a));
@@ -986,9 +1084,9 @@ mod manager {
 
     #[test]
     fn sends_to() {
-        let (manager1, sender1a, receiver1) = Manager::<usize>::new_small_channel();
+        let (manager1, sender1a, receiver1) = Manager::<usize>::new_channel(1);
         let sender1b = manager1.new_sender();
-        let (manager2, sender2a, receiver2) = Manager::<usize>::new_small_channel();
+        let (manager2, sender2a, receiver2) = Manager::<usize>::new_channel(1);
         let sender2b = manager2.new_sender();
 
         assert!(sender1a.sends_to(&receiver1));

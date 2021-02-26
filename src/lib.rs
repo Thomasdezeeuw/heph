@@ -1025,6 +1025,7 @@ impl<T> fmt::Debug for Channel<T> {
         let status = self.status.load(Ordering::Relaxed);
         let ref_count = self.ref_count.load(Ordering::Relaxed);
         let sender_count = sender_count(ref_count);
+        let recv_pos = receiver_pos(status, self.slots.len());
         let mut slots = [""; MAX_CAP];
         for n in 0..self.slots.len() {
             slots[n] = dbg_status(slot_status(status, n));
@@ -1034,6 +1035,7 @@ impl<T> fmt::Debug for Channel<T> {
             .field("senders_alive", &sender_count)
             .field("receiver_alive", &has_receiver(ref_count))
             .field("manager_alive", &has_manager(ref_count))
+            .field("receiver_position", &recv_pos)
             .field("slots", &slots)
             .finish()
     }
