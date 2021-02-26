@@ -195,7 +195,23 @@ fn ms_as_offset(millis: u64) -> TimeOffset {
 /// fit in an `u64`.
 fn ms_since(epoch: Instant, now: Instant) -> u64 {
     const MASK: u128 = (1 << (size_of::<u64>() * 8)) - 1;
-    let millis = now.duration_since(epoch).as_millis();
+    // `Duration::as_millis` truncates the time difference to milliseconds. This
+    // seems obvious, but has a easy to miss caveat. It means that 10.99
+    // milliseconds is truncated to 10 milliseconds, even if it's closed to 11
+    // milliseconds. And a millisecond for computers is quite long. This means
+    // we can trigger timers up to (almost) a millisecond before they've
+    // actually elapsed! Combine this with the nanosecond precision used in the
+    // `timer` module and we've got a problem.
+    //
+    // When the timer is trigger early (as per above) and a `timer` `Future` is
+    // polled it will return `Poll::Pending` because the deadline hasn't
+    // actually elapsed yet. And because no more timers are set it will not
+    // never be polled again.
+    //
+    // To solve this we a millisecond to the value to ensure the timer is
+    // trigger after the deadline has elapsed. The downside is that all timer
+    // will be at least one millisecond late.
+    let millis = now.duration_since(epoch).as_millis() + 1;
     debug_assert!(millis < u64::MAX as u128);
     (millis & MASK) as u64
 }
