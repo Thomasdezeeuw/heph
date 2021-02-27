@@ -9,7 +9,7 @@ use log::trace;
 use mio::Token;
 
 use crate::rt::options::Priority;
-use crate::RuntimeRef;
+use crate::rt::RuntimeRef;
 
 mod actor;
 #[cfg(test)]

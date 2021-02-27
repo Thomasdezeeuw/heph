@@ -1,6 +1,9 @@
 //! Module with the [`Spawn`] trait.
 
-use crate::{actor, ActorOptions, ActorRef, NewActor, Supervisor};
+use crate::actor::{self, NewActor};
+use crate::actor_ref::ActorRef;
+use crate::rt::ActorOptions;
+use crate::supervisor::Supervisor;
 
 /// The `Spawn` trait defines how new actors are added to the runtime.
 pub trait Spawn<S, NA, RT>: PrivateSpawn<S, NA, RT> {
