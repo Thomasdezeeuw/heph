@@ -29,7 +29,7 @@ impl<'a, S, NA> ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
     NA: NewActor,
-    NA::RuntimeAccess: ContextKind,
+    NA::RuntimeAccess: RuntimeSupport,
 {
     /// Create a new `ActorProcess`.
     pub(crate) const fn new(
@@ -101,7 +101,7 @@ impl<'a, S, NA> Process for ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
     NA: NewActor,
-    NA::RuntimeAccess: ContextKind,
+    NA::RuntimeAccess: RuntimeSupport,
 {
     fn name(&self) -> &'static str {
         self.new_actor.name()
@@ -145,9 +145,9 @@ where
     }
 }
 
-/// Support all kinds of actor context's (e.g. [`ThreadSafe`] and
-/// [`ThreadLocal`]) within the same implementation of [`ActorProcess`].
-pub(crate) trait ContextKind {
+/// Trait to support different kind of runtime access, e.g. [`ThreadSafe`] and
+/// [`ThreadLocal`], within the same implementation of [`ActorProcess`].
+pub(crate) trait RuntimeSupport {
     /// Create a new [`task::Waker`].
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
 
@@ -161,7 +161,7 @@ pub(crate) trait ContextKind {
         Self: Sized;
 }
 
-impl ContextKind for ThreadLocal {
+impl RuntimeSupport for ThreadLocal {
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
         runtime_ref.new_local_task_waker(pid)
     }
@@ -175,7 +175,7 @@ impl ContextKind for ThreadLocal {
     }
 }
 
-impl ContextKind for ThreadSafe {
+impl RuntimeSupport for ThreadSafe {
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
         runtime_ref.new_shared_task_waker(pid)
     }

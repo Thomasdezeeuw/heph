@@ -410,10 +410,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     stream.send_all(b"Hello World").await
 /// }
 #[derive(Debug)]
-pub struct TcpServer<S, NA>
-where
-    NA: NewActor,
-{
+pub struct TcpServer<S, NA: NewActor> {
     /// Actor context in which this actor is running.
     ctx: actor::Context<Message, NA::RuntimeAccess>,
     /// Whether or not we set the waker for the inbox.
