@@ -10,7 +10,7 @@ use crossbeam_channel::Receiver;
 use log::{debug, trace};
 use mio::{Events, Poll, Token};
 
-use crate::actor_ref::ActorRef;
+use crate::actor_ref::{ActorGroup, Delivery, SendError};
 use crate::rt::error::StringError;
 use crate::rt::process::ProcessId;
 use crate::rt::process::ProcessResult;
@@ -419,14 +419,11 @@ impl Runtime {
         trace!("received process signal: {:?}", signal);
 
         let mut receivers = self.internals.signal_receivers.borrow_mut();
-        let res = if signal.should_stop() && receivers.is_empty() {
-            Err(Error::ProcessInterrupted)
-        } else {
-            for receiver in receivers.iter_mut() {
-                // TODO: maybe log if we can't send signal?
-                let _ = receiver.try_send(signal);
-            }
-            Ok(())
+        receivers.remove_disconnected();
+        let res = match receivers.try_send(signal, Delivery::ToAll) {
+            Ok(()) => Ok(()),
+            Err(SendError) if signal.should_stop() => Err(Error::ProcessInterrupted),
+            Err(SendError) => Ok(()),
         };
 
         trace::finish(
@@ -520,7 +517,7 @@ pub(super) struct RuntimeInternals {
     /// Timers, deadlines and timeouts.
     pub(crate) timers: RefCell<Timers>,
     /// Actor references to relay received `Signal`s to.
-    pub(super) signal_receivers: RefCell<Vec<ActorRef<Signal>>>,
+    pub(super) signal_receivers: RefCell<ActorGroup<Signal>>,
     /// CPU affinity of the worker thread, or `None` if not set.
     pub(super) cpu: Option<usize>,
 }
@@ -539,7 +536,7 @@ impl RuntimeInternals {
             scheduler: RefCell::new(Scheduler::new()),
             poll: RefCell::new(poll),
             timers: RefCell::new(Timers::new()),
-            signal_receivers: RefCell::new(Vec::new()),
+            signal_receivers: RefCell::new(ActorGroup::empty()),
             cpu,
         }
     }
