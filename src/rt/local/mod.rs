@@ -14,7 +14,6 @@ use crate::actor_ref::ActorRef;
 use crate::rt::error::StringError;
 use crate::rt::process::ProcessId;
 use crate::rt::process::ProcessResult;
-use crate::rt::worker::{CoordinatorMessage, WorkerMessage};
 use crate::rt::{self, shared, RuntimeRef, Signal, Timers, WakerId};
 use crate::trace;
 
@@ -47,7 +46,7 @@ pub(crate) struct Runtime {
     /// module for the implementation.
     waker_events: Receiver<ProcessId>,
     /// Two-way communication channel to share messages with the coordinator.
-    channel: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
+    channel: rt::channel::Handle<!, Control>,
     /// Whether or not the runtime was started.
     /// This is here because the worker threads are started before
     /// [`Runtime::start`] is called and before any actors are added to the
@@ -68,7 +67,7 @@ impl Runtime {
         poll: Poll,
         waker_id: WakerId,
         waker_events: Receiver<ProcessId>,
-        mut channel: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
+        mut channel: rt::channel::Handle<!, Control>,
         shared_internals: Arc<shared::RuntimeInternals>,
         trace_log: Option<trace::Log>,
         cpu: Option<usize>,
@@ -391,12 +390,11 @@ impl Runtime {
     /// Process messages from the coordinator.
     fn check_coordinator(&mut self) -> Result<(), Error> {
         let timing = trace::start(&self.trace_log);
-        use CoordinatorMessage::*;
         while let Some(msg) = self.channel.try_recv().map_err(Error::RecvMsg)? {
             match msg {
-                Started => self.started = true,
-                Signal(signal) => self.relay_signal(signal)?,
-                Run(f) => self.run_user_function(f)?,
+                Control::Started => self.started = true,
+                Control::Signal(signal) => self.relay_signal(signal)?,
+                Control::Run(f) => self.run_user_function(f)?,
             }
         }
         trace::finish(
@@ -450,6 +448,19 @@ impl Runtime {
         trace::finish(&mut self.trace_log, timing, "Running user function", &[]);
         res
     }
+}
+
+/// Control the [`Runtime`].
+#[allow(variant_size_differences)] // Can't make `Run` smaller.
+pub(crate) enum Control {
+    /// Runtime has started, i.e. [`Runtime::start`] was called.
+    ///
+    /// [`Runtime::start`]: rt::Runtime::start
+    Started,
+    /// Process received a signal.
+    Signal(Signal),
+    /// Run a user defined function.
+    Run(Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>),
 }
 
 /// Error running a [`Runtime`].

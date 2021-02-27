@@ -7,7 +7,7 @@ use std::{io, thread};
 use crossbeam_channel::{self, Receiver};
 use mio::{Poll, Registry, Token};
 
-use crate::rt::local::{Runtime, WAKER};
+use crate::rt::local::{Control, Runtime, WAKER};
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::waker::WakerId;
 use crate::rt::{self, shared, ProcessId, RuntimeRef, Signal};
@@ -53,25 +53,8 @@ pub(super) struct Worker {
     /// Handle for the actual thread.
     handle: thread::JoinHandle<Result<(), rt::Error>>,
     /// Two-way communication channel to share messages with the worker thread.
-    channel: rt::channel::Handle<CoordinatorMessage, WorkerMessage>,
+    channel: rt::channel::Handle<Control, !>,
 }
-
-/// Message send by the coordinator thread.
-#[allow(variant_size_differences)] // Can't make `Run` smaller.
-pub(crate) enum CoordinatorMessage {
-    /// Runtime has started, i.e. [`Runtime::start`] was called.
-    ///
-    /// [`Runtime::start`]: rt::Runtime::start
-    Started,
-    /// Process received a signal.
-    Signal(Signal),
-    /// Run a function on the worker thread.
-    Run(Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>),
-}
-
-/// Message send by the worker thread.
-#[derive(Debug)]
-pub(crate) enum WorkerMessage {}
 
 impl WorkerSetup {
     /// Start a new worker thread.
@@ -126,14 +109,12 @@ impl Worker {
 
     /// Send the worker thread a signal that the runtime has started.
     pub(super) fn send_runtime_started(&mut self) -> io::Result<()> {
-        let msg = CoordinatorMessage::Started;
-        self.channel.try_send(msg)
+        self.channel.try_send(Control::Started)
     }
 
     /// Send the worker thread a `signal`.
     pub(super) fn send_signal(&mut self, signal: Signal) -> io::Result<()> {
-        let msg = CoordinatorMessage::Signal(signal);
-        self.channel.try_send(msg)
+        self.channel.try_send(Control::Signal(signal))
     }
 
     /// Send the worker thread the function `f` to run.
@@ -141,8 +122,7 @@ impl Worker {
         &mut self,
         f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>,
     ) -> io::Result<()> {
-        let msg = CoordinatorMessage::Run(f);
-        self.channel.try_send(msg)
+        self.channel.try_send(Control::Run(f))
     }
 
     /// Handle all incoming messages.
@@ -162,7 +142,7 @@ impl Worker {
 /// Run a worker thread, with an optional `setup` function.
 fn main(
     setup: WorkerSetup,
-    receiver: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
+    receiver: rt::channel::Handle<!, Control>,
     shared_internals: Arc<shared::RuntimeInternals>,
     auto_cpu_affinity: bool,
     trace_log: Option<trace::Log>,
