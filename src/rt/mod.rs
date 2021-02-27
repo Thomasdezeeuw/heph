@@ -128,23 +128,21 @@ use crate::actor_ref::{ActorGroup, ActorRef};
 use crate::supervisor::{Supervisor, SyncSupervisor};
 use crate::trace;
 
-mod coordinator;
-mod error;
-mod process;
-mod setup;
-mod signal;
-mod timers;
-
 pub(crate) mod access;
 pub(crate) mod channel;
+mod coordinator;
+mod error;
 pub(crate) mod local;
+pub mod options;
+mod process;
+mod setup;
 pub(crate) mod shared;
+mod signal;
 pub(crate) mod sync_worker;
 pub(crate) mod thread_waker;
+mod timers;
 pub(crate) mod waker;
 pub(crate) mod worker;
-
-pub mod options;
 
 pub(crate) use access::PrivateAccess;
 pub(crate) use process::ProcessId;
