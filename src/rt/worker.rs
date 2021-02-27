@@ -598,7 +598,7 @@ impl RunningRuntime {
                     let res = f(self.create_ref());
                     trace::finish(trace_log, timing, "Running user function", &[]);
                     if let Err(err) = res {
-                        return Err(Error::UserFunction(StringError(err)));
+                        return Err(Error::UserFunction(err.into()));
                     }
                 }
             }
