@@ -140,10 +140,9 @@ impl Runtime {
                 if has_local && self.run_local_process(&mut runtime_ref) {
                     // Only run a single process per iteration.
                     continue;
-                } else {
-                    // Don't check next iteration.
-                    has_local = false;
                 }
+                // Don't check next iteration.
+                has_local = false;
 
                 if self.run_shared_process(&mut runtime_ref) {
                     // Only run a single process per iteration.

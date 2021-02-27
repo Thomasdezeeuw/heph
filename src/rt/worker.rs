@@ -184,7 +184,7 @@ fn set_cpu_affinity(worker_id: NonZeroUsize) -> Option<usize> {
     #[cfg(not(target_os = "linux"))]
     {
         let _ = worker_id; // Silence unused variables warnings.
-        return None;
+        None
     }
 
     #[cfg(target_os = "linux")]
