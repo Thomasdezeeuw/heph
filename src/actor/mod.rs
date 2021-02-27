@@ -51,6 +51,7 @@
 //! actors.
 //!
 //! [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
+//! [`ThreadSafe`]: crate::rt::ThreadSafe
 //!
 //! ## Synchronous actors
 //!
@@ -148,7 +149,7 @@ mod sync;
 mod tests;
 
 #[doc(inline)]
-pub use context::{Context, NoMessages, ReceiveMessage, RecvError, ThreadSafe};
+pub use context::{Context, NoMessages, ReceiveMessage, RecvError};
 #[doc(inline)]
 pub use spawn::Spawn;
 #[doc(inline)]

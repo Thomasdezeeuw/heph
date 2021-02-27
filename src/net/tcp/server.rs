@@ -333,12 +333,12 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// use heph::actor::{self, ThreadSafe, NewActor};
+/// use heph::actor::{self, NewActor};
 /// # use heph::actor::messages::Terminate;
 /// use heph::net::tcp::{server, TcpServer, TcpStream};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::rt::options::Priority;
-/// use heph::{rt, ActorOptions, Runtime};
+/// use heph::rt::{self, Runtime, ThreadSafe, ActorOptions};
 /// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error> {

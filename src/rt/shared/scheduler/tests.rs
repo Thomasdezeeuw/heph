@@ -4,9 +4,10 @@ use std::future::{pending, Pending};
 use std::mem::size_of;
 use std::sync::{Arc, Mutex};
 
-use crate::actor::{self, NewActor, ThreadSafe};
+use crate::actor::{self, NewActor};
 use crate::rt::process::{ProcessId, ProcessResult};
 use crate::rt::shared::scheduler::{Priority, ProcessData, Scheduler};
+use crate::rt::ThreadSafe;
 use crate::supervisor::NoSupervisor;
 use crate::test::{self, init_actor_with_inbox, AssertUnmoved};
 

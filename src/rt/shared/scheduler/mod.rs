@@ -11,10 +11,10 @@ use std::sync::Mutex;
 use inbox::Manager;
 use log::trace;
 
-use crate::actor::{NewActor, ThreadSafe};
 use crate::rt::options::Priority;
 use crate::rt::process::{self, ActorProcess, Process, ProcessId};
-use crate::Supervisor;
+use crate::rt::ThreadSafe;
+use crate::{NewActor, Supervisor};
 
 mod inactive;
 mod runqueue;

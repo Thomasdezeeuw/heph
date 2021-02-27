@@ -7,9 +7,9 @@ use std::task::{self, Poll};
 use std::thread::{self, sleep};
 use std::time::Duration;
 
-use heph::actor::{self, SyncContext, ThreadSafe};
+use heph::actor::{self, SyncContext};
 use heph::rt::options::{ActorOptions, Priority, SyncActorOptions};
-use heph::rt::{Runtime, ThreadLocal};
+use heph::rt::{Runtime, ThreadLocal, ThreadSafe};
 use heph::supervisor::NoSupervisor;
 
 use crate::util::temp_file;
