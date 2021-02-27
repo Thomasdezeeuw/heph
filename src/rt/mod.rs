@@ -478,7 +478,10 @@ impl RuntimeRef {
     ///
     /// [process signals]: Signal
     pub fn receive_signals(&mut self, actor_ref: ActorRef<Signal>) {
-        self.internals.signal_receivers.borrow_mut().push(actor_ref)
+        self.internals
+            .signal_receivers
+            .borrow_mut()
+            .add_unique(actor_ref)
     }
 
     /// Register an `event::Source`, see [`mio::Registry::register`].
