@@ -69,6 +69,7 @@ impl Runtime {
         waker_events: Receiver<ProcessId>,
         mut channel: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
         shared_internals: Arc<shared::RuntimeInternals>,
+        trace_log: Option<trace::Log>,
         cpu: Option<usize>,
     ) -> io::Result<Runtime> {
         // Register the channel to the coordinator.
@@ -82,7 +83,7 @@ impl Runtime {
             waker_events,
             channel,
             started: false,
-            trace_log: None,
+            trace_log,
         })
     }
 
@@ -113,9 +114,9 @@ impl Runtime {
         })
     }
 
-    /// Set a trace log for this runtime.
-    pub(crate) fn set_trace_log(&mut self, trace_log: Option<trace::Log>) {
-        self.trace_log = trace_log;
+    /// Returns the trace log, if any.
+    pub(crate) fn trace_log(&mut self) -> &mut Option<trace::Log> {
+        &mut self.trace_log
     }
 
     /// Create a new reference to this runtime.

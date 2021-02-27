@@ -201,17 +201,17 @@ fn main(
         setup.waker_events,
         receiver,
         shared_internals,
+        trace_log,
         cpu,
     )
     .map_err(|err| rt::Error::worker(Error::Init(err)))?;
 
     trace::finish(
-        &mut trace_log,
+        runtime.trace_log(),
         timing,
         "Initialising the worker thread",
         &[],
     );
-    runtime.set_trace_log(trace_log);
 
     // All setup is done, so we're ready to run the event loop.
     runtime.run_event_loop().map_err(rt::Error::worker)
