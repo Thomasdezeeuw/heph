@@ -1,14 +1,10 @@
 //! Worker thread code.
 
-#[cfg(target_os = "linux")]
-use std::mem;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::{fmt, io, thread};
 
 use crossbeam_channel::{self, Receiver};
-#[cfg(target_os = "linux")]
-use log::{debug, warn};
 use mio::{Poll, Registry, Token};
 
 use crate::rt::error::StringError;
@@ -168,30 +164,13 @@ fn main(
     receiver: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
     shared_internals: Arc<shared::RuntimeInternals>,
     auto_cpu_affinity: bool,
-    mut trace_log: Option<trace::Log>,
+    trace_log: Option<trace::Log>,
 ) -> Result<(), rt::Error> {
     let timing = trace::start(&trace_log);
 
-    #[cfg(target_os = "linux")]
     let cpu = if auto_cpu_affinity {
-        let cpu = setup.id.get() - 1; // Worker ids start at 1, cpus at 0.
-        let cpu_set = cpu_set(cpu);
-        match set_affinity(&cpu_set) {
-            Ok(()) => {
-                debug!("worker thread using CPU '{}'", cpu);
-                Some(cpu)
-            }
-            Err(err) => {
-                warn!("error setting CPU affinity: {}", err);
-                None
-            }
-        }
+        set_cpu_affinity(setup.id)
     } else {
-        None
-    };
-    #[cfg(not(target_os = "linux"))]
-    let cpu = {
-        let _ = auto_cpu_affinity; // Silence unused variables warnings.
         None
     };
 
@@ -217,10 +196,35 @@ fn main(
     runtime.run_event_loop().map_err(rt::Error::worker)
 }
 
+/// Set thread's CPU affinity.
+fn set_cpu_affinity(worker_id: NonZeroUsize) -> Option<usize> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = worker_id; // Silence unused variables warnings.
+        return None;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let cpu = worker_id.get() - 1; // Worker ids start at 1, cpus at 0.
+        let cpu_set = cpu_set(cpu);
+        match set_affinity(&cpu_set) {
+            Ok(()) => {
+                log::debug!("worker thread using CPU '{}'", cpu);
+                Some(cpu)
+            }
+            Err(err) => {
+                log::warn!("error setting CPU affinity: {}", err);
+                None
+            }
+        }
+    }
+}
+
 /// Create a cpu set that may only run on `cpu`.
 #[cfg(target_os = "linux")]
 fn cpu_set(cpu: usize) -> libc::cpu_set_t {
-    let mut cpu_set = unsafe { mem::zeroed() };
+    let mut cpu_set = unsafe { std::mem::zeroed() };
     unsafe { libc::CPU_ZERO(&mut cpu_set) };
     unsafe { libc::CPU_SET(cpu % libc::CPU_SETSIZE as usize, &mut cpu_set) };
     cpu_set
@@ -230,7 +234,8 @@ fn cpu_set(cpu: usize) -> libc::cpu_set_t {
 #[cfg(target_os = "linux")]
 fn set_affinity(cpu_set: &libc::cpu_set_t) -> io::Result<()> {
     let thread = unsafe { libc::pthread_self() };
-    let res = unsafe { libc::pthread_setaffinity_np(thread, mem::size_of_val(cpu_set), cpu_set) };
+    let res =
+        unsafe { libc::pthread_setaffinity_np(thread, std::mem::size_of_val(cpu_set), cpu_set) };
     if res == 0 {
         Ok(())
     } else {
