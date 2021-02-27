@@ -25,11 +25,11 @@ fn test_size_of_actor() {
         type Argument = ();
         type Actor = A;
         type Error = !;
-        type Context = ThreadLocal;
+        type RuntimeAccess = ThreadLocal;
 
         fn new(
             &mut self,
-            _: actor::Context<Self::Message, Self::Context>,
+            _: actor::Context<Self::Message, Self::RuntimeAccess>,
             _: Self::Argument,
         ) -> Result<Self::Actor, Self::Error> {
             Ok(A)

@@ -149,11 +149,11 @@ impl NewActor for TestAssertUnmovedNewActor {
     type Argument = ();
     type Actor = AssertUnmoved<Pending<Result<(), !>>>;
     type Error = !;
-    type Context = ThreadSafe;
+    type RuntimeAccess = ThreadSafe;
 
     fn new(
         &mut self,
-        _: actor::Context<Self::Message, Self::Context>,
+        _: actor::Context<Self::Message, Self::RuntimeAccess>,
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         Ok(AssertUnmoved::new(pending()))

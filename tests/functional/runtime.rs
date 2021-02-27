@@ -94,7 +94,7 @@ fn auto_cpu_affinity() {
     impl<S, NA> Supervisor<server::Setup<S, NA>> for ServerSupervisor
     where
         S: Supervisor<NA> + Clone + 'static,
-        NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = ThreadLocal>
+        NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, RuntimeAccess = ThreadLocal>
             + Clone
             + 'static,
     {

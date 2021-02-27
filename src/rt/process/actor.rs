@@ -25,11 +25,11 @@ pub(crate) struct ActorProcess<S, NA: NewActor> {
     actor: NA::Actor,
 }
 
-impl<'a, S, NA, C> ActorProcess<S, NA>
+impl<'a, S, NA> ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewActor<Context = C>,
-    C: ContextKind,
+    NA: NewActor,
+    NA::RuntimeAccess: ContextKind,
 {
     /// Create a new `ActorProcess`.
     pub(crate) const fn new(
@@ -88,7 +88,7 @@ where
         let receiver = self.inbox.new_receiver().expect(
             "failed to create new receiver for actor's inbox. Was the `actor::Context` leaked?",
         );
-        let ctx = C::new_context(pid, receiver, runtime_ref);
+        let ctx = NA::RuntimeAccess::new_context(pid, receiver, runtime_ref);
         self.new_actor.new(ctx, arg).map(|actor| {
             // We pin the actor here to ensure its dropped in place when
             // replacing it with out new actor.
@@ -97,11 +97,11 @@ where
     }
 }
 
-impl<'a, S, NA, C> Process for ActorProcess<S, NA>
+impl<'a, S, NA> Process for ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewActor<Context = C>,
-    C: ContextKind,
+    NA: NewActor,
+    NA::RuntimeAccess: ContextKind,
 {
     fn name(&self) -> &'static str {
         self.new_actor.name()
@@ -114,7 +114,7 @@ where
         // operation, still ensuring that the actor is not moved.
         let mut actor = unsafe { Pin::new_unchecked(&mut this.actor) };
 
-        let waker = C::new_task_waker(runtime_ref, pid);
+        let waker = NA::RuntimeAccess::new_task_waker(runtime_ref, pid);
         let mut task_ctx = task::Context::from_waker(&waker);
         match actor.as_mut().try_poll(&mut task_ctx) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,

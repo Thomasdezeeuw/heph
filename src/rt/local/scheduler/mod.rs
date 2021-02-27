@@ -119,7 +119,7 @@ impl<'s> AddActor<'s> {
         is_ready: bool,
     ) where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Context = ThreadLocal> + 'static,
+        NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
     {
         #[allow(trivial_casts)]
         debug_assert!(

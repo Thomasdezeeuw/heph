@@ -175,12 +175,12 @@ impl TcpListener {
     /// listener has a connection ready to be accepted.
     ///
     /// [bound]: crate::actor::Bound
-    pub fn bind<M, K>(
-        ctx: &mut actor::Context<M, K>,
+    pub fn bind<M, RT>(
+        ctx: &mut actor::Context<M, RT>,
         address: SocketAddr,
     ) -> io::Result<TcpListener>
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         let mut socket = net::TcpListener::bind(address)?;
         let pid = ctx.pid();
@@ -270,9 +270,9 @@ pub struct UnboundTcpStream {
 
 impl UnboundTcpStream {
     /// Bind this TCP stream to the actor's `ctx`, allowing it to be used.
-    pub fn bind_to<M, K>(mut self, ctx: &mut actor::Context<M, K>) -> io::Result<TcpStream>
+    pub fn bind_to<M, RT>(mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<TcpStream>
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         let pid = ctx.pid();
         ctx.register(
@@ -321,12 +321,12 @@ impl<'a> Stream for Incoming<'a> {
     }
 }
 
-impl<K> actor::Bound<K> for TcpListener {
+impl<RT> actor::Bound<RT> for TcpListener {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()>
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         let pid = ctx.pid();
         ctx.reregister(&mut self.socket, pid.into(), Interest::READABLE)

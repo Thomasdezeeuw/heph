@@ -85,9 +85,9 @@ pub struct Timer {
 
 impl Timer {
     /// Create a new `Timer`.
-    pub fn at<M, K>(ctx: &mut actor::Context<M, K>, deadline: Instant) -> Timer
+    pub fn at<M, RT>(ctx: &mut actor::Context<M, RT>, deadline: Instant) -> Timer
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         let pid = ctx.pid();
         ctx.add_deadline(pid, deadline);
@@ -97,9 +97,9 @@ impl Timer {
     /// Create a new timer, based on a timeout.
     ///
     /// Same as calling `Timer::at(&mut ctx, Instant::now() + timeout)`.
-    pub fn after<M, K>(ctx: &mut actor::Context<M, K>, timeout: Duration) -> Timer
+    pub fn after<M, RT>(ctx: &mut actor::Context<M, RT>, timeout: Duration) -> Timer
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         Timer::at(ctx, Instant::now() + timeout)
     }
@@ -136,12 +136,12 @@ impl Future for Timer {
     }
 }
 
-impl<K> actor::Bound<K> for Timer {
+impl<RT> actor::Bound<RT> for Timer {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()>
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
@@ -224,9 +224,13 @@ pub struct Deadline<Fut> {
 
 impl<Fut> Deadline<Fut> {
     /// Create a new `Deadline`.
-    pub fn at<M, K>(ctx: &mut actor::Context<M, K>, deadline: Instant, future: Fut) -> Deadline<Fut>
+    pub fn at<M, RT>(
+        ctx: &mut actor::Context<M, RT>,
+        deadline: Instant,
+        future: Fut,
+    ) -> Deadline<Fut>
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         let pid = ctx.pid();
         ctx.add_deadline(pid, deadline);
@@ -237,13 +241,13 @@ impl<Fut> Deadline<Fut> {
     ///
     /// Same as calling `Deadline::at(&mut ctx, Instant::now() + timeout,
     /// future)`.
-    pub fn after<M, K>(
-        ctx: &mut actor::Context<M, K>,
+    pub fn after<M, RT>(
+        ctx: &mut actor::Context<M, RT>,
         timeout: Duration,
         future: Fut,
     ) -> Deadline<Fut>
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         Deadline::at(ctx, Instant::now() + timeout, future)
     }
@@ -313,12 +317,12 @@ where
     }
 }
 
-impl<Fut, K> actor::Bound<K> for Deadline<Fut> {
+impl<Fut, RT> actor::Bound<RT> for Deadline<Fut> {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()>
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.

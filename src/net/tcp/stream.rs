@@ -40,9 +40,12 @@ impl TcpStream {
     /// or write.
     ///
     /// [bound]: crate::actor::Bound
-    pub fn connect<M, K>(ctx: &mut actor::Context<M, K>, address: SocketAddr) -> io::Result<Connect>
+    pub fn connect<M, RT>(
+        ctx: &mut actor::Context<M, RT>,
+        address: SocketAddr,
+    ) -> io::Result<Connect>
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         let mut socket = net::TcpStream::connect(address)?;
         let pid = ctx.pid();
@@ -780,12 +783,12 @@ where
     }
 }
 
-impl<K> actor::Bound<K> for TcpStream {
+impl<RT> actor::Bound<RT> for TcpStream {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()>
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         let pid = ctx.pid();
         ctx.reregister(

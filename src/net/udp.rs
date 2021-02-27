@@ -147,12 +147,12 @@ impl UdpSocket {
     /// socket is ready to be read from or write to.
     ///
     /// [bound]: crate::actor::Bound
-    pub fn bind<M, K>(
-        ctx: &mut actor::Context<M, K>,
+    pub fn bind<M, RT>(
+        ctx: &mut actor::Context<M, RT>,
         local: SocketAddr,
     ) -> io::Result<UdpSocket<Unconnected>>
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         let mut socket = net::UdpSocket::bind(local)?;
         let pid = ctx.pid();
@@ -849,12 +849,12 @@ impl<M> fmt::Debug for UdpSocket<M> {
     }
 }
 
-impl<K> actor::Bound<K> for UdpSocket {
+impl<RT> actor::Bound<RT> for UdpSocket {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, K>) -> io::Result<()>
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()>
     where
-        actor::Context<M, K>: rt::Access,
+        actor::Context<M, RT>: rt::Access,
     {
         ctx.reregister(
             &mut self.socket,

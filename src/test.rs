@@ -89,7 +89,7 @@ pub fn init_local_actor<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
 where
-    NA: NewActor<Context = ThreadLocal>,
+    NA: NewActor<RuntimeAccess = ThreadLocal>,
 {
     init_local_actor_with_inbox(new_actor, arg).map(|(actor, _, actor_ref)| (actor, actor_ref))
 }
@@ -101,7 +101,7 @@ pub fn init_actor<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
 where
-    NA: NewActor<Context = ThreadSafe>,
+    NA: NewActor<RuntimeAccess = ThreadSafe>,
 {
     init_actor_with_inbox(new_actor, arg).map(|(actor, _, actor_ref)| (actor, actor_ref))
 }
@@ -113,7 +113,7 @@ pub(crate) fn init_local_actor_with_inbox<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, Manager<NA::Message>, ActorRef<NA::Message>), NA::Error>
 where
-    NA: NewActor<Context = ThreadLocal>,
+    NA: NewActor<RuntimeAccess = ThreadLocal>,
 {
     let (manager, sender, receiver) = Manager::new_small_channel();
     let ctx = actor::Context::new_local(TEST_PID, receiver, runtime());
@@ -128,7 +128,7 @@ pub(crate) fn init_actor_with_inbox<NA>(
     arg: NA::Argument,
 ) -> Result<(NA::Actor, Manager<NA::Message>, ActorRef<NA::Message>), NA::Error>
 where
-    NA: NewActor<Context = ThreadSafe>,
+    NA: NewActor<RuntimeAccess = ThreadSafe>,
 {
     let (manager, sender, receiver) = Manager::new_small_channel();
     let ctx = actor::Context::new_shared(TEST_PID, receiver, SHARED_INTERNAL.clone());
@@ -140,14 +140,14 @@ where
 ///
 /// This returns the thread handle for the thread the synchronous actor is
 /// running on and an actor reference to the actor.
-pub fn spawn_sync_actor<Sv, A, E, Arg, M>(
-    supervisor: Sv,
+pub fn spawn_sync_actor<S, A, E, Arg, M>(
+    supervisor: S,
     actor: A,
     arg: Arg,
     options: SyncActorOptions,
 ) -> io::Result<(thread::JoinHandle<()>, ActorRef<M>)>
 where
-    Sv: SyncSupervisor<A> + Send + 'static,
+    S: SyncSupervisor<A> + Send + 'static,
     A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
     Arg: Send + 'static,
     M: Send + 'static,

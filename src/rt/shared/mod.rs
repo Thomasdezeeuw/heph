@@ -108,7 +108,7 @@ impl RuntimeInternals {
     ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
         S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Context = ThreadSafe> + Sync + Send + 'static,
+        NA: NewActor<RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
         ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,

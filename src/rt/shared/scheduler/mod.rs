@@ -211,7 +211,7 @@ impl<'s> AddActor<'s> {
         is_ready: bool,
     ) where
         S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Context = ThreadSafe> + Send + Sync + 'static,
+        NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
