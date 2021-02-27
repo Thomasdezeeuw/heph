@@ -6,9 +6,9 @@ use std::task::{self, Poll};
 
 use inbox::{Manager, Receiver};
 
-use crate::actor::{self, Actor, NewActor, ThreadSafe};
+use crate::actor::{self, Actor, NewActor};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
-use crate::rt::{RuntimeRef, ThreadLocal};
+use crate::rt::{RuntimeRef, ThreadLocal, ThreadSafe};
 use crate::supervisor::{Supervisor, SupervisorStrategy};
 
 /// A process that represent an [`Actor`].
@@ -185,6 +185,6 @@ impl RuntimeSupport for ThreadSafe {
         inbox: Receiver<M>,
         runtime_ref: &mut RuntimeRef,
     ) -> actor::Context<M, ThreadSafe> {
-        actor::Context::new_shared(pid, inbox, runtime_ref.clone_shared())
+        actor::Context::new(pid, inbox, ThreadSafe::new(runtime_ref.clone_shared()))
     }
 }

@@ -176,8 +176,9 @@ impl<RT> actor::Bound<RT> for Timer {
 /// use std::time::Duration;
 /// # use std::time::Instant;
 ///
-/// use heph::actor::{self, ThreadSafe};
+/// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
+/// use heph::rt::ThreadSafe;
 /// # use heph::{rt, ActorOptions, Runtime};
 /// use heph::timer::Deadline;
 ///

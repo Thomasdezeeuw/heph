@@ -121,7 +121,7 @@ use std::{io, task};
 use log::{debug, trace};
 use mio::{event, Interest, Token};
 
-use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn, SyncActor, ThreadSafe};
+use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn, SyncActor};
 use crate::actor_ref::{ActorGroup, ActorRef};
 use crate::supervisor::{Supervisor, SyncSupervisor};
 use crate::trace;
@@ -146,7 +146,7 @@ pub(crate) use access::PrivateAccess;
 pub(crate) use process::ProcessId;
 pub(crate) use timers::Timers; // Needed by the `test` module.
 
-pub use access::{Access, ThreadLocal};
+pub use access::{Access, ThreadLocal, ThreadSafe};
 pub use error::Error;
 pub use options::{ActorOptions, SyncActorOptions};
 pub use setup::Setup;

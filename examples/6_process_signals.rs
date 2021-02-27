@@ -2,8 +2,8 @@
 
 use std::convert::TryFrom;
 
-use heph::actor::{self, SyncContext, ThreadSafe};
-use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, Signal, SyncActorOptions};
+use heph::actor::{self, SyncContext};
+use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, Signal, SyncActorOptions, ThreadSafe};
 use heph::supervisor::NoSupervisor;
 
 fn main() -> Result<(), rt::Error> {

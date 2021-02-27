@@ -2,7 +2,6 @@
 
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{self, Poll};
 use std::time::Instant;
 use std::{fmt, io};
@@ -12,7 +11,7 @@ use mio::{event, Interest, Token};
 
 use crate::actor::{AddActorError, PrivateSpawn, Spawn};
 use crate::actor_ref::ActorRef;
-use crate::rt::{self, shared, ActorOptions, ProcessId, RuntimeRef, ThreadLocal};
+use crate::rt::{self, ActorOptions, ProcessId, RuntimeRef, ThreadLocal, ThreadSafe};
 use crate::{NewActor, Supervisor};
 
 /// The context in which an actor is executed.
@@ -40,15 +39,6 @@ pub struct Context<M, RT = ThreadLocal> {
     pub(crate) inbox: Receiver<M>,
     /// Runtime access.
     rt: RT,
-}
-
-/// Provides a thread-safe actor context.
-///
-/// See [`actor::Context`] for more information.
-///
-/// [`actor::Context`]: crate::actor::Context
-pub struct ThreadSafe {
-    runtime_ref: Arc<shared::RuntimeInternals>,
 }
 
 impl<M, RT> Context<M, RT> {
@@ -173,19 +163,6 @@ impl<M> Context<M, ThreadLocal> {
 }
 
 impl<M> Context<M, ThreadSafe> {
-    /// Create a new local `actor::Context`.
-    pub(crate) const fn new_shared(
-        pid: ProcessId,
-        inbox: Receiver<M>,
-        runtime_ref: Arc<shared::RuntimeInternals>,
-    ) -> Context<M, ThreadSafe> {
-        Context {
-            pid,
-            inbox,
-            rt: ThreadSafe { runtime_ref },
-        }
-    }
-
     /// Attempt to spawn a new thead-safe actor.
     ///
     /// See the [`Spawn`] trait for more information.
@@ -255,66 +232,6 @@ where
     }
 }
 
-impl<S, NA> Spawn<S, NA, ThreadSafe> for ThreadSafe
-where
-    S: Send + Sync,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
-    NA::Actor: Send + Sync,
-    NA::Message: Send,
-{
-}
-
-impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for ThreadSafe
-where
-    S: Send + Sync,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
-    NA::Actor: Send + Sync,
-    NA::Message: Send,
-{
-    fn try_spawn_setup<ArgFn, ArgFnE>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg_fn: ArgFn,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
-    where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<RuntimeAccess = ThreadSafe> + 'static,
-        NA::Actor: 'static,
-        ArgFn: FnOnce(&mut Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
-    {
-        self.runtime_ref
-            .spawn_setup(supervisor, new_actor, arg_fn, options)
-    }
-}
-
-impl rt::Access for ThreadSafe {}
-
-impl rt::PrivateAccess for ThreadSafe {
-    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.runtime_ref.register(source, token, interest)
-    }
-
-    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.runtime_ref.reregister(source, token, interest)
-    }
-
-    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.runtime_ref.add_deadline(pid, deadline)
-    }
-
-    fn cpu(&self) -> Option<usize> {
-        None
-    }
-}
-
 impl<M, RT> rt::Access for Context<M, RT> where RT: rt::Access {}
 
 impl<M, RT> rt::PrivateAccess for Context<M, RT>
@@ -341,12 +258,6 @@ where
 
     fn cpu(&self) -> Option<usize> {
         self.rt.cpu()
-    }
-}
-
-impl fmt::Debug for ThreadSafe {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("ThreadSafe")
     }
 }
 

@@ -10,11 +10,11 @@ use std::{io, task};
 use log::{debug, error, trace};
 use mio::{event, Interest, Registry, Token};
 
-use crate::actor::{self, AddActorError, NewActor, ThreadSafe};
+use crate::actor::{self, AddActorError, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::timers::Timers;
-use crate::rt::{ActorOptions, ProcessId};
+use crate::rt::{ActorOptions, ProcessId, ThreadSafe};
 use crate::supervisor::Supervisor;
 
 mod scheduler;
@@ -122,7 +122,7 @@ impl RuntimeInternals {
         // Create our actor context and our actor with it.
         let (manager, sender, receiver) = inbox::Manager::new_small_channel();
         let actor_ref = ActorRef::local(sender);
-        let mut ctx = actor::Context::new_shared(pid, receiver, self.clone());
+        let mut ctx = actor::Context::new(pid, receiver, ThreadSafe::new(self.clone()));
         let arg = arg_fn(&mut ctx).map_err(AddActorError::ArgFn)?;
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
 
