@@ -11,7 +11,7 @@ use mio::{event, Interest, Token};
 
 use crate::actor::{AddActorError, PrivateSpawn, Spawn};
 use crate::actor_ref::ActorRef;
-use crate::rt::{self, ActorOptions, ProcessId, RuntimeRef, ThreadLocal, ThreadSafe};
+use crate::rt::{self, ActorOptions, ProcessId, RuntimeRef, ThreadLocal};
 use crate::{NewActor, Supervisor};
 
 /// The context in which an actor is executed.
@@ -26,6 +26,8 @@ use crate::{NewActor, Supervisor};
 /// * [`ThreadSafe`] is the flavour that allows the actor to be moved between
 ///   threads. Actor started with [`RuntimeRef::try_spawn`] will get this
 ///   flavour of context.
+///
+/// [`ThreadSafe`]: crate::rt::ThreadSafe
 #[derive(Debug)]
 pub struct Context<M, RT = ThreadLocal> {
     /// Process id of the actor, used as `Token` in registering things, e.g.
@@ -159,46 +161,6 @@ impl<M> Context<M, ThreadLocal> {
     /// Get a reference to the runtime this actor is running in.
     pub fn runtime(&mut self) -> &mut RuntimeRef {
         &mut self.rt
-    }
-}
-
-impl<M> Context<M, ThreadSafe> {
-    /// Attempt to spawn a new thead-safe actor.
-    ///
-    /// See the [`Spawn`] trait for more information.
-    pub fn try_spawn<S, NA>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
-    where
-        S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
-        NA::Actor: Send + Sync + 'static,
-        NA::Message: Send,
-    {
-        Spawn::try_spawn(self, supervisor, new_actor, arg, options)
-    }
-
-    /// Spawn a new thead-safe actor.
-    ///
-    /// See the [`Spawn`] trait for more information.
-    pub fn spawn<S, NA>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> ActorRef<NA::Message>
-    where
-        S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Error = !, RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
-        NA::Actor: Send + Sync + 'static,
-        NA::Message: Send,
-    {
-        Spawn::spawn(self, supervisor, new_actor, arg, options)
     }
 }
 
