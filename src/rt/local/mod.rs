@@ -12,14 +12,13 @@ use mio::{Events, Poll, Token};
 
 use crate::actor_ref::ActorRef;
 use crate::rt::error::StringError;
+use crate::rt::local::scheduler::Scheduler;
 use crate::rt::process::ProcessId;
 use crate::rt::process::ProcessResult;
 use crate::rt::{self, shared, RuntimeRef, Signal, Timers, WakerId};
 use crate::trace;
 
 mod scheduler;
-
-pub(super) use scheduler::Scheduler;
 
 /// Number of processes to run in between calls to poll.
 ///
@@ -30,8 +29,8 @@ const RUN_POLL_RATIO: usize = 32;
 
 /// Token used to indicate user space events have happened.
 pub(super) const WAKER: Token = Token(usize::MAX);
-/// Token used to indicate the coordinator send a message.
-const COORDINATOR: Token = Token(usize::MAX - 1);
+/// Token used to indicate a message was received on the communication channel.
+const COMMS: Token = Token(usize::MAX - 1);
 
 /// The runtime that runs all processes.
 ///
@@ -45,14 +44,14 @@ pub(crate) struct Runtime {
     /// Receiving side of the channel for waker events, see the [`rt::waker`]
     /// module for the implementation.
     waker_events: Receiver<ProcessId>,
-    /// Two-way communication channel to share messages with the coordinator.
+    /// Two-way communication channel exchange control messages.
     channel: rt::channel::Handle<!, Control>,
     /// Whether or not the runtime was started.
     /// This is here because the worker threads are started before
-    /// [`Runtime::start`] is called and before any actors are added to the
-    /// runtime. Because of this the worker could check all scheduler, see that
-    /// no actors are in them and determine it's done before even starting the
-    /// runtime.
+    /// [`rt::Runtime::start`] is called and thus before any actors are added to
+    /// the runtime. Because of this the worker could check all schedulers, see
+    /// that no actors are in them and determine it's done before even starting
+    /// the runtime.
     ///
     /// [`Runtime::start`]: rt::Runtime::start
     started: bool,
@@ -63,7 +62,7 @@ pub(crate) struct Runtime {
 
 impl Runtime {
     /// Create a new local `Runtime`.
-    pub(crate) fn new(
+    pub(super) fn new(
         poll: Poll,
         waker_id: WakerId,
         waker_events: Receiver<ProcessId>,
@@ -73,7 +72,7 @@ impl Runtime {
         cpu: Option<usize>,
     ) -> io::Result<Runtime> {
         // Register the channel to the coordinator.
-        channel.register(poll.registry(), COORDINATOR)?;
+        channel.register(poll.registry(), COMMS)?;
 
         // Finally create all the runtime internals.
         let internals = RuntimeInternals::new(shared_internals, waker_id, poll, cpu);
@@ -101,7 +100,7 @@ impl Runtime {
         let waker_id = rt::waker::init(waker, waker_sender);
 
         let (_, mut channel) = rt::channel::new()?;
-        channel.register(poll.registry(), COORDINATOR)?;
+        channel.register(poll.registry(), COMMS)?;
 
         let internals = RuntimeInternals::new(shared_internals, waker_id, poll, None);
         Ok(Runtime {
@@ -115,7 +114,7 @@ impl Runtime {
     }
 
     /// Returns the trace log, if any.
-    pub(crate) fn trace_log(&mut self) -> &mut Option<trace::Log> {
+    pub(super) fn trace_log(&mut self) -> &mut Option<trace::Log> {
         &mut self.trace_log
     }
 
@@ -127,7 +126,7 @@ impl Runtime {
     }
 
     /// Run the runtime's event loop.
-    pub(crate) fn run_event_loop(mut self) -> Result<(), Error> {
+    pub(super) fn run_event_loop(mut self) -> Result<(), Error> {
         debug!("running runtime's event loop");
         // Runtime reference used in running the processes.
         let mut runtime_ref = self.create_ref();
@@ -136,11 +135,17 @@ impl Runtime {
             // We first run the processes and only poll after to ensure that we
             // return if there are no processes to run.
             trace!("running processes");
+            let mut has_local = true;
             for _ in 0..RUN_POLL_RATIO {
-                // Run a local or shared process.
-                if self.run_local_process(&mut runtime_ref)
-                    || self.run_shared_process(&mut runtime_ref)
-                {
+                if has_local && self.run_local_process(&mut runtime_ref) {
+                    // Only run a single process per iteration.
+                    continue;
+                } else {
+                    // Don't check next iteration.
+                    has_local = false;
+                }
+
+                if self.run_shared_process(&mut runtime_ref) {
                     // Only run a single process per iteration.
                     continue;
                 }
@@ -245,13 +250,13 @@ impl Runtime {
         // Based on the OS event scheduler thread-local processes.
         let timing = trace::start(&self.trace_log);
         let mut scheduler = self.internals.scheduler.borrow_mut();
-        let mut check_coordinator = false;
+        let mut check_comms = false;
         let mut amount = 0;
         for event in self.events.iter() {
             trace!("Got OS event: {:?}", event);
             match event.token() {
                 WAKER => { /* Need to wake up to handle user space events. */ }
-                COORDINATOR => check_coordinator = true,
+                COMMS => check_comms = true,
                 token => {
                     scheduler.mark_ready(token.into());
                     amount += 1;
@@ -260,10 +265,10 @@ impl Runtime {
         }
         trace::finish(&mut self.trace_log, timing, "Handling OS events", &[]);
 
-        if check_coordinator {
+        if check_comms {
             // Don't need this anymore.
             drop(scheduler);
-            self.check_coordinator().map(|()| amount)
+            self.check_comms().map(|()| amount)
         } else {
             Ok(amount)
         }
@@ -338,7 +343,7 @@ impl Runtime {
         let timeout = self.determine_timeout();
 
         // Only mark ourselves as polling if the timeout is non zero.
-        let mark_waker = if timeout.map_or(true, |t| !t.is_zero()) {
+        let marked_polling = if timeout.map_or(true, |t| !t.is_zero()) {
             rt::waker::mark_polling(self.internals.waker_id, true);
             true
         } else {
@@ -352,7 +357,7 @@ impl Runtime {
             .borrow_mut()
             .poll(&mut self.events, timeout);
 
-        if mark_waker {
+        if marked_polling {
             rt::waker::mark_polling(self.internals.waker_id, false);
         }
 
@@ -387,8 +392,9 @@ impl Runtime {
         self.internals.shared.next_timeout(Instant::now(), None)
     }
 
-    /// Process messages from the coordinator.
-    fn check_coordinator(&mut self) -> Result<(), Error> {
+    /// Process messages from the communication channel.
+    fn check_comms(&mut self) -> Result<(), Error> {
+        trace!("processing messages");
         let timing = trace::start(&self.trace_log);
         while let Some(msg) = self.channel.try_recv().map_err(Error::RecvMsg)? {
             match msg {
@@ -400,7 +406,7 @@ impl Runtime {
         trace::finish(
             &mut self.trace_log,
             timing,
-            "Processing coordinator message(s)",
+            "Processing communication message(s)",
             &[],
         );
         Ok(())
@@ -426,10 +432,9 @@ impl Runtime {
         trace::finish(
             &mut self.trace_log,
             timing,
-            "Handling process signal",
+            "Relaying process signal to actors",
             &[("signal", &signal.as_str())],
         );
-
         res
     }
 
@@ -440,7 +445,8 @@ impl Runtime {
     ) -> Result<(), Error> {
         let timing = trace::start(&self.trace_log);
         trace!("running user function");
-        let res = f(self.create_ref()).map_err(|err| Error::UserFunction(err.into()));
+        let runtime_ref = self.create_ref();
+        let res = f(runtime_ref).map_err(|err| Error::UserFunction(err.into()));
         trace::finish(&mut self.trace_log, timing, "Running user function", &[]);
         res
     }
@@ -449,9 +455,7 @@ impl Runtime {
 /// Control the [`Runtime`].
 #[allow(variant_size_differences)] // Can't make `Run` smaller.
 pub(crate) enum Control {
-    /// Runtime has started, i.e. [`Runtime::start`] was called.
-    ///
-    /// [`Runtime::start`]: rt::Runtime::start
+    /// Runtime has started, i.e. [`rt::Runtime::start`] was called.
     Started,
     /// Process received a signal.
     Signal(Signal),
@@ -466,7 +470,7 @@ pub(crate) enum Error {
     Init(io::Error),
     /// Error polling [`Poll`].
     Polling(io::Error),
-    /// Error receiving message on coordinator channel.
+    /// Error receiving message from communication channel.
     RecvMsg(io::Error),
     /// Process was interrupted (i.e. received process signal), but no actor can
     /// receive the signal.
@@ -480,8 +484,8 @@ impl fmt::Display for Error {
         use Error::*;
         match self {
             Init(err) => write!(f, "error initialising local runtime: {}", err),
-            Polling(err) => write!(f, "error polling for events: {}", err),
-            RecvMsg(err) => write!(f, "error receiving message from coordinator: {}", err),
+            Polling(err) => write!(f, "error polling OS: {}", err),
+            RecvMsg(err) => write!(f, "error receiving message(s): {}", err),
             ProcessInterrupted => write!(
                 f,
                 "received process signal, but no receivers for it: stopping runtime"
