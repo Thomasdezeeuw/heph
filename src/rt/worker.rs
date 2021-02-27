@@ -74,8 +74,8 @@ impl WorkerSetup {
                 })
                 .map(|handle| Worker {
                     id,
-                    handle,
                     channel,
+                    handle,
                 })
         })
     }

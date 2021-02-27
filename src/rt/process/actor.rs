@@ -41,8 +41,8 @@ where
         ActorProcess {
             supervisor,
             new_actor,
-            actor,
             inbox,
+            actor,
         }
     }
 
