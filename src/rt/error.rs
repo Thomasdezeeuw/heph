@@ -192,7 +192,13 @@ impl std::error::Error for Error {
 /// Wrapper around `String` to implement the [`Error`] trait.
 ///
 /// [`Error`]: std::error::Error
-pub(super) struct StringError(pub(super) String);
+pub(super) struct StringError(String);
+
+impl From<String> for StringError {
+    fn from(err: String) -> StringError {
+        StringError(err)
+    }
+}
 
 impl fmt::Debug for StringError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
