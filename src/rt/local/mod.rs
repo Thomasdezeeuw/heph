@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use std::{fmt, io};
 
 use crossbeam_channel::Receiver;
-use log::{debug, error, trace};
+use log::{debug, trace};
 use mio::{Events, Poll, Token};
 
 use crate::actor_ref::ActorRef;
@@ -413,11 +413,7 @@ impl Runtime {
         trace!("received process signal: {:?}", signal);
 
         let mut receivers = self.internals.signal_receivers.borrow_mut();
-        let res = if receivers.is_empty() && signal.should_stop() {
-            error!(
-                "received {:#} process signal, but there are no receivers for it, stopping runtime",
-                signal
-            );
+        let res = if signal.should_stop() && receivers.is_empty() {
             Err(Error::ProcessInterrupted)
         } else {
             for receiver in receivers.iter_mut() {
