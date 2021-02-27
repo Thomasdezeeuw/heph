@@ -139,10 +139,11 @@ use std::task::{self, Poll};
 use crate::rt;
 
 mod context;
+pub mod messages;
 mod spawn;
 mod sync;
-
-pub mod messages;
+#[cfg(test)]
+mod tests;
 
 #[doc(inline)]
 pub use context::{Context, NoMessages, ReceiveMessage, RecvError, ThreadLocal, ThreadSafe};
@@ -152,9 +153,6 @@ pub use spawn::Spawn;
 pub use sync::{SyncActor, SyncContext};
 
 pub(crate) use spawn::{AddActorError, PrivateSpawn};
-
-#[cfg(test)]
-mod tests;
 
 /// The trait that defines how to create a new [`Actor`].
 ///
