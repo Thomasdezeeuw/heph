@@ -2,17 +2,18 @@
 
 use std::num::NonZeroUsize;
 use std::sync::Arc;
-use std::{fmt, io, thread};
+use std::{io, thread};
 
 use crossbeam_channel::{self, Receiver};
 use mio::{Poll, Registry, Token};
 
-use crate::rt::error::StringError;
 use crate::rt::local::{Runtime, WAKER};
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::waker::WakerId;
 use crate::rt::{self, shared, ProcessId, RuntimeRef, Signal};
 use crate::trace;
+
+pub(crate) use crate::rt::local::Error;
 
 pub(crate) struct WorkerSetup {
     id: NonZeroUsize,
@@ -240,48 +241,5 @@ fn set_affinity(cpu_set: &libc::cpu_set_t) -> io::Result<()> {
         Ok(())
     } else {
         Err(io::Error::last_os_error())
-    }
-}
-
-/// Error running a [`Worker`].
-#[derive(Debug)]
-pub(crate) enum Error {
-    /// Error in [`RunningRuntime::init`].
-    Init(io::Error),
-    /// Error polling [`mio::Poll`].
-    Polling(io::Error),
-    /// Error receiving message on coordinator channel.
-    RecvMsg(io::Error),
-    /// Process was interrupted (i.e. received process signal), but no actor can
-    /// receive the signal.
-    ProcessInterrupted,
-    /// Error running user function.
-    UserFunction(StringError),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Error::*;
-        match self {
-            Init(err) => write!(f, "error initialising worker: {}", err),
-            Polling(err) => write!(f, "error polling for events: {}", err),
-            RecvMsg(err) => write!(f, "error receiving message from coordinator: {}", err),
-            ProcessInterrupted => write!(
-                f,
-                "received process signal, but no receivers for it: stopped running"
-            ),
-            UserFunction(err) => write!(f, "error running user function: {}", err),
-        }
-    }
-}
-
-impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use Error::*;
-        match self {
-            Init(ref err) | Polling(ref err) | RecvMsg(ref err) => Some(err),
-            ProcessInterrupted => None,
-            UserFunction(ref err) => Some(err),
-        }
     }
 }
