@@ -11,7 +11,7 @@ use mio::{event, Interest, Token};
 
 use crate::actor::{AddActorError, PrivateSpawn, Spawn};
 use crate::actor_ref::ActorRef;
-use crate::rt::{self, ActorOptions, ProcessId, RuntimeRef, ThreadLocal};
+use crate::rt::{self, ActorOptions, ProcessId, ThreadLocal};
 use crate::{NewActor, Supervisor};
 
 /// The context in which an actor is executed.
@@ -27,7 +27,9 @@ use crate::{NewActor, Supervisor};
 ///   threads. Actor started with [`RuntimeRef::try_spawn`] will get this
 ///   flavour of context.
 ///
+/// [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
 /// [`ThreadSafe`]: crate::rt::ThreadSafe
+/// [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
 #[derive(Debug)]
 pub struct Context<M, RT = ThreadLocal> {
     /// Process id of the actor, used as `Token` in registering things, e.g.
@@ -146,6 +148,11 @@ impl<M, RT> Context<M, RT> {
         ActorRef::local(self.inbox.new_sender())
     }
 
+    /// Get access to the runtime this actor is running in.
+    pub fn runtime(&mut self) -> &mut RT {
+        &mut self.rt
+    }
+
     /// Get the pid of this actor.
     pub(crate) const fn pid(&self) -> ProcessId {
         self.pid
@@ -154,13 +161,6 @@ impl<M, RT> Context<M, RT> {
     /// Sets the waker of the inbox to `waker`.
     pub(crate) fn register_inbox_waker(&mut self, waker: &task::Waker) {
         let _ = self.inbox.register_waker(waker);
-    }
-}
-
-impl<M> Context<M, ThreadLocal> {
-    /// Get a reference to the runtime this actor is running in.
-    pub fn runtime(&mut self) -> &mut RuntimeRef {
-        &mut self.rt
     }
 }
 
