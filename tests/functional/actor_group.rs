@@ -212,12 +212,12 @@ fn remove() {
 
     // Remove an unknown actor ref should do nothing.
     let (_, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
-    group.remove(actor_ref);
+    group.remove(&actor_ref);
     assert_eq!(group.len(), actor_refs.len());
 
     let mut iter = actor_refs.into_iter();
     while let Some(actor_ref) = iter.next() {
-        group.remove(actor_ref);
+        group.remove(&actor_ref);
         assert_eq!(group.len(), iter.len());
     }
 }

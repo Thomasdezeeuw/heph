@@ -560,7 +560,7 @@ impl<M> ActorGroup<M> {
 
     /// Remove all actor references which point to the same actor as
     /// `actor_ref`.
-    pub fn remove(&mut self, actor_ref: ActorRef<M>) {
+    pub fn remove(&mut self, actor_ref: &ActorRef<M>) {
         let id = actor_ref.id();
         self.actor_refs.retain(|a| a.id() != id);
     }
