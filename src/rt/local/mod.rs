@@ -12,13 +12,14 @@ use mio::{Events, Poll, Token};
 
 use crate::actor_ref::ActorRef;
 use crate::rt::error::StringError;
-use crate::rt::local::scheduler::Scheduler;
 use crate::rt::process::ProcessId;
 use crate::rt::process::ProcessResult;
 use crate::rt::{self, shared, RuntimeRef, Signal, Timers, WakerId};
 use crate::trace;
 
 mod scheduler;
+
+use scheduler::Scheduler;
 
 /// Number of processes to run in between calls to poll.
 ///
