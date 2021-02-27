@@ -12,7 +12,6 @@ use crate::rt::options::Priority;
 use crate::RuntimeRef;
 
 mod actor;
-
 #[cfg(test)]
 mod tests;
 

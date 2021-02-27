@@ -18,7 +18,6 @@ use crate::rt::process::{self, ActorProcess, ProcessId};
 use crate::Supervisor;
 
 mod inactive;
-
 #[cfg(test)]
 mod tests;
 

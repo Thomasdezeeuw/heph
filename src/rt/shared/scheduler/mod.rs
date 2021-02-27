@@ -18,12 +18,11 @@ use crate::Supervisor;
 
 mod inactive;
 mod runqueue;
+#[cfg(test)]
+mod tests;
 
 use inactive::Inactive;
 use runqueue::RunQueue;
-
-#[cfg(test)]
-mod tests;
 
 pub(crate) type ProcessData = process::ProcessData<dyn Process + Send + Sync>;
 
