@@ -39,7 +39,7 @@ impl Timers {
 
     /// Add a new deadline.
     pub(super) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.deadlines.push(Reverse(Deadline { pid, deadline }));
+        self.deadlines.push(Reverse(Deadline { deadline, pid }));
     }
 
     /// Returns all deadlines that have expired (i.e. deadline < now).
