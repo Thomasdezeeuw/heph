@@ -130,7 +130,6 @@ use crate::trace;
 
 mod coordinator;
 mod error;
-mod local;
 mod process;
 mod setup;
 mod signal;
@@ -138,6 +137,7 @@ mod timers;
 
 pub(crate) mod access;
 pub(crate) mod channel;
+pub(crate) mod local;
 pub(crate) mod shared;
 pub(crate) mod sync_worker;
 pub(crate) mod thread_waker;
