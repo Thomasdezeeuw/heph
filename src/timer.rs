@@ -16,8 +16,7 @@ use std::stream::Stream;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
-use crate::actor::ThreadLocal;
-use crate::rt::{self, PrivateAccess, ProcessId};
+use crate::rt::{self, PrivateAccess, ProcessId, ThreadLocal};
 use crate::{actor, RuntimeRef};
 
 /// Type returned when the deadline has passed.

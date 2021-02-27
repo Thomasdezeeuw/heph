@@ -12,7 +12,7 @@ use mio::{event, Interest, Token};
 
 use crate::actor::{AddActorError, PrivateSpawn, Spawn};
 use crate::actor_ref::ActorRef;
-use crate::rt::{self, shared, ActorOptions, ProcessId, RuntimeRef};
+use crate::rt::{self, shared, ActorOptions, ProcessId, RuntimeRef, ThreadLocal};
 use crate::{NewActor, Supervisor};
 
 /// The context in which an actor is executed.
@@ -42,18 +42,6 @@ pub struct Context<M, RT = ThreadLocal> {
     rt: RT,
 }
 
-/// Provides a thread-local actor context.
-///
-/// This is an optimised version of [`ThreadSafe`], but doesn't allow the actor
-/// to move between threads.
-///
-/// See [`actor::Context`] for more information.
-///
-/// [`actor::Context`]: crate::actor::Context
-pub struct ThreadLocal {
-    runtime_ref: RuntimeRef,
-}
-
 /// Provides a thread-safe actor context.
 ///
 /// See [`actor::Context`] for more information.
@@ -64,6 +52,11 @@ pub struct ThreadSafe {
 }
 
 impl<M, RT> Context<M, RT> {
+    /// Create a new `actor::Context`.
+    pub(crate) const fn new(pid: ProcessId, inbox: Receiver<M>, rt: RT) -> Context<M, RT> {
+        Context { pid, inbox, rt }
+    }
+
     /// Attempt to receive the next message.
     ///
     /// This will attempt to receive next message if one is available. If the
@@ -173,22 +166,9 @@ impl<M, RT> Context<M, RT> {
 }
 
 impl<M> Context<M, ThreadLocal> {
-    /// Create a new local `actor::Context`.
-    pub(crate) const fn new_local(
-        pid: ProcessId,
-        inbox: Receiver<M>,
-        runtime_ref: RuntimeRef,
-    ) -> Context<M, ThreadLocal> {
-        Context {
-            pid,
-            inbox,
-            rt: ThreadLocal { runtime_ref },
-        }
-    }
-
     /// Get a reference to the runtime this actor is running in.
     pub fn runtime(&mut self) -> &mut RuntimeRef {
-        &mut self.rt.runtime_ref
+        &mut self.rt
     }
 }
 
@@ -245,9 +225,18 @@ impl<M> Context<M, ThreadSafe> {
     }
 }
 
-impl<M, S, NA> Spawn<S, NA, ThreadLocal> for Context<M, ThreadLocal> {}
+impl<M, RT, S, NA> Spawn<S, NA, RT> for Context<M, RT>
+where
+    NA: NewActor<RuntimeAccess = RT>,
+    RT: Spawn<S, NA, RT>,
+{
+}
 
-impl<M, S, NA> PrivateSpawn<S, NA, ThreadLocal> for Context<M, ThreadLocal> {
+impl<M, RT, S, NA> PrivateSpawn<S, NA, RT> for Context<M, RT>
+where
+    NA: NewActor<RuntimeAccess = RT>,
+    RT: PrivateSpawn<S, NA, RT>,
+{
     fn try_spawn_setup<ArgFn, ArgFnE>(
         &mut self,
         supervisor: S,
@@ -257,17 +246,16 @@ impl<M, S, NA> PrivateSpawn<S, NA, ThreadLocal> for Context<M, ThreadLocal> {
     ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
+        NA: NewActor<RuntimeAccess = RT> + 'static,
         NA::Actor: 'static,
-        ArgFn: FnOnce(&mut Context<NA::Message, ThreadLocal>) -> Result<NA::Argument, ArgFnE>,
+        ArgFn: FnOnce(&mut Context<NA::Message, RT>) -> Result<NA::Argument, ArgFnE>,
     {
         self.rt
-            .runtime_ref
             .try_spawn_setup(supervisor, new_actor, arg_fn, options)
     }
 }
 
-impl<M, S, NA> Spawn<S, NA, ThreadSafe> for Context<M, ThreadSafe>
+impl<S, NA> Spawn<S, NA, ThreadSafe> for ThreadSafe
 where
     S: Send + Sync,
     NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
@@ -276,7 +264,7 @@ where
 {
 }
 
-impl<M, S, NA> PrivateSpawn<S, NA, ThreadSafe> for Context<M, ThreadSafe>
+impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for ThreadSafe
 where
     S: Send + Sync,
     NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
@@ -296,35 +284,12 @@ where
         NA::Actor: 'static,
         ArgFn: FnOnce(&mut Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
     {
-        self.rt
-            .runtime_ref
+        self.runtime_ref
             .spawn_setup(supervisor, new_actor, arg_fn, options)
     }
 }
 
-impl rt::PrivateAccess for ThreadLocal {
-    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.runtime_ref.register(source, token, interest)
-    }
-
-    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.runtime_ref.reregister(source, token, interest)
-    }
-
-    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.runtime_ref.add_deadline(pid, deadline)
-    }
-
-    fn cpu(&self) -> Option<usize> {
-        self.runtime_ref.cpu()
-    }
-}
+impl rt::Access for ThreadSafe {}
 
 impl rt::PrivateAccess for ThreadSafe {
     fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
@@ -350,6 +315,8 @@ impl rt::PrivateAccess for ThreadSafe {
     }
 }
 
+impl<M, RT> rt::Access for Context<M, RT> where RT: rt::Access {}
+
 impl<M, RT> rt::PrivateAccess for Context<M, RT>
 where
     RT: rt::PrivateAccess,
@@ -374,12 +341,6 @@ where
 
     fn cpu(&self) -> Option<usize> {
         self.rt.cpu()
-    }
-}
-
-impl fmt::Debug for ThreadLocal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("ThreadLocal")
     }
 }
 

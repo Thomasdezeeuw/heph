@@ -6,10 +6,10 @@ use std::task::{self, Poll};
 
 use inbox::{Manager, Receiver};
 
-use crate::actor::{self, Actor, NewActor, ThreadLocal, ThreadSafe};
+use crate::actor::{self, Actor, NewActor, ThreadSafe};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
-use crate::supervisor::SupervisorStrategy;
-use crate::{RuntimeRef, Supervisor};
+use crate::rt::{RuntimeRef, ThreadLocal};
+use crate::supervisor::{Supervisor, SupervisorStrategy};
 
 /// A process that represent an [`Actor`].
 pub(crate) struct ActorProcess<S, NA: NewActor> {
@@ -171,7 +171,7 @@ impl RuntimeSupport for ThreadLocal {
         inbox: Receiver<M>,
         runtime_ref: &mut RuntimeRef,
     ) -> actor::Context<M, ThreadLocal> {
-        actor::Context::new_local(pid, inbox, runtime_ref.clone())
+        actor::Context::new(pid, inbox, ThreadLocal::new(runtime_ref.clone()))
     }
 }
 
