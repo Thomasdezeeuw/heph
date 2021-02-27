@@ -231,7 +231,7 @@ impl Runtime {
     ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
         S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Context = ThreadSafe> + Sync + Send + 'static,
+        NA: NewActor<RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
@@ -250,7 +250,7 @@ impl Runtime {
     ) -> ActorRef<NA::Message>
     where
         S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Error = !, Context = ThreadSafe> + Sync + Send + 'static,
+        NA: NewActor<Error = !, RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
@@ -353,7 +353,7 @@ impl Runtime {
 impl<S, NA> Spawn<S, NA, ThreadSafe> for Runtime
 where
     S: Send + Sync,
-    NA: NewActor<Context = ThreadSafe> + Send + Sync,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
     NA::Actor: Send + Sync,
     NA::Message: Send,
 {
@@ -362,7 +362,7 @@ where
 impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for Runtime
 where
     S: Send + Sync,
-    NA: NewActor<Context = ThreadSafe> + Send + Sync,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
     NA::Actor: Send + Sync,
     NA::Message: Send,
 {
@@ -375,7 +375,7 @@ where
     ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Context = ThreadSafe> + 'static,
+        NA: NewActor<RuntimeAccess = ThreadSafe> + 'static,
         NA::Actor: 'static,
         ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
     {
@@ -409,7 +409,7 @@ impl RuntimeRef {
     ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Context = ThreadLocal> + 'static,
+        NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
         NA::Actor: 'static,
     {
         Spawn::try_spawn(self, supervisor, new_actor, arg, options)
@@ -427,7 +427,7 @@ impl RuntimeRef {
     ) -> ActorRef<NA::Message>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Error = !, Context = ThreadLocal> + 'static,
+        NA: NewActor<Error = !, RuntimeAccess = ThreadLocal> + 'static,
         NA::Actor: 'static,
     {
         Spawn::spawn(self, supervisor, new_actor, arg, options)
@@ -445,7 +445,7 @@ impl RuntimeRef {
     ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
         S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Context = ThreadSafe> + Sync + Send + 'static,
+        NA: NewActor<RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
@@ -464,7 +464,7 @@ impl RuntimeRef {
     ) -> ActorRef<NA::Message>
     where
         S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<Error = !, Context = ThreadSafe> + Sync + Send + 'static,
+        NA: NewActor<Error = !, RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
@@ -566,7 +566,7 @@ impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef {
     ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Context = ThreadLocal> + 'static,
+        NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
         NA::Actor: 'static,
         ArgFn:
             FnOnce(&mut actor::Context<NA::Message, ThreadLocal>) -> Result<NA::Argument, ArgFnE>,
@@ -603,7 +603,7 @@ impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef {
 impl<S, NA> Spawn<S, NA, ThreadSafe> for RuntimeRef
 where
     S: Send + Sync,
-    NA: NewActor<Context = ThreadSafe> + Send + Sync,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
     NA::Actor: Send + Sync,
     NA::Message: Send,
 {
@@ -612,7 +612,7 @@ where
 impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for RuntimeRef
 where
     S: Send + Sync,
-    NA: NewActor<Context = ThreadSafe> + Send + Sync,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
     NA::Actor: Send + Sync,
     NA::Message: Send,
 {
@@ -625,7 +625,7 @@ where
     ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Context = ThreadSafe> + 'static,
+        NA: NewActor<RuntimeAccess = ThreadSafe> + 'static,
         NA::Actor: 'static,
         ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
     {

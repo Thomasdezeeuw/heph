@@ -189,11 +189,11 @@ impl NewActor for NewActorImpl {
     type Argument = bool;
     type Actor = ActorImpl;
     type Error = &'static str;
-    type Context = ThreadSafe;
+    type RuntimeAccess = ThreadSafe;
 
     fn new(
         &mut self,
-        _: actor::Context<Self::Message, Self::Context>,
+        _: actor::Context<Self::Message, Self::RuntimeAccess>,
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         unimplemented!()

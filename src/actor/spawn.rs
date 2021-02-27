@@ -3,7 +3,7 @@
 use crate::{actor, ActorOptions, ActorRef, NewActor, Supervisor};
 
 /// The `Spawn` trait defines how new actors are added to the runtime.
-pub trait Spawn<S, NA, C>: PrivateSpawn<S, NA, C> {
+pub trait Spawn<S, NA, RT>: PrivateSpawn<S, NA, RT> {
     /// Attempts to spawn an actor.
     ///
     /// Arguments:
@@ -29,7 +29,7 @@ pub trait Spawn<S, NA, C>: PrivateSpawn<S, NA, C> {
     ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Context = C> + 'static,
+        NA: NewActor<RuntimeAccess = RT> + 'static,
         NA::Actor: 'static,
     {
         self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
@@ -54,7 +54,7 @@ pub trait Spawn<S, NA, C>: PrivateSpawn<S, NA, C> {
     ) -> ActorRef<NA::Message>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Error = !, Context = C> + 'static,
+        NA: NewActor<Error = !, RuntimeAccess = RT> + 'static,
         NA::Actor: 'static,
     {
         self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
@@ -63,7 +63,7 @@ pub trait Spawn<S, NA, C>: PrivateSpawn<S, NA, C> {
 }
 
 /// Private version of the [`Spawn`]  trait.
-pub trait PrivateSpawn<S, NA, C> {
+pub trait PrivateSpawn<S, NA, RT> {
     /// Spawn an actor that needs to be initialised.
     ///
     /// See the public [`Spawn`] trait for documentation on the arguments.
@@ -79,9 +79,9 @@ pub trait PrivateSpawn<S, NA, C> {
     ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
     where
         S: Supervisor<NA> + 'static,
-        NA: NewActor<Context = C> + 'static,
+        NA: NewActor<RuntimeAccess = RT> + 'static,
         NA::Actor: 'static,
-        ArgFn: FnOnce(&mut actor::Context<NA::Message, C>) -> Result<NA::Argument, ArgFnE>;
+        ArgFn: FnOnce(&mut actor::Context<NA::Message, RT>) -> Result<NA::Argument, ArgFnE>;
 }
 
 /// Error returned by spawning a actor.

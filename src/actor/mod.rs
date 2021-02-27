@@ -251,17 +251,18 @@ pub trait NewActor {
     /// error.
     type Error;
 
-    /// The kind of actor context.
+    /// The kind of runtime access needed by the actor.
     ///
-    /// See [`actor::Context`] for more information.
+    /// The runtime is accessible via the actor's context. See
+    /// [`actor::Context`] for more information.
     ///
     /// [`actor::Context`]: crate::actor::Context
-    type Context;
+    type RuntimeAccess;
 
     /// Create a new [`Actor`](Actor).
     fn new(
         &mut self,
-        ctx: Context<Self::Message, Self::Context>,
+        ctx: Context<Self::Message, Self::RuntimeAccess>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error>;
 
@@ -325,7 +326,7 @@ pub trait NewActor {
     /// # impl<S, NA> Supervisor<server::Setup<S, NA>> for ServerSupervisor
     /// # where
     /// #     S: Supervisor<NA> + Clone + 'static,
-    /// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = ThreadLocal> + Clone + 'static,
+    /// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
     /// # {
     /// #     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
     /// #         use server::Error::*;
@@ -428,10 +429,11 @@ where
     type Argument = Arg;
     type Actor = NA::Actor;
     type Error = NA::Error;
-    type Context = NA::Context;
+    type RuntimeAccess = NA::RuntimeAccess;
+
     fn new(
         &mut self,
-        ctx: Context<Self::Message, Self::Context>,
+        ctx: Context<Self::Message, Self::RuntimeAccess>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let arg = (self.map)(arg);
@@ -446,7 +448,7 @@ macro_rules! impl_new_actor {
         $(,)*
     ) => {
         $(
-            impl<M, C, $( $arg, )* A> NewActor for fn(Context<M, C>, $( $arg ),*) -> A
+            impl<M, RT, $( $arg, )* A> NewActor for fn(Context<M, RT>, $( $arg ),*) -> A
             where
                 A: Actor,
             {
@@ -454,12 +456,12 @@ macro_rules! impl_new_actor {
                 type Argument = ($( $arg ),*);
                 type Actor = A;
                 type Error = !;
-                type Context = C;
+                type RuntimeAccess = RT;
 
                 #[allow(non_snake_case)]
                 fn new(
                     &mut self,
-                    ctx: Context<Self::Message, Self::Context>,
+                    ctx: Context<Self::Message, Self::RuntimeAccess>,
                     arg: Self::Argument,
                 ) -> Result<Self::Actor, Self::Error> {
                     let ($( $arg ),*) = arg;
@@ -470,7 +472,7 @@ macro_rules! impl_new_actor {
     };
 }
 
-impl<M, C, Arg, A> NewActor for fn(Context<M, C>, Arg) -> A
+impl<M, RT, Arg, A> NewActor for fn(Context<M, RT>, Arg) -> A
 where
     A: Actor,
 {
@@ -478,11 +480,11 @@ where
     type Argument = Arg;
     type Actor = A;
     type Error = !;
-    type Context = C;
+    type RuntimeAccess = RT;
 
     fn new(
         &mut self,
-        ctx: Context<Self::Message, Self::Context>,
+        ctx: Context<Self::Message, Self::RuntimeAccess>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg))
@@ -697,14 +699,14 @@ fn format_name(full_name: &'static str) -> &'static str {
 /// [`TcpStream`]: crate::net::TcpStream
 /// [`UdpSocket`]: crate::net::UdpSocket
 /// [`timer`]: crate::timer
-pub trait Bound<C> {
+pub trait Bound<RT> {
     /// Error type used in [`bind_to`].
     ///
     /// [`bind_to`]: Bound::bind_to
     type Error;
 
     /// Bind a type to the [`Actor`] that owns the `ctx`.
-    fn bind_to<M>(&mut self, ctx: &mut Context<M, C>) -> Result<(), Self::Error>
+    fn bind_to<M>(&mut self, ctx: &mut Context<M, RT>) -> Result<(), Self::Error>
     where
-        Context<M, C>: rt::Access;
+        Context<M, RT>: rt::Access;
 }

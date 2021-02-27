@@ -277,11 +277,11 @@ impl NewActor for TestAssertUnmovedNewActor {
     type Argument = ();
     type Actor = AssertUnmoved<Pending<Result<(), !>>>;
     type Error = !;
-    type Context = ThreadLocal;
+    type RuntimeAccess = ThreadLocal;
 
     fn new(
         &mut self,
-        ctx: actor::Context<Self::Message, Self::Context>,
+        ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         // In the test we need the access to the inbox, to achieve that we can't

@@ -38,9 +38,9 @@ impl<S, NA> Supervisor<server::Setup<S, NA>> for PanicSupervisor
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
-    actor::Context<server::Message, <NA as NewActor>::Context>:
-        rt::Access + Spawn<S, NA, NA::Context>,
-    actor::Context<NA::Message, <NA as NewActor>::Context>: rt::Access,
+    actor::Context<server::Message, <NA as NewActor>::RuntimeAccess>:
+        rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
+    actor::Context<NA::Message, <NA as NewActor>::RuntimeAccess>: rt::Access,
 {
     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
         panic!("unexpected error: {}", err);
@@ -193,19 +193,19 @@ fn new_actor_error() {
         }
     }
 
-    impl<K> NewActor for NewActorErrorGenerator<K>
+    impl<RT> NewActor for NewActorErrorGenerator<RT>
     where
-        actor::Context<!, K>: rt::Access,
+        actor::Context<!, RT>: rt::Access,
     {
         type Message = !;
         type Argument = (TcpStream, SocketAddr);
         type Actor = ActorErrorGenerator;
         type Error = ();
-        type Context = K;
+        type RuntimeAccess = RT;
 
         fn new(
             &mut self,
-            _: actor::Context<Self::Message, Self::Context>,
+            _: actor::Context<Self::Message, Self::RuntimeAccess>,
             _: Self::Argument,
         ) -> Result<Self::Actor, Self::Error> {
             Err(())

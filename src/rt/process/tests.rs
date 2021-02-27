@@ -263,7 +263,7 @@ impl NewActor for TestAssertUnmovedNewActor {
     type Argument = ();
     type Actor = AssertUnmoved<Pending<Result<(), !>>>;
     type Error = !;
-    type Context = ThreadLocal;
+    type RuntimeAccess = ThreadLocal;
 
     fn new(
         &mut self,

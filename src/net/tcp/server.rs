@@ -54,22 +54,22 @@ impl<S, NA> Setup<S, NA> {
     }
 }
 
-impl<S, NA, K> NewActor for Setup<S, NA>
+impl<S, NA> NewActor for Setup<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
-    actor::Context<Message, K>: rt::Access + Spawn<S, NA, K>,
-    actor::Context<NA::Message, K>: rt::Access,
+    NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
+    actor::Context<Message, NA::RuntimeAccess>: rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
+    actor::Context<NA::Message, NA::RuntimeAccess>: rt::Access,
 {
     type Message = Message;
     type Argument = ();
-    type Actor = TcpServer<S, NA, K>;
+    type Actor = TcpServer<S, NA>;
     type Error = io::Error;
-    type Context = K;
+    type RuntimeAccess = NA::RuntimeAccess;
 
     fn new(
         &mut self,
-        mut ctx: actor::Context<Self::Message, K>,
+        mut ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let this = &*self.inner;
@@ -197,7 +197,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// where
 ///     // Trait bounds needed by `server::Setup`.
 ///     S: Supervisor<NA> + Clone + 'static,
-///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = ThreadLocal> + Clone + 'static,
+///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
 /// {
 ///     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
 ///         use server::Error::*;
@@ -286,7 +286,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// # impl<S, NA> Supervisor<tcp::server::Setup<S, NA>> for ServerSupervisor
 /// # where
 /// #     S: Supervisor<NA> + Clone + 'static,
-/// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = ThreadLocal> + Clone + 'static,
+/// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
 /// # {
 /// #     fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
 /// #         use tcp::server::Error::*;
@@ -368,7 +368,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// where
 ///     // Trait bounds needed by `server::Setup` using a thread-safe actor.
 ///     S: Supervisor<NA> + Send + Sync + Clone + 'static,
-///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, Context = ThreadSafe> + Send + Sync + Clone + 'static,
+///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, RuntimeAccess = ThreadSafe> + Send + Sync + Clone + 'static,
 ///     NA::Actor: Send + Sync + 'static,
 ///     NA::Message: Send,
 /// {
@@ -410,9 +410,12 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     stream.send_all(b"Hello World").await
 /// }
 #[derive(Debug)]
-pub struct TcpServer<S, NA, K> {
+pub struct TcpServer<S, NA>
+where
+    NA: NewActor,
+{
     /// Actor context in which this actor is running.
-    ctx: actor::Context<Message, K>,
+    ctx: actor::Context<Message, NA::RuntimeAccess>,
     /// Whether or not we set the waker for the inbox.
     set_waker: bool,
     /// The underlying TCP listener, backed by Mio.
@@ -425,10 +428,10 @@ pub struct TcpServer<S, NA, K> {
     options: ActorOptions,
 }
 
-impl<S, NA, K> TcpServer<S, NA, K>
+impl<S, NA> TcpServer<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
+    NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
 {
     /// Create a new [server setup].
     ///
@@ -476,12 +479,12 @@ where
     }
 }
 
-impl<S, NA, K> Actor for TcpServer<S, NA, K>
+impl<S, NA> Actor for TcpServer<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Context = K> + Clone + 'static,
-    actor::Context<Message, K>: Spawn<S, NA, K>,
-    actor::Context<NA::Message, K>: rt::Access,
+    NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
+    actor::Context<Message, NA::RuntimeAccess>: Spawn<S, NA, NA::RuntimeAccess>,
+    actor::Context<NA::Message, NA::RuntimeAccess>: rt::Access,
 {
     type Error = Error<NA::Error>;
 
@@ -521,7 +524,7 @@ where
             };
             debug!("TcpServer accepted connection: remote_address={}", addr);
 
-            let setup_actor = move |ctx: &mut actor::Context<NA::Message, K>| {
+            let setup_actor = move |ctx: &mut actor::Context<NA::Message, NA::RuntimeAccess>| {
                 ctx.register(
                     &mut stream,
                     ctx.pid().into(),

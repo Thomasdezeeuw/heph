@@ -45,7 +45,7 @@ fn connected_ipv6() {
 
 fn test<NA>(local_address: SocketAddr, new_actor: NA)
 where
-    NA: NewActor<Argument = SocketAddr, Error = !, Context = ThreadLocal>,
+    NA: NewActor<Argument = SocketAddr, Error = !, RuntimeAccess = ThreadLocal>,
     <NA as NewActor>::Actor: Actor<Error = io::Error>,
 {
     let echo_socket = std::net::UdpSocket::bind(local_address).unwrap();
@@ -312,7 +312,7 @@ async fn connected_vectored_io_actor(
 
 fn test_vectored_io<NA>(local_address: SocketAddr, new_actor: NA)
 where
-    NA: NewActor<Argument = SocketAddr, Error = !, Context = ThreadLocal>,
+    NA: NewActor<Argument = SocketAddr, Error = !, RuntimeAccess = ThreadLocal>,
     <NA as NewActor>::Actor: Actor<Error = io::Error>,
 {
     let echo_socket = std::net::UdpSocket::bind(local_address).unwrap();
