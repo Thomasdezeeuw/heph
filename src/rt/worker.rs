@@ -13,10 +13,14 @@ use crate::rt::waker::WakerId;
 use crate::rt::{self, shared, ProcessId, RuntimeRef, Signal};
 use crate::trace;
 
-pub(crate) use crate::rt::local::Error;
+pub(super) use crate::rt::local::Error;
 
-pub(crate) struct WorkerSetup {
+/// Setup work required before starting a worker thread, see [`setup`].
+pub(super) struct WorkerSetup {
+    /// See [`Worker::id`].
     id: NonZeroUsize,
+    /// Poll instance for the worker thread. This is needed before starting the
+    /// thread to initialise the [`rt::waker`].
     poll: Poll,
     /// Waker id used to create a `Waker` for thread-local actors.
     waker_id: WakerId,
@@ -27,7 +31,7 @@ pub(crate) struct WorkerSetup {
 /// Setup a new worker thread.
 ///
 /// Use [`WorkerSetup::start`] to spawn the worker thread.
-pub(crate) fn setup(id: NonZeroUsize) -> io::Result<(WorkerSetup, &'static ThreadWaker)> {
+pub(super) fn setup(id: NonZeroUsize) -> io::Result<(WorkerSetup, &'static ThreadWaker)> {
     let poll = Poll::new()?;
 
     // Setup the waking mechanism.
@@ -43,17 +47,6 @@ pub(crate) fn setup(id: NonZeroUsize) -> io::Result<(WorkerSetup, &'static Threa
         waker_events,
     };
     Ok((setup, thread_waker))
-}
-
-/// Handle to a worker thread.
-#[derive(Debug)]
-pub(super) struct Worker {
-    /// Unique id (among all threads in the `Runtime`).
-    id: NonZeroUsize,
-    /// Handle for the actual thread.
-    handle: thread::JoinHandle<Result<(), rt::Error>>,
-    /// Two-way communication channel to share messages with the worker thread.
-    channel: rt::channel::Handle<Control, !>,
 }
 
 impl WorkerSetup {
@@ -93,6 +86,17 @@ impl WorkerSetup {
     }
 }
 
+/// Handle to a worker thread.
+#[derive(Debug)]
+pub(super) struct Worker {
+    /// Unique id (among all threads in the [`rt::Runtime`]).
+    id: NonZeroUsize,
+    /// Two-way communication channel to share messages with the worker thread.
+    channel: rt::channel::Handle<Control, !>,
+    /// Handle for the actual thread.
+    handle: thread::JoinHandle<Result<(), rt::Error>>,
+}
+
 impl Worker {
     /// Return the worker's id.
     pub(super) fn id(&self) -> usize {
@@ -100,9 +104,7 @@ impl Worker {
     }
 
     /// Registers the channel used to communicate with the thread. Uses the
-    /// [`id`] as [`Token`].
-    ///
-    /// [`id`]: Worker::id
+    /// [`Worker::id`] as [`Token`].
     pub(super) fn register(&mut self, registry: &Registry) -> io::Result<()> {
         self.channel.register(registry, Token(self.id()))
     }
@@ -139,7 +141,7 @@ impl Worker {
     }
 }
 
-/// Run a worker thread, with an optional `setup` function.
+/// The main function of a worker thread.
 fn main(
     setup: WorkerSetup,
     receiver: rt::channel::Handle<!, Control>,
