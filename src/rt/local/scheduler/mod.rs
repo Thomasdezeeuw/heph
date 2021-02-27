@@ -16,7 +16,7 @@ use crate::actor::NewActor;
 use crate::rt::options::Priority;
 use crate::rt::process::{self, ActorProcess, ProcessId};
 use crate::rt::ThreadLocal;
-use crate::Supervisor;
+use crate::supervisor::Supervisor;
 
 mod inactive;
 #[cfg(test)]

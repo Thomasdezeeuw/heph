@@ -9,9 +9,10 @@ use mio::unix;
 use mio::{Interest, Registry, Token};
 
 use crate::actor::{SyncActor, SyncContext};
+use crate::actor_ref::ActorRef;
 use crate::rt::options::SyncActorOptions;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
-use crate::{trace, ActorRef};
+use crate::trace;
 
 /// Handle to a synchronous worker.
 #[derive(Debug)]
