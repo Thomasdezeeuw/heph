@@ -33,6 +33,7 @@
 //! actors, Heph does not (for thread-local actor).
 //!
 //! [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
+//! [`ThreadLocal`]: crate::rt::ThreadLocal
 //!
 //! ## Asynchronous thread-safe actors
 //!
@@ -76,7 +77,8 @@
 //! traits.
 //!
 //! ```
-//! use heph::actor::{self, NewActor, ThreadLocal};
+//! use heph::actor::{self, NewActor};
+//! use heph::rt::ThreadLocal;
 //!
 //! async fn actor(ctx: actor::Context<(), ThreadLocal>) {
 //! #   drop(ctx); // Use `ctx` to silence dead code warnings.
@@ -146,7 +148,7 @@ mod sync;
 mod tests;
 
 #[doc(inline)]
-pub use context::{Context, NoMessages, ReceiveMessage, RecvError, ThreadLocal, ThreadSafe};
+pub use context::{Context, NoMessages, ReceiveMessage, RecvError, ThreadSafe};
 #[doc(inline)]
 pub use spawn::Spawn;
 #[doc(inline)]
@@ -286,11 +288,11 @@ pub trait NewActor {
     /// use std::io;
     /// use std::net::SocketAddr;
     ///
-    /// # use heph::actor::ThreadLocal;
     /// # use heph::actor::messages::Terminate;
     /// # use heph::net::tcp::server;
     /// use heph::net::{TcpServer, TcpStream};
     /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
+    /// # use heph::rt::ThreadLocal;
     /// use heph::{rt, actor, NewActor, ActorOptions, Runtime, RuntimeRef};
     /// # use log::error;
     ///

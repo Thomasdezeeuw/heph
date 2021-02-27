@@ -9,8 +9,9 @@ use std::task::Poll;
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::{self, Actor, NewActor, ThreadLocal};
+use heph::actor::{self, Actor, NewActor};
 use heph::net::UdpSocket;
+use heph::rt::ThreadLocal;
 use heph::test::{init_local_actor, poll_actor};
 
 use crate::util::{any_local_address, any_local_ipv6_address};

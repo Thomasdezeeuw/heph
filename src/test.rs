@@ -31,14 +31,14 @@ use getrandom::getrandom;
 use inbox::Manager;
 use log::warn;
 
-use crate::actor::{self, Actor, NewActor, SyncActor, ThreadLocal, ThreadSafe};
+use crate::actor::{self, Actor, NewActor, SyncActor, ThreadSafe};
 use crate::actor_ref::ActorRef;
 use crate::rt::local::Runtime;
 use crate::rt::shared::{waker, Scheduler};
 use crate::rt::sync_worker::SyncWorker;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
-    shared, ProcessId, RuntimeRef, SyncActorOptions, Timers, SYNC_WORKER_ID_END,
+    shared, ProcessId, RuntimeRef, SyncActorOptions, ThreadLocal, Timers, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
 use crate::supervisor::SyncSupervisor;
@@ -116,7 +116,7 @@ where
     NA: NewActor<RuntimeAccess = ThreadLocal>,
 {
     let (manager, sender, receiver) = Manager::new_small_channel();
-    let ctx = actor::Context::new_local(TEST_PID, receiver, runtime());
+    let ctx = actor::Context::new(TEST_PID, receiver, ThreadLocal::new(runtime()));
     let actor = new_actor.new(ctx, arg)?;
     Ok((actor, manager, ActorRef::local(sender)))
 }

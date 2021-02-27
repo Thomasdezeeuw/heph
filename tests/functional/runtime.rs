@@ -7,9 +7,9 @@ use std::task::{self, Poll};
 use std::thread::{self, sleep};
 use std::time::Duration;
 
-use heph::actor::{self, SyncContext, ThreadLocal, ThreadSafe};
+use heph::actor::{self, SyncContext, ThreadSafe};
 use heph::rt::options::{ActorOptions, Priority, SyncActorOptions};
-use heph::rt::Runtime;
+use heph::rt::{Runtime, ThreadLocal};
 use heph::supervisor::NoSupervisor;
 
 use crate::util::temp_file;
@@ -35,11 +35,11 @@ fn auto_cpu_affinity() {
     use socket2::SockRef;
 
     use heph::actor::messages::Terminate;
-    use heph::actor::{self, ThreadLocal};
     use heph::net::tcp::server;
     use heph::net::{TcpServer, TcpStream};
+    use heph::rt::{ActorOptions, RuntimeRef, ThreadLocal};
     use heph::supervisor::{Supervisor, SupervisorStrategy};
-    use heph::{ActorOptions, ActorRef, NewActor, RuntimeRef};
+    use heph::{actor, ActorRef, NewActor};
 
     fn cpu_affinity(stream: &TcpStream) -> io::Result<usize> {
         // TODO: do this better.

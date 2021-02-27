@@ -121,9 +121,7 @@ use std::{io, task};
 use log::{debug, trace};
 use mio::{event, Interest, Token};
 
-use crate::actor::{
-    self, AddActorError, NewActor, PrivateSpawn, Spawn, SyncActor, ThreadLocal, ThreadSafe,
-};
+use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn, SyncActor, ThreadSafe};
 use crate::actor_ref::{ActorGroup, ActorRef};
 use crate::supervisor::{Supervisor, SyncSupervisor};
 use crate::trace;
@@ -148,7 +146,7 @@ pub(crate) use access::PrivateAccess;
 pub(crate) use process::ProcessId;
 pub(crate) use timers::Timers; // Needed by the `test` module.
 
-pub use access::Access;
+pub use access::{Access, ThreadLocal};
 pub use error::Error;
 pub use options::{ActorOptions, SyncActorOptions};
 pub use setup::Setup;
@@ -581,7 +579,7 @@ impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef {
         // Create our actor context and our actor with it.
         let (manager, sender, receiver) = inbox::Manager::new_small_channel();
         let actor_ref = ActorRef::local(sender);
-        let mut ctx = actor::Context::new_local(pid, receiver, self.clone());
+        let mut ctx = actor::Context::new(pid, receiver, ThreadLocal::new(self.clone()));
         // Create our actor argument, running any setup required by the caller.
         let arg = arg_fn(&mut ctx).map_err(AddActorError::ArgFn)?;
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;

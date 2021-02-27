@@ -153,11 +153,11 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// # use heph::actor::ThreadLocal;
 /// # use heph::actor::messages::Terminate;
 /// use heph::net::tcp::{server, TcpServer, TcpStream};
 /// use heph::rt::options::Priority;
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
+/// # use heph::rt::ThreadLocal;
 /// use heph::{rt, actor, NewActor, ActorOptions, Runtime, RuntimeRef};
 /// use log::error;
 ///
@@ -247,10 +247,10 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// # use heph::actor::ThreadLocal;
 /// use heph::actor::messages::Terminate;
 /// # use heph::net::tcp;
 /// use heph::net::{TcpServer, TcpStream};
+/// # use heph::rt::ThreadLocal;
 /// use heph::rt::options::Priority;
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::{actor, NewActor, rt, ActorOptions, Runtime, RuntimeRef};

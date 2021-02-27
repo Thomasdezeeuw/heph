@@ -12,9 +12,10 @@ use std::pin::Pin;
 use inbox::Manager;
 use log::trace;
 
-use crate::actor::{NewActor, ThreadLocal};
+use crate::actor::NewActor;
 use crate::rt::options::Priority;
 use crate::rt::process::{self, ActorProcess, ProcessId};
+use crate::rt::ThreadLocal;
 use crate::Supervisor;
 
 mod inactive;

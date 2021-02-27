@@ -11,10 +11,10 @@ use std::time::Duration;
 
 use mio::Token;
 
-use crate::actor::{self, Actor, NewActor, ThreadLocal};
+use crate::actor::{self, Actor, NewActor};
 use crate::rt::options::Priority;
 use crate::rt::process::{ActorProcess, Process, ProcessData, ProcessId, ProcessResult};
-use crate::rt::RuntimeRef;
+use crate::rt::{RuntimeRef, ThreadLocal};
 use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use crate::test::{self, init_local_actor_with_inbox, AssertUnmoved, TEST_PID};
 
