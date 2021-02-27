@@ -1,19 +1,20 @@
 //! Module with shared runtime internals.
 
 use std::cell::RefCell;
-use std::io;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use std::{fmt, io};
 
 use crossbeam_channel::Receiver;
 use log::{debug, error, trace};
 use mio::{Events, Poll, Token};
 
 use crate::actor_ref::ActorRef;
+use crate::rt::error::StringError;
 use crate::rt::process::ProcessId;
 use crate::rt::process::ProcessResult;
-use crate::rt::worker::{CoordinatorMessage, Error, WorkerMessage};
+use crate::rt::worker::{CoordinatorMessage, WorkerMessage};
 use crate::rt::{self, shared, RuntimeRef, Signal, Timers, WakerId};
 use crate::trace;
 
@@ -448,6 +449,49 @@ impl Runtime {
         let res = f(self.create_ref()).map_err(|err| Error::UserFunction(err.into()));
         trace::finish(&mut self.trace_log, timing, "Running user function", &[]);
         res
+    }
+}
+
+/// Error running a [`Runtime`].
+#[derive(Debug)]
+pub(crate) enum Error {
+    /// Error in [`Runtime::new`].
+    Init(io::Error),
+    /// Error polling [`Poll`].
+    Polling(io::Error),
+    /// Error receiving message on coordinator channel.
+    RecvMsg(io::Error),
+    /// Process was interrupted (i.e. received process signal), but no actor can
+    /// receive the signal.
+    ProcessInterrupted,
+    /// Error running user function.
+    UserFunction(StringError),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Error::*;
+        match self {
+            Init(err) => write!(f, "error initialising local runtime: {}", err),
+            Polling(err) => write!(f, "error polling for events: {}", err),
+            RecvMsg(err) => write!(f, "error receiving message from coordinator: {}", err),
+            ProcessInterrupted => write!(
+                f,
+                "received process signal, but no receivers for it: stopping runtime"
+            ),
+            UserFunction(err) => write!(f, "error running user function: {}", err),
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        use Error::*;
+        match self {
+            Init(ref err) | Polling(ref err) | RecvMsg(ref err) => Some(err),
+            ProcessInterrupted => None,
+            UserFunction(ref err) => Some(err),
+        }
     }
 }
 
