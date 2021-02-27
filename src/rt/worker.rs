@@ -3,22 +3,19 @@
 #[cfg(target_os = "linux")]
 use std::mem;
 use std::num::NonZeroUsize;
-use std::rc::Rc;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
 use std::{fmt, io, thread};
 
 use crossbeam_channel::{self, Receiver};
 #[cfg(target_os = "linux")]
-use log::warn;
-use log::{debug, error, trace};
-use mio::{Events, Poll, Registry, Token};
+use log::{debug, warn};
+use mio::{Poll, Registry, Token};
 
 use crate::rt::error::StringError;
-use crate::rt::process::ProcessResult;
+use crate::rt::local::{Runtime, WAKER};
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::waker::WakerId;
-use crate::rt::{self, local, shared, ProcessId, RuntimeRef, Signal};
+use crate::rt::{self, shared, ProcessId, RuntimeRef, Signal};
 use crate::trace;
 
 pub(crate) struct WorkerSetup {
@@ -198,8 +195,15 @@ fn main(
         None
     };
 
-    let runtime = RunningRuntime::init(setup, receiver, shared_internals, cpu)
-        .map_err(|err| rt::Error::worker(Error::Init(err)))?;
+    let mut runtime = Runtime::new(
+        setup.poll,
+        setup.waker_id,
+        setup.waker_events,
+        receiver,
+        shared_internals,
+        cpu,
+    )
+    .map_err(|err| rt::Error::worker(Error::Init(err)))?;
 
     trace::finish(
         &mut trace_log,
@@ -207,9 +211,10 @@ fn main(
         "Initialising the worker thread",
         &[],
     );
+    runtime.set_trace_log(trace_log);
 
     // All setup is done, so we're ready to run the event loop.
-    runtime.run_event_loop(&mut trace_log)
+    runtime.run_event_loop().map_err(rt::Error::worker)
 }
 
 /// Create a cpu set that may only run on `cpu`.
@@ -235,7 +240,7 @@ fn set_affinity(cpu_set: &libc::cpu_set_t) -> io::Result<()> {
 
 /// Error running a [`Worker`].
 #[derive(Debug)]
-pub(super) enum Error {
+pub(crate) enum Error {
     /// Error in [`RunningRuntime::init`].
     Init(io::Error),
     /// Error polling [`mio::Poll`].
@@ -273,336 +278,5 @@ impl std::error::Error for Error {
             ProcessInterrupted => None,
             UserFunction(ref err) => Some(err),
         }
-    }
-}
-
-/// The runtime that runs all processes.
-///
-/// This `pub(crate)` because it's used in the test module.
-#[derive(Debug)]
-pub(crate) struct RunningRuntime {
-    /// Inside of the runtime, shared with zero or more `RuntimeRef`s.
-    internals: Rc<local::RuntimeInternals>,
-    /// Mio events container.
-    events: Events,
-    /// Receiving side of the channel for `Waker` events.
-    waker_events: Receiver<ProcessId>,
-    /// Two-way communication channel to share messages with the coordinator.
-    channel: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
-    /// Whether or not the runtime was started.
-    /// This is here because the worker threads are started before
-    /// [`Runtime::start`] is called and before any actors are added to the
-    /// runtime. Because of this the worker could check all scheduler, see that
-    /// no actors are in them and determine it's done before even starting the
-    /// runtime.
-    ///
-    /// [`Runtime::start`]: rt::Runtime::start
-    started: bool,
-}
-
-/// Number of processes to run before polling.
-///
-/// This number is chosen arbitrarily, if you can improve it please do.
-// TODO: find a good balance between polling, polling user space events only and
-// running processes.
-const RUN_POLL_RATIO: usize = 32;
-
-/// Id used for the awakener.
-const WAKER: Token = Token(usize::MAX);
-const COORDINATOR: Token = Token(usize::MAX - 1);
-
-impl RunningRuntime {
-    /// Create a new running runtime.
-    pub(crate) fn init(
-        setup: WorkerSetup,
-        mut channel: rt::channel::Handle<WorkerMessage, CoordinatorMessage>,
-        shared_internals: Arc<shared::RuntimeInternals>,
-        cpu: Option<usize>,
-    ) -> io::Result<RunningRuntime> {
-        // Register the channel to the coordinator.
-        channel.register(setup.poll.registry(), COORDINATOR)?;
-
-        // Finally create all the runtime internals.
-        let internals =
-            local::RuntimeInternals::new(shared_internals, setup.waker_id, setup.poll, cpu);
-        Ok(RunningRuntime {
-            internals: Rc::new(internals),
-            events: Events::with_capacity(128),
-            waker_events: setup.waker_events,
-            channel,
-            started: false,
-        })
-    }
-
-    /// Create a new reference to this runtime.
-    pub(crate) fn create_ref(&self) -> RuntimeRef {
-        RuntimeRef {
-            internals: self.internals.clone(),
-        }
-    }
-
-    /// Run the runtime's event loop.
-    fn run_event_loop(mut self, trace_log: &mut Option<trace::Log>) -> Result<(), rt::Error> {
-        debug!("running runtime's event loop");
-        // Runtime reference used in running the processes.
-        let mut runtime_ref = self.create_ref();
-
-        loop {
-            // We first run the processes and only poll after to ensure that we
-            // return if there are no processes to run.
-            trace!("running processes");
-            for _ in 0..RUN_POLL_RATIO {
-                // NOTE: preferably this running of a process is handled
-                // completely within a method of the schedulers, however this is
-                // not possible.
-                // Because we need `borrow_mut` the scheduler here we couldn't
-                // also get a mutable reference to it to add actors, while a
-                // process is running. Thus we need to remove a process from the
-                // scheduler, drop the mutable reference, and only then run the
-                // process. This allow a `RuntimeRef` to also mutable borrow the
-                // `Scheduler` to add new actors to it.
-
-                let process = self.internals.scheduler.borrow_mut().next_process();
-                if let Some(mut process) = process {
-                    let timing = trace::start(trace_log);
-                    let pid = process.as_ref().id();
-                    let name = process.as_ref().name();
-                    match process.as_mut().run(&mut runtime_ref) {
-                        ProcessResult::Complete => {}
-                        ProcessResult::Pending => {
-                            self.internals.scheduler.borrow_mut().add_process(process);
-                        }
-                    }
-                    trace::finish(
-                        trace_log,
-                        timing,
-                        "Running thread-local process",
-                        &[("id", &pid.0), ("name", &name)],
-                    );
-                    // Only run a single process per iteration.
-                    continue;
-                }
-
-                let process = self.internals.shared.remove_process();
-                if let Some(mut process) = process {
-                    let timing = trace::start(trace_log);
-                    let pid = process.as_ref().id();
-                    let name = process.as_ref().name();
-                    match process.as_mut().run(&mut runtime_ref) {
-                        ProcessResult::Complete => {
-                            self.internals.shared.complete(process);
-                        }
-                        ProcessResult::Pending => {
-                            self.internals.shared.add_process(process);
-                        }
-                    }
-                    trace::finish(
-                        trace_log,
-                        timing,
-                        "Running thread-safe process",
-                        &[("id", &pid.0), ("name", &name)],
-                    );
-                    // Only run a single process per iteration.
-                    continue;
-                }
-
-                if !self.internals.scheduler.borrow().has_process()
-                    && !self.internals.shared.has_process()
-                    // Don't want to exit before the runtime was started.
-                    && self.started
-                {
-                    debug!("no processes to run, stopping runtime");
-                    return Ok(());
-                }
-
-                // No processes ready to run.
-                break;
-            }
-
-            self.schedule_processes(trace_log)
-                .map_err(rt::Error::worker)?;
-        }
-    }
-
-    /// Schedule processes.
-    ///
-    /// This polls all event subsystems and schedules processes based on them.
-    fn schedule_processes(&mut self, trace_log: &mut Option<trace::Log>) -> Result<(), Error> {
-        trace!("polling event sources to schedule processes");
-
-        // Start with polling for OS events.
-        let timing = trace::start(trace_log);
-        self.poll().map_err(Error::Polling)?;
-        trace::finish(trace_log, timing, "Polling for OS events", &[]);
-
-        // Based on the OS event scheduler thread-local processes.
-        let timing = trace::start(trace_log);
-        let mut scheduler = self.internals.scheduler.borrow_mut();
-        let mut check_coordinator = false;
-        for event in self.events.iter() {
-            trace!("OS event: {:?}", event);
-            match event.token() {
-                WAKER => {}
-                COORDINATOR => check_coordinator = true,
-                token => scheduler.mark_ready(token.into()),
-            }
-        }
-        trace::finish(trace_log, timing, "Handling OS events", &[]);
-
-        // User space wake up events, e.g. used by the `Future` task system.
-        trace!("polling wakup events");
-        let timing = trace::start(trace_log);
-        for pid in self.waker_events.try_iter() {
-            scheduler.mark_ready(pid);
-        }
-        trace::finish(
-            trace_log,
-            timing,
-            "Scheduling thread-local processes based on wake-up events",
-            &[],
-        );
-
-        // User space local timers.
-        trace!("polling local timers");
-        let timing = trace::start(trace_log);
-        for pid in self.internals.timers.borrow_mut().deadlines() {
-            scheduler.mark_ready(pid);
-        }
-        trace::finish(
-            trace_log,
-            timing,
-            "Scheduling thread-local processes based on timers",
-            &[],
-        );
-
-        // User space shared timers.
-        trace!("polling shared timers");
-        let timing = trace::start(&trace_log);
-        let now = Instant::now();
-        while let Some(pid) = self.internals.shared.remove_deadline(now) {
-            self.internals.shared.mark_ready(pid);
-        }
-        trace::finish(
-            trace_log,
-            timing,
-            "Scheduling thread-shared processes based on timers",
-            &[],
-        );
-
-        if check_coordinator {
-            // Don't need this anymore.
-            drop(scheduler);
-            // Process coordinator messages.
-            let timing = trace::start(trace_log);
-            self.check_coordinator(trace_log)?;
-            trace::finish(trace_log, timing, "Process coordinator messages", &[]);
-        }
-        Ok(())
-    }
-
-    /// Poll for OS events.
-    fn poll(&mut self) -> io::Result<()> {
-        let timeout = self.determine_timeout();
-
-        // Only mark ourselves as polling if the timeout is non zero.
-        let mark_waker = if timeout.map_or(true, |t| !t.is_zero()) {
-            rt::waker::mark_polling(self.internals.waker_id, true);
-            true
-        } else {
-            false
-        };
-
-        trace!("polling OS: timeout={:?}", timeout);
-        let res = self
-            .internals
-            .poll
-            .borrow_mut()
-            .poll(&mut self.events, timeout);
-
-        if mark_waker {
-            rt::waker::mark_polling(self.internals.waker_id, false);
-        }
-
-        res
-    }
-
-    /// Determine the timeout to be used in polling.
-    fn determine_timeout(&self) -> Option<Duration> {
-        if self.internals.scheduler.borrow().has_ready_process()
-            || !self.waker_events.is_empty()
-            || self.internals.shared.has_ready_process()
-        {
-            // If there are any processes ready to run (local or shared), or any
-            // waker events we don't want to block.
-            return Some(Duration::ZERO);
-        }
-
-        if let Some(deadline) = self.internals.timers.borrow().next_deadline() {
-            let now = Instant::now();
-            return if deadline <= now {
-                // Deadline has already expired, so no blocking.
-                Some(Duration::ZERO)
-            } else {
-                // Check the shared timers with the current timeout.
-                let timeout = Some(deadline.duration_since(now));
-                self.internals.shared.next_timeout(now, timeout)
-            };
-        }
-
-        // Finally check the shared timers.
-        self.internals.shared.next_timeout(Instant::now(), None)
-    }
-
-    /// Process messages from the coordinator.
-    fn check_coordinator(&mut self, trace_log: &mut Option<trace::Log>) -> Result<(), Error> {
-        use CoordinatorMessage::*;
-        while let Some(msg) = self.channel.try_recv().map_err(Error::RecvMsg)? {
-            match msg {
-                Started => self.started = true,
-                // Relay a process signal to all actors that wanted to receive
-                // it.
-                Signal(signal) => {
-                    let timing = trace::start(trace_log);
-                    trace!("received process signal: {:?}", signal);
-                    let mut receivers = self.internals.signal_receivers.borrow_mut();
-
-                    if receivers.is_empty() && signal.should_stop() {
-                        error!(
-                            "received {:#} process signal, but there are no receivers for it, stopping runtime",
-                            signal
-                        );
-                        trace::finish(
-                            trace_log,
-                            timing,
-                            "Handling process signal",
-                            &[("signal", &signal.as_str())],
-                        );
-                        return Err(Error::ProcessInterrupted);
-                    }
-
-                    for receiver in receivers.iter_mut() {
-                        // Don't care if we succeed in sending the message.
-                        let _ = receiver.try_send(signal);
-                    }
-                    trace::finish(
-                        trace_log,
-                        timing,
-                        "Handling process signal",
-                        &[("signal", &signal.as_str())],
-                    );
-                }
-                Run(f) => {
-                    let timing = trace::start(trace_log);
-                    trace!("running user function");
-                    // Run the user defined function.
-                    let res = f(self.create_ref());
-                    trace::finish(trace_log, timing, "Running user function", &[]);
-                    if let Err(err) = res {
-                        return Err(Error::UserFunction(err.into()));
-                    }
-                }
-            }
-        }
-        Ok(())
     }
 }

@@ -21,7 +21,6 @@ use std::cell::RefCell;
 use std::future::Future;
 use std::lazy::SyncLazy;
 use std::mem::size_of;
-use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -34,12 +33,12 @@ use log::warn;
 
 use crate::actor::{self, Actor, NewActor, SyncActor, ThreadLocal, ThreadSafe};
 use crate::actor_ref::ActorRef;
+use crate::rt::local::Runtime;
 use crate::rt::shared::{waker, Scheduler};
 use crate::rt::sync_worker::SyncWorker;
 use crate::rt::thread_waker::ThreadWaker;
-use crate::rt::worker::{self, RunningRuntime};
 use crate::rt::{
-    self, shared, ProcessId, RuntimeRef, SyncActorOptions, Timers, SYNC_WORKER_ID_END,
+    shared, ProcessId, RuntimeRef, SyncActorOptions, Timers, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
 use crate::supervisor::SyncSupervisor;
@@ -71,12 +70,10 @@ static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(
 });
 
 thread_local! {
-    /// Per thread active, but not running, runtime.
-    static TEST_RT: RefCell<RunningRuntime> = {
-        let (setup, _) = worker::setup(NonZeroUsize::new(1).unwrap()).expect("failed to setup worker for test module");
-         // NOTE: `sender` needs to live during `RunningRuntime::init`.
-        let (_, receiver) = rt::channel::new().expect("failed to create `Channel` for test module");
-        RefCell::new(RunningRuntime::init(setup, receiver, SHARED_INTERNAL.clone(), None).expect("failed to create local `Runtime` for test module"))
+    /// Per thread runtime.
+    static TEST_RT: RefCell<Runtime> = {
+        RefCell::new(Runtime::new_test(SHARED_INTERNAL.clone())
+            .expect("failed to create local `Runtime` for test module"))
     };
 }
 
