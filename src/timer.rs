@@ -78,17 +78,20 @@ impl From<DeadlinePassed> for io::Error {
 /// ```
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Timer<RT> {
+pub struct Timer<RT: rt::Access> {
     pid: ProcessId,
     deadline: Instant,
     rt: RT,
 }
 
-impl<RT> Timer<RT> {
+impl<RT> Timer<RT>
+where
+    RT: rt::Access,
+{
     /// Create a new `Timer`.
     pub fn at<M>(ctx: &mut actor::Context<M, RT>, deadline: Instant) -> Timer<RT>
     where
-        RT: rt::Access + Clone,
+        RT: Clone,
     {
         let pid = ctx.pid();
         let mut rt = ctx.runtime().clone();
@@ -101,7 +104,7 @@ impl<RT> Timer<RT> {
     /// Same as calling `Timer::at(&mut ctx, Instant::now() + timeout)`.
     pub fn after<M>(ctx: &mut actor::Context<M, RT>, timeout: Duration) -> Timer<RT>
     where
-        RT: rt::Access + Clone,
+        RT: Clone,
     {
         Timer::at(ctx, Instant::now() + timeout)
     }
@@ -159,6 +162,15 @@ where
         self.pid = pid;
         self.rt = rt;
         Ok(())
+    }
+}
+
+impl<RT> Drop for Timer<RT>
+where
+    RT: rt::Access,
+{
+    fn drop(&mut self) {
+        self.rt.remove_deadline(self.pid, self.deadline);
     }
 }
 
