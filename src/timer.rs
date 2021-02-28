@@ -151,6 +151,8 @@ impl<RT: rt::Access> Future for Timer<RT> {
     }
 }
 
+impl<RT: rt::Access> Unpin for Timer<RT> {}
+
 impl<RT: rt::Access> actor::Bound<RT> for Timer<RT> {
     type Error = io::Error;
 
@@ -353,6 +355,8 @@ where
     }
 }
 
+impl<Fut: Unpin, RT: rt::Access> Unpin for Deadline<Fut, RT> {}
+
 impl<Fut, RT: rt::Access> actor::Bound<RT> for Deadline<Fut, RT> {
     type Error = io::Error;
 
@@ -460,10 +464,7 @@ impl<RT: rt::Access> Interval<RT> {
     }
 }
 
-impl<RT: rt::Access> Stream for Interval<RT>
-where
-    RT: Unpin,
-{
+impl<RT: rt::Access> Stream for Interval<RT> {
     type Item = DeadlinePassed;
 
     fn poll_next(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
@@ -479,6 +480,8 @@ where
         }
     }
 }
+
+impl<RT: rt::Access> Unpin for Interval<RT> {}
 
 impl<RT: rt::Access> actor::Bound<RT> for Interval<RT> {
     type Error = !;
