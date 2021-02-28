@@ -146,7 +146,10 @@ fn triggered_timers_run_actors() {
         assert_eq!(res, Err(DeadlinePassed));
     }
 
-    async fn interval_actor(mut ctx: actor::Context<!>) {
+    async fn interval_actor<RT>(mut ctx: actor::Context<!, RT>)
+    where
+        RT: rt::Access + Clone + Unpin,
+    {
         let mut interval = Interval::every(&mut ctx, TIMEOUT);
         let _ = next(&mut interval).await;
     }
@@ -187,6 +190,12 @@ fn triggered_timers_run_actors() {
     let _ = runtime.spawn(
         NoSupervisor,
         deadline_actor as fn(_) -> _,
+        (),
+        ActorOptions::default(),
+    );
+    let _ = runtime.spawn(
+        NoSupervisor,
+        interval_actor as fn(_) -> _,
         (),
         ActorOptions::default(),
     );
@@ -234,12 +243,18 @@ fn timers_actor_bound() {
         assert_eq!(res, Err(DeadlinePassed));
     }
 
-    async fn interval_actor1(mut ctx: actor::Context<!>, actor_ref: ActorRef<Interval>) {
+    async fn interval_actor1<RT>(mut ctx: actor::Context<!, RT>, actor_ref: ActorRef<Interval<RT>>)
+    where
+        RT: rt::Access + Clone,
+    {
         let interval = Interval::every(&mut ctx, TIMEOUT);
         actor_ref.send(interval).await.unwrap();
     }
 
-    async fn interval_actor2(mut ctx: actor::Context<Interval>) {
+    async fn interval_actor2<RT>(mut ctx: actor::Context<Interval<RT>, RT>)
+    where
+        RT: rt::Access + Unpin,
+    {
         let mut interval = ctx.receive_next().await.unwrap();
         interval.bind_to(&mut ctx).unwrap();
         let _ = next(&mut interval).await;
