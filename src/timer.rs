@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 use std::{io, ptr};
 
 use crate::actor;
-use crate::rt::{self, ProcessId, RuntimeRef, ThreadLocal};
+use crate::rt::{self, ProcessId};
 
 /// Type returned when the deadline has passed.
 ///
@@ -431,25 +431,28 @@ impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
 /// ```
 #[derive(Debug)]
 #[must_use = "streams do nothing unless polled"]
-pub struct Interval {
-    interval: Duration,
-    deadline: Instant,
+pub struct Interval<RT: rt::Access> {
     pid: ProcessId,
-    runtime_ref: RuntimeRef,
+    deadline: Instant,
+    interval: Duration,
+    rt: RT,
 }
 
-impl Interval {
+impl<RT: rt::Access> Interval<RT> {
     /// Create a new `Interval`.
-    pub fn every<M>(ctx: &mut actor::Context<M>, interval: Duration) -> Interval {
+    pub fn every<M>(ctx: &mut actor::Context<M, RT>, interval: Duration) -> Interval<RT>
+    where
+        RT: Clone,
+    {
         let deadline = Instant::now() + interval;
-        let mut runtime_ref = (**ctx.runtime()).clone();
+        let mut rt = ctx.runtime().clone();
         let pid = ctx.pid();
-        runtime_ref.add_deadline(pid, deadline);
+        rt.add_deadline(pid, deadline);
         Interval {
-            interval,
-            deadline,
             pid,
-            runtime_ref,
+            deadline,
+            interval,
+            rt,
         }
     }
 
@@ -459,7 +462,10 @@ impl Interval {
     }
 }
 
-impl Stream for Interval {
+impl<RT: rt::Access> Stream for Interval<RT>
+where
+    RT: Unpin,
+{
     type Item = DeadlinePassed;
 
     fn poll_next(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
@@ -468,7 +474,7 @@ impl Stream for Interval {
             let next_deadline = Instant::now() + self.interval;
             let this = Pin::get_mut(self);
             this.deadline = next_deadline;
-            this.runtime_ref.add_deadline(this.pid, next_deadline);
+            this.rt.add_deadline(this.pid, next_deadline);
             Poll::Ready(Some(DeadlinePassed))
         } else {
             Poll::Pending
@@ -476,17 +482,19 @@ impl Stream for Interval {
     }
 }
 
-impl actor::Bound<ThreadLocal> for Interval {
+impl<RT: rt::Access> actor::Bound<RT> for Interval<RT> {
     type Error = !;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M>) -> Result<(), !> {
-        // We don't remove the original deadline and just let it expire, as
-        // (currently) removing a deadline is an expensive operation.
-        let pid = ctx.pid();
-        let mut runtime_ref = (**ctx.runtime()).clone();
-        runtime_ref.add_deadline(pid, self.deadline);
-        self.pid = pid;
-        self.runtime_ref = runtime_ref;
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> Result<(), !> {
+        self.rt.remove_deadline(self.pid, self.deadline);
+        self.pid = ctx.pid();
+        self.rt.add_deadline(self.pid, self.deadline);
         Ok(())
+    }
+}
+
+impl<RT: rt::Access> Drop for Interval<RT> {
+    fn drop(&mut self) {
+        self.rt.remove_deadline(self.pid, self.deadline);
     }
 }
