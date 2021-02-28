@@ -130,7 +130,7 @@ fn interval() {
 fn triggered_timers_run_actors() {
     async fn timer_actor<RT>(mut ctx: actor::Context<!, RT>)
     where
-        actor::Context<!, RT>: rt::Access,
+        RT: rt::Access + Clone,
     {
         let timer = Timer::after(&mut ctx, TIMEOUT);
         let _ = timer.await;
@@ -196,17 +196,17 @@ fn triggered_timers_run_actors() {
 
 #[test]
 fn timers_actor_bound() {
-    async fn timer_actor1<RT>(mut ctx: actor::Context<!, RT>, actor_ref: ActorRef<Timer>)
+    async fn timer_actor1<RT>(mut ctx: actor::Context<!, RT>, actor_ref: ActorRef<Timer<RT>>)
     where
-        actor::Context<!, RT>: rt::Access,
+        RT: rt::Access + Clone,
     {
         let timer = Timer::after(&mut ctx, TIMEOUT);
         actor_ref.send(timer).await.unwrap();
     }
 
-    async fn timer_actor2<RT>(mut ctx: actor::Context<Timer, RT>)
+    async fn timer_actor2<RT>(mut ctx: actor::Context<Timer<RT>, RT>)
     where
-        actor::Context<Timer, RT>: rt::Access,
+        RT: rt::Access + Clone,
     {
         let mut timer = ctx.receive_next().await.unwrap();
         timer.bind_to(&mut ctx).unwrap();

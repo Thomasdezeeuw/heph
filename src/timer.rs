@@ -78,27 +78,30 @@ impl From<DeadlinePassed> for io::Error {
 /// ```
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Timer {
+pub struct Timer<RT> {
+    pid: ProcessId,
     deadline: Instant,
+    rt: RT,
 }
 
-impl Timer {
+impl<RT> Timer<RT> {
     /// Create a new `Timer`.
-    pub fn at<M, RT>(ctx: &mut actor::Context<M, RT>, deadline: Instant) -> Timer
+    pub fn at<M>(ctx: &mut actor::Context<M, RT>, deadline: Instant) -> Timer<RT>
     where
-        actor::Context<M, RT>: rt::Access,
+        RT: rt::Access + Clone,
     {
         let pid = ctx.pid();
-        ctx.add_deadline(pid, deadline);
-        Timer { deadline }
+        let mut rt = ctx.runtime().clone();
+        rt.add_deadline(pid, deadline);
+        Timer { pid, deadline, rt }
     }
 
     /// Create a new timer, based on a timeout.
     ///
     /// Same as calling `Timer::at(&mut ctx, Instant::now() + timeout)`.
-    pub fn after<M, RT>(ctx: &mut actor::Context<M, RT>, timeout: Duration) -> Timer
+    pub fn after<M>(ctx: &mut actor::Context<M, RT>, timeout: Duration) -> Timer<RT>
     where
-        actor::Context<M, RT>: rt::Access,
+        RT: rt::Access + Clone,
     {
         Timer::at(ctx, Instant::now() + timeout)
     }
@@ -114,7 +117,7 @@ impl Timer {
     }
 
     /// Wrap a future creating a new `Deadline`.
-    pub const fn wrap<Fut>(self, future: Fut) -> Deadline<Fut> {
+    pub fn wrap<Fut>(self, future: Fut) -> Deadline<Fut> {
         // Already added a deadline so no need to do it again.
         Deadline {
             deadline: self.deadline,
@@ -123,7 +126,10 @@ impl Timer {
     }
 }
 
-impl Future for Timer {
+impl<RT> Future for Timer<RT>
+where
+    RT: rt::Access + Clone,
+{
     type Output = DeadlinePassed;
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
@@ -135,7 +141,10 @@ impl Future for Timer {
     }
 }
 
-impl<RT> actor::Bound<RT> for Timer {
+impl<RT> actor::Bound<RT> for Timer<RT>
+where
+    RT: rt::Access + Clone,
+{
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()>
@@ -145,7 +154,10 @@ impl<RT> actor::Bound<RT> for Timer {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
-        ctx.add_deadline(pid, self.deadline);
+        let mut rt = ctx.runtime().clone();
+        rt.add_deadline(pid, self.deadline);
+        self.pid = pid;
+        self.rt = rt;
         Ok(())
     }
 }
