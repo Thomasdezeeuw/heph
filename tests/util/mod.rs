@@ -9,6 +9,7 @@ use std::mem::size_of;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::pin::Pin;
+use std::stream::Stream;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Once;
 use std::task::{self, Poll};
@@ -208,5 +209,53 @@ impl Future for PendingOnce {
             self.0 = true;
             Poll::Pending
         }
+    }
+}
+
+/// Returns a [`Future`] or [`Stream`] that counts the number of times it is
+/// polled before returning a value.
+///
+/// # Notes
+///
+/// For streams it always returns the total number of polls, not the count
+/// inbetween return two items.
+pub const fn count_polls<T>(inner: T) -> CountPolls<T> {
+    CountPolls { count: 0, inner }
+}
+
+pub struct CountPolls<T> {
+    count: usize,
+    inner: T,
+}
+
+impl<Fut> Future for CountPolls<Fut>
+where
+    Fut: Future,
+{
+    type Output = (Fut::Output, usize);
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // Safety: this is safe because we're not moving the future.
+        let this = unsafe { Pin::into_inner_unchecked(self) };
+        this.count += 1;
+        let future = unsafe { Pin::new_unchecked(&mut this.inner) };
+        future.poll(ctx).map(|out| (out, this.count))
+    }
+}
+
+impl<S> Stream for CountPolls<S>
+where
+    S: Stream,
+{
+    type Item = (S::Item, usize);
+
+    fn poll_next(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
+        // Safety: this is safe because we're not moving the future.
+        let this = unsafe { Pin::into_inner_unchecked(self) };
+        this.count += 1;
+        let stream = unsafe { Pin::new_unchecked(&mut this.inner) };
+        stream
+            .poll_next(ctx)
+            .map(|out| out.map(|out| (out, this.count)))
     }
 }
