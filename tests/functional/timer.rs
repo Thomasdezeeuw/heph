@@ -138,7 +138,7 @@ fn triggered_timers_run_actors() {
 
     async fn deadline_actor<RT>(mut ctx: actor::Context<!, RT>)
     where
-        actor::Context<!, RT>: rt::Access,
+        RT: rt::Access + Clone,
     {
         let future = AlwaysPending;
         let deadline = Deadline::after(&mut ctx, TIMEOUT, future);
@@ -215,18 +215,18 @@ fn timers_actor_bound() {
 
     async fn deadline_actor1<RT>(
         mut ctx: actor::Context<!, RT>,
-        actor_ref: ActorRef<Deadline<AlwaysPending>>,
+        actor_ref: ActorRef<Deadline<AlwaysPending, RT>>,
     ) where
-        actor::Context<!, RT>: rt::Access,
+        RT: rt::Access + Clone,
     {
         let future = AlwaysPending;
         let deadline = Deadline::after(&mut ctx, TIMEOUT, future);
         actor_ref.send(deadline).await.unwrap();
     }
 
-    async fn deadline_actor2<RT>(mut ctx: actor::Context<Deadline<AlwaysPending>, RT>)
+    async fn deadline_actor2<RT>(mut ctx: actor::Context<Deadline<AlwaysPending, RT>, RT>)
     where
-        actor::Context<Deadline<AlwaysPending>, RT>: rt::Access,
+        RT: rt::Access,
     {
         let mut deadline = ctx.receive_next().await.unwrap();
         deadline.bind_to(&mut ctx).unwrap();

@@ -10,11 +10,12 @@
 //!   after the deadline has passed each interval.
 
 use std::future::Future;
-use std::io;
+use std::mem::ManuallyDrop;
 use std::pin::Pin;
 use std::stream::Stream;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
+use std::{io, ptr};
 
 use crate::actor;
 use crate::rt::{self, PrivateAccess, ProcessId, RuntimeRef, ThreadLocal};
@@ -82,12 +83,10 @@ pub struct Timer<RT: rt::Access> {
     pid: ProcessId,
     deadline: Instant,
     rt: RT,
+    // NOTE: when adding fields also add to [`Timer::wrap`].
 }
 
-impl<RT> Timer<RT>
-where
-    RT: rt::Access,
-{
+impl<RT: rt::Access> Timer<RT> {
     /// Create a new `Timer`.
     pub fn at<M>(ctx: &mut actor::Context<M, RT>, deadline: Instant) -> Timer<RT>
     where
@@ -120,19 +119,27 @@ where
     }
 
     /// Wrap a future creating a new `Deadline`.
-    pub fn wrap<Fut>(self, future: Fut) -> Deadline<Fut> {
-        // Already added a deadline so no need to do it again.
+    pub fn wrap<Fut>(self, future: Fut) -> Deadline<Fut, RT> {
+        // We don't want to run the destructor as that would remove the
+        // deadline, which we need in `Deadline` as well. As a bonus we can
+        // safetly move `RT` without having to clone it (which normally can't be
+        // done with `Drop` types).
+        // Safety: See [`ManuallyDrop::take`], rather then taking the entire
+        // thing struct at once we read (move out of) value by value.
+        let this = ManuallyDrop::new(self);
+        let pid = unsafe { ptr::addr_of!(this.pid).read() };
+        let deadline = unsafe { ptr::addr_of!(this.deadline).read() };
+        let rt = unsafe { ptr::addr_of!(this.rt).read() };
         Deadline {
-            deadline: self.deadline,
+            pid,
+            deadline,
             future,
+            rt,
         }
     }
 }
 
-impl<RT> Future for Timer<RT>
-where
-    RT: rt::Access + Clone,
-{
+impl<RT: rt::Access> Future for Timer<RT> {
     type Output = DeadlinePassed;
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
@@ -144,10 +151,7 @@ where
     }
 }
 
-impl<RT> actor::Bound<RT> for Timer<RT>
-where
-    RT: rt::Access + Clone,
-{
+impl<RT: rt::Access> actor::Bound<RT> for Timer<RT> {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()>
@@ -157,18 +161,13 @@ where
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
-        let mut rt = ctx.runtime().clone();
-        rt.add_deadline(pid, self.deadline);
+        self.rt.add_deadline(pid, self.deadline);
         self.pid = pid;
-        self.rt = rt;
         Ok(())
     }
 }
 
-impl<RT> Drop for Timer<RT>
-where
-    RT: rt::Access,
-{
+impl<RT: rt::Access> Drop for Timer<RT> {
     fn drop(&mut self) {
         self.rt.remove_deadline(self.pid, self.deadline);
     }
@@ -241,37 +240,45 @@ where
 /// ```
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Deadline<Fut> {
+pub struct Deadline<Fut, RT: rt::Access> {
+    pid: ProcessId,
     deadline: Instant,
     future: Fut,
+    rt: RT,
 }
 
-impl<Fut> Deadline<Fut> {
+impl<Fut, RT: rt::Access> Deadline<Fut, RT> {
     /// Create a new `Deadline`.
-    pub fn at<M, RT>(
+    pub fn at<M>(
         ctx: &mut actor::Context<M, RT>,
         deadline: Instant,
         future: Fut,
-    ) -> Deadline<Fut>
+    ) -> Deadline<Fut, RT>
     where
-        actor::Context<M, RT>: rt::Access,
+        RT: Clone,
     {
         let pid = ctx.pid();
-        ctx.add_deadline(pid, deadline);
-        Deadline { deadline, future }
+        let mut rt = ctx.runtime().clone();
+        rt.add_deadline(pid, deadline);
+        Deadline {
+            pid,
+            deadline,
+            future,
+            rt,
+        }
     }
 
     /// Create a new deadline based on a timeout.
     ///
     /// Same as calling `Deadline::at(&mut ctx, Instant::now() + timeout,
     /// future)`.
-    pub fn after<M, RT>(
+    pub fn after<M>(
         ctx: &mut actor::Context<M, RT>,
         timeout: Duration,
         future: Fut,
-    ) -> Deadline<Fut>
+    ) -> Deadline<Fut, RT>
     where
-        actor::Context<M, RT>: rt::Access,
+        RT: Clone,
     {
         Deadline::at(ctx, Instant::now() + timeout, future)
     }
@@ -323,7 +330,7 @@ where
 }
 */
 
-impl<Fut, T, E> Future for Deadline<Fut>
+impl<Fut, RT: rt::Access, T, E> Future for Deadline<Fut, RT>
 where
     Fut: Future<Output = Result<T, E>>,
     E: From<DeadlinePassed>,
@@ -341,7 +348,7 @@ where
     }
 }
 
-impl<Fut, RT> actor::Bound<RT> for Deadline<Fut> {
+impl<Fut, RT: rt::Access> actor::Bound<RT> for Deadline<Fut, RT> {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()>
