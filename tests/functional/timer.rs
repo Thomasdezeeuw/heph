@@ -9,10 +9,12 @@ use std::time::{Duration, Instant};
 
 use heph::actor::{self, Bound};
 use heph::supervisor::NoSupervisor;
-use heph::test::{init_local_actor, poll_actor};
+use heph::test::{init_local_actor, poll_actor, poll_future, poll_next};
 use heph::timer::{Deadline, DeadlinePassed, Interval, Timer};
 use heph::util::next;
 use heph::{rt, ActorOptions, ActorRef, Runtime, RuntimeRef};
+
+use crate::util::{count_polls, expect_pending};
 
 const TIMEOUT: Duration = Duration::from_millis(100);
 
@@ -152,6 +154,101 @@ fn triggered_timers_run_actors() {
     {
         let mut interval = Interval::every(&mut ctx, TIMEOUT);
         let _ = next(&mut interval).await;
+    }
+
+    fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
+        // Spawn thread-local actors.
+        let _ = runtime_ref.spawn_local(
+            NoSupervisor,
+            timer_actor as fn(_) -> _,
+            (),
+            ActorOptions::default(),
+        );
+        let _ = runtime_ref.spawn_local(
+            NoSupervisor,
+            deadline_actor as fn(_) -> _,
+            (),
+            ActorOptions::default(),
+        );
+        let _ = runtime_ref.spawn_local(
+            NoSupervisor,
+            interval_actor as fn(_) -> _,
+            (),
+            ActorOptions::default(),
+        );
+        Ok(())
+    }
+
+    let mut runtime = Runtime::setup().build().unwrap();
+    runtime.run_on_workers(setup).unwrap();
+
+    // Spawn thread-safe actors.
+    let _ = runtime.spawn(
+        NoSupervisor,
+        timer_actor as fn(_) -> _,
+        (),
+        ActorOptions::default(),
+    );
+    let _ = runtime.spawn(
+        NoSupervisor,
+        deadline_actor as fn(_) -> _,
+        (),
+        ActorOptions::default(),
+    );
+    let _ = runtime.spawn(
+        NoSupervisor,
+        interval_actor as fn(_) -> _,
+        (),
+        ActorOptions::default(),
+    );
+
+    runtime.start().unwrap();
+}
+
+#[test]
+fn timers_dont_trigger_after_drop() {
+    const SMALL_TIMEOUT: Duration = Duration::from_millis(20);
+    async fn timer_actor<RT>(mut ctx: actor::Context<!, RT>)
+    where
+        RT: rt::Access + Clone,
+    {
+        // Setup an initial timer.
+        let mut timer = Timer::after(&mut ctx, SMALL_TIMEOUT);
+        expect_pending(poll_future(Pin::new(&mut timer)));
+        // Dropping it should remove the timer.
+        drop(timer);
+
+        let timer = Timer::after(&mut ctx, TIMEOUT);
+        let (_, poll_count) = count_polls(timer).await;
+        // Should only be polled twice, the first time the deadline
+        // hasn't passed, but the second time its called it should.
+        assert_eq!(poll_count, 2);
+    }
+
+    async fn deadline_actor<RT>(mut ctx: actor::Context<!, RT>)
+    where
+        RT: rt::Access + Clone,
+    {
+        let mut deadline = Deadline::after(&mut ctx, SMALL_TIMEOUT, AlwaysPending);
+        expect_pending(poll_future(Pin::new(&mut deadline)));
+        drop(deadline);
+
+        let deadline = Deadline::after(&mut ctx, TIMEOUT, AlwaysPending);
+        let (_, poll_count) = count_polls(deadline).await;
+        assert_eq!(poll_count, 2);
+    }
+
+    async fn interval_actor<RT>(mut ctx: actor::Context<!, RT>)
+    where
+        RT: rt::Access + Clone + Unpin,
+    {
+        let mut interval = Interval::every(&mut ctx, SMALL_TIMEOUT);
+        expect_pending(poll_next(Pin::new(&mut interval)));
+        drop(interval);
+
+        let interval = Interval::every(&mut ctx, TIMEOUT);
+        let (_, poll_count) = next(count_polls(interval)).await.unwrap();
+        assert_eq!(poll_count, 2);
     }
 
     fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
