@@ -849,13 +849,10 @@ impl<M> fmt::Debug for UdpSocket<M> {
     }
 }
 
-impl<RT> actor::Bound<RT> for UdpSocket {
+impl<RT: rt::Access> actor::Bound<RT> for UdpSocket {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()>
-    where
-        actor::Context<M, RT>: rt::Access,
-    {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
         ctx.reregister(
             &mut self.socket,
             ctx.pid().into(),

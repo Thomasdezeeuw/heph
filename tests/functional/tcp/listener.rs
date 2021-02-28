@@ -219,7 +219,7 @@ fn actor_bound() {
         mut ctx: actor::Context<TcpListener, RT>,
         actor_ref: ActorRef<SocketAddr>,
     ) where
-        actor::Context<TcpListener, RT>: rt::Access,
+        RT: rt::Access,
     {
         let mut listener = ctx.receive_next().await.unwrap();
         listener.bind_to(&mut ctx).unwrap();
