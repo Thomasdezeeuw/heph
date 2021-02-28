@@ -42,6 +42,21 @@ impl Timers {
         self.deadlines.push(Reverse(Deadline { deadline, pid }));
     }
 
+    /// Remove a previously added deadline.
+    pub(super) fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
+        // Only remove a single deadline.
+        let mut found = false;
+        self.deadlines.retain(|d| {
+            found
+                || if d.0.pid == pid && d.0.deadline == deadline {
+                    found = true;
+                    false
+                } else {
+                    true
+                }
+        });
+    }
+
     /// Returns all deadlines that have expired (i.e. deadline < now).
     pub(super) fn deadlines(&mut self) -> Deadlines<'_> {
         Deadlines {
@@ -51,7 +66,7 @@ impl Timers {
     }
 
     /// Remove the next deadline that passed `now` returning the pid.
-    pub(super) fn remove_deadline(&mut self, now: Instant) -> Option<ProcessId> {
+    pub(super) fn remove_next_deadline(&mut self, now: Instant) -> Option<ProcessId> {
         match self.deadlines.peek_mut() {
             Some(deadline) if deadline.0.deadline <= now => {
                 let deadline = PeekMut::pop(deadline).0;
@@ -72,7 +87,7 @@ impl<'t> Iterator for Deadlines<'t> {
     type Item = ProcessId;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.timers.remove_deadline(self.now)
+        self.timers.remove_next_deadline(self.now)
     }
 }
 

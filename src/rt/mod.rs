@@ -531,15 +531,22 @@ impl RuntimeRef {
         self.internals.shared.new_task_waker(pid)
     }
 
-    /// Add a deadline to the event sources.
-    ///
-    /// This is used in the `timer` crate.
+    /// Add a deadline.
     pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         trace!("adding deadline: pid={}, deadline={:?}", pid, deadline);
         self.internals
             .timers
             .borrow_mut()
             .add_deadline(pid, deadline);
+    }
+
+    /// Remove a deadline.
+    fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
+        trace!("removing deadline: pid={}, deadline={:?}", pid, deadline);
+        self.internals
+            .timers
+            .borrow_mut()
+            .remove_deadline(pid, deadline);
     }
 
     /// Returns a copy of the shared internals.

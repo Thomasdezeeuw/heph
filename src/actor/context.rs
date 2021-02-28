@@ -218,6 +218,10 @@ where
         self.rt.add_deadline(pid, deadline)
     }
 
+    fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
+        self.rt.remove_deadline(pid, deadline)
+    }
+
     fn cpu(&self) -> Option<usize> {
         self.rt.cpu()
     }

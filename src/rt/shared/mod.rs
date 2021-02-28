@@ -98,6 +98,10 @@ impl RuntimeInternals {
         self.timers.lock().unwrap().add_deadline(pid, deadline);
     }
 
+    pub(crate) fn remove_deadline(&self, pid: ProcessId, deadline: Instant) {
+        self.timers.lock().unwrap().remove_deadline(pid, deadline);
+    }
+
     #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
     pub(crate) fn spawn_setup<S, NA, ArgFn, ArgFnE>(
         self: &Arc<Self>,
@@ -230,7 +234,7 @@ impl RuntimeInternals {
     }
 
     /// See [`Timers::remove_deadline`].
-    pub(crate) fn remove_deadline(&self, now: Instant) -> Option<ProcessId> {
-        self.timers.lock().unwrap().remove_deadline(now)
+    pub(crate) fn remove_next_deadline(&self, now: Instant) -> Option<ProcessId> {
+        self.timers.lock().unwrap().remove_next_deadline(now)
     }
 }
