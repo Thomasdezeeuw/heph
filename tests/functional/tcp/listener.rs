@@ -76,9 +76,9 @@ fn ttl() {
 
 const DATA: &[u8] = b"Hello world";
 
-async fn stream_actor<K>(mut ctx: actor::Context<SocketAddr, K>)
+async fn stream_actor<RT>(mut ctx: actor::Context<SocketAddr, RT>)
 where
-    actor::Context<SocketAddr, K>: rt::Access,
+    actor::Context<SocketAddr, RT>: rt::Access,
 {
     let address = ctx.receive_next().await.unwrap();
     let mut stream = TcpStream::connect(&mut ctx, address)
@@ -207,19 +207,19 @@ fn incoming() {
 
 #[test]
 fn actor_bound() {
-    async fn listener_actor1<K>(mut ctx: actor::Context<!, K>, actor_ref: ActorRef<TcpListener>)
+    async fn listener_actor1<RT>(mut ctx: actor::Context<!, RT>, actor_ref: ActorRef<TcpListener>)
     where
-        actor::Context<!, K>: rt::Access,
+        actor::Context<!, RT>: rt::Access,
     {
         let listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
         actor_ref.send(listener).await.unwrap();
     }
 
-    async fn listener_actor2<K>(
-        mut ctx: actor::Context<TcpListener, K>,
+    async fn listener_actor2<RT>(
+        mut ctx: actor::Context<TcpListener, RT>,
         actor_ref: ActorRef<SocketAddr>,
     ) where
-        actor::Context<TcpListener, K>: rt::Access,
+        actor::Context<TcpListener, RT>: rt::Access,
     {
         let mut listener = ctx.receive_next().await.unwrap();
         listener.bind_to(&mut ctx).unwrap();

@@ -55,9 +55,9 @@ where
     }
 }
 
-async fn actor<K>(_: actor::Context<!, K>, mut stream: TcpStream, _: SocketAddr)
+async fn actor<RT>(_: actor::Context<!, RT>, mut stream: TcpStream, _: SocketAddr)
 where
-    actor::Context<SocketAddr, K>: rt::Access,
+    actor::Context<SocketAddr, RT>: rt::Access,
 {
     let mut buf = Vec::with_capacity(DATA.len() + 1);
     let n = stream.recv(&mut buf).await.unwrap();
@@ -67,12 +67,12 @@ where
 
 const DATA: &[u8] = b"Hello world";
 
-async fn stream_actor<K>(
-    mut ctx: actor::Context<!, K>,
+async fn stream_actor<RT>(
+    mut ctx: actor::Context<!, RT>,
     address: SocketAddr,
     actor_ref: ActorRef<server::Message>,
 ) where
-    actor::Context<!, K>: rt::Access,
+    actor::Context<!, RT>: rt::Access,
 {
     let mut stream = TcpStream::connect(&mut ctx, address)
         .unwrap()
@@ -183,11 +183,11 @@ fn new_actor_error() {
         }
     }
 
-    struct NewActorErrorGenerator<K>(PhantomData<*const K>);
+    struct NewActorErrorGenerator<RT>(PhantomData<*const RT>);
 
-    impl<K> Copy for NewActorErrorGenerator<K> {}
+    impl<RT> Copy for NewActorErrorGenerator<RT> {}
 
-    impl<K> Clone for NewActorErrorGenerator<K> {
+    impl<RT> Clone for NewActorErrorGenerator<RT> {
         fn clone(&self) -> Self {
             *self
         }
@@ -255,9 +255,9 @@ fn new_actor_error() {
     let (server_actor, _) = init_local_actor(server, ()).unwrap();
     let server_actor: Box<dyn Actor<Error = !>> = Box::new(ServerWrapper(server_actor));
 
-    async fn stream_actor<K>(mut ctx: actor::Context<!, K>, address: SocketAddr)
+    async fn stream_actor<RT>(mut ctx: actor::Context<!, RT>, address: SocketAddr)
     where
-        actor::Context<!, K>: rt::Access,
+        actor::Context<!, RT>: rt::Access,
     {
         let stream = TcpStream::connect(&mut ctx, address)
             .unwrap()
