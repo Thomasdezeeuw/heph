@@ -59,6 +59,7 @@ pub trait PrivateAccess {
 /// to move between threads.
 ///
 /// [`actor::Context`]: crate::actor::Context
+#[derive(Clone)]
 pub struct ThreadLocal {
     rt: RuntimeRef,
 }
@@ -146,6 +147,7 @@ impl fmt::Debug for ThreadLocal {
 /// information.
 ///
 /// [`actor::Context`]: crate::actor::Context
+#[derive(Clone)]
 pub struct ThreadSafe {
     rt: Arc<shared::RuntimeInternals>,
 }

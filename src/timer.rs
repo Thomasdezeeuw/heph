@@ -400,7 +400,7 @@ impl Interval {
     /// Create a new `Interval`.
     pub fn every<M>(ctx: &mut actor::Context<M>, interval: Duration) -> Interval {
         let deadline = Instant::now() + interval;
-        let mut runtime_ref = ctx.runtime().clone();
+        let mut runtime_ref = (**ctx.runtime()).clone();
         let pid = ctx.pid();
         runtime_ref.add_deadline(pid, deadline);
         Interval {
@@ -441,7 +441,7 @@ impl actor::Bound<ThreadLocal> for Interval {
         // We don't remove the original deadline and just let it expire, as
         // (currently) removing a deadline is an expensive operation.
         let pid = ctx.pid();
-        let mut runtime_ref = ctx.runtime().clone();
+        let mut runtime_ref = (**ctx.runtime()).clone();
         runtime_ref.add_deadline(pid, self.deadline);
         self.pid = pid;
         self.runtime_ref = runtime_ref;
