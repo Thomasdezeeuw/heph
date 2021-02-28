@@ -22,6 +22,7 @@ use std::future::Future;
 use std::lazy::SyncLazy;
 use std::mem::size_of;
 use std::pin::Pin;
+use std::stream::Stream;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
@@ -179,6 +180,23 @@ where
     let waker = runtime().new_local_task_waker(TEST_PID);
     let mut ctx = task::Context::from_waker(&waker);
     Future::poll(future, &mut ctx)
+}
+
+/// Poll a stream.
+///
+/// The [`task::Context`] will be provided by the *test* runtime.
+///
+/// # Notes
+///
+/// Wake notifications will be ignored, if this is required run an end to end
+/// test with a completely functional runtime instead.
+pub fn poll_next<S>(stream: Pin<&mut S>) -> Poll<Option<S::Item>>
+where
+    S: Stream + ?Sized,
+{
+    let waker = runtime().new_local_task_waker(TEST_PID);
+    let mut ctx = task::Context::from_waker(&waker);
+    Stream::poll_next(stream, &mut ctx)
 }
 
 /// Poll an actor.
