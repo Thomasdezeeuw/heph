@@ -57,6 +57,12 @@ impl Timers {
         });
     }
 
+    /// Change the `ProcessId` of a previously added deadline.
+    pub(super) fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant) {
+        self.remove_deadline(from, deadline);
+        self.add_deadline(to, deadline);
+    }
+
     /// Returns all deadlines that have expired (i.e. deadline < now).
     pub(super) fn deadlines(&mut self) -> Deadlines<'_> {
         Deadlines {

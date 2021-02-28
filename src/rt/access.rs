@@ -45,6 +45,9 @@ pub trait PrivateAccess {
     /// Remove a deadline for `pid` at `deadline`.
     fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant);
 
+    /// Changes the pid `from` `to` another, keeping the same deadline.
+    fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant);
+
     /// Returns the CPU the thread is bound to, if any.
     fn cpu(&self) -> Option<usize>;
 }
@@ -110,6 +113,10 @@ impl PrivateAccess for ThreadLocal {
 
     fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         self.rt.remove_deadline(pid, deadline);
+    }
+
+    fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant) {
+        self.rt.change_deadline(from, to, deadline);
     }
 
     fn cpu(&self) -> Option<usize> {
@@ -188,6 +195,10 @@ impl PrivateAccess for ThreadSafe {
 
     fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         self.rt.remove_deadline(pid, deadline);
+    }
+
+    fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant) {
+        self.rt.change_deadline(from, to, deadline);
     }
 
     fn cpu(&self) -> Option<usize> {
