@@ -323,7 +323,7 @@ impl Runtime {
         let timing = trace::start(&self.trace_log);
 
         let mut amount = 0;
-        while let Some(pid) = self.internals.shared.remove_deadline(Instant::now()) {
+        while let Some(pid) = self.internals.shared.remove_next_deadline(Instant::now()) {
             self.internals.shared.mark_ready(pid);
             amount += 1;
         }

@@ -72,6 +72,7 @@
     array_methods,
     async_stream,
     available_concurrency,
+    binary_heap_retain,
     const_fn,
     const_option,
     const_raw_ptr_to_usize_cast,
