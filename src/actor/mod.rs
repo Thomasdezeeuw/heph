@@ -139,8 +139,6 @@ use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use crate::rt;
-
 mod context;
 pub mod messages;
 mod spawn;
@@ -709,7 +707,5 @@ pub trait Bound<RT> {
     type Error;
 
     /// Bind a type to the [`Actor`] that owns the `ctx`.
-    fn bind_to<M>(&mut self, ctx: &mut Context<M, RT>) -> Result<(), Self::Error>
-    where
-        Context<M, RT>: rt::Access;
+    fn bind_to<M>(&mut self, ctx: &mut Context<M, RT>) -> Result<(), Self::Error>;
 }

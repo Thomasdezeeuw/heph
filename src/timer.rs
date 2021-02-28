@@ -156,10 +156,7 @@ impl<RT: rt::Access> Unpin for Timer<RT> {}
 impl<RT: rt::Access> actor::Bound<RT> for Timer<RT> {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()>
-    where
-        actor::Context<M, RT>: rt::Access,
-    {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
         let old = replace(&mut self.pid, ctx.pid());
         self.rt.change_deadline(old, self.pid, self.deadline);
         Ok(())
@@ -360,10 +357,7 @@ impl<Fut: Unpin, RT: rt::Access> Unpin for Deadline<Fut, RT> {}
 impl<Fut, RT: rt::Access> actor::Bound<RT> for Deadline<Fut, RT> {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()>
-    where
-        actor::Context<M, RT>: rt::Access,
-    {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
         let old = replace(&mut self.pid, ctx.pid());
         self.rt.change_deadline(old, self.pid, self.deadline);
         Ok(())

@@ -783,13 +783,10 @@ where
     }
 }
 
-impl<RT> actor::Bound<RT> for TcpStream {
+impl<RT: rt::Access> actor::Bound<RT> for TcpStream {
     type Error = io::Error;
 
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()>
-    where
-        actor::Context<M, RT>: rt::Access,
-    {
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
         let pid = ctx.pid();
         ctx.reregister(
             &mut self.socket,
