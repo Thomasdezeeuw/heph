@@ -16,6 +16,7 @@ use heph::{rt, ActorOptions, ActorRef, Runtime, RuntimeRef};
 
 use crate::util::{count_polls, expect_pending};
 
+const SMALL_TIMEOUT: Duration = Duration::from_millis(20);
 const TIMEOUT: Duration = Duration::from_millis(100);
 
 #[test]
@@ -207,7 +208,6 @@ fn triggered_timers_run_actors() {
 
 #[test]
 fn timers_dont_trigger_after_drop() {
-    const SMALL_TIMEOUT: Duration = Duration::from_millis(20);
     async fn timer_actor<RT>(mut ctx: actor::Context<!, RT>)
     where
         RT: rt::Access + Clone,
@@ -346,6 +346,157 @@ fn timers_actor_bound() {
     {
         let interval = Interval::every(&mut ctx, TIMEOUT);
         actor_ref.send(interval).await.unwrap();
+    }
+
+    async fn interval_actor2<RT>(mut ctx: actor::Context<Interval<RT>, RT>)
+    where
+        RT: rt::Access + Unpin,
+    {
+        let mut interval = ctx.receive_next().await.unwrap();
+        interval.bind_to(&mut ctx).unwrap();
+        let _ = next(&mut interval).await;
+    }
+
+    fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
+        // Spawn thread-local actors.
+        let actor_ref = runtime_ref.spawn_local(
+            NoSupervisor,
+            timer_actor2 as fn(_) -> _,
+            (),
+            ActorOptions::default(),
+        );
+        let _ = runtime_ref.spawn_local(
+            NoSupervisor,
+            timer_actor1 as fn(_, _) -> _,
+            actor_ref,
+            ActorOptions::default(),
+        );
+
+        let actor_ref = runtime_ref.spawn_local(
+            NoSupervisor,
+            deadline_actor2 as fn(_) -> _,
+            (),
+            ActorOptions::default(),
+        );
+        let _ = runtime_ref.spawn_local(
+            NoSupervisor,
+            deadline_actor1 as fn(_, _) -> _,
+            actor_ref,
+            ActorOptions::default(),
+        );
+
+        let actor_ref = runtime_ref.spawn_local(
+            NoSupervisor,
+            interval_actor2 as fn(_) -> _,
+            (),
+            ActorOptions::default(),
+        );
+        let _ = runtime_ref.spawn_local(
+            NoSupervisor,
+            interval_actor1 as fn(_, _) -> _,
+            actor_ref,
+            ActorOptions::default(),
+        );
+
+        Ok(())
+    }
+
+    let mut runtime = Runtime::setup().build().unwrap();
+    runtime.run_on_workers(setup).unwrap();
+
+    // Spawn thread-safe actors.
+    let actor_ref = runtime.spawn(
+        NoSupervisor,
+        timer_actor2 as fn(_) -> _,
+        (),
+        ActorOptions::default(),
+    );
+    let _ = runtime.spawn(
+        NoSupervisor,
+        timer_actor1 as fn(_, _) -> _,
+        actor_ref,
+        ActorOptions::default(),
+    );
+    let actor_ref = runtime.spawn(
+        NoSupervisor,
+        deadline_actor2 as fn(_) -> _,
+        (),
+        ActorOptions::default(),
+    );
+    let _ = runtime.spawn(
+        NoSupervisor,
+        deadline_actor1 as fn(_, _) -> _,
+        actor_ref,
+        ActorOptions::default(),
+    );
+
+    runtime.start().unwrap();
+}
+
+#[test]
+fn timers_dont_trigger_after_actour_bound() {
+    async fn timer_actor1<RT>(mut ctx: actor::Context<!, RT>, actor_ref: ActorRef<Timer<RT>>)
+    where
+        RT: rt::Access + Clone,
+    {
+        // Setup an initial timer.
+        let mut timer = Timer::after(&mut ctx, SMALL_TIMEOUT);
+        expect_pending(poll_future(Pin::new(&mut timer)));
+        // Letting another bind it should remove the timer.
+        actor_ref.send(timer).await.unwrap();
+
+        let timer = Timer::after(&mut ctx, TIMEOUT);
+        let (_, poll_count) = count_polls(timer).await;
+        // Should only be polled twice, the first time the deadline
+        // hasn't passed, but the second time its called it should.
+        assert_eq!(poll_count, 2);
+    }
+
+    async fn timer_actor2<RT>(mut ctx: actor::Context<Timer<RT>, RT>)
+    where
+        RT: rt::Access + Clone,
+    {
+        let mut timer = ctx.receive_next().await.unwrap();
+        timer.bind_to(&mut ctx).unwrap();
+        let _ = timer.await;
+    }
+
+    async fn deadline_actor1<RT>(
+        mut ctx: actor::Context<!, RT>,
+        actor_ref: ActorRef<Deadline<AlwaysPending, RT>>,
+    ) where
+        RT: rt::Access + Clone,
+    {
+        let mut deadline = Deadline::after(&mut ctx, SMALL_TIMEOUT, AlwaysPending);
+        expect_pending(poll_future(Pin::new(&mut deadline)));
+        actor_ref.send(deadline).await.unwrap();
+
+        let deadline = Deadline::after(&mut ctx, TIMEOUT, AlwaysPending);
+        let (_, poll_count) = count_polls(deadline).await;
+        assert_eq!(poll_count, 2);
+    }
+
+    async fn deadline_actor2<RT>(mut ctx: actor::Context<Deadline<AlwaysPending, RT>, RT>)
+    where
+        RT: rt::Access,
+    {
+        let mut deadline = ctx.receive_next().await.unwrap();
+        deadline.bind_to(&mut ctx).unwrap();
+        let res: Result<(), DeadlinePassed> = deadline.await;
+        assert_eq!(res, Err(DeadlinePassed));
+    }
+
+    async fn interval_actor1<RT>(mut ctx: actor::Context<!, RT>, actor_ref: ActorRef<Interval<RT>>)
+    where
+        RT: rt::Access + Clone,
+    {
+        let mut interval = Interval::every(&mut ctx, SMALL_TIMEOUT);
+        expect_pending(poll_next(Pin::new(&mut interval)));
+        actor_ref.send(interval).await.unwrap();
+
+        let interval = Interval::every(&mut ctx, TIMEOUT);
+        let (_, poll_count) = next(count_polls(interval)).await.unwrap();
+        assert_eq!(poll_count, 2);
     }
 
     async fn interval_actor2<RT>(mut ctx: actor::Context<Interval<RT>, RT>)
