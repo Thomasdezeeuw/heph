@@ -18,7 +18,7 @@ use std::time::{Duration, Instant};
 use std::{io, ptr};
 
 use crate::actor;
-use crate::rt::{self, PrivateAccess, ProcessId, RuntimeRef, ThreadLocal};
+use crate::rt::{self, ProcessId, RuntimeRef, ThreadLocal};
 
 /// Type returned when the deadline has passed.
 ///
@@ -158,11 +158,9 @@ impl<RT: rt::Access> actor::Bound<RT> for Timer<RT> {
     where
         actor::Context<M, RT>: rt::Access,
     {
-        // We don't remove the original deadline and just let it expire, as
-        // (currently) removing a deadline is an expensive operation.
-        let pid = ctx.pid();
-        self.rt.add_deadline(pid, self.deadline);
-        self.pid = pid;
+        self.rt.remove_deadline(self.pid, self.deadline);
+        self.pid = ctx.pid();
+        self.rt.add_deadline(self.pid, self.deadline);
         Ok(())
     }
 }
@@ -245,6 +243,7 @@ pub struct Deadline<Fut, RT: rt::Access> {
     deadline: Instant,
     future: Fut,
     rt: RT,
+    // NOTE: when adding fields also add to [`Deadline::into_inner`].
 }
 
 impl<Fut, RT: rt::Access> Deadline<Fut, RT> {
@@ -304,8 +303,15 @@ impl<Fut, RT: rt::Access> Deadline<Fut, RT> {
     }
 
     /// Returns the wrapped future.
-    pub fn into_inner(self) -> Fut {
-        self.future
+    pub fn into_inner(mut self) -> Fut {
+        self.rt.remove_deadline(self.pid, self.deadline);
+        // Safety: See [`ManuallyDrop::take`], rather then taking the entire
+        // thing struct at once we read (move out of) value by value.
+        let mut this = ManuallyDrop::new(self);
+        unsafe { ptr::addr_of_mut!(this.pid).drop_in_place() }
+        unsafe { ptr::addr_of_mut!(this.deadline).drop_in_place() }
+        unsafe { ptr::addr_of_mut!(this.rt).drop_in_place() }
+        unsafe { ptr::addr_of!(this.future).read() }
     }
 }
 
@@ -355,11 +361,16 @@ impl<Fut, RT: rt::Access> actor::Bound<RT> for Deadline<Fut, RT> {
     where
         actor::Context<M, RT>: rt::Access,
     {
-        // We don't remove the original deadline and just let it expire, as
-        // (currently) removing a deadline is an expensive operation.
-        let pid = ctx.pid();
-        ctx.add_deadline(pid, self.deadline);
+        self.rt.remove_deadline(self.pid, self.deadline);
+        self.pid = ctx.pid();
+        self.rt.add_deadline(self.pid, self.deadline);
         Ok(())
+    }
+}
+
+impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
+    fn drop(&mut self) {
+        self.rt.remove_deadline(self.pid, self.deadline);
     }
 }
 
