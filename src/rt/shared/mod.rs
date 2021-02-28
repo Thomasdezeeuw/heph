@@ -94,12 +94,19 @@ impl RuntimeInternals {
         self.registry.reregister(source, token, interest)
     }
 
-    pub(crate) fn add_deadline(&self, pid: ProcessId, deadline: Instant) {
+    pub(super) fn add_deadline(&self, pid: ProcessId, deadline: Instant) {
         self.timers.lock().unwrap().add_deadline(pid, deadline);
     }
 
-    pub(crate) fn remove_deadline(&self, pid: ProcessId, deadline: Instant) {
+    pub(super) fn remove_deadline(&self, pid: ProcessId, deadline: Instant) {
         self.timers.lock().unwrap().remove_deadline(pid, deadline);
+    }
+
+    pub(super) fn change_deadline(&self, from: ProcessId, to: ProcessId, deadline: Instant) {
+        self.timers
+            .lock()
+            .unwrap()
+            .change_deadline(from, to, deadline);
     }
 
     #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.

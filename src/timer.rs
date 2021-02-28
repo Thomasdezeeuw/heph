@@ -10,7 +10,7 @@
 //!   after the deadline has passed each interval.
 
 use std::future::Future;
-use std::mem::ManuallyDrop;
+use std::mem::{replace, ManuallyDrop};
 use std::pin::Pin;
 use std::stream::Stream;
 use std::task::{self, Poll};
@@ -158,9 +158,8 @@ impl<RT: rt::Access> actor::Bound<RT> for Timer<RT> {
     where
         actor::Context<M, RT>: rt::Access,
     {
-        self.rt.remove_deadline(self.pid, self.deadline);
-        self.pid = ctx.pid();
-        self.rt.add_deadline(self.pid, self.deadline);
+        let old = replace(&mut self.pid, ctx.pid());
+        self.rt.change_deadline(old, self.pid, self.deadline);
         Ok(())
     }
 }
@@ -361,9 +360,8 @@ impl<Fut, RT: rt::Access> actor::Bound<RT> for Deadline<Fut, RT> {
     where
         actor::Context<M, RT>: rt::Access,
     {
-        self.rt.remove_deadline(self.pid, self.deadline);
-        self.pid = ctx.pid();
-        self.rt.add_deadline(self.pid, self.deadline);
+        let old = replace(&mut self.pid, ctx.pid());
+        self.rt.change_deadline(old, self.pid, self.deadline);
         Ok(())
     }
 }
@@ -486,9 +484,8 @@ impl<RT: rt::Access> actor::Bound<RT> for Interval<RT> {
     type Error = !;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> Result<(), !> {
-        self.rt.remove_deadline(self.pid, self.deadline);
-        self.pid = ctx.pid();
-        self.rt.add_deadline(self.pid, self.deadline);
+        let old = replace(&mut self.pid, ctx.pid());
+        self.rt.change_deadline(old, self.pid, self.deadline);
         Ok(())
     }
 }

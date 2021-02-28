@@ -532,7 +532,7 @@ impl RuntimeRef {
     }
 
     /// Add a deadline.
-    pub(crate) fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
+    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         trace!("adding deadline: pid={}, deadline={:?}", pid, deadline);
         self.internals
             .timers
@@ -547,6 +547,20 @@ impl RuntimeRef {
             .timers
             .borrow_mut()
             .remove_deadline(pid, deadline);
+    }
+
+    /// Change the `ProcessId` of a deadline.
+    fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant) {
+        trace!(
+            "changing deadline: new_pid={}, old_pid={}, deadline={:?}",
+            from,
+            to,
+            deadline
+        );
+        self.internals
+            .timers
+            .borrow_mut()
+            .change_deadline(from, to, deadline);
     }
 
     /// Returns a copy of the shared internals.
