@@ -3,26 +3,38 @@
 // TODO:
 // Benchmark:
 //  * Number of slots (`SLOTS`).
-//  * Milliseconds per slot (`MS_PER_SLOT`).
+//  * Nanoseconds per slot (`NS_PER_SLOT`).
 //  * BinaryHeap vs sorted Vec.
 //  * Making `Timer` `Copy`.
 
 use std::cmp::Ordering;
 use std::collections::binary_heap::{BinaryHeap, PeekMut};
-use std::mem::size_of;
 use std::time::{Duration, Instant};
 
 use crate::rt::ProcessId;
 
-// Gives use 64 * 200 ms = 12,8 seconds for the wheel.
-const SLOTS: usize = 1 << 6;
-const MS_PER_SLOT: TimeOffset = 200;
-const OVERFLOW: Duration = Duration::from_millis(SLOTS as u64 * MS_PER_SLOT as u64);
+/// Bits needed for the number of slots.
+const SLOT_BITS: usize = 6;
+/// Number of slots in the [`Timers`] wheel, 32.
+const SLOTS: usize = 1 << SLOT_BITS;
+/// Bits needed for the nanoseconds per slot.
+const NS_PER_SLOT_BITS: usize = 30;
+/// Nanoseconds per slot, 1073741824 ns ~= 1073 milliseconds.
+const NS_PER_SLOT: TimeOffset = 1 << NS_PER_SLOT_BITS;
+/// Duration per slot, [`NS_PER_SLOT`] as [`Duration`].
+const DURATION_PER_SLOT: Duration = Duration::from_nanos(NS_PER_SLOT as u64);
+/// Timers within `((1 << 6) * (1 << 30))` ~= 68 seconds since the epoch fit in
+/// the wheel, others get added to the overflow.
+const NS_OVERFLOW: u64 = SLOTS as u64 * NS_PER_SLOT as u64;
+/// Duration per slot, [`NS_OVERFLOW`] as [`Duration`].
+const OVERFLOW_DURATION: Duration = Duration::from_nanos(NS_OVERFLOW);
+/// Mask to get the nanoseconds for a slot.
+const NS_SLOT_MASK: u128 = (1 << NS_PER_SLOT_BITS) - 1;
 
 /// Time offset since the epoch of [`Timers::epoch`].
 ///
 /// Must fit [`MS_PER_SLOT`].
-type TimeOffset = u8;
+type TimeOffset = u32;
 
 /// Timers.
 // TODO: doc.
@@ -61,8 +73,8 @@ impl Timers {
                 let iter = first.iter().chain(second.iter());
                 for (n, slot) in iter.enumerate() {
                     if let Some(timer) = slot.peek() {
-                        let time_offset = timer.time as u64 + (n as u64 * MS_PER_SLOT as u64);
-                        let deadline = self.epoch + Duration::from_millis(time_offset);
+                        let ns_since_epoch = timer.time as u64 + (n as u64 * NS_PER_SLOT as u64);
+                        let deadline = self.epoch + Duration::from_nanos(ns_since_epoch);
                         self.cached_next_deadline = CachedInstant::Set(deadline);
                         return Some(deadline);
                     }
@@ -81,29 +93,22 @@ impl Timers {
 
     /// Add a new deadline.
     pub(crate) fn add(&mut self, pid: ProcessId, deadline: Instant) {
+        // Update the cache.
         self.cached_next_deadline.update(deadline);
 
-        let time_offset = ms_since(self.epoch, deadline);
-        let index_offset = (time_offset / MS_PER_SLOT as u64) as usize;
-        if index_offset > self.slots.len() {
-            // Too far into the future.
+        let ns_since_epoch = deadline.duration_since(self.epoch).as_nanos();
+        if ns_since_epoch > NS_OVERFLOW as u128 {
+            // Too far into the future to fit in the slots.
             self.overflow.push(Timer {
                 pid,
                 time: deadline,
             });
-            return;
+        } else {
+            // TODO: doc this.
+            let time = (ns_since_epoch & NS_SLOT_MASK) as TimeOffset;
+            let index = ((ns_since_epoch >> NS_PER_SLOT_BITS) & ((1 << SLOT_BITS) - 1)) as usize;
+            self.slots[index].push(Timer { pid, time });
         }
-
-        let index = (self.index as usize + index_offset) % self.slots.len();
-        let time = ms_as_offset(time_offset % MS_PER_SLOT as u64);
-        log::error!(
-            "adding timer: index={}, index_offset={}, time={}, time_offset={}",
-            index,
-            index_offset,
-            time,
-            time_offset
-        );
-        self.slots[index].push(Timer { pid, time });
     }
 
     /// Returns all deadlines that have expired (i.e. deadline < `now`).
@@ -118,27 +123,30 @@ impl Timers {
     /// `now` may never go backwards between calls.
     pub(crate) fn remove_next(&mut self, now: Instant) -> Option<ProcessId> {
         loop {
-            // NOTE: Each loop iteration needs to calculate the `time_offset` as
-            // the epoch changes each iteration.
-            let time_offset = ms_since(self.epoch, now);
-            // Truncate the time offset to fit in `TimeOffset`.
-            let time_offset = ms_as_offset(time_offset);
-            match remove_if_after(self.current_slot(), time_offset) {
-                Some(timer) => {
+            // NOTE: Each loop iteration needs to calculate the `epoch_offset`
+            // as the epoch changes each iteration.
+            let epoch_offset = now.duration_since(self.epoch).as_nanos();
+            // NOTE: this truncates, which is fine as we need max of
+            // `NS_PER_SLOT` anyway.
+            let epoch_offset = (epoch_offset & NS_SLOT_MASK) as TimeOffset;
+            match remove_if_after(self.current_slot(), epoch_offset) {
+                Ok(timer) => {
                     // Since we've just removed the first timer, invalid the
                     // cache.
                     self.cached_next_deadline = CachedInstant::Unset;
                     return Some(timer.pid);
                 }
-                None => {
-                    // NOTE: we only reach this if we get `None` above, which
-                    // means the current slot is empty, which makes calling
+                Err(true) => {
+                    // Safety: slot is empty, which makes calling
                     // `maybe_update_epoch` OK.
-                    if !self.maybe_update_epoch(time_offset) {
+                    if !self.maybe_update_epoch(epoch_offset) {
                         // Didn't update epoch, no more timers to process.
                         return None;
                     }
+                    // Else try again in the next loop.
                 }
+                // Slot has timers with a deadline past `now`.
+                Err(false) => return None,
             }
         }
     }
@@ -148,30 +156,35 @@ impl Timers {
     /// # Panics
     ///
     /// This panics if the current slot is not empty.
-    fn maybe_update_epoch(&mut self, now_offset: TimeOffset) -> bool {
-        if now_offset <= MS_PER_SLOT {
+    fn maybe_update_epoch(&mut self, epoch_offset: TimeOffset) -> bool {
+        if epoch_offset < NS_PER_SLOT {
             // Can't move to the next slot yet.
             return false;
         }
         debug_assert!(self.current_slot().is_empty());
 
+        // The index of the last slot, after we update the epoch below.
+        let last_index = self.index as usize;
         // Move to the next slot and update the epoch.
         self.index = (self.index + 1) % self.slots.len() as u8;
-        self.epoch += Duration::from_millis(MS_PER_SLOT as u64);
+        self.epoch += DURATION_PER_SLOT;
 
-        // Next move all the overflow timers that now fit in the slots.
-        let time = self.epoch + OVERFLOW;
-        while let Some(timer) = remove_if_after(&mut self.overflow, time) {
-            self.cached_next_deadline.update(timer.time);
-            let time_offset = ms_since(self.epoch, timer.time);
-            // NOTE: because we only remove timers that fit in the slot we don't
-            // check the `index_offset` here.
-            let index_offset = (time_offset / MS_PER_SLOT as u64) as usize;
-            let index = (self.index as usize + index_offset) % self.slots.len();
-            let time = ms_as_offset(time_offset % MS_PER_SLOT as u64);
-            self.slots[index].push(Timer {
+        // Next move all the overflow timers that now fit in the new slot (the
+        // slot that was previously emptied).
+        let time = self.epoch + OVERFLOW_DURATION;
+        while let Ok(timer) = remove_if_after(&mut self.overflow, time) {
+            // NOTE: We know two things:
+            // 1) all timers in the overflow previously didn't fit in
+            //    the slots,
+            // 2) whenever we update the epoch we move all timers that fit into
+            //    the new slot.
+            // Based on this we know that we will only get timers that fit in
+            // the new slot (the slot we've just emptied), hence we can safely
+            // call `as_offset` as it won't truncate and all the timers will fit
+            // in the slot with `last_index`.
+            self.slots[last_index].push(Timer {
                 pid: timer.pid,
-                time,
+                time: as_offset(self.epoch, timer.time),
             });
         }
 
@@ -184,46 +197,28 @@ impl Timers {
     }
 }
 
-/// Truncates `millis` to [`TimeOffset`].
-fn ms_as_offset(millis: u64) -> TimeOffset {
-    const MASK: u64 = (1 << (size_of::<TimeOffset>() * 8)) - 1;
-    debug_assert!(millis < u64::MAX);
-    (millis & MASK) as TimeOffset
+/// Returns the different between `epoch` and `time`, truncated to
+/// [`TimeOffset`].
+fn as_offset(epoch: Instant, time: Instant) -> TimeOffset {
+    let nanos = time.duration_since(epoch).as_nanos();
+    debug_assert!(nanos < NS_PER_SLOT as u128);
+    (nanos & NS_SLOT_MASK) as TimeOffset
 }
 
-/// Returns the number of milliseconds between `now` and `epoch`, truncated to
-/// fit in an `u64`.
-fn ms_since(epoch: Instant, now: Instant) -> u64 {
-    const MASK: u128 = (1 << (size_of::<u64>() * 8)) - 1;
-    // `Duration::as_millis` truncates the time difference to milliseconds. This
-    // seems obvious, but has a easy to miss caveat. It means that 10.99
-    // milliseconds is truncated to 10 milliseconds, even if it's closed to 11
-    // milliseconds. And a millisecond for computers is quite long. This means
-    // we can trigger timers up to (almost) a millisecond before they've
-    // actually elapsed! Combine this with the nanosecond precision used in the
-    // `timer` module and we've got a problem.
-    //
-    // When the timer is trigger early (as per above) and a `timer` `Future` is
-    // polled it will return `Poll::Pending` because the deadline hasn't
-    // actually elapsed yet. And because no more timers are set it will not
-    // never be polled again.
-    //
-    // To solve this we a millisecond to the value to ensure the timer is
-    // trigger after the deadline has elapsed. The downside is that all timer
-    // will be at least one millisecond late.
-    let millis = now.duration_since(epoch).as_millis() + 1;
-    debug_assert!(millis < u64::MAX as u128);
-    (millis & MASK) as u64
-}
-
-/// Remove the first timer after `time`.
-fn remove_if_after<T>(timers: &mut BinaryHeap<Timer<T>>, time: T) -> Option<Timer<T>>
+/// Remove the first timer if it's before `time`.
+///
+/// Returns `Ok(timer)` if there is a timer with a deadline before `time`.
+/// Returns `Err(is_empty)`, indicating if `timers` is empty. Returns
+/// `Err(true)` is `timers` is empty, `Err(false)` if the are more timers in
+/// `timers`, but none with a deadline before `time`.
+fn remove_if_after<T>(timers: &mut BinaryHeap<Timer<T>>, time: T) -> Result<Timer<T>, bool>
 where
     T: Ord,
 {
     match timers.peek_mut() {
-        Some(timer) if timer.time <= time => Some(PeekMut::pop(timer)),
-        Some(_) | None => None,
+        Some(timer) if timer.time <= time => Ok(PeekMut::pop(timer)),
+        Some(_) => Err(false),
+        None => Err(true),
     }
 }
 
@@ -292,6 +287,7 @@ where
     }
 }
 
+/// Returns all timers that have passed (since the iterator was created).
 #[derive(Debug)]
 pub(crate) struct Deadlines<'t> {
     timers: &'t mut Timers,
