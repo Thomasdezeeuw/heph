@@ -73,7 +73,8 @@ impl Timers {
                 let iter = first.iter().chain(second.iter());
                 for (n, slot) in iter.enumerate() {
                     if let Some(timer) = slot.peek() {
-                        let ns_since_epoch = timer.time as u64 + (n as u64 * NS_PER_SLOT as u64);
+                        let ns_since_epoch =
+                            timer.deadline as u64 + (n as u64 * NS_PER_SLOT as u64);
                         let deadline = self.epoch + Duration::from_nanos(ns_since_epoch);
                         self.cached_next_deadline = CachedInstant::Set(deadline);
                         return Some(deadline);
@@ -82,7 +83,7 @@ impl Timers {
 
                 self.overflow
                     .peek()
-                    .map(|timer| timer.time)
+                    .map(|timer| timer.deadline)
                     .map(|deadline| {
                         self.cached_next_deadline = CachedInstant::Set(deadline);
                         deadline
@@ -99,15 +100,12 @@ impl Timers {
         let ns_since_epoch = deadline.duration_since(self.epoch).as_nanos();
         if ns_since_epoch > NS_OVERFLOW as u128 {
             // Too far into the future to fit in the slots.
-            self.overflow.push(Timer {
-                pid,
-                time: deadline,
-            });
+            self.overflow.push(Timer { pid, deadline });
         } else {
             // TODO: doc this.
-            let time = (ns_since_epoch & NS_SLOT_MASK) as TimeOffset;
+            let deadline = (ns_since_epoch & NS_SLOT_MASK) as TimeOffset;
             let index = ((ns_since_epoch >> NS_PER_SLOT_BITS) & ((1 << SLOT_BITS) - 1)) as usize;
-            self.slots[index].push(Timer { pid, time });
+            self.slots[index].push(Timer { pid, deadline });
         }
     }
 
@@ -184,7 +182,7 @@ impl Timers {
             // in the slot with `last_index`.
             self.slots[last_index].push(Timer {
                 pid: timer.pid,
-                time: as_offset(self.epoch, timer.time),
+                deadline: as_offset(self.epoch, timer.deadline),
             });
         }
 
@@ -216,7 +214,7 @@ where
     T: Ord,
 {
     match timers.peek_mut() {
-        Some(timer) if timer.time <= time => Ok(PeekMut::pop(timer)),
+        Some(timer) if timer.deadline <= time => Ok(PeekMut::pop(timer)),
         Some(_) => Err(false),
         None => Err(true),
     }
@@ -263,7 +261,7 @@ impl CachedInstant {
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct Timer<T> {
     pid: ProcessId,
-    time: T,
+    deadline: T,
 }
 
 impl<T> Ord for Timer<T>
@@ -272,8 +270,8 @@ where
 {
     fn cmp(&self, other: &Self) -> Ordering {
         other
-            .time
-            .cmp(&self.time)
+            .deadline
+            .cmp(&self.deadline)
             .then_with(|| other.pid.cmp(&self.pid))
     }
 }
