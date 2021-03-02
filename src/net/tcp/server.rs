@@ -176,7 +176,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     // Create our TCP server.
 ///     let new_actor = conn_actor as fn(_, _, _) -> _;
 ///     // Wait for the `TcpStream` to become ready before running the actor.
-///     let options = ActorOptions::default().mark_not_ready();
+///     let options = ActorOptions::default().mark_ready(false);
 ///     let server = TcpServer::setup(address, conn_supervisor, new_actor, options)?;
 ///
 ///     // We advice to give the TCP server a low priority to prioritise
