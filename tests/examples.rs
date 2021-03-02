@@ -91,15 +91,12 @@ fn test_7_restart_supervisor() {
     let output = run_example_output("7_restart_supervisor");
     let mut lines = output.lines();
 
-    // Example timestamp "2020-08-05T13:51:53.687353Z ".
-    const TIMESTAMP_OFFSET: usize = 28;
     // Index of the "?" in the string below.
-    const LEFT_INDEX: usize = 64;
+    const LEFT_INDEX: usize = 51;
 
-    let mut expected = "[WARN] 7_restart_supervisor: print actor failed, restarting it (?/5 restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'".to_owned();
+    let mut expected = "lvl=\"WARN\" msg=\"print actor failed, restarting it (?/5 restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"".to_owned();
     for left in (0..5).rev() {
         let line = lines.next().unwrap();
-        let line = &line[TIMESTAMP_OFFSET..];
 
         unsafe {
             expected.as_bytes_mut()[LEFT_INDEX] = b'0' + left;
@@ -107,15 +104,13 @@ fn test_7_restart_supervisor() {
         assert_eq!(line, expected);
     }
 
-    let expected = "[WARN] 7_restart_supervisor: print actor failed, stopping it (no restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'";
+    let expected = "lvl=\"WARN\" msg=\"print actor failed, stopping it (no restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"";
     let last_line = lines.next().unwrap();
-    let last_line = &last_line[TIMESTAMP_OFFSET..];
     assert_eq!(last_line, expected);
 
-    let mut expected = "[WARN] 7_restart_supervisor: print actor failed, restarting it (?/5 restarts left): can't print message 'Hello world!': actor message 'Hello world!'".to_owned();
+    let mut expected = "lvl=\"WARN\" msg=\"print actor failed, restarting it (?/5 restarts left): can't print message 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"".to_owned();
     for left in (0..5).rev() {
         let line = lines.next().unwrap();
-        let line = &line[TIMESTAMP_OFFSET..];
 
         unsafe {
             expected.as_bytes_mut()[LEFT_INDEX] = b'0' + left;
@@ -123,9 +118,8 @@ fn test_7_restart_supervisor() {
         assert_eq!(line, expected);
     }
 
-    let expected = "[WARN] 7_restart_supervisor: print actor failed, stopping it (no restarts left): can't print message 'Hello world!': actor message 'Hello world!'";
+    let expected = "lvl=\"WARN\" msg=\"print actor failed, stopping it (no restarts left): can't print message 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"";
     let last_line = lines.next().unwrap();
-    let last_line = &last_line[TIMESTAMP_OFFSET..];
     assert_eq!(last_line, expected);
 
     // Expect no more output.

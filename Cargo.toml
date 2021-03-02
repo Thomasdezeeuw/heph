@@ -38,5 +38,5 @@ getrandom         = { version = "0.2.2", default-features = false, features = ["
 
 [dev-dependencies]
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
-# Enable logging panics via `std-logger` and add timestamps to each log message.
-std-logger        = { version = "0.3.6", default-features = false, features = ["log-panic", "timestamp"] }
+# Enable logging panics via `std-logger`.
+std-logger        = { version = "0.4.0", default-features = false, features = ["log-panic", "nightly"] }
