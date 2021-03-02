@@ -2,12 +2,13 @@
 //!
 //! [`rt::Access`]: crate::rt::Access
 
+use std::mem::replace;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, io};
 
-use mio::{event, Interest, Token};
+use mio::{event, Interest};
 
 use crate::actor::{self, NewActor};
 use crate::actor_ref::ActorRef;
@@ -30,24 +31,30 @@ pub trait Access: PrivateAccess {}
 ///
 /// [`rt::Access`]: crate::rt::Access
 pub trait PrivateAccess {
-    /// Registers the `source` using `token` and `interest`.
-    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    /// Returns the process id.
+    fn pid(&self) -> ProcessId;
+
+    /// Changes the process id to `new_pid`, returning the old process id.
+    fn change_pid(&mut self, new_pid: ProcessId) -> ProcessId;
+
+    /// Registers the `source`.
+    fn register<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized;
 
-    /// Reregisters the `source` using `token` and `interest`.
-    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    /// Reregisters the `source`.
+    fn reregister<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized;
 
-    /// Add a deadline for `pid` at `deadline`.
-    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant);
+    /// Add a deadline.
+    fn add_deadline(&mut self, deadline: Instant);
 
-    /// Remove a deadline for `pid` at `deadline`.
-    fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant);
+    /// Remove a previously set deadline.
+    fn remove_deadline(&mut self, deadline: Instant);
 
-    /// Changes the pid `from` `to` another, keeping the same deadline.
-    fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant);
+    /// Changes a deadline's pid from `old_pid` the current pid.
+    fn change_deadline(&mut self, old_pid: ProcessId, deadline: Instant);
 
     /// Returns the CPU the thread is bound to, if any.
     fn cpu(&self) -> Option<usize>;
@@ -68,12 +75,15 @@ pub trait PrivateAccess {
 /// [`actor::Context`]: crate::actor::Context
 #[derive(Clone)]
 pub struct ThreadLocal {
+    /// Process id of the actor, used as `Token` in registering things, e.g.
+    /// a `TcpStream`, with `mio::Poll`.
+    pid: ProcessId,
     rt: RuntimeRef,
 }
 
 impl ThreadLocal {
-    pub(crate) const fn new(rt: RuntimeRef) -> ThreadLocal {
-        ThreadLocal { rt }
+    pub(crate) const fn new(pid: ProcessId, rt: RuntimeRef) -> ThreadLocal {
+        ThreadLocal { pid, rt }
     }
 }
 
@@ -94,30 +104,38 @@ impl DerefMut for ThreadLocal {
 impl Access for ThreadLocal {}
 
 impl PrivateAccess for ThreadLocal {
-    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    fn pid(&self) -> ProcessId {
+        self.pid
+    }
+
+    fn change_pid(&mut self, new_pid: ProcessId) -> ProcessId {
+        replace(&mut self.pid, new_pid)
+    }
+
+    fn register<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.rt.register(source, token, interest)
+        self.rt.register(source, self.pid.into(), interest)
     }
 
-    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    fn reregister<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.rt.reregister(source, token, interest)
+        self.rt.reregister(source, self.pid.into(), interest)
     }
 
-    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.rt.add_deadline(pid, deadline)
+    fn add_deadline(&mut self, deadline: Instant) {
+        self.rt.add_deadline(self.pid, deadline)
     }
 
-    fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.rt.remove_deadline(pid, deadline);
+    fn remove_deadline(&mut self, deadline: Instant) {
+        self.rt.remove_deadline(self.pid, deadline);
     }
 
-    fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant) {
-        self.rt.change_deadline(from, to, deadline);
+    fn change_deadline(&mut self, old_pid: ProcessId, deadline: Instant) {
+        self.rt.change_deadline(old_pid, self.pid, deadline);
     }
 
     fn cpu(&self) -> Option<usize> {
@@ -164,42 +182,53 @@ impl fmt::Debug for ThreadLocal {
 /// [`actor::Context`]: crate::actor::Context
 #[derive(Clone)]
 pub struct ThreadSafe {
+    /// Process id of the actor, used as `Token` in registering things, e.g.
+    /// a `TcpStream`, with `mio::Poll`.
+    pid: ProcessId,
     rt: Arc<shared::RuntimeInternals>,
 }
 
 impl ThreadSafe {
-    pub(crate) const fn new(rt: Arc<shared::RuntimeInternals>) -> ThreadSafe {
-        ThreadSafe { rt }
+    pub(crate) const fn new(pid: ProcessId, rt: Arc<shared::RuntimeInternals>) -> ThreadSafe {
+        ThreadSafe { pid, rt }
     }
 }
 
 impl Access for ThreadSafe {}
 
 impl PrivateAccess for ThreadSafe {
-    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    fn pid(&self) -> ProcessId {
+        self.pid
+    }
+
+    fn change_pid(&mut self, new_pid: ProcessId) -> ProcessId {
+        replace(&mut self.pid, new_pid)
+    }
+
+    fn register<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.rt.register(source, token, interest)
+        self.rt.register(source, self.pid.into(), interest)
     }
 
-    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    fn reregister<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.rt.reregister(source, token, interest)
+        self.rt.reregister(source, self.pid.into(), interest)
     }
 
-    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.rt.add_deadline(pid, deadline)
+    fn add_deadline(&mut self, deadline: Instant) {
+        self.rt.add_deadline(self.pid, deadline)
     }
 
-    fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.rt.remove_deadline(pid, deadline);
+    fn remove_deadline(&mut self, deadline: Instant) {
+        self.rt.remove_deadline(self.pid, deadline);
     }
 
-    fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant) {
-        self.rt.change_deadline(from, to, deadline);
+    fn change_deadline(&mut self, old_pid: ProcessId, deadline: Instant) {
+        self.rt.change_deadline(old_pid, self.pid, deadline);
     }
 
     fn cpu(&self) -> Option<usize> {
@@ -252,30 +281,38 @@ impl<M, RT> PrivateAccess for actor::Context<M, RT>
 where
     RT: PrivateAccess,
 {
-    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    fn pid(&self) -> ProcessId {
+        self.runtime_ref().pid()
+    }
+
+    fn change_pid(&mut self, new_pid: ProcessId) -> ProcessId {
+        self.runtime().change_pid(new_pid)
+    }
+
+    fn register<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.runtime().register(source, token, interest)
+        self.runtime().register(source, interest)
     }
 
-    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    fn reregister<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
-        self.runtime().reregister(source, token, interest)
+        self.runtime().reregister(source, interest)
     }
 
-    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.runtime().add_deadline(pid, deadline)
+    fn add_deadline(&mut self, deadline: Instant) {
+        self.runtime().add_deadline(deadline)
     }
 
-    fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.runtime().remove_deadline(pid, deadline)
+    fn remove_deadline(&mut self, deadline: Instant) {
+        self.runtime().remove_deadline(deadline)
     }
 
-    fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant) {
-        self.runtime().change_deadline(from, to, deadline);
+    fn change_deadline(&mut self, old_pid: ProcessId, deadline: Instant) {
+        self.runtime().change_deadline(old_pid, deadline);
     }
 
     fn cpu(&self) -> Option<usize> {

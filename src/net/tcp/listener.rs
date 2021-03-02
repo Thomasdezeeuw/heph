@@ -183,8 +183,7 @@ impl TcpListener {
         actor::Context<M, RT>: rt::Access,
     {
         let mut socket = net::TcpListener::bind(address)?;
-        let pid = ctx.pid();
-        ctx.register(&mut socket, pid.into(), Interest::READABLE)?;
+        ctx.register(&mut socket, Interest::READABLE)?;
         Ok(TcpListener { socket })
     }
 
@@ -274,10 +273,8 @@ impl UnboundTcpStream {
     where
         actor::Context<M, RT>: rt::Access,
     {
-        let pid = ctx.pid();
         ctx.register(
             &mut self.stream.socket,
-            pid.into(),
             Interest::READABLE | Interest::WRITABLE,
         )
         .map(|()| self.stream)
@@ -325,7 +322,6 @@ impl<RT: rt::Access> actor::Bound<RT> for TcpListener {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
-        let pid = ctx.pid();
-        ctx.reregister(&mut self.socket, pid.into(), Interest::READABLE)
+        ctx.reregister(&mut self.socket, Interest::READABLE)
     }
 }

@@ -601,7 +601,7 @@ impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef {
         // Create our actor context and our actor with it.
         let (manager, sender, receiver) = inbox::Manager::new_small_channel();
         let actor_ref = ActorRef::local(sender);
-        let mut ctx = actor::Context::new(pid, receiver, ThreadLocal::new(self.clone()));
+        let mut ctx = actor::Context::new(receiver, ThreadLocal::new(pid, self.clone()));
         // Create our actor argument, running any setup required by the caller.
         let arg = arg_fn(&mut ctx).map_err(AddActorError::ArgFn)?;
         let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;

@@ -8,7 +8,7 @@ use std::task::{self, Poll};
 use inbox::{Receiver, RecvValue};
 
 use crate::actor_ref::ActorRef;
-use crate::rt::{ProcessId, ThreadLocal};
+use crate::rt::ThreadLocal;
 
 /// The context in which an actor is executed.
 ///
@@ -28,9 +28,6 @@ use crate::rt::{ProcessId, ThreadLocal};
 /// [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
 #[derive(Debug)]
 pub struct Context<M, RT = ThreadLocal> {
-    /// Process id of the actor, used as `Token` in registering things, e.g.
-    /// a `TcpStream`, with `mio::Poll`.
-    pid: ProcessId,
     /// Inbox of the actor, shared between this and zero or more actor
     /// references.
     ///
@@ -43,8 +40,8 @@ pub struct Context<M, RT = ThreadLocal> {
 
 impl<M, RT> Context<M, RT> {
     /// Create a new `actor::Context`.
-    pub(crate) const fn new(pid: ProcessId, inbox: Receiver<M>, rt: RT) -> Context<M, RT> {
-        Context { pid, inbox, rt }
+    pub(crate) const fn new(inbox: Receiver<M>, rt: RT) -> Context<M, RT> {
+        Context { inbox, rt }
     }
 
     /// Attempt to receive the next message.
@@ -151,11 +148,6 @@ impl<M, RT> Context<M, RT> {
 
     pub(crate) fn runtime_ref(&self) -> &RT {
         &self.rt
-    }
-
-    /// Get the pid of this actor.
-    pub(crate) const fn pid(&self) -> ProcessId {
-        self.pid
     }
 
     /// Sets the waker of the inbox to `waker`.
