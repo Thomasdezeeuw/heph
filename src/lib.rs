@@ -120,6 +120,7 @@ pub mod actor_ref;
 pub mod log;
 pub mod net;
 pub mod rt;
+pub mod spawn;
 pub mod supervisor;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
@@ -134,5 +135,7 @@ pub use actor::{Actor, NewActor};
 pub use actor_ref::ActorRef;
 #[doc(no_inline)]
 pub use rt::{ActorOptions, Runtime, RuntimeRef};
+#[doc(inline)]
+pub use spawn::Spawn;
 #[doc(no_inline)]
 pub use supervisor::{Supervisor, SupervisorStrategy};

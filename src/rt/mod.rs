@@ -121,8 +121,9 @@ use std::{io, task};
 use log::{debug, trace};
 use mio::{event, Interest, Token};
 
-use crate::actor::{self, AddActorError, NewActor, PrivateSpawn, Spawn, SyncActor};
+use crate::actor::{self, NewActor, SyncActor};
 use crate::actor_ref::{ActorGroup, ActorRef};
+use crate::spawn::{AddActorError, PrivateSpawn, Spawn};
 use crate::supervisor::{Supervisor, SyncSupervisor};
 use crate::trace;
 

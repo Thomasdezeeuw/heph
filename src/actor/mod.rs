@@ -33,6 +33,7 @@
 //! actors, Heph does not (for thread-local actor).
 //!
 //! [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
+//! [`Spawn`]: crate::spawn::Spawn
 //! [`ThreadLocal`]: crate::rt::ThreadLocal
 //!
 //! ## Asynchronous thread-safe actors
@@ -141,7 +142,6 @@ use std::task::{self, Poll};
 
 mod context;
 pub mod messages;
-mod spawn;
 mod sync;
 #[cfg(test)]
 mod tests;
@@ -149,11 +149,7 @@ mod tests;
 #[doc(inline)]
 pub use context::{Context, NoMessages, ReceiveMessage, RecvError};
 #[doc(inline)]
-pub use spawn::Spawn;
-#[doc(inline)]
 pub use sync::{SyncActor, SyncContext};
-
-pub(crate) use spawn::{AddActorError, PrivateSpawn};
 
 /// The trait that defines how to create a new [`Actor`].
 ///

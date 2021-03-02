@@ -9,9 +9,10 @@ use std::{fmt, io};
 use inbox::{Receiver, RecvValue};
 use mio::{event, Interest, Token};
 
-use crate::actor::{AddActorError, NewActor, PrivateSpawn, Spawn};
+use crate::actor::NewActor;
 use crate::actor_ref::ActorRef;
 use crate::rt::{self, ActorOptions, ProcessId, ThreadLocal};
+use crate::spawn::{AddActorError, PrivateSpawn, Spawn};
 use crate::supervisor::Supervisor;
 
 /// The context in which an actor is executed.
