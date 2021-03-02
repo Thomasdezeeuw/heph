@@ -223,3 +223,77 @@ impl Default for SyncActorOptions {
         SyncActorOptions { thread_name: None }
     }
 }
+
+/// Options for spawning a [`Future`].
+///
+/// [`Future`]: std::future::Future
+///
+/// # Examples
+///
+/// Using the default options.
+///
+/// ```
+/// use heph::spawn::FutureOptions;
+///
+/// let opts = FutureOptions::default();
+/// # drop(opts); // Silence unused variable warning.
+/// ```
+///
+/// Giving an actor a high priority.
+///
+/// ```
+/// use heph::spawn::options::{FutureOptions, Priority};
+///
+/// let opts = FutureOptions::default().with_priority(Priority::HIGH);
+/// # drop(opts); // Silence unused variable warning.
+/// ```
+#[derive(Clone, Debug)]
+pub struct FutureOptions {
+    priority: Priority,
+    ready: bool,
+}
+
+impl FutureOptions {
+    /// Returns the priority set in the options.
+    pub const fn priority(&self) -> Priority {
+        self.priority
+    }
+
+    /// Set the scheduling priority.
+    pub const fn with_priority(mut self, priority: Priority) -> Self {
+        self.priority = priority;
+        self
+    }
+
+    /// Returns `true` if the actor is ready to run when spawned.
+    ///
+    /// See [`mark_ready`] for more information.
+    ///
+    /// [`mark_ready`]: FutureOptions::mark_ready
+    pub const fn is_ready(&self) -> bool {
+        self.ready
+    }
+
+    /// This option will marks the actor as ready to run (or not) when spawned.
+    ///
+    /// By default newly spawned actors will be considered to be ready to run
+    /// once they are spawned. However some actors might not want to run
+    /// immediately and wait for an external event before running. Such an
+    /// external event can for example be a [`TcpStream`] becoming ready to read
+    /// or write.
+    ///
+    /// [`TcpStream`]: crate::net::TcpStream
+    pub const fn mark_ready(mut self, ready: bool) -> Self {
+        self.ready = ready;
+        self
+    }
+}
+
+impl Default for FutureOptions {
+    fn default() -> FutureOptions {
+        FutureOptions {
+            priority: Priority::default(),
+            ready: true,
+        }
+    }
+}
