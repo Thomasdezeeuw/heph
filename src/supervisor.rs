@@ -60,9 +60,10 @@
 //! ```
 //! #![feature(never_type)]
 //!
+//! use heph::actor;
 //! use heph::supervisor::SupervisorStrategy;
-//! use heph::{actor, rt, ActorOptions, Runtime};
 //! use log::error;
+//! use heph::rt::{self, ThreadLocal, ActorOptions, Runtime};
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     // Enable logging so we can see the error message.
@@ -87,7 +88,7 @@
 //! }
 //!
 //! /// Our badly behaving actor.
-//! async fn bad_actor(_: actor::Context<!>) -> Result<(), Error> {
+//! async fn bad_actor(_: actor::Context<!, ThreadLocal>) -> Result<(), Error> {
 //!     Err(Error)
 //! }
 //! ```
@@ -220,8 +221,9 @@ where
 /// ```
 /// #![feature(never_type)]
 ///
+/// use heph::actor;
+/// use heph::rt::{self, ThreadLocal, ActorOptions, Runtime};
 /// use heph::supervisor::NoSupervisor;
-/// use heph::{actor, rt, ActorOptions, Runtime};
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     let mut runtime = Runtime::new()?;
@@ -233,7 +235,7 @@ where
 /// }
 ///
 /// /// Our actor that never returns an error.
-/// async fn actor(ctx: actor::Context<&'static str>) {
+/// async fn actor(ctx: actor::Context<&'static str, ThreadLocal>) {
 ///     println!("Hello world!");
 /// #   drop(ctx); // Silence dead code warnings.
 /// }

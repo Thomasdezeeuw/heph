@@ -274,8 +274,9 @@ where
 /// #
 /// use heph::actor;
 /// use heph::test::size_of_actor_val;
+/// use heph::rt::ThreadLocal;
 ///
-/// async fn actor(mut ctx: actor::Context<String>) {
+/// async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
 ///     // Receive a message.
 ///     if let Ok(msg) = ctx.receive_next().await {
 ///         // Print the message.

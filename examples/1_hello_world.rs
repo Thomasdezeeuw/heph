@@ -1,7 +1,8 @@
 #![feature(never_type)]
 
+use heph::actor;
+use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
 use heph::supervisor::NoSupervisor;
-use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 
 fn main() -> Result<(), rt::Error> {
     // We create a new runtime. Add a setup function, which adds our greeter
@@ -34,7 +35,7 @@ fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 /// Our greeter actor.
 ///
 /// We'll receive a single message and print it.
-async fn greeter_actor(mut ctx: actor::Context<&'static str>) {
+async fn greeter_actor(mut ctx: actor::Context<&'static str, ThreadLocal>) {
     // All actors have an actor context, which give the actor access to, among
     // other things, its inbox from which it can receive a message.
     while let Ok(name) = ctx.receive_next().await {

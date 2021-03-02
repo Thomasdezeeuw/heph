@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use heph::actor::{self, SyncContext};
 use heph::restart_supervisor;
-use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, SyncActorOptions};
+use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, SyncActorOptions, ThreadLocal};
 
 fn main() -> Result<(), rt::Error> {
     std_logger::init();
@@ -44,7 +44,7 @@ restart_supervisor!(
 );
 
 /// A very bad printing actor.
-async fn print_actor(_: actor::Context<()>, msg: String) -> Result<(), String> {
+async fn print_actor(_: actor::Context<(), ThreadLocal>, msg: String) -> Result<(), String> {
     Err(format!("can't print message '{}'", msg))
 }
 

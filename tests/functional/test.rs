@@ -10,7 +10,7 @@ use heph::test::{size_of_actor, size_of_actor_val};
 
 #[test]
 fn test_size_of_actor() {
-    async fn actor1(_: actor::Context<!>) {
+    async fn actor1(_: actor::Context<!, ThreadLocal>) {
         /* Nothing. */
     }
 

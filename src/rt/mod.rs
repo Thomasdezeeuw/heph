@@ -59,8 +59,9 @@
 //! ```
 //! #![feature(never_type)]
 //!
+//! use heph::actor;
+//! use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
 //! use heph::supervisor::NoSupervisor;
-//! use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     // Build a new `Runtime` with two worker threads.
@@ -96,7 +97,7 @@
 //! }
 //!
 //! /// Our actor that greets people.
-//! async fn actor(mut ctx: actor::Context<&'static str>, msg: &'static str) {
+//! async fn actor(mut ctx: actor::Context<&'static str, ThreadLocal>, msg: &'static str) {
 //!     // `msg` is the argument passed to `spawn` in the `setup` function
 //!     // above, in this example it was "Hello".
 //!

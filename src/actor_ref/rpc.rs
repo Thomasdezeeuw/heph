@@ -23,8 +23,9 @@
 //! ```
 //! # #![feature(never_type)]
 //! #
-//! use heph::{actor, rt, Runtime, ActorOptions};
+//! use heph::actor;
 //! use heph::actor_ref::{ActorRef, RpcMessage};
+//! use heph::rt::{self, Runtime, ActorOptions, ThreadLocal};
 //! use heph::supervisor::NoSupervisor;
 //!
 //! /// Message type for [`counter`].
@@ -38,7 +39,7 @@
 //! }
 //!
 //! /// Receiving actor of the RPC.
-//! async fn counter(mut ctx: actor::Context<Add>) {
+//! async fn counter(mut ctx: actor::Context<Add, ThreadLocal>) {
 //!     // State of the counter.
 //!     let mut count: usize = 0;
 //!     // Receive a message like normal.
@@ -50,7 +51,7 @@
 //! }
 //!
 //! /// Sending actor of the RPC.
-//! async fn requester(_: actor::Context<!>, actor_ref: ActorRef<Add>) {
+//! async fn requester(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<Add>) {
 //!     // Make the procedure call.
 //!     let response = actor_ref.rpc(10).await;
 //! #   assert!(response.is_ok());

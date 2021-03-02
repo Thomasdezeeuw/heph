@@ -17,8 +17,9 @@
 //! ```
 //! #![feature(never_type)]
 //!
+//! use heph::actor;
+//! use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
 //! use heph::supervisor::NoSupervisor;
-//! use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 //! use log::info;
 //!
 //! fn main() -> Result<(), rt::Error> {
@@ -36,7 +37,7 @@
 //!     Ok(())
 //! }
 //!
-//! async fn greeter_actor(_: actor::Context<!>) {
+//! async fn greeter_actor(_: actor::Context<!, ThreadLocal>) {
 //!     // Log an informational message.
 //!     info!("Hello world");
 //! }

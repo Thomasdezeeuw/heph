@@ -48,6 +48,7 @@ impl From<DeadlinePassed> for io::Error {
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
 /// # use heph::{rt, ActorOptions, Runtime, RuntimeRef};
+/// use heph::rt::ThreadLocal;
 /// use heph::timer::Timer;
 ///
 /// # fn main() -> Result<(), rt::Error> {
@@ -64,7 +65,7 @@ impl From<DeadlinePassed> for io::Error {
 /// #   Ok(())
 /// # }
 /// #
-/// async fn actor(mut ctx: actor::Context<!>) {
+/// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
 /// #   let start = Instant::now();
 ///     // Create a timer, this will be ready once the timeout has passed.
 ///     let timeout = Timer::after(&mut ctx, Duration::from_millis(200));
@@ -387,6 +388,7 @@ impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
 /// # use heph::{rt, ActorOptions, Runtime, RuntimeRef};
+/// use heph::rt::ThreadLocal;
 /// use heph::timer::Interval;
 /// use heph::util::next;
 /// #
@@ -403,7 +405,7 @@ impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
 /// #   Ok(())
 /// # }
 ///
-/// async fn actor(mut ctx: actor::Context<!>) {
+/// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
 /// #   let start = Instant::now();
 ///     let mut interval = Interval::every(&mut ctx, Duration::from_millis(200));
 /// #   assert!(interval.next_deadline() >= start + Duration::from_millis(200));

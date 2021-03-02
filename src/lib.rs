@@ -14,8 +14,9 @@
 //! # #![feature(never_type)]
 //! #
 //! # use heph::actor;
+//! # use heph::rt::ThreadLocal;
 //! #
-//! async fn actor(mut ctx: actor::Context<String>) {
+//! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
 //!     // Receive a message.
 //!     if let Ok(msg) = ctx.receive_next().await {
 //!         // Print the message.

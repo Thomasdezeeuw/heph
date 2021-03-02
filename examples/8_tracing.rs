@@ -5,11 +5,10 @@ use std::time::Duration;
 
 use log::warn;
 
-use heph::actor::SyncContext;
+use heph::actor::{self, SyncContext};
 use heph::actor_ref::{ActorRef, SendError};
-use heph::rt::options::SyncActorOptions;
+use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, SyncActorOptions, ThreadLocal};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
-use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 
 fn main() -> Result<(), rt::Error> {
     let mut runtime_setup = Runtime::setup();
@@ -65,7 +64,7 @@ fn setup(mut runtime_ref: RuntimeRef, actor_ref: ActorRef<&'static str>) -> Resu
 
 /// Actor that relays all messages it receives to actor behind `relay`.
 async fn relay_actor(
-    mut ctx: actor::Context<&'static str>,
+    mut ctx: actor::Context<&'static str, ThreadLocal>,
     relay: ActorRef<&'static str>,
 ) -> Result<(), SendError> {
     while let Ok(msg) = ctx.receive_next().await {
