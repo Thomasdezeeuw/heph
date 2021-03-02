@@ -48,12 +48,7 @@ impl TcpStream {
         actor::Context<M, RT>: rt::Access,
     {
         let mut socket = net::TcpStream::connect(address)?;
-        let pid = ctx.pid();
-        ctx.register(
-            &mut socket,
-            pid.into(),
-            Interest::READABLE | Interest::WRITABLE,
-        )?;
+        ctx.register(&mut socket, Interest::READABLE | Interest::WRITABLE)?;
         Ok(Connect {
             socket: Some(socket),
             cpu_affinity: ctx.cpu(),
@@ -787,11 +782,6 @@ impl<RT: rt::Access> actor::Bound<RT> for TcpStream {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
-        let pid = ctx.pid();
-        ctx.reregister(
-            &mut self.socket,
-            pid.into(),
-            Interest::READABLE | Interest::WRITABLE,
-        )
+        ctx.reregister(&mut self.socket, Interest::READABLE | Interest::WRITABLE)
     }
 }

@@ -171,7 +171,7 @@ impl RuntimeSupport for ThreadLocal {
         inbox: Receiver<M>,
         runtime_ref: &mut RuntimeRef,
     ) -> actor::Context<M, ThreadLocal> {
-        actor::Context::new(pid, inbox, ThreadLocal::new(runtime_ref.clone()))
+        actor::Context::new(inbox, ThreadLocal::new(pid, runtime_ref.clone()))
     }
 }
 
@@ -185,6 +185,6 @@ impl RuntimeSupport for ThreadSafe {
         inbox: Receiver<M>,
         runtime_ref: &mut RuntimeRef,
     ) -> actor::Context<M, ThreadSafe> {
-        actor::Context::new(pid, inbox, ThreadSafe::new(runtime_ref.clone_shared()))
+        actor::Context::new(inbox, ThreadSafe::new(pid, runtime_ref.clone_shared()))
     }
 }

@@ -155,12 +155,7 @@ impl UdpSocket {
         actor::Context<M, RT>: rt::Access,
     {
         let mut socket = net::UdpSocket::bind(local)?;
-        let pid = ctx.pid();
-        ctx.register(
-            &mut socket,
-            pid.into(),
-            Interest::READABLE | Interest::WRITABLE,
-        )?;
+        ctx.register(&mut socket, Interest::READABLE | Interest::WRITABLE)?;
         #[cfg(target_os = "linux")]
         if let Some(cpu) = ctx.cpu() {
             if let Err(err) = SockRef::from(&socket).set_cpu_affinity(cpu) {
@@ -853,10 +848,6 @@ impl<RT: rt::Access> actor::Bound<RT> for UdpSocket {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
-        ctx.reregister(
-            &mut self.socket,
-            ctx.pid().into(),
-            Interest::READABLE | Interest::WRITABLE,
-        )
+        ctx.reregister(&mut self.socket, Interest::READABLE | Interest::WRITABLE)
     }
 }

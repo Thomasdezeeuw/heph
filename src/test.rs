@@ -117,7 +117,7 @@ where
     NA: NewActor<RuntimeAccess = ThreadLocal>,
 {
     let (manager, sender, receiver) = Manager::new_small_channel();
-    let ctx = actor::Context::new(TEST_PID, receiver, ThreadLocal::new(runtime()));
+    let ctx = actor::Context::new(receiver, ThreadLocal::new(TEST_PID, runtime()));
     let actor = new_actor.new(ctx, arg)?;
     Ok((actor, manager, ActorRef::local(sender)))
 }
@@ -132,7 +132,7 @@ where
     NA: NewActor<RuntimeAccess = ThreadSafe>,
 {
     let (manager, sender, receiver) = Manager::new_small_channel();
-    let ctx = actor::Context::new(TEST_PID, receiver, ThreadSafe::new(SHARED_INTERNAL.clone()));
+    let ctx = actor::Context::new(receiver, ThreadSafe::new(TEST_PID, SHARED_INTERNAL.clone()));
     let actor = new_actor.new(ctx, arg)?;
     Ok((actor, manager, ActorRef::local(sender)))
 }

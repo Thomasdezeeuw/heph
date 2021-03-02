@@ -10,15 +10,14 @@
 //!   after the deadline has passed each interval.
 
 use std::future::Future;
-use std::mem::{replace, ManuallyDrop};
+use std::mem::ManuallyDrop;
 use std::pin::Pin;
 use std::stream::Stream;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{io, ptr};
 
-use crate::actor;
-use crate::rt::{self, ProcessId};
+use crate::{actor, rt};
 
 /// Type returned when the deadline has passed.
 ///
@@ -80,7 +79,6 @@ impl From<DeadlinePassed> for io::Error {
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Timer<RT: rt::Access> {
-    pid: ProcessId,
     deadline: Instant,
     rt: RT,
     // NOTE: when adding fields also add to [`Timer::wrap`].
@@ -92,10 +90,9 @@ impl<RT: rt::Access> Timer<RT> {
     where
         RT: Clone,
     {
-        let pid = ctx.pid();
         let mut rt = ctx.runtime().clone();
-        rt.add_deadline(pid, deadline);
-        Timer { pid, deadline, rt }
+        rt.add_deadline(deadline);
+        Timer { deadline, rt }
     }
 
     /// Create a new timer, based on a timeout.
@@ -127,11 +124,9 @@ impl<RT: rt::Access> Timer<RT> {
         // Safety: See [`ManuallyDrop::take`], rather then taking the entire
         // thing struct at once we read (move out of) value by value.
         let this = ManuallyDrop::new(self);
-        let pid = unsafe { ptr::addr_of!(this.pid).read() };
         let deadline = unsafe { ptr::addr_of!(this.deadline).read() };
         let rt = unsafe { ptr::addr_of!(this.rt).read() };
         Deadline {
-            pid,
             deadline,
             future,
             rt,
@@ -157,15 +152,15 @@ impl<RT: rt::Access> actor::Bound<RT> for Timer<RT> {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
-        let old = replace(&mut self.pid, ctx.pid());
-        self.rt.change_deadline(old, self.pid, self.deadline);
+        let old_pid = self.rt.change_pid(ctx.runtime_ref().pid());
+        self.rt.change_deadline(old_pid, self.deadline);
         Ok(())
     }
 }
 
 impl<RT: rt::Access> Drop for Timer<RT> {
     fn drop(&mut self) {
-        self.rt.remove_deadline(self.pid, self.deadline);
+        self.rt.remove_deadline(self.deadline);
     }
 }
 
@@ -237,7 +232,6 @@ impl<RT: rt::Access> Drop for Timer<RT> {
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Deadline<Fut, RT: rt::Access> {
-    pid: ProcessId,
     deadline: Instant,
     future: Fut,
     rt: RT,
@@ -254,11 +248,9 @@ impl<Fut, RT: rt::Access> Deadline<Fut, RT> {
     where
         RT: Clone,
     {
-        let pid = ctx.pid();
         let mut rt = ctx.runtime().clone();
-        rt.add_deadline(pid, deadline);
+        rt.add_deadline(deadline);
         Deadline {
-            pid,
             deadline,
             future,
             rt,
@@ -302,11 +294,10 @@ impl<Fut, RT: rt::Access> Deadline<Fut, RT> {
 
     /// Returns the wrapped future.
     pub fn into_inner(mut self) -> Fut {
-        self.rt.remove_deadline(self.pid, self.deadline);
+        self.rt.remove_deadline(self.deadline);
         // Safety: See [`ManuallyDrop::take`], rather then taking the entire
         // thing struct at once we read (move out of) value by value.
         let mut this = ManuallyDrop::new(self);
-        unsafe { ptr::addr_of_mut!(this.pid).drop_in_place() }
         unsafe { ptr::addr_of_mut!(this.deadline).drop_in_place() }
         unsafe { ptr::addr_of_mut!(this.rt).drop_in_place() }
         unsafe { ptr::addr_of!(this.future).read() }
@@ -358,15 +349,15 @@ impl<Fut, RT: rt::Access> actor::Bound<RT> for Deadline<Fut, RT> {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
-        let old = replace(&mut self.pid, ctx.pid());
-        self.rt.change_deadline(old, self.pid, self.deadline);
+        let old_pid = self.rt.change_pid(ctx.runtime_ref().pid());
+        self.rt.change_deadline(old_pid, self.deadline);
         Ok(())
     }
 }
 
 impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
     fn drop(&mut self) {
-        self.rt.remove_deadline(self.pid, self.deadline);
+        self.rt.remove_deadline(self.deadline);
     }
 }
 
@@ -428,7 +419,6 @@ impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
 #[derive(Debug)]
 #[must_use = "streams do nothing unless polled"]
 pub struct Interval<RT: rt::Access> {
-    pid: ProcessId,
     deadline: Instant,
     interval: Duration,
     rt: RT,
@@ -442,10 +432,8 @@ impl<RT: rt::Access> Interval<RT> {
     {
         let deadline = Instant::now() + interval;
         let mut rt = ctx.runtime().clone();
-        let pid = ctx.pid();
-        rt.add_deadline(pid, deadline);
+        rt.add_deadline(deadline);
         Interval {
-            pid,
             deadline,
             interval,
             rt,
@@ -467,7 +455,7 @@ impl<RT: rt::Access> Stream for Interval<RT> {
             let next_deadline = Instant::now() + self.interval;
             let this = Pin::get_mut(self);
             this.deadline = next_deadline;
-            this.rt.add_deadline(this.pid, next_deadline);
+            this.rt.add_deadline(next_deadline);
             Poll::Ready(Some(DeadlinePassed))
         } else {
             Poll::Pending
@@ -481,14 +469,14 @@ impl<RT: rt::Access> actor::Bound<RT> for Interval<RT> {
     type Error = !;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> Result<(), !> {
-        let old = replace(&mut self.pid, ctx.pid());
-        self.rt.change_deadline(old, self.pid, self.deadline);
+        let old_pid = self.rt.change_pid(ctx.runtime_ref().pid());
+        self.rt.change_deadline(old_pid, self.deadline);
         Ok(())
     }
 }
 
 impl<RT: rt::Access> Drop for Interval<RT> {
     fn drop(&mut self) {
-        self.rt.remove_deadline(self.pid, self.deadline);
+        self.rt.remove_deadline(self.deadline);
     }
 }
