@@ -1,8 +1,8 @@
-//! Options for adding an [`Actor`] or [`SyncActor`] to a [`Runtime`].
+//! Options for [spawning] an [`Actor`] or [`SyncActor`].
 //!
+//! [spawning]: crate::spawn::Spawn
 //! [`Actor`]: crate::actor::Actor
 //! [`SyncActor`]: crate::actor::SyncActor
-//! [`Runtime`]: crate::Runtime
 
 use std::cmp::Ordering;
 use std::num::NonZeroU8;
@@ -18,7 +18,7 @@ use std::time::Duration;
 /// Using the default options.
 ///
 /// ```
-/// use heph::rt::ActorOptions;
+/// use heph::spawn::ActorOptions;
 ///
 /// let opts = ActorOptions::default();
 /// # drop(opts); // Silence unused variable warning.
@@ -27,7 +27,7 @@ use std::time::Duration;
 /// Giving an actor a high priority.
 ///
 /// ```
-/// use heph::rt::options::{ActorOptions, Priority};
+/// use heph::spawn::options::{ActorOptions, Priority};
 ///
 /// let opts = ActorOptions::default().with_priority(Priority::HIGH);
 /// # drop(opts); // Silence unused variable warning.
@@ -177,7 +177,7 @@ fn priority_duration_multiplication() {
 /// Using the default options.
 ///
 /// ```
-/// use heph::rt::SyncActorOptions;
+/// use heph::spawn::SyncActorOptions;
 ///
 /// let opts = SyncActorOptions::default();
 /// # drop(opts); // Silence unused variable warning.
@@ -186,20 +186,25 @@ fn priority_duration_multiplication() {
 /// Setting the name of the thread that runs the synchronous actor.
 ///
 /// ```
-/// use heph::rt::SyncActorOptions;
+/// use heph::spawn::SyncActorOptions;
 ///
 /// let opts = SyncActorOptions::default().with_name("My sync actor".to_owned());
 /// # drop(opts); // Silence unused variable warning.
 /// ```
 #[derive(Debug)]
 pub struct SyncActorOptions {
-    pub(super) thread_name: Option<String>,
+    thread_name: Option<String>,
 }
 
 impl SyncActorOptions {
     /// Returns the name of thread if any.
     pub fn name(&self) -> Option<&str> {
         self.thread_name.as_deref()
+    }
+
+    /// Removes the thread name.
+    pub(crate) fn take_name(self) -> Option<String> {
+        self.thread_name
     }
 
     /// Set the name of the thread.

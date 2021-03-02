@@ -103,8 +103,9 @@
 //! #![feature(never_type)]
 //!
 //! use heph::actor::SyncContext;
+//! use heph::rt::{self, Runtime};
+//! use heph::spawn::SyncActorOptions;
 //! use heph::supervisor::NoSupervisor;
-//! use heph::rt::{self, Runtime, SyncActorOptions};
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     // Spawning synchronous actor works slightly different from spawning
@@ -169,7 +170,8 @@ pub trait NewActor {
     /// ```
     /// #![feature(never_type)]
     ///
-    /// use heph::rt::{self, ActorOptions, Runtime, ThreadLocal};
+    /// use heph::rt::{self, Runtime, ThreadLocal};
+    /// use heph::spawn::ActorOptions;
     /// use heph::supervisor::NoSupervisor;
     /// use heph::{actor, from_message};
     ///
@@ -287,8 +289,9 @@ pub trait NewActor {
     /// # use heph::actor::messages::Terminate;
     /// # use heph::net::tcp::server;
     /// use heph::net::{TcpServer, TcpStream};
+    /// use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+    /// use heph::spawn::ActorOptions;
     /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
-    /// use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
     /// # use log::error;
     ///
     /// fn main() -> Result<(), rt::Error> {

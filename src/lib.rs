@@ -135,8 +135,8 @@ pub use actor::{Actor, NewActor};
 #[doc(no_inline)]
 pub use actor_ref::ActorRef;
 #[doc(no_inline)]
-pub use rt::{ActorOptions, Runtime, RuntimeRef};
-#[doc(inline)]
-pub use spawn::Spawn;
+pub use rt::{Runtime, RuntimeRef};
+#[doc(no_inline)]
+pub use spawn::{ActorOptions, Spawn, SyncActorOptions};
 #[doc(no_inline)]
 pub use supervisor::{Supervisor, SupervisorStrategy};

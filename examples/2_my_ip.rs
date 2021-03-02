@@ -5,8 +5,8 @@ use std::net::SocketAddr;
 
 use heph::actor::{self, Actor, NewActor};
 use heph::net::{tcp, TcpServer, TcpStream};
-use heph::rt::options::Priority;
-use heph::rt::{self, ActorOptions, Runtime, ThreadLocal};
+use heph::rt::{self, Runtime, ThreadLocal};
+use heph::spawn::options::{ActorOptions, Priority};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
 use log::{error, info};
 

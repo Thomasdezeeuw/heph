@@ -8,8 +8,8 @@ use std::pin::Pin;
 use std::task::Poll;
 
 use heph::actor_ref::{ActorRef, RpcError, RpcMessage, SendError, SendValue};
-use heph::rt::options::Priority;
 use heph::rt::{Runtime, ThreadLocal};
+use heph::spawn::options::Priority;
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
 use heph::{actor, ActorOptions};

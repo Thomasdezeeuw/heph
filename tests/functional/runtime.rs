@@ -8,8 +8,8 @@ use std::thread::{self, sleep};
 use std::time::Duration;
 
 use heph::actor::{self, SyncContext};
-use heph::rt::options::{ActorOptions, Priority, SyncActorOptions};
 use heph::rt::{Runtime, ThreadLocal, ThreadSafe};
+use heph::spawn::options::{ActorOptions, Priority, SyncActorOptions};
 use heph::supervisor::NoSupervisor;
 
 use crate::util::temp_file;
@@ -37,7 +37,8 @@ fn auto_cpu_affinity() {
     use heph::actor::messages::Terminate;
     use heph::net::tcp::server;
     use heph::net::{TcpServer, TcpStream};
-    use heph::rt::{ActorOptions, RuntimeRef, ThreadLocal};
+    use heph::rt::{RuntimeRef, ThreadLocal};
+    use heph::spawn::ActorOptions;
     use heph::supervisor::{Supervisor, SupervisorStrategy};
     use heph::{actor, ActorRef, NewActor};
 

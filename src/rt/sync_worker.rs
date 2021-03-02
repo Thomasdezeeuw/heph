@@ -10,7 +10,7 @@ use mio::{Interest, Registry, Token};
 
 use crate::actor::{SyncActor, SyncContext};
 use crate::actor_ref::ActorRef;
-use crate::rt::options::SyncActorOptions;
+use crate::spawn::options::SyncActorOptions;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 use crate::trace;
 
@@ -45,7 +45,7 @@ impl SyncWorker {
             let (manager, send, _) = inbox::Manager::new_small_channel();
             let actor_ref = ActorRef::local(send);
             let thread_name = options
-                .thread_name
+                .take_name()
                 .unwrap_or_else(|| format!("Sync actor {}", id));
             thread::Builder::new()
                 .name(thread_name)

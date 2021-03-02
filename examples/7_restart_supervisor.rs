@@ -5,7 +5,8 @@ use std::time::Duration;
 
 use heph::actor::{self, SyncContext};
 use heph::restart_supervisor;
-use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, SyncActorOptions, ThreadLocal};
+use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+use heph::spawn::{ActorOptions, SyncActorOptions};
 
 fn main() -> Result<(), rt::Error> {
     std_logger::init();

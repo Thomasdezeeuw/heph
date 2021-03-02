@@ -14,8 +14,8 @@ use crate::actor::{self, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::timers::Timers;
-use crate::rt::{ActorOptions, ProcessId, ThreadSafe};
-use crate::spawn::AddActorError;
+use crate::rt::{ProcessId, ThreadSafe};
+use crate::spawn::{ActorOptions, AddActorError};
 use crate::supervisor::Supervisor;
 
 mod scheduler;

@@ -8,8 +8,8 @@ use std::time::{Duration, Instant};
 use log::trace;
 use mio::Token;
 
-use crate::rt::options::Priority;
 use crate::rt::RuntimeRef;
+use crate::spawn::options::Priority;
 
 mod actor;
 #[cfg(test)]

@@ -25,7 +25,8 @@
 //! #
 //! use heph::actor;
 //! use heph::actor_ref::{ActorRef, RpcMessage};
-//! use heph::rt::{self, Runtime, ActorOptions, ThreadLocal};
+//! use heph::rt::{self, Runtime, ThreadLocal};
+//! use heph::spawn::ActorOptions;
 //! use heph::supervisor::NoSupervisor;
 //!
 //! /// Message type for [`counter`].

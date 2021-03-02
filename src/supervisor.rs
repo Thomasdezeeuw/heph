@@ -61,9 +61,10 @@
 //! #![feature(never_type)]
 //!
 //! use heph::actor;
+//! use heph::rt::{self, ThreadLocal, Runtime};
+//! use heph::spawn::ActorOptions;
 //! use heph::supervisor::SupervisorStrategy;
 //! use log::error;
-//! use heph::rt::{self, ThreadLocal, ActorOptions, Runtime};
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     // Enable logging so we can see the error message.
@@ -222,7 +223,8 @@ where
 /// #![feature(never_type)]
 ///
 /// use heph::actor;
-/// use heph::rt::{self, ThreadLocal, ActorOptions, Runtime};
+/// use heph::rt::{self, ThreadLocal, Runtime};
+/// use heph::spawn::ActorOptions;
 /// use heph::supervisor::NoSupervisor;
 ///
 /// fn main() -> Result<(), rt::Error> {

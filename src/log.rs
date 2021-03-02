@@ -18,7 +18,8 @@
 //! #![feature(never_type)]
 //!
 //! use heph::actor;
-//! use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
+//! use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+//! use heph::spawn::ActorOptions;
 //! use heph::supervisor::NoSupervisor;
 //! use log::info;
 //!
