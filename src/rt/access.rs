@@ -6,7 +6,7 @@ use std::mem::replace;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::time::Instant;
-use std::{fmt, io};
+use std::{fmt, io, task};
 
 use mio::{event, Interest};
 
@@ -55,6 +55,9 @@ pub trait PrivateAccess {
 
     /// Changes a deadline's pid from `old_pid` the current pid.
     fn change_deadline(&mut self, old_pid: ProcessId, deadline: Instant);
+
+    /// Create a new [`task::Waker`].
+    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
 
     /// Returns the CPU the thread is bound to, if any.
     fn cpu(&self) -> Option<usize>;
@@ -136,6 +139,10 @@ impl PrivateAccess for ThreadLocal {
 
     fn change_deadline(&mut self, old_pid: ProcessId, deadline: Instant) {
         self.rt.change_deadline(old_pid, self.pid, deadline);
+    }
+
+    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
+        runtime_ref.new_local_task_waker(pid)
     }
 
     fn cpu(&self) -> Option<usize> {
@@ -231,6 +238,10 @@ impl PrivateAccess for ThreadSafe {
         self.rt.change_deadline(old_pid, self.pid, deadline);
     }
 
+    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
+        runtime_ref.new_shared_task_waker(pid)
+    }
+
     fn cpu(&self) -> Option<usize> {
         None
     }
@@ -312,7 +323,11 @@ where
     }
 
     fn change_deadline(&mut self, old_pid: ProcessId, deadline: Instant) {
-        self.runtime().change_deadline(old_pid, deadline);
+        self.runtime().change_deadline(old_pid, deadline)
+    }
+
+    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
+        RT::new_task_waker(runtime_ref, pid)
     }
 
     fn cpu(&self) -> Option<usize> {
