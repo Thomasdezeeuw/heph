@@ -9,11 +9,8 @@ use std::{fmt, io};
 use inbox::{Receiver, RecvValue};
 use mio::{event, Interest, Token};
 
-use crate::actor::NewActor;
 use crate::actor_ref::ActorRef;
-use crate::rt::{self, ActorOptions, ProcessId, ThreadLocal};
-use crate::spawn::{AddActorError, PrivateSpawn, Spawn};
-use crate::supervisor::Supervisor;
+use crate::rt::{self, ProcessId, ThreadLocal};
 
 /// The context in which an actor is executed.
 ///
@@ -162,36 +159,6 @@ impl<M, RT> Context<M, RT> {
     /// Sets the waker of the inbox to `waker`.
     pub(crate) fn register_inbox_waker(&mut self, waker: &task::Waker) {
         let _ = self.inbox.register_waker(waker);
-    }
-}
-
-impl<M, RT, S, NA> Spawn<S, NA, RT> for Context<M, RT>
-where
-    NA: NewActor<RuntimeAccess = RT>,
-    RT: Spawn<S, NA, RT>,
-{
-}
-
-impl<M, RT, S, NA> PrivateSpawn<S, NA, RT> for Context<M, RT>
-where
-    NA: NewActor<RuntimeAccess = RT>,
-    RT: PrivateSpawn<S, NA, RT>,
-{
-    fn try_spawn_setup<ArgFn, ArgFnE>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg_fn: ArgFn,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
-    where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<RuntimeAccess = RT> + 'static,
-        NA::Actor: 'static,
-        ArgFn: FnOnce(&mut Context<NA::Message, RT>) -> Result<NA::Argument, ArgFnE>,
-    {
-        self.rt
-            .try_spawn_setup(supervisor, new_actor, arg_fn, options)
     }
 }
 
