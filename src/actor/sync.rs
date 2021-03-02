@@ -36,9 +36,10 @@ use crate::trace;
 /// ```
 /// use heph::actor::SyncContext;
 /// # use heph::actor_ref::ActorRef;
-/// use heph::supervisor::NoSupervisor;
-/// use heph::rt::{self, Runtime, SyncActorOptions, Signal};
 /// use heph::from_message;
+/// use heph::rt::{self, Runtime, Signal};
+/// use heph::spawn::SyncActorOptions;
+/// use heph::supervisor::NoSupervisor;
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     // Spawning synchronous actor works slightly differently than spawning

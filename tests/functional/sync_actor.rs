@@ -8,7 +8,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use heph::actor::{RecvError, SyncContext};
-use heph::rt::SyncActorOptions;
+use heph::spawn::SyncActorOptions;
 use heph::supervisor::NoSupervisor;
 use heph::test::spawn_sync_actor;
 

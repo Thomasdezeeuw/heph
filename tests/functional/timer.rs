@@ -8,7 +8,8 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use heph::actor::{self, Bound};
-use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
+use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor, poll_future, poll_next};
 use heph::timer::{Deadline, DeadlinePassed, Interval, Timer};

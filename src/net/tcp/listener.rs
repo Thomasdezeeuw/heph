@@ -38,7 +38,8 @@ use crate::rt::{self, PrivateAccess};
 ///
 /// # use heph::net::TcpStream;
 /// use heph::net::TcpListener;
-/// use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
+/// use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+/// use heph::spawn::ActorOptions;
 /// use heph::{actor, SupervisorStrategy};
 /// use log::info;
 ///
@@ -103,7 +104,8 @@ use crate::rt::{self, PrivateAccess};
 ///
 /// # use heph::net::TcpStream;
 /// use heph::net::TcpListener;
-/// use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
+/// use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+/// use heph::spawn::ActorOptions;
 /// use heph::util::next;
 /// use heph::{actor, SupervisorStrategy};
 ///

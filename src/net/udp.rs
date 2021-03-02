@@ -65,9 +65,10 @@ pub enum Connected {}
 ///
 /// use heph::actor::messages::Terminate;
 /// use heph::net::UdpSocket;
+/// use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+/// use heph::spawn::ActorOptions;
 /// use heph::util::either;
 /// use heph::{actor, SupervisorStrategy};
-/// use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     std_logger::init();

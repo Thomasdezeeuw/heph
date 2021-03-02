@@ -3,9 +3,8 @@
 use std::convert::TryFrom;
 
 use heph::actor::{self, SyncContext};
-use heph::rt::{
-    self, ActorOptions, Runtime, RuntimeRef, Signal, SyncActorOptions, ThreadLocal, ThreadSafe,
-};
+use heph::rt::{self, Runtime, RuntimeRef, Signal, ThreadLocal, ThreadSafe};
+use heph::spawn::{ActorOptions, SyncActorOptions};
 use heph::supervisor::NoSupervisor;
 
 fn main() -> Result<(), rt::Error> {

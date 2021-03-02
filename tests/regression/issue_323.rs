@@ -5,7 +5,8 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use heph::actor::SyncContext;
-use heph::rt::{Runtime, SyncActorOptions};
+use heph::rt::Runtime;
+use heph::spawn::SyncActorOptions;
 use heph::supervisor::NoSupervisor;
 
 #[test]

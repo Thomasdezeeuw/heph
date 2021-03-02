@@ -60,7 +60,8 @@
 //! #![feature(never_type)]
 //!
 //! use heph::actor;
-//! use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
+//! use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+//! use heph::spawn::ActorOptions;
 //! use heph::supervisor::NoSupervisor;
 //!
 //! fn main() -> Result<(), rt::Error> {
@@ -124,7 +125,7 @@ use mio::{event, Interest, Token};
 
 use crate::actor::{self, NewActor, SyncActor};
 use crate::actor_ref::{ActorGroup, ActorRef};
-use crate::spawn::{AddActorError, PrivateSpawn, Spawn};
+use crate::spawn::{ActorOptions, AddActorError, PrivateSpawn, Spawn, SyncActorOptions};
 use crate::supervisor::{Supervisor, SyncSupervisor};
 use crate::trace;
 
@@ -133,7 +134,6 @@ pub(crate) mod channel;
 mod coordinator;
 mod error;
 pub(crate) mod local;
-pub mod options;
 mod process;
 mod setup;
 pub(crate) mod shared;
@@ -150,7 +150,6 @@ pub(crate) use timers::Timers; // Needed by the `test` module.
 
 pub use access::{Access, ThreadLocal, ThreadSafe};
 pub use error::Error;
-pub use options::{ActorOptions, SyncActorOptions};
 pub use setup::Setup;
 pub use signal::Signal;
 
@@ -277,7 +276,7 @@ impl Runtime {
         A::Argument: Send + 'static,
     {
         let id = SYNC_WORKER_ID_START + self.sync_actors.len();
-        match options.thread_name.as_ref() {
+        match options.name() {
             Some(name) => debug!("spawning synchronous actor: pid={}, name='{}'", id, name),
             None => debug!("spawning synchronous actor: pid={}", id),
         }

@@ -2,10 +2,14 @@
 
 use crate::actor::{self, NewActor};
 use crate::actor_ref::ActorRef;
-use crate::rt::ActorOptions;
 use crate::supervisor::Supervisor;
 
+pub mod options;
+
 pub(crate) use private::{AddActorError, PrivateSpawn};
+
+#[doc(no_inline)]
+pub use options::{ActorOptions, SyncActorOptions};
 
 /// The `Spawn` trait defines how new actors are added to the runtime.
 pub trait Spawn<S, NA, RT>: PrivateSpawn<S, NA, RT> {
@@ -72,7 +76,7 @@ mod private {
 
     use crate::actor::{self, NewActor};
     use crate::actor_ref::ActorRef;
-    use crate::rt::ActorOptions;
+    use crate::spawn::ActorOptions;
     use crate::supervisor::Supervisor;
 
     /// Private version of the [`Spawn`]  trait.

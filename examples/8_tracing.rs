@@ -7,7 +7,8 @@ use log::warn;
 
 use heph::actor::{self, SyncContext};
 use heph::actor_ref::{ActorRef, SendError};
-use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, SyncActorOptions, ThreadLocal};
+use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+use heph::spawn::{ActorOptions, SyncActorOptions};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
 
 fn main() -> Result<(), rt::Error> {

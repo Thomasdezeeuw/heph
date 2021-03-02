@@ -13,8 +13,8 @@ use mio::{event, Interest};
 use crate::actor::{self, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::rt::process::ProcessId;
-use crate::rt::{shared, ActorOptions, RuntimeRef};
-use crate::spawn::{AddActorError, PrivateSpawn, Spawn};
+use crate::rt::{shared, RuntimeRef};
+use crate::spawn::{ActorOptions, AddActorError, PrivateSpawn, Spawn};
 use crate::supervisor::Supervisor;
 
 /// Trait to indicate an API needs access to the Heph runtime.

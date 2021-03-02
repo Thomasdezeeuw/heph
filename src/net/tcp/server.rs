@@ -18,8 +18,8 @@ use socket2::{Domain, Protocol, Socket, Type};
 use crate::actor::messages::Terminate;
 use crate::actor::{self, Actor, NewActor};
 use crate::net::TcpStream;
-use crate::rt::{self, ActorOptions, PrivateAccess, Signal};
-use crate::spawn::{AddActorError, PrivateSpawn, Spawn};
+use crate::rt::{self, PrivateAccess, Signal};
+use crate::spawn::{ActorOptions, AddActorError, PrivateSpawn, Spawn};
 use crate::supervisor::Supervisor;
 
 /// A intermediate structure that implements [`NewActor`], creating
@@ -156,8 +156,9 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// # use heph::actor::messages::Terminate;
 /// use heph::actor::{self, NewActor};
 /// use heph::net::tcp::{server, TcpServer, TcpStream};
-/// use heph::rt::options::Priority;
-/// use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
+/// use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+/// use heph::spawn::ActorOptions;
+/// use heph::spawn::options::Priority;
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use log::error;
 ///
@@ -251,8 +252,8 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use heph::actor::{self, NewActor};
 /// # use heph::net::tcp;
 /// use heph::net::{TcpServer, TcpStream};
-/// use heph::rt::options::Priority;
-/// use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
+/// use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+/// use heph::spawn::options::{ActorOptions, Priority};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use log::error;
 ///
@@ -336,9 +337,9 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use heph::actor::{self, NewActor};
 /// # use heph::actor::messages::Terminate;
 /// use heph::net::tcp::{server, TcpServer, TcpStream};
+/// use heph::rt::{self, Runtime, ThreadSafe};
+/// use heph::spawn::options::{ActorOptions, Priority};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
-/// use heph::rt::options::Priority;
-/// use heph::rt::{self, Runtime, ThreadSafe, ActorOptions};
 /// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error> {

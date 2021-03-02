@@ -39,9 +39,10 @@ use crate::rt::shared::{waker, Scheduler};
 use crate::rt::sync_worker::SyncWorker;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
-    shared, ProcessId, RuntimeRef, SyncActorOptions, ThreadLocal, ThreadSafe, Timers,
-    SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
+    shared, ProcessId, RuntimeRef, ThreadLocal, ThreadSafe, Timers, SYNC_WORKER_ID_END,
+    SYNC_WORKER_ID_START,
 };
+use crate::spawn::SyncActorOptions;
 use crate::supervisor::SyncSupervisor;
 
 pub(crate) const TEST_PID: ProcessId = ProcessId(0);

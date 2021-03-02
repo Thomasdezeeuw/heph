@@ -8,7 +8,8 @@
 use log::info;
 
 use heph::actor;
-use heph::rt::{self, ActorOptions, Runtime, ThreadLocal};
+use heph::rt::{self, Runtime, ThreadLocal};
+use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
 
 fn main() -> Result<(), rt::Error> {
