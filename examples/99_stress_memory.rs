@@ -23,7 +23,7 @@ fn main() -> Result<(), rt::Error> {
         for _ in 0..N {
             let actor = actor as fn(_) -> _;
             // Don't run the actors at that will remove them from memory.
-            let options = ActorOptions::default().mark_not_ready();
+            let options = ActorOptions::default().mark_ready(false);
             runtime_ref.spawn_local(NoSupervisor, actor, (), options);
         }
         info!("Spawning took {:?}", start.elapsed());
