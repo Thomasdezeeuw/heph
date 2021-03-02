@@ -1,16 +1,14 @@
 //! Module containing the `Context` and related types.
 
+use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
-use std::time::Instant;
-use std::{fmt, io};
 
 use inbox::{Receiver, RecvValue};
-use mio::{event, Interest, Token};
 
 use crate::actor_ref::ActorRef;
-use crate::rt::{self, ProcessId, ThreadLocal};
+use crate::rt::{ProcessId, ThreadLocal};
 
 /// The context in which an actor is executed.
 ///
@@ -151,6 +149,10 @@ impl<M, RT> Context<M, RT> {
         &mut self.rt
     }
 
+    pub(crate) fn runtime_ref(&self) -> &RT {
+        &self.rt
+    }
+
     /// Get the pid of this actor.
     pub(crate) const fn pid(&self) -> ProcessId {
         self.pid
@@ -159,43 +161,6 @@ impl<M, RT> Context<M, RT> {
     /// Sets the waker of the inbox to `waker`.
     pub(crate) fn register_inbox_waker(&mut self, waker: &task::Waker) {
         let _ = self.inbox.register_waker(waker);
-    }
-}
-
-impl<M, RT> rt::Access for Context<M, RT> where RT: rt::Access {}
-
-impl<M, RT> rt::PrivateAccess for Context<M, RT>
-where
-    RT: rt::PrivateAccess,
-{
-    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.rt.register(source, token, interest)
-    }
-
-    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.rt.reregister(source, token, interest)
-    }
-
-    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.rt.add_deadline(pid, deadline)
-    }
-
-    fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        self.rt.remove_deadline(pid, deadline)
-    }
-
-    fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant) {
-        self.rt.change_deadline(from, to, deadline);
-    }
-
-    fn cpu(&self) -> Option<usize> {
-        self.rt.cpu()
     }
 }
 

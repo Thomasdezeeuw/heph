@@ -245,3 +245,40 @@ impl fmt::Debug for ThreadSafe {
         f.write_str("ThreadSafe")
     }
 }
+
+impl<M, RT> Access for actor::Context<M, RT> where RT: Access {}
+
+impl<M, RT> PrivateAccess for actor::Context<M, RT>
+where
+    RT: PrivateAccess,
+{
+    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    where
+        S: event::Source + ?Sized,
+    {
+        self.runtime().register(source, token, interest)
+    }
+
+    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
+    where
+        S: event::Source + ?Sized,
+    {
+        self.runtime().reregister(source, token, interest)
+    }
+
+    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
+        self.runtime().add_deadline(pid, deadline)
+    }
+
+    fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
+        self.runtime().remove_deadline(pid, deadline)
+    }
+
+    fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant) {
+        self.runtime().change_deadline(from, to, deadline);
+    }
+
+    fn cpu(&self) -> Option<usize> {
+        self.runtime_ref().cpu()
+    }
+}
