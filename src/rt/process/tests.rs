@@ -156,7 +156,7 @@ fn process_data_runtime_increase() {
     assert!(process.fair_runtime >= SLEEP_TIME);
 }
 
-async fn ok_actor(mut ctx: actor::Context<()>) {
+async fn ok_actor(mut ctx: actor::Context<(), ThreadLocal>) {
     assert_eq!(ctx.receive_next().await, Ok(()));
 }
 
@@ -182,7 +182,7 @@ fn actor_process() {
     assert_eq!(res, ProcessResult::Complete);
 }
 
-async fn error_actor(mut ctx: actor::Context<()>, fail: bool) -> Result<(), ()> {
+async fn error_actor(mut ctx: actor::Context<(), ThreadLocal>, fail: bool) -> Result<(), ()> {
     if fail {
         Err(())
     } else {
@@ -267,7 +267,7 @@ impl NewActor for TestAssertUnmovedNewActor {
 
     fn new(
         &mut self,
-        _: actor::Context<Self::Message>,
+        _: actor::Context<Self::Message, ThreadLocal>,
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         Ok(AssertUnmoved::new(pending()))

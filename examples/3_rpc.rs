@@ -2,9 +2,10 @@
 
 use std::fmt;
 
+use heph::actor;
 use heph::actor_ref::{ActorRef, RpcMessage};
+use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
 use heph::supervisor::NoSupervisor;
-use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef};
 
 fn main() -> Result<(), rt::Error> {
     // Setup is much like example 1, see that example for more information.
@@ -24,7 +25,7 @@ fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
     Ok(())
 }
 
-async fn ping_actor(_: actor::Context<!>, actor_ref: ActorRef<PongMessage>) {
+async fn ping_actor(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<PongMessage>) {
     // Make a Remote Procedure Call (RPC) and await the response.
     match actor_ref.rpc(Ping).await {
         Ok(response) => println!("Got a RPC response: {}", response),
@@ -35,7 +36,7 @@ async fn ping_actor(_: actor::Context<!>, actor_ref: ActorRef<PongMessage>) {
 // Message type to support the ping-pong RPC.
 type PongMessage = RpcMessage<Ping, Pong>;
 
-async fn pong_actor(mut ctx: actor::Context<PongMessage>) {
+async fn pong_actor(mut ctx: actor::Context<PongMessage, ThreadLocal>) {
     // Await a message, same as all other messages.
     while let Ok(msg) = ctx.receive_next().await {
         // Next we respond to the request.

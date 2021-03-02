@@ -7,8 +7,9 @@
 
 use log::info;
 
+use heph::actor;
+use heph::rt::{self, ActorOptions, Runtime, ThreadLocal};
 use heph::supervisor::NoSupervisor;
-use heph::{actor, rt, ActorOptions, Runtime};
 
 fn main() -> Result<(), rt::Error> {
     std_logger::init();
@@ -39,11 +40,11 @@ fn main() -> Result<(), rt::Error> {
 }
 
 /// Our "actor", but it doesn't do much.
-async fn actor(_: actor::Context<!>) {
+async fn actor(_: actor::Context<!, ThreadLocal>) {
     /* Nothing. */
 }
 
-async fn control_actor(_: actor::Context<!>) {
+async fn control_actor(_: actor::Context<!, ThreadLocal>) {
     info!("Running, check the memory usage!");
     info!("Send a signal (e.g. by pressing Ctrl-C) to stop.");
 }

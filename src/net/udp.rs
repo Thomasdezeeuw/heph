@@ -66,7 +66,8 @@ pub enum Connected {}
 /// use heph::actor::messages::Terminate;
 /// use heph::net::UdpSocket;
 /// use heph::util::either;
-/// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
+/// use heph::{actor, SupervisorStrategy};
+/// use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     std_logger::init();
@@ -93,7 +94,7 @@ pub enum Connected {}
 ///
 /// /// Actor that will bind a UDP socket and waits for incoming packets and
 /// /// echos the message to standard out.
-/// async fn echo_server(mut ctx: actor::Context<Terminate>, local: SocketAddr) -> io::Result<()> {
+/// async fn echo_server(mut ctx: actor::Context<Terminate, ThreadLocal>, local: SocketAddr) -> io::Result<()> {
 ///     let mut socket = UdpSocket::bind(&mut ctx, local)?;
 ///     let mut buf = Vec::with_capacity(4096);
 ///     loop {
@@ -118,7 +119,7 @@ pub enum Connected {}
 /// }
 ///
 /// /// The client that will send a message to the server.
-/// async fn client(mut ctx: actor::Context<!>, server_address: SocketAddr) -> io::Result<()> {
+/// async fn client(mut ctx: actor::Context<!, ThreadLocal>, server_address: SocketAddr) -> io::Result<()> {
 ///     let local_address = "127.0.0.1:7001".parse().unwrap();
 ///     let mut socket = UdpSocket::bind(&mut ctx, local_address)
 ///         .and_then(|socket| socket.connect(server_address))?;

@@ -30,8 +30,9 @@
 //! ```
 //! #![feature(never_type)]
 //!
+//! use heph::actor;
 //! use heph::supervisor::NoSupervisor;
-//! use heph::{actor, rt, ActorOptions, Runtime};
+//! use heph::rt::{self, ActorOptions, Runtime, ThreadLocal};
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     let mut runtime = Runtime::new()?;
@@ -49,7 +50,7 @@
 //! }
 //!
 //! /// Our actor.
-//! async fn actor(mut ctx: actor::Context<String>) {
+//! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
 //!     if let Ok(msg) = ctx.receive_next().await {
 //!         println!("got message: {}", msg);
 //!     }
@@ -66,8 +67,9 @@
 //! ```
 //! #![feature(never_type)]
 //!
+//! use heph::actor;
 //! use heph::supervisor::NoSupervisor;
-//! use heph::{actor, rt, ActorOptions, Runtime};
+//! use heph::rt::{self, ActorOptions, Runtime, ThreadLocal};
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     let mut runtime = Runtime::new()?;
@@ -89,7 +91,7 @@
 //! }
 //!
 //! /// Our actor.
-//! async fn actor(mut ctx: actor::Context<String>) {
+//! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
 //!     if let Ok(msg) = ctx.receive_next().await {
 //!         println!("First message: {}", msg);
 //!     }

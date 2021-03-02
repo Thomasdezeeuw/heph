@@ -49,7 +49,7 @@ fn auto_cpu_affinity() {
     }
 
     async fn stream_actor(
-        mut ctx: actor::Context<!>,
+        mut ctx: actor::Context<!, ThreadLocal>,
         address: SocketAddr,
         server_ref: ActorRef<server::Message>,
     ) -> io::Result<()> {
@@ -63,7 +63,7 @@ fn auto_cpu_affinity() {
     }
 
     async fn accepted_stream_actor(
-        _: actor::Context<!>,
+        _: actor::Context<!, ThreadLocal>,
         stream: TcpStream,
         _: SocketAddr,
     ) -> io::Result<()> {
@@ -116,8 +116,7 @@ fn auto_cpu_affinity() {
         check_thread_affinity(0)?;
 
         let address = "127.0.0.1:0".parse().unwrap();
-        let accepted_stream_actor =
-            accepted_stream_actor as fn(actor::Context<!>, TcpStream, SocketAddr) -> _;
+        let accepted_stream_actor = accepted_stream_actor as fn(_, TcpStream, SocketAddr) -> _;
         let server = TcpServer::setup(
             address,
             |err: io::Error| panic!("unexpected error: {}", err),

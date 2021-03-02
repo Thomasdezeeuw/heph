@@ -8,11 +8,12 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use heph::actor::{self, Bound};
+use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor, poll_future, poll_next};
 use heph::timer::{Deadline, DeadlinePassed, Interval, Timer};
 use heph::util::next;
-use heph::{rt, ActorOptions, ActorRef, Runtime, RuntimeRef};
+use heph::ActorRef;
 
 use crate::util::{count_polls, expect_pending};
 
@@ -27,7 +28,7 @@ fn deadline_passed_into_io_error() {
 
 #[test]
 fn timer() {
-    async fn actor(mut ctx: actor::Context<!>) {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
         let start = Instant::now();
         let mut timer = Timer::after(&mut ctx, TIMEOUT);
         assert!(timer.deadline() >= start + TIMEOUT);
@@ -60,7 +61,7 @@ impl Future for AlwaysPending {
 
 #[test]
 fn timer_wrap() {
-    async fn actor(mut ctx: actor::Context<!>) {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
         let start = Instant::now();
         let future = AlwaysPending;
         let mut deadline = Timer::after(&mut ctx, TIMEOUT).wrap(future);
@@ -84,7 +85,7 @@ fn timer_wrap() {
 
 #[test]
 fn deadline() {
-    async fn actor(mut ctx: actor::Context<!>) {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
         let start = Instant::now();
         let future = AlwaysPending;
         let mut deadline = Deadline::after(&mut ctx, TIMEOUT, future.clone());
@@ -113,7 +114,7 @@ fn deadline() {
 
 #[test]
 fn interval() {
-    async fn actor(mut ctx: actor::Context<!>) {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
         let start = Instant::now();
         let mut interval = Interval::every(&mut ctx, TIMEOUT);
         assert!(interval.next_deadline() >= start + TIMEOUT);

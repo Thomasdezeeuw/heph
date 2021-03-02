@@ -8,6 +8,7 @@ use std::task::Poll;
 
 use heph::actor;
 use heph::actor_ref::{ActorGroup, Delivery};
+use heph::rt::ThreadLocal;
 use heph::test::{init_local_actor, poll_actor};
 
 use crate::util::{assert_send, assert_size, assert_sync};
@@ -37,7 +38,7 @@ fn empty() {
     assert!(group.is_empty());
 }
 
-async fn expect_msgs<M>(mut ctx: actor::Context<M>, expected: Vec<M>)
+async fn expect_msgs<M>(mut ctx: actor::Context<M, ThreadLocal>, expected: Vec<M>)
 where
     M: Eq + fmt::Debug,
 {

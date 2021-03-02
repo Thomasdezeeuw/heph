@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::task::Poll;
 
 use heph::actor::{self, NoMessages, RecvError};
-use heph::rt::{ActorOptions, Runtime, Signal, ThreadSafe};
+use heph::rt::{ActorOptions, Runtime, Signal, ThreadLocal, ThreadSafe};
 use heph::spawn::Spawn;
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
@@ -19,7 +19,7 @@ fn thread_safe_is_send_sync() {
     assert_sync::<actor::Context<(), ThreadSafe>>();
 }
 
-async fn local_actor_context_actor(mut ctx: actor::Context<usize>) {
+async fn local_actor_context_actor(mut ctx: actor::Context<usize, ThreadLocal>) {
     assert_eq!(ctx.try_receive_next(), Err(RecvError::Empty));
 
     let msg = ctx.receive_next().await.unwrap();
@@ -47,7 +47,7 @@ fn local_actor_context() {
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
 }
 
-async fn actor_ref_actor(mut ctx: actor::Context<usize>) {
+async fn actor_ref_actor(mut ctx: actor::Context<usize, ThreadLocal>) {
     assert_eq!(ctx.receive_next().await, Err(NoMessages));
 
     // Send a message to ourselves.
@@ -67,7 +67,7 @@ fn actor_ref() {
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
 }
 
-async fn runtime_actor(mut ctx: actor::Context<Signal>) {
+async fn runtime_actor(mut ctx: actor::Context<Signal, ThreadLocal>) {
     let actor_ref = ctx.actor_ref();
     ctx.runtime().receive_signals(actor_ref);
 }

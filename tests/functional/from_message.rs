@@ -6,6 +6,7 @@ use std::pin::Pin;
 use std::task::Poll;
 
 use heph::actor_ref::{ActorRef, RpcMessage};
+use heph::rt::ThreadLocal;
 use heph::test::{init_local_actor, poll_actor};
 use heph::{actor, from_message};
 
@@ -53,7 +54,7 @@ fn from_message() {
     );
 }
 
-async fn ping_actor(_: actor::Context<!>, actor_ref: ActorRef<Message>) {
+async fn ping_actor(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<Message>) {
     actor_ref.send("Hello!".to_owned()).await.unwrap();
 
     let response = actor_ref.rpc("Rpc".to_owned()).await.unwrap();
@@ -63,7 +64,7 @@ async fn ping_actor(_: actor::Context<!>, actor_ref: ActorRef<Message>) {
     assert_eq!(response, (1, 2));
 }
 
-async fn pong_actor(mut ctx: actor::Context<Message>) {
+async fn pong_actor(mut ctx: actor::Context<Message, ThreadLocal>) {
     let msg = ctx.receive_next().await.unwrap();
     assert!(matches!(msg, Message::Msg(msg) if msg == "Hello!"));
 

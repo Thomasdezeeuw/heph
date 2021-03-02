@@ -11,7 +11,7 @@ use heph::actor::messages::Terminate;
 use heph::actor::{self, Actor, NewActor};
 use heph::net::tcp::server;
 use heph::net::{TcpServer, TcpStream};
-use heph::rt::{self, ActorOptions, Signal};
+use heph::rt::{self, ActorOptions, Signal, ThreadLocal};
 use heph::spawn::Spawn;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::test::init_local_actor;
@@ -141,7 +141,7 @@ fn smoke() {
 
 #[test]
 fn zero_port() {
-    let actor = actor as fn(actor::Context<!>, _, _) -> _;
+    let actor = actor as fn(actor::Context<!, ThreadLocal>, _, _) -> _;
     let server = TcpServer::setup(
         any_local_address(),
         |err| panic!("unexpect error: {}", err),

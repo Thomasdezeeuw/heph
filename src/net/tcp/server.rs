@@ -154,11 +154,11 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::net::SocketAddr;
 ///
 /// # use heph::actor::messages::Terminate;
+/// use heph::actor::{self, NewActor};
 /// use heph::net::tcp::{server, TcpServer, TcpStream};
 /// use heph::rt::options::Priority;
+/// use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
-/// # use heph::rt::ThreadLocal;
-/// use heph::{rt, actor, NewActor, ActorOptions, Runtime, RuntimeRef};
 /// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error> {
@@ -232,7 +232,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// }
 ///
 /// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+/// async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
 ///     stream.send_all(b"Hello World").await
 /// }
@@ -248,12 +248,12 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::net::SocketAddr;
 ///
 /// use heph::actor::messages::Terminate;
+/// use heph::actor::{self, NewActor};
 /// # use heph::net::tcp;
 /// use heph::net::{TcpServer, TcpStream};
-/// # use heph::rt::ThreadLocal;
 /// use heph::rt::options::Priority;
+/// use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
-/// use heph::{actor, NewActor, rt, ActorOptions, Runtime, RuntimeRef};
 /// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error> {
@@ -317,7 +317,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// # }
 /// #
 /// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_: actor::Context<!>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
+/// async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
 /// #   drop(address); // Silence dead code warnings.
 ///     stream.send_all(b"Hello World").await
 /// }

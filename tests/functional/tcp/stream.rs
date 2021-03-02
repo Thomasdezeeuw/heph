@@ -12,6 +12,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use heph::net::{TcpListener, TcpStream};
+use heph::rt::ThreadLocal;
 use heph::test::{init_local_actor, poll_actor};
 use heph::{actor, Actor, ActorRef};
 
@@ -54,7 +55,10 @@ impl Future for WaitOnce {
 
 #[test]
 fn smoke() {
-    async fn actor(mut ctx: actor::Context<SocketAddr>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(
+        mut ctx: actor::Context<SocketAddr, ThreadLocal>,
+        address: SocketAddr,
+    ) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         assert_eq!(stream.peer_addr().unwrap(), address);
@@ -109,7 +113,7 @@ fn smoke() {
 fn connect() {
     static STAGE: Stage = Stage::new();
 
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         STAGE.update(0);
         let connect = TcpStream::connect(&mut ctx, address)?;
         STAGE.update(1);
@@ -148,7 +152,7 @@ fn connect() {
 fn connect_connection_refused() {
     static STAGE: Stage = Stage::new();
 
-    async fn actor(mut ctx: actor::Context<!>) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
         STAGE.update(0);
         let connect = TcpStream::connect(&mut ctx, refused_address()).unwrap();
         STAGE.update(1);
@@ -176,7 +180,7 @@ fn connect_connection_refused() {
 fn try_recv() {
     static STAGE: Stage = Stage::new();
 
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         STAGE.update(0);
         let connect = TcpStream::connect(&mut ctx, address)?;
         STAGE.update(1);
@@ -254,7 +258,7 @@ fn try_recv() {
 
 #[test]
 fn recv() {
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf = Vec::with_capacity(128);
@@ -294,7 +298,7 @@ fn recv() {
 
 #[test]
 fn recv_n_read_exact_amount() {
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf = Vec::with_capacity(128);
@@ -336,7 +340,7 @@ fn recv_n_read_exact_amount() {
 
 #[test]
 fn recv_n_read_more_bytes() {
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf = Vec::with_capacity(128);
@@ -382,7 +386,7 @@ fn recv_n_read_more_bytes() {
 
 #[test]
 fn recv_n_less_bytes() {
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf = Vec::with_capacity(128);
@@ -419,7 +423,7 @@ fn recv_n_less_bytes() {
 
 #[test]
 fn recv_n_from_multiple_writes() {
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf = Vec::with_capacity(128);
@@ -457,7 +461,7 @@ fn recv_n_from_multiple_writes() {
 fn send() {
     static STAGE: Stage = Stage::new();
 
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         STAGE.update(0);
         let connect = TcpStream::connect(&mut ctx, address)?;
         STAGE.update(1);
@@ -510,7 +514,7 @@ fn send() {
 fn send_all() {
     // A lot of data to get at least two write calls.
     const DATA: &[u8] = &[213; 40 * 1024];
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         stream.send_all(DATA).await?;
@@ -564,7 +568,7 @@ fn send_all() {
 fn send_vectored() {
     static STAGE: Stage = Stage::new();
 
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         STAGE.update(0);
         let connect = TcpStream::connect(&mut ctx, address)?;
         STAGE.update(1);
@@ -626,7 +630,7 @@ fn send_vectored_all() {
     // A lot of data to get at least two write calls.
     const DATA1: &[u8] = &[213; 40 * 1023];
     const DATA2: &[u8] = &[155; 30 * 1024];
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let bufs = &mut [IoSlice::new(DATA1), IoSlice::new(DATA2)];
@@ -694,7 +698,7 @@ fn send_vectored_all() {
 fn recv_vectored() {
     static STAGE: Stage = Stage::new();
 
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         STAGE.update(0);
         let connect = TcpStream::connect(&mut ctx, address)?;
         STAGE.update(1);
@@ -756,7 +760,7 @@ fn recv_vectored() {
 
 #[test]
 fn recv_n_vectored_exact_amount() {
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf1 = Vec::with_capacity(DATA.len());
@@ -803,7 +807,7 @@ fn recv_n_vectored_exact_amount() {
 
 #[test]
 fn recv_n_vectored_more_bytes() {
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf1 = Vec::with_capacity(DATA.len());
@@ -850,7 +854,7 @@ fn recv_n_vectored_more_bytes() {
 
 #[test]
 fn recv_n_vectored_less_bytes() {
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf1 = Vec::with_capacity(DATA.len());
@@ -887,7 +891,7 @@ fn recv_n_vectored_less_bytes() {
 
 #[test]
 fn recv_n_vectored_from_multiple_writes() {
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf1 = Vec::with_capacity(DATA.len());
@@ -927,7 +931,7 @@ fn recv_n_vectored_from_multiple_writes() {
 
 #[test]
 fn peek() {
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf = Vec::with_capacity(128);
@@ -975,7 +979,7 @@ fn peek() {
 fn peek_vectored() {
     static STAGE: Stage = Stage::new();
 
-    async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         STAGE.update(0);
         let connect = TcpStream::connect(&mut ctx, address)?;
         STAGE.update(1);
@@ -1049,7 +1053,10 @@ fn peek_vectored() {
 
 #[test]
 fn shutdown_read() {
-    async fn listener_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<SocketAddr>) {
+    async fn listener_actor(
+        mut ctx: actor::Context<!, ThreadLocal>,
+        actor_ref: ActorRef<SocketAddr>,
+    ) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
@@ -1067,7 +1074,7 @@ fn shutdown_read() {
         assert_eq!(buf, DATA);
     }
 
-    async fn stream_actor(mut ctx: actor::Context<SocketAddr>) {
+    async fn stream_actor(mut ctx: actor::Context<SocketAddr, ThreadLocal>) {
         let address = ctx.receive_next().await.unwrap();
         let mut stream = TcpStream::connect(&mut ctx, address)
             .unwrap()
@@ -1096,7 +1103,10 @@ fn shutdown_read() {
 
 #[test]
 fn shutdown_write() {
-    async fn listener_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<SocketAddr>) {
+    async fn listener_actor(
+        mut ctx: actor::Context<!, ThreadLocal>,
+        actor_ref: ActorRef<SocketAddr>,
+    ) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
@@ -1114,7 +1124,7 @@ fn shutdown_write() {
         stream.send_all(DATA).await.unwrap();
     }
 
-    async fn stream_actor(mut ctx: actor::Context<SocketAddr>) {
+    async fn stream_actor(mut ctx: actor::Context<SocketAddr, ThreadLocal>) {
         let address = ctx.receive_next().await.unwrap();
         let mut stream = TcpStream::connect(&mut ctx, address)
             .unwrap()
@@ -1145,7 +1155,10 @@ fn shutdown_write() {
 
 #[test]
 fn shutdown_both() {
-    async fn listener_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<SocketAddr>) {
+    async fn listener_actor(
+        mut ctx: actor::Context<!, ThreadLocal>,
+        actor_ref: ActorRef<SocketAddr>,
+    ) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
@@ -1160,7 +1173,7 @@ fn shutdown_both() {
         assert_eq!(n, 0);
     }
 
-    async fn stream_actor(mut ctx: actor::Context<SocketAddr>) {
+    async fn stream_actor(mut ctx: actor::Context<SocketAddr, ThreadLocal>) {
         let address = ctx.receive_next().await.unwrap();
         let mut stream = TcpStream::connect(&mut ctx, address)
             .unwrap()

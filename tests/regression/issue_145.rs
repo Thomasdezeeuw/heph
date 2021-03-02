@@ -9,8 +9,9 @@ use std::time::Duration;
 
 use heph::actor::messages::Terminate;
 use heph::net::{tcp, TcpListener, TcpServer, TcpStream};
+use heph::rt::{Runtime, ThreadLocal};
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use heph::{actor, Actor, ActorOptions, ActorRef, NewActor, Runtime};
+use heph::{actor, Actor, ActorOptions, ActorRef, NewActor};
 
 const N: usize = 4;
 
@@ -114,7 +115,7 @@ where
 }
 
 async fn conn_actor(
-    _: actor::Context<!>,
+    _: actor::Context<!, ThreadLocal>,
     mut stream: TcpStream,
     _: SocketAddr,
     addresses: Arc<Mutex<Vec<SocketAddr>>>,
@@ -139,7 +140,7 @@ fn issue_145_tcp_listener() {
     runtime.start().unwrap();
 }
 
-async fn listener_actor(mut ctx: actor::Context<!>) -> Result<(), !> {
+async fn listener_actor(mut ctx: actor::Context<!, ThreadLocal>) -> Result<(), !> {
     let address = "127.0.0.1:0".parse().unwrap();
     // NOTE: this should not fail.
     let mut listener = TcpListener::bind(&mut ctx, address).unwrap();

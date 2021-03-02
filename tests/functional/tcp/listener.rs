@@ -8,16 +8,17 @@ use std::task::{self, Poll};
 
 use heph::actor::{self, Bound};
 use heph::net::{TcpListener, TcpStream};
+use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
 use heph::util::next;
-use heph::{rt, Actor, ActorOptions, ActorRef, Runtime, RuntimeRef};
+use heph::{Actor, ActorOptions, ActorRef};
 
 use crate::util::{any_local_address, any_local_ipv6_address, run_actors};
 
 #[test]
 fn local_addr() {
-    async fn actor(mut ctx: actor::Context<!>) {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
         let address = "127.0.0.1:12345".parse().unwrap();
         let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
         assert_eq!(listener.local_addr().unwrap(), address);
@@ -36,7 +37,7 @@ fn local_addr() {
 
 #[test]
 fn local_addr_port_zero() {
-    async fn actor(mut ctx: actor::Context<!>) {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
         let address = any_local_address();
         let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
         let got = listener.local_addr().unwrap();
@@ -59,7 +60,7 @@ fn local_addr_port_zero() {
 
 #[test]
 fn ttl() {
-    async fn actor(mut ctx: actor::Context<!>) {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let initial = listener.ttl().unwrap();
@@ -110,7 +111,10 @@ fn try_accept() {
         YieldOnce(false)
     }
 
-    async fn listener_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<SocketAddr>) {
+    async fn listener_actor(
+        mut ctx: actor::Context<!, ThreadLocal>,
+        actor_ref: ActorRef<SocketAddr>,
+    ) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
@@ -148,7 +152,10 @@ fn try_accept() {
 
 #[test]
 fn accept() {
-    async fn listener_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<SocketAddr>) {
+    async fn listener_actor(
+        mut ctx: actor::Context<!, ThreadLocal>,
+        actor_ref: ActorRef<SocketAddr>,
+    ) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();
@@ -177,7 +184,10 @@ fn accept() {
 
 #[test]
 fn incoming() {
-    async fn listener_actor(mut ctx: actor::Context<!>, actor_ref: ActorRef<SocketAddr>) {
+    async fn listener_actor(
+        mut ctx: actor::Context<!, ThreadLocal>,
+        actor_ref: ActorRef<SocketAddr>,
+    ) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
 
         let address = listener.local_addr().unwrap();

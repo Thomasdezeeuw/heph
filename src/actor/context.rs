@@ -8,7 +8,6 @@ use std::task::{self, Poll};
 use inbox::{Receiver, RecvValue};
 
 use crate::actor_ref::ActorRef;
-use crate::rt::ThreadLocal;
 
 /// The context in which an actor is executed.
 ///
@@ -23,11 +22,12 @@ use crate::rt::ThreadLocal;
 ///   threads. Actor started with [`RuntimeRef::try_spawn`] will get this
 ///   flavour of context.
 ///
+/// [`ThreadLocal`]: crate::rt::ThreadLocal
 /// [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
 /// [`ThreadSafe`]: crate::rt::ThreadSafe
 /// [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
 #[derive(Debug)]
-pub struct Context<M, RT = ThreadLocal> {
+pub struct Context<M, RT> {
     /// Inbox of the actor, shared between this and zero or more actor
     /// references.
     ///
@@ -57,11 +57,10 @@ impl<M, RT> Context<M, RT> {
     /// An actor that receives a name to greet, or greets the entire world.
     ///
     /// ```
-    /// #![feature(never_type)]
-    ///
     /// use heph::actor;
+    /// use heph::rt::ThreadLocal;
     ///
-    /// async fn greeter_actor(mut ctx: actor::Context<String>) {
+    /// async fn greeter_actor(mut ctx: actor::Context<String, ThreadLocal>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
     ///         println!("Hello: {}", name);
     ///     } else {
@@ -85,11 +84,10 @@ impl<M, RT> Context<M, RT> {
     /// An actor that await a message and prints it.
     ///
     /// ```
-    /// #![feature(never_type)]
-    ///
     /// use heph::actor;
+    /// use heph::rt::ThreadLocal;
     ///
-    /// async fn print_actor(mut ctx: actor::Context<String>) {
+    /// async fn print_actor(mut ctx: actor::Context<String, ThreadLocal>) {
     ///     if let Ok(msg) = ctx.receive_next().await {
     ///         println!("Got a message: {}", msg);
     ///     }
@@ -103,15 +101,14 @@ impl<M, RT> Context<M, RT> {
     /// amount of time.
     ///
     /// ```
-    /// #![feature(never_type)]
-    ///
     /// use std::time::Duration;
     ///
     /// use heph::actor;
     /// use heph::timer::Timer;
     /// use heph::util::either;
+    /// use heph::rt::ThreadLocal;
     ///
-    /// async fn print_actor(mut ctx: actor::Context<String>) {
+    /// async fn print_actor(mut ctx: actor::Context<String, ThreadLocal>) {
     ///     // Create a timer, this will be ready once the timeout has
     ///     // passed.
     ///     let timeout = Timer::after(&mut ctx, Duration::from_millis(100));
@@ -129,7 +126,6 @@ impl<M, RT> Context<M, RT> {
     /// # // Use the `print_actor` function to silence dead code warning.
     /// # drop(print_actor);
     /// ```
-    #[allow(clippy::needless_lifetimes)]
     pub fn receive_next<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
         ReceiveMessage {
             recv: self.inbox.recv(),

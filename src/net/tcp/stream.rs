@@ -186,8 +186,9 @@ impl TcpStream {
     ///
     /// use heph::actor;
     /// use heph::net::TcpStream;
+    /// use heph::rt::ThreadLocal;
     ///
-    /// async fn actor(mut ctx: actor::Context<!>) -> io::Result<()> {
+    /// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
     ///     let address = "127.0.0.1:12345".parse().unwrap();
     ///     let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
     ///
@@ -235,8 +236,9 @@ impl TcpStream {
     ///
     /// use heph::actor;
     /// use heph::net::TcpStream;
+    /// use heph::rt::ThreadLocal;
     ///
-    /// async fn actor(mut ctx: actor::Context<!>) -> io::Result<()> {
+    /// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
     ///     let address = "127.0.0.1:12345".parse().unwrap();
     ///     let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
     ///
@@ -271,8 +273,9 @@ impl TcpStream {
     ///
     /// use heph::actor;
     /// use heph::net::TcpStream;
+    /// use heph::rt::ThreadLocal;
     ///
-    /// async fn actor(mut ctx: actor::Context<!>) -> io::Result<()> {
+    /// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
     ///     let address = "127.0.0.1:12345".parse().unwrap();
     ///     let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
     ///

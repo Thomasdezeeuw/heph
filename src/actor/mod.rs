@@ -169,9 +169,9 @@ pub trait NewActor {
     /// ```
     /// #![feature(never_type)]
     ///
+    /// use heph::rt::{self, ActorOptions, Runtime, ThreadLocal};
     /// use heph::supervisor::NoSupervisor;
-    /// use heph::{actor, rt, ActorOptions, Runtime};
-    /// use heph::from_message;
+    /// use heph::{actor, from_message};
     ///
     /// fn main() -> Result<(), rt::Error> {
     ///     // Create and run the runtime.
@@ -206,7 +206,7 @@ pub trait NewActor {
     /// from_message!(Message::Number(usize));
     ///
     /// /// Our actor implementation that prints all messages it receives.
-    /// async fn actor(mut ctx: actor::Context<Message>) {
+    /// async fn actor(mut ctx: actor::Context<Message, ThreadLocal>) {
     ///     if let Ok(msg) = ctx.receive_next().await {
     /// #       assert_eq!(msg, Message::String("Hello world".to_owned()));
     ///         println!("received message: {:?}", msg);
@@ -283,12 +283,12 @@ pub trait NewActor {
     /// use std::io;
     /// use std::net::SocketAddr;
     ///
+    /// use heph::actor::{self, NewActor};
     /// # use heph::actor::messages::Terminate;
     /// # use heph::net::tcp::server;
     /// use heph::net::{TcpServer, TcpStream};
     /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
-    /// # use heph::rt::ThreadLocal;
-    /// use heph::{rt, actor, NewActor, ActorOptions, Runtime, RuntimeRef};
+    /// use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
     /// # use log::error;
     ///
     /// fn main() -> Result<(), rt::Error> {
@@ -354,7 +354,7 @@ pub trait NewActor {
     /// #
     /// // Actor that handles a connection.
     /// async fn conn_actor(
-    ///     _: actor::Context<!>,
+    ///     _: actor::Context<!, ThreadLocal>,
     ///     mut stream: TcpStream,
     ///     address: SocketAddr,
     ///     greet_mars: bool

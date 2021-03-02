@@ -3,7 +3,9 @@
 use std::convert::TryFrom;
 
 use heph::actor::{self, SyncContext};
-use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, Signal, SyncActorOptions, ThreadSafe};
+use heph::rt::{
+    self, ActorOptions, Runtime, RuntimeRef, Signal, SyncActorOptions, ThreadLocal, ThreadSafe,
+};
 use heph::supervisor::NoSupervisor;
 
 fn main() -> Result<(), rt::Error> {
@@ -87,7 +89,7 @@ async fn thread_safe_actor(mut ctx: actor::Context<Message, ThreadSafe>) {
     println!("shutting down the thread safe actor");
 }
 
-async fn local_actor(mut ctx: actor::Context<Message>) {
+async fn local_actor(mut ctx: actor::Context<Message, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         match msg {
             Message::Print(msg) => println!("Got a message: {}", msg),

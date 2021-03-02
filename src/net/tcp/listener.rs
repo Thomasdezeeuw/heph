@@ -38,7 +38,8 @@ use crate::rt::{self, PrivateAccess};
 ///
 /// # use heph::net::TcpStream;
 /// use heph::net::TcpListener;
-/// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
+/// use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
+/// use heph::{actor, SupervisorStrategy};
 /// use log::info;
 ///
 /// fn main() -> Result<(), rt::Error> {
@@ -58,7 +59,7 @@ use crate::rt::{self, PrivateAccess};
 ///     Ok(())
 /// }
 /// #
-/// # async fn client(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+/// # async fn client(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
 /// #   let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 /// #   let local_address = stream.local_addr()?.to_string();
 /// #   let mut buf = Vec::with_capacity(local_address.len() + 1);
@@ -73,7 +74,7 @@ use crate::rt::{self, PrivateAccess};
 ///     SupervisorStrategy::Stop
 /// }
 ///
-/// async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+/// async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
 ///     let mut listener = TcpListener::bind(&mut ctx, address)?;
 ///
@@ -102,8 +103,9 @@ use crate::rt::{self, PrivateAccess};
 ///
 /// # use heph::net::TcpStream;
 /// use heph::net::TcpListener;
-/// use heph::{actor, rt, ActorOptions, Runtime, RuntimeRef, SupervisorStrategy};
+/// use heph::rt::{self, ActorOptions, Runtime, RuntimeRef, ThreadLocal};
 /// use heph::util::next;
+/// use heph::{actor, SupervisorStrategy};
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     std_logger::init();
@@ -122,7 +124,7 @@ use crate::rt::{self, PrivateAccess};
 ///     Ok(())
 /// }
 /// #
-/// # async fn client(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+/// # async fn client(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
 /// #   let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 /// #   let local_address = stream.local_addr()?.to_string();
 /// #   let mut buf = Vec::with_capacity(local_address.len() + 1);
@@ -137,7 +139,7 @@ use crate::rt::{self, PrivateAccess};
 ///     SupervisorStrategy::Stop
 /// }
 ///
-/// async fn actor(mut ctx: actor::Context<!>, address: SocketAddr) -> io::Result<()> {
+/// async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
 ///     let mut listener = TcpListener::bind(&mut ctx, address)?;
 ///     let mut incoming = listener.incoming();

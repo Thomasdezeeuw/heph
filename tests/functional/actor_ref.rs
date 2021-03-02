@@ -9,9 +9,10 @@ use std::task::Poll;
 
 use heph::actor_ref::{ActorRef, RpcError, RpcMessage, SendError, SendValue};
 use heph::rt::options::Priority;
+use heph::rt::{Runtime, ThreadLocal};
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
-use heph::{actor, ActorOptions, Runtime};
+use heph::{actor, ActorOptions};
 
 use crate::util::{assert_send, assert_size, assert_sync, pending_once};
 
@@ -43,7 +44,7 @@ fn send_value_future_is_send_sync() {
     assert_sync::<SendValue<()>>();
 }
 
-async fn expect_msgs<M>(mut ctx: actor::Context<M>, expected: Vec<M>)
+async fn expect_msgs<M>(mut ctx: actor::Context<M, ThreadLocal>, expected: Vec<M>)
 where
     M: Eq + fmt::Debug,
 {
@@ -94,7 +95,7 @@ fn try_send_disconnected() {
     assert_eq!(actor_ref.try_send(1usize), Err(SendError));
 }
 
-async fn relay_msgs<M>(_: actor::Context<M>, relay_ref: ActorRef<M>, msgs: Vec<M>)
+async fn relay_msgs<M>(_: actor::Context<M, ThreadLocal>, relay_ref: ActorRef<M>, msgs: Vec<M>)
 where
     M: Eq + fmt::Debug + Unpin,
 {
@@ -144,7 +145,7 @@ fn send_full_inbox() {
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
 }
 
-async fn relay_error(_: actor::Context<!>, relay_ref: ActorRef<usize>) {
+async fn relay_error(_: actor::Context<!, ThreadLocal>, relay_ref: ActorRef<usize>) {
     assert_eq!(relay_ref.send(1usize).await, Err(SendError));
 }
 
@@ -319,7 +320,7 @@ fn try_mapped_send() {
 
 // Sends zero to a `NonZeroUsize` mapped actor reference causing a conversion
 // error.
-async fn send_error(_: actor::Context<!>, relay_ref: ActorRef<usize>) {
+async fn send_error(_: actor::Context<!, ThreadLocal>, relay_ref: ActorRef<usize>) {
     let res = relay_ref.send(0usize).await;
     assert_eq!(res, Err(SendError));
 }
@@ -381,7 +382,7 @@ fn is_connected() {
 
 #[test]
 fn mapped_is_connected() {
-    let expect_msgs = expect_msgs as fn(actor::Context<usize>, Vec<usize>) -> _;
+    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
     let (actor, actor_ref) = init_local_actor(expect_msgs, Vec::new()).unwrap();
     let actor_ref: ActorRef<u8> = actor_ref.map();
     assert!(actor_ref.is_connected());
@@ -420,14 +421,14 @@ fn send_error_format() {
     assert_eq!(format!("{}", SendError), "unable to send message");
 }
 
-async fn wake_on_send(_: actor::Context<usize>, relay_ref: ActorRef<usize>) {
+async fn wake_on_send(_: actor::Context<usize, ThreadLocal>, relay_ref: ActorRef<usize>) {
     relay_ref
         .send(123usize)
         .await
         .expect("failed to send message");
 }
 
-async fn wake_on_receive(mut ctx: actor::Context<usize>, expected: Vec<usize>) {
+async fn wake_on_receive(mut ctx: actor::Context<usize, ThreadLocal>, expected: Vec<usize>) {
     for expected in expected {
         let got = ctx.receive_next().await.expect("missing message");
         assert_eq!(got, expected);
@@ -474,7 +475,7 @@ struct Ping;
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 struct Pong;
 
-async fn ping(_: actor::Context<!>, relay_ref: ActorRef<RpcTestMessage>) {
+async fn ping(_: actor::Context<!, ThreadLocal>, relay_ref: ActorRef<RpcTestMessage>) {
     let rpc = relay_ref.rpc(Ping);
     let res = rpc.await;
     assert_eq!(res, Ok(Pong));
@@ -491,7 +492,7 @@ impl From<RpcMessage<Ping, Pong>> for RpcTestMessage {
     }
 }
 
-async fn pong(mut ctx: actor::Context<RpcTestMessage>) {
+async fn pong(mut ctx: actor::Context<RpcTestMessage, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         match msg {
             RpcTestMessage::Ping(msg) => msg.handle(|_| Pong).unwrap(),
@@ -527,7 +528,10 @@ fn rpc() {
     );
 }
 
-async fn rpc_send_error_actor(_: actor::Context<!>, relay_ref: ActorRef<RpcTestMessage>) {
+async fn rpc_send_error_actor(
+    _: actor::Context<!, ThreadLocal>,
+    relay_ref: ActorRef<RpcTestMessage>,
+) {
     let rpc = relay_ref.rpc(Ping);
     let res = rpc.await;
     assert_eq!(res, Err(RpcError::SendError));
@@ -586,7 +590,7 @@ fn rpc_full_inbox() {
     );
 }
 
-async fn ping_no_response(_: actor::Context<!>, relay_ref: ActorRef<RpcTestMessage>) {
+async fn ping_no_response(_: actor::Context<!, ThreadLocal>, relay_ref: ActorRef<RpcTestMessage>) {
     let rpc = relay_ref.rpc(Ping);
     let res = rpc.await;
     assert_eq!(res, Err(RpcError::NoResponse));
@@ -612,7 +616,7 @@ fn rpc_no_response() {
     );
 }
 
-async fn pong_respond_error(mut ctx: actor::Context<RpcTestMessage>) {
+async fn pong_respond_error(mut ctx: actor::Context<RpcTestMessage, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         match msg {
             RpcTestMessage::Ping(RpcMessage { response, .. }) => {
@@ -644,7 +648,7 @@ fn rpc_respond_error() {
     );
 }
 
-async fn pong_is_connected(mut ctx: actor::Context<RpcTestMessage>) {
+async fn pong_is_connected(mut ctx: actor::Context<RpcTestMessage, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         match msg {
             RpcTestMessage::Ping(RpcMessage { response, .. }) => {
@@ -689,13 +693,13 @@ fn rpc_error_format() {
     assert_eq!(format!("{}", RpcError::NoResponse), "no RPC response");
 }
 
-async fn wake_on_response(_: actor::Context<!>, relay_ref: ActorRef<RpcTestMessage>) {
+async fn wake_on_response(_: actor::Context<!, ThreadLocal>, relay_ref: ActorRef<RpcTestMessage>) {
     let rpc = relay_ref.rpc(Ping);
     let res = rpc.await;
     assert_eq!(res, Ok(Pong));
 }
 
-async fn wake_on_rpc_receive(mut ctx: actor::Context<RpcTestMessage>) {
+async fn wake_on_rpc_receive(mut ctx: actor::Context<RpcTestMessage, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         match msg {
             RpcTestMessage::Ping(msg) => msg.handle(|_| Pong).unwrap(),

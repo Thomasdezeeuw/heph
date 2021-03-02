@@ -6,8 +6,8 @@ use std::net::SocketAddr;
 use heph::actor::{self, Actor, NewActor};
 use heph::net::{tcp, TcpServer, TcpStream};
 use heph::rt::options::Priority;
+use heph::rt::{self, ActorOptions, Runtime, ThreadLocal};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
-use heph::{rt, ActorOptions, Runtime};
 use log::{error, info};
 
 fn main() -> Result<(), rt::Error> {
@@ -100,7 +100,7 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)
 /// This actor will not receive any message and thus uses `!` (the never type)
 /// as message type.
 async fn conn_actor(
-    _: actor::Context<!>,
+    _: actor::Context<!, ThreadLocal>,
     mut stream: TcpStream,
     address: SocketAddr,
 ) -> io::Result<()> {
