@@ -25,7 +25,7 @@ pub(crate) struct ActorProcess<S, NA: NewActor> {
     actor: NA::Actor,
 }
 
-impl<'a, S, NA> ActorProcess<S, NA>
+impl<S, NA> ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
     NA: NewActor,
@@ -97,7 +97,7 @@ where
     }
 }
 
-impl<'a, S, NA> Process for ActorProcess<S, NA>
+impl<S, NA> Process for ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
     NA: NewActor,
