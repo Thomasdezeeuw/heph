@@ -9,9 +9,10 @@ use std::num::NonZeroU8;
 use std::ops::Mul;
 use std::time::Duration;
 
-/// Options for adding an actor to a [`Runtime`].
+/// Options for [spawning] an [`Actor`].
 ///
-/// [`Runtime`]: crate::Runtime
+/// [spawning]: crate::spawn::Spawn
+/// [`Actor`]: crate::actor::Actor
 ///
 /// # Examples
 ///
@@ -168,9 +169,9 @@ fn priority_duration_multiplication() {
     assert!(high < low);
 }
 
-/// Options for adding a synchronous actor to a [`Runtime`].
+/// Options for spawning a [`SyncActor`].
 ///
-/// [`Runtime`]: crate::Runtime
+/// [`SyncActor`]: crate::actor::SyncActor
 ///
 /// # Examples
 ///
@@ -197,19 +198,20 @@ pub struct SyncActorOptions {
 }
 
 impl SyncActorOptions {
-    /// Returns the name of thread if any.
+    /// Returns the name of the synchronous actor, if any.
     pub fn name(&self) -> Option<&str> {
         self.thread_name.as_deref()
     }
 
-    /// Removes the thread name.
+    /// Removes the name.
     pub(crate) fn take_name(self) -> Option<String> {
         self.thread_name
     }
 
-    /// Set the name of the thread.
+    /// Set the name of the actor. This is for example used in the naming of the
+    /// thread in which the actor runs.
     ///
-    /// Defaults to `Sync actor $n`, where `$n` is some number.
+    /// Defaults to "Sync actor `$n`", where `$n` is some number.
     pub fn with_name(mut self, thread_name: String) -> Self {
         self.thread_name = Some(thread_name);
         self
