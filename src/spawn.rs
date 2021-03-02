@@ -106,3 +106,33 @@ mod private {
         ArgFn(ArgFnE),
     }
 }
+
+impl<M, RT, S, NA> Spawn<S, NA, RT> for actor::Context<M, RT>
+where
+    NA: NewActor<RuntimeAccess = RT>,
+    RT: Spawn<S, NA, RT>,
+{
+}
+
+impl<M, RT, S, NA> PrivateSpawn<S, NA, RT> for actor::Context<M, RT>
+where
+    NA: NewActor<RuntimeAccess = RT>,
+    RT: PrivateSpawn<S, NA, RT>,
+{
+    fn try_spawn_setup<ArgFn, ArgFnE>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg_fn: ArgFn,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    where
+        S: Supervisor<NA> + 'static,
+        NA: NewActor<RuntimeAccess = RT> + 'static,
+        NA::Actor: 'static,
+        ArgFn: FnOnce(&mut actor::Context<NA::Message, RT>) -> Result<NA::Argument, ArgFnE>,
+    {
+        self.runtime()
+            .try_spawn_setup(supervisor, new_actor, arg_fn, options)
+    }
+}
