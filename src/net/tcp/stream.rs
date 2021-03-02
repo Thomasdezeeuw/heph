@@ -45,7 +45,7 @@ impl TcpStream {
         address: SocketAddr,
     ) -> io::Result<Connect>
     where
-        actor::Context<M, RT>: rt::Access,
+        RT: rt::Access,
     {
         let mut socket = net::TcpStream::connect(address)?;
         ctx.register(&mut socket, Interest::READABLE | Interest::WRITABLE)?;

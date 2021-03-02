@@ -39,9 +39,7 @@ impl<S, NA> Supervisor<server::Setup<S, NA>> for PanicSupervisor
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
-    actor::Context<server::Message, <NA as NewActor>::RuntimeAccess>:
-        rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
-    actor::Context<NA::Message, <NA as NewActor>::RuntimeAccess>: rt::Access,
+    NA::RuntimeAccess: rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
 {
     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
         panic!("unexpected error: {}", err);
@@ -58,7 +56,7 @@ where
 
 async fn actor<RT>(_: actor::Context<!, RT>, mut stream: TcpStream, _: SocketAddr)
 where
-    actor::Context<SocketAddr, RT>: rt::Access,
+    RT: rt::Access,
 {
     let mut buf = Vec::with_capacity(DATA.len() + 1);
     let n = stream.recv(&mut buf).await.unwrap();
@@ -73,7 +71,7 @@ async fn stream_actor<RT>(
     address: SocketAddr,
     actor_ref: ActorRef<server::Message>,
 ) where
-    actor::Context<!, RT>: rt::Access,
+    RT: rt::Access,
 {
     let mut stream = TcpStream::connect(&mut ctx, address)
         .unwrap()
@@ -196,7 +194,7 @@ fn new_actor_error() {
 
     impl<RT> NewActor for NewActorErrorGenerator<RT>
     where
-        actor::Context<!, RT>: rt::Access,
+        RT: rt::Access,
     {
         type Message = !;
         type Argument = (TcpStream, SocketAddr);
@@ -258,7 +256,7 @@ fn new_actor_error() {
 
     async fn stream_actor<RT>(mut ctx: actor::Context<!, RT>, address: SocketAddr)
     where
-        actor::Context<!, RT>: rt::Access,
+        RT: rt::Access,
     {
         let stream = TcpStream::connect(&mut ctx, address)
             .unwrap()

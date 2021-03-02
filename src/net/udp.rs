@@ -154,7 +154,7 @@ impl UdpSocket {
         local: SocketAddr,
     ) -> io::Result<UdpSocket<Unconnected>>
     where
-        actor::Context<M, RT>: rt::Access,
+        RT: rt::Access,
     {
         let mut socket = net::UdpSocket::bind(local)?;
         ctx.register(&mut socket, Interest::READABLE | Interest::WRITABLE)?;

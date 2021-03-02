@@ -184,7 +184,7 @@ impl TcpListener {
         address: SocketAddr,
     ) -> io::Result<TcpListener>
     where
-        actor::Context<M, RT>: rt::Access,
+        RT: rt::Access,
     {
         let mut socket = net::TcpListener::bind(address)?;
         ctx.register(&mut socket, Interest::READABLE)?;
@@ -275,7 +275,7 @@ impl UnboundTcpStream {
     /// Bind this TCP stream to the actor's `ctx`, allowing it to be used.
     pub fn bind_to<M, RT>(mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<TcpStream>
     where
-        actor::Context<M, RT>: rt::Access,
+        RT: rt::Access,
     {
         ctx.register(
             &mut self.stream.socket,

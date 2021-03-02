@@ -79,7 +79,7 @@ const DATA: &[u8] = b"Hello world";
 
 async fn stream_actor<RT>(mut ctx: actor::Context<SocketAddr, RT>)
 where
-    actor::Context<SocketAddr, RT>: rt::Access,
+    RT: rt::Access,
 {
     let address = ctx.receive_next().await.unwrap();
     let mut stream = TcpStream::connect(&mut ctx, address)
@@ -219,7 +219,7 @@ fn incoming() {
 fn actor_bound() {
     async fn listener_actor1<RT>(mut ctx: actor::Context<!, RT>, actor_ref: ActorRef<TcpListener>)
     where
-        actor::Context<!, RT>: rt::Access,
+        RT: rt::Access,
     {
         let listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
         actor_ref.send(listener).await.unwrap();

@@ -59,8 +59,7 @@ impl<S, NA> NewActor for Setup<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
-    actor::Context<Message, NA::RuntimeAccess>: rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
-    actor::Context<NA::Message, NA::RuntimeAccess>: rt::Access,
+    NA::RuntimeAccess: rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
 {
     type Message = Message;
     type Argument = ();
@@ -481,8 +480,7 @@ impl<S, NA> Actor for TcpServer<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
-    actor::Context<Message, NA::RuntimeAccess>: Spawn<S, NA, NA::RuntimeAccess>,
-    actor::Context<NA::Message, NA::RuntimeAccess>: rt::Access,
+    NA::RuntimeAccess: rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
 {
     type Error = Error<NA::Error>;
 
