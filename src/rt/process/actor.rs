@@ -7,8 +7,9 @@ use std::task::{self, Poll};
 use inbox::{Manager, Receiver};
 
 use crate::actor::{self, Actor, NewActor};
+use crate::rt::access::PrivateAccess;
 use crate::rt::process::{Process, ProcessId, ProcessResult};
-use crate::rt::{RuntimeRef, ThreadLocal, ThreadSafe};
+use crate::rt::{self, RuntimeRef, ThreadLocal, ThreadSafe};
 use crate::supervisor::{Supervisor, SupervisorStrategy};
 
 /// A process that represent an [`Actor`].
@@ -101,7 +102,7 @@ impl<S, NA> Process for ActorProcess<S, NA>
 where
     S: Supervisor<NA>,
     NA: NewActor,
-    NA::RuntimeAccess: RuntimeSupport,
+    NA::RuntimeAccess: rt::Access + RuntimeSupport,
 {
     fn name(&self) -> &'static str {
         self.new_actor.name()
@@ -148,9 +149,6 @@ where
 /// Trait to support different kind of runtime access, e.g. [`ThreadSafe`] and
 /// [`ThreadLocal`], within the same implementation of [`ActorProcess`].
 pub(crate) trait RuntimeSupport {
-    /// Create a new [`task::Waker`].
-    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
-
     /// Creates a new context.
     fn new_context<M>(
         pid: ProcessId,
@@ -162,10 +160,6 @@ pub(crate) trait RuntimeSupport {
 }
 
 impl RuntimeSupport for ThreadLocal {
-    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
-        runtime_ref.new_local_task_waker(pid)
-    }
-
     fn new_context<M>(
         pid: ProcessId,
         inbox: Receiver<M>,
@@ -176,10 +170,6 @@ impl RuntimeSupport for ThreadLocal {
 }
 
 impl RuntimeSupport for ThreadSafe {
-    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
-        runtime_ref.new_shared_task_waker(pid)
-    }
-
     fn new_context<M>(
         pid: ProcessId,
         inbox: Receiver<M>,
