@@ -5,6 +5,8 @@ use crate::actor_ref::ActorRef;
 use crate::rt::ActorOptions;
 use crate::supervisor::Supervisor;
 
+pub(crate) use private::{AddActorError, PrivateSpawn};
+
 /// The `Spawn` trait defines how new actors are added to the runtime.
 pub trait Spawn<S, NA, RT>: PrivateSpawn<S, NA, RT> {
     /// Attempts to spawn an actor.
@@ -65,33 +67,42 @@ pub trait Spawn<S, NA, RT>: PrivateSpawn<S, NA, RT> {
     }
 }
 
-/// Private version of the [`Spawn`]  trait.
-pub trait PrivateSpawn<S, NA, RT> {
-    /// Spawn an actor that needs to be initialised.
-    ///
-    /// See the public [`Spawn`] trait for documentation on the arguments.
-    ///
-    /// [`Spawn`]: super::Spawn
-    #[allow(clippy::type_complexity)] // Not part of the public API, so it's OK.
-    fn try_spawn_setup<ArgFn, ArgFnE>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg_fn: ArgFn,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
-    where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<RuntimeAccess = RT> + 'static,
-        NA::Actor: 'static,
-        ArgFn: FnOnce(&mut actor::Context<NA::Message, RT>) -> Result<NA::Argument, ArgFnE>;
-}
+mod private {
+    //! Module with private types.
 
-/// Error returned by spawning a actor.
-#[derive(Debug)]
-pub enum AddActorError<NewActorE, ArgFnE> {
-    /// Calling `NewActor::new` actor resulted in an error.
-    NewActor(NewActorE),
-    /// Calling the argument function resulted in an error.
-    ArgFn(ArgFnE),
+    use crate::actor::{self, NewActor};
+    use crate::actor_ref::ActorRef;
+    use crate::rt::ActorOptions;
+    use crate::supervisor::Supervisor;
+
+    /// Private version of the [`Spawn`]  trait.
+    pub trait PrivateSpawn<S, NA, RT> {
+        /// Spawn an actor that needs to be initialised.
+        ///
+        /// See the public [`Spawn`] trait for documentation on the arguments.
+        ///
+        /// [`Spawn`]: super::Spawn
+        #[allow(clippy::type_complexity)] // Not part of the public API, so it's OK.
+        fn try_spawn_setup<ArgFn, ArgFnE>(
+            &mut self,
+            supervisor: S,
+            new_actor: NA,
+            arg_fn: ArgFn,
+            options: ActorOptions,
+        ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+        where
+            S: Supervisor<NA> + 'static,
+            NA: NewActor<RuntimeAccess = RT> + 'static,
+            NA::Actor: 'static,
+            ArgFn: FnOnce(&mut actor::Context<NA::Message, RT>) -> Result<NA::Argument, ArgFnE>;
+    }
+
+    /// Error returned by spawning a actor.
+    #[derive(Debug)]
+    pub enum AddActorError<NewActorE, ArgFnE> {
+        /// Calling `NewActor::new` actor resulted in an error.
+        NewActor(NewActorE),
+        /// Calling the argument function resulted in an error.
+        ArgFn(ArgFnE),
+    }
 }

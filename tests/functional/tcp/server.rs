@@ -8,10 +8,11 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 
 use heph::actor::messages::Terminate;
-use heph::actor::{self, Actor, NewActor, Spawn};
+use heph::actor::{self, Actor, NewActor};
 use heph::net::tcp::server;
 use heph::net::{TcpServer, TcpStream};
 use heph::rt::{self, ActorOptions, Signal};
+use heph::spawn::Spawn;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::test::init_local_actor;
 use heph::{ActorRef, Runtime};

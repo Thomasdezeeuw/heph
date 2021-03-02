@@ -16,9 +16,10 @@ use mio::Interest;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::actor::messages::Terminate;
-use crate::actor::{self, Actor, AddActorError, NewActor, PrivateSpawn, Spawn};
+use crate::actor::{self, Actor, NewActor};
 use crate::net::TcpStream;
 use crate::rt::{self, ActorOptions, PrivateAccess, Signal};
+use crate::spawn::{AddActorError, PrivateSpawn, Spawn};
 use crate::supervisor::Supervisor;
 
 /// A intermediate structure that implements [`NewActor`], creating

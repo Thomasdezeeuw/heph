@@ -5,8 +5,9 @@
 use std::pin::Pin;
 use std::task::Poll;
 
-use heph::actor::{self, NoMessages, RecvError, Spawn};
+use heph::actor::{self, NoMessages, RecvError};
 use heph::rt::{ActorOptions, Runtime, Signal, ThreadSafe};
+use heph::spawn::Spawn;
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
 
