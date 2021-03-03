@@ -12,8 +12,10 @@ use std::time::Duration;
 use mio::Token;
 
 use crate::actor::{self, Actor, NewActor};
-use crate::rt::process::{ActorProcess, Process, ProcessData, ProcessId, ProcessResult};
-use crate::rt::{RuntimeRef, ThreadLocal};
+use crate::rt::process::{
+    ActorProcess, FutureProcess, Process, ProcessData, ProcessId, ProcessResult,
+};
+use crate::rt::{RuntimeRef, ThreadLocal, ThreadSafe};
 use crate::spawn::options::Priority;
 use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use crate::test::{self, init_local_actor_with_inbox, AssertUnmoved, TEST_PID};
@@ -278,6 +280,38 @@ impl NewActor for TestAssertUnmovedNewActor {
 fn actor_process_assert_actor_unmoved() {
     let (actor, inbox, _) = init_local_actor_with_inbox(TestAssertUnmovedNewActor, ()).unwrap();
     let process = ActorProcess::new(NoSupervisor, TestAssertUnmovedNewActor, actor, inbox);
+    let mut process: Pin<Box<dyn Process>> = Box::pin(process);
+
+    // All we do is run it a couple of times, it should panic if the actor is
+    // moved.
+    let mut runtime_ref = test::runtime();
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    assert_eq!(res, ProcessResult::Pending);
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    assert_eq!(res, ProcessResult::Pending);
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    assert_eq!(res, ProcessResult::Pending);
+}
+
+#[test]
+fn future_process_thread_local_assert_future_unmoved() {
+    let process = FutureProcess::<_, ThreadLocal>::new(AssertUnmoved::new(pending()));
+    let mut process: Pin<Box<dyn Process>> = Box::pin(process);
+
+    // All we do is run it a couple of times, it should panic if the actor is
+    // moved.
+    let mut runtime_ref = test::runtime();
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    assert_eq!(res, ProcessResult::Pending);
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    assert_eq!(res, ProcessResult::Pending);
+    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
+    assert_eq!(res, ProcessResult::Pending);
+}
+
+#[test]
+fn future_process_thread_safe_assert_future_unmoved() {
+    let process = FutureProcess::<_, ThreadSafe>::new(AssertUnmoved::new(pending()));
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
     // All we do is run it a couple of times, it should panic if the actor is

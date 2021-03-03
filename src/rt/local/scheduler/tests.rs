@@ -296,7 +296,7 @@ impl NewActor for TestAssertUnmovedNewActor {
 }
 
 #[test]
-fn assert_process_unmoved() {
+fn assert_actor_process_unmoved() {
     let mut scheduler = Scheduler::new();
     let mut runtime_ref = test::runtime();
 
@@ -315,6 +315,39 @@ fn assert_process_unmoved() {
 
     // Run the process multiple times, ensure it's not moved in the process.
     let mut process = scheduler.next_process().unwrap();
+    assert_eq!(
+        process.as_mut().run(&mut runtime_ref),
+        ProcessResult::Pending
+    );
+    scheduler.add_process(process);
+
+    scheduler.mark_ready(pid);
+    let mut process = scheduler.next_process().unwrap();
+    assert_eq!(
+        process.as_mut().run(&mut runtime_ref),
+        ProcessResult::Pending
+    );
+    scheduler.add_process(process);
+
+    scheduler.mark_ready(pid);
+    let mut process = scheduler.next_process().unwrap();
+    assert_eq!(
+        process.as_mut().run(&mut runtime_ref),
+        ProcessResult::Pending
+    );
+}
+
+#[test]
+fn assert_future_process_unmoved() {
+    let mut scheduler = Scheduler::new();
+    let mut runtime_ref = test::runtime();
+
+    let future = AssertUnmoved::new(pending());
+    scheduler.add_future(future, Priority::NORMAL, true);
+
+    // Run the process multiple times, ensure it's not moved in the process.
+    let mut process = scheduler.next_process().unwrap();
+    let pid = process.as_ref().id();
     assert_eq!(
         process.as_mut().run(&mut runtime_ref),
         ProcessResult::Pending
