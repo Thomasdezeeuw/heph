@@ -250,7 +250,6 @@ impl Default for SyncActorOptions {
 #[derive(Clone, Debug)]
 pub struct FutureOptions {
     priority: Priority,
-    ready: bool,
 }
 
 impl FutureOptions {
@@ -264,36 +263,12 @@ impl FutureOptions {
         self.priority = priority;
         self
     }
-
-    /// Returns `true` if the actor is ready to run when spawned.
-    ///
-    /// See [`mark_ready`] for more information.
-    ///
-    /// [`mark_ready`]: FutureOptions::mark_ready
-    pub const fn is_ready(&self) -> bool {
-        self.ready
-    }
-
-    /// This option will marks the actor as ready to run (or not) when spawned.
-    ///
-    /// By default newly spawned actors will be considered to be ready to run
-    /// once they are spawned. However some actors might not want to run
-    /// immediately and wait for an external event before running. Such an
-    /// external event can for example be a [`TcpStream`] becoming ready to read
-    /// or write.
-    ///
-    /// [`TcpStream`]: crate::net::TcpStream
-    pub const fn mark_ready(mut self, ready: bool) -> Self {
-        self.ready = ready;
-        self
-    }
 }
 
 impl Default for FutureOptions {
     fn default() -> FutureOptions {
         FutureOptions {
             priority: Priority::default(),
-            ready: true,
         }
     }
 }

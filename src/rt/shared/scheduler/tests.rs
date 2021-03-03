@@ -210,7 +210,7 @@ fn assert_future_process_unmoved() {
     let mut runtime_ref = test::runtime();
 
     let future = AssertUnmoved::new(pending());
-    scheduler.add_future(future, Priority::NORMAL, true);
+    scheduler.add_future(future, Priority::NORMAL);
 
     // Run the process multiple times, ensure it's not moved in the
     // process.

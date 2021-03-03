@@ -133,7 +133,7 @@ impl Scheduler {
         }
     }
 
-    pub(crate) fn add_future<Fut>(&self, future: Fut, priority: Priority, is_ready: bool)
+    pub(crate) fn add_future<Fut>(&self, future: Fut, priority: Priority)
     where
         Fut: Future<Output = ()> + Send + Sync + 'static,
     {
@@ -142,11 +142,7 @@ impl Scheduler {
             Box::pin(FutureProcess::<Fut, ThreadSafe>::new(future)),
         ));
         debug!("spawning thread-safe future: pid={}", process.as_ref().id());
-        if is_ready {
-            self.ready.add(process)
-        } else {
-            self.add_process(process)
-        }
+        self.ready.add(process)
     }
 
     /// Mark the process, with `pid`, as ready to run.
