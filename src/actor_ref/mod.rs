@@ -166,7 +166,7 @@ impl<M> ActorRef<M> {
     /// # Notes
     ///
     /// Mapped actor references, see [`ActorRef::map`] and
-    /// [`ActorRef::try_map`], require an allocation and might be expansive. If
+    /// [`ActorRef::try_map`], require an allocation and might be expensive. If
     /// possible try [`ActorRef::try_send`] first, which does not require an
     /// allocation. Regular (i.e. non-mapped) actor references do not require an
     /// allocation.
