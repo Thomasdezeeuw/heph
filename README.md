@@ -17,13 +17,11 @@ Heph is an [actor] framework based on asynchronous functions. Such an
 asynchronous function looks like this:
 
 ```rust
-async fn actor(mut ctx: actor::Context<String>) -> Result<(), !> {
+async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
     // Receive a message.
     let msg = ctx.receive_next().await;
     // Print the message.
     println!("got a message: {}", msg);
-    // And we're done.
-    Ok(())
 }
 ```
 
@@ -75,7 +73,7 @@ Second Heph needs to be added as a dependency.
 
 ```toml
 [dependencies]
-heph = "0.2.0"
+heph = "0.3.0"
 ```
 
 Now you're ready to starting writing your application! Next you can look at some
@@ -89,17 +87,17 @@ Now you're ready to starting writing your application! Next you can look at some
 
 The main target platform is Linux, as a production target. But we also support
 macOS, but only as development target (e.g. develop on macOS and run Linux in
-production). Other BSDs are also supported (kqueue is fully supported), however
-no tests are run on these platforms.
+production). Other BSDs are mostly supported (kqueue is fully supported),
+however no tests are run on these platforms.
 
 
 ## Stability
 
 Currently this project is *unstable*. Since the crate depends on many
-experimental or Nightly only Rust features, such as async function. So it can
-only be compiled using a Nightly version of the rust compiler. Furthermore the
-since the crate itself is < v1, meaning the API is far from stable as well. In
-fact improvements to the API are very welcome!
+experimental or Nightly only Rust features. So it can only be compiled using a
+Nightly version of the rust compiler. Furthermore the since the crate itself is
+< v1, meaning the API is far from stable as well. In fact improvements to the
+API are very welcome!
 
 
 ## License
