@@ -53,15 +53,13 @@
 //!
 //! ## Getting started
 //!
-//! The easiest way to get start with Heph is looking at the [examples] in the
-//! examples directory of the source code. Or by looking through the API
-//! documentation.
-//!
-//! For information about actors start with the [`actor`] module. Actors must
-//! always be supervised which are documented in the [`supervisor`] module.
-//! Finally the [`rt`] module has documentation about Heph's runtime.
+//! There are two ways to get starting with Heph. If you like to see examples,
+//! take a look at the the [examples] in the examples directory of the source
+//! code. If you like to learn more about some of the core concepts of Heph
+//! start with the [Quick Start] guide.
 //!
 //! [examples]: https://github.com/Thomasdezeeuw/heph/blob/master/examples/README.md
+//! [Quick Start]: crate::quick_start
 //!
 //! ## Features
 //!
@@ -120,6 +118,7 @@ pub mod actor;
 pub mod actor_ref;
 pub mod log;
 pub mod net;
+pub mod quick_start;
 pub mod rt;
 pub mod spawn;
 pub mod supervisor;
