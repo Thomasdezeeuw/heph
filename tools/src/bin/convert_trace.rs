@@ -48,7 +48,8 @@ fn main() {
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_micros();
-        let duration = event.end.duration_since(event.start).unwrap().as_micros();
+        let duration = event.end.duration_since(event.start).unwrap().as_nanos();
+        let duration = (duration as f64) / 1000.0; // Microsecond granularity.
 
         write!(
             output,
