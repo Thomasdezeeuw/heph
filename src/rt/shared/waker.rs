@@ -12,7 +12,7 @@ pub const MAX_RUNTIMES: usize = 1 << MAX_RUNTIMES_BITS;
 #[cfg(not(any(test, feature = "test")))]
 pub const MAX_RUNTIMES_BITS: usize = 0; // 1.
 #[cfg(any(test, feature = "test"))]
-pub const MAX_RUNTIMES_BITS: usize = 4; // 16.
+pub const MAX_RUNTIMES_BITS: usize = 5; // 32.
 
 /// An id for a waker.
 ///
