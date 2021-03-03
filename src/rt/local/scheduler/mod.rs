@@ -63,7 +63,7 @@ impl Scheduler {
         }
     }
 
-    pub(crate) fn add_future<Fut>(&mut self, future: Fut, priority: Priority, is_ready: bool)
+    pub(crate) fn add_future<Fut>(&mut self, future: Fut, priority: Priority)
     where
         Fut: Future<Output = ()> + 'static,
     {
@@ -75,11 +75,7 @@ impl Scheduler {
             "spawning thread-local future: pid={}",
             process.as_ref().id()
         );
-        if is_ready {
-            self.ready.push(process)
-        } else {
-            self.add_process(process)
-        }
+        self.ready.push(process)
     }
 
     /// Mark the process, with `pid`, as ready to run.

@@ -494,11 +494,10 @@ impl RuntimeRef {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        self.internals.scheduler.borrow_mut().add_future(
-            future,
-            options.priority(),
-            options.is_ready(),
-        )
+        self.internals
+            .scheduler
+            .borrow_mut()
+            .add_future(future, options.priority())
     }
 
     /// Spawn a thread-safe [`Future`].

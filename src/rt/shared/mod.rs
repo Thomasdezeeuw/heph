@@ -157,8 +157,7 @@ impl RuntimeInternals {
     where
         Fut: Future<Output = ()> + Send + Sync + 'static,
     {
-        self.scheduler
-            .add_future(future, options.priority(), options.is_ready())
+        self.scheduler.add_future(future, options.priority())
     }
 
     /// See [`Scheduler::mark_ready`].
