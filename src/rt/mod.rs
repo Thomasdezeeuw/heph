@@ -115,6 +115,7 @@
 //!
 //! [examples directory]: https://github.com/Thomasdezeeuw/heph/tree/master/examples
 
+use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
@@ -125,7 +126,9 @@ use mio::{event, Interest, Token};
 
 use crate::actor::{self, NewActor, SyncActor};
 use crate::actor_ref::{ActorGroup, ActorRef};
-use crate::spawn::{ActorOptions, AddActorError, PrivateSpawn, Spawn, SyncActorOptions};
+use crate::spawn::{
+    ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn, SyncActorOptions,
+};
 use crate::supervisor::{Supervisor, SyncSupervisor};
 use crate::trace;
 
@@ -299,6 +302,18 @@ impl Runtime {
             .map_err(Error::start_sync_actor)
     }
 
+    /// Spawn a thread-safe [`Future`].
+    ///
+    /// See [`RuntimeRef::spawn_future`] for more documentation.
+    pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
+    where
+        Fut: Future<Output = ()> + Send + Sync + 'static,
+    {
+        self.coordinator
+            .shared_internals()
+            .spawn_future(future, options)
+    }
+
     /// Run the function `f` on all worker threads.
     ///
     /// This can be used to spawn thread-local actors, e.g. [`TcpServer`], or to
@@ -468,6 +483,34 @@ impl RuntimeRef {
         NA::Message: Send,
     {
         Spawn::spawn(self, supervisor, new_actor, arg, options)
+    }
+
+    /// Spawn a thread-local [`Future`].
+    ///
+    /// Similar to thread-local actors this will only run on a single thread.
+    /// See the discussion of thread-local vs. thread-safe actors in the
+    /// [`actor`] module for additional information.
+    pub fn spawn_local_future<Fut>(&mut self, future: Fut, options: FutureOptions)
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        self.internals.scheduler.borrow_mut().add_future(
+            future,
+            options.priority(),
+            options.is_ready(),
+        )
+    }
+
+    /// Spawn a thread-safe [`Future`].
+    ///
+    /// Similar to thread-safe actors this can run on any of the workers
+    /// threads. See the discussion of thread-local vs. thread-safe actors in
+    /// the [`actor`] module for additional information.
+    pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
+    where
+        Fut: Future<Output = ()> + Send + Sync + 'static,
+    {
+        self.internals.shared.spawn_future(future, options)
     }
 
     /// Receive [process signals] as messages.

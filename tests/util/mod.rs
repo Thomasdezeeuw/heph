@@ -138,6 +138,17 @@ where
 }
 
 #[track_caller]
+pub fn expect_ready<T>(poll: Poll<T>, expected: T)
+where
+    T: fmt::Debug + PartialEq,
+{
+    match poll {
+        Poll::Pending => panic!("unexpected `Poll::Pending`"),
+        Poll::Ready(value) => assert_eq!(value, expected),
+    }
+}
+
+#[track_caller]
 pub fn expect_ready_ok<T, E>(poll: Poll<Result<T, E>>, expected: T)
 where
     T: fmt::Debug + PartialEq,
@@ -218,7 +229,7 @@ impl Future for PendingOnce {
 /// # Notes
 ///
 /// For streams it always returns the total number of polls, not the count
-/// inbetween return two items.
+/// in between return two items.
 pub const fn count_polls<T>(inner: T) -> CountPolls<T> {
     CountPolls { count: 0, inner }
 }

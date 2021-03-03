@@ -6,14 +6,15 @@
 
 use std::collections::BinaryHeap;
 use std::fmt;
+use std::future::Future;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
 use inbox::Manager;
-use log::trace;
+use log::{debug, trace};
 
 use crate::actor::NewActor;
-use crate::rt::process::{self, ActorProcess, ProcessId};
+use crate::rt::process::{self, ActorProcess, FutureProcess, ProcessId};
 use crate::rt::ThreadLocal;
 use crate::spawn::options::Priority;
 use crate::supervisor::Supervisor;
@@ -59,6 +60,25 @@ impl Scheduler {
         AddActor {
             scheduler: self,
             alloc: Box::new_uninit(),
+        }
+    }
+
+    pub(crate) fn add_future<Fut>(&mut self, future: Fut, priority: Priority, is_ready: bool)
+    where
+        Fut: Future<Output = ()> + 'static,
+    {
+        let process = Box::pin(ProcessData::new(
+            priority,
+            Box::pin(FutureProcess::<Fut, ThreadLocal>::new(future)),
+        ));
+        debug!(
+            "spawning thread-local future: pid={}",
+            process.as_ref().id()
+        );
+        if is_ready {
+            self.ready.push(process)
+        } else {
+            self.add_process(process)
         }
     }
 

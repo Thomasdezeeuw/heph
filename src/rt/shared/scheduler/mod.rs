@@ -4,15 +4,16 @@
 //!
 //! [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
 
+use std::future::Future;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::sync::Mutex;
 
 use inbox::Manager;
-use log::trace;
+use log::{debug, trace};
 
 use crate::actor::NewActor;
-use crate::rt::process::{self, ActorProcess, Process, ProcessId};
+use crate::rt::process::{self, ActorProcess, FutureProcess, Process, ProcessId};
 use crate::rt::ThreadSafe;
 use crate::spawn::options::Priority;
 use crate::supervisor::Supervisor;
@@ -129,6 +130,22 @@ impl Scheduler {
         AddActor {
             scheduler: self,
             alloc: Box::new_uninit(),
+        }
+    }
+
+    pub(crate) fn add_future<Fut>(&self, future: Fut, priority: Priority, is_ready: bool)
+    where
+        Fut: Future<Output = ()> + Send + Sync + 'static,
+    {
+        let process = Box::pin(ProcessData::new(
+            priority,
+            Box::pin(FutureProcess::<Fut, ThreadSafe>::new(future)),
+        ));
+        debug!("spawning thread-safe future: pid={}", process.as_ref().id());
+        if is_ready {
+            self.ready.add(process)
+        } else {
+            self.add_process(process)
         }
     }
 

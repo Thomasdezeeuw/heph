@@ -2,6 +2,7 @@
 //!
 //! [`rt::Access`]: crate::rt::Access
 
+use std::future::Future;
 use std::mem::replace;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
@@ -14,7 +15,7 @@ use crate::actor::{self, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::rt::process::ProcessId;
 use crate::rt::{shared, RuntimeRef};
-use crate::spawn::{ActorOptions, AddActorError, PrivateSpawn, Spawn};
+use crate::spawn::{ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn};
 use crate::supervisor::Supervisor;
 
 /// Trait to indicate an API needs access to the Heph runtime.
@@ -198,6 +199,16 @@ pub struct ThreadSafe {
 impl ThreadSafe {
     pub(crate) const fn new(pid: ProcessId, rt: Arc<shared::RuntimeInternals>) -> ThreadSafe {
         ThreadSafe { pid, rt }
+    }
+
+    /// Spawn a thread-safe [`Future`].
+    ///
+    /// See [`RuntimeRef::spawn_future`] for more documentation.
+    pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
+    where
+        Fut: Future<Output = ()> + Send + Sync + 'static,
+    {
+        self.rt.spawn_future(future, options)
     }
 }
 

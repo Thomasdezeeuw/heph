@@ -1,6 +1,7 @@
 //! Module with shared runtime internals.
 
 use std::cmp::min;
+use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
@@ -15,7 +16,7 @@ use crate::actor_ref::ActorRef;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::timers::Timers;
 use crate::rt::{ProcessId, ThreadSafe};
-use crate::spawn::{ActorOptions, AddActorError};
+use crate::spawn::{ActorOptions, AddActorError, FutureOptions};
 use crate::supervisor::Supervisor;
 
 mod scheduler;
@@ -149,6 +150,15 @@ impl RuntimeInternals {
         );
 
         Ok(actor_ref)
+    }
+
+    /// Spawn a thread-safe `future`.
+    pub(crate) fn spawn_future<Fut>(&self, future: Fut, options: FutureOptions)
+    where
+        Fut: Future<Output = ()> + Send + Sync + 'static,
+    {
+        self.scheduler
+            .add_future(future, options.priority(), options.is_ready())
     }
 
     /// See [`Scheduler::mark_ready`].
