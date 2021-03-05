@@ -1,6 +1,6 @@
 //! # Quick Start Guide
 //!
-//! The document describes some of the core concepts of Heph as quick (10-20
+//! This document describes some of the core concepts of Heph as quick (10-20
 //! minute) introduction to Heph.
 //!
 //! ## Actors
@@ -23,7 +23,7 @@
 //! // The `ThreadLocal` means we're running a thread-local actor, see the
 //! // `actor` module for more information about the different kinds of actors.
 //! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
-//!     // Message can be received from the `actor::Context`. In the example we
+//!     // Messages can be received from the `actor::Context`. In this example we
 //!     // can receive messages of the type `String`.
 //!     if let Ok(msg) = ctx.receive_next().await {
 //!         // Process the message.
@@ -32,6 +32,8 @@
 //! }
 //! # drop(actor); // Silence dead code warnings.
 //! ```
+//!
+//! The example above also shows how an actor can receive and process messages.
 //!
 //! [actor model]: https://en.wikipedia.org/wiki/Actor_model
 //! [actor]: crate::actor
@@ -65,21 +67,20 @@
 //!
 //! To run an actor it must be spawned. How to spawn an actor is defined by the
 //! [`Spawn`] trait, which is implemented on most runtime types, such as
-//! [`Runtime`] and [`RuntimeRef`], but we'll get back to those types in the
-//! next section.
+//! [`Runtime`] and [`RuntimeRef`], but we'll get to those types in the next
+//! section.
 //!
 //! To spawn an actor we need four things:
-//! * A [`Supervisor`]. Each actor needs supervisor to determine what to do if
+//! * A [`Supervisor`]. Each actor needs supervision to determine what to do if
 //!   the actor hits an error. For more information see the [supervisor] module.
+//! * The actor to start, or more specifically the [`NewActor`] implementation.
+//!   For now we're going to ignore that detail and use an asynchronous function
+//!   as actor which implements the `NewActor` trait for us.
 //! * The [starting argument(s)] for the actor, see the example below.
-//! * The [`ActorOptions`]. For now we'll ignore these, they are for more
-//!   advanced use cases, out of scope for this quick start guide.
-//! * Finally we need the actor to start, or more specifially the [`NewActor`]
-//!   implementation. For now we're going to ignore that detail and use an
-//!   asynchronous function as actor which implements the `NewActor` trait for
-//!   us.
+//! * Finally we need [`ActorOptions`]. For now we'll ignore these as they are
+//!   for more advanced use cases, out of scope for this quick start guide.
 //!
-//! Let's take a look at an example that spawn an actor.
+//! Let's take a look at an example that spawns an actor.
 //!
 //! ```
 //! # use std::io::{self, stdout, Write};
@@ -88,9 +89,10 @@
 //! # use heph::rt::{RuntimeRef, ThreadLocal};
 //! # use heph::spawn::options::ActorOptions;
 //! # use heph::supervisor::SupervisorStrategy;
+//! # use log::warn;
 //! // Later on we'll see where we can get a `RuntimeRef`.
 //! fn spawn_actor(mut runtime_ref: RuntimeRef) {
-//!     // Our supervisor that log errors and stops the actor.
+//!     // Our supervisor for the error.
 //!     let supervisor = supervisor;
 //!     // An unfortunate implementation detail requires us to convert our actor
 //!     // into a *function pointer* to implement the required traits.
@@ -99,18 +101,23 @@
 //!     // Since we want to pass multiple arguments we must do so in the tuple
 //!     // notation.
 //!     let arguments = ("Hello", true);
-//!     // For now we'll use the default options.
+//!     // For this example we'll use the default options.
 //!     let options = ActorOptions::default();
 //!     let actor_ref: ActorRef<String> = runtime_ref.spawn_local(supervisor, actor, arguments, options);
-//!     # drop(actor_ref); // Silence unused variable warning.
-//!     // Now we can use `actor_ref` to send the actor messages, see the
+//!
+//!     // Now we can use `actor_ref` to send the actor messages, as shown by the
 //!     // previous example.
+//!     # drop(actor_ref); // Silence unused variable warning.
 //! }
 //!
 //! /// Supervisor for [`actor`].
 //! fn supervisor(err: io::Error) -> SupervisorStrategy<(&'static str, bool)> {
-//!     eprintln!("Actor hit an error: {}", err);
-//!     // We'll stop the actor. We could also decide to restart it if we wanted to.
+//!     // First we need to handle the error, in this case we'll log it (always a
+//!     // good idea).
+//!     warn!("Actor hit an error: {}", err);
+//!
+//!     // The we need to decide if we want to stop or restart the actor. For this
+//!     // example we'll stop the actor.
 //!     SupervisorStrategy::Stop
 //! }
 //!
@@ -152,18 +159,18 @@
 //! To run all the actors we need a runtime. Luckily Heph provides one! A
 //! runtime can be created by first creating a runtime setup ([`rt::Setup`]),
 //! building the runtime ([`Runtime`]) from it and finally starting the runtime.
-//! The following example show how to create and run a runtime.
+//! The following example shows how to do all of the above.
 //!
 //! ```
 //! # #![feature(never_type)]
 //! # use heph::rt::{self, Runtime, RuntimeRef};
 //! fn main() -> Result<(), rt::Error> {
-//!     // First we setup the runtime.
+//!     // First we setup the runtime and configure it.
 //!     let mut runtime = Runtime::setup()
 //!         // For this example we'll use two worker threads. Meaning we'll use
 //!         // two threads to run all actors.
 //!         .num_threads(2)
-//!         // And we build our configured runtime
+//!         // And we build our configured runtime.
 //!         .build()?;
 //!
 //!     // Run `spawn_actor` on each worker thread (both of them) to spawn our
@@ -185,7 +192,7 @@
 //!
 //! For more information about setting up and using the runtime see the
 //! [runtime] module. Also take a look at some of the options available on the
-//! [`rt::Setup`].
+//! [`rt::Setup`] type.
 //!
 //! Now you know the core concepts of Heph!
 //!
