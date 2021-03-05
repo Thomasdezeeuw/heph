@@ -54,9 +54,9 @@
 //! ## Getting started
 //!
 //! There are two ways to get starting with Heph. If you like to see examples,
-//! take a look at the the [examples] in the examples directory of the source
-//! code. If you like to learn more about some of the core concepts of Heph
-//! start with the [Quick Start] guide.
+//! take a look at the [examples] in the examples directory of the source code.
+//! If you like to learn more about some of the core concepts of Heph start with
+//! the [Quick Start] guide.
 //!
 //! [examples]: https://github.com/Thomasdezeeuw/heph/blob/master/examples/README.md
 //! [Quick Start]: crate::quick_start
