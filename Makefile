@@ -5,8 +5,14 @@ RUSTUP_TOOLCHAIN ?= $(shell rustup show active-toolchain | cut -d' ' -f1)
 RUSTUP_TARGET    ?= $(shell echo $(RUSTUP_TOOLCHAIN) | cut -d'-' -f2,3,4)
 # Location of LLVM tools, as install by `install_llvm_tools`.
 LLVM_BIN         ?= $(shell rustc --print sysroot)/lib/rustlib/$(RUSTUP_TARGET)/bin
-# Where we put the coverage output.
-COVERAGE_OUTPUT  ?= ./target/coverage
+# To support `coverage` in workspaces we need to handle the single target
+# directory.
+# Absolute path to the root of the workspace.
+WORKSPACE        = $(shell cargo locate-project --message-format plain --workspace | xargs dirname)
+# Target directory inside the workspace (and all crates within it).
+TARGET_DIR       = $(WORKSPACE)/target
+# Output directory for the coverage data.
+COVERAGE_OUTPUT  = $(TARGET_DIR)/coverage
 # Targets available via Rustup that are supported.
 TARGETS ?= x86_64-apple-darwin x86_64-unknown-linux-gnu x86_64-unknown-freebsd
 # Command to run in `dev` target, e.g. `make RUN=check dev`.
@@ -67,21 +73,24 @@ coverage:
 	rm -rf "$(COVERAGE_OUTPUT)"
 	@# Run the tests with the LLVM instrumentation.
 	RUSTFLAGS="$(RUSTFLAGS) -Zinstrument-coverage" \
-		LLVM_PROFILE_FILE="$(COVERAGE_OUTPUT)/tests.%p.profraw" \
+		LLVM_PROFILE_FILE="$(COVERAGE_OUTPUT)/tests.%m.profraw" \
 		$(MAKE) --always-make test
 	@# Merge all coverage data into a single profile.
 	"$(LLVM_BIN)/llvm-profdata" merge \
 		--output "$(COVERAGE_OUTPUT)/tests.profdata" \
 		"$(COVERAGE_OUTPUT)"/tests.*.profraw
 	@# Generate a HTML report for the coverage, excluding all files not in `src/`.
-	find target/debug/deps -perm -111 -type f -maxdepth 1 | xargs printf -- "--object '%s' " | xargs  \
+	cd "$(WORKSPACE)" && \
+		find $(TARGET_DIR)/debug/deps -perm -111 -type f -maxdepth 1 | xargs printf -- "--object '%s' " | xargs  \
 		"$(LLVM_BIN)/llvm-cov" show \
 		--show-instantiations=false \
 		--show-expansions \
-		--ignore-filename-regex "^[^src]" \
-		--format html \
+		--ignore-filename-regex=".cargo\/registry" \
+		--ignore-filename-regex="tests\/" \
+		--ignore-filename-regex="tests.rs$$" \
+		--format=html \
 		--output-dir "$(COVERAGE_OUTPUT)/report" \
-		--instr-profile "$(COVERAGE_OUTPUT)/tests.profdata"
+		--instr-profile="$(COVERAGE_OUTPUT)/tests.profdata"
 	open "$(COVERAGE_OUTPUT)/report/index.html"
 
 install_coverage: install_llvm_tools
