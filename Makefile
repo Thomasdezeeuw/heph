@@ -1,16 +1,16 @@
 # Set by `rustup run`, or we get it ourselves.
 # Example value: `nightly-x86_64-apple-darwin`.
-RUSTUP_TOOLCHAIN ?= "$(shell rustup show active-toolchain | cut -d' ' -f1)"
+RUSTUP_TOOLCHAIN ?= $(shell rustup show active-toolchain | cut -d' ' -f1)
 # Architecture target. Example value: `x86_64-apple-darwin`.
-RUSTUP_TARGET    ?= "$(shell echo $(RUSTUP_TOOLCHAIN) | cut -d'-' -f2,3,4)"
+RUSTUP_TARGET    ?= $(shell echo $(RUSTUP_TOOLCHAIN) | cut -d'-' -f2,3,4)
 # Location of LLVM tools, as install by `install_llvm_tools`.
-LLVM_BIN         ?= "$(shell rustc --print sysroot)/lib/rustlib/$(RUSTUP_TARGET)/bin"
+LLVM_BIN         ?= $(shell rustc --print sysroot)/lib/rustlib/$(RUSTUP_TARGET)/bin
 # Where we put the coverage output.
-COVERAGE_OUTPUT  ?= "./target/coverage"
+COVERAGE_OUTPUT  ?= ./target/coverage
 # Targets available via Rustup that are supported.
-TARGETS ?= "x86_64-apple-darwin" "x86_64-unknown-linux-gnu" "x86_64-unknown-freebsd"
+TARGETS ?= x86_64-apple-darwin x86_64-unknown-linux-gnu x86_64-unknown-freebsd
 # Command to run in `dev` target, e.g. `make RUN=check dev`.
-RUN ?= "test"
+RUN ?= test
 
 test:
 	cargo test --all-features
