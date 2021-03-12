@@ -88,52 +88,6 @@ where
     }
 }
 
-impl Bytes for [MaybeUninit<u8>] {
-    fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
-        self
-    }
-
-    unsafe fn update_length(&mut self, _: usize) {
-        // Can't update the length of a slice.
-    }
-}
-
-/* TODO: this implementation is unsound, see issue #308.
-impl Bytes for [u8] {
-    fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
-        // Safety: `MaybeUninit<u8>` is guaranteed to have the same layout as
-        // `u8` so it same to cast the pointer.
-        unsafe { &mut *(self as *mut [u8] as *mut [MaybeUninit<u8>]) }
-    }
-
-    unsafe fn update_length(&mut self, _: usize) {
-        // Can't update the length of a slice.
-    }
-}
-*/
-
-impl<const N: usize> Bytes for [MaybeUninit<u8>; N] {
-    fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
-        self.as_mut_slice().as_bytes()
-    }
-
-    unsafe fn update_length(&mut self, _: usize) {
-        // Can't update the length of an array.
-    }
-}
-
-/* TODO: this implementation is unsound, see issue #308.
-impl<const N: usize> Bytes for [u8; N] {
-    fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
-        self.as_mut_slice().as_bytes()
-    }
-
-    unsafe fn update_length(&mut self, _: usize) {
-        // Can't update the length of an array.
-    }
-}
-*/
-
 /// The implementation for `Vec<u8>` only uses the uninitialised capacity of the
 /// vector. In other words the bytes currently in the vector remain untouched.
 ///
@@ -238,17 +192,6 @@ impl<'a> DerefMut for MaybeUninitSlice<'a> {
     }
 }
 
-impl<'a> Bytes for MaybeUninitSlice<'a> {
-    // NOTE: keep this function in sync with the impl below.
-    fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
-        self
-    }
-
-    unsafe fn update_length(&mut self, _: usize) {
-        // Can't update the length of an array.
-    }
-}
-
 /// Trait to make easier to work with vectored I/O using uninitialised bytes.
 ///
 /// This is implemented for arrays and tuples. When all of buffers are
@@ -285,13 +228,11 @@ impl<'a> Bytes for MaybeUninitSlice<'a> {
 ///     where B: BytesVectored,
 /// {
 ///     // Implementation is not relevant to the example.
-/// #   use heph::net::Bytes;
 /// #   let mut written = 0;
 /// #   let mut left = text;
 /// #   for buf in bufs.as_bufs().as_mut().iter_mut() {
-/// #       let dst = buf.as_bytes();
-/// #       let n = std::cmp::min(dst.len(), left.len());
-/// #       let _ = std::mem::MaybeUninit::write_slice(&mut dst[..n], &left[..n]);
+/// #       let n = std::cmp::min(buf.len(), left.len());
+/// #       let _ = std::mem::MaybeUninit::write_slice(&mut buf[..n], &left[..n]);
 /// #       left = &left[n..];
 /// #       written += n;
 /// #       if left.is_empty() {
@@ -309,39 +250,35 @@ impl<'a> Bytes for MaybeUninitSlice<'a> {
 /// Using the heterogeneous tuple implementation.
 ///
 /// ```
-/// # #![feature(maybe_uninit_slice, maybe_uninit_write_slice)]
+/// # #![feature(maybe_uninit_uninit_array, maybe_uninit_slice, maybe_uninit_write_slice)]
 /// use std::mem::MaybeUninit;
 ///
-/// use heph::net::BytesVectored;
+/// use heph::net::{Bytes, BytesVectored};
 ///
 /// // Buffers of different types.
 /// let mut buf1 = Vec::with_capacity(12);
-/// let mut buf2 = [MaybeUninit::uninit(); 1];
-/// let mut buf3 = &mut [MaybeUninit::uninit(); 20]; // Has extra capacity.
+/// let mut buf2 = StackBuf::new(); // Has extra capacity.
 ///
-/// // Using tuples we can different kind of buffers. Here we use a `Vec`, array
-/// // and a slice.
-/// let bufs = (&mut buf1, &mut buf2, &mut buf3);
+/// // Using tuples we can use different kind of buffers. Here we use a `Vec` and
+/// // our own `StackBuf` type.
+/// let bufs = (&mut buf1, &mut buf2);
 /// let text = b"Hello world. From mars!";
 /// let bytes_written = write_vectored(bufs, text);
 /// assert_eq!(bytes_written, text.len());
 ///
 /// assert_eq!(buf1, b"Hello world.");
-/// assert_eq!(unsafe { MaybeUninit::slice_assume_init_ref(&buf2) }, b" ");
-/// assert_eq!(unsafe { MaybeUninit::slice_assume_init_ref(&buf3[..10]) }, b"From mars!");
+/// assert_eq!(buf2.bytes(), b" From mars!");
 ///
 /// /// Writes `text` to the `bufs`.
 /// fn write_vectored<B>(mut bufs: B, text: &[u8]) -> usize
 ///     where B: BytesVectored,
 /// {
 ///     // Implementation is not relevant to the example.
-/// #   use heph::net::Bytes;
 /// #   let mut written = 0;
 /// #   let mut left = text;
 /// #   for buf in bufs.as_bufs().as_mut().iter_mut() {
-/// #       let dst = buf.as_bytes();
-/// #       let n = std::cmp::min(dst.len(), left.len());
-/// #       let _ = MaybeUninit::write_slice(&mut dst[..n], &left[..n]);
+/// #       let n = std::cmp::min(buf.len(), left.len());
+/// #       let _ = MaybeUninit::write_slice(&mut buf[..n], &left[..n]);
 /// #       left = &left[n..];
 /// #       written += n;
 /// #       if left.is_empty() {
@@ -353,6 +290,35 @@ impl<'a> Bytes for MaybeUninitSlice<'a> {
 /// #   // what would happen with actual vectored I/O.
 /// #   unsafe { bufs.update_lengths(written); }
 /// #   written
+/// }
+///
+/// /// Custom stack buffer type that implements the `Bytes` trait.
+/// struct StackBuf {
+///     bytes: [MaybeUninit<u8>; 4096],
+///     initialised: usize,
+/// }
+///
+/// impl StackBuf {
+///     fn new() -> StackBuf {
+///         StackBuf {
+///             bytes: MaybeUninit::uninit_array(),
+///             initialised: 0,
+///         }
+///     }
+///
+///     fn bytes(&self) -> &[u8] {
+///         unsafe { MaybeUninit::slice_assume_init_ref(&self.bytes[..self.initialised]) }
+///     }
+/// }
+///
+/// impl Bytes for StackBuf {
+///     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
+///         &mut self.bytes[self.initialised..]
+///     }
+///
+///     unsafe fn update_length(&mut self, n: usize) {
+///         self.initialised += n;
+///     }
 /// }
 /// ```
 pub trait BytesVectored {
@@ -395,12 +361,11 @@ where
     type Bufs<'b> = [MaybeUninitSlice<'b>; N];
 
     fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
-        // Safety: `MaybeUninitSlice` doesn't implement `Drop`, so it's safe to
-        // leak it.
         let mut bufs = MaybeUninit::uninit_array::<N>();
         for (i, buf) in self.iter_mut().enumerate() {
             let _ = bufs[i].write(MaybeUninitSlice::new(buf.as_bytes()));
         }
+        // Safety: initialised the buffers above.
         unsafe { MaybeUninit::array_assume_init(bufs) }
     }
 
@@ -425,12 +390,11 @@ macro_rules! impl_vectored_bytes_tuple {
             type Bufs<'b> = [MaybeUninitSlice<'b>; $N];
 
             fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
-                // Safety: `MaybeUninitSlice` doesn't implement `Drop`, so it's
-                // safe to leak it.
                 let mut bufs = MaybeUninit::uninit_array::<$N>();
                 $(
                     let _ = bufs[$idx].write(MaybeUninitSlice::new(self.$idx.as_bytes()));
                 )+
+                // Safety: initialised the buffers above.
                 unsafe { MaybeUninit::array_assume_init(bufs) }
             }
 

@@ -1,7 +1,6 @@
 //! Tests for the [`Bytes`] trait.
 
 use std::cmp::min;
-use std::mem::MaybeUninit;
 use std::ptr;
 
 use heph::net::Bytes;
@@ -23,48 +22,6 @@ where
         buf.update_length(len);
     }
     len
-}
-
-/* TODO: this implementation is unsound, see issue #308.
-#[test]
-fn impl_for_slice() {
-    let mut buf = vec![0; DATA.len() * 2].into_boxed_slice();
-    let n = write_bytes(DATA, buf.as_mut());
-    assert_eq!(n, DATA.len());
-    assert_eq!(&buf[..n], DATA);
-}
-*/
-
-#[test]
-fn impl_for_maybe_uninit_slice() {
-    let mut buf = vec![MaybeUninit::new(0); DATA.len() * 2].into_boxed_slice();
-    let n = write_bytes(DATA, buf.as_mut());
-    assert_eq!(n, DATA.len());
-    assert_eq!(
-        unsafe { MaybeUninit::slice_assume_init_ref(&buf[..n]) },
-        DATA
-    );
-}
-
-/* TODO: this implementation is unsound, see issue #308.
-#[test]
-fn impl_for_array() {
-    let mut buf = [0; DATA.len() * 2];
-    let n = write_bytes(DATA, buf.as_mut());
-    assert_eq!(n, DATA.len());
-    assert_eq!(&buf[..n], DATA);
-}
-*/
-
-#[test]
-fn impl_for_maybe_uninit_array() {
-    let mut buf = [MaybeUninit::new(0); DATA.len() * 2];
-    let n = write_bytes(DATA, buf.as_mut());
-    assert_eq!(n, DATA.len());
-    assert_eq!(
-        unsafe { MaybeUninit::slice_assume_init_ref(&buf[..n]) },
-        DATA
-    );
 }
 
 #[test]
