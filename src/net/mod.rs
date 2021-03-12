@@ -49,29 +49,36 @@ pub use tcp::{TcpListener, TcpServer, TcpStream};
 #[doc(no_inline)]
 pub use udp::UdpSocket;
 
-/// Trait to make easier to work with slices of (uninitialised) bytes.
+/// Trait to make easier to work with uninitialised buffers.
 ///
-/// This is implemented for common types such as `&mut[u8]` and `Vec<u8>`, [see
-/// below].
+/// This is implemented for common types such as `Vec<u8>`, [see below].
 ///
 /// [see below]: #foreign-impls
 pub trait Bytes {
     /// Returns itself as a slice of bytes that may or may not be initialised.
     ///
-    /// The implementation must guarantee that two calls (without any call to
+    /// # Notes
+    ///
+    /// The implementation must guarantee that two calls (without a call to
     /// [`update_length`] in between) returns the same slice of bytes.
     ///
     /// [`update_length`]: Bytes::update_length
     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>];
 
-    /// Update the length of the byte slice.
+    /// Update the length of the byte slice, marking `n` bytes as initialised.
     ///
     /// # Safety
     ///
-    /// The caller must ensure that at least `n` of the bytes returned by
+    /// The caller must ensure that at least the first `n` bytes returned by
     /// [`as_bytes`] are initialised.
     ///
     /// [`as_bytes`]: Bytes::as_bytes
+    ///
+    /// # Notes
+    ///
+    /// If this method is not implemented correctly methods such as
+    /// [`TcpStream::recv_n`] will not work correctly (as the buffer will
+    /// overwrite itself on successive reads).
     unsafe fn update_length(&mut self, n: usize);
 }
 
@@ -192,9 +199,9 @@ impl<'a> DerefMut for MaybeUninitSlice<'a> {
     }
 }
 
-/// Trait to make easier to work with vectored I/O using uninitialised bytes.
+/// Trait to make easier to work with uninitialised buffers using vectored I/O.
 ///
-/// This is implemented for arrays and tuples. When all of buffers are
+/// This trait is implemented for arrays and tuples. When all of buffers are
 /// *homogeneous*, i.e. of the same type, the array implementation is the
 /// easiest to use along side with the [`Bytes`] trait. If however the buffers
 /// are *heterogeneous*, i.e. of different types, the tuple implementation can
@@ -332,10 +339,17 @@ pub trait BytesVectored {
     ///
     /// # Safety
     ///
-    /// The caller must ensure that at least `n` of the bytes returned by
-    /// [`as_bufs`] are initialised, starting at the first buffer.
+    /// The caller must ensure that at least the first `n` bytes returned by
+    /// [`as_bufs`] are initialised, starting at the first buffer continuing
+    /// into the next one, etc.
     ///
     /// [`as_bufs`]: BytesVectored::as_bufs
+    ///
+    /// # Notes
+    ///
+    /// If this method is not implemented correctly methods such as
+    /// [`TcpStream::recv_n_vectored`] will not work correctly (as the buffer
+    /// will overwrite itself on successive reads).
     unsafe fn update_lengths(&mut self, n: usize);
 }
 
