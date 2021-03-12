@@ -320,15 +320,6 @@ impl TcpStream {
         B: BytesVectored,
     {
         let mut dst = bufs.as_bufs();
-        // Remove all empty buffers from `bufs`, this is required for
-        // `RecvNVectored`.
-        let mut remove = 0;
-        for buf in dst.as_mut().iter() {
-            if !buf.is_empty() {
-                break;
-            }
-            remove += 1;
-        }
         debug_assert!(
             !dst.as_mut()[remove..].is_empty(),
             "called `UdpSocket::try_recv_vectored` with an empty buffer"
