@@ -321,11 +321,11 @@ impl TcpStream {
     {
         let mut dst = bufs.as_bufs();
         debug_assert!(
-            !dst.as_mut()[remove..].is_empty(),
-            "called `UdpSocket::try_recv_vectored` with an empty buffer"
+            dst.as_mut().iter().any(|buf| !buf.is_empty()),
+            "called `UdpSocket::try_recv_vectored` with an empty buffers"
         );
-        let res = SockRef::from(&self.socket)
-            .recv_vectored(MaybeUninitSlice::as_socket2(&mut dst.as_mut()[remove..]));
+        let res =
+            SockRef::from(&self.socket).recv_vectored(MaybeUninitSlice::as_socket2(dst.as_mut()));
         match res {
             Ok((read, _)) => {
                 drop(dst);
@@ -350,13 +350,13 @@ impl TcpStream {
     where
         B: BytesVectored,
     {
-        let mut dst = bufs.as_bufs();
         debug_assert!(
-            !dst.as_mut().iter().map(|buf| buf.len()).sum::<usize>() >= n,
+            {
+                let mut dst = bufs.as_bufs();
+                !dst.as_mut().iter().map(|buf| buf.len()).sum::<usize>() >= n
+            },
             "called `TcpStream::recv_n_vectored` with a buffer smaller then `n`"
         );
-        drop(dst);
-
         RecvNVectored {
             stream: self,
             bufs,
@@ -402,13 +402,11 @@ impl TcpStream {
     {
         let mut dst = bufs.as_bufs();
         debug_assert!(
-            !dst.as_mut().is_empty(),
+            dst.as_mut().iter().any(|buf| !buf.is_empty()),
             "called `UdpSocket::try_peek_vectored` with an empty buffer"
         );
-        let res = SockRef::from(&self.socket).recv_vectored_with_flags(
-            MaybeUninitSlice::as_socket2(&mut dst.as_mut()),
-            libc::MSG_PEEK,
-        );
+        let res = SockRef::from(&self.socket)
+            .recv_vectored_with_flags(MaybeUninitSlice::as_socket2(dst.as_mut()), libc::MSG_PEEK);
         match res {
             Ok((read, _)) => {
                 drop(dst);
