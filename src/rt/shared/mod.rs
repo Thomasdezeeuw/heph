@@ -153,6 +153,7 @@ impl RuntimeInternals {
     }
 
     /// Spawn a thread-safe `future`.
+    #[allow(clippy::needless_pass_by_value)]
     pub(crate) fn spawn_future<Fut>(&self, future: Fut, options: FutureOptions)
     where
         Fut: Future<Output = ()> + Send + Sync + 'static,
