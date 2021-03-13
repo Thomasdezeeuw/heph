@@ -9,6 +9,7 @@ use std::future::Future;
 use std::io::{self, IoSlice};
 use std::mem::{replace, swap};
 use std::net::{Shutdown, SocketAddr};
+use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
@@ -428,6 +429,80 @@ impl TcpStream {
         PeekVectored { stream: self, bufs }
     }
 
+    /// Attempt to make a `sendfile(2)` system call.
+    ///
+    /// See [`TcpStream::send_file`] for more information.
+    pub fn try_send_file<F>(
+        &mut self,
+        file: &F,
+        offset: usize,
+        length: Option<NonZeroUsize>,
+    ) -> io::Result<usize>
+    where
+        F: FileSend,
+    {
+        SockRef::from(&self.socket).sendfile(file, offset, length)
+    }
+
+    /// Send the `file` out this stream.
+    ///
+    /// What kind of files are support depends on the OS and is determined by
+    /// the [`FileSend`] trait. All OSs at least support regular files.
+    ///
+    /// The `offset` is the offset into the `file` from which to start copying.
+    /// The `length` is the amount of bytes to copy, or if `None` this send the
+    /// entire `file`.
+    ///
+    /// Users might want to use [`TcpStream::send_file_all`] to ensure all the
+    /// specified bytes (between `offset` and `length`) are send.
+    pub fn send_file<'a, 'f, F>(
+        &'a mut self,
+        file: &'f F,
+        offset: usize,
+        length: Option<NonZeroUsize>,
+    ) -> SendFile<'a, 'f, F>
+    where
+        F: FileSend,
+    {
+        SendFile {
+            stream: self,
+            file,
+            offset,
+            length,
+        }
+    }
+
+    /// Same as [`TcpStream::send_all`] but then for [`TcpStream::send_file`].
+    ///
+    /// Users who want to send the entire file might want to use the
+    /// [`TcpStream::send_entire_file`] method.
+    pub fn send_file_all<'a, 'f, F>(
+        &'a mut self,
+        file: &'f F,
+        offset: usize,
+        length: Option<NonZeroUsize>,
+    ) -> SendFileAll<'a, 'f, F>
+    where
+        F: FileSend,
+    {
+        SendFileAll {
+            stream: self,
+            file,
+            start: offset,
+            end: length.and_then(|length| NonZeroUsize::new(offset + length.get())),
+        }
+    }
+
+    /// Convenience method to send the entire `file`.
+    ///
+    /// See [`TcpStream::send_file`] for more information.
+    pub fn send_entire_file<'a, 'f, F>(&'a mut self, file: &'f F) -> SendFileAll<'a, 'f, F>
+    where
+        F: FileSend,
+    {
+        self.send_file_all(file, 0, None)
+    }
+
     /// Shuts down the read, write, or both halves of this connection.
     ///
     /// This function will cause all pending and future I/O on the specified
@@ -768,6 +843,97 @@ where
         let PeekVectored { stream, bufs } = Pin::into_inner(self);
         try_io!(stream.try_peek_vectored(&mut *bufs))
     }
+}
+
+/// The [`Future`] behind [`TcpStream::send_file`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct SendFile<'a, 'f, F> {
+    stream: &'a mut TcpStream,
+    file: &'f F,
+    offset: usize,
+    length: Option<NonZeroUsize>,
+}
+
+impl<'a, 'f, F> Future for SendFile<'a, 'f, F>
+where
+    F: FileSend,
+{
+    type Output = io::Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        #[rustfmt::skip]
+        let SendFile { stream, file, offset, length } = Pin::into_inner(self);
+        try_io!(stream.try_send_file(*file, *offset, *length))
+    }
+}
+
+/// The [`Future`] behind [`TcpStream::send_file_all`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct SendFileAll<'a, 'f, F> {
+    stream: &'a mut TcpStream,
+    file: &'f F,
+    /// Starting and ending offsets into `file`.
+    /// If `start >= end` all bytes are send.
+    start: usize,
+    end: Option<NonZeroUsize>,
+}
+
+impl<'a, 'f, F> Future for SendFileAll<'a, 'f, F>
+where
+    F: FileSend,
+{
+    type Output = io::Result<()>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        #[rustfmt::skip]
+        let SendFileAll { stream, file, start, end } = Pin::into_inner(self);
+        let length = end.and_then(|end| NonZeroUsize::new(end.get() - *start));
+        loop {
+            match stream.try_send_file(*file, *start, length) {
+                // If zero bytes are send it means the entire file was send.
+                Ok(0) => break Poll::Ready(Ok(())),
+                Ok(n) => {
+                    *start += n;
+                    match end {
+                        Some(end) if *start >= end.get() => break Poll::Ready(Ok(())),
+                        Some(_) | None => {
+                            // If we haven't send all bytes yet, or if we don't
+                            // know when to stop (e.g. in case we want to send
+                            // the entire file) we must try to send more
+                            // bytes because we use edge triggers.
+                            continue;
+                        }
+                    }
+                }
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break Poll::Pending,
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue, // Try again.
+                Err(err) => break Poll::Ready(Err(err)),
+            }
+        }
+    }
+}
+
+/// Trait that determines which types are safe to use in
+/// [`TcpStream::try_send_file`], [`TcpStream::send_file`] and
+/// [`TcpStream::send_file_all`].
+pub trait FileSend: PrivateFileSend {}
+
+use private::PrivateFileSend;
+
+mod private {
+    use std::fs::File;
+    use std::os::unix::io::AsRawFd;
+
+    /// Private version of [`FileSend`].
+    ///
+    /// [`FileSend`]: super::FileSend
+    pub trait PrivateFileSend: AsRawFd {}
+
+    impl super::FileSend for File {}
+
+    impl PrivateFileSend for File {}
 }
 
 impl<RT: rt::Access> actor::Bound<RT> for TcpStream {

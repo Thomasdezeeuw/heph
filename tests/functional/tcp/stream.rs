@@ -3,9 +3,12 @@
 #![cfg(feature = "test")]
 
 use std::cmp::min;
+use std::fs::{self, File};
 use std::future::Future;
 use std::io::{self, IoSlice, Read, Write};
+use std::lazy::Lazy;
 use std::net::{self, Shutdown, SocketAddr};
+use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::thread::sleep;
@@ -22,6 +25,15 @@ use crate::util::{
 };
 
 const DATA: &[u8] = b"Hello world";
+// Test files used in testing `send_file`.
+const TEST_FILE0: &str = "./tests/data/hello_world";
+const TEST_FILE1: &str = "./tests/data/lorem_ipsum";
+
+// Contents of the test files.
+const EXPECTED0: Lazy<Vec<u8>> =
+    Lazy::new(|| fs::read(TEST_FILE0).expect("failed to read test file 0"));
+const EXPECTED1: Lazy<Vec<u8>> =
+    Lazy::new(|| fs::read(TEST_FILE1).expect("failed to read test file 0"));
 
 /// Sort of flush a `TcpStream`.
 fn sorta_flush(stream: &mut net::TcpStream) {
@@ -973,6 +985,245 @@ fn peek() {
     drop(stream);
 
     loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
+}
+
+#[test]
+fn send_file() {
+    // Should be able to send this many bytes in a single call.
+    const LENGTH: usize = 128;
+
+    async fn actor(
+        mut ctx: actor::Context<!, ThreadLocal>,
+        address: SocketAddr,
+        path: &'static str,
+    ) -> io::Result<()> {
+        let file = File::open(path)?;
+        let metadata = file.metadata()?;
+        let length = min(metadata.len(), LENGTH as u64) as usize;
+        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        let n = stream
+            .send_file(&file, 0, NonZeroUsize::new(length))
+            .await?;
+        assert_eq!(n, length);
+        Ok(())
+    }
+
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
+    let address = listener.local_addr().unwrap();
+
+    let actor = actor as fn(_, _, _) -> _;
+    let (actor0, _) = init_local_actor(actor, (address, TEST_FILE0)).unwrap();
+    let mut actor0 = Box::pin(actor0);
+    expect_pending(poll_actor(Pin::as_mut(&mut actor0)));
+    let (mut stream0, _) = listener.accept().unwrap();
+    stream0.set_nonblocking(true).unwrap();
+
+    let (actor1, _) = init_local_actor(actor, (address, TEST_FILE1)).unwrap();
+    let mut actor1 = Box::pin(actor1);
+    expect_pending(poll_actor(Pin::as_mut(&mut actor1)));
+    let (mut stream1, _) = listener.accept().unwrap();
+    stream1.set_nonblocking(true).unwrap();
+
+    let mut expected0_offset = 0;
+    let mut actor0_done = false;
+    let expected1 = &EXPECTED1[..LENGTH];
+    let mut expected1_offset = 0;
+    let mut actor1_done = false;
+
+    let mut buf = vec![0; LENGTH + 1];
+    for _ in 0..20 {
+        // NOTE: can't use `&&` as that short circuits.
+        let done0 = send_file_check_actor(
+            Pin::as_mut(&mut actor0),
+            &mut actor0_done,
+            &mut stream0,
+            &EXPECTED0,
+            &mut expected0_offset,
+            &mut buf,
+        );
+        let done1 = send_file_check_actor(
+            Pin::as_mut(&mut actor1),
+            &mut actor1_done,
+            &mut stream1,
+            &expected1,
+            &mut expected1_offset,
+            &mut buf,
+        );
+
+        if done0 && done1 {
+            break;
+        }
+
+        sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn send_file_all() {
+    const OFFSET: usize = 5;
+    // Should be able to send this many bytes in a single call.
+    const LENGTH: usize = 1 << 14; // 16kb.
+
+    async fn actor(
+        mut ctx: actor::Context<!, ThreadLocal>,
+        address: SocketAddr,
+        path: &'static str,
+    ) -> io::Result<()> {
+        let file = File::open(path)?;
+        let metadata = file.metadata()?;
+        let length = min(metadata.len(), LENGTH as u64) as usize;
+        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        stream
+            .send_file_all(&file, OFFSET, NonZeroUsize::new(length))
+            .await?;
+        Ok(())
+    }
+
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
+    let address = listener.local_addr().unwrap();
+
+    let actor = actor as fn(_, _, _) -> _;
+    let (actor0, _) = init_local_actor(actor, (address, TEST_FILE0)).unwrap();
+    let mut actor0 = Box::pin(actor0);
+    expect_pending(poll_actor(Pin::as_mut(&mut actor0)));
+    let (mut stream0, _) = listener.accept().unwrap();
+    stream0.set_nonblocking(true).unwrap();
+
+    let (actor1, _) = init_local_actor(actor, (address, TEST_FILE1)).unwrap();
+    let mut actor1 = Box::pin(actor1);
+    expect_pending(poll_actor(Pin::as_mut(&mut actor1)));
+    let (mut stream1, _) = listener.accept().unwrap();
+    stream1.set_nonblocking(true).unwrap();
+
+    let expected0 = &EXPECTED0;
+    let mut expected0_offset = OFFSET;
+    let mut actor0_done = false;
+    let expected1 = &EXPECTED1[..OFFSET + LENGTH];
+    let mut expected1_offset = OFFSET;
+    let mut actor1_done = false;
+
+    let mut buf = vec![0; LENGTH + 1];
+    for _ in 0..20 {
+        // NOTE: can't use `&&` as that short circuits.
+        let done0 = send_file_check_actor(
+            Pin::as_mut(&mut actor0),
+            &mut actor0_done,
+            &mut stream0,
+            &expected0,
+            &mut expected0_offset,
+            &mut buf,
+        );
+        let done1 = send_file_check_actor(
+            Pin::as_mut(&mut actor1),
+            &mut actor1_done,
+            &mut stream1,
+            &expected1,
+            &mut expected1_offset,
+            &mut buf,
+        );
+
+        if done0 && done1 {
+            break;
+        }
+
+        sleep(Duration::from_millis(10));
+    }
+}
+
+#[test]
+fn send_entire_file() {
+    async fn actor(
+        mut ctx: actor::Context<!, ThreadLocal>,
+        address: SocketAddr,
+        path: &'static str,
+    ) -> io::Result<()> {
+        let file = File::open(path)?;
+        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        stream.send_entire_file(&file).await
+    }
+
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
+    let address = listener.local_addr().unwrap();
+
+    let actor = actor as fn(_, _, _) -> _;
+    let (actor0, _) = init_local_actor(actor, (address, TEST_FILE0)).unwrap();
+    let mut actor0 = Box::pin(actor0);
+    expect_pending(poll_actor(Pin::as_mut(&mut actor0)));
+    let (mut stream0, _) = listener.accept().unwrap();
+    stream0.set_nonblocking(true).unwrap();
+
+    let (actor1, _) = init_local_actor(actor, (address, TEST_FILE1)).unwrap();
+    let mut actor1 = Box::pin(actor1);
+    expect_pending(poll_actor(Pin::as_mut(&mut actor1)));
+    let (mut stream1, _) = listener.accept().unwrap();
+    stream1.set_nonblocking(true).unwrap();
+
+    let mut expected0_offset = 0;
+    let mut actor0_done = false;
+    let mut expected1_offset = 0;
+    let mut actor1_done = false;
+
+    let mut buf = vec![0; 4096];
+    for _ in 0..20 {
+        // NOTE: can't use `&&` as that short circuits.
+        let done0 = send_file_check_actor(
+            Pin::as_mut(&mut actor0),
+            &mut actor0_done,
+            &mut stream0,
+            &EXPECTED0,
+            &mut expected0_offset,
+            &mut buf,
+        );
+        let done1 = send_file_check_actor(
+            Pin::as_mut(&mut actor1),
+            &mut actor1_done,
+            &mut stream1,
+            &EXPECTED1,
+            &mut expected1_offset,
+            &mut buf,
+        );
+
+        if done0 && done1 {
+            break;
+        }
+
+        sleep(Duration::from_millis(10));
+    }
+}
+
+/// Returns `true` if `actor` send all `expected` bytes to `stream`.
+#[track_caller]
+fn send_file_check_actor<A: Actor<Error = io::Error>>(
+    actor: Pin<&mut A>,
+    actor_done: &mut bool,
+    stream: &mut net::TcpStream,
+    expected: &[u8],
+    offset: &mut usize,
+    buf: &mut Vec<u8>,
+) -> bool {
+    if !*actor_done {
+        match poll_actor(actor) {
+            Poll::Ready(Ok(())) => *actor_done = true,
+            Poll::Ready(Err(err)) => panic!("unexpected error in actor: {}", err),
+            Poll::Pending => {}
+        }
+    }
+
+    if *offset != expected.len() {
+        buf.resize(buf.capacity(), 0);
+        match stream.read(&mut *buf) {
+            Ok(0) => panic!("unexpected EOF"),
+            Ok(n) => {
+                assert_eq!(&expected[*offset..*offset + n], &buf[0..n]);
+                *offset += n
+            }
+            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {}
+            Err(err) => panic!("unexpected error reading: {}", err),
+        }
+    }
+
+    // Done if we've read all expected bytes.
+    *actor_done && *offset == expected.len()
 }
 
 #[test]

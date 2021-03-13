@@ -5,6 +5,7 @@
     drain_filter,
     maybe_uninit_slice,
     never_type,
+    once_cell,
     write_all_vectored
 )]
 
