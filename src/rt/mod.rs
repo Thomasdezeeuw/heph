@@ -490,6 +490,7 @@ impl RuntimeRef {
     /// Similar to thread-local actors this will only run on a single thread.
     /// See the discussion of thread-local vs. thread-safe actors in the
     /// [`actor`] module for additional information.
+    #[allow(clippy::needless_pass_by_value)]
     pub fn spawn_local_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
         Fut: Future<Output = ()> + 'static,
