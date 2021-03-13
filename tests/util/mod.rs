@@ -157,7 +157,19 @@ where
     match poll {
         Poll::Pending => panic!("unexpected `Poll::Pending`"),
         Poll::Ready(Ok(value)) => assert_eq!(value, expected),
-        Poll::Ready(Err(err)) => panic!("unexpected err: {}", err),
+        Poll::Ready(Err(err)) => panic!("unexpected error: {}", err),
+    }
+}
+
+#[track_caller]
+pub fn is_ready<E>(poll: Poll<Result<(), E>>) -> bool
+where
+    E: fmt::Display,
+{
+    match poll {
+        Poll::Ready(Ok(())) => true,
+        Poll::Ready(Err(err)) => panic!("unexpected error: {}", err),
+        Poll::Pending => false,
     }
 }
 

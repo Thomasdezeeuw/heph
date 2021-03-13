@@ -20,8 +20,8 @@ use heph::test::{init_local_actor, poll_actor};
 use heph::{actor, Actor, ActorRef};
 
 use crate::util::{
-    any_local_address, expect_pending, expect_ready_ok, loop_expect_ready_ok, refused_address,
-    run_actors, Stage,
+    any_local_address, expect_pending, expect_ready_ok, is_ready, loop_expect_ready_ok,
+    refused_address, run_actors, Stage,
 };
 
 const DATA: &[u8] = b"Hello world";
@@ -1014,21 +1014,19 @@ fn send_file() {
     let actor = actor as fn(_, _, _) -> _;
     let (actor0, _) = init_local_actor(actor, (address, TEST_FILE0)).unwrap();
     let mut actor0 = Box::pin(actor0);
-    expect_pending(poll_actor(Pin::as_mut(&mut actor0)));
+    let mut actor0_done = is_ready(poll_actor(Pin::as_mut(&mut actor0)));
     let (mut stream0, _) = listener.accept().unwrap();
     stream0.set_nonblocking(true).unwrap();
 
     let (actor1, _) = init_local_actor(actor, (address, TEST_FILE1)).unwrap();
     let mut actor1 = Box::pin(actor1);
-    expect_pending(poll_actor(Pin::as_mut(&mut actor1)));
+    let mut actor1_done = is_ready(poll_actor(Pin::as_mut(&mut actor1)));
     let (mut stream1, _) = listener.accept().unwrap();
     stream1.set_nonblocking(true).unwrap();
 
     let mut expected0_offset = 0;
-    let mut actor0_done = false;
     let expected1 = &EXPECTED1[..LENGTH];
     let mut expected1_offset = 0;
-    let mut actor1_done = false;
 
     let mut buf = vec![0; LENGTH + 1];
     for _ in 0..20 {
@@ -1085,22 +1083,20 @@ fn send_file_all() {
     let actor = actor as fn(_, _, _) -> _;
     let (actor0, _) = init_local_actor(actor, (address, TEST_FILE0)).unwrap();
     let mut actor0 = Box::pin(actor0);
-    expect_pending(poll_actor(Pin::as_mut(&mut actor0)));
+    let mut actor0_done = is_ready(poll_actor(Pin::as_mut(&mut actor0)));
     let (mut stream0, _) = listener.accept().unwrap();
     stream0.set_nonblocking(true).unwrap();
 
     let (actor1, _) = init_local_actor(actor, (address, TEST_FILE1)).unwrap();
     let mut actor1 = Box::pin(actor1);
-    expect_pending(poll_actor(Pin::as_mut(&mut actor1)));
+    let mut actor1_done = is_ready(poll_actor(Pin::as_mut(&mut actor1)));
     let (mut stream1, _) = listener.accept().unwrap();
     stream1.set_nonblocking(true).unwrap();
 
     let expected0 = &EXPECTED0;
     let mut expected0_offset = OFFSET;
-    let mut actor0_done = false;
     let expected1 = &EXPECTED1[..OFFSET + LENGTH];
     let mut expected1_offset = OFFSET;
-    let mut actor1_done = false;
 
     let mut buf = vec![0; LENGTH + 1];
     for _ in 0..20 {
@@ -1148,20 +1144,18 @@ fn send_entire_file() {
     let actor = actor as fn(_, _, _) -> _;
     let (actor0, _) = init_local_actor(actor, (address, TEST_FILE0)).unwrap();
     let mut actor0 = Box::pin(actor0);
-    expect_pending(poll_actor(Pin::as_mut(&mut actor0)));
+    let mut actor0_done = is_ready(poll_actor(Pin::as_mut(&mut actor0)));
     let (mut stream0, _) = listener.accept().unwrap();
     stream0.set_nonblocking(true).unwrap();
 
     let (actor1, _) = init_local_actor(actor, (address, TEST_FILE1)).unwrap();
     let mut actor1 = Box::pin(actor1);
-    expect_pending(poll_actor(Pin::as_mut(&mut actor1)));
+    let mut actor1_done = is_ready(poll_actor(Pin::as_mut(&mut actor1)));
     let (mut stream1, _) = listener.accept().unwrap();
     stream1.set_nonblocking(true).unwrap();
 
     let mut expected0_offset = 0;
-    let mut actor0_done = false;
     let mut expected1_offset = 0;
-    let mut actor1_done = false;
 
     let mut buf = vec![0; 4096];
     for _ in 0..20 {
