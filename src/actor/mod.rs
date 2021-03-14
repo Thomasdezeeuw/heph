@@ -97,11 +97,9 @@
 //! }
 //! ```
 //!
-//! Spawning and runing a synchronous actor using a regular function.
+//! Spawning and running a synchronous actor using a regular function.
 //!
 //! ```
-//! #![feature(never_type)]
-//!
 //! use heph::actor::SyncContext;
 //! use heph::rt::{self, Runtime};
 //! use heph::spawn::SyncActorOptions;

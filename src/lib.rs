@@ -11,8 +11,6 @@
 //! asynchronous function looks like this:
 //!
 //! ```
-//! # #![feature(never_type)]
-//! #
 //! # use heph::actor;
 //! # use heph::rt::ThreadLocal;
 //! #

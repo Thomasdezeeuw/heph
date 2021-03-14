@@ -25,9 +25,7 @@
 //! #
 //! use heph::actor;
 //! use heph::actor_ref::{ActorRef, RpcMessage};
-//! use heph::rt::{self, Runtime, ThreadLocal};
-//! use heph::spawn::ActorOptions;
-//! use heph::supervisor::NoSupervisor;
+//! use heph::rt::{self, ThreadLocal};
 //!
 //! /// Message type for [`counter`].
 //! struct Add(RpcMessage<usize, usize>);
@@ -65,6 +63,9 @@
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {
+//! #    use heph::rt::Runtime;
+//! #    use heph::spawn::ActorOptions;
+//! #    use heph::supervisor::NoSupervisor;
 //! #    let mut runtime = Runtime::new()?;
 //! #    runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
 //! #        let counter = counter as fn(_) -> _;
@@ -89,8 +90,7 @@
 //! use heph::actor::{self, SyncContext};
 //! use heph::actor_ref::{ActorRef, RpcMessage};
 //! use heph::from_message;
-//! use heph::rt::{self, Runtime, ActorOptions, SyncActorOptions};
-//! use heph::supervisor::NoSupervisor;
+//! use heph::rt::{self, ThreadLocal};
 //!
 //! /// Message type for [`counter`].
 //! enum Message {
@@ -126,7 +126,7 @@
 //! }
 //!
 //! /// Sending actor of the RPC.
-//! async fn requester(_: actor::Context<!>, actor_ref: ActorRef<Message>) {
+//! async fn requester(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<Message>) {
 //!     // Increase the counter by ten.
 //!     // NOTE: do handle the errors correctly in practice, this is just an
 //!     // example.
@@ -140,6 +140,10 @@
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {
+//! #    use heph::rt::Runtime;
+//! #    use heph::spawn::{ActorOptions, SyncActorOptions};
+//! #    use heph::supervisor::NoSupervisor;
+//! #
 //! #    let mut runtime = Runtime::new()?;
 //! #    let counter = counter as fn(_) -> _;
 //! #    let options = SyncActorOptions::default();

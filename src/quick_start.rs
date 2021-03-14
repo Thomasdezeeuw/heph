@@ -163,6 +163,7 @@
 //!
 //! ```
 //! # #![feature(never_type)]
+//! #
 //! # use heph::rt::{self, Runtime, RuntimeRef};
 //! fn main() -> Result<(), rt::Error> {
 //!     // First we setup the runtime and configure it.

@@ -18,8 +18,6 @@
 //! Implementing `From<Message>` to allow for easy sending of messages.
 //!
 //! ```
-//! #![feature(never_type)]
-//!
 //! use heph::actor::messages::Ack;
 //!
 //! #[derive(Debug, Eq, PartialEq)]
