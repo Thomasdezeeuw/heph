@@ -1,5 +1,3 @@
-#![feature(never_type)]
-
 use heph::actor::SyncContext;
 use heph::rt::{self, Runtime};
 use heph::spawn::SyncActorOptions;

@@ -95,7 +95,7 @@ use crate::rt::{self, PrivateAccess};
 /// Accepting multiple [`TcpStream`]s, using [`TcpListener::incoming`].
 ///
 /// ```
-/// #![feature(async_closure, never_type)]
+/// #![feature(never_type)]
 ///
 /// use std::io;
 /// use std::net::SocketAddr;

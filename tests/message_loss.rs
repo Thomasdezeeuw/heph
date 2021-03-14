@@ -5,7 +5,6 @@
 //! This function needs to be in it's own binary since `set_message_loss` is set
 //! globally.
 
-#![feature(never_type)]
 #![cfg(feature = "test")]
 
 use std::pin::Pin;

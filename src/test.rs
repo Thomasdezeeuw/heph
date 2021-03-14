@@ -271,8 +271,6 @@ where
 /// # Examples
 ///
 /// ```
-/// # #![feature(never_type)]
-/// #
 /// use heph::actor;
 /// use heph::test::size_of_actor_val;
 /// use heph::rt::ThreadLocal;

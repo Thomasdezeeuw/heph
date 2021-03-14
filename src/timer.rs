@@ -40,8 +40,8 @@ impl From<DeadlinePassed> for io::Error {
 /// # Examples
 ///
 /// ```
-/// #![feature(never_type)]
-///
+/// # #![feature(never_type)]
+/// #
 /// use std::time::Duration;
 /// # use std::time::Instant;
 ///
@@ -182,8 +182,6 @@ impl<RT: rt::Access> Drop for Timer<RT> {
 /// Setting a timeout for a future.
 ///
 /// ```
-/// #![feature(never_type)]
-///
 /// use std::io;
 /// # use std::future::Future;
 /// # use std::pin::Pin;
@@ -380,8 +378,8 @@ impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
 /// milliseconds.
 ///
 /// ```
-/// #![feature(never_type)]
-///
+/// # #![feature(never_type)]
+/// #
 /// use std::time::Duration;
 /// # use std::time::Instant;
 ///
