@@ -30,6 +30,8 @@ pub(super) struct Coordinator {
     /// OS poll, used to poll the status of the (sync) worker threads and
     /// process signals.
     poll: Poll,
+    /// Signal notifications.
+    signals: Signals,
     /// Internals shared between the coordinator and workers.
     internals: Arc<shared::RuntimeInternals>,
 }
@@ -41,11 +43,18 @@ impl Coordinator {
         let registry = poll.registry().try_clone()?;
         let scheduler = Scheduler::new();
         let timers = Mutex::new(Timers::new());
+        // NOTE: on Linux this MUST be created before starting the worker
+        // threads.
+        let signals = setup_signals(&registry)?;
         let internals = Arc::new_cyclic(|shared_internals| {
             let waker_id = waker::init(shared_internals.clone());
             shared::RuntimeInternals::new(waker_id, worker_wakers, scheduler, registry, timers)
         });
-        Ok(Coordinator { poll, internals })
+        Ok(Coordinator {
+            poll,
+            signals,
+            internals,
+        })
     }
 
     /// Get access to the shared runtime internals.
@@ -72,8 +81,6 @@ impl Coordinator {
         // polling events.
         let timing = trace::start(&trace_log);
         let registry = self.poll.registry();
-        let mut signals = setup_signals(registry)
-            .map_err(|err| rt::Error::coordinator(Error::SetupSignals(err)))?;
         register_workers(registry, &mut workers)
             .map_err(|err| rt::Error::coordinator(Error::RegisteringWorkers(err)))?;
         register_sync_workers(registry, &mut sync_workers)
@@ -115,10 +122,11 @@ impl Coordinator {
             let mut wake_workers = 0; // Counter for how many workers to wake.
             for event in events.iter() {
                 trace!("event: {:?}", event);
+
                 match event.token() {
                     SIGNAL => {
                         let timing = trace::start(&trace_log);
-                        relay_signals(&mut signals, &mut workers, &mut signal_refs)
+                        relay_signals(&mut self.signals, &mut workers, &mut signal_refs)
                             .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?;
                         trace::finish(&mut trace_log, timing, "Relaying process signal(s)", &[]);
                     }
@@ -276,8 +284,6 @@ fn handle_sync_worker_event(
 /// Error running the [`Coordinator`].
 #[derive(Debug)]
 pub(super) enum Error {
-    /// Error in [`setup_signals`].
-    SetupSignals(io::Error),
     /// Error in [`register_workers`].
     RegisteringWorkers(io::Error),
     /// Error in [`register_sync_workers`].
@@ -296,7 +302,6 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Error::*;
         match self {
-            SetupSignals(err) => write!(f, "error setting up process signal handling: {}", err),
             RegisteringWorkers(err) => write!(f, "error registering worker threads: {}", err),
             RegisteringSyncActors(err) => {
                 write!(f, "error registering synchronous actor threads: {}", err)
@@ -313,8 +318,7 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use Error::*;
         match self {
-            SetupSignals(ref err)
-            | RegisteringWorkers(ref err)
+            RegisteringWorkers(ref err)
             | RegisteringSyncActors(ref err)
             | Polling(ref err)
             | SendingStartSignal(ref err)
