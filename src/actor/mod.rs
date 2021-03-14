@@ -97,7 +97,7 @@
 //! }
 //! ```
 //!
-//! Spawning and runing a synchronous actor using a regular function.
+//! Spawning and running a synchronous actor using a regular function.
 //!
 //! ```
 //! use heph::actor::SyncContext;
