@@ -19,9 +19,8 @@ use mio::{net, Interest};
 
 use socket2::SockRef;
 
-use crate::actor;
 use crate::net::{Bytes, BytesVectored, MaybeUninitSlice};
-use crate::rt::{self, PrivateAccess};
+use crate::{actor, rt};
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
 #[derive(Debug)]
@@ -49,10 +48,11 @@ impl TcpStream {
         RT: rt::Access,
     {
         let mut socket = net::TcpStream::connect(address)?;
-        ctx.register(&mut socket, Interest::READABLE | Interest::WRITABLE)?;
+        ctx.runtime()
+            .register(&mut socket, Interest::READABLE | Interest::WRITABLE)?;
         Ok(Connect {
             socket: Some(socket),
-            cpu_affinity: ctx.cpu(),
+            cpu_affinity: ctx.runtime_ref().cpu(),
         })
     }
 
@@ -940,6 +940,7 @@ impl<RT: rt::Access> actor::Bound<RT> for TcpStream {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
-        ctx.reregister(&mut self.socket, Interest::READABLE | Interest::WRITABLE)
+        ctx.runtime()
+            .reregister(&mut self.socket, Interest::READABLE | Interest::WRITABLE)
     }
 }

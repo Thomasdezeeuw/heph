@@ -20,9 +20,8 @@ use log::warn;
 use mio::{net, Interest};
 use socket2::{SockAddr, SockRef};
 
-use crate::actor;
 use crate::net::{convert_address, Bytes, BytesVectored, MaybeUninitSlice};
-use crate::rt::{self, PrivateAccess};
+use crate::{actor, rt};
 
 /// The unconnected mode of an [`UdpSocket`].
 #[allow(missing_debug_implementations)]
@@ -157,9 +156,10 @@ impl UdpSocket {
         RT: rt::Access,
     {
         let mut socket = net::UdpSocket::bind(local)?;
-        ctx.register(&mut socket, Interest::READABLE | Interest::WRITABLE)?;
+        ctx.runtime()
+            .register(&mut socket, Interest::READABLE | Interest::WRITABLE)?;
         #[cfg(target_os = "linux")]
-        if let Some(cpu) = ctx.cpu() {
+        if let Some(cpu) = ctx.runtime_ref().cpu() {
             if let Err(err) = SockRef::from(&socket).set_cpu_affinity(cpu) {
                 warn!("failed to set CPU affinity on UdpSocket: {}", err);
             }
@@ -850,6 +850,7 @@ impl<RT: rt::Access> actor::Bound<RT> for UdpSocket {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
-        ctx.reregister(&mut self.socket, Interest::READABLE | Interest::WRITABLE)
+        ctx.runtime()
+            .reregister(&mut self.socket, Interest::READABLE | Interest::WRITABLE)
     }
 }

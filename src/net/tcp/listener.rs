@@ -9,9 +9,8 @@ use std::task::{self, Poll};
 
 use mio::{net, Interest};
 
-use crate::actor;
 use crate::net::TcpStream;
-use crate::rt::{self, PrivateAccess};
+use crate::{actor, rt};
 
 /// A TCP socket listener.
 ///
@@ -187,7 +186,7 @@ impl TcpListener {
         RT: rt::Access,
     {
         let mut socket = net::TcpListener::bind(address)?;
-        ctx.register(&mut socket, Interest::READABLE)?;
+        ctx.runtime().register(&mut socket, Interest::READABLE)?;
         Ok(TcpListener { socket })
     }
 
@@ -277,11 +276,12 @@ impl UnboundTcpStream {
     where
         RT: rt::Access,
     {
-        ctx.register(
-            &mut self.stream.socket,
-            Interest::READABLE | Interest::WRITABLE,
-        )
-        .map(|()| self.stream)
+        ctx.runtime()
+            .register(
+                &mut self.stream.socket,
+                Interest::READABLE | Interest::WRITABLE,
+            )
+            .map(|()| self.stream)
     }
 }
 
@@ -326,6 +326,7 @@ impl<RT: rt::Access> actor::Bound<RT> for TcpListener {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
-        ctx.reregister(&mut self.socket, Interest::READABLE)
+        ctx.runtime()
+            .reregister(&mut self.socket, Interest::READABLE)
     }
 }

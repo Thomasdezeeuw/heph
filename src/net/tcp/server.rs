@@ -75,7 +75,7 @@ where
         let this = &*self.inner;
         let socket = new_listener(this.address, 1024)?;
         let mut listener = unsafe { TcpListener::from_raw_fd(socket.into_raw_fd()) };
-        ctx.register(&mut listener, Interest::READABLE)?;
+        ctx.runtime().register(&mut listener, Interest::READABLE)?;
         Ok(TcpServer {
             ctx,
             set_waker: false,
@@ -521,11 +521,12 @@ where
             debug!("TcpServer accepted connection: remote_address={}", addr);
 
             let setup_actor = move |ctx: &mut actor::Context<NA::Message, NA::RuntimeAccess>| {
-                ctx.register(&mut stream, Interest::READABLE | Interest::WRITABLE)?;
+                ctx.runtime()
+                    .register(&mut stream, Interest::READABLE | Interest::WRITABLE)?;
                 #[allow(unused_mut)]
                 let mut stream = TcpStream { socket: stream };
                 #[cfg(target_os = "linux")]
-                if let Some(cpu) = ctx.cpu() {
+                if let Some(cpu) = ctx.runtime_ref().cpu() {
                     if let Err(err) = stream.set_cpu_affinity(cpu) {
                         warn!("failed to set CPU affinity on TcpStream: {}", err);
                     }
