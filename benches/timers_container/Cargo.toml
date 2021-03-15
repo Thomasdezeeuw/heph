@@ -1,0 +1,15 @@
+[package]
+name = "benches"
+version = "0.1.0"
+authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
+edition = "2018"
+
+[dev-dependencies]
+criterion    = { version = "0.3.4", default-features = false, features = ["html_reports", "cargo_bench_support"] }
+rand         = { version = "0.8.3", default-features = false }
+rand_xoshiro = { version = "0.6.0", default-features = false }
+
+[[bench]]
+name = "timers_container"
+path = "bench.rs"
+harness = false
