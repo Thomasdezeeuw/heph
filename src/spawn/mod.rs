@@ -111,16 +111,10 @@ mod private {
     }
 }
 
-impl<M, RT, S, NA> Spawn<S, NA, RT> for actor::Context<M, RT>
-where
-    NA: NewActor<RuntimeAccess = RT>,
-    RT: Spawn<S, NA, RT>,
-{
-}
+impl<M, RT, S, NA> Spawn<S, NA, RT> for actor::Context<M, RT> where RT: Spawn<S, NA, RT> {}
 
 impl<M, RT, S, NA> PrivateSpawn<S, NA, RT> for actor::Context<M, RT>
 where
-    NA: NewActor<RuntimeAccess = RT>,
     RT: PrivateSpawn<S, NA, RT>,
 {
     fn try_spawn_setup<ArgFn, ArgFnE>(
