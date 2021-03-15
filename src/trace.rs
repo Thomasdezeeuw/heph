@@ -16,15 +16,15 @@
 //! # Creating Trace Events
 //!
 //! The runtime already add its own trace events, e.g. when running actors, but
-//! users can also log events. Actors can log trace event using the
-//! `start_trace` and `finish_trace` methods on their context, i.e.
-//! [`actor::Context`] or [`SyncContext`].
+//! users can also log events. Actors can log trace event using the [`Trace`]
+//! implementation for their context, i.e. [`actor::Context`] or
+//! [`SyncContext`].
 //!
-//! Calling `start_trace` will start timing an event by returning
+//! Calling [`start_trace`] will start timing an event by returning
 //! [`EventTiming`]. Next the actor should execute the action(s) it wants to
 //! trace, e.g. receiving a message.
 //!
-//! After the actions have finished `finish_trace` should be called with the
+//! After the actions have finished [`finish_trace`] should be called with the
 //! timing returned by `start_trace`. In addition to the timing it should also
 //! include a human readable `description` and optional `attributes`. The
 //! attributes are a slice of key-value pairs, where the key is a string and the
@@ -39,6 +39,8 @@
 //!
 //! [`actor::Context`]: crate::actor::Context
 //! [`SyncContext`]: crate::actor::SyncContext
+//! [`start_trace`]: Trace::start_trace
+//! [`finish_trace`]: Trace::finish_trace
 //!
 //! ## Notes
 //!
@@ -75,6 +77,43 @@ use log::warn;
 
 /// Default buffer size, only needs to hold a single trace event.
 const BUF_SIZE: usize = 128;
+
+/// Trace events.
+///
+/// See the [`trace`] module for usage.
+///
+/// [`trace`]: crate::trace
+pub trait Trace {
+    /// Start timing an event if tracing is enabled.
+    ///
+    /// To finish the trace call [`finish_trace`]. See the [`trace`] module for
+    /// more information.
+    ///
+    /// [`finish_trace`]: Trace::finish_trace
+    /// [`trace`]: crate::trace
+    ///
+    /// # Notes
+    ///
+    /// If [`finish_trace`] is not called no trace event will be written. Be
+    /// careful with this when using the [`Try`] (`?`) operator.
+    ///
+    /// [`Try`]: std::ops::Try
+    fn start_trace(&self) -> Option<EventTiming>;
+
+    /// Finish tracing an event, partner function to [`start_trace`].
+    ///
+    /// See the [`trace`] module for more information, e.g. what each argument
+    /// means.
+    ///
+    /// [`start_trace`]: Trace::start_trace
+    /// [`trace`]: crate::trace
+    fn finish_trace(
+        &mut self,
+        timing: Option<EventTiming>,
+        description: &str,
+        attributes: &[(&str, &dyn AttributeValue)],
+    );
+}
 
 /// Trace log.
 #[derive(Debug)]
