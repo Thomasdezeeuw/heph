@@ -10,6 +10,7 @@ use heph::actor_ref::{ActorRef, SendError};
 use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph::spawn::{ActorOptions, SyncActorOptions};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
+use heph::trace::Trace;
 
 fn main() -> Result<(), rt::Error> {
     let mut runtime_setup = Runtime::setup();
