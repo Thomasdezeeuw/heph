@@ -9,7 +9,7 @@ use std::thread::{self, Thread};
 use inbox::Receiver;
 
 use crate::actor::{NoMessages, RecvError};
-use crate::trace;
+use crate::trace::{self, Trace};
 
 /// Synchronous actor.
 ///
@@ -302,26 +302,14 @@ impl<M> SyncContext<M> {
             waker
         }
     }
+}
 
-    /// Start timing an event if tracing is enabled.
-    ///
-    /// To finish the trace call [`finish_trace`]. See the [`trace`] module for
-    /// more information.
-    ///
-    /// [`finish_trace`]: SyncContext::finish_trace
-    /// [`trace`]: crate::trace
-    pub fn start_trace(&self) -> Option<trace::EventTiming> {
+impl<M> Trace for SyncContext<M> {
+    fn start_trace(&self) -> Option<trace::EventTiming> {
         trace::start(&self.trace_log)
     }
 
-    /// Finish tracing an event, partner function to [`start_trace`].
-    ///
-    /// See the [`trace`] module for more information, e.g. what each argument
-    /// means.
-    ///
-    /// [`start_trace`]: SyncContext::start_trace
-    /// [`trace`]: crate::trace
-    pub fn finish_trace(
+    fn finish_trace(
         &mut self,
         timing: Option<trace::EventTiming>,
         description: &str,
