@@ -24,7 +24,7 @@ use std::mem::size_of;
 use std::pin::Pin;
 use std::stream::Stream;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::task::{self, Poll};
 use std::{io, slice, thread};
 
@@ -34,8 +34,8 @@ use log::warn;
 
 use crate::actor::{self, Actor, NewActor, SyncActor};
 use crate::actor_ref::ActorRef;
-use crate::rt::local::{Runtime, Timers};
-use crate::rt::shared::{waker, Scheduler};
+use crate::rt::local::Runtime;
+use crate::rt::shared::{waker, Scheduler, Timers};
 use crate::rt::sync_worker::SyncWorker;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
@@ -63,7 +63,7 @@ static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(
         .try_clone()
         .expect("failed to clone `Registry` for test module");
     let scheduler = Scheduler::new();
-    let timers = Mutex::new(Timers::new());
+    let timers = Timers::new();
     Arc::new_cyclic(|shared_internals| {
         let waker_id = waker::init(shared_internals.clone());
         let worker_wakers = vec![&*NOOP_WAKER].into_boxed_slice();

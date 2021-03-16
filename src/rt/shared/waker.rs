@@ -178,16 +178,15 @@ unsafe fn drop_wake_data(_: *const ()) {
 mod tests {
     use std::mem::size_of;
     use std::pin::Pin;
-    use std::sync::{Arc, Mutex, Weak};
+    use std::sync::{Arc, Weak};
     use std::thread::{self, sleep};
     use std::time::Duration;
 
     use mio::Poll;
 
-    use crate::rt::local::Timers;
     use crate::rt::process::{Process, ProcessData, ProcessId, ProcessResult};
     use crate::rt::shared::waker::{self, WakerData};
-    use crate::rt::shared::{RuntimeInternals, Scheduler};
+    use crate::rt::shared::{RuntimeInternals, Scheduler, Timers};
     use crate::rt::RuntimeRef;
     use crate::spawn::options::Priority;
     use crate::test;
@@ -328,7 +327,7 @@ mod tests {
         let poll = Poll::new().unwrap();
         let registry = poll.registry().try_clone().unwrap();
         let scheduler = Scheduler::new();
-        let timers = Mutex::new(Timers::new());
+        let timers = Timers::new();
         Arc::new_cyclic(|shared_internals| {
             let waker_id = waker::init(shared_internals.clone());
             let worker_wakers = vec![&*test::NOOP_WAKER].into_boxed_slice();
