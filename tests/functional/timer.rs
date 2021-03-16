@@ -204,7 +204,6 @@ fn triggered_timers_run_actors() {
         (),
         ActorOptions::default(),
     );
-
     runtime.start().unwrap();
 }
 
