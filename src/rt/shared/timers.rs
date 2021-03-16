@@ -116,30 +116,26 @@ impl Timers {
             .swap(true, atomic::Ordering::SeqCst)
         {
             // Another thread is already considering the timers.
-            None
-        } else {
-            let (epoch_time, index) = {
-                let epoch = self.epoch.read().unwrap();
-                (epoch.time, epoch.index as usize)
-            };
-            let (first, second) = self.slots.split_at(index);
-            let iter = first.iter().chain(second.iter());
-            for (n, slot) in iter.enumerate() {
-                let timer = { slot.read().unwrap().last().copied() };
-                if let Some(timer) = timer {
-                    let ns_since_epoch = timer.deadline as u64 + (n as u64 * NS_PER_SLOT as u64);
-                    let deadline = epoch_time + Duration::from_nanos(ns_since_epoch);
-                    return Some(deadline);
-                }
-            }
+            return None;
+        }
 
-            let timer = { self.overflow.read().unwrap().last().copied() };
+        let (epoch_time, index) = {
+            let epoch = self.epoch.read().unwrap();
+            (epoch.time, epoch.index as usize)
+        };
+        let (first, second) = self.slots.split_at(index);
+        let iter = first.iter().chain(second.iter());
+        for (n, slot) in iter.enumerate() {
+            let timer = { slot.read().unwrap().last().copied() };
             if let Some(timer) = timer {
-                Some(timer.deadline)
-            } else {
-                None
+                let ns_since_epoch = timer.deadline as u64 + (n as u64 * NS_PER_SLOT as u64);
+                let deadline = epoch_time + Duration::from_nanos(ns_since_epoch);
+                return Some(deadline);
             }
         }
+
+        let timer = { self.overflow.read().unwrap().last().copied() };
+        timer.map(|timer| timer.deadline)
     }
 
     /// Must be called if `next` returns `Some(..)`.
