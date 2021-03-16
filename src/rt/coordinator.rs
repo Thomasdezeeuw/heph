@@ -1,6 +1,6 @@
 //! Coordinator thread code.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::{fmt, io};
 
 use log::{debug, trace, warn};
@@ -9,8 +9,7 @@ use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
 use crate::actor_ref::{ActorGroup, Delivery};
-use crate::rt::local::Timers;
-use crate::rt::shared::{waker, Scheduler};
+use crate::rt::shared::{waker, Scheduler, Timers};
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
     self, shared, worker, Signal, SyncWorker, Worker, SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
@@ -42,7 +41,7 @@ impl Coordinator {
         let poll = Poll::new()?;
         let registry = poll.registry().try_clone()?;
         let scheduler = Scheduler::new();
-        let timers = Mutex::new(Timers::new());
+        let timers = Timers::new();
         // NOTE: on Linux this MUST be created before starting the worker
         // threads.
         let signals = setup_signals(&registry)?;

@@ -4,7 +4,7 @@ use std::cmp::min;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{io, task};
 
@@ -13,15 +13,16 @@ use mio::{event, Interest, Registry, Token};
 
 use crate::actor::{self, NewActor};
 use crate::actor_ref::ActorRef;
-use crate::rt::local::Timers;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{ProcessId, ThreadSafe};
 use crate::spawn::{ActorOptions, AddActorError, FutureOptions};
 use crate::supervisor::Supervisor;
 
 mod scheduler;
+mod timers;
 pub(crate) mod waker;
 
+pub(crate) use timers::Timers;
 use waker::WakerId;
 
 pub(crate) use scheduler::{ProcessData, Scheduler};
@@ -41,8 +42,7 @@ pub(crate) struct RuntimeInternals {
     /// Registry for the `Coordinator`'s `Poll` instance.
     registry: Registry,
     /// Timers for thread-safe actors.
-    // FIXME: `Timers` is not up to this job.
-    timers: Mutex<Timers>,
+    timers: Timers,
 }
 
 impl RuntimeInternals {
@@ -51,7 +51,7 @@ impl RuntimeInternals {
         worker_wakers: Box<[&'static ThreadWaker]>,
         scheduler: Scheduler,
         registry: Registry,
-        timers: Mutex<Timers>,
+        timers: Timers,
     ) -> RuntimeInternals {
         // Needed by `RuntimeInternals::wake_workers`.
         debug_assert!(worker_wakers.len() >= 1);
@@ -96,16 +96,57 @@ impl RuntimeInternals {
         self.registry.reregister(source, token, interest)
     }
 
+    /// See [`Timers::add`].
     pub(super) fn add_deadline(&self, pid: ProcessId, deadline: Instant) {
-        self.timers.lock().unwrap().add(pid, deadline);
+        self.timers.add(pid, deadline);
     }
 
+    /// See [`Timers::remove`].
     pub(super) fn remove_deadline(&self, pid: ProcessId, deadline: Instant) {
-        self.timers.lock().unwrap().remove(pid, deadline);
+        self.timers.remove(pid, deadline);
     }
 
+    /// See [`Timers::change`].
     pub(super) fn change_deadline(&self, from: ProcessId, to: ProcessId, deadline: Instant) {
-        self.timers.lock().unwrap().change(from, deadline, to);
+        self.timers.change(from, deadline, to);
+    }
+
+    /// See [`Timers::remove_deadline`].
+    pub(crate) fn remove_next_deadline(&self, now: Instant) -> Option<ProcessId> {
+        self.timers.remove_next(now)
+    }
+
+    /// Determine the timeout to use in polling based on the current time
+    /// (`now`), the `current` timeout and the next deadline in the shared
+    /// timers.
+    ///
+    /// If there are no timers this will return `current`. If `current` is
+    /// smaller than the next deadline in the timers this will also
+    /// return `current`. Otherwise this will return a timeout based on the
+    /// next deadline.
+    pub(crate) fn next_timeout(
+        &self,
+        now: Instant,
+        current: Option<Duration>,
+    ) -> (Option<Duration>, bool) {
+        let deadline = self.timers.next();
+
+        match deadline {
+            // Deadline has already expired, so no blocking.
+            Some(deadline) if deadline <= now => (Some(Duration::ZERO), true),
+            Some(deadline) => {
+                let timeout = deadline.duration_since(now);
+                match current {
+                    Some(current) if current < timeout => (Some(current), true),
+                    Some(..) | None => (Some(timeout), false),
+                }
+            }
+            None => (current, false),
+        }
+    }
+
+    pub(super) fn timers_woke_from_polling(&self) {
+        self.timers.woke_from_polling()
     }
 
     #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
@@ -193,8 +234,6 @@ impl RuntimeInternals {
         }
     }
 
-    // Worker only API.
-
     /// See [`Scheduler::has_process`].
     pub(crate) fn has_process(&self) -> bool {
         self.scheduler.has_process()
@@ -218,38 +257,5 @@ impl RuntimeInternals {
     /// See [`Scheduler::complete`].
     pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
         self.scheduler.complete(process);
-    }
-
-    /// Determine the timeout to use in polling based on the current time
-    /// (`now`), the `current` timeout and the next deadline in the shared
-    /// timers.
-    ///
-    /// If there are no timers this will return `current`. If `current` is
-    /// smaller than the next deadline in the timers this will also
-    /// return `current`. Otherwise this will return a timeout based on the
-    /// next deadline.
-    pub(crate) fn next_timeout(&self, now: Instant, current: Option<Duration>) -> Option<Duration> {
-        let deadline = {
-            let mut timers = self.timers.lock().unwrap();
-            timers.next()
-        };
-
-        match deadline {
-            // Deadline has already expired, so no blocking.
-            Some(deadline) if deadline <= now => Some(Duration::ZERO),
-            Some(deadline) => {
-                let timeout = deadline.duration_since(now);
-                match current {
-                    Some(current) if current < timeout => Some(current),
-                    Some(..) | None => Some(timeout),
-                }
-            }
-            None => current,
-        }
-    }
-
-    /// See [`Timers::remove_deadline`].
-    pub(crate) fn remove_next_deadline(&self, now: Instant) -> Option<ProcessId> {
-        self.timers.lock().unwrap().remove_next(now)
     }
 }
