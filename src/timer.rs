@@ -87,6 +87,10 @@ pub struct Timer<RT: rt::Access> {
 
 impl<RT: rt::Access> Timer<RT> {
     /// Create a new `Timer`.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if `deadline` is in the past.
     pub fn at<M>(ctx: &mut actor::Context<M, RT>, deadline: Instant) -> Timer<RT>
     where
         RT: Clone,
@@ -241,6 +245,10 @@ pub struct Deadline<Fut, RT: rt::Access> {
 
 impl<Fut, RT: rt::Access> Deadline<Fut, RT> {
     /// Create a new `Deadline`.
+    ///
+    /// # Panics
+    ///
+    /// This will panic if `deadline` is in the past.
     pub fn at<M>(
         ctx: &mut actor::Context<M, RT>,
         deadline: Instant,
