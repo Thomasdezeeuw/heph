@@ -151,6 +151,7 @@ impl Timers {
         if ns_since_epoch < NS_OVERFLOW as u128 {
             let deadline = (ns_since_epoch & NS_SLOT_MASK) as TimeOffset;
             let index = ((ns_since_epoch >> NS_PER_SLOT_BITS) & ((1 << SLOT_BITS) - 1)) as usize;
+            let index = (self.index as usize + index) % SLOTS;
             slot_f(&mut self.slots[index], Timer { pid, deadline });
         } else {
             // Too far into the future to fit in the slots.
