@@ -14,12 +14,14 @@ use crate::actor_ref::{ActorGroup, Delivery, SendError};
 use crate::rt::error::StringError;
 use crate::rt::process::ProcessId;
 use crate::rt::process::ProcessResult;
-use crate::rt::{self, shared, RuntimeRef, Signal, Timers, WakerId};
+use crate::rt::{self, shared, RuntimeRef, Signal, WakerId};
 use crate::trace;
 
 mod scheduler;
+mod timers;
 
 use scheduler::Scheduler;
+pub(crate) use timers::Timers; // Used in `test` module.
 
 /// Number of processes to run in between calls to poll.
 ///
@@ -230,8 +232,9 @@ impl Runtime {
         let mut amount = 0;
         amount += self.schedule_from_os_events()?;
         amount += self.schedule_from_waker();
-        amount += self.schedule_from_local_timers();
-        amount += self.schedule_from_shared_timers();
+        let now = Instant::now();
+        amount += self.schedule_from_local_timers(now);
+        amount += self.schedule_from_shared_timers(now);
         trace::finish(
             &mut self.trace_log,
             timing,
@@ -297,13 +300,13 @@ impl Runtime {
     }
 
     /// Schedule processes based on local timers.
-    fn schedule_from_local_timers(&mut self) -> usize {
+    fn schedule_from_local_timers(&mut self, now: Instant) -> usize {
         trace!("polling local timers");
         let timing = trace::start(&self.trace_log);
 
         let mut scheduler = self.internals.scheduler.borrow_mut();
         let mut amount: usize = 0;
-        for pid in self.internals.timers.borrow_mut().deadlines() {
+        for pid in self.internals.timers.borrow_mut().deadlines(now) {
             scheduler.mark_ready(pid);
             amount += 1;
         }
@@ -318,12 +321,12 @@ impl Runtime {
     }
 
     /// Schedule processes based on shared timers.
-    fn schedule_from_shared_timers(&mut self) -> usize {
+    fn schedule_from_shared_timers(&mut self, now: Instant) -> usize {
         trace!("polling shared timers");
         let timing = trace::start(&self.trace_log);
 
         let mut amount = 0;
-        while let Some(pid) = self.internals.shared.remove_next_deadline(Instant::now()) {
+        while let Some(pid) = self.internals.shared.remove_next_deadline(now) {
             self.internals.shared.mark_ready(pid);
             amount += 1;
         }
@@ -376,7 +379,7 @@ impl Runtime {
             return Some(Duration::ZERO);
         }
 
-        if let Some(deadline) = self.internals.timers.borrow().next_deadline() {
+        if let Some(deadline) = self.internals.timers.borrow_mut().next() {
             let now = Instant::now();
             return if deadline <= now {
                 // Deadline has already expired, so no blocking.

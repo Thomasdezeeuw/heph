@@ -87,6 +87,7 @@
     maybe_uninit_uninit_array,
     never_type,
     new_uninit,
+    result_into_ok_or_err,
     vec_spare_capacity
 )]
 #![allow(incomplete_features)] // NOTE: for `generic_associated_types`.

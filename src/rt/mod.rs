@@ -143,13 +143,11 @@ pub(crate) mod shared;
 mod signal;
 pub(crate) mod sync_worker;
 pub(crate) mod thread_waker;
-mod timers;
 pub(crate) mod waker;
 pub(crate) mod worker;
 
 pub(crate) use access::PrivateAccess;
 pub(crate) use process::ProcessId;
-pub(crate) use timers::Timers; // Needed by the `test` module.
 
 pub use access::{Access, ThreadLocal, ThreadSafe};
 pub use error::Error;
@@ -578,19 +576,13 @@ impl RuntimeRef {
     /// Add a deadline.
     fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         trace!("adding deadline: pid={}, deadline={:?}", pid, deadline);
-        self.internals
-            .timers
-            .borrow_mut()
-            .add_deadline(pid, deadline);
+        self.internals.timers.borrow_mut().add(pid, deadline);
     }
 
     /// Remove a deadline.
     fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         trace!("removing deadline: pid={}, deadline={:?}", pid, deadline);
-        self.internals
-            .timers
-            .borrow_mut()
-            .remove_deadline(pid, deadline);
+        self.internals.timers.borrow_mut().remove(pid, deadline);
     }
 
     /// Change the `ProcessId` of a deadline.
@@ -604,7 +596,7 @@ impl RuntimeRef {
         self.internals
             .timers
             .borrow_mut()
-            .change_deadline(from, to, deadline);
+            .change(from, deadline, to);
     }
 
     /// Returns a copy of the shared internals.
