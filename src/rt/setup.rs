@@ -9,7 +9,7 @@ use std::{io, thread};
 use log::{debug, warn};
 
 use crate::actor_ref::ActorGroup;
-use crate::rt::coordinator::{self, Coordinator};
+use crate::rt::coordinator::Coordinator;
 use crate::rt::{worker, Error, Runtime, Worker, MAX_THREADS};
 use crate::trace;
 
@@ -26,7 +26,7 @@ pub struct Setup {
     /// Whether or not to automatically set CPU affinity.
     auto_cpu_affinity: bool,
     /// Optional trace log.
-    trace_log: Option<trace::Log>,
+    trace_log: Option<trace::CoordinatorLog>,
 }
 
 impl Setup {
@@ -114,7 +114,7 @@ impl Setup {
     /// Returns an error if a file at `path` already exists or can't create the
     /// file.
     pub fn enable_tracing<P: AsRef<Path>>(&mut self, path: P) -> Result<(), Error> {
-        match trace::Log::open(path.as_ref(), coordinator::TRACE_ID) {
+        match trace::CoordinatorLog::open(path.as_ref()) {
             Ok(trace_log) => {
                 self.trace_log = Some(trace_log);
                 Ok(())
@@ -154,7 +154,7 @@ impl Setup {
                 #[allow(clippy::manual_map)]
                 let trace_log = if let Some(trace_log) = &self.trace_log {
                     #[allow(clippy::cast_possible_truncation)]
-                    Some(trace_log.new_stream(worker_setup.id() as u32)?)
+                    Some(trace_log.new_stream(worker_setup.id() as u32))
                 } else {
                     None
                 };

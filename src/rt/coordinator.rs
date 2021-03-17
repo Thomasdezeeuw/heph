@@ -21,9 +21,6 @@ const SIGNAL: Token = Token(usize::MAX);
 /// Token used to wake-up the coordinator thread.
 pub(super) const WAKER: Token = Token(usize::MAX - 1);
 
-/// Stream id for the coordinator.
-pub(super) const TRACE_ID: u32 = 0;
-
 #[derive(Debug)]
 pub(super) struct Coordinator {
     /// OS poll, used to poll the status of the (sync) worker threads and
@@ -71,7 +68,7 @@ impl Coordinator {
         mut workers: Vec<Worker>,
         mut sync_workers: Vec<SyncWorker>,
         mut signal_refs: ActorGroup<Signal>,
-        mut trace_log: Option<trace::Log>,
+        mut trace_log: Option<trace::CoordinatorLog>,
     ) -> Result<(), rt::Error> {
         debug_assert!(workers.is_sorted_by_key(Worker::id));
         debug_assert!(sync_workers.is_sorted_by_key(SyncWorker::id));

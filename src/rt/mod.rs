@@ -194,7 +194,7 @@ pub struct Runtime {
     /// List of actor references that want to receive process signals.
     signals: ActorGroup<Signal>,
     /// Trace log.
-    trace_log: Option<trace::Log>,
+    trace_log: Option<trace::CoordinatorLog>,
 }
 
 impl Runtime {
@@ -284,11 +284,8 @@ impl Runtime {
 
         let trace_log = if let Some(trace_log) = &self.trace_log {
             #[allow(clippy::cast_possible_truncation)]
-            let trace_log = trace_log
-                // Safety: MAX_THREADS always fits in u32.
-                .new_stream(id as u32)
-                .map_err(Error::start_sync_actor)?;
-            Some(trace_log)
+            // Safety: MAX_THREADS always fits in u32.
+            Some(trace_log.new_stream(id as u32))
         } else {
             None
         };
