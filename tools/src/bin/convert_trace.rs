@@ -53,9 +53,10 @@ fn main() {
 
         write!(
             output,
-            "{}\t\t{{\"tid\": {}, \"ts\": {}, \"dur\": {}, \"name\": \"{}\"",
+            "{}\t\t{{\"pid\": {}, \"tid\": {}, \"ts\": {}, \"dur\": {}, \"name\": \"{}\"",
             if first { "" } else { ",\n" },
             event.stream_id,
+            event.substream_id,
             timestamp,
             duration,
             event.description,
@@ -89,7 +90,7 @@ fn main() {
                 .expect("failed to write event to output");
         }
         output
-            .write_all(b", \"ph\": \"X\", \"cat\": \"\", \"pid\": 0}")
+            .write_all(b", \"ph\": \"X\", \"cat\": \"\"}")
             .expect("failed to write event to output");
     }
 
@@ -291,6 +292,7 @@ where
 
         let (left, stream_id) = parse_u32(&left[..packet_size - 8]);
         let (left, stream_counter) = parse_u32(left);
+        let (left, substream_id) = parse_u64(left);
         let (left, start) = parse_timestamp(left, trace.epoch);
         let (left, end) = parse_timestamp(left, trace.epoch);
         let (left, description) = match parse_string(left) {
@@ -368,6 +370,7 @@ where
         Ok(Event {
             stream_id,
             stream_counter,
+            substream_id,
             start,
             end,
             description,
@@ -533,6 +536,7 @@ impl fmt::Display for ParseError {
 pub struct Event {
     stream_id: u32,
     stream_counter: u32,
+    substream_id: u64,
     start: SystemTime,
     end: SystemTime,
     description: String,
