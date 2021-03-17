@@ -282,13 +282,12 @@ impl Runtime {
             None => debug!("spawning synchronous actor: pid={}", id),
         }
 
-        let trace_log = if let Some(trace_log) = &self.trace_log {
-            #[allow(clippy::cast_possible_truncation)]
-            // Safety: MAX_THREADS always fits in u32.
-            Some(trace_log.new_stream(id as u32))
-        } else {
-            None
-        };
+        #[allow(clippy::cast_possible_truncation)]
+        // Safety: MAX_THREADS always fits in u32.
+        let trace_log = self
+            .trace_log
+            .as_ref()
+            .map(|trace_log| trace_log.new_stream(id as u32));
         SyncWorker::start(id, supervisor, actor, arg, options, trace_log)
             .map(|(worker, actor_ref)| {
                 self.sync_actors.push(worker);
