@@ -168,7 +168,7 @@ fn main(
     )
     .map_err(|err| rt::Error::worker(Error::Init(err)))?;
 
-    trace::finish(
+    trace::finish_rt(
         runtime.trace_log(),
         timing,
         "Initialising the worker thread",

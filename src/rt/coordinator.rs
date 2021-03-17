@@ -90,7 +90,7 @@ impl Coordinator {
         // check if the (sync) workers are still alive *after* we registered
         // them.
         check_sync_worker_alive(&mut sync_workers)?;
-        trace::finish(
+        trace::finish_rt(
             &mut trace_log,
             timing,
             "Initialising the coordinator thread",
@@ -112,7 +112,7 @@ impl Coordinator {
             self.poll
                 .poll(&mut events, None)
                 .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
-            trace::finish(&mut trace_log, timing, "Polling for OS events", &[]);
+            trace::finish_rt(&mut trace_log, timing, "Polling for OS events", &[]);
 
             let timing = trace::start(&trace_log);
             let mut wake_workers = 0; // Counter for how many workers to wake.
@@ -124,19 +124,24 @@ impl Coordinator {
                         let timing = trace::start(&trace_log);
                         relay_signals(&mut self.signals, &mut workers, &mut signal_refs)
                             .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?;
-                        trace::finish(&mut trace_log, timing, "Relaying process signal(s)", &[]);
+                        trace::finish_rt(&mut trace_log, timing, "Relaying process signal(s)", &[]);
                     }
                     // We always check for waker events below.
                     WAKER => {}
                     token if token.0 < SYNC_WORKER_ID_START => {
                         let timing = trace::start(&trace_log);
                         handle_worker_event(&mut workers, event)?;
-                        trace::finish(&mut trace_log, timing, "Processing worker event", &[]);
+                        trace::finish_rt(&mut trace_log, timing, "Processing worker event", &[]);
                     }
                     token if token.0 <= SYNC_WORKER_ID_END => {
                         let timing = trace::start(&trace_log);
                         handle_sync_worker_event(&mut sync_workers, event)?;
-                        trace::finish(&mut trace_log, timing, "Processing sync worker event", &[]);
+                        trace::finish_rt(
+                            &mut trace_log,
+                            timing,
+                            "Processing sync worker event",
+                            &[],
+                        );
                     }
                     token => {
                         let timing = trace::start(&trace_log);
@@ -144,7 +149,7 @@ impl Coordinator {
                         trace!("waking thread-safe actor: pid={}", pid);
                         self.internals.mark_ready(pid);
                         wake_workers += 1;
-                        trace::finish(
+                        trace::finish_rt(
                             &mut trace_log,
                             timing,
                             "Scheduling thread-safe process",
@@ -153,13 +158,13 @@ impl Coordinator {
                     }
                 }
             }
-            trace::finish(&mut trace_log, timing, "Handling OS events", &[]);
+            trace::finish_rt(&mut trace_log, timing, "Handling OS events", &[]);
 
             // In case the worker threads are polling we need to wake them up.
             if wake_workers > 0 {
                 let timing = trace::start(&trace_log);
                 self.internals.wake_workers(wake_workers);
-                trace::finish(
+                trace::finish_rt(
                     &mut trace_log,
                     timing,
                     "Waking worker threads",
