@@ -315,7 +315,7 @@ impl<M> Trace for SyncContext<M> {
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
-        trace::finish(&mut self.trace_log, timing, 1, description, attributes);
+        trace::finish(self.trace_log.as_mut(), timing, 1, description, attributes);
     }
 }
 

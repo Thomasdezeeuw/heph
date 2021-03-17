@@ -17,6 +17,7 @@ use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{ProcessId, ThreadSafe};
 use crate::spawn::{ActorOptions, AddActorError, FutureOptions};
 use crate::supervisor::Supervisor;
+use crate::trace;
 
 mod scheduler;
 mod timers;
@@ -43,6 +44,13 @@ pub(crate) struct RuntimeInternals {
     registry: Registry,
     /// Timers for thread-safe actors.
     timers: Timers,
+    /// Shared trace log.
+    ///
+    /// # Notes
+    ///
+    /// Prefer not to use this but use [`trace::Log`] in local internals
+    /// instead.
+    trace_log: Option<Arc<trace::SharedLog>>,
 }
 
 impl RuntimeInternals {
@@ -52,6 +60,7 @@ impl RuntimeInternals {
         scheduler: Scheduler,
         registry: Registry,
         timers: Timers,
+        trace_log: Option<Arc<trace::SharedLog>>,
     ) -> RuntimeInternals {
         // Needed by `RuntimeInternals::wake_workers`.
         debug_assert!(worker_wakers.len() >= 1);
@@ -62,6 +71,7 @@ impl RuntimeInternals {
             scheduler,
             registry,
             timers,
+            trace_log,
         }
     }
 
@@ -257,5 +267,25 @@ impl RuntimeInternals {
     /// See [`Scheduler::complete`].
     pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
         self.scheduler.complete(process);
+    }
+
+    pub(crate) fn start_trace(&self) -> Option<trace::EventTiming> {
+        trace::start(&self.trace_log.as_deref())
+    }
+
+    pub(crate) fn finish_trace(
+        &self,
+        timing: Option<trace::EventTiming>,
+        pid: ProcessId,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    ) {
+        trace::finish(
+            self.trace_log.as_deref(),
+            timing,
+            pid.0 as u64,
+            description,
+            attributes,
+        )
     }
 }

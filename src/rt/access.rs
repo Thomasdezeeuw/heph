@@ -17,6 +17,7 @@ use crate::rt::process::ProcessId;
 use crate::rt::{shared, RuntimeRef};
 use crate::spawn::{ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn};
 use crate::supervisor::Supervisor;
+use crate::trace::{self, Trace};
 
 /// Trait to indicate an API needs access to the Heph runtime.
 ///
@@ -62,6 +63,17 @@ pub trait PrivateAccess {
 
     /// Returns the CPU the thread is bound to, if any.
     fn cpu(&self) -> Option<usize>;
+
+    /// Start timing an event if tracing is enabled, see [`trace::start`].
+    fn start_trace(&self) -> Option<trace::EventTiming>;
+
+    /// Finish tracing an event, see [`trace::finish`].
+    fn finish_trace(
+        &mut self,
+        timing: Option<trace::EventTiming>,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    );
 }
 
 /// Provides access to the thread-local runtime.
@@ -148,6 +160,20 @@ impl PrivateAccess for ThreadLocal {
 
     fn cpu(&self) -> Option<usize> {
         self.rt.cpu()
+    }
+
+    fn start_trace(&self) -> Option<trace::EventTiming> {
+        self.rt.start_trace()
+    }
+
+    fn finish_trace(
+        &mut self,
+        timing: Option<trace::EventTiming>,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    ) {
+        self.rt
+            .finish_trace(timing, self.pid, description, attributes)
     }
 }
 
@@ -256,6 +282,20 @@ impl PrivateAccess for ThreadSafe {
     fn cpu(&self) -> Option<usize> {
         None
     }
+
+    fn start_trace(&self) -> Option<trace::EventTiming> {
+        self.rt.start_trace()
+    }
+
+    fn finish_trace(
+        &mut self,
+        timing: Option<trace::EventTiming>,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    ) {
+        self.rt
+            .finish_trace(timing, self.pid, description, attributes)
+    }
 }
 
 impl<S, NA> Spawn<S, NA, ThreadSafe> for ThreadSafe
@@ -294,5 +334,23 @@ where
 impl fmt::Debug for ThreadSafe {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("ThreadSafe")
+    }
+}
+
+impl<M, RT> Trace for actor::Context<M, RT>
+where
+    RT: Access,
+{
+    fn start_trace(&self) -> Option<trace::EventTiming> {
+        self.runtime_ref().start_trace()
+    }
+
+    fn finish_trace(
+        &mut self,
+        timing: Option<trace::EventTiming>,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    ) {
+        self.runtime().finish_trace(timing, description, attributes)
     }
 }

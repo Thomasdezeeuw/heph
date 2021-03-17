@@ -107,11 +107,16 @@ fn main<S, A>(
         let timing = trace::start(&trace_log);
         let receiver = inbox.new_receiver().unwrap_or_else(inbox_failure);
         let ctx = SyncContext::new(receiver, trace_log.clone());
-        trace::finish_rt(&mut trace_log, timing, "setting up synchronous actor", &[]);
+        trace::finish_rt(
+            trace_log.as_mut(),
+            timing,
+            "setting up synchronous actor",
+            &[],
+        );
 
         let timing = trace::start(&trace_log);
         let res = actor.run(ctx, arg);
-        trace::finish_rt(&mut trace_log, timing, "running synchronous actor", &[]);
+        trace::finish_rt(trace_log.as_mut(), timing, "running synchronous actor", &[]);
 
         match res {
             Ok(()) => break,
@@ -122,14 +127,19 @@ fn main<S, A>(
                         trace!("restarting synchronous actor: pid={}, name='{}'", id, name);
                         arg = new_arg;
                         trace::finish_rt(
-                            &mut trace_log,
+                            trace_log.as_mut(),
                             timing,
                             "restarting synchronous actor",
                             &[],
                         );
                     }
                     SupervisorStrategy::Stop => {
-                        trace::finish_rt(&mut trace_log, timing, "stopping synchronous actor", &[]);
+                        trace::finish_rt(
+                            trace_log.as_mut(),
+                            timing,
+                            "stopping synchronous actor",
+                            &[],
+                        );
                         break;
                     }
                 }

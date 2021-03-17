@@ -67,7 +67,7 @@ static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(
     Arc::new_cyclic(|shared_internals| {
         let waker_id = waker::init(shared_internals.clone());
         let worker_wakers = vec![&*NOOP_WAKER].into_boxed_slice();
-        shared::RuntimeInternals::new(waker_id, worker_wakers, scheduler, registry, timers)
+        shared::RuntimeInternals::new(waker_id, worker_wakers, scheduler, registry, timers, None)
     })
 });
 

@@ -169,7 +169,7 @@ fn main(
     .map_err(|err| rt::Error::worker(Error::Init(err)))?;
 
     trace::finish_rt(
-        &mut *runtime.trace_log(),
+        (&mut *runtime.trace_log()).as_mut(),
         timing,
         "Initialising the worker thread",
         &[],

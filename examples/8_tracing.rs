@@ -7,7 +7,7 @@ use log::warn;
 
 use heph::actor::{self, SyncContext};
 use heph::actor_ref::{ActorRef, SendError};
-use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+use heph::rt::{self, Runtime, RuntimeRef};
 use heph::spawn::{ActorOptions, SyncActorOptions};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
 use heph::trace::Trace;
@@ -34,12 +34,11 @@ const CHAIN_SIZE: usize = 5;
 /// Setup function will start a chain of `relay_actors`, just to create some
 /// activity for the trace.
 fn setup(mut runtime_ref: RuntimeRef, actor_ref: ActorRef<&'static str>) -> Result<(), !> {
-    let relay_actor = relay_actor as fn(_, _) -> _;
-
     // Create a chain of relay actors that will relay messages to the next
     // actor.
     let mut next_actor_ref = actor_ref;
     for _ in 0..CHAIN_SIZE {
+        let relay_actor = relay_actor as fn(_, _) -> _;
         next_actor_ref = runtime_ref.spawn_local(
             |err| {
                 warn!("error running actor: {}", err);
@@ -50,6 +49,17 @@ fn setup(mut runtime_ref: RuntimeRef, actor_ref: ActorRef<&'static str>) -> Resu
             ActorOptions::default(),
         );
     }
+
+    // The first actor in the chain will be a thread-safe actor.
+    next_actor_ref = runtime_ref.spawn(
+        |err| {
+            warn!("error running actor: {}", err);
+            SupervisorStrategy::Stop
+        },
+        relay_actor as fn(_, _) -> _,
+        next_actor_ref,
+        ActorOptions::default(),
+    );
 
     // Send the messages down the chain of actors.
     let msgs = &[
@@ -65,14 +75,24 @@ fn setup(mut runtime_ref: RuntimeRef, actor_ref: ActorRef<&'static str>) -> Resu
 }
 
 /// Actor that relays all messages it receives to actor behind `relay`.
-async fn relay_actor(
-    mut ctx: actor::Context<&'static str, ThreadLocal>,
+async fn relay_actor<RT>(
+    mut ctx: actor::Context<&'static str, RT>,
     relay: ActorRef<&'static str>,
-) -> Result<(), SendError> {
+) -> Result<(), SendError>
+where
+    RT: rt::Access,
+{
+    let mut receive_timing = ctx.start_trace();
     while let Ok(msg) = ctx.receive_next().await {
+        ctx.finish_trace(receive_timing, "receiving message", &[]);
+
+        let send_timing = ctx.start_trace();
         // Sleep to extend the duration of the trace.
         sleep(Duration::from_millis(5));
         relay.send(msg).await?;
+        ctx.finish_trace(send_timing, "sending message", &[]);
+
+        receive_timing = ctx.start_trace();
     }
     Ok(())
 }
