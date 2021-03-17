@@ -300,6 +300,8 @@ impl TraceLog for CoordinatorLog {
             self.shared.epoch,
             COORDINATOR_STREAM_ID,
             stream_count,
+            // TODO: add substream id.
+            0,
             event,
         );
         // TODO: buffer events? If buf.len() + packet_size >= 4k -> write first?
@@ -315,6 +317,8 @@ impl TraceLog for Log {
             self.shared.epoch,
             self.stream_id,
             stream_count,
+            // TODO: add substream id.
+            0,
             event,
         );
         // TODO: buffer events? If buf.len() + packet_size >= 4k -> write first?
@@ -328,6 +332,7 @@ fn format_event(
     epoch: Instant,
     stream_id: u32,
     stream_count: u32,
+    substream_id: u64,
     event: &Event<'_>,
 ) {
     #[allow(clippy::unreadable_literal)]
@@ -345,6 +350,7 @@ fn format_event(
     buf.extend_from_slice(&0_u32.to_be_bytes()); // Written later.
     buf.extend_from_slice(&stream_id.to_be_bytes());
     buf.extend_from_slice(&stream_count.to_be_bytes());
+    buf.extend_from_slice(&substream_id.to_be_bytes());
     buf.extend_from_slice(&start_nanos.to_be_bytes());
     buf.extend_from_slice(&end_nanos.to_be_bytes());
     buf.extend_from_slice(&description_len.to_be_bytes());

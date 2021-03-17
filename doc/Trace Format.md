@@ -21,6 +21,11 @@ sequence of events (not metadata), from the same thread of execution. For
 example events that happen on the same thread. Each stream has a 32 bit
 identifier (id) unique in the trace, which is used to coalesce events.
 
+Streams can optionally be split into multiple substreams which represent
+multiplexed execution on the same stream of execution, e.g. as used by
+co-routines, green threads or many asynchronous programming implementations that
+schedule multiple tasks on the same thread.
+
 The format always uses big-endian for integers.
 
 ## Metadata Packet
@@ -95,35 +100,39 @@ An event packet describes a single event. The layout is the following:
 ```
 Bits		Description.
 [  0.. 31]	Magic constant (0xC1FC1FB7) to indicate an event packet.
-[ 31.. 63]	Size of the packet in bytes.
+[ 32.. 63]	Size of the packet in bytes.
 [ 64.. 95]	Stream identifier (id).
 [ 96..127]	Stream event counter.
-[128..191]	Start time in nanoseconds, relative to trace's epoch.
-[192..255]	End time in nanoseconds, relative to trace's epoch.
-[256..271]	Desciption length, unsigned 16 bit integer.
-[272.. $n]	Description in UTF-8, length defined by the description length.
-
+[128..191]	Substream identifier (id).
+[192..255]	Start time in nanoseconds, relative to trace's epoch.
+[256..319]	End time in nanoseconds, relative to trace's epoch.
+[320..335]	Desciption length, unsigned 16 bit integer.
+[336.. $n]	Description in UTF-8, length defined by the description length.
 [$n+1..$k]	Attributes, optional, see below.
 ```
 
 An event packet also starts with a 32 bit magic constant `0xC1FC1FB7` [^2] and
 the size of the packet in bytes as 32 bit unsigned integer.
 
-Next are 32 bits for the stream id, interrupted as an 32 bit usigned integer.
-This stream id can be used to coalesce events. For example if we have two
-events with the same stream id, where event A start at time 10 and ends at time
-20 and an event B start starts at the time 5 (i.e. earlier than event A) and
-ends at time 15 (i.e. later than event B) we have an implicit parent-child
-relation between the two events, event B caused event A. This allows us to
-create a call-stack like image of the events, with the code needed to know
-anything about it's caller/parent (i.e. we don't have to carry a `Span` like
-strucutre around in the code).
+Next are 32 bits for the stream id, interrupted as an 32 bit unsigned integer.
+This stream id can be used to coalesce events. For example if we have two events
+with the same stream id, where event A start at time 10 and ends at time 20 and
+an event B start starts at the time 5 (i.e. earlier than event A) and ends at
+time 15 (i.e. later than event B) we have an implicit parent-child relation
+between the two events, event B caused event A. This allows us to create a
+call-stack like image of the events, with the code needed to know anything about
+it's caller/parent (i.e. we don't have to carry a `Span` like structure around
+in the code).
 
-The fourth field is the stream event counter. This simply an 32 bit usigned
+The fourth field is the stream event counter. This simply a 32 bit unsigned
 integer which count the events in the stream. This can be used in packet based
-protcols to detect if an event was missed. The counter may wrap-around on
+protocols to detect if an event was missed. The counter may wrap-around on
 overflow, i.e. after `2 ^ 32` comes `0`. Note however this is optional and may
 be ignore by consumers of the trace.
+
+The fifth field is the substream id, a 64 bit unsigned integer. Similar to the
+stream id, this can be used to coalesce events, of multiplexed threads of
+execution on top of the stream.
 
 The next two fields are the start and end timestamps of the event. Both are 64
 bit unsigned integers representing the number of nanoseconds since the epoch of
@@ -213,23 +222,25 @@ The following example shows the layout for an event packet.
 ```
 Bits		Value		Description.
 [  0.. 31]	0xC1FC1FB7	Magic constant to indicate an event packet.
-[ 31.. 63]	67  		Size of the packet (536 / 8).
+[ 31.. 63]	91  		Size of the packet (728 / 8).
 [ 64.. 95]	0   		Stream identifier (id).
 [ 96..127]	0   		Stream event counter.
-[128..191]	100 		Start time.
-[192..255]	200 		End time.
-[256..271]	8   		Desciption length.
-[272..335]	"My event"	Description.
-[336..351]	4  		Attribute name length.
-[352..383]	"Test"		Attribute name.
-[384..391]	0b0000_0001	Attribute value type: unsigned 64 bit integer.
-[392..455]	123 		Attribute value.
-[456..471]	5   		Attribute name length.
-[472..511]	"Test2"		Attribute name.
-[512..391]	0b1000_0011	Attribute value type: array of 64 floats.
-[392..407]	2   		Array length.
-[408..471]	123.456		Array[0].
-[472..535]	789.0		Array[1].
+[128..191]	1   		Substream identifier (id).
+[192..255]	100 		Start time.
+[256..319]	200 		End time.
+[320..335]	8   		Desciption length.
+[336..399]	"My event"	Description.
+[400..415]	4   		Attribute name length.
+[416..447]	"Test"		Attribute name.
+[448..455]	0b0000_0001	Attribute value type: unsigned 64 bit integer.
+[456..519]	123 		Attribute value.
+[520..535]	5   		Attribute name length.
+[536..575]	"Test2"		Attribute name.
+[576..583]	0b1000_0011	Attribute value type: array of 64 floats.
+
+[584..599]	2   		Array length.
+[600..663]	123.456		Array[0].
+[664..727]	789.0		Array[1].
 ```
 
 
