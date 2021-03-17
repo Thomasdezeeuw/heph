@@ -457,6 +457,11 @@ impl<'a, T> AttributeValue for &'a T where T: AttributeValue + ?Sized {}
 mod private {
     //! Module with private version of [`AttributeValue`].
 
+    use std::num::{
+        NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroIsize, NonZeroU16, NonZeroU32,
+        NonZeroU64, NonZeroU8, NonZeroUsize,
+    };
+
     /// The [`AttributeValue::type_byte`] constants.
     const UNSIGNED_INTEGER_BYTE: u8 = 0b001;
     const SIGNED_INTEGER_BYTE: u8 = 0b010;
@@ -491,6 +496,24 @@ mod private {
     }
 
     macro_rules! impl_write_attribute {
+        ($ty: ty as $f_ty: ty, $n_ty: ty, $type_byte: expr) => {
+            impl_write_attribute!($ty as $f_ty, $type_byte);
+
+            impl AttributeValue for $n_ty {
+                #[inline(always)]
+                fn type_byte(&self) -> u8 {
+                    $type_byte
+                }
+
+                fn write_attribute(&self, buf: &mut Vec<u8>) {
+                    #[allow(trivial_numeric_casts)] // for `u64 as u64`, etc.
+                    let value = self.get() as $f_ty;
+                    buf.extend_from_slice(&value.to_be_bytes());
+                }
+            }
+
+            impl super::AttributeValue for $n_ty {}
+        };
         ($ty: ty as $f_ty: ty, $type_byte: expr) => {
             impl AttributeValue for $ty {
                 #[inline(always)]
@@ -509,18 +532,19 @@ mod private {
         };
     }
 
-    impl_write_attribute!(u8 as u64, UNSIGNED_INTEGER_BYTE);
-    impl_write_attribute!(u16 as u64, UNSIGNED_INTEGER_BYTE);
-    impl_write_attribute!(u32 as u64, UNSIGNED_INTEGER_BYTE);
-    impl_write_attribute!(u64 as u64, UNSIGNED_INTEGER_BYTE);
-    impl_write_attribute!(usize as u64, UNSIGNED_INTEGER_BYTE);
+    impl_write_attribute!(u8 as u64, NonZeroU8, UNSIGNED_INTEGER_BYTE);
+    impl_write_attribute!(u16 as u64, NonZeroU16, UNSIGNED_INTEGER_BYTE);
+    impl_write_attribute!(u32 as u64, NonZeroU32, UNSIGNED_INTEGER_BYTE);
+    impl_write_attribute!(u64 as u64, NonZeroU64, UNSIGNED_INTEGER_BYTE);
+    impl_write_attribute!(usize as u64, NonZeroUsize, UNSIGNED_INTEGER_BYTE);
 
-    impl_write_attribute!(i8 as i64, SIGNED_INTEGER_BYTE);
-    impl_write_attribute!(i16 as i64, SIGNED_INTEGER_BYTE);
-    impl_write_attribute!(i32 as i64, SIGNED_INTEGER_BYTE);
-    impl_write_attribute!(i64 as i64, SIGNED_INTEGER_BYTE);
-    impl_write_attribute!(isize as i64, SIGNED_INTEGER_BYTE);
+    impl_write_attribute!(i8 as i64, NonZeroI8, SIGNED_INTEGER_BYTE);
+    impl_write_attribute!(i16 as i64, NonZeroI16, SIGNED_INTEGER_BYTE);
+    impl_write_attribute!(i32 as i64, NonZeroI32, SIGNED_INTEGER_BYTE);
+    impl_write_attribute!(i64 as i64, NonZeroI64, SIGNED_INTEGER_BYTE);
+    impl_write_attribute!(isize as i64, NonZeroIsize, SIGNED_INTEGER_BYTE);
 
+    // Floats don't have non-zero variants.
     impl_write_attribute!(f32 as f64, FLOAT_BYTE);
     impl_write_attribute!(f64 as f64, FLOAT_BYTE);
 
