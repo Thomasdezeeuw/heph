@@ -4,9 +4,8 @@ use std::io::{self, Write};
 use std::thread;
 
 use inbox::ReceiverConnected;
-use log::{trace, warn};
-use mio::unix;
-use mio::{Interest, Registry, Token};
+use log::trace;
+use mio::{unix, Interest, Registry, Token};
 
 use crate::actor::{SyncActor, SyncContext};
 use crate::actor_ref::ActorRef;
@@ -107,7 +106,7 @@ fn main<S, A>(
     loop {
         let timing = trace::start(&trace_log);
         let receiver = inbox.new_receiver().unwrap_or_else(inbox_failure);
-        let ctx = SyncContext::new(receiver, clone_trace_log(&mut trace_log));
+        let ctx = SyncContext::new(receiver, trace_log.clone());
         trace::finish(&mut trace_log, timing, "setting up synchronous actor", &[]);
 
         let timing = trace::start(&trace_log);
@@ -146,18 +145,4 @@ fn main<S, A>(
 #[cold]
 fn inbox_failure<T>(_: ReceiverConnected) -> T {
     panic!("failed to create new receiver for synchronous actor's inbox. Was the `SyncContext` leaked?");
-}
-
-fn clone_trace_log(trace_log: &mut Option<trace::Log>) -> Option<trace::Log> {
-    if let Some(t_log) = trace_log.as_ref() {
-        match t_log.try_clone() {
-            Ok(trace_log) => Some(trace_log),
-            Err(err) => {
-                warn!("failed to clone trace log: {}, disabling tracing for synchronous actor on next restart", err);
-                trace_log.take()
-            }
-        }
-    } else {
-        None
-    }
 }

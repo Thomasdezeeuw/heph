@@ -71,12 +71,17 @@
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
+use std::sync::atomic::{self, AtomicU32};
+use std::sync::Arc;
 use std::time::{Instant, SystemTime};
 
 use log::warn;
 
 /// Default buffer size, only needs to hold a single trace event.
 const BUF_SIZE: usize = 128;
+
+/// Stream id used by [`CoordinatorLog`].
+const COORDINATOR_STREAM_ID: u32 = 0;
 
 /// Trace events.
 ///
@@ -115,28 +120,20 @@ pub trait Trace {
     );
 }
 
-/// Trace log.
+/// Trace log for the coordinator.
+///
+/// From this log more [`Log`]s for the worker threads can be created.
 #[derive(Debug)]
-pub(crate) struct Log {
-    /// File to write the trace to.
-    ///
-    /// This file is shared between one or more thread, thus writes to it should
-    /// be atomic, i.e. no partial writes. Most OSs support atomic writes up to
-    /// a page size (usually 4KB).
-    file: File,
+pub(crate) struct CoordinatorLog {
+    /// Data shared between [`CoordinatorLog`] and mulitple [`Log`]s.
+    shared: Arc<SharedLog>,
     /// Used to buffer writes for a single event.
     buf: Vec<u8>,
-    /// Id of the stream, used in writing events.
-    stream_id: u32,
-    /// Count for the events we're writing to this stream.
-    stream_counter: u32,
-    /// Time which we use as zero, or epoch, time for all events.
-    epoch: Instant,
 }
 
-impl Log {
-    /// Open a new trace `Log`.
-    pub(super) fn open(path: &Path, stream_id: u32) -> io::Result<Log> {
+impl CoordinatorLog {
+    /// Open a new trace log.
+    pub(super) fn open(path: &Path) -> io::Result<CoordinatorLog> {
         // Start with getting the "real" time, using the wall-clock.
         let timestamp = SystemTime::now();
         // Hopefully quickly after get a monotonic time we use as zero-point
@@ -154,86 +151,63 @@ impl Log {
         write_epoch_metadata(&mut buf, timestamp);
         write_once(&file, &buf)?;
 
-        Ok(Log {
-            file,
-            stream_id,
-            stream_counter: 0,
-            buf,
-            epoch,
+        Ok(CoordinatorLog {
+            shared: Arc::new(SharedLog {
+                file,
+                counter: AtomicU32::new(0),
+                epoch,
+            }),
+            buf: Vec::with_capacity(BUF_SIZE),
         })
     }
 
-    /// Create a new stream with `stream_id`, writing to the same (duplicated)
-    /// file.
-    pub(super) fn new_stream(&self, stream_id: u32) -> io::Result<Log> {
-        self.file.try_clone().map(|file| Log {
-            file,
+    /// Create a new stream with `stream_id`, writing to the same file.
+    pub(super) fn new_stream(&self, stream_id: u32) -> Log {
+        Log {
+            shared: self.shared.clone(),
             stream_id,
             stream_counter: 0,
             buf: Vec::with_capacity(BUF_SIZE),
-            epoch: self.epoch,
-        })
-    }
-
-    /// Attempt to clone the log, writing the same stream.
-    pub(super) fn try_clone(&self) -> io::Result<Log> {
-        self.file.try_clone().map(|file| Log {
-            file,
-            stream_id: self.stream_id,
-            stream_counter: 0,
-            buf: Vec::with_capacity(BUF_SIZE),
-            epoch: self.epoch,
-        })
-    }
-
-    /// Append `event` to trace `Log`.
-    fn append(&mut self, event: &Event<'_>) -> io::Result<()> {
-        #[allow(clippy::unreadable_literal)]
-        const MAGIC: u32 = 0xC1FC1FB7;
-
-        let stream_count: u32 = self.next_stream_count();
-        let start_nanos: u64 = self.nanos_since_epoch(event.start);
-        let end_nanos: u64 = self.nanos_since_epoch(event.end);
-        let description: &[u8] = event.description.as_bytes();
-        // Safety: length has a debug_assert in `finish`.
-        #[allow(clippy::cast_possible_truncation)]
-        let description_len: u16 = description.len() as u16;
-
-        self.buf.clear();
-        self.buf.extend_from_slice(&MAGIC.to_be_bytes());
-        self.buf.extend_from_slice(&0_u32.to_be_bytes()); // Written later.
-        self.buf.extend_from_slice(&self.stream_id.to_be_bytes());
-        self.buf.extend_from_slice(&stream_count.to_be_bytes());
-        self.buf.extend_from_slice(&start_nanos.to_be_bytes());
-        self.buf.extend_from_slice(&end_nanos.to_be_bytes());
-        self.buf.extend_from_slice(&description_len.to_be_bytes());
-        self.buf.extend_from_slice(description);
-        for (name, value) in event.attributes {
-            use private::AttributeValue;
-            (&**name).write_attribute(&mut self.buf);
-            self.buf.push(value.type_byte());
-            value.write_attribute(&mut self.buf);
         }
-        // TODO: check maximum packet length.
-        #[allow(clippy::cast_possible_truncation)]
-        let packet_size = self.buf.len() as u32;
-        self.buf[4..8].copy_from_slice(&packet_size.to_be_bytes());
-
-        // TODO: buffer events? If buf.len() + packet_size >= 4k -> write first?
-        write_once(&self.file, &self.buf)
     }
 
-    /// Returns the number of nanoseconds since the trace's epoch.
+    /// Returns the next stream counter.
+    fn next_stream_count(&mut self) -> u32 {
+        self.shared.counter.fetch_add(1, atomic::Ordering::AcqRel)
+    }
+}
+
+/// Data shared between [`CoordinatorLog`] and mulitple [`Log`]s.
+#[derive(Debug)]
+struct SharedLog {
+    /// File to write the trace to.
     ///
-    /// (2 ^ 64) / 1000000000 / (365 * 24 * 60 * 60) ~= 584 years.
-    /// So restart the application once every 500 years and you're good.
-    #[track_caller]
-    #[allow(clippy::cast_possible_truncation)]
-    fn nanos_since_epoch(&self, time: Instant) -> u64 {
-        // Safety: this overflows after 500+ years as per the function doc.
-        time.duration_since(self.epoch).as_nanos() as u64
-    }
+    /// This file is shared between one or more threads, thus writes to it
+    /// should be atomic, i.e. no partial writes. Most OSs support atomic writes
+    /// up to a page size (usually 4KB).
+    file: File,
+    /// Counter for the stream with id 0, which is owned by the coordinator, but
+    /// also used by the worker threads for thread-safe actors.
+    counter: AtomicU32,
+    /// Time which we use as zero, or epoch, time for all events.
+    epoch: Instant,
+}
 
+/// Trace log.
+#[derive(Debug)]
+pub(crate) struct Log {
+    /// Data shared between [`CoordinatorLog`] and mulitple [`Log`]s.
+    shared: Arc<SharedLog>,
+    /// Id of the stream, used in writing events.
+    /// **Immutable**.
+    stream_id: u32,
+    /// Count for the events we're writing to this stream.
+    stream_counter: u32,
+    /// Used to buffer writes for a single event.
+    buf: Vec<u8>,
+}
+
+impl Log {
     /// Returns the next stream counter.
     fn next_stream_count(&mut self) -> u32 {
         let count = self.stream_counter;
@@ -288,9 +262,23 @@ where
     })
 }
 
+impl Clone for Log {
+    fn clone(&self) -> Log {
+        Log {
+            shared: self.shared.clone(),
+            stream_id: self.stream_id,
+            stream_counter: 0,
+            buf: Vec::with_capacity(BUF_SIZE),
+        }
+    }
+}
+
 /// Start timing an event (using [`EventTiming`]) if we're tracing, i.e. if
 /// `log` is `Some`.
-pub(crate) fn start(log: &Option<Log>) -> Option<EventTiming> {
+pub(crate) fn start<L>(log: &Option<L>) -> Option<EventTiming>
+where
+    L: TraceLog,
+{
     if log.is_some() {
         Some(EventTiming::start())
     } else {
@@ -298,15 +286,103 @@ pub(crate) fn start(log: &Option<Log>) -> Option<EventTiming> {
     }
 }
 
+/// Trait to call [`finish`] on both [`CoordinatorLog`] and [`Log`].
+pub(crate) trait TraceLog {
+    /// Append a new `event` to the log.
+    fn append(&mut self, event: &Event<'_>) -> io::Result<()>;
+}
+
+impl TraceLog for CoordinatorLog {
+    fn append(&mut self, event: &Event<'_>) -> io::Result<()> {
+        let stream_count = self.next_stream_count();
+        format_event(
+            &mut self.buf,
+            self.shared.epoch,
+            COORDINATOR_STREAM_ID,
+            stream_count,
+            event,
+        );
+        // TODO: buffer events? If buf.len() + packet_size >= 4k -> write first?
+        write_once(&self.shared.file, &self.buf)
+    }
+}
+
+impl TraceLog for Log {
+    fn append(&mut self, event: &Event<'_>) -> io::Result<()> {
+        let stream_count = self.next_stream_count();
+        format_event(
+            &mut self.buf,
+            self.shared.epoch,
+            self.stream_id,
+            stream_count,
+            event,
+        );
+        // TODO: buffer events? If buf.len() + packet_size >= 4k -> write first?
+        write_once(&self.shared.file, &self.buf)
+    }
+}
+
+/// Format the `event` writing to `buf`fer.
+fn format_event(
+    buf: &mut Vec<u8>,
+    epoch: Instant,
+    stream_id: u32,
+    stream_count: u32,
+    event: &Event<'_>,
+) {
+    #[allow(clippy::unreadable_literal)]
+    const MAGIC: u32 = 0xC1FC1FB7;
+
+    let start_nanos: u64 = nanos_since_epoch(epoch, event.start);
+    let end_nanos: u64 = nanos_since_epoch(epoch, event.end);
+    let description: &[u8] = event.description.as_bytes();
+    // Safety: length has a debug_assert in `finish`.
+    #[allow(clippy::cast_possible_truncation)]
+    let description_len: u16 = description.len() as u16;
+
+    buf.clear();
+    buf.extend_from_slice(&MAGIC.to_be_bytes());
+    buf.extend_from_slice(&0_u32.to_be_bytes()); // Written later.
+    buf.extend_from_slice(&stream_id.to_be_bytes());
+    buf.extend_from_slice(&stream_count.to_be_bytes());
+    buf.extend_from_slice(&start_nanos.to_be_bytes());
+    buf.extend_from_slice(&end_nanos.to_be_bytes());
+    buf.extend_from_slice(&description_len.to_be_bytes());
+    buf.extend_from_slice(description);
+    for (name, value) in event.attributes {
+        use private::AttributeValue;
+        (&**name).write_attribute(buf);
+        buf.push(value.type_byte());
+        value.write_attribute(buf);
+    }
+    // TODO: check maximum packet length.
+    #[allow(clippy::cast_possible_truncation)]
+    let packet_size = buf.len() as u32;
+    buf[4..8].copy_from_slice(&packet_size.to_be_bytes());
+}
+
+/// Returns the number of nanoseconds since the trace's epoch.
+///
+/// (2 ^ 64) / 1000000000 / (365 * 24 * 60 * 60) ~= 584 years.
+/// So restart the application once every 500 years and you're good.
+#[track_caller]
+#[allow(clippy::cast_possible_truncation)]
+fn nanos_since_epoch(epoch: Instant, time: Instant) -> u64 {
+    // Safety: this overflows after 500+ years as per the function doc.
+    time.duration_since(epoch).as_nanos() as u64
+}
+
 /// Finish tracing an event, partner function to [`start`].
 ///
 /// If `log` or `timing` is `None` this does nothing.
-pub(crate) fn finish(
-    log: &mut Option<Log>,
+pub(crate) fn finish<L>(
+    log: &mut Option<L>,
     timing: Option<EventTiming>,
     description: &str,
     attributes: &[(&str, &dyn AttributeValue)],
-) {
+) where
+    L: TraceLog,
+{
     debug_assert!(
         description.len() < u16::MAX as usize,
         "description for trace event too long"
@@ -350,7 +426,8 @@ impl EventTiming {
 }
 
 /// A trace event.
-struct Event<'e> {
+// NOTE: `pub(crate)` because of `TraceLog`.
+pub(crate) struct Event<'e> {
     start: Instant,
     end: Instant,
     description: &'e str,
