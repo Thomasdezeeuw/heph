@@ -179,7 +179,7 @@ impl Runtime {
                 }
             }
             trace::finish_rt(
-                &mut *self.internals.trace_log.borrow_mut(),
+                self.internals.trace_log.borrow_mut().as_mut(),
                 timing,
                 "Running thread-local process",
                 &[("id", &pid.0), ("name", &name)],
@@ -207,7 +207,7 @@ impl Runtime {
                 }
             }
             trace::finish_rt(
-                &mut *self.internals.trace_log.borrow_mut(),
+                self.internals.trace_log.borrow_mut().as_mut(),
                 timing,
                 "Running thread-safe process",
                 &[("id", &pid.0), ("name", &name)],
@@ -235,7 +235,7 @@ impl Runtime {
             amount += self.schedule_from_shared_timers(now, amount);
         }
         trace::finish_rt(
-            &mut *self.internals.trace_log.borrow_mut(),
+            self.internals.trace_log.borrow_mut().as_mut(),
             timing,
             "Scheduling processes",
             &[("amount", &amount)],
@@ -269,7 +269,7 @@ impl Runtime {
             }
         }
         trace::finish_rt(
-            &mut *self.internals.trace_log.borrow_mut(),
+            self.internals.trace_log.borrow_mut().as_mut(),
             timing,
             "Handling OS events",
             &[],
@@ -297,7 +297,7 @@ impl Runtime {
         }
 
         trace::finish_rt(
-            &mut *self.internals.trace_log.borrow_mut(),
+            self.internals.trace_log.borrow_mut().as_mut(),
             timing,
             "Scheduling thread-local processes based on wake-up events",
             &[("amount", &amount)],
@@ -318,7 +318,7 @@ impl Runtime {
         }
 
         trace::finish_rt(
-            &mut *self.internals.trace_log.borrow_mut(),
+            self.internals.trace_log.borrow_mut().as_mut(),
             timing,
             "Scheduling thread-local processes based on timers",
             &[("amount", &amount)],
@@ -338,7 +338,7 @@ impl Runtime {
         }
 
         trace::finish_rt(
-            &mut *self.internals.trace_log.borrow_mut(),
+            self.internals.trace_log.borrow_mut().as_mut(),
             timing,
             "Scheduling thread-safe processes based on timers",
             &[("amount", &amount)],
@@ -357,7 +357,7 @@ impl Runtime {
             let timing = trace::start(&*self.internals.trace_log.borrow());
             self.internals.shared.wake_workers(wake_n);
             trace::finish_rt(
-                &mut *self.internals.trace_log.borrow_mut(),
+                self.internals.trace_log.borrow_mut().as_mut(),
                 timing,
                 "Waking worker thread based on shared timers",
                 &[("amount", &wake_n)],
@@ -397,7 +397,7 @@ impl Runtime {
         }
 
         trace::finish_rt(
-            &mut *self.internals.trace_log.borrow_mut(),
+            self.internals.trace_log.borrow_mut().as_mut(),
             timing,
             "Polling for OS events",
             &[],
@@ -444,7 +444,7 @@ impl Runtime {
             }
         }
         trace::finish_rt(
-            &mut *self.internals.trace_log.borrow_mut(),
+            self.internals.trace_log.borrow_mut().as_mut(),
             timing,
             "Processing communication message(s)",
             &[],
@@ -467,7 +467,7 @@ impl Runtime {
         };
 
         trace::finish_rt(
-            &mut *self.internals.trace_log.borrow_mut(),
+            self.internals.trace_log.borrow_mut().as_mut(),
             timing,
             "Relaying process signal to actors",
             &[("signal", &signal.as_str())],
@@ -485,7 +485,7 @@ impl Runtime {
         let runtime_ref = self.create_ref();
         let res = f(runtime_ref).map_err(|err| Error::UserFunction(err.into()));
         trace::finish_rt(
-            &mut *self.internals.trace_log.borrow_mut(),
+            self.internals.trace_log.borrow_mut().as_mut(),
             timing,
             "Running user function",
             &[],
@@ -566,7 +566,7 @@ pub(super) struct RuntimeInternals {
     /// CPU affinity of the worker thread, or `None` if not set.
     pub(super) cpu: Option<usize>,
     /// Log used for tracing, `None` is tracing is disabled.
-    trace_log: RefCell<Option<trace::Log>>,
+    pub(super) trace_log: RefCell<Option<trace::Log>>,
 }
 
 impl RuntimeInternals {

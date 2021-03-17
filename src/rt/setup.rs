@@ -144,7 +144,9 @@ impl Setup {
 
         // Create the coordinator to oversee all workers.
         let thread_wakers = thread_wakers.into_boxed_slice();
-        let coordinator = Coordinator::init(thread_wakers).map_err(Error::init_coordinator)?;
+        let shared_trace_log = self.trace_log.as_ref().map(|l| l.clone_shared());
+        let coordinator =
+            Coordinator::init(thread_wakers, shared_trace_log).map_err(Error::init_coordinator)?;
 
         // Spawn the worker threads.
         let workers = worker_setups
@@ -168,7 +170,7 @@ impl Setup {
             .map_err(Error::start_worker)?;
 
         trace::finish_rt(
-            &mut self.trace_log,
+            self.trace_log.as_mut(),
             timing,
             "Spawning worker threads",
             &[("amount", &self.threads)],

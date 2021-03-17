@@ -68,6 +68,7 @@
 //! [Catapult]: https://chromium.googlesource.com/catapult/+/refs/heads/master/tracing/README.md
 //! [Example 8 "Runtime Tracing"]: https://github.com/Thomasdezeeuw/heph/blob/master/examples/README.md#8-runtime-tracing
 
+use std::cell::RefCell;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
@@ -135,7 +136,7 @@ pub(crate) struct CoordinatorLog {
 
 impl CoordinatorLog {
     /// Open a new trace log.
-    pub(super) fn open(path: &Path) -> io::Result<CoordinatorLog> {
+    pub(crate) fn open(path: &Path) -> io::Result<CoordinatorLog> {
         // Start with getting the "real" time, using the wall-clock.
         let timestamp = SystemTime::now();
         // Hopefully quickly after get a monotonic time we use as zero-point
@@ -164,13 +165,18 @@ impl CoordinatorLog {
     }
 
     /// Create a new stream with `stream_id`, writing to the same file.
-    pub(super) fn new_stream(&self, stream_id: u32) -> Log {
+    pub(crate) fn new_stream(&self, stream_id: u32) -> Log {
         Log {
             shared: self.shared.clone(),
             stream_id,
             stream_counter: 0,
             buf: Vec::with_capacity(BUF_SIZE),
         }
+    }
+
+    /// Clone the shared log.
+    pub(crate) fn clone_shared(&self) -> Arc<SharedLog> {
+        self.shared.clone()
     }
 
     /// Returns the next stream counter.
@@ -181,7 +187,7 @@ impl CoordinatorLog {
 
 /// Data shared between [`CoordinatorLog`] and mulitple [`Log`]s.
 #[derive(Debug)]
-struct SharedLog {
+pub(crate) struct SharedLog {
     /// File to write the trace to.
     ///
     /// This file is shared between one or more threads, thus writes to it
@@ -294,6 +300,15 @@ pub(crate) trait TraceLog {
     fn append(&mut self, substream_id: u64, event: &Event<'_>) -> io::Result<()>;
 }
 
+impl<L> TraceLog for &'_ mut L
+where
+    L: TraceLog,
+{
+    fn append(&mut self, substream_id: u64, event: &Event<'_>) -> io::Result<()> {
+        L::append(self, substream_id, event)
+    }
+}
+
 impl TraceLog for CoordinatorLog {
     fn append(&mut self, substream_id: u64, event: &Event<'_>) -> io::Result<()> {
         let stream_count = self.next_stream_count();
@@ -323,6 +338,35 @@ impl TraceLog for Log {
         );
         // TODO: buffer events? If buf.len() + packet_size >= 4k -> write first?
         write_once(&self.shared.file, &self.buf)
+    }
+}
+
+/// # Notes
+///
+/// Uses stream id 0.
+///
+/// This uses thread-local storage, prefer to use the [`CoordinatorLog`] or
+/// [`Log`] implementations.
+impl<'a> TraceLog for &'a SharedLog {
+    fn append(&mut self, substream_id: u64, event: &Event<'_>) -> io::Result<()> {
+        thread_local! {
+            static BUF: RefCell<Vec<u8>> = RefCell::new(Vec::new());
+        }
+
+        BUF.with(|buf| {
+            let mut buf = buf.borrow_mut();
+            let stream_count = self.counter.fetch_add(1, atomic::Ordering::AcqRel);
+            format_event(
+                &mut buf,
+                self.epoch,
+                COORDINATOR_STREAM_ID,
+                stream_count,
+                substream_id,
+                event,
+            );
+            // TODO: buffer events? If buf.len() + packet_size >= 4k -> write first?
+            write_once(&self.file, &buf)
+        })
     }
 }
 
@@ -382,7 +426,7 @@ fn nanos_since_epoch(epoch: Instant, time: Instant) -> u64 {
 ///
 /// If `log` or `timing` is `None` this does nothing.
 pub(crate) fn finish<L>(
-    log: &mut Option<L>,
+    log: Option<L>,
     timing: Option<EventTiming>,
     substream_id: u64,
     description: &str,
@@ -394,7 +438,7 @@ pub(crate) fn finish<L>(
         description.len() < u16::MAX as usize,
         "description for trace event too long"
     );
-    if let (Some(log), Some(timing)) = (log, timing) {
+    if let (Some(mut log), Some(timing)) = (log, timing) {
         let event = timing.finish(description, attributes);
         if let Err(err) = log.append(substream_id, &event) {
             warn!("error writing trace data: {}", err);
@@ -404,7 +448,7 @@ pub(crate) fn finish<L>(
 
 /// [`finish`] for the runtime.
 pub(crate) fn finish_rt<L>(
-    log: &mut Option<L>,
+    log: Option<L>,
     timing: Option<EventTiming>,
     description: &str,
     attributes: &[(&str, &dyn AttributeValue)],

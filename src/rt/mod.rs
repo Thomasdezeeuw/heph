@@ -604,6 +604,26 @@ impl RuntimeRef {
     pub(crate) fn cpu(&self) -> Option<usize> {
         self.internals.cpu
     }
+
+    fn start_trace(&self) -> Option<trace::EventTiming> {
+        trace::start(&*self.internals.trace_log.borrow())
+    }
+
+    fn finish_trace(
+        &mut self,
+        timing: Option<trace::EventTiming>,
+        pid: ProcessId,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    ) {
+        trace::finish(
+            (&mut *self.internals.trace_log.borrow_mut()).as_mut(),
+            timing,
+            pid.0 as u64,
+            description,
+            attributes,
+        )
+    }
 }
 
 impl<S, NA> Spawn<S, NA, ThreadLocal> for RuntimeRef {}
