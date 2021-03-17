@@ -82,6 +82,8 @@ const BUF_SIZE: usize = 128;
 
 /// Stream id used by [`CoordinatorLog`].
 const COORDINATOR_STREAM_ID: u32 = 0;
+/// Identifier used by the runtime to log events.
+const RT_SUBSTREAM_ID: u64 = 0;
 
 /// Trace events.
 ///
@@ -289,19 +291,18 @@ where
 /// Trait to call [`finish`] on both [`CoordinatorLog`] and [`Log`].
 pub(crate) trait TraceLog {
     /// Append a new `event` to the log.
-    fn append(&mut self, event: &Event<'_>) -> io::Result<()>;
+    fn append(&mut self, substream_id: u64, event: &Event<'_>) -> io::Result<()>;
 }
 
 impl TraceLog for CoordinatorLog {
-    fn append(&mut self, event: &Event<'_>) -> io::Result<()> {
+    fn append(&mut self, substream_id: u64, event: &Event<'_>) -> io::Result<()> {
         let stream_count = self.next_stream_count();
         format_event(
             &mut self.buf,
             self.shared.epoch,
             COORDINATOR_STREAM_ID,
             stream_count,
-            // TODO: add substream id.
-            0,
+            substream_id,
             event,
         );
         // TODO: buffer events? If buf.len() + packet_size >= 4k -> write first?
@@ -310,15 +311,14 @@ impl TraceLog for CoordinatorLog {
 }
 
 impl TraceLog for Log {
-    fn append(&mut self, event: &Event<'_>) -> io::Result<()> {
+    fn append(&mut self, substream_id: u64, event: &Event<'_>) -> io::Result<()> {
         let stream_count = self.next_stream_count();
         format_event(
             &mut self.buf,
             self.shared.epoch,
             self.stream_id,
             stream_count,
-            // TODO: add substream id.
-            0,
+            substream_id,
             event,
         );
         // TODO: buffer events? If buf.len() + packet_size >= 4k -> write first?
@@ -384,6 +384,7 @@ fn nanos_since_epoch(epoch: Instant, time: Instant) -> u64 {
 pub(crate) fn finish<L>(
     log: &mut Option<L>,
     timing: Option<EventTiming>,
+    substream_id: u64,
     description: &str,
     attributes: &[(&str, &dyn AttributeValue)],
 ) where
@@ -395,10 +396,22 @@ pub(crate) fn finish<L>(
     );
     if let (Some(log), Some(timing)) = (log, timing) {
         let event = timing.finish(description, attributes);
-        if let Err(err) = log.append(&event) {
+        if let Err(err) = log.append(substream_id, &event) {
             warn!("error writing trace data: {}", err);
         }
     }
+}
+
+/// [`finish`] for the runtime.
+pub(crate) fn finish_rt<L>(
+    log: &mut Option<L>,
+    timing: Option<EventTiming>,
+    description: &str,
+    attributes: &[(&str, &dyn AttributeValue)],
+) where
+    L: TraceLog,
+{
+    finish(log, timing, RT_SUBSTREAM_ID, description, attributes)
 }
 
 /// Timing an event.

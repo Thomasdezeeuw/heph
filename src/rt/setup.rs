@@ -167,7 +167,7 @@ impl Setup {
             .collect::<io::Result<Vec<Worker>>>()
             .map_err(Error::start_worker)?;
 
-        trace::finish(
+        trace::finish_rt(
             &mut self.trace_log,
             timing,
             "Spawning worker threads",

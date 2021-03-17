@@ -183,7 +183,7 @@ impl Runtime {
                     self.internals.scheduler.borrow_mut().add_process(process);
                 }
             }
-            trace::finish(
+            trace::finish_rt(
                 &mut self.trace_log,
                 timing,
                 "Running thread-local process",
@@ -211,7 +211,7 @@ impl Runtime {
                     self.internals.shared.add_process(process);
                 }
             }
-            trace::finish(
+            trace::finish_rt(
                 &mut self.trace_log,
                 timing,
                 "Running thread-safe process",
@@ -239,7 +239,7 @@ impl Runtime {
             // that worker thread we need check the shared timers.
             amount += self.schedule_from_shared_timers(now, amount);
         }
-        trace::finish(
+        trace::finish_rt(
             &mut self.trace_log,
             timing,
             "Scheduling processes",
@@ -273,7 +273,7 @@ impl Runtime {
                 }
             }
         }
-        trace::finish(&mut self.trace_log, timing, "Handling OS events", &[]);
+        trace::finish_rt(&mut self.trace_log, timing, "Handling OS events", &[]);
 
         if check_comms {
             // Don't need this anymore.
@@ -296,7 +296,7 @@ impl Runtime {
             amount += 1;
         }
 
-        trace::finish(
+        trace::finish_rt(
             &mut self.trace_log,
             timing,
             "Scheduling thread-local processes based on wake-up events",
@@ -317,7 +317,7 @@ impl Runtime {
             amount += 1;
         }
 
-        trace::finish(
+        trace::finish_rt(
             &mut self.trace_log,
             timing,
             "Scheduling thread-local processes based on timers",
@@ -337,7 +337,7 @@ impl Runtime {
             amount += 1;
         }
 
-        trace::finish(
+        trace::finish_rt(
             &mut self.trace_log,
             timing,
             "Scheduling thread-safe processes based on timers",
@@ -356,7 +356,7 @@ impl Runtime {
             trace!("waking {} worker threads based on shared timers", wake_n);
             let timing = trace::start(&self.trace_log);
             self.internals.shared.wake_workers(wake_n);
-            trace::finish(
+            trace::finish_rt(
                 &mut self.trace_log,
                 timing,
                 "Waking worker thread based on shared timers",
@@ -396,7 +396,7 @@ impl Runtime {
             self.internals.shared.timers_woke_from_polling();
         }
 
-        trace::finish(&mut self.trace_log, timing, "Polling for OS events", &[]);
+        trace::finish_rt(&mut self.trace_log, timing, "Polling for OS events", &[]);
         res.map(|()| from_timers)
     }
 
@@ -438,7 +438,7 @@ impl Runtime {
                 Control::Run(f) => self.run_user_function(f)?,
             }
         }
-        trace::finish(
+        trace::finish_rt(
             &mut self.trace_log,
             timing,
             "Processing communication message(s)",
@@ -461,7 +461,7 @@ impl Runtime {
             Err(SendError) => Ok(()),
         };
 
-        trace::finish(
+        trace::finish_rt(
             &mut self.trace_log,
             timing,
             "Relaying process signal to actors",
@@ -479,7 +479,7 @@ impl Runtime {
         trace!("running user function");
         let runtime_ref = self.create_ref();
         let res = f(runtime_ref).map_err(|err| Error::UserFunction(err.into()));
-        trace::finish(&mut self.trace_log, timing, "Running user function", &[]);
+        trace::finish_rt(&mut self.trace_log, timing, "Running user function", &[]);
         res
     }
 }
