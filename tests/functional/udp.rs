@@ -9,9 +9,12 @@ use std::task::Poll;
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::{self, Actor, NewActor};
-use heph::net::UdpSocket;
-use heph::rt::ThreadLocal;
+use heph::actor::{self, Actor, Bound, NewActor};
+use heph::actor_ref::{ActorRef, RpcMessage};
+use heph::net::udp::{UdpSocket, Unconnected};
+use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+use heph::spawn::ActorOptions;
+use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
 
 use crate::util::{any_local_address, any_local_ipv6_address};
@@ -358,4 +361,72 @@ fn assert_read(mut got: &[u8], expected: &[&[u8]]) {
         let (_, g) = got.split_at(len);
         got = g;
     }
+}
+
+#[test]
+fn actor_bound() {
+    type Message = RpcMessage<UdpSocket<Unconnected>, ()>;
+
+    async fn actor1<RT>(mut ctx: actor::Context<!, RT>, actor_ref: ActorRef<Message>)
+    where
+        RT: rt::Access,
+    {
+        let mut socket = UdpSocket::bind(&mut ctx, any_local_address()).unwrap();
+        let peer_address = socket.local_addr().unwrap();
+        let _ = actor_ref.rpc(socket).await.unwrap();
+
+        let mut socket = UdpSocket::bind(&mut ctx, any_local_address()).unwrap();
+        socket.send_to(DATA, peer_address).await.unwrap();
+    }
+
+    async fn actor2<RT>(mut ctx: actor::Context<Message, RT>)
+    where
+        RT: rt::Access,
+    {
+        let msg = ctx.receive_next().await.unwrap();
+        let mut socket = msg.request;
+        socket.bind_to(&mut ctx).unwrap();
+        msg.response.respond(()).unwrap();
+        let mut buf = Vec::with_capacity(DATA.len() + 1);
+        let (n, _) = socket.recv_from(&mut buf).await.unwrap();
+        assert_eq!(buf, DATA);
+        assert_eq!(n, DATA.len());
+    }
+
+    fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
+        // Spawn thread-local actors.
+        let actor_ref = runtime_ref.spawn_local(
+            NoSupervisor,
+            actor2 as fn(_) -> _,
+            (),
+            ActorOptions::default(),
+        );
+        let _ = runtime_ref.spawn_local(
+            NoSupervisor,
+            actor1 as fn(_, _) -> _,
+            actor_ref,
+            ActorOptions::default(),
+        );
+
+        Ok(())
+    }
+
+    let mut runtime = Runtime::setup().build().unwrap();
+    runtime.run_on_workers(setup).unwrap();
+
+    // Spawn thread-safe actors.
+    let actor_ref = runtime.spawn(
+        NoSupervisor,
+        actor2 as fn(_) -> _,
+        (),
+        ActorOptions::default(),
+    );
+    let _ = runtime.spawn(
+        NoSupervisor,
+        actor1 as fn(_, _) -> _,
+        actor_ref,
+        ActorOptions::default(),
+    );
+
+    runtime.start().unwrap();
 }
