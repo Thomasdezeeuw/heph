@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use heph::actor::{RecvError, SyncContext};
 use heph::spawn::SyncActorOptions;
-use heph::supervisor::NoSupervisor;
+use heph::supervisor::{NoSupervisor, SupervisorStrategy};
 use heph::test::spawn_sync_actor;
 
 #[derive(Clone, Debug)]
@@ -133,4 +133,29 @@ fn context_try_receive_next() {
 
     actor_ref.try_send("Hello world".to_owned()).unwrap();
     handle.join().unwrap();
+}
+
+#[test]
+fn supervision() {
+    let (handle, _) = spawn_sync_actor(
+        bad_actor_supervisor,
+        bad_actor as fn(_, _) -> _,
+        0usize,
+        SyncActorOptions::default(),
+    )
+    .unwrap();
+
+    handle.join().unwrap();
+}
+
+fn bad_actor_supervisor(err_count: usize) -> SupervisorStrategy<usize> {
+    if err_count == 1 {
+        SupervisorStrategy::Restart(err_count)
+    } else {
+        SupervisorStrategy::Stop
+    }
+}
+
+fn bad_actor(_: SyncContext<!>, count: usize) -> Result<(), usize> {
+    Err(count + 1)
 }
