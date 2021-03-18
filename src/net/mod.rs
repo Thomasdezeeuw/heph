@@ -14,7 +14,35 @@
 //! [TCP listening socket]: crate::net::TcpListener
 //! [TCP server]: crate::net::TcpServer
 //! [User Datagram Protocol]: crate::net::udp
-//! [`UdpSocket`]: crate::net::UdpSocket
+//!
+//! # I/O with Heph's socket
+//!
+//! The different socket types provide two or three variants of most I/O
+//! functions. The `try_*` funtions, which makes the system calls once. For
+//! example [`TcpStream::try_send`] calls `send(2)` once, not handling any
+//! errors (including [`WouldBlock`] errors!).
+//!
+//! In addition they provide a [`Future`] function which handles would block
+//! errors. For `TcpStream::try_send` the future version is [`TcpStream::send`],
+//! i.e. without the `try_` prefix.
+//!
+//! Finally for a lot of function a convenience version is provided that handle
+//! various cases. For example with sending you might want to ensure all bytes
+//! are send, for this you can use [`TcpStream::send_all`]. But also see
+//! functions such as [`TcpStream::recv_n`]; which receives at least `n` bytes,
+//! or [`TcpStream::send_entire_file`]; which sends an entire file using the
+//! `sendfile(2)` system call.
+//!
+//! [`WouldBlock`]: io::ErrorKind::WouldBlock
+//! [`Future`]: std::future::Future
+//!
+//! # Notes
+//!
+//! All types in the `net` module around [bound] to an actor. See the
+//! [`actor::Bound`] trait for more information.
+//!
+//! [bound]: crate::actor::Bound
+//! [`actor::Bound`]: crate::actor::Bound
 
 use std::cmp::min;
 use std::mem::MaybeUninit;

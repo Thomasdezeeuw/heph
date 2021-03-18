@@ -23,6 +23,28 @@ use crate::net::{Bytes, BytesVectored, MaybeUninitSlice};
 use crate::{actor, rt};
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
+///
+/// # Examples
+///
+/// Sending `Hello world!` to a peer.
+///
+/// ```
+/// #![feature(never_type)]
+///
+/// use std::io;
+///
+/// use heph::actor;
+/// use heph::net::TcpStream;
+/// use heph::rt::ThreadLocal;
+///
+/// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
+///     let address = "127.0.0.1:12345".parse().unwrap();
+///     let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+///     stream.send_all(b"Hello world!").await
+/// }
+/// #
+/// # drop(actor); // Silent dead code warnings.
+/// ```
 #[derive(Debug)]
 pub struct TcpStream {
     /// Underlying TCP connection, backed by Mio.
