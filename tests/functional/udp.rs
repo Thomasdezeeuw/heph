@@ -88,6 +88,7 @@ async fn unconnected_udp_actor(
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
     let mut socket = UdpSocket::bind(&mut ctx, local_address)?;
+    assert_eq!(socket.local_addr().unwrap().ip(), local_address.ip());
 
     let bytes_written = socket.send_to(&DATA, peer_address).await?;
     assert_eq!(bytes_written, DATA.len());
@@ -116,6 +117,7 @@ async fn connected_udp_actor(
     let local_address = SocketAddr::new(peer_address.ip(), 0);
     let socket = UdpSocket::bind(&mut ctx, local_address)?;
     let mut socket = socket.connect(peer_address)?;
+    assert_eq!(socket.local_addr().unwrap().ip(), local_address.ip());
 
     let bytes_written = socket.send(&DATA).await?;
     assert_eq!(bytes_written, DATA.len());
