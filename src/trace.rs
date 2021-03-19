@@ -501,7 +501,7 @@ pub(crate) struct Event<'e> {
 /// attribute values in tracing.
 ///
 /// This trait is private and is implemented for only a limited number of types,
-/// specficically:
+/// specifically:
 /// * Unsigned integers, i.e. `u8`, `u16`, etc.
 /// * Signed integers, i.e. `i8`, `i16`, etc.
 /// * Floating point numbers, i.e. `f32` and `f64`.

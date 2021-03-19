@@ -219,7 +219,7 @@ impl Runtime {
         Setup::new().build()
     }
 
-    /// Attempt to spawn a new thead-safe actor.
+    /// Attempt to spawn a new thread-safe actor.
     ///
     /// See the [`Spawn`] trait for more information.
     pub fn try_spawn<S, NA>(
@@ -238,7 +238,7 @@ impl Runtime {
         Spawn::try_spawn(self, supervisor, new_actor, arg, options)
     }
 
-    /// Spawn a new thead-safe actor.
+    /// Spawn a new thread-safe actor.
     ///
     /// See the [`Spawn`] trait for more information.
     pub fn spawn<S, NA>(
@@ -405,7 +405,7 @@ pub struct RuntimeRef {
 }
 
 impl RuntimeRef {
-    /// Attempt to spawn a new thead-local actor.
+    /// Attempt to spawn a new thread-local actor.
     ///
     /// See the [`Spawn`] trait for more information.
     pub fn try_spawn_local<S, NA>(
@@ -423,7 +423,7 @@ impl RuntimeRef {
         Spawn::try_spawn(self, supervisor, new_actor, arg, options)
     }
 
-    /// Spawn a new thead-local actor.
+    /// Spawn a new thread-local actor.
     ///
     /// See the [`Spawn`] trait for more information.
     pub fn spawn_local<S, NA>(
@@ -441,7 +441,7 @@ impl RuntimeRef {
         Spawn::spawn(self, supervisor, new_actor, arg, options)
     }
 
-    /// Attempt to spawn a new thead-safe actor.
+    /// Attempt to spawn a new thread-safe actor.
     ///
     /// See the [`Spawn`] trait for more information.
     pub fn try_spawn<S, NA>(
@@ -460,7 +460,7 @@ impl RuntimeRef {
         Spawn::try_spawn(self, supervisor, new_actor, arg, options)
     }
 
-    /// Spawn a new thead-safe actor.
+    /// Spawn a new thread-safe actor.
     ///
     /// See the [`Spawn`] trait for more information.
     pub fn spawn<S, NA>(

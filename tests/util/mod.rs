@@ -78,7 +78,7 @@ pub fn temp_file(name: &str) -> PathBuf {
 /// Stage of a test actor.
 ///
 /// When testing `Future`s it sometimes hard to tell which futures have and
-/// haven't been completed. If a test depends on the fact that a certrain future
+/// haven't been completed. If a test depends on the fact that a certain future
 /// inside an actor has been completed, but another has not this can be help to
 /// determine that.
 ///

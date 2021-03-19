@@ -31,10 +31,10 @@ fn actor_ref_message_loss() {
     let (actor, actor_ref) = init_local_actor(actor, ()).unwrap();
     let mut actor = Box::pin(actor);
 
-    // Should arive.
+    // Should arrive.
     actor_ref.try_send(123usize).unwrap();
 
-    // After setting the message loss to 100% no messages should arive.
+    // After setting the message loss to 100% no messages should arrive.
     set_message_loss(100);
     actor_ref.try_send(456usize).unwrap();
     actor_ref.try_send(789usize).unwrap();

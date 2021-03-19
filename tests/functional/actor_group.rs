@@ -330,7 +330,7 @@ fn send_delivery_to_one() {
         group.add(actor_ref);
     }
 
-    // NOTE: sending order is not gauranteed so this test is too strict.
+    // NOTE: sending order is not guaranteed so this test is too strict.
     for mut actor in actors {
         assert!(group.try_send(123usize, Delivery::ToOne).is_ok());
 

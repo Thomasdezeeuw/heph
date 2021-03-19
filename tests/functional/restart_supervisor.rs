@@ -132,28 +132,28 @@ fn all_tuple_argument() {
 }
 
 #[test]
-fn typle_2() {
+fn tuple_2() {
     restart_supervisor!(Supervisor, "my actor", (String, usize));
     // Should be able to directly pass argument.
     let _supervisor = Supervisor::new("Hello World".to_owned(), 123);
 }
 
 #[test]
-fn typle_3() {
+fn tuple_3() {
     restart_supervisor!(Supervisor, "my actor", (String, usize, u8));
     // Should be able to directly pass argument.
     let _supervisor = Supervisor::new("Hello World".to_owned(), 123, 1);
 }
 
 #[test]
-fn typle_4() {
+fn tuple_4() {
     restart_supervisor!(Supervisor, "my actor", (String, usize, u8, &'static str));
     // Should be able to directly pass argument.
     let _supervisor = Supervisor::new("Hello World".to_owned(), 123, 1, "arg");
 }
 
 #[test]
-fn typle_5() {
+fn tuple_5() {
     restart_supervisor!(
         Supervisor,
         "my actor",
@@ -164,14 +164,14 @@ fn typle_5() {
 }
 
 #[test]
-fn typle_6() {
+fn tuple_6() {
     restart_supervisor!(Supervisor, "my actor", (String, usize, u8, u8, u8, u8));
     // Should be able to directly pass argument.
     let _supervisor = Supervisor::new("Hello World".to_owned(), 123, 1, 2, 3, 4);
 }
 
 #[test]
-fn typle_7() {
+fn tuple_7() {
     restart_supervisor!(Supervisor, "my actor", (String, usize, u8, u8, u8, u8, u8));
     // Need to use tuple format.
     let _supervisor = Supervisor::new(("Hello World".to_owned(), 123, 1, 2, 3, 4, 5));

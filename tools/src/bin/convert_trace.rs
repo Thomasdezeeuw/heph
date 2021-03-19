@@ -518,7 +518,7 @@ impl fmt::Display for ParseError {
             ),
             StringTooSmall { packet_kind, field } => write!(
                 f,
-                "missign string data in {} packet, {} field",
+                "missing string data in {} packet, {} field",
                 packet_kind, field
             ),
             InvalidString { packet_kind, field } => write!(

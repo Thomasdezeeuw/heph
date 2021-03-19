@@ -9,7 +9,7 @@
 //! done by using the [`send`] or [`try_send`] methods. These methods don't
 //! block, even the remote actor reference, but the methods don't provided a lot
 //! of guarantees. It doesn't even guarantee the order in which the messages
-//! arive. What [`send`] does is asynchronously add the message to the queue of
+//! arrive. What [`send`] does is asynchronously add the message to the queue of
 //! messages for the actor.
 //!
 //! In case of thread-local actor reference this can be done directly. But for
@@ -499,8 +499,8 @@ pub struct ActorGroup<M> {
     actor_refs: Vec<ActorRef<M>>,
     /// Index of the actor reference to send the [single delivery] message to.
     /// Using relaxed ordering on this field is fine because we make no
-    /// gaurantees about to which actor the message will be delivered. E.g. we
-    /// could always send to the first actor in the group and still forfill the
+    /// guarantees about to which actor the message will be delivered. E.g. we
+    /// could always send to the first actor in the group and still fulfill the
     /// contract.
     ///
     /// [single delivery]: Delivery::ToOne

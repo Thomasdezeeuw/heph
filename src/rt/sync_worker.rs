@@ -148,7 +148,7 @@ fn main<S, A>(
     }
 
     trace!("stopping synchronous actor: pid={}, name='{}'", id, name);
-    // First drop all values as this might take an arbiterary time.
+    // First drop all values as this might take an arbitrary time.
     drop(actor);
     drop(supervisor);
     drop(inbox);
