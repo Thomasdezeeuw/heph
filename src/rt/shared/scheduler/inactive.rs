@@ -326,6 +326,7 @@ impl Branch {
         self._mark_ready(marker, w_pid, depth, run_queue)
     }
 
+    #[allow(clippy::cognitive_complexity)]
     fn _mark_ready(
         &self,
         marker: TaggedPointer,
@@ -625,7 +626,7 @@ fn wpid_for(ptr: TaggedPointer, depth: usize) -> usize {
 
 impl Drop for Branch {
     fn drop(&mut self) {
-        for ptr in self.branches.iter_mut() {
+        for ptr in &mut self.branches {
             let ptr = replace(ptr.get_mut(), ptr::null_mut());
             unsafe { drop_tagged_pointer(ptr) };
         }

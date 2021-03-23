@@ -144,7 +144,10 @@ impl Setup {
 
         // Create the coordinator to oversee all workers.
         let thread_wakers = thread_wakers.into_boxed_slice();
-        let shared_trace_log = self.trace_log.as_ref().map(|l| l.clone_shared());
+        let shared_trace_log = self
+            .trace_log
+            .as_ref()
+            .map(trace::CoordinatorLog::clone_shared);
         let coordinator =
             Coordinator::init(thread_wakers, shared_trace_log).map_err(Error::init_coordinator)?;
 

@@ -128,7 +128,8 @@ impl Timers {
         for (n, slot) in iter.enumerate() {
             let timer = { slot.read().unwrap().last().copied() };
             if let Some(timer) = timer {
-                let ns_since_epoch = timer.deadline as u64 + (n as u64 * NS_PER_SLOT as u64);
+                let ns_since_epoch =
+                    u64::from(timer.deadline) + (n as u64 * u64::from(NS_PER_SLOT));
                 let deadline = epoch_time + Duration::from_nanos(ns_since_epoch);
                 return Some(deadline);
             }
@@ -181,7 +182,8 @@ impl Timers {
             (epoch.time, epoch.index)
         };
         let ns_since_epoch = deadline.duration_since(epoch_time).as_nanos();
-        if ns_since_epoch < NS_OVERFLOW as u128 {
+        if ns_since_epoch < u128::from(NS_OVERFLOW) {
+            #[allow(clippy::cast_possible_truncation)] // OK to truncate.
             let deadline = (ns_since_epoch & NS_SLOT_MASK) as TimeOffset;
             let index = ((ns_since_epoch >> NS_PER_SLOT_BITS) & ((1 << SLOT_BITS) - 1)) as usize;
             let index = (epoch_index as usize + index) % SLOTS;
@@ -210,6 +212,7 @@ impl Timers {
             let epoch_offset = now.duration_since(epoch_time).as_nanos();
             // NOTE: this truncates, which is fine as we need a max. of
             // `NS_PER_SLOT` anyway.
+            #[allow(clippy::cast_possible_truncation)]
             let epoch_offset = (epoch_offset & NS_SLOT_MASK) as TimeOffset;
             let res = {
                 let mut timers = self.slots[index].write().unwrap();
@@ -237,6 +240,7 @@ impl Timers {
     /// # Panics
     ///
     /// This panics if the current slot is not empty.
+    #[allow(clippy::cast_possible_truncation)] // TODO: move to new `epoch.index` line.
     fn maybe_update_epoch(&self, now: Instant) -> bool {
         let epoch_time = {
             let mut epoch = self.epoch.write().unwrap();
@@ -274,7 +278,7 @@ impl Timers {
 /// Add `timer` to `timers`, ensuring it remains sorted.
 fn add_timer<T>(timers: &mut Vec<Timer<T>>, timer: Timer<T>)
 where
-    Timer<T>: Ord,
+    Timer<T>: Ord + Copy,
 {
     let idx = timers.binary_search(&timer).into_ok_or_err();
     timers.insert(idx, timer);
@@ -283,7 +287,7 @@ where
 /// Remove a previously added `timer` from `timers`, ensuring it remains sorted.
 fn remove_timer<T>(timers: &mut Vec<Timer<T>>, timer: Timer<T>)
 where
-    Timer<T>: Ord,
+    Timer<T>: Ord + Copy,
 {
     if let Ok(idx) = timers.binary_search(&timer) {
         let _ = timers.remove(idx);
@@ -293,7 +297,7 @@ where
 /// Change the pid of a previously added `timer` in `timers`
 fn change_timer<T>(timers: &mut Vec<Timer<T>>, timer: Timer<T>, new_pid: ProcessId)
 where
-    Timer<T>: Ord,
+    Timer<T>: Ord + Copy,
 {
     if let Ok(idx) = timers.binary_search(&timer) {
         timers[idx].pid = new_pid;
@@ -308,7 +312,7 @@ where
 /// `timers`, but none with a deadline before `time`.
 fn remove_if_after<T>(timers: &mut Vec<Timer<T>>, time: T) -> Result<Timer<T>, bool>
 where
-    T: Ord,
+    T: Ord + Copy,
 {
     match timers.last() {
         // TODO: is the `unwrap` removed here? Or do we need `unwrap_unchecked`?
