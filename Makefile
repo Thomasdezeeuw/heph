@@ -48,6 +48,7 @@ lint:
 		--deny clippy::pedantic \
 		--deny clippy::nursery \
 		--deny clippy::cargo \
+		--allow clippy::cargo-common-metadata \
 		--allow clippy::debug-assert-with-mut-call \
 		--allow clippy::empty-enum \
 		--allow clippy::enum-glob-use \
