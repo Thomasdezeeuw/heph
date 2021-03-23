@@ -7,7 +7,6 @@
 use std::future::Future;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
-use std::sync::Mutex;
 
 use inbox::Manager;
 use log::{debug, trace};
@@ -100,7 +99,7 @@ pub(crate) struct Scheduler {
     /// Processes that are ready to run.
     ready: RunQueue,
     /// Inactive processes that are not ready to run.
-    inactive: Mutex<Inactive>,
+    inactive: Inactive,
 }
 
 impl Scheduler {
@@ -108,19 +107,27 @@ impl Scheduler {
     pub(crate) fn new() -> Scheduler {
         Scheduler {
             ready: RunQueue::empty(),
-            inactive: Mutex::new(Inactive::empty()),
+            inactive: Inactive::empty(),
         }
     }
 
     /// Returns `true` if the scheduler has any processes (in any state),
     /// `false` otherwise.
+    ///
+    /// # Notes
+    ///
+    /// Once this function returns the value could already be outdated.
     pub(crate) fn has_process(&self) -> bool {
-        let has_inactive = { self.inactive.lock().unwrap().has_process() };
+        let has_inactive = self.inactive.has_process();
         has_inactive || self.has_ready_process()
     }
 
     /// Returns `true` if the scheduler has any processes that are ready to run,
     /// `false` otherwise.
+    ///
+    /// # Notes
+    ///
+    /// Once this function returns the value could already be outdated.
     pub(crate) fn has_ready_process(&self) -> bool {
         self.ready.has_process()
     }
@@ -152,11 +159,7 @@ impl Scheduler {
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub(crate) fn mark_ready(&self, pid: ProcessId) {
         trace!("marking process as ready: pid={}", pid);
-        if let Some(process) = { self.inactive.lock().unwrap().mark_ready(pid) } {
-            // The process was in the `Inactive` list, so we move it to the run
-            // queue.
-            self.ready.add(process)
-        }
+        self.inactive.mark_ready(pid, &self.ready);
         // NOTE: if the process in currently not in the `Inactive` list it will
         // be marked as ready-to-run and `Scheduler::add_process` will add it to
         // the run queue once its done running.
@@ -174,13 +177,8 @@ impl Scheduler {
     /// [`Scheduler::remove`] and add it to the inactive list.
     pub(crate) fn add_process(&self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
-
         trace!("adding back process: pid={}", pid);
-        if let Some(process) = { self.inactive.lock().unwrap().add(process) } {
-            // If the process was marked as ready-to-run we need to add to the
-            // run queue instead.
-            self.ready.add(process);
-        }
+        self.inactive.add(process, &self.ready);
     }
 
     /// Mark `process` as complete, removing it from the scheduler.
@@ -188,12 +186,7 @@ impl Scheduler {
     pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
         trace!("removing process: pid={}", pid);
-        drop(process);
-
-        // NOTE: we could leave a ready-to-run marker in the `Inactive` list,
-        // but its not really worth it (locking other workers out) to remove it.
-        // Once the `Inactive` is wait/lock-free this decision should be
-        // reconsidered.
+        self.inactive.complete(process);
     }
 }
 
