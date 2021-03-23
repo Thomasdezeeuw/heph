@@ -132,7 +132,7 @@ impl Inactive {
                 debug_assert!(is_branch(old_ptr));
                 // Pointer is a branch. Try at the next level.
                 let branch_ptr: *mut Branch = as_ptr(old_ptr).cast();
-                w_pid = w_pid >> LEVEL_SHIFT;
+                w_pid >>= LEVEL_SHIFT;
                 debug_assert!(!branch_ptr.is_null());
                 // Safety: if the pointer is not null, a process or a ready
                 // marker it must be a branch. Non-null pointers must always be
@@ -145,6 +145,7 @@ impl Inactive {
 
     /// Update `length` with `n` added/removed processes.
     fn update_length(&self, n: isize) {
+        #[allow(clippy::cast_sign_loss)]
         match n {
             0 => {}
             n if n.is_negative() => {
@@ -192,6 +193,7 @@ const READY_TO_RUN: usize = 0b10;
 impl Branch {
     /// Create an empty `Branch`.
     const fn empty() -> Branch {
+        #[allow(clippy::declare_interior_mutable_const)]
         const NONE: AtomicPtr<()> = AtomicPtr::new(ptr::null_mut());
         Branch {
             branches: [NONE; N_BRANCHES],
@@ -291,11 +293,10 @@ impl Branch {
                             node.add_branches(req_depth, ptr::null_mut(), w_pid, depth, run_queue);
                         // Add the other process/marker.
                         changed += if is_process(other_process) {
-                            // We've just removed the process above that we're
-                            // going to add again here.
-                            changed -= 1;
                             let w_pid = wpid_for(other_process, depth);
-                            node._add(other_process, w_pid, depth, run_queue)
+                            // NOTE: `-1` because we've just removed the process
+                            // above that we're going to add again here.
+                            node._add(other_process, w_pid, depth, run_queue) - 1
                         } else {
                             debug_assert!(is_ready_marker(other_process));
                             let w_pid = wpid_for(other_process, depth);
@@ -407,11 +408,10 @@ impl Branch {
                         // Add the other process/marker.
                         changed += if is_process(other_process) {
                             debug_assert!(is_process(other_process));
-                            // We've just removed the process above that we're
-                            // going to add again here.
-                            changed -= 1;
                             let w_pid = wpid_for(other_process, depth);
-                            node._add(other_process, w_pid, depth, run_queue)
+                            // NOTE: `-1` because we've just removed the process
+                            // above that we're going to add again here.
+                            node._add(other_process, w_pid, depth, run_queue) - 1
                         } else {
                             debug_assert!(is_ready_marker(other_process));
                             let w_pid = wpid_for(other_process, depth);
@@ -734,7 +734,7 @@ mod tests {
             (0b0000, 0b0101, 0),
             (0b0000, 0b1001, 0),
         ];
-        for (pid1, pid2, expected) in tests.into_iter().copied() {
+        for (pid1, pid2, expected) in tests.iter().copied() {
             let pid1 = ProcessId(pid1);
             let pid2 = ProcessId(pid2);
             let got = diff_branch_depth(pid1, pid2);
