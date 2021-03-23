@@ -87,6 +87,8 @@ coverage:
 		--show-instantiations=false \
 		--show-expansions \
 		--ignore-filename-regex=".cargo\/registry" \
+		--ignore-filename-regex=".cargo\/git" \
+		--ignore-filename-regex=".rustup" \
 		--ignore-filename-regex="tests\/" \
 		--ignore-filename-regex="tests.rs$$" \
 		--format=html \
