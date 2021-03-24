@@ -15,14 +15,14 @@ use crate::supervisor::{Supervisor, SupervisorStrategy};
 /// A process that represent an [`Actor`].
 pub(crate) struct ActorProcess<S, NA: NewActor> {
     /// The actor's supervisor used to determine what to do when the actor, or
-    /// [`NewActor`] implementation, returns an error.
+    /// the [`NewActor`] implementation, returns an error.
     supervisor: S,
     /// The [`NewActor`] implementation used to restart the actor.
     new_actor: NA,
     /// The inbox of the actor, used in creating a new [`actor::Context`]
     /// if the actor is restarted.
     inbox: Manager<NA::Message>,
-    /// The running actors.
+    /// The running actor.
     actor: NA::Actor,
 }
 

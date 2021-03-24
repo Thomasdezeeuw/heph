@@ -245,10 +245,10 @@ where
 #[derive(Copy, Clone, Debug)]
 pub struct NoSupervisor;
 
-impl<NA, A> Supervisor<NA> for NoSupervisor
+impl<NA> Supervisor<NA> for NoSupervisor
 where
-    NA: NewActor<Actor = A, Error = !>,
-    A: Actor<Error = !>,
+    NA: NewActor<Error = !>,
+    NA::Actor: Actor<Error = !>,
 {
     fn decide(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
         // This can't be called.
