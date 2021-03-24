@@ -133,31 +133,23 @@ impl Runtime {
             // We first run the processes and only poll after to ensure that we
             // return if there are no processes to run.
             trace!("running processes");
-            let mut has_local = true;
-            for _ in 0..RUN_POLL_RATIO {
-                if has_local && self.run_local_process(&mut runtime_ref) {
-                    // Only run a single process per iteration.
-                    continue;
+            let mut n = 0;
+            while n < RUN_POLL_RATIO {
+                if !self.run_local_process(&mut runtime_ref) {
+                    break;
                 }
-                // Don't check next iteration.
-                has_local = false;
-
-                if self.run_shared_process(&mut runtime_ref) {
-                    // Only run a single process per iteration.
-                    continue;
+                n += 1;
+            }
+            while n < RUN_POLL_RATIO {
+                if !self.run_shared_process(&mut runtime_ref) {
+                    break;
                 }
+                n += 1;
+            }
 
-                if !self.internals.scheduler.borrow().has_process()
-                    && !self.internals.shared.has_process()
-                    // Don't want to exit before the runtime was started.
-                    && self.started
-                {
-                    debug!("no processes to run, stopping runtime");
-                    return Ok(());
-                }
-
-                // No processes ready to run, move to scheduling them.
-                break;
+            if self.started && !self.has_process() {
+                debug!("no processes to run, stopping runtime");
+                return Ok(());
             }
 
             self.schedule_processes()?;
@@ -216,6 +208,12 @@ impl Runtime {
         } else {
             false
         }
+    }
+
+    /// Returns `true` if there are processes in either the local or shared
+    /// schedulers.
+    fn has_process(&self) -> bool {
+        self.internals.scheduler.borrow().has_process() || self.internals.shared.has_process()
     }
 
     /// Schedule processes.
