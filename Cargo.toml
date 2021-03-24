@@ -41,6 +41,11 @@ getrandom         = { version = "0.2.2", default-features = false, features = ["
 # Enable logging panics via `std-logger`.
 std-logger        = { version = "0.4.0", default-features = false, features = ["log-panic", "nightly"] }
 
+[[test]]
+name    = "process_signals"
+# Require full control over the spawned threads.
+harness = false
+
 [workspace]
 members = [
   "tools",
