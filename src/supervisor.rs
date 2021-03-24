@@ -123,10 +123,29 @@ where
     NA: NewActor,
 {
     /// Decide what happens to the actor that returned `error`.
+    ///
+    /// # Notes
+    ///
+    /// A restarted actor will immediately will be run again. This has the
+    /// benefit that the actor can setup any asynchronous operations without
+    /// having to wait to be run again.
+    ///
+    /// However it also has a downside: *it's easy to create create an infinite
+    /// loop*. When a supervisor always restarts an actor that always returns an
+    /// error, we've got an effective infinite loop of restarting and running
+    /// the actor, the actor crashes and is restarted and run again, etc.
+    ///
+    /// To avoid creating such an infinite loop limit the amount times an actor
+    /// can be restarted. Or use the [`restart_supervisor!`] macro to
+    /// automatically create a supervisor that handles this for you.
     fn decide(&mut self, error: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument>;
 
     /// Decide what happens when an actor is restarted and the [`NewActor`]
     /// implementation returns an `error`.
+    ///
+    /// Read the documentation of [`decide`] to avoid an *infinite loop*.
+    ///
+    /// [`decide`]: Supervisor::decide
     fn decide_on_restart_error(&mut self, error: NA::Error) -> SupervisorStrategy<NA::Argument>;
 
     /// Method that gets call if an actor fails to restart twice.
