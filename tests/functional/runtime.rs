@@ -1,16 +1,18 @@
 use std::future::Future;
 use std::io::{self, Write};
+use std::marker::PhantomData;
 use std::pin::Pin;
 use std::process::Command;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::task::{self, Poll};
 use std::thread::{self, sleep};
 use std::time::Duration;
 
-use heph::actor::{self, SyncContext};
+use heph::actor::{self, Actor, NewActor, SyncContext};
 use heph::rt::{Runtime, ThreadLocal, ThreadSafe};
 use heph::spawn::options::{ActorOptions, Priority, SyncActorOptions};
-use heph::supervisor::NoSupervisor;
+use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 
 use crate::util::temp_file;
 
@@ -143,6 +145,222 @@ fn auto_cpu_affinity() {
     let mut runtime = Runtime::setup().auto_cpu_affinity().build().unwrap();
     runtime.run_on_workers(setup).unwrap();
     runtime.start().unwrap();
+}
+
+#[test]
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
+fn running_actors() {
+    use SupervisorStrategy::*;
+
+    #[rustfmt::skip]
+    fn tests<RT>() -> Vec<(
+        RunningSupervisor<Result<(), ()>>,
+        RunningNewActor<RT>,
+        Result<(), ()>,
+        StatusCheck,
+    )> {
+        vec![
+            // Actor: Ok.
+            test(Ok(()), vec![], vec![], 0, 0, 0, 0, 0),
+            // Actor: Err, supervisor: stop.
+            test(Err(()), vec![Stop], vec![], 1, 0, 0, 0, 1),
+            // Actor: Err, supervisor: restart, new_actor: ok.
+            test(Err(()), vec![Restart(Ok(()))], vec![true], 1, 0, 0, 1, 0),
+            // Actor: Err, supervisor: restart, new_actor: err, supervisor: stop.
+            test(Err(()), vec![Restart(Ok(())), Stop], vec![false], 1, 1, 0, 1, 1),
+            // Actor: Err, supervisor: restart, new_actor: err, supervisor: restart.
+            test(Err(()), vec![Restart(Ok(())), Restart(Ok(()))], vec![false, true], 1, 1, 0, 2, 0),
+            // Actor: Err, supervisor: restart, new_actor: err, supervisor: restart, new_actor: err.
+            test(Err(()), vec![Restart(Ok(())), Restart(Ok(()))], vec![false, false], 1, 1, 1, 2, 0),
+        ]
+    }
+
+    let mut runtime = Runtime::setup().build().unwrap();
+
+    let local_status = Arc::new(Mutex::new(Vec::new()));
+    let s = local_status.clone();
+    runtime
+        .run_on_workers(move |mut runtime_ref| -> Result<(), !> {
+            let mut local_status = Vec::new();
+            for (supervisor, new_actor, arg, status) in tests() {
+                runtime_ref
+                    .try_spawn_local(supervisor, new_actor, arg, ActorOptions::default())
+                    .unwrap();
+                local_status.push(status);
+            }
+            s.lock().unwrap().append(&mut local_status);
+            Ok(())
+        })
+        .unwrap();
+
+    let mut safe_status = Vec::new();
+    for (supervisor, new_actor, arg, status) in tests() {
+        runtime
+            .try_spawn(supervisor, new_actor, arg, ActorOptions::default())
+            .unwrap();
+        safe_status.push(status);
+    }
+
+    runtime.start().unwrap();
+
+    for (i, status) in local_status.lock().unwrap().iter().enumerate() {
+        eprintln!("thread-local {}. status: {:?}", i, status);
+        status.assert();
+    }
+
+    for (i, status) in safe_status.into_iter().enumerate() {
+        eprintln!("thread-safe {}. status: {:?}", i, status);
+        status.assert();
+    }
+
+    fn test<RT>(
+        initial_arg: Result<(), ()>,
+        mut restarts: Vec<SupervisorStrategy<Result<(), ()>>>,
+        mut new_actor_results: Vec<bool>,
+        // Status checks:
+        actor_errors: usize,
+        restart_errors: usize,
+        second_restart_errors: usize,
+        restarted: usize,
+        stopped: usize,
+    ) -> (
+        RunningSupervisor<Result<(), ()>>,
+        RunningNewActor<RT>,
+        Result<(), ()>,
+        StatusCheck,
+    ) {
+        let status = Arc::new(RestartStatus {
+            actor_errors: AtomicUsize::new(0),
+            restart_errors: AtomicUsize::new(0),
+            second_restart_errors: AtomicUsize::new(0),
+            restarted: AtomicUsize::new(0),
+            stopped: AtomicUsize::new(0),
+        });
+        restarts.reverse();
+        let supervisor = RunningSupervisor {
+            restarts,
+            status: status.clone(),
+        };
+        new_actor_results.reverse();
+        new_actor_results.push(true); // First creation.
+        let new_actor = RunningNewActor(new_actor_results, PhantomData);
+        let check_status = StatusCheck(
+            status,
+            actor_errors,
+            restart_errors,
+            second_restart_errors,
+            restarted,
+            stopped,
+        );
+        (supervisor, new_actor, initial_arg, check_status)
+    }
+
+    #[derive(Clone)]
+    struct RunningNewActor<RT>(Vec<bool>, PhantomData<RT>);
+
+    // Don't actually own a `RT`, so it's OK.
+    unsafe impl<RT> Send for RunningNewActor<RT> {}
+
+    impl<RT> NewActor for RunningNewActor<RT> {
+        type Message = ();
+        type Argument = Result<(), ()>;
+        type Actor = RunningActor;
+        type Error = ();
+        type RuntimeAccess = RT;
+
+        fn new(
+            &mut self,
+            _: actor::Context<Self::Message, Self::RuntimeAccess>,
+            arg: Self::Argument,
+        ) -> Result<Self::Actor, Self::Error> {
+            if self.0.pop().unwrap() {
+                Ok(RunningActor(arg))
+            } else {
+                Err(())
+            }
+        }
+    }
+
+    #[derive(Clone)]
+    struct RunningActor(Result<(), ()>);
+
+    impl Actor for RunningActor {
+        type Error = ();
+
+        fn try_poll(
+            self: Pin<&mut Self>,
+            _: &mut task::Context<'_>,
+        ) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(self.0)
+        }
+    }
+
+    #[derive(Debug)]
+    struct StatusCheck(Arc<RestartStatus>, usize, usize, usize, usize, usize);
+
+    #[derive(Debug)]
+    struct RestartStatus {
+        actor_errors: AtomicUsize,
+        restart_errors: AtomicUsize,
+        second_restart_errors: AtomicUsize,
+        restarted: AtomicUsize,
+        stopped: AtomicUsize,
+    }
+
+    impl StatusCheck {
+        fn assert(&self) {
+            assert_eq!(get(&self.0.actor_errors), self.1);
+            assert_eq!(get(&self.0.restart_errors), self.2);
+            assert_eq!(get(&self.0.second_restart_errors), self.3);
+            assert_eq!(get(&self.0.restarted), self.4);
+            assert_eq!(get(&self.0.stopped), self.5);
+        }
+    }
+
+    #[derive(Clone, Debug)] // `Clone` for `run_on_workers`.
+    struct RunningSupervisor<T> {
+        restarts: Vec<SupervisorStrategy<T>>,
+        status: Arc<RestartStatus>,
+    }
+
+    fn get(value: &AtomicUsize) -> usize {
+        value.load(Ordering::SeqCst)
+    }
+
+    fn incr(value: &AtomicUsize) {
+        let _ = value.fetch_add(1, Ordering::SeqCst);
+    }
+
+    impl<NA> Supervisor<NA> for RunningSupervisor<NA::Argument>
+    where
+        NA: NewActor,
+    {
+        fn decide(&mut self, _: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
+            incr(&self.status.actor_errors);
+            let ret = self.restarts.pop().unwrap();
+            if let Stop = ret {
+                incr(&self.status.stopped);
+            } else {
+                incr(&self.status.restarted);
+            }
+            ret
+        }
+
+        fn decide_on_restart_error(&mut self, _: NA::Error) -> SupervisorStrategy<NA::Argument> {
+            incr(&self.status.restart_errors);
+            let ret = self.restarts.pop().unwrap();
+            if let Stop = ret {
+                incr(&self.status.stopped);
+            } else {
+                incr(&self.status.restarted);
+            }
+            ret
+        }
+
+        fn second_restart_error(&mut self, _: NA::Error) {
+            incr(&self.status.second_restart_errors);
+        }
+    }
 }
 
 #[test]
