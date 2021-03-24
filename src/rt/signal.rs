@@ -2,12 +2,29 @@ use std::fmt;
 
 /// Process signal.
 ///
-/// Actors can receive signals by calling [`Runtime::receive_signals`] or
-/// [`RuntimeRef::receive_signals`] with their actor reference.
+/// Asynchronous actors can receive signals by calling
+/// [`Runtime::receive_signals`] or [`RuntimeRef::receive_signals`] with their
+/// actor reference.
+///
+/// Synchronous actor receive signals automatically if they can receive them,
+/// i.e. if their [message type] implements [`TryFrom`]`<Signal>`. For more
+/// information see the [`SyncActor`] trait.
 ///
 /// [`Runtime::receive_signals`]: crate::Runtime::receive_signals
 /// [`RuntimeRef::receive_signals`]: crate::RuntimeRef::receive_signals
+/// [message type]: crate::actor::SyncActor::Message
+/// [`TryFrom`]: std::convert::TryFrom
 /// [`SyncActor`]: crate::actor::SyncActor
+///
+/// # Notes
+///
+/// What happends to threads spawned outside of Heph's control, i.e. manually
+/// spawned, before calling [`rt::Setup::build`] is unspecified. They may still
+/// receive a process signal or they may not. This is due to platform
+/// limitations and differences. Any manually spawned threads spawned after
+/// calling build should not get a process signal.
+///
+/// [`rt::Setup::build`]: crate::rt::Setup::build
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Signal {
     /// Interrupt signal.
