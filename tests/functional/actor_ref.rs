@@ -24,7 +24,7 @@ const MSGS: &[&str] = &["Hello world", "Hello mars", "Hello moon"];
 #[test]
 fn size() {
     assert_size::<ActorRef<()>>(24);
-    assert_size::<SendValue<'_, '_, ()>>(64);
+    assert_size::<SendValue<'_, ()>>(64);
 }
 
 #[test]

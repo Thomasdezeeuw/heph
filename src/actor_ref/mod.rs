@@ -170,9 +170,8 @@ impl<M> ActorRef<M> {
     /// possible try [`ActorRef::try_send`] first, which does not require an
     /// allocation. Regular (i.e. non-mapped) actor references do not require an
     /// allocation.
-    pub fn send<'r, 'fut, Msg>(&'r self, msg: Msg) -> SendValue<'r, 'fut, M>
+    pub fn send<'r, Msg>(&'r self, msg: Msg) -> SendValue<'r, M>
     where
-        'r: 'fut,
         Msg: Into<M>,
     {
         use ActorRefKind::*;
@@ -222,9 +221,8 @@ impl<M> ActorRef<M> {
     /// See the [`rpc`] module for more details.
     ///
     /// [`Future`]: std::future::Future
-    pub fn rpc<'r, 'fut, Req, Res>(&'r self, request: Req) -> Rpc<'r, 'fut, M, Res>
+    pub fn rpc<'r, Req, Res>(&'r self, request: Req) -> Rpc<'r, M, Res>
     where
-        'r: 'fut,
         M: From<RpcMessage<Req, Res>>,
     {
         Rpc::new(self, request)
@@ -372,7 +370,7 @@ where
 {
     fn try_mapped_send(&self, msg: Msg) -> Result<(), SendError> {
         M::try_from(msg)
-            .map_err(|_msg| SendError)
+            .map_err(|_| SendError)
             .and_then(|msg| self.try_send(msg))
     }
 
@@ -400,13 +398,13 @@ where
     }
 }
 
-enum MappedSendValue<'r, 'fut, M> {
-    Send(SendValue<'r, 'fut, M>),
+enum MappedSendValue<'r, M> {
+    Send(SendValue<'r, M>),
     /// Error mapping the message type.
     MapErr,
 }
 
-impl<'r, 'fut, M> Future for MappedSendValue<'r, 'fut, M> {
+impl<'r, M> Future for MappedSendValue<'r, M> {
     type Output = Result<(), SendError>;
 
     #[track_caller]
@@ -434,23 +432,23 @@ impl<'r, 'fut, M> Future for MappedSendValue<'r, 'fut, M> {
 ///
 /// [`mem::forget`]: std::mem::forget
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct SendValue<'r, 'fut, M> {
-    kind: SendValueKind<'r, 'fut, M>,
+pub struct SendValue<'r, M> {
+    kind: SendValueKind<'r, M>,
 }
 
-enum SendValueKind<'r, 'fut, M> {
+enum SendValueKind<'r, M> {
     Local(inbox::SendValue<'r, M>),
-    Mapped(Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>),
+    Mapped(Pin<Box<dyn Future<Output = Result<(), SendError>> + 'r>>),
 }
 
 // We know that the `Local` variant is `Send` and `Sync`. Since the `Mapped`
 // variant is a boxed version of `Local` so is that variant. This makes the
 // entire `SendValueKind` `Send` and `Sync`, as long as `M` is `Send` (as we
 // could be sending the message across thread bounds).
-unsafe impl<'r, 'fut, M: Send> Send for SendValueKind<'r, 'fut, M> {}
-unsafe impl<'r, 'fut, M: Send> Sync for SendValueKind<'r, 'fut, M> {}
+unsafe impl<'r, M: Send> Send for SendValueKind<'r, M> {}
+unsafe impl<'r, M: Send> Sync for SendValueKind<'r, M> {}
 
-impl<'r, 'fut, M> Future for SendValue<'r, 'fut, M> {
+impl<'r, M> Future for SendValue<'r, M> {
     type Output = Result<(), SendError>;
 
     #[track_caller]
@@ -474,7 +472,7 @@ impl<'r, 'fut, M> Future for SendValue<'r, 'fut, M> {
     }
 }
 
-impl<'r, 'fut, M> fmt::Debug for SendValue<'r, 'fut, M> {
+impl<'r, M> fmt::Debug for SendValue<'r, M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("SendValue")
     }

@@ -168,17 +168,14 @@ use crate::actor_ref::{ActorRef, SendError, SendValue};
 /// Created by [`ActorRef::rpc`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Rpc<'r, 'fut, M, Res> {
-    send: Option<SendValue<'r, 'fut, M>>,
+pub struct Rpc<'r, M, Res> {
+    send: Option<SendValue<'r, M>>,
     recv: RecvOnce<Res>,
 }
 
-impl<'r, 'fut, M, Res> Rpc<'r, 'fut, M, Res>
-where
-    'r: 'fut,
-{
+impl<'r, M, Res> Rpc<'r, M, Res> {
     /// Create a new RPC.
-    pub(super) fn new<Req>(actor_ref: &'r ActorRef<M>, request: Req) -> Rpc<'r, 'fut, M, Res>
+    pub(super) fn new<Req>(actor_ref: &'r ActorRef<M>, request: Req) -> Rpc<'r, M, Res>
     where
         M: From<RpcMessage<Req, Res>>,
     {
@@ -193,7 +190,7 @@ where
     }
 }
 
-impl<'r, 'fut, M, Res> Future for Rpc<'r, 'fut, M, Res> {
+impl<'r, M, Res> Future for Rpc<'r, M, Res> {
     type Output = Result<Res, RpcError>;
 
     #[track_caller]
