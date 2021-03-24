@@ -187,7 +187,7 @@ where
 /// See the [module documentation] for deciding on whether to restart an or not.
 ///
 /// [module documentation]: index.html#restarting-or-stopping
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[non_exhaustive]
 pub enum SupervisorStrategy<Arg> {
     /// Restart the actor with the provided argument `Arg`.
