@@ -24,6 +24,7 @@ mod functional {
     mod future;
     mod restart_supervisor;
     mod runtime;
+    mod spawn;
     mod sync_actor;
     mod tcp;
     mod test;
