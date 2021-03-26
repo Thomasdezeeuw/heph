@@ -37,9 +37,8 @@ pub trait Spawn<S, NA, RT>: PrivateSpawn<S, NA, RT> {
         options: ActorOptions,
     ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<RuntimeAccess = RT> + 'static,
-        NA::Actor: 'static,
+        S: Supervisor<NA>,
+        NA: NewActor<RuntimeAccess = RT>,
     {
         self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
             .map_err(|err| match err {
@@ -62,9 +61,8 @@ pub trait Spawn<S, NA, RT>: PrivateSpawn<S, NA, RT> {
         options: ActorOptions,
     ) -> ActorRef<NA::Message>
     where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<Error = !, RuntimeAccess = RT> + 'static,
-        NA::Actor: 'static,
+        S: Supervisor<NA>,
+        NA: NewActor<Error = !, RuntimeAccess = RT>,
     {
         self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
             .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
@@ -87,18 +85,17 @@ mod private {
         ///
         /// [`Spawn`]: super::Spawn
         #[allow(clippy::type_complexity)] // Not part of the public API, so it's OK.
-        fn try_spawn_setup<ArgFn, ArgFnE>(
+        fn try_spawn_setup<ArgFn, E>(
             &mut self,
             supervisor: S,
             new_actor: NA,
             arg_fn: ArgFn,
             options: ActorOptions,
-        ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+        ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
         where
-            S: Supervisor<NA> + 'static,
-            NA: NewActor<RuntimeAccess = RT> + 'static,
-            NA::Actor: 'static,
-            ArgFn: FnOnce(&mut actor::Context<NA::Message, RT>) -> Result<NA::Argument, ArgFnE>;
+            S: Supervisor<NA>,
+            NA: NewActor<RuntimeAccess = RT>,
+            ArgFn: FnOnce(&mut actor::Context<NA::Message, RT>) -> Result<NA::Argument, E>;
     }
 
     /// Error returned by spawning a actor.
@@ -117,18 +114,17 @@ impl<M, RT, S, NA> PrivateSpawn<S, NA, RT> for actor::Context<M, RT>
 where
     RT: PrivateSpawn<S, NA, RT>,
 {
-    fn try_spawn_setup<ArgFn, ArgFnE>(
+    fn try_spawn_setup<ArgFn, E>(
         &mut self,
         supervisor: S,
         new_actor: NA,
         arg_fn: ArgFn,
         options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
     where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<RuntimeAccess = RT> + 'static,
-        NA::Actor: 'static,
-        ArgFn: FnOnce(&mut actor::Context<NA::Message, RT>) -> Result<NA::Argument, ArgFnE>,
+        S: Supervisor<NA>,
+        NA: NewActor<RuntimeAccess = RT>,
+        ArgFn: FnOnce(&mut actor::Context<NA::Message, RT>) -> Result<NA::Argument, E>,
     {
         self.runtime()
             .try_spawn_setup(supervisor, new_actor, arg_fn, options)

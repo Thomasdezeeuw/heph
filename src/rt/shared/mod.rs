@@ -160,17 +160,17 @@ impl RuntimeInternals {
     }
 
     #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
-    pub(crate) fn spawn_setup<S, NA, ArgFn, ArgFnE>(
+    pub(crate) fn spawn_setup<S, NA, ArgFn, E>(
         self: &Arc<Self>,
         supervisor: S,
         mut new_actor: NA,
         arg_fn: ArgFn,
         options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
     where
         S: Supervisor<NA> + Send + Sync + 'static,
         NA: NewActor<RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
-        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
+        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, E>,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {

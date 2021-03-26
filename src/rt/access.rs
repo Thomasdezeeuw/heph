@@ -177,22 +177,29 @@ impl PrivateAccess for ThreadLocal {
     }
 }
 
-impl<S, NA> Spawn<S, NA, ThreadLocal> for ThreadLocal {}
+impl<S, NA> Spawn<S, NA, ThreadLocal> for ThreadLocal
+where
+    S: Supervisor<NA> + 'static,
+    NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
+    NA::Actor: 'static,
+{
+}
 
-impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for ThreadLocal {
-    fn try_spawn_setup<ArgFn, ArgFnE>(
+impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for ThreadLocal
+where
+    S: Supervisor<NA> + 'static,
+    NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
+    NA::Actor: 'static,
+{
+    fn try_spawn_setup<ArgFn, E>(
         &mut self,
         supervisor: S,
         new_actor: NA,
         arg_fn: ArgFn,
         options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
     where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
-        NA::Actor: 'static,
-        ArgFn:
-            FnOnce(&mut actor::Context<NA::Message, ThreadLocal>) -> Result<NA::Argument, ArgFnE>,
+        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadLocal>) -> Result<NA::Argument, E>,
     {
         self.rt
             .try_spawn_setup(supervisor, new_actor, arg_fn, options)
@@ -300,32 +307,29 @@ impl PrivateAccess for ThreadSafe {
 
 impl<S, NA> Spawn<S, NA, ThreadSafe> for ThreadSafe
 where
-    S: Send + Sync,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
-    NA::Actor: Send + Sync,
+    S: Supervisor<NA> + Send + Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
+    NA::Actor: Send + Sync + 'static,
     NA::Message: Send,
 {
 }
 
 impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for ThreadSafe
 where
-    S: Send + Sync,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
-    NA::Actor: Send + Sync,
+    S: Supervisor<NA> + Send + Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
+    NA::Actor: Send + Sync + 'static,
     NA::Message: Send,
 {
-    fn try_spawn_setup<ArgFn, ArgFnE>(
+    fn try_spawn_setup<ArgFn, E>(
         &mut self,
         supervisor: S,
         new_actor: NA,
         arg_fn: ArgFn,
         options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
     where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<RuntimeAccess = ThreadSafe> + 'static,
-        NA::Actor: 'static,
-        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
+        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, E>,
     {
         self.rt.spawn_setup(supervisor, new_actor, arg_fn, options)
     }
