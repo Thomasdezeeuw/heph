@@ -360,32 +360,29 @@ impl Runtime {
 
 impl<S, NA> Spawn<S, NA, ThreadSafe> for Runtime
 where
-    S: Send + Sync,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
-    NA::Actor: Send + Sync,
+    S: Supervisor<NA> + Send + Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
+    NA::Actor: Send + Sync + 'static,
     NA::Message: Send,
 {
 }
 
 impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for Runtime
 where
-    S: Send + Sync,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
-    NA::Actor: Send + Sync,
+    S: Supervisor<NA> + Send + Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
+    NA::Actor: Send + Sync + 'static,
     NA::Message: Send,
 {
-    fn try_spawn_setup<ArgFn, ArgFnE>(
+    fn try_spawn_setup<ArgFn, E>(
         &mut self,
         supervisor: S,
         new_actor: NA,
         arg_fn: ArgFn,
         options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
     where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<RuntimeAccess = ThreadSafe> + 'static,
-        NA::Actor: 'static,
-        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
+        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, E>,
     {
         self.coordinator
             .shared_internals()
@@ -625,22 +622,29 @@ impl RuntimeRef {
     }
 }
 
-impl<S, NA> Spawn<S, NA, ThreadLocal> for RuntimeRef {}
+impl<S, NA> Spawn<S, NA, ThreadLocal> for RuntimeRef
+where
+    S: Supervisor<NA> + 'static,
+    NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
+    NA::Actor: 'static,
+{
+}
 
-impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef {
-    fn try_spawn_setup<ArgFn, ArgFnE>(
+impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef
+where
+    S: Supervisor<NA> + 'static,
+    NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
+    NA::Actor: 'static,
+{
+    fn try_spawn_setup<ArgFn, E>(
         &mut self,
         supervisor: S,
         mut new_actor: NA,
         arg_fn: ArgFn,
         options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
     where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
-        NA::Actor: 'static,
-        ArgFn:
-            FnOnce(&mut actor::Context<NA::Message, ThreadLocal>) -> Result<NA::Argument, ArgFnE>,
+        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadLocal>) -> Result<NA::Argument, E>,
     {
         // Setup adding a new process to the scheduler.
         let mut scheduler = self.internals.scheduler.borrow_mut();
@@ -673,32 +677,29 @@ impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef {
 
 impl<S, NA> Spawn<S, NA, ThreadSafe> for RuntimeRef
 where
-    S: Send + Sync,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
-    NA::Actor: Send + Sync,
+    S: Supervisor<NA> + Send + Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
+    NA::Actor: Send + Sync + 'static,
     NA::Message: Send,
 {
 }
 
 impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for RuntimeRef
 where
-    S: Send + Sync,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
-    NA::Actor: Send + Sync,
+    S: Supervisor<NA> + Send + Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
+    NA::Actor: Send + Sync + 'static,
     NA::Message: Send,
 {
-    fn try_spawn_setup<ArgFn, ArgFnE>(
+    fn try_spawn_setup<ArgFn, E>(
         &mut self,
         supervisor: S,
         new_actor: NA,
         arg_fn: ArgFn,
         options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, ArgFnE>>
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
     where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<RuntimeAccess = ThreadSafe> + 'static,
-        NA::Actor: 'static,
-        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, ArgFnE>,
+        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, E>,
     {
         self.internals
             .shared
