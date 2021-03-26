@@ -206,6 +206,37 @@ where
     }
 }
 
+impl<S, NA> Spawn<S, NA, ThreadSafe> for ThreadLocal
+where
+    S: Supervisor<NA> + Send + Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
+    NA::Actor: Send + Sync + 'static,
+    NA::Message: Send,
+{
+}
+
+impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for ThreadLocal
+where
+    S: Supervisor<NA> + Send + Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
+    NA::Actor: Send + Sync + 'static,
+    NA::Message: Send,
+{
+    fn try_spawn_setup<ArgFn, E>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg_fn: ArgFn,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
+    where
+        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, E>,
+    {
+        self.rt
+            .try_spawn_setup(supervisor, new_actor, arg_fn, options)
+    }
+}
+
 impl fmt::Debug for ThreadLocal {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("ThreadLocal")
