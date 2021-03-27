@@ -1,5 +1,4 @@
 #![allow(dead_code)] // Not all tests use all functions/types.
-#![cfg(feature = "test")]
 
 use std::env::temp_dir;
 use std::fmt;

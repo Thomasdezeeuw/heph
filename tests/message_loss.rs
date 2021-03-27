@@ -5,7 +5,8 @@
 //! This function needs to be in it's own binary since `set_message_loss` is set
 //! globally.
 
-#![cfg(feature = "test")]
+#[cfg(not(feature = "test"))]
+compile_error!("needs `test` feature, run with `cargo test --all-features`");
 
 use std::pin::Pin;
 use std::task::Poll;

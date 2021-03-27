@@ -9,6 +9,9 @@
     write_all_vectored
 )]
 
+#[cfg(not(feature = "test"))]
+compile_error!("needs `test` feature, run with `cargo test --all-features`");
+
 #[path = "util/mod.rs"] // rustfmt can't find the file.
 #[macro_use]
 mod util;

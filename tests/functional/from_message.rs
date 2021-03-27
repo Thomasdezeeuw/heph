@@ -1,7 +1,5 @@
 //! Tests for the `from_message!` macro.
 
-#![cfg(feature = "test")]
-
 use std::pin::Pin;
 use std::task::Poll;
 

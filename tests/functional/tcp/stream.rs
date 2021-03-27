@@ -1,7 +1,5 @@
 //! Tests for `TcpStream`.
 
-#![cfg(feature = "test")]
-
 use std::cmp::min;
 use std::fs::{self, File};
 use std::future::Future;

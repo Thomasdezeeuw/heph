@@ -1,7 +1,5 @@
 //! Tests for the `actor::Context`.
 
-#![cfg(feature = "test")]
-
 use std::pin::Pin;
 use std::task::Poll;
 

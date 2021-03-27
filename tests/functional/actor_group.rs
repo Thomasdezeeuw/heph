@@ -1,7 +1,5 @@
 //! Tests related to `ActorGroup`.
 
-#![cfg(feature = "test")]
-
 use std::fmt;
 use std::pin::Pin;
 use std::task::Poll;

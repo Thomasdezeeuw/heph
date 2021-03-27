@@ -1,7 +1,5 @@
 //! Tests related to `UdpSocket`.
 
-#![cfg(feature = "test")]
-
 use std::io::{self, IoSlice};
 use std::net::SocketAddr;
 use std::pin::Pin;
