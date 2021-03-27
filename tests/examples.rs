@@ -50,7 +50,7 @@ fn test_4_sync_actor() {
 fn test_6_process_signals() {
     let child = run_example("6_process_signals");
     // Give the process some time to setup signal handling.
-    sleep(Duration::from_millis(300));
+    sleep(Duration::from_millis(500));
 
     if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
         panic!("unexpected error sending signal to process: {}", err);
