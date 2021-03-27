@@ -1,7 +1,5 @@
 //! Tests related to `ActorRef`.
 
-#![cfg(feature = "test")]
-
 use std::fmt;
 use std::num::NonZeroUsize;
 use std::pin::Pin;

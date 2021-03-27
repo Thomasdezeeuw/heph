@@ -1,5 +1,8 @@
 #![feature(never_type)]
 
+#[cfg(not(feature = "test"))]
+compile_error!("needs `test` feature, run with `cargo test --all-features`");
+
 use std::process;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;

@@ -1,5 +1,3 @@
-#![cfg(feature = "test")]
-
 use std::convert::TryFrom;
 use std::io;
 use std::marker::PhantomData;
