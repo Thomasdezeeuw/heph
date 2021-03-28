@@ -4,6 +4,7 @@
 //! [Chrome's Trace Event Format]: https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
 //! [Catapult trace view]: https://chromium.googlesource.com/catapult/+/refs/heads/master/tracing/README.md
 
+use std::collections::hash_map::{Entry, HashMap};
 use std::convert::TryInto;
 use std::env::args;
 use std::fs::{File, OpenOptions};
@@ -39,24 +40,56 @@ fn main() {
         .write_all(b"{\n\t\"displayTimeUnit\": \"ns\",\n\t\"traceEvents\": [\n")
         .expect("failed to write header to output");
 
+    // Sometimes `Instant` returns a value that is equal to a previously
+    // returned value. Catapult can't really deal with this and creates two
+    // overlapping events, making them both unreadable and unusable.
+    // To fix this change the starting time and duration by a few microseconds
+    // to ensure the two events don't start at the same time.
+    //
+    // Maps `(pid, tid)` -> `timestamp` -> `duration`.
+    let mut times: HashMap<(u32, u64), HashMap<u128, u128>> = HashMap::new();
+
     let mut first = true;
     for event in trace.events() {
         let event = event.expect("error reading trace file");
 
-        let timestamp = event
+        let mut timestamp = event
             .start
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap()
             .as_micros();
-        let duration = event.end.duration_since(event.start).unwrap().as_nanos();
-        let duration = (duration as f64) / 1000.0; // Microsecond granularity.
+        let mut duration = event.end.duration_since(event.start).unwrap().as_micros();
+
+        let pid = event.stream_id;
+        let tid = event.substream_id;
+        loop {
+            match times.entry((pid, tid)).or_default().entry(timestamp) {
+                Entry::Vacant(entry) => {
+                    entry.insert(duration);
+                    break;
+                }
+                Entry::Occupied(entry) => {
+                    let other_duration = *entry.get();
+                    if other_duration > duration {
+                        // Other event is the *overlapping* event. Delay the
+                        // start of this event and decrease it's duration.
+                        timestamp += 1;
+                        duration -= 1;
+                    } else {
+                        // This is the *overlapping* event, grow it.
+                        timestamp -= 1;
+                        duration += 1;
+                    }
+                }
+            }
+        }
 
         write!(
             output,
             "{}\t\t{{\"pid\": {}, \"tid\": {}, \"ts\": {}, \"dur\": {}, \"name\": \"{}\"",
             if first { "" } else { ",\n" },
-            event.stream_id,
-            event.substream_id,
+            pid,
+            tid,
             timestamp,
             duration,
             event.description,
