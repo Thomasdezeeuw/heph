@@ -139,18 +139,19 @@ impl RuntimeInternals {
         now: Instant,
         current: Option<Duration>,
     ) -> (Option<Duration>, bool) {
-        let deadline = self.timers.next();
-
-        match deadline {
-            // Deadline has already expired, so no blocking.
-            Some(deadline) if deadline <= now => (Some(Duration::ZERO), true),
-            Some(deadline) => {
-                let timeout = deadline.duration_since(now);
-                match current {
-                    Some(current) if current < timeout => (Some(current), true),
-                    Some(..) | None => (Some(timeout), false),
-                }
-            }
+        match self.timers.next() {
+            Some(deadline) => match deadline.checked_duration_since(now) {
+                // Timer has already expired, so no blocking.
+                None => (Some(Duration::ZERO), true),
+                Some(timeout) => match current {
+                    Some(current) if current < timeout => {
+                        // Not using the shared timers timeout.
+                        self.timers.woke_from_polling();
+                        (Some(current), false)
+                    }
+                    Some(..) | None => (Some(timeout), true),
+                },
+            },
             None => (current, false),
         }
     }

@@ -423,20 +423,17 @@ impl Runtime {
             return (Some(Duration::ZERO), false);
         }
 
-        if let Some(deadline) = self.internals.timers.borrow_mut().next() {
-            let now = Instant::now();
-            return if deadline <= now {
+        let now = Instant::now();
+        match self.internals.timers.borrow_mut().next() {
+            Some(deadline) => match deadline.checked_duration_since(now) {
                 // Deadline has already expired, so no blocking.
-                (Some(Duration::ZERO), false)
-            } else {
+                None => (Some(Duration::ZERO), false),
                 // Check the shared timers with the current deadline.
-                let timeout = Some(deadline.duration_since(now));
-                self.internals.shared.next_timeout(now, timeout)
-            };
+                timeout => self.internals.shared.next_timeout(now, timeout),
+            },
+            // If there are no local timers check the shared timers.
+            None => self.internals.shared.next_timeout(now, None),
         }
-
-        // If there are no local timers check the shared timers.
-        self.internals.shared.next_timeout(Instant::now(), None)
     }
 
     /// Process messages from the communication channel.

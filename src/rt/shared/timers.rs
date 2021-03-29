@@ -181,7 +181,7 @@ impl Timers {
             let epoch = self.epoch.read().unwrap();
             (epoch.time, epoch.index)
         };
-        let ns_since_epoch = deadline.duration_since(epoch_time).as_nanos();
+        let ns_since_epoch = deadline.saturating_duration_since(epoch_time).as_nanos();
         if ns_since_epoch < u128::from(NS_OVERFLOW) {
             #[allow(clippy::cast_possible_truncation)] // OK to truncate.
             let deadline = (ns_since_epoch & NS_SLOT_MASK) as TimeOffset;
@@ -209,6 +209,7 @@ impl Timers {
                 let epoch = self.epoch.read().unwrap();
                 (epoch.time, epoch.index as usize)
             };
+            // Safety: `now` can't go backwards, otherwise this will panic.
             let epoch_offset = now.duration_since(epoch_time).as_nanos();
             // NOTE: this truncates, which is fine as we need a max. of
             // `NS_PER_SLOT` anyway.
