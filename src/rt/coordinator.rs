@@ -127,7 +127,7 @@ impl Coordinator {
             let timing = trace::start(&trace_log);
             let mut wake_workers = 0; // Counter for how many workers to wake.
             for event in events.iter() {
-                trace!("event: {:?}", event);
+                trace!("got OS event: {:?}", event);
 
                 match event.token() {
                     SIGNAL => {
@@ -166,7 +166,11 @@ impl Coordinator {
                     token => {
                         let timing = trace::start(&trace_log);
                         let pid = token.into();
-                        trace!("waking thread-safe actor: pid={}", pid);
+                        trace!(
+                            "scheduling thread-safe process based on OS event: pid={}, event={:?}",
+                            pid,
+                            event
+                        );
                         self.internals.mark_ready(pid);
                         wake_workers += 1;
                         trace::finish_rt(
@@ -248,7 +252,10 @@ fn relay_signals(
     signal_refs.remove_disconnected();
 
     while let Some(signal) = signals.receive()? {
-        debug!("received signal on coordinator: signal={:?}", signal);
+        debug!(
+            "relaying process signal to worker threads: signal={:?}",
+            signal
+        );
         let signal = Signal::from_mio(signal);
         for worker in workers.iter_mut() {
             worker.send_signal(signal)?;
