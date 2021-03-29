@@ -147,13 +147,22 @@ impl Timers {
         SF: FnOnce(&mut Vec<Timer<TimeOffset>>, Timer<TimeOffset>),
         OF: FnOnce(&mut Vec<Timer<Instant>>, Timer<Instant>),
     {
-        let ns_since_epoch = deadline.duration_since(self.epoch).as_nanos();
+        let ns_since_epoch = deadline.saturating_duration_since(self.epoch).as_nanos();
         if ns_since_epoch < u128::from(NS_OVERFLOW) {
             #[allow(clippy::cast_possible_truncation)] // Truncation is OK.
-            let deadline = (ns_since_epoch & NS_SLOT_MASK) as TimeOffset;
+            let offset = (ns_since_epoch & NS_SLOT_MASK) as TimeOffset;
             let index = ((ns_since_epoch >> NS_PER_SLOT_BITS) & ((1 << SLOT_BITS) - 1)) as usize;
+            debug_assert_eq!(
+                deadline,
+                self.epoch
+                    + Duration::from_nanos((index as u64 * NS_PER_SLOT as u64) + offset as u64)
+            );
             let index = (self.index as usize + index) % SLOTS;
-            slot_f(&mut self.slots[index], Timer { pid, deadline });
+            let timer = Timer {
+                pid,
+                deadline: offset,
+            };
+            slot_f(&mut self.slots[index], timer);
         } else {
             // Too far into the future to fit in the slots.
             overflow_f(&mut self.overflow, Timer { pid, deadline });
@@ -170,7 +179,7 @@ impl Timers {
     /// # Safety
     ///
     /// `now` may never go backwards between calls.
-    pub(crate) fn remove_next(&mut self, now: Instant) -> Option<ProcessId> {
+    fn remove_next(&mut self, now: Instant) -> Option<ProcessId> {
         loop {
             // NOTE: Each loop iteration needs to calculate the `epoch_offset`
             // as the epoch changes each iteration.
