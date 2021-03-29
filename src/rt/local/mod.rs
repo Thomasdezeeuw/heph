@@ -256,12 +256,18 @@ impl Runtime {
         let mut check_comms = false;
         let mut amount = 0;
         for event in self.events.iter() {
-            trace!("Got OS event: {:?}", event);
+            trace!("got OS event: {:?}", event);
             match event.token() {
                 WAKER => { /* Need to wake up to handle user space events. */ }
                 COMMS => check_comms = true,
                 token => {
-                    scheduler.mark_ready(token.into());
+                    let pid = token.into();
+                    trace!(
+                        "scheduling local process based on OS event: pid={}, event={:?}",
+                        pid,
+                        event
+                    );
+                    scheduler.mark_ready(pid);
                     amount += 1;
                 }
             }
@@ -290,6 +296,7 @@ impl Runtime {
         let mut scheduler = self.internals.scheduler.borrow_mut();
         let mut amount: usize = 0;
         for pid in self.waker_events.try_iter() {
+            trace!("waking up local process: pid={}", pid);
             scheduler.mark_ready(pid);
             amount += 1;
         }
@@ -311,6 +318,7 @@ impl Runtime {
         let mut scheduler = self.internals.scheduler.borrow_mut();
         let mut amount: usize = 0;
         for pid in self.internals.timers.borrow_mut().deadlines(now) {
+            trace!("expiring timer for local process: pid={}", pid);
             scheduler.mark_ready(pid);
             amount += 1;
         }
@@ -331,6 +339,7 @@ impl Runtime {
 
         let mut amount: usize = 0;
         while let Some(pid) = self.internals.shared.remove_next_deadline(now) {
+            trace!("expiring timer for shared process: pid={}", pid);
             self.internals.shared.mark_ready(pid);
             amount += 1;
         }
