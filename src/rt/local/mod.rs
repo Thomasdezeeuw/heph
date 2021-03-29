@@ -429,7 +429,7 @@ impl Runtime {
                 // Deadline has already expired, so no blocking.
                 None => (Some(Duration::ZERO), false),
                 // Check the shared timers with the current deadline.
-                timeout => self.internals.shared.next_timeout(now, timeout),
+                timeout @ Some(..) => self.internals.shared.next_timeout(now, timeout),
             },
             // If there are no local timers check the shared timers.
             None => self.internals.shared.next_timeout(now, None),

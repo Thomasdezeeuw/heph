@@ -1,9 +1,13 @@
 //! Module with the local timers implementation.
 
-use std::cmp::Ordering;
+use std::cmp::{min, Ordering};
 use std::time::{Duration, Instant};
 
 use crate::rt::ProcessId;
+
+#[cfg(test)]
+#[path = "timers_tests.rs"]
+mod timers_tests;
 
 /// Bits needed for the number of slots.
 const SLOT_BITS: usize = 6;
@@ -92,7 +96,7 @@ impl Timers {
             CachedInstant::Empty => None,
             CachedInstant::Set(deadline) => Some(deadline),
             CachedInstant::Unset => {
-                let (first, second) = self.slots.split_at(self.index as usize);
+                let (second, first) = self.slots.split_at(self.index as usize);
                 let iter = first.iter().chain(second.iter());
                 for (n, slot) in iter.enumerate() {
                     if let Some(timer) = slot.last() {
@@ -117,18 +121,25 @@ impl Timers {
 
     /// Add a new deadline.
     pub(crate) fn add(&mut self, pid: ProcessId, deadline: Instant) {
+        let deadline = self.checked_deadline(deadline);
         self.cached_next_deadline.update(deadline);
         self.get_timers(pid, deadline, add_timer, add_timer);
     }
 
     /// Remove a previously added deadline.
     pub(crate) fn remove(&mut self, pid: ProcessId, deadline: Instant) {
+        let deadline = self.checked_deadline(deadline);
         self.cached_next_deadline.invalidate(deadline);
         self.get_timers(pid, deadline, remove_timer, remove_timer);
     }
 
     /// Change the `ProcessId` of a previously added deadline.
     pub(crate) fn change(&mut self, pid: ProcessId, deadline: Instant, new_pid: ProcessId) {
+        let deadline = self.checked_deadline(deadline);
+        // NOTE: we need to update the cache in the case where the deadline was
+        // never added or expired, because the `timers` module depends on the
+        // fact it will be scheduled once the timer expires.
+        self.cached_next_deadline.update(deadline);
         // NOTE: don't need to update the change as it only keep track of the
         // deadline, which doesn't change.
         self.get_timers(
@@ -152,10 +163,10 @@ impl Timers {
             #[allow(clippy::cast_possible_truncation)] // Truncation is OK.
             let offset = (ns_since_epoch & NS_SLOT_MASK) as TimeOffset;
             let index = ((ns_since_epoch >> NS_PER_SLOT_BITS) & ((1 << SLOT_BITS) - 1)) as usize;
+            #[rustfmt::skip]
             debug_assert_eq!(
                 deadline,
-                self.epoch
-                    + Duration::from_nanos((index as u64 * NS_PER_SLOT as u64) + offset as u64)
+                self.epoch + Duration::from_nanos((index as u64 * u64::from(NS_PER_SLOT)) + u64::from(offset))
             );
             let index = (self.index as usize + index) % SLOTS;
             let timer = Timer {
@@ -184,11 +195,9 @@ impl Timers {
             // NOTE: Each loop iteration needs to calculate the `epoch_offset`
             // as the epoch changes each iteration.
             let epoch_offset = now.duration_since(self.epoch).as_nanos();
-            // NOTE: this truncates, which is fine as we need a max. of
-            // `NS_PER_SLOT` anyway.
             #[allow(clippy::cast_possible_truncation)]
-            let epoch_offset = (epoch_offset & NS_SLOT_MASK) as TimeOffset;
-            match remove_if_after(self.current_slot(), epoch_offset) {
+            let epoch_offset = min(epoch_offset, u128::from(TimeOffset::MAX)) as TimeOffset;
+            match remove_if_before(self.current_slot(), epoch_offset) {
                 Ok(timer) => {
                     // Since we've just removed the first timer, invalid the
                     // cache.
@@ -226,19 +235,20 @@ impl Timers {
         // The index of the last slot, after we update the epoch below.
         let last_index = self.index as usize;
         // Move to the next slot and update the epoch.
-        self.index = (self.index + 1) % self.slots.len() as u8;
+        self.index = (self.index + 1) % SLOTS as u8;
         self.epoch += DURATION_PER_SLOT;
 
         // Next move all the overflow timers that now fit in the new slot (the
         // slot that was previously emptied).
         let time = self.epoch + OVERFLOW_DURATION;
+        let slot_epoch = self.epoch + OVERFLOW_DURATION - DURATION_PER_SLOT;
         let timers = &mut self.slots[last_index];
-        while let Ok(timer) = remove_if_after(&mut self.overflow, time) {
+        while let Ok(timer) = remove_if_before(&mut self.overflow, time) {
             // We add the timers in reverse order here as we remove the timer
             // first to expire from overflow first.
             timers.push(Timer {
                 pid: timer.pid,
-                deadline: as_offset(self.epoch, timer.deadline),
+                deadline: as_offset(slot_epoch, timer.deadline),
             });
         }
         // At this point the timer first to expire is the first timer, but it
@@ -248,6 +258,16 @@ impl Timers {
         debug_assert!(timers.is_sorted());
 
         true
+    }
+
+    /// Returns the `deadline` that can safely be added to the timers. Any
+    /// deadline before the current epoch is set to the current epoch.
+    fn checked_deadline(&self, deadline: Instant) -> Instant {
+        if deadline < self.epoch {
+            self.epoch
+        } else {
+            deadline
+        }
     }
 
     fn current_slot(&mut self) -> &mut Vec<Timer<TimeOffset>> {
@@ -280,8 +300,10 @@ fn change_timer<T>(timers: &mut Vec<Timer<T>>, timer: Timer<T>, new_pid: Process
 where
     Timer<T>: Ord + Copy,
 {
-    if let Ok(idx) = timers.binary_search(&timer) {
-        timers[idx].pid = new_pid;
+    match timers.binary_search(&timer) {
+        Ok(idx) => timers[idx].pid = new_pid,
+        #[rustfmt::skip]
+        Err(idx) => timers.insert(idx, Timer { pid: new_pid, deadline: timer.deadline }),
     }
 }
 
@@ -300,7 +322,7 @@ fn as_offset(epoch: Instant, time: Instant) -> TimeOffset {
 /// Returns `Err(is_empty)`, indicating if `timers` is empty. Returns
 /// `Err(true)` is `timers` is empty, `Err(false)` if the are more timers in
 /// `timers`, but none with a deadline before `time`.
-fn remove_if_after<T>(timers: &mut Vec<Timer<T>>, time: T) -> Result<Timer<T>, bool>
+fn remove_if_before<T>(timers: &mut Vec<Timer<T>>, time: T) -> Result<Timer<T>, bool>
 where
     T: Ord + Copy,
 {
