@@ -222,16 +222,11 @@ impl Runtime {
     fn schedule_processes(&mut self) -> Result<(), Error> {
         trace!("polling event sources to schedule processes");
         let timing = trace::start(&*self.internals.trace_log.borrow());
-        let (mut amount, check_shared_timers) = self.schedule_from_os_events()?;
+        let mut amount = self.schedule_from_os_events()?;
         amount += self.schedule_from_waker();
         let now = Instant::now();
         amount += self.schedule_from_local_timers(now);
-        if check_shared_timers {
-            // To prevent the "Thundering herd problem" problem only a single
-            // worker thread considers the shared timers at a time. If this is
-            // that worker thread we need check the shared timers.
-            amount += self.schedule_from_shared_timers(now, amount);
-        }
+        amount += self.schedule_from_shared_timers(now, amount);
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
             timing,
@@ -246,9 +241,9 @@ impl Runtime {
     ///
     /// Returns the amount of processes marked as active and a boolean
     /// indicating whether or not the shared timers should be checked.
-    fn schedule_from_os_events(&mut self) -> Result<(usize, bool), Error> {
+    fn schedule_from_os_events(&mut self) -> Result<usize, Error> {
         // Start with polling for OS events.
-        let check_shared_timer = self.poll_os().map_err(Error::Polling)?;
+        self.poll_os().map_err(Error::Polling)?;
 
         // Based on the OS event scheduler thread-local processes.
         let timing = trace::start(&*self.internals.trace_log.borrow());
@@ -284,7 +279,7 @@ impl Runtime {
             drop(scheduler);
             self.check_comms()?;
         }
-        Ok((amount, check_shared_timer))
+        Ok(amount)
     }
 
     /// Schedule processes based on user space waker events, e.g. used by the
@@ -377,9 +372,9 @@ impl Runtime {
     /// Poll for OS events, filling `self.events`.
     ///
     /// Returns a boolean indicating if the shared timers should be checked.
-    fn poll_os(&mut self) -> io::Result<bool> {
+    fn poll_os(&mut self) -> io::Result<()> {
         let timing = trace::start(&*self.internals.trace_log.borrow());
-        let (timeout, from_timers) = self.determine_timeout();
+        let timeout = self.determine_timeout();
 
         // Only mark ourselves as polling if the timeout is non zero.
         let marked_polling = if timeout.map_or(true, |t| !t.is_zero()) {
@@ -399,9 +394,6 @@ impl Runtime {
         if marked_polling {
             rt::waker::mark_polling(self.internals.waker_id, false);
         }
-        if from_timers {
-            self.internals.shared.timers_woke_from_polling();
-        }
 
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
@@ -409,25 +401,25 @@ impl Runtime {
             "Polling for OS events",
             &[],
         );
-        res.map(|()| from_timers)
+        res
     }
 
     /// Determine the timeout to be used in polling.
-    fn determine_timeout(&self) -> (Option<Duration>, bool) {
+    fn determine_timeout(&self) -> Option<Duration> {
         if self.internals.scheduler.borrow().has_ready_process()
             || !self.waker_events.is_empty()
             || self.internals.shared.has_ready_process()
         {
             // If there are any processes ready to run (local or shared), or any
             // waker events we don't want to block.
-            return (Some(Duration::ZERO), false);
+            return Some(Duration::ZERO);
         }
 
         let now = Instant::now();
         match self.internals.timers.borrow_mut().next() {
             Some(deadline) => match deadline.checked_duration_since(now) {
                 // Deadline has already expired, so no blocking.
-                None => (Some(Duration::ZERO), false),
+                None => Some(Duration::ZERO),
                 // Check the shared timers with the current deadline.
                 timeout @ Some(..) => self.internals.shared.next_timeout(now, timeout),
             },

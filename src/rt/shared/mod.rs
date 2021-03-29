@@ -134,30 +134,18 @@ impl RuntimeInternals {
     /// smaller than the next deadline in the timers this will also
     /// return `current`. Otherwise this will return a timeout based on the
     /// next deadline.
-    pub(crate) fn next_timeout(
-        &self,
-        now: Instant,
-        current: Option<Duration>,
-    ) -> (Option<Duration>, bool) {
+    pub(crate) fn next_timeout(&self, now: Instant, current: Option<Duration>) -> Option<Duration> {
         match self.timers.next() {
             Some(deadline) => match deadline.checked_duration_since(now) {
                 // Timer has already expired, so no blocking.
-                None => (Some(Duration::ZERO), true),
+                None => Some(Duration::ZERO),
                 Some(timeout) => match current {
-                    Some(current) if current < timeout => {
-                        // Not using the shared timers timeout.
-                        self.timers.woke_from_polling();
-                        (Some(current), false)
-                    }
-                    Some(..) | None => (Some(timeout), true),
+                    Some(current) if current < timeout => Some(current),
+                    Some(..) | None => Some(timeout),
                 },
             },
-            None => (current, false),
+            None => current,
         }
-    }
-
-    pub(super) fn timers_woke_from_polling(&self) {
-        self.timers.woke_from_polling()
     }
 
     #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
