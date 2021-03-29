@@ -1,4 +1,8 @@
 //! Module with the local timers implementation.
+//!
+//! Also see the [shared timers implementation].
+//!
+//! [shared timers implementation]: crate::rt::shared::timers
 
 use std::cmp::{min, Ordering};
 use std::time::{Duration, Instant};

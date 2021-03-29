@@ -1,11 +1,18 @@
-//! Module with the local timers implementation.
+//! Module with the shared timers implementation.
+//!
+//! Also see the [local timers implementation].
+//!
+//! [local timers implementation]: crate::rt::local::timers
 
-use std::cmp::Ordering;
-use std::sync::atomic::{self, AtomicBool};
+use std::cmp::{min, Ordering};
 use std::sync::RwLock;
 use std::time::{Duration, Instant};
 
 use crate::rt::ProcessId;
+
+#[cfg(test)]
+#[path = "timers_tests.rs"]
+mod timers_tests;
 
 /// Bits needed for the number of slots.
 const SLOT_BITS: usize = 6;
@@ -73,12 +80,6 @@ pub(crate) struct Timers {
     slots: [RwLock<Vec<Timer<TimeOffset>>>; SLOTS],
     /// The vector is sorted.
     overflow: RwLock<Vec<Timer<Instant>>>,
-    /// If this is `true` a worker thread is considering the next timer to
-    /// expire in polling, i.e. it's using it as a timeout.
-    ///
-    /// This is to prevent the "Thundering herd problem", also see
-    /// `local::Runtime::schedule_processes`.
-    considered_while_polling: AtomicBool,
 }
 
 /// Separate struct because both fields need to be updated atomically.
@@ -101,7 +102,6 @@ impl Timers {
             #[rustfmt::skip]
             slots: [RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new())],
             overflow: RwLock::new(Vec::new()),
-            considered_while_polling: AtomicBool::new(false),
         }
     }
 
@@ -111,38 +111,23 @@ impl Timers {
     /// before removing timers. That thread must also wake other workers threads
     /// as they will see `None` here, **even if there is a timer set**.
     pub(crate) fn next(&self) -> Option<Instant> {
-        if !self
-            .considered_while_polling
-            .swap(true, atomic::Ordering::SeqCst)
-        {
-            // Another thread is already considering the timers.
-            return None;
-        }
-
         let (epoch_time, index) = {
             let epoch = self.epoch.read().unwrap();
             (epoch.time, epoch.index as usize)
         };
-        let (first, second) = self.slots.split_at(index);
+        let (second, first) = self.slots.split_at(index);
         let iter = first.iter().chain(second.iter());
         for (n, slot) in iter.enumerate() {
-            let timer = { slot.read().unwrap().last().copied() };
-            if let Some(timer) = timer {
-                let ns_since_epoch =
-                    u64::from(timer.deadline) + (n as u64 * u64::from(NS_PER_SLOT));
+            let deadline = { slot.read().unwrap().last().map(|timer| timer.deadline) };
+            if let Some(deadline) = deadline {
+                let ns_since_epoch = u64::from(deadline) + (n as u64 * u64::from(NS_PER_SLOT));
                 let deadline = epoch_time + Duration::from_nanos(ns_since_epoch);
                 return Some(deadline);
             }
         }
 
-        let timer = { self.overflow.read().unwrap().last().copied() };
-        timer.map(|timer| timer.deadline)
-    }
-
-    /// Must be called if `next` returns `Some(..)`.
-    pub(crate) fn woke_from_polling(&self) {
-        self.considered_while_polling
-            .store(true, atomic::Ordering::SeqCst)
+        #[rustfmt::skip]
+        self.overflow.read().unwrap().last().map(|timer| timer.deadline)
     }
 
     /// Add a new deadline.
@@ -159,8 +144,6 @@ impl Timers {
 
     /// Change the `ProcessId` of a previously added deadline.
     pub(crate) fn change(&self, pid: ProcessId, deadline: Instant, new_pid: ProcessId) {
-        // NOTE: don't need to update the change as it only keep track of the
-        // deadline, which doesn't change.
         self.get_timers(
             pid,
             deadline,
@@ -214,10 +197,10 @@ impl Timers {
             // NOTE: this truncates, which is fine as we need a max. of
             // `NS_PER_SLOT` anyway.
             #[allow(clippy::cast_possible_truncation)]
-            let epoch_offset = (epoch_offset & NS_SLOT_MASK) as TimeOffset;
+            let epoch_offset = min(epoch_offset, u128::from(TimeOffset::MAX)) as TimeOffset;
             let res = {
                 let mut timers = self.slots[index].write().unwrap();
-                remove_if_after(&mut timers, epoch_offset)
+                remove_if_before(&mut timers, epoch_offset)
             };
             match res {
                 Ok(timer) => return Some(timer.pid),
@@ -246,7 +229,7 @@ impl Timers {
         let epoch_time = {
             let mut epoch = self.epoch.write().unwrap();
             let new_epoch = epoch.time + DURATION_PER_SLOT;
-            if new_epoch >= now {
+            if new_epoch > now {
                 // Can't move to the next slot yet.
                 return false;
             }
@@ -262,7 +245,7 @@ impl Timers {
 
         // Next move all the overflow timers that now fit in the slots.
         let time = epoch_time + OVERFLOW_DURATION;
-        while let Ok(timer) = { remove_if_after(&mut self.overflow.write().unwrap(), time) } {
+        while let Ok(timer) = { remove_if_before(&mut self.overflow.write().unwrap(), time) } {
             // NOTE: we can't use the same optimisation as we do in the local
             // version where we know that all timers removed here go into the
             // `self.index-1` slot.
@@ -300,8 +283,10 @@ fn change_timer<T>(timers: &mut Vec<Timer<T>>, timer: Timer<T>, new_pid: Process
 where
     Timer<T>: Ord + Copy,
 {
-    if let Ok(idx) = timers.binary_search(&timer) {
-        timers[idx].pid = new_pid;
+    match timers.binary_search(&timer) {
+        Ok(idx) => timers[idx].pid = new_pid,
+        #[rustfmt::skip]
+        Err(idx) => timers.insert(idx, Timer { pid: new_pid, deadline: timer.deadline }),
     }
 }
 
@@ -311,7 +296,7 @@ where
 /// Returns `Err(is_empty)`, indicating if `timers` is empty. Returns
 /// `Err(true)` is `timers` is empty, `Err(false)` if the are more timers in
 /// `timers`, but none with a deadline before `time`.
-fn remove_if_after<T>(timers: &mut Vec<Timer<T>>, time: T) -> Result<Timer<T>, bool>
+fn remove_if_before<T>(timers: &mut Vec<Timer<T>>, time: T) -> Result<Timer<T>, bool>
 where
     T: Ord + Copy,
 {
