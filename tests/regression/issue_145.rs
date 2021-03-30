@@ -84,6 +84,7 @@ where
     fn second_restart_error(&mut self, _: io::Error) {}
 }
 
+#[allow(clippy::type_complexity)] // `servers` is too complex.
 async fn conn_actor(
     mut ctx: actor::Context<!, ThreadLocal>,
     mut stream: TcpStream,
