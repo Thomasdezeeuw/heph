@@ -5,7 +5,6 @@
 //! [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
 
 use std::collections::BinaryHeap;
-use std::fmt;
 use std::future::Future;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
@@ -27,6 +26,7 @@ use inactive::Inactive;
 
 type ProcessData = process::ProcessData<dyn process::Process>;
 
+#[derive(Debug)]
 pub(crate) struct Scheduler {
     /// Processes that are ready to run.
     ready: BinaryHeap<Pin<Box<ProcessData>>>,
@@ -99,12 +99,6 @@ impl Scheduler {
     /// [`Scheduler::next_process`].
     pub(crate) fn add_process(&mut self, process: Pin<Box<ProcessData>>) {
         self.inactive.add(process);
-    }
-}
-
-impl fmt::Debug for Scheduler {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("Scheduler")
     }
 }
 
