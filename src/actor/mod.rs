@@ -437,6 +437,10 @@ where
         let arg = (self.map)(arg);
         self.new_actor.new(ctx, arg)
     }
+
+    fn name(&self) -> &'static str {
+        self.new_actor.name()
+    }
 }
 
 /// Macro to implement the [`NewActor`] trait on function pointers.
