@@ -192,11 +192,12 @@ impl<P: ?Sized> PartialOrd for ProcessData<P> {
     }
 }
 
-impl<P: ?Sized> fmt::Debug for ProcessData<P> {
+impl<P: Process + ?Sized> fmt::Debug for ProcessData<P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Process")
             // FIXME: is this unsafe?
             .field("id", &Pin::new(self).id())
+            .field("name", &self.process.name())
             .field("priority", &self.priority)
             .field("fair_runtime", &self.fair_runtime)
             .finish()
