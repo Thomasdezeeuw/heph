@@ -237,7 +237,8 @@ impl Branch {
                 w_pid >>= LEVEL_SHIFT;
                 depth += 1;
                 debug_assert!(!branch_ptr.is_null());
-                // Safety: checked if the pointer is a branch above.
+                // Safety: checked if the pointer is a branch above and per the
+                // docs of `Branch.branches` once it's a branch it's immutable.
                 node = unsafe { &*branch_ptr };
                 old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Relaxed);
             } else if is_ready_marker(old_ptr) && as_pid(old_ptr) == as_pid(process) {
@@ -253,7 +254,8 @@ impl Branch {
                         debug_assert!(is_ready_marker(old));
                         debug_assert!(as_pid(old) == as_pid(process));
                         debug_assert!(is_process(process));
-                        // Safety: checked if the pointer is a process above.
+                        // Safety: caller must ensure `process` is tagged
+                        // pointer to a process.
                         let process = unsafe { process_from_tagged(process) };
                         run_queue.add(process);
                         return changed;
@@ -265,7 +267,8 @@ impl Branch {
             } else {
                 debug_assert!(is_process(old_ptr) || is_ready_marker(old_ptr));
                 // Found another process or ready marker for another process.
-                // Remove it.
+                // Remove it and create branch structure to hold both the
+                // removed process/marker and `process`.
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
                     old_ptr,
                     ptr::null_mut(),
@@ -273,7 +276,7 @@ impl Branch {
                     Ordering::Relaxed,
                 ) {
                     Ok(other_process) => {
-                        // Now we have to add two processes (or marker). First
+                        // Now we have to add two processes (or markers). First
                         // we create the branch structure that can hold the two
                         // processes, i.e. create enough branches to the point
                         // the two pointers differ in the branch slots.
@@ -351,7 +354,8 @@ impl Branch {
                 w_pid >>= LEVEL_SHIFT;
                 depth += 1;
                 debug_assert!(!branch_ptr.is_null());
-                // Safety: checked if the pointer is a branch above.
+                // Safety: checked if the pointer is a branch above and per the
+                // docs of `Branch.branches` once it's a branch it's immutable.
                 node = unsafe { &*branch_ptr };
                 old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Relaxed);
             } else if is_ready_marker(old_ptr) && as_pid(old_ptr) == as_pid(marker) {
@@ -466,7 +470,8 @@ impl Branch {
                     if is_process(old) {
                         debug_assert!(is_process(old));
                         let w_pid = wpid_for(old, depth);
-                        changed += node._add(old, w_pid, depth, run_queue);
+                        // NOTE: -1 because we've just removed the process.
+                        changed += node._add(old, w_pid, depth, run_queue) - 1;
                     } else if is_ready_marker(old) {
                         debug_assert!(is_ready_marker(old));
                         let w_pid = wpid_for(old, depth);
