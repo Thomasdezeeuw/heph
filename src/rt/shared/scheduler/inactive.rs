@@ -44,6 +44,7 @@ pub(super) fn ok_ptr(ptr: *const ()) -> bool {
 /// * Ideal Hash Trees by Phil Bagwell
 /// * Fast And Space Efficient Trie Searches by Phil Bagwell
 // pub(in crate::rt) because its used in AddActor.
+#[derive(Debug)]
 pub(in crate::rt) struct Inactive {
     root: Branch,
     /// The number of processes is the tree, **not** markers.
@@ -155,15 +156,6 @@ impl Inactive {
                 let _ = self.length.fetch_add(n as usize, Ordering::AcqRel);
             }
         }
-    }
-}
-
-impl fmt::Debug for Inactive {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Inactive")
-            .field("root", &self.root)
-            .field("length", &self.length)
-            .finish()
     }
 }
 
@@ -526,11 +518,11 @@ impl fmt::Debug for Branch {
             }
         }
 
-        f.debug_struct("Branch")
-            .field("0", debug_pointer(&self.branches[0]))
-            .field("1", debug_pointer(&self.branches[1]))
-            .field("2", debug_pointer(&self.branches[2]))
-            .field("3", debug_pointer(&self.branches[3]))
+        f.debug_map()
+            .entry(&"00", debug_pointer(&self.branches[0]))
+            .entry(&"01", debug_pointer(&self.branches[1]))
+            .entry(&"10", debug_pointer(&self.branches[2]))
+            .entry(&"11", debug_pointer(&self.branches[3]))
             .finish()
     }
 }
