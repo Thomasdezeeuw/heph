@@ -47,6 +47,7 @@ fn main() -> Result<(), rt::Error> {
         runtime_ref.receive_signals(server_ref.try_map());
         Ok(())
     })?;
+    info!("listening on {}", address);
     runtime.start()
 }
 
