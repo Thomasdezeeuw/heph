@@ -16,7 +16,7 @@ use heph::ActorRef;
 
 use crate::util::{count_polls, expect_pending};
 
-const SMALL_TIMEOUT: Duration = Duration::from_millis(20);
+const SMALL_TIMEOUT: Duration = Duration::from_millis(50);
 const TIMEOUT: Duration = Duration::from_millis(100);
 
 #[test]
@@ -433,7 +433,7 @@ fn timers_actor_bound() {
 }
 
 #[test]
-fn timers_dont_trigger_after_actour_bound() {
+fn timers_dont_trigger_after_actor_bound() {
     async fn timer_actor1<RT>(mut ctx: actor::Context<!, RT>, actor_ref: ActorRef<Timer<RT>>)
     where
         RT: rt::Access + Clone,
