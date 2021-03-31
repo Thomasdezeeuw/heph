@@ -20,7 +20,8 @@ pub(crate) struct ThreadWaker {
 const NOT_POLLING: u8 = 0;
 /// Currently polling.
 const IS_POLLING: u8 = 1;
-/// Going to wake the polling thread.
+/// We add two to `IS_POLLING` to ensure that we don't go from `NOT_POLLING` to
+/// `IS_POLLING` (by adding 1).
 const WAKING: u8 = 2;
 
 impl ThreadWaker {
@@ -38,12 +39,11 @@ impl ThreadWaker {
         // If the thread is currently polling we're going to wake it. To avoid
         // additional calls to `Waker::wake` we use compare_exchange and let
         // only a single call to `Thread::wake` wake the thread.
-        let res = self
-            .polling_status
-            // We don't care about the result so `Relaxed` ordering is fine.
-            .compare_exchange(IS_POLLING, WAKING, Ordering::AcqRel, Ordering::Relaxed)
-            .is_ok();
-        if res {
+        if self.polling_status.load(Ordering::Relaxed) != IS_POLLING {
+            return Ok(false);
+        }
+
+        if self.polling_status.fetch_add(WAKING, Ordering::AcqRel) == IS_POLLING {
             self.waker.wake().map(|()| true)
         } else {
             Ok(false)
