@@ -167,10 +167,8 @@ fn connect_connection_refused() {
 
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
         STAGE.update(0);
-        let connect = TcpStream::connect(&mut ctx, refused_address()).unwrap();
-        STAGE.update(1);
-        match connect.await {
-            Ok(..) => panic!("unexpected success"),
+        let connect = match TcpStream::connect(&mut ctx, refused_address()) {
+            Ok(connect) => connect,
             Err(err) => {
                 assert_eq!(
                     err.kind(),
@@ -178,7 +176,19 @@ fn connect_connection_refused() {
                     "unexpected error: {:?}",
                     err
                 );
+                STAGE.update(2);
+                return Ok(());
             }
+        };
+        STAGE.update(1);
+        match connect.await {
+            Ok(..) => panic!("unexpected success"),
+            Err(err) => assert_eq!(
+                err.kind(),
+                io::ErrorKind::ConnectionRefused,
+                "unexpected error: {:?}",
+                err
+            ),
         }
         STAGE.update(2);
         Ok(())
