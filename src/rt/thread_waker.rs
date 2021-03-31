@@ -53,6 +53,6 @@ impl ThreadWaker {
     /// Mark the thread as currently polling (or not).
     pub(crate) fn mark_polling(&self, is_polling: bool) {
         let status = if is_polling { IS_POLLING } else { NOT_POLLING };
-        self.polling_status.store(status, Ordering::Release);
+        self.polling_status.store(status, Ordering::SeqCst);
     }
 }
