@@ -374,11 +374,30 @@ impl Runtime {
     /// Returns a boolean indicating if the shared timers should be checked.
     fn poll_os(&mut self) -> io::Result<()> {
         let timing = trace::start(&*self.internals.trace_log.borrow());
-        let timeout = self.determine_timeout();
+        let mut timeout = self.determine_timeout();
 
         // Only mark ourselves as polling if the timeout is non zero.
         let marked_polling = if timeout.map_or(true, |t| !t.is_zero()) {
             rt::waker::mark_polling(self.internals.waker_id, true);
+            // We need to check the timeout here to ensure we didn't miss any
+            // wake-ups/timers since we determined the timeout and marked
+            // ourselves as polling above.
+            //
+            // It could be that between the two calls (`determine_timeout` and
+            // `mark_polling`) we received e.g. a wake-up event but didn't
+            // consider it in `determine_timeout`. But because we didn't mark
+            // ourselves as polling yet we also won't be awoken from polling,
+            // causing us to poll for ever, missing the wake-up. That would look
+            // something like the following:
+            //
+            // Thread 0                    | Thread 1
+            // 1. determine_timeout = None |
+            //                             | 2. task::Waker: wake-up pid=1.
+            //                             | 3. ThreadWaker: not polling -> no wakeup.
+            // 4. mark_polling(true)       |
+            // 5. poll(None)               |
+            // 6. Waiting for ever...      |
+            timeout = self.check_timeout(timeout);
             true
         } else {
             false
@@ -425,6 +444,18 @@ impl Runtime {
             },
             // If there are no local timers check the shared timers.
             None => self.internals.shared.next_timeout(now, None),
+        }
+    }
+
+    /// Check if `timeout` is still correct in regard to shared event resources,
+    /// i.e. wake-ups, shared scheduler and timers.
+    fn check_timeout(&self, timeout: Option<Duration>) -> Option<Duration> {
+        // NOTE: we don't have to check local resources as those can't be
+        // changed from outside this thread.
+        if !self.waker_events.is_empty() || self.internals.shared.has_ready_process() {
+            Some(Duration::ZERO)
+        } else {
+            self.internals.shared.next_timeout(Instant::now(), timeout)
         }
     }
 
