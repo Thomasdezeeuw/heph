@@ -21,16 +21,31 @@ fn test_1_hello_world() {
 
 #[test]
 fn test_2_my_ip() {
-    let _child = run_example("2_my_ip");
+    let mut child = run_example("2_my_ip");
 
-    let address: SocketAddr = "127.0.0.1:7890".parse().unwrap();
+    // First read the startup message, ensuring the runtime has time to start
+    // up.
+    let expected =
+        "lvl=\"INFO\" msg=\"listening on 127.0.0.1:7890\" target=\"2_my_ip\" module=\"2_my_ip\"\n";
+    let mut output = vec![0; expected.len() + 1];
+    #[rustfmt::skip]
+    let n = child.inner.stderr.as_mut().unwrap().read(&mut output).unwrap();
+    assert_eq!(n, expected.len());
+    let got = std::str::from_utf8(&output[..n]).unwrap();
+    assert_eq!(expected, got);
+
+    // Connect to the running example.
+    let address = "127.0.0.1:7890".parse().unwrap();
     let mut stream = tcp_retry_connect(address);
-
     let mut output = String::new();
     stream
         .read_to_string(&mut output)
         .expect("unable to to read from stream");
     assert_eq!(output, "127.0.0.1");
+
+    if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
+        panic!("unexpected error sending signal to process: {}", err);
+    }
 }
 
 #[test]
@@ -213,7 +228,7 @@ fn tcp_retry_connect(address: SocketAddr) -> TcpStream {
         if let Ok(stream) = TcpStream::connect(address) {
             return stream;
         }
-        sleep(Duration::from_millis(50));
+        sleep(Duration::from_millis(10));
     }
     panic!("failed to connect to address");
 }
