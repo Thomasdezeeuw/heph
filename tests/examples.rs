@@ -1,6 +1,8 @@
 //! These tests perform an end-to-end test based on the examples in the examples
 //! directory.
 
+#![feature(stmt_expr_attributes)]
+
 use std::io::Read;
 use std::net::{SocketAddr, TcpStream};
 use std::ops::{Deref, DerefMut};
@@ -48,30 +50,49 @@ fn test_4_sync_actor() {
 
 #[test]
 fn test_6_process_signals() {
-    let child = run_example("6_process_signals");
-    // Give the process some time to setup signal handling.
-    sleep(Duration::from_millis(500));
+    let mut child = run_example("6_process_signals");
 
-    if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
-        panic!("unexpected error sending signal to process: {}", err);
-    }
-
-    // Because the order in which the actors are run is not defined we don't
-    // know the order of the output. We do know that the greeting messages
-    // come before the shutdown messages.
-    let output = read_output(child);
-    let mut lines = output.lines();
-    // Greeting messages.
-    let mut got_greetings: Vec<&str> = (&mut lines).take(3).collect();
-    got_greetings.sort_unstable();
     let want_greetings = &[
         "Got a message: Hello sync actor",
         "Got a message: Hello thread local actor",
         "Got a message: Hello thread safe actor",
     ];
+    // All lines, including new line bytes + 1.
+    let length = want_greetings.iter().map(|l| l.len()).sum::<usize>() + want_greetings.len();
+    let mut output = vec![0; length + 1];
+
+    // First read all greeting messages, ensuring the runtime has time to start
+    // up.
+    let mut n = 0;
+    let mut max = want_greetings.len();
+    #[rustfmt::skip]
+    while n < length  {
+        if max == 0 {
+            panic!("too many reads, read only {}/{} bytes", n, length);
+        }
+        max -= 1;
+        n += child.inner.stdout.as_mut().unwrap().read(&mut output[n..]).unwrap();
+    }
+    assert_eq!(n, length);
+    output.truncate(n);
+    let output = String::from_utf8(output).unwrap();
+
+    // Because the order in which the actors are run is unspecified we don't
+    // know the order of the output.
+    let mut lines = output.lines();
+    let mut got_greetings: Vec<&str> = (&mut lines).take(3).collect();
+    got_greetings.sort_unstable();
     assert_eq!(got_greetings, want_greetings);
 
-    // Shutdown messages.
+    // After we know the runtime started we can send it a process signal to
+    // start the actual test.
+    if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
+        panic!("unexpected error sending signal to process: {}", err);
+    }
+
+    // Read the remainder of the output, expecting the shutdown messages.
+    let output = read_output(child);
+    let lines = output.lines();
     let mut got_shutdown: Vec<&str> = lines.collect();
     got_shutdown.sort_unstable();
     let want_shutdown = [
