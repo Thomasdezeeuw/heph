@@ -83,8 +83,7 @@
 //! the message an `enum` as the example below shows. Furthermore synchronous
 //! actors are supported.
 //!
-// FIXME: doesn't stop on CI.
-//! ```ignore
+//! ```
 //! # #![feature(never_type)]
 //! #
 //! use heph::actor::{self, SyncContext};
