@@ -115,7 +115,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{self, Poll};
 
-use inbox::Sender;
+use heph_inbox::{self as inbox, Sender};
 
 pub mod rpc;
 #[doc(no_inline)]

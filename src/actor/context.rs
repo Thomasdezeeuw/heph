@@ -5,7 +5,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use inbox::{Receiver, RecvValue};
+use heph_inbox::{self as inbox, Receiver, RecvValue};
 
 use crate::actor_ref::ActorRef;
 

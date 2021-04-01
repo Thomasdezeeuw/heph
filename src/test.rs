@@ -29,7 +29,7 @@ use std::task::{self, Poll};
 use std::{io, slice, thread};
 
 use getrandom::getrandom;
-use inbox::Manager;
+use heph_inbox::Manager;
 use log::warn;
 
 use crate::actor::{self, Actor, NewActor, SyncActor};
