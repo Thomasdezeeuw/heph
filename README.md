@@ -1,8 +1,8 @@
 # Inbox
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Crates.io](https://img.shields.io/crates/v/inbox.svg)](https://crates.io/crates/inbox)
-[![Docs](https://docs.rs/inbox/badge.svg)](https://docs.rs/inbox)
+[![Crates.io](https://img.shields.io/crates/v/heph-inbox.svg)](https://crates.io/crates/heph-inbox)
+[![Docs](https://docs.rs/heph-inbox/badge.svg)](https://docs.rs/heph-inbox)
 
 Bounded capacity channel.
 
@@ -18,10 +18,10 @@ Simple creation of a channel and sending a message over it.
 ```rust
 use std::thread;
 
-use inbox::RecvError;
+use heph_inbox::RecvError;
 
 // Create a new small channel.
-let (mut sender, mut receiver) = inbox::new_small();
+let (mut sender, mut receiver) = heph_inbox::new_small();
 
 let sender_handle = thread::spawn(move || {
     if let Err(err) = sender.try_send("Hello world!".to_owned()) {

@@ -14,7 +14,7 @@
 //! ```
 //! use std::thread;
 //!
-//! use inbox::oneshot::{RecvError, new_oneshot};
+//! use heph_inbox::oneshot::{RecvError, new_oneshot};
 //!
 //! // Create a new small channel.
 //! let (sender, mut receiver) = new_oneshot();

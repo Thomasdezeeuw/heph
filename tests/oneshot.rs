@@ -6,7 +6,7 @@
 mod util;
 
 mod functional {
-    use inbox::oneshot::{new_oneshot, Receiver, RecvError, Sender};
+    use heph_inbox::oneshot::{new_oneshot, Receiver, RecvError, Sender};
 
     use crate::util::{assert_send, assert_sync};
 
@@ -102,7 +102,7 @@ mod future {
 
     use futures_test::task::new_count_waker;
 
-    use inbox::oneshot::new_oneshot;
+    use heph_inbox::oneshot::new_oneshot;
 
     macro_rules! pin_stack {
         ($fut: ident) => {
@@ -254,7 +254,7 @@ mod future {
 }
 
 mod drop {
-    use inbox::oneshot::new_oneshot;
+    use heph_inbox::oneshot::new_oneshot;
 
     use crate::util::{DropTest, NeverDrop};
 
@@ -351,7 +351,7 @@ mod drop {
         use std::thread;
         use std::time::Duration;
 
-        use inbox::oneshot::new_oneshot;
+        use heph_inbox::oneshot::new_oneshot;
 
         use crate::util::{DropTest, NeverDrop};
 
@@ -524,7 +524,7 @@ mod drop {
 }
 
 mod threaded {
-    use inbox::oneshot::{new_oneshot, RecvError};
+    use heph_inbox::oneshot::{new_oneshot, RecvError};
 
     /// Loop until a value is received.
     macro_rules! expect_recv {

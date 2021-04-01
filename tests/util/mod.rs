@@ -145,7 +145,7 @@ macro_rules! expect_send {
         r#loop! {
             match $sender.try_send(value) {
                 Ok(()) => break,
-                Err(inbox::SendError::Full(v)) => {
+                Err(heph_inbox::SendError::Full(v)) => {
                     // Try again.
                     value = v;
                 },
@@ -164,7 +164,7 @@ macro_rules! expect_recv {
                     assert_eq!(msg, $expected);
                     break;
                 }
-                Err(inbox::RecvError::Empty) => {} // Try again.
+                Err(heph_inbox::RecvError::Empty) => {} // Try again.
                 Err(err) => panic!("unexpected error receiving: {}", err),
             }
         }

@@ -2,7 +2,7 @@
 
 #![feature(once_cell)]
 
-use inbox::{new_small, Manager};
+use heph_inbox::{new_small, Manager};
 
 #[macro_use]
 mod util;
@@ -219,7 +219,7 @@ mod threaded {
     use std::thread;
     use std::time::Duration;
 
-    use inbox::{new_small, Manager};
+    use heph_inbox::{new_small, Manager};
 
     use super::{DropTest, NeverDrop, SMALL_CAP};
 
@@ -397,7 +397,7 @@ mod threaded {
                     r#loop! {
                         match receiver.try_recv() {
                             Ok(..) => break,
-                            Err(inbox::RecvError::Empty) => {} // Try again.
+                            Err(heph_inbox::RecvError::Empty) => {} // Try again.
                             Err(err) => panic!("unexpected error receiving: {}", err),
                         }
                     }
@@ -427,7 +427,7 @@ mod threaded {
                     r#loop! {
                         match receiver.try_recv() {
                             Ok(..) => break,
-                            Err(inbox::RecvError::Empty) => {} // Try again.
+                            Err(heph_inbox::RecvError::Empty) => {} // Try again.
                             Err(err) => panic!("unexpected error receiving: {}", err),
                         }
                     }

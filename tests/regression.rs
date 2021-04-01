@@ -1,7 +1,7 @@
 //! Regression tests.
 
-use inbox::new_small;
-use inbox::oneshot::{self, new_oneshot};
+use heph_inbox::new_small;
+use heph_inbox::oneshot::{self, new_oneshot};
 
 #[test]
 fn cyclic_drop_dependency_with_oneshot_channel() {

@@ -23,10 +23,10 @@
 //! ```
 //! use std::thread;
 //!
-//! use inbox::RecvError;
+//! use heph_inbox::RecvError;
 //!
 //! // Create a new small channel.
-//! let (sender, mut receiver) = inbox::new_small();
+//! let (sender, mut receiver) = heph_inbox::new_small();
 //!
 //! let sender_handle = thread::spawn(move || {
 //!     if let Err(err) = sender.try_send("Hello world!".to_owned()) {

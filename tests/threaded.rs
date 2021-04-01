@@ -5,7 +5,7 @@
 use std::thread;
 use std::time::Duration;
 
-use inbox::{new_small, RecvError, SendError};
+use heph_inbox::{new_small, RecvError, SendError};
 
 #[macro_use]
 mod util;

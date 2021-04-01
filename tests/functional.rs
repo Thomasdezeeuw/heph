@@ -2,7 +2,7 @@
 
 #![feature(once_cell)]
 
-use inbox::{new_small, Manager, Receiver, RecvError, SendError, SendValue, Sender};
+use heph_inbox::{new_small, Manager, Receiver, RecvError, SendError, SendValue, Sender};
 
 mod util;
 
@@ -310,7 +310,7 @@ mod future {
 
     use futures_test::task::{new_count_waker, AwokenCount};
 
-    use inbox::{new_small, Sender};
+    use heph_inbox::{new_small, Sender};
 
     use super::SMALL_CAP;
 
@@ -758,7 +758,7 @@ mod future {
 }
 
 mod manager {
-    use inbox::{Manager, ReceiverConnected};
+    use heph_inbox::{Manager, ReceiverConnected};
 
     #[test]
     fn new_sender() {
