@@ -6,7 +6,7 @@ use std::sync::Arc;
 use std::task::{self, Poll};
 use std::thread::{self, Thread};
 
-use inbox::Receiver;
+use heph_inbox::Receiver;
 
 use crate::actor::{NoMessages, RecvError};
 use crate::trace::{self, Trace};

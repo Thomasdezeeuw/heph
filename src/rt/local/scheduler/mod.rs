@@ -9,7 +9,7 @@ use std::future::Future;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
-use inbox::Manager;
+use heph_inbox::Manager;
 use log::{debug, trace};
 
 use crate::actor::NewActor;

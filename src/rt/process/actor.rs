@@ -4,7 +4,7 @@
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use inbox::{Manager, Receiver};
+use heph_inbox::{Manager, Receiver};
 
 use crate::actor::{self, Actor, NewActor};
 use crate::rt::access::PrivateAccess;

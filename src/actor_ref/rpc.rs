@@ -162,7 +162,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use inbox::oneshot::{new_oneshot, RecvOnce, Sender};
+use heph_inbox::oneshot::{new_oneshot, RecvOnce, Sender};
 
 use crate::actor_ref::{ActorRef, SendError, SendValue};
 

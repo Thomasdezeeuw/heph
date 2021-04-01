@@ -3,7 +3,7 @@
 use std::io::{self, Write};
 use std::thread;
 
-use inbox::ReceiverConnected;
+use heph_inbox::{self as inbox, ReceiverConnected};
 use log::trace;
 use mio::{unix, Interest, Registry, Token};
 

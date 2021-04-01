@@ -121,6 +121,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{io, task};
 
+use heph_inbox as inbox;
 use log::{debug, trace};
 use mio::{event, Interest, Token};
 
