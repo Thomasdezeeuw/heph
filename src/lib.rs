@@ -96,13 +96,40 @@ pub fn new_small<T>() -> (Sender<T>, Receiver<T>) {
 
 /// Bit mask to mark the receiver as alive.
 const RECEIVER_ALIVE: usize = 1 << (size_of::<usize>() * 8 - 1);
+/// Bit mask to mark the receiver still has access to the channel. See the
+/// `Drop` impl for [`Receiver`].
+const RECEIVER_ACCESS: usize = 1 << (size_of::<usize>() * 8 - 2);
+/// Bit mask to mark a sender still has access to the channel. See the `Drop`
+/// impl for [`Sender`].
+const SENDER_ACCESS: usize = 1 << (size_of::<usize>() * 8 - 3);
 /// Bit mask to mark the manager as alive.
-const MANAGER_ALIVE: usize = 1 << (size_of::<usize>() * 8 - 2);
+const MANAGER_ALIVE: usize = 1 << (size_of::<usize>() * 8 - 4);
+/// Bit mask to mark the manager has access to the channel. See the `Drop` impl
+/// for [`Manager`].
+const MANAGER_ACCESS: usize = 1 << (size_of::<usize>() * 8 - 5);
 
-/// Returns `true` if the manager is alive in `status`.
+/// Return `true` if the receiver or manager is alive in `ref_count.
 #[inline(always)]
-const fn has_manager(status: usize) -> bool {
-    status & MANAGER_ALIVE != 0
+const fn has_receiver(ref_count: usize) -> bool {
+    ref_count & RECEIVER_ALIVE != 0
+}
+
+/// Returns `true` if the manager is alive in `ref_count`.
+#[inline(always)]
+const fn has_manager(ref_count: usize) -> bool {
+    ref_count & MANAGER_ALIVE != 0
+}
+
+/// Return `true` if the receiver or manager is alive in `ref_count.
+#[inline(always)]
+const fn has_receiver_or_manager(ref_count: usize) -> bool {
+    ref_count & (RECEIVER_ALIVE | MANAGER_ALIVE) != 0
+}
+
+/// Returns the number of senders connected in `ref_count`.
+#[inline(always)]
+const fn sender_count(ref_count: usize) -> usize {
+    ref_count & !(RECEIVER_ALIVE | RECEIVER_ACCESS | SENDER_ACCESS | MANAGER_ALIVE | MANAGER_ACCESS)
 }
 
 /// The capacity of a small channel.
@@ -244,14 +271,16 @@ impl<T> Sender<T> {
     /// account. This is done to support the use case in which an actor is
     /// restarted and a new receiver is created for it.
     pub fn is_connected(&self) -> bool {
-        is_sender_connected(self.channel())
+        // Relaxed is fine here since there is always a bit of a race condition
+        // when using this method (and then doing something based on it).
+        has_receiver_or_manager(self.channel().ref_count.load(Ordering::Relaxed))
     }
 
     /// Returns `true` if the [`Manager`] is connected.
     pub fn has_manager(&self) -> bool {
         // Relaxed is fine here since there is always a bit of a race condition
         // when using this method (and then doing something based on it).
-        self.channel().ref_count.load(Ordering::Relaxed) & MANAGER_ALIVE != 0
+        has_manager(self.channel().ref_count.load(Ordering::Relaxed))
     }
 
     /// Returns `true` if senders send into the same channel.
@@ -262,13 +291,6 @@ impl<T> Sender<T> {
     /// Returns `true` if this sender sends to the `receiver`.
     pub fn sends_to(&self, receiver: &Receiver<T>) -> bool {
         self.channel == receiver.channel
-    }
-
-    /// Returns `true` if this is the only sender alive.
-    fn only_sender(&self) -> bool {
-        // Relaxed is fine here since there is always a bit of a race condition
-        // when using this method (and then doing something based on it).
-        self.channel().ref_count.load(Ordering::Relaxed) & !(RECEIVER_ALIVE | MANAGER_ALIVE) == 1
     }
 
     /// Returns the id of this sender.
@@ -283,7 +305,7 @@ impl<T> Sender<T> {
 
 /// See [`Sender::try_send`].
 fn try_send<T>(channel: &Channel<T>, value: T) -> Result<(), SendError<T>> {
-    if !is_sender_connected(channel) {
+    if !has_receiver_or_manager(channel.ref_count.load(Ordering::Relaxed)) {
         return Err(SendError::Disconnected(value));
     }
 
@@ -342,13 +364,6 @@ fn try_send<T>(channel: &Channel<T>, value: T) -> Result<(), SendError<T>> {
     Err(SendError::Full(value))
 }
 
-/// See [`Sender::is_connected`].
-fn is_sender_connected<T>(channel: &Channel<T>) -> bool {
-    // Relaxed is fine here since there is always a bit of a race condition
-    // when using this method (and then doing something based on it).
-    channel.ref_count.load(Ordering::Relaxed) & (RECEIVER_ALIVE | MANAGER_ALIVE) != 0
-}
-
 /// # Safety
 ///
 /// Only `2 ^ 30` (a billion) `Sender`s may be alive concurrently, more then
@@ -356,7 +371,8 @@ fn is_sender_connected<T>(channel: &Channel<T>) -> bool {
 impl<T> Clone for Sender<T> {
     fn clone(&self) -> Sender<T> {
         // For the reasoning behind this relaxed ordering see `Arc::clone`.
-        let _ = self.channel().ref_count.fetch_add(1, Ordering::Relaxed);
+        let old_ref_count = self.channel().ref_count.fetch_add(1, Ordering::Relaxed);
+        debug_assert!(old_ref_count & SENDER_ACCESS != 0);
         Sender {
             channel: self.channel,
         }
@@ -379,31 +395,27 @@ unsafe impl<T> Sync for Sender<T> {}
 impl<T> Unpin for Sender<T> {}
 
 impl<T> Drop for Sender<T> {
+    #[rustfmt::skip]
     fn drop(&mut self) {
+        // Safety: for the reasoning behind this ordering see `Arc::drop`.
+        let old_ref_count = self.channel().ref_count.fetch_sub(1, Ordering::Release);
+        if sender_count(old_ref_count) != 1 {
+            // If we're not the last sender all we have to do is decrement the
+            // ref count (above).
+            return;
+        }
+
         // If we're the last sender being dropped wake the receiver.
-        //
-        // NOTE: there is a race condition between the `wake` and `fetch_sub`
-        // below: in between those calls the receiver could run (after we
-        // woke it) and see we're still connected and sleep (return
-        // `Poll::Pending`) again. This can't be fixed.
-        // The alternative would be to call `fetch_sub` on the `ref_count`
-        // before waking, ensuring the count is valid once the `Sender` runs,
-        // however that opens another race condition in which the `Sender` can
-        // be dropped and deallocate the `Channel` memory, after which we'll
-        // access it to wake the `Sender`. Basically we're choosing the least
-        // worse of the two race conditions in which in the worst case scenario
-        // is that the `Sender` loses a wake-up notification, but it doesn't
-        // have any memory unsafety.
-        if self.only_sender() {
+        if has_receiver_or_manager(old_ref_count) {
             self.channel().wake_receiver();
         }
 
-        // If the previous value was `1` it means that the receiver was dropped
-        // as well as all other senders, the receiver and the manager, so we
-        // need to do the deallocating.
-        //
-        // Safety: for the reasoning behind this ordering see `Arc::drop`.
-        if self.channel().ref_count.fetch_sub(1, Ordering::Release) != 1 {
+        // If the previous value was `SENDER_ACCESS` it means that the receiver,
+        // all other senders and the manager were all dropped, so we need to do
+        // the deallocating.
+        let old_ref_count = self.channel().ref_count.fetch_and(!SENDER_ACCESS, Ordering::Release);
+        if old_ref_count != SENDER_ACCESS {
+            // Another sender, the receiver or the manager is still alive.
             return;
         }
 
@@ -597,7 +609,14 @@ impl<T> Receiver<T> {
     /// [`Sender::clone`]: struct.Sender.html#impl-Clone
     pub fn new_sender(&self) -> Sender<T> {
         // For the reasoning behind this relaxed ordering see `Arc::clone`.
-        let _ = self.channel().ref_count.fetch_add(1, Ordering::Relaxed);
+        let old_ref_count = self.channel().ref_count.fetch_add(1, Ordering::Relaxed);
+        if old_ref_count & SENDER_ACCESS != 0 {
+            let _ = self
+                .channel()
+                .ref_count
+                .fetch_or(SENDER_ACCESS, Ordering::Relaxed);
+        }
+
         Sender {
             channel: self.channel,
         }
@@ -617,7 +636,9 @@ impl<T> Receiver<T> {
     /// `true` (if the `Manager` created another `Sender`), which might be
     /// unexpected.
     pub fn is_connected(&self) -> bool {
-        is_receiver_connected(self.channel())
+        // Relaxed is fine here since there is always a bit of a race condition
+        // when using this method (and then doing something based on it).
+        sender_count(self.channel().ref_count.load(Ordering::Relaxed)) > 0
     }
 
     /// Returns `true` if the [`Manager`] is connected.
@@ -662,12 +683,12 @@ fn try_recv<T>(channel: &Channel<T>) -> Result<T, RecvError> {
     // again later. In `RecvValue` this is solved by calling `try_recv`
     // after registering the task waker, ensuring no wake-up events are
     // missed.
-    let is_connected = is_receiver_connected(channel);
+    let is_connected = sender_count(channel.ref_count.load(Ordering::Relaxed)) > 0;
 
-    // Since we substract from the `status` this will overflow at some
-    // point. But `fetch_add` wraps-around on overflow, so the position will
-    // "reset" itself to 0. The status bits will not be touched (even on
-    // wrap-around).
+    // Since we subtract from the `status` this will overflow at some point. But
+    // `fetch_add` wraps-around on overflow, so the position will "reset" itself
+    // to 0. This is one of the reasons we don't support FIFO order. The status
+    // bits will not be touched (even on wrap-around).
     let mut status = channel.status.fetch_add(MARK_NEXT_POS, Ordering::AcqRel);
     let start = receiver_pos(status);
     for slot in (0..SMALL_CAP).cycle().skip(start).take(SMALL_CAP) {
@@ -715,13 +736,6 @@ fn try_recv<T>(channel: &Channel<T>) -> Result<T, RecvError> {
     }
 }
 
-/// See [`Receiver::is_connected`].
-fn is_receiver_connected<T>(channel: &Channel<T>) -> bool {
-    // Relaxed is fine here since there is always a bit of a race condition
-    // when using this method (and then doing something based on it).
-    channel.ref_count.load(Ordering::Relaxed) & !(RECEIVER_ALIVE | MANAGER_ALIVE) > 0
-}
-
 impl<T: fmt::Debug> fmt::Debug for Receiver<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Receiver")
@@ -738,42 +752,45 @@ unsafe impl<T> Sync for Receiver<T> {}
 impl<T> Unpin for Receiver<T> {}
 
 impl<T> Drop for Receiver<T> {
+    #[rustfmt::skip]
     fn drop(&mut self) {
-        // See the `if` statement why we do this.
-        let sender = self.new_sender();
-
         // First mark the receiver as dropped.
-        let channel = self.channel();
-        let status = channel
-            .ref_count
-            .fetch_and(!RECEIVER_ALIVE, Ordering::Release);
-
-        if !has_manager(status) {
-            // If the channel doesn't have a manager we empty the channel.
-            //
-            // We do this to support the use case were the channel holds a
-            // `oneshot::Sender` and the receiver of the oneshot channel is
-            // holding a `Sender` to this channel.
-            // Effectively this creates a cyclic drop dependency: `Sender` ->
-            // `Channel` -> `oneshot::Sender` which blocks
-            // `oneshot::Receiver::recv`.
-            // If the actor holding a `Sender` calls `oneshot::Receiver::recv`
-            // it will wait for a response or until the `oneshot::Sender` is
-            // dropped, while the actor is holding a `Sender` to this channel.
-            // However if this `Receiver` is dropped it won't drop the
-            // `oneshot::Sender` without the emptying below. This causes
-            // `oneshot::Receiver::recv` to wait forever, while holding a
-            // `Sender`.
-            //
-            // NOTE: we use `self` here, this is only safe because we created a
-            // new `sender` above ensure the channel is not deallocated.
-            while let Ok(msg) = self.try_recv() {
-                drop(msg);
-            }
+        // Safety: for the reasoning behind this ordering see `Arc::drop`.
+        let old_ref_count = self.channel().ref_count.fetch_and(!RECEIVER_ALIVE, Ordering::Release);
+        if has_manager(old_ref_count) {
+            // If the channel has a manager we only mark the receiver as dropped
+            // (above).
+            return;
         }
 
-        // Now we can deallocate the channel safety.
-        drop(sender);
+        // If the channel doesn't have a manager we empty the channel. We do
+        // this to support the use case were the channel holds a
+        // `oneshot::Sender` and the receiver of the oneshot channel is holding
+        // a `Sender` to this channel. Effectively this creates a cyclic drop
+        // dependency: `Sender` -> `Channel` -> `oneshot::Sender` which blocks
+        // `oneshot::Receiver::recv`. If the actor holding a `Sender` calls
+        // `oneshot::Receiver::recv` it will wait for a response or until the
+        // `oneshot::Sender` is dropped, while the actor is holding a `Sender`
+        // to this channel. However if this `Receiver` is dropped it won't drop
+        // the `oneshot::Sender` without the emptying below. This causes
+        // `oneshot::Receiver::recv` to wait forever, while holding a `Sender`.
+        while let Ok(msg) = self.try_recv() {
+            drop(msg);
+        }
+
+        // If the previous value was `RECEIVER_ACCESS` it means that all senders
+        // and the manager were all dropped, so we need to do the deallocating.
+        let old_ref_count = self.channel().ref_count.fetch_and(!RECEIVER_ACCESS, Ordering::Release);
+        if old_ref_count != RECEIVER_ACCESS {
+            // Another sender is alive, can't deallocate yet.
+            return;
+        }
+
+        // For the reasoning behind this ordering see `Arc::drop`.
+        fence(Ordering::Acquire);
+
+        // Drop the memory.
+        unsafe { drop(Box::from_raw(self.channel.as_ptr())) }
     }
 }
 
@@ -867,7 +884,7 @@ impl<T> Channel<T> {
                 UnsafeCell::new(MaybeUninit::uninit()),
             ],
             status: AtomicUsize::new(0),
-            ref_count: AtomicUsize::new(RECEIVER_ALIVE | 1),
+            ref_count: AtomicUsize::new(RECEIVER_ALIVE | RECEIVER_ACCESS | SENDER_ACCESS | 1),
             sender_waker_head: AtomicPtr::new(ptr::null_mut()),
             receiver_waker: WakerRegistration::new(),
         }
@@ -1026,11 +1043,11 @@ impl<T> fmt::Debug for Channel<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let status = self.status.load(Ordering::Relaxed);
         let ref_count = self.ref_count.load(Ordering::Relaxed);
-        let sender_count = ref_count & (!(RECEIVER_ALIVE | MANAGER_ALIVE));
+        let sender_count = sender_count(ref_count);
         f.debug_struct("Channel")
             .field("senders_alive", &sender_count)
-            .field("receiver_alive", &(ref_count & RECEIVER_ALIVE != 0))
-            .field("manager_alive", &(ref_count & MANAGER_ALIVE != 0))
+            .field("receiver_alive", &has_receiver(ref_count))
+            .field("manager_alive", &has_manager(ref_count))
             .field(
                 "slots",
                 &[
@@ -1097,8 +1114,8 @@ impl<T> Manager<T> {
         let old_count = sender
             .channel()
             .ref_count
-            .fetch_or(MANAGER_ALIVE, Ordering::Relaxed);
-        debug_assert!(old_count & MANAGER_ALIVE == 0);
+            .fetch_or(MANAGER_ALIVE | MANAGER_ACCESS, Ordering::Relaxed);
+        debug_assert!(!has_manager(old_count));
         let manager = Manager {
             channel: sender.channel,
         };
@@ -1115,7 +1132,13 @@ impl<T> Manager<T> {
     /// [safety nodes]: struct.Sender.html#impl-Clone
     pub fn new_sender(&self) -> Sender<T> {
         // For the reasoning behind this relaxed ordering see `Arc::clone`.
-        let _ = self.channel().ref_count.fetch_add(1, Ordering::Relaxed);
+        let old_ref_count = self.channel().ref_count.fetch_add(1, Ordering::Relaxed);
+        if old_ref_count & SENDER_ACCESS != 0 {
+            let _ = self
+                .channel()
+                .ref_count
+                .fetch_or(SENDER_ACCESS, Ordering::Relaxed);
+        }
         Sender {
             channel: self.channel,
         }
@@ -1129,8 +1152,9 @@ impl<T> Manager<T> {
             .channel()
             .ref_count
             .fetch_or(RECEIVER_ALIVE, Ordering::AcqRel);
-        if old_count & RECEIVER_ALIVE == 0 {
+        if !has_receiver(old_count) {
             // No receiver was connected so its safe to create one.
+            debug_assert!(old_count & RECEIVER_ACCESS != 0);
             Ok(Receiver {
                 channel: self.channel,
             })
@@ -1160,21 +1184,25 @@ unsafe impl<T> Sync for Manager<T> {}
 impl<T> Unpin for Manager<T> {}
 
 impl<T> Drop for Manager<T> {
-    #[rustfmt::skip] // For the if statement, its complicated enough.
+    #[rustfmt::skip]
     fn drop(&mut self) {
-        // If the previous value was `MANAGER_ALIVE` it means that all senders
-        // and receivers were dropped, so we need to do the deallocating.
-        //
+        // First mark the manager as dropped.
         // Safety: for the reasoning behind this ordering see `Arc::drop`.
-        if self.channel().ref_count.fetch_and(!MANAGER_ALIVE, Ordering::Release) != MANAGER_ALIVE {
+        let old_ref_count = self.channel().ref_count.fetch_and(!MANAGER_ALIVE, Ordering::Release);
+        if has_receiver(old_ref_count) {
+            // If the channel has a receiver we only mark the manager as dropped
+            // (above).
+            let _ = self.channel().ref_count.fetch_and(!MANAGER_ACCESS, Ordering::Release);
             return;
         }
 
-        // For the reasoning behind this ordering see `Arc::drop`.
-        fence(Ordering::Acquire);
+        let old_ref_count = self.channel().ref_count.fetch_or(RECEIVER_ALIVE, Ordering::AcqRel);
+        debug_assert!(!has_receiver(old_ref_count));
+        let receiver = Receiver { channel: self.channel };
 
-        // Drop the memory.
-        unsafe { drop(Box::from_raw(self.channel.as_ptr())) }
+        let _ = self.channel().ref_count.fetch_and(!MANAGER_ACCESS, Ordering::Release);
+        // Let the receiver do the cleanup.
+        drop(receiver);
     }
 }
 
