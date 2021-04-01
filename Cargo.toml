@@ -2,7 +2,6 @@
 name          = "heph"
 description   = "Heph is an actor framework based on asynchronous functions."
 version       = "0.3.0"
-publish       = false
 authors       = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license       = "MIT"
 documentation = "https://docs.rs/heph"
