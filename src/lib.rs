@@ -1196,8 +1196,11 @@ impl<T> Drop for Manager<T> {
             return;
         }
 
-        let old_ref_count = self.channel().ref_count.fetch_or(RECEIVER_ALIVE, Ordering::AcqRel);
         debug_assert!(!has_receiver(old_ref_count));
+        debug_assert!(old_ref_count & RECEIVER_ACCESS != 0);
+        // NOTE: because `RECEIVER_ACCESS` bit is still set we don't have to set
+        // the `RECEIVER_ALIVE` bit (as the receiver will dropped at the end of
+        // the function).
         let receiver = Receiver { channel: self.channel };
 
         let _ = self.channel().ref_count.fetch_and(!MANAGER_ACCESS, Ordering::Release);
