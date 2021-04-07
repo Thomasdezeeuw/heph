@@ -23,7 +23,11 @@ fn no_signal_handlers() {
     let runtime = Runtime::setup().build().unwrap();
     send_signal(process::id(), mio_signals::Signal::Interrupt).expect("failed to send signal");
     let err_str = runtime.start().unwrap_err().to_string();
-    assert!(err_str.contains("received process signal, but no receivers for it: stopping runtime"));
+    assert!(
+        err_str.contains("received process signal, but no receivers for it: stopping runtime"),
+        "got error '{}'",
+        err_str
+    );
 }
 
 /// Runtime with actors to receive the signal should not stop and relay the
