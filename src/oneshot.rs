@@ -59,10 +59,12 @@ pub fn new_oneshot<T>() -> (Sender<T>, Receiver<T>) {
     (Sender { shared }, Receiver { shared })
 }
 
-// Bits mask to mark the receiver as alive.
+/// Bits mask to mark the receiver as alive.
 const RECEIVER_ALIVE: u8 = 1 << (size_of::<u8>() * 8 - 1);
-// Bit mask to mark the sender as alive.
+/// Bit mask to mark the sender as alive.
 const SENDER_ALIVE: u8 = 1 << (size_of::<u8>() * 8 - 2);
+/// Bit mask to mark the sender still has access to the shared data.
+const SENDER_ACCESS: u8 = 1 << (size_of::<u8>() * 8 - 3);
 
 // Status of the message in `Shared`.
 const EMPTY: u8 = 0;
@@ -134,16 +136,22 @@ unsafe impl<T> Sync for Sender<T> {}
 
 impl<T> Drop for Sender<T> {
     fn drop(&mut self) {
-        // Mark ourselves as dropped.
+        // Mark ourselves as dropped, but still holding access.
         let shared = self.shared();
         let old_status = shared.status.fetch_and(!SENDER_ALIVE, Ordering::AcqRel);
 
-        if (old_status & !SENDER_ALIVE) & RECEIVER_ALIVE != 0 {
-            // Receiver is still alive, no need to drop. But we do need to wake
-            // the other side.
+        if old_status & RECEIVER_ALIVE != 0 {
+            // Receiver is still alive, so we need to wake it.
             if let Some(waker) = shared.receiver_waker.lock().take() {
                 waker.wake();
             }
+        }
+
+        // Now mark that we don't have access anymore.
+        let old_status = shared.status.fetch_and(!SENDER_ACCESS, Ordering::AcqRel);
+
+        if old_status & RECEIVER_ALIVE != 0 {
+            // Receiver is still alive, no need to drop.
             return;
         }
 
@@ -200,9 +208,10 @@ impl<T> Receiver<T> {
         // Reset the status.
         // Safety: since the `Sender` has been dropped we have unique access to
         // `shared` making Relaxed ordering fine.
-        shared
-            .status
-            .store(RECEIVER_ALIVE | SENDER_ALIVE | EMPTY, Ordering::Relaxed);
+        shared.status.store(
+            RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY,
+            Ordering::Relaxed,
+        );
 
         let msg = unsafe { (&*shared.message.get()).assume_init_read() };
         let sender = Sender {
@@ -250,9 +259,10 @@ impl<T> Receiver<T> {
                 // dropping the value.
                 // Safety: since the `Sender` has been dropped we have unique access
                 // to `shared` making Relaxed ordering fine.
-                self.shared()
-                    .status
-                    .store(RECEIVER_ALIVE | SENDER_ALIVE | EMPTY, Ordering::Relaxed);
+                self.shared().status.store(
+                    RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY,
+                    Ordering::Relaxed,
+                );
                 Some(Sender {
                     shared: self.shared,
                 })
@@ -308,7 +318,7 @@ impl<T> Drop for Receiver<T> {
         let shared = self.shared();
         let old_status = shared.status.fetch_and(!RECEIVER_ALIVE, Ordering::AcqRel);
 
-        if (old_status & !RECEIVER_ALIVE) & SENDER_ALIVE != 0 {
+        if old_status & SENDER_ACCESS != 0 {
             // Sender is still alive, no need to drop.
             return;
         }
@@ -397,7 +407,7 @@ impl<T> Shared<T> {
     /// Create a new `Shared` structure.
     const fn new() -> Shared<T> {
         Shared {
-            status: AtomicU8::new(RECEIVER_ALIVE | SENDER_ALIVE | EMPTY),
+            status: AtomicU8::new(RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY),
             message: UnsafeCell::new(MaybeUninit::uninit()),
             receiver_waker: const_mutex(None),
         }
