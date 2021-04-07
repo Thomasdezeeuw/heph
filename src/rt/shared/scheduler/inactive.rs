@@ -481,13 +481,16 @@ impl Branch {
                     }
                 }
                 // Another thread changed the pointer.
-                Err(old) => old_ptr = old,
+                Err(old) => {
+                    // We failed to use `branch`, so we can use it again.
+                    w_branch = Some(branch);
+                    old_ptr = old
+                }
             }
 
             // Follow all branches created by other threads.
             while !as_ptr(old_ptr).is_null() && is_branch(old_ptr) {
                 let branch_ptr: *mut Branch = as_ptr(old_ptr).cast();
-                w_branch = Some(branch);
                 w_pid >>= LEVEL_SHIFT;
                 depth += 1;
                 debug_assert!(!branch_ptr.is_null());
