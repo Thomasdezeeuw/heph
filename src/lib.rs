@@ -53,7 +53,7 @@
 
 // TODO: support larger channel, with more slots.
 
-#![feature(maybe_uninit_extra, maybe_uninit_ref)]
+#![feature(cfg_sanitize, maybe_uninit_extra, maybe_uninit_ref)]
 #![warn(
     missing_debug_implementations,
     missing_docs,
@@ -73,13 +73,26 @@ use std::marker::PhantomPinned;
 use std::mem::{size_of, MaybeUninit};
 use std::pin::Pin;
 use std::ptr::{self, NonNull};
-use std::sync::atomic::{fence, AtomicPtr, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::task::{self, Poll};
 
 use parking_lot::Mutex;
 
 #[cfg(test)]
 mod tests;
+
+/// ThreadSanitizer does not support memory fences. To avoid false positive
+/// reports use atomic loads for synchronization instead of a fence. Macro
+/// inspired by the one found in Rust's standard library for the `Arc`
+/// implementation.
+macro_rules! fence {
+    ($val: expr, $ordering: expr) => {
+        #[cfg(not(sanitize = "thread"))]
+        std::sync::atomic::fence($ordering);
+        #[cfg(sanitize = "thread")]
+        let _ = $val.load($ordering);
+    };
+}
 
 pub mod oneshot;
 
@@ -420,7 +433,7 @@ impl<T> Drop for Sender<T> {
         }
 
         // For the reasoning behind this ordering see `Arc::drop`.
-        fence(Ordering::Acquire);
+        fence!(self.channel().ref_count, Ordering::Acquire);
 
         // Drop the memory.
         unsafe { drop(Box::from_raw(self.channel.as_ptr())) }
@@ -787,7 +800,7 @@ impl<T> Drop for Receiver<T> {
         }
 
         // For the reasoning behind this ordering see `Arc::drop`.
-        fence(Ordering::Acquire);
+        fence!(self.channel().ref_count, Ordering::Acquire);
 
         // Drop the memory.
         unsafe { drop(Box::from_raw(self.channel.as_ptr())) }
