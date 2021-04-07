@@ -8,29 +8,23 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
 jobs:
-  test_debug:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v2
-    - name: Install nightly compiler
-      run: .github/install.bash
-    - name: Run tests
-      run: cargo test --verbose
-    - name: Run stress tests
-      run: cargo test --verbose --features stress_testing
-  test_release:
+  Test:
     runs-on: ubuntu-latest
     # This often run too many iterations on CI, which is not a real error.
-    continue-on-error: true
+    continue-on-error: ${{ matrix.release == 'release' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        release: ['', release] # '' => debug.
     steps:
     - uses: actions/checkout@v2
     - name: Install nightly compiler
       run: .github/install.bash
     - name: Run tests
-      run: cargo test --verbose --release
+      run: cargo test --verbose --${{ matrix.release }}
     - name: Run stress tests
-      run: cargo test --verbose --release --features stress_testing
-  miri:
+      run: cargo test --verbose --features stress_testing --${{ matrix.release }}
+  Miri:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
