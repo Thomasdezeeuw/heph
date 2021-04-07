@@ -34,3 +34,22 @@ jobs:
       run: rustup component add miri
     - name: Run tests in Miri
       run: cargo miri test
+  Sanitiser:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitiser: [address, leak, memory, thread]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install nightly compiler
+      run: .github/install.bash
+    - name: Add rust source
+      run: rustup component add rust-src
+    - name: Run tests with sanitiser
+      # NOTE: Keep `RUSTFLAGS` and `RUSTDOCFLAGS` in sync to ensure the doc
+      # tests compile correctly.
+      run: >
+        RUSTFLAGS="-Z sanitizer=${{ matrix.sanitiser }} -Z sanitizer-memory-track-origins"
+        RUSTDOCFLAGS="-Z sanitizer=${{ matrix.sanitiser }} -Z sanitizer-memory-track-origins"
+        cargo test -Z build-std --target x86_64-unknown-linux-gnu
