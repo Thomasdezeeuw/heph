@@ -3,7 +3,7 @@
 
 #![feature(stmt_expr_attributes)]
 
-use std::io::Read;
+use std::io::{self, Read};
 use std::net::{SocketAddr, TcpStream};
 use std::ops::{Deref, DerefMut};
 use std::panic;
@@ -162,6 +162,7 @@ fn test_7_restart_supervisor() {
 /// if the test failed. Sometimes the child command would survive the test when
 /// running then in a loop (e.g. with `cargo watch`). This caused problems when
 /// trying to bind to the same port again.
+#[derive(Debug)]
 struct ChildCommand {
     inner: Child,
 }
@@ -195,13 +196,34 @@ fn run_example_output(name: &'static str) -> String {
 
 /// Run an already build example
 fn run_example(name: &'static str) -> ChildCommand {
-    Command::new(format!("target/debug/examples/{}", name))
-        .stdin(Stdio::null())
-        .stderr(Stdio::piped())
-        .stdout(Stdio::piped())
-        .spawn()
-        .map(|inner| ChildCommand { inner })
-        .expect("unable to run example")
+    let paths = [
+        format!("target/debug/examples/{}", name),
+        // NOTE: this is not great. These target triples should really comes
+        // from rustc/cargo, but this works for now.
+        #[cfg(target_os = "macos")]
+        format!("target/x86_64-apple-darwin/debug/examples/{}", name),
+        #[cfg(target_os = "linux")]
+        format!("target/x86_64-unknown-linux-gnu/debug/examples/{}", name),
+        #[cfg(target_os = "freebsd")]
+        format!("target/x86_64-unknown-freebsd/debug/examples/{}", name),
+    ];
+
+    let mut errs = Vec::new();
+    for path in paths.iter() {
+        let res = Command::new(path)
+            .stdin(Stdio::null())
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .map(|inner| ChildCommand { inner });
+        match res {
+            Ok(cmd) => return cmd,
+            Err(ref err) if err.kind() == io::ErrorKind::NotFound => continue,
+            Err(err) => errs.push(err),
+        }
+    }
+
+    panic!("failed to run example '{}': errors: {:?}", name, errs);
 }
 
 /// Read the standard output of the child command.
