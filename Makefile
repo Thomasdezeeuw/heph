@@ -21,6 +21,14 @@ RUN ?= test
 test:
 	cargo test --all-features
 
+# NOTE: Keep `RUSTFLAGS` and `RUSTDOCFLAGS` in sync to ensure the doc tests
+# compile correctly.
+test_sanitiser:
+	@if [ -z $${SAN+x} ]; then echo "Required '\$$SAN' variable is not set" 1>&2; exit 1; fi
+	RUSTFLAGS="-Z sanitizer=$$SAN -Z sanitizer-memory-track-origins" \
+	RUSTDOCFLAGS="-Z sanitizer=$$SAN -Z sanitizer-memory-track-origins" \
+	cargo test -Z build-std --all-features --target $(RUSTUP_TARGET)
+
 check:
 	cargo check --all-features --all-targets
 
@@ -110,4 +118,4 @@ doc_private:
 clean:
 	cargo clean
 
-.PHONY: test check check_all_targets dev clippy lint install_clippy coverage install_coverage install_llvm_tools doc doc_private clean
+.PHONY: test test_sanitiser check check_all_targets dev clippy lint install_clippy coverage install_coverage install_llvm_tools doc doc_private clean
