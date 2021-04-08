@@ -18,13 +18,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Install nightly compiler
-      run: rustup toolchain install nightly
-    - name: Set default to nightly compiler
-      run: rustup default nightly
-    - name: Rustc version
-      run: rustc -Vv
-    - name: Cargo version
-      run: cargo -Vv
+      run: .github/install.bash
     - name: Run tests
       run: make test
   Clippy:
@@ -32,15 +26,9 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Install nightly compiler
-      run: rustup toolchain install nightly
-    - name: Set default to nightly compiler
-      run: rustup default nightly
+      run: .github/install.bash
     - name: Add Clippy
       run: rustup component add clippy
-    - name: Rustc version
-      run: rustc -Vv
-    - name: Cargo version
-      run: cargo -Vv
     - name: Run Clippy
       run: make clippy
   Rustfmt:
@@ -48,14 +36,22 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Install nightly compiler
-      run: rustup toolchain install nightly
-    - name: Set default to nightly compiler
-      run: rustup default nightly
+      run: .github/install.bash
     - name: Add rustfmt
       run: rustup component add rustfmt
-    - name: Rustc version
-      run: rustc -Vv
-    - name: Cargo version
-      run: cargo -Vv
     - name: Check formatting
       run: cargo fmt --all -- --check
+  Sanitiser:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitiser: [address, leak, memory, thread]
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install nightly compiler
+      run: .github/install.bash
+    - name: Add rust source
+      run: rustup component add rust-src
+    - name: Run tests with sanitiser
+      run: make test_sanitiser SAN=${{ matrix.sanitiser }}
