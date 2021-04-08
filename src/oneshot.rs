@@ -250,24 +250,30 @@ impl<T> Receiver<T> {
     ///
     /// If the channel contains a value it will be dropped.
     pub fn try_reset(&mut self) -> Option<Sender<T>> {
-        match self.try_recv() {
-            Ok((.., new_sender)) => Some(new_sender),
-            Err(RecvError::NoValue) => None, // Sender still connected.
-            Err(RecvError::Disconnected) => {
-                // Sender has disconnected without sending a value so we can
-                // safely reset the status, without having to worry about
-                // dropping the value.
-                // Safety: since the `Sender` has been dropped we have unique access
-                // to `shared` making Relaxed ordering fine.
-                self.shared().status.store(
-                    RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY,
-                    Ordering::Relaxed,
-                );
-                Some(Sender {
-                    shared: self.shared,
-                })
-            }
+        let shared = self.shared();
+        let status = shared.status.load(Ordering::Relaxed);
+
+        if status & SENDER_ALIVE != 0 {
+            // The sender is still connected, can't reset yet.
+            return None;
+        } else if status & FILLED == 1 {
+            // Sender send a value we need to drop.
+            // Safety: since the sender is no longer alive (checked above) we're
+            // the only type (and thread) with access making this safe.
+            unsafe { (&mut *shared.message.get()).assume_init_drop() }
         }
+
+        // Reset the status.
+        // Safety: since the `Sender` has been dropped we have unique access to
+        // `shared` making Relaxed ordering fine.
+        shared.status.store(
+            RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY,
+            Ordering::Relaxed,
+        );
+
+        Some(Sender {
+            shared: self.shared,
+        })
     }
 
     /// Returns `true` if the `Sender` is connected.
