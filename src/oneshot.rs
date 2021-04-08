@@ -26,7 +26,8 @@
 //! });
 //!
 //! let receiver_handle = thread::spawn(move || {
-//!     # thread::sleep(std::time::Duration::from_millis(1)); // Don't waste cycles.
+//! #   #[cfg(not(miri))] // `sleep` not supported.
+//! #   thread::sleep(std::time::Duration::from_millis(1)); // Don't waste cycles.
 //!     // NOTE: this is just an example don't actually use a loop like this, it
 //!     // will waste CPU cycles when the channel is empty!
 //!     loop {
