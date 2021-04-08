@@ -2,7 +2,7 @@
 # Example value: `nightly-x86_64-apple-darwin`.
 RUSTUP_TOOLCHAIN ?= $(shell rustup show active-toolchain | cut -d' ' -f1)
 # Architecture target. Example value: `x86_64-apple-darwin`.
-RUSTUP_TARGET    ?= $(shell echo $(RUSTUP_TOOLCHAIN) | cut -d'-' -f2,3,4)
+RUSTUP_TARGET    ?= $(shell echo $(RUSTUP_TOOLCHAIN) | cut -d'-' -f2,3,4,5)
 # Location of LLVM tools, as install by `install_llvm_tools`.
 LLVM_BIN         ?= $(shell rustc --print sysroot)/lib/rustlib/$(RUSTUP_TARGET)/bin
 # To support `coverage` in workspaces we need to handle the single target
