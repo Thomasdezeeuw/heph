@@ -97,8 +97,10 @@ impl<T> Sender<T> {
         unsafe { ptr::write(shared.message.get(), MaybeUninit::new(value)) };
 
         // Mark the item as filled.
-        let _ = shared.status.fetch_add(MARK_FILLED, Ordering::AcqRel);
-        // TODO: check old status with `debug_assert`.
+        // Safety: `AcqRel` is required here to ensure the write above is not
+        // moved after this status update.
+        let old_status = shared.status.fetch_add(MARK_FILLED, Ordering::AcqRel);
+        debug_assert!(old_status & FILLED == 0);
 
         // Note: we wake in the `Drop` impl.
         Ok(())
@@ -195,7 +197,9 @@ impl<T> Receiver<T> {
     /// new [`Sender`] (which can send a value to this `Receiver`).
     pub fn try_recv(&mut self) -> Result<(T, Sender<T>), RecvError> {
         let shared = self.shared();
-        let status = shared.status.load(Ordering::Relaxed);
+        // Safety: `Acquire` is required here to ensure it syncs with
+        // `Sender::try_send`'s status update after the write.
+        let status = shared.status.load(Ordering::Acquire);
 
         if status & SENDER_ALIVE != 0 {
             // The sender is still connected, thus hasn't send a value yet.
@@ -210,9 +214,10 @@ impl<T> Receiver<T> {
         // `shared` making Relaxed ordering fine.
         shared.status.store(
             RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY,
-            Ordering::Relaxed,
+            Ordering::Release,
         );
 
+        // Safety: since we're the only thread with access this is safe.
         let msg = unsafe { (&*shared.message.get()).assume_init_read() };
         let sender = Sender {
             shared: self.shared,
@@ -251,7 +256,9 @@ impl<T> Receiver<T> {
     /// If the channel contains a value it will be dropped.
     pub fn try_reset(&mut self) -> Option<Sender<T>> {
         let shared = self.shared();
-        let status = shared.status.load(Ordering::Relaxed);
+        // Safety: `Acquire` is required here to ensure it syncs with
+        // `Sender::try_send`'s status update after the write.
+        let status = shared.status.load(Ordering::Acquire);
 
         if status & SENDER_ALIVE != 0 {
             // The sender is still connected, can't reset yet.
@@ -268,7 +275,7 @@ impl<T> Receiver<T> {
         // `shared` making Relaxed ordering fine.
         shared.status.store(
             RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY,
-            Ordering::Relaxed,
+            Ordering::Release,
         );
 
         Some(Sender {
