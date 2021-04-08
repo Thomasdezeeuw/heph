@@ -1085,9 +1085,9 @@ impl<T> Drop for Channel<T> {
         let status: usize = self.status.load(Ordering::Relaxed);
         for slot in 0..SMALL_CAP {
             if is_filled(status, slot) {
-                // Safety: we have unique access to the slot and it's properly
-                // aligned.
-                unsafe { ptr::drop_in_place((&mut *self.slots[slot].get()).as_mut_ptr()) };
+                // Safety: we have unique access to the slot and we've checked
+                // above whether or not the slot is filled.
+                unsafe { self.slots[slot].get_mut().assume_init_drop() };
             }
         }
     }
