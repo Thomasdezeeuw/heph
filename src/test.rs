@@ -17,7 +17,6 @@
 //! features = ["test"]
 //! ```
 
-use std::cell::RefCell;
 use std::future::Future;
 use std::lazy::SyncLazy;
 use std::mem::size_of;
@@ -73,15 +72,15 @@ static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(
 
 thread_local! {
     /// Per thread runtime.
-    static TEST_RT: RefCell<Runtime> = {
-        RefCell::new(Runtime::new_test(SHARED_INTERNAL.clone())
-            .expect("failed to create local `Runtime` for test module"))
+    static TEST_RT: Runtime = {
+        Runtime::new_test(SHARED_INTERNAL.clone())
+            .expect("failed to create local `Runtime` for test module")
     };
 }
 
 /// Returns a reference to the *test* runtime.
 pub fn runtime() -> RuntimeRef {
-    TEST_RT.with(|runtime| runtime.borrow().create_ref())
+    TEST_RT.with(Runtime::create_ref)
 }
 
 /// Initialise a thread-local actor.
