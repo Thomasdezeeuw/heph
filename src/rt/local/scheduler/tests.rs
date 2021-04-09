@@ -2,7 +2,7 @@
 
 use std::cell::RefCell;
 use std::future::{pending, Pending};
-use std::mem::{self, forget};
+use std::mem;
 use std::pin::Pin;
 use std::rc::Rc;
 
@@ -285,12 +285,9 @@ impl NewActor for TestAssertUnmovedNewActor {
 
     fn new(
         &mut self,
-        ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
+        _: actor::Context<Self::Message, Self::RuntimeAccess>,
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
-        // In the test we need the access to the inbox, to achieve that we can't
-        // drop the context, so we forget about it here leaking the inbox.
-        forget(ctx);
         Ok(AssertUnmoved::new(pending()))
     }
 }
