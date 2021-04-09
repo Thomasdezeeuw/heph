@@ -109,7 +109,7 @@ impl Inactive {
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
                     tagged_pid,
                     ptr::null_mut(),
-                    Ordering::SeqCst,
+                    Ordering::AcqRel,
                     Ordering::Acquire,
                 ) {
                     Ok(_) => {
@@ -223,7 +223,7 @@ impl Branch {
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
                     ptr::null_mut(),
                     process,
-                    Ordering::SeqCst,
+                    Ordering::AcqRel,
                     Ordering::Acquire,
                 ) {
                     Ok(_) => return changed + 1,
@@ -247,7 +247,7 @@ impl Branch {
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
                     old_ptr,
                     ptr::null_mut(),
-                    Ordering::SeqCst,
+                    Ordering::AcqRel,
                     Ordering::Acquire,
                 ) {
                     Ok(old) => {
@@ -272,7 +272,7 @@ impl Branch {
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
                     old_ptr,
                     ptr::null_mut(),
-                    Ordering::SeqCst,
+                    Ordering::AcqRel,
                     Ordering::Acquire,
                 ) {
                     Ok(other_process) => {
@@ -340,7 +340,7 @@ impl Branch {
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
                     old_ptr,
                     marker,
-                    Ordering::SeqCst,
+                    Ordering::AcqRel,
                     Ordering::Acquire,
                 ) {
                     Ok(_) => return changed,
@@ -366,7 +366,7 @@ impl Branch {
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
                     old_ptr,
                     ptr::null_mut(),
-                    Ordering::SeqCst,
+                    Ordering::AcqRel,
                     Ordering::Acquire,
                 ) {
                     Ok(_) => {
@@ -388,7 +388,7 @@ impl Branch {
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
                     old_ptr,
                     ptr::null_mut(),
-                    Ordering::SeqCst,
+                    Ordering::AcqRel,
                     Ordering::Acquire,
                 ) {
                     Ok(other_process) => {
@@ -452,7 +452,7 @@ impl Branch {
             match node.branches[w_pid & LEVEL_MASK].compare_exchange(
                 old_ptr,
                 branch,
-                Ordering::SeqCst,
+                Ordering::AcqRel,
                 Ordering::Acquire,
             ) {
                 // Success move to next depth.
