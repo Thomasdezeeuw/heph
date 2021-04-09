@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::task::Poll;
 
 use heph::actor::{self, NoMessages, RecvError};
-use heph::rt::{Runtime, Signal, ThreadLocal, ThreadSafe};
+use heph::rt::{Runtime, ThreadLocal, ThreadSafe};
 use heph::spawn::{ActorOptions, Spawn};
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, poll_actor};
@@ -59,24 +59,6 @@ async fn actor_ref_actor(mut ctx: actor::Context<usize, ThreadLocal>) {
 fn actor_ref() {
     let actor_ref_actor = actor_ref_actor as fn(_) -> _;
     let (actor, actor_ref) = init_local_actor(actor_ref_actor, ()).unwrap();
-    let mut actor = Box::pin(actor);
-
-    drop(actor_ref);
-    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
-}
-
-// NOTE: this actor leaks memory if used with the test runtime.
-// Because this adds its own actor reference to the test runtime (which is never
-// dropped) it also means that actor's channel is never dropped.
-async fn runtime_actor(mut ctx: actor::Context<Signal, ThreadLocal>) {
-    let actor_ref = ctx.actor_ref();
-    ctx.runtime().receive_signals(actor_ref);
-}
-
-#[test]
-fn runtime() {
-    let runtime_actor = runtime_actor as fn(_) -> _;
-    let (actor, actor_ref) = init_local_actor(runtime_actor, ()).unwrap();
     let mut actor = Box::pin(actor);
 
     drop(actor_ref);
