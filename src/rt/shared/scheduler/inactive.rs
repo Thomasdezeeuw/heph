@@ -101,7 +101,7 @@ impl Inactive {
 
         let mut node = &self.root;
         let mut w_pid = pid.0 >> SKIP_BITS;
-        let mut old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Relaxed);
+        let mut old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
         loop {
             if old_ptr == tagged_pid {
                 // Found the marker, try to remove it.
@@ -110,7 +110,7 @@ impl Inactive {
                     tagged_pid,
                     ptr::null_mut(),
                     Ordering::SeqCst,
-                    Ordering::Relaxed,
+                    Ordering::Acquire,
                 ) {
                     Ok(_) => {
                         // NOTE: we need to ensure the process lives until
@@ -139,7 +139,7 @@ impl Inactive {
                 // marker it must be a branch. Non-null pointers must always be
                 // valid.
                 node = unsafe { &*branch_ptr };
-                old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Relaxed);
+                old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
             }
         }
     }
@@ -215,7 +215,7 @@ impl Branch {
         debug_assert!(is_process(process));
         let mut node = self;
         // NOTE: from this point on `self` is invalid, use `node` instead.
-        let mut old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Relaxed);
+        let mut old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
         let mut changed = 0;
         loop {
             if old_ptr.is_null() {
@@ -224,7 +224,7 @@ impl Branch {
                     ptr::null_mut(),
                     process,
                     Ordering::SeqCst,
-                    Ordering::Relaxed,
+                    Ordering::Acquire,
                 ) {
                     Ok(_) => return changed + 1,
                     // Another thread changed the pointer, try again with the
@@ -240,7 +240,7 @@ impl Branch {
                 // Safety: checked if the pointer is a branch above and per the
                 // docs of `Branch.branches` once it's a branch it's immutable.
                 node = unsafe { &*branch_ptr };
-                old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Relaxed);
+                old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
             } else if is_ready_marker(old_ptr) && as_pid(old_ptr) == as_pid(process) {
                 // Found a ready marker for the process we want to add.
                 // Remove it and add the process to the run queue.
@@ -248,7 +248,7 @@ impl Branch {
                     old_ptr,
                     ptr::null_mut(),
                     Ordering::SeqCst,
-                    Ordering::Relaxed,
+                    Ordering::Acquire,
                 ) {
                     Ok(old) => {
                         debug_assert!(is_ready_marker(old));
@@ -273,7 +273,7 @@ impl Branch {
                     old_ptr,
                     ptr::null_mut(),
                     Ordering::SeqCst,
-                    Ordering::Relaxed,
+                    Ordering::Acquire,
                 ) {
                     Ok(other_process) => {
                         // Now we have to add two processes (or markers). First
@@ -298,7 +298,7 @@ impl Branch {
                             node._mark_ready(other_process, w_pid, depth, run_queue)
                         };
                         // Continue our own adding process.
-                        old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Relaxed);
+                        old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
                     }
                     // Another thread changed the pointer, try again with the
                     // updated (old) pointer.
@@ -332,7 +332,7 @@ impl Branch {
         debug_assert!(is_ready_marker(marker));
         let mut node = self;
         // NOTE: from this point on `self` is invalid, use `node` instead.
-        let mut old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Relaxed);
+        let mut old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
         let mut changed = 0;
         loop {
             if old_ptr.is_null() {
@@ -341,7 +341,7 @@ impl Branch {
                     old_ptr,
                     marker,
                     Ordering::SeqCst,
-                    Ordering::Relaxed,
+                    Ordering::Acquire,
                 ) {
                     Ok(_) => return changed,
                     // Another thread changed the pointer, try again with the
@@ -357,7 +357,7 @@ impl Branch {
                 // Safety: checked if the pointer is a branch above and per the
                 // docs of `Branch.branches` once it's a branch it's immutable.
                 node = unsafe { &*branch_ptr };
-                old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Relaxed);
+                old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
             } else if is_ready_marker(old_ptr) && as_pid(old_ptr) == as_pid(marker) {
                 // Already has a marker for the process.
                 return changed;
@@ -367,7 +367,7 @@ impl Branch {
                     old_ptr,
                     ptr::null_mut(),
                     Ordering::SeqCst,
-                    Ordering::Relaxed,
+                    Ordering::Acquire,
                 ) {
                     Ok(_) => {
                         debug_assert!(is_process(old_ptr));
@@ -389,7 +389,7 @@ impl Branch {
                     old_ptr,
                     ptr::null_mut(),
                     Ordering::SeqCst,
-                    Ordering::Relaxed,
+                    Ordering::Acquire,
                 ) {
                     Ok(other_process) => {
                         // Now we have to add two processes (or marker). First
@@ -415,7 +415,7 @@ impl Branch {
                             node._mark_ready(other_process, w_pid, depth, run_queue)
                         };
                         // Continue our own adding process.
-                        old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Relaxed);
+                        old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
                     }
                     // Another thread changed the pointer, try again with the
                     // updated (old) pointer.
@@ -453,7 +453,7 @@ impl Branch {
                 old_ptr,
                 branch,
                 Ordering::SeqCst,
-                Ordering::Relaxed,
+                Ordering::Acquire,
             ) {
                 // Success move to next depth.
                 Ok(old) => {
@@ -465,7 +465,7 @@ impl Branch {
                     // Safety: create the branch pointer ourselves, so we know
                     // it's a branch.
                     node = unsafe { &*branch_ptr.cast() };
-                    old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Relaxed);
+                    old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
 
                     if is_process(old) {
                         debug_assert!(is_process(old));
@@ -496,7 +496,7 @@ impl Branch {
                 debug_assert!(!branch_ptr.is_null());
                 // Safety: checked if it's a branch pointer and non-null above.
                 node = unsafe { &*branch_ptr.cast() };
-                old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Relaxed);
+                old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
             }
         }
 
