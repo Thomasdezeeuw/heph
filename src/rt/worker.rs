@@ -106,7 +106,7 @@ impl Worker {
     /// Registers the channel used to communicate with the thread. Uses the
     /// [`Worker::id`] as [`Token`].
     pub(super) fn register(&mut self, registry: &Registry) -> io::Result<()> {
-        self.channel.register(registry, Token(self.id()))
+        self.channel.register_send(registry, Token(self.id()))
     }
 
     /// Send the worker thread a signal that the runtime has started.

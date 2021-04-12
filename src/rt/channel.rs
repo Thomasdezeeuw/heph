@@ -51,12 +51,6 @@ impl<S, R> Handle<S, R> {
         }
     }
 
-    /// Register both ends of the Unix pipe of this channel.
-    pub(super) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
-        registry.register(&mut self.send_pipe, token, Interest::WRITABLE)?;
-        registry.register(&mut self.recv_pipe, token, Interest::READABLE)
-    }
-
     /// Try to send a message onto the channel.
     pub(super) fn try_send(&mut self, msg: S) -> io::Result<()> {
         self.send_channel
@@ -108,6 +102,20 @@ impl<S, R> Handle<S, R> {
             // pipe).
             Ok(self.recv_channel.try_recv().ok())
         }
+    }
+}
+
+impl<R> Handle<!, R> {
+    /// Register the receiving end of the Unix pipe of this channel.
+    pub(super) fn register_recv(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
+        registry.register(&mut self.recv_pipe, token, Interest::READABLE)
+    }
+}
+
+impl<S> Handle<S, !> {
+    /// Register the sending end of the Unix pipe of this channel.
+    pub(super) fn register_send(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
+        registry.register(&mut self.send_pipe, token, Interest::WRITABLE)
     }
 }
 
