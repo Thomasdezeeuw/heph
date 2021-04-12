@@ -18,8 +18,6 @@ use crate::trace;
 
 /// Token used to receive process signals.
 const SIGNAL: Token = Token(usize::MAX);
-/// Token used to wake-up the coordinator thread.
-pub(super) const WAKER: Token = Token(usize::MAX - 1);
 
 #[derive(Debug)]
 pub(super) struct Coordinator {
@@ -39,22 +37,15 @@ impl Coordinator {
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> io::Result<Coordinator> {
         let poll = Poll::new()?;
-        let registry = poll.registry().try_clone()?;
         let scheduler = Scheduler::new();
         let timers = Timers::new();
         // NOTE: on Linux this MUST be created before starting the worker
         // threads.
-        let signals = setup_signals(&registry)?;
+        let signals = setup_signals(poll.registry())?;
+        let setup = shared::RuntimeInternals::setup()?;
         let internals = Arc::new_cyclic(|shared_internals| {
             let waker_id = waker::init(shared_internals.clone());
-            shared::RuntimeInternals::new(
-                waker_id,
-                worker_wakers,
-                scheduler,
-                registry,
-                timers,
-                trace_log,
-            )
+            setup.complete(waker_id, worker_wakers, scheduler, timers, trace_log)
         });
         Ok(Coordinator {
             poll,
@@ -125,7 +116,6 @@ impl Coordinator {
             trace::finish_rt(trace_log.as_mut(), timing, "Polling for OS events", &[]);
 
             let timing = trace::start(&trace_log);
-            let mut wake_workers = 0; // Counter for how many workers to wake.
             for event in events.iter() {
                 trace!("got OS event: {:?}", event);
 
@@ -141,8 +131,6 @@ impl Coordinator {
                             &[],
                         );
                     }
-                    // We always check for waker events below.
-                    WAKER => {}
                     token if token.0 < SYNC_WORKER_ID_START => {
                         let timing = trace::start(&trace_log);
                         handle_worker_event(&mut workers, event)?;
@@ -163,38 +151,10 @@ impl Coordinator {
                             &[],
                         );
                     }
-                    token => {
-                        let timing = trace::start(&trace_log);
-                        let pid = token.into();
-                        trace!(
-                            "scheduling thread-safe process based on OS event: pid={}, event={:?}",
-                            pid,
-                            event
-                        );
-                        self.internals.mark_ready(pid);
-                        wake_workers += 1;
-                        trace::finish_rt(
-                            trace_log.as_mut(),
-                            timing,
-                            "Scheduling thread-safe process",
-                            &[],
-                        );
-                    }
+                    _ => debug!("unexpected OS event: {:?}", event),
                 }
             }
             trace::finish_rt(trace_log.as_mut(), timing, "Handling OS events", &[]);
-
-            // In case the worker threads are polling we need to wake them up.
-            if wake_workers > 0 {
-                let timing = trace::start(&trace_log);
-                self.internals.wake_workers(wake_workers);
-                trace::finish_rt(
-                    trace_log.as_mut(),
-                    timing,
-                    "Waking worker threads",
-                    &[("amount", &wake_workers)],
-                );
-            }
 
             // Once all (sync) worker threads are done running we can return.
             if workers.is_empty() && sync_workers.is_empty() {

@@ -34,6 +34,9 @@ const RUN_POLL_RATIO: usize = 32;
 pub(super) const WAKER: Token = Token(usize::MAX);
 /// Token used to indicate a message was received on the communication channel.
 const COMMS: Token = Token(usize::MAX - 1);
+/// Token used to indicate the shared [`Poll`] (in [`shared::RuntimeInternals`])
+/// has events.
+const SHARED_POLL: Token = Token(usize::MAX - 2);
 
 /// The runtime that runs all processes.
 ///
@@ -71,6 +74,8 @@ impl Runtime {
         trace_log: Option<trace::Log>,
         cpu: Option<usize>,
     ) -> io::Result<Runtime> {
+        // Register the shared poll intance.
+        shared_internals.register_worker_poll(poll.registry(), SHARED_POLL)?;
         // Register the channel to the coordinator.
         channel.register_recv(poll.registry(), COMMS)?;
 
@@ -222,17 +227,35 @@ impl Runtime {
     fn schedule_processes(&mut self) -> Result<(), Error> {
         trace!("polling event sources to schedule processes");
         let timing = trace::start(&*self.internals.trace_log.borrow());
-        let mut amount = self.schedule_from_os_events()?;
-        amount += self.schedule_from_waker();
+
+        // Schedule local and shared processes based on various event sources.
+        let (mut local_amount, check_shared_poll) = self.schedule_from_os_events()?;
+        let mut shared_amount = if check_shared_poll {
+            self.schedule_from_shared_os_events()
+                .map_err(Error::Polling)?
+        } else {
+            0
+        };
+        local_amount += self.schedule_from_waker();
         let now = Instant::now();
-        amount += self.schedule_from_local_timers(now);
-        amount += self.schedule_from_shared_timers(now, amount);
+        local_amount += self.schedule_from_local_timers(now);
+        shared_amount += self.schedule_from_shared_timers(now);
+
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
             timing,
             "Scheduling processes",
-            &[("amount", &amount)],
+            &[
+                ("local amount", &local_amount),
+                ("shared amount", &shared_amount),
+                ("total amount", &(local_amount + shared_amount)),
+            ],
         );
+
+        // Possibly wake other worker threads if we've scheduled any shared
+        // processes (that we can't directly run).
+        self.wake_workers(local_amount, shared_amount);
+
         Ok(())
     }
 
@@ -241,7 +264,7 @@ impl Runtime {
     ///
     /// Returns the amount of processes marked as active and a boolean
     /// indicating whether or not the shared timers should be checked.
-    fn schedule_from_os_events(&mut self) -> Result<usize, Error> {
+    fn schedule_from_os_events(&mut self) -> Result<(usize, bool), Error> {
         // Start with polling for OS events.
         self.poll_os().map_err(Error::Polling)?;
 
@@ -249,12 +272,14 @@ impl Runtime {
         let timing = trace::start(&*self.internals.trace_log.borrow());
         let mut scheduler = self.internals.scheduler.borrow_mut();
         let mut check_comms = false;
+        let mut check_shared_poll = false;
         let mut amount = 0;
         for event in self.events.iter() {
             trace!("got OS event: {:?}", event);
             match event.token() {
                 WAKER => { /* Need to wake up to handle user space events. */ }
                 COMMS => check_comms = true,
+                SHARED_POLL => check_shared_poll = true,
                 token => {
                     let pid = token.into();
                     trace!(
@@ -279,6 +304,35 @@ impl Runtime {
             drop(scheduler);
             self.check_comms()?;
         }
+        Ok((amount, check_shared_poll))
+    }
+
+    /// Schedule processes based on shared OS events.
+    fn schedule_from_shared_os_events(&mut self) -> io::Result<usize> {
+        trace!("polling shared OS events");
+        let timing = trace::start(&*self.internals.trace_log.borrow());
+
+        let mut amount = 0;
+        if self.internals.shared.try_poll(&mut self.events)? {
+            for event in self.events.iter() {
+                trace!("got shared OS event: {:?}", event);
+                let pid = event.token().into();
+                trace!(
+                    "scheduling shared process based on OS event: pid={}, event={:?}",
+                    pid,
+                    event
+                );
+                self.internals.shared.mark_ready(pid);
+                amount += 1;
+            }
+        }
+
+        trace::finish_rt(
+            self.internals.trace_log.borrow_mut().as_mut(),
+            timing,
+            "Scheduling thread-safe processes based on shared OS events",
+            &[("amount", &amount)],
+        );
         Ok(amount)
     }
 
@@ -328,7 +382,7 @@ impl Runtime {
     }
 
     /// Schedule processes based on shared timers.
-    fn schedule_from_shared_timers(&mut self, now: Instant, already_scheduled: usize) -> usize {
+    fn schedule_from_shared_timers(&mut self, now: Instant) -> usize {
         trace!("polling shared timers");
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
@@ -345,28 +399,32 @@ impl Runtime {
             "Scheduling thread-safe processes based on timers",
             &[("amount", &amount)],
         );
+        amount
+    }
 
-        // If we already scheduled a number of processes and can't directly run
-        // the processes scheduled based on the timers above we need to wake
-        // other worker threads to run them.
-        let wake_n = if already_scheduled == 0 {
-            amount.saturating_sub(1)
+    /// Wake worker threads based on the amount of local scheduled processes
+    /// (`local_amount`) and the amount of scheduled shared processes
+    /// (`shared_amount`).
+    fn wake_workers(&mut self, local_amount: usize, shared_amount: usize) {
+        let wake_n = if local_amount == 0 {
+            // We don't have to run any local processes, so we can run a shared
+            // process ourselves.
+            shared_amount.saturating_sub(1)
         } else {
-            amount
+            shared_amount
         };
+
         if wake_n != 0 {
-            trace!("waking {} worker threads based on shared timers", wake_n);
+            trace!("waking {} worker threads", wake_n);
             let timing = trace::start(&*self.internals.trace_log.borrow());
             self.internals.shared.wake_workers(wake_n);
             trace::finish_rt(
                 self.internals.trace_log.borrow_mut().as_mut(),
                 timing,
-                "Waking worker thread based on shared timers",
+                "Waking worker threads",
                 &[("amount", &wake_n)],
             );
         }
-
-        amount
     }
 
     /// Poll for OS events, filling `self.events`.
