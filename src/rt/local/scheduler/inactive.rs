@@ -147,15 +147,16 @@ impl Branch {
         // branch.
         let mut branch = Box::pin(Branch::empty());
         // Required depth to go were the pointers are in different slots.
-        let req_depth = diff_branch_depth(pid1, pid2, depth);
+        let req_depth = diff_branch_depth(pid1, pid2);
+        debug_assert!(req_depth >= depth);
         // Add the two processes.
-        let w_pid1 = skip_bits(pid1, depth + req_depth);
+        let w_pid1 = skip_bits(pid1, req_depth);
         branch.branches[w_pid1 & LEVEL_MASK] = Some(process1.into());
-        let w_pid2 = skip_bits(pid2, depth + req_depth);
+        let w_pid2 = skip_bits(pid2, req_depth);
         branch.branches[w_pid2 & LEVEL_MASK] = Some(process2.into());
         debug_assert!(w_pid1 & LEVEL_MASK != w_pid2 & LEVEL_MASK);
         // Build up to route to the branch.
-        for depth in 1..req_depth {
+        for depth in depth + 1..req_depth {
             let index = (w_pid >> ((req_depth - depth) * LEVEL_SHIFT)) & LEVEL_MASK;
             let next_branch = replace(&mut branch, Box::pin(Branch::empty()));
             branch.branches[index] = Some(next_branch.into());
@@ -281,24 +282,9 @@ impl fmt::Debug for Pointer {
 }
 
 /// Returns the depth at which `pid1` and `pid2` use difference branches.
-///
-/// # Notes
-///
-/// This loops forever if `pid1` and `pid2` are equal.
-fn diff_branch_depth(pid1: ProcessId, pid2: ProcessId, depth: usize) -> usize {
+fn diff_branch_depth(pid1: ProcessId, pid2: ProcessId) -> usize {
     debug_assert!(pid1 != pid2);
-    let mut pid1 = skip_bits(pid1, depth);
-    let mut pid2 = skip_bits(pid2, depth);
-    debug_assert!(pid1 != pid2);
-    let mut depth = 0;
-    while pid1 & LEVEL_MASK == pid2 & LEVEL_MASK {
-        debug_assert!(depth < 32);
-        debug_assert!(pid1 > 0);
-        depth += 1;
-        pid1 >>= LEVEL_SHIFT;
-        pid2 >>= LEVEL_SHIFT;
-    }
-    depth
+    ((pid1.0 ^ pid2.0) >> SKIP_BITS).trailing_zeros() as usize / LEVEL_SHIFT
 }
 
 /// Skip the bits up to `depth`.
@@ -319,8 +305,8 @@ mod tests {
     use crate::spawn::options::Priority;
 
     use super::{
-        Branch, Inactive, Pointer, ProcessData, LEVEL_SHIFT, N_BRANCHES, POINTER_TAG_BITS,
-        SKIP_BITS,
+        diff_branch_depth, Branch, Inactive, Pointer, ProcessData, LEVEL_SHIFT, N_BRANCHES,
+        POINTER_TAG_BITS, SKIP_BITS,
     };
 
     struct TestProcess;
@@ -368,6 +354,46 @@ mod tests {
         // Ensure that we don't skip any used bites and that the pointer tag
         // doesn't overwrite any pointer data.
         assert!(align_of::<Branch>() >= pow2(max(SKIP_BITS, POINTER_TAG_BITS)));
+    }
+
+    #[test]
+    fn test_diff_branch_depth() {
+        #[rustfmt::skip]
+        let tests = &[
+            (ProcessId(0b0001_00), ProcessId(0b0000_00), 0),
+            (ProcessId(0b0000_00), ProcessId(0b0001_00), 0),
+            (ProcessId(0b0010_00), ProcessId(0b0000_00), 0),
+            (ProcessId(0b0000_00), ProcessId(0b0010_00), 0),
+            (ProcessId(0b0100_00), ProcessId(0b0000_00), 0),
+            (ProcessId(0b0000_00), ProcessId(0b0100_00), 0),
+            (ProcessId(0b1000_00), ProcessId(0b0000_00), 0),
+            (ProcessId(0b0000_00), ProcessId(0b1000_00), 0),
+            (ProcessId(0b0001_0000_00), ProcessId(0b0000_0000_00), 1),
+            (ProcessId(0b0000_0000_00), ProcessId(0b0001_0000_00), 1),
+            (ProcessId(0b0010_0000_00), ProcessId(0b0000_0000_00), 1),
+            (ProcessId(0b0000_0000_00), ProcessId(0b0010_0000_00), 1),
+            (ProcessId(0b0100_0000_00), ProcessId(0b0000_0000_00), 1),
+            (ProcessId(0b0000_0000_00), ProcessId(0b0100_0000_00), 1),
+            (ProcessId(0b1000_0000_00), ProcessId(0b0000_0000_00), 1),
+            (ProcessId(0b0000_0000_00), ProcessId(0b1000_0000_00), 1),
+            (ProcessId(0b0001_0000_0000_00), ProcessId(0b0000_0000_0000_00), 2),
+            (ProcessId(0b0000_0000_0000_00), ProcessId(0b0001_0000_0000_00), 2),
+            (ProcessId(0b0010_0000_0000_00), ProcessId(0b0000_0000_0000_00), 2),
+            (ProcessId(0b0000_0000_0000_00), ProcessId(0b0010_0000_0000_00), 2),
+            (ProcessId(0b0100_0000_0000_00), ProcessId(0b0000_0000_0000_00), 2),
+            (ProcessId(0b0000_0000_0000_00), ProcessId(0b0100_0000_0000_00), 2),
+            (ProcessId(0b1000_0000_0000_00), ProcessId(0b0000_0000_0000_00), 2),
+            (ProcessId(0b0000_0000_0000_00), ProcessId(0b1000_0000_0000_00), 2),
+        ];
+
+        for (pid1, pid2, expected) in tests.iter().copied() {
+            let got = diff_branch_depth(pid1, pid2);
+            assert_eq!(
+                got, expected,
+                "pid1: {:064b} ({}), pid2: {:064b} ({})",
+                pid1.0, pid1, pid2.0, pid2
+            );
+        }
     }
 
     #[test]
