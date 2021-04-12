@@ -72,7 +72,7 @@ impl Runtime {
         cpu: Option<usize>,
     ) -> io::Result<Runtime> {
         // Register the channel to the coordinator.
-        channel.register(poll.registry(), COMMS)?;
+        channel.register_recv(poll.registry(), COMMS)?;
 
         // Finally create all the runtime internals.
         let internals = RuntimeInternals::new(shared_internals, waker_id, poll, cpu, trace_log);
@@ -99,7 +99,7 @@ impl Runtime {
         let waker_id = rt::waker::init(waker, waker_sender);
 
         let (_, mut channel) = rt::channel::new()?;
-        channel.register(poll.registry(), COMMS)?;
+        channel.register_recv(poll.registry(), COMMS)?;
 
         let internals = RuntimeInternals::new(shared_internals, waker_id, poll, None, None);
         Ok(Runtime {
