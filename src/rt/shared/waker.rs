@@ -182,8 +182,6 @@ mod tests {
     use std::thread::{self, sleep};
     use std::time::Duration;
 
-    use mio::Poll;
-
     use crate::rt::process::{Process, ProcessData, ProcessId, ProcessResult};
     use crate::rt::shared::waker::{self, WakerData};
     use crate::rt::shared::{RuntimeInternals, Scheduler, Timers};
@@ -324,14 +322,13 @@ mod tests {
     }
 
     fn new_internals() -> Arc<RuntimeInternals> {
-        let poll = Poll::new().unwrap();
-        let registry = poll.registry().try_clone().unwrap();
         let scheduler = Scheduler::new();
         let timers = Timers::new();
+        let setup = RuntimeInternals::setup().unwrap();
         Arc::new_cyclic(|shared_internals| {
             let waker_id = waker::init(shared_internals.clone());
             let worker_wakers = vec![&*test::NOOP_WAKER].into_boxed_slice();
-            RuntimeInternals::new(waker_id, worker_wakers, scheduler, registry, timers, None)
+            setup.complete(waker_id, worker_wakers, scheduler, timers, None)
         })
     }
 

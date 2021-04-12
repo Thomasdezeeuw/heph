@@ -2,15 +2,17 @@
 
 use std::cmp::min;
 use std::future::Future;
+use std::os::unix::io::AsRawFd;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, TryLockError};
 use std::time::{Duration, Instant};
 use std::{io, task};
 
 use heph_inbox as inbox;
 use log::{debug, error, trace};
-use mio::{event, Interest, Registry, Token};
+use mio::unix::SourceFd;
+use mio::{event, Events, Interest, Poll, Registry, Token};
 
 use crate::actor::{self, NewActor};
 use crate::actor_ref::ActorRef;
@@ -29,6 +31,46 @@ use waker::WakerId;
 
 pub(crate) use scheduler::{ProcessData, Scheduler};
 
+/// Setup of [`RuntimeInternals`].
+///
+/// # Notes
+///
+/// This type only exists because [`Arc::new_cyclic`] doesn't work when
+/// returning a result. And as [`RuntimeInternals`] needs to create a [`Poll`]
+/// instance, which can fail, creating a new `RuntimeInternals` inside
+/// `Arc::new_cyclic` doesn't work. So it needs to be a two step process, where
+/// the second step (`RuntimeSetup::complete`) doesn't return an error and can
+/// be called inside `Arc::new_cyclic`.
+pub(crate) struct RuntimeSetup {
+    poll: Poll,
+    registry: Registry,
+}
+
+impl RuntimeSetup {
+    /// Complete the runtime setup.
+    pub(crate) fn complete(
+        self,
+        shared_id: WakerId,
+        worker_wakers: Box<[&'static ThreadWaker]>,
+        scheduler: Scheduler,
+        timers: Timers,
+        trace_log: Option<Arc<trace::SharedLog>>,
+    ) -> RuntimeInternals {
+        // Needed by `RuntimeInternals::wake_workers`.
+        debug_assert!(worker_wakers.len() >= 1);
+        RuntimeInternals {
+            shared_id,
+            worker_wakers,
+            wake_worker_idx: AtomicUsize::new(0),
+            poll: Mutex::new(self.poll),
+            registry: self.registry,
+            scheduler,
+            timers,
+            trace_log,
+        }
+    }
+}
+
 /// Shared internals of the runtime.
 #[derive(Debug)]
 pub(crate) struct RuntimeInternals {
@@ -39,10 +81,13 @@ pub(crate) struct RuntimeInternals {
     /// Index into `worker_wakers` to wake next, see
     /// [`RuntimeInternals::wake_workers`].
     wake_worker_idx: AtomicUsize,
-    /// Scheduler for thread-safe actors.
-    scheduler: Scheduler,
+    /// Poll instance for all shared event sources. This is polled by the worker
+    /// thread.
+    poll: Mutex<Poll>,
     /// Registry for the `Coordinator`'s `Poll` instance.
     registry: Registry,
+    /// Scheduler for thread-safe actors.
+    scheduler: Scheduler,
     /// Timers for thread-safe actors.
     timers: Timers,
     /// Shared trace log.
@@ -55,30 +100,35 @@ pub(crate) struct RuntimeInternals {
 }
 
 impl RuntimeInternals {
-    pub(crate) fn new(
-        shared_id: WakerId,
-        worker_wakers: Box<[&'static ThreadWaker]>,
-        scheduler: Scheduler,
-        registry: Registry,
-        timers: Timers,
-        trace_log: Option<Arc<trace::SharedLog>>,
-    ) -> RuntimeInternals {
-        // Needed by `RuntimeInternals::wake_workers`.
-        debug_assert!(worker_wakers.len() >= 1);
-        RuntimeInternals {
-            shared_id,
-            worker_wakers,
-            wake_worker_idx: AtomicUsize::new(0),
-            scheduler,
-            registry,
-            timers,
-            trace_log,
-        }
+    /// Setup new runtime internals.
+    pub(crate) fn setup() -> io::Result<RuntimeSetup> {
+        let poll = Poll::new()?;
+        let registry = poll.registry().try_clone()?;
+        Ok(RuntimeSetup { poll, registry })
     }
 
     /// Returns a new [`task::Waker`] for the thread-safe actor with `pid`.
     pub(crate) fn new_task_waker(&self, pid: ProcessId) -> task::Waker {
         waker::new(self.shared_id, pid)
+    }
+
+    /// Register the shared [`Poll`] instance with `registry`.
+    pub(crate) fn register_worker_poll(&self, registry: &Registry, token: Token) -> io::Result<()> {
+        use mio::event::Source;
+        let poll = self.poll.lock().unwrap();
+        SourceFd(&poll.as_raw_fd()).register(registry, token, Interest::READABLE)
+    }
+
+    /// Returns `Ok(true)` if it polled the shared [`Poll`] instance, writing OS
+    /// events to `events`. Returns `Ok(false)` if another worker is currently
+    /// polling, which means this worker doesn't have to anymore. Otherwise it
+    /// returns an error.
+    pub(crate) fn try_poll(&self, events: &mut Events) -> io::Result<bool> {
+        match self.poll.try_lock() {
+            Ok(mut poll) => poll.poll(events, Some(Duration::ZERO)).map(|()| true),
+            Err(TryLockError::WouldBlock) => Ok(false),
+            Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared poll: {}", err),
+        }
     }
 
     /// Register an `event::Source`, see [`mio::Registry::register`].

@@ -242,7 +242,6 @@ fn actor_bound() {
         stream.bind_to(&mut ctx).unwrap();
 
         let mut buf = Vec::with_capacity(DATA.len() + 1);
-        // FIXME: not receiving data.
         let n = stream.recv(&mut buf).await.unwrap();
         assert_eq!(n, DATA.len());
         assert_eq!(buf, DATA);
