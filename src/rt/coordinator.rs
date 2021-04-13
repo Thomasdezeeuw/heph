@@ -12,7 +12,7 @@ use crate::actor_ref::{ActorGroup, Delivery};
 use crate::rt::shared::{waker, Scheduler, Timers};
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
-    self, shared, worker, Signal, SyncWorker, Worker, SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
+    self, shared, Signal, SyncWorker, Worker, SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
 };
 use crate::trace;
 
@@ -263,12 +263,6 @@ fn handle_worker_event(workers: &mut Vec<Worker>, event: &Event) -> Result<(), r
                 .join()
                 .map_err(rt::Error::worker_panic)
                 .and_then(|res| res)?;
-        } else if event.is_readable() {
-            let worker = &mut workers[i];
-            debug!("handling worker messages: id={}", worker.id());
-            worker
-                .handle_messages()
-                .map_err(|err| rt::Error::worker(worker::Error::RecvMsg(err)))?;
         }
     }
     Ok(())

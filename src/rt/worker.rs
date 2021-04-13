@@ -127,14 +127,6 @@ impl Worker {
         self.channel.try_send(Control::Run(f))
     }
 
-    /// Handle all incoming messages.
-    pub(super) fn handle_messages(&mut self) -> io::Result<()> {
-        while let Some(msg) = self.channel.try_recv()? {
-            match msg {}
-        }
-        Ok(())
-    }
-
     /// See [`thread::JoinHandle::join`].
     pub(super) fn join(self) -> thread::Result<Result<(), rt::Error>> {
         self.handle.join()
