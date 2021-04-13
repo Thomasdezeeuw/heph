@@ -23,6 +23,7 @@ jobs:
       run: make test
   Clippy:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - uses: actions/checkout@v2
     - name: Install nightly compiler
@@ -33,6 +34,7 @@ jobs:
       run: make clippy
   Rustfmt:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
     - uses: actions/checkout@v2
     - name: Install nightly compiler
@@ -43,6 +45,7 @@ jobs:
       run: cargo fmt --all -- --check
   Sanitiser:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
