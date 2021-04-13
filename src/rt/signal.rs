@@ -2,27 +2,25 @@ use std::fmt;
 
 /// Process signal.
 ///
-/// Asynchronous actors can receive signals by calling
+/// All actors can receive process signals by calling
 /// [`Runtime::receive_signals`] or [`RuntimeRef::receive_signals`] with their
-/// actor reference.
-///
-/// Synchronous actor receive signals automatically if they can receive them,
-/// i.e. if their [message type] implements [`TryFrom`]`<Signal>`. For more
-/// information see the [`SyncActor`] trait.
+/// actor reference. This causes all process signals to be relayed to the actor
+/// which should handle them accordingly.
 ///
 /// [`Runtime::receive_signals`]: crate::Runtime::receive_signals
 /// [`RuntimeRef::receive_signals`]: crate::RuntimeRef::receive_signals
-/// [message type]: crate::actor::SyncActor::Message
-/// [`TryFrom`]: std::convert::TryFrom
-/// [`SyncActor`]: crate::actor::SyncActor
 ///
 /// # Notes
 ///
-/// What happends to threads spawned outside of Heph's control, i.e. manually
+/// What happens to threads spawned outside of Heph's control, i.e. manually
 /// spawned, before calling [`rt::Setup::build`] is unspecified. They may still
 /// receive a process signal or they may not. This is due to platform
 /// limitations and differences. Any manually spawned threads spawned after
 /// calling build should not get a process signal.
+///
+/// The runtime will only attempt to send the process signal to the actor once.
+/// If the message can't be send it's **not** retried. Ensure that the inbox of
+/// the actor has enough room to receive the message.
 ///
 /// [`rt::Setup::build`]: crate::rt::Setup::build
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

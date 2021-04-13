@@ -27,63 +27,6 @@ use crate::trace::{self, Trace};
 /// Synchronous actor can only be spawned before starting the runtime, see
 /// [`Runtime::spawn_sync_actor`].
 ///
-/// # Signal handling
-///
-/// [Process signals] are automatically send to synchronous actors if the
-/// [`Message`] type implements the required trait bound to convert the actor
-/// reference into mapped actor reference, see [`ActorRef::try_map`].
-///
-/// ```
-/// use heph::actor::SyncContext;
-/// # use heph::actor_ref::ActorRef;
-/// use heph::from_message;
-/// use heph::rt::{self, Runtime, Signal};
-/// use heph::spawn::SyncActorOptions;
-/// use heph::supervisor::NoSupervisor;
-///
-/// fn main() -> Result<(), rt::Error> {
-///     // Spawning synchronous actor works slightly differently than spawning
-///     // regular (asynchronous) actors. Mainly, synchronous actors need to be
-///     // spawned before the runtime is started.
-///     let mut runtime = Runtime::new()?;
-///
-///     // Spawn a new synchronous actor, returning an actor reference to it.
-///     let actor = actor as fn(_);
-///     let options = SyncActorOptions::default().with_name("My actor".to_string());
-///     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, (), options)?;
-///
-///     // Just like with any actor reference we can send the actor a message.
-///     actor_ref.try_send("Hello world".to_string()).unwrap();
-///     # let actor_ref: ActorRef<Signal> = actor_ref.try_map();
-///     # actor_ref.try_send(Signal::Interrupt).unwrap();
-///
-///     // And now we start the runtime.
-///     runtime.start()
-/// }
-///
-/// enum Message {
-///     Print(String),
-///     Signal(Signal),
-/// }
-///
-/// from_message!(Message::Print(String));
-/// // This implementation allows the sync actor to receive process signals.
-/// from_message!(Message::Signal(Signal));
-///
-/// fn actor(mut ctx: SyncContext<Message>) {
-///     while let Ok(msg) = ctx.receive_next() {
-///         match msg {
-///             Message::Print(msg) => println!("Got a message: {}", msg),
-///             Message::Signal(_signal) => break,
-///         }
-///     }
-/// }
-/// ```
-///
-/// [Process signals]: crate::rt::Signal
-/// [`Message`]: SyncActor::Message
-/// [`ActorRef::try_map`]: crate::actor_ref::ActorRef::try_map
-///
 /// # Panics
 ///
 /// Panics are not caught and will **not** be returned to the actor's
