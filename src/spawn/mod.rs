@@ -78,6 +78,8 @@ mod private {
     use crate::supervisor::Supervisor;
 
     /// Private version of the [`Spawn`]  trait.
+    ///
+    /// [`Spawn`]: super::Spawn
     pub trait PrivateSpawn<S, NA, RT> {
         /// Spawn an actor that needs to be initialised.
         ///
