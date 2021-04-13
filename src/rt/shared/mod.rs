@@ -170,7 +170,7 @@ impl RuntimeInternals {
         self.timers.change(from, deadline, to);
     }
 
-    /// See [`Timers::remove_deadline`].
+    /// See [`Timers::remove_next`].
     pub(crate) fn remove_next_deadline(&self, now: Instant) -> Option<ProcessId> {
         self.timers.remove_next(now)
     }

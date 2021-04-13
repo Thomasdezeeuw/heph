@@ -2,7 +2,7 @@
 //!
 //! Also see the [local timers implementation].
 //!
-//! [local timers implementation]: crate::rt::local::timers
+//! [local timers implementation]: crate::rt::local::Timers
 
 use std::cmp::{min, Ordering};
 use std::sync::RwLock;
@@ -34,7 +34,7 @@ const NS_SLOT_MASK: u128 = (1 << NS_PER_SLOT_BITS) - 1;
 
 /// Time offset since the epoch of [`Timers::epoch`].
 ///
-/// Must fit [`MS_PER_SLOT`].
+/// Must fit [`NS_PER_SLOT`].
 type TimeOffset = u32;
 
 /// Timers.

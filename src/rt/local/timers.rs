@@ -2,7 +2,7 @@
 //!
 //! Also see the [shared timers implementation].
 //!
-//! [shared timers implementation]: crate::rt::shared::timers
+//! [shared timers implementation]: crate::rt::shared::Timers
 
 use std::cmp::{min, Ordering};
 use std::time::{Duration, Instant};
@@ -33,7 +33,7 @@ const NS_SLOT_MASK: u128 = (1 << NS_PER_SLOT_BITS) - 1;
 
 /// Time offset since the epoch of [`Timers::epoch`].
 ///
-/// Must fit [`MS_PER_SLOT`].
+/// Must fit [`NS_PER_SLOT`].
 type TimeOffset = u32;
 
 /// Timers.
