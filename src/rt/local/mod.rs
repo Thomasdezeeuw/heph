@@ -590,6 +590,18 @@ pub(crate) enum Control {
     Run(Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>),
 }
 
+impl fmt::Debug for Control {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use Control::*;
+        f.write_str("Control::")?;
+        match self {
+            Started => f.write_str("Started"),
+            Signal(signal) => f.debug_tuple("Signal").field(&signal).finish(),
+            Run(..) => f.write_str("Run(..)"),
+        }
+    }
+}
+
 /// Error running a [`Runtime`].
 #[derive(Debug)]
 pub(crate) enum Error {
