@@ -34,7 +34,7 @@ use log::warn;
 use crate::actor::{self, Actor, NewActor, SyncActor};
 use crate::actor_ref::ActorRef;
 use crate::rt::local::Runtime;
-use crate::rt::shared::{waker, Scheduler, Timers};
+use crate::rt::shared::waker;
 use crate::rt::sync_worker::SyncWorker;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
@@ -54,14 +54,12 @@ pub(crate) static NOOP_WAKER: SyncLazy<ThreadWaker> = SyncLazy::new(|| {
 });
 
 static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(|| {
-    let scheduler = Scheduler::new();
-    let timers = Timers::new();
     let setup = shared::RuntimeInternals::setup()
         .expect("failed to setup runtime internals for test module");
     Arc::new_cyclic(|shared_internals| {
         let waker_id = waker::init(shared_internals.clone());
         let worker_wakers = vec![&*NOOP_WAKER].into_boxed_slice();
-        setup.complete(waker_id, worker_wakers, scheduler, timers, None)
+        setup.complete(waker_id, worker_wakers, None)
     })
 });
 

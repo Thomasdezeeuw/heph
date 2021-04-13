@@ -9,7 +9,7 @@ use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
 use crate::actor_ref::{ActorGroup, Delivery};
-use crate::rt::shared::{waker, Scheduler, Timers};
+use crate::rt::shared::waker;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
     self, shared, Signal, SyncWorker, Worker, SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
@@ -31,22 +31,22 @@ pub(super) struct Coordinator {
 }
 
 impl Coordinator {
-    /// Initialise the `Coordinator` thread.
+    /// Initialise the `Coordinator`.
     pub(super) fn init(
         worker_wakers: Box<[&'static ThreadWaker]>,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> io::Result<Coordinator> {
         let poll = Poll::new()?;
-        let scheduler = Scheduler::new();
-        let timers = Timers::new();
         // NOTE: on Linux this MUST be created before starting the worker
         // threads.
         let signals = setup_signals(poll.registry())?;
+
         let setup = shared::RuntimeInternals::setup()?;
         let internals = Arc::new_cyclic(|shared_internals| {
             let waker_id = waker::init(shared_internals.clone());
-            setup.complete(waker_id, worker_wakers, scheduler, timers, trace_log)
+            setup.complete(waker_id, worker_wakers, trace_log)
         });
+
         Ok(Coordinator {
             poll,
             signals,
