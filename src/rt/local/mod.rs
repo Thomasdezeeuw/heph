@@ -50,8 +50,8 @@ pub(crate) struct Runtime {
     /// Receiving side of the channel for waker events, see the [`rt::waker`]
     /// module for the implementation.
     waker_events: Receiver<ProcessId>,
-    /// Two-way communication channel exchange control messages.
-    channel: rt::channel::Handle<!, Control>,
+    /// Communication channel exchange control messages.
+    channel: rt::channel::Receiver<Control>,
     /// Whether or not the runtime was started.
     /// This is here because the worker threads are started before
     /// [`rt::Runtime::start`] is called and thus before any actors are added to
@@ -69,7 +69,7 @@ impl Runtime {
         poll: Poll,
         waker_id: WakerId,
         waker_events: Receiver<ProcessId>,
-        mut channel: rt::channel::Handle<!, Control>,
+        mut channel: rt::channel::Receiver<Control>,
         shared_internals: Arc<shared::RuntimeInternals>,
         trace_log: Option<trace::Log>,
         cpu: Option<usize>,
@@ -77,7 +77,7 @@ impl Runtime {
         // Register the shared poll intance.
         shared_internals.register_worker_poll(poll.registry(), SHARED_POLL)?;
         // Register the channel to the coordinator.
-        channel.register_recv(poll.registry(), COMMS)?;
+        channel.register(poll.registry(), COMMS)?;
 
         // Finally create all the runtime internals.
         let internals = RuntimeInternals::new(shared_internals, waker_id, poll, cpu, trace_log);
@@ -104,7 +104,7 @@ impl Runtime {
         let waker_id = rt::waker::init(waker, waker_sender);
 
         let (_, mut channel) = rt::channel::new()?;
-        channel.register_recv(poll.registry(), COMMS)?;
+        channel.register(poll.registry(), COMMS)?;
 
         let internals = RuntimeInternals::new(shared_internals, waker_id, poll, None, None);
         Ok(Runtime {

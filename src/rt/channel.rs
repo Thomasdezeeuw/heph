@@ -1,66 +1,48 @@
 //! Runtime channel for use in communicating between the coordinator and a
-//! (sync) worker thread.
+//! worker thread.
 
-use std::fmt;
 use std::io::{self, Read, Write};
 
 use crossbeam_channel as crossbeam;
 use log::trace;
 use mio::{unix, Interest, Registry, Token};
 
-/// A handle to a two-way communication channel, which can send messages `S` and
-/// receive messages `R`.
-pub(crate) struct Handle<S, R> {
-    /// Sending side.
-    send_channel: crossbeam::Sender<S>,
-    send_pipe: unix::pipe::Sender,
-    /// Receiving side.
-    recv_channel: crossbeam::Receiver<R>,
-    recv_pipe: unix::pipe::Receiver,
-}
-
-/// Create a new two-way communication channel.
-pub(crate) fn new<S, R>() -> io::Result<(Handle<S, R>, Handle<R, S>)> {
-    let (c_send1, c_recv2) = crossbeam::unbounded();
-    let (c_send2, c_recv1) = crossbeam::unbounded();
-
-    let (p_send1, p_recv2) = unix::pipe::new()?;
-    let (p_send2, p_recv1) = unix::pipe::new()?;
-
-    let handle1 = Handle::new(c_send1, p_send1, c_recv1, p_recv1);
-    let handle2 = Handle::new(c_send2, p_send2, c_recv2, p_recv2);
-
-    Ok((handle1, handle2))
-}
-
 /// Data send across the channel to create a `mio::Event`.
 const WAKE: &[u8] = b"WAKE";
 
-impl<S, R> Handle<S, R> {
-    const fn new(
-        send_channel: crossbeam::Sender<S>,
-        send_pipe: unix::pipe::Sender,
-        recv_channel: crossbeam::Receiver<R>,
-        recv_pipe: unix::pipe::Receiver,
-    ) -> Handle<S, R> {
-        Handle {
-            send_channel,
-            send_pipe,
-            recv_channel,
-            recv_pipe,
-        }
-    }
+/// Create a new communication channel.
+pub(super) fn new<T>() -> io::Result<(Sender<T>, Receiver<T>)> {
+    let (p_send, p_recv) = unix::pipe::new()?;
+    let (c_send, c_recv) = crossbeam::unbounded();
+    let sender = Sender {
+        channel: c_send,
+        pipe: p_send,
+    };
+    let receiver = Receiver {
+        channel: c_recv,
+        pipe: p_recv,
+    };
+    Ok((sender, receiver))
+}
 
+/// Sending end of the communication channel.
+#[derive(Debug)]
+pub(super) struct Sender<T> {
+    channel: crossbeam::Sender<T>,
+    pipe: unix::pipe::Sender,
+}
+
+impl<T> Sender<T> {
     /// Try to send a message onto the channel.
-    pub(super) fn try_send(&mut self, msg: S) -> io::Result<()> {
-        self.send_channel
+    pub(super) fn try_send(&mut self, msg: T) -> io::Result<()> {
+        self.channel
             .try_send(msg)
             .map_err(|_| io::Error::new(io::ErrorKind::NotConnected, "failed to send message"))?;
 
         // Generate an `mio::Event` for the receiving end.
         loop {
             trace!("notifying worker-coordinator channel of new message");
-            match self.send_pipe.write(WAKE) {
+            match self.pipe.write(WAKE) {
                 Ok(0) => {
                     return Err(io::Error::new(
                         io::ErrorKind::NotConnected,
@@ -76,9 +58,23 @@ impl<S, R> Handle<S, R> {
         }
     }
 
+    /// Register the sending end of the Unix pipe of this channel.
+    pub(super) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
+        registry.register(&mut self.pipe, token, Interest::WRITABLE)
+    }
+}
+
+/// Receiving end of the communication channel.
+#[derive(Debug)]
+pub(super) struct Receiver<T> {
+    channel: crossbeam::Receiver<T>,
+    pipe: unix::pipe::Receiver,
+}
+
+impl<T> Receiver<T> {
     /// Try to receive a message from the channel.
-    pub(super) fn try_recv(&mut self) -> io::Result<Option<R>> {
-        if let Ok(msg) = self.recv_channel.try_recv() {
+    pub(super) fn try_recv(&mut self) -> io::Result<Option<T>> {
+        if let Ok(msg) = self.channel.try_recv() {
             Ok(Some(msg))
         } else {
             // If the channel is empty this will likely be the last call in a
@@ -87,7 +83,7 @@ impl<S, R> Handle<S, R> {
             let mut buf = [0; 24]; // Fits 6 messages.
             loop {
                 trace!("emptying worker-coordinator channel pipe");
-                match self.recv_pipe.read(&mut buf) {
+                match self.pipe.read(&mut buf) {
                     Ok(n) if n < buf.len() => break,
                     // Didn't empty it.
                     Ok(..) => continue,
@@ -100,32 +96,12 @@ impl<S, R> Handle<S, R> {
             // between the time we last checked and we emptied the pipe above
             // (for which we won't get another event as we just emptied the
             // pipe).
-            Ok(self.recv_channel.try_recv().ok())
+            Ok(self.channel.try_recv().ok())
         }
     }
-}
 
-impl<R> Handle<!, R> {
     /// Register the receiving end of the Unix pipe of this channel.
-    pub(super) fn register_recv(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
-        registry.register(&mut self.recv_pipe, token, Interest::READABLE)
-    }
-}
-
-impl<S> Handle<S, !> {
-    /// Register the sending end of the Unix pipe of this channel.
-    pub(super) fn register_send(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
-        registry.register(&mut self.send_pipe, token, Interest::WRITABLE)
-    }
-}
-
-impl<S, R> fmt::Debug for Handle<S, R> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Handle")
-            .field("send_channel", &self.send_channel)
-            .field("send_pipe", &self.send_pipe)
-            .field("recv_channel", &self.recv_channel)
-            .field("recv_pipe", &self.recv_pipe)
-            .finish()
+    pub(super) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
+        registry.register(&mut self.pipe, token, Interest::READABLE)
     }
 }
