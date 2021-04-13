@@ -22,7 +22,7 @@ const SIGNAL: Token = Token(usize::MAX);
 #[derive(Debug)]
 pub(super) struct Coordinator {
     /// OS poll, used to poll the status of the (sync) worker threads and
-    /// process signals.
+    /// process `signals`.
     poll: Poll,
     /// Signal notifications.
     signals: Signals,
@@ -32,6 +32,11 @@ pub(super) struct Coordinator {
 
 impl Coordinator {
     /// Initialise the `Coordinator`.
+    ///
+    /// # Notes
+    ///
+    /// This must be called before creating the worker threads to properly catch
+    /// process signals.
     pub(super) fn init(
         worker_wakers: Box<[&'static ThreadWaker]>,
         trace_log: Option<Arc<trace::SharedLog>>,
@@ -63,7 +68,7 @@ impl Coordinator {
     ///
     /// # Notes
     ///
-    /// `workers` must be sorted based on `id`.
+    /// `workers` and `sync_workers` must be sorted based on `id`.
     pub(super) fn run(
         mut self,
         mut workers: Vec<Worker>,
@@ -82,14 +87,12 @@ impl Coordinator {
             .map_err(|err| rt::Error::coordinator(Error::RegisteringWorkers(err)))?;
         register_sync_workers(registry, &mut sync_workers)
             .map_err(|err| rt::Error::coordinator(Error::RegisteringSyncActors(err)))?;
-
-        // It could be that before we're able to register the (sync) worker
-        // above they've already completed. On macOS and Linux this will still
-        // create an kqueue/epoll event, even if the other side of the Unix pipe
-        // was already disconnected before registering it with `Poll`.
+        // It could be that before we're able to register the sync workers above
+        // they've already completed. On macOS and Linux this will still create
+        // an kqueue/epoll event, even if the other side of the Unix pipe was
+        // already disconnected before registering it with `Poll`.
         // However this doesn't seem to be the case on FreeBSD, so we explicitly
-        // check if the (sync) workers are still alive *after* we registered
-        // them.
+        // check if the sync workers are still alive *after* we registered them.
         check_sync_worker_alive(&mut sync_workers)?;
         trace::finish_rt(
             trace_log.as_mut(),
@@ -99,7 +102,7 @@ impl Coordinator {
         );
 
         // Signal to all worker threads the runtime was started. See
-        // RunningRuntime::started why this is needed.
+        // `local::Runtime.started` why this is needed.
         for worker in &mut workers {
             worker
                 .send_runtime_started()
@@ -166,7 +169,7 @@ impl Coordinator {
 /// Setup a new `Signals` instance, registering it with `registry`.
 fn setup_signals(registry: &Registry) -> io::Result<Signals> {
     let signals = SignalSet::all();
-    trace!("setting up signals handling: signals={:?}", signals);
+    trace!("setting up signal handling: signals={:?}", signals);
     Signals::new(signals).and_then(|mut signals| {
         registry
             .register(&mut signals, SIGNAL, Interest::READABLE)
@@ -275,8 +278,8 @@ fn handle_sync_worker_event(
 ) -> Result<(), rt::Error> {
     if let Ok(i) = sync_workers.binary_search_by_key(&event.token().0, SyncWorker::id) {
         if event.is_error() || event.is_write_closed() {
-            // Receiving end of the pipe is dropped, which means the worker has
-            // shut down.
+            // Receiving end of the pipe is dropped, which means the sync worker
+            // has shut down.
             let sync_worker = sync_workers.remove(i);
             debug!("sync actor worker thread stopped: id={}", sync_worker.id());
             sync_worker.join().map_err(rt::Error::sync_actor_panic)?;
@@ -292,7 +295,7 @@ pub(super) enum Error {
     RegisteringWorkers(io::Error),
     /// Error in [`register_sync_workers`].
     RegisteringSyncActors(io::Error),
-    /// Error polling [`mio::Poll`].
+    /// Error polling ([`mio::Poll`]).
     Polling(io::Error),
     /// Error sending start signal to worker.
     SendingStartSignal(io::Error),
@@ -308,7 +311,7 @@ impl fmt::Display for Error {
             RegisteringSyncActors(err) => {
                 write!(f, "error registering synchronous actor threads: {}", err)
             }
-            Polling(err) => write!(f, "error polling for events: {}", err),
+            Polling(err) => write!(f, "error polling for OS events: {}", err),
             SendingStartSignal(err) => write!(f, "error sending start signal to worker: {}", err),
             SendingFunc(err) => write!(f, "error sending function to worker: {}", err),
         }
