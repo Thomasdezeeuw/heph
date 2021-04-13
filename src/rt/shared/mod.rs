@@ -52,8 +52,6 @@ impl RuntimeSetup {
         self,
         shared_id: WakerId,
         worker_wakers: Box<[&'static ThreadWaker]>,
-        scheduler: Scheduler,
-        timers: Timers,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> RuntimeInternals {
         // Needed by `RuntimeInternals::wake_workers`.
@@ -64,8 +62,8 @@ impl RuntimeSetup {
             wake_worker_idx: AtomicUsize::new(0),
             poll: Mutex::new(self.poll),
             registry: self.registry,
-            scheduler,
-            timers,
+            scheduler: Scheduler::new(),
+            timers: Timers::new(),
             trace_log,
         }
     }

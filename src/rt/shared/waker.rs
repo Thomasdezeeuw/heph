@@ -184,7 +184,7 @@ mod tests {
 
     use crate::rt::process::{Process, ProcessData, ProcessId, ProcessResult};
     use crate::rt::shared::waker::{self, WakerData};
-    use crate::rt::shared::{RuntimeInternals, Scheduler, Timers};
+    use crate::rt::shared::{RuntimeInternals, Scheduler};
     use crate::rt::RuntimeRef;
     use crate::spawn::options::Priority;
     use crate::test;
@@ -322,13 +322,11 @@ mod tests {
     }
 
     fn new_internals() -> Arc<RuntimeInternals> {
-        let scheduler = Scheduler::new();
-        let timers = Timers::new();
         let setup = RuntimeInternals::setup().unwrap();
         Arc::new_cyclic(|shared_internals| {
             let waker_id = waker::init(shared_internals.clone());
             let worker_wakers = vec![&*test::NOOP_WAKER].into_boxed_slice();
-            setup.complete(waker_id, worker_wakers, scheduler, timers, None)
+            setup.complete(waker_id, worker_wakers, None)
         })
     }
 
