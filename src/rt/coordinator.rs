@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::{fmt, io};
 
-use log::{debug, trace, warn};
+use log::{debug, error, trace};
 use mio::event::Event;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
@@ -122,8 +122,7 @@ impl Coordinator {
                 match event.token() {
                     SIGNAL => {
                         let timing = trace::start(&trace_log);
-                        relay_signals(&mut self.signals, &mut workers, &mut signal_refs)
-                            .map_err(|err| rt::Error::coordinator(Error::SignalRelay(err)))?;
+                        relay_signals(&mut self.signals, &mut workers, &mut signal_refs);
                         trace::finish_rt(
                             trace_log.as_mut(),
                             timing,
@@ -202,31 +201,54 @@ fn check_sync_worker_alive(sync_workers: &mut Vec<SyncWorker>) -> Result<(), rt:
         })
 }
 
-/// Relay all signals receive from `signals` to the `workers` and
-/// `sync_workers`.
+/// Relay all signals received from `signals` to the `workers` and
+/// `signal_refs`.
 fn relay_signals(
     signals: &mut Signals,
     workers: &mut [Worker],
     signal_refs: &mut ActorGroup<Signal>,
-) -> io::Result<()> {
+) {
     signal_refs.remove_disconnected();
 
-    while let Some(signal) = signals.receive()? {
-        debug!(
-            "relaying process signal to worker threads: signal={:?}",
-            signal
-        );
-        let signal = Signal::from_mio(signal);
-        for worker in workers.iter_mut() {
-            worker.send_signal(signal)?;
-        }
-        if !signal_refs.is_empty() {
-            if let Err(err) = signal_refs.try_send(signal, Delivery::ToAll) {
-                warn!("failed to send process signal: {}", err);
+    loop {
+        match signals.receive() {
+            Ok(Some(signal)) => {
+                debug!(
+                    "relaying process signal to worker threads: signal={:?}",
+                    signal
+                );
+                let signal = Signal::from_mio(signal);
+                for worker in workers.iter_mut() {
+                    if let Err(err) = worker.send_signal(signal) {
+                        // NOTE: if the worker is unable to receive a message
+                        // it's likely already shutdown or is shutting down.
+                        // Rather than returning the error here and stopping the
+                        // coordinator (which was the case previously) we log
+                        // the error and instead wait until the worker thread
+                        // stopped returning that error instead, which is likely
+                        // more useful (i.e. it has the reason why the worker
+                        // thread stopped).
+                        error!(
+                            "failed to send process signal to worker: {}: signal={}, worker={}",
+                            err,
+                            signal,
+                            worker.id()
+                        );
+                    }
+                }
+                if !signal_refs.is_empty() {
+                    // Safety: only returns an error if the group is empty, so
+                    // this `unwrap` is safe.
+                    signal_refs.try_send(signal, Delivery::ToAll).unwrap();
+                }
+            }
+            Ok(None) => break,
+            Err(err) => {
+                error!("failed to retrieve process signal: {}", err);
+                break;
             }
         }
     }
-    Ok(())
 }
 
 /// Handle an `event` for a worker.
@@ -280,8 +302,6 @@ pub(super) enum Error {
     Polling(io::Error),
     /// Error sending start signal to worker.
     SendingStartSignal(io::Error),
-    /// Error relaying process signal.
-    SignalRelay(io::Error),
     /// Error sending function to worker.
     SendingFunc(io::Error),
 }
@@ -296,7 +316,6 @@ impl fmt::Display for Error {
             }
             Polling(err) => write!(f, "error polling for events: {}", err),
             SendingStartSignal(err) => write!(f, "error sending start signal to worker: {}", err),
-            SignalRelay(err) => write!(f, "error relaying process signal: {}", err),
             SendingFunc(err) => write!(f, "error sending function to worker: {}", err),
         }
     }
@@ -310,7 +329,6 @@ impl std::error::Error for Error {
             | RegisteringSyncActors(ref err)
             | Polling(ref err)
             | SendingStartSignal(ref err)
-            | SignalRelay(ref err)
             | SendingFunc(ref err) => Some(err),
         }
     }
