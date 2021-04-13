@@ -53,7 +53,7 @@ pub fn any_local_ipv6_address() -> SocketAddr {
 
 /// Returns an address to which the connection will be refused.
 pub fn refused_address() -> SocketAddr {
-    "127.0.0.1:65535".parse().unwrap()
+    "0.0.0.0:1".parse().unwrap()
 }
 
 /// Returns a path to a non-existing temporary file.
