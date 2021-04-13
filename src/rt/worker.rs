@@ -57,7 +57,7 @@ impl WorkerSetup {
         auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
     ) -> io::Result<Worker> {
-        rt::channel::new().and_then(|(channel, worker_handle)| {
+        rt::channel::new().and_then(|(channel, receiver)| {
             // Copy id to move into `Worker`, `self` moves into the spawned
             // thread.
             let id = self.id;
@@ -66,7 +66,7 @@ impl WorkerSetup {
                 .spawn(move || {
                     main(
                         self,
-                        worker_handle,
+                        receiver,
                         shared_internals,
                         auto_cpu_affinity,
                         trace_log,
@@ -92,7 +92,7 @@ pub(super) struct Worker {
     /// Unique id (among all threads in the [`rt::Runtime`]).
     id: NonZeroUsize,
     /// Two-way communication channel to share messages with the worker thread.
-    channel: rt::channel::Handle<Control, !>,
+    channel: rt::channel::Sender<Control>,
     /// Handle for the actual thread.
     handle: thread::JoinHandle<Result<(), rt::Error>>,
 }
@@ -106,7 +106,7 @@ impl Worker {
     /// Registers the channel used to communicate with the thread. Uses the
     /// [`Worker::id`] as [`Token`].
     pub(super) fn register(&mut self, registry: &Registry) -> io::Result<()> {
-        self.channel.register_send(registry, Token(self.id()))
+        self.channel.register(registry, Token(self.id()))
     }
 
     /// Send the worker thread a signal that the runtime has started.
@@ -136,7 +136,7 @@ impl Worker {
 /// The main function of a worker thread.
 fn main(
     setup: WorkerSetup,
-    receiver: rt::channel::Handle<!, Control>,
+    receiver: rt::channel::Receiver<Control>,
     shared_internals: Arc<shared::RuntimeInternals>,
     auto_cpu_affinity: bool,
     trace_log: Option<trace::Log>,
