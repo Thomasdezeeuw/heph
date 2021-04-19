@@ -33,7 +33,7 @@ pub(crate) fn init(waker: mio::Waker, notifications: Sender<ProcessId>) -> Waker
     /// determines that.
     static THREAD_IDS: AtomicU8 = AtomicU8::new(0);
 
-    let thread_id = THREAD_IDS.fetch_add(1, Ordering::AcqRel);
+    let thread_id = THREAD_IDS.fetch_add(1, Ordering::SeqCst);
     if thread_id as usize >= MAX_THREADS {
         panic!("Created too many Heph worker threads");
     }

@@ -181,6 +181,7 @@ impl CoordinatorLog {
 
     /// Returns the next stream counter.
     fn next_stream_count(&mut self) -> u32 {
+        // Safety: needs to sync with itself.
         self.shared.counter.fetch_add(1, atomic::Ordering::AcqRel)
     }
 }
@@ -355,6 +356,7 @@ impl<'a> TraceLog for &'a SharedLog {
 
         BUF.with(|buf| {
             let mut buf = buf.borrow_mut();
+            // Safety: needs to sync with itself.
             let stream_count = self.counter.fetch_add(1, atomic::Ordering::AcqRel);
             format_event(
                 &mut buf,

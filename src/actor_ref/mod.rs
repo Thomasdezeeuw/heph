@@ -629,8 +629,9 @@ impl<M> ActorGroup<M> {
                 Ok(())
             }
             Delivery::ToOne => {
+                // Safety: this needs to sync itself.
                 // NOTE: this wraps around on overflow.
-                let idx = self.send_next.fetch_add(1, Ordering::Relaxed) % self.actor_refs.len();
+                let idx = self.send_next.fetch_add(1, Ordering::AcqRel) % self.actor_refs.len();
                 let actor_ref = &self.actor_refs[idx];
                 // TODO: try to send it to another actor on send failure?
                 actor_ref.try_send(msg)
