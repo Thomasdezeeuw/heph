@@ -101,11 +101,14 @@ impl Inactive {
 
         let mut node = &self.root;
         let mut w_pid = pid.0 >> SKIP_BITS;
+        // Safety: this needs to sync with all possible points that can change
+        // this value; all need to use `Acquire`/`Release` (or `AcqRel`).
         let mut old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
         loop {
             if old_ptr == tagged_pid {
                 // Found the marker, try to remove it.
                 debug_assert!(is_ready_marker(old_ptr));
+                // Safety: see comment for `load` above.
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
                     tagged_pid,
                     ptr::null_mut(),
@@ -139,6 +142,7 @@ impl Inactive {
                 // marker it must be a branch. Non-null pointers must always be
                 // valid.
                 node = unsafe { &*branch_ptr };
+                // Safety: see comment for `load` above.
                 old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
             }
         }
@@ -150,9 +154,11 @@ impl Inactive {
         match n {
             0 => {}
             n if n.is_negative() => {
+                // Safety: needs to sync with below.
                 let _ = self.length.fetch_sub(-n as usize, Ordering::AcqRel);
             }
             n => {
+                // Safety: needs to sync with above.
                 let _ = self.length.fetch_add(n as usize, Ordering::AcqRel);
             }
         }
