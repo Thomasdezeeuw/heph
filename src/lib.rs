@@ -74,7 +74,6 @@
     const_option,
     const_raw_ptr_to_usize_cast,
     drain_filter,
-    duration_zero,
     generic_associated_types,
     io_slice_advance,
     is_sorted,
