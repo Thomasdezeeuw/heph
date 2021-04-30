@@ -602,20 +602,23 @@ impl<'a> Body<'a> {
     /// The returned value is based on the "Content-Length" header, or 0 if not
     /// present.
     pub fn len(&self) -> usize {
-        // TODO: chunked encoding.
         self.size
     }
 
     /// Returns the number of bytes left in the body.
-    ///
-    /// See [`Body::len`].
     pub fn left(&self) -> usize {
         self.left
     }
 
+    /// Returns `true` if the body is completely read (or was empty to begin
+    /// with).
+    pub fn is_empty(&self) -> bool {
+        self.left == 0
+    }
+
     /// Ignore the body, but removes it from the connection.
     pub fn ignore(&mut self) -> io::Result<()> {
-        if self.size == 0 {
+        if self.is_empty() {
             // Empty body, then we're done quickly.
             return Ok(());
         }
