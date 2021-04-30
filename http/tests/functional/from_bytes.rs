@@ -1,4 +1,5 @@
 use std::fmt;
+use std::time::SystemTime;
 
 use heph_http::FromBytes;
 
@@ -55,6 +56,14 @@ fn invalid_integers() {
     test_parse_fail::<usize>(b"2a");
 }
 
+#[test]
+fn system_time() {
+    test_parse(b"Thu, 01 Jan 1970 00:00:00 GMT", SystemTime::UNIX_EPOCH); // IMF-fixdate.
+    test_parse(b"Thursday, 01-Jan-70 00:00:00 GMT", SystemTime::UNIX_EPOCH); // RFC 850.
+    test_parse(b"Thu Jan  1 00:00:00 1970", SystemTime::UNIX_EPOCH); // ANSI C’s `asctime`.
+}
+
+#[track_caller]
 fn test_parse<'a, T>(value: &'a [u8], expected: T)
 where
     T: FromBytes<'a> + fmt::Debug + PartialEq,
@@ -63,6 +72,7 @@ where
     assert_eq!(T::from_bytes(value).unwrap(), expected);
 }
 
+#[track_caller]
 fn test_parse_fail<'a, T>(value: &'a [u8])
 where
     T: FromBytes<'a> + fmt::Debug + PartialEq,

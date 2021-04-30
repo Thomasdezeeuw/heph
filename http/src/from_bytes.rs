@@ -1,4 +1,7 @@
+use std::time::SystemTime;
 use std::{fmt, str};
+
+use httpdate::parse_http_date;
 
 /// Analogous trait to [`FromStr`].
 ///
@@ -60,7 +63,31 @@ int_impl!(u8, u16, u32, u64, usize);
 impl<'a> FromBytes<'a> for &'a str {
     type Err = str::Utf8Error;
 
-    fn from_bytes(src: &'a [u8]) -> Result<Self, Self::Err> {
-        str::from_utf8(src)
+    fn from_bytes(value: &'a [u8]) -> Result<Self, Self::Err> {
+        str::from_utf8(value)
+    }
+}
+
+#[derive(Debug)]
+pub struct ParseTimeError;
+
+impl fmt::Display for ParseTimeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("invalid time")
+    }
+}
+
+/// Parses the value following RFC7231 section 7.1.1.1.
+impl FromBytes<'_> for SystemTime {
+    type Err = ParseTimeError;
+
+    fn from_bytes(value: &[u8]) -> Result<Self, Self::Err> {
+        match str::from_utf8(value) {
+            Ok(value) => match parse_http_date(value) {
+                Ok(time) => Ok(time),
+                Err(_) => Err(ParseTimeError),
+            },
+            Err(_) => Err(ParseTimeError),
+        }
     }
 }
