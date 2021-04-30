@@ -31,6 +31,30 @@ fn integers_overflow() {
     test_parse_fail::<usize>(b"18446744073709551615");
 }
 
+#[test]
+fn empty_integers() {
+    test_parse_fail::<u8>(b"");
+    test_parse_fail::<u16>(b"");
+    test_parse_fail::<u32>(b"");
+    test_parse_fail::<u64>(b"");
+    test_parse_fail::<usize>(b"");
+}
+
+#[test]
+fn invalid_integers() {
+    test_parse_fail::<u8>(b"abc");
+    test_parse_fail::<u16>(b"abc");
+    test_parse_fail::<u32>(b"abc");
+    test_parse_fail::<u64>(b"abc");
+    test_parse_fail::<usize>(b"abc");
+
+    test_parse_fail::<u8>(b"2a");
+    test_parse_fail::<u16>(b"2a");
+    test_parse_fail::<u32>(b"2a");
+    test_parse_fail::<u64>(b"2a");
+    test_parse_fail::<usize>(b"2a");
+}
+
 fn test_parse<'a, T>(value: &'a [u8], expected: T)
 where
     T: FromBytes<'a> + fmt::Debug + PartialEq,
