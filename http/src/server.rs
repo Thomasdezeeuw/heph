@@ -484,14 +484,15 @@ impl Connection {
         write!(
             &mut self.buf,
             "{} {} \r\n",
-            response.version, response.status
+            response.version(),
+            response.status()
         )
         .unwrap();
 
         // Format the headers (RFC 7230 section 3.2).
         let mut set_content_length_header = false;
         let mut set_date_header = false;
-        for header in response.headers.iter() {
+        for header in response.headers().iter() {
             let name = header.name();
             // Field-name:
             // NOTE: spacing after the colon (`:`) is optional.
@@ -522,7 +523,7 @@ impl Connection {
             // > terminates at the end of the header section).
             &[]
         } else {
-            response.body.as_bytes()
+            response.body().as_bytes()
         };
 
         // Provide the "Conent-Length" header if the user didn't.
