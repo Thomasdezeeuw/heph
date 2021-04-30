@@ -33,14 +33,19 @@ impl Version {
             Version::Http10 | Version::Http11 => Version::Http11,
         }
     }
+
+    /// Returns the version as string.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Version::Http10 => "HTTP/1.0",
+            Version::Http11 => "HTTP/1.1",
+        }
+    }
 }
 
 impl fmt::Display for Version {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str(match self {
-            Version::Http10 => "HTTP/1.0",
-            Version::Http11 => "HTTP/1.1",
-        })
+        f.write_str(self.as_str())
     }
 }
 
