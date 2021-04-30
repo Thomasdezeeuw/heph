@@ -224,7 +224,7 @@ impl<'n, 'v> Header<'n, 'v> {
     ///
     /// `value` MUST NOT contain `\r\n`.
     pub const fn new(name: HeaderName<'n>, value: &'v [u8]) -> Header<'n, 'v> {
-        debug_assert!(no_crlf(value));
+        debug_assert!(no_crlf(value), "header value contains CRLF ('\\r\\n')");
         Header { name, value }
     }
 
@@ -249,11 +249,8 @@ impl<'n, 'v> Header<'n, 'v> {
 
 /// Returns `true` if `value` does not contain `\r\n`.
 const fn no_crlf(value: &[u8]) -> bool {
-    if value.is_empty() {
-        return true;
-    }
     let mut i = 1;
-    while i < value.len() - 1 {
+    while i < value.len() {
         if value[i - 1] == b'\r' && value[i] == b'\n' {
             return false;
         }
