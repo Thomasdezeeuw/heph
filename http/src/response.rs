@@ -2,14 +2,16 @@ use std::fmt;
 
 use crate::{Headers, StatusCode, Version};
 
+/// HTTP response.
 pub struct Response<B> {
-    pub(crate) version: Version,
-    pub(crate) status: StatusCode,
-    pub(crate) headers: Headers,
-    pub(crate) body: B,
+    version: Version,
+    status: StatusCode,
+    headers: Headers,
+    body: B,
 }
 
 impl<B> Response<B> {
+    /// Create a new HTTP response.
     pub const fn new(
         version: Version,
         status: StatusCode,
@@ -22,6 +24,36 @@ impl<B> Response<B> {
             headers,
             body,
         }
+    }
+
+    /// Returns the HTTP version of this response.
+    pub const fn version(&self) -> Version {
+        self.version
+    }
+
+    /// Returns the response code.
+    pub const fn status(&self) -> StatusCode {
+        self.status
+    }
+
+    /// Returns the headers.
+    pub const fn headers(&self) -> &Headers {
+        &self.headers
+    }
+
+    /// Returns mutable access to the headers.
+    pub fn headers_mut(&mut self) -> &mut Headers {
+        &mut self.headers
+    }
+
+    /// The response body.
+    pub const fn body(&self) -> &B {
+        &self.body
+    }
+
+    /// Mutable access to the response body.
+    pub fn body_mut(&mut self) -> &mut B {
+        &mut self.body
     }
 }
 
