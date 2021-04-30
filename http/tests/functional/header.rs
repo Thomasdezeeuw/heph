@@ -10,6 +10,33 @@ fn sizes() {
 }
 
 #[test]
+fn new_header() {
+    const _MY_HEADER: Header<'static, 'static> =
+        Header::new(HeaderName::USER_AGENT, b"Heph-HTTP/0.1");
+    let _header = Header::new(HeaderName::USER_AGENT, b"");
+    // Should be fine.
+    let _header = Header::new(HeaderName::USER_AGENT, b"\rabc\n");
+}
+
+#[test]
+#[should_panic = "header value contains CRLF ('\\r\\n')"]
+fn new_header_with_crlf_should_panic() {
+    let _header = Header::new(HeaderName::USER_AGENT, b"\r\n");
+}
+
+#[test]
+#[should_panic = "header value contains CRLF ('\\r\\n')"]
+fn new_header_with_crlf_should_panic2() {
+    let _header = Header::new(HeaderName::USER_AGENT, b"some_text\r\n");
+}
+
+#[test]
+fn parse_header() {
+    const LENGTH: Header<'static, 'static> = Header::new(HeaderName::CONTENT_LENGTH, b"100");
+    assert_eq!(LENGTH.parse::<usize>().unwrap(), 100);
+}
+
+#[test]
 fn from_str_known_headers() {
     let known_headers = &[
         "allow",
