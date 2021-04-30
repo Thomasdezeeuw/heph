@@ -102,6 +102,8 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// see "Example 2 my ip" (in the examples directory of the source code) for an
 /// example of that.
 ///
+/// [`Terminate`]: heph::actor::messages::Terminate
+///
 /// # Examples
 ///
 /// TODO.
@@ -737,6 +739,10 @@ impl fmt::Display for RequestError {
 ///
 /// The message implements [`From`]`<`[`Terminate`]`>` and
 /// [`TryFrom`]`<`[`Signal`]`>` for the message, allowing for graceful shutdown.
+///
+/// [`Terminate`]: heph::actor::messages::Terminate
+/// [`TryFrom`]: std::convert::TryFrom
+/// [`Signal`]: heph::rt::Signal
 pub use heph::net::tcp::server::Message;
 
 /// Error returned by the [`HttpServer`] actor.
