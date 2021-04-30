@@ -20,7 +20,7 @@ pub struct Headers {
 }
 
 struct HeaderPart {
-    name: HeaderName,
+    name: HeaderName<'static>,
     /// Indices into `Headers.data`.
     start: usize,
     end: usize,
@@ -70,11 +70,11 @@ impl Headers {
     ///
     /// This doesn't check for duplicate headers, it just adds it to the list of
     /// headers.
-    pub fn add(&mut self, header: Header<'_>) {
+    pub fn add<'v>(&mut self, header: Header<'static, 'v>) {
         self._add(header.name, header.value)
     }
 
-    fn _add(&mut self, name: HeaderName, value: &[u8]) {
+    fn _add(&mut self, name: HeaderName<'static>, value: &[u8]) {
         let start = self.values.len();
         self.values.extend_from_slice(value);
         let end = self.values.len();
@@ -85,14 +85,12 @@ impl Headers {
     ///
     /// # Notes
     ///
-    /// This requires an owned `HeaderName` to avoid a clone. If all you need is
-    /// the header value you can use [`Headers::get_value`], which takes a
-    /// reference to `name`.
-    pub fn get<'a>(&'a self, name: HeaderName) -> Option<Header<'a>> {
+    /// If all you need is the header value you can use [`Headers::get_value`].
+    pub fn get<'a>(&'a self, name: &HeaderName<'_>) -> Option<Header<'a, 'a>> {
         for part in self.parts.iter() {
-            if part.name == name {
+            if part.name == *name {
                 return Some(Header {
-                    name,
+                    name: part.name.borrow(),
                     value: &self.values[part.start..part.end],
                 });
             }
@@ -101,7 +99,7 @@ impl Headers {
     }
 
     /// Get the header's value with `name`, if any.
-    pub fn get_value<'a>(&'a self, name: &HeaderName) -> Option<&[u8]> {
+    pub fn get_value<'a>(&'a self, name: &HeaderName) -> Option<&'a [u8]> {
         for part in self.parts.iter() {
             if part.name == *name {
                 return Some(&self.values[part.start..part.end]);
@@ -123,8 +121,8 @@ impl Headers {
     }
 }
 
-impl From<Header<'_>> for Headers {
-    fn from(header: Header<'_>) -> Headers {
+impl From<Header<'static, '_>> for Headers {
+    fn from(header: Header<'static, '_>) -> Headers {
         Headers {
             values: header.value.to_vec(),
             parts: vec![HeaderPart {
@@ -179,13 +177,12 @@ pub struct Iter<'a> {
 }
 
 impl<'a> Iterator for Iter<'a> {
-    type Item = Header<'a>;
+    type Item = Header<'a, 'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.headers.parts.get(self.pos).map(|part| {
             let header = Header {
-                // FIXME: try to avoid this clone?
-                name: part.name.clone(),
+                name: part.name.borrow(),
                 value: &self.headers.values[part.start..part.end],
             };
             self.pos += 1;
@@ -215,24 +212,24 @@ impl<'a> FusedIterator for Iter<'a> {}
 ///
 /// RFC 7230 section 3.2.
 #[derive(Clone)]
-pub struct Header<'a> {
-    name: HeaderName,
-    value: &'a [u8],
+pub struct Header<'n, 'v> {
+    name: HeaderName<'n>,
+    value: &'v [u8],
 }
 
-impl<'a> Header<'a> {
+impl<'n, 'v> Header<'n, 'v> {
     /// Create a new `Header`.
     ///
     /// # Notes
     ///
     /// `value` MUST NOT contain `\r\n`.
-    pub const fn new(name: HeaderName, value: &'a [u8]) -> Header<'a> {
+    pub const fn new(name: HeaderName<'n>, value: &'v [u8]) -> Header<'n, 'v> {
         debug_assert!(no_crlf(value));
         Header { name, value }
     }
 
     /// Returns the name of the header.
-    pub const fn name(&self) -> &HeaderName {
+    pub const fn name(&self) -> &HeaderName<'n> {
         &self.name
     }
 
@@ -250,7 +247,7 @@ impl<'a> Header<'a> {
     }
 }
 
-impl<'a> fmt::Debug for Header<'a> {
+impl<'n, 'v> fmt::Debug for Header<'n, 'v> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_struct("Header");
         f.field("name", &self.name);
@@ -265,17 +262,16 @@ impl<'a> fmt::Debug for Header<'a> {
 
 /// HTTP header name.
 #[derive(Clone, PartialEq, Eq)]
-pub struct HeaderName {
+pub struct HeaderName<'a> {
     /// The value MUST be lower case.
-    // TODO: consider exposing this lifetime.
-    inner: Cow<'static, str>,
+    inner: Cow<'a, str>,
 }
 
 /// Macro to create [`Name`] constants.
 macro_rules! known_headers {
     ($( ( $const_name: ident, $http_name: expr ), )+) => {
         $(
-            pub const $const_name: HeaderName = HeaderName::from_lowercase($http_name);
+            pub const $const_name: HeaderName<'static> = HeaderName::from_lowercase($http_name);
         )+
 
         /// Create a new HTTP header `HeaderName`.
@@ -283,7 +279,7 @@ macro_rules! known_headers {
         /// # Notes
         ///
         /// If `name` is static prefer to use [`HeaderName::from_lowercase`].
-        pub fn from_str(name: &str) -> HeaderName {
+        pub fn from_str(name: &str) -> HeaderName<'static> {
             // TODO: check performance of this. Does the match statement
             // outweight the allocation?
             // TODO: match case-insensitive.
@@ -296,7 +292,7 @@ macro_rules! known_headers {
     }
 }
 
-impl HeaderName {
+impl HeaderName<'static> {
     known_headers!(
         (ALLOW, "allow"),
         (CONTENT_LENGTH, "content-length"),
@@ -310,10 +306,20 @@ impl HeaderName {
     /// # Panics
     ///
     /// Panics if `name` is not all ASCII lowercase.
-    pub const fn from_lowercase(name: &'static str) -> HeaderName {
+    pub const fn from_lowercase(name: &'static str) -> HeaderName<'static> {
         assert!(is_lower_case(name));
         HeaderName {
             inner: Cow::Borrowed(name),
+        }
+    }
+
+    /// Borrow the header name for a shorter lifetime.
+    ///
+    /// This is used in things like [`Headers::get`] and [`Iter`] for `Headers`
+    /// to avoid clone heap-allocated `HeaderName`s.
+    fn borrow<'b>(&'b self) -> HeaderName<'b> {
+        HeaderName {
+            inner: Cow::Borrowed(self.as_ref()),
         }
     }
 }
@@ -333,8 +339,8 @@ const fn no_crlf(value: &[u8]) -> bool {
     true
 }
 
-impl From<String> for HeaderName {
-    fn from(mut name: String) -> HeaderName {
+impl From<String> for HeaderName<'static> {
+    fn from(mut name: String) -> HeaderName<'static> {
         name.make_ascii_lowercase();
         HeaderName {
             inner: Cow::Owned(name),
@@ -342,13 +348,13 @@ impl From<String> for HeaderName {
     }
 }
 
-impl AsRef<str> for HeaderName {
+impl<'a> AsRef<str> for HeaderName<'a> {
     fn as_ref(&self) -> &str {
         self.inner.as_ref()
     }
 }
 
-impl PartialEq<str> for HeaderName {
+impl<'a> PartialEq<str> for HeaderName<'a> {
     fn eq(&self, other: &str) -> bool {
         // NOTE: `self` is always lowercase, per the comment on the `inner`
         // field.
@@ -356,13 +362,13 @@ impl PartialEq<str> for HeaderName {
     }
 }
 
-impl fmt::Debug for HeaderName {
+impl<'a> fmt::Debug for HeaderName<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_ref())
     }
 }
 
-impl fmt::Display for HeaderName {
+impl<'a> fmt::Display for HeaderName<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(self.as_ref())
     }
