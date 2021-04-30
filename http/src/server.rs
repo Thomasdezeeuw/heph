@@ -11,11 +11,13 @@ use std::io::{self, IoSlice, Write};
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{self, Poll};
+use std::time::SystemTime;
 
 use heph::net::{tcp, TcpServer, TcpStream};
 use heph::spawn::{ActorOptions, Spawn};
 use heph::{actor, rt, Actor, NewActor, Supervisor};
 use httparse::EMPTY_HEADER;
+use httpdate::HttpDate;
 
 use crate::{FromBytes, HeaderName, Headers, Method, Request, Response, StatusCode, Version};
 
@@ -488,17 +490,28 @@ impl Connection {
 
         // Format the headers (RFC 7230 section 3.2).
         let mut set_content_length_header = false;
+        let mut set_date_header = false;
         for header in response.headers.iter() {
+            let name = header.name();
             // Field-name:
             // NOTE: spacing after the colon (`:`) is optional.
-            write!(&mut self.buf, "{}: ", header.name()).unwrap();
+            write!(&mut self.buf, "{}: ", name).unwrap();
             // Append the header's value.
             // NOTE: `header.value` shouldn't contain CRLF (`\r\n`).
             self.buf.extend_from_slice(header.value());
             self.buf.extend_from_slice(b"\r\n");
-            if *header.name() == HeaderName::CONTENT_LENGTH {
+
+            if name == &HeaderName::CONTENT_LENGTH {
                 set_content_length_header = true;
+            } else if name == &HeaderName::DATE {
+                set_date_header = true;
             }
+        }
+
+        // Provide the "Date" header if the user didn't.
+        if !set_date_header {
+            let now = HttpDate::from(SystemTime::now());
+            write!(&mut self.buf, "Date: {}\r\n", now).unwrap();
         }
 
         // Response body.
@@ -512,7 +525,7 @@ impl Connection {
             response.body.as_bytes()
         };
 
-        // Provide the "Conent-Length" if the user didn't.
+        // Provide the "Conent-Length" header if the user didn't.
         if !set_content_length_header {
             write!(&mut self.buf, "Content-Length: {}\r\n", body.len()).unwrap();
         }
