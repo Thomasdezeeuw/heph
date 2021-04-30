@@ -1,12 +1,12 @@
-use std::fmt;
+use std::{fmt, str};
 
 /// Analogous trait to the [`FromStr`] trait.
 ///
 /// [`FromStr`]: std::str::FromStr
-pub trait FromBytes: Sized {
+pub trait FromBytes<'a>: Sized {
     type Err;
 
-    fn from_bytes(value: &[u8]) -> Result<Self, Self::Err>;
+    fn from_bytes(value: &'a [u8]) -> Result<Self, Self::Err>;
 }
 
 #[derive(Debug)]
@@ -18,7 +18,7 @@ impl fmt::Display for ParseIntError {
     }
 }
 
-impl FromBytes for usize {
+impl FromBytes<'_> for usize {
     type Err = ParseIntError;
 
     fn from_bytes(src: &[u8]) -> Result<Self, Self::Err> {
@@ -40,5 +40,13 @@ impl FromBytes for usize {
             }
         }
         Ok(value)
+    }
+}
+
+impl<'a> FromBytes<'a> for &'a str {
+    type Err = str::Utf8Error;
+
+    fn from_bytes(src: &'a [u8]) -> Result<Self, Self::Err> {
+        str::from_utf8(src)
     }
 }

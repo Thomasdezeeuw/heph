@@ -241,7 +241,7 @@ impl<'n, 'v> Header<'n, 'v> {
     /// Parse the value of the header using `T`'s [`FromBytes`] implementation.
     pub fn parse<T>(&self) -> Result<T, T::Err>
     where
-        T: FromBytes,
+        T: FromBytes<'v>,
     {
         FromBytes::from_bytes(self.value)
     }
