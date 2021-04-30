@@ -1,0 +1,369 @@
+//! Module with HTTP header related types.
+
+// TODO: impl for `Headers`.
+// * FromIterator
+// * Extend
+
+use std::borrow::Cow;
+use std::convert::AsRef;
+use std::fmt;
+use std::iter::FusedIterator;
+
+use crate::{cmp_lower_case, is_lower_case, FromBytes};
+
+/// List of headers.
+pub struct Headers {
+    /// All values appended in a single allocation.
+    values: Vec<u8>,
+    /// All parts of the headers.
+    parts: Vec<HeaderPart>,
+}
+
+struct HeaderPart {
+    name: HeaderName,
+    /// Indices into `Headers.data`.
+    start: usize,
+    end: usize,
+}
+
+impl Headers {
+    /// Empty list of headers.
+    pub const EMPTY: Headers = Headers {
+        values: Vec::new(),
+        parts: Vec::new(),
+    };
+
+    /// Creates new `Headers` from `headers`.
+    ///
+    /// Calls `F` for each header.
+    pub(crate) fn from_httparse_headers<F, E>(
+        raw_headers: &[httparse::Header<'_>],
+        mut f: F,
+    ) -> Result<Headers, E>
+    where
+        F: FnMut(&HeaderName, &[u8]) -> Result<(), E>,
+    {
+        let values_len = raw_headers.iter().map(|h| h.value.len()).sum();
+        let mut headers = Headers {
+            values: Vec::with_capacity(values_len),
+            parts: Vec::with_capacity(raw_headers.len()),
+        };
+        for header in raw_headers {
+            let name = HeaderName::from_str(header.name);
+            let value = header.value;
+            if let Err(err) = f(&name, value) {
+                return Err(err);
+            }
+            headers._add(name, value);
+        }
+        Ok(headers)
+    }
+
+    /// Returns the number of headers.
+    pub fn len(&self) -> usize {
+        self.parts.len()
+    }
+
+    /// Add a new `header`.
+    ///
+    /// # Notes
+    ///
+    /// This doesn't check for duplicate headers, it just adds it to the list of
+    /// headers.
+    pub fn add(&mut self, header: Header<'_>) {
+        self._add(header.name, header.value)
+    }
+
+    fn _add(&mut self, name: HeaderName, value: &[u8]) {
+        let start = self.values.len();
+        self.values.extend_from_slice(value);
+        let end = self.values.len();
+        self.parts.push(HeaderPart { name, start, end });
+    }
+
+    /// Get the header with `name`, if any.
+    ///
+    /// # Notes
+    ///
+    /// This requires an owned `HeaderName` to avoid a clone. If all you need is
+    /// the header value you can use [`Headers::get_value`], which takes a
+    /// reference to `name`.
+    pub fn get<'a>(&'a self, name: HeaderName) -> Option<Header<'a>> {
+        for part in self.parts.iter() {
+            if part.name == name {
+                return Some(Header {
+                    name,
+                    value: &self.values[part.start..part.end],
+                });
+            }
+        }
+        None
+    }
+
+    /// Get the header's value with `name`, if any.
+    pub fn get_value<'a>(&'a self, name: &HeaderName) -> Option<&[u8]> {
+        for part in self.parts.iter() {
+            if part.name == *name {
+                return Some(&self.values[part.start..part.end]);
+            }
+        }
+        None
+    }
+
+    // TODO: remove header?
+
+    /// Returns an iterator over all headers.
+    ///
+    /// The order is unspecified.
+    pub fn iter<'a>(&'a self) -> Iter<'a> {
+        Iter {
+            headers: self,
+            pos: 0,
+        }
+    }
+}
+
+impl From<Header<'_>> for Headers {
+    fn from(header: Header<'_>) -> Headers {
+        Headers {
+            values: header.value.to_vec(),
+            parts: vec![HeaderPart {
+                name: header.name,
+                start: 0,
+                end: header.value.len(),
+            }],
+        }
+    }
+}
+
+/*
+/// # Notes
+///
+/// This clones the [`HeaderName`] in each header. For static headers, i.e. the
+/// `HeaderName::*` constants, this is a cheap operation, for customer headers
+/// this requires an allocation.
+impl From<&'_ [Header<'_>]> for Headers {
+    fn from(raw_headers: &'_ [Header<'_>]) -> Headers {
+        let values_len = raw_headers.iter().map(|h| h.value.len()).sum();
+        let mut headers = Headers {
+            values: Vec::with_capacity(values_len),
+            parts: Vec::with_capacity(raw_headers.len()),
+        };
+        for header in raw_headers {
+            headers._add(header.name.clone(), header.value);
+        }
+        headers
+    }
+}
+*/
+
+impl fmt::Debug for Headers {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut f = f.debug_map();
+        for part in self.parts.iter() {
+            let value = &self.values[part.start..part.end];
+            if let Ok(str) = std::str::from_utf8(value) {
+                f.entry(&part.name, &str);
+            } else {
+                f.entry(&part.name, &value);
+            }
+        }
+        f.finish()
+    }
+}
+
+/// Iterator for [`Headers`], see [`Headers::iter`].
+pub struct Iter<'a> {
+    headers: &'a Headers,
+    pos: usize,
+}
+
+impl<'a> Iterator for Iter<'a> {
+    type Item = Header<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.headers.parts.get(self.pos).map(|part| {
+            let header = Header {
+                // FIXME: try to avoid this clone?
+                name: part.name.clone(),
+                value: &self.headers.values[part.start..part.end],
+            };
+            self.pos += 1;
+            header
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+
+    fn count(self) -> usize {
+        self.len()
+    }
+}
+
+impl<'a> ExactSizeIterator for Iter<'a> {
+    fn len(&self) -> usize {
+        self.headers.len() - self.pos
+    }
+}
+
+impl<'a> FusedIterator for Iter<'a> {}
+
+/// HTTP header.
+///
+/// RFC 7230 section 3.2.
+#[derive(Clone)]
+pub struct Header<'a> {
+    name: HeaderName,
+    value: &'a [u8],
+}
+
+impl<'a> Header<'a> {
+    /// Create a new `Header`.
+    ///
+    /// # Notes
+    ///
+    /// `value` MUST NOT contain `\r\n`.
+    pub const fn new(name: HeaderName, value: &'a [u8]) -> Header<'a> {
+        debug_assert!(no_crlf(value));
+        Header { name, value }
+    }
+
+    /// Returns the name of the header.
+    pub const fn name(&self) -> &HeaderName {
+        &self.name
+    }
+
+    /// Returns the value of the header.
+    pub const fn value(&self) -> &[u8] {
+        self.value
+    }
+
+    /// Parse the value of the header using `T`'s [`FromBytes`] implementation.
+    pub fn parse<T>(&self) -> Result<T, T::Err>
+    where
+        T: FromBytes,
+    {
+        FromBytes::from_bytes(self.value)
+    }
+}
+
+impl<'a> fmt::Debug for Header<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut f = f.debug_struct("Header");
+        f.field("name", &self.name);
+        if let Ok(str) = std::str::from_utf8(self.value) {
+            f.field("value", &str);
+        } else {
+            f.field("value", &self.value);
+        }
+        f.finish()
+    }
+}
+
+/// HTTP header name.
+#[derive(Clone, PartialEq, Eq)]
+pub struct HeaderName {
+    /// The value MUST be lower case.
+    // TODO: consider exposing this lifetime.
+    inner: Cow<'static, str>,
+}
+
+/// Macro to create [`Name`] constants.
+macro_rules! known_headers {
+    ($( ( $const_name: ident, $http_name: expr ), )+) => {
+        $(
+            pub const $const_name: HeaderName = HeaderName::from_lowercase($http_name);
+        )+
+
+        /// Create a new HTTP header `HeaderName`.
+        ///
+        /// # Notes
+        ///
+        /// If `name` is static prefer to use [`HeaderName::from_lowercase`].
+        pub fn from_str(name: &str) -> HeaderName {
+            // TODO: check performance of this. Does the match statement
+            // outweight the allocation?
+            // TODO: match case-insensitive.
+            // TODO: optimise based on `name.len()`?
+            match name {
+                $( $http_name => HeaderName::$const_name, )+
+                _ => HeaderName::from(name.to_string()),
+            }
+        }
+    }
+}
+
+impl HeaderName {
+    known_headers!(
+        (ALLOW, "allow"),
+        (CONTENT_LENGTH, "content-length"),
+        (TRANSFER_ENCODING, "transfer-encoding"),
+        (USER_AGENT, "user-agent"),
+        (X_REQUEST_ID, "x-request-id"),
+    );
+
+    /// Create a new HTTP header `HeaderName`.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `name` is not all ASCII lowercase.
+    pub const fn from_lowercase(name: &'static str) -> HeaderName {
+        assert!(is_lower_case(name));
+        HeaderName {
+            inner: Cow::Borrowed(name),
+        }
+    }
+}
+
+/// Returns `true` if `value` does not contain `\r\n`.
+const fn no_crlf(value: &[u8]) -> bool {
+    if value.is_empty() {
+        return true;
+    }
+    let mut i = 1;
+    while i < value.len() - 1 {
+        if value[i - 1] == b'\r' && value[i] == b'\n' {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+impl From<String> for HeaderName {
+    fn from(mut name: String) -> HeaderName {
+        name.make_ascii_lowercase();
+        HeaderName {
+            inner: Cow::Owned(name),
+        }
+    }
+}
+
+impl AsRef<str> for HeaderName {
+    fn as_ref(&self) -> &str {
+        self.inner.as_ref()
+    }
+}
+
+impl PartialEq<str> for HeaderName {
+    fn eq(&self, other: &str) -> bool {
+        // NOTE: `self` is always lowercase, per the comment on the `inner`
+        // field.
+        cmp_lower_case(self.inner.as_ref(), other)
+    }
+}
+
+impl fmt::Debug for HeaderName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_ref())
+    }
+}
+
+impl fmt::Display for HeaderName {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_ref())
+    }
+}
