@@ -46,6 +46,8 @@ harness = false
 
 [workspace]
 members = [
+  "http",
   "tools",
+
   "benches/timers_container",
 ]
