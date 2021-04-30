@@ -19,6 +19,21 @@ pub enum Version {
 }
 
 impl Version {
+    /// Returns the major version.
+    pub const fn major(self) -> u8 {
+        match self {
+            Version::Http10 | Version::Http11 => 1,
+        }
+    }
+
+    /// Returns the minor version.
+    pub const fn minor(self) -> u8 {
+        match self {
+            Version::Http10 => 0,
+            Version::Http11 => 1,
+        }
+    }
+
     /// Returns the highest minor version with the same major version as `self`.
     ///
     /// According to RFC 7230 section 2.6:

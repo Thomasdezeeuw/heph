@@ -8,7 +8,23 @@ fn size() {
 }
 
 #[test]
-fn is_idempotent() {
+fn major() {
+    let tests = &[(Http10, 1), (Http11, 1)];
+    for (version, expected) in tests {
+        assert_eq!(version.major(), *expected);
+    }
+}
+
+#[test]
+fn minor() {
+    let tests = &[(Http10, 0), (Http11, 1)];
+    for (version, expected) in tests {
+        assert_eq!(version.minor(), *expected);
+    }
+}
+
+#[test]
+fn highest_minor() {
     let tests = &[(Http10, Http11), (Http11, Http11)];
     for (version, expected) in tests {
         assert_eq!(version.highest_minor(), *expected);
