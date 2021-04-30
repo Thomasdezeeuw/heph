@@ -1,4 +1,7 @@
+use std::fmt;
+
 use heph_http::header::{Header, HeaderName, Headers};
+use heph_http::FromBytes;
 
 use crate::assert_size;
 
@@ -7,6 +10,90 @@ fn sizes() {
     assert_size::<Headers>(48);
     assert_size::<Header>(48);
     assert_size::<HeaderName<'static>>(32);
+}
+
+#[test]
+fn headers_add_one_header() {
+    const VALUE: &[u8] = b"GET";
+
+    let mut headers = Headers::EMPTY;
+    headers.add(Header::new(HeaderName::ALLOW, VALUE));
+    assert_eq!(headers.len(), 1);
+
+    check_header(&headers, &HeaderName::ALLOW, VALUE, "GET");
+    check_iter(&headers, &[(HeaderName::ALLOW, VALUE)]);
+}
+
+#[test]
+fn headers_add_multiple_headers() {
+    const ALLOW: &[u8] = b"GET";
+    const CONTENT_LENGTH: &[u8] = b"123";
+    const X_REQUEST_ID: &[u8] = b"abc-def";
+
+    let mut headers = Headers::EMPTY;
+    headers.add(Header::new(HeaderName::ALLOW, ALLOW));
+    headers.add(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
+    headers.add(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
+    assert_eq!(headers.len(), 3);
+
+    check_header(&headers, &HeaderName::ALLOW, ALLOW, "GET");
+    check_header(&headers, &HeaderName::CONTENT_LENGTH, CONTENT_LENGTH, 123);
+    check_header(&headers, &HeaderName::X_REQUEST_ID, X_REQUEST_ID, "abc-def");
+    check_iter(
+        &headers,
+        &[
+            (HeaderName::ALLOW, ALLOW),
+            (HeaderName::CONTENT_LENGTH, CONTENT_LENGTH),
+            (HeaderName::X_REQUEST_ID, X_REQUEST_ID),
+        ],
+    );
+}
+
+#[test]
+fn headers_from_header() {
+    const VALUE: &[u8] = b"GET";
+    let header = Header::new(HeaderName::ALLOW, VALUE);
+    let headers = Headers::from(header.clone());
+    assert_eq!(headers.len(), 1);
+
+    check_header(&headers, &HeaderName::ALLOW, VALUE, "GET");
+    check_iter(&headers, &[(HeaderName::ALLOW, VALUE)]);
+}
+
+fn check_header<'a, T>(
+    headers: &'a Headers,
+    name: &'_ HeaderName<'_>,
+    value: &'_ [u8],
+    parsed_value: T,
+) where
+    T: FromBytes<'a> + PartialEq + fmt::Debug,
+    <T as FromBytes<'a>>::Err: fmt::Debug,
+{
+    let got = headers.get(name).unwrap();
+    assert_eq!(got.name(), name);
+    assert_eq!(got.value(), value);
+    assert_eq!(got.parse::<T>().unwrap(), parsed_value);
+
+    assert_eq!(headers.get_value(name).unwrap(), value);
+}
+
+fn check_iter(headers: &'_ Headers, expected: &[(HeaderName<'_>, &'_ [u8])]) {
+    let mut len = expected.len();
+    let mut iter = headers.iter();
+    assert_eq!(iter.len(), len);
+    assert_eq!(iter.size_hint(), (len, Some(len)));
+    for (name, value) in expected {
+        let got = iter.next().unwrap();
+        assert_eq!(got.name(), name);
+        assert_eq!(got.value(), *value);
+        len -= 1;
+        assert_eq!(iter.len(), len);
+        assert_eq!(iter.size_hint(), (len, Some(len)));
+    }
+    assert_eq!(iter.count(), 0);
+
+    let iter = headers.iter();
+    assert_eq!(iter.count(), expected.len());
 }
 
 #[test]
