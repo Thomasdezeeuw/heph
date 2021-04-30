@@ -41,6 +41,24 @@ fn is_idempotent() {
 }
 
 #[test]
+fn as_str() {
+    let tests = &[
+        (Get, "GET"),
+        (Head, "HEAD"),
+        (Post, "POST"),
+        (Put, "PUT"),
+        (Delete, "DELETE"),
+        (Connect, "CONNECT"),
+        (Options, "OPTIONS"),
+        (Trace, "TRACE"),
+        (Patch, "PATCH"),
+    ];
+    for (method, expected) in tests {
+        assert_eq!(method.as_str(), *expected);
+    }
+}
+
+#[test]
 fn from_str() {
     let tests = &[
         (Get, "GET"),

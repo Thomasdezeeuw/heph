@@ -68,12 +68,11 @@ impl Method {
     pub const fn is_idempotent(self) -> bool {
         matches!(self, Method::Put | Method::Delete) || self.is_safe()
     }
-}
 
-impl fmt::Display for Method {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    /// Returns the method as string.
+    pub const fn as_str(self) -> &'static str {
         use Method::*;
-        f.write_str(match self {
+        match self {
             Options => "OPTIONS",
             Get => "GET",
             Post => "POST",
@@ -83,7 +82,13 @@ impl fmt::Display for Method {
             Trace => "TRACE",
             Connect => "CONNECT",
             Patch => "PATCH",
-        })
+        }
+    }
+}
+
+impl fmt::Display for Method {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str(self.as_str())
     }
 }
 
