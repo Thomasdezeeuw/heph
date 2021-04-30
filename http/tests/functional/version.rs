@@ -26,6 +26,14 @@ fn from_str() {
 }
 
 #[test]
+fn as_str() {
+    let tests = &[(Http10, "HTTP/1.0"), (Http11, "HTTP/1.1")];
+    for (method, expected) in tests {
+        assert_eq!(method.as_str(), *expected);
+    }
+}
+
+#[test]
 fn fmt_display() {
     let tests = &[(Http10, "HTTP/1.0"), (Http11, "HTTP/1.1")];
     for (method, expected) in tests {
