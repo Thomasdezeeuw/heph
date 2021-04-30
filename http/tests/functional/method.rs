@@ -27,6 +27,7 @@ fn is_safe() {
         assert!(!method.is_safe());
     }
 }
+
 #[test]
 fn is_idempotent() {
     let idempotent = &[Get, Head, Put, Delete, Options, Trace];

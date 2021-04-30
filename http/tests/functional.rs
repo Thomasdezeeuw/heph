@@ -11,4 +11,5 @@ fn assert_size<T>(expected: usize) {
 mod functional {
     mod header;
     mod method;
+    mod version;
 }
