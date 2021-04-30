@@ -17,6 +17,12 @@ impl Body for Vec<u8> {
     }
 }
 
+impl Body for Cow<'_, [u8]> {
+    fn as_bytes(&self) -> &[u8] {
+        self.as_ref()
+    }
+}
+
 impl Body for str {
     fn as_bytes(&self) -> &[u8] {
         self.as_bytes()
