@@ -247,6 +247,21 @@ impl<'n, 'v> Header<'n, 'v> {
     }
 }
 
+/// Returns `true` if `value` does not contain `\r\n`.
+const fn no_crlf(value: &[u8]) -> bool {
+    if value.is_empty() {
+        return true;
+    }
+    let mut i = 1;
+    while i < value.len() - 1 {
+        if value[i - 1] == b'\r' && value[i] == b'\n' {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
 impl<'n, 'v> fmt::Debug for Header<'n, 'v> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_struct("Header");
@@ -269,10 +284,14 @@ pub struct HeaderName<'a> {
 
 /// Macro to create [`Name`] constants.
 macro_rules! known_headers {
-    ($( ( $const_name: ident, $http_name: expr ), )+) => {
-        $(
+    ($(
+        $length: tt: [
+            $( ( $const_name: ident, $http_name: expr ) $(,)* ),+
+        ],
+    )+) => {
+        $($(
             pub const $const_name: HeaderName<'static> = HeaderName::from_lowercase($http_name);
-        )+
+        )+)+
 
         /// Create a new HTTP header `HeaderName`.
         ///
@@ -280,25 +299,37 @@ macro_rules! known_headers {
         ///
         /// If `name` is static prefer to use [`HeaderName::from_lowercase`].
         pub fn from_str(name: &str) -> HeaderName<'static> {
-            // TODO: check performance of this. Does the match statement
-            // outweight the allocation?
-            // TODO: match case-insensitive.
-            // TODO: optimise based on `name.len()`?
-            match name {
-                $( $http_name => HeaderName::$const_name, )+
-                _ => HeaderName::from(name.to_string()),
+            // This first matches on the length of the `name`, then does a
+            // case-insensitive compare of the name with all known headers with
+            // the same length, returning a static version if a match is found.
+            match name.len() {
+                $(
+                $length => {
+                    $(
+                    if cmp_lower_case($http_name, name) {
+                        return HeaderName::$const_name;
+                    }
+                    )+
+                }
+                )+
+                _ => {}
             }
+            // If it's not a known header return a custom (heap-allocated)
+            // header name.
+            HeaderName::from(name.to_string())
         }
     }
 }
 
 impl HeaderName<'static> {
+    // NOTE: we adding here also add to the
+    // `functional::header::from_str_known_headers` test.
     known_headers!(
-        (ALLOW, "allow"),
-        (CONTENT_LENGTH, "content-length"),
-        (TRANSFER_ENCODING, "transfer-encoding"),
-        (USER_AGENT, "user-agent"),
-        (X_REQUEST_ID, "x-request-id"),
+        5: [ (ALLOW, "allow") ],
+        10: [ (USER_AGENT, "user-agent") ],
+        12: [ (X_REQUEST_ID, "x-request-id") ],
+        14: [ (CONTENT_LENGTH, "content-length") ],
+        17: [ (TRANSFER_ENCODING, "transfer-encoding") ],
     );
 
     /// Create a new HTTP header `HeaderName`.
@@ -307,7 +338,7 @@ impl HeaderName<'static> {
     ///
     /// Panics if `name` is not all ASCII lowercase.
     pub const fn from_lowercase(name: &'static str) -> HeaderName<'static> {
-        assert!(is_lower_case(name));
+        assert!(is_lower_case(name), "header name not lowercase");
         HeaderName {
             inner: Cow::Borrowed(name),
         }
@@ -322,21 +353,17 @@ impl HeaderName<'static> {
             inner: Cow::Borrowed(self.as_ref()),
         }
     }
-}
 
-/// Returns `true` if `value` does not contain `\r\n`.
-const fn no_crlf(value: &[u8]) -> bool {
-    if value.is_empty() {
-        return true;
+    /// Returns `true` if `self` is heap allocated.
+    ///
+    /// # Notes
+    ///
+    /// This is only header to test [`HeaderName::from_str`], not part of the
+    /// stable API.
+    #[doc(hidden)]
+    pub fn is_heap_allocated(&self) -> bool {
+        matches!(self.inner, Cow::Owned(_))
     }
-    let mut i = 1;
-    while i < value.len() - 1 {
-        if value[i - 1] == b'\r' && value[i] == b'\n' {
-            return false;
-        }
-        i += 1;
-    }
-    true
 }
 
 impl From<String> for HeaderName<'static> {
@@ -359,6 +386,12 @@ impl<'a> PartialEq<str> for HeaderName<'a> {
         // NOTE: `self` is always lowercase, per the comment on the `inner`
         // field.
         cmp_lower_case(self.inner.as_ref(), other)
+    }
+}
+
+impl<'a> PartialEq<&'_ str> for HeaderName<'a> {
+    fn eq(&self, other: &&str) -> bool {
+        self.eq(*other)
     }
 }
 
