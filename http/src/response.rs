@@ -1,6 +1,6 @@
 use std::fmt;
 
-use crate::{Header, Headers, StatusCode, Version};
+use crate::{Headers, StatusCode, Version};
 
 pub struct Response<B> {
     pub(crate) version: Version,

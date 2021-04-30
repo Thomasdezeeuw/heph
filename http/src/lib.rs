@@ -1,22 +1,4 @@
-#![allow(
-    unreachable_code,
-    unused_variables,
-    unused_mut,
-    dead_code,
-    unused_imports
-)] // FIXME: remove.
-#![feature(
-    const_eval_limit,
-    const_panic,
-    maybe_uninit_array_assume_init,
-    maybe_uninit_slice,
-    maybe_uninit_uninit_array,
-    maybe_uninit_write_slice
-)]
-
-use std::convert::AsRef;
-use std::fmt;
-use std::str::FromStr;
+#![feature(const_panic)]
 
 mod body;
 mod from_bytes;

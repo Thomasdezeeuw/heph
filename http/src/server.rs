@@ -6,28 +6,18 @@
 // TODO: chunked encoding.
 // TODO: reading request body.
 
-use std::convert::TryFrom;
 use std::fmt;
-use std::future::Future;
 use std::io::{self, IoSlice, Write};
 use std::net::SocketAddr;
-use std::os::raw::c_int;
 use std::pin::Pin;
-use std::sync::Arc;
 use std::task::{self, Poll};
 
-use heph::actor::messages::Terminate;
-use heph::net::{tcp, TcpListener, TcpServer, TcpStream};
-use heph::rt::Signal;
+use heph::net::{tcp, TcpServer, TcpStream};
 use heph::spawn::{ActorOptions, Spawn};
 use heph::{actor, rt, Actor, NewActor, Supervisor};
 use httparse::EMPTY_HEADER;
-use log::debug;
-use socket2::{Domain, Protocol, Socket, Type};
 
-use crate::{
-    FromBytes, Header, HeaderName, Headers, Method, Request, Response, StatusCode, Version,
-};
+use crate::{FromBytes, HeaderName, Headers, Method, Request, Response, StatusCode, Version};
 
 /// Maximum size of the header (the start line and the headers).
 ///
@@ -40,6 +30,7 @@ pub const MAX_HEADERS: usize = 64;
 
 /// Minimum amount of bytes read from the connection or the buffer will be
 /// grown.
+#[allow(dead_code)] // FIXME: use this in reading.
 const MIN_READ_SIZE: usize = 512;
 
 /// Size of the buffer used in [`Connection`].
@@ -75,7 +66,7 @@ where
 
     fn new(
         &mut self,
-        mut ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
+        ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         self.inner.new(ctx, arg).map(|inner| HttpServer { inner })
@@ -461,8 +452,6 @@ impl Connection {
     where
         B: crate::Body,
     {
-        use crate::Body;
-
         // Bytes of the (next) request.
         self.clear_buffer();
         let ignore_end = self.buf.len();

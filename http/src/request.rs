@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use crate::{Header, Headers, Method, Version};
+use crate::{Headers, Method, Version};
 
 pub struct Request<B> {
     pub(crate) method: Method,
