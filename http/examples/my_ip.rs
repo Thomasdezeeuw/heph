@@ -80,7 +80,7 @@ async fn http_actor(
     loop {
         match connection.next_request().await? {
             Ok(Some(mut request)) => {
-                debug!("received request: {:?}", request);
+                info!("received request: {:?}", request);
                 let mut headers = Headers::EMPTY;
                 let (code, body) = if request.path() != "/" {
                     request.body_mut().ignore()?;
