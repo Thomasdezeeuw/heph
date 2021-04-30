@@ -135,6 +135,10 @@ fn from_str_known_headers() {
     for name in known_headers {
         let header_name = HeaderName::from_str(name);
         assert!(!header_name.is_heap_allocated(), "header: {}", name);
+
+        // Matching should be case-insensitive.
+        let header_name = HeaderName::from_str(&name.to_uppercase());
+        assert!(!header_name.is_heap_allocated(), "header: {}", name);
     }
 }
 
