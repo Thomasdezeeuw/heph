@@ -1,14 +1,20 @@
+//! Module with HTTP version related types.
+
 use std::fmt;
 use std::str::FromStr;
 
 /// HTTP version.
 ///
 /// RFC 7231 section 2.6.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Version {
     /// HTTP/1.0.
+    ///
+    /// RFC 1945.
     Http10,
     /// HTTP/1.1.
+    ///
+    /// RFC 7230.
     Http11,
 }
 
@@ -41,6 +47,12 @@ impl fmt::Display for Version {
 /// Error returned by the [`FromStr`] implementation for [`Version`].
 #[derive(Copy, Clone, Debug)]
 pub struct UnknownVersion;
+
+impl fmt::Display for UnknownVersion {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("unknown version")
+    }
+}
 
 impl FromStr for Version {
     type Err = UnknownVersion;
