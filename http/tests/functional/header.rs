@@ -127,6 +127,7 @@ fn parse_header() {
 #[test]
 fn from_str_known_headers() {
     let known_headers = &[
+        "date",
         "allow",
         "user-agent",
         "x-request-id",

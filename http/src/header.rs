@@ -322,6 +322,7 @@ impl HeaderName<'static> {
     // NOTE: we adding here also add to the
     // `functional::header::from_str_known_headers` test.
     known_headers!(
+        4: [ (DATE, "date") ],
         5: [ (ALLOW, "allow") ],
         10: [ (USER_AGENT, "user-agent") ],
         12: [ (X_REQUEST_ID, "x-request-id") ],
