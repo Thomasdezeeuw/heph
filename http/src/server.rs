@@ -375,13 +375,7 @@ impl Connection {
                         size,
                         left: size,
                     };
-                    return Ok(Ok(Some(Request {
-                        method,
-                        version,
-                        path,
-                        headers,
-                        body,
-                    })));
+                    return Ok(Ok(Some(Request::new(method, path, version, headers, body))));
                 }
                 Ok(httparse::Status::Partial) => {
                     // Buffer doesn't include the entire request header, try

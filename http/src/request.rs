@@ -1,18 +1,34 @@
-// TODO: see if we can have a borrowed version of `Request`.
-
 use std::fmt;
 
 use crate::{Headers, Method, Version};
 
+/// HTTP request.
 pub struct Request<B> {
-    pub(crate) method: Method,
-    pub(crate) path: String,
-    pub(crate) version: Version,
-    pub(crate) headers: Headers,
-    pub(crate) body: B,
+    method: Method,
+    path: String,
+    version: Version,
+    headers: Headers,
+    body: B,
 }
 
 impl<B> Request<B> {
+    /// Create a new request.
+    pub const fn new(
+        method: Method,
+        path: String,
+        version: Version,
+        headers: Headers,
+        body: B,
+    ) -> Request<B> {
+        Request {
+            method,
+            version,
+            path,
+            headers,
+            body,
+        }
+    }
+
     /// Returns the HTTP version of this request.
     ///
     /// # Notes
@@ -23,32 +39,39 @@ impl<B> Request<B> {
     /// understands) per RFC 7230 section 2.6.
     ///
     /// [`HttpServer`]: crate::HttpServer
-    pub fn version(&self) -> Version {
+    pub const fn version(&self) -> Version {
         self.version
     }
 
     /// Returns the HTTP method of this request.
-    pub fn method(&self) -> Method {
+    pub const fn method(&self) -> Method {
         self.method
     }
 
+    /// Returns the path of this request.
     pub fn path(&self) -> &str {
         &self.path
     }
 
-    pub fn headers(&self) -> &Headers {
+    /// Returns the headers.
+    pub const fn headers(&self) -> &Headers {
         &self.headers
     }
 
-    pub fn body(&self) -> &B {
+    /// Returns mutable access to the headers.
+    pub fn headers_mut(&mut self) -> &mut Headers {
+        &mut self.headers
+    }
+
+    /// The request body.
+    pub const fn body(&self) -> &B {
         &self.body
     }
 
+    /// Mutable access to the request body.
     pub fn body_mut(&mut self) -> &mut B {
         &mut self.body
     }
-
-    // TODO: maybe `fn split_body(self) -> (Request<()>, B)`?
 }
 
 impl<B> fmt::Debug for Request<B> {
