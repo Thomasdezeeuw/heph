@@ -82,13 +82,13 @@ async fn http_actor(
             Ok(Some(mut request)) => {
                 debug!("received request: {:?}", request);
                 let mut headers = Headers::EMPTY;
-                let (code, body) = if !matches!(request.method(), Method::Get | Method::Head) {
+                let (code, body) = if request.path() != "/" {
+                    request.body_mut().ignore()?;
+                    (StatusCode::NOT_FOUND, "Not found".into())
+                } else if !matches!(request.method(), Method::Get | Method::Head) {
                     request.body_mut().ignore()?;
                     headers.add(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
                     (StatusCode::METHOD_NOT_ALLOWED, "Method not allowed".into())
-                } else if request.path() != "/" {
-                    request.body_mut().ignore()?;
-                    (StatusCode::NOT_FOUND, "Not found".into())
                 } else if request.body().len() != 0 {
                     request.body_mut().ignore()?;
                     let body = Cow::from("Not expecting a body");
