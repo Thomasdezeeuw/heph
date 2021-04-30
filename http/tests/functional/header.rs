@@ -37,7 +37,8 @@ fn headers_add_multiple_headers() {
     assert_eq!(headers.len(), 3);
 
     check_header(&headers, &HeaderName::ALLOW, ALLOW, "GET");
-    check_header(&headers, &HeaderName::CONTENT_LENGTH, CONTENT_LENGTH, 123);
+    #[rustfmt::skip]
+    check_header(&headers, &HeaderName::CONTENT_LENGTH, CONTENT_LENGTH, 123usize);
     check_header(&headers, &HeaderName::X_REQUEST_ID, X_REQUEST_ID, "abc-def");
     check_iter(
         &headers,
