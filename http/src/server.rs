@@ -7,7 +7,7 @@
 // TODO: reading request body.
 
 use std::fmt;
-use std::io::{self, IoSlice, Write};
+use std::io::{self, Write};
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{self, Poll};
@@ -19,6 +19,7 @@ use heph::{actor, rt, Actor, NewActor, Supervisor};
 use httparse::EMPTY_HEADER;
 use httpdate::HttpDate;
 
+use crate::body::BodyLength;
 use crate::{FromBytes, HeaderName, Headers, Method, Request, Response, StatusCode, Version};
 
 /// Maximum size of the header (the start line and the headers).
@@ -409,6 +410,7 @@ impl Connection {
     /// ```
     /// use heph_http::{Response, Headers, StatusCode, Version};
     /// use heph_http::server::{Connection, RequestError};
+    /// use heph_http::body::OneshotBody;
     ///
     /// # return;
     /// # #[allow(unreachable_code)]
@@ -424,6 +426,7 @@ impl Connection {
     /// // here).
     /// let version = conn.last_request_version().unwrap_or(Version::Http11);
     /// let body = format!("Bad request: {}", err);
+    /// let body = OneshotBody::new(body.as_bytes());
     /// let response = Response::new(version, StatusCode::BAD_REQUEST, Headers::EMPTY, body);
     ///
     /// // Respond with the response.
@@ -446,7 +449,7 @@ impl Connection {
     /// `response`.
     ///
     /// This doesn't include the body if the response is to a HEAD request.
-    pub async fn respond<B>(&mut self, response: Response<B>) -> io::Result<()>
+    pub async fn respond<B>(&mut self, mut response: Response<B>) -> io::Result<()>
     where
         B: crate::Body,
     {
@@ -509,31 +512,35 @@ impl Connection {
             write!(&mut self.buf, "Date: {}\r\n", now).unwrap();
         }
 
-        // Response body.
-        let body = if let Some(Method::Head) = self.last_method {
-            // RFC 7231 section 4.3.2:
-            // > The HEAD method is identical to GET except that the server MUST
-            // > NOT send a message body in the response (i.e., the response
-            // > terminates at the end of the header section).
-            &[]
-        } else {
-            response.body().as_bytes()
-        };
-
         // Provide the "Conent-Length" header if the user didn't.
         if !set_content_length_header {
-            write!(&mut self.buf, "Content-Length: {}\r\n", body.len()).unwrap();
+            let body_length = if let Some(Method::Head) = self.last_method {
+                // RFC 7231 section 4.3.2:
+                // > The HEAD method is identical to GET except that the server
+                // > MUST NOT send a message body in the response (i.e., the
+                // > response terminates at the end of the header section).
+                0
+            } else {
+                match response.body().length() {
+                    BodyLength::Known(length) => length,
+                    BodyLength::Chunked => todo!("chunked response body"),
+                }
+            };
+
+            write!(&mut self.buf, "Content-Length: {}\r\n", body_length).unwrap();
         }
 
         // End of the header.
         self.buf.extend_from_slice(b"\r\n");
 
-        // Write the response to the connection.
-        let header = IoSlice::new(&self.buf[ignore_end..]);
-        let body = IoSlice::new(body);
-        self.stream.send_vectored_all(&mut [header, body]).await?;
+        // Write the response to the stream.
+        let head = &self.buf[ignore_end..];
+        response
+            .body_mut()
+            .write_response(&mut self.stream, head)
+            .await?;
 
-        // Remove the response from the buffer.
+        // Remove the response headers from the buffer.
         self.buf.truncate(ignore_end);
         Ok(())
     }
