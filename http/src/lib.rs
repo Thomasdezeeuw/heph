@@ -1,6 +1,7 @@
-#![feature(const_panic)]
+#![feature(async_stream, const_panic, generic_associated_types, io_slice_advance)]
+#![allow(incomplete_features)] // NOTE: for `generic_associated_types`.
 
-mod body;
+pub mod body;
 mod from_bytes;
 pub mod header;
 pub mod method;
@@ -10,6 +11,7 @@ pub mod server;
 mod status_code;
 pub mod version;
 
+#[doc(no_inline)]
 pub use body::Body;
 pub use from_bytes::FromBytes;
 #[doc(no_inline)]

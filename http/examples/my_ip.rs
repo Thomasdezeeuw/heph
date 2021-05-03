@@ -9,6 +9,7 @@ use heph::net::TcpStream;
 use heph::rt::{self, Runtime, ThreadLocal};
 use heph::spawn::options::{ActorOptions, Priority};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
+use heph_http::body::OneshotBody;
 use heph_http::{
     self as http, Header, HeaderName, Headers, HttpServer, Method, Response, StatusCode, Version,
 };
@@ -101,6 +102,7 @@ async fn http_actor(
                     (StatusCode::OK, body)
                 };
                 let version = request.version().highest_minor();
+                let body = OneshotBody::new(body.as_bytes());
                 let response = Response::new(version, code, headers, body);
                 debug!("sending response: {:?}", response);
                 connection.respond(response).await?;
@@ -115,6 +117,7 @@ async fn http_actor(
                     .last_request_version()
                     .unwrap_or(Version::Http11)
                     .highest_minor();
+                let body = OneshotBody::new(body.as_bytes());
                 let response = Response::new(version, code, Headers::EMPTY, body);
                 debug!("sending response: {:?}", response);
                 connection.respond(response).await?;
