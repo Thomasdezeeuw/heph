@@ -397,6 +397,16 @@ pub trait BytesVectored {
     /// Returns itself as a slice of [`MaybeUninitSlice`].
     fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b>;
 
+    /// Returns the total length of the buffers as returned by [`as_bufs`].
+    ///
+    /// [`as_bufs`]: BytesVectored::as_bufs
+    fn spare_capacity(&self) -> usize;
+
+    /// Returns `true` if (one of) the buffers has spare capacity.
+    fn has_spare_capacity(&self) -> bool {
+        self.spare_capacity() == 0
+    }
+
     /// Update the length of the buffers in the slice.
     ///
     /// # Safety
@@ -425,6 +435,14 @@ where
         (&mut **self).as_bufs()
     }
 
+    fn spare_capacity(&self) -> usize {
+        (&**self).spare_capacity()
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        (&**self).has_spare_capacity()
+    }
+
     unsafe fn update_lengths(&mut self, n: usize) {
         (&mut **self).update_lengths(n)
     }
@@ -443,6 +461,14 @@ where
         }
         // Safety: initialised the buffers above.
         unsafe { MaybeUninit::array_assume_init(bufs) }
+    }
+
+    fn spare_capacity(&self) -> usize {
+        self.iter().map(|b| b.spare_capacity()).sum()
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        self.iter().any(|b| b.has_spare_capacity())
     }
 
     unsafe fn update_lengths(&mut self, n: usize) {
@@ -472,6 +498,14 @@ macro_rules! impl_vectored_bytes_tuple {
                 )+
                 // Safety: initialised the buffers above.
                 unsafe { MaybeUninit::array_assume_init(bufs) }
+            }
+
+            fn spare_capacity(&self) -> usize {
+                $( self.$idx.spare_capacity() + )+ 0
+            }
+
+            fn has_spare_capacity(&self) -> bool {
+                $( self.$idx.has_spare_capacity() || )+ false
             }
 
             unsafe fn update_lengths(&mut self, n: usize) {
