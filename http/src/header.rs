@@ -24,7 +24,7 @@ pub struct Headers {
 
 struct HeaderPart {
     name: HeaderName<'static>,
-    /// Indices into `Headers.data`.
+    /// Indices into `Headers.values`.
     start: usize,
     end: usize,
 }
