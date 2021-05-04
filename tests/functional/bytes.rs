@@ -88,12 +88,19 @@ fn dont_overwrite_existing_bytes_in_vec() {
 #[test]
 fn vectored_array() {
     let mut bufs = [Vec::with_capacity(1), Vec::with_capacity(DATA.len())];
+    assert_eq!(bufs.spare_capacity(), 1 + DATA.len());
+    assert!(bufs.has_spare_capacity());
     let n = write_bytes_vectored(DATA, &mut bufs);
     assert_eq!(n, DATA.len());
     assert_eq!(bufs[0].len(), 1);
     assert_eq!(bufs[1].len(), DATA.len() - 1);
     assert_eq!(bufs[0], &DATA[..1]);
     assert_eq!(bufs[1], &DATA[1..]);
+    assert_eq!(bufs.spare_capacity(), 1);
+    assert!(bufs.has_spare_capacity());
+    bufs[1].push(b'a');
+    assert_eq!(bufs.spare_capacity(), 0);
+    assert!(!bufs.has_spare_capacity());
 }
 
 #[test]
@@ -103,6 +110,8 @@ fn vectored_tuple() {
         Vec::with_capacity(3),
         Vec::with_capacity(DATA.len()),
     );
+    assert_eq!(bufs.spare_capacity(), 1 + 3 + DATA.len());
+    assert!(bufs.has_spare_capacity());
     let n = write_bytes_vectored(DATA, &mut bufs);
     assert_eq!(n, DATA.len());
     assert_eq!(bufs.0.len(), 1);
@@ -111,4 +120,9 @@ fn vectored_tuple() {
     assert_eq!(bufs.0, &DATA[..1]);
     assert_eq!(bufs.1, &DATA[1..4]);
     assert_eq!(bufs.2, &DATA[4..]);
+    assert_eq!(bufs.spare_capacity(), 4);
+    assert!(bufs.has_spare_capacity());
+    bufs.2.extend_from_slice(b"aaaa");
+    assert_eq!(bufs.spare_capacity(), 0);
+    assert!(!bufs.has_spare_capacity());
 }
