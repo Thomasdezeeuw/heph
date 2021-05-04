@@ -73,50 +73,51 @@ async fn http_actor(
     mut connection: http::Connection,
     address: SocketAddr,
 ) -> io::Result<()> {
-    info!("accepted connection: address={}", address);
+    info!("accepted connection: source={}", address);
     connection.set_nodelay(true)?;
 
     loop {
-        match connection.next_request().await? {
-            Ok(Some(mut request)) => {
-                info!("received request: {:?}", request);
-                let mut headers = Headers::EMPTY;
-                let (code, body) = if request.path() != "/" {
-                    request.body_mut().ignore()?;
-                    (StatusCode::NOT_FOUND, "Not found".into())
+        let mut headers = Headers::EMPTY;
+        let (code, body, should_close) = match connection.next_request().await? {
+            Ok(Some(request)) => {
+                info!("received request: {:?}: source={}", request, address);
+                if request.path() != "/" {
+                    (StatusCode::NOT_FOUND, "Not found".into(), false)
                 } else if !matches!(request.method(), Method::Get | Method::Head) {
-                    request.body_mut().ignore()?;
                     headers.add(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
-                    (StatusCode::METHOD_NOT_ALLOWED, "Method not allowed".into())
+                    let body = "Method not allowed".into();
+                    (StatusCode::METHOD_NOT_ALLOWED, body, false)
                 } else if request.body().len() != 0 {
-                    request.body_mut().ignore()?;
                     let body = Cow::from("Not expecting a body");
-                    (StatusCode::PAYLOAD_TOO_LARGE, body)
+                    (StatusCode::PAYLOAD_TOO_LARGE, body, true)
                 } else {
                     // This will allocate a new string which isn't the most
                     // efficient way to do this, but it's the easiest so we'll
                     // keep this for sake of example.
                     let body = Cow::from(address.ip().to_string());
-                    (StatusCode::OK, body)
-                };
-                debug!("sending response: code={}, body='{}'", code, body);
-                let body = OneshotBody::new(body.as_bytes());
-                connection.respond(code, headers, body).await?;
+                    (StatusCode::OK, body, true)
+                }
             }
             // No more requests.
             Ok(None) => return Ok(()),
             Err(err) => {
                 warn!("error reading request: {}: source={}", err, address);
                 let code = err.proper_status_code();
-                let body = format!("Bad request: {}", err);
-                debug!("sending erorr response: code={}, body='{}'", code, body);
-                let body = OneshotBody::new(body.as_bytes());
-                connection.respond(code, Headers::EMPTY, body).await?;
-                if err.should_close() {
-                    warn!("closing connection after error: {}", err);
-                    return Ok(());
-                }
+                let body = Cow::from(format!("Bad request: {}", err));
+                (code, body, err.should_close())
             }
+        };
+
+        debug!(
+            "sending response: code={}, body='{}', source={}",
+            code, body, address
+        );
+        let body = OneshotBody::new(body.as_bytes());
+        connection.respond(code, headers, body).await?;
+
+        if should_close {
+            warn!("closing connection: source={}", address);
+            return Ok(());
         }
     }
 }
