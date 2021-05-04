@@ -93,6 +93,16 @@ pub trait Bytes {
     /// [`update_length`]: Bytes::update_length
     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>];
 
+    /// Returns the length of the buffer as returned by [`as_bytes`].
+    ///
+    /// [`as_bytes`]: Bytes::as_bytes
+    fn spare_capacity(&self) -> usize;
+
+    /// Returns `true` if the buffer has spare capacity.
+    fn has_spare_capacity(&self) -> bool {
+        self.spare_capacity() == 0
+    }
+
     /// Update the length of the byte slice, marking `n` bytes as initialised.
     ///
     /// # Safety
@@ -116,6 +126,14 @@ where
 {
     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
         (&mut **self).as_bytes()
+    }
+
+    fn spare_capacity(&self) -> usize {
+        (&**self).spare_capacity()
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        (&**self).has_spare_capacity()
     }
 
     unsafe fn update_length(&mut self, n: usize) {
@@ -158,6 +176,14 @@ impl Bytes for Vec<u8> {
     // NOTE: keep this function in sync with the impl below.
     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
         self.spare_capacity_mut()
+    }
+
+    fn spare_capacity(&self) -> usize {
+        self.capacity() - self.len()
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        self.capacity() != self.len()
     }
 
     unsafe fn update_length(&mut self, n: usize) {
@@ -349,6 +375,14 @@ impl<'a> DerefMut for MaybeUninitSlice<'a> {
 /// impl Bytes for StackBuf {
 ///     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
 ///         &mut self.bytes[self.initialised..]
+///     }
+///
+///     fn spare_capacity(&self) -> usize {
+///         self.bytes.len() - self.initialised
+///     }
+///
+///     fn has_spare_capacity(&self) -> bool {
+///         self.bytes.len() != self.initialised
 ///     }
 ///
 ///     unsafe fn update_length(&mut self, n: usize) {
