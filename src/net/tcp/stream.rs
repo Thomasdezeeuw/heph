@@ -911,8 +911,8 @@ where
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         #[rustfmt::skip]
         let SendFileAll { stream, file, start, end } = Pin::into_inner(self);
-        let length = end.and_then(|end| NonZeroUsize::new(end.get() - *start));
         loop {
+            let length = end.and_then(|end| NonZeroUsize::new(end.get() - *start));
             match stream.try_send_file(*file, *start, length) {
                 // If zero bytes are send it means the entire file was send.
                 Ok(0) => break Poll::Ready(Ok(())),
