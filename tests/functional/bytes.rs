@@ -12,7 +12,9 @@ fn write_bytes<B>(src: &[u8], mut buf: B) -> usize
 where
     B: Bytes,
 {
+    let spare_capacity = buf.spare_capacity();
     let dst = buf.as_bytes();
+    assert_eq!(dst.len(), spare_capacity);
     let len = min(src.len(), dst.len());
     // Safety: both the `src` and `dst` pointers are good. And we've ensured
     // that the length is correct, not overwriting data we don't own or reading
@@ -52,22 +54,35 @@ where
 #[test]
 fn impl_for_vec() {
     let mut buf = Vec::<u8>::with_capacity(2 * DATA.len());
+    assert_eq!(buf.spare_capacity(), 2 * DATA.len());
+    assert!(buf.has_spare_capacity());
     let n = write_bytes(DATA, &mut buf);
     assert_eq!(n, DATA.len());
     assert_eq!(buf.len(), DATA.len());
     assert_eq!(&*buf, DATA);
+    assert_eq!(buf.spare_capacity(), DATA.len());
+    assert!(buf.has_spare_capacity());
 }
 
 #[test]
 fn dont_overwrite_existing_bytes_in_vec() {
     let mut buf = Vec::<u8>::with_capacity(2 * DATA.len());
+    assert_eq!(buf.spare_capacity(), 2 * DATA.len());
+    assert!(buf.has_spare_capacity());
     buf.extend(DATA2);
+    assert_eq!(buf.spare_capacity(), 2 * DATA.len() - DATA2.len());
+    assert!(buf.has_spare_capacity());
     let start = buf.len();
     let n = write_bytes(DATA, &mut buf);
     assert_eq!(n, DATA.len());
     assert_eq!(buf.len(), DATA2.len() + DATA.len());
     assert_eq!(&buf[..start], DATA2); // Original bytes untouched.
     assert_eq!(&buf[start..start + n], DATA);
+    assert_eq!(buf.spare_capacity(), 1);
+    assert!(buf.has_spare_capacity());
+    buf.push(b'a');
+    assert_eq!(buf.spare_capacity(), 0);
+    assert!(!buf.has_spare_capacity());
 }
 
 #[test]
