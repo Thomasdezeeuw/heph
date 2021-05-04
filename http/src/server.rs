@@ -765,13 +765,7 @@ where
         }
 
         // Read from the stream if there is space left.
-        let buf_len = bufs
-            .as_bufs()
-            .as_mut()
-            .iter()
-            .map(|b| b.len())
-            .sum::<usize>();
-        if buf_len != 0 {
+        if bufs.has_spare_capacity() {
             loop {
                 match body.conn.stream.try_recv_vectored(&mut *bufs) {
                     Ok(n) => return Poll::Ready(Ok(len + n)),
