@@ -61,6 +61,18 @@ fn is_server_error() {
 }
 
 #[test]
+fn includes_body() {
+    let no_body = &[100, 101, 199, 204, 304];
+    for status in no_body {
+        assert!(!StatusCode(*status).includes_body());
+    }
+    let has_body = &[0, 10, 200, 201, 203, 205, 300, 301, 303, 305, 400, 500, 999];
+    for status in has_body {
+        assert!(StatusCode(*status).includes_body());
+    }
+}
+
+#[test]
 fn phrase() {
     #[rustfmt::skip]
     let tests = &[
