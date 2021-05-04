@@ -232,8 +232,8 @@ mod private {
     }
 }
 
-pub(crate) use private::PrivateBody;
-use private::{SendFileBody, SendOneshotBody, SendStreamingBody};
+pub(crate) use private::{PrivateBody, SendStreamingBody};
+use private::{SendFileBody, SendOneshotBody};
 
 /// An empty body.
 #[derive(Debug)]
