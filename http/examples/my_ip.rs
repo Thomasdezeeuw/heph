@@ -10,9 +10,7 @@ use heph::rt::{self, Runtime, ThreadLocal};
 use heph::spawn::options::{ActorOptions, Priority};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph_http::body::OneshotBody;
-use heph_http::{
-    self as http, Header, HeaderName, Headers, HttpServer, Method, Response, StatusCode, Version,
-};
+use heph_http::{self as http, Header, HeaderName, Headers, HttpServer, Method, StatusCode};
 use log::{debug, error, info, warn};
 
 fn main() -> Result<(), rt::Error> {
@@ -101,11 +99,9 @@ async fn http_actor(
                     let body = Cow::from(address.ip().to_string());
                     (StatusCode::OK, body)
                 };
-                let version = request.version().highest_minor();
+                debug!("sending response: code={}, body='{}'", code, body);
                 let body = OneshotBody::new(body.as_bytes());
-                let response = Response::new(version, code, headers, body);
-                debug!("sending response: {:?}", response);
-                connection.respond(response).await?;
+                connection.respond(code, headers, body).await?;
             }
             // No more requests.
             Ok(None) => return Ok(()),
@@ -113,16 +109,11 @@ async fn http_actor(
                 warn!("error reading request: {}: source={}", err, address);
                 let code = err.proper_status_code();
                 let body = format!("Bad request: {}", err);
-                let version = connection
-                    .last_request_version()
-                    .unwrap_or(Version::Http11)
-                    .highest_minor();
+                debug!("sending erorr response: code={}, body='{}'", code, body);
                 let body = OneshotBody::new(body.as_bytes());
-                let response = Response::new(version, code, Headers::EMPTY, body);
-                debug!("sending response: {:?}", response);
-                connection.respond(response).await?;
+                connection.respond(code, Headers::EMPTY, body).await?;
                 if err.should_close() {
-                    connection.close();
+                    warn!("closing connection after error: {}", err);
                     return Ok(());
                 }
             }

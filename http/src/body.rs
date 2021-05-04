@@ -21,7 +21,7 @@ use heph::net::tcp::stream::{FileSend, SendAll, TcpStream};
 ///   uses HTTP chunked encoding to transfer the body.
 /// * [`FileBody`]: uses a file as body, sending it's content using the
 ///   `sendfile(2)` system call.
-pub trait Body: PrivateBody {
+pub trait Body<'a>: PrivateBody<'a> {
     /// Length of the body, or the body will be chunked.
     fn length(&self) -> BodyLength;
 }
@@ -47,18 +47,20 @@ mod private {
     use heph::net::TcpStream;
 
     /// Private extention of [`PrivateBody`].
-    pub trait PrivateBody {
-        type WriteBody<'s, 'b>: Future<Output = io::Result<()>>;
+    pub trait PrivateBody<'a> {
+        type WriteBody<'stream, 'head>: Future<Output = io::Result<()>>;
 
         /// Write the response to `stream`.
         ///
         /// The `http_head` buffer contains the HTTP header (i.e. status line
         /// and all headers), this must still be written to the `stream` also.
-        fn write_response<'s, 'b>(
-            &'b mut self,
-            stream: &'s mut TcpStream,
-            http_head: &'b [u8],
-        ) -> Self::WriteBody<'s, 'b>;
+        fn write_response<'stream, 'head>(
+            self,
+            stream: &'stream mut TcpStream,
+            http_head: &'head [u8],
+        ) -> Self::WriteBody<'stream, 'head>
+        where
+            'a: 'head;
     }
 
     /// See [`OneshotBody`].
@@ -237,20 +239,23 @@ use private::{SendFileBody, SendOneshotBody, SendStreamingBody};
 #[derive(Debug)]
 pub struct EmptyBody;
 
-impl Body for EmptyBody {
+impl Body<'_> for EmptyBody {
     fn length(&self) -> BodyLength {
         BodyLength::Known(0)
     }
 }
 
-impl PrivateBody for EmptyBody {
-    type WriteBody<'s, 'b> = SendAll<'s, 'b>;
+impl<'a> PrivateBody<'a> for EmptyBody {
+    type WriteBody<'s, 'h> = SendAll<'s, 'h>;
 
-    fn write_response<'s, 'b>(
-        &'b mut self,
+    fn write_response<'s, 'h>(
+        self,
         stream: &'s mut TcpStream,
-        http_head: &'b [u8],
-    ) -> Self::WriteBody<'s, 'b> {
+        http_head: &'h [u8],
+    ) -> Self::WriteBody<'s, 'h>
+    where
+        'a: 'h,
+    {
         // Just need to write the HTTP head as we don't have a body.
         stream.send_all(http_head)
     }
@@ -270,20 +275,23 @@ impl<'b> OneshotBody<'b> {
     }
 }
 
-impl<'b> Body for OneshotBody<'b> {
+impl<'b> Body<'b> for OneshotBody<'b> {
     fn length(&self) -> BodyLength {
         BodyLength::Known(self.bytes.len())
     }
 }
 
-impl<'a> PrivateBody for OneshotBody<'a> {
-    type WriteBody<'s, 'b> = SendOneshotBody<'s, 'b>;
+impl<'a> PrivateBody<'a> for OneshotBody<'a> {
+    type WriteBody<'s, 'h> = SendOneshotBody<'s, 'h>;
 
-    fn write_response<'s, 'b>(
-        &'b mut self,
+    fn write_response<'s, 'h>(
+        self,
         stream: &'s mut TcpStream,
-        http_head: &'b [u8],
-    ) -> Self::WriteBody<'s, 'b> {
+        http_head: &'h [u8],
+    ) -> Self::WriteBody<'s, 'h>
+    where
+        'a: 'h,
+    {
         let head = IoSlice::new(http_head);
         let body = IoSlice::new(self.bytes);
         SendOneshotBody {
@@ -310,11 +318,27 @@ impl<'b> From<&'b str> for OneshotBody<'b> {
 #[derive(Debug)]
 pub struct StreamingBody<'b, B> {
     length: usize,
-    body: Option<B>,
+    body: B,
     _body_lifetime: PhantomData<&'b [u8]>,
 }
 
-impl<'b, B> Body for StreamingBody<'b, B>
+impl<'b, B> StreamingBody<'b, B>
+where
+    B: Stream<Item = io::Result<&'b [u8]>>,
+{
+    /// Use a [`Stream`] as HTTP body.
+    // TODO: make this a `const` fn once trait bounds (`FileSend`) on `const`
+    // functions are stable.
+    pub fn new(length: usize, stream: B) -> StreamingBody<'b, B> {
+        StreamingBody {
+            length,
+            body: stream,
+            _body_lifetime: PhantomData,
+        }
+    }
+}
+
+impl<'b, B> Body<'b> for StreamingBody<'b, B>
 where
     B: Stream<Item = io::Result<&'b [u8]>>,
 {
@@ -323,20 +347,23 @@ where
     }
 }
 
-impl<'b, B> PrivateBody for StreamingBody<'b, B>
+impl<'b, B> PrivateBody<'b> for StreamingBody<'b, B>
 where
     B: Stream<Item = io::Result<&'b [u8]>>,
 {
     type WriteBody<'s, 'h> = SendStreamingBody<'s, 'h, 'b, B>;
 
     fn write_response<'s, 'h>(
-        &'h mut self,
+        self,
         stream: &'s mut TcpStream,
         head: &'h [u8],
-    ) -> Self::WriteBody<'s, 'h> {
+    ) -> Self::WriteBody<'s, 'h>
+    where
+        'b: 'h,
+    {
         SendStreamingBody {
             stream,
-            body: self.body.take().unwrap(),
+            body: self.body,
             head,
             left: self.length,
             body_bytes: None,
@@ -355,7 +382,7 @@ pub struct ChunkedBody<'b, B> {
 
 /// Body that sends the entire file `F`.
 pub struct FileBody<'f, F> {
-    file: Option<&'f F>,
+    file: &'f F,
     /// Start offset into the `file`.
     offset: usize,
     /// Length of the file, or the maximum number of bytes to send (minus
@@ -368,7 +395,7 @@ impl<'f, F> FileBody<'f, F>
 where
     F: FileSend,
 {
-    /// Use a file as HTTP body
+    /// Use a file as HTTP body.
     ///
     /// This uses the bytes `offset..end` from `file` as HTTP body and sends
     /// them using `sendfile(2)` (using [`TcpStream::send_file`]).
@@ -376,15 +403,11 @@ where
     // functions are stable.
     pub fn new(file: &'f F, offset: usize, end: NonZeroUsize) -> FileBody<'f, F> {
         debug_assert!(end.get() >= offset);
-        FileBody {
-            file: Some(file),
-            offset,
-            end,
-        }
+        FileBody { file, offset, end }
     }
 }
 
-impl<'f, F> Body for FileBody<'f, F>
+impl<'f, F> Body<'f> for FileBody<'f, F>
 where
     F: FileSend,
 {
@@ -395,21 +418,24 @@ where
     }
 }
 
-impl<'f, F> PrivateBody for FileBody<'f, F>
+impl<'f, F> PrivateBody<'f> for FileBody<'f, F>
 where
     F: FileSend,
 {
     type WriteBody<'s, 'h> = SendFileBody<'s, 'h, 'f, F>;
 
     fn write_response<'s, 'h>(
-        &'h mut self,
+        self,
         stream: &'s mut TcpStream,
         head: &'h [u8],
-    ) -> Self::WriteBody<'s, 'h> {
+    ) -> Self::WriteBody<'s, 'h>
+    where
+        'f: 'h,
+    {
         SendFileBody {
             stream,
             head,
-            file: self.file.take().unwrap(),
+            file: self.file,
             offset: self.offset,
             end: self.end,
         }

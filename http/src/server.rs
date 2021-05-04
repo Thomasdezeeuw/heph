@@ -249,20 +249,22 @@ impl Connection {
     /// [`io::Result`], which often needs to be handled seperately from errors
     /// in the request, e.g. by using `?`.
     ///
-    /// Next is a `Result<Option<`[`Request`]`>, `[`RequestError`]`>`. `None`
-    /// is returned if the connections contains no more requests, i.e. all bytes
-    /// are read. If the connection contains a request it will return a
-    /// [`Request`]. If the request is somehow invalid/incomplete it will return
-    /// an [`RequestError`].
+    /// Next is a `Result<Option<`[`Request`]`>, `[`RequestError`]`>`.
+    /// `Ok(None)` is returned if the connection contains no more requests, i.e.
+    /// when all bytes are read. If the connection contains a request it will
+    /// return `Ok(Some(`[`Request`]`)`. If the request is somehow invalid it
+    /// will return an `Err(`[`RequestError`]`)`.
     ///
     /// # Notes
     ///
     /// Most [`RequestError`]s can't be receover from and will need the
     /// connection be closed, see [`RequestError::should_close`]. If the
-    /// connection is not closed and [`next_request`] is called again it will
+    /// connection is not closed and `next_request` is called again it will
     /// likely return the same error (but this is not guaranteed).
     ///
-    /// [`next_request`]: Connection::next_request
+    /// Also see the [`Connection::last_request_version`] and
+    /// [`Connection::last_request_method`] functions to properly respond to
+    /// request errors.
     pub async fn next_request<'a>(
         &'a mut self,
     ) -> io::Result<Result<Option<Request<Body<'a>>>, RequestError>> {
@@ -408,7 +410,7 @@ impl Connection {
     /// Responding to a [`RequestError`].
     ///
     /// ```
-    /// use heph_http::{Response, Headers, StatusCode, Version};
+    /// use heph_http::{Response, Headers, StatusCode, Version, Method};
     /// use heph_http::server::{Connection, RequestError};
     /// use heph_http::body::OneshotBody;
     ///
@@ -429,12 +431,14 @@ impl Connection {
     /// let body = OneshotBody::new(body.as_bytes());
     /// let response = Response::new(version, StatusCode::BAD_REQUEST, Headers::EMPTY, body);
     ///
+    /// // We can use `last_request_method` to determine the method of the last
+    /// // request, which is used to determine if we need to send a body.
+    /// let request_method = conn.last_request_method().unwrap_or(Method::Get);
     /// // Respond with the response.
-    /// conn.respond(response);
+    /// conn.send_response(request_method, response);
     ///
     /// // Close the connection if the error is fatal.
     /// if err.should_close() {
-    ///     conn.close();
     ///     return;
     /// }
     /// # }
@@ -443,48 +447,82 @@ impl Connection {
         self.last_version
     }
 
+    /// Returns the HTTP method of the last (partial) request.
+    ///
+    /// This can be used in cases where [`Connection::next_request`] returns a
+    /// [`RequestError`].
+    ///
+    /// # Examples
+    ///
+    /// See [`Connection::last_request_version`] for an example that responds to
+    /// a [`RequestError`], which uses `last_request_method`.
+    pub fn last_request_method(&self) -> Option<Method> {
+        self.last_method
+    }
+
+    /// Respond to a request.
+    ///
     /// # Notes
     ///
-    /// This automatically sets the "Content-Length" header if no provided in
-    /// `response`.
+    /// This uses information from the last call to [`Connection::next_request`]
+    /// to respond to the request correctly. For example it uses the HTTP
+    /// [`Method`] to determine whether or not to send the body (as HEAD request
+    /// don't expect a body). When reading multiple requests from the connection
+    /// before responding use [`Connection::send_response`] directly.
     ///
-    /// This doesn't include the body if the response is to a HEAD request.
-    pub async fn respond<B>(&mut self, mut response: Response<B>) -> io::Result<()>
+    /// See the notes for [`Connection::send_response`], they apply to this
+    /// function also.
+    pub async fn respond<'b, B>(
+        &mut self,
+        status: StatusCode,
+        headers: Headers,
+        body: B,
+    ) -> io::Result<()>
     where
-        B: crate::Body,
+        B: crate::Body<'b>,
     {
+        let req_method = self.last_method.unwrap_or(Method::Get);
+        let version = self.last_version.unwrap_or(Version::Http11).highest_minor();
+        let response = Response::new(version, status, headers, body);
+        self.send_response(req_method, response).await
+    }
+
+    /// Send a [`Response`].
+    ///
+    /// # Notes
+    ///
+    /// This automatically sets the "Content-Length" and "Date" headers if not
+    /// provided in `response`.
+    ///
+    /// If `request_method.`[`expects_body`] or
+    /// `response.status().`[`includes_body`] returns false this will not write
+    /// the body to the connection.
+    ///
+    /// [`expects_body`]: Method::expects_body
+    /// [`includes_body`]: StatusCode::includes_body
+    pub async fn send_response<'b, B>(
+        &mut self,
+        request_method: Method,
+        response: Response<B>,
+    ) -> io::Result<()>
+    where
+        B: crate::Body<'b>,
+    {
+        let mut itoa_buf = itoa::Buffer::new();
+
         // Bytes of the (next) request.
         self.clear_buffer();
         let ignore_end = self.buf.len();
 
-        // TODO: RFC 7230 section 3.3:
-        // > The presence of a message body in a response depends on
-        // > both the request method to which it is responding and
-        // > the response status code (Section 3.1.2). Responses to
-        // > the HEAD request method (Section 4.3.2 of [RFC7231])
-        // > never include a message body because the associated
-        // > response header fields (e.g., Transfer-Encoding,
-        // > Content-Length, etc.), if present, indicate only what
-        // > their values would have been if the request method had
-        // > been GET (Section 4.3.1 of [RFC7231]). 2xx (Successful)
-        // > responses to a CONNECT request method (Section 4.3.6 of
-        // > [RFC7231]) switch to tunnel mode instead of having a
-        // > message body. All 1xx (Informational), 204 (No
-        // > Content), and 304 (Not Modified) responses do not
-        // > include a message body. All other responses do include
-        // > a message body, although the body might be of zero
-        // > length.
-
         // Format the status-line (RFC 7230 section 3.1.2).
+        self.buf
+            .extend_from_slice(response.version().as_str().as_bytes());
+        self.buf.push(b' ');
+        self.buf
+            .extend_from_slice(itoa_buf.format(response.status().0).as_bytes());
         // NOTE: we're not sending a reason-phrase, but the space is required
         // before \r\n.
-        write!(
-            &mut self.buf,
-            "{} {} \r\n",
-            response.version(),
-            response.status()
-        )
-        .unwrap();
+        self.buf.extend_from_slice(b" \r\n");
 
         // Format the headers (RFC 7230 section 3.2).
         let mut set_content_length_header = false;
@@ -492,8 +530,9 @@ impl Connection {
         for header in response.headers().iter() {
             let name = header.name();
             // Field-name:
+            self.buf.extend_from_slice(name.as_ref().as_bytes());
             // NOTE: spacing after the colon (`:`) is optional.
-            write!(&mut self.buf, "{}: ", name).unwrap();
+            self.buf.extend_from_slice(b": ");
             // Append the header's value.
             // NOTE: `header.value` shouldn't contain CRLF (`\r\n`).
             self.buf.extend_from_slice(header.value());
@@ -514,20 +553,16 @@ impl Connection {
 
         // Provide the "Conent-Length" header if the user didn't.
         if !set_content_length_header {
-            let body_length = if let Some(Method::Head) = self.last_method {
-                // RFC 7231 section 4.3.2:
-                // > The HEAD method is identical to GET except that the server
-                // > MUST NOT send a message body in the response (i.e., the
-                // > response terminates at the end of the header section).
-                0
-            } else {
-                match response.body().length() {
-                    BodyLength::Known(length) => length,
-                    BodyLength::Chunked => todo!("chunked response body"),
-                }
+            let body_length = match response.body().length() {
+                _ if !request_method.expects_body() || !response.status().includes_body() => 0,
+                BodyLength::Known(length) => length,
+                BodyLength::Chunked => todo!("chunked response body"),
             };
 
-            write!(&mut self.buf, "Content-Length: {}\r\n", body_length).unwrap();
+            self.buf.extend_from_slice(b"Content-Length: ");
+            self.buf
+                .extend_from_slice(itoa_buf.format(body_length).as_bytes());
+            self.buf.extend_from_slice(b"\r\n");
         }
 
         // End of the header.
@@ -536,23 +571,13 @@ impl Connection {
         // Write the response to the stream.
         let head = &self.buf[ignore_end..];
         response
-            .body_mut()
+            .into_body()
             .write_response(&mut self.stream, head)
             .await?;
 
         // Remove the response headers from the buffer.
         self.buf.truncate(ignore_end);
         Ok(())
-    }
-
-    /// Close the connection.
-    ///
-    /// This should be called in case of certain [`RequestError`]s, see
-    /// [`RequestError::should_close`]. It should also be called if a response
-    /// it returned without a length, that is a response with a Content-Length
-    /// header and not using chunked transfer encoding.
-    pub fn close(self) {
-        drop(self);
     }
 
     /// Clear parsed request(s) from the buffer.
@@ -676,7 +701,7 @@ pub enum RequestError {
 
 impl RequestError {
     /// Returns the proper status code for a given error.
-    pub fn proper_status_code(self) -> StatusCode {
+    pub const fn proper_status_code(self) -> StatusCode {
         use RequestError::*;
         // See the parsing code for various references to the RFC(s) that
         // determine the values here.
@@ -701,7 +726,7 @@ impl RequestError {
 
     /// Returns `true` if the connection should be closed based on the error
     /// (after sending a error response).
-    pub fn should_close(self) -> bool {
+    pub const fn should_close(self) -> bool {
         use RequestError::*;
         // See the parsing code for various references to the RFC(s) that
         // determine the values here.
