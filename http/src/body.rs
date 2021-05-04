@@ -4,9 +4,10 @@
 
 use std::io::{self, IoSlice};
 use std::marker::PhantomData;
+use std::num::NonZeroUsize;
 use std::stream::Stream;
 
-use heph::net::tcp::stream::{SendAll, TcpStream};
+use heph::net::tcp::stream::{FileSend, SendAll, TcpStream};
 
 /// Trait that defines a HTTP body.
 ///
@@ -18,6 +19,8 @@ use heph::net::tcp::stream::{SendAll, TcpStream};
 /// * [`StreamingBody`]: body that is streaming, with a known length.
 /// * [`ChunkedBody`]: body that is streaming, with a *un*known length. This
 ///   uses HTTP chunked encoding to transfer the body.
+/// * [`FileBody`]: uses a file as body, sending it's content using the
+///   `sendfile(2)` system call.
 pub trait Body: PrivateBody {
     /// Length of the body, or the body will be chunked.
     fn length(&self) -> BodyLength;
@@ -35,10 +38,12 @@ pub enum BodyLength {
 mod private {
     use std::future::Future;
     use std::io::{self, IoSlice};
+    use std::num::NonZeroUsize;
     use std::pin::Pin;
     use std::stream::Stream;
     use std::task::{self, Poll};
 
+    use heph::net::tcp::stream::FileSend;
     use heph::net::TcpStream;
 
     /// Private extention of [`PrivateBody`].
@@ -172,10 +177,61 @@ mod private {
             Poll::Ready(Ok(()))
         }
     }
+
+    /// See [`FileBody`].
+    #[derive(Debug)]
+    pub struct SendFileBody<'s, 'h, 'f, F> {
+        pub(super) stream: &'s mut TcpStream,
+        pub(super) head: &'h [u8],
+        pub(super) file: &'f F,
+        pub(super) offset: usize,
+        pub(super) end: NonZeroUsize,
+    }
+
+    impl<'s, 'h, 'f, F> Future for SendFileBody<'s, 'h, 'f, F>
+    where
+        F: FileSend,
+    {
+        type Output = io::Result<()>;
+
+        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+            #[rustfmt::skip]
+            let SendFileBody { stream, head, file, offset, end } = Pin::into_inner(self);
+
+            // Send the HTTP head first.
+            while !head.is_empty() {
+                match stream.try_send(head) {
+                    Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
+                    Ok(n) => *head = &head[n..],
+                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                        return Poll::Pending
+                    }
+                    Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(err) => return Poll::Ready(Err(err)),
+                }
+            }
+
+            while end.get() > *offset {
+                let length = NonZeroUsize::new(end.get() - *offset);
+                match stream.try_send_file(*file, *offset, length) {
+                    // All bytes were send.
+                    Ok(0) => return Poll::Ready(Ok(())),
+                    Ok(n) => *offset += n,
+                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                        return Poll::Pending
+                    }
+                    Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(err) => return Poll::Ready(Err(err)),
+                }
+            }
+
+            Poll::Ready(Ok(()))
+        }
+    }
 }
 
 pub(crate) use private::PrivateBody;
-use private::{SendOneshotBody, SendStreamingBody};
+use private::{SendFileBody, SendOneshotBody, SendStreamingBody};
 
 /// An empty body.
 #[derive(Debug)]
@@ -296,3 +352,66 @@ pub struct ChunkedBody<'b, B> {
 }
 
 // TODO: implement `Body` for `ChunkedBody`.
+
+/// Body that sends the entire file `F`.
+pub struct FileBody<'f, F> {
+    file: Option<&'f F>,
+    /// Start offset into the `file`.
+    offset: usize,
+    /// Length of the file, or the maximum number of bytes to send (minus
+    /// `offset`).
+    /// Always: `end >= offset`.
+    end: NonZeroUsize,
+}
+
+impl<'f, F> FileBody<'f, F>
+where
+    F: FileSend,
+{
+    /// Use a file as HTTP body
+    ///
+    /// This uses the bytes `offset..end` from `file` as HTTP body and sends
+    /// them using `sendfile(2)` (using [`TcpStream::send_file`]).
+    // TODO: make this a `const` fn once trait bounds (`FileSend`) on `const`
+    // functions are stable.
+    pub fn new(file: &'f F, offset: usize, end: NonZeroUsize) -> FileBody<'f, F> {
+        debug_assert!(end.get() >= offset);
+        FileBody {
+            file: Some(file),
+            offset,
+            end,
+        }
+    }
+}
+
+impl<'f, F> Body for FileBody<'f, F>
+where
+    F: FileSend,
+{
+    fn length(&self) -> BodyLength {
+        // NOTE: per the comment on `end`: `end >= offset`, so this can't
+        // underflow.
+        BodyLength::Known(self.end.get() - self.offset)
+    }
+}
+
+impl<'f, F> PrivateBody for FileBody<'f, F>
+where
+    F: FileSend,
+{
+    type WriteBody<'s, 'h> = SendFileBody<'s, 'h, 'f, F>;
+
+    fn write_response<'s, 'h>(
+        &'h mut self,
+        stream: &'s mut TcpStream,
+        head: &'h [u8],
+    ) -> Self::WriteBody<'s, 'h> {
+        SendFileBody {
+            stream,
+            head,
+            file: self.file.take().unwrap(),
+            offset: self.offset,
+            end: self.end,
+        }
+    }
+}
