@@ -1,4 +1,12 @@
-#![feature(async_stream, const_panic, generic_associated_types, io_slice_advance)]
+#![feature(
+    async_stream,
+    const_fn,
+    const_mut_refs,
+    const_panic,
+    generic_associated_types,
+    io_slice_advance,
+    maybe_uninit_write_slice
+)]
 #![allow(incomplete_features)] // NOTE: for `generic_associated_types`.
 
 pub mod body;

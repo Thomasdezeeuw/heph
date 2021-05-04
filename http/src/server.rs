@@ -14,14 +14,17 @@
 // TODO: chunked encoding.
 // TODO: reading request body.
 
+use std::cmp::min;
 use std::fmt;
+use std::future::Future;
 use std::io::{self, Write};
+use std::mem::MaybeUninit;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::SystemTime;
 
-use heph::net::{tcp, TcpServer, TcpStream};
+use heph::net::{tcp, Bytes, BytesVectored, TcpServer, TcpStream};
 use heph::spawn::{ActorOptions, Spawn};
 use heph::{actor, rt, Actor, NewActor, Supervisor};
 use httparse::EMPTY_HEADER;
@@ -640,6 +643,22 @@ impl<'a> Body<'a> {
         self.left == 0
     }
 
+    /// Receive bytes from the request body, writing them into `buf`.
+    pub const fn recv<B>(&'a mut self, buf: B) -> Recv<'a, B>
+    where
+        B: Bytes,
+    {
+        Recv { body: self, buf }
+    }
+
+    /// Receive bytes from the request body, writing them into `bufs`.
+    pub const fn recv_vectored<B>(&'a mut self, bufs: B) -> RecvVectored<'a, B>
+    where
+        B: BytesVectored,
+    {
+        RecvVectored { body: self, bufs }
+    }
+
     /// Returns the bytes currently in the buffer.
     /// This is limited to the bytes of this request, i.e. it doesn't contain
     fn buf_bytes(&self) -> &[u8] {
@@ -651,10 +670,124 @@ impl<'a> Body<'a> {
         }
     }
 
+    /// Copy already read bytes.
+    fn copy_buf_bytes(&mut self, dst: &mut [MaybeUninit<u8>]) -> usize {
+        let bytes = self.buf_bytes();
+        let len = bytes.len();
+        if len != 0 {
+            let len = min(len, dst.len());
+            MaybeUninit::write_slice(&mut dst[..len], &bytes[..len]);
+            self.processed(len);
+            len
+        } else {
+            0
+        }
+    }
+
     /// Mark `n` bytes are processed.
     fn processed(&mut self, n: usize) {
         self.left -= n;
         self.conn.parsed_bytes += n;
+    }
+}
+
+/// The [`Future`] behind [`Body::recv`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct Recv<'b, B> {
+    body: &'b mut Body<'b>,
+    buf: B,
+}
+
+impl<'b, B> Future for Recv<'b, B>
+where
+    B: Bytes + Unpin,
+{
+    type Output = io::Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let Recv { body, buf } = Pin::into_inner(self);
+
+        // Copy already read bytes.
+        let len = body.copy_buf_bytes(buf.as_bytes());
+        if len != 0 {
+            unsafe { buf.update_length(len) };
+        }
+
+        // Read from the stream if there is space left.
+        if !buf.as_bytes().is_empty() {
+            loop {
+                match body.conn.stream.try_recv(&mut *buf) {
+                    Ok(n) => return Poll::Ready(Ok(len + n)),
+                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                        if len != 0 {
+                            return Poll::Ready(Ok(len));
+                        } else {
+                            return Poll::Pending;
+                        }
+                    }
+                    Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(err) => return Poll::Ready(Err(err)),
+                }
+            }
+        }
+        Poll::Ready(Ok(len))
+    }
+}
+
+/// The [`Future`] behind [`Body::recv_vectored`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct RecvVectored<'b, B> {
+    body: &'b mut Body<'b>,
+    bufs: B,
+}
+
+impl<'b, B> Future for RecvVectored<'b, B>
+where
+    B: BytesVectored + Unpin,
+{
+    type Output = io::Result<usize>;
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let RecvVectored { body, bufs } = Pin::into_inner(self);
+
+        // Copy already read bytes.
+        let mut len = 0;
+        for buf in bufs.as_bufs().as_mut() {
+            match body.copy_buf_bytes(buf) {
+                0 => break,
+                n => len += n,
+            }
+        }
+        if len != 0 {
+            unsafe { bufs.update_lengths(len) };
+        }
+
+        // Read from the stream if there is space left.
+        let buf_len = bufs
+            .as_bufs()
+            .as_mut()
+            .iter()
+            .map(|b| b.len())
+            .sum::<usize>();
+        if buf_len != 0 {
+            loop {
+                match body.conn.stream.try_recv_vectored(&mut *bufs) {
+                    Ok(n) => return Poll::Ready(Ok(len + n)),
+                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                        if len != 0 {
+                            return Poll::Ready(Ok(len));
+                        } else {
+                            return Poll::Pending;
+                        }
+                    }
+                    Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(err) => return Poll::Ready(Err(err)),
+                }
+            }
+        }
+        Poll::Ready(Ok(len))
     }
 }
 
