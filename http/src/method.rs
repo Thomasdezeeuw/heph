@@ -66,9 +66,9 @@ impl Method {
 
     /// Returns `false` if a response to this method MUST NOT include a body.
     ///
-    /// This is only true for the HEAD method.
+    /// This is only the case for the HEAD method.
     ///
-    /// RFC 7321 section 4.3.2.
+    /// RFC 7230 section 3.3 and RFC 7321 section 4.3.2.
     pub const fn expects_body(self) -> bool {
         // RFC 7231 section 4.3.2:
         // > The HEAD method is identical to GET except that the server MUST NOT

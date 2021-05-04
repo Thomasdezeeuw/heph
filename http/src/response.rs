@@ -46,14 +46,19 @@ impl<B> Response<B> {
         &mut self.headers
     }
 
-    /// The response body.
+    /// Returns a reference to the body.
     pub const fn body(&self) -> &B {
         &self.body
     }
 
-    /// Mutable access to the response body.
+    /// Returns a mutable reference to the body.
     pub fn body_mut(&mut self) -> &mut B {
         &mut self.body
+    }
+
+    /// Returns the body of the response.
+    pub fn into_body(self) -> B {
+        self.body
     }
 }
 
