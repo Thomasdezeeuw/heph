@@ -365,19 +365,20 @@ impl TcpStream {
     where
         B: BytesVectored,
     {
+        debug_assert!(
+            bufs.has_spare_capacity(),
+            "called `TcpStream::recv_vectored` with an empty buffer"
+        );
         RecvVectored { stream: self, bufs }
     }
 
     /// Receive at least `n` bytes from the stream, writing them into `bufs`.
-    pub fn recv_n_vectored<B>(&mut self, mut bufs: B, n: usize) -> RecvNVectored<'_, B>
+    pub fn recv_n_vectored<B>(&mut self, bufs: B, n: usize) -> RecvNVectored<'_, B>
     where
         B: BytesVectored,
     {
         debug_assert!(
-            {
-                let mut dst = bufs.as_bufs();
-                !dst.as_mut().iter().map(|buf| buf.len()).sum::<usize>() >= n
-            },
+            !bufs.spare_capacity() >= n,
             "called `TcpStream::recv_n_vectored` with a buffer smaller then `n`"
         );
         RecvNVectored {
