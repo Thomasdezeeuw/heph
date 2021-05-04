@@ -8,15 +8,6 @@ fn size() {
 }
 
 #[test]
-fn is_head() {
-    assert!(Head.is_head());
-    let tests = &[Get, Post, Put, Delete, Connect, Options, Trace, Patch];
-    for method in tests {
-        assert!(!method.is_head());
-    }
-}
-
-#[test]
 fn is_safe() {
     let safe = &[Get, Head, Options, Trace];
     for method in safe {
@@ -37,6 +28,18 @@ fn is_idempotent() {
     let not_idempotent = &[Post, Connect, Patch];
     for method in not_idempotent {
         assert!(!method.is_idempotent());
+    }
+}
+
+#[test]
+fn expects_body() {
+    let no_body = &[Head];
+    for method in no_body {
+        assert!(!method.expects_body());
+    }
+    let has_body = &[Get, Post, Put, Delete, Connect, Options, Trace, Patch];
+    for method in has_body {
+        assert!(method.expects_body());
     }
 }
 

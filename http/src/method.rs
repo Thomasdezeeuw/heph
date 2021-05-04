@@ -49,11 +49,6 @@ pub enum Method {
 }
 
 impl Method {
-    /// Returns `true` if `self` is a HEAD method.
-    pub const fn is_head(self) -> bool {
-        matches!(self, Method::Head)
-    }
-
     /// Returns `true` if the method is safe.
     ///
     /// RFC 7321 section 4.2.1.
@@ -67,6 +62,22 @@ impl Method {
     /// RFC 7321 section 4.2.2.
     pub const fn is_idempotent(self) -> bool {
         matches!(self, Method::Put | Method::Delete) || self.is_safe()
+    }
+
+    /// Returns `false` if a response to this method MUST NOT include a body.
+    ///
+    /// This is only true for the HEAD method.
+    ///
+    /// RFC 7321 section 4.3.2.
+    pub const fn expects_body(self) -> bool {
+        // RFC 7231 section 4.3.2:
+        // > The HEAD method is identical to GET except that the server MUST NOT
+        // > send a message body in the response (i.e., the response terminates
+        // > at the end of the header section).
+        match self {
+            Method::Head => false,
+            _ => true,
+        }
     }
 
     /// Returns the method as string.
