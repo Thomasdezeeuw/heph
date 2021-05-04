@@ -295,6 +295,24 @@ impl StatusCode {
         self.0 >= 500 && self.0 <= 599
     }
 
+    /// Returns `false` if the status code MUST NOT include a body.
+    ///
+    /// This includes the entire 1xx (Informational) range, 204 (No Content),
+    /// and 304 (Not Modified).
+    ///
+    /// Also see RFC 7230 section 3.3 and RFC 7231 section 6 (the individual
+    /// status codes).
+    pub const fn includes_body(self) -> bool {
+        // RFC 7230 section 3.3:
+        // > All 1xx (Informational), 204 (No Content), and 304 (Not Modified)
+        // > responses do not include a message body. All other responses do
+        // > include a message body, although the body might be of zero length.
+        match self.0 {
+            100..=199 | 204 | 304 => false,
+            _ => true,
+        }
+    }
+
     /// Returns the reason phrase for well known status codes.
     pub const fn phrase(self) -> Option<&'static str> {
         match self.0 {
