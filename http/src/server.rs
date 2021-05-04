@@ -3,6 +3,14 @@
 //
 // TODO: Continue reading RFC 7230 section 4 Transfer Codings.
 //
+// TODO: RFC 7230 section 3.4 Handling Incomplete Messages.
+//
+// TODO: RFC 7230 section 3.3.3 point 5:
+// > If the sender closes the connection or the recipient
+// > times out before the indicated number of octets are
+// > received, the recipient MUST consider the message to be
+// > incomplete and close the connection.
+//
 // TODO: chunked encoding.
 // TODO: reading request body.
 
@@ -24,17 +32,16 @@ use crate::{FromBytes, HeaderName, Headers, Method, Request, Response, StatusCod
 
 /// Maximum size of the header (the start line and the headers).
 ///
-/// RFC 7230 section 3.1.1 recommends ``all HTTP senders and recipients support,
-/// at a minimum, request-line lengths of 8000 octets.''
+/// RFC 7230 section 3.1.1 recommends "all HTTP senders and recipients support,
+/// at a minimum, request-line lengths of 8000 octets."
 pub const MAX_HEADER_SIZE: usize = 16384;
 
-/// Maximum number of headers parsed for each request.
+/// Maximum number of headers parsed from a single request.
 pub const MAX_HEADERS: usize = 64;
 
 /// Minimum amount of bytes read from the connection or the buffer will be
 /// grown.
-#[allow(dead_code)] // FIXME: use this in reading.
-const MIN_READ_SIZE: usize = 512;
+const MIN_READ_SIZE: usize = 4096;
 
 /// Size of the buffer used in [`Connection`].
 const BUF_SIZE: usize = 8192;
@@ -188,6 +195,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct Connection {
     stream: TcpStream,
     buf: Vec<u8>,
@@ -375,7 +383,6 @@ impl Connection {
 
                     let body = Body {
                         conn: self,
-                        size,
                         left: size,
                     };
                     return Ok(Ok(Some(Request::new(method, path, version, headers, body))));
@@ -606,69 +613,171 @@ const fn map_version(version: u8) -> Version {
 }
 
 /// Body of HTTP [`Request`] read from a [`Connection`].
+///
+/// # Notes
+///
+/// If the body is not (completely) read it's still removed from the
+/// `Connection`.
+#[derive(Debug)]
 pub struct Body<'a> {
     conn: &'a mut Connection,
-    /// Total size of the HTTP body.
-    size: usize,
     /// Number of unread (by the user) bytes.
     left: usize,
 }
 
 impl<'a> Body<'a> {
-    // TODO: RFC 7230 section 3.4 Handling Incomplete Messages.
-
-    // TODO: RFC 7230 section 3.3.3 point 5:
-    // > If the sender closes the connection or the recipient
-    // > times out before the indicated number of octets are
-    // > received, the recipient MUST consider the message to be
-    // > incomplete and close the connection.
-
-    /// Returns the size of the body in bytes.
+    /// Returns the length of the body (in bytes) *left*.
     ///
     /// The returned value is based on the "Content-Length" header, or 0 if not
     /// present.
-    pub fn len(&self) -> usize {
-        self.size
-    }
-
-    /// Returns the number of bytes left in the body.
-    pub fn left(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.left
     }
 
     /// Returns `true` if the body is completely read (or was empty to begin
     /// with).
-    pub fn is_empty(&self) -> bool {
+    pub const fn is_empty(&self) -> bool {
         self.left == 0
     }
 
-    /// Ignore the body, but removes it from the connection.
-    pub fn ignore(&mut self) -> io::Result<()> {
+    /// Returns the bytes currently in the buffer.
+    /// This is limited to the bytes of this request, i.e. it doesn't contain
+    fn buf_bytes(&self) -> &[u8] {
+        let bytes = &self.conn.buf[self.conn.parsed_bytes..];
+        if bytes.len() > self.left {
+            &bytes[..self.left]
+        } else {
+            bytes
+        }
+    }
+
+    /// Mark `n` bytes are processed.
+    fn processed(&mut self, n: usize) {
+        self.left -= n;
+        self.conn.parsed_bytes += n;
+    }
+}
+
+impl<'a> crate::Body<'a> for Body<'a> {
+    fn length(&self) -> BodyLength {
+        BodyLength::Known(self.left)
+    }
+}
+
+mod private {
+    use std::future::Future;
+    use std::io;
+    use std::pin::Pin;
+    use std::task::{self, Poll};
+
+    use heph::net::TcpStream;
+
+    use super::{Body, MIN_READ_SIZE};
+
+    #[derive(Debug)]
+    pub struct SendBody<'c, 's, 'h> {
+        pub(super) body: Body<'c>,
+        /// Stream we're writing the body to.
+        pub(super) stream: &'s mut TcpStream,
+        /// HTTP head for the response.
+        pub(super) head: &'h [u8],
+    }
+
+    impl<'c, 's, 'h> Future for SendBody<'c, 's, 'h> {
+        type Output = io::Result<()>;
+
+        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+            let SendBody { body, stream, head } = Pin::into_inner(self);
+
+            // Send the HTTP head first.
+            // TODO: try to use vectored I/O on first call.
+            while !head.is_empty() {
+                match stream.try_send(head) {
+                    Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
+                    Ok(n) => *head = &head[n..],
+                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                        return Poll::Pending
+                    }
+                    Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(err) => return Poll::Ready(Err(err)),
+                }
+            }
+
+            while body.left != 0 {
+                let bytes = body.buf_bytes();
+                // TODO: maybe read first if we have less then N bytes?
+                if !bytes.is_empty() {
+                    match stream.try_send(bytes) {
+                        Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
+                        Ok(n) => {
+                            body.processed(n);
+                            continue;
+                        }
+                        Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                            return Poll::Pending
+                        }
+                        Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                        Err(err) => return Poll::Ready(Err(err)),
+                    }
+                }
+
+                // Ensure we have space in the buffer to read into.
+                body.conn.clear_buffer();
+                body.conn.buf.reserve(MIN_READ_SIZE);
+                match body.conn.stream.try_recv(&mut body.conn.buf) {
+                    Ok(0) => return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())),
+                    // Continue to sending the bytes above.
+                    Ok(_) => continue,
+                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
+                        return Poll::Pending
+                    }
+                    Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                    Err(err) => return Poll::Ready(Err(err)),
+                }
+            }
+
+            Poll::Ready(Ok(()))
+        }
+    }
+}
+
+impl<'c> crate::body::PrivateBody<'c> for Body<'c> {
+    type WriteBody<'s, 'h> = private::SendBody<'c, 's, 'h>;
+
+    fn write_response<'s, 'h>(
+        self,
+        stream: &'s mut TcpStream,
+        head: &'h [u8],
+    ) -> Self::WriteBody<'s, 'h>
+    where
+        'c: 'h,
+    {
+        private::SendBody {
+            body: self,
+            stream,
+            head,
+        }
+    }
+}
+
+impl<'a> Drop for Body<'a> {
+    fn drop(&mut self) {
         if self.is_empty() {
             // Empty body, then we're done quickly.
-            return Ok(());
+            return;
         }
 
-        let ignored_len = self.conn.parsed_bytes + self.size;
+        let ignored_len = self.conn.parsed_bytes + self.left;
         if self.conn.buf.len() >= ignored_len {
             // Entire body was already read we can skip the bytes.
             self.conn.parsed_bytes = ignored_len;
-            return Ok(());
+            return;
         }
 
-        // TODO: read more bytes from the stream.
+        // TODO: mark more bytes as ignored in `Connection`.
         todo!("ignore the body: read more bytes")
-        // NOTE: conn.clear_buffer
     }
 }
-
-/* TODO: read entire body? maybe an assertion?
-impl<'a> Drop for Body<'a> {
-    fn drop(&mut self) {
-        todo!()
-    }
-}
-*/
 
 /// Error parsing HTTP request.
 #[derive(Copy, Clone, Debug)]
@@ -778,15 +887,12 @@ impl fmt::Display for RequestError {
     }
 }
 
-/// The message type used by [`HttpServer`].
+/// The message type used by [`HttpServer`] (and [`TcpServer`]).
 ///
-/// The message implements [`From`]`<`[`Terminate`]`>` and
-/// [`TryFrom`]`<`[`Signal`]`>` for the message, allowing for graceful shutdown.
-///
-/// [`Terminate`]: heph::actor::messages::Terminate
-/// [`TryFrom`]: std::convert::TryFrom
-/// [`Signal`]: heph::rt::Signal
+#[doc(inline)]
 pub use heph::net::tcp::server::Message;
 
-/// Error returned by the [`HttpServer`] actor.
+/// Error returned by [`HttpServer`] (and [`TcpServer`]).
+///
+#[doc(inline)]
 pub use heph::net::tcp::server::Error;
