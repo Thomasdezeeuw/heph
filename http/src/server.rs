@@ -210,6 +210,8 @@ pub struct Connection {
     stream: TcpStream,
     buf: Vec<u8>,
     /// Number of bytes of `buf` that are already parsed.
+    /// NOTE: this may be larger then `buf.len()`, which case a `Body` was
+    /// dropped without reading it entirely.
     parsed_bytes: usize,
     /// The HTTP version of the last request.
     last_version: Option<Version>,
@@ -289,11 +291,19 @@ impl Connection {
         let mut too_short = 0;
         loop {
             // In case of pipelined requests it could be that while reading a
-            // previous request's body it partially read the headers of the next
-            // (this) request. To handle this we attempt to parse the request if
-            // we have more than zero bytes in the first iteration of the loop.
-            if self.buf.len() <= too_short {
-                // Receive some more bytes.
+            // previous request's body it partially read the head of the next
+            // (this) request. To handle this we first attempt to parse the
+            // request if we have more than zero bytes (of the next request) in
+            // the first iteration of the loop.
+            while self.parsed_bytes >= self.buf.len()
+                || self.buf.len() - self.parsed_bytes <= too_short
+            {
+                // While we didn't read the entire previous request body, or
+                // while we have less than `too_short` bytes we try to receive
+                // some more bytes.
+
+                self.clear_buffer();
+                self.buf.reserve(MIN_READ_SIZE);
                 if self.stream.recv(&mut self.buf).await? == 0 {
                     if self.buf.is_empty() {
                         // Read the entire stream, so we're done.
@@ -309,6 +319,8 @@ impl Connection {
 
             let mut headers = [EMPTY_HEADER; MAX_HEADERS];
             let mut req = httparse::Request::new(&mut headers);
+            // SAFETY: because we received until at least `self.parsed_bytes >=
+            // self.buf.len()` above, we can safely slice the buffer..
             match req.parse(&self.buf[self.parsed_bytes..]) {
                 Ok(httparse::Status::Complete(header_length)) => {
                     self.parsed_bytes += header_length;
@@ -528,7 +540,8 @@ impl Connection {
     {
         let mut itoa_buf = itoa::Buffer::new();
 
-        // Bytes of the (next) request.
+        // Clear bytes from the previous request, keeping the bytes of the
+        // request.
         self.clear_buffer();
         let ignore_end = self.buf.len();
 
@@ -611,10 +624,11 @@ impl Connection {
 
     /// Clear parsed request(s) from the buffer.
     fn clear_buffer(&mut self) {
-        if self.buf.len() == self.parsed_bytes {
+        let buf_len = self.buf.len();
+        if self.parsed_bytes >= buf_len {
             // Parsed all bytes in the buffer, so we can clear it.
             self.buf.clear();
-            self.parsed_bytes = 0;
+            self.parsed_bytes -= buf_len;
         }
 
         // TODO: move bytes to the start.
@@ -920,15 +934,10 @@ impl<'a> Drop for Body<'a> {
             return;
         }
 
-        let ignored_len = self.conn.parsed_bytes + self.left;
-        if self.conn.buf.len() >= ignored_len {
-            // Entire body was already read we can skip the bytes.
-            self.conn.parsed_bytes = ignored_len;
-            return;
-        }
-
-        // TODO: mark more bytes as ignored in `Connection`.
-        todo!("ignore the body: read more bytes")
+        // Mark the entire body as parsed.
+        // NOTE: `Connection` handles the case where we didn't read the entire
+        // body yet.
+        self.conn.parsed_bytes += self.left;
     }
 }
 
