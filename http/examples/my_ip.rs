@@ -95,7 +95,7 @@ async fn http_actor(
                     // efficient way to do this, but it's the easiest so we'll
                     // keep this for sake of example.
                     let body = Cow::from(address.ip().to_string());
-                    (StatusCode::OK, body, true)
+                    (StatusCode::OK, body, false)
                 }
             }
             // No more requests.
@@ -107,6 +107,10 @@ async fn http_actor(
                 (code, body, err.should_close())
             }
         };
+
+        if should_close {
+            headers.add(Header::new(HeaderName::CONNECTION, b"close"));
+        }
 
         debug!(
             "sending response: code={}, body='{}', source={}",

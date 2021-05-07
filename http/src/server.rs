@@ -12,7 +12,6 @@
 // > incomplete and close the connection.
 //
 // TODO: chunked encoding.
-// TODO: reading request body.
 
 use std::cmp::min;
 use std::fmt;
@@ -199,6 +198,13 @@ where
     }
 }
 
+/// HTTP connection.
+///
+/// This a TCP stream from which [HTTP requests] are read and [HTTP responses]
+/// are send to.
+///
+/// [HTTP requests]: Request
+/// [HTTP responses]: Response
 #[derive(Debug)]
 pub struct Connection {
     stream: TcpStream,
@@ -503,8 +509,8 @@ impl Connection {
     ///
     /// # Notes
     ///
-    /// This automatically sets the "Content-Length" and "Date" headers if not
-    /// provided in `response`.
+    /// This automatically sets the "Content-Length", "Connection" and "Date"
+    /// headers if not provided in `response`.
     ///
     /// If `request_method.`[`expects_body`] or
     /// `response.status().`[`includes_body`] returns false this will not write
@@ -537,6 +543,7 @@ impl Connection {
         self.buf.extend_from_slice(b" \r\n");
 
         // Format the headers (RFC 7230 section 3.2).
+        let mut set_connection_header = false;
         let mut set_content_length_header = false;
         let mut set_date_header = false;
         for header in response.headers().iter() {
@@ -550,11 +557,21 @@ impl Connection {
             self.buf.extend_from_slice(header.value());
             self.buf.extend_from_slice(b"\r\n");
 
-            if name == &HeaderName::CONTENT_LENGTH {
+            if name == &HeaderName::CONNECTION {
+                set_connection_header = true;
+            } else if name == &HeaderName::CONTENT_LENGTH {
                 set_content_length_header = true;
             } else if name == &HeaderName::DATE {
                 set_date_header = true;
             }
+        }
+
+        // Provide the "Connection" header if the user didn't.
+        if !set_connection_header && matches!(response.version(), Version::Http10) {
+            // Per RFC 7230 section 6.3, HTTP/1.0 needs the "Connection:
+            // keep-alive" header to persistent the connection. Connections
+            // using HTTP/1.1 persistent by default.
+            self.buf.extend_from_slice(b"Connection: keep-alive\r\n");
         }
 
         // Provide the "Date" header if the user didn't.
@@ -621,8 +638,8 @@ const fn map_version(version: u8) -> Version {
 ///
 /// # Notes
 ///
-/// If the body is not (completely) read it's still removed from the
-/// `Connection`.
+/// If the body is not (completely) read before this is dropped it will still
+/// removed from the `Connection`.
 #[derive(Debug)]
 pub struct Body<'a> {
     conn: &'a mut Connection,
@@ -633,8 +650,15 @@ pub struct Body<'a> {
 impl<'a> Body<'a> {
     /// Returns the length of the body (in bytes) *left*.
     ///
-    /// The returned value is based on the "Content-Length" header, or 0 if not
-    /// present.
+    /// Calling this before [`recv`] or [`recv_vectored`] will return the
+    /// original body length, after removing bytes from the body this will
+    /// return the remaining length.
+    ///
+    /// The body length is determined by the "Content-Length" header, or 0 if
+    /// not present.
+    ///
+    /// [`recv`]: Body::recv
+    /// [`recv_vectored`]: Body::recv_vectored
     pub const fn len(&self) -> usize {
         self.left
     }
