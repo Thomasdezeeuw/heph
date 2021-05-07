@@ -474,7 +474,7 @@ where
     unsafe fn update_lengths(&mut self, n: usize) {
         let mut left = n;
         for buf in self.iter_mut() {
-            let n = min(left, buf.as_bytes().len());
+            let n = min(left, buf.spare_capacity());
             buf.update_length(n);
             left -= n;
             if left == 0 {
@@ -511,7 +511,7 @@ macro_rules! impl_vectored_bytes_tuple {
             unsafe fn update_lengths(&mut self, n: usize) {
                 let mut left = n;
                 $(
-                    let n = min(left, self.$idx.as_bytes().len());
+                    let n = min(left, self.$idx.spare_capacity());
                     self.$idx.update_length(n);
                     left -= n;
                     if left == 0 {
