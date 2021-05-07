@@ -236,16 +236,17 @@ impl TcpStream {
     where
         B: Bytes,
     {
-        let dst = buf.as_bytes();
         debug_assert!(
-            !dst.is_empty(),
+            buf.has_spare_capacity(),
             "called `TcpStream::try_recv with an empty buffer"
         );
-        SockRef::from(&self.socket).recv(dst).map(|read| {
-            // Safety: just read the bytes.
-            unsafe { buf.update_length(read) }
-            read
-        })
+        SockRef::from(&self.socket)
+            .recv(buf.as_bytes())
+            .map(|read| {
+                // Safety: just read the bytes.
+                unsafe { buf.update_length(read) }
+                read
+            })
     }
 
     /// Receive messages from the stream, writing them into `buf`.
@@ -314,12 +315,12 @@ impl TcpStream {
     /// #
     /// # drop(actor); // Silent dead code warnings.
     /// ```
-    pub fn recv_n<'a, B>(&'a mut self, mut buf: B, n: usize) -> RecvN<'a, B>
+    pub fn recv_n<'a, B>(&'a mut self, buf: B, n: usize) -> RecvN<'a, B>
     where
         B: Bytes,
     {
         debug_assert!(
-            buf.as_bytes().len() >= n,
+            buf.spare_capacity() >= n,
             "called `TcpStream::recv_n` with a buffer smaller then `n`"
         );
         RecvN {
@@ -342,16 +343,14 @@ impl TcpStream {
     where
         B: BytesVectored,
     {
-        let mut dst = bufs.as_bufs();
         debug_assert!(
-            dst.as_mut().iter().any(|buf| !buf.is_empty()),
-            "called `UdpSocket::try_recv_vectored` with an empty buffers"
+            bufs.has_spare_capacity(),
+            "called `UdpSocket::try_recv_vectored` with empty buffers"
         );
-        let res =
-            SockRef::from(&self.socket).recv_vectored(MaybeUninitSlice::as_socket2(dst.as_mut()));
+        let res = SockRef::from(&self.socket)
+            .recv_vectored(MaybeUninitSlice::as_socket2(bufs.as_bufs().as_mut()));
         match res {
             Ok((read, _)) => {
-                drop(dst);
                 // Safety: just read the bytes.
                 unsafe { bufs.update_lengths(read) }
                 Ok(read)
@@ -367,7 +366,7 @@ impl TcpStream {
     {
         debug_assert!(
             bufs.has_spare_capacity(),
-            "called `TcpStream::recv_vectored` with an empty buffer"
+            "called `TcpStream::recv_vectored` with empty buffers"
         );
         RecvVectored { stream: self, bufs }
     }
@@ -378,7 +377,7 @@ impl TcpStream {
         B: BytesVectored,
     {
         debug_assert!(
-            !bufs.spare_capacity() >= n,
+            bufs.spare_capacity() >= n,
             "called `TcpStream::recv_n_vectored` with a buffer smaller then `n`"
         );
         RecvNVectored {
@@ -395,16 +394,17 @@ impl TcpStream {
     where
         B: Bytes,
     {
-        let dst = buf.as_bytes();
         debug_assert!(
-            !dst.is_empty(),
+            buf.has_spare_capacity(),
             "called `TcpStream::try_peek with an empty buffer"
         );
-        SockRef::from(&self.socket).peek(dst).map(|read| {
-            // Safety: just read the bytes.
-            unsafe { buf.update_length(read) }
-            read
-        })
+        SockRef::from(&self.socket)
+            .peek(buf.as_bytes())
+            .map(|read| {
+                // Safety: just read the bytes.
+                unsafe { buf.update_length(read) }
+                read
+            })
     }
 
     /// Receive messages from the stream, writing them into `buf`, without
@@ -424,16 +424,16 @@ impl TcpStream {
     where
         B: BytesVectored,
     {
-        let mut dst = bufs.as_bufs();
         debug_assert!(
-            dst.as_mut().iter().any(|buf| !buf.is_empty()),
-            "called `UdpSocket::try_peek_vectored` with an empty buffer"
+            bufs.has_spare_capacity(),
+            "called `UdpSocket::try_peek_vectored` with empty buffers"
         );
-        let res = SockRef::from(&self.socket)
-            .recv_vectored_with_flags(MaybeUninitSlice::as_socket2(dst.as_mut()), libc::MSG_PEEK);
+        let res = SockRef::from(&self.socket).recv_vectored_with_flags(
+            MaybeUninitSlice::as_socket2(bufs.as_bufs().as_mut()),
+            libc::MSG_PEEK,
+        );
         match res {
             Ok((read, _)) => {
-                drop(dst);
                 // Safety: just read the bytes.
                 unsafe { bufs.update_lengths(read) }
                 Ok(read)

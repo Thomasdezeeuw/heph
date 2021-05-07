@@ -263,13 +263,12 @@ impl UdpSocket<Unconnected> {
     where
         B: Bytes,
     {
-        let dst = buf.as_bytes();
         debug_assert!(
-            !dst.is_empty(),
+            buf.has_spare_capacity(),
             "called `UdpSocket::try_recv_from` with an empty buffer"
         );
         SockRef::from(&self.socket)
-            .recv_from(dst)
+            .recv_from(buf.as_bytes())
             .and_then(|(read, address)| {
                 // Safety: just read the bytes.
                 unsafe { buf.update_length(read) }
@@ -300,16 +299,14 @@ impl UdpSocket<Unconnected> {
     where
         B: BytesVectored,
     {
-        let mut dst = bufs.as_bufs();
         debug_assert!(
-            !dst.as_mut().first().map_or(true, |buf| buf.is_empty()),
-            "called `UdpSocket::try_recv_from` with an empty buffer"
+            bufs.has_spare_capacity(),
+            "called `UdpSocket::try_recv_from` with empty buffers"
         );
         let res = SockRef::from(&self.socket)
-            .recv_from_vectored(MaybeUninitSlice::as_socket2(dst.as_mut()));
+            .recv_from_vectored(MaybeUninitSlice::as_socket2(bufs.as_bufs().as_mut()));
         match res {
             Ok((read, _, address)) => {
-                drop(dst);
                 // Safety: just read the bytes.
                 unsafe { bufs.update_lengths(read) }
                 let address = convert_address(address)?;
@@ -341,13 +338,12 @@ impl UdpSocket<Unconnected> {
     where
         B: Bytes,
     {
-        let dst = buf.as_bytes();
         debug_assert!(
-            !dst.is_empty(),
+            buf.has_spare_capacity(),
             "called `UdpSocket::try_peek_from` with an empty buffer"
         );
         SockRef::from(&self.socket)
-            .peek_from(dst)
+            .peek_from(buf.as_bytes())
             .and_then(|(read, address)| {
                 // Safety: just read the bytes.
                 unsafe { buf.update_length(read) }
@@ -379,18 +375,16 @@ impl UdpSocket<Unconnected> {
     where
         B: BytesVectored,
     {
-        let mut dst = bufs.as_bufs();
         debug_assert!(
-            !dst.as_mut().first().map_or(true, |buf| buf.is_empty()),
-            "called `UdpSocket::try_peek_from_vectored` with an empty buffer"
+            bufs.has_spare_capacity(),
+            "called `UdpSocket::try_peek_from_vectored` with empty buffers"
         );
         let res = SockRef::from(&self.socket).recv_from_vectored_with_flags(
-            MaybeUninitSlice::as_socket2(dst.as_mut()),
+            MaybeUninitSlice::as_socket2(bufs.as_bufs().as_mut()),
             libc::MSG_PEEK,
         );
         match res {
             Ok((read, _, address)) => {
-                drop(dst);
                 // Safety: just read the bytes.
                 unsafe { bufs.update_lengths(read) }
                 let address = convert_address(address)?;
@@ -591,16 +585,17 @@ impl UdpSocket<Connected> {
     where
         B: Bytes,
     {
-        let dst = buf.as_bytes();
         debug_assert!(
-            !dst.is_empty(),
+            buf.has_spare_capacity(),
             "called `UdpSocket::try_recv` with an empty buffer"
         );
-        SockRef::from(&self.socket).recv(dst).map(|read| {
-            // Safety: just read the bytes.
-            unsafe { buf.update_length(read) }
-            read
-        })
+        SockRef::from(&self.socket)
+            .recv(buf.as_bytes())
+            .map(|read| {
+                // Safety: just read the bytes.
+                unsafe { buf.update_length(read) }
+                read
+            })
     }
 
     /// Receives data from the socket. Returns a [`Future`] that on success
@@ -624,16 +619,14 @@ impl UdpSocket<Connected> {
     where
         B: BytesVectored,
     {
-        let mut dst = bufs.as_bufs();
         debug_assert!(
-            !dst.as_mut().first().map_or(true, |buf| buf.is_empty()),
-            "called `UdpSocket::try_recv_vectored` with an empty buffer"
+            bufs.has_spare_capacity(),
+            "called `UdpSocket::try_recv_vectored` with empty buffers"
         );
-        let res =
-            SockRef::from(&self.socket).recv_vectored(MaybeUninitSlice::as_socket2(dst.as_mut()));
+        let res = SockRef::from(&self.socket)
+            .recv_vectored(MaybeUninitSlice::as_socket2(bufs.as_bufs().as_mut()));
         match res {
             Ok((read, _)) => {
-                drop(dst);
                 // Safety: just read the bytes.
                 unsafe { bufs.update_lengths(read) }
                 Ok(read)
@@ -663,16 +656,17 @@ impl UdpSocket<Connected> {
     where
         B: Bytes,
     {
-        let dst = buf.as_bytes();
         debug_assert!(
-            !dst.is_empty(),
+            buf.has_spare_capacity(),
             "called `UdpSocket::try_peek` with an empty buffer"
         );
-        SockRef::from(&self.socket).peek(dst).map(|read| {
-            // Safety: just read the bytes.
-            unsafe { buf.update_length(read) }
-            read
-        })
+        SockRef::from(&self.socket)
+            .peek(buf.as_bytes())
+            .map(|read| {
+                // Safety: just read the bytes.
+                unsafe { buf.update_length(read) }
+                read
+            })
     }
 
     /// Receives data from the socket, without removing it from the input queue.
@@ -697,16 +691,16 @@ impl UdpSocket<Connected> {
     where
         B: BytesVectored,
     {
-        let mut dst = bufs.as_bufs();
         debug_assert!(
-            !dst.as_mut().first().map_or(true, |buf| buf.is_empty()),
-            "called `UdpSocket::try_peek_vectored` with an empty buffer"
+            bufs.has_spare_capacity(),
+            "called `UdpSocket::try_peek_vectored` with empty buffers"
         );
-        let res = SockRef::from(&self.socket)
-            .recv_vectored_with_flags(MaybeUninitSlice::as_socket2(dst.as_mut()), libc::MSG_PEEK);
+        let res = SockRef::from(&self.socket).recv_vectored_with_flags(
+            MaybeUninitSlice::as_socket2(bufs.as_bufs().as_mut()),
+            libc::MSG_PEEK,
+        );
         match res {
             Ok((read, _)) => {
-                drop(dst);
                 // Safety: just read the bytes.
                 unsafe { bufs.update_lengths(read) }
                 Ok(read)
