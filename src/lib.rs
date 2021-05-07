@@ -71,6 +71,7 @@
     available_concurrency,
     binary_heap_retain,
     const_fn,
+    const_fn_trait_bound,
     const_option,
     const_raw_ptr_to_usize_cast,
     drain_filter,
