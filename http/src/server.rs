@@ -168,7 +168,8 @@ where
 }
 
 // TODO: better name. Like `TcpStreamToConnection`?
-/// Maps `NA` to accept `(TcpStream, SocketAddr)` as argument.
+/// Maps `NA` to accept `(TcpStream, SocketAddr)` as argument, creating a
+/// [`Connection`].
 #[derive(Debug, Clone)]
 pub struct ArgMap<NA> {
     new_actor: NA,
@@ -292,8 +293,9 @@ impl Connection {
                         // Read the entire stream, so we're done.
                         return Ok(Ok(None));
                     } else {
-                        // Couldn't read any more bytes, but we still have bytes in
-                        // the buffer. This means it contains a partial request.
+                        // Couldn't read any more bytes, but we still have bytes
+                        // in the buffer. This means it contains a partial
+                        // request.
                         return Ok(Err(RequestError::IncompleteRequest));
                     }
                 }
@@ -715,7 +717,7 @@ where
         }
 
         // Read from the stream if there is space left.
-        if !buf.as_bytes().is_empty() {
+        if buf.has_spare_capacity() {
             loop {
                 match body.conn.stream.try_recv(&mut *buf) {
                     Ok(n) => return Poll::Ready(Ok(len + n)),
