@@ -42,11 +42,14 @@ macro_rules! int_impl {
                 let mut value: $ty = 0;
                 for b in src.iter().copied() {
                     if b >= b'0' && b <= b'9' {
-                        if value >= (<$ty>::MAX / 10) {
-                            // Overflow.
-                            return Err(ParseIntError);
+                        match value.checked_mul(10) {
+                            Some(v) => value = v,
+                            None => return Err(ParseIntError),
                         }
-                        value = (value * 10) + (b - b'0') as $ty;
+                        match value.checked_add((b - b'0') as $ty) {
+                            Some(v) => value = v,
+                            None => return Err(ParseIntError),
+                        }
                     } else {
                         return Err(ParseIntError);
                     }

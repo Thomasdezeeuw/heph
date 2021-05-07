@@ -21,15 +21,21 @@ fn integers() {
     test_parse(b"123", 123u32);
     test_parse(b"123", 123u64);
     test_parse(b"123", 123usize);
+
+    test_parse(b"255", u8::MAX);
+    test_parse(b"65535", u16::MAX);
+    test_parse(b"4294967295", u32::MAX);
+    test_parse(b"18446744073709551615", u64::MAX);
+    test_parse(b"18446744073709551615", usize::MAX);
 }
 
 #[test]
 fn integers_overflow() {
-    test_parse_fail::<u8>(b"256");
-    test_parse_fail::<u16>(b"65536");
-    test_parse_fail::<u32>(b"4294967296");
-    test_parse_fail::<u64>(b"18446744073709551615");
-    test_parse_fail::<usize>(b"18446744073709551615");
+    test_parse_fail::<u8>(b"257");
+    test_parse_fail::<u16>(b"65537");
+    test_parse_fail::<u32>(b"4294967297");
+    test_parse_fail::<u64>(b"18446744073709551616");
+    test_parse_fail::<usize>(b"18446744073709551616");
 }
 
 #[test]
