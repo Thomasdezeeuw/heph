@@ -1,7 +1,6 @@
 use std::fmt;
 
-use heph_http::header::{Header, HeaderName, Headers};
-use heph_http::FromBytes;
+use heph_http::header::{FromHeaderValue, Header, HeaderName, Headers};
 
 use crate::assert_size;
 
@@ -67,8 +66,8 @@ fn check_header<'a, T>(
     value: &'_ [u8],
     parsed_value: T,
 ) where
-    T: FromBytes<'a> + PartialEq + fmt::Debug,
-    <T as FromBytes<'a>>::Err: fmt::Debug,
+    T: FromHeaderValue<'a> + PartialEq + fmt::Debug,
+    <T as FromHeaderValue<'a>>::Err: fmt::Debug,
 {
     let got = headers.get(name).unwrap();
     assert_eq!(got.name(), name);

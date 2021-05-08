@@ -1,7 +1,7 @@
 use std::fmt;
 use std::time::SystemTime;
 
-use heph_http::FromBytes;
+use heph_http::header::FromHeaderValue;
 
 #[test]
 fn str() {
@@ -72,8 +72,8 @@ fn system_time() {
 #[track_caller]
 fn test_parse<'a, T>(value: &'a [u8], expected: T)
 where
-    T: FromBytes<'a> + fmt::Debug + PartialEq,
-    <T as FromBytes<'a>>::Err: fmt::Debug,
+    T: FromHeaderValue<'a> + fmt::Debug + PartialEq,
+    <T as FromHeaderValue<'a>>::Err: fmt::Debug,
 {
     assert_eq!(T::from_bytes(value).unwrap(), expected);
 }
@@ -81,8 +81,8 @@ where
 #[track_caller]
 fn test_parse_fail<'a, T>(value: &'a [u8])
 where
-    T: FromBytes<'a> + fmt::Debug + PartialEq,
-    <T as FromBytes<'a>>::Err: fmt::Debug,
+    T: FromHeaderValue<'a> + fmt::Debug + PartialEq,
+    <T as FromHeaderValue<'a>>::Err: fmt::Debug,
 {
     assert!(T::from_bytes(value).is_err());
 }

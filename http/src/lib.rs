@@ -11,7 +11,6 @@
 #![allow(incomplete_features)] // NOTE: for `generic_associated_types`.
 
 pub mod body;
-mod from_bytes;
 pub mod header;
 pub mod method;
 mod request;
@@ -22,7 +21,6 @@ pub mod version;
 
 #[doc(no_inline)]
 pub use body::Body;
-pub use from_bytes::FromBytes;
 #[doc(no_inline)]
 pub use header::{Header, HeaderName, Headers};
 #[doc(no_inline)]

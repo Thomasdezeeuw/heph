@@ -30,7 +30,8 @@ use httparse::EMPTY_HEADER;
 use httpdate::HttpDate;
 
 use crate::body::BodyLength;
-use crate::{FromBytes, HeaderName, Headers, Method, Request, Response, StatusCode, Version};
+use crate::header::{FromHeaderValue, HeaderName, Headers};
+use crate::{Method, Request, Response, StatusCode, Version};
 
 /// Maximum size of the header (the start line and the headers).
 ///
@@ -351,7 +352,7 @@ impl Connection {
                             // > request message, the server MUST respond with a
                             // > 400 (Bad Request) status code and then close
                             // > the connection.
-                            if let Ok(length) = FromBytes::from_bytes(value) {
+                            if let Ok(length) = FromHeaderValue::from_bytes(value) {
                                 match body_length.as_mut() {
                                     Some(body_length) if *body_length == length => {}
                                     Some(_) => return Err(RequestError::DifferentContentLengths),

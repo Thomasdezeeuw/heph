@@ -9,7 +9,7 @@ fn assert_size<T>(expected: usize) {
 
 #[path = "functional"] // rustfmt can't find the files.
 mod functional {
-    mod from_bytes;
+    mod from_header_value;
     mod header;
     mod method;
     mod status_code;
