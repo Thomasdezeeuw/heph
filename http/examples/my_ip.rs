@@ -3,12 +3,14 @@
 use std::borrow::Cow;
 use std::io;
 use std::net::SocketAddr;
+use std::time::Duration;
 
 use heph::actor::{self, Actor, NewActor};
 use heph::net::TcpStream;
 use heph::rt::{self, Runtime, ThreadLocal};
 use heph::spawn::options::{ActorOptions, Priority};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
+use heph::timer::Deadline;
 use heph_http::body::OneshotBody;
 use heph_http::{self as http, Header, HeaderName, Headers, HttpServer, Method, StatusCode};
 use log::{debug, error, info, warn};
@@ -68,17 +70,23 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)
     SupervisorStrategy::Stop
 }
 
+const READ_TIMEOUT: Duration = Duration::from_secs(10);
+const ALIVE_TIMEOUT: Duration = Duration::from_secs(120);
+const WRITE_TIMEOUT: Duration = Duration::from_secs(10);
+
 async fn http_actor(
-    _: actor::Context<!, ThreadLocal>,
+    mut ctx: actor::Context<!, ThreadLocal>,
     mut connection: http::Connection,
     address: SocketAddr,
 ) -> io::Result<()> {
     info!("accepted connection: source={}", address);
     connection.set_nodelay(true)?;
 
+    let mut read_timeout = READ_TIMEOUT;
     loop {
         let mut headers = Headers::EMPTY;
-        let (code, body, should_close) = match connection.next_request().await? {
+        let fut = Deadline::after(&mut ctx, read_timeout, connection.next_request());
+        let (code, body, should_close) = match fut.await? {
             Ok(Some(request)) => {
                 info!("received request: {:?}: source={}", request, address);
                 if request.path() != "/" {
@@ -117,11 +125,16 @@ async fn http_actor(
             code, body, address
         );
         let body = OneshotBody::new(body.as_bytes());
-        connection.respond(code, headers, body).await?;
+        let write_response = connection.respond(code, headers, body);
+        Deadline::after(&mut ctx, WRITE_TIMEOUT, write_response).await?;
 
         if should_close {
             warn!("closing connection: source={}", address);
             return Ok(());
         }
+
+        // Now that we've read a single request we can wait a little for the
+        // next one so that we can reuse the resources for the next request.
+        read_timeout = ALIVE_TIMEOUT;
     }
 }
