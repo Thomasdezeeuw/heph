@@ -68,8 +68,8 @@ impl Inactive {
     ///
     /// Once this function returns the value could already be outdated.
     pub(super) fn has_process(&self) -> bool {
-        // NOTE: doing anything based on this function is racey, so relaxed
-        // ordering is fine.
+        // NOTE: doing anything based on this function is prone to race
+        // conditions, so relaxed ordering is fine.
         self.length.load(Ordering::Relaxed) != 0
     }
 
