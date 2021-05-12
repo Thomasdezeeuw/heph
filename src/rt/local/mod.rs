@@ -21,7 +21,7 @@ mod scheduler;
 mod timers;
 
 use scheduler::Scheduler;
-pub(crate) use timers::Timers; // Used in `test` module.
+use timers::Timers;
 
 /// Number of processes to run in between calls to poll.
 ///
@@ -581,7 +581,7 @@ impl Runtime {
 
 /// Control the [`Runtime`].
 #[allow(variant_size_differences)] // Can't make `Run` smaller.
-pub(crate) enum Control {
+pub(super) enum Control {
     /// Runtime has started, i.e. [`rt::Runtime::start`] was called.
     Started,
     /// Process received a signal.
@@ -604,7 +604,7 @@ impl fmt::Debug for Control {
 
 /// Error running a [`Runtime`].
 #[derive(Debug)]
-pub(crate) enum Error {
+pub(super) enum Error {
     /// Error in [`Runtime::new`].
     Init(io::Error),
     /// Error polling [`Poll`].
