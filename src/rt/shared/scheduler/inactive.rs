@@ -45,7 +45,7 @@ pub(super) fn ok_ptr(ptr: *const ()) -> bool {
 /// * Fast And Space Efficient Trie Searches by Phil Bagwell
 // pub(in crate::rt) because its used in AddActor.
 #[derive(Debug)]
-pub(in crate::rt) struct Inactive {
+pub(super) struct Inactive {
     root: Branch,
     /// The number of processes is the tree, **not** markers.
     /// NOTE: do not use the value for correctness, it's highly likely to be

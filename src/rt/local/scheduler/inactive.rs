@@ -41,9 +41,9 @@ pub(super) fn ok_ptr(ptr: *const ()) -> bool {
 /// * <https://idea.popcount.org/2012-07-25-introduction-to-hamt>,
 /// * Ideal Hash Trees by Phil Bagwell
 /// * Fast And Space Efficient Trie Searches by Phil Bagwell
-// `pub(in crate::rt)` because its used in `AddActor`.
+// `pub(super)` because its used in `AddActor`.
 #[derive(Debug)]
-pub(in crate::rt) struct Inactive {
+pub(super) struct Inactive {
     root: Branch,
     length: usize,
 }

@@ -26,10 +26,9 @@ mod scheduler;
 mod timers;
 pub(crate) mod waker;
 
-pub(crate) use timers::Timers;
+use scheduler::{ProcessData, Scheduler};
+use timers::Timers;
 use waker::WakerId;
-
-pub(crate) use scheduler::{ProcessData, Scheduler};
 
 /// Setup of [`RuntimeInternals`].
 ///
