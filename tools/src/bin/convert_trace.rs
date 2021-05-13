@@ -19,7 +19,7 @@ fn main() {
     let output = match args.next() {
         Some(output) => PathBuf::from(output),
         None => {
-            let end_idx = input.rfind('.').unwrap_or(input.len());
+            let end_idx = input.rfind('.').unwrap_or_else(|| input.len());
             let mut output = PathBuf::from(&input[..end_idx]);
             // If the input has a single extension this will add `json` to it.
             // If however it has two extensions, e.g. `.bin.log` this will
@@ -60,10 +60,11 @@ fn main() {
             .as_micros();
         let mut duration = event.end.duration_since(event.start).unwrap().as_micros();
 
-        let pid = event.stream_id;
-        let tid = event.substream_id;
+        let process_id = event.stream_id;
+        let thread_id = event.substream_id;
         loop {
-            match times.entry((pid, tid)).or_default().entry(timestamp) {
+            let key = (process_id, thread_id);
+            match times.entry(key).or_default().entry(timestamp) {
                 Entry::Vacant(entry) => {
                     entry.insert(duration);
                     break;
@@ -88,8 +89,8 @@ fn main() {
             output,
             "{}\t\t{{\"pid\": {}, \"tid\": {}, \"ts\": {}, \"dur\": {}, \"name\": \"{}\"",
             if first { "" } else { ",\n" },
-            pid,
-            tid,
+            process_id,
+            thread_id,
             timestamp,
             duration,
             event.description,
@@ -101,7 +102,7 @@ fn main() {
             output
                 .write_all(b", \"args\": {")
                 .expect("failed to write event to output");
-            for (name, value) in event.attributes.iter() {
+            for (name, value) in &event.attributes {
                 let fmt_args = match value {
                     // NOTE: `format_args!` is useless.
                     Value::Unsigned(value) => format!("\"{}\": {}", name, value),
@@ -194,7 +195,9 @@ pub struct TraceEvents<'t, R> {
     trace: &'t mut Trace<R>,
 }
 
+#[allow(clippy::unreadable_literal)]
 const METADATA_MAGIC: u32 = 0x75D11D4D;
+#[allow(clippy::unreadable_literal)]
 const EVENT_MAGIC: u32 = 0xC1FC1FB7;
 
 /// Minimum amount of bytes in the buffer before we read again.
@@ -237,12 +240,12 @@ where
         match magic {
             METADATA_MAGIC => {
                 if let Err(err) = self.apply_metadata_packet() {
-                    Some(Err(err.into()))
+                    Some(Err(err))
                 } else {
                     self.next()
                 }
             }
-            EVENT_MAGIC => Some(self.parse_event_packet().map_err(|e| e.into())),
+            EVENT_MAGIC => Some(self.parse_event_packet()),
             magic => Some(Err(ParseError::InvalidMagic(magic))),
         }
     }
