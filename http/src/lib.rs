@@ -1,6 +1,5 @@
 #![feature(
     async_stream,
-    const_fn,
     const_fn_trait_bound,
     const_mut_refs,
     const_panic,
