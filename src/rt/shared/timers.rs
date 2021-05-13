@@ -1,8 +1,6 @@
 //! Module with the shared timers implementation.
 //!
-//! Also see the [local timers implementation].
-//!
-//! [local timers implementation]: crate::rt::local::Timers
+//! Also see the local timers implementation.
 
 use std::cmp::{min, Ordering};
 use std::sync::RwLock;
