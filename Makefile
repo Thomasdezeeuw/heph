@@ -19,7 +19,7 @@ TARGETS ?= x86_64-apple-darwin x86_64-unknown-linux-gnu x86_64-unknown-freebsd
 RUN ?= test
 
 test:
-	cargo test --all-features
+	cargo test --all-features --workspace
 
 # NOTE: Keep `RUSTFLAGS` and `RUSTDOCFLAGS` in sync to ensure the doc tests
 # compile correctly.
@@ -27,14 +27,14 @@ test_sanitiser:
 	@if [ -z $${SAN+x} ]; then echo "Required '\$$SAN' variable is not set" 1>&2; exit 1; fi
 	RUSTFLAGS="-Z sanitizer=$$SAN -Z sanitizer-memory-track-origins" \
 	RUSTDOCFLAGS="-Z sanitizer=$$SAN -Z sanitizer-memory-track-origins" \
-	cargo test -Z build-std --all-features --target $(RUSTUP_TARGET)
+	cargo test -Z build-std --all-features --workspace --target $(RUSTUP_TARGET)
 
 check:
-	cargo check --all-features --all-targets
+	cargo check --all-features --workspace --all-targets
 
 check_all_targets: $(TARGETS)
 $(TARGETS):
-	cargo check --all-features --all-targets --target $@
+	cargo check --all-features --workspace --all-targets --target $@
 
 # NOTE: when using this command you might want to change the `test` target to
 # only run a subset of the tests you're actively working on.
@@ -47,7 +47,7 @@ dev:
 # multiple-crate-versions: socket2 is included twice? But `cargo tree` disagrees.
 clippy: lint
 lint:
-	cargo clippy --all-features -- \
+	cargo clippy --all-features --workspace -- \
 		--deny clippy::all \
 		--deny clippy::correctness \
 		--deny clippy::style \
@@ -110,10 +110,10 @@ install_llvm_tools:
 	rustup component add llvm-tools-preview
 
 doc:
-	cargo doc --all-features
+	cargo doc --all-features --workspace
 
 doc_private:
-	cargo doc --all-features --document-private-items
+	cargo doc --all-features --workspace --document-private-items
 
 clean:
 	cargo clean
