@@ -96,7 +96,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 
 /// An actor that starts a new actor for each accepted TCP connection.
 ///
-/// TODO: same design as TcpServer.
+/// TODO: same design as `TcpServer`.
 ///
 /// This actor can start as a thread-local or thread-safe actor. When using the
 /// thread-local variant one actor runs per worker thread which spawns
@@ -306,40 +306,40 @@ impl Connection {
                 self.clear_buffer();
                 self.buf.reserve(MIN_READ_SIZE);
                 if self.stream.recv(&mut self.buf).await? == 0 {
-                    if self.buf.is_empty() {
+                    return if self.buf.is_empty() {
                         // Read the entire stream, so we're done.
-                        return Ok(Ok(None));
+                        Ok(Ok(None))
                     } else {
                         // Couldn't read any more bytes, but we still have bytes
                         // in the buffer. This means it contains a partial
                         // request.
-                        return Ok(Err(RequestError::IncompleteRequest));
-                    }
+                        Ok(Err(RequestError::IncompleteRequest))
+                    };
                 }
             }
 
             let mut headers = [EMPTY_HEADER; MAX_HEADERS];
-            let mut req = httparse::Request::new(&mut headers);
+            let mut request = httparse::Request::new(&mut headers);
             // SAFETY: because we received until at least `self.parsed_bytes >=
             // self.buf.len()` above, we can safely slice the buffer..
-            match req.parse(&self.buf[self.parsed_bytes..]) {
+            match request.parse(&self.buf[self.parsed_bytes..]) {
                 Ok(httparse::Status::Complete(header_length)) => {
                     self.parsed_bytes += header_length;
 
                     // SAFETY: all these unwraps are safe because `parse` above
                     // ensures there all `Some`.
-                    let method = match req.method.unwrap().parse() {
+                    let method = match request.method.unwrap().parse() {
                         Ok(method) => method,
                         Err(_) => return Ok(Err(RequestError::UnknownMethod)),
                     };
                     self.last_method = Some(method);
-                    let path = req.path.unwrap().to_string();
-                    let version = map_version(req.version.unwrap());
+                    let path = request.path.unwrap().to_string();
+                    let version = map_version(request.version.unwrap());
                     self.last_version = Some(version);
 
                     // RFC 7230 section 3.3.3 Message Body Length.
                     let mut body_length: Option<usize> = None;
-                    let res = Headers::from_httparse_headers(req.headers, |name, value| {
+                    let res = Headers::from_httparse_headers(request.headers, |name, value| {
                         if *name == HeaderName::CONTENT_LENGTH {
                             // RFC 7230 section 3.3.3 point 4:
                             // > If a message is received without
@@ -415,8 +415,8 @@ impl Connection {
                     // Buffer doesn't include the entire request header, try
                     // reading more bytes (in the next iteration).
                     too_short = self.buf.len();
-                    self.last_method = req.method.and_then(|m| m.parse().ok());
-                    if let Some(version) = req.version {
+                    self.last_method = request.method.and_then(|m| m.parse().ok());
+                    if let Some(version) = request.version {
                         self.last_version = Some(map_version(version));
                     }
 
@@ -503,6 +503,7 @@ impl Connection {
     ///
     /// See the notes for [`Connection::send_response`], they apply to this
     /// function also.
+    #[allow(clippy::future_not_send)]
     pub async fn respond<'b, B>(
         &mut self,
         status: StatusCode,
@@ -531,6 +532,7 @@ impl Connection {
     ///
     /// [`expects_body`]: Method::expects_body
     /// [`includes_body`]: StatusCode::includes_body
+    #[allow(clippy::future_not_send)]
     pub async fn send_response<'b, B>(
         &mut self,
         request_method: Method,
@@ -719,10 +721,8 @@ impl<'a> Body<'a> {
             let len = min(len, dst.len());
             MaybeUninit::write_slice(&mut dst[..len], &bytes[..len]);
             self.processed(len);
-            len
-        } else {
-            0
         }
+        len
     }
 
     /// Mark `n` bytes are processed.
@@ -761,10 +761,10 @@ where
                 match body.conn.stream.try_recv(&mut *buf) {
                     Ok(n) => return Poll::Ready(Ok(len + n)),
                     Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                        if len != 0 {
-                            return Poll::Ready(Ok(len));
+                        return if len == 0 {
+                            Poll::Pending
                         } else {
-                            return Poll::Pending;
+                            Poll::Ready(Ok(len))
                         }
                     }
                     Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
@@ -811,10 +811,10 @@ where
                 match body.conn.stream.try_recv_vectored(&mut *bufs) {
                     Ok(n) => return Poll::Ready(Ok(len + n)),
                     Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                        if len != 0 {
-                            return Poll::Ready(Ok(len));
+                        return if len == 0 {
+                            Poll::Pending
                         } else {
-                            return Poll::Pending;
+                            Poll::Ready(Ok(len))
                         }
                     }
                     Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,

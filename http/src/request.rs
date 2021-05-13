@@ -22,8 +22,8 @@ impl<B> Request<B> {
     ) -> Request<B> {
         Request {
             method,
-            version,
             path,
+            version,
             headers,
             body,
         }

@@ -93,7 +93,7 @@ impl Headers {
     ///
     /// If all you need is the header value you can use [`Headers::get_value`].
     pub fn get<'a>(&'a self, name: &HeaderName<'_>) -> Option<Header<'a, 'a>> {
-        for part in self.parts.iter() {
+        for part in &self.parts {
             if part.name == *name {
                 return Some(Header {
                     name: part.name.borrow(),
@@ -106,7 +106,7 @@ impl Headers {
 
     /// Get the header's value with `name`, if any.
     pub fn get_value<'a>(&'a self, name: &HeaderName) -> Option<&'a [u8]> {
-        for part in self.parts.iter() {
+        for part in &self.parts {
             if part.name == *name {
                 return Some(&self.values[part.start..part.end]);
             }
@@ -164,7 +164,7 @@ impl From<&'_ [Header<'_>]> for Headers {
 impl fmt::Debug for Headers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_map();
-        for part in self.parts.iter() {
+        for part in &self.parts {
             let value = &self.values[part.start..part.end];
             if let Ok(str) = std::str::from_utf8(value) {
                 f.entry(&part.name, &str);
@@ -303,6 +303,7 @@ macro_rules! known_headers {
         /// # Notes
         ///
         /// If `name` is static prefer to use [`HeaderName::from_lowercase`].
+        #[allow(clippy::should_implement_trait)]
         pub fn from_str(name: &str) -> HeaderName<'static> {
             // This first matches on the length of the `name`, then does a
             // case-insensitive compare of the name with all known headers with
@@ -934,7 +935,7 @@ macro_rules! int_impl {
 
                 let mut value: $ty = 0;
                 for b in src.iter().copied() {
-                    if b >= b'0' && b <= b'9' {
+                    if (b'0'..=b'9').contains(&b) {
                         match value.checked_mul(10) {
                             Some(v) => value = v,
                             None => return Err(ParseIntError),
