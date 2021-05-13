@@ -74,10 +74,7 @@ impl Method {
         // > The HEAD method is identical to GET except that the server MUST NOT
         // > send a message body in the response (i.e., the response terminates
         // > at the end of the header section).
-        match self {
-            Method::Head => false,
-            _ => true,
-        }
+        !matches!(self, Method::Head)
     }
 
     /// Returns the method as string.

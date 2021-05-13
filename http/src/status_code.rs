@@ -307,10 +307,7 @@ impl StatusCode {
         // > All 1xx (Informational), 204 (No Content), and 304 (Not Modified)
         // > responses do not include a message body. All other responses do
         // > include a message body, although the body might be of zero length.
-        match self.0 {
-            100..=199 | 204 | 304 => false,
-            _ => true,
-        }
+        !matches!(self.0, 100..=199 | 204 | 304)
     }
 
     /// Returns the reason phrase for well known status codes.
