@@ -146,14 +146,17 @@ mod private {
             while *left != 0 {
                 // We have bytes we need to send.
                 if let Some(bytes) = body_bytes.as_mut() {
+                    // TODO: check `bytes.len()` <= `left`.
                     match stream.try_send(*bytes) {
                         Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
-                        Ok(n) if n >= bytes.len() => {
-                            *body_bytes = None;
-                        }
                         Ok(n) => {
-                            *bytes = &bytes[n..];
-                            continue;
+                            *left -= n;
+                            if n >= bytes.len() {
+                                *body_bytes = None;
+                            } else {
+                                *bytes = &bytes[n..];
+                                continue;
+                            }
                         }
                         Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
                             return Poll::Pending
