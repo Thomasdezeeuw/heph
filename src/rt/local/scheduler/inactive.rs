@@ -7,10 +7,10 @@ use std::ptr::NonNull;
 use crate::rt::local::scheduler::ProcessData;
 use crate::rt::process::ProcessId;
 
-/// Number of branches per level of the tree, must be a power of 2.
-const N_BRANCHES: usize = 16;
 /// Number of bits to shift per level.
 const LEVEL_SHIFT: usize = 4;
+/// Number of branches per level of the tree, must be a power of 2.
+const N_BRANCHES: usize = 1 << LEVEL_SHIFT; // 16
 /// Number of bits to mask per level.
 const LEVEL_MASK: usize = (1 << LEVEL_SHIFT) - 1;
 /// For alignment reasons the two least significant bits of a boxed
