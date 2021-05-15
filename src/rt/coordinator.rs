@@ -1,8 +1,10 @@
 //! Coordinator thread code.
 
+use std::env::consts::{ARCH, OS};
+use std::os::unix::process::parent_id;
 use std::sync::Arc;
-use std::time::Duration;
-use std::{fmt, io};
+use std::time::{Duration, Instant};
+use std::{fmt, io, process};
 
 use log::{debug, error, info, trace};
 use mio::event::Event;
@@ -29,11 +31,19 @@ pub(super) struct Coordinator {
     signals: Signals,
     /// Internals shared between the coordinator and workers.
     internals: Arc<shared::RuntimeInternals>,
+    /// Start time, used to calculate [`Metrics`]'s uptime.
+    start: Instant,
 }
 
 /// Metrics for [`Coordinator`].
 #[derive(Debug)]
 struct Metrics<'l> {
+    heph_version: &'static str,
+    os: &'static str,
+    architecture: &'static str,
+    process_id: u32,
+    parent_process_id: u32,
+    uptime: Duration,
     worker_threads: usize,
     sync_actors: usize,
     shared: shared::Metrics,
@@ -70,6 +80,7 @@ impl Coordinator {
             poll,
             signals,
             internals,
+            start: Instant::now(),
         })
     }
 
@@ -204,6 +215,12 @@ impl Coordinator {
         let total_cpu_time = cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID);
         let cpu_time = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID);
         Metrics {
+            heph_version: concat!("v", env!("CARGO_PKG_VERSION")),
+            os: OS,
+            architecture: ARCH,
+            process_id: process::id(),
+            parent_process_id: parent_id(),
+            uptime: self.start.elapsed(),
             worker_threads: workers.len(),
             sync_actors: sync_workers.len(),
             shared: self.internals.metrics(),
