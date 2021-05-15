@@ -56,6 +56,11 @@ pub enum Signal {
     /// User-defined signal 2.
     ///
     /// Corresponds to POSIX signal `SIGUSR2`.
+    ///
+    /// # Notes
+    ///
+    /// The runtime will output various metrics about itself when it receives
+    /// this signal.
     User2,
 }
 

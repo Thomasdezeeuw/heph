@@ -87,6 +87,13 @@ struct Epoch {
     index: u8,
 }
 
+/// Metrics for [`Timers`].
+#[derive(Debug)]
+pub(crate) struct Metrics {
+    timers: usize,
+    next_timer: Option<Duration>,
+}
+
 impl Timers {
     /// Create a new collection of timers.
     pub(crate) fn new() -> Timers {
@@ -101,6 +108,27 @@ impl Timers {
             slots: [RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new())],
             overflow: RwLock::new(Vec::new()),
         }
+    }
+
+    /// Gather metrics about the timers.
+    pub(crate) fn metrics(&self) -> Metrics {
+        let next_timer = self.next().map(|deadline| {
+            Instant::now()
+                .checked_duration_since(deadline)
+                .unwrap_or(Duration::ZERO)
+        });
+        let mut timers = 0;
+        for slots in &self.slots {
+            let slots = slots.read().unwrap();
+            let len = slots.len();
+            drop(slots);
+            timers += len;
+        }
+        {
+            let overflow = self.overflow.read().unwrap();
+            timers += overflow.len()
+        }
+        Metrics { timers, next_timer }
     }
 
     /// Returns the next deadline, if any.

@@ -57,6 +57,11 @@ impl Inactive {
         }
     }
 
+    /// Returns the number of processes in the inactive list.
+    pub(super) fn len(&self) -> usize {
+        self.length
+    }
+
     /// Returns `true` if the queue contains a process.
     pub(super) const fn has_process(&self) -> bool {
         self.length != 0

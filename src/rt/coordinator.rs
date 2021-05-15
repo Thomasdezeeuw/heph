@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::{fmt, io};
 
-use log::{debug, error, trace};
+use log::{debug, error, info, trace};
 use mio::event::Event;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
@@ -28,6 +28,17 @@ pub(super) struct Coordinator {
     signals: Signals,
     /// Internals shared between the coordinator and workers.
     internals: Arc<shared::RuntimeInternals>,
+}
+
+/// Metrics for [`Coordinator`].
+#[derive(Debug)]
+struct Metrics<'l> {
+    worker_threads: usize,
+    sync_actors: usize,
+    shared: shared::Metrics,
+    process_signals: SignalSet,
+    process_signal_receivers: usize,
+    trace_log: Option<trace::CoordinatorMetrics<'l>>,
 }
 
 impl Coordinator {
@@ -125,13 +136,27 @@ impl Coordinator {
                 match event.token() {
                     SIGNAL => {
                         let timing = trace::start(&trace_log);
-                        relay_signals(&mut self.signals, &mut workers, &mut signal_refs);
+                        let log_metrics =
+                            relay_signals(&mut self.signals, &mut workers, &mut signal_refs);
                         trace::finish_rt(
                             trace_log.as_mut(),
                             timing,
                             "Relaying process signal(s)",
                             &[],
                         );
+
+                        if log_metrics {
+                            let timing = trace::start(&trace_log);
+                            let metrics =
+                                self.metrics(&workers, &sync_workers, &signal_refs, &trace_log);
+                            info!(target: "metrics", "metrics: {:?}", metrics);
+                            trace::finish_rt(
+                                trace_log.as_mut(),
+                                timing,
+                                "Printing runtime metrics",
+                                &[],
+                            );
+                        }
                     }
                     token if token.0 < SYNC_WORKER_ID_START => {
                         let timing = trace::start(&trace_log);
@@ -164,13 +189,33 @@ impl Coordinator {
             }
         }
     }
+
+    /// Gather metrics about the coordinator and runtime.
+    fn metrics<'l>(
+        &self,
+        workers: &[Worker],
+        sync_workers: &[SyncWorker],
+        signal_refs: &ActorGroup<Signal>,
+        trace_log: &'l Option<trace::CoordinatorLog>,
+    ) -> Metrics<'l> {
+        Metrics {
+            worker_threads: workers.len(),
+            sync_actors: sync_workers.len(),
+            shared: self.internals.metrics(),
+            process_signals: SIGNAL_SET,
+            process_signal_receivers: signal_refs.len(),
+            trace_log: trace_log.as_ref().map(trace::CoordinatorLog::metrics),
+        }
+    }
 }
+
+/// Set of signals we're listening for.
+const SIGNAL_SET: SignalSet = SignalSet::all();
 
 /// Setup a new `Signals` instance, registering it with `registry`.
 fn setup_signals(registry: &Registry) -> io::Result<Signals> {
-    let signals = SignalSet::all();
-    trace!("setting up signal handling: signals={:?}", signals);
-    Signals::new(signals).and_then(|mut signals| {
+    trace!("setting up signal handling: signals={:?}", SIGNAL_SET);
+    Signals::new(SIGNAL_SET).and_then(|mut signals| {
         registry
             .register(&mut signals, SIGNAL, Interest::READABLE)
             .map(|()| signals)
@@ -206,21 +251,28 @@ fn check_sync_worker_alive(sync_workers: &mut Vec<SyncWorker>) -> Result<(), rt:
 
 /// Relay all signals received from `signals` to the `workers` and
 /// `signal_refs`.
+/// Returns a bool indicating we received `SIGUSR2`, which is used to get
+/// metrics from the runtime. If this returns `true` call `log_metrics`.
 fn relay_signals(
     signals: &mut Signals,
     workers: &mut [Worker],
     signal_refs: &mut ActorGroup<Signal>,
-) {
+) -> bool {
     signal_refs.remove_disconnected();
 
+    let mut log_metrics = false;
     loop {
         match signals.receive() {
             Ok(Some(signal)) => {
+                let signal = Signal::from_mio(signal);
+                if let Signal::User2 = signal {
+                    log_metrics = true;
+                }
+
                 debug!(
                     "relaying process signal to worker threads: signal={:?}",
                     signal
                 );
-                let signal = Signal::from_mio(signal);
                 for worker in workers.iter_mut() {
                     if let Err(err) = worker.send_signal(signal) {
                         // NOTE: if the worker is unable to receive a message
@@ -252,6 +304,7 @@ fn relay_signals(
             }
         }
     }
+    log_metrics
 }
 
 /// Handle an `event` for a worker.

@@ -33,6 +33,18 @@ impl RunQueue {
         }
     }
 
+    /// Returns the number of processes in the queue.
+    ///
+    /// # Notes
+    ///
+    /// Don't call this often, it's terrible for performance.
+    pub(super) fn len(&self) -> usize {
+        match &mut *self.root.lock().unwrap() {
+            Some(branch) => branch.len(),
+            None => 0,
+        }
+    }
+
     /// Returns `true` if the queue contains any process.
     pub(super) fn has_process(&self) -> bool {
         self.root.lock().unwrap().is_some()
@@ -92,6 +104,18 @@ impl Node {
             left: None,
             right: None,
         })
+    }
+
+    /// Returns the number of processes in this node and it's descendants.
+    fn len(&self) -> usize {
+        let mut count = 1; // Count ourselves.
+        if let Some(branch) = self.left.as_ref() {
+            count += branch.len();
+        }
+        if let Some(branch) = self.right.as_ref() {
+            count += branch.len();
+        }
+        count
     }
 }
 

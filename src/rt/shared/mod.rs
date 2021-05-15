@@ -96,12 +96,27 @@ pub(crate) struct RuntimeInternals {
     trace_log: Option<Arc<trace::SharedLog>>,
 }
 
+/// Metrics for [`RuntimeInternals`].
+#[derive(Debug)]
+pub(crate) struct Metrics {
+    scheduler: scheduler::Metrics,
+    timers: timers::Metrics,
+}
+
 impl RuntimeInternals {
     /// Setup new runtime internals.
     pub(crate) fn setup() -> io::Result<RuntimeSetup> {
         let poll = Poll::new()?;
         let registry = poll.registry().try_clone()?;
         Ok(RuntimeSetup { poll, registry })
+    }
+
+    /// Gather metrics about the shared runtime state.
+    pub(crate) fn metrics(&self) -> Metrics {
+        Metrics {
+            scheduler: self.scheduler.metrics(),
+            timers: self.timers.metrics(),
+        }
     }
 
     /// Returns a new [`task::Waker`] for the thread-safe actor with `pid`.
