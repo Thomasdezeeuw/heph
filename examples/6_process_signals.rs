@@ -62,6 +62,7 @@ impl TryFrom<Signal> for Message {
     fn try_from(signal: Signal) -> Result<Self, Self::Error> {
         match signal {
             Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(Message::Terminate),
+            _ => Err(()),
         }
     }
 }
