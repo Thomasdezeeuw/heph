@@ -49,6 +49,14 @@ pub enum Signal {
     ///
     /// Corresponds to POSIX signal `SIGQUIT`.
     Quit,
+    /// User-defined signal 1.
+    ///
+    /// Corresponds to POSIX signal `SIGUSR1`.
+    User1,
+    /// User-defined signal 2.
+    ///
+    /// Corresponds to POSIX signal `SIGUSR2`.
+    User2,
 }
 
 impl Signal {
@@ -58,13 +66,17 @@ impl Signal {
             mio_signals::Signal::Interrupt => Signal::Interrupt,
             mio_signals::Signal::Terminate => Signal::Terminate,
             mio_signals::Signal::Quit => Signal::Quit,
+            mio_signals::Signal::User1 => Signal::User1,
+            mio_signals::Signal::User2 => Signal::User2,
         }
     }
 
     /// Whether or not the `Signal` is considered a "stopping" signal.
-    #[allow(clippy::unused_self)] // When more signals are added `self` is needed.
     pub(super) const fn should_stop(self) -> bool {
-        true
+        match self {
+            Signal::Interrupt | Signal::Terminate | Signal::Quit => true,
+            Signal::User1 | Signal::User2 => false,
+        }
     }
 
     /// Returns a human readable name for the signal.
@@ -73,6 +85,8 @@ impl Signal {
             Signal::Interrupt => "interrupt",
             Signal::Terminate => "terminate",
             Signal::Quit => "quit",
+            Signal::User1 => "user-1",
+            Signal::User2 => "user-2",
         }
     }
 
@@ -82,6 +96,8 @@ impl Signal {
             Signal::Interrupt => "SIGINT",
             Signal::Terminate => "SIGTERM",
             Signal::Quit => "SIGQUIT",
+            Signal::User1 => "SIGUSR1",
+            Signal::User2 => "SIGUSR2",
         }
     }
 }
