@@ -34,12 +34,27 @@ pub(crate) struct Scheduler {
     inactive: Inactive,
 }
 
+/// Metrics for [`Scheduler`].
+#[derive(Debug)]
+pub(crate) struct Metrics {
+    ready: usize,
+    inactive: usize,
+}
+
 impl Scheduler {
     /// Create a new `Scheduler`.
     pub(crate) fn new() -> Scheduler {
         Scheduler {
             ready: BinaryHeap::new(),
             inactive: Inactive::empty(),
+        }
+    }
+
+    /// Gather metrics about the scheduler.
+    pub(crate) fn metrics(&self) -> Metrics {
+        Metrics {
+            ready: self.ready.len(),
+            inactive: self.inactive.len(),
         }
     }
 

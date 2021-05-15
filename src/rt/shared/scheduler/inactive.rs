@@ -62,6 +62,18 @@ impl Inactive {
         }
     }
 
+    /// Returns the number of processes in the inactive list.
+    pub(super) fn len(&self) -> usize {
+        let len = self.length.load(Ordering::Relaxed);
+        // The `length` can actually underflow quite easily, to not report a
+        // clearly incorrect value we'll report zero instead.
+        if len & (1 << 63) == 0 {
+            len
+        } else {
+            0
+        }
+    }
+
     /// Returns `true` if the queue contains a process.
     ///
     /// # Notes

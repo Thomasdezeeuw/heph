@@ -79,6 +79,13 @@ pub(crate) struct Timers {
     cached_next_deadline: CachedInstant,
 }
 
+/// Metrics for [`Timers`].
+#[derive(Debug)]
+pub(crate) struct Metrics {
+    timers: usize,
+    next_timer: Option<Duration>,
+}
+
 impl Timers {
     /// Create a new collection of timers.
     pub(crate) fn new() -> Timers {
@@ -90,6 +97,21 @@ impl Timers {
             overflow: Vec::new(),
             cached_next_deadline: CachedInstant::Empty,
         }
+    }
+
+    /// Gather metrics about the timers.
+    pub(crate) fn metrics(&mut self) -> Metrics {
+        let next_timer = self.next().map(|deadline| {
+            Instant::now()
+                .checked_duration_since(deadline)
+                .unwrap_or(Duration::ZERO)
+        });
+        let mut timers = 0;
+        for slots in &self.slots {
+            timers += slots.len();
+        }
+        timers += self.overflow.len();
+        Metrics { timers, next_timer }
     }
 
     /// Returns the next deadline, if any.

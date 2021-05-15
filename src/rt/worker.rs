@@ -150,6 +150,7 @@ fn main(
     };
 
     let mut runtime = Runtime::new(
+        setup.id,
         setup.poll,
         setup.waker_id,
         setup.waker_events,

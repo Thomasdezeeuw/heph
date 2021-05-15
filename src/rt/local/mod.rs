@@ -1,13 +1,14 @@
 //! Module with shared runtime internals.
 
 use std::cell::{RefCell, RefMut};
+use std::num::NonZeroUsize;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{fmt, io};
 
 use crossbeam_channel::Receiver;
-use log::{debug, trace};
+use log::{debug, info, trace};
 use mio::{Events, Poll, Token};
 
 use crate::actor_ref::{ActorGroup, Delivery, SendError};
@@ -65,7 +66,9 @@ pub(crate) struct Runtime {
 
 impl Runtime {
     /// Create a new local `Runtime`.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
+        id: NonZeroUsize,
         poll: Poll,
         waker_id: WakerId,
         waker_events: Receiver<ProcessId>,
@@ -80,7 +83,7 @@ impl Runtime {
         channel.register(poll.registry(), COMMS)?;
 
         // Finally create all the runtime internals.
-        let internals = RuntimeInternals::new(shared_internals, waker_id, poll, cpu, trace_log);
+        let internals = RuntimeInternals::new(id, shared_internals, waker_id, poll, cpu, trace_log);
         Ok(Runtime {
             internals: Rc::new(internals),
             events: Events::with_capacity(128),
@@ -106,7 +109,8 @@ impl Runtime {
         let (_, mut channel) = rt::channel::new()?;
         channel.register(poll.registry(), COMMS)?;
 
-        let internals = RuntimeInternals::new(shared_internals, waker_id, poll, None, None);
+        let id = NonZeroUsize::new(usize::MAX).unwrap();
+        let internals = RuntimeInternals::new(id, shared_internals, waker_id, poll, None, None);
         Ok(Runtime {
             internals: Rc::new(internals),
             events: Events::with_capacity(1),
@@ -524,7 +528,21 @@ impl Runtime {
         while let Some(msg) = self.channel.try_recv().map_err(Error::RecvMsg)? {
             match msg {
                 Control::Started => self.started = true,
-                Control::Signal(signal) => self.relay_signal(signal)?,
+                Control::Signal(signal) => {
+                    if let Signal::User2 = signal {
+                        let timing = trace::start(&*self.internals.trace_log.borrow());
+                        let metrics = self.internals.metrics();
+                        info!(target: "metrics", "metrics: {:?}", metrics);
+                        trace::finish_rt(
+                            self.internals.trace_log.borrow_mut().as_mut(),
+                            timing,
+                            "Printing runtime metrics",
+                            &[],
+                        );
+                    }
+
+                    self.relay_signal(signal)?
+                }
                 Control::Run(f) => self.run_user_function(f)?,
             }
         }
@@ -648,6 +666,8 @@ impl std::error::Error for Error {
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
 pub(super) struct RuntimeInternals {
+    /// Unique id among the worker threads.
+    id: NonZeroUsize,
     /// Runtime internals shared between coordinator and worker threads.
     pub(super) shared: Arc<shared::RuntimeInternals>,
     /// Waker id used to create a `Waker` for thread-local actors.
@@ -666,9 +686,21 @@ pub(super) struct RuntimeInternals {
     pub(super) trace_log: RefCell<Option<trace::Log>>,
 }
 
+/// Metrics for [`RuntimeInternals`].
+#[derive(Debug)]
+pub(crate) struct Metrics {
+    id: NonZeroUsize,
+    scheduler: scheduler::Metrics,
+    timers: timers::Metrics,
+    process_signal_receivers: usize,
+    cpu_affinity: Option<usize>,
+    trace_log: Option<trace::Metrics>,
+}
+
 impl RuntimeInternals {
     /// Create a local runtime internals.
     pub(super) fn new(
+        id: NonZeroUsize,
         shared_internals: Arc<shared::RuntimeInternals>,
         waker_id: WakerId,
         poll: Poll,
@@ -676,6 +708,7 @@ impl RuntimeInternals {
         trace_log: Option<trace::Log>,
     ) -> RuntimeInternals {
         RuntimeInternals {
+            id,
             shared: shared_internals,
             waker_id,
             scheduler: RefCell::new(Scheduler::new()),
@@ -684,6 +717,18 @@ impl RuntimeInternals {
             signal_receivers: RefCell::new(ActorGroup::empty()),
             cpu,
             trace_log: RefCell::new(trace_log),
+        }
+    }
+
+    /// Gather metrics about the runtime internals.
+    fn metrics(&self) -> Metrics {
+        Metrics {
+            id: self.id,
+            scheduler: self.scheduler.borrow().metrics(),
+            timers: self.timers.borrow_mut().metrics(),
+            process_signal_receivers: self.signal_receivers.borrow().len(),
+            cpu_affinity: self.cpu,
+            trace_log: self.trace_log.borrow().as_ref().map(trace::Log::metrics),
         }
     }
 }
