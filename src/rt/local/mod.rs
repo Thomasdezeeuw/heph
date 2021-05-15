@@ -15,7 +15,7 @@ use crate::actor_ref::{ActorGroup, Delivery, SendError};
 use crate::rt::error::StringError;
 use crate::rt::process::ProcessId;
 use crate::rt::process::ProcessResult;
-use crate::rt::{self, shared, RuntimeRef, Signal, WakerId};
+use crate::rt::{self, cpu_usage, shared, RuntimeRef, Signal, WakerId};
 use crate::trace;
 
 mod scheduler;
@@ -694,6 +694,7 @@ pub(crate) struct Metrics {
     timers: timers::Metrics,
     process_signal_receivers: usize,
     cpu_affinity: Option<usize>,
+    cpu_time: Duration,
     trace_log: Option<trace::Metrics>,
 }
 
@@ -722,6 +723,7 @@ impl RuntimeInternals {
 
     /// Gather metrics about the runtime internals.
     fn metrics(&self) -> Metrics {
+        let cpu_time = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID);
         Metrics {
             id: self.id,
             scheduler: self.scheduler.borrow().metrics(),
@@ -729,6 +731,7 @@ impl RuntimeInternals {
             process_signal_receivers: self.signal_receivers.borrow().len(),
             cpu_affinity: self.cpu,
             trace_log: self.trace_log.borrow().as_ref().map(trace::Log::metrics),
+            cpu_time,
         }
     }
 }

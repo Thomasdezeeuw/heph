@@ -1,6 +1,7 @@
 //! Coordinator thread code.
 
 use std::sync::Arc;
+use std::time::Duration;
 use std::{fmt, io};
 
 use log::{debug, error, info, trace};
@@ -12,7 +13,7 @@ use crate::actor_ref::{ActorGroup, Delivery};
 use crate::rt::shared::waker;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
-    self, shared, Signal, SyncWorker, Worker, SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
+    self, cpu_usage, shared, Signal, SyncWorker, Worker, SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
 };
 use crate::trace;
 
@@ -38,6 +39,8 @@ struct Metrics<'l> {
     shared: shared::Metrics,
     process_signals: SignalSet,
     process_signal_receivers: usize,
+    total_cpu_time: Duration,
+    cpu_time: Duration,
     trace_log: Option<trace::CoordinatorMetrics<'l>>,
 }
 
@@ -198,12 +201,16 @@ impl Coordinator {
         signal_refs: &ActorGroup<Signal>,
         trace_log: &'l Option<trace::CoordinatorLog>,
     ) -> Metrics<'l> {
+        let total_cpu_time = cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID);
+        let cpu_time = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID);
         Metrics {
             worker_threads: workers.len(),
             sync_actors: sync_workers.len(),
             shared: self.internals.metrics(),
             process_signals: SIGNAL_SET,
             process_signal_receivers: signal_refs.len(),
+            total_cpu_time,
+            cpu_time,
             trace_log: trace_log.as_ref().map(trace::CoordinatorLog::metrics),
         }
     }

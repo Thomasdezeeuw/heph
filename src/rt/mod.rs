@@ -115,14 +115,16 @@
 //!
 //! [examples directory]: https://github.com/Thomasdezeeuw/heph/tree/master/examples
 
+use std::convert::TryInto;
 use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::Duration;
 use std::time::Instant;
 use std::{io, task};
 
 use heph_inbox as inbox;
-use log::{debug, trace};
+use log::{debug, trace, warn};
 use mio::{event, Interest, Token};
 
 use crate::actor::{self, NewActor, SyncActor};
@@ -705,5 +707,21 @@ where
         self.internals
             .shared
             .spawn_setup(supervisor, new_actor, arg_fn, options)
+    }
+}
+
+fn cpu_usage(clock_id: libc::clockid_t) -> Duration {
+    let mut dur = libc::timespec {
+        tv_sec: 0,
+        tv_nsec: 0,
+    };
+    if unsafe { libc::clock_gettime(clock_id, &mut dur) } == -1 {
+        warn!("error getting CPU time: {}", io::Error::last_os_error());
+        Duration::ZERO
+    } else {
+        Duration::new(
+            dur.tv_sec.try_into().unwrap_or(0),
+            dur.tv_nsec.try_into().unwrap_or(u32::MAX),
+        )
     }
 }
