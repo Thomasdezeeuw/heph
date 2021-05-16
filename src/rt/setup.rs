@@ -207,14 +207,14 @@ impl Setup {
             workers,
             sync_actors: Vec::new(),
             signals: ActorGroup::empty(),
-            trace_log: trace_log,
+            trace_log,
         })
     }
 }
 
 /// Returns the name of the binary called (i.e. arg[0]) as name.
 fn default_app_name() -> String {
-    match env::args().nth(0) {
+    match env::args().next() {
         Some(mut bin_path) => {
             if let Some(idx) = bin_path.rfind('/') {
                 drop(bin_path.drain(..=idx));

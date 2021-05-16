@@ -254,6 +254,14 @@ impl Coordinator {
 ///
 /// Uses `uname(2)`.
 fn host_info() -> io::Result<(Box<str>, Box<str>)> {
+    // NOTE: we could also use `std::env::consts::OS`, but this looks better.
+    #[cfg(target_os = "linux")]
+    const OS: &str = "GNU/Linux";
+    #[cfg(target_os = "freebsd")]
+    const OS: &str = "FreeBSD";
+    #[cfg(target_os = "macos")]
+    const OS: &str = "macOS";
+
     let mut uname_info: MaybeUninit<libc::utsname> = MaybeUninit::uninit();
     if unsafe { libc::uname(uname_info.as_mut_ptr()) } == -1 {
         return Err(io::Error::last_os_error());
@@ -265,14 +273,6 @@ fn host_info() -> io::Result<(Box<str>, Box<str>)> {
     let release = unsafe { CStr::from_ptr(&uname_info.release as *const _).to_string_lossy() };
     let version = unsafe { CStr::from_ptr(&uname_info.version as *const _).to_string_lossy() };
     let nodename = unsafe { CStr::from_ptr(&uname_info.nodename as *const _).to_string_lossy() };
-
-    // NOTE: we could also use `std::env::consts::OS`, but this looks better.
-    #[cfg(target_os = "linux")]
-    const OS: &'static str = "GNU/Linux";
-    #[cfg(target_os = "freebsd")]
-    const OS: &'static str = "FreeBSD";
-    #[cfg(target_os = "macos")]
-    const OS: &'static str = "macOS";
 
     let os = format!("{} ({} {} {})", OS, sysname, release, version).into_boxed_str();
     let hostname = nodename.into_owned().into_boxed_str();
