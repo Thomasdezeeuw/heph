@@ -30,6 +30,8 @@ pub(super) struct Coordinator {
     os: Box<str>,
     /// Name of the host. `nodename` field from `uname(2)`.
     hostname: Box<str>,
+    /// Name of the application.
+    app_name: Box<str>,
     /// OS poll, used to poll the status of the (sync) worker threads and
     /// process `signals`.
     poll: Poll,
@@ -48,6 +50,7 @@ struct Metrics<'c, 'l> {
     os: &'c str,
     architecture: &'static str,
     hostname: &'c str,
+    app_name: &'c str,
     process_id: u32,
     parent_process_id: u32,
     uptime: Duration,
@@ -69,6 +72,7 @@ impl Coordinator {
     /// This must be called before creating the worker threads to properly catch
     /// process signals.
     pub(super) fn init(
+        app_name: Box<str>,
         worker_wakers: Box<[&'static ThreadWaker]>,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> io::Result<Coordinator> {
@@ -87,6 +91,7 @@ impl Coordinator {
         Ok(Coordinator {
             os,
             hostname,
+            app_name,
             poll,
             signals,
             internals,
@@ -229,6 +234,7 @@ impl Coordinator {
             os: &*self.os,
             architecture: ARCH,
             hostname: &*self.hostname,
+            app_name: &*self.app_name,
             process_id: process::id(),
             parent_process_id: parent_id(),
             uptime: self.start.elapsed(),

@@ -67,6 +67,7 @@
 #![feature(
     arc_new_cyclic,
     array_methods,
+    destructuring_assignment,
     async_stream,
     available_concurrency,
     binary_heap_retain,

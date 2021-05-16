@@ -4,7 +4,7 @@
 
 use std::num::NonZeroUsize;
 use std::path::Path;
-use std::{io, thread};
+use std::{env, io, thread};
 
 use log::{debug, warn};
 
@@ -21,6 +21,8 @@ use crate::trace;
 /// [`rt`]: crate::rt
 #[derive(Debug)]
 pub struct Setup {
+    /// Name of the application.
+    name: Option<String>,
     /// Number of worker threads to create.
     threads: usize,
     /// Whether or not to automatically set CPU affinity.
@@ -33,10 +35,28 @@ impl Setup {
     /// See [`Runtime::setup`].
     pub(super) const fn new() -> Setup {
         Setup {
+            name: None,
             threads: 1,
             auto_cpu_affinity: false,
             trace_log: None,
         }
+    }
+
+    /// Set the name of the application.
+    ///
+    /// If the name is not set when the runtime is build the name of the binary
+    /// called will be used.
+    pub fn with_name(mut self, name: String) -> Setup {
+        if name.is_empty() {
+            panic!("Can't use an empty application name");
+        }
+        self.name = Some(name);
+        self
+    }
+
+    /// Returns the application name, if set using [`Setup::with_name`].
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
     }
 
     /// Set the number of worker threads to use, defaults to one.
@@ -127,14 +147,20 @@ impl Setup {
     ///
     /// This will spawn a number of worker threads (see [`Setup::num_threads`])
     /// to run all the actors.
-    pub fn build(mut self) -> Result<Runtime, Error> {
-        debug!("building Heph runtime: worker_threads={}", self.threads);
+    pub fn build(self) -> Result<Runtime, Error> {
+        #[rustfmt::skip]
+        let Setup { name, threads, auto_cpu_affinity, mut trace_log } = self;
+        let name = name.unwrap_or_else(default_app_name).into_boxed_str();
+        debug!(
+            "building Heph runtime: name={}, worker_threads={}",
+            name, threads
+        );
 
         // Setup the worker threads.
-        let timing = trace::start(&self.trace_log);
-        let mut worker_setups = Vec::with_capacity(self.threads);
-        let mut thread_wakers = Vec::with_capacity(self.threads);
-        for id in 1..=self.threads {
+        let timing = trace::start(&trace_log);
+        let mut worker_setups = Vec::with_capacity(threads);
+        let mut thread_wakers = Vec::with_capacity(threads);
+        for id in 1..=threads {
             // Coordinator has id 0.
             let id = NonZeroUsize::new(id).unwrap();
             let (worker_setup, thread_waker) = worker::setup(id).map_err(Error::start_worker)?;
@@ -144,12 +170,9 @@ impl Setup {
 
         // Create the coordinator to oversee all workers.
         let thread_wakers = thread_wakers.into_boxed_slice();
-        let shared_trace_log = self
-            .trace_log
-            .as_ref()
-            .map(trace::CoordinatorLog::clone_shared);
-        let coordinator =
-            Coordinator::init(thread_wakers, shared_trace_log).map_err(Error::init_coordinator)?;
+        let shared_trace_log = trace_log.as_ref().map(trace::CoordinatorLog::clone_shared);
+        let coordinator = Coordinator::init(name, thread_wakers, shared_trace_log)
+            .map_err(Error::init_coordinator)?;
 
         // Spawn the worker threads.
         let workers = worker_setups
@@ -157,7 +180,7 @@ impl Setup {
             .map(|worker_setup| {
                 // See <https://github.com/rust-lang/rust-clippy/issues/6795>.
                 #[allow(clippy::manual_map)]
-                let trace_log = if let Some(trace_log) = &self.trace_log {
+                let trace_log = if let Some(trace_log) = &trace_log {
                     #[allow(clippy::cast_possible_truncation)]
                     Some(trace_log.new_stream(worker_setup.id() as u32))
                 } else {
@@ -165,7 +188,7 @@ impl Setup {
                 };
                 worker_setup.start(
                     coordinator.shared_internals().clone(),
-                    self.auto_cpu_affinity,
+                    auto_cpu_affinity,
                     trace_log,
                 )
             })
@@ -173,10 +196,10 @@ impl Setup {
             .map_err(Error::start_worker)?;
 
         trace::finish_rt(
-            self.trace_log.as_mut(),
+            trace_log.as_mut(),
             timing,
             "Spawning worker threads",
-            &[("amount", &self.threads)],
+            &[("amount", &threads)],
         );
 
         Ok(Runtime {
@@ -184,7 +207,20 @@ impl Setup {
             workers,
             sync_actors: Vec::new(),
             signals: ActorGroup::empty(),
-            trace_log: self.trace_log,
+            trace_log: trace_log,
         })
+    }
+}
+
+/// Returns the name of the binary called (i.e. arg[0]) as name.
+fn default_app_name() -> String {
+    match env::args().nth(0) {
+        Some(mut bin_path) => {
+            if let Some(idx) = bin_path.rfind('/') {
+                drop(bin_path.drain(..=idx));
+            }
+            bin_path
+        }
+        None => "<unknown>".to_string(),
     }
 }
