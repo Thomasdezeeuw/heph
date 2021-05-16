@@ -711,17 +711,17 @@ where
 }
 
 fn cpu_usage(clock_id: libc::clockid_t) -> Duration {
-    let mut dur = libc::timespec {
+    let mut duration = libc::timespec {
         tv_sec: 0,
         tv_nsec: 0,
     };
-    if unsafe { libc::clock_gettime(clock_id, &mut dur) } == -1 {
+    if unsafe { libc::clock_gettime(clock_id, &mut duration) } == -1 {
         warn!("error getting CPU time: {}", io::Error::last_os_error());
         Duration::ZERO
     } else {
         Duration::new(
-            dur.tv_sec.try_into().unwrap_or(0),
-            dur.tv_nsec.try_into().unwrap_or(u32::MAX),
+            duration.tv_sec.try_into().unwrap_or(0),
+            duration.tv_nsec.try_into().unwrap_or(u32::MAX),
         )
     }
 }
