@@ -1,6 +1,8 @@
 //! Coordinator thread code.
 
-use std::env::consts::{ARCH, OS};
+use std::env::consts::ARCH;
+use std::ffi::CStr;
+use std::mem::MaybeUninit;
 use std::os::unix::process::parent_id;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -24,6 +26,10 @@ const SIGNAL: Token = Token(usize::MAX);
 
 #[derive(Debug)]
 pub(super) struct Coordinator {
+    /// OS name and version, from `uname(2)`.
+    os: Box<str>,
+    /// Name of the host. `nodename` field from `uname(2)`.
+    hostname: Box<str>,
     /// OS poll, used to poll the status of the (sync) worker threads and
     /// process `signals`.
     poll: Poll,
@@ -37,10 +43,11 @@ pub(super) struct Coordinator {
 
 /// Metrics for [`Coordinator`].
 #[derive(Debug)]
-struct Metrics<'l> {
+struct Metrics<'c, 'l> {
     heph_version: &'static str,
-    os: &'static str,
+    os: &'c str,
     architecture: &'static str,
+    hostname: &'c str,
     process_id: u32,
     parent_process_id: u32,
     uptime: Duration,
@@ -76,7 +83,10 @@ impl Coordinator {
             setup.complete(waker_id, worker_wakers, trace_log)
         });
 
+        let (os, hostname) = host_info()?;
         Ok(Coordinator {
+            os,
+            hostname,
             poll,
             signals,
             internals,
@@ -205,19 +215,20 @@ impl Coordinator {
     }
 
     /// Gather metrics about the coordinator and runtime.
-    fn metrics<'l>(
-        &self,
+    fn metrics<'c, 'l>(
+        &'c self,
         workers: &[Worker],
         sync_workers: &[SyncWorker],
         signal_refs: &ActorGroup<Signal>,
         trace_log: &'l Option<trace::CoordinatorLog>,
-    ) -> Metrics<'l> {
+    ) -> Metrics<'c, 'l> {
         let total_cpu_time = cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID);
         let cpu_time = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID);
         Metrics {
             heph_version: concat!("v", env!("CARGO_PKG_VERSION")),
-            os: OS,
+            os: &*self.os,
             architecture: ARCH,
+            hostname: &*self.hostname,
             process_id: process::id(),
             parent_process_id: parent_id(),
             uptime: self.start.elapsed(),
@@ -231,6 +242,35 @@ impl Coordinator {
             trace_log: trace_log.as_ref().map(trace::CoordinatorLog::metrics),
         }
     }
+}
+
+/// Returns (OS name and version, hostname).
+///
+/// Uses `uname(2)`.
+fn host_info() -> io::Result<(Box<str>, Box<str>)> {
+    let mut uname_info: MaybeUninit<libc::utsname> = MaybeUninit::uninit();
+    if unsafe { libc::uname(uname_info.as_mut_ptr()) } == -1 {
+        return Err(io::Error::last_os_error());
+    }
+
+    // SAFETY: call to `uname(2)` above ensures `uname_info` is initialised.
+    let uname_info = unsafe { uname_info.assume_init() };
+    let sysname = unsafe { CStr::from_ptr(&uname_info.sysname as *const _).to_string_lossy() };
+    let release = unsafe { CStr::from_ptr(&uname_info.release as *const _).to_string_lossy() };
+    let version = unsafe { CStr::from_ptr(&uname_info.version as *const _).to_string_lossy() };
+    let nodename = unsafe { CStr::from_ptr(&uname_info.nodename as *const _).to_string_lossy() };
+
+    // NOTE: we could also use `std::env::consts::OS`, but this looks better.
+    #[cfg(target_os = "linux")]
+    const OS: &'static str = "GNU/Linux";
+    #[cfg(target_os = "freebsd")]
+    const OS: &'static str = "FreeBSD";
+    #[cfg(target_os = "macos")]
+    const OS: &'static str = "macOS";
+
+    let os = format!("{} ({} {} {})", OS, sysname, release, version).into_boxed_str();
+    let hostname = nodename.into_owned().into_boxed_str();
+    Ok((os, hostname))
 }
 
 /// Set of signals we're listening for.
