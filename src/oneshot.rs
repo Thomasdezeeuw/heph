@@ -185,14 +185,10 @@ impl<T> Drop for Sender<T> {
 
         // Now mark that we don't have access anymore.
         let old_status = shared.status.fetch_and(!SENDER_ACCESS, Ordering::AcqRel);
-
-        if has_receiver(old_status) {
-            // Receiver is still alive, no need to drop.
-            return;
+        if !has_receiver(old_status) {
+            // Receiver is already dropped so we need to drop the shared memory.
+            unsafe { drop(Box::from_raw(self.shared.as_ptr())) }
         }
-
-        // Drop the shared memory.
-        unsafe { drop(Box::from_raw(self.shared.as_ptr())) }
     }
 }
 
@@ -360,13 +356,10 @@ impl<T> Drop for Receiver<T> {
         let shared = self.shared();
         let old_status = shared.status.fetch_and(!RECEIVER_ALIVE, Ordering::AcqRel);
 
-        if has_sender_access(old_status) {
-            // Sender is still alive, no need to drop.
-            return;
+        if !has_sender_access(old_status) {
+            // Sender was already dropped, we need to drop the shared memory.
+            unsafe { drop(Box::from_raw(self.shared.as_ptr())) }
         }
-
-        // Drop the shared memory.
-        unsafe { drop(Box::from_raw(self.shared.as_ptr())) }
     }
 }
 
