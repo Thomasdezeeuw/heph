@@ -122,7 +122,7 @@ const MANAGER_ALIVE: usize = 1 << (size_of::<usize>() * 8 - 4);
 /// for [`Manager`].
 const MANAGER_ACCESS: usize = 1 << (size_of::<usize>() * 8 - 5);
 
-/// Return `true` if the receiver or manager is alive in `ref_count.
+/// Return `true` if the receiver or manager is alive in `ref_count`.
 #[inline(always)]
 const fn has_receiver(ref_count: usize) -> bool {
     ref_count & RECEIVER_ALIVE != 0
@@ -134,7 +134,7 @@ const fn has_manager(ref_count: usize) -> bool {
     ref_count & MANAGER_ALIVE != 0
 }
 
-/// Return `true` if the receiver or manager is alive in `ref_count.
+/// Return `true` if the receiver or manager is alive in `ref_count`.
 #[inline(always)]
 const fn has_receiver_or_manager(ref_count: usize) -> bool {
     ref_count & (RECEIVER_ALIVE | MANAGER_ALIVE) != 0
