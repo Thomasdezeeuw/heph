@@ -67,12 +67,42 @@ const SENDER_ALIVE: u8 = 0b0100_0000;
 /// Bit mask to mark the sender still has access to the shared data.
 const SENDER_ACCESS: u8 = 0b0010_0000;
 
+/// Return `true` if the receiver is alive in `status`.
+#[inline(always)]
+const fn has_receiver(status: u8) -> bool {
+    status & RECEIVER_ALIVE != 0
+}
+
+/// Return `true` if the sender is alive in `status`.
+#[inline(always)]
+const fn has_sender(status: u8) -> bool {
+    status & SENDER_ALIVE != 0
+}
+
+/// Return `true` if the sender has access in `status`.
+#[inline(always)]
+const fn has_sender_access(status: u8) -> bool {
+    status & SENDER_ACCESS != 0
+}
+
 // Status of the message in `Shared`.
 const EMPTY: u8 = 0b0000_0000;
 const FILLED: u8 = 0b0000_0001;
 
 // Status transitions.
 const MARK_FILLED: u8 = 1; // ADD to go from EMPTY -> FILLED.
+
+/// Returns `true` if `status` is empty.
+#[inline(always)]
+const fn is_empty(status: u8) -> bool {
+    status & FILLED == 0
+}
+
+/// Returns `true` if `status` is filled.
+#[inline(always)]
+const fn is_filled(status: u8) -> bool {
+    status & FILLED != 0
+}
 
 /// The sending half of the [one-shot channel].
 ///
@@ -101,7 +131,7 @@ impl<T> Sender<T> {
         // Safety: `AcqRel` is required here to ensure the write above is not
         // moved after this status update.
         let old_status = shared.status.fetch_add(MARK_FILLED, Ordering::AcqRel);
-        debug_assert!(old_status & FILLED == 0);
+        debug_assert!(is_empty(old_status));
 
         // Note: we wake in the `Drop` impl.
         Ok(())
@@ -111,7 +141,8 @@ impl<T> Sender<T> {
     pub fn is_connected(&self) -> bool {
         // Relaxed is fine here since there is always a bit of a race condition
         // when using the method (and then doing something based on it).
-        self.shared().status.load(Ordering::Relaxed) & RECEIVER_ALIVE != 0
+        let status = self.shared().status.load(Ordering::Relaxed);
+        has_receiver(status)
     }
 
     /// Returns `true` if this sender sends to the `receiver`.
@@ -143,7 +174,7 @@ impl<T> Drop for Sender<T> {
         let shared = self.shared();
         let old_status = shared.status.fetch_and(!SENDER_ALIVE, Ordering::AcqRel);
 
-        if old_status & RECEIVER_ALIVE != 0 {
+        if has_receiver(old_status) {
             // Receiver is still alive, so we need to wake it.
             if let Some(waker) = shared.receiver_waker.lock().take() {
                 waker.wake();
@@ -153,7 +184,7 @@ impl<T> Drop for Sender<T> {
         // Now mark that we don't have access anymore.
         let old_status = shared.status.fetch_and(!SENDER_ACCESS, Ordering::AcqRel);
 
-        if old_status & RECEIVER_ALIVE != 0 {
+        if has_receiver(old_status) {
             // Receiver is still alive, no need to drop.
             return;
         }
@@ -202,10 +233,10 @@ impl<T> Receiver<T> {
         // `Sender::try_send`'s status update after the write.
         let status = shared.status.load(Ordering::Acquire);
 
-        if status & SENDER_ALIVE != 0 {
+        if has_sender(status) {
             // The sender is still connected, thus hasn't send a value yet.
             return Err(RecvError::NoValue);
-        } else if status & FILLED == 0 {
+        } else if is_empty(status) {
             // Sender disconnected and no value was send.
             return Err(RecvError::Disconnected);
         }
@@ -261,10 +292,10 @@ impl<T> Receiver<T> {
         // `Sender::try_send`'s status update after the write.
         let status = shared.status.load(Ordering::Acquire);
 
-        if status & SENDER_ALIVE != 0 {
+        if has_sender(status) {
             // The sender is still connected, can't reset yet.
             return None;
-        } else if status & FILLED == 1 {
+        } else if is_filled(status) {
             // Sender send a value we need to drop.
             // Safety: since the sender is no longer alive (checked above) we're
             // the only type (and thread) with access making this safe.
@@ -288,7 +319,8 @@ impl<T> Receiver<T> {
     pub fn is_connected(&self) -> bool {
         // Relaxed is fine here since there is always a bit of a race condition
         // when using the method (and then doing something based on it).
-        self.shared().status.load(Ordering::Relaxed) & SENDER_ALIVE != 0
+        let status = self.shared().status.load(Ordering::Relaxed);
+        has_sender(status)
     }
 
     /// Set the receiver waker to `waker`, if they are different.
@@ -332,7 +364,7 @@ impl<T> Drop for Receiver<T> {
         let shared = self.shared();
         let old_status = shared.status.fetch_and(!RECEIVER_ALIVE, Ordering::AcqRel);
 
-        if old_status & SENDER_ACCESS != 0 {
+        if has_sender_access(old_status) {
             // Sender is still alive, no need to drop.
             return;
         }
@@ -430,7 +462,8 @@ impl<T> Shared<T> {
 
 impl<T> Drop for Shared<T> {
     fn drop(&mut self) {
-        if self.status.load(Ordering::Relaxed) & FILLED != 0 {
+        let status = self.status.load(Ordering::Relaxed);
+        if is_filled(status) {
             unsafe { ptr::drop_in_place((&mut *self.message.get()).as_mut_ptr()) }
         }
     }
