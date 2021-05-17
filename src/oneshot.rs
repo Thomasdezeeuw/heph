@@ -241,6 +241,9 @@ impl<T> Receiver<T> {
             return Err(RecvError::Disconnected);
         }
 
+        // Safety: since we're the only thread with access this is safe.
+        let msg = unsafe { (&*shared.message.get()).assume_init_read() };
+
         // Reset the status.
         // Safety: since the `Sender` has been dropped we have unique access to
         // `shared` making Relaxed ordering fine.
@@ -248,9 +251,6 @@ impl<T> Receiver<T> {
             RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY,
             Ordering::Release,
         );
-
-        // Safety: since we're the only thread with access this is safe.
-        let msg = unsafe { (&*shared.message.get()).assume_init_read() };
         let sender = Sender {
             shared: self.shared,
         };
