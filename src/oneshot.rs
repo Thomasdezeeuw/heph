@@ -91,6 +91,8 @@ const FILLED: u8 = 0b0000_0001;
 
 // Status transitions.
 const MARK_FILLED: u8 = 1; // ADD to go from EMPTY -> FILLED.
+/// Initial state value, also used to reset the status.
+const INITIAL: u8 = RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY;
 
 /// Returns `true` if `status` is empty.
 #[inline(always)]
@@ -247,10 +249,7 @@ impl<T> Receiver<T> {
         // Reset the status.
         // Safety: since the `Sender` has been dropped we have unique access to
         // `shared` making Relaxed ordering fine.
-        shared.status.store(
-            RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY,
-            Ordering::Release,
-        );
+        shared.status.store(INITIAL, Ordering::Release);
         let sender = Sender {
             shared: self.shared,
         };
@@ -305,10 +304,7 @@ impl<T> Receiver<T> {
         // Reset the status.
         // Safety: since the `Sender` has been dropped we have unique access to
         // `shared` making Relaxed ordering fine.
-        shared.status.store(
-            RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY,
-            Ordering::Release,
-        );
+        shared.status.store(INITIAL, Ordering::Release);
 
         Some(Sender {
             shared: self.shared,
@@ -453,7 +449,7 @@ impl<T> Shared<T> {
     /// Create a new `Shared` structure.
     const fn new() -> Shared<T> {
         Shared {
-            status: AtomicU8::new(RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY),
+            status: AtomicU8::new(INITIAL),
             message: UnsafeCell::new(MaybeUninit::uninit()),
             receiver_waker: const_mutex(None),
         }
