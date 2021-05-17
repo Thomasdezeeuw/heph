@@ -46,7 +46,7 @@
 use std::cell::UnsafeCell;
 use std::fmt;
 use std::future::Future;
-use std::mem::{size_of, MaybeUninit};
+use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -61,15 +61,15 @@ pub fn new_oneshot<T>() -> (Sender<T>, Receiver<T>) {
 }
 
 /// Bits mask to mark the receiver as alive.
-const RECEIVER_ALIVE: u8 = 1 << (size_of::<u8>() * 8 - 1);
+const RECEIVER_ALIVE: u8 = 0b1000_0000;
 /// Bit mask to mark the sender as alive.
-const SENDER_ALIVE: u8 = 1 << (size_of::<u8>() * 8 - 2);
+const SENDER_ALIVE: u8 = 0b0100_0000;
 /// Bit mask to mark the sender still has access to the shared data.
-const SENDER_ACCESS: u8 = 1 << (size_of::<u8>() * 8 - 3);
+const SENDER_ACCESS: u8 = 0b0010_0000;
 
 // Status of the message in `Shared`.
-const EMPTY: u8 = 0;
-const FILLED: u8 = 1;
+const EMPTY: u8 = 0b0000_0000;
+const FILLED: u8 = 0b0000_0001;
 
 // Status transitions.
 const MARK_FILLED: u8 = 1; // ADD to go from EMPTY -> FILLED.
