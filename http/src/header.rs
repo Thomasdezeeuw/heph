@@ -75,6 +75,14 @@ impl Headers {
         self.parts.is_empty()
     }
 
+    /// Clear the headers.
+    ///
+    /// Removes all headers from the list.
+    pub fn clear(&mut self) {
+        self.parts.clear();
+        self.values.clear();
+    }
+
     /// Add a new `header`.
     ///
     /// # Notes
