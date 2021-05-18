@@ -86,6 +86,22 @@ fn dont_overwrite_existing_bytes_in_vec() {
 }
 
 #[test]
+fn limited_bytes() {
+    const LIMIT: usize = 5;
+    let mut buf = Vec::<u8>::with_capacity(2 * DATA.len()).limit(LIMIT);
+    assert_eq!(buf.spare_capacity(), 5);
+    assert!(buf.has_spare_capacity());
+
+    let n = write_bytes(DATA, &mut buf);
+    assert_eq!(n, LIMIT);
+    assert_eq!(buf.spare_capacity(), 0);
+    assert!(!buf.has_spare_capacity());
+    let buf = buf.into_inner();
+    assert_eq!(&*buf, &DATA[..LIMIT]);
+    assert_eq!(buf.len(), LIMIT);
+}
+
+#[test]
 fn vectored_array() {
     let mut bufs = [Vec::with_capacity(1), Vec::with_capacity(DATA.len())];
     assert_eq!(bufs.spare_capacity(), 1 + DATA.len());

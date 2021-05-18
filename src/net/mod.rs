@@ -118,6 +118,19 @@ pub trait Bytes {
     /// [`TcpStream::recv_n`] will not work correctly (as the buffer will
     /// overwrite itself on successive reads).
     unsafe fn update_length(&mut self, n: usize);
+
+    /// Wrap the buffer in `LimitedBytes`, which limits the amount of bytes used
+    /// to `limit`.
+    ///
+    /// [`LimitedBytes::into_inner`] can be used to retrieve the buffer again,
+    /// or a mutable reference to the buffer can be used and the limited buffer
+    /// be dropped after usage.
+    fn limit(self, limit: usize) -> LimitedBytes<Self>
+    where
+        Self: Sized,
+    {
+        LimitedBytes { buf: self, limit }
+    }
 }
 
 impl<B> Bytes for &mut B
@@ -173,7 +186,6 @@ where
 /// }
 /// ```
 impl Bytes for Vec<u8> {
-    // NOTE: keep this function in sync with the impl below.
     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
         self.spare_capacity_mut()
     }
@@ -190,6 +202,49 @@ impl Bytes for Vec<u8> {
         let new = self.len() + n;
         debug_assert!(self.capacity() >= new);
         self.set_len(new);
+    }
+}
+
+/// Wrapper to limit the number of bytes `B` can use.
+///
+/// See [`Bytes::limit`].
+#[derive(Debug)]
+pub struct LimitedBytes<B> {
+    buf: B,
+    limit: usize,
+}
+
+impl<B> LimitedBytes<B> {
+    /// Returns the underlying buffer.
+    pub fn into_inner(self) -> B {
+        self.buf
+    }
+}
+
+impl<B> Bytes for LimitedBytes<B>
+where
+    B: Bytes,
+{
+    fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
+        let bytes = self.buf.as_bytes();
+        if bytes.len() > self.limit {
+            &mut bytes[..self.limit]
+        } else {
+            bytes
+        }
+    }
+
+    fn spare_capacity(&self) -> usize {
+        min(self.buf.spare_capacity(), self.limit)
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        self.spare_capacity() > 0
+    }
+
+    unsafe fn update_length(&mut self, n: usize) {
+        self.buf.update_length(n);
+        self.limit -= n;
     }
 }
 
