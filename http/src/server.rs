@@ -13,6 +13,8 @@
 //
 // TODO: chunked encoding.
 
+//! Module with the HTTP server implementation.
+
 use std::cmp::min;
 use std::fmt;
 use std::future::Future;
@@ -94,32 +96,159 @@ impl<S, NA> Clone for Setup<S, NA> {
     }
 }
 
-/// An actor that starts a new actor for each accepted TCP connection.
+/// An actor that starts a new actor for each accepted HTTP [`Connection`].
 ///
-/// TODO: same design as `TcpServer`.
+/// `HttpServer` has the same design as [`TcpServer`]. It accept `TcpStream`s
+/// and converts those into HTTP [`Connection`]s, from which HTTP [`Request`]s
+/// can be read and HTTP [`Response`]s can be written.
 ///
-/// This actor can start as a thread-local or thread-safe actor. When using the
-/// thread-local variant one actor runs per worker thread which spawns
-/// thread-local actors to handle the [`TcpStream`]s. See the first example
-/// below on how to run this `TcpServer` as a thread-local actor.
-///
-/// This actor can also run as thread-safe actor in which case it also spawns
-/// thread-safe actors. Note however that using thread-*local* version is
-/// recommended. The third example below shows how to run the `TcpServer` as
-/// thread-safe actor.
+/// Similar to `TcpServer` this type works with thread-safe and thread-local
+/// actors.
 ///
 /// # Graceful shutdown
 ///
-/// Graceful shutdown is done by sending it a [`Terminate`] message, see below
-/// for an example. The TCP server can also handle (shutdown) process signals,
-/// see "Example 2 my ip" (in the examples directory of the source code) for an
-/// example of that.
+/// Graceful shutdown is done by sending it a [`Terminate`] message. The HTTP
+/// server can also handle (shutdown) process signals, see below for an example.
 ///
 /// [`Terminate`]: heph::actor::messages::Terminate
 ///
 /// # Examples
 ///
-/// TODO.
+/// ```rust
+/// # #![feature(never_type)]
+/// use std::borrow::Cow;
+/// use std::io;
+/// use std::net::SocketAddr;
+/// use std::time::Duration;
+///
+/// use heph::actor::{self, Actor, NewActor};
+/// use heph::net::TcpStream;
+/// use heph::rt::{self, Runtime, ThreadLocal};
+/// use heph::spawn::options::{ActorOptions, Priority};
+/// use heph::supervisor::{Supervisor, SupervisorStrategy};
+/// use heph::timer::Deadline;
+/// use heph_http::body::OneshotBody;
+/// use heph_http::{self as http, Header, HeaderName, Headers, HttpServer, Method, StatusCode};
+/// use log::error;
+///
+/// fn main() -> Result<(), rt::Error> {
+///     // Setup the HTTP server.
+///     let actor = http_actor as fn(_, _, _) -> _;
+///     let address = "127.0.0.1:7890".parse().unwrap();
+///     let server = HttpServer::setup(address, conn_supervisor, actor, ActorOptions::default())
+///         .map_err(rt::Error::setup)?;
+///
+///     // Build the runtime.
+///     let mut runtime = Runtime::setup().use_all_cores().build()?;
+///     // On each worker thread start our HTTP server.
+///     runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {
+///         let options = ActorOptions::default().with_priority(Priority::LOW);
+///         let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
+///
+/// #       server_ref.try_send(heph::actor::messages::Terminate).unwrap();
+///
+///         // Allow graceful shutdown by responding to process signals.
+///         runtime_ref.receive_signals(server_ref.try_map());
+///         Ok(())
+///     })?;
+///     runtime.start()
+/// }
+///
+/// /// Our supervisor for the TCP server.
+/// #[derive(Copy, Clone, Debug)]
+/// struct ServerSupervisor;
+///
+/// impl<NA> Supervisor<NA> for ServerSupervisor
+/// where
+///     NA: NewActor<Argument = (), Error = io::Error>,
+///     NA::Actor: Actor<Error = http::server::Error<!>>,
+/// {
+///     fn decide(&mut self, err: http::server::Error<!>) -> SupervisorStrategy<()> {
+///         use http::server::Error::*;
+///         match err {
+///             Accept(err) => {
+///                 error!("error accepting new connection: {}", err);
+///                 SupervisorStrategy::Restart(())
+///             }
+///             NewActor(_) => unreachable!(),
+///         }
+///     }
+///
+///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
+///         error!("error restarting the TCP server: {}", err);
+///         SupervisorStrategy::Stop
+///     }
+///
+///     fn second_restart_error(&mut self, err: io::Error) {
+///         error!("error restarting the actor a second time: {}", err);
+///     }
+/// }
+///
+/// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
+///     error!("error handling connection: {}", err);
+///     SupervisorStrategy::Stop
+/// }
+///
+/// /// Our actor that handles a single HTTP connection.
+/// async fn http_actor(
+///     mut ctx: actor::Context<!, ThreadLocal>,
+///     mut connection: http::Connection,
+///     address: SocketAddr,
+/// ) -> io::Result<()> {
+///     // Set `TCP_NODELAY` on the `TcpStream`.
+///     connection.set_nodelay(true)?;
+///
+///     loop {
+///         let mut headers = Headers::EMPTY;
+///         // Read the next request.
+///         let (code, body, should_close) = match connection.next_request().await? {
+///             Ok(Some(request)) => {
+///                 // Only support GET/HEAD to "/", with an empty body.
+///                 if request.path() != "/" {
+///                     (StatusCode::NOT_FOUND, "Not found".into(), false)
+///                 } else if !matches!(request.method(), Method::Get | Method::Head) {
+///                     // Add the "Allow" header to show the HTTP methods we do
+///                     // support.
+///                     headers.add(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
+///                     let body = "Method not allowed".into();
+///                     (StatusCode::METHOD_NOT_ALLOWED, body, false)
+///                 } else if request.body().len() != 0 {
+///                     (StatusCode::PAYLOAD_TOO_LARGE, "Not expecting a body".into(), true)
+///                 } else {
+///                     // Use the IP address as body.
+///                     let body = Cow::from(address.ip().to_string());
+///                     (StatusCode::OK, body, false)
+///                 }
+///             }
+///             // No more requests.
+///             Ok(None) => return Ok(()),
+///             // Error parsing request.
+///             Err(err) => {
+///                 // Determine the correct status code to return.
+///                 let code = err.proper_status_code();
+///                 // Create a useful error message as body.
+///                 let body = Cow::from(format!("Bad request: {}", err));
+///                 (code, body, err.should_close())
+///             }
+///         };
+///
+///         // If we want to close the connection add the "Connection: close"
+///         // header.
+///         if should_close {
+///             headers.add(Header::new(HeaderName::CONNECTION, b"close"));
+///         }
+///
+///         // Send the body as a single payload.
+///         let body = OneshotBody::new(body.as_bytes());
+///         // Respond to the request.
+///         connection.respond(code, headers, body).await?;
+///
+///         if should_close {
+///             return Ok(());
+///         }
+///     }
+/// }
+/// ```
 pub struct HttpServer<S, NA: NewActor<Argument = (Connection, SocketAddr)>> {
     inner: TcpServer<S, ArgMap<NA>>,
 }
