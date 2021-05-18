@@ -60,6 +60,22 @@ fn headers_from_header() {
     check_iter(&headers, &[(HeaderName::ALLOW, VALUE)]);
 }
 
+#[test]
+fn clear_headers() {
+    const ALLOW: &[u8] = b"GET";
+    const CONTENT_LENGTH: &[u8] = b"123";
+
+    let mut headers = Headers::EMPTY;
+    headers.add(Header::new(HeaderName::ALLOW, ALLOW));
+    headers.add(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
+    assert_eq!(headers.len(), 2);
+
+    headers.clear();
+    assert_eq!(headers.len(), 0);
+    assert!(headers.get(&HeaderName::ALLOW).is_none());
+    assert!(headers.get(&HeaderName::CONTENT_LENGTH).is_none());
+}
+
 fn check_header<'a, T>(
     headers: &'a Headers,
     name: &'_ HeaderName<'_>,
