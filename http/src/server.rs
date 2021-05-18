@@ -37,7 +37,7 @@ use crate::{Method, Request, Response, StatusCode, Version};
 ///
 /// RFC 7230 section 3.1.1 recommends "all HTTP senders and recipients support,
 /// at a minimum, request-line lengths of 8000 octets."
-pub const MAX_HEADER_SIZE: usize = 16384;
+pub const MAX_HEAD_SIZE: usize = 16384;
 
 /// Maximum number of headers parsed from a single request.
 pub const MAX_HEADERS: usize = 64;
@@ -420,8 +420,8 @@ impl Connection {
                         self.last_version = Some(map_version(version));
                     }
 
-                    if too_short >= MAX_HEADER_SIZE {
-                        todo!("HTTP request header too large");
+                    if too_short >= MAX_HEAD_SIZE {
+                        return Ok(Err(RequestError::HeadTooLarge));
                     }
 
                     continue;
@@ -947,10 +947,10 @@ impl<'a> Drop for Body<'a> {
 pub enum RequestError {
     /// Missing part of request.
     IncompleteRequest,
-    /// HTTP Header is too large.
+    /// HTTP Head (start line and headers) is too large.
     ///
-    /// Limit is defined by [`MAX_HEADER_SIZE`].
-    HeaderTooLarge,
+    /// Limit is defined by [`MAX_HEAD_SIZE`].
+    HeadTooLarge,
     /// Value in the "Content-Length" header is invalid.
     InvalidContentLength,
     /// Multiple "Content-Length" headers were present with differing values.
@@ -979,7 +979,7 @@ impl RequestError {
         // determine the values here.
         match self {
             IncompleteRequest
-            | HeaderTooLarge
+            | HeadTooLarge
             | InvalidContentLength
             | DifferentContentLengths
             | InvalidHeaderName
@@ -1004,7 +1004,7 @@ impl RequestError {
         // determine the values here.
         match self {
             IncompleteRequest
-            | HeaderTooLarge
+            | HeadTooLarge
             | InvalidContentLength
             | DifferentContentLengths
             | InvalidHeaderName
@@ -1037,7 +1037,7 @@ impl fmt::Display for RequestError {
         use RequestError::*;
         f.write_str(match self {
             IncompleteRequest => "incomplete request",
-            HeaderTooLarge => "header too large",
+            HeadTooLarge => "head too large",
             InvalidContentLength => "invalid Content-Length header",
             DifferentContentLengths => "different Content-Length headers",
             InvalidHeaderName => "invalid header name",
