@@ -57,9 +57,7 @@ impl Headers {
         for header in raw_headers {
             let name = HeaderName::from_str(header.name);
             let value = header.value;
-            if let Err(err) = f(&name, value) {
-                return Err(err);
-            }
+            f(&name, value)?;
             headers._add(name, value);
         }
         Ok(headers)
