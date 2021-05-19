@@ -22,13 +22,13 @@ use std::io::{self, Write};
 use std::mem::MaybeUninit;
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::task::ready;
 use std::task::{self, Poll};
 use std::time::SystemTime;
 
 use heph::net::{tcp, Bytes, BytesVectored, TcpServer, TcpStream};
 use heph::spawn::{ActorOptions, Spawn};
 use heph::{actor, rt, Actor, NewActor, Supervisor};
-use httparse::EMPTY_HEADER;
 use httpdate::HttpDate;
 
 use crate::body::BodyLength;
@@ -212,7 +212,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///                     headers.add(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
 ///                     let body = "Method not allowed".into();
 ///                     (StatusCode::METHOD_NOT_ALLOWED, body, false)
-///                 } else if request.body().len() != 0 {
+///                 } else if !request.body().is_empty() {
 ///                     (StatusCode::PAYLOAD_TOO_LARGE, "Not expecting a body".into(), true)
 ///                 } else {
 ///                     // Use the IP address as body.
@@ -340,7 +340,7 @@ pub struct Connection {
     stream: TcpStream,
     buf: Vec<u8>,
     /// Number of bytes of `buf` that are already parsed.
-    /// NOTE: this may be larger then `buf.len()`, which case a `Body` was
+    /// NOTE: this may be larger then `buf.len()`, in which case a `Body` was
     /// dropped without reading it entirely.
     parsed_bytes: usize,
     /// The HTTP version of the last request.
@@ -351,7 +351,7 @@ pub struct Connection {
 
 impl Connection {
     /// Create a new `Connection`.
-    pub fn new(stream: TcpStream) -> Connection {
+    fn new(stream: TcpStream) -> Connection {
         Connection {
             stream,
             buf: Vec::with_capacity(BUF_SIZE),
@@ -447,7 +447,7 @@ impl Connection {
                 }
             }
 
-            let mut headers = [EMPTY_HEADER; MAX_HEADERS];
+            let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
             let mut request = httparse::Request::new(&mut headers);
             // SAFETY: because we received until at least `self.parsed_bytes >=
             // self.buf.len()` above, we can safely slice the buffer..
@@ -467,7 +467,7 @@ impl Connection {
                     self.last_version = Some(version);
 
                     // RFC 7230 section 3.3.3 Message Body Length.
-                    let mut body_length: Option<usize> = None;
+                    let mut body_length: Option<BodyLength> = None;
                     let res = Headers::from_httparse_headers(request.headers, |name, value| {
                         if *name == HeaderName::CONTENT_LENGTH {
                             // RFC 7230 section 3.3.3 point 4:
@@ -483,36 +483,64 @@ impl Connection {
                             // > the connection.
                             if let Ok(length) = FromHeaderValue::from_bytes(value) {
                                 match body_length.as_mut() {
-                                    Some(body_length) if *body_length == length => {}
-                                    Some(_) => return Err(RequestError::DifferentContentLengths),
-                                    None => body_length = Some(length),
+                                    Some(BodyLength::Known(body_length))
+                                        if *body_length == length => {}
+                                    Some(BodyLength::Known(_)) => {
+                                        return Err(RequestError::DifferentContentLengths)
+                                    }
+                                    Some(BodyLength::Chunked) => {
+                                        return Err(RequestError::ContentLengthAndTransferEncoding)
+                                    }
+                                    None => body_length = Some(BodyLength::Known(length)),
                                 }
                             } else {
                                 return Err(RequestError::InvalidContentLength);
                             }
                         } else if *name == HeaderName::TRANSFER_ENCODING {
-                            todo!("transfer encoding");
+                            let mut encodings = value.split(|b| *b == b',').peekable();
+                            while let Some(encoding) = encodings.next() {
+                                match trim_ws(encoding) {
+                                    b"chunked" => {
+                                        // RFC 7230 section 3.3.3 point 3:
+                                        // > If a Transfer-Encoding header field
+                                        // > is present in a request and the
+                                        // > chunked transfer coding is not the
+                                        // > final encoding, the message body
+                                        // > length cannot be determined
+                                        // > reliably; the server MUST respond
+                                        // > with the 400 (Bad Request) status
+                                        // > code and then close the connection.
+                                        if encodings.peek().is_some() {
+                                            return Err(
+                                                RequestError::ChunkedNotLastTransferEncoding,
+                                            );
+                                        }
 
-                            // TODO: we can support chunked, but for other
-                            // encoding we need external packages (for compress,
-                            // deflate, gzip).
-                            // Not supported transfer-encoding respond with 501
-                            // (Not Implemented).
-                            //
-                            // RFC 7230 section 3.3.3 point 3:
-                            // > If a Transfer-Encoding header field is present
-                            // > in a request and the chunked transfer coding is
-                            // > not the final encoding, the message body length
-                            // > cannot be determined reliably; the server MUST
-                            // > respond with the 400 (Bad Request) status code
-                            // > and then close the connection.
-                            // >
-                            // > If a message is received with both a
-                            // > Transfer-Encoding and a Content-Length header
-                            // > field, the Transfer-Encoding overrides the
-                            // > Content-Length. [..] A sender MUST remove the
-                            // > received Content-Length field prior to
-                            // > forwarding such a message downstream.
+                                        // RFC 7230 section 3.3.3 point 3:
+                                        // > If a message is received with both
+                                        // > a Transfer-Encoding and a
+                                        // > Content-Length header field, the
+                                        // > Transfer-Encoding overrides the
+                                        // > Content-Length. Such a message
+                                        // > might indicate an attempt to
+                                        // > perform request smuggling (Section
+                                        // > 9.5) or response splitting (Section
+                                        // > 9.4) and ought to be handled as an
+                                        // > error.
+                                        if body_length.is_some() {
+                                            return Err(
+                                                RequestError::ContentLengthAndTransferEncoding,
+                                            );
+                                        }
+
+                                        body_length = Some(BodyLength::Chunked);
+                                    }
+                                    b"identity" => {} // No changes.
+                                    // TODO: support "compress", "deflate" and
+                                    // "gzip".
+                                    _ => return Err(RequestError::UnsupportedTransferEncoding),
+                                }
+                            }
                         }
                         Ok(())
                     });
@@ -521,23 +549,34 @@ impl Connection {
                         Err(err) => return Ok(Err(err)),
                     };
 
-                    // TODO: RFC 7230 section 3.3.3:
-                    // > A server MAY reject a request that contains a message
-                    // > body but not a Content-Length by responding with 411
-                    // > (Length Required).
-                    // Maybe do this for POST/PUT/etc. that (usually) requires a
-                    // body?
-
-                    // RFC 7230 section 3.3.3 point 6:
-                    // > If this is a request message and none of the above are
-                    // > true, then the message body length is zero (no message
-                    // > body is present).
-                    let size = body_length.unwrap_or(0);
-
-                    let body = Body {
-                        conn: self,
-                        left: size,
+                    let kind = match body_length {
+                        Some(BodyLength::Known(left)) => BodyKind::Oneshot { left },
+                        Some(BodyLength::Chunked) => {
+                            match httparse::parse_chunk_size(&self.buf[self.parsed_bytes..]) {
+                                Ok(httparse::Status::Complete((idx, chunk_size))) => {
+                                    self.parsed_bytes += idx;
+                                    let read_complete = if chunk_size == 0 { true } else { false };
+                                    BodyKind::Chunked {
+                                        // FIXME: add check here. It's fine on
+                                        // 64 bit (only currently supported).
+                                        left_in_chunk: chunk_size as usize,
+                                        read_complete,
+                                    }
+                                }
+                                Ok(httparse::Status::Partial) => BodyKind::Chunked {
+                                    left_in_chunk: 0,
+                                    read_complete: false,
+                                },
+                                Err(_) => return Ok(Err(RequestError::InvalidChunkSize)),
+                            }
+                        }
+                        // RFC 7230 section 3.3.3 point 6:
+                        // > If this is a request message and none of the above
+                        // > are true, then the message body length is zero (no
+                        // > message body is present).
+                        None => BodyKind::Oneshot { left: 0 },
                     };
+                    let body = Body { conn: self, kind };
                     return Ok(Ok(Some(Request::new(method, path, version, headers, body))));
                 }
                 Ok(httparse::Status::Partial) => {
@@ -578,7 +617,7 @@ impl Connection {
     /// # #[allow(unreachable_code)]
     /// # {
     /// let mut conn: Connection = /* From HttpServer. */
-    /// # todo!();
+    /// # panic!("can't actually run example");
     ///
     /// // Reading a request returned this error.
     /// let err = RequestError::IncompleteRequest;
@@ -690,6 +729,7 @@ impl Connection {
         // Format the headers (RFC 7230 section 3.2).
         let mut set_connection_header = false;
         let mut set_content_length_header = false;
+        let mut set_transfer_encoding_header = false;
         let mut set_date_header = false;
         for header in response.headers().iter() {
             let name = header.name();
@@ -706,6 +746,8 @@ impl Connection {
                 set_connection_header = true;
             } else if name == &HeaderName::CONTENT_LENGTH {
                 set_content_length_header = true;
+            } else if name == &HeaderName::TRANSFER_ENCODING {
+                set_transfer_encoding_header = true;
             } else if name == &HeaderName::DATE {
                 set_date_header = true;
             }
@@ -725,18 +767,21 @@ impl Connection {
             write!(&mut self.buf, "Date: {}\r\n", now).unwrap();
         }
 
-        // Provide the "Conent-Length" header if the user didn't.
-        if !set_content_length_header {
-            let body_length = match response.body().length() {
-                _ if !request_method.expects_body() || !response.status().includes_body() => 0,
-                BodyLength::Known(length) => length,
-                BodyLength::Chunked => todo!("chunked response body"),
-            };
-
-            self.buf.extend_from_slice(b"Content-Length: ");
-            self.buf
-                .extend_from_slice(itoa_buf.format(body_length).as_bytes());
-            self.buf.extend_from_slice(b"\r\n");
+        // Provide the "Conent-Length" or "Transfer-Encoding" header if the user
+        // didn't.
+        if !set_content_length_header && !set_transfer_encoding_header {
+            match response.body().length() {
+                _ if !request_method.expects_body() || !response.status().includes_body() => {
+                    extend_content_length_header(&mut self.buf, &mut itoa_buf, 0)
+                }
+                BodyLength::Known(length) => {
+                    extend_content_length_header(&mut self.buf, &mut itoa_buf, length)
+                }
+                BodyLength::Chunked => {
+                    self.buf
+                        .extend_from_slice(b"Transfer-Encoding: chunked\r\n");
+                }
+            }
         }
 
         // End of the header.
@@ -765,6 +810,25 @@ impl Connection {
 
         // TODO: move bytes to the start.
     }
+
+    /// Recv bytes from the underlying stream, reading into `self.buf`.
+    ///
+    /// Returns an `UnexpectedEof` error if zero bytes are received.
+    fn recv(&mut self) -> Poll<io::Result<usize>> {
+        // Ensure we have space in the buffer to read into.
+        self.clear_buffer();
+        self.buf.reserve(MIN_READ_SIZE);
+
+        loop {
+            match self.stream.try_recv(&mut self.buf) {
+                Ok(0) => return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())),
+                Ok(n) => return Poll::Ready(Ok(n)),
+                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
+                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
+                Err(err) => return Poll::Ready(Err(err)),
+            }
+        }
+    }
 }
 
 const fn map_version(version: u8) -> Version {
@@ -780,6 +844,28 @@ const fn map_version(version: u8) -> Version {
     }
 }
 
+/// Trim whitespace from `value`.
+fn trim_ws(value: &[u8]) -> &[u8] {
+    let start = value.iter().position(|b| !b.is_ascii_whitespace());
+    let end = value.iter().rposition(|b| !b.is_ascii_whitespace());
+    if let (Some(start), Some(end)) = (start, end) {
+        &value[start..end]
+    } else {
+        &[]
+    }
+}
+
+/// Add "Content-Length" header to `buf`.
+fn extend_content_length_header(
+    buf: &mut Vec<u8>,
+    itoa_buf: &mut itoa::Buffer,
+    content_length: usize,
+) {
+    buf.extend_from_slice(b"Content-Length: ");
+    buf.extend_from_slice(itoa_buf.format(content_length).as_bytes());
+    buf.extend_from_slice(b"\r\n");
+}
+
 /// Body of HTTP [`Request`] read from a [`Connection`].
 ///
 /// # Notes
@@ -789,30 +875,79 @@ const fn map_version(version: u8) -> Version {
 #[derive(Debug)]
 pub struct Body<'a> {
     conn: &'a mut Connection,
-    /// Number of unread (by the user) bytes.
-    left: usize,
+    kind: BodyKind,
+}
+
+#[derive(Debug)]
+enum BodyKind {
+    /// No encoding.
+    Oneshot {
+        /// Number of unread (by the user) bytes.
+        left: usize,
+    },
+    /// Chunked transfer encoding.
+    Chunked {
+        /// Number of unread (by the user) bytes in this chunk.
+        left_in_chunk: usize,
+        /// Read all chunks.
+        read_complete: bool,
+    },
 }
 
 impl<'a> Body<'a> {
-    /// Returns the length of the body (in bytes) *left*.
+    /// Returns the length of the body (in bytes) *left*, or a
     ///
     /// Calling this before [`recv`] or [`recv_vectored`] will return the
     /// original body length, after removing bytes from the body this will
-    /// return the remaining length.
+    /// return the *remaining* length.
     ///
-    /// The body length is determined by the "Content-Length" header, or 0 if
-    /// not present.
+    /// The body length is determined by the "Content-Length" or
+    /// "Transfer-Encoding" header, or 0 if neither are present.
     ///
     /// [`recv`]: Body::recv
     /// [`recv_vectored`]: Body::recv_vectored
-    pub const fn len(&self) -> usize {
-        self.left
+    pub fn len(&self) -> BodyLength {
+        match self.kind {
+            BodyKind::Oneshot { left } => BodyLength::Known(left),
+            BodyKind::Chunked { .. } => BodyLength::Chunked,
+        }
+    }
+
+    /// Return the length of this chunk *left*, or the entire body in case of a
+    /// oneshot body.
+    fn chunk_len(&self) -> usize {
+        match self.kind {
+            BodyKind::Oneshot { left } => left,
+            BodyKind::Chunked { left_in_chunk, .. } => left_in_chunk,
+        }
     }
 
     /// Returns `true` if the body is completely read (or was empty to begin
     /// with).
-    pub const fn is_empty(&self) -> bool {
-        self.left == 0
+    ///
+    /// # Notes
+    ///
+    /// This can return `false` for empty bodies using chunked encoding if not
+    /// enough bytes have been read yet. Using chunked encoding we don't know
+    /// the length upfront as it it's determined by reading the length of each
+    /// chunk. If the send request only contained the HTTP head (i.e. no body)
+    /// and uses chunked encoding this would return `false`, as body length is
+    /// unkown and thus not empty. However if the body would then send a single
+    /// empty chunk (signaling the end of the body), this would return `true` as
+    /// it turns out the body is indeed empty.
+    pub fn is_empty(&self) -> bool {
+        match self.kind {
+            BodyKind::Oneshot { left } => left == 0,
+            BodyKind::Chunked {
+                left_in_chunk,
+                read_complete,
+            } => read_complete && left_in_chunk == 0,
+        }
+    }
+
+    /// Returns `true` if the body is chunked.
+    pub fn is_chunked(&self) -> bool {
+        matches!(self.kind, BodyKind::Chunked { .. })
     }
 
     /// Receive bytes from the request body, writing them into `buf`.
@@ -832,22 +967,30 @@ impl<'a> Body<'a> {
     }
 
     /// Returns the bytes currently in the buffer.
-    /// This is limited to the bytes of this request, i.e. it doesn't contain
+    ///
+    /// This is limited to the bytes of this request/chunk, i.e. it doesn't
+    /// contain the next request/chunk.
     fn buf_bytes(&self) -> &[u8] {
         let bytes = &self.conn.buf[self.conn.parsed_bytes..];
-        if bytes.len() > self.left {
-            &bytes[..self.left]
+        let left = match self.kind {
+            BodyKind::Oneshot { left } => left,
+            BodyKind::Chunked { left_in_chunk, .. } => left_in_chunk,
+        };
+        if bytes.len() > left {
+            &bytes[..left]
         } else {
             bytes
         }
     }
 
     /// Copy already read bytes.
+    ///
+    /// Same as [`Body::buf_bytes`] this is limited to the bytes of this
+    /// request/chunk, i.e. it doesn't contain the next request/chunk.
     fn copy_buf_bytes(&mut self, dst: &mut [MaybeUninit<u8>]) -> usize {
         let bytes = self.buf_bytes();
-        let len = bytes.len();
+        let len = min(bytes.len(), dst.len());
         if len != 0 {
-            let len = min(len, dst.len());
             MaybeUninit::write_slice(&mut dst[..len], &bytes[..len]);
             self.processed(len);
         }
@@ -856,8 +999,52 @@ impl<'a> Body<'a> {
 
     /// Mark `n` bytes are processed.
     fn processed(&mut self, n: usize) {
-        self.left -= n;
+        // TODO: should this be `unsafe`? We don't do underflow checks...
+        match &mut self.kind {
+            BodyKind::Oneshot { left } => *left -= n,
+            BodyKind::Chunked { left_in_chunk, .. } => *left_in_chunk -= n,
+        }
         self.conn.parsed_bytes += n;
+    }
+}
+
+/// Read a chunk form `conn`.
+///
+/// Returns an I/O error, or an `InvalidData` error if the chunk size is
+/// invalid.
+fn read_chunk(
+    conn: &mut Connection,
+    // Fields of `BodyKind::Chunked`:
+    left_in_chunk: &mut usize,
+    read_complete: &mut bool,
+) -> Poll<io::Result<()>> {
+    // TODO: check buffer, might contains chunk.
+
+    // Ensure we have space in the buffer to read into.
+    conn.clear_buffer();
+    conn.buf.reserve(MIN_READ_SIZE);
+
+    loop {
+        ready!(conn.recv())?;
+        match httparse::parse_chunk_size(&conn.buf) {
+            Ok(httparse::Status::Complete((idx, chunk_size))) => {
+                conn.parsed_bytes += idx;
+                if chunk_size == 0 {
+                    *read_complete = true;
+                }
+                // FIXME: add check here. It's fine on 64 bit (only currently
+                // supported).
+                *left_in_chunk = chunk_size as usize;
+                return Poll::Ready(Ok(()));
+            }
+            Ok(httparse::Status::Partial) => continue, // Read some more data.
+            Err(_) => {
+                return Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "invalid chunk size",
+                )))
+            }
+        }
     }
 }
 
@@ -878,16 +1065,42 @@ where
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Recv { body, buf } = Pin::into_inner(self);
 
-        // Copy already read bytes.
-        let len = body.copy_buf_bytes(buf.as_bytes());
-        if len != 0 {
-            unsafe { buf.update_length(len) };
+        let mut len = 0;
+        loop {
+            // Copy bytes in our buffer.
+            len += body.copy_buf_bytes(buf.as_bytes());
+            if len != 0 {
+                unsafe { buf.update_length(len) };
+            }
+
+            let limit = body.chunk_len();
+            if limit == 0 {
+                match &mut body.kind {
+                    // Read all the bytes from the oneshot body.
+                    BodyKind::Oneshot { .. } => return Poll::Ready(Ok(len)),
+                    // Read all the bytes in the chunk, so need to read another
+                    // chunk.
+                    BodyKind::Chunked {
+                        left_in_chunk,
+                        read_complete,
+                    } => {
+                        ready!(read_chunk(&mut body.conn, left_in_chunk, read_complete))?;
+                        // Copy read bytes again.
+                        continue;
+                    }
+                }
+            } else {
+                // Continue to reading below.
+                break;
+            }
         }
 
         // Read from the stream if there is space left.
         if buf.has_spare_capacity() {
+            // Limit the read until the end of the chunk/body.
+            let limit = body.chunk_len();
             loop {
-                match body.conn.stream.try_recv(&mut *buf) {
+                match body.conn.stream.try_recv(buf.limit(limit)) {
                     Ok(n) => return Poll::Ready(Ok(len + n)),
                     Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
                         return if len == 0 {
@@ -900,8 +1113,9 @@ where
                     Err(err) => return Poll::Ready(Err(err)),
                 }
             }
+        } else {
+            Poll::Ready(Ok(len))
         }
-        Poll::Ready(Ok(len))
     }
 }
 
@@ -922,22 +1136,47 @@ where
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let RecvVectored { body, bufs } = Pin::into_inner(self);
 
-        // Copy already read bytes.
         let mut len = 0;
-        for buf in bufs.as_bufs().as_mut() {
-            match body.copy_buf_bytes(buf) {
-                0 => break,
-                n => len += n,
+        loop {
+            // Copy bytes in our buffer.
+            for buf in bufs.as_bufs().as_mut() {
+                match body.copy_buf_bytes(buf) {
+                    0 => break,
+                    n => len += n,
+                }
             }
-        }
-        if len != 0 {
-            unsafe { bufs.update_lengths(len) };
+            if len != 0 {
+                unsafe { bufs.update_lengths(len) };
+            }
+
+            let limit = body.chunk_len();
+            if limit == 0 {
+                match &mut body.kind {
+                    // Read all the bytes from the oneshot body.
+                    BodyKind::Oneshot { .. } => return Poll::Ready(Ok(len)),
+                    // Read all the bytes in the chunk, so need to read another
+                    // chunk.
+                    BodyKind::Chunked {
+                        left_in_chunk,
+                        read_complete,
+                    } => {
+                        ready!(read_chunk(&mut body.conn, left_in_chunk, read_complete))?;
+                        // Copy read bytes again.
+                        continue;
+                    }
+                }
+            } else {
+                // Continue to reading below.
+                break;
+            }
         }
 
         // Read from the stream if there is space left.
         if bufs.has_spare_capacity() {
+            // Limit the read until the end of the chunk/body.
+            let limit = body.chunk_len();
             loop {
-                match body.conn.stream.try_recv_vectored(&mut *bufs) {
+                match body.conn.stream.try_recv_vectored(bufs.limit(limit)) {
                     Ok(n) => return Poll::Ready(Ok(len + n)),
                     Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
                         return if len == 0 {
@@ -950,14 +1189,15 @@ where
                     Err(err) => return Poll::Ready(Err(err)),
                 }
             }
+        } else {
+            Poll::Ready(Ok(len))
         }
-        Poll::Ready(Ok(len))
     }
 }
 
 impl<'a> crate::Body<'a> for Body<'a> {
     fn length(&self) -> BodyLength {
-        BodyLength::Known(self.left)
+        self.len()
     }
 }
 
@@ -965,11 +1205,11 @@ mod private {
     use std::future::Future;
     use std::io;
     use std::pin::Pin;
-    use std::task::{self, Poll};
+    use std::task::{self, ready, Poll};
 
     use heph::net::TcpStream;
 
-    use super::{Body, MIN_READ_SIZE};
+    use super::{read_chunk, Body, BodyKind};
 
     #[derive(Debug)]
     pub struct SendBody<'c, 's, 'h> {
@@ -1000,8 +1240,14 @@ mod private {
                 }
             }
 
-            while body.left != 0 {
+            while !body.is_empty() {
+                let limit = body.chunk_len();
                 let bytes = body.buf_bytes();
+                let bytes = if bytes.len() > limit {
+                    &bytes[..limit]
+                } else {
+                    bytes
+                };
                 // TODO: maybe read first if we have less then N bytes?
                 if !bytes.is_empty() {
                     match stream.try_send(bytes) {
@@ -1016,20 +1262,25 @@ mod private {
                         Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
                         Err(err) => return Poll::Ready(Err(err)),
                     }
+                    // NOTE: we don't continue here, we always return on start
+                    // the next iteration of the loop.
                 }
 
-                // Ensure we have space in the buffer to read into.
-                body.conn.clear_buffer();
-                body.conn.buf.reserve(MIN_READ_SIZE);
-                match body.conn.stream.try_recv(&mut body.conn.buf) {
-                    Ok(0) => return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())),
-                    // Continue to sending the bytes above.
-                    Ok(_) => continue,
-                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                        return Poll::Pending
+                // Read some more data, or the next chunk.
+                match &mut body.kind {
+                    BodyKind::Oneshot { .. } => {
+                        let _ = ready!(body.conn.recv())?;
                     }
-                    Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                    Err(err) => return Poll::Ready(Err(err)),
+                    BodyKind::Chunked {
+                        left_in_chunk,
+                        read_complete,
+                    } => {
+                        if *left_in_chunk == 0 {
+                            ready!(read_chunk(&mut body.conn, left_in_chunk, read_complete))?;
+                        } else {
+                            ready!(body.conn.recv())?;
+                        }
+                    }
                 }
             }
 
@@ -1067,7 +1318,11 @@ impl<'a> Drop for Body<'a> {
         // Mark the entire body as parsed.
         // NOTE: `Connection` handles the case where we didn't read the entire
         // body yet.
-        self.conn.parsed_bytes += self.left;
+        match self.kind {
+            BodyKind::Oneshot { left } => self.conn.parsed_bytes += left,
+            // FIXME: don't panic here.
+            BodyKind::Chunked { .. } => todo!("remove chunked body from connection"),
+        }
     }
 }
 
@@ -1090,6 +1345,22 @@ pub enum RequestError {
     InvalidHeaderValue,
     /// Number of headers send in the request is larger than [`MAX_HEADERS`].
     TooManyHeaders,
+    /// Unsupported "Transfer-Encoding" header.
+    UnsupportedTransferEncoding,
+    /// Request has a "Transfer-Encoding" header with a chunked encoding, but
+    /// it's not the final encoding, then the message body length cannot be
+    /// determined reliably.
+    ///
+    /// See RFC 7230 section 3.3.3 point 3.
+    ChunkedNotLastTransferEncoding,
+    /// Request contains both "Content-Length" and "Transfer-Encoding" headers.
+    ///
+    /// An attacker might attempt to "smuggle a request" ("HTTP Request
+    /// Smuggling", Linhart et al., June 2005) or "split a response" ("Divide
+    /// and Conquer - HTTP Response Splitting, Web Cache Poisoning Attacks, and
+    /// Related Topics", Klein, March 2004). RFC 7230 (see section 3.3.3 point
+    /// 3) says that this "ought to be handled as an error", and so we do.
+    ContentLengthAndTransferEncoding,
     /// Invalid byte where token is required.
     InvalidToken,
     /// Invalid byte in new line.
@@ -1098,6 +1369,8 @@ pub enum RequestError {
     InvalidVersion,
     /// Unknown HTTP method, not in [`Method`].
     UnknownMethod,
+    /// Chunk size is invalid.
+    InvalidChunkSize,
 }
 
 impl RequestError {
@@ -1114,14 +1387,22 @@ impl RequestError {
             | InvalidHeaderName
             | InvalidHeaderValue
             | TooManyHeaders
+            | ChunkedNotLastTransferEncoding
+            | ContentLengthAndTransferEncoding
             | InvalidToken
             | InvalidNewLine
-            | InvalidVersion => StatusCode::BAD_REQUEST,
+            | InvalidVersion
+            | InvalidChunkSize=> StatusCode::BAD_REQUEST,
+            // RFC 7230 section 3.3.1:
+            // > A server that receives a request message with a transfer coding
+            // > it does not understand SHOULD respond with 501 (Not
+            // > Implemented).
+            UnsupportedTransferEncoding
             // RFC 7231 section 4.1:
             // > When a request method is received that is unrecognized or not
             // > implemented by an origin server, the origin server SHOULD
             // > respond with the 501 (Not Implemented) status code.
-            UnknownMethod => StatusCode::NOT_IMPLEMENTED,
+            | UnknownMethod => StatusCode::NOT_IMPLEMENTED,
         }
     }
 
@@ -1139,10 +1420,13 @@ impl RequestError {
             | InvalidHeaderName
             | InvalidHeaderValue
             | TooManyHeaders
+            | ChunkedNotLastTransferEncoding
+            | ContentLengthAndTransferEncoding
             | InvalidToken
             | InvalidNewLine
-            | InvalidVersion => true,
-            UnknownMethod => false,
+            | InvalidVersion
+            | InvalidChunkSize => true,
+            UnsupportedTransferEncoding | UnknownMethod => false,
         }
     }
 
@@ -1172,9 +1456,15 @@ impl fmt::Display for RequestError {
             InvalidHeaderName => "invalid header name",
             InvalidHeaderValue => "invalid header value",
             TooManyHeaders => "too many header",
+            UnsupportedTransferEncoding => "unsupported Transfer-Encoding header",
+            ChunkedNotLastTransferEncoding => "invalid Transfer-Encoding header",
+            ContentLengthAndTransferEncoding => {
+                "provided both Content-Length and Transfer-Encoding headers"
+            }
             InvalidToken | InvalidNewLine => "invalid request syntax",
             InvalidVersion => "invalid version",
             UnknownMethod => "unknown method",
+            InvalidChunkSize => "invalid chunk size",
         })
     }
 }
