@@ -6,7 +6,8 @@
     generic_associated_types,
     io_slice_advance,
     maybe_uninit_write_slice,
-    ready_macro
+    ready_macro,
+    stmt_expr_attributes
 )]
 #![allow(incomplete_features)] // NOTE: for `generic_associated_types`.
 

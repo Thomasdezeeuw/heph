@@ -418,6 +418,7 @@ impl Connection {
     /// Also see the [`Connection::last_request_version`] and
     /// [`Connection::last_request_method`] functions to properly respond to
     /// request errors.
+    #[allow(clippy::too_many_lines)] // TODO.
     pub async fn next_request<'a>(
         &'a mut self,
     ) -> io::Result<Result<Option<Request<Body<'a>>>, RequestError>> {
@@ -555,15 +556,15 @@ impl Connection {
                     let kind = match body_length {
                         Some(BodyLength::Known(left)) => BodyKind::Oneshot { left },
                         Some(BodyLength::Chunked) => {
+                            #[allow(clippy::cast_possible_truncation)] // For truncate below.
                             match httparse::parse_chunk_size(&self.buf[self.parsed_bytes..]) {
                                 Ok(httparse::Status::Complete((idx, chunk_size))) => {
                                     self.parsed_bytes += idx;
-                                    let read_complete = if chunk_size == 0 { true } else { false };
                                     BodyKind::Chunked {
                                         // FIXME: add check here. It's fine on
                                         // 64 bit (only currently supported).
                                         left_in_chunk: chunk_size as usize,
-                                        read_complete,
+                                        read_complete: chunk_size == 0,
                                     }
                                 }
                                 Ok(httparse::Status::Partial) => BodyKind::Chunked {
@@ -1039,6 +1040,7 @@ fn read_chunk(
     loop {
         ready!(conn.recv())?;
         match httparse::parse_chunk_size(&conn.buf) {
+            #[allow(clippy::cast_possible_truncation)] // For truncate below.
             Ok(httparse::Status::Complete((idx, chunk_size))) => {
                 conn.parsed_bytes += idx;
                 if chunk_size == 0 {
@@ -1101,10 +1103,9 @@ where
                         continue;
                     }
                 }
-            } else {
-                // Continue to reading below.
-                break;
             }
+            // Continue to reading below.
+            break;
         }
 
         // Read from the stream if there is space left.
@@ -1177,10 +1178,9 @@ where
                         continue;
                     }
                 }
-            } else {
-                // Continue to reading below.
-                break;
             }
+            // Continue to reading below.
+            break;
         }
 
         // Read from the stream if there is space left.
