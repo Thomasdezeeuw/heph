@@ -205,92 +205,6 @@ impl Bytes for Vec<u8> {
     }
 }
 
-/// Wrapper to limit the number of bytes `B` can use.
-///
-/// See [`Bytes::limit`] and [`BytesVectored::limit`].
-#[derive(Debug)]
-pub struct LimitedBytes<B> {
-    buf: B,
-    limit: usize,
-}
-
-impl<B> LimitedBytes<B> {
-    /// Returns the underlying buffer.
-    pub fn into_inner(self) -> B {
-        self.buf
-    }
-}
-
-impl<B> Bytes for LimitedBytes<B>
-where
-    B: Bytes,
-{
-    fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
-        let bytes = self.buf.as_bytes();
-        if bytes.len() > self.limit {
-            &mut bytes[..self.limit]
-        } else {
-            bytes
-        }
-    }
-
-    fn spare_capacity(&self) -> usize {
-        min(self.buf.spare_capacity(), self.limit)
-    }
-
-    fn has_spare_capacity(&self) -> bool {
-        self.spare_capacity() > 0
-    }
-
-    unsafe fn update_length(&mut self, n: usize) {
-        self.buf.update_length(n);
-        self.limit -= n;
-    }
-}
-
-impl<B> BytesVectored for LimitedBytes<B>
-where
-    B: BytesVectored,
-{
-    type Bufs<'b> = B::Bufs<'b>;
-
-    fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
-        let mut bufs = self.buf.as_bufs();
-        let mut left = self.limit;
-        let mut iter = bufs.as_mut().iter_mut();
-        while let Some(buf) = iter.next() {
-            let len = buf.len();
-            if left > len {
-                left -= len;
-            } else {
-                buf.limit(left);
-                for buf in iter {
-                    *buf = MaybeUninitSlice::new(&mut []);
-                }
-                break;
-            }
-        }
-        bufs
-    }
-
-    fn spare_capacity(&self) -> usize {
-        if self.limit == 0 {
-            0
-        } else {
-            min(self.buf.spare_capacity(), self.limit)
-        }
-    }
-
-    fn has_spare_capacity(&self) -> bool {
-        self.limit != 0 && self.buf.has_spare_capacity()
-    }
-
-    unsafe fn update_lengths(&mut self, n: usize) {
-        self.buf.update_lengths(n);
-        self.limit -= n;
-    }
-}
-
 /// A version of [`IoSliceMut`] that allows the buffer to be uninitialised.
 ///
 /// [`IoSliceMut`]: std::io::IoSliceMut
@@ -657,6 +571,92 @@ impl_vectored_bytes_tuple! { 5: B0 0, B1 1, B2 2, B3 3, B4 4 }
 impl_vectored_bytes_tuple! { 4: B0 0, B1 1, B2 2, B3 3 }
 impl_vectored_bytes_tuple! { 3: B0 0, B1 1, B2 2 }
 impl_vectored_bytes_tuple! { 2: B0 0, B1 1 }
+
+/// Wrapper to limit the number of bytes `B` can use.
+///
+/// See [`Bytes::limit`] and [`BytesVectored::limit`].
+#[derive(Debug)]
+pub struct LimitedBytes<B> {
+    buf: B,
+    limit: usize,
+}
+
+impl<B> LimitedBytes<B> {
+    /// Returns the underlying buffer.
+    pub fn into_inner(self) -> B {
+        self.buf
+    }
+}
+
+impl<B> Bytes for LimitedBytes<B>
+where
+    B: Bytes,
+{
+    fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
+        let bytes = self.buf.as_bytes();
+        if bytes.len() > self.limit {
+            &mut bytes[..self.limit]
+        } else {
+            bytes
+        }
+    }
+
+    fn spare_capacity(&self) -> usize {
+        min(self.buf.spare_capacity(), self.limit)
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        self.spare_capacity() > 0
+    }
+
+    unsafe fn update_length(&mut self, n: usize) {
+        self.buf.update_length(n);
+        self.limit -= n;
+    }
+}
+
+impl<B> BytesVectored for LimitedBytes<B>
+where
+    B: BytesVectored,
+{
+    type Bufs<'b> = B::Bufs<'b>;
+
+    fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
+        let mut bufs = self.buf.as_bufs();
+        let mut left = self.limit;
+        let mut iter = bufs.as_mut().iter_mut();
+        while let Some(buf) = iter.next() {
+            let len = buf.len();
+            if left > len {
+                left -= len;
+            } else {
+                buf.limit(left);
+                for buf in iter {
+                    *buf = MaybeUninitSlice::new(&mut []);
+                }
+                break;
+            }
+        }
+        bufs
+    }
+
+    fn spare_capacity(&self) -> usize {
+        if self.limit == 0 {
+            0
+        } else {
+            min(self.buf.spare_capacity(), self.limit)
+        }
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        self.limit != 0 && self.buf.has_spare_capacity()
+    }
+
+    unsafe fn update_lengths(&mut self, n: usize) {
+        self.buf.update_lengths(n);
+        self.limit -= n;
+    }
+}
 
 /// Convert a `socket2:::SockAddr` into a `std::net::SocketAddr`.
 #[allow(clippy::needless_pass_by_value)]
