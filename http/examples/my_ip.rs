@@ -95,7 +95,7 @@ async fn http_actor(
                     headers.add(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
                     let body = "Method not allowed".into();
                     (StatusCode::METHOD_NOT_ALLOWED, body, false)
-                } else if request.body().len() != 0 {
+                } else if !request.body().is_empty() {
                     let body = Cow::from("Not expecting a body");
                     (StatusCode::PAYLOAD_TOO_LARGE, body, true)
                 } else {
