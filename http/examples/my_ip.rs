@@ -83,8 +83,8 @@ async fn http_actor(
     connection.set_nodelay(true)?;
 
     let mut read_timeout = READ_TIMEOUT;
+    let mut headers = Headers::EMPTY;
     loop {
-        let mut headers = Headers::EMPTY;
         let fut = Deadline::after(&mut ctx, read_timeout, connection.next_request());
         let (code, body, should_close) = match fut.await? {
             Ok(Some(request)) => {
@@ -125,7 +125,7 @@ async fn http_actor(
             code, body, address
         );
         let body = OneshotBody::new(body.as_bytes());
-        let write_response = connection.respond(code, headers, body);
+        let write_response = connection.respond(code, &headers, body);
         Deadline::after(&mut ctx, WRITE_TIMEOUT, write_response).await?;
 
         if should_close {
@@ -136,5 +136,6 @@ async fn http_actor(
         // Now that we've read a single request we can wait a little for the
         // next one so that we can reuse the resources for the next request.
         read_timeout = ALIVE_TIMEOUT;
+        headers.clear();
     }
 }
