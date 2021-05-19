@@ -130,7 +130,7 @@ impl Headers {
     /// Returns an iterator over all headers.
     ///
     /// The order is unspecified.
-    pub fn iter<'a>(&'a self) -> Iter<'a> {
+    pub const fn iter<'a>(&'a self) -> Iter<'a> {
         Iter {
             headers: self,
             pos: 0,
@@ -863,7 +863,7 @@ impl HeaderName<'static> {
     /// This is only header to test [`HeaderName::from_str`], not part of the
     /// stable API.
     #[doc(hidden)]
-    pub fn is_heap_allocated(&self) -> bool {
+    pub const fn is_heap_allocated(&self) -> bool {
         matches!(self.inner, Cow::Owned(_))
     }
 }

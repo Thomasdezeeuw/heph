@@ -59,7 +59,7 @@ impl<B> Request<B> {
     }
 
     /// Returns mutable access to the headers.
-    pub fn headers_mut(&mut self) -> &mut Headers {
+    pub const fn headers_mut(&mut self) -> &mut Headers {
         &mut self.headers
     }
 
@@ -69,7 +69,7 @@ impl<B> Request<B> {
     }
 
     /// Mutable access to the request body.
-    pub fn body_mut(&mut self) -> &mut B {
+    pub const fn body_mut(&mut self) -> &mut B {
         &mut self.body
     }
 }
