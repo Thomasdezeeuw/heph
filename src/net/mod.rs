@@ -48,7 +48,7 @@ use std::cmp::min;
 use std::mem::MaybeUninit;
 use std::net::SocketAddr;
 use std::ops::{Deref, DerefMut};
-use std::{fmt, io};
+use std::{fmt, io, slice};
 
 use socket2::SockAddr;
 
@@ -207,7 +207,7 @@ impl Bytes for Vec<u8> {
 
 /// Wrapper to limit the number of bytes `B` can use.
 ///
-/// See [`Bytes::limit`].
+/// See [`Bytes::limit`] and [`BytesVectored::limit`].
 #[derive(Debug)]
 pub struct LimitedBytes<B> {
     buf: B,
@@ -248,6 +248,49 @@ where
     }
 }
 
+impl<B> BytesVectored for LimitedBytes<B>
+where
+    B: BytesVectored,
+{
+    type Bufs<'b> = B::Bufs<'b>;
+
+    fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
+        let mut bufs = self.buf.as_bufs();
+        let mut left = self.limit;
+        let mut iter = bufs.as_mut().iter_mut();
+        while let Some(buf) = iter.next() {
+            let len = buf.len();
+            if left > len {
+                left -= len;
+            } else {
+                buf.limit(left);
+                for buf in iter {
+                    *buf = MaybeUninitSlice::new(&mut []);
+                }
+                break;
+            }
+        }
+        bufs
+    }
+
+    fn spare_capacity(&self) -> usize {
+        if self.limit == 0 {
+            0
+        } else {
+            min(self.buf.spare_capacity(), self.limit)
+        }
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        self.limit != 0 && self.buf.has_spare_capacity()
+    }
+
+    unsafe fn update_lengths(&mut self, n: usize) {
+        self.buf.update_lengths(n);
+        self.limit -= n;
+    }
+}
+
 /// A version of [`IoSliceMut`] that allows the buffer to be uninitialised.
 ///
 /// [`IoSliceMut`]: std::io::IoSliceMut
@@ -281,6 +324,18 @@ impl<'a> MaybeUninitSlice<'a> {
     /// 4GB.
     pub fn from_vec(buf: &'a mut Vec<u8>) -> MaybeUninitSlice<'a> {
         MaybeUninitSlice(socket2::MaybeUninitSlice::new(buf.as_bytes()))
+    }
+
+    fn limit(&mut self, limit: usize) {
+        let len = self.len();
+        assert!(len >= limit);
+        self.0 = unsafe {
+            // SAFETY: this should be the line below, but I couldn't figure out
+            // the lifetime. Since we're only making the slices smaller (as
+            // checked by the assert above) this should be safe.
+            //self.0 = socket2::MaybeUninitSlice::new(&mut self[..limit]);
+            socket2::MaybeUninitSlice::new(slice::from_raw_parts_mut(self.0.as_mut_ptr(), limit))
+        };
     }
 
     /// Returns `bufs` as [`socket2::MaybeUninitSlice`].
@@ -478,6 +533,19 @@ pub trait BytesVectored {
     /// [`TcpStream::recv_n_vectored`] will not work correctly (as the buffer
     /// will overwrite itself on successive reads).
     unsafe fn update_lengths(&mut self, n: usize);
+
+    /// Wrap the buffer in `LimitedBytes`, which limits the amount of bytes used
+    /// to `limit`.
+    ///
+    /// [`LimitedBytes::into_inner`] can be used to retrieve the buffer again,
+    /// or a mutable reference to the buffer can be used and the limited buffer
+    /// be dropped after usage.
+    fn limit(self, limit: usize) -> LimitedBytes<Self>
+    where
+        Self: Sized,
+    {
+        LimitedBytes { buf: self, limit }
+    }
 }
 
 impl<B> BytesVectored for &mut B

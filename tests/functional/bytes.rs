@@ -142,3 +142,29 @@ fn vectored_tuple() {
     assert_eq!(bufs.spare_capacity(), 0);
     assert!(!bufs.has_spare_capacity());
 }
+
+#[test]
+fn limited_bytes_vectored() {
+    const LIMIT: usize = 5;
+
+    let mut bufs = [
+        Vec::with_capacity(1),
+        Vec::with_capacity(DATA.len()),
+        Vec::with_capacity(10),
+    ]
+    .limit(LIMIT);
+    assert_eq!(bufs.spare_capacity(), LIMIT);
+    assert!(bufs.has_spare_capacity());
+
+    let n = write_bytes_vectored(DATA, &mut bufs);
+    assert_eq!(n, LIMIT);
+    assert_eq!(bufs.spare_capacity(), 0);
+    assert!(!bufs.has_spare_capacity());
+    let bufs = bufs.into_inner();
+    assert_eq!(bufs[0].len(), 1);
+    assert_eq!(bufs[1].len(), LIMIT - 1);
+    assert_eq!(bufs[2].len(), 0);
+    assert_eq!(bufs[0], &DATA[..1]);
+    assert_eq!(bufs[1], &DATA[1..LIMIT]);
+    assert_eq!(bufs[2], &[]);
+}
