@@ -330,9 +330,7 @@ where
     B: Stream<Item = io::Result<&'b [u8]>>,
 {
     /// Use a [`Stream`] as HTTP body.
-    // TODO: make this a `const` fn once trait bounds (`FileSend`) on `const`
-    // functions are stable.
-    pub fn new(length: usize, stream: B) -> StreamingBody<'b, B> {
+    pub const fn new(length: usize, stream: B) -> StreamingBody<'b, B> {
         StreamingBody {
             length,
             body: stream,
@@ -402,9 +400,7 @@ where
     ///
     /// This uses the bytes `offset..end` from `file` as HTTP body and sends
     /// them using `sendfile(2)` (using [`TcpStream::send_file`]).
-    // TODO: make this a `const` fn once trait bounds (`FileSend`) on `const`
-    // functions are stable.
-    pub fn new(file: &'f F, offset: usize, end: NonZeroUsize) -> FileBody<'f, F> {
+    pub const fn new(file: &'f F, offset: usize, end: NonZeroUsize) -> FileBody<'f, F> {
         debug_assert!(end.get() >= offset);
         FileBody { file, offset, end }
     }

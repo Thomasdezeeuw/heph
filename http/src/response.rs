@@ -42,7 +42,7 @@ impl<B> Response<B> {
     }
 
     /// Returns mutable access to the headers.
-    pub fn headers_mut(&mut self) -> &mut Headers {
+    pub const fn headers_mut(&mut self) -> &mut Headers {
         &mut self.headers
     }
 
@@ -52,7 +52,7 @@ impl<B> Response<B> {
     }
 
     /// Returns a mutable reference to the body.
-    pub fn body_mut(&mut self) -> &mut B {
+    pub const fn body_mut(&mut self) -> &mut B {
         &mut self.body
     }
 
