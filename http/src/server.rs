@@ -33,7 +33,7 @@ use httpdate::HttpDate;
 
 use crate::body::BodyLength;
 use crate::header::{FromHeaderValue, HeaderName, Headers};
-use crate::{Method, Request, Response, StatusCode, Version};
+use crate::{Method, Request, StatusCode, Version};
 
 /// Maximum size of the header (the start line and the headers).
 ///
@@ -104,6 +104,8 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///
 /// Similar to `TcpServer` this type works with thread-safe and thread-local
 /// actors.
+///
+/// [`Response`]: crate::Response
 ///
 /// # Graceful shutdown
 ///
@@ -198,8 +200,8 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     // Set `TCP_NODELAY` on the `TcpStream`.
 ///     connection.set_nodelay(true)?;
 ///
+///     let mut headers = Headers::EMPTY;
 ///     loop {
-///         let mut headers = Headers::EMPTY;
 ///         // Read the next request.
 ///         let (code, body, should_close) = match connection.next_request().await? {
 ///             Ok(Some(request)) => {
@@ -241,11 +243,12 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///         // Send the body as a single payload.
 ///         let body = OneshotBody::new(body.as_bytes());
 ///         // Respond to the request.
-///         connection.respond(code, headers, body).await?;
+///         connection.respond(code, &headers, body).await?;
 ///
 ///         if should_close {
 ///             return Ok(());
 ///         }
+///         headers.clear();
 ///     }
 /// }
 /// ```
@@ -334,7 +337,7 @@ where
 /// are send to.
 ///
 /// [HTTP requests]: Request
-/// [HTTP responses]: Response
+/// [HTTP responses]: crate::Response
 #[derive(Debug)]
 pub struct Connection {
     stream: TcpStream,
@@ -628,13 +631,12 @@ impl Connection {
     /// let version = conn.last_request_version().unwrap_or(Version::Http11);
     /// let body = format!("Bad request: {}", err);
     /// let body = OneshotBody::new(body.as_bytes());
-    /// let response = Response::new(version, StatusCode::BAD_REQUEST, Headers::EMPTY, body);
     ///
     /// // We can use `last_request_method` to determine the method of the last
     /// // request, which is used to determine if we need to send a body.
     /// let request_method = conn.last_request_method().unwrap_or(Method::Get);
     /// // Respond with the response.
-    /// conn.send_response(request_method, response);
+    /// conn.send_response(request_method, version, StatusCode::BAD_REQUEST, &Headers::EMPTY, body);
     ///
     /// // Close the connection if the error is fatal.
     /// if err.should_close() {
@@ -675,7 +677,7 @@ impl Connection {
     pub async fn respond<'b, B>(
         &mut self,
         status: StatusCode,
-        headers: Headers,
+        headers: &Headers,
         body: B,
     ) -> io::Result<()>
     where
@@ -683,28 +685,42 @@ impl Connection {
     {
         let req_method = self.last_method.unwrap_or(Method::Get);
         let version = self.last_version.unwrap_or(Version::Http11).highest_minor();
-        let response = Response::new(version, status, headers, body);
-        self.send_response(req_method, response).await
+        self.send_response(req_method, version, status, headers, body)
+            .await
     }
 
     /// Send a [`Response`].
     ///
+    /// Arguments:
+    ///  * `request_method` is the method used by the [`Request`], used to
+    ///    determine if a body needs to be send.
+    ///  * `version`, `status`, `headers` and `body` make up the HTTP
+    ///    [`Response`].
+    ///
+    /// In most cases it's easier to use [`Connection::respond`], only when
+    /// reading two requests before responding is this function useful.
+    ///
+    /// [`Response`]: crate::Response
+    ///
     /// # Notes
     ///
-    /// This automatically sets the "Content-Length", "Connection" and "Date"
-    /// headers if not provided in `response`.
+    /// This automatically sets the "Content-Length" or "Transfer-Encoding",
+    /// "Connection" and "Date" headers if not provided in `headers`.
     ///
-    /// If `request_method.`[`expects_body`] or
-    /// `response.status().`[`includes_body`] returns false this will not write
-    /// the body to the connection.
+    /// If `request_method.`[`expects_body()`] or `status.`[`includes_body()`]
+    /// returns `false` this will not write the body to the connection.
     ///
-    /// [`expects_body`]: Method::expects_body
-    /// [`includes_body`]: StatusCode::includes_body
+    /// [`expects_body()`]: Method::expects_body
+    /// [`includes_body()`]: StatusCode::includes_body
     #[allow(clippy::future_not_send)]
     pub async fn send_response<'b, B>(
         &mut self,
         request_method: Method,
-        response: Response<B>,
+        // Response data:
+        version: Version,
+        status: StatusCode,
+        headers: &Headers,
+        body: B,
     ) -> io::Result<()>
     where
         B: crate::Body<'b>,
@@ -717,11 +733,10 @@ impl Connection {
         let ignore_end = self.buf.len();
 
         // Format the status-line (RFC 7230 section 3.1.2).
-        self.buf
-            .extend_from_slice(response.version().as_str().as_bytes());
+        self.buf.extend_from_slice(version.as_str().as_bytes());
         self.buf.push(b' ');
         self.buf
-            .extend_from_slice(itoa_buf.format(response.status().0).as_bytes());
+            .extend_from_slice(itoa_buf.format(status.0).as_bytes());
         // NOTE: we're not sending a reason-phrase, but the space is required
         // before \r\n.
         self.buf.extend_from_slice(b" \r\n");
@@ -731,7 +746,7 @@ impl Connection {
         let mut set_content_length_header = false;
         let mut set_transfer_encoding_header = false;
         let mut set_date_header = false;
-        for header in response.headers().iter() {
+        for header in headers.iter() {
             let name = header.name();
             // Field-name:
             self.buf.extend_from_slice(name.as_ref().as_bytes());
@@ -754,7 +769,7 @@ impl Connection {
         }
 
         // Provide the "Connection" header if the user didn't.
-        if !set_connection_header && matches!(response.version(), Version::Http10) {
+        if !set_connection_header && matches!(version, Version::Http10) {
             // Per RFC 7230 section 6.3, HTTP/1.0 needs the "Connection:
             // keep-alive" header to persistent the connection. Connections
             // using HTTP/1.1 persistent by default.
@@ -770,8 +785,8 @@ impl Connection {
         // Provide the "Conent-Length" or "Transfer-Encoding" header if the user
         // didn't.
         if !set_content_length_header && !set_transfer_encoding_header {
-            match response.body().length() {
-                _ if !request_method.expects_body() || !response.status().includes_body() => {
+            match body.length() {
+                _ if !request_method.expects_body() || !status.includes_body() => {
                     extend_content_length_header(&mut self.buf, &mut itoa_buf, 0)
                 }
                 BodyLength::Known(length) => {
@@ -789,10 +804,7 @@ impl Connection {
 
         // Write the response to the stream.
         let head = &self.buf[ignore_end..];
-        response
-            .into_body()
-            .write_response(&mut self.stream, head)
-            .await?;
+        body.write_response(&mut self.stream, head).await?;
 
         // Remove the response headers from the buffer.
         self.buf.truncate(ignore_end);
