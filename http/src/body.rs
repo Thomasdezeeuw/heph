@@ -27,6 +27,7 @@ pub trait Body<'a>: PrivateBody<'a> {
 }
 
 /// Length of a body.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum BodyLength {
     /// Body length is known.
     Known(usize),
@@ -46,8 +47,10 @@ mod private {
     use heph::net::tcp::stream::FileSend;
     use heph::net::TcpStream;
 
-    /// Private extention of [`PrivateBody`].
-    pub trait PrivateBody<'a> {
+    /// Private extention of [`Body`].
+    ///
+    /// [`Body`]: super::Body
+    pub trait PrivateBody<'body> {
         type WriteBody<'stream, 'head>: Future<Output = io::Result<()>>;
 
         /// Write the response to `stream`.
@@ -60,7 +63,7 @@ mod private {
             http_head: &'head [u8],
         ) -> Self::WriteBody<'stream, 'head>
         where
-            'a: 'head;
+            'body: 'head;
     }
 
     /// See [`OneshotBody`].
@@ -242,13 +245,13 @@ use private::{SendFileBody, SendOneshotBody};
 #[derive(Debug)]
 pub struct EmptyBody;
 
-impl Body<'_> for EmptyBody {
+impl<'b> Body<'b> for EmptyBody {
     fn length(&self) -> BodyLength {
         BodyLength::Known(0)
     }
 }
 
-impl<'a> PrivateBody<'a> for EmptyBody {
+impl<'b> PrivateBody<'b> for EmptyBody {
     type WriteBody<'s, 'h> = SendAll<'s, 'h>;
 
     fn write_response<'s, 'h>(
@@ -257,7 +260,7 @@ impl<'a> PrivateBody<'a> for EmptyBody {
         http_head: &'h [u8],
     ) -> Self::WriteBody<'s, 'h>
     where
-        'a: 'h,
+        'b: 'h,
     {
         // Just need to write the HTTP head as we don't have a body.
         stream.send_all(http_head)
@@ -284,7 +287,7 @@ impl<'b> Body<'b> for OneshotBody<'b> {
     }
 }
 
-impl<'a> PrivateBody<'a> for OneshotBody<'a> {
+impl<'b> PrivateBody<'b> for OneshotBody<'b> {
     type WriteBody<'s, 'h> = SendOneshotBody<'s, 'h>;
 
     fn write_response<'s, 'h>(
@@ -293,7 +296,7 @@ impl<'a> PrivateBody<'a> for OneshotBody<'a> {
         http_head: &'h [u8],
     ) -> Self::WriteBody<'s, 'h>
     where
-        'a: 'h,
+        'b: 'h,
     {
         let head = IoSlice::new(http_head);
         let body = IoSlice::new(self.bytes);
