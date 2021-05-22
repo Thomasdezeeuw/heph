@@ -70,7 +70,7 @@ pub struct UnknownVersion;
 
 impl fmt::Display for UnknownVersion {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("unknown version")
+        f.write_str("unknown HTTP version")
     }
 }
 
