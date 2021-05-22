@@ -18,6 +18,7 @@ fn headers_add_one_header() {
     let mut headers = Headers::EMPTY;
     headers.add(Header::new(HeaderName::ALLOW, VALUE));
     assert_eq!(headers.len(), 1);
+    assert!(!headers.is_empty());
 
     check_header(&headers, &HeaderName::ALLOW, VALUE, "GET");
     check_iter(&headers, &[(HeaderName::ALLOW, VALUE)]);
@@ -34,6 +35,7 @@ fn headers_add_multiple_headers() {
     headers.add(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
     headers.add(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
     assert_eq!(headers.len(), 3);
+    assert!(!headers.is_empty());
 
     check_header(&headers, &HeaderName::ALLOW, ALLOW, "GET");
     #[rustfmt::skip]
@@ -55,9 +57,21 @@ fn headers_from_header() {
     let header = Header::new(HeaderName::ALLOW, VALUE);
     let headers = Headers::from(header.clone());
     assert_eq!(headers.len(), 1);
+    assert!(!headers.is_empty());
 
     check_header(&headers, &HeaderName::ALLOW, VALUE, "GET");
     check_iter(&headers, &[(HeaderName::ALLOW, VALUE)]);
+}
+
+#[test]
+fn headers_get_not_found() {
+    let mut headers = Headers::EMPTY;
+    assert!(headers.get(&HeaderName::DATE).is_none());
+    assert!(headers.get_value(&HeaderName::DATE).is_none());
+
+    headers.add(Header::new(HeaderName::ALLOW, b"GET"));
+    assert!(headers.get(&HeaderName::DATE).is_none());
+    assert!(headers.get_value(&HeaderName::DATE).is_none());
 }
 
 #[test]
@@ -69,9 +83,11 @@ fn clear_headers() {
     headers.add(Header::new(HeaderName::ALLOW, ALLOW));
     headers.add(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
     assert_eq!(headers.len(), 2);
+    assert!(!headers.is_empty());
 
     headers.clear();
     assert_eq!(headers.len(), 0);
+    assert!(headers.is_empty());
     assert!(headers.get(&HeaderName::ALLOW).is_none());
     assert!(headers.get(&HeaderName::CONTENT_LENGTH).is_none());
 }
@@ -365,6 +381,12 @@ fn from_str_known_headers() {
         let header_name = HeaderName::from_str(&name.to_uppercase());
         assert!(!header_name.is_heap_allocated(), "header: {}", name);
     }
+}
+
+#[test]
+fn from_str_unknown_header() {
+    let header_name = HeaderName::from_str("EXTRA_LONG_UNKNOWN_HEADER_NAME_REALLY_LONG");
+    assert!(header_name.is_heap_allocated());
 }
 
 #[test]
