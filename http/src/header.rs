@@ -924,6 +924,8 @@ pub trait FromHeaderValue<'a>: Sized {
     fn from_bytes(value: &'a [u8]) -> Result<Self, Self::Err>;
 }
 
+/// Error returned by the [`FromHeaderValue`] implementation for numbers, e.g.
+/// `usize`.
 #[derive(Debug)]
 pub struct ParseIntError;
 
@@ -976,6 +978,7 @@ impl<'a> FromHeaderValue<'a> for &'a str {
     }
 }
 
+/// Error returned by the [`FromHeaderValue`] implementation for [`SystemTime`].
 #[derive(Debug)]
 pub struct ParseTimeError;
 
