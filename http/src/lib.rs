@@ -1,3 +1,5 @@
+//! HTTP/1.1 implementation for Heph.
+
 #![feature(
     async_stream,
     const_fn_trait_bound,
@@ -10,6 +12,19 @@
     stmt_expr_attributes
 )]
 #![allow(incomplete_features)] // NOTE: for `generic_associated_types`.
+#![warn(
+    anonymous_parameters,
+    bare_trait_objects,
+    missing_debug_implementations,
+    missing_docs,
+    rust_2018_idioms,
+    trivial_numeric_casts,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications,
+    unused_results,
+    variant_size_differences
+)]
 
 pub mod body;
 pub mod header;
