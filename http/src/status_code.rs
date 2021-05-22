@@ -6,7 +6,7 @@ use std::fmt;
 /// <http://www.iana.org/assignments/http-status-codes>.
 ///
 /// RFC 7231 section 6.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct StatusCode(pub u16);
 
 impl StatusCode {

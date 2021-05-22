@@ -251,7 +251,7 @@ impl<'n, 'v> Header<'n, 'v> {
     }
 
     /// Returns the value of the header.
-    pub const fn value(&self) -> &[u8] {
+    pub const fn value(&self) -> &'v [u8] {
         self.value
     }
 
