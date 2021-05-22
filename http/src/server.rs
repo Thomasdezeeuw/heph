@@ -3,15 +3,11 @@
 //
 // TODO: Continue reading RFC 7230 section 4 Transfer Codings.
 //
-// TODO: RFC 7230 section 3.4 Handling Incomplete Messages.
-//
 // TODO: RFC 7230 section 3.3.3 point 5:
 // > If the sender closes the connection or the recipient
 // > times out before the indicated number of octets are
 // > received, the recipient MUST consider the message to be
 // > incomplete and close the connection.
-//
-// TODO: chunked encoding.
 
 //! Module with the HTTP server implementation.
 
@@ -333,8 +329,12 @@ where
 
 /// HTTP connection.
 ///
-/// This a TCP stream from which [HTTP requests] are read and [HTTP responses]
-/// are send to.
+/// This wraps a TCP stream from which [HTTP requests] are read and [HTTP
+/// responses] are send to.
+///
+/// It's advisable to set `TCP_NODELAY` using [`Connection::set_nodelay`] as the
+/// `Connection` uses internally buffering, meaning only bodies with small
+/// chunks would benefit from `TCP_NODELAY`.
 ///
 /// [HTTP requests]: Request
 /// [HTTP responses]: crate::Response
@@ -364,38 +364,6 @@ impl Connection {
         }
     }
 
-    pub fn peer_addr(&mut self) -> io::Result<SocketAddr> {
-        self.stream.peer_addr()
-    }
-
-    pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
-        self.stream.local_addr()
-    }
-
-    pub fn set_ttl(&mut self, ttl: u32) -> io::Result<()> {
-        self.stream.set_ttl(ttl)
-    }
-
-    pub fn ttl(&mut self) -> io::Result<u32> {
-        self.stream.ttl()
-    }
-
-    pub fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
-        self.stream.set_nodelay(nodelay)
-    }
-
-    pub fn nodelay(&mut self) -> io::Result<bool> {
-        self.stream.nodelay()
-    }
-
-    pub fn keepalive(&self) -> io::Result<bool> {
-        self.stream.keepalive()
-    }
-
-    pub fn set_keepalive(&self, enable: bool) -> io::Result<()> {
-        self.stream.set_keepalive(enable)
-    }
-
     /// Parse the next request from the connection.
     ///
     /// The return is a bit complex so let's break it down. The outer type is an
@@ -410,8 +378,8 @@ impl Connection {
     ///
     /// # Notes
     ///
-    /// Most [`RequestError`]s can't be receover from and will need the
-    /// connection be closed, see [`RequestError::should_close`]. If the
+    /// Most [`RequestError`]s can't be receover from and the connection should
+    /// be closed when hitting them, see [`RequestError::should_close`]. If the
     /// connection is not closed and `next_request` is called again it will
     /// likely return the same error (but this is not guaranteed).
     ///
@@ -630,16 +598,18 @@ impl Connection {
     /// // Reading a request returned this error.
     /// let err = RequestError::IncompleteRequest;
     ///
-    /// // We can use `last_request_version` to determine the client prefered
-    /// // HTTP version, or default to the server prefered version (HTTP/1.1
-    /// // here).
-    /// let version = conn.last_request_version().unwrap_or(Version::Http11);
-    /// let body = format!("Bad request: {}", err);
-    /// let body = OneshotBody::new(body.as_bytes());
-    ///
     /// // We can use `last_request_method` to determine the method of the last
     /// // request, which is used to determine if we need to send a body.
     /// let request_method = conn.last_request_method().unwrap_or(Method::Get);
+    ///
+    /// // We can use `last_request_version` to determine the client preferred
+    /// // HTTP version, or default to the server's preferred version (HTTP/1.1
+    /// // here).
+    /// let version = conn.last_request_version().unwrap_or(Version::Http11);
+    ///
+    /// let msg = format!("Bad request: {}", err);
+    /// let body = OneshotBody::new(msg.as_bytes());
+    ///
     /// // Respond with the response.
     /// conn.send_response(request_method, version, StatusCode::BAD_REQUEST, &Headers::EMPTY, body);
     ///
@@ -666,7 +636,7 @@ impl Connection {
         self.last_method
     }
 
-    /// Respond to a request.
+    /// Respond to the last parsed request.
     ///
     /// # Notes
     ///
@@ -820,6 +790,46 @@ impl Connection {
         // Remove the response head from the buffer.
         self.buf.truncate(ignore_end);
         Ok(())
+    }
+
+    /// See [`TcpStream::peer_addr`].
+    pub fn peer_addr(&mut self) -> io::Result<SocketAddr> {
+        self.stream.peer_addr()
+    }
+
+    /// See [`TcpStream::local_addr`].
+    pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
+        self.stream.local_addr()
+    }
+
+    /// See [`TcpStream::set_ttl`].
+    pub fn set_ttl(&mut self, ttl: u32) -> io::Result<()> {
+        self.stream.set_ttl(ttl)
+    }
+
+    /// See [`TcpStream::ttl`].
+    pub fn ttl(&mut self) -> io::Result<u32> {
+        self.stream.ttl()
+    }
+
+    /// See [`TcpStream::set_nodelay`].
+    pub fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+        self.stream.set_nodelay(nodelay)
+    }
+
+    /// See [`TcpStream::nodelay`].
+    pub fn nodelay(&mut self) -> io::Result<bool> {
+        self.stream.nodelay()
+    }
+
+    /// See [`TcpStream::keepalive`].
+    pub fn keepalive(&self) -> io::Result<bool> {
+        self.stream.keepalive()
+    }
+
+    /// See [`TcpStream::set_keepalive`].
+    pub fn set_keepalive(&self, enable: bool) -> io::Result<()> {
+        self.stream.set_keepalive(enable)
     }
 
     /// Clear parsed request(s) from the buffer.
