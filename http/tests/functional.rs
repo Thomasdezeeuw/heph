@@ -1,5 +1,7 @@
 //! Functional tests.
 
+#![feature(async_stream, never_type, once_cell)]
+
 use std::mem::size_of;
 
 #[track_caller]
@@ -12,6 +14,7 @@ mod functional {
     mod from_header_value;
     mod header;
     mod method;
+    mod server;
     mod status_code;
     mod version;
 }

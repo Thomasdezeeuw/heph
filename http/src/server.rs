@@ -422,6 +422,10 @@ impl Connection {
     pub async fn next_request<'a>(
         &'a mut self,
     ) -> io::Result<Result<Option<Request<Body<'a>>>, RequestError>> {
+        // NOTE: not resetting the version as that doesn't change between
+        // requests.
+        self.last_method = None;
+
         let mut too_short = 0;
         loop {
             // In case of pipelined requests it could be that while reading a
@@ -785,9 +789,11 @@ impl Connection {
 
         // Provide the "Conent-Length" or "Transfer-Encoding" header if the user
         // didn't.
+        let mut send_body = true;
         if !set_content_length_header && !set_transfer_encoding_header {
             match body.length() {
                 _ if !request_method.expects_body() || !status.includes_body() => {
+                    send_body = false;
                     extend_content_length_header(&mut self.buf, &mut itoa_buf, 0)
                 }
                 BodyLength::Known(length) => {
@@ -804,10 +810,14 @@ impl Connection {
         self.buf.extend_from_slice(b"\r\n");
 
         // Write the response to the stream.
-        let head = &self.buf[ignore_end..];
-        body.write_response(&mut self.stream, head).await?;
+        let http_head = &self.buf[ignore_end..];
+        if send_body {
+            body.write_response(&mut self.stream, http_head).await?;
+        } else {
+            self.stream.send(http_head).await?;
+        }
 
-        // Remove the response headers from the buffer.
+        // Remove the response head from the buffer.
         self.buf.truncate(ignore_end);
         Ok(())
     }
@@ -827,7 +837,7 @@ impl Connection {
     /// Recv bytes from the underlying stream, reading into `self.buf`.
     ///
     /// Returns an `UnexpectedEof` error if zero bytes are received.
-    fn recv(&mut self) -> Poll<io::Result<usize>> {
+    fn try_recv(&mut self) -> Poll<io::Result<usize>> {
         // Ensure we have space in the buffer to read into.
         self.clear_buffer();
         self.buf.reserve(MIN_READ_SIZE);
@@ -839,6 +849,80 @@ impl Connection {
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
                 Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
                 Err(err) => return Poll::Ready(Err(err)),
+            }
+        }
+    }
+
+    /// Read a HTTP body chunk.
+    ///
+    /// Returns an I/O error, or an `InvalidData` error if the chunk size is
+    /// invalid.
+    fn try_read_chunk(
+        &mut self,
+        // Fields of `BodyKind::Chunked`:
+        left_in_chunk: &mut usize,
+        read_complete: &mut bool,
+    ) -> Poll<io::Result<()>> {
+        loop {
+            match httparse::parse_chunk_size(&self.buf[self.parsed_bytes..]) {
+                #[allow(clippy::cast_possible_truncation)] // For truncate below.
+                Ok(httparse::Status::Complete((idx, chunk_size))) => {
+                    self.parsed_bytes += idx;
+                    if chunk_size == 0 {
+                        *read_complete = true;
+                    }
+                    // FIXME: add check here. It's fine on 64 bit (only currently
+                    // supported).
+                    *left_in_chunk = chunk_size as usize;
+                    return Poll::Ready(Ok(()));
+                }
+                Ok(httparse::Status::Partial) => {} // Read some more data below.
+                Err(_) => {
+                    return Poll::Ready(Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "invalid chunk size",
+                    )))
+                }
+            }
+
+            ready!(self.try_recv())?;
+        }
+    }
+
+    async fn read_chunk(
+        &mut self,
+        // Fields of `BodyKind::Chunked`:
+        left_in_chunk: &mut usize,
+        read_complete: &mut bool,
+    ) -> io::Result<()> {
+        loop {
+            match httparse::parse_chunk_size(&self.buf[self.parsed_bytes..]) {
+                #[allow(clippy::cast_possible_truncation)] // For truncate below.
+                Ok(httparse::Status::Complete((idx, chunk_size))) => {
+                    self.parsed_bytes += idx;
+                    if chunk_size == 0 {
+                        *read_complete = true;
+                    }
+                    // FIXME: add check here. It's fine on 64 bit (only currently
+                    // supported).
+                    *left_in_chunk = chunk_size as usize;
+                    return Ok(());
+                }
+                Ok(httparse::Status::Partial) => {} // Read some more data below.
+                Err(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "invalid chunk size",
+                    ))
+                }
+            }
+
+            // Ensure we have space in the buffer to read into.
+            self.clear_buffer();
+            self.buf.reserve(MIN_READ_SIZE);
+
+            if self.stream.recv(&mut self.buf).await? == 0 {
+                return Err(io::ErrorKind::UnexpectedEof.into());
             }
         }
     }
@@ -862,7 +946,7 @@ fn trim_ws(value: &[u8]) -> &[u8] {
     let start = value.iter().position(|b| !b.is_ascii_whitespace());
     let end = value.iter().rposition(|b| !b.is_ascii_whitespace());
     if let (Some(start), Some(end)) = (start, end) {
-        &value[start..end]
+        &value[start..=end]
     } else {
         &[]
     }
@@ -979,6 +1063,63 @@ impl<'a> Body<'a> {
         RecvVectored { body: self, bufs }
     }
 
+    /// Read the entire body into `buf`, up to `limit` bytes.
+    ///
+    /// If the body is larger then `limit` bytes it return an `io::Error`.
+    pub async fn read_all(&mut self, buf: &mut Vec<u8>, limit: usize) -> io::Result<()> {
+        let mut total = 0;
+        loop {
+            // Copy bytes in our buffer.
+            let bytes = self.buf_bytes();
+            let len = bytes.len();
+            if limit < total + len {
+                return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
+            }
+
+            buf.extend_from_slice(bytes);
+            self.processed(len);
+            total += len;
+
+            let chunk_len = self.chunk_len();
+            if chunk_len == 0 {
+                match &mut self.kind {
+                    // Read all the bytes from the oneshot body.
+                    BodyKind::Oneshot { .. } => return Ok(()),
+                    // Read all the bytes in the chunk, so need to read another
+                    // chunk.
+                    BodyKind::Chunked {
+                        left_in_chunk,
+                        read_complete,
+                    } => {
+                        if *read_complete {
+                            return Ok(());
+                        }
+
+                        self.conn.read_chunk(left_in_chunk, read_complete).await?;
+                        // Copy read bytes again.
+                        continue;
+                    }
+                }
+            }
+            // Continue to reading below.
+            break;
+        }
+
+        loop {
+            // Limit the read until the end of the chunk/body.
+            let chunk_len = self.chunk_len();
+            if chunk_len == 0 {
+                return Ok(());
+            } else if limit < total + chunk_len {
+                return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
+            }
+
+            (&mut *buf).reserve(chunk_len);
+            self.conn.stream.recv_n(&mut *buf, chunk_len).await?;
+            total += chunk_len;
+        }
+    }
+
     /// Returns the bytes currently in the buffer.
     ///
     /// This is limited to the bytes of this request/chunk, i.e. it doesn't
@@ -1021,47 +1162,6 @@ impl<'a> Body<'a> {
     }
 }
 
-/// Read a chunk form `conn`.
-///
-/// Returns an I/O error, or an `InvalidData` error if the chunk size is
-/// invalid.
-fn read_chunk(
-    conn: &mut Connection,
-    // Fields of `BodyKind::Chunked`:
-    left_in_chunk: &mut usize,
-    read_complete: &mut bool,
-) -> Poll<io::Result<()>> {
-    // TODO: check buffer, might contains chunk.
-
-    // Ensure we have space in the buffer to read into.
-    conn.clear_buffer();
-    conn.buf.reserve(MIN_READ_SIZE);
-
-    loop {
-        ready!(conn.recv())?;
-        match httparse::parse_chunk_size(&conn.buf) {
-            #[allow(clippy::cast_possible_truncation)] // For truncate below.
-            Ok(httparse::Status::Complete((idx, chunk_size))) => {
-                conn.parsed_bytes += idx;
-                if chunk_size == 0 {
-                    *read_complete = true;
-                }
-                // FIXME: add check here. It's fine on 64 bit (only currently
-                // supported).
-                *left_in_chunk = chunk_size as usize;
-                return Poll::Ready(Ok(()));
-            }
-            Ok(httparse::Status::Partial) => continue, // Read some more data.
-            Err(_) => {
-                return Poll::Ready(Err(io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "invalid chunk size",
-                )))
-            }
-        }
-    }
-}
-
 /// The [`Future`] behind [`Body::recv`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -1098,7 +1198,7 @@ where
                         left_in_chunk,
                         read_complete,
                     } => {
-                        ready!(read_chunk(&mut body.conn, left_in_chunk, read_complete))?;
+                        ready!(body.conn.try_read_chunk(left_in_chunk, read_complete))?;
                         // Copy read bytes again.
                         continue;
                     }
@@ -1173,7 +1273,7 @@ where
                         left_in_chunk,
                         read_complete,
                     } => {
-                        ready!(read_chunk(&mut body.conn, left_in_chunk, read_complete))?;
+                        ready!(body.conn.try_read_chunk(left_in_chunk, read_complete))?;
                         // Copy read bytes again.
                         continue;
                     }
@@ -1221,7 +1321,7 @@ mod private {
 
     use heph::net::TcpStream;
 
-    use super::{read_chunk, Body, BodyKind};
+    use super::{Body, BodyKind};
 
     #[derive(Debug)]
     pub struct SendBody<'c, 's, 'h> {
@@ -1281,16 +1381,16 @@ mod private {
                 // Read some more data, or the next chunk.
                 match &mut body.kind {
                     BodyKind::Oneshot { .. } => {
-                        let _ = ready!(body.conn.recv())?;
+                        let _ = ready!(body.conn.try_recv())?;
                     }
                     BodyKind::Chunked {
                         left_in_chunk,
                         read_complete,
                     } => {
                         if *left_in_chunk == 0 {
-                            ready!(read_chunk(&mut body.conn, left_in_chunk, read_complete))?;
+                            ready!(body.conn.try_read_chunk(left_in_chunk, read_complete))?;
                         } else {
-                            ready!(body.conn.recv())?;
+                            ready!(body.conn.try_recv())?;
                         }
                     }
                 }
@@ -1332,8 +1432,18 @@ impl<'a> Drop for Body<'a> {
         // body yet.
         match self.kind {
             BodyKind::Oneshot { left } => self.conn.parsed_bytes += left,
-            // FIXME: don't panic here.
-            BodyKind::Chunked { .. } => todo!("remove chunked body from connection"),
+            BodyKind::Chunked {
+                left_in_chunk,
+                read_complete,
+            } => {
+                if read_complete {
+                    // Read all chunks.
+                    debug_assert_eq!(left_in_chunk, 0);
+                } else {
+                    // FIXME: don't panic here.
+                    todo!("remove chunked body from connection");
+                }
+            }
         }
     }
 }
@@ -1431,6 +1541,7 @@ impl RequestError {
             | DifferentContentLengths
             | InvalidHeaderName
             | InvalidHeaderValue
+            | UnsupportedTransferEncoding
             | TooManyHeaders
             | ChunkedNotLastTransferEncoding
             | ContentLengthAndTransferEncoding
@@ -1438,7 +1549,7 @@ impl RequestError {
             | InvalidNewLine
             | InvalidVersion
             | InvalidChunkSize => true,
-            UnsupportedTransferEncoding | UnknownMethod => false,
+            UnknownMethod => false,
         }
     }
 
@@ -1468,7 +1579,7 @@ impl fmt::Display for RequestError {
             InvalidHeaderName => "invalid header name",
             InvalidHeaderValue => "invalid header value",
             TooManyHeaders => "too many header",
-            UnsupportedTransferEncoding => "unsupported Transfer-Encoding header",
+            UnsupportedTransferEncoding => "unsupported Transfer-Encoding",
             ChunkedNotLastTransferEncoding => "invalid Transfer-Encoding header",
             ContentLengthAndTransferEncoding => {
                 "provided both Content-Length and Transfer-Encoding headers"
