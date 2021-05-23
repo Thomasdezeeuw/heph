@@ -151,14 +151,8 @@ impl From<Header<'static, '_>> for Headers {
     }
 }
 
-/*
-/// # Notes
-///
-/// This clones the [`HeaderName`] in each header. For static headers, i.e. the
-/// `HeaderName::*` constants, this is a cheap operation, for customer headers
-/// this requires an allocation.
-impl From<&'_ [Header<'_>]> for Headers {
-    fn from(raw_headers: &'_ [Header<'_>]) -> Headers {
+impl From<&[Header<'static, '_>]> for Headers {
+    fn from(raw_headers: &[Header<'static, '_>]) -> Headers {
         let values_len = raw_headers.iter().map(|h| h.value.len()).sum();
         let mut headers = Headers {
             values: Vec::with_capacity(values_len),
@@ -170,7 +164,6 @@ impl From<&'_ [Header<'_>]> for Headers {
         headers
     }
 }
-*/
 
 impl fmt::Debug for Headers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
