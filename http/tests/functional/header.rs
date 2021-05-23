@@ -65,6 +65,34 @@ fn headers_from_header() {
 }
 
 #[test]
+fn headers_from_array() {
+    const ALLOW: &[u8] = b"GET";
+    const CONTENT_LENGTH: &[u8] = b"123";
+    const X_REQUEST_ID: &[u8] = b"abc-def";
+
+    let headers = Headers::from([
+        Header::new(HeaderName::ALLOW, ALLOW),
+        Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH),
+        Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID),
+    ]);
+    assert_eq!(headers.len(), 3);
+    assert!(!headers.is_empty());
+
+    check_header(&headers, &HeaderName::ALLOW, ALLOW, "GET");
+    #[rustfmt::skip]
+    check_header(&headers, &HeaderName::CONTENT_LENGTH, CONTENT_LENGTH, 123usize);
+    check_header(&headers, &HeaderName::X_REQUEST_ID, X_REQUEST_ID, "abc-def");
+    check_iter(
+        &headers,
+        &[
+            (HeaderName::ALLOW, ALLOW),
+            (HeaderName::CONTENT_LENGTH, CONTENT_LENGTH),
+            (HeaderName::X_REQUEST_ID, X_REQUEST_ID),
+        ],
+    );
+}
+
+#[test]
 fn headers_from_slice() {
     const ALLOW: &[u8] = b"GET";
     const CONTENT_LENGTH: &[u8] = b"123";
