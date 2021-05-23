@@ -31,7 +31,7 @@ use crate::body::BodyLength;
 use crate::header::{FromHeaderValue, HeaderName, Headers};
 use crate::{Method, Request, StatusCode, Version};
 
-/// Maximum size of the header (the start line and the headers).
+/// Maximum size of the head (the start line and the headers).
 ///
 /// RFC 7230 section 3.1.1 recommends "all HTTP senders and recipients support,
 /// at a minimum, request-line lengths of 8000 octets."
@@ -414,9 +414,7 @@ impl Connection {
             // (this) request. To handle this we first attempt to parse the
             // request if we have more than zero bytes (of the next request) in
             // the first iteration of the loop.
-            while self.parsed_bytes >= self.buf.len()
-                || self.buf.len() - self.parsed_bytes <= too_short
-            {
+            while self.parsed_bytes >= self.buf.len() || self.buf.len() <= too_short {
                 // While we didn't read the entire previous request body, or
                 // while we have less than `too_short` bytes we try to receive
                 // some more bytes.
@@ -441,8 +439,8 @@ impl Connection {
             // SAFETY: because we received until at least `self.parsed_bytes >=
             // self.buf.len()` above, we can safely slice the buffer..
             match request.parse(&self.buf[self.parsed_bytes..]) {
-                Ok(httparse::Status::Complete(header_length)) => {
-                    self.parsed_bytes += header_length;
+                Ok(httparse::Status::Complete(head_length)) => {
+                    self.parsed_bytes += head_length;
 
                     // SAFETY: all these unwraps are safe because `parse` above
                     // ensures there all `Some`.
@@ -480,6 +478,11 @@ impl Connection {
                                     Some(BodyLength::Chunked) => {
                                         return Err(RequestError::ContentLengthAndTransferEncoding)
                                     }
+                                    // RFC 7230 section 3.3.3 point 5:
+                                    // > If a valid Content-Length header field
+                                    // > is present without Transfer-Encoding,
+                                    // > its decimal value defines the expected
+                                    // > message body length in octets.
                                     None => body_length = Some(BodyLength::Known(length)),
                                 }
                             } else {
@@ -569,7 +572,7 @@ impl Connection {
                     return Ok(Ok(Some(Request::new(method, path, version, headers, body))));
                 }
                 Ok(httparse::Status::Partial) => {
-                    // Buffer doesn't include the entire request header, try
+                    // Buffer doesn't include the entire request head, try
                     // reading more bytes (in the next iteration).
                     too_short = self.buf.len();
                     self.last_method = request.method.and_then(|m| m.parse().ok());

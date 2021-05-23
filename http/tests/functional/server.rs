@@ -570,7 +570,7 @@ impl TestServer {
         const TIMEOUT: Duration = Duration::from_secs(1);
 
         let actor = http_actor as fn(_, _, _) -> _;
-        let address = "127.0.0.1:7890".parse().unwrap();
+        let address = "127.0.0.1:0".parse().unwrap();
         let server = HttpServer::setup(address, conn_supervisor, actor, ActorOptions::default())
             .map_err(rt::Error::setup)
             .unwrap();
