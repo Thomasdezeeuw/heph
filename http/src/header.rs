@@ -1,12 +1,8 @@
 //! Module with HTTP header related types.
 
-// TODO: impl for `Headers`.
-// * FromIterator
-// * Extend
-
 use std::borrow::Cow;
 use std::convert::AsRef;
-use std::iter::FusedIterator;
+use std::iter::{FromIterator, FusedIterator};
 use std::time::SystemTime;
 use std::{fmt, str};
 
@@ -162,6 +158,33 @@ impl From<&[Header<'static, '_>]> for Headers {
             headers._add(header.name.clone(), header.value);
         }
         headers
+    }
+}
+
+impl<'v> FromIterator<Header<'static, 'v>> for Headers {
+    fn from_iter<I>(iter: I) -> Headers
+    where
+        I: IntoIterator<Item = Header<'static, 'v>>,
+    {
+        let mut headers = Headers::EMPTY;
+        headers.extend(iter);
+        headers
+    }
+}
+
+impl<'v> Extend<Header<'static, 'v>> for Headers {
+    fn extend<I>(&mut self, iter: I)
+    where
+        I: IntoIterator<Item = Header<'static, 'v>>,
+    {
+        let iter = iter.into_iter();
+        let (iter_len, _) = iter.size_hint();
+        // Make a guess of 10 bytes per header value on average.
+        self.values.reserve(iter_len * 10);
+        self.parts.reserve(iter_len);
+        for header in iter {
+            self._add(header.name, header.value);
+        }
     }
 }
 
