@@ -147,6 +147,20 @@ impl From<Header<'static, '_>> for Headers {
     }
 }
 
+impl<const N: usize> From<[Header<'static, '_>; N]> for Headers {
+    fn from(raw_headers: [Header<'static, '_>; N]) -> Headers {
+        let values_len = raw_headers.iter().map(|h| h.value.len()).sum();
+        let mut headers = Headers {
+            values: Vec::with_capacity(values_len),
+            parts: Vec::with_capacity(raw_headers.len()),
+        };
+        for header in raw_headers {
+            headers._add(header.name.clone(), header.value);
+        }
+        headers
+    }
+}
+
 impl From<&[Header<'static, '_>]> for Headers {
     fn from(raw_headers: &[Header<'static, '_>]) -> Headers {
         let values_len = raw_headers.iter().map(|h| h.value.len()).sum();
