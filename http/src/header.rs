@@ -47,7 +47,7 @@ impl Headers {
         mut f: F,
     ) -> Result<Headers, E>
     where
-        F: FnMut(&HeaderName, &[u8]) -> Result<(), E>,
+        F: FnMut(&HeaderName<'_>, &[u8]) -> Result<(), E>,
     {
         let values_len = raw_headers.iter().map(|h| h.value.len()).sum();
         let mut headers = Headers {
@@ -87,7 +87,7 @@ impl Headers {
     ///
     /// This doesn't check for duplicate headers, it just adds it to the list of
     /// headers.
-    pub fn add<'v>(&mut self, header: Header<'static, 'v>) {
+    pub fn add(&mut self, header: Header<'static, '_>) {
         self._add(header.name, header.value)
     }
 
@@ -103,7 +103,7 @@ impl Headers {
     /// # Notes
     ///
     /// If all you need is the header value you can use [`Headers::get_value`].
-    pub fn get<'a>(&'a self, name: &HeaderName<'_>) -> Option<Header<'a, 'a>> {
+    pub fn get(&self, name: &HeaderName<'_>) -> Option<Header<'_, '_>> {
         for part in &self.parts {
             if part.name == *name {
                 return Some(Header {
@@ -116,7 +116,7 @@ impl Headers {
     }
 
     /// Get the header's value with `name`, if any.
-    pub fn get_value<'a>(&'a self, name: &HeaderName) -> Option<&'a [u8]> {
+    pub fn get_value<'a>(&'a self, name: &HeaderName<'_>) -> Option<&'a [u8]> {
         for part in &self.parts {
             if part.name == *name {
                 return Some(&self.values[part.start..part.end]);
@@ -178,9 +178,9 @@ impl fmt::Debug for Headers {
         for part in &self.parts {
             let value = &self.values[part.start..part.end];
             if let Ok(str) = std::str::from_utf8(value) {
-                f.entry(&part.name, &str);
+                let _ = f.entry(&part.name, &str);
             } else {
-                f.entry(&part.name, &value);
+                let _ = f.entry(&part.name, &value);
             }
         }
         f.finish()
@@ -188,6 +188,7 @@ impl fmt::Debug for Headers {
 }
 
 /// Iterator for [`Headers`], see [`Headers::iter`].
+#[derive(Debug)]
 pub struct Iter<'a> {
     headers: &'a Headers,
     pos: usize,
@@ -280,11 +281,11 @@ const fn no_crlf(value: &[u8]) -> bool {
 impl<'n, 'v> fmt::Debug for Header<'n, 'v> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_struct("Header");
-        f.field("name", &self.name);
+        let _ = f.field("name", &self.name);
         if let Ok(str) = std::str::from_utf8(self.value) {
-            f.field("value", &str);
+            let _ = f.field("value", &str);
         } else {
-            f.field("value", &self.value);
+            let _ = f.field("value", &self.value);
         }
         f.finish()
     }
@@ -953,6 +954,7 @@ macro_rules! int_impl {
                             Some(v) => value = v,
                             None => return Err(ParseIntError),
                         }
+                        #[allow(trivial_numeric_casts)] // For `u8 as u8`.
                         match value.checked_add((b - b'0') as $ty) {
                             Some(v) => value = v,
                             None => return Err(ParseIntError),
