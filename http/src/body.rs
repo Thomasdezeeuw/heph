@@ -91,11 +91,11 @@ mod private {
                         } else if n <= head_len {
                             // Only written part of the head, advance the head
                             // buffer.
-                            IoSlice::advance(&mut bufs[..1], n);
+                            let _ = IoSlice::advance(&mut bufs[..1], n);
                         } else {
                             // Written entire head.
                             bufs[0] = IoSlice::new(&[]);
-                            IoSlice::advance(&mut bufs[1..], n - head_len);
+                            let _ = IoSlice::advance(&mut bufs[1..], n - head_len);
                         }
                     }
                     Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
@@ -385,6 +385,7 @@ pub struct ChunkedBody<'b, B> {
 // TODO: implement `Body` for `ChunkedBody`.
 
 /// Body that sends the entire file `F`.
+#[derive(Debug)]
 pub struct FileBody<'f, F> {
     file: &'f F,
     /// Start offset into the `file`.

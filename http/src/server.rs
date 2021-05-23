@@ -295,6 +295,19 @@ where
     }
 }
 
+impl<S, NA> fmt::Debug for HttpServer<S, NA>
+where
+    S: fmt::Debug,
+    NA: NewActor<Argument = (Connection, SocketAddr)> + fmt::Debug,
+    NA::RuntimeAccess: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HttpServer")
+            .field("inner", &self.inner)
+            .finish()
+    }
+}
+
 // TODO: better name. Like `TcpStreamToConnection`?
 /// Maps `NA` to accept `(TcpStream, SocketAddr)` as argument, creating a
 /// [`Connection`].
@@ -784,7 +797,7 @@ impl Connection {
         if send_body {
             body.write_response(&mut self.stream, http_head).await?;
         } else {
-            self.stream.send(http_head).await?;
+            self.stream.send_all(http_head).await?;
         }
 
         // Remove the response head from the buffer.
@@ -895,7 +908,7 @@ impl Connection {
                 }
             }
 
-            ready!(self.try_recv())?;
+            let _ = ready!(self.try_recv())?;
         }
     }
 
@@ -1155,7 +1168,7 @@ impl<'a> Body<'a> {
         let bytes = self.buf_bytes();
         let len = min(bytes.len(), dst.len());
         if len != 0 {
-            MaybeUninit::write_slice(&mut dst[..len], &bytes[..len]);
+            let _ = MaybeUninit::write_slice(&mut dst[..len], &bytes[..len]);
             self.processed(len);
         }
         len
@@ -1400,7 +1413,7 @@ mod private {
                         if *left_in_chunk == 0 {
                             ready!(body.conn.try_read_chunk(left_in_chunk, read_complete))?;
                         } else {
-                            ready!(body.conn.try_recv())?;
+                            let _ = ready!(body.conn.try_recv())?;
                         }
                     }
                 }
@@ -1579,7 +1592,7 @@ impl RequestError {
 }
 
 impl fmt::Display for RequestError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use RequestError::*;
         f.write_str(match self {
             IncompleteRequest => "incomplete request",
