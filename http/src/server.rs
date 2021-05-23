@@ -789,13 +789,13 @@ impl Connection {
             }
         }
 
-        // End of the header.
+        // End of the HTTP head.
         self.buf.extend_from_slice(b"\r\n");
 
         // Write the response to the stream.
         let http_head = &self.buf[ignore_end..];
         if send_body {
-            body.write_response(&mut self.stream, http_head).await?;
+            body.write_message(&mut self.stream, http_head).await?;
         } else {
             self.stream.send_all(http_head).await?;
         }
@@ -1427,7 +1427,7 @@ mod private {
 impl<'c> crate::body::PrivateBody<'c> for Body<'c> {
     type WriteBody<'s, 'h> = private::SendBody<'c, 's, 'h>;
 
-    fn write_response<'s, 'h>(
+    fn write_message<'s, 'h>(
         self,
         stream: &'s mut TcpStream,
         head: &'h [u8],

@@ -53,11 +53,12 @@ mod private {
     pub trait PrivateBody<'body> {
         type WriteBody<'stream, 'head>: Future<Output = io::Result<()>>;
 
-        /// Write the response to `stream`.
+        /// Write a HTTP message to `stream`.
         ///
-        /// The `http_head` buffer contains the HTTP header (i.e. status line
-        /// and all headers), this must still be written to the `stream` also.
-        fn write_response<'stream, 'head>(
+        /// The `http_head` buffer contains the HTTP header (i.e. request/status
+        /// line and all headers), this must still be written to the `stream`
+        /// also.
+        fn write_message<'stream, 'head>(
             self,
             stream: &'stream mut TcpStream,
             http_head: &'head [u8],
@@ -254,7 +255,7 @@ impl<'b> Body<'b> for EmptyBody {
 impl<'b> PrivateBody<'b> for EmptyBody {
     type WriteBody<'s, 'h> = SendAll<'s, 'h>;
 
-    fn write_response<'s, 'h>(
+    fn write_message<'s, 'h>(
         self,
         stream: &'s mut TcpStream,
         http_head: &'h [u8],
@@ -290,7 +291,7 @@ impl<'b> Body<'b> for OneshotBody<'b> {
 impl<'b> PrivateBody<'b> for OneshotBody<'b> {
     type WriteBody<'s, 'h> = SendOneshotBody<'s, 'h>;
 
-    fn write_response<'s, 'h>(
+    fn write_message<'s, 'h>(
         self,
         stream: &'s mut TcpStream,
         http_head: &'h [u8],
@@ -332,7 +333,7 @@ impl<'b, B> StreamingBody<'b, B>
 where
     B: Stream<Item = io::Result<&'b [u8]>>,
 {
-    /// Use a [`Stream`] as HTTP body.
+    /// Use a [`Stream`] as HTTP body with a known length.
     pub const fn new(length: usize, stream: B) -> StreamingBody<'b, B> {
         StreamingBody {
             length,
@@ -357,7 +358,7 @@ where
 {
     type WriteBody<'s, 'h> = SendStreamingBody<'s, 'h, 'b, B>;
 
-    fn write_response<'s, 'h>(
+    fn write_message<'s, 'h>(
         self,
         stream: &'s mut TcpStream,
         head: &'h [u8],
@@ -427,7 +428,7 @@ where
 {
     type WriteBody<'s, 'h> = SendFileBody<'s, 'h, 'f, F>;
 
-    fn write_response<'s, 'h>(
+    fn write_message<'s, 'h>(
         self,
         stream: &'s mut TcpStream,
         head: &'h [u8],
