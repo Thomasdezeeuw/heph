@@ -55,12 +55,41 @@ fn headers_add_multiple_headers() {
 fn headers_from_header() {
     const VALUE: &[u8] = b"GET";
     let header = Header::new(HeaderName::ALLOW, VALUE);
-    let headers = Headers::from(header.clone());
+    let headers = Headers::from(header);
     assert_eq!(headers.len(), 1);
     assert!(!headers.is_empty());
 
     check_header(&headers, &HeaderName::ALLOW, VALUE, "GET");
     check_iter(&headers, &[(HeaderName::ALLOW, VALUE)]);
+}
+#[test]
+fn headers_from_slice() {
+    const ALLOW: &[u8] = b"GET";
+    const CONTENT_LENGTH: &[u8] = b"123";
+    const X_REQUEST_ID: &[u8] = b"abc-def";
+
+    let expected_headers: &[_] = &[
+        Header::new(HeaderName::ALLOW, ALLOW),
+        Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH),
+        Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID),
+    ];
+
+    let headers = Headers::from(expected_headers);
+    assert_eq!(headers.len(), 3);
+    assert!(!headers.is_empty());
+
+    check_header(&headers, &HeaderName::ALLOW, ALLOW, "GET");
+    #[rustfmt::skip]
+    check_header(&headers, &HeaderName::CONTENT_LENGTH, CONTENT_LENGTH, 123usize);
+    check_header(&headers, &HeaderName::X_REQUEST_ID, X_REQUEST_ID, "abc-def");
+    check_iter(
+        &headers,
+        &[
+            (HeaderName::ALLOW, ALLOW),
+            (HeaderName::CONTENT_LENGTH, CONTENT_LENGTH),
+            (HeaderName::X_REQUEST_ID, X_REQUEST_ID),
+        ],
+    );
 }
 
 #[test]
