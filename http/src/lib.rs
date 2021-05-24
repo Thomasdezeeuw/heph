@@ -27,6 +27,7 @@
 )]
 
 pub mod body;
+pub mod client;
 pub mod header;
 pub mod method;
 mod request;
@@ -37,6 +38,8 @@ pub mod version;
 
 #[doc(no_inline)]
 pub use body::Body;
+#[doc(no_inline)]
+pub use client::Client;
 #[doc(no_inline)]
 pub use header::{Header, HeaderName, Headers};
 #[doc(no_inline)]

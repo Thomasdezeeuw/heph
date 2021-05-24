@@ -13,3 +13,7 @@ itoa     = { version = "0.4.7", default-features = false }
 [dev-dependencies]
 # Enable logging panics via `std-logger`.
 std-logger        = { version = "0.4.0", default-features = false, features = ["log-panic", "nightly"] }
+
+[dev-dependencies.heph]
+path     = "../"
+features = ["test"]
