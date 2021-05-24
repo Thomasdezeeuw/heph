@@ -398,13 +398,13 @@ fn read_partial_chunk_size_chunked_transfer_encoding() {
 
 #[test]
 fn too_large_http_head() {
-    // Tests `heph_http::server::MAX_HEAD_SIZE`.
+    // Tests `heph_http::MAX_HEAD_SIZE`.
     with_test_server!(|stream| {
         stream
             .write_all(b"GET / HTTP/1.1\r\nSOME_HEADER: ")
             .unwrap();
-        let mut header_value = Vec::with_capacity(heph_http::server::MAX_HEAD_SIZE);
-        header_value.resize(heph_http::server::MAX_HEAD_SIZE, b'a');
+        let mut header_value = Vec::with_capacity(heph_http::MAX_HEAD_SIZE);
+        header_value.resize(heph_http::MAX_HEAD_SIZE, b'a');
         stream.write_all(&header_value).unwrap();
         stream.write_all(b"\r\n\r\n").unwrap();
         let status = StatusCode::BAD_REQUEST;
@@ -484,7 +484,7 @@ fn invalid_http_version() {
 fn too_many_header() {
     with_test_server!(|stream| {
         stream.write_all(b"GET / HTTP/1.1\r\n").unwrap();
-        for _ in 0..=http::server::MAX_HEADERS {
+        for _ in 0..=http::MAX_HEADERS {
             stream.write_all(b"Some-Header: Abc\r\n").unwrap();
         }
         stream.write_all(b"\r\n").unwrap();
