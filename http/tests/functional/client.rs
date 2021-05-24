@@ -15,11 +15,10 @@ use heph::rt::{self, Runtime, ThreadSafe};
 use heph::spawn::options::{ActorOptions, Priority};
 use heph::test::{init_actor, poll_actor};
 use heph::{actor, Actor, ActorRef, NewActor, Supervisor, SupervisorStrategy};
-use heph_http::body::OneshotBody;
+use heph_http::body::{EmptyBody, OneshotBody};
+use heph_http::client::{Client, ResponseError};
 use heph_http::server::{HttpServer, RequestError};
-use heph_http::{
-    self as http, Client, Header, HeaderName, Headers, Method, Response, StatusCode, Version,
-};
+use heph_http::{self as http, Header, HeaderName, Headers, Method, Response, StatusCode, Version};
 use httpdate::fmt_http_date;
 
 const USER_AGENT: &[u8] = b"Heph-HTTP/0.1.0";
@@ -71,6 +70,1262 @@ fn get() {
     });
 }
 
+#[test]
+fn get_no_response() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client.get("/").await.unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::UnexpectedEof);
+            assert_eq!(err.to_string(), "no HTTP response");
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // No response.
+        drop(stream);
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn get_invalid_response() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client.get("/").await.unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+            assert_eq!(err.to_string(), "invalid HTTP response status");
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream
+            .write_all(b"HTTP/1.1 a00\r\nContent-Length: 2\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn request_with_headers() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let headers = Headers::from([Header::new(HeaderName::HOST, b"localhost")]);
+            let response = client
+                .request(Method::Get, "/", &headers, EmptyBody)
+                .await?
+                .unwrap();
+            let headers = Headers::from([Header::new(HeaderName::CONTENT_LENGTH, b"2")]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([
+                Header::new(HeaderName::USER_AGENT, USER_AGENT),
+                Header::new(HeaderName::HOST, b"localhost"),
+            ]),
+            b"",
+        );
+
+        // Write response.
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn request_with_user_agent_header() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let headers = Headers::from([Header::new(HeaderName::USER_AGENT, b"my-user-agent")]);
+            let response = client
+                .request(Method::Get, "/", &headers, EmptyBody)
+                .await?
+                .unwrap();
+            let headers = Headers::from([Header::new(HeaderName::CONTENT_LENGTH, b"2")]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, b"my-user-agent")]),
+            b"",
+        );
+
+        // Write response.
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+/* FIXME: The following tests have the following problem:
+error: implementation of `body::private::PrivateBody` is not general enough
+   --> http/tests/functional/client.rs:255:48
+    |
+255 |         let (mut stream, handle) = test_server.accept(|address| {
+    |                                                ^^^^^^ implementation of `body::private::PrivateBody` is not general enough
+    |
+    = note: `body::private::PrivateBody<'1>` would have to be implemented for the type `OneshotBody<'0>`, for any two lifetimes `'0` and `'1`...
+    = note: ...but `body::private::PrivateBody<'2>` is actually implemented for the type `OneshotBody<'2>`, for some specific lifetime `'2`
+
+#[test]
+fn request_with_content_length_header() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let body = OneshotBody::new(b"Hi");
+            // NOTE: Content-Length is incorrect for this test!
+            let headers = Headers::from([Header::new(HeaderName::CONTENT_LENGTH, b"3")]);
+            let response = client
+                .request(Method::Get, "/", &headers, body)
+                .await?
+                .unwrap();
+            let headers = Headers::from([Header::new(HeaderName::CONTENT_LENGTH, b"2")]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([
+                Header::new(HeaderName::USER_AGENT, USER_AGENT),
+                Header::new(HeaderName::CONTENT_LENGTH, b"3"),
+            ]),
+            b"hi",
+        );
+
+        // Write response.
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn request_with_transfer_encoding_header() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let headers = Headers::from([Header::new(HeaderName::TRANSFER_ENCODING, b"identify")]);
+            let body = OneshotBody::new(b"Hi");
+            let response = client
+                .request(Method::Get, "/", &headers, body)
+                .await?
+                .unwrap();
+            let headers = Headers::from([Header::new(HeaderName::CONTENT_LENGTH, b"2")]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([
+                Header::new(HeaderName::USER_AGENT, USER_AGENT),
+                Header::new(HeaderName::TRANSFER_ENCODING, b"identify"),
+            ]),
+            b"hi",
+        );
+
+        // Write response.
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn request_sets_content_length_header() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let body = OneshotBody::new(b"Hello");
+            let response = client
+                .request(Method::Get, "/", &Headers::EMPTY, body)
+                .await?
+                .unwrap();
+            let headers = Headers::from([Header::new(HeaderName::CONTENT_LENGTH, b"2")]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([
+                Header::new(HeaderName::USER_AGENT, USER_AGENT),
+                Header::new(HeaderName::CONTENT_LENGTH, b"4"),
+            ]),
+            b"Hello",
+        );
+
+        // Write response.
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+*/
+
+// TODO: add test with `ChunkedBody`.
+
+#[test]
+fn partial_response() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::IncompleteResponse);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Partal response, missing last `\r\n`.
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n")
+            .unwrap();
+        stream.shutdown(Shutdown::Write).unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn same_content_length() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let response = client.get("/").await?;
+            let headers = Headers::from([
+                Header::new(HeaderName::CONTENT_LENGTH, b"2"),
+                Header::new(HeaderName::CONTENT_LENGTH, b"2"),
+            ]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\nContent-Length: 2\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn different_content_length() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::DifferentContentLengths);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\nContent-Length: 4\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn transfer_encoding_and_content_length_and() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::ContentLengthAndTransferEncoding);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        stream
+            .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: chunked\r\nContent-Length: 2\r\n\r\n")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn invalid_content_length() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::InvalidContentLength);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: abc\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn chunked_transfer_encoding() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let response = client.get("/").await?;
+            let headers = Headers::from([Header::new(HeaderName::TRANSFER_ENCODING, b"chunked")]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        stream
+            .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nOk0\r\n")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn slow_chunked_transfer_encoding() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let response = client.get("/").await?;
+            let headers = Headers::from([Header::new(HeaderName::TRANSFER_ENCODING, b"chunked")]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        stream
+            .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: chunked\r\n\r\n")
+            .unwrap();
+        sleep(Duration::from_millis(100));
+        stream.write_all(b"2\r\nOk0\r\n").unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn empty_chunked_transfer_encoding() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let response = client.get("/").await?;
+            let headers = Headers::from([Header::new(HeaderName::TRANSFER_ENCODING, b"chunked")]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        stream
+            .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn content_length_and_identity_transfer_encoding() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let response = client.get("/").await?;
+            let headers = Headers::from([
+                Header::new(HeaderName::CONTENT_LENGTH, b"2"),
+                Header::new(HeaderName::TRANSFER_ENCODING, b"identity"),
+            ]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        stream
+            .write_all(
+                b"HTTP/1.1 200\r\nContent-Length: 2\r\nTransfer-Encoding: identity\r\n\r\nOk",
+            )
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn unsupported_transfer_encoding() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::UnsupportedTransferEncoding);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        stream
+            .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: gzip\r\n\r\n")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn chunked_not_last_transfer_encoding() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let response = client.get("/").await?;
+            let headers = Headers::from([Header::new(
+                HeaderName::TRANSFER_ENCODING,
+                b"chunked, identity",
+            )]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        stream
+            .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: chunked, identity\r\n\r\nOk")
+            .unwrap();
+        stream.shutdown(Shutdown::Write).unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn content_length_and_transfer_encoding() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::ContentLengthAndTransferEncoding);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\nTransfer-Encoding: chunked\r\n\r\n")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn invalid_chunk_size() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::InvalidChunkSize);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        stream
+            .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: chunked\r\n\r\nQ\r\nOk0\r\n")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn connect() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let response = client
+                .request(Method::Connect, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap();
+            let headers = Headers::EMPTY;
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Connect,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream.write_all(b"HTTP/1.1 200\r\n\r\n").unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn head() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let response = client
+                .request(Method::Head, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap();
+            let headers = Headers::EMPTY;
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Head,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream.write_all(b"HTTP/1.1 200\r\n\r\n").unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn response_status_204() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let response = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap();
+            let headers = Headers::EMPTY;
+            let status = StatusCode::NO_CONTENT;
+            expect_response(response, Version::Http11, status, &headers, b"").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream.write_all(b"HTTP/1.1 204\r\n\r\n").unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn no_content_length_no_transfer_encoding_response() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let response = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap();
+            let headers = Headers::EMPTY;
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream.write_all(b"HTTP/1.1 200\r\n\r\nOk").unwrap();
+        stream.shutdown(Shutdown::Write).unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn response_head_too_large() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::HeadTooLarge);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream.write_all(b"HTTP/1.1 200\r\n").unwrap();
+        let buf = [b'a'; http::MAX_HEAD_SIZE];
+        stream.write_all(&buf).unwrap();
+        stream.write_all(b"\r\n").unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn invalid_header_name() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::InvalidHeaderName);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream.write_all(b"HTTP/1.1 200\r\n\0: \r\n\r\n").unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn invalid_header_value() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::InvalidHeaderValue);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream
+            .write_all(b"HTTP/1.1 200\r\nAbc: Header\rvalue\r\n\r\n")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn invalid_new_line() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::InvalidNewLine);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream.write_all(b"\rHTTP/1.1 200\r\n\r\n").unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn invalid_version() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::InvalidVersion);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream.write_all(b"HTTPS/1.1 200\r\n\r\n").unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn invalid_status() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::InvalidStatus);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream.write_all(b"HTTP/1.1 2009\r\n\r\n").unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn too_many_headers() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+            let err = client
+                .request(Method::Get, "/", &Headers::EMPTY, EmptyBody)
+                .await?
+                .unwrap_err();
+            assert_eq!(err, ResponseError::TooManyHeaders);
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream.write_all(b"HTTP/1.1 200\r\n").unwrap();
+        for _ in 0..=http::MAX_HEADERS {
+            stream.write_all(b"Some-Header: Abc\r\n").unwrap();
+        }
+        stream.write_all(b"\r\n").unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
 fn expect_request(
     stream: &mut TcpStream,
     // Expected values:
@@ -84,7 +1339,7 @@ fn expect_request(
     let n = stream.read(&mut buf).unwrap();
     let buf = &buf[..n];
 
-    eprintln!("read response: {:?}", str::from_utf8(&buf[..n]));
+    eprintln!("read request: {:?}", str::from_utf8(&buf[..n]));
 
     let mut h = [httparse::EMPTY_HEADER; 64];
     let mut request = httparse::Request::new(&mut h);
@@ -197,6 +1452,7 @@ impl TestServer {
         let listener = self.listener.lock().unwrap();
         let actor = spawn(self.address);
         let mut actor = Box::pin(actor);
+        // TODO: don't run this on a different thread, use a test Heph runtime.
         let handle = thread::spawn(move || {
             for _ in 0..100 {
                 match poll_actor(actor.as_mut()) {
