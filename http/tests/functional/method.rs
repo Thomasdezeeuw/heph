@@ -1,3 +1,4 @@
+use heph_http::method::UnknownMethod;
 use heph_http::Method::{self, *};
 
 use crate::assert_size;
@@ -84,6 +85,14 @@ fn from_str() {
 }
 
 #[test]
+fn from_invalid_str() {
+    let tests = &["abc", "abcd", "abcde", "abcdef", "abcdefg", "abcdefgh"];
+    for input in tests {
+        assert!(input.parse::<Method>().is_err());
+    }
+}
+
+#[test]
 fn fmt_display() {
     let tests = &[
         (Get, "GET"),
@@ -99,4 +108,9 @@ fn fmt_display() {
     for (method, expected) in tests {
         assert_eq!(*method.to_string(), **expected);
     }
+}
+
+#[test]
+fn unknown_method_fmt_display() {
+    assert_eq!(UnknownMethod.to_string(), "unknown HTTP method");
 }

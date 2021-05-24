@@ -154,3 +154,15 @@ fn phrase() {
     assert!(StatusCode(0).phrase().is_none());
     assert!(StatusCode(999).phrase().is_none());
 }
+
+#[test]
+fn fmt_display() {
+    let tests = &[
+        (StatusCode::OK, "200"),
+        (StatusCode::BAD_REQUEST, "400"),
+        (StatusCode(999), "999"),
+    ];
+    for (method, expected) in tests {
+        assert_eq!(*method.to_string(), **expected);
+    }
+}

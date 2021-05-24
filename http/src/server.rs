@@ -1018,7 +1018,7 @@ impl<'a> Body<'a> {
     /// the length upfront as it it's determined by reading the length of each
     /// chunk. If the send request only contained the HTTP head (i.e. no body)
     /// and uses chunked encoding this would return `false`, as body length is
-    /// unkown and thus not empty. However if the body would then send a single
+    /// unknown and thus not empty. However if the body would then send a single
     /// empty chunk (signaling the end of the body), this would return `true` as
     /// it turns out the body is indeed empty.
     pub fn is_empty(&self) -> bool {

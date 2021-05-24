@@ -1,3 +1,4 @@
+use heph_http::version::UnknownVersion;
 use heph_http::Version::{self, *};
 
 use crate::assert_size;
@@ -39,6 +40,7 @@ fn from_str() {
         assert_eq!(got, *expected);
         // NOTE: version (unlike most other types) is matched case-sensitive.
     }
+    assert!("HTTP/1.2".parse::<Version>().is_err());
 }
 
 #[test]
@@ -55,4 +57,9 @@ fn fmt_display() {
     for (method, expected) in tests {
         assert_eq!(*method.to_string(), **expected);
     }
+}
+
+#[test]
+fn unknown_version_fmt_display() {
+    assert_eq!(UnknownVersion.to_string(), "unknown HTTP version");
 }
