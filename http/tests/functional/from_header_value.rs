@@ -1,7 +1,7 @@
 use std::fmt;
 use std::time::SystemTime;
 
-use heph_http::header::FromHeaderValue;
+use heph_http::header::{FromHeaderValue, ParseIntError, ParseTimeError};
 
 #[test]
 fn str() {
@@ -31,6 +31,14 @@ fn integers() {
 
 #[test]
 fn integers_overflow() {
+    // In multiplication.
+    test_parse_fail::<u8>(b"300");
+    test_parse_fail::<u16>(b"70000");
+    test_parse_fail::<u32>(b"5000000000");
+    test_parse_fail::<u64>(b"20000000000000000000");
+    test_parse_fail::<usize>(b"20000000000000000000");
+
+    // In addition.
     test_parse_fail::<u8>(b"257");
     test_parse_fail::<u16>(b"65537");
     test_parse_fail::<u32>(b"4294967297");
@@ -69,6 +77,12 @@ fn system_time() {
     test_parse(b"Thu Jan  1 00:00:00 1970", SystemTime::UNIX_EPOCH); // ANSI C’s `asctime`.
 }
 
+#[test]
+fn invalid_system_time() {
+    test_parse_fail::<SystemTime>(b"\xa0\xa1"); // Invalid UTF-8.
+    test_parse_fail::<SystemTime>(b"ABC, 01 Jan 1970 00:00:00 GMT"); // Invalid format.
+}
+
 #[track_caller]
 fn test_parse<'a, T>(value: &'a [u8], expected: T)
 where
@@ -85,4 +99,14 @@ where
     <T as FromHeaderValue<'a>>::Err: fmt::Debug,
 {
     assert!(T::from_bytes(value).is_err());
+}
+
+#[test]
+fn parse_int_error_fmt_display() {
+    assert_eq!(ParseIntError.to_string(), "invalid integer");
+}
+
+#[test]
+fn parse_time_error_fmt_display() {
+    assert_eq!(ParseTimeError.to_string(), "invalid time");
 }

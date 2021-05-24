@@ -106,7 +106,7 @@ pub struct UnknownMethod;
 
 impl fmt::Display for UnknownMethod {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("unknown method")
+        f.write_str("unknown HTTP method")
     }
 }
 
@@ -117,48 +117,39 @@ impl FromStr for Method {
         match method.len() {
             3 => {
                 if cmp_lower_case("get", method) {
-                    Ok(Method::Get)
+                    return Ok(Method::Get);
                 } else if cmp_lower_case("put", method) {
-                    Ok(Method::Put)
-                } else {
-                    Err(UnknownMethod)
+                    return Ok(Method::Put);
                 }
             }
             4 => {
                 if cmp_lower_case("head", method) {
-                    Ok(Method::Head)
+                    return Ok(Method::Head);
                 } else if cmp_lower_case("post", method) {
-                    Ok(Method::Post)
-                } else {
-                    Err(UnknownMethod)
+                    return Ok(Method::Post);
                 }
             }
             5 => {
                 if cmp_lower_case("trace", method) {
-                    Ok(Method::Trace)
+                    return Ok(Method::Trace);
                 } else if cmp_lower_case("patch", method) {
-                    Ok(Method::Patch)
-                } else {
-                    Err(UnknownMethod)
+                    return Ok(Method::Patch);
                 }
             }
             6 => {
                 if cmp_lower_case("delete", method) {
-                    Ok(Method::Delete)
-                } else {
-                    Err(UnknownMethod)
+                    return Ok(Method::Delete);
                 }
             }
             7 => {
                 if cmp_lower_case("connect", method) {
-                    Ok(Method::Connect)
+                    return Ok(Method::Connect);
                 } else if cmp_lower_case("options", method) {
-                    Ok(Method::Options)
-                } else {
-                    Err(UnknownMethod)
+                    return Ok(Method::Options);
                 }
             }
-            _ => Err(UnknownMethod),
+            _ => {}
         }
+        Err(UnknownMethod)
     }
 }
