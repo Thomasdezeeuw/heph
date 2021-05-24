@@ -1099,13 +1099,15 @@ impl<'a> Body<'a> {
             let chunk_len = self.chunk_len();
             if chunk_len == 0 {
                 return Ok(());
-            } else if limit < total + chunk_len {
+            } else if total + chunk_len > limit {
                 return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
             }
 
             (&mut *buf).reserve(chunk_len);
             self.conn.stream.recv_n(&mut *buf, chunk_len).await?;
             total += chunk_len;
+
+            // FIXME: doesn't deal with chunked bodies.
         }
     }
 
@@ -1438,7 +1440,7 @@ impl<'a> Drop for Body<'a> {
 }
 
 /// Error parsing HTTP request.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum RequestError {
     /// Missing part of request.
     IncompleteRequest,

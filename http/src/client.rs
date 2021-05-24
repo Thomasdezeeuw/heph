@@ -3,6 +3,7 @@
 // FIXME: remove.
 #![allow(missing_docs)]
 
+use std::cmp::min;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -352,7 +353,7 @@ impl Client {
                         // > regardless of the header fields present in the
                         // > message, and thus cannot contain a message body.
                         // NOTE: we don't follow this strictly as a server might
-                        // not be implemented corretly, in which case we follow
+                        // not be implemented correctly, in which case we follow
                         // the "Content-Length"/"Transfer-Encoding" header
                         // instead (above).
                         None if !request_method.expects_body() || !status.includes_body() => {
@@ -571,22 +572,39 @@ impl<'c> Body<'c> {
             }
         }
 
-        todo!("client::Body::read_all")
-        /*
         loop {
             // Limit the read until the end of the chunk/body.
-            let chunk_len = self.chunk_len();
-            if chunk_len == 0 {
-                return Ok(());
-            } else if limit < total + chunk_len {
-                return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
+            let chunk_len = match self.kind {
+                BodyKind::Known { left } => Some(left),
+                BodyKind::Chunked { left_in_chunk, .. } => Some(left_in_chunk),
+                BodyKind::Unknown => None,
+            };
+
+            if let Some(chunk_len) = chunk_len {
+                if chunk_len == 0 {
+                    return Ok(());
+                } else if total + chunk_len > limit {
+                    return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
+                }
             }
 
-            (&mut *buf).reserve(chunk_len);
-            self.conn.stream.recv_n(&mut *buf, chunk_len).await?;
-            total += chunk_len;
+            let capacity = chunk_len
+                .unwrap_or_else(|| min(MIN_READ_SIZE, limit.saturating_sub(buf.capacity())));
+            (&mut *buf).reserve(capacity);
+            if let Some(chunk_len) = chunk_len {
+                // FIXME: doesn't deal with chunked bodies.
+                return self.client.stream.recv_n(&mut *buf, chunk_len).await;
+            } else {
+                let n = self.client.stream.recv(&mut *buf).await?;
+                if n == 0 {
+                    return Ok(());
+                }
+                total += n;
+                if total > limit {
+                    return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
+                }
+            }
         }
-        */
     }
 
     /// Returns the bytes currently in the buffer.
@@ -617,8 +635,10 @@ impl<'c> Body<'c> {
     }
 }
 
+// FIXME: remove body from `Client` if it's dropped before it's fully read.
+
 /// Error parsing HTTP response.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ResponseError {
     /// Missing part of response.
     IncompleteResponse,
@@ -646,8 +666,6 @@ pub enum ResponseError {
     /// Related Topics", Klein, March 2004). RFC 7230 (see section 3.3.3 point
     /// 3) says that this "ought to be handled as an error", and so we do.
     ContentLengthAndTransferEncoding,
-    /// Invalid byte where token is required.
-    InvalidToken,
     /// Invalid byte in new line.
     InvalidNewLine,
     /// Invalid byte in HTTP version.
@@ -659,38 +677,19 @@ pub enum ResponseError {
 }
 
 impl ResponseError {
-    /* TODO.
     /// Returns `true` if the connection should be closed based on the error
     /// (after sending a error response).
     pub const fn should_close(self) -> bool {
-        use RequestError::*;
-        // See the parsing code for various references to the RFC(s) that
-        // determine the values here.
-        match self {
-            IncompleteRequest
-            | HeadTooLarge
-            | InvalidContentLength
-            | DifferentContentLengths
-            | InvalidHeaderName
-            | InvalidHeaderValue
-            | UnsupportedTransferEncoding
-            | TooManyHeaders
-            | ContentLengthAndTransferEncoding
-            | InvalidToken
-            | InvalidNewLine
-            | InvalidVersion
-            | InvalidChunkSize => true,
-            UnknownMethod => false,
-        }
+        // Currently all errors are fatal for the connection.
+        true
     }
-    */
 
     fn from_httparse(err: httparse::Error) -> ResponseError {
         use httparse::Error::*;
         match err {
             HeaderName => ResponseError::InvalidHeaderName,
             HeaderValue => ResponseError::InvalidHeaderValue,
-            Token => ResponseError::InvalidToken,
+            Token => unreachable!(),
             NewLine => ResponseError::InvalidNewLine,
             Version => ResponseError::InvalidVersion,
             TooManyHeaders => ResponseError::TooManyHeaders,
@@ -702,20 +701,20 @@ impl ResponseError {
         use ResponseError::*;
         match self {
             IncompleteResponse => "incomplete response",
-            HeadTooLarge => "head too large",
-            InvalidContentLength => "invalid Content-Length header",
-            DifferentContentLengths => "different Content-Length headers",
-            InvalidHeaderName => "invalid header name",
-            InvalidHeaderValue => "invalid header value",
-            TooManyHeaders => "too many header",
-            UnsupportedTransferEncoding => "unsupported Transfer-Encoding",
+            HeadTooLarge => "response head too large",
+            InvalidContentLength => "invalid response Content-Length header",
+            DifferentContentLengths => "response has different Content-Length headers",
+            InvalidHeaderName => "invalid response header name",
+            InvalidHeaderValue => "invalid response header value",
+            TooManyHeaders => "too many response headers",
+            UnsupportedTransferEncoding => "response has unsupported Transfer-Encoding header",
             ContentLengthAndTransferEncoding => {
-                "contained both Content-Length and Transfer-Encoding headers"
+                "response contained both Content-Length and Transfer-Encoding headers"
             }
-            InvalidToken | InvalidNewLine => "invalid request syntax",
-            InvalidVersion => "invalid version",
-            InvalidStatus => "invalid status",
-            InvalidChunkSize => "invalid chunk size",
+            InvalidNewLine => "invalid response syntax",
+            InvalidVersion => "invalid HTTP response version",
+            InvalidStatus => "invalid HTTP response status",
+            InvalidChunkSize => "invalid response chunk size",
         }
     }
 }
