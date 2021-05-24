@@ -29,23 +29,10 @@ use httpdate::HttpDate;
 
 use crate::body::BodyLength;
 use crate::header::{FromHeaderValue, HeaderName, Headers};
-use crate::{Method, Request, StatusCode, Version};
-
-/// Maximum size of the head (the start line and the headers).
-///
-/// RFC 7230 section 3.1.1 recommends "all HTTP senders and recipients support,
-/// at a minimum, request-line lengths of 8000 octets."
-pub const MAX_HEAD_SIZE: usize = 16384;
-
-/// Maximum number of headers parsed from a single request.
-pub const MAX_HEADERS: usize = 64;
-
-/// Minimum amount of bytes read from the connection or the buffer will be
-/// grown.
-const MIN_READ_SIZE: usize = 4096;
-
-/// Size of the buffer used in [`Connection`].
-const BUF_SIZE: usize = 8192;
+use crate::{
+    map_version_byte, trim_ws, Method, Request, StatusCode, Version, BUF_SIZE, MAX_HEADERS,
+    MAX_HEAD_SIZE, MIN_READ_SIZE,
+};
 
 /// A intermediate structure that implements [`NewActor`], creating
 /// [`HttpServer`].
@@ -450,7 +437,7 @@ impl Connection {
                     };
                     self.last_method = Some(method);
                     let path = request.path.unwrap().to_string();
-                    let version = map_version(request.version.unwrap());
+                    let version = map_version_byte(request.version.unwrap());
                     self.last_version = Some(version);
 
                     // RFC 7230 section 3.3.3 Message Body Length.
@@ -577,7 +564,7 @@ impl Connection {
                     too_short = self.buf.len();
                     self.last_method = request.method.and_then(|m| m.parse().ok());
                     if let Some(version) = request.version {
-                        self.last_version = Some(map_version(version));
+                        self.last_version = Some(map_version_byte(version));
                     }
 
                     if too_short >= MAX_HEAD_SIZE {
@@ -951,30 +938,6 @@ impl Connection {
                 return Err(io::ErrorKind::UnexpectedEof.into());
             }
         }
-    }
-}
-
-const fn map_version(version: u8) -> Version {
-    match version {
-        0 => Version::Http10,
-        // RFC 7230 section 2.6:
-        // > A server SHOULD send a response version equal to
-        // > the highest version to which the server is
-        // > conformant that has a major version less than or
-        // > equal to the one received in the request.
-        // HTTP/1.1 is the highest we support.
-        _ => Version::Http11,
-    }
-}
-
-/// Trim whitespace from `value`.
-fn trim_ws(value: &[u8]) -> &[u8] {
-    let start = value.iter().position(|b| !b.is_ascii_whitespace());
-    let end = value.iter().rposition(|b| !b.is_ascii_whitespace());
-    if let (Some(start), Some(end)) = (start, end) {
-        &value[start..=end]
-    } else {
-        &[]
     }
 }
 
