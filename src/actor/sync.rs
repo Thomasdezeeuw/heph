@@ -238,9 +238,7 @@ impl<M> SyncContext<M> {
         if let Some(waker) = self.future_waker.as_ref() {
             waker.clone()
         } else {
-            let waker = Arc::new(SyncWaker {
-                handle: thread::current(),
-            });
+            let waker = SyncWaker::new();
             self.future_waker = Some(waker.clone());
             waker
         }
@@ -266,7 +264,7 @@ impl<M> Trace for SyncContext<M> {
 // TODO: a `Thread` is already wrapped in an `Arc`, which mean we're double
 // `Arc`ing for the `Waker` implementation, try to remove that.
 #[derive(Debug)]
-struct SyncWaker {
+pub(crate) struct SyncWaker {
     handle: Thread,
 }
 
@@ -281,9 +279,16 @@ impl task::Wake for SyncWaker {
 }
 
 impl SyncWaker {
+    /// Create a new `SyncWaker`.
+    pub(crate) fn new() -> Arc<SyncWaker> {
+        Arc::new(SyncWaker {
+            handle: thread::current(),
+        })
+    }
+
     /// Poll the `fut`ure until completion, blocking when it can't make
     /// progress.
-    fn block_on<Fut>(self: Arc<SyncWaker>, fut: Fut) -> Fut::Output
+    pub(crate) fn block_on<Fut>(self: Arc<SyncWaker>, fut: Fut) -> Fut::Output
     where
         Fut: Future,
     {

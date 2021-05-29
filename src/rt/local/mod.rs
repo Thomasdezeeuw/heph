@@ -97,7 +97,10 @@ impl Runtime {
     ///
     /// Used in the [`crate::test`] module.
     #[cfg(any(test, feature = "test"))]
-    pub(crate) fn new_test(shared_internals: Arc<shared::RuntimeInternals>) -> io::Result<Runtime> {
+    pub(crate) fn new_test(
+        shared_internals: Arc<shared::RuntimeInternals>,
+        mut channel: rt::channel::Receiver<Control>,
+    ) -> io::Result<Runtime> {
         let poll = Poll::new()?;
 
         // TODO: this channel will grow unbounded as the waker implementation
@@ -106,7 +109,6 @@ impl Runtime {
         let waker = mio::Waker::new(poll.registry(), WAKER)?;
         let waker_id = rt::waker::init(waker, waker_sender);
 
-        let (_, mut channel) = rt::channel::new()?;
         channel.register(poll.registry(), COMMS)?;
 
         let id = NonZeroUsize::new(usize::MAX).unwrap();
@@ -133,7 +135,7 @@ impl Runtime {
     }
 
     /// Run the runtime's event loop.
-    pub(super) fn run_event_loop(mut self) -> Result<(), Error> {
+    pub(crate) fn run_event_loop(mut self) -> Result<(), Error> {
         debug!("running runtime's event loop");
         // Runtime reference used in running the processes.
         let mut runtime_ref = self.create_ref();
@@ -599,7 +601,7 @@ impl Runtime {
 
 /// Control the [`Runtime`].
 #[allow(variant_size_differences)] // Can't make `Run` smaller.
-pub(super) enum Control {
+pub(crate) enum Control {
     /// Runtime has started, i.e. [`rt::Runtime::start`] was called.
     Started,
     /// Process received a signal.
@@ -622,7 +624,7 @@ impl fmt::Debug for Control {
 
 /// Error running a [`Runtime`].
 #[derive(Debug)]
-pub(super) enum Error {
+pub(crate) enum Error {
     /// Error in [`Runtime::new`].
     Init(io::Error),
     /// Error polling [`Poll`].

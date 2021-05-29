@@ -147,6 +147,7 @@ mod tests;
 
 #[doc(inline)]
 pub use context::{Context, NoMessages, ReceiveMessage, RecvError};
+pub(crate) use sync::SyncWaker;
 #[doc(inline)]
 pub use sync::{SyncActor, SyncContext};
 

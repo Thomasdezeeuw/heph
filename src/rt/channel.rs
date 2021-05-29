@@ -11,7 +11,7 @@ use mio::{unix, Interest, Registry, Token};
 const WAKE: &[u8] = b"WAKE";
 
 /// Create a new communication channel.
-pub(super) fn new<T>() -> io::Result<(Sender<T>, Receiver<T>)> {
+pub(crate) fn new<T>() -> io::Result<(Sender<T>, Receiver<T>)> {
     let (p_send, p_recv) = unix::pipe::new()?;
     let (c_send, c_recv) = crossbeam::unbounded();
     let sender = Sender {
@@ -27,14 +27,14 @@ pub(super) fn new<T>() -> io::Result<(Sender<T>, Receiver<T>)> {
 
 /// Sending end of the communication channel.
 #[derive(Debug)]
-pub(super) struct Sender<T> {
+pub(crate) struct Sender<T> {
     channel: crossbeam::Sender<T>,
     pipe: unix::pipe::Sender,
 }
 
 impl<T> Sender<T> {
     /// Try to send a message onto the channel.
-    pub(super) fn try_send(&mut self, msg: T) -> io::Result<()> {
+    pub(crate) fn try_send(&self, msg: T) -> io::Result<()> {
         self.channel
             .try_send(msg)
             .map_err(|_| io::Error::new(io::ErrorKind::NotConnected, "failed to send message"))?;
@@ -42,7 +42,7 @@ impl<T> Sender<T> {
         // Generate an `mio::Event` for the receiving end.
         loop {
             trace!("notifying worker-coordinator channel of new message");
-            match self.pipe.write(WAKE) {
+            match (&self.pipe).write(WAKE) {
                 Ok(0) => {
                     return Err(io::Error::new(
                         io::ErrorKind::NotConnected,
@@ -66,7 +66,7 @@ impl<T> Sender<T> {
 
 /// Receiving end of the communication channel.
 #[derive(Debug)]
-pub(super) struct Receiver<T> {
+pub(crate) struct Receiver<T> {
     channel: crossbeam::Receiver<T>,
     pipe: unix::pipe::Receiver,
 }
