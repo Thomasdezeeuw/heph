@@ -315,10 +315,12 @@ impl<T> Receiver<T> {
         has_sender(status)
     }
 
-    /// Set the receiver waker to `waker`, if they are different.
+    /// Set the receiver's waker to `waker`, if they are different. Returns
+    /// `true` if the waker is changed, `false` otherwise.
     ///
-    /// Returns `true` if the waker is changed, `false` otherwise.
-    fn set_waker(&mut self, waker: &task::Waker) -> bool {
+    /// This is useful if you can't call [`Receiver::recv`] but still want a
+    /// wake-up notification once messages are added to the inbox.
+    pub fn register_waker(&mut self, waker: &task::Waker) -> bool {
         let shared = self.shared();
         let mut receiver_waker = shared.receiver_waker.lock();
 
@@ -376,7 +378,7 @@ macro_rules! recv_future_impl {
             Ok(ok) => Poll::Ready(Some(ok)),
             Err(RecvError::NoValue) => {
                 // The sender hasn't send a value yet, we'll set the waker.
-                if !$self.receiver.set_waker($ctx.waker()) {
+                if !$self.receiver.register_waker($ctx.waker()) {
                     // Waker already set.
                     return Poll::Pending;
                 }

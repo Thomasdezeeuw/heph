@@ -8,6 +8,8 @@ mod util;
 mod functional {
     use heph_inbox::oneshot::{new_oneshot, Receiver, RecvError, Sender};
 
+    use futures_test::task::new_count_waker;
+
     use crate::util::{assert_send, assert_sync};
 
     #[test]
@@ -92,6 +94,18 @@ mod functional {
         assert_eq!(sender2.sends_to(&receiver2), true);
         assert_eq!(sender.sends_to(&receiver2), false);
         assert_eq!(sender2.sends_to(&receiver), false);
+    }
+
+    #[test]
+    fn registered_receiver_waker() {
+        let (sender, mut receiver) = new_oneshot::<usize>();
+
+        let (waker, count) = new_count_waker();
+        receiver.register_waker(&waker);
+
+        assert_eq!(count, 0);
+        assert_eq!(sender.try_send(10), Ok(()));
+        assert_eq!(count, 1);
     }
 }
 
