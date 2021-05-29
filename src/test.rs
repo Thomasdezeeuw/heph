@@ -86,18 +86,23 @@ static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(
     })
 });
 
-thread_local! {
-    /// Per thread runtime.
-    static TEST_RT: Runtime = {
-        let (_, receiver) = rt::channel::new()
-            .expect("failed to create runtime channel for test module");
-        Runtime::new_test(SHARED_INTERNAL.clone(), receiver)
-            .expect("failed to create local `Runtime` for test module")
-    };
-}
-
-/// Returns a reference to the *test* runtime.
+/// Returns a reference to a fake local runtime.
+///
+/// # Notes
+///
+/// The returned runtime reference is **not** a reference to the *test* runtime
+/// as described in the module documentation.
 pub fn runtime() -> RuntimeRef {
+    thread_local! {
+        /// Per thread runtime.
+        static TEST_RT: Runtime = {
+            let (_, receiver) = rt::channel::new()
+                .expect("failed to create runtime channel for test module");
+            Runtime::new_test(SHARED_INTERNAL.clone(), receiver)
+                .expect("failed to create local `Runtime` for test module")
+        };
+    }
+
     TEST_RT.with(Runtime::create_ref)
 }
 
