@@ -107,7 +107,7 @@ fn test_runtime() -> &'static RtControl {
     &TEST_RT
 }
 
-/// Run function `f` on the test runtime.
+/// Run function `f` on the *test* runtime.
 fn run_on_test_runtime<F>(f: F)
 where
     F: FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static,
@@ -115,6 +115,25 @@ where
     test_runtime()
         .try_send(Control::Run(Box::new(f)))
         .expect("failed to communicate with the test runtime");
+}
+
+/// Run function `f` on the *test* runtime, waiting for the result.
+fn run_on_test_runtime_wait<F, T>(f: F) -> T
+where
+    F: FnOnce(RuntimeRef) -> T + Send + 'static,
+    T: Send + 'static,
+{
+    let (sender, mut receiver) = new_oneshot();
+    let waker = SyncWaker::new();
+    let _ = receiver.register_waker(&task::Waker::from(waker.clone()));
+    run_on_test_runtime(move |runtime_ref| {
+        drop(sender.try_send(f(runtime_ref)));
+        Ok(())
+    });
+    waker
+        .block_on(receiver.recv())
+        .expect("failed to receive result from test runtime")
+        .0
 }
 
 /// Attempt to spawn a thread-local actor on the *test* runtime.
@@ -138,25 +157,49 @@ pub fn try_spawn_local<S, NA>(
     options: ActorOptions,
 ) -> Result<ActorRef<NA::Message>, NA::Error>
 where
-    S: Supervisor<NA> + 'static + Send,
-    NA: NewActor<RuntimeAccess = ThreadLocal> + 'static + Send,
+    S: Supervisor<NA> + Send + 'static,
+    NA: NewActor<RuntimeAccess = ThreadLocal> + Send + 'static,
     NA::Actor: 'static,
     NA::Message: Send,
     NA::Argument: Send,
     NA::Error: Send,
 {
-    let (sender, mut receiver) = new_oneshot();
-    let waker = SyncWaker::new();
-    let _ = receiver.register_waker(&task::Waker::from(waker.clone()));
-    run_on_test_runtime(move |mut runtime_ref| {
-        let res = runtime_ref.try_spawn_local(supervisor, new_actor, arg, options);
-        let _ = sender.try_send(res);
-        Ok(())
-    });
-    waker
-        .block_on(receiver.recv())
-        .expect("failed to spawn local actor on test runtime")
-        .0
+    run_on_test_runtime_wait(move |mut runtime_ref| {
+        runtime_ref.try_spawn_local(supervisor, new_actor, arg, options)
+    })
+}
+
+/// Attempt to spawn a thread-safe actor on the *test* runtime.
+///
+/// See the [module documentation] for more information about the *test*
+/// runtime. And see the [`Spawn`] trait for more information about spawning
+/// actors.
+///
+/// [module documentation]: crate::test
+/// [`Spawn`]: crate::spawn::Spawn
+///
+/// # Notes
+///
+/// This requires the `Supervisor` (`S`) and `NewActor` (`NA`) to be [`Send`] as
+/// they are send to another thread which runs the *test* runtime (and thus the
+/// actor). The actor (`NA::Actor`) itself doesn't have to be `Send`.
+pub fn try_spawn<S, NA>(
+    supervisor: S,
+    new_actor: NA,
+    arg: NA::Argument,
+    options: ActorOptions,
+) -> Result<ActorRef<NA::Message>, NA::Error>
+where
+    S: Supervisor<NA> + Send + Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
+    NA::Actor: Send + Sync + 'static,
+    NA::Message: Send,
+    NA::Argument: Send,
+    NA::Error: Send,
+{
+    run_on_test_runtime_wait(move |mut runtime_ref| {
+        runtime_ref.try_spawn(supervisor, new_actor, arg, options)
+    })
 }
 
 /// Initialise a thread-local actor.
