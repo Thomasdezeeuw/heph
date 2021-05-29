@@ -1,7 +1,9 @@
 //! Testing facilities.
 //!
-//! This module will lazily create an active, but not running, runtime per
-//! thread.
+//! This module will lazily create an single-threaded *test* runtime. Functions
+//! such as [`try_spawn_local`] will use this to spawn and run actors. The
+//! *test* runtime will not stop and the thread's resources are not cleaned up
+//! (properly).
 //!
 //! # Notes
 //!
@@ -28,21 +30,22 @@ use std::task::{self, Poll};
 use std::{io, slice, thread};
 
 use getrandom::getrandom;
+use heph_inbox::oneshot::new_oneshot;
 use heph_inbox::Manager;
 use log::warn;
 
-use crate::actor::{self, Actor, NewActor, SyncActor};
+use crate::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
 use crate::actor_ref::ActorRef;
-use crate::rt::local::Runtime;
+use crate::rt::local::{Control, Runtime};
 use crate::rt::shared::waker;
 use crate::rt::sync_worker::SyncWorker;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
-    shared, ProcessId, RuntimeRef, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
+    self, shared, ProcessId, RuntimeRef, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
-use crate::spawn::SyncActorOptions;
-use crate::supervisor::SyncSupervisor;
+use crate::spawn::{ActorOptions, SyncActorOptions};
+use crate::supervisor::{Supervisor, SyncSupervisor};
 
 pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 
@@ -66,7 +69,9 @@ static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(
 thread_local! {
     /// Per thread runtime.
     static TEST_RT: Runtime = {
-        Runtime::new_test(SHARED_INTERNAL.clone())
+        let (_, receiver) = rt::channel::new()
+            .expect("failed to create runtime channel for test module");
+        Runtime::new_test(SHARED_INTERNAL.clone(), receiver)
             .expect("failed to create local `Runtime` for test module")
     };
 }
@@ -74,6 +79,84 @@ thread_local! {
 /// Returns a reference to the *test* runtime.
 pub fn runtime() -> RuntimeRef {
     TEST_RT.with(Runtime::create_ref)
+}
+
+/// Sending side of a runtime channel to control the test runtime.
+type RtControl = rt::channel::Sender<Control>;
+
+/// Lazily start the *test* runtime on a new thread, returning the control
+/// channel.
+fn test_runtime() -> &'static RtControl {
+    static TEST_RT: SyncLazy<RtControl> = SyncLazy::new(|| {
+        let (sender, receiver) =
+            rt::channel::new().expect("failed to create runtime channel for test module");
+        let _handle = thread::Builder::new()
+            .name("Heph Test Runtime".to_string())
+            .spawn(move || {
+                // NOTE: because we didn't indicate the runtime has started this
+                // will never stop.
+                Runtime::new_test(SHARED_INTERNAL.clone(), receiver)
+                    .expect("failed to create a runtime for test module")
+                    .run_event_loop()
+                    .expect("failed to run test runtime");
+            })
+            .expect("failed to start thread for test runtime");
+        sender
+    });
+
+    &TEST_RT
+}
+
+/// Run function `f` on the test runtime.
+fn run_on_test_runtime<F>(f: F)
+where
+    F: FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static,
+{
+    test_runtime()
+        .try_send(Control::Run(Box::new(f)))
+        .expect("failed to communicate with the test runtime");
+}
+
+/// Attempt to spawn a thread-local actor on the *test* runtime.
+///
+/// See the [module documentation] for more information about the *test*
+/// runtime. And see the [`Spawn`] trait for more information about spawning
+/// actors.
+///
+/// [module documentation]: crate::test
+/// [`Spawn`]: crate::spawn::Spawn
+///
+/// # Notes
+///
+/// This requires the `Supervisor` (`S`) and `NewActor` (`NA`) to be [`Send`] as
+/// they are send to another thread which runs the *test* runtime (and thus the
+/// actor). The actor (`NA::Actor`) itself doesn't have to be `Send`.
+pub fn try_spawn_local<S, NA>(
+    supervisor: S,
+    new_actor: NA,
+    arg: NA::Argument,
+    options: ActorOptions,
+) -> Result<ActorRef<NA::Message>, NA::Error>
+where
+    S: Supervisor<NA> + 'static + Send,
+    NA: NewActor<RuntimeAccess = ThreadLocal> + 'static + Send,
+    NA::Actor: 'static,
+    NA::Message: Send,
+    NA::Argument: Send,
+    NA::Error: Send,
+{
+    let (sender, mut receiver) = new_oneshot();
+    let waker = SyncWaker::new();
+    let _ = receiver.register_waker(&task::Waker::from(waker.clone()));
+    run_on_test_runtime(move |mut runtime_ref| {
+        let res = runtime_ref.try_spawn_local(supervisor, new_actor, arg, options);
+        let _ = sender.try_send(res);
+        Ok(())
+    });
+    waker
+        .block_on(receiver.recv())
+        .expect("failed to spawn local actor on test runtime")
+        .0
 }
 
 /// Initialise a thread-local actor.
