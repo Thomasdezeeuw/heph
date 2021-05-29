@@ -44,7 +44,7 @@ use crate::rt::{
     self, shared, ProcessId, RuntimeRef, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
-use crate::spawn::{ActorOptions, SyncActorOptions};
+use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::supervisor::{Supervisor, SyncSupervisor};
 
 pub(crate) const TEST_PID: ProcessId = ProcessId(0);
@@ -200,6 +200,22 @@ where
     run_on_test_runtime_wait(move |mut runtime_ref| {
         runtime_ref.try_spawn(supervisor, new_actor, arg, options)
     })
+}
+
+/// Spawn a thread-local [`Future`] on the *test* runtime.
+///
+/// See the [module documentation] for more information about the *test*
+/// runtime.
+///
+/// [module documentation]: crate::test
+pub fn spawn_future<Fut>(future: Fut, options: FutureOptions)
+where
+    Fut: Future<Output = ()> + Send + Sync + 'static,
+{
+    run_on_test_runtime(move |mut runtime_ref| {
+        runtime_ref.spawn_future(future, options);
+        Ok(())
+    });
 }
 
 /// Initialise a thread-local actor.
