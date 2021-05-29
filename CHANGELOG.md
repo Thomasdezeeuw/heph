@@ -1,9 +1,16 @@
+# 0.1.2
+
+## Added
+
+* `oneshot::Receiver::register_waker`, allows a `task::Waker` to be registered
+  (https://github.com/Thomasdezeeuw/inbox/commit/dc5202e0d621856403a125dcef5bf33e9477d2c4).
+
 # 0.1.1
 
 ## Added
 
 * Support of ThreadSanitizer, by using atomic loads instead of fences when the
-  thread sanitizer is enabled.
+  thread sanitizer is enabled
   (https://github.com/Thomasdezeeuw/inbox/commit/dc5202e0d621856403a125dcef5bf33e9477d2c4).
 
 ## Changed
