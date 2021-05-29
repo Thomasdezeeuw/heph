@@ -5,6 +5,26 @@
 //! *test* runtime will not stop and the thread's resources are not cleaned up
 //! (properly).
 //!
+//! Available utilities:
+//!  * Spawning:
+//!    * [`try_spawn_local`]: attempt to spawn a thread-local [actor].
+//!    * [`try_spawn`]: attempt to spawn a thread-safe [actor].
+//!    * [`spawn_future`]: spawn a thread-local [`Future`].
+//!    * [`spawn_sync_actor`]: spawn a [synchronous actor].
+//!  * Initialising actors:
+//!    * [`init_local_actor`]: initialise a thread-local actor.
+//!    * [`init_actor`]: initialise a thread-safe actor.
+//!  * Polling:
+//!    * [`poll_actor`]: poll an [`Actor`].
+//!    * [`poll_future`]: poll a [`Future`].
+//!    * [`poll_next`]: poll a [`Stream`].
+//!  * Miscellaneous:
+//!    * [`size_of_actor`], [`size_of_actor_val`]: returns the size of an actor.
+//!    * [`set_message_loss`]: set the percentage of messages lost on purpose.
+//!
+//! [actor]: actor
+//! [synchronous actor]: SyncActor
+//!
 //! # Notes
 //!
 //! *This module is only available when the `test` feature is enabled*. It
