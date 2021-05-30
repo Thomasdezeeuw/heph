@@ -499,7 +499,7 @@ impl<'s, T> SendValue<'s, T> {
             // Safety: just initialised it above, so `unwrap` is safe.
             let waker_ref = waker_node.as_mut().unwrap();
             // Then add our node the `Channel`s list.
-            self.channel.add_waker(waker_ref);
+            self.channel.add_sender_waker(waker_ref);
         }
     }
 }
@@ -560,7 +560,7 @@ impl<'s, T> Drop for SendValue<'s, T> {
             drop(waker);
 
             // Remove our waker from the list in `Channel`.
-            self.channel.remove_waker(waker_node);
+            self.channel.remove_sender_waker(waker_node);
         }
     }
 }
@@ -736,7 +736,7 @@ fn try_recv<T>(channel: &Channel<T>) -> Result<T, RecvError> {
             has_status(old_status, slot, READING) || has_status(old_status, slot, FILLED)
         );
 
-        if let Some(waker) = channel.next_waker() {
+        if let Some(waker) = channel.next_sender_waker() {
             waker.wake()
         }
 
@@ -879,7 +879,7 @@ unsafe impl<T> Sync for Channel<T> {}
 #[derive(Debug)]
 struct WakerList {
     waker: Mutex<Option<task::Waker>>,
-    /// If this is null it must point to valid memory.
+    /// If this is not null it must point to valid memory.
     next: AtomicPtr<Self>,
 }
 
@@ -905,7 +905,7 @@ impl<T> Channel<T> {
     }
 
     /// Returns the next `task::Waker` to wake, if any.
-    fn next_waker(&self) -> Option<task::Waker> {
+    fn next_sender_waker(&self) -> Option<task::Waker> {
         loop {
             let head_ptr = self.sender_waker_head.load(Ordering::Relaxed);
             if head_ptr.is_null() {
@@ -932,7 +932,7 @@ impl<T> Channel<T> {
                     // back into the list.
                     let updated_next_ptr = next_node.next.swap(ptr::null_mut(), Ordering::AcqRel);
                     if updated_next_ptr != next_ptr && !updated_next_ptr.is_null() {
-                        self.add_waker(updated_next_ptr);
+                        self.add_sender_waker(updated_next_ptr);
                     }
 
                     if waker.is_none() {
@@ -956,7 +956,7 @@ impl<T> Channel<T> {
     ///
     /// `node` must be at a stable (pinned) address and must remain valid until
     /// its removed from `Channel`, or `Channel` is dropped.
-    fn add_waker(&self, node: *mut WakerList) {
+    fn add_sender_waker(&self, node: *mut WakerList) {
         let mut ptr: &AtomicPtr<WakerList> = &self.sender_waker_head;
         loop {
             // Safety: Relaxed is fine because we use `compare_exchange` below
@@ -986,7 +986,7 @@ impl<T> Channel<T> {
     }
 
     /// Remove `node` from receiver waker list.
-    fn remove_waker(&self, node: *const WakerList) {
+    fn remove_sender_waker(&self, node: *const WakerList) {
         if node.is_null() {
             return;
         }

@@ -168,13 +168,13 @@ fn test_receiver_pos() {
 }
 
 #[test]
-fn channel_next_waker_none() {
+fn channel_next_sender_waker_none() {
     let channel = Channel::<usize>::new();
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
 }
 
 #[test]
-fn channel_next_waker_single_waker() {
+fn channel_next_sender_waker_single_waker() {
     let channel = Channel::<usize>::new();
 
     let (waker, count) = new_count_waker();
@@ -184,15 +184,15 @@ fn channel_next_waker_single_waker() {
         next: AtomicPtr::new(ptr::null_mut()),
     }];
 
-    channel.add_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[0]);
 
-    channel.next_waker().unwrap().wake();
+    channel.next_sender_waker().unwrap().wake();
     assert_eq!(count.get(), 1);
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
 }
 
 #[test]
-fn channel_next_waker_two_wakers() {
+fn channel_next_sender_waker_two_wakers() {
     let channel = Channel::<usize>::new();
 
     let (waker1, count1) = new_count_waker();
@@ -209,20 +209,20 @@ fn channel_next_waker_two_wakers() {
         },
     ];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
 
-    channel.next_waker().unwrap().wake();
+    channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
     assert_eq!(count2.get(), 0);
-    channel.next_waker().unwrap().wake();
+    channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
     assert_eq!(count2.get(), 1);
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
 }
 
 #[test]
-fn channel_next_waker_three_wakers() {
+fn channel_next_sender_waker_three_wakers() {
     let channel = Channel::<usize>::new();
 
     let (waker1, count1) = new_count_waker();
@@ -244,27 +244,27 @@ fn channel_next_waker_three_wakers() {
         },
     ];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
-    channel.add_waker(&mut wakers[2]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[2]);
 
-    channel.next_waker().unwrap().wake();
+    channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
     assert_eq!(count2.get(), 0);
     assert_eq!(count3.get(), 0);
-    channel.next_waker().unwrap().wake();
+    channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
     assert_eq!(count2.get(), 1);
     assert_eq!(count3.get(), 0);
-    channel.next_waker().unwrap().wake();
+    channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
     assert_eq!(count2.get(), 1);
     assert_eq!(count3.get(), 1);
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
 }
 
 #[test]
-fn channel_next_waker_with_none_waker_0() {
+fn channel_next_sender_waker_with_none_waker_0() {
     let channel = Channel::<usize>::new();
 
     let (waker1, count1) = new_count_waker();
@@ -285,21 +285,21 @@ fn channel_next_waker_with_none_waker_0() {
         },
     ];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
-    channel.add_waker(&mut wakers[2]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[2]);
 
-    channel.next_waker().unwrap().wake();
+    channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
     assert_eq!(count2.get(), 0);
-    channel.next_waker().unwrap().wake();
+    channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
     assert_eq!(count2.get(), 1);
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
 }
 
 #[test]
-fn channel_next_waker_with_none_waker_1() {
+fn channel_next_sender_waker_with_none_waker_1() {
     let channel = Channel::<usize>::new();
 
     let (waker1, count1) = new_count_waker();
@@ -320,21 +320,21 @@ fn channel_next_waker_with_none_waker_1() {
         },
     ];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
-    channel.add_waker(&mut wakers[2]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[2]);
 
-    channel.next_waker().unwrap().wake();
+    channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
     assert_eq!(count2.get(), 0);
-    channel.next_waker().unwrap().wake();
+    channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
     assert_eq!(count2.get(), 1);
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
 }
 
 #[test]
-fn channel_next_waker_with_none_waker_2() {
+fn channel_next_sender_waker_with_none_waker_2() {
     let channel = Channel::<usize>::new();
 
     let (waker1, count1) = new_count_waker();
@@ -355,21 +355,21 @@ fn channel_next_waker_with_none_waker_2() {
         },
     ];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
-    channel.add_waker(&mut wakers[2]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[2]);
 
-    channel.next_waker().unwrap().wake();
+    channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
     assert_eq!(count2.get(), 0);
-    channel.next_waker().unwrap().wake();
+    channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
     assert_eq!(count2.get(), 1);
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
 }
 
 #[test]
-fn channel_remove_waker_single_waker() {
+fn channel_remove_sender_waker_single_waker() {
     let channel = Channel::<usize>::new();
 
     let (waker, count) = new_count_waker();
@@ -379,15 +379,15 @@ fn channel_remove_waker_single_waker() {
         next: AtomicPtr::new(ptr::null_mut()),
     }];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.remove_waker(&wakers[0]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.remove_sender_waker(&wakers[0]);
 
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
     assert_eq!(count.get(), 0);
 }
 
 #[test]
-fn channel_remove_waker_two_wakers_same_order() {
+fn channel_remove_sender_waker_two_wakers_same_order() {
     let channel = Channel::<usize>::new();
 
     let (waker1, count1) = new_count_waker();
@@ -404,19 +404,19 @@ fn channel_remove_waker_two_wakers_same_order() {
         },
     ];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
 
-    channel.remove_waker(&mut wakers[0]);
-    channel.remove_waker(&mut wakers[1]);
+    channel.remove_sender_waker(&mut wakers[0]);
+    channel.remove_sender_waker(&mut wakers[1]);
 
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
     assert_eq!(count1.get(), 0);
     assert_eq!(count2.get(), 0);
 }
 
 #[test]
-fn channel_remove_waker_two_wakers_reverse_order() {
+fn channel_remove_sender_waker_two_wakers_reverse_order() {
     let channel = Channel::<usize>::new();
 
     let (waker1, count1) = new_count_waker();
@@ -433,56 +433,19 @@ fn channel_remove_waker_two_wakers_reverse_order() {
         },
     ];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
 
-    channel.remove_waker(&mut wakers[1]);
-    channel.remove_waker(&mut wakers[0]);
+    channel.remove_sender_waker(&mut wakers[1]);
+    channel.remove_sender_waker(&mut wakers[0]);
 
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
     assert_eq!(count1.get(), 0);
     assert_eq!(count2.get(), 0);
 }
 
 #[test]
-fn channel_remove_waker_three_wakers_order_0() {
-    let channel = Channel::<usize>::new();
-
-    let (waker1, count1) = new_count_waker();
-    let (waker2, count2) = new_count_waker();
-    let (waker3, count3) = new_count_waker();
-
-    let mut wakers = [
-        WakerList {
-            waker: Mutex::new(Some(waker1)),
-            next: AtomicPtr::new(ptr::null_mut()),
-        },
-        WakerList {
-            waker: Mutex::new(Some(waker2)),
-            next: AtomicPtr::new(ptr::null_mut()),
-        },
-        WakerList {
-            waker: Mutex::new(Some(waker3)),
-            next: AtomicPtr::new(ptr::null_mut()),
-        },
-    ];
-
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
-    channel.add_waker(&mut wakers[2]);
-
-    channel.remove_waker(&mut wakers[0]);
-    channel.remove_waker(&mut wakers[1]);
-    channel.remove_waker(&mut wakers[2]);
-
-    assert!(channel.next_waker().is_none());
-    assert_eq!(count1.get(), 0);
-    assert_eq!(count2.get(), 0);
-    assert_eq!(count3.get(), 0);
-}
-
-#[test]
-fn channel_remove_waker_three_wakers_order_1() {
+fn channel_remove_sender_waker_three_wakers_order_0() {
     let channel = Channel::<usize>::new();
 
     let (waker1, count1) = new_count_waker();
@@ -504,22 +467,22 @@ fn channel_remove_waker_three_wakers_order_1() {
         },
     ];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
-    channel.add_waker(&mut wakers[2]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[2]);
 
-    channel.remove_waker(&mut wakers[0]);
-    channel.remove_waker(&mut wakers[2]);
-    channel.remove_waker(&mut wakers[1]);
+    channel.remove_sender_waker(&mut wakers[0]);
+    channel.remove_sender_waker(&mut wakers[1]);
+    channel.remove_sender_waker(&mut wakers[2]);
 
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
     assert_eq!(count1.get(), 0);
     assert_eq!(count2.get(), 0);
     assert_eq!(count3.get(), 0);
 }
 
 #[test]
-fn channel_remove_waker_three_wakers_order_2() {
+fn channel_remove_sender_waker_three_wakers_order_1() {
     let channel = Channel::<usize>::new();
 
     let (waker1, count1) = new_count_waker();
@@ -541,22 +504,22 @@ fn channel_remove_waker_three_wakers_order_2() {
         },
     ];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
-    channel.add_waker(&mut wakers[2]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[2]);
 
-    channel.remove_waker(&mut wakers[1]);
-    channel.remove_waker(&mut wakers[0]);
-    channel.remove_waker(&mut wakers[2]);
+    channel.remove_sender_waker(&mut wakers[0]);
+    channel.remove_sender_waker(&mut wakers[2]);
+    channel.remove_sender_waker(&mut wakers[1]);
 
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
     assert_eq!(count1.get(), 0);
     assert_eq!(count2.get(), 0);
     assert_eq!(count3.get(), 0);
 }
 
 #[test]
-fn channel_remove_waker_three_wakers_order_3() {
+fn channel_remove_sender_waker_three_wakers_order_2() {
     let channel = Channel::<usize>::new();
 
     let (waker1, count1) = new_count_waker();
@@ -578,22 +541,22 @@ fn channel_remove_waker_three_wakers_order_3() {
         },
     ];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
-    channel.add_waker(&mut wakers[2]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[2]);
 
-    channel.remove_waker(&mut wakers[1]);
-    channel.remove_waker(&mut wakers[2]);
-    channel.remove_waker(&mut wakers[0]);
+    channel.remove_sender_waker(&mut wakers[1]);
+    channel.remove_sender_waker(&mut wakers[0]);
+    channel.remove_sender_waker(&mut wakers[2]);
 
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
     assert_eq!(count1.get(), 0);
     assert_eq!(count2.get(), 0);
     assert_eq!(count3.get(), 0);
 }
 
 #[test]
-fn channel_remove_waker_three_wakers_order_4() {
+fn channel_remove_sender_waker_three_wakers_order_3() {
     let channel = Channel::<usize>::new();
 
     let (waker1, count1) = new_count_waker();
@@ -615,22 +578,22 @@ fn channel_remove_waker_three_wakers_order_4() {
         },
     ];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
-    channel.add_waker(&mut wakers[2]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[2]);
 
-    channel.remove_waker(&mut wakers[2]);
-    channel.remove_waker(&mut wakers[0]);
-    channel.remove_waker(&mut wakers[1]);
+    channel.remove_sender_waker(&mut wakers[1]);
+    channel.remove_sender_waker(&mut wakers[2]);
+    channel.remove_sender_waker(&mut wakers[0]);
 
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
     assert_eq!(count1.get(), 0);
     assert_eq!(count2.get(), 0);
     assert_eq!(count3.get(), 0);
 }
 
 #[test]
-fn channel_remove_waker_three_wakers_order_5() {
+fn channel_remove_sender_waker_three_wakers_order_4() {
     let channel = Channel::<usize>::new();
 
     let (waker1, count1) = new_count_waker();
@@ -652,34 +615,71 @@ fn channel_remove_waker_three_wakers_order_5() {
         },
     ];
 
-    channel.add_waker(&mut wakers[0]);
-    channel.add_waker(&mut wakers[1]);
-    channel.add_waker(&mut wakers[2]);
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[2]);
 
-    channel.remove_waker(&mut wakers[2]);
-    channel.remove_waker(&mut wakers[1]);
-    channel.remove_waker(&mut wakers[0]);
+    channel.remove_sender_waker(&mut wakers[2]);
+    channel.remove_sender_waker(&mut wakers[0]);
+    channel.remove_sender_waker(&mut wakers[1]);
 
-    assert!(channel.next_waker().is_none());
+    assert!(channel.next_sender_waker().is_none());
     assert_eq!(count1.get(), 0);
     assert_eq!(count2.get(), 0);
     assert_eq!(count3.get(), 0);
 }
 
 #[test]
-fn channel_remove_waker_not_in_list() {
+fn channel_remove_sender_waker_three_wakers_order_5() {
+    let channel = Channel::<usize>::new();
+
+    let (waker1, count1) = new_count_waker();
+    let (waker2, count2) = new_count_waker();
+    let (waker3, count3) = new_count_waker();
+
+    let mut wakers = [
+        WakerList {
+            waker: Mutex::new(Some(waker1)),
+            next: AtomicPtr::new(ptr::null_mut()),
+        },
+        WakerList {
+            waker: Mutex::new(Some(waker2)),
+            next: AtomicPtr::new(ptr::null_mut()),
+        },
+        WakerList {
+            waker: Mutex::new(Some(waker3)),
+            next: AtomicPtr::new(ptr::null_mut()),
+        },
+    ];
+
+    channel.add_sender_waker(&mut wakers[0]);
+    channel.add_sender_waker(&mut wakers[1]);
+    channel.add_sender_waker(&mut wakers[2]);
+
+    channel.remove_sender_waker(&mut wakers[2]);
+    channel.remove_sender_waker(&mut wakers[1]);
+    channel.remove_sender_waker(&mut wakers[0]);
+
+    assert!(channel.next_sender_waker().is_none());
+    assert_eq!(count1.get(), 0);
+    assert_eq!(count2.get(), 0);
+    assert_eq!(count3.get(), 0);
+}
+
+#[test]
+fn channel_remove_sender_waker_not_in_list() {
     let channel = Channel::<usize>::new();
     let waker = WakerList {
         waker: Mutex::new(None),
         next: AtomicPtr::new(ptr::null_mut()),
     };
-    channel.remove_waker(&waker);
+    channel.remove_sender_waker(&waker);
 }
 
 #[test]
-fn channel_remove_waker_null_pointer() {
+fn channel_remove_sender_waker_null_pointer() {
     let channel = Channel::<usize>::new();
-    channel.remove_waker(ptr::null());
+    channel.remove_sender_waker(ptr::null());
 }
 
 #[test]
@@ -698,7 +698,7 @@ fn send_value_removes_waker_from_list_on_drop() {
 
     // Dropping the `SendValue` future should remove the waker from the list.
     drop(future);
-    assert!(receiver.channel().next_waker().is_none());
+    assert!(receiver.channel().next_sender_waker().is_none());
 
     for _ in 0..SMALL_CAP {
         assert_eq!(receiver.try_recv().unwrap(), 123);
@@ -727,7 +727,7 @@ fn send_value_removes_waker_from_list_on_drop_polled_with_different_wakers() {
 
     // Dropping the `SendValue` future should remove the waker from the list.
     drop(future);
-    assert!(receiver.channel().next_waker().is_none());
+    assert!(receiver.channel().next_sender_waker().is_none());
 
     for _ in 0..SMALL_CAP {
         assert_eq!(receiver.try_recv().unwrap(), 123);
