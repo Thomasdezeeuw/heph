@@ -17,7 +17,7 @@ use crate::{
 
 #[test]
 fn size_assertions() {
-    assert_eq!(size_of::<Channel<()>>(), 56);
+    assert_eq!(size_of::<Channel<()>>(), 64);
     assert_eq!(size_of::<SendValue<()>>(), 56);
 }
 
@@ -184,7 +184,7 @@ fn channel_next_sender_waker_single_waker() {
         next: AtomicPtr::new(ptr::null_mut()),
     }];
 
-    channel.add_sender_waker(&mut wakers[0]);
+    unsafe { channel.add_sender_waker(&mut wakers[0]) };
 
     channel.next_sender_waker().unwrap().wake();
     assert_eq!(count.get(), 1);
@@ -209,8 +209,10 @@ fn channel_next_sender_waker_two_wakers() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+    }
 
     channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
@@ -244,9 +246,11 @@ fn channel_next_sender_waker_three_wakers() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
-    channel.add_sender_waker(&mut wakers[2]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+        channel.add_sender_waker(&mut wakers[2]);
+    }
 
     channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
@@ -285,9 +289,11 @@ fn channel_next_sender_waker_with_none_waker_0() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
-    channel.add_sender_waker(&mut wakers[2]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+        channel.add_sender_waker(&mut wakers[2]);
+    }
 
     channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
@@ -320,9 +326,11 @@ fn channel_next_sender_waker_with_none_waker_1() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
-    channel.add_sender_waker(&mut wakers[2]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+        channel.add_sender_waker(&mut wakers[2]);
+    }
 
     channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
@@ -355,9 +363,11 @@ fn channel_next_sender_waker_with_none_waker_2() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
-    channel.add_sender_waker(&mut wakers[2]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+        channel.add_sender_waker(&mut wakers[2]);
+    }
 
     channel.next_sender_waker().unwrap().wake();
     assert_eq!(count1.get(), 1);
@@ -379,7 +389,7 @@ fn channel_remove_sender_waker_single_waker() {
         next: AtomicPtr::new(ptr::null_mut()),
     }];
 
-    channel.add_sender_waker(&mut wakers[0]);
+    unsafe { channel.add_sender_waker(&mut wakers[0]) };
     channel.remove_sender_waker(&wakers[0]);
 
     assert!(channel.next_sender_waker().is_none());
@@ -404,8 +414,10 @@ fn channel_remove_sender_waker_two_wakers_same_order() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+    }
 
     channel.remove_sender_waker(&mut wakers[0]);
     channel.remove_sender_waker(&mut wakers[1]);
@@ -433,8 +445,10 @@ fn channel_remove_sender_waker_two_wakers_reverse_order() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+    }
 
     channel.remove_sender_waker(&mut wakers[1]);
     channel.remove_sender_waker(&mut wakers[0]);
@@ -467,9 +481,11 @@ fn channel_remove_sender_waker_three_wakers_order_0() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
-    channel.add_sender_waker(&mut wakers[2]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+        channel.add_sender_waker(&mut wakers[2]);
+    }
 
     channel.remove_sender_waker(&mut wakers[0]);
     channel.remove_sender_waker(&mut wakers[1]);
@@ -504,9 +520,11 @@ fn channel_remove_sender_waker_three_wakers_order_1() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
-    channel.add_sender_waker(&mut wakers[2]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+        channel.add_sender_waker(&mut wakers[2]);
+    }
 
     channel.remove_sender_waker(&mut wakers[0]);
     channel.remove_sender_waker(&mut wakers[2]);
@@ -541,9 +559,11 @@ fn channel_remove_sender_waker_three_wakers_order_2() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
-    channel.add_sender_waker(&mut wakers[2]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+        channel.add_sender_waker(&mut wakers[2]);
+    }
 
     channel.remove_sender_waker(&mut wakers[1]);
     channel.remove_sender_waker(&mut wakers[0]);
@@ -578,9 +598,11 @@ fn channel_remove_sender_waker_three_wakers_order_3() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
-    channel.add_sender_waker(&mut wakers[2]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+        channel.add_sender_waker(&mut wakers[2]);
+    }
 
     channel.remove_sender_waker(&mut wakers[1]);
     channel.remove_sender_waker(&mut wakers[2]);
@@ -615,9 +637,11 @@ fn channel_remove_sender_waker_three_wakers_order_4() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
-    channel.add_sender_waker(&mut wakers[2]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+        channel.add_sender_waker(&mut wakers[2]);
+    }
 
     channel.remove_sender_waker(&mut wakers[2]);
     channel.remove_sender_waker(&mut wakers[0]);
@@ -652,9 +676,11 @@ fn channel_remove_sender_waker_three_wakers_order_5() {
         },
     ];
 
-    channel.add_sender_waker(&mut wakers[0]);
-    channel.add_sender_waker(&mut wakers[1]);
-    channel.add_sender_waker(&mut wakers[2]);
+    unsafe {
+        channel.add_sender_waker(&mut wakers[0]);
+        channel.add_sender_waker(&mut wakers[1]);
+        channel.add_sender_waker(&mut wakers[2]);
+    }
 
     channel.remove_sender_waker(&mut wakers[2]);
     channel.remove_sender_waker(&mut wakers[1]);

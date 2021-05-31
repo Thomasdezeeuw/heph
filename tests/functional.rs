@@ -755,6 +755,83 @@ mod future {
         assert_eq!(receiver.try_recv(), Ok(0));
         assert_eq!(count, 0);
     }
+
+    #[test]
+    fn sender_join() {
+        let (sender, receiver) = new_small::<usize>();
+
+        let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
+
+        let future = sender.join();
+        pin_stack!(future);
+
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+        assert_eq!(count, 0);
+
+        drop(receiver);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(()));
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn sender_join_drop_before_waker_register() {
+        let (sender, receiver) = new_small::<usize>();
+        drop(receiver);
+
+        let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
+
+        let future = sender.join();
+        pin_stack!(future);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(()));
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn sender_join_dont_register_waker_twice() {
+        let (sender, receiver) = new_small::<usize>();
+
+        let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
+
+        let future = sender.join();
+        pin_stack!(future);
+
+        // Poll twice.
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+        assert_eq!(count, 0);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+        assert_eq!(count, 0);
+
+        drop(receiver);
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(()));
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn sender_join_poll_with_different_wakers() {
+        let (sender, receiver) = new_small::<usize>();
+
+        let (waker, count1) = new_count_waker();
+        let mut ctx1 = task::Context::from_waker(&waker);
+        let (waker, count2) = new_count_waker();
+        let mut ctx2 = task::Context::from_waker(&waker);
+
+        let future = sender.join();
+        pin_stack!(future);
+
+        assert_eq!(future.as_mut().poll(&mut ctx1), Poll::Pending);
+        assert_eq!(count1, 0);
+        // Poll with a different waker.
+        assert_eq!(future.as_mut().poll(&mut ctx2), Poll::Pending);
+        assert_eq!(count2, 0);
+
+        drop(receiver);
+        assert_eq!(future.as_mut().poll(&mut ctx2), Poll::Ready(()));
+        assert_eq!(count1, 0);
+        assert_eq!(count2, 1);
+    }
 }
 
 mod manager {
