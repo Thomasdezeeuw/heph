@@ -1,9 +1,16 @@
+# 0.1.3
+
+## Added
+
+* `Sender::join`, waits until the other side is disconnected
+  (https://github.com/Thomasdezeeuw/inbox/commit/31db1d9587e307600fd7e075c1c1f0ad27c438ea).
+
 # 0.1.2
 
 ## Added
 
 * `oneshot::Receiver::register_waker`, allows a `task::Waker` to be registered
-  (https://github.com/Thomasdezeeuw/inbox/commit/dc5202e0d621856403a125dcef5bf33e9477d2c4).
+  (https://github.com/Thomasdezeeuw/inbox/commit/3a711032d789e4652f4ee4d193e0ecaebc1226f4).
 
 # 0.1.1
 
