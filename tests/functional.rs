@@ -3,6 +3,7 @@
 #![feature(
     async_stream,
     drain_filter,
+    future_poll_fn,
     maybe_uninit_slice,
     never_type,
     once_cell,
