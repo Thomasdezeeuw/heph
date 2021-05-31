@@ -69,6 +69,7 @@ impl Client {
     ///
     /// If the server doesn't respond this return an [`io::Error`] with
     /// [`io::ErrorKind::UnexpectedEof`].
+    #[allow(clippy::future_not_send)] // TODO.
     pub async fn request<'c, 'b, B>(
         &'c mut self,
         method: Method,
@@ -91,6 +92,7 @@ impl Client {
         }
     }
 
+    #[allow(clippy::future_not_send)] // TODO.
     pub async fn send_request<'b, B>(
         &mut self,
         method: Method,
@@ -179,6 +181,7 @@ impl Client {
         Ok(())
     }
 
+    #[allow(clippy::too_many_lines)] // TODO.
     pub async fn read_response<'a>(
         &'a mut self,
         request_method: Method,
@@ -467,7 +470,7 @@ impl Future for Connect {
                     parsed_bytes: 0,
                 }))
             }
-            Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
+            Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
             Poll::Pending => Poll::Pending,
         }
     }
@@ -594,15 +597,14 @@ impl<'c> Body<'c> {
             if let Some(chunk_len) = chunk_len {
                 // FIXME: doesn't deal with chunked bodies.
                 return self.client.stream.recv_n(&mut *buf, chunk_len).await;
-            } else {
-                let n = self.client.stream.recv(&mut *buf).await?;
-                if n == 0 {
-                    return Ok(());
-                }
-                total += n;
-                if total > limit {
-                    return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
-                }
+            }
+            let n = self.client.stream.recv(&mut *buf).await?;
+            if n == 0 {
+                return Ok(());
+            }
+            total += n;
+            if total > limit {
+                return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
             }
         }
     }
@@ -679,6 +681,7 @@ pub enum ResponseError {
 impl ResponseError {
     /// Returns `true` if the connection should be closed based on the error
     /// (after sending a error response).
+    #[allow(clippy::unused_self)]
     pub const fn should_close(self) -> bool {
         // Currently all errors are fatal for the connection.
         true
