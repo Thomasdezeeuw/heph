@@ -651,7 +651,7 @@ impl Connection {
     ///
     /// See the notes for [`Connection::send_response`], they apply to this
     /// function also.
-    #[allow(clippy::future_not_send)]
+    #[allow(clippy::future_not_send)] // TODO.
     pub async fn respond<'b, B>(
         &mut self,
         status: StatusCode,
@@ -690,7 +690,7 @@ impl Connection {
     ///
     /// [`expects_body()`]: Method::expects_body
     /// [`includes_body()`]: StatusCode::includes_body
-    #[allow(clippy::future_not_send)]
+    #[allow(clippy::future_not_send)] // TODO.
     pub async fn send_response<'b, B>(
         &mut self,
         request_method: Method,
