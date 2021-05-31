@@ -1,15 +1,16 @@
 //! Tests related to `ActorRef`.
 
+use std::convert::Infallible;
 use std::fmt;
 use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::task::Poll;
 
-use heph::actor_ref::{ActorRef, RpcError, RpcMessage, SendError, SendValue};
+use heph::actor_ref::{ActorRef, Join, RpcError, RpcMessage, SendError, SendValue};
 use heph::rt::{Runtime, ThreadLocal};
 use heph::spawn::options::Priority;
 use heph::supervisor::NoSupervisor;
-use heph::test::{init_local_actor, poll_actor};
+use heph::test::{init_local_actor, poll_actor, poll_future};
 use heph::{actor, ActorOptions};
 
 use crate::util::{assert_send, assert_size, assert_sync, pending_once};
@@ -23,6 +24,7 @@ const MSGS: &[&str] = &["Hello world", "Hello mars", "Hello moon"];
 fn size() {
     assert_size::<ActorRef<()>>(24);
     assert_size::<SendValue<'_, ()>>(64);
+    assert_size::<Join<'_, ()>>(56);
 }
 
 #[test]
@@ -737,4 +739,53 @@ fn rpc_waking() {
         })
         .unwrap();
     runtime.start().unwrap();
+}
+
+async fn stop_on_run(ctx: actor::Context<Infallible, ThreadLocal>) {
+    drop(ctx);
+}
+
+#[test]
+fn join() {
+    let stop_on_run = stop_on_run as fn(_) -> _;
+    let (actor, actor_ref) = init_local_actor(stop_on_run, ()).unwrap();
+    let mut actor = Box::pin(actor);
+
+    let future = actor_ref.join();
+    let mut future = Box::pin(future);
+
+    assert_eq!(poll_future(Pin::new(&mut future)), Poll::Pending);
+
+    assert_eq!(poll_actor(Pin::new(&mut actor)), Poll::Ready(Ok(())));
+    assert_eq!(poll_future(Pin::new(&mut future)), Poll::Ready(()));
+}
+
+#[test]
+fn join_mapped() {
+    let stop_on_run = stop_on_run as fn(_) -> _;
+    let (actor, actor_ref) = init_local_actor(stop_on_run, ()).unwrap();
+    let mut actor = Box::pin(actor);
+
+    let actor_ref = actor_ref.map::<!>();
+    let future = actor_ref.join();
+    let mut future = Box::pin(future);
+
+    assert_eq!(poll_future(Pin::new(&mut future)), Poll::Pending);
+
+    assert_eq!(poll_actor(Pin::new(&mut actor)), Poll::Ready(Ok(())));
+    assert_eq!(poll_future(Pin::new(&mut future)), Poll::Ready(()));
+}
+
+#[test]
+fn join_before_actor_finished() {
+    let stop_on_run = stop_on_run as fn(_) -> _;
+    let (actor, actor_ref) = init_local_actor(stop_on_run, ()).unwrap();
+    let mut actor = Box::pin(actor);
+
+    assert_eq!(poll_actor(Pin::new(&mut actor)), Poll::Ready(Ok(())));
+
+    let future = actor_ref.join();
+    let mut future = Box::pin(future);
+
+    assert_eq!(poll_future(Pin::new(&mut future)), Poll::Ready(()));
 }
