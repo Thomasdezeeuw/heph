@@ -5,7 +5,7 @@
 use std::thread;
 use std::time::Duration;
 
-use heph_inbox::{new_small, RecvError, SendError};
+use heph_inbox::{new_small, Manager, RecvError, SendError};
 
 #[macro_use]
 mod util;
@@ -113,6 +113,44 @@ fn receiver_is_connected() {
         {
             r#loop! {
                 if !receiver.is_connected() {
+                    break;
+                }
+            }
+        }
+    );
+}
+
+#[test]
+#[cfg_attr(miri, ignore)] // Doesn't finish.
+fn sender_has_manager() {
+    let (manager, sender, _) = Manager::<()>::new_small_channel();
+
+    start_threads!(
+        {
+            drop(manager);
+        },
+        {
+            r#loop! {
+                if !sender.has_manager() {
+                    break;
+                }
+            }
+        }
+    );
+}
+
+#[test]
+#[cfg_attr(miri, ignore)] // Doesn't finish.
+fn receiver_has_manager() {
+    let (manager, _, receiver) = Manager::<()>::new_small_channel();
+
+    start_threads!(
+        {
+            drop(manager);
+        },
+        {
+            r#loop! {
+                if !receiver.has_manager() {
                     break;
                 }
             }

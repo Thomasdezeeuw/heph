@@ -908,6 +908,26 @@ mod manager {
     }
 
     #[test]
+    fn sender_has_manager() {
+        let (manager, sender, receiver) = Manager::<()>::new_small_channel();
+        assert!(sender.has_manager());
+        drop(receiver);
+        assert!(sender.has_manager());
+        drop(manager);
+        assert!(!sender.has_manager());
+    }
+
+    #[test]
+    fn receiver_has_manager() {
+        let (manager, sender, receiver) = Manager::<()>::new_small_channel();
+        assert!(receiver.has_manager());
+        drop(sender);
+        assert!(receiver.has_manager());
+        drop(manager);
+        assert!(!receiver.has_manager());
+    }
+
+    #[test]
     fn same_channel() {
         let (manager1, sender1a, _) = Manager::<usize>::new_small_channel();
         let sender1b = manager1.new_sender();
