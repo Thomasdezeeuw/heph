@@ -47,7 +47,7 @@ use std::stream::Stream;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{self, Poll};
-use std::{io, slice, thread};
+use std::{fmt, io, slice, thread};
 
 use getrandom::getrandom;
 use heph_inbox::oneshot::new_oneshot;
@@ -65,7 +65,7 @@ use crate::rt::{
     SYNC_WORKER_ID_START,
 };
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
-use crate::supervisor::{Supervisor, SyncSupervisor};
+use crate::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
 
 pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 
@@ -451,6 +451,54 @@ where
     NA: NewActor,
 {
     size_of_actor::<NA>()
+}
+
+/// Quick and dirty supervisor that panics whenever it receives an error.
+#[derive(Debug)]
+pub struct PanicSupervisor;
+
+impl<NA> Supervisor<NA> for PanicSupervisor
+where
+    NA: NewActor,
+    NA::Error: fmt::Display,
+    <NA::Actor as Actor>::Error: fmt::Display,
+{
+    fn decide(&mut self, err: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
+        panic!(
+            "error running '{}' actor: {}",
+            actor::name::<NA::Actor>(),
+            err
+        )
+    }
+
+    fn decide_on_restart_error(&mut self, err: NA::Error) -> SupervisorStrategy<NA::Argument> {
+        // NOTE: should never be called.
+        panic!(
+            "error restarting '{}' actor: {}",
+            actor::name::<NA::Actor>(),
+            err
+        )
+    }
+
+    fn second_restart_error(&mut self, err: NA::Error) {
+        // NOTE: should never be called.
+        panic!(
+            "error restarting '{}' actor a second time: {}",
+            actor::name::<NA::Actor>(),
+            err
+        )
+    }
+}
+
+impl<A> SyncSupervisor<A> for PanicSupervisor
+where
+    A: SyncActor,
+    A::Error: fmt::Display,
+{
+    fn decide(&mut self, err: A::Error) -> SupervisorStrategy<A::Argument> {
+        // NOTE: can't use `actor::name` for sync actors.
+        panic!("error running sync actor: {}", err)
+    }
 }
 
 /// Assert that a `Future` is not moved between calls.
