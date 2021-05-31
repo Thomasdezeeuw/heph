@@ -288,6 +288,21 @@ impl<M> ActorRef<M> {
         }
     }
 
+    /// Returns a [`Future`] that waits until the actor finishes running. Acts
+    /// similar to a [`JoinHandle`] of a thread.
+    ///
+    /// [disconnected]: ActorRef::is_connected
+    /// [`JoinHandle`]: std::thread::JoinHandle
+    pub fn join<'r>(&'r self) -> Join<'r, M> {
+        use ActorRefKind::*;
+        Join {
+            kind: match &self.kind {
+                Local(sender) => JoinKind::Local(sender.join()),
+                Mapped(actor_ref) => JoinKind::Mapped(actor_ref.mapped_join()),
+            },
+        }
+    }
+
     /// Returns `true` if the actor to which this reference sends to is still
     /// connected.
     ///
@@ -359,6 +374,10 @@ trait MappedActorRef<M> {
         'r: 'fut,
         M: 'fut;
 
+    fn mapped_join<'r, 'fut>(&'r self) -> Pin<Box<dyn Future<Output = ()> + 'fut>>
+    where
+        'r: 'fut;
+
     fn is_connected(&self) -> bool;
 
     fn id(&self) -> inbox::Id;
@@ -387,6 +406,13 @@ where
             Err(..) => MappedSendValue::MapErr,
         };
         Box::pin(mapped_send)
+    }
+
+    fn mapped_join<'r, 'fut>(&'r self) -> Pin<Box<dyn Future<Output = ()> + 'fut>>
+    where
+        'r: 'fut,
+    {
+        Box::pin(self.join())
     }
 
     fn is_connected(&self) -> bool {
@@ -491,6 +517,55 @@ impl fmt::Display for SendError {
 }
 
 impl Error for SendError {}
+
+/// [`Future`] behind [`ActorRef::join`].
+///
+/// # Safety
+///
+/// It is not safe to leak this `Join` (by using [`mem::forget`]). Always make
+/// sure the destructor is run, by calling [`drop`], or letting it go out of
+/// scope.
+///
+/// [`mem::forget`]: std::mem::forget
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct Join<'r, M> {
+    kind: JoinKind<'r, M>,
+}
+
+enum JoinKind<'r, M> {
+    Local(inbox::Join<'r, M>),
+    Mapped(Pin<Box<dyn Future<Output = ()> + 'r>>),
+}
+
+// We know that the `Local` variant is `Send` and `Sync`. Since the `Mapped`
+// variant is a boxed version of `Local` so is that variant. This makes the
+// entire `JoinKind` `Send` and `Sync`, as long as `M` is `Send` (as we could be
+// sending the message across thread bounds).
+unsafe impl<'r, M: Send> Send for JoinKind<'r, M> {}
+unsafe impl<'r, M: Send> Sync for JoinKind<'r, M> {}
+
+impl<'r, M> Future for Join<'r, M> {
+    type Output = ();
+
+    #[track_caller]
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        use JoinKind::*;
+
+        // Safety: we're not moving the future to this is safe.
+        let this = unsafe { self.get_unchecked_mut() };
+        match &mut this.kind {
+            // Safety: we're not moving `inner` so this is safe.
+            Local(join) => unsafe { Pin::new_unchecked(join) }.poll(ctx),
+            Mapped(fut) => fut.as_mut().poll(ctx),
+        }
+    }
+}
+
+impl<'r, M> fmt::Debug for Join<'r, M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Join")
+    }
+}
 
 /// A group of [`ActorRef`]s used to send a message to multiple actors.
 pub struct ActorGroup<M> {
