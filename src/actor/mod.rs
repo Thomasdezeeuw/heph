@@ -393,7 +393,7 @@ pub trait NewActor {
     /// output. Like the `type_name` function the default implementation is
     /// provided on a best effort basis.
     fn name(&self) -> &'static str {
-        format_name(type_name::<Self::Actor>())
+        name::<Self::Actor>()
     }
 }
 
@@ -591,6 +591,13 @@ mod private {
             Ok(())
         }
     }
+}
+
+/// Returns the name for actors of type `A`.
+///
+/// This is the default implementation of [`NewActor::name`].
+pub(crate) fn name<A>() -> &'static str {
+    format_name(type_name::<A>())
 }
 
 // NOTE: split for easier testing.
