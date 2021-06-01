@@ -5,6 +5,8 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
 use std::thread::{self, Thread};
+#[cfg(any(test, feature = "test"))]
+use std::time::{Duration, Instant};
 
 use heph_inbox::Receiver;
 
@@ -286,14 +288,14 @@ impl SyncWaker {
         })
     }
 
-    /// Poll the `fut`ure until completion, blocking when it can't make
+    /// Poll the `future` until completion, blocking when it can't make
     /// progress.
-    pub(crate) fn block_on<Fut>(self: Arc<SyncWaker>, fut: Fut) -> Fut::Output
+    pub(crate) fn block_on<Fut>(self: Arc<SyncWaker>, future: Fut) -> Fut::Output
     where
         Fut: Future,
     {
         // Pin the `Future` to stack.
-        let mut future = fut;
+        let mut future = future;
         let mut future = unsafe { Pin::new_unchecked(&mut future) };
 
         let task_waker = task::Waker::from(self);
@@ -303,6 +305,41 @@ impl SyncWaker {
                 Poll::Ready(res) => return res,
                 // The waking implementation will `unpark` us.
                 Poll::Pending => thread::park(),
+            }
+        }
+    }
+
+    /// Poll the `future` until completion, blocking when it can't make
+    /// progress, waiting up to `timeout` time.
+    #[cfg(any(test, feature = "test"))]
+    pub(crate) fn block_for<Fut>(
+        self: Arc<SyncWaker>,
+        future: Fut,
+        timeout: Duration,
+    ) -> Option<Fut::Output>
+    where
+        Fut: Future,
+    {
+        // Pin the `Future` to stack.
+        let mut future = future;
+        let mut future = unsafe { Pin::new_unchecked(&mut future) };
+
+        let task_waker = task::Waker::from(self);
+        let mut task_ctx = task::Context::from_waker(&task_waker);
+
+        let start = Instant::now();
+        loop {
+            match Future::poll(future.as_mut(), &mut task_ctx) {
+                Poll::Ready(res) => return Some(res),
+                // The waking implementation will `unpark` us.
+                Poll::Pending => {
+                    let elapsed = start.elapsed();
+                    if elapsed > timeout {
+                        return None;
+                    }
+
+                    thread::park_timeout(timeout - elapsed)
+                }
             }
         }
     }
