@@ -209,6 +209,13 @@ mod future {
     }
 
     #[test]
+    fn reset_sender_alive() {
+        let (sender, mut receiver) = new_oneshot::<usize>();
+        assert!(receiver.try_reset().is_none());
+        drop(sender);
+    }
+
+    #[test]
     fn sending_wakes_receiver_after_reset() {
         let (sender, mut receiver) = new_oneshot::<usize>();
         drop(sender);

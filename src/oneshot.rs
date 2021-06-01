@@ -282,7 +282,11 @@ impl<T> Receiver<T> {
         // `Sender::try_send`'s status update after the write.
         let status = shared.status.load(Ordering::Acquire);
 
-        if has_sender(status) {
+        // NOTE: we need to check `SENDER_ACCESS` here as we're going to
+        // overwrite (`store`) the status below. If the `Sender` was not yet
+        // fully dropped (i.e. unset `SENDER_ACCESS`) this can lead to
+        // use-after-free and double-free.
+        if has_sender_access(status) {
             // The sender is still connected, can't reset yet.
             return None;
         } else if is_filled(status) {
