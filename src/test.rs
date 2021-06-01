@@ -11,6 +11,8 @@
 //!    * [`try_spawn`]: attempt to spawn a thread-safe [actor].
 //!    * [`spawn_future`]: spawn a thread-local [`Future`].
 //!    * [`spawn_sync_actor`]: spawn a [synchronous actor].
+//!  * Waiting on spawned actors:
+//!    * [`join`], [`join_many`]: wait for the actor(s) to finish running.
 //!  * Initialising actors:
 //!    * [`init_local_actor`]: initialise a thread-local actor.
 //!    * [`init_actor`]: initialise a thread-safe actor.
@@ -47,6 +49,7 @@ use std::stream::Stream;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{self, Poll};
+use std::time::{Duration, Instant};
 use std::{fmt, io, slice, thread};
 
 use getrandom::getrandom;
@@ -240,6 +243,54 @@ where
         runtime_ref.spawn_future(future, options);
         Ok(())
     });
+}
+
+/// Returned by [`join`] and [`join_many`].
+#[derive(Copy, Clone, Debug)]
+pub enum JoinResult {
+    /// Actor(s) finished.
+    Ok,
+    /// Waiting for the actors timed out.
+    TimedOut,
+}
+
+impl JoinResult {
+    /// Unwrap the `JoinResult` expecting [`JoinResult::Ok`].
+    #[track_caller]
+    pub fn unwrap(self) {
+        if let JoinResult::TimedOut = self {
+            panic!("joining actors timed out");
+        }
+    }
+}
+
+/// Wait for the actor behind `actor_ref` to finish.
+///
+/// See [`join_many`] for more documentation.
+pub fn join<M>(actor_ref: &ActorRef<M>, timeout: Duration) -> JoinResult {
+    join_many(slice::from_ref(actor_ref), timeout)
+}
+
+/// Wait for all actors behind the `actor_refs` to finish.
+///
+/// # Notes
+///
+/// If you want to wait for actors with different message types try
+/// [`ActorRef::map`] or [`ActorRef::try_map`].
+pub fn join_many<M>(actor_refs: &[ActorRef<M>], timeout: Duration) -> JoinResult {
+    let waker = SyncWaker::new();
+    let start = Instant::now();
+    for actor_ref in actor_refs {
+        let elapsed = start.elapsed();
+        if elapsed > timeout {
+            return JoinResult::TimedOut;
+        }
+        match waker.clone().block_for(actor_ref.join(), timeout - elapsed) {
+            Some(()) => {}
+            None => return JoinResult::TimedOut,
+        }
+    }
+    JoinResult::Ok
 }
 
 /// Initialise a thread-local actor.
