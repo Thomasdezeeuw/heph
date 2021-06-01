@@ -4,7 +4,7 @@ description   = """
 Bounded capacity channel designed to be used as inbox for actors. Also supports
 one shot channels.
 """
-version       = "0.1.3"
+version       = "0.2.0"
 authors       = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license       = "MIT"
 documentation = "https://docs.rs/heph-inbox"

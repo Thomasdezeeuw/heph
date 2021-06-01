@@ -1,3 +1,20 @@
+# 0.2.0
+
+## Changed
+
+* **BREAKING**: `oneshot::Receiver::try_recv` now only returns the message, not a
+  reset receiver.
+  (https://github.com/Thomasdezeeuw/inbox/commit/2dd49a96e55e97e66a6634eab92cb81764c8d0cd).
+
+## Fixes
+
+* `oneshot::Receiver::try_reset` no only resets the if the Sender is fully
+  dropped, not still in-progress of dropping.
+  (https://github.com/Thomasdezeeuw/inbox/commit/37dd066cdcfa56599c9fcbd06b83ce39d449aeca).
+* Fixes a data-race in the oneshot channel, where a reset receiver (returned by
+  `oneshot::Receiver::try_reset`) would attempt to free the channel twice.
+  (https://github.com/Thomasdezeeuw/inbox/commit/2dd49a96e55e97e66a6634eab92cb81764c8d0cd).
+
 # 0.1.3
 
 ## Added
