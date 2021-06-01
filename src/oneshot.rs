@@ -32,7 +32,7 @@
 //!     // will waste CPU cycles when the channel is empty!
 //!     loop {
 //!         match receiver.try_recv() {
-//!             Ok((value, _)) => println!("Got a value: {}", value),
+//!             Ok(value) => println!("Got a value: {}", value),
 //!             Err(RecvError::NoValue) => continue,
 //!             Err(RecvError::Disconnected) => break,
 //!         }
@@ -90,7 +90,8 @@ const EMPTY: u8 = 0b0000_0000;
 const FILLED: u8 = 0b0000_0001;
 
 // Status transitions.
-const MARK_FILLED: u8 = 1; // ADD to go from EMPTY -> FILLED.
+const MARK_FILLED: u8 = 0b0000_0001; // ADD to go from EMPTY -> FILLED.
+const MARK_EMPTY: u8 = !MARK_FILLED; // AND to go from FILLED -> EMPTY.
 /// Initial state value, also used to reset the status.
 const INITIAL: u8 = RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY;
 
@@ -225,31 +226,25 @@ impl<T> Receiver<T> {
     ///
     /// If it succeeds it returns the value and resets the channel, returning a
     /// new [`Sender`] (which can send a value to this `Receiver`).
-    pub fn try_recv(&mut self) -> Result<(T, Sender<T>), RecvError> {
+    pub fn try_recv(&mut self) -> Result<T, RecvError> {
         let shared = self.shared();
-        // Safety: `Acquire` is required here to ensure it syncs with
+        // Safety: `AcqRel` is required here to ensure it syncs with
         // `Sender::try_send`'s status update after the write.
-        let status = shared.status.load(Ordering::Acquire);
+        let status = shared.status.fetch_and(MARK_EMPTY, Ordering::AcqRel);
 
-        if has_sender(status) {
-            // The sender is still connected, thus hasn't send a value yet.
-            return Err(RecvError::NoValue);
-        } else if is_empty(status) {
-            // Sender disconnected and no value was send.
-            return Err(RecvError::Disconnected);
+        if is_empty(status) {
+            if has_sender(status) {
+                // The sender is still connected, thus hasn't send a value yet.
+                Err(RecvError::NoValue)
+            } else {
+                // Sender is disconnected and no value was send.
+                Err(RecvError::Disconnected)
+            }
+        } else {
+            // Safety: since we're the only thread with access this is safe.
+            let msg = unsafe { (&*shared.message.get()).assume_init_read() };
+            Ok(msg)
         }
-
-        // Safety: since we're the only thread with access this is safe.
-        let msg = unsafe { (&*shared.message.get()).assume_init_read() };
-
-        // Reset the status.
-        // Safety: since the `Sender` has been dropped we have unique access to
-        // `shared` making Relaxed ordering fine.
-        shared.status.store(INITIAL, Ordering::Release);
-        let sender = Sender {
-            shared: self.shared,
-        };
-        Ok((msg, sender))
     }
 
     /// Returns a future that receives a value from the channel, waiting if the
@@ -399,7 +394,7 @@ macro_rules! recv_future_impl {
 }
 
 impl<'r, T> Future for RecvValue<'r, T> {
-    type Output = Option<(T, Sender<T>)>;
+    type Output = Option<T>;
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
         recv_future_impl!(self, ctx)
@@ -419,11 +414,7 @@ impl<T> Future for RecvOnce<T> {
     type Output = Option<T>;
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
-        match recv_future_impl!(self, ctx) {
-            Poll::Ready(Some((value, _))) => Poll::Ready(Some(value)),
-            Poll::Ready(None) => Poll::Ready(None),
-            Poll::Pending => Poll::Pending,
-        }
+        recv_future_impl!(self, ctx)
     }
 }
 

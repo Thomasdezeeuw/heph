@@ -36,7 +36,7 @@ mod functional {
     fn single_send_recv() {
         let (sender, mut receiver) = new_oneshot();
         sender.try_send(1).unwrap();
-        assert_eq!(receiver.try_recv().unwrap().0, 1);
+        assert_eq!(receiver.try_recv().unwrap(), 1);
     }
 
     #[test]
@@ -141,10 +141,7 @@ mod future {
 
         sender.try_send(1).unwrap();
         assert_eq!(count, 1);
-        assert_eq!(
-            future.as_mut().poll(&mut ctx).map(|ok| ok.map(|v| v.0)),
-            Poll::Ready(Some(1))
-        );
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(1)));
     }
 
     #[test]
@@ -162,10 +159,7 @@ mod future {
 
         drop(sender);
         assert_eq!(count, 1);
-        assert_eq!(
-            future.as_mut().poll(&mut ctx).map(|ok| ok.map(|v| v.0)),
-            Poll::Ready(None)
-        );
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
     }
 
     #[test]
@@ -188,10 +182,7 @@ mod future {
         sender.try_send(1).unwrap();
         assert_eq!(count1, 0);
         assert_eq!(count2, 1);
-        assert_eq!(
-            future.as_mut().poll(&mut ctx2).map(|ok| ok.map(|v| v.0)),
-            Poll::Ready(Some(1))
-        );
+        assert_eq!(future.as_mut().poll(&mut ctx2), Poll::Ready(Some(1)));
     }
 
     #[test]
@@ -214,10 +205,7 @@ mod future {
         drop(sender);
         assert_eq!(count1, 0);
         assert_eq!(count2, 1);
-        assert_eq!(
-            future.as_mut().poll(&mut ctx2).map(|ok| ok.map(|v| v.0)),
-            Poll::Ready(None)
-        );
+        assert_eq!(future.as_mut().poll(&mut ctx2), Poll::Ready(None));
     }
 
     #[test]
@@ -237,10 +225,7 @@ mod future {
 
         sender.try_send(1).unwrap();
         assert_eq!(count, 1);
-        assert_eq!(
-            future.as_mut().poll(&mut ctx).map(|ok| ok.map(|v| v.0)),
-            Poll::Ready(Some(1))
-        );
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(1)));
     }
 
     #[test]
@@ -260,10 +245,7 @@ mod future {
 
         drop(sender);
         assert_eq!(count, 1);
-        assert_eq!(
-            future.as_mut().poll(&mut ctx).map(|ok| ok.map(|v| v.0)),
-            Poll::Ready(None)
-        );
+        assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
     }
 }
 
@@ -297,30 +279,6 @@ mod drop {
         let (value, _check) = DropTest::new();
         sender.try_send(value).unwrap();
         assert!(receiver.try_recv().is_ok());
-    }
-
-    #[test]
-    fn value_send_and_received_and_send() {
-        let (sender, mut receiver) = new_oneshot();
-        let (value, _check) = DropTest::new();
-        sender.try_send(value).unwrap();
-        let (value, sender2) = receiver.try_recv().unwrap();
-        let (value2, _check) = DropTest::new();
-        sender2.try_send(value2).unwrap();
-        drop(value);
-        drop(receiver);
-    }
-
-    #[test]
-    fn value_send_and_received_and_send_received() {
-        let (sender, mut receiver) = new_oneshot();
-        let (value, _check) = DropTest::new();
-        sender.try_send(value).unwrap();
-        let (value, sender2) = receiver.try_recv().unwrap();
-        let (value2, _check) = DropTest::new();
-        sender2.try_send(value2).unwrap();
-        assert!(receiver.try_recv().is_ok());
-        drop(value);
     }
 
     #[test]
@@ -421,50 +379,6 @@ mod drop {
 
         #[test]
         #[cfg_attr(miri, ignore)] // `sleep` not supported.
-        fn value_send_and_received_and_send() {
-            let (sender, mut receiver) = new_oneshot();
-            let (value, _check) = DropTest::new();
-
-            start_threads!(
-                {
-                    sender.try_send(value).unwrap();
-                },
-                {
-                    // Give the sender a chance to send the message.
-                    thread::sleep(Duration::from_millis(10));
-                    let (value, sender2) = receiver.try_recv().unwrap();
-                    let (value2, _check) = DropTest::new();
-                    sender2.try_send(value2).unwrap();
-                    drop(value);
-                    drop(receiver);
-                }
-            );
-        }
-
-        #[test]
-        #[cfg_attr(miri, ignore)] // `sleep` not supported.
-        fn value_send_and_received_and_send_received() {
-            let (sender, mut receiver) = new_oneshot();
-            let (value, _check) = DropTest::new();
-
-            start_threads!(
-                {
-                    sender.try_send(value).unwrap();
-                },
-                {
-                    // Give the sender a chance to send the message.
-                    thread::sleep(Duration::from_millis(10));
-                    let (value, sender2) = receiver.try_recv().unwrap();
-                    let (value2, _check) = DropTest::new();
-                    sender2.try_send(value2).unwrap();
-                    assert!(receiver.try_recv().is_ok());
-                    drop(value);
-                }
-            );
-        }
-
-        #[test]
-        #[cfg_attr(miri, ignore)] // `sleep` not supported.
         fn reset() {
             let (sender, mut receiver) = new_oneshot::<NeverDrop>();
 
@@ -545,7 +459,7 @@ mod threaded {
         ($recv: expr, $expected: expr) => {
             r#loop! {
                 match $recv.try_recv() {
-                    Ok((msg, _)) => {
+                    Ok(msg) => {
                         assert_eq!(msg, $expected);
                         break;
                     }
@@ -656,40 +570,6 @@ mod threaded {
                 r#loop! {
                     if !receiver.is_connected() {
                         break;
-                    }
-                }
-            }
-        );
-    }
-
-    #[test]
-    #[cfg_attr(miri, ignore)] // Doesn't finish.
-    fn sender_usage_after_try_recv() {
-        let (sender, mut receiver) = new_oneshot();
-
-        start_threads!(
-            {
-                sender.try_send(123).unwrap();
-            },
-            {
-                r#loop! {
-                    match receiver.try_recv() {
-                        Ok((msg, sender2)) => {
-                            assert_eq!(msg, 123);
-                            assert!(sender2.is_connected());
-
-                            sender2.try_send(456).unwrap();
-                            let (msg, sender3) = receiver.try_recv().unwrap();
-                            assert_eq!(msg, 456);
-
-                            assert!(sender3.is_connected());
-                            assert!(receiver.is_connected());
-                            break;
-                        }
-                        Err(RecvError::NoValue) => {} // Value not ready yet.
-                        Err(RecvError::Disconnected) => {
-                            panic!("unexpected error receiving: {}", RecvError::Disconnected)
-                        }
                     }
                 }
             }
