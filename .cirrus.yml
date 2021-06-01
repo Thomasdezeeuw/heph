@@ -4,6 +4,7 @@ env:
   RUST_BACKTRACE: full
 task:
   name: FreeBSD
+  timeout_in: 15m
   cargo_cache:
     folder: $HOME/.cargo/registry
   setup_script:
