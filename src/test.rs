@@ -156,9 +156,8 @@ where
         Ok(())
     });
     waker
-        .block_on(receiver.recv())
+        .block_on(receiver.recv_once())
         .expect("failed to receive result from test runtime")
-        .0
 }
 
 /// Attempt to spawn a thread-local actor on the *test* runtime.
