@@ -247,6 +247,7 @@ where
 
 /// Returned by [`join`] and [`join_many`].
 #[derive(Copy, Clone, Debug)]
+#[must_use = "this `JoinResult` should be handled"]
 pub enum JoinResult {
     /// Actor(s) finished.
     Ok,
@@ -504,7 +505,7 @@ where
 }
 
 /// Quick and dirty supervisor that panics whenever it receives an error.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct PanicSupervisor;
 
 impl<NA> Supervisor<NA> for PanicSupervisor

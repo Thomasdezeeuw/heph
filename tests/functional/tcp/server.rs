@@ -3,6 +3,7 @@ use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{self, Poll};
+use std::time::Duration;
 
 use heph::actor::messages::Terminate;
 use heph::actor::{self, Actor, NewActor};
@@ -11,10 +12,10 @@ use heph::net::{TcpServer, TcpStream};
 use heph::rt::{self, Signal, ThreadLocal};
 use heph::spawn::ActorOptions;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use heph::test::{init_local_actor, PanicSupervisor};
+use heph::test::{join_many, try_spawn_local, PanicSupervisor};
 use heph::{ActorRef, Runtime};
 
-use crate::util::{any_local_address, run_actors};
+use crate::util::any_local_address;
 
 #[test]
 fn message_from_terminate() {
@@ -127,13 +128,33 @@ fn zero_port() {
 
 #[test]
 fn new_actor_error() {
-    struct ServerWrapper<S>(S);
+    struct ServerWrapper<T>(T);
+
+    impl<NA> NewActor for ServerWrapper<NA>
+    where
+        NA: NewActor,
+        ServerWrapper<NA::Actor>: Actor,
+    {
+        type Message = NA::Message;
+        type Argument = NA::Argument;
+        type Actor = ServerWrapper<NA::Actor>;
+        type Error = NA::Error;
+        type RuntimeAccess = NA::RuntimeAccess;
+
+        fn new(
+            &mut self,
+            ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
+            arg: Self::Argument,
+        ) -> Result<Self::Actor, Self::Error> {
+            self.0.new(ctx, arg).map(ServerWrapper)
+        }
+    }
 
     // NOTE: this is the whole point of the test, we need to get the `NewActor`
     // error here.
-    impl<S> Actor for ServerWrapper<S>
+    impl<A> Actor for ServerWrapper<A>
     where
-        S: Actor<Error = server::Error<()>>,
+        A: Actor<Error = server::Error<()>>,
     {
         type Error = !;
 
@@ -158,6 +179,10 @@ fn new_actor_error() {
     }
 
     struct NewActorErrorGenerator<RT>(PhantomData<*const RT>);
+
+    // `*const RT` is `!Send`, but we don't actually store it.
+    unsafe impl<RT> Send for NewActorErrorGenerator<RT> {}
+    unsafe impl<RT> Sync for NewActorErrorGenerator<RT> {}
 
     impl<RT> Copy for NewActorErrorGenerator<RT> {}
 
@@ -225,11 +250,10 @@ fn new_actor_error() {
     )
     .unwrap();
     let address = server.local_addr();
+    let server = ServerWrapper(server);
+    let server_ref = try_spawn_local(ErrorSupervisor, server, (), ActorOptions::default()).unwrap();
 
-    let (server_actor, _) = init_local_actor(server, ()).unwrap();
-    let server_actor: Box<dyn Actor<Error = !>> = Box::new(ServerWrapper(server_actor));
-
-    async fn stream_actor<RT>(mut ctx: actor::Context<!, RT>, address: SocketAddr)
+    async fn stream_actor<M, RT>(mut ctx: actor::Context<M, RT>, address: SocketAddr)
     where
         RT: rt::Access,
     {
@@ -243,8 +267,8 @@ fn new_actor_error() {
     }
 
     let stream_actor = stream_actor as fn(_, _) -> _;
-    let (stream_actor, _) = init_local_actor(stream_actor, address).unwrap();
-    let stream_actor: Box<dyn Actor<Error = !>> = Box::new(stream_actor);
+    let stream_ref =
+        try_spawn_local(NoSupervisor, stream_actor, address, ActorOptions::default()).unwrap();
 
-    run_actors(vec![server_actor.into(), stream_actor.into()]);
+    join_many(&[server_ref, stream_ref], Duration::from_secs(1)).unwrap();
 }
