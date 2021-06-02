@@ -1,5 +1,4 @@
 use std::convert::TryFrom;
-use std::io;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::pin::Pin;
@@ -10,9 +9,9 @@ use heph::actor::{self, Actor, NewActor};
 use heph::net::tcp::server;
 use heph::net::{TcpServer, TcpStream};
 use heph::rt::{self, Signal, ThreadLocal};
-use heph::spawn::{ActorOptions, Spawn};
+use heph::spawn::ActorOptions;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use heph::test::init_local_actor;
+use heph::test::{init_local_actor, PanicSupervisor};
 use heph::{ActorRef, Runtime};
 
 use crate::util::{any_local_address, run_actors};
@@ -27,28 +26,6 @@ fn message_from_process_signal() {
     let signals = &[Signal::Interrupt, Signal::Terminate, Signal::Quit];
     for signal in signals {
         assert!(server::Message::try_from(*signal).is_ok());
-    }
-}
-
-#[derive(Copy, Clone)]
-struct PanicSupervisor;
-
-impl<S, NA> Supervisor<server::Setup<S, NA>> for PanicSupervisor
-where
-    S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !> + Clone + 'static,
-    NA::RuntimeAccess: rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
-{
-    fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
-        panic!("unexpected error: {}", err);
-    }
-
-    fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-        panic!("unexpected error: {}", err);
-    }
-
-    fn second_restart_error(&mut self, err: io::Error) {
-        panic!("unexpected error: {}", err);
     }
 }
 
