@@ -20,9 +20,7 @@ use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
 use heph::test::{init_local_actor, join, join_many, poll_actor, try_spawn_local, PanicSupervisor};
 
-use crate::util::{
-    any_local_address, expect_pending, expect_ready_ok, is_ready, refused_address, Stage,
-};
+use crate::util::{any_local_address, expect_pending, expect_ready_ok, is_ready, refused_address};
 
 const DATA: &[u8] = b"Hello world";
 // Test files used in testing `send_file`.
@@ -123,41 +121,26 @@ fn smoke() {
 
 #[test]
 fn connect() {
-    static STAGE: Stage = Stage::new();
-
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        STAGE.update(0);
-        let connect = TcpStream::connect(&mut ctx, address)?;
-        STAGE.update(1);
-        wait_once().await;
-
-        let stream = connect.await?;
-        STAGE.update(2);
-        wait_once().await;
-
+        let stream = TcpStream::connect(&mut ctx, address)?.await?;
         drop(stream);
-        STAGE.update(3);
         Ok(())
     }
 
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Stream should not yet be connected.
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
     // Once we accept the connecting the actor should be able to proceed.
     let (mut stream, _) = listener.accept().unwrap();
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 2));
-
-    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 3), ());
-
     let mut buf = [0; 2];
     assert_eq!(stream.read(&mut buf).unwrap(), 0);
     drop(stream);
+
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -166,10 +149,7 @@ fn connect() {
     ignore = "Fails on the CI; running locally on FreeBSD works, not sure what the problem is"
 )]
 fn connect_connection_refused() {
-    static STAGE: Stage = Stage::new();
-
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
-        STAGE.update(0);
         let connect = match TcpStream::connect(&mut ctx, refused_address()) {
             Ok(connect) => connect,
             Err(err) => {
@@ -179,11 +159,9 @@ fn connect_connection_refused() {
                     "unexpected error: {:?}",
                     err
                 );
-                STAGE.update(2);
                 return Ok(());
             }
         };
-        STAGE.update(1);
         match connect.await {
             Ok(..) => panic!("unexpected success"),
             Err(err) => assert_eq!(
@@ -193,28 +171,18 @@ fn connect_connection_refused() {
                 err
             ),
         }
-        STAGE.update(2);
         Ok(())
     }
 
-    let (actor, _) = init_local_actor(actor as fn(_) -> _, ()).unwrap();
-    let mut actor = Box::pin(actor);
-    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 2), ());
+    let actor = actor as fn(_) -> _;
+    let actor_ref = try_spawn_local(PanicSupervisor, actor, (), ActorOptions::default()).unwrap();
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
 fn try_recv() {
-    static STAGE: Stage = Stage::new();
-
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        STAGE.update(0);
-        let connect = TcpStream::connect(&mut ctx, address)?;
-        STAGE.update(1);
-        wait_once().await;
-
-        let mut stream = connect.await?;
-        STAGE.update(2);
-        wait_once().await;
+        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf = Vec::with_capacity(128);
         match stream.try_recv(&mut buf) {
@@ -222,10 +190,6 @@ fn try_recv() {
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {}
             Err(err) => return Err(err),
         }
-        STAGE.update(3);
-
-        // Return pending once.
-        wait_once().await;
 
         limited_loop! {
             match stream.try_recv(&mut buf) {
@@ -258,28 +222,21 @@ fn try_recv() {
             }
         }
 
-        STAGE.update(4);
         Ok(())
     }
 
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
-    // Stream should not yet be connected.
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
-
-    // Connected, but shouldn't yet read anything.
     let (mut stream, _) = listener.accept().unwrap();
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 3));
-
-    // Should be able to read what we write.
     stream.write_all(&DATA).unwrap();
-    sorta_flush(&mut stream);
     drop(stream);
-    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 4), ());
+
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -453,55 +410,31 @@ fn recv_n_from_multiple_writes() {
 
 #[test]
 fn send() {
-    static STAGE: Stage = Stage::new();
-
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        STAGE.update(0);
-        let connect = TcpStream::connect(&mut ctx, address)?;
-        STAGE.update(1);
-        wait_once().await;
-
-        let mut stream = connect.await?;
-        STAGE.update(2);
-        wait_once().await;
+        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let n = stream.send(&DATA).await?;
         assert_eq!(n, DATA.len());
-        STAGE.update(3);
 
-        // Return pending once.
-        wait_once().await;
-
-        drop(stream);
-        STAGE.update(4);
         Ok(())
     }
 
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
-    // Stream should not yet be connected.
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
-
-    // Once we accept the connecting the actor should be able to proceed.
     let (mut stream, _) = listener.accept().unwrap();
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 2));
-
-    // Should send the bytes.
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 3));
-
     let mut buf = [0; DATA.len() + 1];
     let n = stream.read(&mut buf).unwrap();
     assert_eq!(n, DATA.len());
     assert_eq!(&buf[..n], DATA);
-
-    // Should drop the stream.
-    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 4), ());
     let n = stream.read(&mut buf).unwrap();
     assert_eq!(n, 0);
+
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -560,17 +493,8 @@ fn send_all() {
 
 #[test]
 fn send_vectored() {
-    static STAGE: Stage = Stage::new();
-
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        STAGE.update(0);
-        let connect = TcpStream::connect(&mut ctx, address)?;
-        STAGE.update(1);
-        wait_once().await;
-
-        let mut stream = connect.await?;
-        STAGE.update(2);
-        wait_once().await;
+        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let bufs = &mut [
             IoSlice::new(DATA),
@@ -580,43 +504,28 @@ fn send_vectored() {
         ];
         let n = stream.send_vectored(bufs).await?;
         assert_eq!(n, 4 * DATA.len());
-        STAGE.update(3);
 
-        // Return pending once.
-        wait_once().await;
-
-        drop(stream);
-        STAGE.update(4);
         Ok(())
     }
 
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
-    // Stream should not yet be connected.
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
-
-    // Once we accept the connecting the actor should be able to proceed.
     let (mut stream, _) = listener.accept().unwrap();
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 2));
-
-    // Should send the bytes.
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 3));
-
     let mut buf = [0; (4 * DATA.len()) + 1];
     let n = stream.read(&mut buf).unwrap();
     assert_eq!(n, 4 * DATA.len());
     for n in 0..4 {
         assert_eq!(&buf[n * DATA.len()..(n + 1) * DATA.len()], DATA);
     }
-
-    // Should drop the stream.
-    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 4), ());
     let n = stream.read(&mut buf).unwrap();
     assert_eq!(n, 0);
+
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -690,17 +599,8 @@ fn send_vectored_all() {
 
 #[test]
 fn recv_vectored() {
-    static STAGE: Stage = Stage::new();
-
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        STAGE.update(0);
-        let connect = TcpStream::connect(&mut ctx, address)?;
-        STAGE.update(1);
-        wait_once().await;
-
-        let mut stream = connect.await?;
-        STAGE.update(2);
-        wait_once().await;
+        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf1 = Vec::with_capacity(2 * DATA.len());
         let mut buf2 = Vec::with_capacity(2 * DATA.len() + 1);
@@ -711,29 +611,18 @@ fn recv_vectored() {
         assert_eq!(&buf1[DATA.len()..], DATA);
         assert_eq!(&buf2[..DATA.len()], DATA);
         assert_eq!(&buf2[DATA.len()..], DATA);
-        STAGE.update(3);
 
-        // Return pending once.
-        wait_once().await;
-
-        drop(stream);
-        STAGE.update(4);
         Ok(())
     }
 
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
-    // Stream should not yet be connected.
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
-
-    // Once we accept the connecting the actor should be able to proceed.
     let (mut stream, _) = listener.accept().unwrap();
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 2));
-
     let bufs = &mut [
         IoSlice::new(DATA),
         IoSlice::new(DATA),
@@ -741,15 +630,11 @@ fn recv_vectored() {
         IoSlice::new(DATA),
     ];
     stream.write_all_vectored(bufs).unwrap();
-
-    // Should receive the bytes.
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 3));
-
-    // Should drop the stream.
-    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 4), ());
     let mut buf = [0; 2];
     let n = stream.read(&mut buf).unwrap();
     assert_eq!(n, 0);
+
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -1165,17 +1050,8 @@ fn send_file_check_actor<A: Actor<Error = io::Error>>(
 
 #[test]
 fn peek_vectored() {
-    static STAGE: Stage = Stage::new();
-
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        STAGE.update(0);
-        let connect = TcpStream::connect(&mut ctx, address)?;
-        STAGE.update(1);
-        wait_once().await;
-
-        let mut stream = connect.await?;
-        STAGE.update(2);
-        wait_once().await;
+        let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf1 = Vec::with_capacity(2 * DATA.len());
         let mut buf2 = Vec::with_capacity(2 * DATA.len() + 1);
@@ -1186,7 +1062,6 @@ fn peek_vectored() {
         assert_eq!(&buf1[DATA.len()..], DATA);
         assert_eq!(&buf2[..DATA.len()], DATA);
         assert_eq!(&buf2[DATA.len()..], DATA);
-        STAGE.update(3);
 
         // We should receive the same data again after peeking.
         buf1.clear();
@@ -1198,29 +1073,19 @@ fn peek_vectored() {
         assert_eq!(&buf1[DATA.len()..], DATA);
         assert_eq!(&buf2[..DATA.len()], DATA);
         assert_eq!(&buf2[DATA.len()..], DATA);
-        STAGE.update(3);
 
-        // Return pending once.
-        wait_once().await;
-
-        drop(stream);
-        STAGE.update(4);
         Ok(())
     }
 
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Stream should not yet be connected.
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 1));
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
     // Once we accept the connecting the actor should be able to proceed.
     let (mut stream, _) = listener.accept().unwrap();
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 2));
-
     let bufs = &mut [
         IoSlice::new(DATA),
         IoSlice::new(DATA),
@@ -1229,14 +1094,11 @@ fn peek_vectored() {
     ];
     stream.write_all_vectored(bufs).unwrap();
 
-    // Should receive the bytes.
-    expect_pending(STAGE.poll_till(Pin::as_mut(&mut actor), 3));
-
-    // Should drop the stream.
-    expect_ready_ok(STAGE.poll_till(Pin::as_mut(&mut actor), 4), ());
     let mut buf = [0; 2];
     let n = stream.read(&mut buf).unwrap();
     assert_eq!(n, 0);
+
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]

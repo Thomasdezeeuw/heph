@@ -9,14 +9,8 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::pin::Pin;
 use std::stream::Stream;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Once;
 use std::task::{self, Poll};
-use std::thread::sleep;
-use std::time::Duration;
-
-use heph::test::poll_actor;
-use heph::Actor;
 
 #[track_caller]
 macro_rules! limited_loop {
@@ -72,57 +66,6 @@ pub fn temp_file(name: &str) -> PathBuf {
 
     dir.push(name);
     dir
-}
-
-/// Stage of a test actor.
-///
-/// When testing `Future`s it sometimes hard to tell which futures have and
-/// haven't been completed. If a test depends on the fact that a certain future
-/// inside an actor has been completed, but another has not this can be help to
-/// determine that.
-///
-/// For example, we want to test that a `TcpStream` is connected, but can't read
-/// anything yet (because we haven't written anything), before writing to the
-/// connection and testing that it can be read. This depends on the fact that
-/// the actor will return pending the moment it can't read anything, with
-/// `Stage` we know the actor is connected but hasn't read anything.
-#[derive(Debug)]
-pub struct Stage(AtomicUsize);
-
-impl Stage {
-    pub const fn new() -> Stage {
-        Stage(AtomicUsize::new(0))
-    }
-
-    /// Polls `actor` until `stage` is at `wanted` stage.
-    #[track_caller]
-    pub fn poll_till<A>(&self, mut actor: Pin<&mut A>, want: usize) -> Poll<Result<(), A::Error>>
-    where
-        A: Actor,
-    {
-        let mut n = 0;
-        loop {
-            let res = poll_actor(actor.as_mut());
-            let state = self.0.load(Ordering::SeqCst);
-            if res.is_ready() || state >= want {
-                assert_eq!(state, want, "unexpected state");
-                return res;
-            }
-
-            if n > 100 {
-                panic!("looped too many times");
-            }
-            n += 1;
-
-            // Don't want to busy loop.
-            sleep(Duration::from_millis(1));
-        }
-    }
-
-    /// Updates the stage to `stage`.
-    pub fn update(&self, stage: usize) {
-        self.0.store(stage, Ordering::SeqCst)
-    }
 }
 
 #[track_caller]
