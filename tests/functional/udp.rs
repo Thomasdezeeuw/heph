@@ -2,9 +2,6 @@
 
 use std::io::{self, IoSlice};
 use std::net::SocketAddr;
-use std::pin::Pin;
-use std::task::Poll;
-use std::thread::sleep;
 use std::time::Duration;
 
 use heph::actor::{self, Actor, Bound, NewActor};
@@ -13,7 +10,7 @@ use heph::net::udp::{UdpSocket, Unconnected};
 use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
-use heph::test::{init_local_actor, poll_actor};
+use heph::test::{join, try_spawn_local, PanicSupervisor};
 
 use crate::util::{any_local_address, any_local_ipv6_address};
 
@@ -47,21 +44,15 @@ fn connected_ipv6() {
 
 fn test<NA>(local_address: SocketAddr, new_actor: NA)
 where
-    NA: NewActor<Argument = SocketAddr, Error = !, RuntimeAccess = ThreadLocal>,
+    NA: NewActor<Argument = SocketAddr, Error = !, RuntimeAccess = ThreadLocal> + Send + 'static,
     <NA as NewActor>::Actor: Actor<Error = io::Error>,
+    NA::Message: Send,
 {
     let echo_socket = std::net::UdpSocket::bind(local_address).unwrap();
     let address = echo_socket.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(new_actor, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Send the data, peeking should return pending.
-    match poll_actor(Pin::as_mut(&mut actor)) {
-        Poll::Ready(Ok(())) => unreachable!(),
-        Poll::Ready(Err(err)) => panic!("unexpected error from actor: {:?}", err),
-        Poll::Pending => {} // Ok.
-    }
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, new_actor, address, ActorOptions::default()).unwrap();
 
     let mut buf = [0; DATA.len() + 1];
     let (bytes_read, peer_address) = echo_socket.recv_from(&mut buf).unwrap();
@@ -73,14 +64,7 @@ where
         .unwrap();
     assert_eq!(bytes_written, DATA.len());
 
-    // The peeking and reading.
-    loop {
-        match poll_actor(Pin::as_mut(&mut actor)) {
-            Poll::Ready(Ok(())) => return, // Ok.
-            Poll::Ready(Err(err)) => panic!("unexpected error from actor: {:?}", err),
-            Poll::Pending => sleep(Duration::from_millis(1)),
-        }
-    }
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 async fn unconnected_udp_actor(
@@ -157,18 +141,9 @@ fn test_reconnecting(local_address: SocketAddr) {
     let address2 = socket2.local_addr().unwrap();
 
     #[allow(trivial_casts)]
-    let reconnecting_actor = reconnecting_actor as fn(_, _, _) -> _;
-    let (actor, _) = init_local_actor(reconnecting_actor, (address1, address2)).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Let the actor send all data.
-    loop {
-        match poll_actor(Pin::as_mut(&mut actor)) {
-            Poll::Ready(Ok(())) => break,
-            Poll::Ready(Err(err)) => panic!("unexpected error from actor: {:?}", err),
-            Poll::Pending => sleep(Duration::from_millis(1)),
-        }
-    }
+    let actor = reconnecting_actor as fn(_, _, _) -> _;
+    let args = (address1, address2);
+    let actor_ref = try_spawn_local(PanicSupervisor, actor, args, ActorOptions::default()).unwrap();
 
     let mut buf = [0; DATA.len() + 1];
     // The first socket should receive the data twice.
@@ -184,6 +159,8 @@ fn test_reconnecting(local_address: SocketAddr) {
     assert_eq!(bytes_read, DATA.len());
     assert_eq!(&buf[..DATA.len()], &*DATA);
     assert_eq!(peer_address, peer_address1);
+
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 async fn reconnecting_actor(
@@ -316,21 +293,15 @@ async fn connected_vectored_io_actor(
 
 fn test_vectored_io<NA>(local_address: SocketAddr, new_actor: NA)
 where
-    NA: NewActor<Argument = SocketAddr, Error = !, RuntimeAccess = ThreadLocal>,
+    NA: NewActor<Argument = SocketAddr, Error = !, RuntimeAccess = ThreadLocal> + Send + 'static,
     <NA as NewActor>::Actor: Actor<Error = io::Error>,
+    NA::Message: Send,
 {
     let echo_socket = std::net::UdpSocket::bind(local_address).unwrap();
     let address = echo_socket.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(new_actor, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Send the data.
-    match poll_actor(Pin::as_mut(&mut actor)) {
-        Poll::Ready(Ok(())) => unreachable!(),
-        Poll::Ready(Err(err)) => panic!("unexpected error from actor: {:?}", err),
-        Poll::Pending => {} // Ok.
-    }
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, new_actor, address, ActorOptions::default()).unwrap();
 
     let mut buf = [0; DATAV_LEN + 1];
     let (bytes_read, peer_address) = echo_socket.recv_from(&mut buf).unwrap();
@@ -342,14 +313,7 @@ where
         .unwrap();
     assert_eq!(bytes_written, DATAV_LEN);
 
-    // The reading.
-    loop {
-        match poll_actor(Pin::as_mut(&mut actor)) {
-            Poll::Ready(Ok(())) => return, // Ok.
-            Poll::Ready(Err(err)) => panic!("unexpected error from actor: {:?}", err),
-            Poll::Pending => sleep(Duration::from_millis(1)),
-        }
-    }
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 fn assert_read(mut got: &[u8], expected: &[&[u8]]) {
