@@ -1,8 +1,7 @@
-use std::future::Future;
 use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::task::{self, Poll};
+use std::task::Poll;
 use std::time::Duration;
 
 use heph::actor::{self, Bound};
@@ -13,7 +12,7 @@ use heph::test::{init_local_actor, join_many, poll_actor, try_spawn_local};
 use heph::util::next;
 use heph::{ActorOptions, ActorRef};
 
-use crate::util::{any_local_address, any_local_ipv6_address};
+use crate::util::{any_local_address, any_local_ipv6_address, pending_once};
 
 #[test]
 fn local_addr() {
@@ -92,24 +91,6 @@ where
 
 #[test]
 fn try_accept() {
-    struct YieldOnce(bool);
-
-    impl Future for YieldOnce {
-        type Output = ();
-        fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-            if self.0 {
-                Poll::Ready(())
-            } else {
-                self.0 = true;
-                Poll::Pending
-            }
-        }
-    }
-
-    const fn yield_once() -> YieldOnce {
-        YieldOnce(false)
-    }
-
     async fn listener_actor<M>(
         mut ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
@@ -125,7 +106,7 @@ fn try_accept() {
         );
 
         let mut stream = loop {
-            yield_once().await;
+            pending_once().await;
             if let Ok((stream, remote_address)) = listener.try_accept() {
                 assert!(remote_address.ip().is_loopback());
                 break stream.bind_to(&mut ctx).unwrap();
