@@ -68,6 +68,19 @@ fn new() {
 }
 
 #[test]
+fn from_actor_ref() {
+    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let (actor, actor_ref) = init_local_actor(expect_msgs, vec![()]).unwrap();
+    let mut actor = Box::pin(actor);
+
+    let group = ActorGroup::from(actor_ref);
+    assert_eq!(group.len(), 1);
+
+    assert!(group.try_send((), Delivery::ToAll).is_ok());
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+}
+
+#[test]
 fn from_iter() {
     let mut actors = Vec::new();
     let group: ActorGroup<()> = (0..3)

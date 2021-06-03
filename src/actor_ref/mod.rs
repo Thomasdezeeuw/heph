@@ -715,6 +715,15 @@ impl<M> ActorGroup<M> {
     }
 }
 
+impl<M> From<ActorRef<M>> for ActorGroup<M> {
+    fn from(actor_ref: ActorRef<M>) -> ActorGroup<M> {
+        ActorGroup {
+            actor_refs: vec![actor_ref],
+            send_next: AtomicUsize::new(0),
+        }
+    }
+}
+
 impl<M> FromIterator<ActorRef<M>> for ActorGroup<M> {
     fn from_iter<I>(iter: I) -> Self
     where
