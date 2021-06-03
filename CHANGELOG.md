@@ -1,3 +1,12 @@
+# 0.2.1
+
+## Fixes
+
+* Data race when dropping `SendValue`
+  (https://github.com/Thomasdezeeuw/inbox/commit/2f62c1efbeda079f9eae050d04d42462b9723677).
+* Data race when dropping `Join`
+  (https://github.com/Thomasdezeeuw/inbox/commit/798771781ffbef24bbbd969e699db848a90f50ea).
+
 # 0.2.0
 
 ## Changed
