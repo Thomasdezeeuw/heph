@@ -713,6 +713,17 @@ impl<M> ActorGroup<M> {
             }
         }
     }
+
+    /// Wait for all actors in this group to finish running.
+    ///
+    /// This works the same way as [`ActorRef::join`], but waits on a group of
+    /// actors.
+    pub fn join_all<'r>(&'r self) -> JoinAll<'r, M> {
+        JoinAll {
+            actor_refs: &self.actor_refs,
+            join: None,
+        }
+    }
 }
 
 impl<M> From<ActorRef<M>> for ActorGroup<M> {
@@ -745,5 +756,65 @@ impl<M> Extend<ActorRef<M>> for ActorGroup<M> {
 impl<M> fmt::Debug for ActorGroup<M> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.actor_refs.fmt(f)
+    }
+}
+
+/// [`Future`] behind [`ActorGroup::join_all`].
+///
+/// # Safety
+///
+/// It is not safe to leak this `JoinAll` (by using [`mem::forget`]). Always
+/// make sure the destructor is run, by calling [`drop`], or letting it go out
+/// of scope.
+///
+/// [`mem::forget`]: std::mem::forget
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct JoinAll<'r, M> {
+    actor_refs: &'r [ActorRef<M>],
+    join: Option<Join<'r, M>>,
+}
+
+impl<'r, M> Future for JoinAll<'r, M> {
+    type Output = ();
+
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        loop {
+            // Check the `Join` we're currently waiting on, if any.
+            if let Some(join) = self.join.as_mut() {
+                match Pin::new(join).poll(ctx) {
+                    Poll::Ready(()) => {
+                        drop(self.join.take());
+                        // Continue below.
+                    }
+                    Poll::Pending => return Poll::Pending,
+                }
+            }
+
+            // Remove all already disconnected actor references.
+            let mut remove = 0;
+            for actor_ref in self.actor_refs {
+                if actor_ref.is_connected() {
+                    break;
+                }
+                remove += 1;
+            }
+            self.actor_refs = &self.actor_refs[remove..];
+
+            if self.actor_refs.is_empty() {
+                // No more actors we have to wait for, so we're done.
+                return Poll::Ready(());
+            }
+
+            // Wait on the next actor.
+            self.join = Some(self.actor_refs[0].join());
+        }
+    }
+}
+
+impl<'r, M> fmt::Debug for JoinAll<'r, M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("JoinAll")
+            .field("left", &self.actor_refs.len())
+            .finish()
     }
 }
