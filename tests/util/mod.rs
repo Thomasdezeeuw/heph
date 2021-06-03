@@ -195,24 +195,6 @@ where
     }
 }
 
-/// Runs all `actors`.
-pub fn run_actors(mut actors: Vec<Pin<Box<dyn Actor<Error = !>>>>) {
-    for _ in 0..20 {
-        if actors.is_empty() {
-            return;
-        }
-
-        actors.drain_filter(|actor| match poll_actor(Pin::as_mut(actor)) {
-            Poll::Pending => false,
-            Poll::Ready(Ok(())) => true,
-            Poll::Ready(Err(_)) => unreachable!(),
-        });
-        sleep(Duration::from_millis(10));
-    }
-
-    assert!(actors.is_empty(), "not all actors have completed");
-}
-
 /// Returns a [`Future`] that return [`Poll::Pending`] once, without waking
 /// itself.
 pub const fn pending_once() -> PendingOnce {
