@@ -13,6 +13,7 @@
 //!    * [`spawn_sync_actor`]: spawn a [synchronous actor].
 //!  * Waiting on spawned actors:
 //!    * [`join`], [`join_many`]: wait for the actor(s) to finish running.
+//!    * [`join_all`]: wait all actors in a group to finish running.
 //!  * Initialising actors:
 //!    * [`init_local_actor`]: initialise a thread-local actor.
 //!    * [`init_actor`]: initialise a thread-safe actor.
@@ -58,7 +59,7 @@ use heph_inbox::Manager;
 use log::warn;
 
 use crate::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
-use crate::actor_ref::ActorRef;
+use crate::actor_ref::{ActorGroup, ActorRef};
 use crate::rt::local::{Control, Runtime};
 use crate::rt::shared::waker;
 use crate::rt::sync_worker::SyncWorker;
@@ -292,6 +293,19 @@ pub fn join_many<M>(actor_refs: &[ActorRef<M>], timeout: Duration) -> JoinResult
         }
     }
     JoinResult::Ok
+}
+
+/// Wait for all `actors` in the group to finish.
+///
+/// # Notes
+///
+/// If you want to wait for actors with different message types try
+/// [`ActorRef::map`] or [`ActorRef::try_map`].
+pub fn join_all<M>(actors: &ActorGroup<M>, timeout: Duration) -> JoinResult {
+    match SyncWaker::new().block_for(actors.join_all(), timeout) {
+        Some(()) => JoinResult::Ok,
+        None => JoinResult::TimedOut,
+    }
 }
 
 /// Initialise a thread-local actor.
