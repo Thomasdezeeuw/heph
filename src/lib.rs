@@ -71,13 +71,13 @@ use std::error::Error;
 use std::fmt;
 use std::future::Future;
 use std::marker::PhantomPinned;
-use std::mem::{size_of, MaybeUninit};
+use std::mem::{drop as unlock, replace, size_of, MaybeUninit};
 use std::pin::Pin;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::task::{self, Poll};
 
-use parking_lot::Mutex;
+use parking_lot::{const_mutex, Mutex};
 
 #[cfg(test)]
 mod tests;
@@ -279,8 +279,7 @@ impl<T> Sender<T> {
     pub fn join<'s>(&'s self) -> Join<'s, T> {
         Join {
             channel: self.channel(),
-            waker_node: UnsafeCell::new(None),
-            _unpin: PhantomPinned,
+            registered_waker: None,
         }
     }
 
@@ -580,83 +579,55 @@ impl<'s, T> Drop for SendValue<'s, T> {
 }
 
 /// [`Future`] implementation behind [`Sender::join`].
-///
-/// # Safety
-///
-/// It is not safe to leak this `Join` (by using [`mem::forget`]). Always make
-/// sure the destructor is run, by calling [`drop`], or letting it go out of
-/// scope.
-///
-/// [`mem::forget`]: std::mem::forget
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Join<'s, T> {
     channel: &'s Channel<T>,
-    /// See [`SendValue`]'s `waker_node` field.
-    waker_node: UnsafeCell<Option<WakerList>>,
-    /// Once `waker_node` is added to the `Channel`s linked list it must be
-    /// pinned and can't move.
-    _unpin: PhantomPinned,
-}
-
-impl<'s, T> Join<'s, T> {
-    /// Register `new_waker` with list in `Channel`.
-    ///
-    /// Returns `true` if `new_waker` was already registered.
-    fn register_waker(self: Pin<&Self>, new_waker: &task::Waker) -> bool {
-        if let Some(waker_node) = unsafe { (*self.waker_node.get()).as_ref() } {
-            // We've already registered, check if we already used the same
-            // waker.
-            let mut waker = waker_node.waker.lock();
-            match &mut *waker {
-                // Already registered the same waker.
-                Some(waker) if waker.will_wake(new_waker) => true,
-                _ => {
-                    *waker = Some(new_waker.clone());
-                    false
-                }
-            }
-        } else {
-            // Haven't yet added ourselves to the list in `Channel`, so we'll do
-            // that now.
-            // Safety: because we haven't added ourselves to the list in
-            // `Channel` it means we have unique access and thus making this
-            // mutable reference safe.
-            let waker_node = unsafe { &mut *self.waker_node.get() };
-            *waker_node = Some(WakerList {
-                waker: Mutex::new(Some(new_waker.clone())),
-                next: AtomicPtr::new(ptr::null_mut()),
-            });
-            // Safety: just initialised it above, so `unwrap` is safe.
-            let waker_ref = waker_node.as_mut().unwrap();
-            // Then add our node the `Channel`s list.
-            // Safety: `waker_ref` is at a stable address as `self` is pinned
-            // and it's removed from the list on `Drop` of `Join`.
-            unsafe { self.channel.add_join_waker(waker_ref) };
-            false
-        }
-    }
+    registered_waker: Option<task::Waker>,
 }
 
 impl<'s, T> Future for Join<'s, T> {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
         if !has_receiver_or_manager(self.channel.ref_count.load(Ordering::Acquire)) {
             // Other side is disconnected.
             return Poll::Ready(());
         }
 
-        // The channel is still connected, we'll register ourselves as wanting
-        // to be woken once it disconnects.
-        let already_registed = self.as_ref().register_waker(ctx.waker());
+        let waker = ctx.waker();
+        match &mut self.registered_waker {
+            // Already registered this waker, don't have to do anything.
+            Some(w) if w.will_wake(waker) => return Poll::Pending,
+            // Different waker, replace the old one.
+            Some(w) => {
+                let waker = waker.clone();
+                let old_waker = replace(w, waker.clone());
 
-        // It could be the case that the receiver was dropped between the time
-        // we last checked and we registered the our waker, meaning we wouldn't
-        // get a wake up event anymore.
-        if !already_registed
-            && !has_receiver_or_manager(self.channel.ref_count.load(Ordering::Acquire))
-        {
+                let mut join_wakers = self.channel.join_wakers.lock();
+                let idx = join_wakers.iter().position(|w| w.will_wake(&old_waker));
+                if let Some(idx) = idx {
+                    // Replace the old waker with the new one.
+                    join_wakers[idx] = waker;
+                } else {
+                    // This can happen if `Sender` (or `Manager`) is being
+                    // dropped, most likely this `push` is pointless and we
+                    // return `Poll::Ready` below, but just in case.
+                    join_wakers.push(waker);
+                }
+            }
+            // Haven't registered waker yet.
+            None => {
+                let waker = waker.clone();
+                self.registered_waker = Some(waker.clone());
+
+                let mut join_wakers = self.channel.join_wakers.lock();
+                join_wakers.push(waker);
+            }
+        }
+
+        if !has_receiver_or_manager(self.channel.ref_count.load(Ordering::Acquire)) {
+            // Other side is disconnected.
             Poll::Ready(())
         } else {
             Poll::Pending
@@ -668,17 +639,12 @@ unsafe impl<'s, T> Sync for Join<'s, T> {}
 
 impl<'s, T> Drop for Join<'s, T> {
     fn drop(&mut self) {
-        if let Some(waker_node) = unsafe { (*self.waker_node.get()).as_ref() } {
-            // First remove the waker from `waker_node`, replacing it with
-            // `None`.
-            let mut waker = waker_node.waker.lock();
-            // Remove our `task::Waker`.
-            drop(waker.take());
-            // Release the lock.
-            drop(waker);
-
-            // Remove our waker from the list in `Channel`.
-            self.channel.remove_join_waker(waker_node);
+        if let Some(waker) = self.registered_waker.take() {
+            let mut join_wakers = self.channel.join_wakers.lock();
+            let idx = join_wakers.iter().position(|w| w.will_wake(&waker));
+            if let Some(idx) = idx {
+                drop(join_wakers.swap_remove(idx));
+            }
         }
     }
 }
@@ -989,11 +955,7 @@ struct Channel<T> {
     ///
     /// If this is not null it must point to valid memory.
     sender_waker_head: AtomicPtr<WakerList>,
-    /// This is a linked list of `task::Waker` interested in known when the
-    /// sender is disconnected.
-    ///
-    /// If this is not null it must point to valid memory.
-    join_waker_head: AtomicPtr<WakerList>,
+    join_wakers: Mutex<Vec<task::Waker>>,
     receiver_waker: WakerRegistration,
 }
 
@@ -1019,7 +981,7 @@ impl<T> Channel<T> {
             status: AtomicUsize::new(0),
             ref_count: AtomicUsize::new(RECEIVER_ALIVE | RECEIVER_ACCESS | SENDER_ACCESS | 1),
             sender_waker_head: AtomicPtr::new(ptr::null_mut()),
-            join_waker_head: AtomicPtr::new(ptr::null_mut()),
+            join_wakers: const_mutex(Vec::new()),
             receiver_waker: WakerRegistration::new(),
         }
     }
@@ -1087,25 +1049,14 @@ impl<T> Channel<T> {
         WakerList::remove(&self.sender_waker_head, node)
     }
 
-    /// Adds `node` to the list of wakers to wake when the sender is
-    /// disconnected.
-    ///
-    /// # Safety
-    ///
-    /// See [`WakerList::add`].
-    unsafe fn add_join_waker(&self, node: *mut WakerList) {
-        WakerList::add(&self.join_waker_head, node)
-    }
-
-    /// Remove `node` from the list of wakers waiting on the sender to
-    /// disconnect.
-    fn remove_join_waker(&self, node: *const WakerList) {
-        WakerList::remove(&self.join_waker_head, node)
-    }
-
     /// Wakes all wakers waiting on the sender to disconnect.
     fn wake_all_join(&self) {
-        WakerList::wake_all(&self.join_waker_head)
+        let mut join_wakers = self.join_wakers.lock();
+        let wakers = replace(&mut *join_wakers, Vec::new());
+        unlock(join_wakers);
+        for waker in wakers {
+            waker.wake();
+        }
     }
 
     /// Wake the `Receiver`.
@@ -1254,29 +1205,6 @@ impl WakerList {
                 // Safety: per the comment on `WakerList.next` if not null it
                 // must point to valid memory.
                 ptr = unsafe { &(*next_ptr).next };
-            }
-        }
-    }
-
-    /// Wake all wakers in the list.
-    fn wake_all(head: &AtomicPtr<WakerList>) {
-        let mut ptr: &AtomicPtr<WakerList> = head;
-        loop {
-            let next_ptr = ptr.swap(ptr::null_mut(), Ordering::AcqRel);
-            if next_ptr.is_null() {
-                // No more wakers, then we're done.
-                return;
-            } else {
-                // Safety: per the comment on `WakerList.next` if not null it
-                // must point to valid memory.
-                let next_node: &WakerList = unsafe { &*next_ptr };
-
-                // Wake the waker.
-                if let Some(waker) = next_node.waker.lock().take() {
-                    waker.wake();
-                }
-
-                ptr = &next_node.next;
             }
         }
     }

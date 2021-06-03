@@ -832,6 +832,26 @@ mod future {
         assert_eq!(count1, 0);
         assert_eq!(count2, 1);
     }
+
+    #[test]
+    fn sender_join_no_wakeup_after_drop() {
+        let (sender, receiver) = new_small::<usize>();
+
+        let (waker, count) = new_count_waker();
+        let mut ctx = task::Context::from_waker(&waker);
+
+        {
+            // NOTE: putting `future` in a code block to ensure it's dropped.
+            let future = Box::pin(sender.join());
+            pin_stack!(future);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            assert_eq!(count, 0);
+        }
+
+        drop(receiver);
+        assert_eq!(count, 0);
+    }
 }
 
 mod manager {

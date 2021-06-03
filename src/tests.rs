@@ -17,7 +17,7 @@ use crate::{
 
 #[test]
 fn size_assertions() {
-    assert_eq!(size_of::<Channel<()>>(), 64);
+    assert_eq!(size_of::<Channel<()>>(), 88);
     assert_eq!(size_of::<SendValue<()>>(), 56);
 }
 
