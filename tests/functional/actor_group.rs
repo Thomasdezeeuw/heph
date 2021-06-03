@@ -1,5 +1,6 @@
 //! Tests related to `ActorGroup`.
 
+use std::convert::Infallible;
 use std::fmt;
 use std::pin::Pin;
 use std::task::Poll;
@@ -7,7 +8,7 @@ use std::task::Poll;
 use heph::actor;
 use heph::actor_ref::{ActorGroup, Delivery};
 use heph::rt::ThreadLocal;
-use heph::test::{init_local_actor, poll_actor};
+use heph::test::{init_local_actor, poll_actor, poll_future};
 
 use crate::util::{assert_send, assert_size, assert_sync};
 
@@ -347,4 +348,108 @@ fn send_delivery_to_one() {
 
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
+}
+
+async fn stop_on_run(ctx: actor::Context<Infallible, ThreadLocal>) {
+    drop(ctx);
+}
+
+fn join_all(n: usize) {
+    let mut actors = Vec::new();
+    let group: ActorGroup<_> = (0..n)
+        .into_iter()
+        .map(|_| {
+            let stop_on_run = stop_on_run as fn(_) -> _;
+            let (actor, actor_ref) = init_local_actor(stop_on_run, ()).unwrap();
+            actors.push(Box::pin(actor));
+            actor_ref
+        })
+        .collect();
+    assert_eq!(group.len(), n);
+
+    let future = group.join_all();
+    let mut future = Box::pin(future);
+
+    assert_eq!(poll_future(Pin::new(&mut future)), Poll::Pending);
+
+    for mut actor in actors {
+        assert_eq!(poll_actor(Pin::new(&mut actor)), Poll::Ready(Ok(())));
+    }
+    assert_eq!(poll_future(Pin::new(&mut future)), Poll::Ready(()));
+}
+
+#[test]
+fn join_all_one() {
+    join_all(1);
+}
+
+#[test]
+fn join_all_two() {
+    join_all(2);
+}
+
+#[test]
+fn join_all_five() {
+    join_all(5);
+}
+
+#[test]
+fn join_all_ten() {
+    join_all(10);
+}
+
+#[test]
+fn join_all_before_actor_finished() {
+    let stop_on_run = stop_on_run as fn(_) -> _;
+    let (actor, actor_ref) = init_local_actor(stop_on_run, ()).unwrap();
+    let mut actor = Box::pin(actor);
+
+    assert_eq!(poll_actor(Pin::new(&mut actor)), Poll::Ready(Ok(())));
+
+    let future = actor_ref.join();
+    let mut future = Box::pin(future);
+    assert_eq!(poll_future(Pin::new(&mut future)), Poll::Ready(()));
+}
+
+#[test]
+fn join_all_before_one_actor_finished() {
+    fn test(even: bool) {
+        let mut actors = Vec::new();
+        let group: ActorGroup<_> = (0..10)
+            .into_iter()
+            .map(|_| {
+                let stop_on_run = stop_on_run as fn(_) -> _;
+                let (actor, actor_ref) = init_local_actor(stop_on_run, ()).unwrap();
+                actors.push(Box::pin(actor));
+                actor_ref
+            })
+            .collect();
+
+        let future = group.join_all();
+        let mut future = Box::pin(future);
+
+        // Run half of the actors.
+        let actors: Vec<_> = actors
+            .into_iter()
+            .enumerate()
+            .filter_map(|(i, mut actor)| {
+                if (i % 2 == 0) == even {
+                    assert_eq!(poll_actor(Pin::new(&mut actor)), Poll::Ready(Ok(())));
+                    None
+                } else {
+                    Some(actor)
+                }
+            })
+            .collect();
+
+        assert_eq!(poll_future(Pin::new(&mut future)), Poll::Pending);
+
+        for mut actor in actors {
+            assert_eq!(poll_actor(Pin::new(&mut actor)), Poll::Ready(Ok(())));
+        }
+        assert_eq!(poll_future(Pin::new(&mut future)), Poll::Ready(()));
+    }
+
+    test(true);
+    test(false);
 }
