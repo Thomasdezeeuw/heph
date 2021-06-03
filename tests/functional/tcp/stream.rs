@@ -18,11 +18,10 @@ use heph::net::{TcpListener, TcpStream};
 use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
-use heph::test::{init_local_actor, join_many, poll_actor, try_spawn_local};
+use heph::test::{init_local_actor, join, join_many, poll_actor, try_spawn_local, PanicSupervisor};
 
 use crate::util::{
-    any_local_address, expect_pending, expect_ready_ok, is_ready, loop_expect_ready_ok,
-    refused_address, Stage,
+    any_local_address, expect_pending, expect_ready_ok, is_ready, refused_address, Stage,
 };
 
 const DATA: &[u8] = b"Hello world";
@@ -304,23 +303,15 @@ fn recv() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Stream should not yet be connected.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
     let (mut stream, _) = listener.accept().unwrap();
-
-    // Connected, but shouldn't yet read anything.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
-
     stream.write_all(&DATA).unwrap();
-    sorta_flush(&mut stream);
-
     drop(stream);
 
-    loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -346,23 +337,15 @@ fn recv_n_read_exact_amount() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Stream should not yet be connected.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
     let (mut stream, _) = listener.accept().unwrap();
-
-    // Connected, but shouldn't yet read anything.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
-
     stream.write_all(&DATA).unwrap();
-    sorta_flush(&mut stream);
-
     drop(stream);
 
-    loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -392,23 +375,15 @@ fn recv_n_read_more_bytes() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Stream should not yet be connected.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
     let (mut stream, _) = listener.accept().unwrap();
-
-    // Connected, but shouldn't yet read anything.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
-
     stream.write_all(&DATA).unwrap();
-    sorta_flush(&mut stream);
-
     drop(stream);
 
-    loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -429,23 +404,15 @@ fn recv_n_less_bytes() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Stream should not yet be connected.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
     let (mut stream, _) = listener.accept().unwrap();
-
-    // Connected, but shouldn't yet read anything.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
-
     stream.write_all(&DATA).unwrap();
-    sorta_flush(&mut stream);
-
     drop(stream);
 
-    loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -481,7 +448,7 @@ fn recv_n_from_multiple_writes() {
 
     drop(stream);
 
-    loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
+    expect_ready_ok(poll_actor(Pin::as_mut(&mut actor)), ())
 }
 
 #[test]
@@ -812,24 +779,16 @@ fn recv_n_vectored_exact_amount() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Stream should not yet be connected.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
     let (mut stream, _) = listener.accept().unwrap();
-
-    // Connected, but shouldn't yet read anything.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
-
     let bufs = &mut [IoSlice::new(DATA), IoSlice::new(DATA)];
     stream.write_all_vectored(bufs).unwrap();
-    sorta_flush(&mut stream);
-
     drop(stream);
 
-    loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -859,24 +818,16 @@ fn recv_n_vectored_more_bytes() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Stream should not yet be connected.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
     let (mut stream, _) = listener.accept().unwrap();
-
-    // Connected, but shouldn't yet read anything.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
-
     let bufs = &mut [IoSlice::new(DATA), IoSlice::new(DATA)];
     stream.write_all_vectored(bufs).unwrap();
-    sorta_flush(&mut stream);
-
     drop(stream);
 
-    loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -897,23 +848,15 @@ fn recv_n_vectored_less_bytes() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Stream should not yet be connected.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
     let (mut stream, _) = listener.accept().unwrap();
-
-    // Connected, but shouldn't yet read anything.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
-
     stream.write_all(DATA).unwrap();
-    sorta_flush(&mut stream);
-
     drop(stream);
 
-    loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -936,24 +879,17 @@ fn recv_n_vectored_from_multiple_writes() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Stream should not yet be connected.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
     let (mut stream, _) = listener.accept().unwrap();
-
     for _ in 0..3 {
-        expect_pending(poll_actor(Pin::as_mut(&mut actor)));
-
         stream.write_all(&DATA).unwrap();
-        sorta_flush(&mut stream);
     }
-
     drop(stream);
 
-    loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]
@@ -983,23 +919,15 @@ fn peek() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let (actor, _) = init_local_actor(actor as fn(_, _) -> _, address).unwrap();
-    let mut actor = Box::pin(actor);
-
-    // Stream should not yet be connected.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
+    let actor = actor as fn(_, _) -> _;
+    let actor_ref =
+        try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
     let (mut stream, _) = listener.accept().unwrap();
-
-    // Connected, but shouldn't yet read anything.
-    expect_pending(poll_actor(Pin::as_mut(&mut actor)));
-
     stream.write_all(&DATA).unwrap();
-    sorta_flush(&mut stream);
-
     drop(stream);
 
-    loop_expect_ready_ok(|| poll_actor(Pin::as_mut(&mut actor)), ());
+    join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
 
 #[test]

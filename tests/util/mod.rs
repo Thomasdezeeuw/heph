@@ -172,29 +172,6 @@ where
     }
 }
 
-/// Call `f` in a loop until it returns `Poll::Ready(T)`.
-#[track_caller]
-pub fn loop_expect_ready_ok<F, T, E>(mut f: F, expected: T)
-where
-    F: FnMut() -> Poll<Result<T, E>>,
-    T: fmt::Debug + PartialEq,
-    E: fmt::Display,
-{
-    loop {
-        match f() {
-            Poll::Pending => {}
-            Poll::Ready(Ok(value)) => {
-                assert_eq!(value, expected);
-                return;
-            }
-            Poll::Ready(Err(err)) => panic!("unexpected err: {}", err),
-        }
-
-        // Don't want to busy loop.
-        sleep(Duration::from_millis(10));
-    }
-}
-
 /// Returns a [`Future`] that return [`Poll::Pending`] once, without waking
 /// itself.
 pub const fn pending_once() -> PendingOnce {
