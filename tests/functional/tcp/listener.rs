@@ -3,16 +3,17 @@ use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{self, Poll};
+use std::time::Duration;
 
 use heph::actor::{self, Bound};
 use heph::net::{TcpListener, TcpStream};
 use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph::supervisor::NoSupervisor;
-use heph::test::{init_local_actor, poll_actor};
+use heph::test::{init_local_actor, join_many, poll_actor, try_spawn_local};
 use heph::util::next;
-use heph::{Actor, ActorOptions, ActorRef};
+use heph::{ActorOptions, ActorRef};
 
-use crate::util::{any_local_address, any_local_ipv6_address, run_actors};
+use crate::util::{any_local_address, any_local_ipv6_address};
 
 #[test]
 fn local_addr() {
@@ -109,8 +110,8 @@ fn try_accept() {
         YieldOnce(false)
     }
 
-    async fn listener_actor(
-        mut ctx: actor::Context<!, ThreadLocal>,
+    async fn listener_actor<M>(
+        mut ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
@@ -138,20 +139,21 @@ fn try_accept() {
     }
 
     let stream_actor = stream_actor as fn(_) -> _;
-    let (stream_actor, actor_ref) = init_local_actor(stream_actor, ()).unwrap();
-    let stream_actor: Box<dyn Actor<Error = !>> = Box::new(stream_actor);
+    let stream_ref =
+        try_spawn_local(NoSupervisor, stream_actor, (), ActorOptions::default()).unwrap();
 
     let listener_actor = listener_actor as fn(_, _) -> _;
-    let (listener_actor, _) = init_local_actor(listener_actor, actor_ref).unwrap();
-    let listener_actor: Box<dyn Actor<Error = !>> = Box::new(listener_actor);
+    let s_ref = stream_ref.clone();
+    let listener_ref =
+        try_spawn_local(NoSupervisor, listener_actor, s_ref, ActorOptions::default()).unwrap();
 
-    run_actors(vec![listener_actor.into(), stream_actor.into()]);
+    join_many(&[stream_ref, listener_ref], Duration::from_secs(1)).unwrap();
 }
 
 #[test]
 fn accept() {
-    async fn listener_actor(
-        mut ctx: actor::Context<!, ThreadLocal>,
+    async fn listener_actor<M>(
+        mut ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
@@ -170,20 +172,21 @@ fn accept() {
     }
 
     let stream_actor = stream_actor as fn(_) -> _;
-    let (stream_actor, actor_ref) = init_local_actor(stream_actor, ()).unwrap();
-    let stream_actor: Box<dyn Actor<Error = !>> = Box::new(stream_actor);
+    let stream_ref =
+        try_spawn_local(NoSupervisor, stream_actor, (), ActorOptions::default()).unwrap();
 
     let listener_actor = listener_actor as fn(_, _) -> _;
-    let (listener_actor, _) = init_local_actor(listener_actor, actor_ref).unwrap();
-    let listener_actor: Box<dyn Actor<Error = !>> = Box::new(listener_actor);
+    let s_ref = stream_ref.clone();
+    let listener_ref =
+        try_spawn_local(NoSupervisor, listener_actor, s_ref, ActorOptions::default()).unwrap();
 
-    run_actors(vec![listener_actor.into(), stream_actor.into()]);
+    join_many(&[stream_ref, listener_ref], Duration::from_secs(1)).unwrap();
 }
 
 #[test]
 fn incoming() {
-    async fn listener_actor(
-        mut ctx: actor::Context<!, ThreadLocal>,
+    async fn listener_actor<M>(
+        mut ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
@@ -203,14 +206,15 @@ fn incoming() {
     }
 
     let stream_actor = stream_actor as fn(_) -> _;
-    let (stream_actor, actor_ref) = init_local_actor(stream_actor, ()).unwrap();
-    let stream_actor: Box<dyn Actor<Error = !>> = Box::new(stream_actor);
+    let stream_ref =
+        try_spawn_local(NoSupervisor, stream_actor, (), ActorOptions::default()).unwrap();
 
     let listener_actor = listener_actor as fn(_, _) -> _;
-    let (listener_actor, _) = init_local_actor(listener_actor, actor_ref).unwrap();
-    let listener_actor: Box<dyn Actor<Error = !>> = Box::new(listener_actor);
+    let s_ref = stream_ref.clone();
+    let listener_ref =
+        try_spawn_local(NoSupervisor, listener_actor, s_ref, ActorOptions::default()).unwrap();
 
-    run_actors(vec![listener_actor.into(), stream_actor.into()]);
+    join_many(&[stream_ref, listener_ref], Duration::from_secs(1)).unwrap();
 }
 
 #[test]
