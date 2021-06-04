@@ -1,4 +1,4 @@
-#![allow(dead_code)] // Not all tests use all functions/types.
+#![allow(dead_code, unused_macros)] // Not all tests use all functions/types.
 
 use std::env::temp_dir;
 use std::fmt;
