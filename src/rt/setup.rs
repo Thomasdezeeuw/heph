@@ -212,7 +212,7 @@ impl Setup {
     }
 }
 
-/// Returns the name of the binary called (i.e. arg[0]) as name.
+/// Returns the name of the binary called (i.e. `arg[0]`) as name.
 fn default_app_name() -> String {
     match env::args().next() {
         Some(mut bin_path) => {

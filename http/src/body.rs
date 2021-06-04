@@ -67,7 +67,7 @@ mod private {
             'body: 'head;
     }
 
-    /// See [`OneshotBody`].
+    /// See [`super::OneshotBody`].
     #[derive(Debug)]
     pub struct SendOneshotBody<'s, 'b> {
         pub(super) stream: &'s mut TcpStream,
@@ -109,7 +109,7 @@ mod private {
         }
     }
 
-    /// See [`StreamingBody`].
+    /// See [`super::StreamingBody`].
     #[derive(Debug)]
     pub struct SendStreamingBody<'s, 'h, 'b, B> {
         pub(super) stream: &'s mut TcpStream,
@@ -187,7 +187,7 @@ mod private {
         }
     }
 
-    /// See [`FileBody`].
+    /// See [`super::FileBody`].
     #[derive(Debug)]
     pub struct SendFileBody<'s, 'h, 'f, F> {
         pub(super) stream: &'s mut TcpStream,
