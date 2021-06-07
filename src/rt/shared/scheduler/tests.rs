@@ -102,12 +102,6 @@ fn marking_unknown_pid_as_ready() {
 
 #[test]
 fn scheduler_run_order() {
-    let scheduler = Scheduler::new();
-    let mut runtime_ref = test::runtime();
-
-    // The order in which the processes have been run.
-    let run_order = Arc::new(Mutex::new(Vec::new()));
-
     async fn order_actor(
         _: actor::Context<!, ThreadSafe>,
         id: usize,
@@ -115,6 +109,12 @@ fn scheduler_run_order() {
     ) {
         order.lock().unwrap().push(id);
     }
+
+    let scheduler = Scheduler::new();
+    let mut runtime_ref = test::runtime();
+
+    // The order in which the processes have been run.
+    let run_order = Arc::new(Mutex::new(Vec::new()));
 
     // Add our processes.
     let new_actor = order_actor as fn(_, _, _) -> _;
@@ -140,7 +140,7 @@ fn scheduler_run_order() {
         );
     }
     assert!(!scheduler.has_process());
-    assert_eq!(*run_order.lock().unwrap(), vec![2usize, 1, 0]);
+    assert_eq!(*run_order.lock().unwrap(), vec![2_usize, 1, 0]);
 }
 
 struct TestAssertUnmovedNewActor;

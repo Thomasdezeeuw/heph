@@ -278,10 +278,9 @@ mod tests {
                 assert_eq!(process.as_ref().id(), pid);
                 shared_internals.complete(process);
                 break;
-            } else {
-                sleep(Duration::from_millis(1));
-                continue;
             }
+
+            sleep(Duration::from_millis(1));
         }
 
         handle.join().unwrap();

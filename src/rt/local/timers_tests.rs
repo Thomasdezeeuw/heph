@@ -152,10 +152,10 @@ fn remove_deadline_from_all_slots() {
         timers.remove(ProcessId(n), next_deadline);
         next_deadline += DURATION_PER_SLOT;
 
-        if n != SLOTS {
-            assert_eq!(timers.next(), Some(next_deadline));
-        } else {
+        if n == SLOTS {
             assert_eq!(timers.next(), None);
+        } else {
+            assert_eq!(timers.next(), Some(next_deadline));
         }
     }
 }
@@ -199,10 +199,10 @@ fn remove_deadline_after_epoch_advance() {
         timers.remove(ProcessId(n), next_deadline);
         next_deadline += DURATION_PER_SLOT;
 
-        if n != SLOTS {
-            assert_eq!(timers.next(), Some(next_deadline));
-        } else {
+        if n == SLOTS {
             assert_eq!(timers.next(), None);
+        } else {
+            assert_eq!(timers.next(), Some(next_deadline));
         }
     }
 }
@@ -273,10 +273,10 @@ fn change_deadline_from_all_slots() {
         assert_eq!(timers.remove_next(next_deadline), None);
         next_deadline += DURATION_PER_SLOT;
 
-        if n != SLOTS {
-            assert_eq!(timers.next(), Some(next_deadline));
-        } else {
+        if n == SLOTS {
             assert_eq!(timers.next(), None);
+        } else {
+            assert_eq!(timers.next(), Some(next_deadline));
         }
     }
 }
@@ -328,10 +328,10 @@ fn change_deadline_after_epoch_advance() {
         assert_eq!(timers.remove_next(next_deadline), None);
         next_deadline += DURATION_PER_SLOT;
 
-        if n != SLOTS {
-            assert_eq!(timers.next(), Some(next_deadline));
-        } else {
+        if n == SLOTS {
             assert_eq!(timers.next(), None);
+        } else {
+            assert_eq!(timers.next(), Some(next_deadline));
         }
     }
 }

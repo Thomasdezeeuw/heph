@@ -32,12 +32,12 @@ fn actor_ref_message_loss() {
     let mut actor = Box::pin(actor);
 
     // Should arrive.
-    actor_ref.try_send(123usize).unwrap();
+    actor_ref.try_send(123_usize).unwrap();
 
     // After setting the message loss to 100% no messages should arrive.
     set_message_loss(100);
-    actor_ref.try_send(456usize).unwrap();
-    actor_ref.try_send(789usize).unwrap();
+    actor_ref.try_send(456_usize).unwrap();
+    actor_ref.try_send(789_usize).unwrap();
 
     drop(actor_ref);
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
