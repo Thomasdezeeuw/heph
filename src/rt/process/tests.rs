@@ -211,10 +211,6 @@ fn erroneous_actor_process() {
 
 #[test]
 fn restarting_erroneous_actor_process() {
-    // Create our actor.
-    let new_actor = error_actor as fn(_, _) -> _;
-    let (actor, inbox, actor_ref) = init_local_actor_with_inbox(new_actor, true).unwrap();
-
     struct TestSupervisor(Arc<AtomicBool>);
 
     impl<NA> Supervisor<NA> for TestSupervisor
@@ -235,6 +231,10 @@ fn restarting_erroneous_actor_process() {
             unreachable!("test call to second_restart_error in ActorProcess");
         }
     }
+
+    // Create our actor.
+    let new_actor = error_actor as fn(_, _) -> _;
+    let (actor, inbox, actor_ref) = init_local_actor_with_inbox(new_actor, true).unwrap();
 
     let supervisor_called = Arc::new(AtomicBool::new(false));
     let supervisor = TestSupervisor(Arc::clone(&supervisor_called));

@@ -110,7 +110,7 @@ fn add_to_empty_group() {
     let mut actor = Box::pin(actor);
     group.add(actor_ref);
 
-    group.try_send(1usize, Delivery::ToAll).unwrap();
+    group.try_send(1_usize, Delivery::ToAll).unwrap();
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
 }
 
@@ -122,20 +122,20 @@ fn add_actor_to_group() {
         .into_iter()
         .map(|_| {
             let (actor, actor_ref) =
-                init_local_actor(expect_msgs, vec![123usize, 456, 789]).unwrap();
+                init_local_actor(expect_msgs, vec![123_usize, 456, 789]).unwrap();
             actors.push(Box::pin(actor));
             actor_ref
         })
         .collect();
 
     // Add new actor.
-    let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize, 456, 789]).unwrap();
+    let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123_usize, 456, 789]).unwrap();
     actors.push(Box::pin(actor));
     group.add(actor_ref);
 
-    group.try_send(123usize, Delivery::ToAll).unwrap();
-    group.try_send(456usize, Delivery::ToAll).unwrap();
-    group.try_send(789usize, Delivery::ToAll).unwrap();
+    group.try_send(123_usize, Delivery::ToAll).unwrap();
+    group.try_send(456_usize, Delivery::ToAll).unwrap();
+    group.try_send(789_usize, Delivery::ToAll).unwrap();
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }

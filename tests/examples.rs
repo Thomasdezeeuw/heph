@@ -120,11 +120,11 @@ fn test_6_process_signals() {
 
 #[test]
 fn test_7_restart_supervisor() {
-    let output = run_example_output("7_restart_supervisor");
-    let mut lines = output.lines();
-
     // Index of the "?" in the string below.
     const LEFT_INDEX: usize = 51;
+
+    let output = run_example_output("7_restart_supervisor");
+    let mut lines = output.lines();
 
     let mut expected = "lvl=\"WARN\" msg=\"print actor failed, restarting it (?/5 restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"".to_owned();
     for left in (0..5).rev() {

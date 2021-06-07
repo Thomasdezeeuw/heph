@@ -331,7 +331,7 @@ mod tests {
     }
 
     fn pow2(exp: usize) -> usize {
-        2usize.pow(exp as u32)
+        2_usize.pow(exp as u32)
     }
 
     #[test]

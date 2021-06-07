@@ -199,7 +199,7 @@ mod btreemap {
             Entry::Vacant(_) => {} // Already removed.
             Entry::Occupied(entry) => {
                 if *entry.get() == timer.pid {
-                    drop(entry.remove());
+                    let _ = entry.remove();
                 }
                 // Different process id, don't remove it.
             }
@@ -284,7 +284,7 @@ mod sorted_vec {
     fn remove_timer(vec: &mut Vec<Reverse<Timer>>, timer: Timer) {
         let timer = Reverse(timer);
         if let Ok(idx) = vec.binary_search(&timer) {
-            drop(vec.remove(idx));
+            let _ = vec.remove(idx);
         }
     }
 
@@ -311,6 +311,7 @@ struct Timer {
 
 /// Returns a generator for starting timers.
 fn start_timers() -> GenTimers {
+    #[allow(clippy::unreadable_literal)]
     const SEED: [u8; 16] = 173328903770940342687532334189206051087_u128.to_be_bytes();
     GenTimers {
         prng: Xoshiro128PlusPlus::from_seed(SEED),
@@ -324,6 +325,7 @@ fn remove_timers() -> GenTimers {
 }
 
 fn new_timers() -> GenTimers {
+    #[allow(clippy::unreadable_literal)]
     const SEED: [u8; 16] = 113816226723235353907830994955339774107_u128.to_be_bytes();
     GenTimers {
         prng: Xoshiro128PlusPlus::from_seed(SEED),
@@ -347,7 +349,7 @@ impl Iterator for GenTimers {
         self.prng.fill_bytes(&mut add);
         // The containers use `Instant` as key so they have to be unique.
         let add = max(u16::from_ne_bytes(add), 1);
-        let deadline = self.epoch + Duration::from_nanos(add as u64);
+        let deadline = self.epoch + Duration::from_nanos(add.into());
         self.epoch = deadline;
         Some(Timer { pid, deadline })
     }

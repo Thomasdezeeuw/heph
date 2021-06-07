@@ -241,7 +241,7 @@ mod tests {
     #[test]
     fn thread_bits_large_enough() {
         assert!(
-            2usize.pow(THREAD_BITS as u32) >= MAX_THREADS,
+            2_usize.pow(THREAD_BITS as u32) >= MAX_THREADS,
             "Not enough bits for MAX_THREADS"
         );
     }

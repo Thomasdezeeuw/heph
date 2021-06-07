@@ -232,12 +232,6 @@ fn add_process_marked_ready() {
 
 #[test]
 fn scheduler_run_order() {
-    let mut scheduler = Scheduler::new();
-    let mut runtime_ref = test::runtime();
-
-    // The order in which the processes have been run.
-    let run_order = Rc::new(RefCell::new(Vec::new()));
-
     async fn order_actor(
         _: actor::Context<!, ThreadLocal>,
         id: usize,
@@ -245,6 +239,12 @@ fn scheduler_run_order() {
     ) {
         order.borrow_mut().push(id);
     }
+
+    let mut scheduler = Scheduler::new();
+    let mut runtime_ref = test::runtime();
+
+    // The order in which the processes have been run.
+    let run_order = Rc::new(RefCell::new(Vec::new()));
 
     // Add our processes.
     let new_actor = order_actor as fn(_, _, _) -> _;
@@ -271,7 +271,7 @@ fn scheduler_run_order() {
         );
     }
     assert!(!scheduler.has_process());
-    assert_eq!(*run_order.borrow(), vec![2usize, 1, 0]);
+    assert_eq!(*run_order.borrow(), vec![2_usize, 1, 0]);
 }
 
 struct TestAssertUnmovedNewActor;
