@@ -45,6 +45,7 @@ dev:
 # debug-assert-with-mut-call: Bytes and BytesVectored traits.
 # missing-const-for-fn : too many false positives.
 # multiple-crate-versions: socket2 is included twice? But `cargo tree` disagrees.
+# future-not-send: actor using ThreadLocal aren't Send.
 clippy: lint
 lint:
 	cargo clippy --all-features --workspace -- \
@@ -60,6 +61,7 @@ lint:
 		--allow clippy::debug-assert-with-mut-call \
 		--allow clippy::empty-enum \
 		--allow clippy::enum-glob-use \
+		--allow clippy::future-not-send \
 		--allow clippy::inline-always \
 		--allow clippy::missing-const-for-fn \
 		--allow clippy::missing-errors-doc \
