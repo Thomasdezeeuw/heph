@@ -73,6 +73,7 @@ lint:
 		--allow clippy::option-if-let-else \
 		--allow clippy::ptr-as-ptr \
 		--allow clippy::redundant-pub-crate \
+		--allow clippy::semicolon-if-nothing-returned \
 		--allow clippy::shadow-unrelated \
 		--allow clippy::single-match-else \
 		--allow clippy::use-self
