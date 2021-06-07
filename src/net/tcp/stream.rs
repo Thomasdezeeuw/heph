@@ -566,12 +566,11 @@ impl Future for Connect {
         //    determine that without blocking.
         // 2. To determine if a socket is connected we need to wait for a
         //    `kqueue(2)`/`epoll(2)` event (we get scheduled once we do). But
-        //    that doesn't tell us whether or not the socket is connected or
-        //    not. To determine if the socket is connected we need to use
-        //    `getpeername` (`TcpStream::peer_addr`). But before checking if
-        //    we're connected we need to check for a connection error, by
-        //    checking `SO_ERROR` (`TcpStream::take_error`) to not lose that
-        //    information.
+        //    that doesn't tell us whether or not the socket is connected. To
+        //    determine if the socket is connected we need to use `getpeername`
+        //    (`TcpStream::peer_addr`). But before checking if we're connected
+        //    we need to check for a connection error, by checking `SO_ERROR`
+        //    (`TcpStream::take_error`) to not lose that information.
         //    However if we get an event (and thus get scheduled) and
         //    `getpeername` fails with `ENOTCONN` it doesn't actually mean the
         //    socket will never connect properly. So we loop (by returned
@@ -584,7 +583,7 @@ impl Future for Connect {
         match self.socket.take() {
             Some(socket) => {
                 // If we hit an error while connecting return that error.
-                if let Ok(Some(err)) = socket.take_error() {
+                if let Ok(Some(err)) | Err(err) = socket.take_error() {
                     return Poll::Ready(Err(err));
                 }
 
@@ -602,12 +601,12 @@ impl Future for Connect {
                         }
                         Poll::Ready(Ok(stream))
                     }
+                    // `NotConnected` (`ENOTCONN`) means the socket not yet
+                    // connected, but still working on it. `ECONNREFUSED` will
+                    // be reported if it fails.
                     Err(err)
                         if err.kind() == io::ErrorKind::NotConnected
-                        // It seems that macOS sometimes returns `EINVAL` when
-                        // the socket is not (yet) connected. Since we ensure
-                        // all arguments are valid we can safely ignore it.
-                            || err.kind() == io::ErrorKind::InvalidInput =>
+                            || err.raw_os_error() == Some(libc::EINPROGRESS) =>
                     {
                         // Socket is not (yet) connected but haven't hit an
                         // error either. So we return `Pending` and wait for
