@@ -302,6 +302,7 @@ fn host_info() -> io::Result<(Box<str>, Box<str>)> {
 
 /// Get the host id by reading `/etc/machine-id` on Linux or `/etc/hostid` on
 /// FreeBSD.
+#[allow(clippy::doc_markdown)] // Remove after https://github.com/rust-lang/rust-clippy/pull/7334 is released.
 #[cfg(any(target_os = "freebsd", target_os = "linux"))]
 fn host_id() -> io::Result<Uuid> {
     use std::fs::File;
