@@ -80,7 +80,6 @@
     is_sorted,
     maybe_uninit_array_assume_init,
     maybe_uninit_extra,
-    maybe_uninit_ref,
     maybe_uninit_slice,
     maybe_uninit_uninit_array,
     never_type,

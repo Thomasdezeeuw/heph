@@ -92,11 +92,11 @@ mod private {
                         } else if n <= head_len {
                             // Only written part of the head, advance the head
                             // buffer.
-                            let _ = IoSlice::advance(&mut bufs[..1], n);
+                            bufs[0].advance(n);
                         } else {
                             // Written entire head.
                             bufs[0] = IoSlice::new(&[]);
-                            let _ = IoSlice::advance(&mut bufs[1..], n - head_len);
+                            bufs[1].advance(n - head_len);
                         }
                     }
                     Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {

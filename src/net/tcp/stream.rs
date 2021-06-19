@@ -7,7 +7,6 @@
 
 use std::future::Future;
 use std::io::{self, IoSlice};
-use std::mem::{replace, swap};
 use std::net::{Shutdown, SocketAddr};
 use std::num::NonZeroUsize;
 use std::pin::Pin;
@@ -702,14 +701,7 @@ impl<'a, 'b> Future for SendVectoredAll<'a, 'b> {
         while !bufs.is_empty() {
             match stream.try_send_vectored(bufs) {
                 Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
-                Ok(n) => {
-                    // TODO: use the below at some point, didn't want to figure
-                    // the lifetime issue(s).
-                    //*bufs = IoSlice::advance(bufs, n);
-                    let b: &mut [IoSlice<'_>] = replace(bufs, &mut []);
-                    let mut b = IoSlice::advance(b, n);
-                    swap(bufs, &mut b);
-                }
+                Ok(n) => IoSlice::advance_slices(bufs, n),
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
                 Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
                 Err(err) => return Poll::Ready(Err(err)),
