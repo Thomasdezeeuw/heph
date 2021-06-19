@@ -634,7 +634,7 @@ impl<'a, 'b> Future for Send<'a, 'b> {
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Send { stream, buf } = Pin::into_inner(self);
-        try_io!(stream.try_send(buf))
+        try_io!(stream.try_send(*buf))
     }
 }
 
@@ -652,7 +652,7 @@ impl<'a, 'b> Future for SendAll<'a, 'b> {
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let SendAll { stream, buf } = Pin::into_inner(self);
         loop {
-            match stream.try_send(buf) {
+            match stream.try_send(*buf) {
                 Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
                 Ok(n) if buf.len() <= n => return Poll::Ready(Ok(())),
                 Ok(n) => {
@@ -681,7 +681,7 @@ impl<'a, 'b> Future for SendVectored<'a, 'b> {
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let SendVectored { stream, bufs } = Pin::into_inner(self);
-        try_io!(stream.try_send_vectored(bufs))
+        try_io!(stream.try_send_vectored(*bufs))
     }
 }
 
@@ -699,7 +699,7 @@ impl<'a, 'b> Future for SendVectoredAll<'a, 'b> {
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let SendVectoredAll { stream, bufs } = Pin::into_inner(self);
         while !bufs.is_empty() {
-            match stream.try_send_vectored(bufs) {
+            match stream.try_send_vectored(*bufs) {
                 Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
                 Ok(n) => IoSlice::advance_slices(bufs, n),
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,

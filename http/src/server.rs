@@ -1332,7 +1332,7 @@ mod private {
             // Send the HTTP head first.
             // TODO: try to use vectored I/O on first call.
             while !head.is_empty() {
-                match stream.try_send(head) {
+                match stream.try_send(*head) {
                     Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
                     Ok(n) => *head = &head[n..],
                     Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {

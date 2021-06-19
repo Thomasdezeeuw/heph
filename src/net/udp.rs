@@ -419,11 +419,8 @@ impl<'a, 'b> Future for SendTo<'a, 'b> {
     type Output = io::Result<usize>;
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let SendTo {
-            socket,
-            buf,
-            target,
-        } = Pin::into_inner(self);
+        #[rustfmt::skip]
+        let SendTo { socket, buf, target } = Pin::into_inner(self);
         try_io!(socket.try_send_to(buf, *target))
     }
 }
@@ -441,11 +438,8 @@ impl<'a, 'b> Future for SendToVectored<'a, 'b> {
     type Output = io::Result<usize>;
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let SendToVectored {
-            socket,
-            bufs,
-            target,
-        } = Pin::into_inner(self);
+        #[rustfmt::skip]
+        let SendToVectored { socket, bufs, target } = Pin::into_inner(self);
         try_io!(SockRef::from(&socket.socket).send_to_vectored(bufs, target))
     }
 }
@@ -733,7 +727,7 @@ impl<'a, 'b> Future for Send<'a, 'b> {
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Send { socket, buf } = Pin::into_inner(self);
-        try_io!(socket.try_send(buf))
+        try_io!(socket.try_send(*buf))
     }
 }
 
@@ -750,7 +744,7 @@ impl<'a, 'b> Future for SendVectored<'a, 'b> {
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let SendVectored { socket, bufs } = Pin::into_inner(self);
-        try_io!(socket.try_send_vectored(bufs))
+        try_io!(socket.try_send_vectored(*bufs))
     }
 }
 
