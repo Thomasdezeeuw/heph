@@ -1,0 +1,778 @@
+commit 8811f9d4651451023da947231e96d9bc87f2d306
+Author: Thomas de Zeeuw <thomasdezeeuw@gmail.com>
+Date:   Sat May 29 17:51:03 2021 +0200
+
+    Use test::try_spawn in HTTP client tests
+
+diff --git a/http/tests/functional/client.rs b/http/tests/functional/client.rs
+index a99c3d9..cf7134c 100644
+--- a/http/tests/functional/client.rs
++++ b/http/tests/functional/client.rs
+@@ -13,7 +13,7 @@
+ use heph::actor::messages::Terminate;
+ use heph::rt::{self, Runtime, ThreadSafe};
+ use heph::spawn::options::{ActorOptions, Priority};
+-use heph::test::{init_actor, poll_actor};
++use heph::test::{self, init_actor, poll_actor};
+ use heph::{actor, Actor, ActorRef, NewActor, Supervisor, SupervisorStrategy};
+ use heph_http::body::{EmptyBody, OneshotBody};
+ use heph_http::client::{Client, ResponseError};
+@@ -46,11 +46,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -65,8 +61,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -84,11 +78,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -101,8 +91,6 @@ async fn http_actor(
+ 
+         // No response.
+         drop(stream);
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -120,11 +108,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -139,8 +123,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 a00\r\nContent-Length: 2\r\n\r\nOk")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -162,11 +144,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -184,8 +162,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -207,11 +183,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -226,8 +198,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -261,11 +231,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -283,8 +249,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -307,11 +271,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -329,8 +289,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -352,11 +310,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -374,8 +328,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ */
+@@ -398,11 +350,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -418,8 +366,6 @@ async fn http_actor(
+             .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n")
+             .unwrap();
+         stream.shutdown(Shutdown::Write).unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -440,11 +386,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -458,8 +400,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\nContent-Length: 2\r\n\r\nOk")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -479,11 +419,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -497,8 +433,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\nContent-Length: 4\r\n\r\nOk")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -518,11 +452,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -536,8 +466,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: chunked\r\nContent-Length: 2\r\n\r\n")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -557,11 +485,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -575,8 +499,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nContent-Length: abc\r\n\r\nOk")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -594,11 +516,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -612,8 +530,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: chunked\r\n\r\n2\r\nOk0\r\n")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -631,11 +547,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -651,8 +563,6 @@ async fn http_actor(
+             .unwrap();
+         sleep(Duration::from_millis(100));
+         stream.write_all(b"2\r\nOk0\r\n").unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -670,11 +580,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -688,8 +594,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: chunked\r\n\r\n0\r\n")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -710,11 +614,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -730,8 +630,6 @@ async fn http_actor(
+                 b"HTTP/1.1 200\r\nContent-Length: 2\r\nTransfer-Encoding: identity\r\n\r\nOk",
+             )
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -751,11 +649,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -769,8 +663,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: gzip\r\n\r\n")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -791,11 +683,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -810,8 +698,6 @@ async fn http_actor(
+             .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: chunked, identity\r\n\r\nOk")
+             .unwrap();
+         stream.shutdown(Shutdown::Write).unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -831,11 +717,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -849,8 +731,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\nTransfer-Encoding: chunked\r\n\r\n")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -870,11 +750,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -888,8 +764,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nTransfer-Encoding: chunked\r\n\r\nQ\r\nOk0\r\n")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -910,11 +784,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -927,8 +797,6 @@ async fn http_actor(
+ 
+         // Write response.
+         stream.write_all(b"HTTP/1.1 200\r\n\r\n").unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -949,11 +817,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -966,8 +830,6 @@ async fn http_actor(
+ 
+         // Write response.
+         stream.write_all(b"HTTP/1.1 200\r\n\r\n").unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -989,11 +851,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -1006,8 +864,6 @@ async fn http_actor(
+ 
+         // Write response.
+         stream.write_all(b"HTTP/1.1 204\r\n\r\n").unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -1028,11 +884,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -1046,8 +898,6 @@ async fn http_actor(
+         // Write response.
+         stream.write_all(b"HTTP/1.1 200\r\n\r\nOk").unwrap();
+         stream.shutdown(Shutdown::Write).unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -1067,11 +917,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -1087,8 +933,6 @@ async fn http_actor(
+         let buf = [b'a'; http::MAX_HEAD_SIZE];
+         stream.write_all(&buf).unwrap();
+         stream.write_all(b"\r\n").unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -1108,11 +952,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -1125,8 +965,6 @@ async fn http_actor(
+ 
+         // Write response.
+         stream.write_all(b"HTTP/1.1 200\r\n\0: \r\n\r\n").unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -1146,11 +984,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -1165,8 +999,6 @@ async fn http_actor(
+         stream
+             .write_all(b"HTTP/1.1 200\r\nAbc: Header\rvalue\r\n\r\n")
+             .unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -1186,11 +1018,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -1203,8 +1031,6 @@ async fn http_actor(
+ 
+         // Write response.
+         stream.write_all(b"\rHTTP/1.1 200\r\n\r\n").unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -1224,11 +1050,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -1241,8 +1063,6 @@ async fn http_actor(
+ 
+         // Write response.
+         stream.write_all(b"HTTPS/1.1 200\r\n\r\n").unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -1262,11 +1082,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -1279,8 +1095,6 @@ async fn http_actor(
+ 
+         // Write response.
+         stream.write_all(b"HTTP/1.1 2009\r\n\r\n").unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -1300,11 +1114,7 @@ async fn http_actor(
+             Ok(())
+         }
+ 
+-        let (mut stream, handle) = test_server.accept(|address| {
+-            let http_actor = http_actor as fn(_, _) -> _;
+-            let (actor, _) = init_actor(http_actor, address).unwrap();
+-            actor
+-        });
++        let mut stream = test_server.accept(http_actor as fn(_, _) -> _);
+ 
+         expect_request(
+             &mut stream,
+@@ -1321,8 +1131,6 @@ async fn http_actor(
+             stream.write_all(b"Some-Header: Abc\r\n").unwrap();
+         }
+         stream.write_all(b"\r\n").unwrap();
+-
+-        handle.join().unwrap();
+     });
+ }
+ 
+@@ -1443,27 +1251,24 @@ fn new() -> TestServer {
+     }
+ 
+     #[track_caller]
+-    fn accept<F, A>(&self, spawn: F) -> (TcpStream, thread::JoinHandle<()>)
++    fn accept<NA>(&self, new_actor: NA) -> TcpStream
+     where
+-        F: FnOnce(SocketAddr) -> A,
+-        A: Actor + Send + 'static,
+-        A::Error: fmt::Display,
++        NA: NewActor<Argument = SocketAddr, Error = !, RuntimeAccess = ThreadSafe>
++            + Sync
++            + Send
++            + 'static,
++        NA::Actor: Actor<Error = io::Error> + Send + Sync + 'static,
++        NA::Message: Send,
++        NA::Argument: Send,
+     {
+         let listener = self.listener.lock().unwrap();
+-        let actor = spawn(self.address);
+-        let mut actor = Box::pin(actor);
+-        // TODO: don't run this on a different thread, use a test Heph runtime.
+-        let handle = thread::spawn(move || {
+-            for _ in 0..100 {
+-                match poll_actor(actor.as_mut()) {
+-                    Poll::Pending => {}
+-                    Poll::Ready(Ok(())) => return,
+-                    Poll::Ready(Err(err)) => panic!("error in actor: {}", err),
+-                }
+-                sleep(Duration::from_millis(10));
+-            }
+-            panic!("looped too many times");
+-        });
++        let _ = test::try_spawn(
++            client_supervisor,
++            new_actor,
++            self.address,
++            ActorOptions::default(),
++        )
++        .expect("failed to spawn client actor");
+         let (stream, _) = listener.accept().unwrap();
+         drop(listener);
+         stream.set_nodelay(true).unwrap();
+@@ -1473,6 +1278,10 @@ fn accept<F, A>(&self, spawn: F) -> (TcpStream, thread::JoinHandle<()>)
+         stream
+             .set_write_timeout(Some(Duration::from_secs(1)))
+             .unwrap();
+-        (stream, handle)
++        stream
+     }
+ }
++
++fn client_supervisor(err: io::Error) -> SupervisorStrategy<SocketAddr> {
++    panic!("error handling connection: {}", err)
++}
