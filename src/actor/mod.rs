@@ -524,6 +524,7 @@ impl_new_actor!(
 /// Because this is basically a [`Future`] it also shares it's characteristics,
 /// including it's unsafety. Please read the [`Future`] documentation when
 /// implementing or using this trait manually.
+#[must_use = "actor do nothing unless you poll them"]
 pub trait Actor {
     /// An error the actor can return to its [supervisor]. This error will be
     /// considered terminal for this actor and should **not** be an error of
