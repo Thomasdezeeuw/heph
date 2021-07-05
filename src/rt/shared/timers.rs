@@ -38,8 +38,8 @@ type TimeOffset = u32;
 /// Timers.
 ///
 /// This implementation is based on a Timing Wheel as discussed in the paper
-/// ``Hashed and hierarchical timing wheels: efficient data structures for
-/// implementing a timer facility'' by George Varghese and Anthony Lauck (1997).
+/// "Hashed and hierarchical timing wheels: efficient data structures for
+/// implementing a timer facility" by George Varghese and Anthony Lauck (1997).
 ///
 /// This uses a scheme that splits the timers based on when they're going to
 /// expire. It has 64 ([`SLOTS`]) slots each representing roughly a second of
