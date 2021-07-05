@@ -448,11 +448,11 @@ where
 /// Macro to implement the [`NewActor`] trait on function pointers.
 macro_rules! impl_new_actor {
     (
-        $( ( $( $arg: ident ),* ) ),*
+        $( ( $( $arg_name: ident : $arg: ident ),* ) ),*
         $(,)*
     ) => {
         $(
-            impl<M, RT, $( $arg, )* A> NewActor for fn(Context<M, RT>, $( $arg ),*) -> A
+            impl<M, RT, $( $arg, )* A> NewActor for fn(ctx: Context<M, RT>, $( $arg_name: $arg ),*) -> A
             where
                 A: Actor,
             {
@@ -476,7 +476,10 @@ macro_rules! impl_new_actor {
     };
 }
 
-impl<M, RT, Arg, A> NewActor for fn(Context<M, RT>, Arg) -> A
+// `NewActor` with no arguments.
+impl_new_actor!(());
+
+impl<M, RT, Arg, A> NewActor for fn(ctx: Context<M, RT>, arg: Arg) -> A
 where
     A: Actor,
 {
@@ -496,13 +499,12 @@ where
 }
 
 impl_new_actor!(
-    (),
     // NOTE: we don't want a single argument into tuple form so we implement
     // that manually above.
-    (Arg1, Arg2),
-    (Arg1, Arg2, Arg3),
-    (Arg1, Arg2, Arg3, Arg4),
-    (Arg1, Arg2, Arg3, Arg4, Arg5),
+    (arg1: Arg1, arg2: Arg2),
+    (arg1: Arg1, arg2: Arg2, arg3: Arg3),
+    (arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4),
+    (arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5),
 );
 
 /// The `Actor` trait defines how the actor is run.
