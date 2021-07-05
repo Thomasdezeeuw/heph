@@ -91,6 +91,38 @@ const RT_SUBSTREAM_ID: u64 = 0;
 /// See the [`trace`] module for usage.
 ///
 /// [`trace`]: crate::trace
+///
+/// # Examples
+///
+/// The following example adds tracing for receiving and handling of a message.
+///
+/// ```
+/// use heph::actor;
+/// use heph::rt::ThreadLocal;
+/// use heph::trace::Trace;
+///
+/// async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
+///     // Start a trace of receiving and handling a message.
+///     let mut trace_timing = ctx.start_trace();
+///     while let Ok(msg) = ctx.receive_next().await {
+///         // Finish the trace for receiving the message.
+///         ctx.finish_trace(trace_timing.clone(), "receiving message", &[("message", &msg)]);
+///
+///         // Handle the message by printing it.
+///         let print_timing = ctx.start_trace();
+///         println!("got a message: {}", msg);
+///
+///         // Finish the trace for the printing and handling of the message.
+///         ctx.finish_trace(print_timing, "Printing message", &[]);
+///         ctx.finish_trace(trace_timing, "Handling message", &[]);
+///
+///         // Start tracing the next message.
+///         trace_timing = ctx.start_trace();
+///     }
+/// }
+///
+/// # drop(actor);
+/// ```
 pub trait Trace {
     /// Start timing an event if tracing is enabled.
     ///
@@ -106,6 +138,7 @@ pub trait Trace {
     /// careful with this when using the [`Try`] (`?`) operator.
     ///
     /// [`Try`]: std::ops::Try
+    #[must_use = "tracing events must be finished, otherwise they aren't recorded"]
     fn start_trace(&self) -> Option<EventTiming>;
 
     /// Finish tracing an event, partner function to [`start_trace`].
@@ -489,7 +522,7 @@ pub(crate) fn finish_rt<L>(
 }
 
 /// Timing an event.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[must_use = "tracing events must be finished, otherwise they aren't recorded"]
 pub struct EventTiming {
     start: Instant,
