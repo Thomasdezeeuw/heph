@@ -72,11 +72,11 @@ pub trait SyncActor {
 /// Macro to implement the [`SyncActor`] trait on function pointers.
 macro_rules! impl_sync_actor {
     (
-        $( ( $( $arg: ident ),* ) ),*
+        $( ( $( $arg_name: ident : $arg: ident ),* ) ),*
         $(,)*
     ) => {
         $(
-            impl<M, E, $( $arg ),*> SyncActor for fn(SyncContext<M>, $( $arg ),*) -> Result<(), E> {
+            impl<M, E, $( $arg ),*> SyncActor for fn(ctx: SyncContext<M>, $( $arg_name: $arg ),*) -> Result<(), E> {
                 type Message = M;
                 type Argument = ($( $arg ),*);
                 type Error = E;
@@ -88,7 +88,7 @@ macro_rules! impl_sync_actor {
                 }
             }
 
-            impl<M, $( $arg ),*> SyncActor for fn(SyncContext<M>, $( $arg ),*) {
+            impl<M, $( $arg ),*> SyncActor for fn(ctx: SyncContext<M>, $( $arg_name: $arg ),*) {
                 type Message = M;
                 type Argument = ($( $arg ),*);
                 type Error = !;
@@ -103,7 +103,9 @@ macro_rules! impl_sync_actor {
     };
 }
 
-impl<M, E, Arg> SyncActor for fn(SyncContext<M>, Arg) -> Result<(), E> {
+impl_sync_actor!(());
+
+impl<M, E, Arg> SyncActor for fn(ctx: SyncContext<M>, arg: Arg) -> Result<(), E> {
     type Message = M;
     type Argument = Arg;
     type Error = E;
@@ -113,7 +115,7 @@ impl<M, E, Arg> SyncActor for fn(SyncContext<M>, Arg) -> Result<(), E> {
     }
 }
 
-impl<M, Arg> SyncActor for fn(SyncContext<M>, Arg) {
+impl<M, Arg> SyncActor for fn(ctx: SyncContext<M>, arg: Arg) {
     type Message = M;
     type Argument = Arg;
     type Error = !;
@@ -125,13 +127,12 @@ impl<M, Arg> SyncActor for fn(SyncContext<M>, Arg) {
 }
 
 impl_sync_actor!(
-    (),
     // NOTE: we don't want a single argument into tuple form so we implement
     // that manually above.
-    (Arg1, Arg2),
-    (Arg1, Arg2, Arg3),
-    (Arg1, Arg2, Arg3, Arg4),
-    (Arg1, Arg2, Arg3, Arg4, Arg5),
+    (arg1: Arg1, arg2: Arg2),
+    (arg1: Arg1, arg2: Arg2, arg3: Arg3),
+    (arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4),
+    (arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5),
 );
 
 /// The context in which a synchronous actor is executed.
