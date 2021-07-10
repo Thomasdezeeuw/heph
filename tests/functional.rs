@@ -308,11 +308,10 @@ mod future {
     use std::pin::Pin;
     use std::task::{self, Poll};
 
-    use futures_test::task::{new_count_waker, AwokenCount};
-
     use heph_inbox::{new_small, Sender};
 
-    use super::SMALL_CAP;
+    use crate::util::{new_count_waker, AwokenCount};
+    use crate::SMALL_CAP;
 
     macro_rules! pin_stack {
         ($fut: ident) => {
@@ -442,7 +441,7 @@ mod future {
 
         for (waker, count, mut future) in futures.drain(..min(SMALL_CAP, futures.len())) {
             let c = count.get();
-            assert!(count == 0 || count == 1);
+            assert!(c == 0 || c == 1);
 
             let mut ctx = task::Context::from_waker(&waker);
             assert_eq!(Pin::new(&mut future).poll(&mut ctx), Poll::Ready(Ok(())));

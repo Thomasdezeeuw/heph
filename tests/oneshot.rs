@@ -8,9 +8,7 @@ mod util;
 mod functional {
     use heph_inbox::oneshot::{new_oneshot, Receiver, RecvError, Sender};
 
-    use futures_test::task::new_count_waker;
-
-    use crate::util::{assert_send, assert_sync};
+    use crate::util::{assert_send, assert_sync, new_count_waker};
 
     #[test]
     fn sender_is_send() {
@@ -114,9 +112,9 @@ mod future {
     use std::pin::Pin;
     use std::task::{self, Poll};
 
-    use futures_test::task::new_count_waker;
-
     use heph_inbox::oneshot::new_oneshot;
+
+    use crate::util::new_count_waker;
 
     macro_rules! pin_stack {
         ($fut: ident) => {

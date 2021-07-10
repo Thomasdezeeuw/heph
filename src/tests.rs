@@ -2,14 +2,51 @@
 
 use std::future::Future;
 use std::mem::size_of;
-use std::task::{self, Poll};
-
-use futures_test::task::new_count_waker;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::task::{self, Poll, Wake};
 
 use crate::{
     has_status, new_small, receiver_pos, slot_status, Channel, Join, SendValue, ALL_STATUSES_MASK,
     EMPTY, FILLED, MARK_EMPTIED, MARK_NEXT_POS, MARK_READING, POS_BITS, READING, SMALL_CAP, TAKEN,
 };
+
+/// Number of times the waker was awoken.
+///
+/// See [`new_count_waker`] for usage.
+#[derive(Debug)]
+struct AwokenCount {
+    inner: Arc<WakerInner>,
+}
+
+impl PartialEq<usize> for AwokenCount {
+    fn eq(&self, other: &usize) -> bool {
+        self.inner.count.load(Ordering::SeqCst) == *other
+    }
+}
+
+#[derive(Debug)]
+struct WakerInner {
+    count: AtomicUsize,
+}
+
+impl Wake for WakerInner {
+    fn wake(self: Arc<Self>) {
+        let _ = self.count.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        let _ = self.count.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+/// Create a new [`Waker`] that counts the number of times it's awoken.
+fn new_count_waker() -> (task::Waker, AwokenCount) {
+    let inner = Arc::new(WakerInner {
+        count: AtomicUsize::new(0),
+    });
+    (inner.clone().into(), AwokenCount { inner })
+}
 
 #[test]
 fn size_assertions() {
@@ -178,7 +215,7 @@ fn channel_next_sender_waker_single_waker() {
     channel.sender_wakers.lock().push(waker);
 
     channel.wake_next_sender();
-    assert_eq!(count.get(), 1);
+    assert_eq!(count, 1);
     assert!(channel.sender_wakers.lock().is_empty());
 }
 
@@ -196,11 +233,11 @@ fn channel_next_sender_waker_two_wakers() {
     }
 
     channel.wake_next_sender();
-    assert_eq!(count1.get(), 1);
-    assert_eq!(count2.get(), 0);
+    assert_eq!(count1, 1);
+    assert_eq!(count2, 0);
     channel.wake_next_sender();
-    assert_eq!(count1.get(), 1);
-    assert_eq!(count2.get(), 1);
+    assert_eq!(count1, 1);
+    assert_eq!(count2, 1);
     assert!(channel.sender_wakers.lock().is_empty());
 }
 
@@ -220,17 +257,17 @@ fn channel_next_sender_waker_three_wakers() {
     }
 
     channel.wake_next_sender();
-    assert_eq!(count1.get(), 1);
-    assert_eq!(count2.get(), 0);
-    assert_eq!(count3.get(), 0);
+    assert_eq!(count1, 1);
+    assert_eq!(count2, 0);
+    assert_eq!(count3, 0);
     channel.wake_next_sender();
-    assert_eq!(count1.get(), 1);
-    assert_eq!(count2.get(), 0); // NOTE: waking order is not guaranteed.
-    assert_eq!(count3.get(), 1);
+    assert_eq!(count1, 1);
+    assert_eq!(count2, 0); // NOTE: waking order is not guaranteed.
+    assert_eq!(count3, 1);
     channel.wake_next_sender();
-    assert_eq!(count1.get(), 1);
-    assert_eq!(count2.get(), 1);
-    assert_eq!(count3.get(), 1);
+    assert_eq!(count1, 1);
+    assert_eq!(count2, 1);
+    assert_eq!(count3, 1);
     assert!(channel.sender_wakers.lock().is_empty());
 }
 
@@ -257,7 +294,7 @@ fn send_value_removes_waker_from_list_on_drop() {
     }
     drop(receiver);
 
-    assert_eq!(count.get(), 0);
+    assert_eq!(count, 0);
 }
 
 #[test]
@@ -286,6 +323,6 @@ fn send_value_removes_waker_from_list_on_drop_polled_with_different_wakers() {
     }
     drop(receiver);
 
-    assert_eq!(count1.get(), 0);
-    assert_eq!(count2.get(), 0);
+    assert_eq!(count1, 0);
+    assert_eq!(count2, 0);
 }

@@ -6,6 +6,7 @@
 use std::lazy::SyncLazy;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::task::{self, Wake};
 use std::thread;
 
 // NOTE: keep in sync with the actual capacity.
@@ -13,6 +14,50 @@ pub const SMALL_CAP: usize = 8;
 
 pub fn assert_send<T: Send>() {}
 pub fn assert_sync<T: Sync>() {}
+
+/// Number of times the waker was awoken.
+///
+/// See [`new_count_waker`] for usage.
+#[derive(Debug)]
+pub struct AwokenCount {
+    inner: Arc<WakerInner>,
+}
+
+impl AwokenCount {
+    /// Get the current count.
+    pub fn get(&self) -> usize {
+        self.inner.count.load(Ordering::SeqCst)
+    }
+}
+
+impl PartialEq<usize> for AwokenCount {
+    fn eq(&self, other: &usize) -> bool {
+        self.get() == *other
+    }
+}
+
+#[derive(Debug)]
+struct WakerInner {
+    count: AtomicUsize,
+}
+
+impl Wake for WakerInner {
+    fn wake(self: Arc<Self>) {
+        let _ = self.count.fetch_add(1, Ordering::SeqCst);
+    }
+
+    fn wake_by_ref(self: &Arc<Self>) {
+        let _ = self.count.fetch_add(1, Ordering::SeqCst);
+    }
+}
+
+/// Create a new [`Waker`] that counts the number of times it's awoken.
+pub fn new_count_waker() -> (task::Waker, AwokenCount) {
+    let inner = Arc::new(WakerInner {
+        count: AtomicUsize::new(0),
+    });
+    (inner.clone().into(), AwokenCount { inner })
+}
 
 /// Message type used in drop tests to ensure we don't drop undefined memory.
 #[derive(Debug)]
