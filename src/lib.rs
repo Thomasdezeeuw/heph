@@ -54,7 +54,7 @@
 
 // TODO: support larger channel, with more slots.
 
-#![feature(cfg_sanitize, maybe_uninit_extra, maybe_uninit_ref)]
+#![feature(cfg_sanitize, maybe_uninit_extra)]
 #![warn(
     missing_debug_implementations,
     missing_docs,
