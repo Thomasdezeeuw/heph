@@ -731,7 +731,6 @@ mod future {
     }
 
     #[test]
-    #[ignore = "`forget`ting `SendValue` is memory unsafe"]
     fn forget_send_value() {
         let (sender, mut receiver) = new_small::<usize>();
 
@@ -748,10 +747,9 @@ mod future {
         assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
         std::mem::forget(future);
 
-        // FIXME: because we `forget` the future above the waker count should
-        // remain zero.
-        assert_eq!(receiver.try_recv(), Ok(0));
         assert_eq!(count, 0);
+        assert_eq!(receiver.try_recv(), Ok(0));
+        assert_eq!(count, 1);
     }
 
     #[test]
