@@ -13,7 +13,7 @@ use log::{debug, trace};
 
 use crate::actor::NewActor;
 use crate::rt::process::{self, ActorProcess, FutureProcess, Process, ProcessId};
-use crate::rt::ThreadSafe;
+use crate::rt::{ptr_as_usize, ThreadSafe};
 use crate::spawn::options::Priority;
 use crate::supervisor::Supervisor;
 
@@ -218,8 +218,7 @@ pub(super) struct AddActor<'s> {
 impl<'s> AddActor<'s> {
     /// Get the would be `ProcessId` for the process.
     pub(super) const fn pid(&self) -> ProcessId {
-        #[allow(trivial_casts)]
-        ProcessId(unsafe { &*self.alloc as *const _ as *const u8 as usize })
+        ProcessId(ptr_as_usize(&*self.alloc as *const _))
     }
 
     /// Add a new thread-safe actor to the scheduler.
@@ -237,7 +236,6 @@ impl<'s> AddActor<'s> {
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
-        #[allow(trivial_casts)]
         debug_assert!(
             inactive::ok_ptr(self.alloc.as_ptr() as *const ()),
             "SKIP_BITS invalid"

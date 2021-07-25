@@ -5,7 +5,7 @@ use std::sync::Weak;
 use std::task;
 
 use crate::rt::shared::RuntimeInternals;
-use crate::rt::ProcessId;
+use crate::rt::{ptr_as_usize, ProcessId};
 
 /// Maximum number of runtimes supported.
 pub const MAX_RUNTIMES: usize = 1 << MAX_RUNTIMES_BITS;
@@ -131,7 +131,7 @@ impl WakerData {
     /// This doesn't check if the provided `data` is valid, the caller is
     /// responsible for this.
     const unsafe fn from_raw_data(data: *const ()) -> WakerData {
-        WakerData(data as usize)
+        WakerData(ptr_as_usize(data))
     }
 
     /// Convert [`WakerData`] into raw data for [`task::RawWaker`].

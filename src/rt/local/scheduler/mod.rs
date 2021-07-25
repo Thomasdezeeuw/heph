@@ -14,7 +14,7 @@ use log::{debug, trace};
 
 use crate::actor::NewActor;
 use crate::rt::process::{self, ActorProcess, FutureProcess, ProcessId};
-use crate::rt::ThreadLocal;
+use crate::rt::{ptr_as_usize, ThreadLocal};
 use crate::spawn::options::Priority;
 use crate::supervisor::Supervisor;
 
@@ -130,8 +130,7 @@ pub(crate) struct AddActor<'s> {
 impl<'s> AddActor<'s> {
     /// Get the would be `ProcessId` for the process.
     pub(crate) const fn pid(&self) -> ProcessId {
-        #[allow(trivial_casts)]
-        ProcessId(unsafe { &*self.alloc as *const _ as *const u8 as usize })
+        ProcessId(ptr_as_usize(&*self.alloc as *const _))
     }
 
     /// Add a new inactive actor to the scheduler.
@@ -147,7 +146,6 @@ impl<'s> AddActor<'s> {
         S: Supervisor<NA> + 'static,
         NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
     {
-        #[allow(trivial_casts)]
         debug_assert!(
             inactive::ok_ptr(self.alloc.as_ptr() as *const ()),
             "SKIP_BITS invalid"
