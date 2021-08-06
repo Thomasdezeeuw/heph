@@ -71,7 +71,6 @@
     available_concurrency,
     binary_heap_retain,
     const_fn_trait_bound,
-    const_fn_union,
     const_option,
     destructuring_assignment,
     drain_filter,
@@ -88,7 +87,6 @@
     stmt_expr_attributes,
     vec_spare_capacity
 )]
-#![allow(incomplete_features)] // NOTE: for `generic_associated_types`.
 #![cfg_attr(any(test, feature = "test"), feature(once_cell))]
 #![warn(
     anonymous_parameters,
