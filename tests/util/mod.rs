@@ -156,7 +156,6 @@ macro_rules! start_threads {
         drop(thread_guard);
 
         if !errors.is_empty() {
-            #[track_caller]
             panic!("thread failed, error(s): {:?}", errors);
         }
     }};
