@@ -1,3 +1,14 @@
+# 0.2.2
+
+## Added
+
+* Add limited arbitary sized channels in the form of `new` and `Manager::new`
+  (https://github.com/Thomasdezeeuw/inbox/commit/d3056eec8b68456113965fdf20489d1c9b2b3c27,
+  https://github.com/Thomasdezeeuw/inbox/commit/0489ae7321b697bb5f7fa43cf8359af05b9e29fe,
+  https://github.com/Thomasdezeeuw/inbox/commit/d597c11cb7f995e49d2d63ad58c8db88ff5c3a13).
+* Makes `SendValue` safe to leak
+  (https://github.com/Thomasdezeeuw/inbox/commit/3306857a54e08eff1681f93ec82af28069f4a8d5).
+
 # 0.2.1
 
 ## Fixes
