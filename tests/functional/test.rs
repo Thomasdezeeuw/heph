@@ -27,7 +27,7 @@ fn test_size_of_actor() {
 
     #[allow(trivial_casts)]
     {
-        assert_eq!(size_of_actor_val(&(actor1 as fn(_) -> _)), 32);
+        assert_eq!(size_of_actor_val(&(actor1 as fn(_) -> _)), 40);
     }
 
     struct Na;
