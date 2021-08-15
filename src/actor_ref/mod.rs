@@ -449,14 +449,6 @@ impl<'r, M> Future for MappedSendValue<'r, M> {
 }
 
 /// [`Future`] behind [`ActorRef::send`].
-///
-/// # Safety
-///
-/// It is not safe to leak this `SendValue` (by using [`mem::forget`]). Always
-/// make sure the destructor is run, by calling [`drop`], or letting it go out
-/// of scope.
-///
-/// [`mem::forget`]: std::mem::forget
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct SendValue<'r, M> {
     kind: SendValueKind<'r, M>,
@@ -519,14 +511,6 @@ impl fmt::Display for SendError {
 impl Error for SendError {}
 
 /// [`Future`] behind [`ActorRef::join`].
-///
-/// # Safety
-///
-/// It is not safe to leak this `Join` (by using [`mem::forget`]). Always make
-/// sure the destructor is run, by calling [`drop`], or letting it go out of
-/// scope.
-///
-/// [`mem::forget`]: std::mem::forget
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Join<'r, M> {
     kind: JoinKind<'r, M>,
@@ -760,14 +744,6 @@ impl<M> fmt::Debug for ActorGroup<M> {
 }
 
 /// [`Future`] behind [`ActorGroup::join_all`].
-///
-/// # Safety
-///
-/// It is not safe to leak this `JoinAll` (by using [`mem::forget`]). Always
-/// make sure the destructor is run, by calling [`drop`], or letting it go out
-/// of scope.
-///
-/// [`mem::forget`]: std::mem::forget
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct JoinAll<'r, M> {
     actor_refs: &'r [ActorRef<M>],
