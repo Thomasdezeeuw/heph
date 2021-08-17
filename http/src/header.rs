@@ -98,7 +98,8 @@ impl Headers {
     ///
     /// # Notes
     ///
-    /// If all you need is the header value you can use [`Headers::get_value`].
+    /// If all you need is the header value you can use [`Headers::get_value`]
+    /// or [`Headers::get_bytes`] for the raw value.
     pub fn get(&self, name: &HeaderName<'_>) -> Option<Header<'_, '_>> {
         for part in &self.parts {
             if part.name == *name {
@@ -109,6 +110,20 @@ impl Headers {
             }
         }
         None
+    }
+
+    /// Get the header's value with `name`, if any.
+    ///
+    /// This returns `Ok(None)` if there is no header with `name` and `Err(..)`
+    /// in case [`FromHeaderValue`] for `T` returns an error.
+    pub fn get_value<'a, T>(&'a self, name: &HeaderName<'_>) -> Result<Option<T>, T::Err>
+    where
+        T: FromHeaderValue<'a>,
+    {
+        match self.get_bytes(name) {
+            Some(value) => FromHeaderValue::from_bytes(value).map(Some),
+            None => Ok(None),
+        }
     }
 
     /// Get the header's value with `name` as byte slice, if any.
