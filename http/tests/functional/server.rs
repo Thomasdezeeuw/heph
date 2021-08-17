@@ -529,7 +529,7 @@ fn expect_response(
     );
     for got_header in response.headers {
         let got_header_name = HeaderName::from_str(got_header.name);
-        let got = headers.get_value(&got_header_name).unwrap();
+        let got = headers.get_bytes(&got_header_name).unwrap();
         assert_eq!(
             got_header.value,
             got,
