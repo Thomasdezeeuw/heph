@@ -1357,7 +1357,7 @@ fn expect_request(
     );
     for got_header in request.headers {
         let got_header_name = HeaderName::from_str(got_header.name);
-        let got = headers.get_value(&got_header_name).unwrap();
+        let got = headers.get_bytes(&got_header_name).unwrap();
         assert_eq!(
             got_header.value,
             got,
@@ -1390,7 +1390,7 @@ async fn expect_response(
         headers
     );
     for got_header in response.headers().iter() {
-        let expected = headers.get_value(&got_header.name()).unwrap();
+        let expected = headers.get_bytes(&got_header.name()).unwrap();
         assert_eq!(
             got_header.value(),
             expected,

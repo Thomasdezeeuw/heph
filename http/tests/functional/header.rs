@@ -157,11 +157,11 @@ fn headers_from_iter_and_extend() {
 fn headers_get_not_found() {
     let mut headers = Headers::EMPTY;
     assert!(headers.get(&HeaderName::DATE).is_none());
-    assert!(headers.get_value(&HeaderName::DATE).is_none());
+    assert!(headers.get_bytes(&HeaderName::DATE).is_none());
 
     headers.add(Header::new(HeaderName::ALLOW, b"GET"));
     assert!(headers.get(&HeaderName::DATE).is_none());
-    assert!(headers.get_value(&HeaderName::DATE).is_none());
+    assert!(headers.get_bytes(&HeaderName::DATE).is_none());
 }
 
 #[test]
@@ -196,7 +196,7 @@ fn check_header<'a, T>(
     assert_eq!(got.value(), value);
     assert_eq!(got.parse::<T>().unwrap(), parsed_value);
 
-    assert_eq!(headers.get_value(name).unwrap(), value);
+    assert_eq!(headers.get_bytes(name).unwrap(), value);
 }
 
 fn check_iter(headers: &'_ Headers, expected: &[(HeaderName<'_>, &'_ [u8])]) {
