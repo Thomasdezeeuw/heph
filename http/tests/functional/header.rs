@@ -477,6 +477,7 @@ fn from_str_known_headers() {
 fn from_str_unknown_header() {
     let header_name = HeaderName::from_str("EXTRA_LONG_UNKNOWN_HEADER_NAME_REALLY_LONG");
     assert!(header_name.is_heap_allocated());
+    assert_eq!(header_name, "extra_long_unknown_header_name_really_long");
 }
 
 #[test]

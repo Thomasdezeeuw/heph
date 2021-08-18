@@ -135,7 +135,7 @@ const fn is_lower_case(value: &str) -> bool {
     let mut i = 0;
     while i < value.len() {
         // NOTE: allows `-` because it's used in header names.
-        if !matches!(value[i], b'0'..=b'9' | b'a'..=b'z' | b'-') {
+        if matches!(value[i], | b'A'..=b'Z') {
             return false;
         }
         i += 1;
