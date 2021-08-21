@@ -14,7 +14,7 @@ use heph::net::tcp::stream::{self, TcpStream};
 use heph::{actor, rt};
 
 use crate::body::{BodyLength, EmptyBody};
-use crate::header::{FromHeaderValue, HeaderName, Headers};
+use crate::head::header::{FromHeaderValue, HeaderName, Headers};
 use crate::{
     map_version_byte, trim_ws, Method, Response, StatusCode, BUF_SIZE, MAX_HEADERS, MAX_HEAD_SIZE,
     MIN_READ_SIZE,

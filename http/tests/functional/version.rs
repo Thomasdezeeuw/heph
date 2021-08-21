@@ -1,4 +1,4 @@
-use heph_http::version::UnknownVersion;
+use heph_http::head::version::UnknownVersion;
 use heph_http::Version::{self, *};
 
 use crate::assert_size;

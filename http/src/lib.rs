@@ -26,29 +26,27 @@
 
 pub mod body;
 pub mod client;
-pub mod header;
-pub mod method;
+pub mod head;
 mod request;
 mod response;
 pub mod server;
-mod status_code;
-pub mod version;
 
 #[doc(no_inline)]
 pub use body::Body;
 #[doc(no_inline)]
 pub use client::Client;
 #[doc(no_inline)]
-pub use header::{Header, HeaderName, Headers};
+pub use head::header::{Header, HeaderName, Headers};
 #[doc(no_inline)]
-pub use method::Method;
+pub use head::method::Method;
+#[doc(no_inline)]
+pub use head::version::Version;
+#[doc(no_inline)]
+pub use head::StatusCode;
 pub use request::Request;
 pub use response::Response;
 #[doc(no_inline)]
 pub use server::{Connection, HttpServer};
-pub use status_code::StatusCode;
-#[doc(no_inline)]
-pub use version::Version;
 
 /// Maximum size of the HTTP head (the start line and the headers).
 ///
