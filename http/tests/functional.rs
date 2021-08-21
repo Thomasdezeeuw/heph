@@ -13,6 +13,7 @@ fn assert_size<T>(expected: usize) {
 mod functional {
     mod client;
     mod from_header_value;
+    mod head;
     mod header;
     mod method;
     mod server;
