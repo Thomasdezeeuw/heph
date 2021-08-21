@@ -1,4 +1,4 @@
-use heph_http::method::UnknownMethod;
+use heph_http::head::method::UnknownMethod;
 use heph_http::Method::{self, *};
 
 use crate::assert_size;

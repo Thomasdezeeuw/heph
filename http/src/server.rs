@@ -28,7 +28,7 @@ use heph::{actor, rt, Actor, NewActor, Supervisor};
 use httpdate::HttpDate;
 
 use crate::body::BodyLength;
-use crate::header::{FromHeaderValue, HeaderName, Headers};
+use crate::head::header::{FromHeaderValue, HeaderName, Headers};
 use crate::{
     map_version_byte, trim_ws, Method, Request, StatusCode, Version, BUF_SIZE, MAX_HEADERS,
     MAX_HEAD_SIZE, MIN_READ_SIZE,

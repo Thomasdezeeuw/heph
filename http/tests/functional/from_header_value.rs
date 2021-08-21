@@ -1,7 +1,7 @@
 use std::fmt;
 use std::time::SystemTime;
 
-use heph_http::header::{FromHeaderValue, ParseIntError, ParseTimeError};
+use heph_http::head::header::{FromHeaderValue, ParseIntError, ParseTimeError};
 
 #[test]
 fn str() {
