@@ -130,8 +130,8 @@ impl ResponseHead {
     }
 
     /// Add a body to the response head creating a complete response.
-    pub fn add_body<B>(self, body: B) -> Response<B> {
-        Response::new(self.version, self.status, self.headers, body)
+    pub const fn add_body<B>(self, body: B) -> Response<B> {
+        Response::from_head(self, body)
     }
 }
 

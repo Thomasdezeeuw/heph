@@ -1,12 +1,12 @@
 use std::fmt;
+use std::ops::{Deref, DerefMut};
 
+use crate::head::ResponseHead;
 use crate::{Headers, StatusCode, Version};
 
 /// HTTP response.
 pub struct Response<B> {
-    version: Version,
-    status: StatusCode,
-    headers: Headers,
+    head: ResponseHead,
     body: B,
 }
 
@@ -18,32 +18,12 @@ impl<B> Response<B> {
         headers: Headers,
         body: B,
     ) -> Response<B> {
-        Response {
-            version,
-            status,
-            headers,
-            body,
-        }
+        Response::from_head(ResponseHead::new(version, status, headers), body)
     }
 
-    /// Returns the HTTP version of this response.
-    pub const fn version(&self) -> Version {
-        self.version
-    }
-
-    /// Returns the response code.
-    pub const fn status(&self) -> StatusCode {
-        self.status
-    }
-
-    /// Returns the headers.
-    pub const fn headers(&self) -> &Headers {
-        &self.headers
-    }
-
-    /// Returns mutable access to the headers.
-    pub const fn headers_mut(&mut self) -> &mut Headers {
-        &mut self.headers
+    /// Create a new request from a [`ResponseHead`] and a `body`.
+    pub const fn from_head(head: ResponseHead, body: B) -> Response<B> {
+        Response { head, body }
     }
 
     /// Returns a reference to the body.
@@ -56,18 +36,32 @@ impl<B> Response<B> {
         &mut self.body
     }
 
-    /// Returns the body of the response.
-    pub fn into_body(self) -> B {
-        self.body
+    /// Split the response in the head and the body.
+    // TODO: mark as constant once destructors (that this doesn't have) can be
+    // run in constant functions.
+    pub fn split(self) -> (ResponseHead, B) {
+        (self.head, self.body)
+    }
+}
+
+impl<B> Deref for Response<B> {
+    type Target = ResponseHead;
+
+    fn deref(&self) -> &Self::Target {
+        &self.head
+    }
+}
+
+impl<B> DerefMut for Response<B> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.head
     }
 }
 
 impl<B> fmt::Debug for Response<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Request")
-            .field("version", &self.version)
-            .field("status", &self.status)
-            .field("headers", &self.headers)
+        f.debug_struct("Response")
+            .field("head", &self.head)
             .finish()
     }
 }
