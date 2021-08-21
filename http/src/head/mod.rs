@@ -15,7 +15,7 @@ pub use status_code::StatusCode;
 #[doc(no_inline)]
 pub use version::Version;
 
-use crate::Request;
+use crate::{Request, Response};
 
 /// Head of a [`Request`].
 pub struct RequestHead {
@@ -87,6 +87,59 @@ impl fmt::Debug for RequestHead {
             .field("method", &self.method)
             .field("path", &self.path)
             .field("version", &self.version)
+            .field("headers", &self.headers)
+            .finish()
+    }
+}
+
+/// Head of a [`Response`].
+pub struct ResponseHead {
+    version: Version,
+    status: StatusCode,
+    headers: Headers,
+}
+
+impl ResponseHead {
+    /// Create a new response head.
+    pub const fn new(version: Version, status: StatusCode, headers: Headers) -> ResponseHead {
+        ResponseHead {
+            version,
+            status,
+            headers,
+        }
+    }
+
+    /// Returns the HTTP version of this response.
+    pub const fn version(&self) -> Version {
+        self.version
+    }
+
+    /// Returns the response code.
+    pub const fn status(&self) -> StatusCode {
+        self.status
+    }
+
+    /// Returns the headers.
+    pub const fn headers(&self) -> &Headers {
+        &self.headers
+    }
+
+    /// Returns mutable access to the headers.
+    pub const fn headers_mut(&mut self) -> &mut Headers {
+        &mut self.headers
+    }
+
+    /// Add a body to the response head creating a complete response.
+    pub fn add_body<B>(self, body: B) -> Response<B> {
+        Response::new(self.version, self.status, self.headers, body)
+    }
+}
+
+impl fmt::Debug for ResponseHead {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ResponseHead")
+            .field("version", &self.version)
+            .field("status", &self.status)
             .field("headers", &self.headers)
             .finish()
     }
