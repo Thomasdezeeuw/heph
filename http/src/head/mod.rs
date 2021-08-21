@@ -1,5 +1,7 @@
 //! Module with the type part of a HTTP message head.
 
+use std::fmt;
+
 pub mod header;
 pub mod method;
 mod status_code;
@@ -74,7 +76,18 @@ impl RequestHead {
     }
 
     /// Add a body to the request head creating a complete request.
-    const fn add_body<B>(self, body: B) -> Request<B> {
-        Request::new(self.method, self.path, self.version, self.headers, body)
+    pub const fn add_body<B>(self, body: B) -> Request<B> {
+        Request::from_head(self, body)
+    }
+}
+
+impl fmt::Debug for RequestHead {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RequestHead")
+            .field("method", &self.method)
+            .field("path", &self.path)
+            .field("version", &self.version)
+            .field("headers", &self.headers)
+            .finish()
     }
 }
