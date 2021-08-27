@@ -114,6 +114,7 @@ compile_error!("Heph currently only supports 64 bit architectures.");
 pub mod actor;
 pub mod actor_ref;
 pub mod log;
+pub mod metrics;
 pub mod net;
 pub mod quick_start;
 pub mod rt;
