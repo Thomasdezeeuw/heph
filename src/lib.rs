@@ -71,6 +71,7 @@
     available_concurrency,
     binary_heap_retain,
     const_fn_trait_bound,
+    const_mut_refs,
     const_option,
     destructuring_assignment,
     drain_filter,

@@ -43,12 +43,33 @@ pub trait Metrics: Clone {
 #[derive(Debug, Clone)]
 pub enum Metric {
     /// Simple counter.
+    ///
+    /// A counter represent a single monotonic value, which means the value can
+    /// only be incremented, not decremented. Only after a restart may it be
+    /// reset to zero. Examples of counters are the amount of bytes send or
+    /// received on a connection.
     Counter(usize),
 }
 
 /// Returns [`Metric::Counter`].
-impl From<usize> for Metric {
-    fn from(counter: usize) -> Metric {
-        Metric::Counter(counter)
+impl From<Counter> for Metric {
+    fn from(counter: Counter) -> Metric {
+        Metric::Counter(counter.0)
+    }
+}
+
+/// Simple counter, see [`Metric::Counter`].
+#[derive(Debug, Copy, Clone)]
+pub(crate) struct Counter(usize);
+
+impl Counter {
+    /// Create a new counter starting at zero.
+    pub(crate) const fn new() -> Counter {
+        Counter(0)
+    }
+
+    /// Add `n` to the counter.
+    pub(crate) const fn add(&mut self, n: usize) {
+        self.0 += n;
     }
 }
