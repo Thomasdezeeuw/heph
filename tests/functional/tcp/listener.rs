@@ -5,6 +5,7 @@ use std::task::Poll;
 use std::time::Duration;
 
 use heph::actor::{self, Bound};
+use heph::metrics::{Collect, Metrics};
 use heph::net::{TcpListener, TcpStream};
 use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph::supervisor::NoSupervisor;
@@ -12,18 +13,20 @@ use heph::test::{init_local_actor, join_many, poll_actor, try_spawn_local};
 use heph::util::next;
 use heph::{ActorOptions, ActorRef};
 
-use crate::util::{any_local_address, any_local_ipv6_address, pending_once};
+use crate::util::{any_local_address, any_local_ipv6_address, assert_counter_metric, pending_once};
 
 #[test]
 fn local_addr() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
         let address = "127.0.0.1:12345".parse().unwrap();
         let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
+        assert_metrics(&listener, 0);
         assert_eq!(listener.local_addr().unwrap(), address);
         drop(listener);
 
         let address = "[::1]:12345".parse().unwrap();
         let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
+        assert_metrics(&listener, 0);
         assert_eq!(listener.local_addr().unwrap(), address);
     }
 
@@ -38,6 +41,7 @@ fn local_addr_port_zero() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
         let address = any_local_address();
         let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
+        assert_metrics(&listener, 0);
         let got = listener.local_addr().unwrap();
         assert_eq!(got.ip(), address.ip());
         assert!(got.port() != 0);
@@ -45,6 +49,7 @@ fn local_addr_port_zero() {
 
         let address = any_local_ipv6_address();
         let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
+        assert_metrics(&listener, 0);
         let got = listener.local_addr().unwrap();
         assert_eq!(got.ip(), address.ip());
         assert!(got.port() != 0);
@@ -60,6 +65,7 @@ fn local_addr_port_zero() {
 fn ttl() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
+        assert_metrics(&listener, 0);
 
         let initial = listener.ttl().unwrap();
         let expected = initial + 10;
@@ -96,6 +102,7 @@ fn try_accept() {
         actor_ref: ActorRef<SocketAddr>,
     ) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
+        assert_metrics(&listener, 0);
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
@@ -104,6 +111,7 @@ fn try_accept() {
             listener.try_accept().unwrap_err().kind(),
             io::ErrorKind::WouldBlock
         );
+        assert_metrics(&listener, 0);
 
         let mut stream = loop {
             pending_once().await;
@@ -112,6 +120,7 @@ fn try_accept() {
                 break stream.bind_to(&mut ctx).unwrap();
             }
         };
+        assert_metrics(&listener, 1);
 
         let mut buf = Vec::with_capacity(DATA.len() + 1);
         let n = stream.recv(&mut buf).await.unwrap();
@@ -138,11 +147,13 @@ fn accept() {
         actor_ref: ActorRef<SocketAddr>,
     ) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
+        assert_metrics(&listener, 0);
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
 
         let (stream, remote_address) = listener.accept().await.unwrap();
+        assert_metrics(&listener, 1);
         let mut stream = stream.bind_to(&mut ctx).unwrap();
         assert!(remote_address.ip().is_loopback());
 
@@ -171,12 +182,14 @@ fn incoming() {
         actor_ref: ActorRef<SocketAddr>,
     ) {
         let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
+        assert_metrics(&listener, 0);
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
 
         let mut incoming = listener.incoming();
         let (stream, remote_address) = next(&mut incoming).await.unwrap().unwrap();
+        assert_metrics(&listener, 1);
         let mut stream = stream.bind_to(&mut ctx).unwrap();
         assert!(remote_address.ip().is_loopback());
 
@@ -279,4 +292,14 @@ fn actor_bound() {
     );
 
     runtime.start().unwrap();
+}
+
+#[track_caller]
+fn assert_metrics(stream: &TcpListener, expected_accepted: usize) {
+    for (name, value) in stream.metrics().iter() {
+        match name {
+            "accepted" => assert_counter_metric(value, expected_accepted),
+            name => panic!("unknown metric: {:?}, value: {:?}", name, value),
+        }
+    }
 }

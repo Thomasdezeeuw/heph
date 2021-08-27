@@ -165,6 +165,8 @@ use crate::{actor, rt};
 pub struct TcpListener {
     /// The underlying TCP listener, backed by Mio.
     socket: net::TcpListener,
+    /// Listener metrics.
+    metrics: Box<Metrics>,
 }
 
 impl TcpListener {
@@ -187,7 +189,10 @@ impl TcpListener {
     {
         let mut socket = net::TcpListener::bind(address)?;
         ctx.runtime().register(&mut socket, Interest::READABLE)?;
-        Ok(TcpListener { socket })
+        Ok(TcpListener {
+            socket,
+            metrics: Box::new(Metrics::empty()),
+        })
     }
 
     /// Returns the local socket address of this listener.
@@ -220,6 +225,7 @@ impl TcpListener {
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
     pub fn try_accept(&mut self) -> io::Result<(UnboundTcpStream, SocketAddr)> {
         self.socket.accept().map(|(socket, address)| {
+            self.metrics.accepted.add(1);
             (
                 UnboundTcpStream {
                     stream: TcpStream::from_socket(socket),
@@ -256,6 +262,13 @@ impl TcpListener {
     /// calls.
     pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
         self.socket.take_error()
+    }
+}
+
+create_metric! {
+    pub struct Metrics for TcpListener {
+        /// Number of accepted [`TcpStream`]s.
+        accepted: Counter,
     }
 }
 
