@@ -411,6 +411,7 @@ impl TcpStream {
     ///
     /// No metrics are collected for peeking, i.e. they don't count towards the
     /// "bytes_received" metric.
+    #[allow(clippy::doc_markdown)] // "bytes_received" in docs.
     pub fn try_peek<B>(&mut self, mut buf: B) -> io::Result<usize>
     where
         B: Bytes,
