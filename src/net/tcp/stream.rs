@@ -48,9 +48,18 @@ use crate::{actor, rt};
 pub struct TcpStream {
     /// Underlying TCP connection, backed by Mio.
     pub(in crate::net) socket: net::TcpStream,
+    /// Stream metrics.
+    metrics: Box<Metrics>,
 }
 
 impl TcpStream {
+    pub(in crate::net) fn from_socket(socket: net::TcpStream) -> TcpStream {
+        TcpStream {
+            socket,
+            metrics: Box::new(Metrics::empty()),
+        }
+    }
+
     /// Create a new TCP stream and issues a non-blocking connect to the
     /// specified `address`.
     ///
@@ -136,7 +145,10 @@ impl TcpStream {
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
     pub fn try_send(&mut self, buf: &[u8]) -> io::Result<usize> {
-        SockRef::from(&self.socket).send(buf)
+        SockRef::from(&self.socket).send(buf).map(|n| {
+            self.metrics.bytes_send.add(n);
+            n
+        })
     }
 
     /// Send the bytes in `buf` to the peer.
@@ -164,7 +176,10 @@ impl TcpStream {
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
     pub fn try_send_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
-        SockRef::from(&self.socket).send_vectored(bufs)
+        SockRef::from(&self.socket).send_vectored(bufs).map(|n| {
+            self.metrics.bytes_send.add(n);
+            n
+        })
     }
 
     /// Send the bytes in `bufs` to the peer.
@@ -244,6 +259,7 @@ impl TcpStream {
             .map(|read| {
                 // Safety: just read the bytes.
                 unsafe { buf.update_length(read) }
+                self.metrics.bytes_received.add(read);
                 read
             })
     }
@@ -352,6 +368,7 @@ impl TcpStream {
             Ok((read, _)) => {
                 // Safety: just read the bytes.
                 unsafe { bufs.update_lengths(read) }
+                self.metrics.bytes_received.add(read);
                 Ok(read)
             }
             Err(err) => Err(err),
@@ -389,6 +406,11 @@ impl TcpStream {
     /// Attempt to receive messages from the stream, writing them into `buf`,
     /// without removing that data from the queue. On success, returns the
     /// number of bytes peeked.
+    ///
+    /// # Notes
+    ///
+    /// No metrics are collected for peeking, i.e. they don't count towards the
+    /// "bytes_received" metric.
     pub fn try_peek<B>(&mut self, mut buf: B) -> io::Result<usize>
     where
         B: Bytes,
@@ -463,7 +485,12 @@ impl TcpStream {
     where
         F: FileSend,
     {
-        SockRef::from(&self.socket).sendfile(file, offset, length)
+        SockRef::from(&self.socket)
+            .sendfile(file, offset, length)
+            .map(|n| {
+                self.metrics.bytes_send.add(n);
+                n
+            })
     }
 
     /// Send the `file` out this stream.
@@ -544,6 +571,15 @@ impl TcpStream {
     }
 }
 
+create_metric! {
+    pub struct Metrics for TcpStream {
+        /// Number of bytes send.
+        bytes_send: Counter,
+        /// Number of bytes received.
+        bytes_received: Counter,
+    }
+}
+
 /// The [`Future`] behind [`TcpStream::connect`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -591,7 +627,7 @@ impl Future for Connect {
                 match socket.peer_addr() {
                     Ok(..) => {
                         #[allow(unused_mut)]
-                        let mut stream = TcpStream { socket };
+                        let mut stream = TcpStream::from_socket(socket);
                         #[cfg(target_os = "linux")]
                         if let Some(cpu) = self.cpu_affinity {
                             if let Err(err) = stream.set_cpu_affinity(cpu) {

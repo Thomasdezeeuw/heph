@@ -112,6 +112,79 @@ compile_error!("Heph currently only supports Linux, FreeBSD and macOS.");
 #[cfg(not(target_pointer_width = "64"))]
 compile_error!("Heph currently only supports 64 bit architectures.");
 
+/// Macro to create metrics structure for a given type.
+///
+/// See the [`metrics`] module for more information.
+// NOTE: since it's used throughout the crate it must be defined here before
+// usage, preferably this would live inside the `metrics` module.
+macro_rules! create_metric {
+    (
+        $vis: vis struct $name: ident for $for_ty: ident {
+            // `$field_doc` documents the metric as field doc and in the
+            // structure docs, max ~1 line.
+            // `$field` is used as name for `Metrics` implementation.
+            // `$field_ty` must support Metric::from($value).
+            $(
+            $(#[ $field_doc: meta ])+
+            $field: ident : $field_ty: ident,
+            )+
+        }
+    ) => {
+        #[doc = concat!("Metrics for [`", stringify!($for_ty), "`].")]
+        ///
+        /// Holds the following metrics:
+        $(
+        #[doc = concat!(" * `", stringify!($field), "`: ")]
+        $(#[ $field_doc ])+
+        #[doc = concat!("Type [`", stringify!($field_ty), "`](crate::metrics::Metric::", stringify!($field_ty), ").")]
+        )*
+        #[derive(Debug, Clone)]
+        $vis struct $name {
+            $(
+            $(#[ $field_doc ])+
+            $field: crate::metrics::$field_ty,
+            )*
+        }
+
+        impl $name {
+            /// Create empty metrics.
+            const fn empty() -> $name {
+                $name {
+                    $(
+                    $field: crate::metrics::$field_ty::new(),
+                    )*
+                }
+            }
+        }
+
+        impl crate::metrics::Metrics for $name {
+            type Iter = std::array::IntoIter<(&'static str, crate::metrics::Metric), { create_metric!( __count $( $field ),* ) }>;
+
+            fn iter(&self) -> Self::Iter {
+                std::array::IntoIter::new([
+                    $(
+                        (stringify!($field), crate::metrics::Metric::from(self.$field)),
+                    )*
+                ])
+            }
+        }
+
+        impl crate::metrics::Collect for $for_ty {
+            type Metrics = $name;
+
+            fn metrics(&self) -> &Self::Metrics {
+                &self.metrics
+            }
+        }
+    };
+    // Counting macro.
+    ( __count $head: ident, $( $tail: ident )+ ) => {
+        1 + create_metric!( __count $( $tail ),+ )
+    };
+    ( __count $head: ident ) => { 1 };
+    ( __count ) => { 0 };
+}
+
 pub mod actor;
 pub mod actor_ref;
 pub mod log;

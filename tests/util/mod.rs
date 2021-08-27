@@ -12,6 +12,8 @@ use std::stream::Stream;
 use std::sync::Once;
 use std::task::{self, Poll};
 
+use heph::metrics::Metric;
+
 #[track_caller]
 macro_rules! limited_loop {
     ($($arg: tt)*) => {{
@@ -181,5 +183,14 @@ where
         stream
             .poll_next(ctx)
             .map(|out| out.map(|out| (out, this.count)))
+    }
+}
+
+/// Assert `got` a counter with `expected` value.
+#[track_caller]
+pub fn assert_counter_metric(got: Metric, expected: usize) {
+    match got {
+        Metric::Counter(got) => assert_eq!(got, expected),
+        //got => panic!("unexpected metric: {:?}", got),
     }
 }

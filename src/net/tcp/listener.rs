@@ -222,7 +222,7 @@ impl TcpListener {
         self.socket.accept().map(|(socket, address)| {
             (
                 UnboundTcpStream {
-                    stream: TcpStream { socket },
+                    stream: TcpStream::from_socket(socket),
                 },
                 address,
             )

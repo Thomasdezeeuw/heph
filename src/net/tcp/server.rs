@@ -524,7 +524,7 @@ where
                 ctx.runtime()
                     .register(&mut stream, Interest::READABLE | Interest::WRITABLE)?;
                 #[allow(unused_mut)]
-                let mut stream = TcpStream { socket: stream };
+                let mut stream = TcpStream::from_socket(stream);
                 #[cfg(target_os = "linux")]
                 if let Some(cpu) = ctx.runtime_ref().cpu() {
                     if let Err(err) = stream.set_cpu_affinity(cpu) {

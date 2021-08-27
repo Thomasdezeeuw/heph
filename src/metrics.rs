@@ -6,7 +6,7 @@
 //!
 //! [implementors of Collect]: ./trait.Collect.html#implementors
 //!
-//! # Two traits and a type (walk into a bar)
+//! # Two traits and a type (walk into a bar...)
 //!
 //! The [`Collect`] trait defines how metrics can be collected and from which
 //! types metrics can be collected.

@@ -11,13 +11,14 @@ use std::time::Duration;
 
 use heph::actor::{self, Bound};
 use heph::actor_ref::{ActorRef, RpcMessage};
+use heph::metrics::{Collect, Metrics};
 use heph::net::{TcpListener, TcpStream};
 use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
 use heph::test::{join, join_many, try_spawn_local, PanicSupervisor};
 
-use crate::util::{any_local_address, refused_address};
+use crate::util::{any_local_address, assert_counter_metric, refused_address};
 
 const DATA: &[u8] = b"Hello world";
 // Test files used in testing `send_file`.
@@ -37,6 +38,7 @@ fn smoke() {
         address: SocketAddr,
     ) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         assert_eq!(stream.peer_addr().unwrap(), address);
         let local_address = stream.local_addr().unwrap();
@@ -84,6 +86,7 @@ fn smoke() {
 fn connect() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
         drop(stream);
         Ok(())
     }
@@ -144,6 +147,7 @@ fn connect_connection_refused() {
 fn try_recv() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf = Vec::with_capacity(128);
         limited_loop! {
@@ -160,6 +164,7 @@ fn try_recv() {
                 Err(err) => return Err(err),
             }
         }
+        assert_metrics(&stream, 0, DATA.len());
 
         // The stream is dropped, so we should read 0.
         buf.clear();
@@ -176,6 +181,7 @@ fn try_recv() {
                 Err(err) => return Err(err),
             }
         }
+        assert_metrics(&stream, 0, DATA.len());
 
         Ok(())
     }
@@ -198,16 +204,19 @@ fn try_recv() {
 fn recv() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf = Vec::with_capacity(128);
 
         let n = stream.recv(&mut buf).await?;
         assert_eq!(n, DATA.len());
         assert_eq!(&*buf, DATA);
+        assert_metrics(&stream, 0, DATA.len());
 
         // The stream is dropped so next we should read 0.
         buf.clear();
         assert_eq!(stream.recv(&mut buf).await?, 0);
+        assert_metrics(&stream, 0, DATA.len());
 
         Ok(())
     }
@@ -230,11 +239,13 @@ fn recv() {
 fn recv_n_read_exact_amount() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf = Vec::with_capacity(128);
         stream.recv_n(&mut buf, DATA.len()).await?;
         assert_eq!(buf.len(), DATA.len());
         assert_eq!(&*buf, DATA);
+        assert_metrics(&stream, 0, DATA.len());
 
         // The stream is dropped so next we should read 0, which should cause an
         // `UnexpectedEof` error.
@@ -264,6 +275,7 @@ fn recv_n_read_exact_amount() {
 fn recv_n_read_more_bytes() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf = Vec::with_capacity(128);
 
@@ -273,6 +285,7 @@ fn recv_n_read_more_bytes() {
         // bytes.
         assert_eq!(buf.len(), DATA.len());
         assert_eq!(&*buf, DATA);
+        assert_metrics(&stream, 0, buf.len());
 
         // The stream is dropped so next we should read 0, which should cause an
         // `UnexpectedEof` error.
@@ -302,13 +315,17 @@ fn recv_n_read_more_bytes() {
 fn recv_n_less_bytes() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf = Vec::with_capacity(128);
 
         let want_n = 2 * DATA.len();
         match stream.recv_n(&mut buf, want_n).await {
             Ok(()) => panic!("unexpected recv: {:?}", buf),
-            Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => Ok(()),
+            Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => {
+                assert_metrics(&stream, 0, DATA.len());
+                Ok(())
+            }
             Err(err) => Err(err),
         }
     }
@@ -331,12 +348,14 @@ fn recv_n_less_bytes() {
 fn recv_n_from_multiple_writes() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf = Vec::with_capacity(128);
         stream.recv_n(&mut buf, 3 * DATA.len()).await?;
         assert_eq!(&buf[..DATA.len()], DATA);
         assert_eq!(&buf[DATA.len()..2 * DATA.len()], DATA);
         assert_eq!(&buf[2 * DATA.len()..], DATA);
+        assert_metrics(&stream, 0, buf.len());
         Ok(())
     }
 
@@ -360,10 +379,11 @@ fn recv_n_from_multiple_writes() {
 fn send() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let n = stream.send(&DATA).await?;
         assert_eq!(n, DATA.len());
-
+        assert_metrics(&stream, DATA.len(), 0);
         Ok(())
     }
 
@@ -391,7 +411,10 @@ fn send_all() {
     const DATA: &[u8] = &[213; 40 * 1024];
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
-        stream.send_all(DATA).await
+        assert_metrics(&stream, 0, 0);
+        stream.send_all(DATA).await?;
+        assert_metrics(&stream, DATA.len(), 0);
+        Ok(())
     }
 
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
@@ -422,6 +445,7 @@ fn send_all() {
 fn send_vectored() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let bufs = &mut [
             IoSlice::new(DATA),
@@ -431,6 +455,7 @@ fn send_vectored() {
         ];
         let n = stream.send_vectored(bufs).await?;
         assert_eq!(n, 4 * DATA.len());
+        assert_metrics(&stream, 4 * DATA.len(), 0);
 
         Ok(())
     }
@@ -462,8 +487,11 @@ fn send_vectored_all() {
     const DATA2: &[u8] = &[155; 30 * 1024];
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
         let bufs = &mut [IoSlice::new(DATA1), IoSlice::new(DATA2)];
-        stream.send_vectored_all(bufs).await
+        stream.send_vectored_all(bufs).await?;
+        assert_metrics(&stream, DATA1.len() + DATA2.len(), 0);
+        Ok(())
     }
 
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
@@ -507,6 +535,7 @@ fn send_vectored_all() {
 fn recv_vectored() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf1 = Vec::with_capacity(2 * DATA.len());
         let mut buf2 = Vec::with_capacity(2 * DATA.len() + 1);
@@ -517,6 +546,7 @@ fn recv_vectored() {
         assert_eq!(&buf1[DATA.len()..], DATA);
         assert_eq!(&buf2[..DATA.len()], DATA);
         assert_eq!(&buf2[DATA.len()..], DATA);
+        assert_metrics(&stream, 0, buf1.len() + buf2.len());
 
         Ok(())
     }
@@ -547,6 +577,7 @@ fn recv_vectored() {
 fn recv_n_vectored_exact_amount() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf1 = Vec::with_capacity(DATA.len());
         let mut buf2 = Vec::with_capacity(DATA.len() + 1);
@@ -554,6 +585,7 @@ fn recv_n_vectored_exact_amount() {
         stream.recv_n_vectored(bufs, 2 * DATA.len()).await?;
         assert_eq!(buf1, DATA);
         assert_eq!(buf2, DATA);
+        assert_metrics(&stream, 0, 2 * DATA.len());
 
         // The stream is dropped so next we should read 0, which should cause an
         // `UnexpectedEof` error.
@@ -586,6 +618,7 @@ fn recv_n_vectored_exact_amount() {
 fn recv_n_vectored_more_bytes() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf1 = Vec::with_capacity(DATA.len());
         let mut buf2 = Vec::with_capacity(DATA.len() + 1);
@@ -593,6 +626,7 @@ fn recv_n_vectored_more_bytes() {
         stream.recv_n_vectored(bufs, (2 * DATA.len()) - 3).await?;
         assert_eq!(buf1, DATA);
         assert_eq!(buf2, DATA);
+        assert_metrics(&stream, 0, 2 * DATA.len());
 
         // The stream is dropped so next we should read 0, which should cause an
         // `UnexpectedEof` error.
@@ -625,13 +659,17 @@ fn recv_n_vectored_more_bytes() {
 fn recv_n_vectored_less_bytes() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf1 = Vec::with_capacity(DATA.len());
         let mut buf2 = Vec::with_capacity(DATA.len() + 1);
         let bufs = [&mut buf1, &mut buf2];
         match stream.recv_n_vectored(bufs, 2 * DATA.len()).await {
             Ok(()) => panic!("unexpected recv: {:?}", buf1),
-            Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => Ok(()),
+            Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => {
+                assert_metrics(&stream, 0, DATA.len());
+                Ok(())
+            }
             Err(err) => Err(err),
         }
     }
@@ -654,6 +692,7 @@ fn recv_n_vectored_less_bytes() {
 fn recv_n_vectored_from_multiple_writes() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf1 = Vec::with_capacity(DATA.len());
         let mut buf2 = Vec::with_capacity(DATA.len());
@@ -663,6 +702,7 @@ fn recv_n_vectored_from_multiple_writes() {
         assert_eq!(buf1, DATA);
         assert_eq!(buf2, DATA);
         assert_eq!(buf3, DATA);
+        assert_metrics(&stream, 0, 3 * DATA.len());
 
         Ok(())
     }
@@ -687,22 +727,26 @@ fn recv_n_vectored_from_multiple_writes() {
 fn peek() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf = Vec::with_capacity(128);
 
         let n = stream.peek(&mut buf).await?;
         assert_eq!(n, DATA.len());
         assert_eq!(&*buf, DATA);
+        assert_metrics(&stream, 0, 0); // Peek isn't included.
 
         // We peeked the data above so we should receive the same data again.
         buf.clear();
         let n = stream.recv(&mut buf).await?;
         assert_eq!(n, DATA.len());
         assert_eq!(&*buf, DATA);
+        assert_metrics(&stream, 0, DATA.len());
 
         // The stream is dropped so next we should read 0.
         buf.clear();
         assert_eq!(stream.recv(&mut buf).await?, 0);
+        assert_metrics(&stream, 0, DATA.len());
 
         Ok(())
     }
@@ -739,6 +783,7 @@ fn send_file() {
             .send_file(&file, 0, NonZeroUsize::new(length))
             .await?;
         assert_eq!(n, length);
+        assert_metrics(&stream, n, 0);
         Ok(())
     }
 
@@ -798,6 +843,7 @@ fn send_file_all() {
         stream
             .send_file_all(&file, OFFSET, NonZeroUsize::new(length))
             .await?;
+        assert_metrics(&stream, min(metadata.len() as usize - OFFSET, LENGTH), 0);
         Ok(())
     }
 
@@ -848,8 +894,11 @@ fn send_entire_file() {
         path: &'static str,
     ) -> io::Result<()> {
         let file = File::open(path)?;
+        let metadata = file.metadata()?;
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
-        stream.send_entire_file(&file).await
+        stream.send_entire_file(&file).await?;
+        assert_metrics(&stream, metadata.len() as usize, 0);
+        Ok(())
     }
 
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
@@ -917,6 +966,7 @@ fn send_file_check_actor(
 fn peek_vectored() {
     async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+        assert_metrics(&stream, 0, 0);
 
         let mut buf1 = Vec::with_capacity(2 * DATA.len());
         let mut buf2 = Vec::with_capacity(2 * DATA.len() + 1);
@@ -927,6 +977,7 @@ fn peek_vectored() {
         assert_eq!(&buf1[DATA.len()..], DATA);
         assert_eq!(&buf2[..DATA.len()], DATA);
         assert_eq!(&buf2[DATA.len()..], DATA);
+        assert_metrics(&stream, 0, 0); // Peeking not included.
 
         // We should receive the same data again after peeking.
         buf1.clear();
@@ -938,6 +989,7 @@ fn peek_vectored() {
         assert_eq!(&buf1[DATA.len()..], DATA);
         assert_eq!(&buf2[..DATA.len()], DATA);
         assert_eq!(&buf2[DATA.len()..], DATA);
+        assert_metrics(&stream, 0, buf1.len() + buf2.len());
 
         Ok(())
     }
@@ -987,6 +1039,7 @@ fn shutdown_read() {
         let n = stream.recv(&mut buf).await.unwrap();
         assert_eq!(n, DATA.len());
         assert_eq!(buf, DATA);
+        assert_metrics(&stream, 0, DATA.len());
     }
 
     async fn stream_actor(mut ctx: actor::Context<SocketAddr, ThreadLocal>) {
@@ -1036,8 +1089,10 @@ fn shutdown_write() {
         let mut buf = Vec::with_capacity(2);
         let n = stream.recv(&mut buf).await.unwrap();
         assert_eq!(n, 0);
+        assert_metrics(&stream, 0, 0);
 
         stream.send_all(DATA).await.unwrap();
+        assert_metrics(&stream, DATA.len(), 0);
     }
 
     async fn stream_actor(mut ctx: actor::Context<SocketAddr, ThreadLocal>) {
@@ -1191,4 +1246,15 @@ fn actor_bound() {
     );
 
     runtime.start().unwrap();
+}
+
+#[track_caller]
+fn assert_metrics(stream: &TcpStream, expected_bytes_send: usize, expected_bytes_received: usize) {
+    for (name, value) in stream.metrics().iter() {
+        match name {
+            "bytes_send" => assert_counter_metric(value, expected_bytes_send),
+            "bytes_received" => assert_counter_metric(value, expected_bytes_received),
+            name => panic!("unknown metric: {:?}, value: {:?}", name, value),
+        }
+    }
 }
