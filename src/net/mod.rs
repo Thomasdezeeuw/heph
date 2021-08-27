@@ -38,7 +38,7 @@
 //!
 //! # Notes
 //!
-//! All types in the `net` module around [bound] to an actor. See the
+//! All types in the `net` module are [bound] to an actor. See the
 //! [`actor::Bound`] trait for more information.
 //!
 //! [bound]: crate::actor::Bound
