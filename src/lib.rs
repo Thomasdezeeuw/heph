@@ -178,10 +178,10 @@ macro_rules! create_metric {
         }
     };
     // Counting macro.
-    ( __count $head: ident, $( $tail: ident )+ ) => {
+    ( __count $head: ident, $( $tail: ident ),+ ) => {
         1 + create_metric!( __count $( $tail ),+ )
     };
-    ( __count $head: ident ) => { 1 };
+    ( __count $head: ident $(,)*) => { 1 };
     ( __count ) => { 0 };
 }
 
