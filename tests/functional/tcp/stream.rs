@@ -28,7 +28,7 @@ const TEST_FILE1: &str = "./tests/data/lorem_ipsum";
 static EXPECTED0: SyncLazy<Vec<u8>> =
     SyncLazy::new(|| fs::read(TEST_FILE0).expect("failed to read test file 0"));
 static EXPECTED1: SyncLazy<Vec<u8>> =
-    SyncLazy::new(|| fs::read(TEST_FILE1).expect("failed to read test file 0"));
+    SyncLazy::new(|| fs::read(TEST_FILE1).expect("failed to read test file 1"));
 
 #[test]
 fn smoke() {
@@ -146,12 +146,6 @@ fn try_recv() {
         let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
 
         let mut buf = Vec::with_capacity(128);
-        match stream.try_recv(&mut buf) {
-            Ok(n) => panic!("unexpected bytes: {:?} ({})", buf, n),
-            Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {}
-            Err(err) => return Err(err),
-        }
-
         limited_loop! {
             match stream.try_recv(&mut buf) {
                 Ok(n) => {
