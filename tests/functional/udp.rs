@@ -6,13 +6,14 @@ use std::time::Duration;
 
 use heph::actor::{self, Actor, Bound, NewActor};
 use heph::actor_ref::{ActorRef, RpcMessage};
+use heph::metrics::{Collect, Metrics};
 use heph::net::udp::{UdpSocket, Unconnected};
 use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
 use heph::test::{join, try_spawn_local, PanicSupervisor};
 
-use crate::util::{any_local_address, any_local_ipv6_address};
+use crate::util::{any_local_address, any_local_ipv6_address, assert_counter_metric};
 
 const DATA: &[u8] = b"Hello world";
 const DATAV: &[&[u8]] = &[b"Hello world!", b" ", b"From mars."];
@@ -73,22 +74,26 @@ async fn unconnected_udp_actor(
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
     let mut socket = UdpSocket::bind(&mut ctx, local_address)?;
+    assert_metrics(&socket, 0, 0, 0, 0);
     assert_eq!(socket.local_addr().unwrap().ip(), local_address.ip());
 
     let bytes_written = socket.send_to(&DATA, peer_address).await?;
     assert_eq!(bytes_written, DATA.len());
+    assert_metrics(&socket, DATA.len(), 1, 0, 0);
 
     let mut buf = Vec::with_capacity(DATA.len() + 2);
     let (bytes_peeked, address) = socket.peek_from(&mut buf).await?;
     assert_eq!(bytes_peeked, DATA.len());
     assert_eq!(&buf[..bytes_peeked], &*DATA);
     assert_eq!(address, peer_address);
+    assert_metrics(&socket, DATA.len(), 1, 0, 0);
 
     buf.clear();
     let (bytes_read, address) = socket.recv_from(&mut buf).await?;
     assert_eq!(bytes_read, DATA.len());
     assert_eq!(&buf[..bytes_read], &*DATA);
     assert_eq!(address, peer_address);
+    assert_metrics(&socket, DATA.len(), 1, DATA.len(), 1);
 
     assert!(socket.take_error().unwrap().is_none());
 
@@ -102,20 +107,24 @@ async fn connected_udp_actor(
     let local_address = SocketAddr::new(peer_address.ip(), 0);
     let socket = UdpSocket::bind(&mut ctx, local_address)?;
     let mut socket = socket.connect(peer_address)?;
+    assert_metrics(&socket, 0, 0, 0, 0);
     assert_eq!(socket.local_addr().unwrap().ip(), local_address.ip());
 
     let bytes_written = socket.send(&DATA).await?;
     assert_eq!(bytes_written, DATA.len());
+    assert_metrics(&socket, DATA.len(), 1, 0, 0);
 
     let mut buf = Vec::with_capacity(DATA.len() + 2);
     let bytes_peeked = socket.peek(&mut buf).await?;
     assert_eq!(bytes_peeked, DATA.len());
     assert_eq!(&buf[..bytes_peeked], &*DATA);
+    assert_metrics(&socket, DATA.len(), 1, 0, 0);
 
     buf.clear();
     let bytes_read = socket.recv(&mut buf).await?;
     assert_eq!(bytes_read, DATA.len());
     assert_eq!(&buf[..bytes_read], &*DATA);
+    assert_metrics(&socket, DATA.len(), 1, DATA.len(), 1);
 
     assert!(socket.take_error().unwrap().is_none());
 
@@ -171,17 +180,21 @@ async fn reconnecting_actor(
     let local_address = SocketAddr::new(peer_address1.ip(), 0);
     let socket = UdpSocket::bind(&mut ctx, local_address)?;
     let mut socket = socket.connect(peer_address1)?;
+    assert_metrics(&socket, 0, 0, 0, 0);
 
     let bytes_written = socket.send(&DATA).await?;
     assert_eq!(bytes_written, DATA.len());
+    assert_metrics(&socket, DATA.len(), 1, 0, 0);
 
     let mut socket = socket.connect(peer_address1)?;
     let bytes_written = socket.send(&DATA).await?;
     assert_eq!(bytes_written, DATA.len());
+    assert_metrics(&socket, 2 * DATA.len(), 2, 0, 0);
 
     let mut socket = socket.connect(peer_address2)?;
     let bytes_written = socket.send(&DATA).await?;
     assert_eq!(bytes_written, DATA.len());
+    assert_metrics(&socket, 3 * DATA.len(), 3, 0, 0);
 
     assert!(socket.take_error().unwrap().is_none());
 
@@ -218,6 +231,7 @@ async fn unconnected_vectored_io_actor(
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
     let mut socket = UdpSocket::bind(&mut ctx, local_address)?;
+    assert_metrics(&socket, 0, 0, 0, 0);
 
     let bufs = &mut [
         IoSlice::new(DATAV[0]),
@@ -226,6 +240,7 @@ async fn unconnected_vectored_io_actor(
     ];
     let bytes_written = socket.send_to_vectored(bufs, peer_address).await?;
     assert_eq!(bytes_written, DATAV_LEN);
+    assert_metrics(&socket, DATAV_LEN, 1, 0, 0);
 
     let mut buf1 = Vec::with_capacity(DATAV[0].len());
     let mut buf2 = Vec::with_capacity(DATAV[1].len());
@@ -237,6 +252,7 @@ async fn unconnected_vectored_io_actor(
     assert_eq!(buf2, DATAV[1]);
     assert_eq!(buf3, DATAV[2]);
     assert_eq!(address, peer_address);
+    assert_metrics(&socket, DATAV_LEN, 1, 0, 0);
 
     buf1.clear();
     buf2.clear();
@@ -248,6 +264,7 @@ async fn unconnected_vectored_io_actor(
     assert_eq!(buf2, DATAV[1]);
     assert_eq!(buf3, DATAV[2]);
     assert_eq!(address, peer_address);
+    assert_metrics(&socket, DATAV_LEN, 1, DATAV_LEN, 1);
 
     Ok(())
 }
@@ -258,6 +275,7 @@ async fn connected_vectored_io_actor(
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
     let socket = UdpSocket::bind(&mut ctx, local_address)?;
+    assert_metrics(&socket, 0, 0, 0, 0);
     let mut socket = socket.connect(peer_address)?;
 
     let bufs = &mut [
@@ -267,6 +285,7 @@ async fn connected_vectored_io_actor(
     ];
     let bytes_written = socket.send_vectored(bufs).await?;
     assert_eq!(bytes_written, DATAV_LEN);
+    assert_metrics(&socket, DATAV_LEN, 1, 0, 0);
 
     let mut buf1 = Vec::with_capacity(DATAV[0].len());
     let mut buf2 = Vec::with_capacity(DATAV[1].len());
@@ -277,6 +296,7 @@ async fn connected_vectored_io_actor(
     assert_eq!(buf1, DATAV[0]);
     assert_eq!(buf2, DATAV[1]);
     assert_eq!(buf3, DATAV[2]);
+    assert_metrics(&socket, DATAV_LEN, 1, 0, 0);
 
     buf1.clear();
     buf2.clear();
@@ -287,6 +307,7 @@ async fn connected_vectored_io_actor(
     assert_eq!(buf1, DATAV[0]);
     assert_eq!(buf2, DATAV[1]);
     assert_eq!(buf3, DATAV[2]);
+    assert_metrics(&socket, DATAV_LEN, 1, DATAV_LEN, 1);
 
     Ok(())
 }
@@ -391,4 +412,23 @@ fn actor_bound() {
     );
 
     runtime.start().unwrap();
+}
+
+#[track_caller]
+fn assert_metrics<M>(
+    socket: &UdpSocket<M>,
+    expected_bytes_send: usize,
+    expected_packets_send: usize,
+    expected_bytes_received: usize,
+    expected_packets_received: usize,
+) {
+    for (name, value) in socket.metrics().iter() {
+        match name {
+            "bytes_send" => assert_counter_metric(value, expected_bytes_send),
+            "packets_send" => assert_counter_metric(value, expected_packets_send),
+            "bytes_received" => assert_counter_metric(value, expected_bytes_received),
+            "packets_received" => assert_counter_metric(value, expected_packets_received),
+            name => panic!("unknown metric: {:?}, value: {:?}", name, value),
+        }
+    }
 }

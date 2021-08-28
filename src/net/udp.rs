@@ -18,7 +18,7 @@ use std::task::{self, Poll};
 #[cfg(target_os = "linux")]
 use log::warn;
 use mio::{net, Interest};
-use socket2::{SockAddr, SockRef};
+use socket2::SockRef;
 
 use crate::net::{convert_address, Bytes, BytesVectored, MaybeUninitSlice};
 use crate::{actor, rt};
@@ -136,6 +136,8 @@ pub struct UdpSocket<M = Unconnected> {
     /// The mode in which the socket is in, this determines what methods are
     /// available.
     mode: PhantomData<M>,
+    /// Socket metrics.
+    metrics: Box<Metrics>,
 }
 
 impl UdpSocket {
@@ -167,6 +169,7 @@ impl UdpSocket {
         Ok(UdpSocket {
             socket,
             mode: PhantomData,
+            metrics: Box::new(Metrics::empty()),
         })
     }
 }
@@ -178,6 +181,7 @@ impl<M> UdpSocket<M> {
         self.socket.connect(remote).map(|()| UdpSocket {
             socket: self.socket,
             mode: PhantomData,
+            metrics: self.metrics,
         })
     }
 
@@ -196,6 +200,19 @@ impl<M> UdpSocket<M> {
     }
 }
 
+create_metric! {
+    pub struct Metrics for UdpSocket<M> {
+        /// Number of bytes send.
+        bytes_send: Counter,
+        /// Number of packets send.
+        packets_send: Counter,
+        /// Number of bytes received.
+        bytes_received: Counter,
+        /// Number of packets received.
+        packets_received: Counter,
+    }
+}
+
 impl UdpSocket<Unconnected> {
     /// Attempt to send data to the given `target` address.
     ///
@@ -206,7 +223,11 @@ impl UdpSocket<Unconnected> {
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
     pub fn try_send_to(&mut self, buf: &[u8], target: SocketAddr) -> io::Result<usize> {
-        self.socket.send_to(buf, target)
+        self.socket.send_to(buf, target).map(|n| {
+            self.metrics.bytes_send.add(n);
+            self.metrics.packets_send.add(1);
+            n
+        })
     }
 
     /// Sends data to the given `target` address. Returns a [`Future`] that on
@@ -232,7 +253,13 @@ impl UdpSocket<Unconnected> {
         bufs: &[IoSlice<'_>],
         target: SocketAddr,
     ) -> io::Result<usize> {
-        SockRef::from(&self.socket).send_to_vectored(bufs, &target.into())
+        SockRef::from(&self.socket)
+            .send_to_vectored(bufs, &target.into())
+            .map(|n| {
+                self.metrics.bytes_send.add(n);
+                self.metrics.packets_send.add(1);
+                n
+            })
     }
 
     /// Send the bytes in `bufs` to the peer.
@@ -247,7 +274,7 @@ impl UdpSocket<Unconnected> {
         SendToVectored {
             socket: self,
             bufs,
-            target: target.into(),
+            target,
         }
     }
 
@@ -272,6 +299,8 @@ impl UdpSocket<Unconnected> {
             .and_then(|(read, address)| {
                 // Safety: just read the bytes.
                 unsafe { buf.update_length(read) }
+                self.metrics.bytes_received.add(read);
+                self.metrics.packets_received.add(1);
                 let address = convert_address(address)?;
                 Ok((read, address))
             })
@@ -309,6 +338,8 @@ impl UdpSocket<Unconnected> {
             Ok((read, _, address)) => {
                 // Safety: just read the bytes.
                 unsafe { bufs.update_lengths(read) }
+                self.metrics.bytes_received.add(read);
+                self.metrics.packets_received.add(1);
                 let address = convert_address(address)?;
                 Ok((read, address))
             }
@@ -334,6 +365,12 @@ impl UdpSocket<Unconnected> {
     ///
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    ///
+    /// # Notes
+    ///
+    /// No metrics are collected for peeking, i.e. they don't count towards the
+    /// "bytes_received" or "packets_received" metrics.
+    #[allow(clippy::doc_markdown)] // "bytes_received" in docs.
     pub fn try_peek_from<B>(&mut self, mut buf: B) -> io::Result<(usize, SocketAddr)>
     where
         B: Bytes,
@@ -431,7 +468,7 @@ impl<'a, 'b> Future for SendTo<'a, 'b> {
 pub struct SendToVectored<'a, 'b> {
     socket: &'a mut UdpSocket<Unconnected>,
     bufs: &'b mut [IoSlice<'b>],
-    target: SockAddr,
+    target: SocketAddr,
 }
 
 impl<'a, 'b> Future for SendToVectored<'a, 'b> {
@@ -440,7 +477,7 @@ impl<'a, 'b> Future for SendToVectored<'a, 'b> {
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         #[rustfmt::skip]
         let SendToVectored { socket, bufs, target } = Pin::into_inner(self);
-        try_io!(SockRef::from(&socket.socket).send_to_vectored(bufs, target))
+        try_io!(socket.try_send_to_vectored(bufs, *target))
     }
 }
 
@@ -534,7 +571,11 @@ impl UdpSocket<Connected> {
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
     pub fn try_send(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.socket.send(buf)
+        self.socket.send(buf).map(|n| {
+            self.metrics.bytes_send.add(n);
+            self.metrics.packets_send.add(1);
+            n
+        })
     }
 
     /// Sends data on the socket to the connected socket. Returns a [`Future`]
@@ -553,7 +594,11 @@ impl UdpSocket<Connected> {
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
     pub fn try_send_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
-        SockRef::from(&self.socket).send_vectored(bufs)
+        SockRef::from(&self.socket).send_vectored(bufs).map(|n| {
+            self.metrics.bytes_send.add(n);
+            self.metrics.packets_send.add(1);
+            n
+        })
     }
 
     /// Send the bytes in `bufs` to the peer.
@@ -588,6 +633,8 @@ impl UdpSocket<Connected> {
             .map(|read| {
                 // Safety: just read the bytes.
                 unsafe { buf.update_length(read) }
+                self.metrics.bytes_received.add(read);
+                self.metrics.packets_received.add(1);
                 read
             })
     }
@@ -623,6 +670,8 @@ impl UdpSocket<Connected> {
             Ok((read, _)) => {
                 // Safety: just read the bytes.
                 unsafe { bufs.update_lengths(read) }
+                self.metrics.bytes_received.add(read);
+                self.metrics.packets_received.add(1);
                 Ok(read)
             }
             Err(err) => Err(err),
@@ -646,6 +695,11 @@ impl UdpSocket<Connected> {
     ///
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
+    ///
+    /// # Notes
+    ///
+    /// No metrics are collected for peeking, i.e. they don't count towards the
+    /// "bytes_received" or "packets_received" metrics.
     pub fn try_peek<B>(&mut self, mut buf: B) -> io::Result<usize>
     where
         B: Bytes,

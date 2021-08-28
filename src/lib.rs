@@ -119,7 +119,7 @@ compile_error!("Heph currently only supports 64 bit architectures.");
 // usage, preferably this would live inside the `metrics` module.
 macro_rules! create_metric {
     (
-        $vis: vis struct $name: ident for $for_ty: ident {
+        $vis: vis struct $name: ident for $for_ty: ident $( < $( $generic: ident )+ > )? {
             // `$field_doc` documents the metric as field doc and in the
             // structure docs, max ~1 line.
             // `$field` is used as name for `Metrics` implementation.
@@ -169,7 +169,7 @@ macro_rules! create_metric {
             }
         }
 
-        impl crate::metrics::Collect for $for_ty {
+        impl$( < $( $generic )+ > )? crate::metrics::Collect for $for_ty$( < $( $generic )+ > )? {
             type Metrics = $name;
 
             fn metrics(&self) -> &Self::Metrics {
