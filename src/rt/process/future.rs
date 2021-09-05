@@ -32,7 +32,7 @@ where
     RT: rt::Access,
 {
     fn name(&self) -> &'static str {
-        "Future"
+        crate::actor::name::<Fut>()
     }
 
     fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult {
