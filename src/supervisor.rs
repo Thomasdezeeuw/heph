@@ -311,7 +311,7 @@ where
 /// * Additional logging message, defaults to nothing extra. This uses normal
 ///   [rust formatting rules] and is added at the end of the default message,
 ///   after the error. The `args` keyword gives access to the arguments. See
-///   example 7 restart_supervisor (in the example directory of the source
+///   example 7 Restart Supervisor (in the example directory of the source
 ///   code).
 ///
 /// The new type can be created using the `new` function, e.g.
@@ -342,7 +342,7 @@ where
 /// # Examples
 ///
 /// The example below shows the simplest usage of the `restart_supervisor`
-/// macro. Example 7 restart_supervisor (in the example directory of the source
+/// macro. Example 7 Restart Supervisor (in the example directory of the source
 /// code) has a more complete example.
 ///
 /// ```
