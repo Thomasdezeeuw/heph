@@ -191,7 +191,7 @@ impl Runtime {
     fn run_local_process(&mut self, runtime_ref: &mut RuntimeRef) -> bool {
         let process = self.internals.scheduler.borrow_mut().next_process();
         if let Some(mut process) = process {
-            catch_in_test!("Thread-local actor panicked: '{}'", {
+            catch_in_test!("Thread-local process panicked: '{}'", {
                 let timing = trace::start(&*self.internals.trace_log.borrow());
                 let pid = process.as_ref().id();
                 let name = process.as_ref().name();
@@ -219,7 +219,7 @@ impl Runtime {
     fn run_shared_process(&mut self, runtime_ref: &mut RuntimeRef) -> bool {
         let process = self.internals.shared.remove_process();
         if let Some(mut process) = process {
-            catch_in_test!("Thread-safe actor panicked: '{}'", {
+            catch_in_test!("Thread-safe process panicked: '{}'", {
                 let timing = trace::start(&*self.internals.trace_log.borrow());
                 let pid = process.as_ref().id();
                 let name = process.as_ref().name();

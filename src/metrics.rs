@@ -17,6 +17,8 @@
 //!
 //! Finally there is [`Metric`] which is the container type for all metrics.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
+
 /// Collect metrics.
 pub trait Collect {
     /// Metrics specific to the type.
@@ -55,6 +57,13 @@ pub enum Metric {
     /// reset to zero. Examples of counters are the amount of bytes send or
     /// received on a connection.
     Counter(usize),
+
+    /// Gauge is a Metric that represents a single numerical value that can
+    /// arbitrarily go up and down.
+    ///
+    /// Gauges are typically used for measured values like the number of actors
+    /// currently running or the number of concurrent requests.
+    Gauge(usize),
 }
 
 impl Metric {
@@ -62,14 +71,29 @@ impl Metric {
     fn to_kv_value(self) -> log::kv::Value<'static> {
         match self {
             Metric::Counter(count) => log::kv::Value::from(count),
+            Metric::Gauge(count) => log::kv::Value::from(count),
         }
     }
 }
 
 /// Returns [`Metric::Counter`].
-impl From<Counter> for Metric {
-    fn from(counter: Counter) -> Metric {
+impl From<&Counter> for Metric {
+    fn from(counter: &Counter) -> Metric {
         Metric::Counter(counter.0)
+    }
+}
+
+/// Returns [`Metric::Counter`].
+impl From<&AtomicCounter> for Metric {
+    fn from(counter: &AtomicCounter) -> Metric {
+        Metric::Counter(counter.0.load(Ordering::Relaxed))
+    }
+}
+
+/// Returns [`Metric::Gauge`].
+impl From<&AtomicGauge> for Metric {
+    fn from(guage: &AtomicGauge) -> Metric {
+        Metric::Gauge(guage.0.load(Ordering::Relaxed))
     }
 }
 
@@ -86,6 +110,63 @@ impl Counter {
     /// Add `n` to the counter.
     pub(crate) const fn add(&mut self, n: usize) {
         self.0 += n;
+    }
+}
+
+/// Atomic counter, see [`Metric::Counter`].
+#[derive(Debug)]
+pub(crate) struct AtomicCounter(AtomicUsize);
+
+impl AtomicCounter {
+    /// Create a new counter starting at zero.
+    pub(crate) const fn new() -> AtomicCounter {
+        AtomicCounter(AtomicUsize::new(0))
+    }
+
+    /// Add `n` to the counter.
+    pub(crate) fn add(&self, n: usize) {
+        let _ = self.0.fetch_add(n, Ordering::Relaxed);
+    }
+}
+
+impl Clone for AtomicCounter {
+    fn clone(&self) -> Self {
+        AtomicCounter(AtomicUsize::new(self.0.load(Ordering::Relaxed)))
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        *self.0.get_mut() = source.0.load(Ordering::Relaxed);
+    }
+}
+
+/// Atomic gauge, see [`Metric::Gauge`].
+#[derive(Debug)]
+pub(crate) struct AtomicGauge(AtomicUsize);
+
+impl AtomicGauge {
+    /// Create a new gauge starting at zero.
+    pub(crate) const fn new() -> AtomicGauge {
+        AtomicGauge(AtomicUsize::new(0))
+    }
+
+    /// Add `n` to the counter.
+    pub(crate) fn add(&self, n: usize) {
+        let _ = self.0.fetch_add(n, Ordering::Relaxed);
+    }
+
+    /// Subtract `n` from the counter.
+    pub(crate) fn sub(&self, n: usize) {
+        let _ = self.0.fetch_sub(n, Ordering::Relaxed);
+    }
+}
+
+impl Clone for AtomicGauge {
+    fn clone(&self) -> Self {
+        AtomicGauge(AtomicUsize::new(self.0.load(Ordering::Relaxed)))
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        *self.0.get_mut() = source.0.load(Ordering::Relaxed);
     }
 }
 

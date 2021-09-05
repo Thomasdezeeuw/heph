@@ -735,3 +735,78 @@ fn cpu_usage(clock_id: libc::clockid_t) -> Duration {
         )
     }
 }
+
+create_metric! {
+    /// Runtime metrics.
+    ///
+    pub struct Metrics {
+        // Actors.
+        /// Number of thread-local actors spawned.
+        local_actors_spawned: AtomicCounter,
+        /// Number of thread-local actors retired (stopped and errored).
+        local_actors_retired: AtomicCounter,
+        /// Number of thread-safe actors spawned.
+        actors_spawned: AtomicCounter,
+        /// Number of thread-safe actors retired (stopped and errored).
+        actors_retired: AtomicCounter,
+        /// Number of synchronous actors spawned.
+        sync_actors_spawned: AtomicCounter,
+        /// Number of synchronous actors retired (stopped and errored).
+        sync_actors_retired: AtomicCounter,
+        // Futures.
+        /// Number of thread-local futures spawned.
+        futures_local_spawned: AtomicCounter,
+        /// Number of thread-local futures retired (completed).
+        futures_local_retired: AtomicCounter,
+        /// Number of thread-safe futures spawned.
+        futures_spawned: AtomicCounter,
+        /// Number of thread-safe futures retired (completed).
+        futures_retired: AtomicCounter,
+        // Misc.
+        /// Number of process signals received.
+        process_signal_received: AtomicCounter,
+
+        // TODO: add (maybe):
+        // * Scheduler, collected/updated on demand (local and shared):
+        //   * # ready processes (gauge).
+        //   * # inactive processes (gauge).
+        // * # Timers, collected/updated on demand (local and shared):
+        //   * # timers (gauge).
+        //
+        // # From the OS
+        //
+        // * Memory used?
+        //
+        // # Low level
+        //
+        // * Number of process executions (Future poll calls)
+        // * # worker parks (sleeps).
+        // * # I/O registrations (only goes up).
+        // * # OS events.
+        //   * # write events
+        //   * # read events
+        // * # timers added.
+        // * # timers deleted/canceled.
+        //
+        // Need some duration metrics:
+        // * Uptime, get on demand from OS
+        // * Total CPU time, get on demand from OS
+        // * CPU time, get on demand fom OS
+        // * Worker CPU time, get on demand
+    }
+}
+
+// Per process (actor & Future) metrics:
+// * # messages received (actor only)
+// * # messages queued (actor only)
+// * # restarts (actor only)
+// * run time
+// * sleep time (start - run time)?
+
+impl crate::metrics::Collect for RuntimeRef {
+    type Metrics = Metrics;
+
+    fn metrics(&self) -> &Self::Metrics {
+        &self.internals.shared.metrics2()
+    }
+}

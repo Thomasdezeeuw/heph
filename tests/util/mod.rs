@@ -191,6 +191,6 @@ where
 pub fn assert_counter_metric(got: Metric, expected: usize) {
     match got {
         Metric::Counter(got) => assert_eq!(got, expected),
-        //got => panic!("unexpected metric: {:?}", got),
+        got => panic!("unexpected metric: {:?}", got),
     }
 }

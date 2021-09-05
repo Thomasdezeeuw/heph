@@ -64,6 +64,7 @@ impl RuntimeSetup {
             scheduler: Scheduler::new(),
             timers: Timers::new(),
             trace_log,
+            metrics: super::Metrics::empty(),
         }
     }
 }
@@ -94,6 +95,7 @@ pub(crate) struct RuntimeInternals {
     /// Prefer not to use this but use [`trace::Log`] in local internals
     /// instead.
     trace_log: Option<Arc<trace::SharedLog>>,
+    metrics: super::Metrics,
 }
 
 /// Metrics for [`RuntimeInternals`].
@@ -340,5 +342,10 @@ impl RuntimeInternals {
             description,
             attributes,
         )
+    }
+
+    // TODO: better name.
+    pub(crate) fn metrics2(&self) -> &super::Metrics {
+        &self.metrics
     }
 }

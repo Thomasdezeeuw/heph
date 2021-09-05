@@ -14,7 +14,7 @@ use mio::{event, Interest};
 use crate::actor::{self, NewActor};
 use crate::actor_ref::ActorRef;
 use crate::rt::process::ProcessId;
-use crate::rt::{shared, RuntimeRef};
+use crate::rt::{shared, Metrics, RuntimeRef};
 use crate::spawn::{ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn};
 use crate::supervisor::Supervisor;
 use crate::trace::{self, Trace};
@@ -363,6 +363,14 @@ where
         ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, E>,
     {
         self.rt.spawn_setup(supervisor, new_actor, arg_fn, options)
+    }
+}
+
+impl crate::metrics::Collect for ThreadSafe {
+    type Metrics = Metrics;
+
+    fn metrics(&self) -> &Self::Metrics {
+        &self.rt.metrics2()
     }
 }
 

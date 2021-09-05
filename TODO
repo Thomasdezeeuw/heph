@@ -1,0 +1,31 @@
+# TODO
+
+* Add metrics to `actor::Context`.
+* Rename old `Metrics` to `Info` and merge parts into the new metrics.
+* Add `metrics` feature and put everything behind it.
+
+
+
+
+
+
+
+
+
+
+
+Use name of Future in FutureProcess:
+
+diff --git a/src/rt/process/future.rs b/src/rt/process/future.rs
+index 1678795..c411e2c 100644
+--- a/src/rt/process/future.rs
++++ b/src/rt/process/future.rs
+@@ -32,7 +32,7 @@ impl<Fut, RT> Process for FutureProcess<Fut, RT>
+     RT: rt::Access,
+ {
+     fn name(&self) -> &'static str {
+-        "Future"
++        crate::actor::name::<Fut>()
+     }
+
+     fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult {

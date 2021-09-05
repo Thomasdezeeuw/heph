@@ -130,13 +130,40 @@ macro_rules! create_metric {
             )+
         }
     ) => {
-        #[doc = concat!("Metrics for [`", stringify!($for_ty), "`].")]
-        ///
+        create_metric! {
+            #[doc = concat!("Metrics for [`", stringify!($for_ty), "`].")]
+            ///
+            $vis struct $name {
+                $(
+                $(#[ $field_doc ])+
+                $field: $field_ty,
+                )+
+            }
+        }
+
+        impl$( < $( $generic )+ > )? crate::metrics::Collect for $for_ty$( < $( $generic )+ > )? {
+            type Metrics = $name;
+
+            fn metrics(&self) -> &Self::Metrics {
+                &self.metrics
+            }
+        }
+    };
+    (
+        $(#[ $doc: meta ])+
+        $vis: vis struct $name: ident {
+            $(
+            $(#[ $field_doc: meta ])+
+            $field: ident : $field_ty: ident,
+            )+
+        }
+    ) => {
+        $(#[ $doc ])+
         /// Holds the following metrics:
         $(
         #[doc = concat!(" * `", stringify!($field), "`: ")]
         $(#[ $field_doc ])+
-        #[doc = concat!("Type [`", stringify!($field_ty), "`](crate::metrics::Metric::", stringify!($field_ty), ").")]
+        #[doc = concat!("Type [`", create_metric!( __variant $field_ty), "`](crate::metrics::Metric::", create_metric!( __variant $field_ty), ").")]
         )*
         #[derive(Debug, Clone)]
         $vis struct $name {
@@ -163,20 +190,15 @@ macro_rules! create_metric {
             fn iter(&self) -> Self::Iter {
                 std::array::IntoIter::new([
                     $(
-                        (stringify!($field), crate::metrics::Metric::from(self.$field)),
+                        (stringify!($field), crate::metrics::Metric::from(&self.$field)),
                     )*
                 ])
             }
         }
-
-        impl$( < $( $generic )+ > )? crate::metrics::Collect for $for_ty$( < $( $generic )+ > )? {
-            type Metrics = $name;
-
-            fn metrics(&self) -> &Self::Metrics {
-                &self.metrics
-            }
-        }
     };
+    ( __variant AtomicCounter ) => { "Counter" };
+    ( __variant Counter ) => { "Counter" };
+    ( __variant AtomicGauge ) => { "Gauge" };
     // Counting macro.
     ( __count $head: ident, $( $tail: ident ),+ ) => {
         1 + create_metric!( __count $( $tail ),+ )

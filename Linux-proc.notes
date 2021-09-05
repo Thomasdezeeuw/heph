@@ -1,0 +1,25 @@
+
+ Field    Content
+ size     total program size (pages)		(same as VmSize in status)
+ resident size of memory portions (pages)	(same as VmRSS in status)
+ shared   number of pages that are shared	(i.e. backed by a file, same
+						as RssFile+RssShmem in status)
+ trs      number of pages that are 'code'	(not including libs; broken,
+							includes data segment)
+ lrs      number of pages of library		(always 0 on 2.6)
+ drs      number of pages of data/stack		(including libs; broken,
+							includes library text)
+ dt       number of dirty pages			(always 0 on 2.6)
+
+
+2057 144 128 5 0 112 0
+
+
+
+
+/proc/self/limits
+/proc/self/net
+
+/proc/self/smaps    # Memory.
+/proc/self/statm    # Also memory, but less (maybe faster?).
+/proc/self/status   # More, including memory.
