@@ -12,7 +12,6 @@ use std::stream::Stream;
 use std::sync::Once;
 use std::task::{self, Poll};
 
-#[track_caller]
 macro_rules! limited_loop {
     ($($arg: tt)*) => {{
         let mut range = (0..1_000);
