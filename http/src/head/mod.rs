@@ -16,6 +16,7 @@ pub use status_code::StatusCode;
 pub use version::Version;
 
 use crate::{Request, Response};
+use header::FromHeaderValue;
 
 /// Head of a [`Request`].
 pub struct RequestHead {
@@ -75,6 +76,16 @@ impl RequestHead {
         &mut self.headers
     }
 
+    /// Get the header’s value with `name`, if any.
+    ///
+    /// See [`Headers::get_value`] for more information.
+    pub fn header<'a, T>(&'a self, name: &HeaderName<'_>) -> Result<Option<T>, T::Err>
+    where
+        T: FromHeaderValue<'a>,
+    {
+        self.headers.get_value(name)
+    }
+
     /// Add a body to the request head creating a complete request.
     pub const fn add_body<B>(self, body: B) -> Request<B> {
         Request::from_head(self, body)
@@ -127,6 +138,16 @@ impl ResponseHead {
     /// Returns mutable access to the headers.
     pub const fn headers_mut(&mut self) -> &mut Headers {
         &mut self.headers
+    }
+
+    /// Get the header’s value with `name`, if any.
+    ///
+    /// See [`Headers::get_value`] for more information.
+    pub fn header<'a, T>(&'a self, name: &HeaderName<'_>) -> Result<Option<T>, T::Err>
+    where
+        T: FromHeaderValue<'a>,
+    {
+        self.headers.get_value(name)
     }
 
     /// Add a body to the response head creating a complete response.
