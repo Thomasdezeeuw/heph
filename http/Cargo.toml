@@ -5,7 +5,7 @@ edition = "2018"
 
 [dependencies]
 heph     = { version = "0.3.0", path = "../", default-features = false }
-httparse = { version = "1.4.0", default-features = false }
+httparse = { version = "1.5.1", default-features = false }
 httpdate = { version = "1.0.0", default-features = false }
 log      = { version = "0.4.8", default-features = false }
 itoa     = { version = "0.4.7", default-features = false }
