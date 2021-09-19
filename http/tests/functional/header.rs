@@ -203,6 +203,7 @@ fn check_header<'a, T>(
 }
 
 fn check_iter(headers: &'_ Headers, expected: &[(HeaderName<'_>, &'_ [u8])]) {
+    // headers.iter.
     let mut len = expected.len();
     let mut iter = headers.iter();
     assert_eq!(iter.len(), len);
@@ -216,9 +217,24 @@ fn check_iter(headers: &'_ Headers, expected: &[(HeaderName<'_>, &'_ [u8])]) {
         assert_eq!(iter.size_hint(), (len, Some(len)));
     }
     assert_eq!(iter.count(), 0);
-
     let iter = headers.iter();
     assert_eq!(iter.count(), expected.len());
+
+    // headers.name.
+    let mut len = expected.len();
+    let mut names = headers.names();
+    assert_eq!(names.len(), len);
+    assert_eq!(names.size_hint(), (len, Some(len)));
+    for (name, _) in expected {
+        let got = names.next().unwrap();
+        assert_eq!(got, *name);
+        len -= 1;
+        assert_eq!(names.len(), len);
+        assert_eq!(names.size_hint(), (len, Some(len)));
+    }
+    assert_eq!(names.count(), 0);
+    let names = headers.names();
+    assert_eq!(names.count(), expected.len());
 }
 
 #[test]
