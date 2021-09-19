@@ -713,6 +713,7 @@ pub(super) struct RuntimeInternals {
 
 /// Metrics for [`RuntimeInternals`].
 #[derive(Debug)]
+#[allow(dead_code)] // https://github.com/rust-lang/rust/issues/88900.
 pub(crate) struct Metrics {
     id: NonZeroUsize,
     scheduler: scheduler::Metrics,
