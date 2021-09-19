@@ -571,6 +571,7 @@ impl fmt::Display for ParseError {
 #[derive(Debug)]
 pub struct Event {
     stream_id: u32,
+    #[allow(dead_code)] // Currently unused.
     stream_counter: u32,
     substream_id: u64,
     start: SystemTime,

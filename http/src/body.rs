@@ -379,6 +379,7 @@ where
 /// Streaming body with an unknown length. Send in multiple chunks.
 #[derive(Debug)]
 pub struct ChunkedBody<'b, B> {
+    #[allow(dead_code)] // Currently unused, but need for the `Body` impl.
     stream: B,
     _body_lifetime: PhantomData<&'b [u8]>,
 }
