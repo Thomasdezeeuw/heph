@@ -20,7 +20,7 @@ jobs:
     - name: Install nightly compiler
       run: .github/install.bash
     - name: Run tests
-      run: make test
+      run: make test_all
   Clippy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
