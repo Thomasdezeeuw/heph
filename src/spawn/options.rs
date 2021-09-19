@@ -192,7 +192,7 @@ fn priority_duration_multiplication() {
 /// let opts = SyncActorOptions::default().with_name("My sync actor".to_owned());
 /// # drop(opts); // Silence unused variable warning.
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct SyncActorOptions {
     thread_name: Option<String>,
 }
@@ -215,12 +215,6 @@ impl SyncActorOptions {
     pub fn with_name(mut self, thread_name: String) -> Self {
         self.thread_name = Some(thread_name);
         self
-    }
-}
-
-impl Default for SyncActorOptions {
-    fn default() -> SyncActorOptions {
-        SyncActorOptions { thread_name: None }
     }
 }
 
@@ -247,7 +241,7 @@ impl Default for SyncActorOptions {
 /// let opts = FutureOptions::default().with_priority(Priority::HIGH);
 /// # drop(opts); // Silence unused variable warning.
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct FutureOptions {
     priority: Priority,
 }
@@ -262,13 +256,5 @@ impl FutureOptions {
     pub const fn with_priority(mut self, priority: Priority) -> Self {
         self.priority = priority;
         self
-    }
-}
-
-impl Default for FutureOptions {
-    fn default() -> FutureOptions {
-        FutureOptions {
-            priority: Priority::default(),
-        }
     }
 }
