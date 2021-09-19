@@ -1,4 +1,22 @@
 //! Traits to work with bytes.
+//!
+//! This module contains two traits:
+//!  * [`Bytes`] to work a single buffer, e.g. `Vec<u8>`, and
+//!  * [`BytesVectored`] to work with multiple buffers and using vectored I/O,
+//!    e.g. `Vec<Vec<u8>>`.
+//!
+//! The basic design of both traits is the same and is fairly simple. It's split
+//! into two methods. Usage starts with a call to [`as_bytes`]/[`as_bufs`],
+//! which returns a slice to unitialised bytes. The caller should then fill that
+//! slice with valid bytes, e.g. by receiving bytes from a socket. Once the
+//! slice is (partially) filled the caller should call
+//! [`update_length`]/[`update_lengths`], which updates the length of the
+//! buffer.
+//!
+//! [`as_bytes`]: Bytes::as_bytes
+//! [`as_bufs`]: BytesVectored::as_bufs
+//! [`update_length`]: Bytes::update_length
+//! [`update_lengths`]: BytesVectored::update_lengths
 
 use std::cmp::min;
 use std::mem::MaybeUninit;
