@@ -3,7 +3,7 @@
 use std::cmp::min;
 use std::ptr;
 
-use heph::net::{Bytes, BytesVectored};
+use heph::bytes::{Bytes, BytesVectored};
 
 const DATA: &[u8] = b"Hello world!";
 const DATA2: &[u8] = b"Hello mars.";

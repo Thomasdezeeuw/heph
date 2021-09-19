@@ -18,7 +18,7 @@ use mio::{net, Interest};
 
 use socket2::SockRef;
 
-use crate::net::{Bytes, BytesVectored, MaybeUninitSlice};
+use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
 use crate::{actor, rt};
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
