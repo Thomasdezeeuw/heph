@@ -1,4 +1,11 @@
 //! Module with HTTP header related types.
+//!
+//! This module has three main types:
+//!  * [`Headers`] is a list of mulitple headers,
+//!  * [`Header`] is a single header, and finally
+//!  * [`HeaderName`] is the name of a header.
+//!
+//! A list of known (registered) headers in available in [`HeaderName`].
 
 use std::borrow::Cow;
 use std::convert::AsRef;
