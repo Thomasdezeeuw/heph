@@ -22,7 +22,8 @@ use std::task::ready;
 use std::task::{self, Poll};
 use std::time::SystemTime;
 
-use heph::net::{tcp, Bytes, BytesVectored, TcpServer, TcpStream};
+use heph::bytes::{Bytes, BytesVectored};
+use heph::net::{tcp, TcpServer, TcpStream};
 use heph::spawn::{ActorOptions, Spawn};
 use heph::{actor, rt, Actor, NewActor, Supervisor};
 use httpdate::HttpDate;

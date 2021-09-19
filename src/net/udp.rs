@@ -20,7 +20,8 @@ use log::warn;
 use mio::{net, Interest};
 use socket2::{SockAddr, SockRef};
 
-use crate::net::{convert_address, Bytes, BytesVectored, MaybeUninitSlice};
+use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
+use crate::net::convert_address;
 use crate::{actor, rt};
 
 /// The unconnected mode of an [`UdpSocket`].
