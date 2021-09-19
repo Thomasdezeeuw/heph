@@ -37,7 +37,7 @@ pub struct Setup<S, NA> {
 struct SetupInner<S, NA> {
     /// Unused socket bound to the `address`, it is just used to return an error
     /// quickly if we can't create the socket or bind to the address.
-    socket: Socket,
+    _socket: Socket,
     /// Address of the `listener`, used to create new sockets.
     address: SocketAddr,
     /// Supervisor for all actors created by `NewActor`.
@@ -465,7 +465,7 @@ where
 
             Ok(Setup {
                 inner: Arc::new(SetupInner {
-                    socket,
+                    _socket: socket,
                     address,
                     supervisor,
                     new_actor,
@@ -560,12 +560,12 @@ where
 #[derive(Debug)]
 pub struct Message {
     // Allow for future expansion.
-    inner: (),
+    _inner: (),
 }
 
 impl From<Terminate> for Message {
     fn from(_: Terminate) -> Message {
-        Message { inner: () }
+        Message { _inner: () }
     }
 }
 
@@ -576,7 +576,7 @@ impl TryFrom<Signal> for Message {
     /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
     fn try_from(signal: Signal) -> Result<Self, Self::Error> {
         match signal {
-            Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(Message { inner: () }),
+            Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(Message { _inner: () }),
             _ => Err(()),
         }
     }

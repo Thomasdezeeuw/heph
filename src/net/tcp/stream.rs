@@ -73,6 +73,7 @@ impl TcpStream {
             .register(&mut socket, Interest::READABLE | Interest::WRITABLE)?;
         Ok(Connect {
             socket: Some(socket),
+            #[cfg(target_os = "linux")]
             cpu_affinity: ctx.runtime_ref().cpu(),
         })
     }
@@ -549,6 +550,7 @@ impl TcpStream {
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Connect {
     socket: Option<net::TcpStream>,
+    #[cfg(target_os = "linux")]
     cpu_affinity: Option<usize>,
 }
 
