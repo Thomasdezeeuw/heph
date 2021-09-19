@@ -344,7 +344,7 @@ impl TcpStream {
     {
         debug_assert!(
             bufs.has_spare_capacity(),
-            "called `UdpSocket::try_recv_vectored` with empty buffers"
+            "called `TcpStream::try_recv_vectored` with empty buffers"
         );
         let res = SockRef::from(&self.socket)
             .recv_vectored(MaybeUninitSlice::as_socket2(bufs.as_bufs().as_mut()));
@@ -425,7 +425,7 @@ impl TcpStream {
     {
         debug_assert!(
             bufs.has_spare_capacity(),
-            "called `UdpSocket::try_peek_vectored` with empty buffers"
+            "called `TcpStream::try_peek_vectored` with empty buffers"
         );
         let res = SockRef::from(&self.socket).recv_vectored_with_flags(
             MaybeUninitSlice::as_socket2(bufs.as_bufs().as_mut()),
