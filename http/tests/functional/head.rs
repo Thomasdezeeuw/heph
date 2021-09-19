@@ -17,7 +17,7 @@ fn request_header() {
     assert_eq!(head.header::<&str>(&HeaderName::USER_AGENT), Ok(None));
 
     let header = Header::new(HeaderName::USER_AGENT, b"Heph-HTTP");
-    head.headers_mut().add(header);
+    head.headers_mut().append(header);
     assert_eq!(head.header(&HeaderName::USER_AGENT), Ok(Some("Heph-HTTP")));
 }
 
@@ -28,6 +28,6 @@ fn response_header() {
     assert_eq!(head.header::<&str>(&HeaderName::USER_AGENT), Ok(None));
 
     let header = Header::new(HeaderName::USER_AGENT, b"Heph-HTTP");
-    head.headers_mut().add(header);
+    head.headers_mut().append(header);
     assert_eq!(head.header(&HeaderName::USER_AGENT), Ok(Some("Heph-HTTP")));
 }

@@ -92,7 +92,7 @@ async fn http_actor(
                 if request.path() != "/" {
                     (StatusCode::NOT_FOUND, "Not found".into(), false)
                 } else if !matches!(request.method(), Method::Get | Method::Head) {
-                    headers.add(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
+                    headers.append(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
                     let body = "Method not allowed".into();
                     (StatusCode::METHOD_NOT_ALLOWED, body, false)
                 } else if !request.body().is_empty() {
@@ -117,7 +117,7 @@ async fn http_actor(
         };
 
         if should_close {
-            headers.add(Header::new(HeaderName::CONNECTION, b"close"));
+            headers.append(Header::new(HeaderName::CONNECTION, b"close"));
         }
 
         debug!(

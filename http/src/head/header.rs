@@ -20,7 +20,7 @@ use crate::{cmp_lower_case, is_lower_case};
 /// List of headers.
 ///
 /// A complete list can be found at the "Message Headers" registry:
-/// <http://www.iana.org/assignments/message-headers>
+/// <http://www.iana.org/assignments/message-headers>.
 pub struct Headers {
     /// All values appended in a single allocation.
     values: Vec<u8>,
@@ -61,7 +61,7 @@ impl Headers {
             let name = HeaderName::from_str(header.name);
             let value = header.value;
             f(&name, value)?;
-            headers._add(name, value);
+            headers._append(name, value);
         }
         Ok(headers)
     }
@@ -84,17 +84,17 @@ impl Headers {
         self.values.clear();
     }
 
-    /// Add a new `header`.
+    /// Append a new `header`.
     ///
     /// # Notes
     ///
     /// This doesn't check for duplicate headers, it just adds it to the list of
-    /// headers.
-    pub fn add(&mut self, header: Header<'static, '_>) {
-        self._add(header.name, header.value)
+    /// headers. This means the list can contain two headers with the same name.
+    pub fn append(&mut self, header: Header<'static, '_>) {
+        self._append(header.name, header.value)
     }
 
-    fn _add(&mut self, name: HeaderName<'static>, value: &[u8]) {
+    fn _append(&mut self, name: HeaderName<'static>, value: &[u8]) {
         let start = self.values.len();
         self.values.extend_from_slice(value);
         let end = self.values.len();
@@ -177,7 +177,7 @@ impl<const N: usize> From<[Header<'static, '_>; N]> for Headers {
             parts: Vec::with_capacity(raw_headers.len()),
         };
         for header in raw_headers {
-            headers._add(header.name.clone(), header.value);
+            headers._append(header.name.clone(), header.value);
         }
         headers
     }
@@ -191,7 +191,7 @@ impl From<&[Header<'static, '_>]> for Headers {
             parts: Vec::with_capacity(raw_headers.len()),
         };
         for header in raw_headers {
-            headers._add(header.name.clone(), header.value);
+            headers._append(header.name.clone(), header.value);
         }
         headers
     }
@@ -219,7 +219,7 @@ impl<'v> Extend<Header<'static, 'v>> for Headers {
         self.values.reserve(iter_len * 10);
         self.parts.reserve(iter_len);
         for header in iter {
-            self._add(header.name, header.value);
+            self._append(header.name, header.value);
         }
     }
 }

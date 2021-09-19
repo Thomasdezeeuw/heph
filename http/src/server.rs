@@ -195,7 +195,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///                 } else if !matches!(request.method(), Method::Get | Method::Head) {
 ///                     // Add the "Allow" header to show the HTTP methods we do
 ///                     // support.
-///                     headers.add(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
+///                     headers.append(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
 ///                     let body = "Method not allowed".into();
 ///                     (StatusCode::METHOD_NOT_ALLOWED, body, false)
 ///                 } else if !request.body().is_empty() {
@@ -221,7 +221,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///         // If we want to close the connection add the "Connection: close"
 ///         // header.
 ///         if should_close {
-///             headers.add(Header::new(HeaderName::CONNECTION, b"close"));
+///             headers.append(Header::new(HeaderName::CONNECTION, b"close"));
 ///         }
 ///
 ///         // Send the body as a single payload.
