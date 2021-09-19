@@ -13,11 +13,11 @@ fn sizes() {
 }
 
 #[test]
-fn headers_add_one_header() {
+fn headers_append_one_header() {
     const VALUE: &[u8] = b"GET";
 
     let mut headers = Headers::EMPTY;
-    headers.add(Header::new(HeaderName::ALLOW, VALUE));
+    headers.append(Header::new(HeaderName::ALLOW, VALUE));
     assert_eq!(headers.len(), 1);
     assert!(!headers.is_empty());
 
@@ -26,15 +26,15 @@ fn headers_add_one_header() {
 }
 
 #[test]
-fn headers_add_multiple_headers() {
+fn headers_append_multiple_headers() {
     const ALLOW: &[u8] = b"GET";
     const CONTENT_LENGTH: &[u8] = b"123";
     const X_REQUEST_ID: &[u8] = b"abc-def";
 
     let mut headers = Headers::EMPTY;
-    headers.add(Header::new(HeaderName::ALLOW, ALLOW));
-    headers.add(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
-    headers.add(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
+    headers.append(Header::new(HeaderName::ALLOW, ALLOW));
+    headers.append(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
+    headers.append(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
     assert_eq!(headers.len(), 3);
     assert!(!headers.is_empty());
 
@@ -160,7 +160,7 @@ fn headers_get_not_found() {
     assert!(headers.get_bytes(&HeaderName::DATE).is_none());
     assert_eq!(headers.get_value::<&str>(&HeaderName::DATE), Ok(None));
 
-    headers.add(Header::new(HeaderName::ALLOW, b"GET"));
+    headers.append(Header::new(HeaderName::ALLOW, b"GET"));
     assert!(headers.get(&HeaderName::DATE).is_none());
     assert!(headers.get_bytes(&HeaderName::DATE).is_none());
     assert_eq!(headers.get_value::<&str>(&HeaderName::DATE), Ok(None));
@@ -172,8 +172,8 @@ fn clear_headers() {
     const CONTENT_LENGTH: &[u8] = b"123";
 
     let mut headers = Headers::EMPTY;
-    headers.add(Header::new(HeaderName::ALLOW, ALLOW));
-    headers.add(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
+    headers.append(Header::new(HeaderName::ALLOW, ALLOW));
+    headers.append(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
     assert_eq!(headers.len(), 2);
     assert!(!headers.is_empty());
 
