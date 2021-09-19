@@ -422,11 +422,11 @@ impl Connection {
                 }
             }
 
-            let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
-            let mut request = httparse::Request::new(&mut headers);
+            let mut headers = MaybeUninit::uninit_array::<MAX_HEADERS>();
+            let mut request = httparse::Request::new(&mut []);
             // SAFETY: because we received until at least `self.parsed_bytes >=
             // self.buf.len()` above, we can safely slice the buffer..
-            match request.parse(&self.buf[self.parsed_bytes..]) {
+            match request.parse_with_uninit_headers(&self.buf[self.parsed_bytes..], &mut headers) {
                 Ok(httparse::Status::Complete(head_length)) => {
                     self.parsed_bytes += head_length;
 
