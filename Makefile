@@ -30,7 +30,7 @@ test_sanitiser:
 	@if [ -z $${SAN+x} ]; then echo "Required '\$$SAN' variable is not set" 1>&2; exit 1; fi
 	RUSTFLAGS="-Z sanitizer=$$SAN -Z sanitizer-memory-track-origins" \
 	RUSTDOCFLAGS="-Z sanitizer=$$SAN -Z sanitizer-memory-track-origins" \
-	cargo test -Z build-std --all-features --target $(RUSTUP_TARGET)
+	cargo test -Z build-std --all-features --workspace --target $(RUSTUP_TARGET)
 
 check:
 	cargo check --all-features --all-targets
