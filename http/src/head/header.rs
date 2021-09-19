@@ -145,11 +145,25 @@ impl Headers {
 
     // TODO: remove header?
 
-    /// Returns an iterator over all headers.
+    /// Returns an iterator that iterates over all headers.
     ///
     /// The order is unspecified.
     pub const fn iter<'a>(&'a self) -> Iter<'a> {
         Iter {
+            headers: self,
+            pos: 0,
+        }
+    }
+
+    /// Returns an iterator that iterates over all header names.
+    ///
+    /// The order is unspecified.
+    ///
+    /// # Notes
+    ///
+    /// This may return names twice if `self` contains the name twice.
+    pub const fn names<'a>(&'a self) -> Names<'a> {
+        Names {
             headers: self,
             pos: 0,
         }
@@ -277,6 +291,41 @@ impl<'a> ExactSizeIterator for Iter<'a> {
 }
 
 impl<'a> FusedIterator for Iter<'a> {}
+
+/// Iterator for [`Headers`]'s header names, see [`Headers::names`].
+#[derive(Debug)]
+pub struct Names<'a> {
+    headers: &'a Headers,
+    pos: usize,
+}
+
+impl<'a> Iterator for Names<'a> {
+    type Item = HeaderName<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.headers.parts.get(self.pos).map(|part| {
+            self.pos += 1;
+            part.name.borrow()
+        })
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+
+    fn count(self) -> usize {
+        self.len()
+    }
+}
+
+impl<'a> ExactSizeIterator for Names<'a> {
+    fn len(&self) -> usize {
+        self.headers.len() - self.pos
+    }
+}
+
+impl<'a> FusedIterator for Names<'a> {}
 
 /// HTTP header.
 ///
