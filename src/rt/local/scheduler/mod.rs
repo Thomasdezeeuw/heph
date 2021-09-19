@@ -36,6 +36,7 @@ pub(crate) struct Scheduler {
 
 /// Metrics for [`Scheduler`].
 #[derive(Debug)]
+#[allow(dead_code)] // https://github.com/rust-lang/rust/issues/88900.
 pub(crate) struct Metrics {
     ready: usize,
     inactive: usize,

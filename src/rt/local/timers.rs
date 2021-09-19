@@ -81,6 +81,7 @@ pub(crate) struct Timers {
 
 /// Metrics for [`Timers`].
 #[derive(Debug)]
+#[allow(dead_code)] // https://github.com/rust-lang/rust/issues/88900.
 pub(crate) struct Metrics {
     timers: usize,
     next_timer: Option<Duration>,
