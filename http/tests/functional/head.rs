@@ -22,6 +22,9 @@ fn request_header() {
 
     *head.version_mut() = Version::Http11;
     assert_eq!(head.version(), Version::Http11);
+
+    *head.method_mut() = Method::Post;
+    assert_eq!(head.method(), Method::Post);
 }
 
 #[test]

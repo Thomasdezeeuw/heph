@@ -47,6 +47,11 @@ impl RequestHead {
         self.method
     }
 
+    /// Returns a mutable reference to the HTTP method of this request.
+    pub const fn method_mut(&mut self) -> &mut Method {
+        &mut self.method
+    }
+
     /// Returns the path of this request.
     pub fn path(&self) -> &str {
         &self.path
