@@ -90,7 +90,15 @@ impl Headers {
     ///
     /// This doesn't check for duplicate headers, it just adds it to the list of
     /// headers. This means the list can contain two headers with the same name.
+    /// If you don't want duplicate headers you can use (the more expansive)
+    /// [`Headers::insert`] method.
     pub fn append(&mut self, header: Header<'static, '_>) {
+        self._append(header.name, header.value)
+    }
+
+    /// Insert `header`, removing all existing headers with the same name.
+    pub fn insert(&mut self, header: Header<'static, '_>) {
+        self.remove_all(&header.name);
         self._append(header.name, header.value)
     }
 
