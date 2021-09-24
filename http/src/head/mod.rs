@@ -57,13 +57,18 @@ impl RequestHead {
     /// # Notes
     ///
     /// Requests from the [`HttpServer`] will return the highest version it
-    /// understand, e.g. if a client used HTTP/1.2 (which doesn't exists) the
+    /// understands, e.g. if a client used HTTP/1.2 (which doesn't exists) the
     /// version would be set to HTTP/1.1 (the highest version this crate
     /// understands) per RFC 7230 section 2.6.
     ///
     /// [`HttpServer`]: crate::HttpServer
     pub const fn version(&self) -> Version {
         self.version
+    }
+
+    /// Returns a mutable reference to the HTTP version of this request.
+    pub const fn version_mut(&mut self) -> &mut Version {
+        &mut self.version
     }
 
     /// Returns the headers.
@@ -123,6 +128,11 @@ impl ResponseHead {
     /// Returns the HTTP version of this response.
     pub const fn version(&self) -> Version {
         self.version
+    }
+
+    /// Returns a mutable reference to the HTTP version of this response.
+    pub const fn version_mut(&mut self) -> &mut Version {
+        &mut self.version
     }
 
     /// Returns the response code.
