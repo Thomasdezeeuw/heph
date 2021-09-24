@@ -325,6 +325,30 @@ impl<'b> From<&'b str> for OneshotBody<'b> {
     }
 }
 
+impl<'b> PartialEq<[u8]> for OneshotBody<'b> {
+    fn eq(&self, other: &[u8]) -> bool {
+        self.bytes.eq(other)
+    }
+}
+
+impl<'b> PartialEq<&[u8]> for OneshotBody<'b> {
+    fn eq(&self, other: &&[u8]) -> bool {
+        self.bytes.eq(*other)
+    }
+}
+
+impl<'b> PartialEq<str> for OneshotBody<'b> {
+    fn eq(&self, other: &str) -> bool {
+        self.bytes.eq(other.as_bytes())
+    }
+}
+
+impl<'b> PartialEq<&str> for OneshotBody<'b> {
+    fn eq(&self, other: &&str) -> bool {
+        self.bytes.eq(other.as_bytes())
+    }
+}
+
 /// Streaming body with a known length. Send in a single payload (i.e. not
 /// chunked).
 #[derive(Debug)]
