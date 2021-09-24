@@ -154,7 +154,17 @@ impl Headers {
         None
     }
 
-    // TODO: remove header?
+    /// Remove the first header with `name`.
+    pub fn remove(&mut self, name: &HeaderName<'_>) {
+        if let Some(idx) = self.parts.iter().position(move |part| part.name == *name) {
+            drop(self.parts.remove(idx));
+        }
+    }
+
+    /// Remove all headers with `name`.
+    pub fn remove_all(&mut self, name: &HeaderName<'_>) {
+        drop(self.parts.drain_filter(move |part| part.name == *name));
+    }
 
     /// Returns an iterator that iterates over all headers.
     ///
