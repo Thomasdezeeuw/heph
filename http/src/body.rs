@@ -280,6 +280,11 @@ impl<'b> OneshotBody<'b> {
     pub const fn new(body: &'b [u8]) -> OneshotBody<'b> {
         OneshotBody { bytes: body }
     }
+
+    /// Returns the bytes that make up the body.
+    pub const fn bytes(&'b self) -> &'b [u8] {
+        self.bytes
+    }
 }
 
 impl<'b> Body<'b> for OneshotBody<'b> {
