@@ -9,6 +9,10 @@ fn assert_size<T>(expected: usize) {
     assert_eq!(size_of::<T>(), expected);
 }
 
+fn assert_send<T: Send>() {}
+
+fn assert_sync<T: Sync>() {}
+
 #[path = "functional"] // rustfmt can't find the files.
 mod functional {
     mod body;
