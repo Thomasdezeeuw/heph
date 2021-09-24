@@ -45,6 +45,26 @@ fn request_map_body() {
 }
 
 #[test]
+fn request_builder() {
+    let tests: [(fn(String) -> Request<EmptyBody>, Method); 5] = [
+        (Request::get, Method::Get),
+        (Request::head, Method::Head),
+        (Request::post, Method::Post),
+        (Request::put, Method::Put),
+        (Request::delete, Method::Delete),
+    ];
+
+    for (create, expected) in tests {
+        let request = create("/".to_owned()).with_body::<OneshotBody>(BODY1.into());
+        assert_eq!(request.method(), expected);
+        assert_eq!(request.path(), "/");
+        assert_eq!(request.version(), Version::Http11);
+        assert!(request.headers().is_empty());
+        assert_eq!(request.body(), BODY1);
+    }
+}
+
+#[test]
 fn response_head() {
     let headers = Headers::EMPTY;
     let mut head = ResponseHead::new(Version::Http10, StatusCode::OK, headers);

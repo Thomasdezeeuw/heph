@@ -1,6 +1,7 @@
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 
+use crate::body::EmptyBody;
 use crate::head::RequestHead;
 use crate::{Headers, Method, Version};
 
@@ -53,6 +54,50 @@ impl<B> Request<B> {
     // run in constant functions.
     pub fn split(self) -> (RequestHead, B) {
         (self.head, self.body)
+    }
+}
+
+/// Builder pattern for `Request`.
+///
+/// These methods create a new `Request` using HTTP/1.1, no headers and an empty
+/// body. Use [`Request::with_body`] to add a body to the request.
+impl Request<EmptyBody> {
+    /// Create a GET request.
+    pub const fn get(path: String) -> Request<EmptyBody> {
+        Request::build_new(Method::Get, path)
+    }
+
+    /// Create a HEAD request.
+    pub const fn head(path: String) -> Request<EmptyBody> {
+        Request::build_new(Method::Head, path)
+    }
+
+    /// Create a POST request.
+    pub const fn post(path: String) -> Request<EmptyBody> {
+        Request::build_new(Method::Post, path)
+    }
+
+    /// Create a PUT request.
+    pub const fn put(path: String) -> Request<EmptyBody> {
+        Request::build_new(Method::Put, path)
+    }
+
+    /// Create a DELETE request.
+    pub const fn delete(path: String) -> Request<EmptyBody> {
+        Request::build_new(Method::Delete, path)
+    }
+
+    /// Simple version of [`Request::new`] used by the build functions.
+    const fn build_new(method: Method, path: String) -> Request<EmptyBody> {
+        Request::new(method, path, Version::Http11, Headers::EMPTY, EmptyBody)
+    }
+
+    /// Add a body to the request.
+    pub fn with_body<B>(self, body: B) -> Request<B> {
+        Request {
+            head: self.head,
+            body,
+        }
     }
 }
 
