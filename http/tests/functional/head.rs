@@ -36,4 +36,7 @@ fn response_header() {
 
     *head.version_mut() = Version::Http11;
     assert_eq!(head.version(), Version::Http11);
+
+    *head.status_mut() = StatusCode::CREATED;
+    assert_eq!(head.status(), StatusCode::CREATED);
 }
