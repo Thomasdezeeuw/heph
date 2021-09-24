@@ -1,8 +1,5 @@
 //! Module with the HTTP client implementation.
 
-// FIXME: remove.
-#![allow(missing_docs)]
-
 use std::cmp::min;
 use std::future::Future;
 use std::net::SocketAddr;
@@ -20,6 +17,7 @@ use crate::{
     MIN_READ_SIZE,
 };
 
+/// HTTP/1.1 client.
 #[derive(Debug)]
 pub struct Client {
     stream: TcpStream,
@@ -92,6 +90,15 @@ impl Client {
         }
     }
 
+    /// Send a request to the server.
+    ///
+    /// Most users want to use the [`Client::request`] method to also wait for a
+    /// response. This method allows the user to pipeline multiple requests and
+    /// receive them **in order** using [`Client::read_response`].
+    ///
+    /// Sets the following headers if not present in `Headers`:
+    ///  * User-Agent and
+    ///  * Content-Length and/or Transfer-Encoding based on the `body`.
     #[allow(clippy::future_not_send)] // TODO.
     pub async fn send_request<'b, B>(
         &mut self,
@@ -120,7 +127,7 @@ impl Client {
         let mut set_transfer_encoding_header = false;
         for header in headers.iter() {
             let name = header.name();
-            // Field-name:
+            // Field-name.
             self.buf.extend_from_slice(name.as_ref().as_bytes());
             // NOTE: spacing after the colon (`:`) is optional.
             self.buf.extend_from_slice(b": ");
@@ -181,6 +188,14 @@ impl Client {
         Ok(())
     }
 
+    /// Read a response from the server.
+    ///
+    /// Most users want to use the [`Client::request`] method. Only call this
+    /// method if you use [`Client::send_request`].
+    ///
+    /// The `request_method` is required to determine the expected response size
+    /// of certain responses. For example if the `request_method` is HEAD we
+    /// don't expect a response body.
     #[allow(clippy::too_many_lines)] // TODO.
     pub async fn read_response<'a>(
         &'a mut self,
@@ -476,6 +491,7 @@ impl Future for Connect {
     }
 }
 
+/// Body returned used by [`Client`].
 #[derive(Debug)]
 pub struct Body<'c> {
     client: &'c mut Client,
@@ -539,6 +555,9 @@ impl<'c> Body<'c> {
        consider the message to be incomplete and close the connection.
     */
 
+    /// Read the entire body into `buf`.
+    ///
+    /// Reads up to `limit` bytes.
     pub async fn read_all(&mut self, buf: &mut Vec<u8>, limit: usize) -> io::Result<()> {
         let mut total = 0;
         loop {

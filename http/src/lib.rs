@@ -9,8 +9,7 @@
     generic_associated_types,
     io_slice_advance,
     maybe_uninit_uninit_array,
-    maybe_uninit_write_slice,
-    stmt_expr_attributes
+    maybe_uninit_write_slice
 )]
 #![warn(
     anonymous_parameters,
