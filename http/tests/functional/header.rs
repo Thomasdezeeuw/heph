@@ -271,6 +271,38 @@ fn headers_get_all() {
 }
 
 #[test]
+fn headers_remove() {
+    const VALUE1: &[u8] = b"GET";
+    const VALUE2: &[u8] = b"GET";
+    const NAME: HeaderName<'static> = HeaderName::ALLOW;
+
+    let mut headers = Headers::EMPTY;
+
+    headers.append(Header::new(NAME, VALUE1));
+    headers.append(Header::new(NAME, VALUE2));
+
+    assert_eq!(headers.get_bytes(&NAME), Some(VALUE1));
+    headers.remove(&NAME);
+    assert_eq!(headers.get_bytes(&NAME), Some(VALUE2));
+    headers.remove(&NAME);
+    assert_eq!(headers.get_bytes(&NAME), None);
+}
+
+#[test]
+fn headers_remove_all() {
+    const VALUE1: &[u8] = b"GET";
+    const VALUE2: &[u8] = b"GET";
+    const NAME: HeaderName<'static> = HeaderName::ALLOW;
+
+    let mut headers = Headers::EMPTY;
+
+    headers.append(Header::new(NAME, VALUE1));
+    headers.append(Header::new(NAME, VALUE2));
+    headers.remove_all(&NAME);
+    assert_eq!(headers.get_bytes(&NAME), None);
+}
+
+#[test]
 fn new_header() {
     const _MY_HEADER: Header<'static, 'static> =
         Header::new(HeaderName::USER_AGENT, b"Heph-HTTP/0.1");
