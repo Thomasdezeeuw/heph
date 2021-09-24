@@ -1,8 +1,12 @@
+use heph_http::body::{EmptyBody, OneshotBody};
 use heph_http::head::{
     Header, HeaderName, Headers, Method, RequestHead, ResponseHead, StatusCode, Version,
 };
+use heph_http::{Request, Response};
 
 use crate::assert_size;
+
+const BODY1: &'static [u8] = b"Hello world!";
 
 #[test]
 fn size() {
@@ -28,6 +32,19 @@ fn request_head() {
 }
 
 #[test]
+fn request_map_body() {
+    let request = Request::new(
+        Method::Get,
+        "/".to_string(),
+        Version::Http10,
+        Headers::EMPTY,
+        EmptyBody,
+    )
+    .map_body(|_body: EmptyBody| OneshotBody::new(BODY1));
+    assert_eq!(request.body(), BODY1);
+}
+
+#[test]
 fn response_head() {
     let headers = Headers::EMPTY;
     let mut head = ResponseHead::new(Version::Http10, StatusCode::OK, headers);
@@ -42,4 +59,11 @@ fn response_head() {
 
     *head.status_mut() = StatusCode::CREATED;
     assert_eq!(head.status(), StatusCode::CREATED);
+}
+
+#[test]
+fn response_map_body() {
+    let response = Response::new(Version::Http10, StatusCode::OK, Headers::EMPTY, EmptyBody)
+        .map_body(|_body: EmptyBody| OneshotBody::new(BODY1));
+    assert_eq!(response.body(), BODY1);
 }
