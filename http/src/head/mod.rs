@@ -140,6 +140,11 @@ impl ResponseHead {
         self.status
     }
 
+    /// Returns a mutable reference to the response code.
+    pub const fn status_mut(&mut self) -> &mut StatusCode {
+        &mut self.status
+    }
+
     /// Returns the headers.
     pub const fn headers(&self) -> &Headers {
         &self.headers
