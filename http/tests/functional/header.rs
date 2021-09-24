@@ -220,7 +220,7 @@ fn check_iter(headers: &'_ Headers, expected: &[(HeaderName<'_>, &'_ [u8])]) {
     let iter = headers.iter();
     assert_eq!(iter.count(), expected.len());
 
-    // headers.name.
+    // headers.names.
     let mut len = expected.len();
     let mut names = headers.names();
     assert_eq!(names.len(), len);
@@ -235,6 +235,39 @@ fn check_iter(headers: &'_ Headers, expected: &[(HeaderName<'_>, &'_ [u8])]) {
     assert_eq!(names.count(), 0);
     let names = headers.names();
     assert_eq!(names.count(), expected.len());
+
+    // headers.get_all.
+    for (name, value) in expected {
+        let mut got = headers.get_all(name);
+        let got1 = got.next().unwrap();
+        assert_eq!(got1.name(), name);
+        assert_eq!(got1.value(), *value);
+        assert!(got.next().is_none());
+    }
+}
+
+#[test]
+fn headers_get_all() {
+    const VALUE1: &[u8] = b"GET";
+    const VALUE2: &[u8] = b"GET";
+    const NAME: HeaderName<'static> = HeaderName::ALLOW;
+
+    let mut headers = Headers::EMPTY;
+
+    headers.append(Header::new(NAME, VALUE1));
+    assert_eq!(headers.get_bytes(&NAME), Some(VALUE1));
+    assert_eq!(
+        headers.get_all(&NAME).collect::<Vec<_>>(),
+        [Header::new(NAME, VALUE1)],
+    );
+
+    // Append with the same name.
+    headers.append(Header::new(NAME, VALUE2));
+    assert_eq!(headers.get_bytes(&NAME), Some(VALUE1));
+    assert_eq!(
+        headers.get_all(&NAME).collect::<Vec<_>>(),
+        [Header::new(NAME, VALUE1), Header::new(NAME, VALUE2)],
+    );
 }
 
 #[test]
