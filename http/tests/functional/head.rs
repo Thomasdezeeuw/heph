@@ -19,6 +19,9 @@ fn request_header() {
     let header = Header::new(HeaderName::USER_AGENT, b"Heph-HTTP");
     head.headers_mut().append(header);
     assert_eq!(head.header(&HeaderName::USER_AGENT), Ok(Some("Heph-HTTP")));
+
+    *head.version_mut() = Version::Http11;
+    assert_eq!(head.version(), Version::Http11);
 }
 
 #[test]
@@ -30,4 +33,7 @@ fn response_header() {
     let header = Header::new(HeaderName::USER_AGENT, b"Heph-HTTP");
     head.headers_mut().append(header);
     assert_eq!(head.header(&HeaderName::USER_AGENT), Ok(Some("Heph-HTTP")));
+
+    *head.version_mut() = Version::Http11;
+    assert_eq!(head.version(), Version::Http11);
 }
