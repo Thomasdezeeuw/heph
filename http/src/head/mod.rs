@@ -96,6 +96,36 @@ impl RequestHead {
         self.headers.get_value(name)
     }
 
+    /// Get the header’s value with `name` or return `default`.
+    ///
+    /// If no header with `name` is found or the [`FromHeaderValue`]
+    /// implementation fails this will return `default`. For more control over
+    /// the error handling see [`RequestHead::header`].
+    pub fn header_or<'a, T>(&'a self, name: &HeaderName<'_>, default: T) -> T
+    where
+        T: FromHeaderValue<'a>,
+    {
+        match self.header(name) {
+            Ok(Some(value)) => value,
+            _ => default,
+        }
+    }
+
+    /// Get the header’s value with `name` or returns the result of `default`.
+    ///
+    /// Same as [`RequestHead::header_or`] but uses a function to create the
+    /// default value.
+    pub fn header_or_else<'a, F, T>(&'a self, name: &HeaderName<'_>, default: F) -> T
+    where
+        T: FromHeaderValue<'a>,
+        F: FnOnce() -> T,
+    {
+        match self.header(name) {
+            Ok(Some(value)) => value,
+            _ => default(),
+        }
+    }
+
     /// Add a body to the request head creating a complete request.
     pub const fn add_body<B>(self, body: B) -> Request<B> {
         Request::from_head(self, body)
@@ -168,6 +198,36 @@ impl ResponseHead {
         T: FromHeaderValue<'a>,
     {
         self.headers.get_value(name)
+    }
+
+    /// Get the header’s value with `name` or return `default`.
+    ///
+    /// If no header with `name` is found or the [`FromHeaderValue`]
+    /// implementation fails this will return `default`. For more control over
+    /// the error handling see [`ResponseHead::header`].
+    pub fn header_or<'a, T>(&'a self, name: &HeaderName<'_>, default: T) -> T
+    where
+        T: FromHeaderValue<'a>,
+    {
+        match self.header(name) {
+            Ok(Some(value)) => value,
+            _ => default,
+        }
+    }
+
+    /// Get the header’s value with `name` or returns the result of `default`.
+    ///
+    /// Same as [`ResponseHead::header_or`] but uses a function to create the
+    /// default value.
+    pub fn header_or_else<'a, F, T>(&'a self, name: &HeaderName<'_>, default: F) -> T
+    where
+        T: FromHeaderValue<'a>,
+        F: FnOnce() -> T,
+    {
+        match self.header(name) {
+            Ok(Some(value)) => value,
+            _ => default(),
+        }
     }
 
     /// Add a body to the response head creating a complete response.
