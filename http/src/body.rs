@@ -253,11 +253,10 @@ mod private {
                                 if n >= bytes.len() {
                                     *body_bytes = None;
                                     break;
-                                } else {
-                                    *bytes = &bytes[n..];
-                                    bufs[2] = IoSlice::new(bytes);
-                                    continue;
                                 }
+                                *bytes = &bytes[n..];
+                                bufs[2] = IoSlice::new(bytes);
+                                continue;
                             }
                             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
                                 return Poll::Pending
