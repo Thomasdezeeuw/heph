@@ -101,22 +101,33 @@ impl Headers {
         self.parts.push(HeaderPart { name, start, end });
     }
 
-    /// Get the header with `name`, if any.
+    /// Get the first header with `name`, if any.
     ///
     /// # Notes
     ///
     /// If all you need is the header value you can use [`Headers::get_value`]
     /// or [`Headers::get_bytes`] for the raw value.
     pub fn get(&self, name: &HeaderName<'_>) -> Option<Header<'_, '_>> {
-        for part in &self.parts {
-            if part.name == *name {
-                return Some(Header {
-                    name: part.name.borrow(),
-                    value: &self.values[part.start..part.end],
-                });
-            }
-        }
-        None
+        self.parts
+            .iter()
+            .find(|part| part.name == *name)
+            .map(|part| Header {
+                name: part.name.borrow(),
+                value: &self.values[part.start..part.end],
+            })
+    }
+
+    /// Get all headers with `name`, if any.
+    pub fn get_all<'h, 'n>(
+        &'h self,
+        name: &'n HeaderName<'n>,
+    ) -> impl Iterator<Item = Header<'n, 'h>> {
+        self.parts.iter().filter_map(move |part| {
+            (part.name == *name).then(move || Header {
+                name: name.borrow(),
+                value: &self.values[part.start..part.end],
+            })
+        })
     }
 
     /// Get the header's value with `name`, if any.
