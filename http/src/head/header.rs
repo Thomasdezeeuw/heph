@@ -330,7 +330,7 @@ impl<'a> FusedIterator for Names<'a> {}
 /// HTTP header.
 ///
 /// RFC 7230 section 3.2.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct Header<'n, 'v> {
     name: HeaderName<'n>,
     value: &'v [u8],
