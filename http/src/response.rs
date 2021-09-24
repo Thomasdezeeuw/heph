@@ -36,6 +36,17 @@ impl<B> Response<B> {
         &mut self.body
     }
 
+    /// Map the body from type `B` to `U` by calling `map`.
+    pub fn map_body<F, U>(self, map: F) -> Response<U>
+    where
+        F: FnOnce(B) -> U,
+    {
+        Response {
+            head: self.head,
+            body: map(self.body),
+        }
+    }
+
     /// Split the response in the head and the body.
     // TODO: mark as constant once destructors (that this doesn't have) can be
     // run in constant functions.

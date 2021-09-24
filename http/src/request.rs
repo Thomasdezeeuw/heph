@@ -37,6 +37,17 @@ impl<B> Request<B> {
         &mut self.body
     }
 
+    /// Map the body from type `B` to `U` by calling `map`.
+    pub fn map_body<F, U>(self, map: F) -> Request<U>
+    where
+        F: FnOnce(B) -> U,
+    {
+        Request {
+            head: self.head,
+            body: map(self.body),
+        }
+    }
+
     /// Split the request in the head and the body.
     // TODO: mark as constant once destructors (that this doesn't have) can be
     // run in constant functions.
