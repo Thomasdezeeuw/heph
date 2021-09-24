@@ -32,6 +32,76 @@ fn request_head() {
 }
 
 #[test]
+fn request_header_or() {
+    let mut request = Request::new(
+        Method::Get,
+        "/".to_string(),
+        Version::Http10,
+        Headers::EMPTY,
+        EmptyBody,
+    );
+
+    // Not found.
+    assert_eq!(request.header_or::<usize>(&HeaderName::CONTENT_TYPE, 0), 0);
+    // OK.
+    request
+        .headers_mut()
+        .insert(Header::new(HeaderName::CONTENT_TYPE, b"123"));
+    assert_eq!(
+        request.header_or::<usize>(&HeaderName::CONTENT_TYPE, 0),
+        123
+    );
+    // Invalid.
+    request
+        .headers_mut()
+        .insert(Header::new(HeaderName::CONTENT_TYPE, b"abc"));
+    assert_eq!(request.header_or::<usize>(&HeaderName::CONTENT_TYPE, 0), 0);
+}
+
+#[test]
+fn request_header_or_else() {
+    let mut request = Request::new(
+        Method::Get,
+        "/".to_string(),
+        Version::Http10,
+        Headers::EMPTY,
+        EmptyBody,
+    );
+
+    // Not found.
+    let mut called = false;
+    assert_eq!(
+        request.header_or_else::<_, usize>(&HeaderName::CONTENT_TYPE, || {
+            called = true;
+            0
+        }),
+        0
+    );
+    assert!(called);
+    // OK.
+    request
+        .headers_mut()
+        .insert(Header::new(HeaderName::CONTENT_TYPE, b"123"));
+    assert_eq!(
+        request.header_or_else::<_, usize>(&HeaderName::CONTENT_TYPE, || unreachable!()),
+        123
+    );
+    // Invalid.
+    request
+        .headers_mut()
+        .insert(Header::new(HeaderName::CONTENT_TYPE, b"abc"));
+    let mut called = false;
+    assert_eq!(
+        request.header_or_else::<_, usize>(&HeaderName::CONTENT_TYPE, || {
+            called = true;
+            0
+        }),
+        0
+    );
+    assert!(called);
+}
+
+#[test]
 fn request_map_body() {
     let request = Request::new(
         Method::Get,
@@ -79,6 +149,64 @@ fn response_head() {
 
     *head.status_mut() = StatusCode::CREATED;
     assert_eq!(head.status(), StatusCode::CREATED);
+}
+
+#[test]
+fn response_header_or() {
+    let mut response = Response::new(Version::Http10, StatusCode::OK, Headers::EMPTY, EmptyBody);
+
+    // Not found.
+    assert_eq!(response.header_or::<usize>(&HeaderName::CONTENT_TYPE, 0), 0);
+    // OK.
+    response
+        .headers_mut()
+        .insert(Header::new(HeaderName::CONTENT_TYPE, b"123"));
+    assert_eq!(
+        response.header_or::<usize>(&HeaderName::CONTENT_TYPE, 0),
+        123
+    );
+    // Invalid.
+    response
+        .headers_mut()
+        .insert(Header::new(HeaderName::CONTENT_TYPE, b"abc"));
+    assert_eq!(response.header_or::<usize>(&HeaderName::CONTENT_TYPE, 0), 0);
+}
+
+#[test]
+fn response_header_or_else() {
+    let mut response = Response::new(Version::Http10, StatusCode::OK, Headers::EMPTY, EmptyBody);
+
+    // Not found.
+    let mut called = false;
+    assert_eq!(
+        response.header_or_else::<_, usize>(&HeaderName::CONTENT_TYPE, || {
+            called = true;
+            0
+        }),
+        0
+    );
+    assert!(called);
+    // OK.
+    response
+        .headers_mut()
+        .insert(Header::new(HeaderName::CONTENT_TYPE, b"123"));
+    assert_eq!(
+        response.header_or_else::<_, usize>(&HeaderName::CONTENT_TYPE, || unreachable!()),
+        123
+    );
+    // Invalid.
+    response
+        .headers_mut()
+        .insert(Header::new(HeaderName::CONTENT_TYPE, b"abc"));
+    let mut called = false;
+    assert_eq!(
+        response.header_or_else::<_, usize>(&HeaderName::CONTENT_TYPE, || {
+            called = true;
+            0
+        }),
+        0
+    );
+    assert!(called);
 }
 
 #[test]
