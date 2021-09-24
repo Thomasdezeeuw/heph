@@ -11,7 +11,7 @@ fn size() {
 }
 
 #[test]
-fn request_header() {
+fn request_head() {
     let headers = Headers::EMPTY;
     let mut head = RequestHead::new(Method::Get, "/".to_string(), Version::Http10, headers);
     assert_eq!(head.header::<&str>(&HeaderName::USER_AGENT), Ok(None));
@@ -28,7 +28,7 @@ fn request_header() {
 }
 
 #[test]
-fn response_header() {
+fn response_head() {
     let headers = Headers::EMPTY;
     let mut head = ResponseHead::new(Version::Http10, StatusCode::OK, headers);
     assert_eq!(head.header::<&str>(&HeaderName::USER_AGENT), Ok(None));
