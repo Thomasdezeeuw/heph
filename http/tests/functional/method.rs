@@ -93,6 +93,36 @@ fn from_invalid_str() {
 }
 
 #[test]
+fn cmp_with_string() {
+    let tests = &[
+        (Get, "GET", true),
+        (Head, "HEAD", true),
+        (Post, "POST", true),
+        (Put, "PUT", true),
+        (Delete, "DELETE", true),
+        (Connect, "CONNECT", true),
+        (Options, "OPTIONS", true),
+        (Trace, "TRACE", true),
+        (Patch, "PATCH", true),
+        // Case insensitive.
+        (Get, "get", true),
+        (Head, "Head", true),
+        (Post, "posT", true),
+        (Put, "put", true),
+        (Delete, "delete", true),
+        (Connect, "ConNECT", true),
+        (Options, "OptionS", true),
+        (Trace, "Trace", true),
+        (Patch, "patcH", true),
+        (Head, "POST", false),
+        (Post, "head", false),
+    ];
+    for (status_code, str, expected) in tests {
+        assert_eq!(status_code.eq(*str), *expected);
+    }
+}
+
+#[test]
 fn fmt_display() {
     let tests = &[
         (Get, "GET"),

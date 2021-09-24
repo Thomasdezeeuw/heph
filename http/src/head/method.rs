@@ -153,3 +153,54 @@ impl FromStr for Method {
         Err(UnknownMethod)
     }
 }
+
+impl PartialEq<str> for Method {
+    fn eq(&self, other: &str) -> bool {
+        match other.len() {
+            3 => {
+                if let Method::Get = self {
+                    cmp_lower_case("get", other)
+                } else if let Method::Put = self {
+                    cmp_lower_case("put", other)
+                } else {
+                    false
+                }
+            }
+            4 => {
+                if let Method::Head = self {
+                    cmp_lower_case("head", other)
+                } else if let Method::Post = self {
+                    cmp_lower_case("post", other)
+                } else {
+                    false
+                }
+            }
+            5 => {
+                if let Method::Trace = self {
+                    cmp_lower_case("trace", other)
+                } else if let Method::Patch = self {
+                    cmp_lower_case("patch", other)
+                } else {
+                    false
+                }
+            }
+            6 => {
+                if let Method::Delete = self {
+                    cmp_lower_case("delete", other)
+                } else {
+                    false
+                }
+            }
+            7 => {
+                if let Method::Connect = self {
+                    cmp_lower_case("connect", other)
+                } else if let Method::Options = self {
+                    cmp_lower_case("options", other)
+                } else {
+                    false
+                }
+            }
+            _ => false,
+        }
+    }
+}
