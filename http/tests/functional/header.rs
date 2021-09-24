@@ -53,6 +53,43 @@ fn headers_append_multiple_headers() {
 }
 
 #[test]
+fn headers_insert() {
+    const ALLOW: &[u8] = b"GET";
+    const CONTENT_LENGTH: &[u8] = b"123";
+    const X_REQUEST_ID: &[u8] = b"abc-def";
+
+    let mut headers = Headers::EMPTY;
+    headers.append(Header::new(HeaderName::ALLOW, ALLOW));
+    headers.append(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
+    headers.append(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
+    headers.append(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
+    headers.append(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
+    headers.append(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
+    assert_eq!(headers.len(), 6);
+    assert!(!headers.is_empty());
+
+    // Should overwrite the headers appended above.
+    headers.insert(Header::new(HeaderName::ALLOW, ALLOW));
+    headers.insert(Header::new(HeaderName::CONTENT_LENGTH, CONTENT_LENGTH));
+    headers.insert(Header::new(HeaderName::X_REQUEST_ID, X_REQUEST_ID));
+    assert_eq!(headers.len(), 3);
+    assert!(!headers.is_empty());
+
+    check_header(&headers, &HeaderName::ALLOW, ALLOW, "GET");
+    #[rustfmt::skip]
+    check_header(&headers, &HeaderName::CONTENT_LENGTH, CONTENT_LENGTH, 123usize);
+    check_header(&headers, &HeaderName::X_REQUEST_ID, X_REQUEST_ID, "abc-def");
+    check_iter(
+        &headers,
+        &[
+            (HeaderName::ALLOW, ALLOW),
+            (HeaderName::CONTENT_LENGTH, CONTENT_LENGTH),
+            (HeaderName::X_REQUEST_ID, X_REQUEST_ID),
+        ],
+    );
+}
+
+#[test]
 fn headers_from_header() {
     const VALUE: &[u8] = b"GET";
     let header = Header::new(HeaderName::ALLOW, VALUE);
