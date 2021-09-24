@@ -156,13 +156,28 @@ fn phrase() {
 }
 
 #[test]
+fn cmp_with_u16() {
+    let tests = &[
+        (StatusCode::OK, 200, true),
+        (StatusCode::BAD_REQUEST, 400, true),
+        (StatusCode(999), 999, true),
+        (StatusCode::OK, 201, false),
+        (StatusCode::BAD_REQUEST, 399, false),
+        (StatusCode(12), 999, false),
+    ];
+    for (status_code, n, expected) in tests {
+        assert_eq!(status_code.eq(n), *expected);
+    }
+}
+
+#[test]
 fn fmt_display() {
     let tests = &[
         (StatusCode::OK, "200"),
         (StatusCode::BAD_REQUEST, "400"),
         (StatusCode(999), "999"),
     ];
-    for (method, expected) in tests {
-        assert_eq!(*method.to_string(), **expected);
+    for (status_code, expected) in tests {
+        assert_eq!(*status_code.to_string(), **expected);
     }
 }

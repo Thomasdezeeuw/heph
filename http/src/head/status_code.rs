@@ -389,3 +389,13 @@ impl fmt::Display for StatusCode {
         self.0.fmt(f)
     }
 }
+
+impl PartialEq<u16> for StatusCode {
+    fn eq(&self, other: &u16) -> bool {
+        self.0.eq(other)
+    }
+
+    fn ne(&self, other: &u16) -> bool {
+        self.0.ne(other)
+    }
+}
