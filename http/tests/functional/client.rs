@@ -15,13 +15,16 @@ use heph::rt::{self, Runtime, ThreadSafe};
 use heph::spawn::options::{ActorOptions, Priority};
 use heph::test::{init_actor, poll_actor};
 use heph::{actor, Actor, ActorRef, NewActor, Supervisor, SupervisorStrategy};
-use heph_http::body::{EmptyBody, OneshotBody};
+use heph_http::body::{EmptyBody, OneshotBody /* , StreamingBody */};
 use heph_http::client::{Client, ResponseError};
 use heph_http::server::{HttpServer, RequestError};
 use heph_http::{self as http, Header, HeaderName, Headers, Method, Response, StatusCode, Version};
 use httpdate::fmt_http_date;
 
+use crate::{assert_send_ref, assert_sync_ref, EmptyStream, SingleStream};
+
 const USER_AGENT: &[u8] = b"Heph-HTTP/0.1.0";
+const BODY1: &[u8] = b"Hello world!";
 
 /// Macro to run with a test server.
 macro_rules! with_test_server {
@@ -1325,6 +1328,194 @@ fn too_many_headers() {
         handle.join().unwrap();
     });
 }
+
+#[test]
+fn with_empty_body() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+
+            let headers = Headers::EMPTY;
+            let future = client.request(Method::Get, "/", &headers, EmptyBody);
+            assert_send_ref(&future);
+            assert_sync_ref(&future);
+            let response = future.await.unwrap().unwrap();
+
+            let headers = Headers::from([Header::new(HeaderName::CONTENT_LENGTH, b"2")]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn with_oneshot_body() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+
+            let headers = Headers::EMPTY;
+            let future = client.request(Method::Get, "/", &headers, OneshotBody::new(BODY1));
+            assert_send_ref(&future);
+            assert_sync_ref(&future);
+            let response = future.await.unwrap().unwrap();
+
+            let headers = Headers::from([Header::new(HeaderName::CONTENT_LENGTH, b"2")]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            BODY1,
+        );
+
+        // Write response.
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+/*
+#[test]
+fn with_empty_streaming_body() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+
+            let headers = Headers::EMPTY;
+            let future = client.request(
+                Method::Get,
+                "/",
+                &headers,
+                StreamingBody::new(0, EmptyStream),
+            );
+            assert_send_ref(&future);
+            assert_sync_ref(&future);
+            let response = future.await.unwrap().unwrap();
+
+            let headers = Headers::from([Header::new(HeaderName::CONTENT_LENGTH, b"2")]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            b"",
+        );
+
+        // Write response.
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+
+#[test]
+fn with_single_streaming_body() {
+    with_test_server!(|test_server| {
+        async fn http_actor(
+            mut ctx: actor::Context<!, ThreadSafe>,
+            address: SocketAddr,
+        ) -> io::Result<()> {
+            let mut client = Client::connect(&mut ctx, address)?.await?;
+
+            let headers = Headers::EMPTY;
+            let future = client.request(Method::Get, "/", &headers, StreamingBody::new(BODY1.len(), SingleStream(BODY1)));
+            assert_send_ref(&future);
+            assert_sync_ref(&future);
+            let response = future.await.unwrap().unwrap();
+
+            let headers = Headers::from([Header::new(HeaderName::CONTENT_LENGTH, b"2")]);
+            expect_response(response, Version::Http11, StatusCode::OK, &headers, b"Ok").await;
+            Ok(())
+        }
+
+        let (mut stream, handle) = test_server.accept(|address| {
+            let http_actor = http_actor as fn(_, _) -> _;
+            let (actor, _) = init_actor(http_actor, address).unwrap();
+            actor
+        });
+
+        expect_request(
+            &mut stream,
+            Method::Get,
+            "/",
+            Version::Http11,
+            &Headers::from([Header::new(HeaderName::USER_AGENT, USER_AGENT)]),
+            BODY1,
+        );
+
+        // Write response.
+        stream
+            .write_all(b"HTTP/1.1 200\r\nContent-Length: 2\r\n\r\nOk")
+            .unwrap();
+
+        handle.join().unwrap();
+    });
+}
+*/
+
+/* TODO: test client request with bodies:
+FileBody
+ChunkedBody
+*/
 
 fn expect_request(
     stream: &mut TcpStream,

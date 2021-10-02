@@ -1,0 +1,12 @@
+# TODO
+
+Review for convenience methods:
+ * body module.
+ * client module.
+ * server module.
+
+
+RFC 7230 3.3.1:
+> A server that receives a request message with a transfer coding it does not
+> understand SHOULD respond with 501 (Not Implemented).
+Header: "Transfer-Encoding".

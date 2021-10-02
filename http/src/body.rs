@@ -21,7 +21,7 @@ use heph::net::tcp::stream::{FileSend, SendAll, TcpStream};
 ///   uses HTTP chunked encoding to transfer the body.
 /// * [`FileBody`]: uses a file as body, sending it's content using the
 ///   `sendfile(2)` system call.
-pub trait Body<'a>: PrivateBody<'a> {
+pub trait Body: PrivateBody {
     /// Length of the body, or the body will be chunked.
     fn length(&self) -> BodyLength;
 }
@@ -31,7 +31,7 @@ pub trait Body<'a>: PrivateBody<'a> {
 pub enum BodyLength {
     /// Body length is known.
     Known(usize),
-    /// Body length is unknown and the body will be transfered using chunked
+    /// Body length is unknown and the body will be transferred using chunked
     /// encoding.
     Chunked,
 }
@@ -49,22 +49,22 @@ mod private {
 
     const LAST_CHUNK: &[u8] = b"0\r\n\r\n";
 
-    /// Private extention of [`Body`].
+    /// Private extension of [`Body`].
     ///
     /// [`Body`]: super::Body
-    pub trait PrivateBody<'body> {
-        type WriteBody<'stream, 'head>: Future<Output = io::Result<()>>;
+    pub trait PrivateBody {
+        type WriteBody<'stream, 'head, 'body>: Future<Output = io::Result<()>>;
 
         /// Write a HTTP message to `stream`.
         ///
         /// The `http_head` buffer contains the HTTP header (i.e. request/status
         /// line and all headers), this must still be written to the `stream`
         /// also.
-        fn write_message<'stream, 'head>(
-            self,
+        fn write_message<'stream, 'head, 'body>(
+            &'body mut self,
             stream: &'stream mut TcpStream,
             http_head: &'head [u8],
-        ) -> Self::WriteBody<'stream, 'head>
+        ) -> Self::WriteBody<'stream, 'head, 'body>
         where
             'body: 'head;
     }
@@ -177,7 +177,7 @@ mod private {
                     Poll::Ready(Some(Ok(bytes))) => *body_bytes = Some(bytes),
                     Poll::Ready(Some(Err(err))) => return Poll::Ready(Err(err)),
                     Poll::Ready(None) => {
-                        // NOTE: this shouldn't happend.
+                        // NOTE: this shouldn't happen.
                         debug_assert!(*left == 0, "short body provided to `StreamingBody`");
                         return Poll::Ready(Ok(()));
                     }
@@ -348,29 +348,28 @@ mod private {
     }
 }
 
-pub(crate) use private::{PrivateBody, SendChunkedBody, SendStreamingBody};
-use private::{SendFileBody, SendOneshotBody};
+use private::{PrivateBody, SendChunkedBody, SendFileBody, SendOneshotBody, SendStreamingBody};
 
 /// An empty body.
 #[derive(Debug)]
 pub struct EmptyBody;
 
-impl<'b> Body<'b> for EmptyBody {
+impl Body for EmptyBody {
     fn length(&self) -> BodyLength {
         BodyLength::Known(0)
     }
 }
 
-impl<'b> PrivateBody<'b> for EmptyBody {
-    type WriteBody<'s, 'h> = SendAll<'s, 'h>;
+impl PrivateBody for EmptyBody {
+    type WriteBody<'stream, 'head, 'body> = SendAll<'stream, 'head>;
 
-    fn write_message<'s, 'h>(
-        self,
-        stream: &'s mut TcpStream,
-        http_head: &'h [u8],
-    ) -> Self::WriteBody<'s, 'h>
+    fn write_message<'stream, 'head, 'body>(
+        &'body mut self,
+        stream: &'stream mut TcpStream,
+        http_head: &'head [u8],
+    ) -> Self::WriteBody<'stream, 'head, 'body>
     where
-        'b: 'h,
+        'body: 'head,
     {
         // Just need to write the HTTP head as we don't have a body.
         stream.send_all(http_head)
@@ -396,22 +395,22 @@ impl<'b> OneshotBody<'b> {
     }
 }
 
-impl<'b> Body<'b> for OneshotBody<'b> {
+impl<'b> Body for OneshotBody<'b> {
     fn length(&self) -> BodyLength {
         BodyLength::Known(self.bytes.len())
     }
 }
 
-impl<'b> PrivateBody<'b> for OneshotBody<'b> {
-    type WriteBody<'s, 'h> = SendOneshotBody<'s, 'h>;
+impl<'b> PrivateBody for OneshotBody<'b> {
+    type WriteBody<'stream, 'head, 'body> = SendOneshotBody<'stream, 'head>;
 
-    fn write_message<'s, 'h>(
-        self,
-        stream: &'s mut TcpStream,
-        http_head: &'h [u8],
-    ) -> Self::WriteBody<'s, 'h>
+    fn write_message<'stream, 'head, 'body>(
+        &'body mut self,
+        stream: &'stream mut TcpStream,
+        http_head: &'head [u8],
+    ) -> Self::WriteBody<'stream, 'head, 'body>
     where
-        'b: 'h,
+        'body: 'head,
     {
         let head = IoSlice::new(http_head);
         let body = IoSlice::new(self.bytes);
@@ -481,7 +480,7 @@ where
     }
 }
 
-impl<'b, B> Body<'b> for StreamingBody<'b, B>
+impl<'b, B> Body for StreamingBody<'b, B>
 where
     B: Stream<Item = io::Result<&'b [u8]>>,
 {
@@ -490,23 +489,23 @@ where
     }
 }
 
-impl<'b, B> PrivateBody<'b> for StreamingBody<'b, B>
+impl<'b, B> PrivateBody for StreamingBody<'b, B>
 where
     B: Stream<Item = io::Result<&'b [u8]>>,
 {
-    type WriteBody<'s, 'h> = SendStreamingBody<'s, 'h, 'b, B>;
+    type WriteBody<'stream, 'head, 'body> = SendStreamingBody<'stream, 'head, 'b, &'body mut B>;
 
-    fn write_message<'s, 'h>(
-        self,
-        stream: &'s mut TcpStream,
-        head: &'h [u8],
-    ) -> Self::WriteBody<'s, 'h>
+    fn write_message<'stream, 'head, 'body>(
+        &'body mut self,
+        stream: &'stream mut TcpStream,
+        head: &'head [u8],
+    ) -> Self::WriteBody<'stream, 'head, 'body>
     where
-        'b: 'h,
+        'body: 'head,
     {
         SendStreamingBody {
             stream,
-            body: self.body,
+            body: &mut self.body,
             head,
             left: self.length,
             body_bytes: None,
@@ -537,6 +536,7 @@ where
     }
 }
 
+/*
 impl<'b, B> Body<'b> for ChunkedBody<'b, B>
 where
     B: Stream<Item = io::Result<&'b [u8]>>,
@@ -569,6 +569,7 @@ where
         }
     }
 }
+*/
 
 /// Body that sends the entire file `F`.
 #[derive(Debug)]
@@ -596,6 +597,7 @@ where
     }
 }
 
+/*
 impl<'f, F> Body<'f> for FileBody<'f, F>
 where
     F: FileSend,
@@ -630,3 +632,4 @@ where
         }
     }
 }
+*/

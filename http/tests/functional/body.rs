@@ -1,41 +1,13 @@
+/*
 use std::fs::File;
-use std::io;
-use std::mem::replace;
 use std::num::NonZeroUsize;
-use std::pin::Pin;
-use std::stream::Stream;
-use std::task::{self, Poll};
 
 use heph_http::body::*;
 
-use crate::{assert_send, assert_size, assert_sync};
+use crate::{assert_send, assert_size, assert_sync, EmptyStream, SingleStream};
 
 const BODY0: &[u8] = b"";
 const BODY1: &[u8] = b"Hello world!";
-
-struct EmptyStream;
-
-impl Stream for EmptyStream {
-    type Item = io::Result<&'static [u8]>;
-
-    fn poll_next(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
-        Poll::Ready(None)
-    }
-}
-
-struct SingleStream<'a>(&'a [u8]);
-
-impl<'a> Stream for SingleStream<'a> {
-    type Item = io::Result<&'a [u8]>;
-
-    fn poll_next(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
-        if !self.0.is_empty() {
-            Poll::Ready(Some(Ok(replace(&mut self.0, &[]))))
-        } else {
-            Poll::Ready(None)
-        }
-    }
-}
 
 #[test]
 fn size() {
@@ -143,3 +115,4 @@ fn chunked_body() {
         BodyLength::Chunked
     );
 }
+*/

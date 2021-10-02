@@ -68,7 +68,7 @@ impl Client {
     /// If the server doesn't respond this return an [`io::Error`] with
     /// [`io::ErrorKind::UnexpectedEof`].
     #[allow(clippy::future_not_send)] // TODO.
-    pub async fn request<'c, 'b, B>(
+    pub async fn request<'c, B>(
         &'c mut self,
         method: Method,
         path: &str,
@@ -76,7 +76,7 @@ impl Client {
         body: B,
     ) -> io::Result<Result<Response<Body<'c>>, ResponseError>>
     where
-        B: crate::Body<'b>,
+        B: crate::Body,
     {
         self.send_request(method, path, headers, body).await?;
         match self.read_response(method).await {
@@ -100,15 +100,15 @@ impl Client {
     ///  * User-Agent and
     ///  * Content-Length and/or Transfer-Encoding based on the `body`.
     #[allow(clippy::future_not_send)] // TODO.
-    pub async fn send_request<'b, B>(
+    pub async fn send_request<B>(
         &mut self,
         method: Method,
         path: &str,
         headers: &Headers,
-        body: B,
+        mut body: B,
     ) -> io::Result<()>
     where
-        B: crate::Body<'b>,
+        B: crate::Body,
     {
         // Clear bytes from the previous request, keeping the bytes of the
         // response.

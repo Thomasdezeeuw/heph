@@ -653,14 +653,14 @@ impl Connection {
     /// See the notes for [`Connection::send_response`], they apply to this
     /// function also.
     #[allow(clippy::future_not_send)] // TODO.
-    pub async fn respond<'b, B>(
+    pub async fn respond<B>(
         &mut self,
         status: StatusCode,
         headers: &Headers,
         body: B,
     ) -> io::Result<()>
     where
-        B: crate::Body<'b>,
+        B: crate::Body,
     {
         let req_method = self.last_method.unwrap_or(Method::Get);
         let version = self.last_version.unwrap_or(Version::Http11).highest_minor();
@@ -692,17 +692,17 @@ impl Connection {
     /// [`expects_body()`]: Method::expects_body
     /// [`includes_body()`]: StatusCode::includes_body
     #[allow(clippy::future_not_send)] // TODO.
-    pub async fn send_response<'b, B>(
+    pub async fn send_response<B>(
         &mut self,
         request_method: Method,
         // Response data:
         version: Version,
         status: StatusCode,
         headers: &Headers,
-        body: B,
+        mut body: B,
     ) -> io::Result<()>
     where
-        B: crate::Body<'b>,
+        B: crate::Body,
     {
         let mut itoa_buf = itoa::Buffer::new();
 
@@ -1299,6 +1299,7 @@ where
     }
 }
 
+/* TODO.
 impl<'a> crate::Body<'a> for Body<'a> {
     fn length(&self) -> BodyLength {
         self.len()
@@ -1411,6 +1412,7 @@ impl<'c> crate::body::PrivateBody<'c> for Body<'c> {
         }
     }
 }
+*/
 
 impl<'a> Drop for Body<'a> {
     fn drop(&mut self) {

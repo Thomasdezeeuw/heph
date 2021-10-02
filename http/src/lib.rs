@@ -24,6 +24,8 @@
     unused_results,
     variant_size_differences
 )]
+// FIXME.
+#![allow(unused_imports, dead_code)] // FIXME: remove.
 
 pub mod body;
 pub mod client;

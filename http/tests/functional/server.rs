@@ -499,6 +499,14 @@ fn too_many_header() {
     });
 }
 
+/*
+EmptyBody
+OneshotBody
+StreamingBody
+FileBody
+ChunkedBody
+*/
+
 fn expect_response(
     stream: &mut TcpStream,
     // Expected values:
