@@ -12,9 +12,6 @@ categories    = ["asynchronous", "web-programming"]
 include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
 edition       = "2018"
 
-[badges]
-travis-ci = { repository = "Thomasdezeeuw/heph", branch = "master" }
-
 [features]
 default = []
 
