@@ -250,6 +250,7 @@ impl Timers {
     ///
     /// This panics if the current slot is not empty.
     #[allow(clippy::cast_possible_truncation)] // TODO: move to new `self.index` line.
+    #[allow(clippy::debug_assert_with_mut_call)]
     fn maybe_update_epoch(&mut self, epoch_offset: TimeOffset) -> bool {
         if epoch_offset < NS_PER_SLOT {
             // Can't move to the next slot yet.

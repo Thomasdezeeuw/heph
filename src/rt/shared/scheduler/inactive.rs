@@ -55,7 +55,7 @@ pub(super) struct Inactive {
 
 impl Inactive {
     /// Create an empty `Inactive` tree.
-    pub(super) fn empty() -> Inactive {
+    pub(super) const fn empty() -> Inactive {
         Inactive {
             root: Branch::empty(),
             length: AtomicUsize::new(0),

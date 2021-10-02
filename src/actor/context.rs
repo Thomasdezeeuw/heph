@@ -142,7 +142,7 @@ impl<M, RT> Context<M, RT> {
         &mut self.rt
     }
 
-    pub(crate) fn runtime_ref(&self) -> &RT {
+    pub(crate) const fn runtime_ref(&self) -> &RT {
         &self.rt
     }
 

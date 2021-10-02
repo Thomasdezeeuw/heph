@@ -1,7 +1,16 @@
 [package]
-name = "heph-http"
-version = "0.1.0"
-edition = "2018"
+name          = "heph-http"
+description   = "Heph-HTTP is a HTTP library build on top of Heph."
+version       = "0.1.0"
+authors       = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
+license       = "MIT"
+documentation = "https://docs.rs/heph-http"
+repository    = "https://github.com/Thomasdezeeuw/heph/tree/master/http"
+readme        = "README.md"
+keywords      = ["http", "async"]
+categories    = ["asynchronous", "web-programming"]
+include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
+edition       = "2018"
 
 [dependencies]
 heph     = { version = "0.3.0", path = "../", default-features = false }

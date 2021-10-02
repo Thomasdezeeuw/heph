@@ -178,14 +178,10 @@ impl Setup {
         let workers = worker_setups
             .into_iter()
             .map(|worker_setup| {
-                // See <https://github.com/rust-lang/rust-clippy/issues/6795>.
-                #[allow(clippy::manual_map)]
-                let trace_log = if let Some(trace_log) = &trace_log {
-                    #[allow(clippy::cast_possible_truncation)]
-                    Some(trace_log.new_stream(worker_setup.id() as u32))
-                } else {
-                    None
-                };
+                #[allow(clippy::cast_possible_truncation)]
+                let trace_log = trace_log
+                    .as_ref()
+                    .map(|trace_log| trace_log.new_stream(worker_setup.id() as u32));
                 worker_setup.start(
                     coordinator.shared_internals().clone(),
                     auto_cpu_affinity,

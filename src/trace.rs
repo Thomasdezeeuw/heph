@@ -315,7 +315,6 @@ fn write_epoch_metadata(buf: &mut Vec<u8>, time: SystemTime) {
 }
 
 /// Write the entire `buf`fer into the `output` or return an error.
-#[inline(always)]
 fn write_once<W>(mut output: W, buf: &[u8]) -> io::Result<()>
 where
     W: Write,
@@ -607,7 +606,6 @@ mod private {
     where
         T: AttributeValue + ?Sized,
     {
-        #[inline(always)]
         fn type_byte(&self) -> u8 {
             (&**self).type_byte()
         }
@@ -622,7 +620,6 @@ mod private {
             impl_write_attribute!($ty as $f_ty, $type_byte);
 
             impl AttributeValue for $n_ty {
-                #[inline(always)]
                 fn type_byte(&self) -> u8 {
                     $type_byte
                 }
@@ -638,7 +635,6 @@ mod private {
         };
         ($ty: ty as $f_ty: ty, $type_byte: expr) => {
             impl AttributeValue for $ty {
-                #[inline(always)]
                 fn type_byte(&self) -> u8 {
                     $type_byte
                 }
@@ -671,7 +667,6 @@ mod private {
     impl_write_attribute!(f64 as f64, FLOAT_BYTE);
 
     impl AttributeValue for str {
-        #[inline(always)]
         fn type_byte(&self) -> u8 {
             STRING_BYTE
         }
@@ -689,7 +684,6 @@ mod private {
     impl super::AttributeValue for str {}
 
     impl AttributeValue for String {
-        #[inline(always)]
         fn type_byte(&self) -> u8 {
             (&**self).type_byte()
         }
@@ -705,7 +699,6 @@ mod private {
     where
         T: AttributeValue + Default,
     {
-        #[inline(always)]
         fn type_byte(&self) -> u8 {
             let type_byte = match self.first() {
                 Some(elem) => elem.type_byte(),
@@ -732,7 +725,6 @@ mod private {
     where
         T: AttributeValue + Default,
     {
-        #[inline(always)]
         fn type_byte(&self) -> u8 {
             (&self[..]).type_byte()
         }

@@ -48,10 +48,22 @@ dev:
 	find src/ tests/ examples/ Makefile Cargo.toml | entr -d -c $(MAKE) $(RUN)
 
 # Reasons to allow lints:
-# debug-assert-with-mut-call: Bytes and BytesVectored traits.
-# missing-const-for-fn : too many false positives.
-# multiple-crate-versions: socket2 is included twice? But `cargo tree` disagrees.
-# future-not-send: actor using ThreadLocal aren't Send.
+# `cargo-common-metadata`: for `benches` and `tools`.
+# `missing-const-for-fn`: See https://github.com/rust-lang/rust-clippy/issues/4979.
+# `module-name-repetitions`: we re-export various names.
+# `needless-lifetimes`: lifetime serves as documentation.
+# `option-if-let-else`: not idiomatic at all.
+# `use-self`: this is a bad lint.
+#
+# # Could fix these later
+# `enum-glob-use`: used in enum errors.
+# `missing-errors-doc`, `missing-panics-doc`: don't want to do this.
+# Too many warnings:
+#  * `must-use-candidate`.
+#  * `ptr-as-ptr`.
+#  * `redundant-pub-crate`.
+#  * `semicolon-if-nothing-returned`.
+#  * `shadow-unrelated`.
 clippy: lint
 lint:
 	cargo clippy --all-features --workspace -- \
@@ -64,16 +76,11 @@ lint:
 		--deny clippy::nursery \
 		--deny clippy::cargo \
 		--allow clippy::cargo-common-metadata \
-		--allow clippy::debug-assert-with-mut-call \
-		--allow clippy::empty-enum \
 		--allow clippy::enum-glob-use \
-		--allow clippy::future-not-send \
-		--allow clippy::inline-always \
 		--allow clippy::missing-const-for-fn \
 		--allow clippy::missing-errors-doc \
 		--allow clippy::missing-panics-doc \
 		--allow clippy::module-name-repetitions \
-		--allow clippy::multiple-crate-versions \
 		--allow clippy::must-use-candidate \
 		--allow clippy::needless-lifetimes \
 		--allow clippy::option-if-let-else \
@@ -81,7 +88,6 @@ lint:
 		--allow clippy::redundant-pub-crate \
 		--allow clippy::semicolon-if-nothing-returned \
 		--allow clippy::shadow-unrelated \
-		--allow clippy::single-match-else \
 		--allow clippy::use-self
 
 install_clippy:

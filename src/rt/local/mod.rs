@@ -190,27 +190,28 @@ impl Runtime {
     /// process, `false` otherwise.
     fn run_local_process(&mut self, runtime_ref: &mut RuntimeRef) -> bool {
         let process = self.internals.scheduler.borrow_mut().next_process();
-        if let Some(mut process) = process {
-            catch_in_test!("Thread-local actor panicked: '{}'", {
-                let timing = trace::start(&*self.internals.trace_log.borrow());
-                let pid = process.as_ref().id();
-                let name = process.as_ref().name();
-                match process.as_mut().run(runtime_ref) {
-                    ProcessResult::Complete => {}
-                    ProcessResult::Pending => {
-                        self.internals.scheduler.borrow_mut().add_process(process);
+        match process {
+            Some(mut process) => {
+                catch_in_test!("Thread-local actor panicked: '{}'", {
+                    let timing = trace::start(&*self.internals.trace_log.borrow());
+                    let pid = process.as_ref().id();
+                    let name = process.as_ref().name();
+                    match process.as_mut().run(runtime_ref) {
+                        ProcessResult::Complete => {}
+                        ProcessResult::Pending => {
+                            self.internals.scheduler.borrow_mut().add_process(process);
+                        }
                     }
-                }
-                trace::finish_rt(
-                    self.internals.trace_log.borrow_mut().as_mut(),
-                    timing,
-                    "Running thread-local process",
-                    &[("id", &pid.0), ("name", &name)],
-                );
-            });
-            true
-        } else {
-            false
+                    trace::finish_rt(
+                        self.internals.trace_log.borrow_mut().as_mut(),
+                        timing,
+                        "Running thread-local process",
+                        &[("id", &pid.0), ("name", &name)],
+                    );
+                });
+                true
+            }
+            None => false,
         }
     }
 
@@ -218,29 +219,30 @@ impl Runtime {
     /// process, `false` otherwise.
     fn run_shared_process(&mut self, runtime_ref: &mut RuntimeRef) -> bool {
         let process = self.internals.shared.remove_process();
-        if let Some(mut process) = process {
-            catch_in_test!("Thread-safe actor panicked: '{}'", {
-                let timing = trace::start(&*self.internals.trace_log.borrow());
-                let pid = process.as_ref().id();
-                let name = process.as_ref().name();
-                match process.as_mut().run(runtime_ref) {
-                    ProcessResult::Complete => {
-                        self.internals.shared.complete(process);
+        match process {
+            Some(mut process) => {
+                catch_in_test!("Thread-safe actor panicked: '{}'", {
+                    let timing = trace::start(&*self.internals.trace_log.borrow());
+                    let pid = process.as_ref().id();
+                    let name = process.as_ref().name();
+                    match process.as_mut().run(runtime_ref) {
+                        ProcessResult::Complete => {
+                            self.internals.shared.complete(process);
+                        }
+                        ProcessResult::Pending => {
+                            self.internals.shared.add_process(process);
+                        }
                     }
-                    ProcessResult::Pending => {
-                        self.internals.shared.add_process(process);
-                    }
-                }
-                trace::finish_rt(
-                    self.internals.trace_log.borrow_mut().as_mut(),
-                    timing,
-                    "Running thread-safe process",
-                    &[("id", &pid.0), ("name", &name)],
-                );
-            });
-            true
-        } else {
-            false
+                    trace::finish_rt(
+                        self.internals.trace_log.borrow_mut().as_mut(),
+                        timing,
+                        "Running thread-safe process",
+                        &[("id", &pid.0), ("name", &name)],
+                    );
+                });
+                true
+            }
+            None => false,
         }
     }
 

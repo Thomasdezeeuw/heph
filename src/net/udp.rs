@@ -26,10 +26,12 @@ use crate::{actor, rt};
 
 /// The unconnected mode of an [`UdpSocket`].
 #[allow(missing_debug_implementations)]
+#[allow(clippy::empty_enum)]
 pub enum Unconnected {}
 
 /// The connected mode of an [`UdpSocket`].
 #[allow(missing_debug_implementations)]
+#[allow(clippy::empty_enum)]
 pub enum Connected {}
 
 /// A User Datagram Protocol (UDP) socket.

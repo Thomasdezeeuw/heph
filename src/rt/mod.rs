@@ -290,9 +290,10 @@ impl Runtime {
         A::Argument: Send + 'static,
     {
         let id = SYNC_WORKER_ID_START + self.sync_actors.len();
-        match options.name() {
-            Some(name) => debug!("spawning synchronous actor: pid={}, name='{}'", id, name),
-            None => debug!("spawning synchronous actor: pid={}", id),
+        if let Some(name) = options.name() {
+            debug!("spawning synchronous actor: pid={}, name='{}'", id, name);
+        } else {
+            debug!("spawning synchronous actor: pid={}", id);
         }
 
         #[allow(clippy::cast_possible_truncation)]

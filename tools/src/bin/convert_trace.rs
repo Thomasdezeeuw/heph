@@ -16,17 +16,16 @@ use std::{fmt, str};
 fn main() {
     let mut args = args().skip(1);
     let input = args.next().expect("missing input trace file path");
-    let output = match args.next() {
-        Some(output) => PathBuf::from(output),
-        None => {
-            let end_idx = input.rfind('.').unwrap_or_else(|| input.len());
-            let mut output = PathBuf::from(&input[..end_idx]);
-            // If the input has a single extension this will add `json` to it.
-            // If however it has two extensions, e.g. `.bin.log` this will
-            // overwrite the extension.
-            output.set_extension("json");
-            output
-        }
+    let output = if let Some(output) = args.next() {
+        PathBuf::from(output)
+    } else {
+        let end_idx = input.rfind('.').unwrap_or_else(|| input.len());
+        let mut output = PathBuf::from(&input[..end_idx]);
+        // If the input has a single extension this will add `json` to it.
+        // If however it has two extensions, e.g. `.bin.log` this will
+        // overwrite the extension.
+        output.set_extension("json");
+        output
     };
 
     let mut trace = Trace::open(input).expect("can't open trace file");
