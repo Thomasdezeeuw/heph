@@ -173,7 +173,7 @@ fn main(
 }
 
 /// Set thread's CPU affinity.
-const fn set_cpu_affinity(worker_id: NonZeroUsize) -> Option<usize> {
+fn set_cpu_affinity(worker_id: NonZeroUsize) -> Option<usize> {
     #[cfg(not(target_os = "linux"))]
     {
         let _ = worker_id; // Silence unused variables warnings.
