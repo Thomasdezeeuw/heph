@@ -47,9 +47,7 @@ impl Setup {
     /// If the name is not set when the runtime is build the name of the binary
     /// called will be used.
     pub fn with_name(mut self, name: String) -> Setup {
-        if name.is_empty() {
-            panic!("Can't use an empty application name");
-        }
+        assert!(!name.is_empty(), "Can't use an empty application name");
         self.name = Some(name);
         self
     }
@@ -64,14 +62,16 @@ impl Setup {
     /// Most applications would want to use [`Setup::use_all_cores`] which sets
     /// the number of threads equal to the number of CPU cores.
     pub fn num_threads(mut self, n: usize) -> Self {
-        if n > MAX_THREADS {
-            panic!(
-                "Can't create {} worker threads, {} is the maximum",
-                n, MAX_THREADS
-            );
-        } else if n == 0 {
-            panic!("Can't create zero worker threads, one is the minimum");
-        }
+        assert!(
+            n != 0,
+            "Can't create zero worker threads, one is the minimum"
+        );
+        assert!(
+            n < MAX_THREADS,
+            "Can't create {} worker threads, {} is the maximum",
+            n,
+            MAX_THREADS
+        );
         self.threads = n;
         self
     }

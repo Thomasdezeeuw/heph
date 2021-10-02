@@ -380,9 +380,10 @@ where
 {
     static SYNC_WORKER_TEST_ID: AtomicUsize = AtomicUsize::new(SYNC_WORKER_ID_START);
     let id = SYNC_WORKER_TEST_ID.fetch_add(1, Ordering::SeqCst);
-    if id >= SYNC_WORKER_ID_END {
-        panic!("spawned too many synchronous test actors");
-    }
+    assert!(
+        id < SYNC_WORKER_ID_END,
+        "spawned too many synchronous test actors"
+    );
 
     SyncWorker::start(id, supervisor, actor, arg, options, None).map(|(worker, actor_ref)| {
         let handle = worker.into_handle();

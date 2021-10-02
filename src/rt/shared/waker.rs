@@ -52,12 +52,11 @@ pub(crate) fn init(internals: Weak<RuntimeInternals>) -> WakerId {
     static IDS: AtomicU8 = AtomicU8::new(0);
 
     let id = IDS.fetch_add(1, Ordering::SeqCst);
-    if id as usize >= MAX_RUNTIMES {
-        panic!(
-            "Created too many Heph `Runtime`s, maximum of {}",
-            MAX_RUNTIMES
-        );
-    }
+    assert!(
+        (id as usize) < MAX_RUNTIMES,
+        "Created too many Heph `Runtime`s, maximum of {}",
+        MAX_RUNTIMES
+    );
 
     // Safety: this is safe because we are the only thread that has write access
     // to the given index. See documentation of `WAKERS` for more.

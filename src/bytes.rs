@@ -451,11 +451,11 @@ where
     }
 
     fn spare_capacity(&self) -> usize {
-        self.iter().map(|b| b.spare_capacity()).sum()
+        self.iter().map(Bytes::spare_capacity).sum()
     }
 
     fn has_spare_capacity(&self) -> bool {
-        self.iter().any(|b| b.has_spare_capacity())
+        self.iter().any(Bytes::has_spare_capacity)
     }
 
     unsafe fn update_lengths(&mut self, n: usize) {
