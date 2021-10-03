@@ -179,7 +179,7 @@ impl Response<EmptyBody> {
     }
 
     /// Simple version of [`Response::new`] used by the build functions.
-    const fn build_new(status: StatusCode) -> Response<EmptyBody> {
+    pub(crate) const fn build_new(status: StatusCode) -> Response<EmptyBody> {
         Response::new(Version::Http11, status, Headers::EMPTY, EmptyBody)
     }
 
