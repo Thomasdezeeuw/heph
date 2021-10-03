@@ -103,9 +103,7 @@ async fn http_actor(
             }
         };
 
-        // TODO: improve this, add a `Connection::respond_with(Response)` method.
-        let (head, body) = response.split();
-        let write_response = connection.respond(head.status(), &head.headers(), body);
+        let write_response = connection.respond_with(response);
         Deadline::after(&mut ctx, WRITE_TIMEOUT, write_response).await?;
 
         // Now that we've read a single request we can wait a little for the

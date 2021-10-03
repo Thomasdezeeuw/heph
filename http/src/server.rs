@@ -668,6 +668,18 @@ impl Connection {
             .await
     }
 
+    /// Respond to the last parsed request with `response`.
+    ///
+    /// See [`Connection::respond`] for more documentation.
+    #[allow(clippy::future_not_send)] // TODO.
+    pub async fn respond_with<'b, B>(&mut self, response: Response<B>) -> io::Result<()>
+    where
+        B: crate::Body<'b>,
+    {
+        let (head, body) = response.split();
+        self.respond(head.status(), head.headers(), body).await
+    }
+
     /// Send a [`Response`].
     ///
     /// Arguments:
