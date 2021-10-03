@@ -21,6 +21,7 @@ mod functional {
     mod header;
     mod message;
     mod method;
+    mod route;
     mod server;
     mod status_code;
     mod version;
