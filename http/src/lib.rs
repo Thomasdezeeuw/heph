@@ -30,6 +30,7 @@ pub mod client;
 pub mod head;
 mod request;
 mod response;
+mod route;
 pub mod server;
 
 #[doc(no_inline)]
