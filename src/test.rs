@@ -9,8 +9,9 @@
 //!  * Spawning:
 //!    * [`try_spawn_local`]: attempt to spawn a thread-local [actor].
 //!    * [`try_spawn`]: attempt to spawn a thread-safe [actor].
-//!    * [`spawn_future`]: spawn a thread-local [`Future`].
 //!    * [`spawn_sync_actor`]: spawn a [synchronous actor].
+//!    * [`spawn_local_future`]: spawn a thread-local [`Future`].
+//!    * [`spawn_future`]: spawn a thread-safe [`Future`].
 //!  * Waiting on spawned actors:
 //!    * [`join`], [`join_many`]: wait for the actor(s) to finish running.
 //!    * [`join_all`]: wait all actors in a group to finish running.
@@ -231,6 +232,22 @@ where
 }
 
 /// Spawn a thread-local [`Future`] on the *test* runtime.
+///
+/// See the [module documentation] for more information about the *test*
+/// runtime.
+///
+/// [module documentation]: crate::test
+pub fn spawn_local_future<Fut>(future: Fut, options: FutureOptions)
+where
+    Fut: Future<Output = ()> + Send + 'static,
+{
+    run_on_test_runtime(move |mut runtime_ref| {
+        runtime_ref.spawn_local_future(future, options);
+        Ok(())
+    });
+}
+
+/// Spawn a thread-safe [`Future`] on the *test* runtime.
 ///
 /// See the [module documentation] for more information about the *test*
 /// runtime.
