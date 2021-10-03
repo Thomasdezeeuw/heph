@@ -14,10 +14,16 @@ use heph::rt::{self, ThreadLocal};
 use heph::spawn::{ActorOptions, FutureOptions};
 use heph::supervisor::NoSupervisor;
 use heph::test::{
-    join, join_all, join_many, size_of_actor, size_of_actor_val, spawn_future, try_spawn,
+    self, join, join_all, join_many, size_of_actor, size_of_actor_val, spawn_future, try_spawn,
     try_spawn_local, JoinResult,
 };
 use heph::timer::Timer;
+
+#[test]
+fn block_on() {
+    let result = test::block_on(async move { "All good" });
+    assert_eq!(result, "All good");
+}
 
 #[test]
 fn test_size_of_actor() {

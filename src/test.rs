@@ -6,6 +6,8 @@
 //! (properly).
 //!
 //! Available utilities:
+//!  * Blocking on [`Future`]s:
+//!    * [`block_on`]: spawns a `Future` and waits for the result.
 //!  * Spawning:
 //!    * [`try_spawn_local`]: attempt to spawn a thread-local [actor].
 //!    * [`try_spawn`]: attempt to spawn a thread-safe [actor].
@@ -163,6 +165,31 @@ where
     waker
         .block_on(receiver.recv_once())
         .expect("failed to receive result from test runtime")
+}
+
+/// Spawn `future` on the *test* runtime and wait for the result.
+///
+/// This is useful to test async functions and futures in synchronous tests.
+pub fn block_on<Fut>(future: Fut) -> Fut::Output
+where
+    Fut: Future + Send + 'static,
+    Fut::Output: Send,
+{
+    let (sender, receiver) = new_oneshot();
+    let waker = SyncWaker::new();
+    spawn_local_future(
+        async move {
+            let result = future.await;
+            assert!(
+                sender.try_send(result).is_ok(),
+                "failed to return future result"
+            );
+        },
+        FutureOptions::default(),
+    );
+    waker
+        .block_on(receiver.recv_once())
+        .expect("failed to receive result from future")
 }
 
 /// Attempt to spawn a thread-local actor on the *test* runtime.
