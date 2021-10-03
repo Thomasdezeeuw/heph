@@ -28,11 +28,11 @@ use heph::spawn::{ActorOptions, Spawn};
 use heph::{actor, rt, Actor, NewActor, Supervisor};
 use httpdate::HttpDate;
 
-use crate::body::BodyLength;
-use crate::head::header::{FromHeaderValue, HeaderName, Headers};
+use crate::body::{BodyLength, EmptyBody};
+use crate::head::header::{FromHeaderValue, Header, HeaderName, Headers};
 use crate::{
-    map_version_byte, trim_ws, Method, Request, StatusCode, Version, BUF_SIZE, MAX_HEADERS,
-    MAX_HEAD_SIZE, MIN_READ_SIZE,
+    map_version_byte, trim_ws, Method, Request, Response, StatusCode, Version, BUF_SIZE,
+    MAX_HEADERS, MAX_HEAD_SIZE, MIN_READ_SIZE,
 };
 
 /// A intermediate structure that implements [`NewActor`], creating
@@ -1543,6 +1543,22 @@ impl RequestError {
             | InvalidChunkSize => true,
             UnknownMethod => false,
         }
+    }
+
+    /// Returns a response with the [proper status code] set and possibly the
+    /// [Connection] header if the [connection should be closed].
+    ///
+    /// [proper status code]: RequestError::proper_status_code
+    /// [Connection]: HeaderName::CONNECTION
+    /// [connection should be closed]: RequestError::should_close
+    pub fn response(self) -> Response<EmptyBody> {
+        let mut response = Response::build_new(self.proper_status_code());
+        if self.should_close() {
+            response
+                .headers_mut()
+                .append(Header::new(HeaderName::CONNECTION, b"close"));
+        }
+        response
     }
 
     fn from_httparse(err: httparse::Error) -> RequestError {
