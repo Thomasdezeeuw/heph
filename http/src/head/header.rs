@@ -21,6 +21,7 @@ use crate::{cmp_lower_case, is_lower_case};
 ///
 /// A complete list can be found at the "Message Headers" registry:
 /// <http://www.iana.org/assignments/message-headers>.
+#[derive(Clone)]
 pub struct Headers {
     /// All values appended in a single allocation.
     values: Vec<u8>,
@@ -28,6 +29,7 @@ pub struct Headers {
     parts: Vec<HeaderPart>,
 }
 
+#[derive(Clone)]
 struct HeaderPart {
     name: HeaderName<'static>,
     /// Indices into `Headers.values`.
