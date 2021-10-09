@@ -24,5 +24,6 @@ mod functional {
     mod route;
     mod server;
     mod status_code;
+    mod transform;
     mod version;
 }
