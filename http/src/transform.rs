@@ -234,9 +234,45 @@ impl<B> From<Request<B>> for Body<B> {
     }
 }
 
+impl<B> From<&Request<B>> for Cloned<Body<B>>
+where
+    B: Clone,
+{
+    fn from(request: &Request<B>) -> Cloned<Body<B>> {
+        Cloned(Body(request.body().clone()))
+    }
+}
+
+impl<B> From<&mut Request<B>> for Cloned<Body<B>>
+where
+    B: Clone,
+{
+    fn from(request: &mut Request<B>) -> Cloned<Body<B>> {
+        Cloned(Body(request.body().clone()))
+    }
+}
+
 impl<B> From<Response<B>> for Body<B> {
     fn from(response: Response<B>) -> Body<B> {
         Body(response.split().1)
+    }
+}
+
+impl<B> From<&Response<B>> for Cloned<Body<B>>
+where
+    B: Clone,
+{
+    fn from(response: &Response<B>) -> Cloned<Body<B>> {
+        Cloned(Body(response.body().clone()))
+    }
+}
+
+impl<B> From<&mut Response<B>> for Cloned<Body<B>>
+where
+    B: Clone,
+{
+    fn from(response: &mut Response<B>) -> Cloned<Body<B>> {
+        Cloned(Body(response.body().clone()))
     }
 }
 
