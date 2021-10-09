@@ -379,7 +379,7 @@ impl<'b> PrivateBody<'b> for EmptyBody {
 
 /// Body length and content is known in advance. Send in a single payload (i.e.
 /// not chunked).
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OneshotBody<'b> {
     bytes: &'b [u8],
 }
