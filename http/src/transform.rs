@@ -8,7 +8,6 @@
 //! For [`Request`]:
 //!  * `&Request` -> [`Method`].
 //!  * `&Request` -> [`Version`].
-//!  * `&Request` -> [`Method`].
 //!  * `&mut Request` -> [`Headers`] (removes the headers from the request).
 //!  * `&Request` -> [`Headers`] (clones the headers).
 //!  * `&mut Request` -> [`Path`] (removes the path from the request).
@@ -57,8 +56,20 @@ impl<B> From<&Request<B>> for Method {
     }
 }
 
+impl<B> From<Request<B>> for Method {
+    fn from(request: Request<B>) -> Method {
+        request.method()
+    }
+}
+
 impl<B> From<&Request<B>> for Version {
     fn from(request: &Request<B>) -> Version {
+        request.version()
+    }
+}
+
+impl<B> From<Request<B>> for Version {
+    fn from(request: Request<B>) -> Version {
         request.version()
     }
 }
@@ -69,8 +80,20 @@ impl<B> From<&Response<B>> for Version {
     }
 }
 
+impl<B> From<Response<B>> for Version {
+    fn from(response: Response<B>) -> Version {
+        response.version()
+    }
+}
+
 impl<B> From<&Response<B>> for StatusCode {
     fn from(response: &Response<B>) -> StatusCode {
+        response.status()
+    }
+}
+
+impl<B> From<Response<B>> for StatusCode {
+    fn from(response: Response<B>) -> StatusCode {
         response.status()
     }
 }
@@ -80,6 +103,12 @@ impl<B> From<&Response<B>> for StatusCode {
 impl<B> From<&mut Request<B>> for Headers {
     fn from(request: &mut Request<B>) -> Headers {
         take(request.headers_mut())
+    }
+}
+
+impl<B> From<Request<B>> for Headers {
+    fn from(request: Request<B>) -> Headers {
+        request.split().0.headers
     }
 }
 
@@ -94,6 +123,12 @@ impl<B> From<&Request<B>> for Cloned<Headers> {
 impl<B> From<&mut Response<B>> for Headers {
     fn from(response: &mut Response<B>) -> Headers {
         take(response.headers_mut())
+    }
+}
+
+impl<B> From<Response<B>> for Headers {
+    fn from(response: Response<B>) -> Headers {
+        response.split().0.headers
     }
 }
 
@@ -114,6 +149,12 @@ pub struct Path(pub String);
 impl<B> From<&mut Request<B>> for Path {
     fn from(request: &mut Request<B>) -> Path {
         Path(take(&mut request.path))
+    }
+}
+
+impl<B> From<Request<B>> for Path {
+    fn from(request: Request<B>) -> Path {
+        Path(request.split().0.path)
     }
 }
 

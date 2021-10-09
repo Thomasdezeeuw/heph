@@ -23,7 +23,7 @@ pub struct RequestHead {
     method: Method,
     pub(crate) path: String,
     version: Version,
-    headers: Headers,
+    pub(crate) headers: Headers,
 }
 
 impl RequestHead {
@@ -147,7 +147,7 @@ impl fmt::Debug for RequestHead {
 pub struct ResponseHead {
     version: Version,
     status: StatusCode,
-    headers: Headers,
+    pub(crate) headers: Headers,
 }
 
 impl ResponseHead {
