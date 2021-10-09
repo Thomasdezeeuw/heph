@@ -199,6 +199,12 @@ impl Headers {
     }
 }
 
+impl Default for Headers {
+    fn default() -> Headers {
+        Headers::EMPTY
+    }
+}
+
 impl From<Header<'static, '_>> for Headers {
     fn from(header: Header<'static, '_>) -> Headers {
         Headers {
