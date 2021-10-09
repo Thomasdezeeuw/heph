@@ -241,35 +241,38 @@ impl<B> From<Response<B>> for Body<B> {
 }
 
 macro_rules! impl_from_for_tuple {
-    ( $($T: ident),+ ) => {
-        impl<B, $($T,)+ T> From<Request<B>> for ($($T,)+ T)
+    ( $($T: ident),* ) => {
+        impl<B, $($T,)* T> From<Request<B>> for ($($T,)* T,)
         where
-            $( $T: for<'a> From<&'a mut Request<B>>, )+
+            $( $T: for<'a> From<&'a mut Request<B>>, )*
             T: From<Request<B>>,
         {
             #[allow(non_snake_case)] // $T is uppercase.
-            fn from(mut request: Request<B>) -> ($($T,)+ T) {
-                $(let $T = From::from(&mut request);)+
-                let t_last = From::from(request);
-                ($($T,)+ t_last)
+            #[allow(unused_mut)] // Tuple of 1 doesn't use it.
+            fn from(mut request: Request<B>) -> ($($T,)* T,) {
+                $(let $T = $T::from(&mut request);)*
+                let t_last = T::from(request);
+                ($($T,)* t_last,)
             }
         }
 
-        impl<B, $($T,)+ T> From<Response<B>> for ($($T,)+ T)
+        impl<B, $($T,)* T> From<Response<B>> for ($($T,)* T,)
         where
-            $( $T: for<'a> From<&'a mut Response<B>>, )+
+            $( $T: for<'a> From<&'a mut Response<B>>, )*
             T: From<Response<B>>,
         {
             #[allow(non_snake_case)] // $T is uppercase.
-            fn from(mut response: Response<B>) -> ($($T,)+ T) {
-                $(let $T = From::from(&mut response);)+
-                let t_last = From::from(response);
-                ($($T,)+ t_last)
+            #[allow(unused_mut)] // Tuple of 1 doesn't use it.
+            fn from(mut response: Response<B>) -> ($($T,)* T,) {
+                $(let $T = $T::from(&mut response);)*
+                let t_last = T::from(response);
+                ($($T,)* t_last,)
             }
         }
     };
 }
 
+impl_from_for_tuple!(); // Tuple of 1.
 impl_from_for_tuple!(T0);
 impl_from_for_tuple!(T0, T1);
 impl_from_for_tuple!(T0, T1, T2);
