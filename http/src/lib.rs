@@ -26,6 +26,7 @@
 
 pub mod body;
 pub mod client;
+pub mod handler;
 pub mod head;
 mod request;
 mod response;
