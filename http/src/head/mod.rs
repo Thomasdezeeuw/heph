@@ -21,7 +21,7 @@ use header::FromHeaderValue;
 /// Head of a [`Request`].
 pub struct RequestHead {
     method: Method,
-    path: String,
+    pub(crate) path: String,
     version: Version,
     headers: Headers,
 }
