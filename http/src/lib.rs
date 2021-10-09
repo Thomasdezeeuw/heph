@@ -4,7 +4,6 @@
     async_stream,
     const_fn_trait_bound,
     const_mut_refs,
-    const_panic,
     drain_filter,
     generic_associated_types,
     io_slice_advance,
