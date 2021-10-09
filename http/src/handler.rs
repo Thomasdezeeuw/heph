@@ -25,8 +25,13 @@ use std::future::Future;
 /// }
 /// #
 /// # fn assert_handler<H: Handler<Req>, Req>(_: H) {}
-/// # assert_handler::<_, Request<EmptyBody>>(echo_handler);
+/// # assert_handler::<_, (Request<EmptyBody>,)>(echo_handler);
 /// ```
+///
+/// Note one awkward implementation details the example function has type
+/// `Fn(Req) -> Res`, **however** type handler is of type `Handler<(Req,)>`,
+/// that is uses a tuple with 1 field as request type. This is required to
+/// support multiple arguments in function handlers.
 pub trait Handler<Req> {
     /// Type of response the handler returns.
     type Response;
@@ -38,18 +43,33 @@ pub trait Handler<Req> {
     fn handle(&self, request: Req) -> Self::Future;
 }
 
-impl<F, Req, Res, Fut> Handler<Req> for F
-where
-    F: Fn(Req) -> Fut,
-    Fut: Future<Output = Res>,
-{
-    type Response = Res;
-    type Future = Fut;
+macro_rules! impl_handler_for_fn_tuple {
+    ( $($T: ident),+ ) => {
+        impl<F, $($T,)+ Res, Fut> Handler<($($T,)+)> for F
+        where
+            F: Fn($($T,)+) -> Fut,
+            Fut: Future<Output = Res>,
+        {
+            type Response = Res;
+            type Future = Fut;
 
-    fn handle(&self, request: Req) -> Self::Future {
-        (self)(request)
-    }
+            #[allow(non_snake_case)] // $T is uppercase.
+            fn handle(&self, request: ($($T,)+)) -> Self::Future {
+                let ($($T,)+) = request;
+                (self)($($T,)+)
+            }
+        }
+    };
 }
+
+impl_handler_for_fn_tuple!(Req0);
+impl_handler_for_fn_tuple!(Req0, Req1);
+impl_handler_for_fn_tuple!(Req0, Req1, Req2);
+impl_handler_for_fn_tuple!(Req0, Req1, Req2, Req3);
+impl_handler_for_fn_tuple!(Req0, Req1, Req2, Req3, Req4);
+impl_handler_for_fn_tuple!(Req0, Req1, Req2, Req3, Req4, Req5);
+impl_handler_for_fn_tuple!(Req0, Req1, Req2, Req3, Req4, Req5, Req6);
+impl_handler_for_fn_tuple!(Req0, Req1, Req2, Req3, Req4, Req5, Req6, Req7);
 
 /// Middleware wraps other [`Handler`]s to transform the request and/or
 /// response. In addition to transforming the requests and/or response they can
