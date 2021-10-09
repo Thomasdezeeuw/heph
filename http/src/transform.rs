@@ -179,8 +179,7 @@ impl_from_for_tuple!(T0, T1, T2, T3, T4, T5, T6);
 
 impl<T, E, B> From<Result<T, E>> for Response<B>
 where
-    Response<B>: From<T>,
-    Response<B>: From<E>,
+    Response<B>: From<T> + From<E>,
 {
     fn from(result: Result<T, E>) -> Response<B> {
         match result {
