@@ -78,10 +78,10 @@ impl Setup {
 
     /// Set the number of worker threads equal to the number of CPU cores.
     ///
-    /// This uses [`thread::available_concurrency`], please read its
+    /// This uses [`thread::available_parallelism`], please read its
     /// documentation for a number of caveats and platform-specific behaviour.
     pub fn use_all_cores(self) -> Self {
-        let n = match thread::available_concurrency() {
+        let n = match thread::available_parallelism() {
             Ok(n) => n.get(),
             Err(err) => {
                 warn!(
