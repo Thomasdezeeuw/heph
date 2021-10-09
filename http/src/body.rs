@@ -352,7 +352,7 @@ pub(crate) use private::{PrivateBody, SendChunkedBody, SendStreamingBody};
 use private::{SendFileBody, SendOneshotBody};
 
 /// An empty body.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct EmptyBody;
 
 impl<'b> Body<'b> for EmptyBody {
