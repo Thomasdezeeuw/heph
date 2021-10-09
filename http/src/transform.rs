@@ -3,10 +3,15 @@
 //!
 //! To transform requests from one type to another the [`From`] trait is used.
 //! However since this means the documentation is somewhat all over the place
-//! here is a (hopefully complete) list.
+//! here is a (hopefully complete) list. The list follows the format `input ->
+//! output`, meaing that `input` can be converted into `output`. There are three
+//! different kinds of inputs, `&input` means the conversion only needs a
+//! reference (and generally copies the data, leaving the input unchanged),
+//! `&mut input` takes a part of the request/response (leaving an empty/default
+//! value behind), and `input` consumes the message.
 //!
 //! For [`Request`]:
-//!  * `&Request` -> [`Method`].
+//!  * `&Request` -> [`Method`] (copies the method).
 //!  * `&Request` -> [`Version`].
 //!  * `&mut Request` -> [`Headers`] (removes the headers from the request).
 //!  * `&Request` -> [`Headers`] (clones the headers).
@@ -21,7 +26,10 @@
 //!  * `&Response` -> [`Headers`] (clones the headers).
 //!  * `Response` -> [`Body`] (consumes the entire response).
 //!
-//! All transformations that clone the data are wrapped in the [`Cloned`] type.
+//! However there might be cases where you want to use two of types that
+//! consumes (full ownership), or removes part of (`&mut`), the message. Here
+//! the [`Cloned`] types comes in to play. All transformations that use the
+//! `Cloned` type will clone the data.
 //!
 //! In addition to the list above the types can be combined using the tuple
 //! notation. For example to get the headers and the body you can use
@@ -50,8 +58,24 @@ use crate::{Headers, Method, Request, Response, StatusCode, Version};
 #[derive(Debug)]
 pub struct Cloned<T>(pub T);
 
+// Would be great if we have three blanket impls:
+// `From<T> for U where U: From<&T>`,
+// `From<T> for U where U: From<&mut T>`, and
+// `From<&T> for U where U: From<&mut T>`.
+//
+// But we don't so, we need to implement all three variants where possible:
+// `From<&T> for U`
+// `From<&mut T> for U`
+// `From<T> for U`
+
 impl<B> From<&Request<B>> for Method {
     fn from(request: &Request<B>) -> Method {
+        request.method()
+    }
+}
+
+impl<B> From<&mut Request<B>> for Method {
+    fn from(request: &mut Request<B>) -> Method {
         request.method()
     }
 }
@@ -68,6 +92,12 @@ impl<B> From<&Request<B>> for Version {
     }
 }
 
+impl<B> From<&mut Request<B>> for Version {
+    fn from(request: &mut Request<B>) -> Version {
+        request.version()
+    }
+}
+
 impl<B> From<Request<B>> for Version {
     fn from(request: Request<B>) -> Version {
         request.version()
@@ -80,6 +110,12 @@ impl<B> From<&Response<B>> for Version {
     }
 }
 
+impl<B> From<&mut Response<B>> for Version {
+    fn from(response: &mut Response<B>) -> Version {
+        response.version()
+    }
+}
+
 impl<B> From<Response<B>> for Version {
     fn from(response: Response<B>) -> Version {
         response.version()
@@ -88,6 +124,12 @@ impl<B> From<Response<B>> for Version {
 
 impl<B> From<&Response<B>> for StatusCode {
     fn from(response: &Response<B>) -> StatusCode {
+        response.status()
+    }
+}
+
+impl<B> From<&mut Response<B>> for StatusCode {
+    fn from(response: &mut Response<B>) -> StatusCode {
         response.status()
     }
 }
@@ -118,6 +160,12 @@ impl<B> From<&Request<B>> for Cloned<Headers> {
     }
 }
 
+impl<B> From<&mut Request<B>> for Cloned<Headers> {
+    fn from(request: &mut Request<B>) -> Cloned<Headers> {
+        Cloned(request.headers().clone())
+    }
+}
+
 /// This removes the headers from the response, leaving an empty list in its
 /// place.
 impl<B> From<&mut Response<B>> for Headers {
@@ -134,6 +182,12 @@ impl<B> From<Response<B>> for Headers {
 
 impl<B> From<&Response<B>> for Cloned<Headers> {
     fn from(response: &Response<B>) -> Cloned<Headers> {
+        Cloned(response.headers().clone())
+    }
+}
+
+impl<B> From<&mut Response<B>> for Cloned<Headers> {
+    fn from(response: &mut Response<B>) -> Cloned<Headers> {
         Cloned(response.headers().clone())
     }
 }
@@ -160,6 +214,12 @@ impl<B> From<Request<B>> for Path {
 
 impl<B> From<&Request<B>> for Cloned<Path> {
     fn from(request: &Request<B>) -> Cloned<Path> {
+        Cloned(Path(request.path.clone()))
+    }
+}
+
+impl<B> From<&mut Request<B>> for Cloned<Path> {
+    fn from(request: &mut Request<B>) -> Cloned<Path> {
         Cloned(Path(request.path.clone()))
     }
 }
