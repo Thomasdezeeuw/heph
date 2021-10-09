@@ -142,6 +142,7 @@ enum ActorRefKind<M> {
 // variant is a boxed version of `Local` so is that variant. This makes the
 // entire `ActorRefKind` `Send` and `Sync`, as long as `M` is `Send` (as we
 // could be sending the message across thread bounds).
+#[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl<M: Send> Send for ActorRefKind<M> {}
 unsafe impl<M: Send> Sync for ActorRefKind<M> {}
 
@@ -463,6 +464,7 @@ enum SendValueKind<'r, M> {
 // variant is a boxed version of `Local` so is that variant. This makes the
 // entire `SendValueKind` `Send` and `Sync`, as long as `M` is `Send` (as we
 // could be sending the message across thread bounds).
+#[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl<'r, M: Send> Send for SendValueKind<'r, M> {}
 unsafe impl<'r, M: Send> Sync for SendValueKind<'r, M> {}
 
@@ -525,6 +527,7 @@ enum JoinKind<'r, M> {
 // variant is a boxed version of `Local` so is that variant. This makes the
 // entire `JoinKind` `Send` and `Sync`, as long as `M` is `Send` (as we could be
 // sending the message across thread bounds).
+#[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl<'r, M: Send> Send for JoinKind<'r, M> {}
 unsafe impl<'r, M: Send> Sync for JoinKind<'r, M> {}
 
