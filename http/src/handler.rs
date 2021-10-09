@@ -28,10 +28,10 @@ use std::future::Future;
 /// # assert_handler::<_, (Request<EmptyBody>,)>(echo_handler);
 /// ```
 ///
-/// Note one awkward implementation details the example function has type
-/// `Fn(Req) -> Res`, **however** type handler is of type `Handler<(Req,)>`,
-/// that is uses a tuple with 1 field as request type. This is required to
-/// support multiple arguments in function handlers.
+/// Note one awkward implementation detail is that  the example function has
+/// type `Fn(Req) -> Res`, **however** type handler is of type
+/// `Handler<(Req,)>`, that is uses a tuple with 1 field as request type. This
+/// is required to support multiple arguments in function handlers.
 pub trait Handler<Req> {
     /// Type of response the handler returns.
     type Response;
