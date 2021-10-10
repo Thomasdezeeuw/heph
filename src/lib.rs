@@ -73,6 +73,8 @@
     const_fn_trait_bound,
     const_option,
     destructuring_assignment,
+    doc_cfg,
+    doc_cfg_hide,
     drain_filter,
     generic_associated_types,
     io_slice_advance,
@@ -105,6 +107,12 @@
 #![cfg_attr(test, deny(warnings))]
 // Disallow warnings in examples, we want to set a good example after all.
 #![doc(test(attr(deny(warnings))))]
+// The `cfg(any(test, feature = "test"))` attribute creates a doc element
+// staying that it's only supporting "using test or test", that is a bit
+// confusing. So we hide those parts and instead manually replace all of them
+// with: `doc(cfg(feature = "test"))`. That will stay it's only supported using
+// the test feature.
+#![doc(cfg_hide(any(test, feature = "test")))]
 
 #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos")))]
 compile_error!("Heph currently only supports Linux, FreeBSD and macOS.");
@@ -121,6 +129,7 @@ pub mod rt;
 pub mod spawn;
 pub mod supervisor;
 #[cfg(any(test, feature = "test"))]
+#[doc(cfg(feature = "test"))]
 pub mod test;
 pub mod timer;
 pub mod trace;

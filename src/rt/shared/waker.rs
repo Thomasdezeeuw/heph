@@ -8,11 +8,11 @@ use crate::rt::shared::RuntimeInternals;
 use crate::rt::{ptr_as_usize, ProcessId};
 
 /// Maximum number of runtimes supported.
-pub const MAX_RUNTIMES: usize = 1 << MAX_RUNTIMES_BITS;
+pub(crate) const MAX_RUNTIMES: usize = 1 << MAX_RUNTIMES_BITS;
 #[cfg(not(any(test, feature = "test")))]
-pub const MAX_RUNTIMES_BITS: usize = 0; // 1.
+pub(crate) const MAX_RUNTIMES_BITS: usize = 0; // 1.
 #[cfg(any(test, feature = "test"))]
-pub const MAX_RUNTIMES_BITS: usize = 5; // 32.
+pub(crate) const MAX_RUNTIMES_BITS: usize = 5; // 32.
 
 /// An id for a waker.
 ///
