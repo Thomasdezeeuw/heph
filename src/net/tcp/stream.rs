@@ -338,7 +338,6 @@ impl TcpStream {
     ///
     /// [kind]: io::Error::kind
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
-    ///
     pub fn try_recv_vectored<B>(&mut self, mut bufs: B) -> io::Result<usize>
     where
         B: BytesVectored,
