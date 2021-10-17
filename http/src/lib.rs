@@ -33,6 +33,7 @@ pub mod head;
 mod request;
 mod response;
 mod route;
+pub mod router;
 pub mod server;
 mod str;
 pub mod transform;
@@ -51,6 +52,8 @@ pub use head::version::Version;
 pub use head::StatusCode;
 pub use request::Request;
 pub use response::Response;
+#[doc(no_inline)]
+pub use router::Router;
 #[doc(no_inline)]
 pub use server::{Connection, HttpServer};
 
@@ -139,7 +142,7 @@ const fn is_lower_case(value: &str) -> bool {
     let mut i = 0;
     while i < value.len() {
         // NOTE: allows `-` because it's used in header names.
-        if matches!(value[i], | b'A'..=b'Z') {
+        if matches!(value[i], b'A'..=b'Z') {
             return false;
         }
         i += 1;
