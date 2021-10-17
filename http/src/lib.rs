@@ -8,7 +8,8 @@
     generic_associated_types,
     io_slice_advance,
     maybe_uninit_uninit_array,
-    maybe_uninit_write_slice
+    maybe_uninit_write_slice,
+    ready_macro
 )]
 #![warn(
     anonymous_parameters,
