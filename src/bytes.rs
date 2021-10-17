@@ -19,6 +19,7 @@
 //! [`update_lengths`]: BytesVectored::update_lengths
 
 use std::cmp::min;
+use std::io::IoSliceMut;
 use std::mem::MaybeUninit;
 use std::ops::{Deref, DerefMut};
 use std::{fmt, slice};
@@ -208,6 +209,20 @@ impl<'a> MaybeUninitSlice<'a> {
         // Safety: this is safe because `MaybeUninitSlice` has the
         // `repr(transparent)` attribute.
         unsafe { &mut *(bufs as *mut _ as *mut _) }
+    }
+
+    /// Returns `bufs` as [`IoSliceMut`].
+    ///
+    /// # Unsafety
+    ///
+    /// This is unsound.
+    ///
+    /// Reading from the returned slice is UB.
+    #[allow(clippy::wrong_self_convention)]
+    pub(crate) unsafe fn as_io<'b>(
+        bufs: &'b mut [MaybeUninitSlice<'a>],
+    ) -> &'b mut [IoSliceMut<'a>] {
+        &mut *(bufs as *mut _ as *mut _)
     }
 }
 

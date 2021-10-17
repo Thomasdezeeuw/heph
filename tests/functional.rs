@@ -26,6 +26,7 @@ mod functional {
     mod bytes;
     mod from_message;
     mod future;
+    mod pipe;
     mod restart_supervisor;
     mod runtime;
     mod spawn;
