@@ -12,12 +12,23 @@ categories    = ["asynchronous", "web-programming"]
 include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
 edition       = "2018"
 
+
+[features]
+default = []
+
+# Feature that enables usage of JSON types using serde_json version 1.x.
+serde_json1 = ["serde", "serde_json"]
+
 [dependencies]
 heph     = { version = "0.3.0", path = "../", default-features = false }
 httparse = { version = "1.5.1", default-features = false }
 httpdate = { version = "1.0.0", default-features = false }
 log      = { version = "0.4.8", default-features = false }
 itoa     = { version = "0.4.7", default-features = false }
+
+# Behind `serde_json1` feature.
+serde      = { version = "1.0.130", default-features = false, optional = true }
+serde_json = { version = "1.0.68", default-features = false, optional = true, features = ["std"] }
 
 [dev-dependencies]
 # Enable logging panics via `std-logger`.

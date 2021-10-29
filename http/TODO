@@ -1,0 +1,9 @@
+# TODO
+
+Add transforms for:
+
+* JSON
+* Form
+* Query
+* Body as String (Text)?
+* Path parameters (part of Router).
