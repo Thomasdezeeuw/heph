@@ -212,6 +212,22 @@ macro_rules! expect_recv {
     }};
 }
 
+/// Loop until a value is peeked.
+macro_rules! expect_peek {
+    ($receiver: expr, $expected: expr) => {{
+        r#loop! {
+            match $receiver.try_peek() {
+                Ok(msg) => {
+                    assert_eq!(*msg, $expected);
+                    break;
+                }
+                Err(heph_inbox::RecvError::Empty) => {} // Try again.
+                Err(err) => panic!("unexpected error receiving: {}", err),
+            }
+        }
+    }};
+}
+
 /// Run a test with all possible capacities.
 macro_rules! with_all_capacities {
     (|$capacity: ident| $test: block) => {{

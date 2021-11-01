@@ -672,6 +672,26 @@ impl<T> Receiver<T> {
         }
     }
 
+    /// Attempts to peek a value from this channel.
+    pub fn try_peek<'r>(&'r mut self) -> Result<&'r T, RecvError> {
+        try_peek(self.channel())
+    }
+
+    /// Returns a future that peeks at a value from the channel, waiting if the
+    /// channel is empty.
+    ///
+    /// If the returned [`Future`] returns `None` it means all [`Sender`]s are
+    /// [disconnected]. This is the same error as [`RecvError::Disconnected`].
+    /// [`RecvError::Empty`] will never be returned, the `Future` will return
+    /// [`Poll::Pending`] instead.
+    ///
+    /// [disconnected]: Receiver::is_connected
+    pub fn peek<'r>(&'r mut self) -> PeekValue<'r, T> {
+        PeekValue {
+            channel: self.channel(),
+        }
+    }
+
     /// Create a new [`Sender`] that sends to this channel.
     ///
     /// # Safety
@@ -779,7 +799,7 @@ fn try_recv<T>(channel: &Channel<T>) -> Result<T, RecvError> {
             continue;
         }
 
-        // Safety: we've acquired unique access the slot above and we're
+        // Safety: we've acquired unique access to the slot above and we're
         // ensured the slot is filled.
         let value = unsafe { (&*channel.slots[slot].get()).assume_init_read() };
 
@@ -799,6 +819,31 @@ fn try_recv<T>(channel: &Channel<T>) -> Result<T, RecvError> {
         channel.wake_next_sender();
 
         return Ok(value);
+    }
+
+    if !is_connected {
+        Err(RecvError::Disconnected)
+    } else {
+        Err(RecvError::Empty)
+    }
+}
+
+/// See [`Receiver::try_peek`].
+fn try_peek<'t, T>(channel: &'t Channel<T>) -> Result<&'t T, RecvError> {
+    // See `try_recv` why we do this first.
+    let is_connected = sender_count(channel.ref_count.load(Ordering::Relaxed)) > 0;
+
+    let status = channel.status.load(Ordering::Acquire);
+    let cap = channel.slots.len();
+    let start = receiver_pos(status, cap);
+    for slot in (0..cap).cycle().skip(start).take(cap) {
+        if !is_filled(status, slot) {
+            continue;
+        }
+
+        // Safety: we've acquired unique access to the slot above and we're
+        // ensured the slot is filled.
+        return Ok(unsafe { (&*channel.slots[slot].get()).assume_init_ref() });
     }
 
     if !is_connected {
@@ -905,6 +950,43 @@ impl<'r, T> Future for RecvValue<'r, T> {
 }
 
 impl<'r, T> Unpin for RecvValue<'r, T> {}
+
+/// [`Future`] implementation behind [`Receiver::peek`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct PeekValue<'r, T> {
+    channel: &'r Channel<T>,
+}
+
+impl<'r, T> Future for PeekValue<'r, T> {
+    type Output = Option<&'r T>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
+        match try_peek(self.channel) {
+            Ok(value) => Poll::Ready(Some(value)),
+            Err(RecvError::Empty) => {
+                // The channel is empty, we'll set the waker.
+                if !self.channel.receiver_waker.register(ctx.waker()) {
+                    // Waker already set.
+                    return Poll::Pending;
+                }
+
+                // But it could be the case that a sender send a value in the
+                // time between we last checked and we actually marked ourselves
+                // as needing a wake up, so we need to check again.
+                match try_peek(self.channel) {
+                    Ok(value) => Poll::Ready(Some(value)),
+                    // The `Sender` will wake us when a new message is send.
+                    Err(RecvError::Empty) => Poll::Pending,
+                    Err(RecvError::Disconnected) => Poll::Ready(None),
+                }
+            }
+            Err(RecvError::Disconnected) => Poll::Ready(None),
+        }
+    }
+}
+
+impl<'r, T> Unpin for PeekValue<'r, T> {}
 
 /// Channel internals shared between zero or more [`Sender`]s, zero or one
 /// [`Receiver`] and zero or one [`Manager`].

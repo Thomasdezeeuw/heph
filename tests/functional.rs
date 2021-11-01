@@ -101,6 +101,7 @@ fn sending_and_receiving_value() {
     with_all_capacities!(|capacity| {
         let (sender, mut receiver) = new::<usize>(capacity);
         sender.try_send(123).unwrap();
+        assert_eq!(receiver.try_peek().unwrap(), &123);
         assert_eq!(receiver.try_recv().unwrap(), 123);
     });
 }
@@ -119,6 +120,34 @@ fn receiving_from_disconnected_channel() {
         let (sender, mut receiver) = new::<usize>(capacity);
         drop(sender);
         assert_eq!(receiver.try_recv().unwrap_err(), RecvError::Disconnected);
+    });
+}
+
+#[test]
+fn multiple_peeks() {
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+        sender.try_send(123).unwrap();
+        assert_eq!(receiver.try_peek().unwrap(), &123);
+        assert_eq!(receiver.try_peek().unwrap(), &123);
+        assert_eq!(receiver.try_peek().unwrap(), &123);
+    });
+}
+
+#[test]
+fn peeking_from_empty_channel() {
+    with_all_capacities!(|capacity| {
+        let (_sender, mut receiver) = new::<usize>(capacity);
+        assert_eq!(receiver.try_peek().unwrap_err(), RecvError::Empty);
+    });
+}
+
+#[test]
+fn peeking_from_disconnected_channel() {
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+        drop(sender);
+        assert_eq!(receiver.try_peek().unwrap_err(), RecvError::Disconnected);
     });
 }
 
@@ -854,6 +883,181 @@ mod future {
     }
 
     #[test]
+    fn peek_value() {
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = receiver.peek();
+            pin_stack!(future);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+            sender.try_send(10).unwrap();
+            assert_eq!(count, 1);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(&10)));
+        });
+    }
+
+    #[test]
+    fn peek_value_twice() {
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            // Create Future and register waker (by polling).
+            let future = receiver.peek();
+            pin_stack!(future);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+            // Send value.
+            sender.try_send(10).unwrap();
+            assert_eq!(count, 1);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(&10)));
+
+            // Create second Future with and use the same waker.
+            let future = receiver.peek();
+            pin_stack!(future);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(&10)));
+        });
+    }
+
+    #[test]
+    fn send_two_values_peek_value() {
+        with_all_capacities!(|capacity| {
+            if capacity < 2 {
+                continue;
+            }
+
+            let (waker, _count) = new_count_waker();
+            let mut ctx = task::Context::from_waker(&waker);
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            // Send value.
+            sender.try_send(10).unwrap();
+            // Send second value.
+            sender.try_send(20).unwrap();
+
+            let future = receiver.peek();
+            pin_stack!(future);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(&10)));
+        });
+    }
+
+    #[test]
+    fn peek_value_empty() {
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = receiver.peek();
+            pin_stack!(future);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+            assert_eq!(count, 0);
+
+            sender.try_send(10).unwrap();
+
+            assert_eq!(count, 1);
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(&10)));
+        });
+    }
+
+    #[test]
+    fn peek_value_all_senders_disconnected() {
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = receiver.peek();
+            pin_stack!(future);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+            // Dropping the last sender should notify the receiver.
+            drop(sender);
+            assert_eq!(count, 1);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+        });
+    }
+
+    #[test]
+    fn peek_value_all_senders_disconnected_not_empty() {
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = receiver.peek();
+            pin_stack!(future);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+            // Sending and dropping the last sender should wake the receiver.
+            sender.try_send(10).unwrap();
+            assert_eq!(count, 1);
+            drop(sender);
+            assert_eq!(count, 1); // Wake-up optimised away.
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Some(&10)));
+        });
+    }
+
+    #[test]
+    fn peek_value_all_senders_disconnected_cloned_sender() {
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
+            let sender2 = sender.clone();
+
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = receiver.peek();
+            pin_stack!(future);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Pending);
+
+            // Only dropping the last sender should wake the receiver.
+            drop(sender);
+            assert_eq!(count, 0);
+            drop(sender2);
+            assert_eq!(count, 1);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+        });
+    }
+
+    #[test]
+    fn peek_value_only_wake_if_polled() {
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = receiver.peek();
+            pin_stack!(future);
+
+            drop(sender);
+            // `PeekValue` isn't polled yet, so we shouldn't receive a wake-up
+            // notification.
+            assert_eq!(count, 0);
+
+            assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+        });
+    }
+
+    #[test]
     fn sender_join() {
         with_all_capacities!(|capacity| {
             let (sender, receiver) = new::<usize>(capacity);
@@ -972,7 +1176,9 @@ mod manager {
         sender1.try_send(123).unwrap();
         sender2.try_send(456).unwrap();
 
+        assert_eq!(receiver.try_peek().unwrap(), &123);
         assert_eq!(receiver.try_recv().unwrap(), 123);
+        assert_eq!(receiver.try_peek().unwrap(), &456);
         assert_eq!(receiver.try_recv().unwrap(), 456);
     }
 
@@ -986,7 +1192,9 @@ mod manager {
 
         let mut receiver = manager.new_receiver().unwrap();
 
+        assert_eq!(receiver.try_peek().unwrap(), &123);
         assert_eq!(receiver.try_recv().unwrap(), 123);
+        assert_eq!(receiver.try_peek().unwrap(), &456);
         assert_eq!(receiver.try_recv().unwrap(), 456);
     }
 
@@ -1001,6 +1209,7 @@ mod manager {
         with_all_capacities!(|capacity| {
             let (manager, sender, mut receiver) = Manager::<usize>::new_channel(capacity);
             sender.try_send(123).unwrap();
+            assert_eq!(receiver.try_peek().unwrap(), &123);
             assert_eq!(receiver.try_recv().unwrap(), 123);
             drop(manager);
         });

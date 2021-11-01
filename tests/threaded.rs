@@ -29,6 +29,23 @@ fn send_single_value() {
 
 #[test]
 #[cfg_attr(miri, ignore)] // Doesn't finish.
+fn send_single_value_peek() {
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+
+        start_threads!(
+            {
+                expect_send!(sender, 1);
+            },
+            {
+                expect_peek!(receiver, 1);
+            }
+        );
+    });
+}
+
+#[test]
+#[cfg_attr(miri, ignore)] // Doesn't finish.
 fn zero_sized_types() {
     with_all_capacities!(|capacity| {
         let (sender, mut receiver) = new(capacity);
@@ -39,6 +56,23 @@ fn zero_sized_types() {
             },
             {
                 expect_recv!(receiver, ());
+            }
+        );
+    });
+}
+
+#[test]
+#[cfg_attr(miri, ignore)] // Doesn't finish.
+fn zero_sized_types_peek() {
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new(capacity);
+
+        start_threads!(
+            {
+                expect_send!(sender, ());
+            },
+            {
+                expect_peek!(receiver, ());
             }
         );
     });
@@ -58,6 +92,29 @@ fn receive_no_sender() {
                 r#loop! {
                     match receiver.try_recv() {
                         Ok(..) => panic!("unexpected receive of value"),
+                        Err(RecvError::Empty) => {} // Try again.
+                        Err(RecvError::Disconnected) => break,
+                    }
+                }
+            }
+        );
+    });
+}
+
+#[test]
+#[cfg_attr(miri, ignore)] // Doesn't finish.
+fn peek_no_sender() {
+    with_all_capacities!(|capacity| {
+        let (sender, mut receiver) = new::<usize>(capacity);
+
+        start_threads!(
+            {
+                drop(sender);
+            },
+            {
+                r#loop! {
+                    match receiver.try_peek() {
+                        Ok(..) => panic!("unexpected peek of value"),
                         Err(RecvError::Empty) => {} // Try again.
                         Err(RecvError::Disconnected) => break,
                     }
