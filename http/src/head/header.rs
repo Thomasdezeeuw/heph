@@ -7,7 +7,6 @@
 //!
 //! A list of known (registered) headers in available in [`HeaderName`].
 
-use std::borrow::Cow;
 use std::convert::AsRef;
 use std::iter::{FromIterator, FusedIterator};
 use std::time::SystemTime;
@@ -15,6 +14,7 @@ use std::{fmt, str};
 
 use httpdate::parse_http_date;
 
+use crate::str::Str;
 use crate::{cmp_lower_case, is_lower_case};
 
 /// List of headers.
@@ -433,7 +433,7 @@ impl<'n, 'v> fmt::Debug for Header<'n, 'v> {
 #[derive(Clone, PartialEq, Eq)]
 pub struct HeaderName<'a> {
     /// The value MUST be lower case.
-    inner: Cow<'a, str>,
+    inner: Str<'a>,
 }
 
 /// Macro to create [`Name`] constants.
@@ -981,7 +981,7 @@ impl<'n> HeaderName<'n> {
     pub const fn from_lowercase(name: &'n str) -> HeaderName<'n> {
         assert!(is_lower_case(name), "header name not lowercase");
         HeaderName {
-            inner: Cow::Borrowed(name),
+            inner: Str::from_str(name),
         }
     }
 
@@ -991,7 +991,7 @@ impl<'n> HeaderName<'n> {
     /// to avoid clone heap-allocated `HeaderName`s.
     fn borrow<'b>(&'b self) -> HeaderName<'b> {
         HeaderName {
-            inner: Cow::Borrowed(self.as_ref()),
+            inner: self.inner.borrow(),
         }
     }
 
@@ -1003,7 +1003,7 @@ impl<'n> HeaderName<'n> {
     /// stable API.
     #[doc(hidden)]
     pub const fn is_heap_allocated(&self) -> bool {
-        matches!(self.inner, Cow::Owned(_))
+        self.inner.is_heap_allocated()
     }
 }
 
@@ -1011,7 +1011,7 @@ impl From<String> for HeaderName<'static> {
     fn from(mut name: String) -> HeaderName<'static> {
         name.make_ascii_lowercase();
         HeaderName {
-            inner: Cow::Owned(name),
+            inner: Str::from_string(name),
         }
     }
 }

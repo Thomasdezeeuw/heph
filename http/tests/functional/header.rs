@@ -8,8 +8,8 @@ use crate::assert_size;
 #[test]
 fn sizes() {
     assert_size::<Headers>(48);
-    assert_size::<Header>(48);
-    assert_size::<HeaderName<'static>>(32);
+    assert_size::<Header>(32);
+    assert_size::<HeaderName<'static>>(16);
 }
 
 #[test]
