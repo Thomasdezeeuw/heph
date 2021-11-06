@@ -4,6 +4,7 @@
     async_stream,
     const_fn_trait_bound,
     const_mut_refs,
+    const_slice_from_raw_parts,
     drain_filter,
     generic_associated_types,
     io_slice_advance,
@@ -33,6 +34,7 @@ mod request;
 mod response;
 mod route;
 pub mod server;
+mod str;
 pub mod transform;
 
 #[doc(no_inline)]
