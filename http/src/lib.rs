@@ -30,12 +30,14 @@ pub mod body;
 pub mod client;
 pub mod handler;
 pub mod head;
+mod media_type;
 mod request;
 mod response;
 mod route;
 pub mod server;
 mod str;
 pub mod transform;
+mod uri;
 
 #[doc(no_inline)]
 pub use body::Body;

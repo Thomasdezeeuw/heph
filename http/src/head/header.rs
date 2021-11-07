@@ -14,7 +14,9 @@ use std::{fmt, str};
 
 use httpdate::parse_http_date;
 
+use crate::media_type::MediaType;
 use crate::str::Str;
+use crate::uri::Host;
 use crate::{cmp_lower_case, is_lower_case};
 
 /// List of headers.
@@ -199,6 +201,66 @@ impl Headers {
             pos: 0,
         }
     }
+}
+
+/// Convenience methods to parse some well known headers.
+impl Headers {
+    // TODO: (in order):
+    // accept-charset
+    // accept-datetime
+    // accept-encoding:
+    // accept-language:
+    // accept-ranges:
+    // accept:
+    // cache-control:
+    // connection:
+    // content-encoding:
+
+    /// Returns a typed 'Content-Length' header.
+    ///
+    /// # Notes
+    ///
+    /// Don't depend on the returned value to be correct as it's controlled by
+    /// the request and can be incorrect.
+    pub fn content_length(&self) -> Result<Option<usize>, ParseIntError> {
+        self.get_value(&HeaderName::CONTENT_LENGTH)
+    }
+
+    /// Returns a typed 'Content-Type' header.
+    ///
+    /// # Notes
+    ///
+    /// Don't depend on the returned value to be correct as it's controlled by
+    /// the request and can be incorrect.
+    pub fn content_type<'a>(&'a self) -> Result<Option<MediaType<'a>>, str::Utf8Error> {
+        self.get_value(&HeaderName::CONTENT_TYPE)
+    }
+
+    /// Returns a typed 'Date' header.
+    pub fn date(&self) -> Result<Option<SystemTime>, ParseTimeError> {
+        self.get_value(&HeaderName::DATE)
+    }
+
+    /// Returns a typed 'Host' header.
+    pub fn host<'a>(&'a self) -> Result<Option<Host<'a>>, str::Utf8Error> {
+        self.get_value(&HeaderName::HOST)
+    }
+
+    // TODO: (in order):
+    // if-modified-since
+    // if-unmodified-since
+    // keep-alive
+    // last-modified:
+    // location
+    // pragma:
+    // referer:
+    // retry-after
+    // server:
+    // timeout
+    // transfer-encoding
+    // user-agent:
+    // vary:
+    // www-authenticate
 }
 
 impl Default for Headers {
