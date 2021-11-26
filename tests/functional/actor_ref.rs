@@ -392,6 +392,160 @@ fn mapped_is_connected() {
 }
 
 #[test]
+fn mapped_fn() {
+    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expected = MSGS.iter().map(|s| (*s).to_owned()).collect();
+    let (actor, actor_ref): (_, ActorRef<String>) =
+        init_local_actor(expect_msgs, expected).unwrap();
+    let mut actor = Box::pin(actor);
+
+    let actor_ref: ActorRef<&str> = actor_ref.map_fn(|msg: &str| msg.to_owned());
+    for msg in MSGS {
+        actor_ref.try_send(*msg).unwrap();
+    }
+
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+}
+
+#[test]
+fn mapped_fn_send() {
+    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expected = MSGS.iter().map(|s| (*s).to_owned()).collect();
+    let (actor, actor_ref) = init_local_actor(expect_msgs, expected).unwrap();
+    let mut actor = Box::pin(actor);
+    let actor_ref: ActorRef<&str> = actor_ref.map_fn(|msg: &str| msg.to_owned());
+
+    let relay_msgs = relay_msgs as fn(_, _, _) -> _;
+    let (relay_actor, _) = init_local_actor(relay_msgs, (actor_ref, MSGS.to_vec())).unwrap();
+    let mut relay_actor = Box::pin(relay_actor);
+
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Pending);
+    assert_eq!(
+        poll_actor(Pin::as_mut(&mut relay_actor)),
+        Poll::Ready(Ok(()))
+    );
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+}
+
+#[test]
+fn mapped_fn_cloned() {
+    let expected: Vec<usize> = (0..INBOX_SIZE - 1).collect();
+    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let (actor, actor_ref) = init_local_actor(expect_msgs, expected.clone()).unwrap();
+    let actor_ref = actor_ref.map_fn(|msg: u8| msg as usize);
+    let mut actor = Box::pin(actor);
+
+    let m: Vec<(ActorRef<u8>, u8)> = expected
+        .into_iter()
+        .map(|msg| (actor_ref.clone(), msg as u8))
+        .collect();
+    for (actor_ref, msg) in m {
+        actor_ref.try_send(msg).unwrap();
+    }
+
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+}
+
+#[test]
+fn try_mapped_fn() {
+    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expected = vec![
+        NonZeroUsize::new(1).unwrap(),
+        NonZeroUsize::new(2).unwrap(),
+        NonZeroUsize::new(3).unwrap(),
+    ];
+    let (actor, actor_ref): (_, ActorRef<NonZeroUsize>) =
+        init_local_actor(expect_msgs, expected).unwrap();
+    let mut actor = Box::pin(actor);
+
+    let actor_ref: ActorRef<usize> =
+        actor_ref.try_map_fn(|msg| NonZeroUsize::new(msg).ok_or(SendError));
+    assert!(actor_ref.try_send(0usize).is_err());
+    for msg in 1..4usize {
+        actor_ref.try_send(msg).unwrap();
+    }
+
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+}
+
+#[test]
+fn try_mapped_fn_send() {
+    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expected = MSGS.iter().map(|s| (*s).to_owned()).collect();
+    let (actor, actor_ref) = init_local_actor(expect_msgs, expected).unwrap();
+    let mut actor = Box::pin(actor);
+    let actor_ref: ActorRef<&str> = actor_ref.try_map_fn::<_, _, !>(|msg: &str| Ok(msg.to_owned()));
+
+    let relay_msgs = relay_msgs as fn(_, _, _) -> _;
+    let (relay_actor, _) = init_local_actor(relay_msgs, (actor_ref, MSGS.to_vec())).unwrap();
+    let mut relay_actor = Box::pin(relay_actor);
+
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Pending);
+    assert_eq!(
+        poll_actor(Pin::as_mut(&mut relay_actor)),
+        Poll::Ready(Ok(()))
+    );
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+}
+
+#[test]
+fn try_mapped_fn_send_conversion_error() {
+    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expected = vec![NonZeroUsize::new(1).unwrap(), NonZeroUsize::new(2).unwrap()];
+    let (actor, actor_ref) = init_local_actor(expect_msgs, expected.clone()).unwrap();
+    let mut actor = Box::pin(actor);
+    let actor_ref: ActorRef<usize> =
+        actor_ref.try_map_fn(|msg| NonZeroUsize::new(msg).ok_or(SendError));
+
+    let send_error = send_error as fn(_, _) -> _;
+    let (relay_actor, _) = init_local_actor(send_error, actor_ref.clone()).unwrap();
+    let mut relay_actor = Box::pin(relay_actor);
+
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Pending);
+    assert_eq!(
+        poll_actor(Pin::as_mut(&mut relay_actor)),
+        Poll::Ready(Ok(()))
+    );
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Pending);
+
+    for msg in expected {
+        actor_ref.try_send(msg).unwrap();
+    }
+
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+}
+
+#[test]
+fn try_mapped_fn_cloned() {
+    let expected: Vec<usize> = (0..INBOX_SIZE - 1).collect();
+    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let (actor, actor_ref) = init_local_actor(expect_msgs, expected.clone()).unwrap();
+    let actor_ref = actor_ref.try_map_fn::<_, _, !>(|msg| Ok(msg as usize));
+    let mut actor = Box::pin(actor);
+
+    let m: Vec<(ActorRef<u8>, u8)> = expected
+        .into_iter()
+        .map(|msg| (actor_ref.clone(), msg as u8))
+        .collect();
+    for (actor_ref, msg) in m {
+        actor_ref.try_send(msg).unwrap();
+    }
+
+    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+}
+
+#[test]
+fn mapped_fn_is_connected() {
+    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
+    let (actor, actor_ref) = init_local_actor(expect_msgs, Vec::new()).unwrap();
+    let actor_ref: ActorRef<u8> = actor_ref.map_fn(|msg| msg as usize);
+    assert!(actor_ref.is_connected());
+
+    drop(actor);
+    assert!(!actor_ref.is_connected());
+}
+
+#[test]
 fn sends_to() {
     let expect_msgs = expect_msgs as fn(_, Vec<u16>) -> _;
     let (_, actor_ref1a) = init_local_actor(expect_msgs, Vec::new()).unwrap();
