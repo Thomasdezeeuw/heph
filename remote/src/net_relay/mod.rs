@@ -5,7 +5,11 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+
 pub mod routers;
+mod udp;
 
 #[doc(no_inline)]
 pub use routers::{Relay, RelayGroup};
@@ -35,6 +39,7 @@ pub enum Tcp {}
 pub enum Udp {}
 
 /// Use JSON serialisation.
+#[cfg(any(feature = "json"))]
 pub enum Json {}
 
 /// Configuration for the net relay.
@@ -78,7 +83,7 @@ impl<R, CT, S> Config<R, CT, S> {
         }
     }
 
-    /// Use a [`Udp`] connection.
+    /// Use an [`Udp`] connection.
     pub fn udp(self) -> Config<R, Udp, S> {
         Config {
             router: self.router,
@@ -88,12 +93,44 @@ impl<R, CT, S> Config<R, CT, S> {
     }
 
     /// Use [`Json`] serialisation.
+    #[cfg(any(feature = "json"))]
     pub fn json(self) -> Config<R, CT, Json> {
         Config {
             router: self.router,
             conection_type: self.conection_type,
             serialisation: PhantomData,
         }
+    }
+}
+
+pub(crate) trait Serde {
+    type Error: fmt::Display;
+
+    fn from_slice<'a, T>(buf: &'a [u8]) -> Result<T, Self::Error>
+    where
+        T: DeserializeOwned;
+
+    fn to_buf<'a, T>(buf: &mut Vec<u8>, msg: &'a T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + Serialize;
+}
+
+#[cfg(any(feature = "json"))]
+impl Serde for Json {
+    type Error = serde_json::Error;
+
+    fn from_slice<'a, T>(buf: &'a [u8]) -> Result<T, Self::Error>
+    where
+        T: DeserializeOwned,
+    {
+        serde_json::from_slice(buf)
+    }
+
+    fn to_buf<'a, T>(buf: &mut Vec<u8>, msg: &'a T) -> Result<(), Self::Error>
+    where
+        T: ?Sized + Serialize,
+    {
+        serde_json::to_writer(buf, msg)
     }
 }
 
