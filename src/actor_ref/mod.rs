@@ -289,6 +289,56 @@ impl<M> ActorRef<M> {
         }
     }
 
+    /// Change the message type of the actor reference.
+    ///
+    /// Before sending the message this will first change the message into a
+    /// different type using the `map`ping function `F`. This is useful when you
+    /// need to send to different types of actors (using different message
+    /// types) from a central location.
+    ///
+    /// # Notes
+    ///
+    /// This conversion is **not** cheap, it requires an allocation so use with
+    /// caution when it comes to performance sensitive code.
+    ///
+    /// Prefer to clone an existing mapped `ActorRef` over creating a new one as
+    /// that can reuse the allocation mentioned above.
+    pub fn map_fn<Msg, F>(self, map: F) -> ActorRef<Msg>
+    where
+        F: Fn(Msg) -> M + 'static,
+        M: 'static,
+    {
+        self.try_map_fn::<Msg, _, !>(move |msg| Ok(map(msg)))
+    }
+
+    /// Change the message type of the actor reference.
+    ///
+    /// Before sending the message this will first change the message into a
+    /// different type using the `map`ping function `F`. This is useful when you
+    /// need to send to different types of actors (using different message
+    /// types) from a central location.
+    ///
+    /// # Notes
+    ///
+    /// This conversion is **not** cheap, it requires an allocation so use with
+    /// caution when it comes to performance sensitive code.
+    ///
+    /// Prefer to clone an existing mapped `ActorRef` over creating a new one as
+    /// that can reuse the allocation mentioned above.
+    pub fn try_map_fn<Msg, F, E>(self, map: F) -> ActorRef<Msg>
+    where
+        F: Fn(Msg) -> Result<M, E> + 'static,
+        M: 'static,
+    {
+        let mapped_ref = MappedActorRefFn {
+            actor_ref: self,
+            map,
+        };
+        ActorRef {
+            kind: ActorRefKind::Mapped(Arc::new(mapped_ref)),
+        }
+    }
+
     /// Returns a [`Future`] that waits until the actor finishes running. Acts
     /// similar to a [`JoinHandle`] of a thread.
     ///
@@ -422,6 +472,54 @@ where
 
     fn id(&self) -> inbox::Id {
         self.id()
+    }
+}
+
+/// Wrapper around an [`ActorRef`] to change the message type.
+struct MappedActorRefFn<M, F> {
+    actor_ref: ActorRef<M>,
+    map: F,
+}
+
+impl<M, Msg, F, E> MappedActorRef<Msg> for MappedActorRefFn<M, F>
+where
+    F: Fn(Msg) -> Result<M, E>,
+{
+    fn try_mapped_send(&self, msg: Msg) -> Result<(), SendError> {
+        match (self.map)(msg) {
+            Ok(msg) => self.actor_ref.try_send(msg),
+            Err(..) => Err(SendError),
+        }
+    }
+
+    fn mapped_send<'r, 'fut>(
+        &'r self,
+        msg: Msg,
+    ) -> Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>
+    where
+        'r: 'fut,
+        Msg: 'fut,
+    {
+        let mapped_send = match (self.map)(msg) {
+            Ok(msg) => MappedSendValue::Send(self.actor_ref.send(msg)),
+            Err(..) => MappedSendValue::MapErr,
+        };
+        Box::pin(mapped_send)
+    }
+
+    fn mapped_join<'r, 'fut>(&'r self) -> Pin<Box<dyn Future<Output = ()> + 'fut>>
+    where
+        'r: 'fut,
+    {
+        Box::pin(self.actor_ref.join())
+    }
+
+    fn is_connected(&self) -> bool {
+        self.actor_ref.is_connected()
+    }
+
+    fn id(&self) -> inbox::Id {
+        self.actor_ref.id()
     }
 }
 
