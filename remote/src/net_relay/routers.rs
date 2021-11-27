@@ -30,7 +30,7 @@ where
 
 /// [`Route`] implementation that routes all messages to a single
 /// actor.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Relay<M> {
     actor_ref: ActorRef<M>,
 }
@@ -57,7 +57,7 @@ where
 
 /// [`Route`] implementation that routes all messages to a group of
 /// actors.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RelayGroup<M> {
     actor_group: ActorGroup<M>,
     delivery: Delivery,
@@ -88,7 +88,7 @@ where
 }
 
 /// Router that drops all messages.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Drop;
 
 impl<M> Route<M> for Drop {
