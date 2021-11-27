@@ -653,6 +653,11 @@ impl<'r, M> fmt::Debug for Join<'r, M> {
 }
 
 /// A group of [`ActorRef`]s used to send a message to multiple actors.
+///
+/// # Notes
+///
+/// Unlike [`ActorRef`] this is **not** cheap to clone as it's requires a clone
+/// of an internal vector.
 pub struct ActorGroup<M> {
     actor_refs: Vec<ActorRef<M>>,
     /// Index of the actor reference to send the [single delivery] message to.
@@ -835,6 +840,20 @@ impl<M> Extend<ActorRef<M>> for ActorGroup<M> {
         I: IntoIterator<Item = ActorRef<M>>,
     {
         self.actor_refs.extend(iter);
+    }
+}
+
+impl<M> Clone for ActorGroup<M> {
+    fn clone(&self) -> ActorGroup<M> {
+        ActorGroup {
+            actor_refs: self.actor_refs.clone(),
+            send_next: AtomicUsize::new(0),
+        }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        self.actor_refs.clone_from(&source.actor_refs);
+        *self.send_next.get_mut() = 0
     }
 }
 
