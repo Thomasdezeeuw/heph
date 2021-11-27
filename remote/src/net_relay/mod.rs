@@ -17,10 +17,10 @@
 //!
 //! [`TcpStream`]: heph::net::TcpStream
 
-use std::fmt;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
+use std::{fmt, io};
 
 use heph::actor::{self, Actor, NewActor};
 use heph::rt;
@@ -96,7 +96,7 @@ pub struct Config<R, CT, S, Out, In, RT> {
     _types: PhantomData<(Out, In, RT)>,
 }
 
-impl<R, CT, S, Out, In, RT> Config<R, CT, S, Out, In, RT> {
+impl<Out, In, RT> Config<(), (), (), Out, In, RT> {
     /// Create a default configuration.
     ///
     /// This still needs the following configuration options to be set (all set
@@ -112,9 +112,11 @@ impl<R, CT, S, Out, In, RT> Config<R, CT, S, Out, In, RT> {
             _types: PhantomData,
         }
     }
+}
 
+impl<CT, S, Out, In, RT> Config<(), CT, S, Out, In, RT> {
     /// Use the `router` to route incoming messages.
-    pub fn route(self, router: R) -> Config<R, CT, S, Out, In, RT>
+    pub fn route<R>(self, router: R) -> Config<R, CT, S, Out, In, RT>
     where
         R: Route<In> + Clone,
     {
@@ -125,7 +127,9 @@ impl<R, CT, S, Out, In, RT> Config<R, CT, S, Out, In, RT> {
             _types: PhantomData,
         }
     }
+}
 
+impl<R, S, Out, In, RT> Config<R, (), S, Out, In, RT> {
     /// Use a [`Tcp`] connection.
     pub fn tcp(self) -> Config<R, Tcp, S, Out, In, RT> {
         Config {
@@ -145,7 +149,9 @@ impl<R, CT, S, Out, In, RT> Config<R, CT, S, Out, In, RT> {
             _types: PhantomData,
         }
     }
+}
 
+impl<R, CT, Out, In, RT> Config<R, CT, (), Out, In, RT> {
     /// Use [`Json`] serialisation.
     #[cfg(any(feature = "json"))]
     pub fn json(self) -> Config<R, CT, Json, Out, In, RT> {
@@ -168,7 +174,7 @@ where
 {
     type Message = UdpRelayMessage<Out>;
     type Argument = SocketAddr;
-    type Actor = impl Actor;
+    type Actor = impl Actor<Error = io::Error>;
     type Error = !;
     type RuntimeAccess = RT;
 
