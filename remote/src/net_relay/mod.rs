@@ -1,4 +1,21 @@
 //! Relay messages over the network.
+//!
+//! The remote relay is an actor that relays messages to actor(s) on remote
+//! nodes. It allows actors to communicate using `ActorRef`s, transparently
+//! sending the message of the network.
+//!
+//! Only a single relay actor has be started per process, it can route messages
+//! from multiple remote actors to one or more local actors. The [`Route`] trait
+//! determines how the messages should be routed. The simplest implementation of
+//! `Route` would be to send all messages to a single actor (this is done by
+//! [`Relay`] type). However it can also be made more complex, for example
+//! starting a new actor for each message or routing different messages to
+//! different actors.
+//!
+//! When sending large messages or streaming large amounts of data you should
+//! consider setting up a [`TcpStream`] instead.
+//!
+//! [`TcpStream`]: heph::net::TcpStream
 
 use std::fmt;
 use std::future::Future;
@@ -36,10 +53,23 @@ pub enum Tcp {}
 /// For connections outside datacentre or local networks [`Tcp`] might be more,
 /// well, reliable.
 ///
-/// Note however that UDP connections can only send message up to ~65kb in
-/// length (2^16 - packet and protocol) overhead.
-///
 /// [UDP]: heph::net::udp
+///
+/// # Notes
+///
+/// As the messages are send using UDP it has two limitations:
+///
+/// * The size of a single message is limited to theoretical limit of roughly
+///   65,000 bytes. However the larger the message, the larger the chance of
+///   packet fragmenting (at low levels of the network stack), which in turns
+///   increases the change of the message not being delivered. Its advisable to
+///   keep message small (< 2kb) for both increased delivery probability and
+///   performance.
+/// * Delivery of the message is not guaranteed, *but the same is true for any
+///   actor reference*. To ensure delivery use [RPC] to acknowledge when a
+///   message is successfully processed by the remote actor.
+///
+/// [RPC]: heph::actor_ref::rpc
 pub enum Udp {}
 
 /// Use JSON serialisation.
@@ -47,6 +77,14 @@ pub enum Udp {}
 pub enum Json {}
 
 /// Configuration for the net relay.
+///
+/// The following configuration opotions are available:
+///  * `R`: [`Route`]r to route incoming message.
+///  * `CT`: contection to use, either [`Udp`] or [`Tcp`].
+///  * `S`: serialisation format, currently only [`Json`] is supported.
+///  * `Out`: outgoing message type.
+///  * `In`: incoming message type (those that are routed by `R`).
+///  * `RT`: [`rt::Access`] type used by the spawned actor.
 pub struct Config<R, CT, S, Out, In, RT> {
     /// How to route incoming messages.
     router: R,
@@ -76,7 +114,10 @@ impl<R, CT, S, Out, In, RT> Config<R, CT, S, Out, In, RT> {
     }
 
     /// Use the `router` to route incoming messages.
-    pub fn route(self, router: R) -> Config<R, CT, S, Out, In, RT> {
+    pub fn route(self, router: R) -> Config<R, CT, S, Out, In, RT>
+    where
+        R: Route<In> + Clone,
+    {
         Config {
             router,
             conection_type: self.conection_type,
@@ -95,7 +136,7 @@ impl<R, CT, S, Out, In, RT> Config<R, CT, S, Out, In, RT> {
         }
     }
 
-    /// Use an [`Udp`] connection.
+    /// Use a [`Udp`] connection.
     pub fn udp(self) -> Config<R, Udp, S, Out, In, RT> {
         Config {
             router: self.router,
