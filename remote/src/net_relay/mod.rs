@@ -16,6 +16,78 @@
 //! consider setting up a [`TcpStream`] instead.
 //!
 //! [`TcpStream`]: heph::net::TcpStream
+//!
+//! # Examples
+//!
+//! Simple example that relays messages from remote actors to a local actor.
+//!
+//! ```
+//! #![feature(never_type)]
+//!
+//! use std::net::SocketAddr;
+//!
+//! use heph::rt::{self, Runtime};
+//! use heph::supervisor::NoSupervisor;
+//! use heph::{actor, restart_supervisor, ActorOptions, ActorRef};
+//! use heph_remote::net_relay::{self, Relay, UdpRelayMessage};
+//!
+//! # fn main() -> Result<(), rt::Error> {
+//! # return Ok(()); // Don't want to send any packets.
+//! let local_address = "127.0.0.1:9001".parse().unwrap();
+//! // Let's pretend this on a remote node.
+//! let remote_address = "127.0.0.1:9002".parse().unwrap();
+//!
+//! let mut runtime = Runtime::new()?;
+//!
+//! // Spawn our local actor.
+//! let local_actor = local_actor as fn(_) -> _;
+//! let local_actor_ref = runtime.spawn(NoSupervisor, local_actor, (), ActorOptions::default());
+//!
+//! let supervisor = RelaySupervisor::new(local_address);
+//! // Create a router that relays all incoming messages to our local actor.
+//! let router: Relay<String> = Relay::to(local_actor_ref);
+//! let relay = net_relay::Config::default().udp().json().route(router);
+//! // Spawn our remote relay actor.
+//! let remote_ref: ActorRef<UdpRelayMessage<String>> =
+//!     runtime.spawn(supervisor, relay, local_address, ActorOptions::default());
+//!
+//! // For convenience we can map the actor ref to an easier to use type.
+//! let remote_ref: ActorRef<Outgoing> =
+//!     remote_ref.map_fn(move |msg: Outgoing| UdpRelayMessage::Relay {
+//!         message: msg.0,
+//!         target: remote_address,
+//!     });
+//!
+//! // Now the actor reference can be used like any other and it will deliver
+//! // the message to the actor across the network (assuming someone is
+//! // listening of course).
+//! remote_ref
+//!     .try_send(Outgoing("Hello world!".to_owned()))
+//!     .unwrap();
+//!
+//! // Dropping all reference to the relay actor will stop it.
+//! drop(remote_ref);
+//! // If you want keep listening for remote messages, even though you're not
+//! // sending any of your own, you'll need to keep `remote_ref` alive at least
+//! // until `runtime.start()` below returns.
+//!
+//! runtime.start()
+//! # }
+//!
+//! restart_supervisor!(RelaySupervisor, "relay actor", SocketAddr);
+//!
+//! struct Outgoing(String);
+//!
+//! // Our local actor.
+//! async fn local_actor<RT>(mut ctx: actor::Context<String, RT>)
+//! where
+//!     RT: rt::Access,
+//! {
+//!     while let Ok(msg) = ctx.receive_next().await {
+//!         println!("received message: {}", msg);
+//!     }
+//! }
+//! ```
 
 use std::future::Future;
 use std::marker::PhantomData;
