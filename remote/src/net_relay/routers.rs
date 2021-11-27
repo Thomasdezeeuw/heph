@@ -50,15 +50,14 @@ impl<M> Clone for Relay<M> {
     }
 }
 
-impl<Msg, M> Route<Msg> for Relay<M>
+impl<M> Route<M> for Relay<M>
 where
-    Msg: Into<M>,
     M: 'static + Unpin,
 {
     type Error = SendError;
     type Route<'a> = SendValue<'a, M>;
 
-    fn route<'a>(&'a mut self, msg: Msg, _: SocketAddr) -> Self::Route<'a> {
+    fn route<'a>(&'a mut self, msg: M, _: SocketAddr) -> Self::Route<'a> {
         self.actor_ref.send(msg)
     }
 }
@@ -90,15 +89,14 @@ impl<M> Clone for RelayGroup<M> {
     }
 }
 
-impl<Msg, M> Route<Msg> for RelayGroup<M>
+impl<M> Route<M> for RelayGroup<M>
 where
-    Msg: Into<M> + Clone,
-    M: 'static + Unpin,
+    M: Clone + Unpin + 'static,
 {
     type Error = !;
     type Route<'a> = Ready<Result<(), Self::Error>>;
 
-    fn route<'a>(&'a mut self, msg: Msg, _: SocketAddr) -> Self::Route<'a> {
+    fn route<'a>(&'a mut self, msg: M, _: SocketAddr) -> Self::Route<'a> {
         let _ = self.actor_group.try_send(msg, self.delivery);
         ready(Ok(()))
     }
