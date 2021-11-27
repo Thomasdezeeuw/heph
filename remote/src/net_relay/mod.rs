@@ -101,6 +101,7 @@ use serde::Serialize;
 
 pub mod routers;
 mod udp;
+mod uuid;
 
 #[doc(no_inline)]
 pub use routers::{Relay, RelayGroup};
