@@ -45,6 +45,7 @@ const MAX_PACKET_SIZE: usize = 1 << 16; // ~65kb.
 ///
 /// [`ActorRef`]: heph::ActorRef
 /// [`ActorRef::map_fn`]: heph::ActorRef::map_fn
+#[derive(Debug)]
 pub enum UdpRelayMessage<M> {
     /// Relay message `M` to `target`.
     Relay { message: M, target: SocketAddr },
