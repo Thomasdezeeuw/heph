@@ -30,7 +30,7 @@ where
 
 /// [`Route`] implementation that routes all messages to a single
 /// actor.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Relay<M> {
     actor_ref: ActorRef<M>,
 }
@@ -39,6 +39,14 @@ impl<M> Relay<M> {
     /// Relay all remote messages to the `actor_ref`.
     pub const fn to(actor_ref: ActorRef<M>) -> Relay<M> {
         Relay { actor_ref }
+    }
+}
+
+impl<M> Clone for Relay<M> {
+    fn clone(&self) -> Relay<M> {
+        Relay {
+            actor_ref: self.actor_ref.clone(),
+        }
     }
 }
 
@@ -57,7 +65,7 @@ where
 
 /// [`Route`] implementation that routes all messages to a group of
 /// actors.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct RelayGroup<M> {
     actor_group: ActorGroup<M>,
     delivery: Delivery,
@@ -69,6 +77,15 @@ impl<M> RelayGroup<M> {
         RelayGroup {
             actor_group,
             delivery,
+        }
+    }
+}
+
+impl<M> Clone for RelayGroup<M> {
+    fn clone(&self) -> RelayGroup<M> {
+        RelayGroup {
+            actor_group: self.actor_group.clone(),
+            delivery: self.delivery.clone(),
         }
     }
 }
