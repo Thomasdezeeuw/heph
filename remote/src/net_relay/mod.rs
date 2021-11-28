@@ -1,8 +1,9 @@
 //! Relay messages over the network.
 //!
 //! The remote relay is an actor that relays messages to actor(s) on remote
-//! nodes. It allows actors to communicate using `ActorRef`s, transparently
-//! sending the message of the network.
+//! nodes. The main purpose it to abstract away the network from the
+//! communication between actors. It allows actors to communicate using
+//! `ActorRef`s, transparently sending the message of the network.
 //!
 //! Only a single relay actor has be started per process, it can route messages
 //! from multiple remote actors to one or more local actors. The [`Route`] trait
@@ -40,45 +41,6 @@
 //! let mut runtime = Runtime::new()?;
 //!
 //! // Spawn our local actor.
-//! let local_actor = local_actor as fn(_) -> _;
-//! let local_actor_ref = runtime.spawn(NoSupervisor, local_actor, (), ActorOptions::default());
-//!
-//! let supervisor = RelaySupervisor::new(local_address);
-//! // Create a router that relays all incoming messages to our local actor.
-//! let router: Relay<String> = Relay::to(local_actor_ref);
-//! let relay = net_relay::Config::default().udp().json().route(router);
-//! // Spawn our remote relay actor.
-//! let remote_ref: ActorRef<UdpRelayMessage<String>> =
-//!     runtime.spawn(supervisor, relay, local_address, ActorOptions::default());
-//!
-//! // For convenience we can map the actor ref to an easier to use type.
-//! let remote_ref: ActorRef<Outgoing> =
-//!     remote_ref.map_fn(move |msg: Outgoing| UdpRelayMessage::Relay {
-//!         message: msg.0,
-//!         target: remote_address,
-//!     });
-//!
-//! // Now the actor reference can be used like any other and it will deliver
-//! // the message to the actor across the network (assuming someone is
-//! // listening of course).
-//! remote_ref
-//!     .try_send(Outgoing("Hello world!".to_owned()))
-//!     .unwrap();
-//!
-//! // Dropping all reference to the relay actor will stop it.
-//! drop(remote_ref);
-//! // If you want keep listening for remote messages, even though you're not
-//! // sending any of your own, you'll need to keep `remote_ref` alive at least
-//! // until `runtime.start()` below returns.
-//!
-//! runtime.start()
-//! # }
-//!
-//! restart_supervisor!(RelaySupervisor, "relay actor", SocketAddr);
-//!
-//! struct Outgoing(String);
-//!
-//! // Our local actor.
 //! async fn local_actor<RT>(mut ctx: actor::Context<String, RT>)
 //! where
 //!     RT: rt::Access,
@@ -87,6 +49,41 @@
 //!         println!("received message: {}", msg);
 //!     }
 //! }
+//! let local_actor = local_actor as fn(_) -> _;
+//! let local_actor_ref = runtime.spawn(NoSupervisor, local_actor, (), ActorOptions::default());
+//!
+//! // Next we're going to spawn our net relay actor.
+//! // First it needs a supervisor.
+//! restart_supervisor!(RelaySupervisor, "relay actor", SocketAddr);
+//! let supervisor = RelaySupervisor::new(local_address);
+//! // It needs a way to route all incoming messages, here we're direct them to
+//! // our local actor using the `local_actor_ref`.
+//! let router: Relay<String> = Relay::to(local_actor_ref);
+//! // Configure the net relay.
+//! let relay = net_relay::Config::default().udp().json().route(router);
+//! // Finally spawn it like a normal actor.
+//! let remote_ref: ActorRef<UdpRelayMessage<String>> =
+//!     runtime.spawn(supervisor, relay, local_address, ActorOptions::default());
+//!
+//! // For convenience we can map the actor ref to an easier to use type.
+//! let remote_ref: ActorRef<String> = remote_ref.map_fn(move |msg| UdpRelayMessage::Relay {
+//!     message: msg,
+//!     target: remote_address,
+//! });
+//!
+//! // Now the actor reference can be used like any other and it will deliver
+//! // the message to the actor across the network (assuming someone is
+//! // listening of course).
+//! remote_ref.try_send("Hello world!").unwrap();
+//!
+//! // Dropping all reference to the relay actor will stop it.
+//! drop(remote_ref);
+//! // If you want keep listening for remote messages, even though you're not
+//! // sending any of your own, you'll need to keep `remote_ref` alive at least
+//! // until `runtime.start()` returns below.
+//!
+//! runtime.start()
+//! # }
 //! ```
 
 use std::future::Future;
@@ -158,6 +155,10 @@ pub enum Json {}
 ///  * `Out`: outgoing message type.
 ///  * `In`: incoming message type (those that are routed by `R`).
 ///  * `RT`: [`rt::Access`] type used by the spawned actor.
+///
+/// See the [module documentation] for an example.
+///
+/// [module documentation]: crate::net_relay#examples
 pub struct Config<R, CT, S, Out, In, RT> {
     /// How to route incoming messages.
     router: R,
