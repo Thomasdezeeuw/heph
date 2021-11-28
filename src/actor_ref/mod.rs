@@ -151,7 +151,7 @@ unsafe impl<M: Send> Sync for ActorRefKind<M> {}
 impl<M> Unpin for ActorRefKind<M> {}
 
 impl<M> ActorRef<M> {
-    /// Create a new `ActorRef` for an actor using `inbox_ref`.
+    /// Create a new `ActorRef` for an actor using `sender`.
     pub(crate) const fn local(sender: Sender<M>) -> ActorRef<M> {
         ActorRef {
             kind: ActorRefKind::Local(sender),
