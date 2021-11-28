@@ -1,5 +1,6 @@
 use std::convert::{TryFrom, TryInto};
 use std::fmt;
+use std::hash::{Hash, Hasher};
 use std::ops::Range;
 
 use getrandom::getrandom;
@@ -50,7 +51,22 @@ impl UuidGenerator {
 }
 
 /// Universally Unique(-ish) Identifier (UUID).
+#[derive(Copy, Clone)]
 pub(crate) struct Uuid([u8; 16]);
+
+impl Eq for Uuid {}
+
+impl PartialEq for Uuid {
+    fn eq(&self, other: &Self) -> bool {
+        u128::from_ne_bytes(self.0) == u128::from_ne_bytes(other.0)
+    }
+}
+
+impl Hash for Uuid {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        u128::from_ne_bytes(self.0).hash(state)
+    }
+}
 
 /// Groups of 8, 4, 4, 4, 12 bytes.
 const HYPHENS: [Range<usize>; 5] = [0..8, 9..13, 14..18, 19..23, 24..36];
