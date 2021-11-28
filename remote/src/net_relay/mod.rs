@@ -60,7 +60,7 @@
 //! // our local actor using the `local_actor_ref`.
 //! let router: Relay<String> = Relay::to(local_actor_ref);
 //! // Configure the net relay.
-//! let relay = net_relay::Config::default().udp().json().route(router);
+//! let relay = net_relay::Config::new().udp().json().route(router);
 //! // Finally spawn it like a normal actor.
 //! let remote_ref: ActorRef<UdpRelayMessage<String>> =
 //!     runtime.spawn(supervisor, relay, local_address, ActorOptions::default());
@@ -176,9 +176,9 @@ impl<Out, In, RT> Config<(), (), (), Out, In, RT> {
     /// This still needs the following configuration options to be set (all set
     /// to `()`):
     ///  * `R`: [`Route`]r,
-    ///  * `CT`: Connection type,
+    ///  * `CT`: connection type,
     ///  * `S`: serialisation format.
-    pub const fn default() -> Config<(), (), (), Out, In, RT> {
+    pub const fn new() -> Config<(), (), (), Out, In, RT> {
         Config {
             router: (),
             conection_type: PhantomData,
