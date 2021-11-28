@@ -93,12 +93,14 @@ use std::{fmt, io};
 
 use heph::actor::{self, Actor, NewActor};
 use heph::rt;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
+use serde::de::{self, Deserialize, DeserializeOwned, Deserializer, MapAccess, Visitor};
+use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 pub mod routers;
 mod udp;
 mod uuid;
+
+use uuid::Uuid;
 
 #[doc(no_inline)]
 pub use routers::{Relay, RelayGroup};
@@ -331,4 +333,115 @@ pub trait Route<M> {
     ///
     /// [`ready`]: std::future::ready
     fn route<'a>(&'a mut self, msg: M, source: SocketAddr) -> Self::Route<'a>;
+}
+
+/// Message type used in communicating.
+struct Message<M> {
+    uuid: Uuid,
+    msg: M,
+}
+
+// NOTE: manually implementing this instead of deriving to not pull in a bunch
+// of dependencies.
+impl<'de, M> Deserialize<'de> for Message<M>
+where
+    M: Deserialize<'de>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        enum Field {
+            Uuid,
+            Msg,
+        }
+
+        impl<'de> Deserialize<'de> for Field {
+            fn deserialize<D>(deserializer: D) -> Result<Field, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                struct FieldVisitor;
+
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Field;
+
+                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                        formatter.write_str("`uuid` or `message`")
+                    }
+
+                    fn visit_str<E>(self, value: &str) -> Result<Field, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value {
+                            "uuid" => Ok(Field::Uuid),
+                            "message" => Ok(Field::Msg),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
+        }
+
+        struct MessageVisitor<M>(PhantomData<M>);
+
+        impl<'de, M> Visitor<'de> for MessageVisitor<M>
+        where
+            M: Deserialize<'de>,
+        {
+            type Value = Message<M>;
+
+            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                formatter.write_str("struct Message")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<Message<M>, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut uuid = None;
+                let mut msg = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Uuid => {
+                            if uuid.is_some() {
+                                return Err(de::Error::duplicate_field("uuid"));
+                            }
+                            uuid = Some(map.next_value()?);
+                        }
+                        Field::Msg => {
+                            if msg.is_some() {
+                                return Err(de::Error::duplicate_field("message"));
+                            }
+                            msg = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let uuid = uuid.ok_or_else(|| de::Error::missing_field("uuid"))?;
+                let msg = msg.ok_or_else(|| de::Error::missing_field("message"))?;
+                Ok(Message { uuid, msg })
+            }
+        }
+
+        const FIELDS: &'static [&'static str] = &["uuid", "message"];
+        deserializer.deserialize_struct("Message", FIELDS, MessageVisitor(PhantomData))
+    }
+}
+
+impl<M> Serialize for Message<M>
+where
+    M: Serialize,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("Message", 2)?;
+        state.serialize_field("uuid", &self.uuid)?;
+        state.serialize_field("message", &self.msg)?;
+        state.end()
+    }
 }
