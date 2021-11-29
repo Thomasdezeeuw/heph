@@ -97,6 +97,7 @@ use serde::de::{self, Deserialize, DeserializeOwned, Deserializer, MapAccess, Vi
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 pub mod routers;
+mod tcp;
 mod udp;
 mod uuid;
 
@@ -104,6 +105,8 @@ use uuid::Uuid;
 
 #[doc(no_inline)]
 pub use routers::{Relay, RelayGroup};
+#[doc(inline)]
+pub use tcp::RelayMessage;
 #[doc(inline)]
 pub use udp::UdpRelayMessage;
 
@@ -240,6 +243,33 @@ impl<R, CT, Out, In, RT> Config<R, CT, (), Out, In, RT> {
     }
 }
 
+impl<R, S, Out, In, RT> NewActor for Config<R, Tcp, S, Out, In, RT>
+where
+    R: Route<In> + Clone,
+    In: DeserializeOwned,
+    S: Serde,
+    RT: rt::Access,
+    Out: Serialize,
+{
+    type Message = RelayMessage<Out>;
+    type Argument = SocketAddr;
+    type Actor = impl Actor<Error = io::Error>;
+    type Error = !;
+    type RuntimeAccess = RT;
+
+    fn new(
+        &mut self,
+        ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
+        remote_address: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
+        Ok(tcp::remote_relay::<S, Out, In, R, RT>(
+            ctx,
+            remote_address,
+            self.router.clone(),
+        ))
+    }
+}
+
 impl<R, S, Out, In, RT> NewActor for Config<R, Udp, S, Out, In, RT>
 where
     R: Route<In> + Clone,
@@ -277,20 +307,48 @@ mod private {
 
     use super::Json;
 
+    /// Trait that defined (de)serialisation.
     pub trait Serde {
+        type Iter<'a, T>: DeIter<T>
+        where
+            T: DeserializeOwned;
+
+        /// Error type wrapped into an `io::Error`.
         type Error: fmt::Display;
 
+        /// Deserialise from the `buf`fer.
         fn from_slice<'a, T>(buf: &'a [u8]) -> Result<T, Self::Error>
         where
             T: DeserializeOwned;
 
+        /// Serialise `msg` into the `buf`fer.
         fn to_buf<'a, T>(buf: &mut Vec<u8>, msg: &'a T) -> Result<(), Self::Error>
         where
             T: ?Sized + Serialize;
+
+        /// Returns an iterator that deserialises messages from the `buf`fer.
+        fn iter<'a, T>(buf: &'a [u8]) -> Self::Iter<'a, T>
+        where
+            T: DeserializeOwned;
+    }
+
+    /// Trait that defined an iterator for deserialised messages.
+    pub trait DeIter<T>: Iterator<Item = Result<T, Self::Error>>
+    where
+        T: DeserializeOwned,
+    {
+        type Error: fmt::Display;
+
+        /// Returns the number of bytes used.
+        fn byte_offset(&self) -> usize;
     }
 
     #[cfg(any(feature = "json"))]
     impl Serde for Json {
+        type Iter<'a, T>
+        where
+            T: DeserializeOwned,
+        = serde_json::StreamDeserializer<'a, serde_json::de::SliceRead<'a>, T>;
         type Error = serde_json::Error;
 
         fn from_slice<'a, T>(buf: &'a [u8]) -> Result<T, Self::Error>
@@ -306,10 +364,30 @@ mod private {
         {
             serde_json::to_writer(buf, msg)
         }
+
+        fn iter<'a, T>(buf: &'a [u8]) -> Self::Iter<'a, T>
+        where
+            T: DeserializeOwned,
+        {
+            serde_json::StreamDeserializer::new(serde_json::de::SliceRead::new(buf))
+        }
+    }
+
+    #[cfg(any(feature = "json"))]
+    impl<'de, R, T> DeIter<T> for serde_json::StreamDeserializer<'de, R, T>
+    where
+        T: DeserializeOwned,
+        R: serde_json::de::Read<'de>,
+    {
+        type Error = serde_json::Error;
+
+        fn byte_offset(&self) -> usize {
+            serde_json::StreamDeserializer::byte_offset(self)
+        }
     }
 }
 
-use private::Serde;
+use private::{DeIter, Serde};
 
 /// Trait that determines how to route a message.
 pub trait Route<M> {
