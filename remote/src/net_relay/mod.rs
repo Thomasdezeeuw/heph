@@ -170,12 +170,12 @@ pub enum Json {}
 /// See the [module documentation] for an example.
 ///
 /// [module documentation]: crate::net_relay#examples
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub struct Config<R, CT, S, Out, In, RT> {
     /// How to route incoming messages.
     router: R,
     /// Type of connection to use.
-    conection_type: PhantomData<CT>,
+    connection_type: PhantomData<CT>,
     /// Type of serialisation to use.
     serialisation: PhantomData<S>,
     /// Types needed in the `NewActor` implementation.
@@ -193,7 +193,7 @@ impl<Out, In, RT> Config<(), (), (), Out, In, RT> {
     pub const fn new() -> Config<(), (), (), Out, In, RT> {
         Config {
             router: (),
-            conection_type: PhantomData,
+            connection_type: PhantomData,
             serialisation: PhantomData,
             _types: PhantomData,
         }
@@ -208,7 +208,7 @@ impl<CT, S, Out, In, RT> Config<(), CT, S, Out, In, RT> {
     {
         Config {
             router,
-            conection_type: self.conection_type,
+            connection_type: self.connection_type,
             serialisation: self.serialisation,
             _types: PhantomData,
         }
@@ -220,7 +220,7 @@ impl<R, S, Out, In, RT> Config<R, (), S, Out, In, RT> {
     pub fn tcp(self) -> Config<R, Tcp, S, Out, In, RT> {
         Config {
             router: self.router,
-            conection_type: PhantomData,
+            connection_type: PhantomData,
             serialisation: self.serialisation,
             _types: PhantomData,
         }
@@ -230,7 +230,7 @@ impl<R, S, Out, In, RT> Config<R, (), S, Out, In, RT> {
     pub fn udp(self) -> Config<R, Udp, S, Out, In, RT> {
         Config {
             router: self.router,
-            conection_type: PhantomData,
+            connection_type: PhantomData,
             serialisation: self.serialisation,
             _types: PhantomData,
         }
@@ -243,7 +243,7 @@ impl<R, CT, Out, In, RT> Config<R, CT, (), Out, In, RT> {
     pub fn json(self) -> Config<R, CT, Json, Out, In, RT> {
         Config {
             router: self.router,
-            conection_type: self.conection_type,
+            connection_type: self.connection_type,
             serialisation: PhantomData,
             _types: PhantomData,
         }
@@ -301,6 +301,27 @@ where
             local_address,
             self.router.clone(),
         ))
+    }
+}
+
+impl<R, CT, S, Out, In, RT> Clone for Config<R, CT, S, Out, In, RT>
+where
+    R: Clone,
+{
+    fn clone(&self) -> Config<R, CT, S, Out, In, RT> {
+        Config {
+            router: self.router.clone(),
+            connection_type: self.connection_type,
+            serialisation: self.serialisation,
+            _types: self._types,
+        }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        self.router.clone_from(&source.router);
+        self.connection_type.clone_from(&source.connection_type);
+        self.serialisation.clone_from(&source.serialisation);
+        self._types.clone_from(&source._types);
     }
 }
 
