@@ -164,6 +164,7 @@ pub enum Json {}
 /// See the [module documentation] for an example.
 ///
 /// [module documentation]: crate::net_relay#examples
+#[derive(Clone)]
 pub struct Config<R, CT, S, Out, In, RT> {
     /// How to route incoming messages.
     router: R,
