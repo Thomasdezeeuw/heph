@@ -97,17 +97,13 @@ where
     loop {
         buf.clear();
         match either(ctx.receive_next(), socket.recv_from(&mut buf)).await {
-            Ok(Ok(msg)) => match msg {
-                // Received an outgoing message we want to relay to a remote
-                // actor.
-                UdpRelayMessage::Relay { message, target } => {
-                    send_message::<S, Out>(&mut socket, &mut buf, &mut uuid_gen, target, &message)
-                        .await?
-                }
-                UdpRelayMessage::Terminate => return Ok(()),
-            },
-            // TODO: do we want to continue here? Still relaying messages from
-            // remote actors.
+            // Received an outgoing message we want to relay to a remote
+            // actor.
+            Ok(Ok(UdpRelayMessage::Relay { message, target })) => {
+                send_message::<S, Out>(&mut socket, &mut buf, &mut uuid_gen, target, &message)
+                    .await?
+            }
+            Ok(Ok(UdpRelayMessage::Terminate)) => return Ok(()),
             // No more messages.
             Ok(Err(NoMessages)) => return Ok(()),
             // Received an incoming packet.
