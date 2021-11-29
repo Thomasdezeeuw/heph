@@ -70,6 +70,7 @@ where
     R: Route<In>,
 {
     let mut stream = TcpStream::connect(&mut ctx, remote_address)?.await?;
+    stream.set_nodelay(true)?;
     let mut buf = Vec::with_capacity(INITIAL_BUF_SIZE);
     let mut uuid_gen = UuidGenerator::new();
 
