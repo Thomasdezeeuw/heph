@@ -49,7 +49,12 @@ const MAX_PACKET_SIZE: usize = 1 << 16; // ~65kb.
 #[derive(Debug)]
 pub enum UdpRelayMessage<M> {
     /// Relay message `M` to `target`.
-    Relay { message: M, target: SocketAddr },
+    Relay {
+        /// Message to send.
+        message: M,
+        /// Target to send the message to.
+        target: SocketAddr,
+    },
     /// Stop the relay.
     Terminate,
 }
