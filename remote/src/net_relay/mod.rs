@@ -120,6 +120,8 @@ pub use udp::UdpRelayMessage;
 /// provided about message delivery.
 ///
 /// [TCP]: heph::net::tcp
+#[allow(missing_debug_implementations)]
+#[allow(clippy::empty_enum)]
 pub enum Tcp {}
 
 /// Use a [UDP] connection.
@@ -145,10 +147,14 @@ pub enum Tcp {}
 ///   message is successfully processed by the remote actor.
 ///
 /// [RPC]: heph::actor_ref::rpc
+#[allow(missing_debug_implementations)]
+#[allow(clippy::empty_enum)]
 pub enum Udp {}
 
 /// Use JSON serialisation.
 #[cfg(any(feature = "json"))]
+#[allow(missing_debug_implementations)]
+#[allow(clippy::empty_enum)]
 pub enum Json {}
 
 /// Configuration for the net relay.
@@ -164,7 +170,7 @@ pub enum Json {}
 /// See the [module documentation] for an example.
 ///
 /// [module documentation]: crate::net_relay#examples
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Config<R, CT, S, Out, In, RT> {
     /// How to route incoming messages.
     router: R,
@@ -445,7 +451,7 @@ where
                 impl<'de> Visitor<'de> for FieldVisitor {
                     type Value = Field;
 
-                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+                    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                         formatter.write_str("`uuid` or `message`")
                     }
 
@@ -473,7 +479,7 @@ where
         {
             type Value = Message<M>;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("struct Message")
             }
 
