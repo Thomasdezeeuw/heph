@@ -18,8 +18,9 @@ pub(crate) struct UuidGenerator(u64, u64);
 
 impl UuidGenerator {
     /// Create a new generator.
+    #[allow(clippy::unreadable_literal)]
     pub(crate) fn new() -> UuidGenerator {
-        let mut bytes = [0u8; 16];
+        let mut bytes = [0; 16];
         match getrandom(&mut bytes) {
             Ok(_) => {
                 let b0 = u64::from_be_bytes(TryInto::try_into(&bytes[0..8]).unwrap());
@@ -34,12 +35,13 @@ impl UuidGenerator {
     }
 
     /// Generate the next UUID.
+    #[allow(clippy::unreadable_literal)]
     pub(crate) fn next(&mut self) -> Uuid {
         let bytes1 = self.0;
         let bytes0 = self.1;
         self.0 = self.0.wrapping_add(self.1);
         self.1 = self.1.wrapping_add(92478483931537517);
-        let mut bytes = ((bytes0 as u128) + ((bytes1 as u128) << 64)).to_ne_bytes();
+        let mut bytes = (u128::from(bytes0) + (u128::from(bytes1) << 64)).to_ne_bytes();
 
         // Set the variant to RFC4122 (section 4.1.1).
         bytes[8] = (bytes[8] & 0x3f) | 0x80;

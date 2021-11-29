@@ -83,6 +83,7 @@ impl<M> TryFrom<Signal> for UdpRelayMessage<M> {
 /// It receives `Out`going messages from it's inbox and sends them to a remote
 /// actor using UDP. Any `In`coming message on the same socket will be routed
 /// using the `R`outer.
+#[allow(clippy::future_not_send)]
 pub(crate) async fn remote_relay<S, Out, In, R, RT>(
     mut ctx: actor::Context<UdpRelayMessage<Out>, RT>,
     local_address: SocketAddr,
@@ -108,9 +109,7 @@ where
                 send_message::<S, Out>(&mut socket, &mut buf, &mut uuid_gen, target, &message)
                     .await?
             }
-            Ok(Ok(UdpRelayMessage::Terminate)) => return Ok(()),
-            // No more messages.
-            Ok(Err(NoMessages)) => return Ok(()),
+            Ok(Ok(UdpRelayMessage::Terminate) | Err(NoMessages)) => return Ok(()),
             // Received an incoming packet.
             Err(Ok((_, source))) => route_message::<S, R, In>(&mut router, &buf, source).await?,
             // Error receiving a packet.
@@ -120,6 +119,7 @@ where
 }
 
 /// Send a `msg` to a remote actor at `target` address, using `socket`.
+#[allow(clippy::future_not_send)]
 async fn send_message<S, M>(
     socket: &mut UdpSocket,
     buf: &mut Vec<u8>,
@@ -164,6 +164,7 @@ where
 ///
 /// Returns an error if the message can't be routed. Errors from deserialising
 /// the message in `buf` are only logged using `warn!`.
+#[allow(clippy::future_not_send)]
 async fn route_message<S, R, M>(router: &mut R, buf: &[u8], source: SocketAddr) -> io::Result<()>
 where
     S: Serde,
@@ -175,7 +176,7 @@ where
             Ok(()) => Ok(()),
             Err(err) => {
                 let msg = format!("failed to route message (from {}): {}", source, err);
-                return Err(io::Error::new(io::ErrorKind::Other, msg));
+                Err(io::Error::new(io::ErrorKind::Other, msg))
             }
         },
         Err(err) => {

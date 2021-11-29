@@ -308,6 +308,7 @@ impl<R, CT, S, Out, In, RT> Clone for Config<R, CT, S, Out, In, RT>
 where
     R: Clone,
 {
+    #[allow(clippy::used_underscore_binding)]
     fn clone(&self) -> Config<R, CT, S, Out, In, RT> {
         Config {
             router: self.router.clone(),
@@ -317,6 +318,7 @@ where
         }
     }
 
+    #[allow(clippy::used_underscore_binding)]
     fn clone_from(&mut self, source: &Self) {
         self.router.clone_from(&source.router);
         self.connection_type.clone_from(&source.connection_type);
@@ -532,7 +534,7 @@ where
             }
         }
 
-        const FIELDS: &'static [&'static str] = &["uuid", "message"];
+        const FIELDS: &[&str] = &["uuid", "message"];
         deserializer.deserialize_struct("Message", FIELDS, MessageVisitor(PhantomData))
     }
 }

@@ -84,7 +84,7 @@ impl<M> Clone for RelayGroup<M> {
     fn clone(&self) -> RelayGroup<M> {
         RelayGroup {
             actor_group: self.actor_group.clone(),
-            delivery: self.delivery.clone(),
+            delivery: self.delivery,
         }
     }
 }

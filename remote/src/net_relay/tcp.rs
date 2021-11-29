@@ -57,6 +57,7 @@ impl<M> TryFrom<Signal> for RelayMessage<M> {
 /// It receives `Out`going messages from it's inbox and sends them to a remote
 /// actor using TCP. Any `In`coming message on the same socket will be routed
 /// using the `R`outer.
+#[allow(clippy::future_not_send)]
 pub(crate) async fn remote_relay<S, Out, In, R, RT>(
     mut ctx: actor::Context<RelayMessage<Out>, RT>,
     remote_address: SocketAddr,
@@ -80,9 +81,7 @@ where
             Ok(Ok(RelayMessage::Relay(msg))) => {
                 send_message::<S, Out>(&mut stream, &mut buf, &mut uuid_gen, &msg).await?
             }
-            Ok(Ok(RelayMessage::Terminate)) => return Ok(()),
-            // No more messages.
-            Ok(Err(NoMessages)) => return Ok(()),
+            Ok(Ok(RelayMessage::Terminate) | Err(NoMessages)) => return Ok(()),
             // Received some incoming data.
             Err(Ok(_)) => route_messages::<S, R, In>(&mut router, &mut buf, remote_address).await?,
             // Error receiving data.
@@ -92,6 +91,7 @@ where
 }
 
 /// Send a `msg` to the remote actor, using `stream`.
+#[allow(clippy::future_not_send)]
 async fn send_message<S, M>(
     stream: &mut TcpStream,
     buf: &mut Vec<u8>,
@@ -117,6 +117,7 @@ where
 /// Routes all messages in `buf` using `router`.
 ///
 /// Returns an error if the message can't be routed or can't be deserialised.
+#[allow(clippy::future_not_send)]
 async fn route_messages<S, R, M>(
     router: &mut R,
     buf: &mut Vec<u8>,
