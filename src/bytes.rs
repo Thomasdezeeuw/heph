@@ -379,7 +379,7 @@ impl<'a> DerefMut for MaybeUninitSlice<'a> {
 /// ```
 pub trait BytesVectored {
     /// Type used as slice of buffers, usually this is an array.
-    type Bufs<'b>: AsMut<[MaybeUninitSlice<'b>]>;
+    type Bufs<'b>: AsMut<[MaybeUninitSlice<'b>]> where Self: 'b;
 
     /// Returns itself as a slice of [`MaybeUninitSlice`].
     fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b>;
@@ -431,7 +431,7 @@ impl<B> BytesVectored for &mut B
 where
     B: BytesVectored + ?Sized,
 {
-    type Bufs<'b> = B::Bufs<'b>;
+    type Bufs<'b> where Self: 'b = B::Bufs<'b>;
 
     fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
         (&mut **self).as_bufs()
@@ -454,7 +454,7 @@ impl<B, const N: usize> BytesVectored for [B; N]
 where
     B: Bytes,
 {
-    type Bufs<'b> = [MaybeUninitSlice<'b>; N];
+    type Bufs<'b> where Self: 'b = [MaybeUninitSlice<'b>; N];
 
     fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
         let mut bufs = MaybeUninit::uninit_array::<N>();
@@ -491,7 +491,7 @@ macro_rules! impl_vectored_bytes_tuple {
         impl<$( $t ),+> BytesVectored for ( $( $t ),+ )
             where $( $t: Bytes ),+
         {
-            type Bufs<'b> = [MaybeUninitSlice<'b>; $N];
+            type Bufs<'b> where Self: 'b = [MaybeUninitSlice<'b>; $N];
 
             fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
                 let mut bufs = MaybeUninit::uninit_array::<$N>();
@@ -584,7 +584,7 @@ impl<B> BytesVectored for LimitedBytes<B>
 where
     B: BytesVectored,
 {
-    type Bufs<'b> = B::Bufs<'b>;
+    type Bufs<'b> where Self: 'b = B::Bufs<'b>;
 
     fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
         let mut bufs = self.buf.as_bufs();
