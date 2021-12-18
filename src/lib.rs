@@ -72,7 +72,6 @@
     binary_heap_retain,
     const_fn_trait_bound,
     const_option,
-    destructuring_assignment,
     doc_cfg,
     doc_cfg_hide,
     drain_filter,

@@ -1406,7 +1406,10 @@ mod private {
 }
 
 impl<'c> crate::body::PrivateBody<'c> for Body<'c> {
-    type WriteBody<'s, 'h> = private::SendBody<'c, 's, 'h>;
+    type WriteBody<'s, 'h>
+    where
+        'c: 'h,
+    = private::SendBody<'c, 's, 'h>;
 
     fn write_message<'s, 'h>(
         self,

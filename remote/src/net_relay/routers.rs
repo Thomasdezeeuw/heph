@@ -20,7 +20,10 @@ where
     Fut: Future<Output = Result<(), E>>,
     E: fmt::Display,
 {
-    type Route<'a> = Fut;
+    type Route<'a>
+    where
+        Self: 'a,
+    = Fut;
     type Error = E;
 
     fn route<'a>(&'a mut self, msg: M, source: SocketAddr) -> Self::Route<'a> {

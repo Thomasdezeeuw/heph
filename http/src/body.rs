@@ -53,7 +53,9 @@ mod private {
     ///
     /// [`Body`]: super::Body
     pub trait PrivateBody<'body> {
-        type WriteBody<'stream, 'head>: Future<Output = io::Result<()>>;
+        type WriteBody<'stream, 'head>: Future<Output = io::Result<()>>
+        where
+            'body: 'head;
 
         /// Write a HTTP message to `stream`.
         ///
@@ -362,7 +364,10 @@ impl<'b> Body<'b> for EmptyBody {
 }
 
 impl<'b> PrivateBody<'b> for EmptyBody {
-    type WriteBody<'s, 'h> = SendAll<'s, 'h>;
+    type WriteBody<'s, 'h>
+    where
+        'b: 'h,
+    = SendAll<'s, 'h>;
 
     fn write_message<'s, 'h>(
         self,
@@ -403,7 +408,10 @@ impl<'b> Body<'b> for OneshotBody<'b> {
 }
 
 impl<'b> PrivateBody<'b> for OneshotBody<'b> {
-    type WriteBody<'s, 'h> = SendOneshotBody<'s, 'h>;
+    type WriteBody<'s, 'h>
+    where
+        'b: 'h,
+    = SendOneshotBody<'s, 'h>;
 
     fn write_message<'s, 'h>(
         self,
@@ -494,7 +502,10 @@ impl<'b, B> PrivateBody<'b> for StreamingBody<'b, B>
 where
     B: Stream<Item = io::Result<&'b [u8]>>,
 {
-    type WriteBody<'s, 'h> = SendStreamingBody<'s, 'h, 'b, B>;
+    type WriteBody<'s, 'h>
+    where
+        'b: 'h,
+    = SendStreamingBody<'s, 'h, 'b, B>;
 
     fn write_message<'s, 'h>(
         self,
@@ -550,7 +561,10 @@ impl<'b, B> PrivateBody<'b> for ChunkedBody<'b, B>
 where
     B: Stream<Item = io::Result<&'b [u8]>>,
 {
-    type WriteBody<'s, 'h> = SendChunkedBody<'s, 'h, 'b, B>;
+    type WriteBody<'s, 'h>
+    where
+        'b: 'h,
+    = SendChunkedBody<'s, 'h, 'b, B>;
 
     fn write_message<'s, 'h>(
         self,
@@ -611,7 +625,10 @@ impl<'f, F> PrivateBody<'f> for FileBody<'f, F>
 where
     F: FileSend,
 {
-    type WriteBody<'s, 'h> = SendFileBody<'s, 'h, 'f, F>;
+    type WriteBody<'s, 'h>
+    where
+        'f: 'h,
+    = SendFileBody<'s, 'h, 'f, F>;
 
     fn write_message<'s, 'h>(
         self,
