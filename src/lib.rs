@@ -146,6 +146,8 @@ pub mod quick_start;
 pub mod rt;
 pub mod spawn;
 pub mod supervisor;
+#[cfg(target_os = "linux")]
+pub mod systemd;
 #[cfg(any(test, feature = "test"))]
 #[doc(cfg(feature = "test"))]
 pub mod test;
