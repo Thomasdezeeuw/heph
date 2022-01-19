@@ -291,10 +291,10 @@ fn host_info() -> io::Result<(Box<str>, Box<str>)> {
 
     // SAFETY: call to `uname(2)` above ensures `uname_info` is initialised.
     let uname_info = unsafe { uname_info.assume_init() };
-    let sysname = unsafe { CStr::from_ptr(&uname_info.sysname as *const _).to_string_lossy() };
-    let release = unsafe { CStr::from_ptr(&uname_info.release as *const _).to_string_lossy() };
-    let version = unsafe { CStr::from_ptr(&uname_info.version as *const _).to_string_lossy() };
-    let nodename = unsafe { CStr::from_ptr(&uname_info.nodename as *const _).to_string_lossy() };
+    let sysname = unsafe { CStr::from_ptr(uname_info.sysname.as_ptr().cast()).to_string_lossy() };
+    let release = unsafe { CStr::from_ptr(uname_info.release.as_ptr().cast()).to_string_lossy() };
+    let version = unsafe { CStr::from_ptr(uname_info.version.as_ptr().cast()).to_string_lossy() };
+    let nodename = unsafe { CStr::from_ptr(uname_info.nodename.as_ptr().cast()).to_string_lossy() };
 
     let os = format!("{} ({} {} {})", OS, sysname, release, version).into_boxed_str();
     let hostname = nodename.into_owned().into_boxed_str();
@@ -303,7 +303,6 @@ fn host_info() -> io::Result<(Box<str>, Box<str>)> {
 
 /// Get the host id by reading `/etc/machine-id` on Linux or `/etc/hostid` on
 /// FreeBSD.
-#[allow(clippy::doc_markdown)] // Remove after https://github.com/rust-lang/rust-clippy/pull/7334 is released.
 #[cfg(any(target_os = "freebsd", target_os = "linux"))]
 fn host_id() -> io::Result<Uuid> {
     use std::fs::File;
