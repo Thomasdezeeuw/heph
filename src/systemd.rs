@@ -312,11 +312,18 @@ impl<RT: rt::Access> actor::Bound<RT> for Notify {
 ///
 /// It will set the application state (with the service manager) to ready when
 /// it is spawned. Once it receives a signal (in the form of a  message) it will
-/// set the state to stopping. Finally it will ping the service manager if a
-/// watchdog is active.
-pub async fn actor<RT>(mut ctx: actor::Context<Signal, RT>) -> io::Result<()>
+/// set the state to stopping.
+///
+/// Finally it will ping the service manager if a watchdog is active. It will
+/// check using `health_check` on the current status of the application.
+pub async fn actor<RT, H, E>(
+    mut ctx: actor::Context<Signal, RT>,
+    mut health_check: H,
+) -> io::Result<()>
 where
     RT: rt::Access + Clone,
+    H: FnMut() -> Result<(), E>,
+    E: ToString,
 {
     let notify = match Notify::new(&mut ctx)? {
         Some(notify) => notify,
@@ -345,7 +352,16 @@ where
                     return Ok(());
                 }
                 // Deadline passed, ping the service manager.
-                Err(_) => notify.ping_watchdog().await?,
+                Err(_) => {
+                    if let Err(err) = health_check() {
+                        let err = err.to_string();
+                        debug!("setting status with service manager to '{}'", err);
+                        notify.change_status(&err).await?;
+                    } else {
+                        debug!("pinging service manager watchdog");
+                        notify.ping_watchdog().await?
+                    }
+                }
             }
         }
     } else {
@@ -356,6 +372,8 @@ where
             }
         }
     }
+
+    debug!("setting state to stopping with service manager");
     return notify.change_state(State::Stopping, None).await;
 }
 
