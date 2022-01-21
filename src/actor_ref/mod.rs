@@ -417,13 +417,7 @@ trait MappedActorRef<M> {
     /// Same as [`ActorRef::try_send`] but converts the message first.
     fn try_mapped_send(&self, msg: M) -> Result<(), SendError>;
 
-    fn mapped_send<'r, 'fut>(
-        &'r self,
-        msg: M,
-    ) -> Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>
-    where
-        'r: 'fut,
-        M: 'fut;
+    fn mapped_send<'r>(&'r self, msg: M) -> MappedSendValue<'r>;
 
     fn mapped_join<'r, 'fut>(&'r self) -> Pin<Box<dyn Future<Output = ()> + 'fut>>
     where
@@ -444,19 +438,20 @@ where
             .and_then(|msg| self.try_send(msg))
     }
 
-    fn mapped_send<'r, 'fut>(
-        &'r self,
-        msg: Msg,
-    ) -> Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>
-    where
-        'r: 'fut,
-        Msg: 'fut,
-    {
-        let mapped_send = match M::try_from(msg) {
-            Ok(msg) => MappedSendValue::Send(self.send(msg)),
-            Err(..) => MappedSendValue::MapErr,
-        };
-        Box::pin(mapped_send)
+    fn mapped_send<'r>(&'r self, msg: Msg) -> MappedSendValue<'r> {
+        match M::try_from(msg) {
+            Ok(msg) => match &self.kind {
+                ActorRefKind::Local(sender) => match sender.try_send(msg) {
+                    Ok(()) => MappedSendValue::Send,
+                    Err(heph_inbox::SendError::Full(msg)) => {
+                        MappedSendValue::Sending(Box::pin(self.send(msg)))
+                    }
+                    Err(heph_inbox::SendError::Disconnected(_)) => MappedSendValue::SendErr,
+                },
+                ActorRefKind::Mapped(sender) => sender.mapped_send(msg),
+            },
+            Err(..) => MappedSendValue::SendErr,
+        }
     }
 
     fn mapped_join<'r, 'fut>(&'r self) -> Pin<Box<dyn Future<Output = ()> + 'fut>>
@@ -492,19 +487,20 @@ where
         }
     }
 
-    fn mapped_send<'r, 'fut>(
-        &'r self,
-        msg: Msg,
-    ) -> Pin<Box<dyn Future<Output = Result<(), SendError>> + 'fut>>
-    where
-        'r: 'fut,
-        Msg: 'fut,
-    {
-        let mapped_send = match (self.map)(msg) {
-            Ok(msg) => MappedSendValue::Send(self.actor_ref.send(msg)),
-            Err(..) => MappedSendValue::MapErr,
-        };
-        Box::pin(mapped_send)
+    fn mapped_send<'r>(&'r self, msg: Msg) -> MappedSendValue<'r> {
+        match (self.map)(msg) {
+            Ok(msg) => match &self.actor_ref.kind {
+                ActorRefKind::Local(sender) => match sender.try_send(msg) {
+                    Ok(()) => MappedSendValue::Send,
+                    Err(heph_inbox::SendError::Full(msg)) => {
+                        MappedSendValue::Sending(Box::pin(self.actor_ref.send(msg)))
+                    }
+                    Err(heph_inbox::SendError::Disconnected(_)) => MappedSendValue::SendErr,
+                },
+                ActorRefKind::Mapped(sender) => sender.mapped_send(msg),
+            },
+            Err(..) => MappedSendValue::SendErr,
+        }
     }
 
     fn mapped_join<'r, 'fut>(&'r self) -> Pin<Box<dyn Future<Output = ()> + 'fut>>
@@ -523,26 +519,27 @@ where
     }
 }
 
-enum MappedSendValue<'r, M> {
-    Send(SendValue<'r, M>),
-    /// Error mapping the message type.
-    MapErr,
+/// Future used in `MappedActorRef::mapped_send`
+enum MappedSendValue<'r> {
+    /// Already send.
+    Send,
+    /// Error mapping or sending the message.
+    SendErr,
+    /// Sending in progress.
+    /// NOTE: we need a `Box` to erase the mapped message type.
+    Sending(Pin<Box<dyn Future<Output = Result<(), SendError>> + 'r>>),
 }
 
-impl<'r, M> Future for MappedSendValue<'r, M> {
+impl<'r> Future for MappedSendValue<'r> {
     type Output = Result<(), SendError>;
 
     #[track_caller]
-    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         use MappedSendValue::*;
-        // Safety: we're not moving the future to this is safe.
-        let this = unsafe { self.get_unchecked_mut() };
-        match this {
-            // Safety: we're not moving `send_value` so this is safe.
-            Send(send_value) => unsafe { Pin::new_unchecked(send_value) }
-                .poll(ctx)
-                .map_err(|_| SendError),
-            MapErr => Poll::Ready(Err(SendError)),
+        match &mut *self {
+            Send => Poll::Ready(Ok(())),
+            SendErr => Poll::Ready(Err(SendError)),
+            Sending(send_value) => send_value.as_mut().poll(ctx),
         }
     }
 }
@@ -555,7 +552,7 @@ pub struct SendValue<'r, M> {
 
 enum SendValueKind<'r, M> {
     Local(inbox::SendValue<'r, M>),
-    Mapped(Pin<Box<dyn Future<Output = Result<(), SendError>> + 'r>>),
+    Mapped(MappedSendValue<'r>),
 }
 
 // We know that the `Local` variant is `Send` and `Sync`. Since the `Mapped`
@@ -581,11 +578,12 @@ impl<'r, M> Future for SendValue<'r, M> {
         // Safety: we're not moving the future to this is safe.
         let this = unsafe { self.get_unchecked_mut() };
         match &mut this.kind {
-            // Safety: we're not moving `inner` so this is safe.
-            Local(send_value) => unsafe { Pin::new_unchecked(send_value) }
+            // Safety: we're not moving `send_value` so this is safe.
+            Local(fut) => unsafe { Pin::new_unchecked(fut) }
                 .poll(ctx)
                 .map_err(|_| SendError),
-            Mapped(fut) => fut.as_mut().poll(ctx),
+            // Safety: we're not moving `fut` so this is safe.
+            Mapped(fut) => unsafe { Pin::new_unchecked(fut) }.poll(ctx),
         }
     }
 }
