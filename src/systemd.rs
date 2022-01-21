@@ -161,6 +161,28 @@ impl Notify {
         }
     }
 
+    /// Inform the service manager of a change in the application status.
+    ///
+    /// `status` is a string to describe the service state. This is free-form
+    /// and can be used for various purposes: general state feedback, fsck-like
+    /// programs could pass completion percentages and failing programs could
+    /// pass a human-readable error message. **Note that it must be limited to a
+    /// single line.**
+    ///
+    /// If you also need to change the state of the application you can use
+    /// [`Notify::change_state`].
+    pub fn change_status<'a>(&'a self, status: &str) -> ChangeState<'a> {
+        let mut state_update = String::with_capacity(7 + status.len() + 1);
+        state_update.push_str("STATUS=");
+        state_update.push_str(status);
+        replace_newline(&mut state_update[7..]);
+        state_update.push('\n');
+        ChangeState {
+            notifier: self,
+            state_update,
+        }
+    }
+
     /// Inform the service manager to update the watchdog timestamp.
     ///
     /// Send a keep-alive ping that services need to issue in regular intervals
