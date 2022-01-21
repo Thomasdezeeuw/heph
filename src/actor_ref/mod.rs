@@ -419,9 +419,7 @@ trait MappedActorRef<M> {
 
     fn mapped_send<'r>(&'r self, msg: M) -> MappedSendValue<'r>;
 
-    fn mapped_join<'r, 'fut>(&'r self) -> Pin<Box<dyn Future<Output = ()> + 'fut>>
-    where
-        'r: 'fut;
+    fn mapped_join<'r>(&'r self) -> MappedJoin<'r>;
 
     fn is_connected(&self) -> bool;
 
@@ -454,11 +452,14 @@ where
         }
     }
 
-    fn mapped_join<'r, 'fut>(&'r self) -> Pin<Box<dyn Future<Output = ()> + 'fut>>
-    where
-        'r: 'fut,
-    {
-        Box::pin(self.join())
+    fn mapped_join<'r>(&'r self) -> MappedJoin<'r> {
+        match &self.kind {
+            ActorRefKind::Local(sender) => match sender.is_connected() {
+                false => MappedJoin::Disconnected,
+                true => MappedJoin::Join(Box::pin(self.join())),
+            },
+            ActorRefKind::Mapped(sender) => sender.mapped_join(),
+        }
     }
 
     fn is_connected(&self) -> bool {
@@ -503,11 +504,14 @@ where
         }
     }
 
-    fn mapped_join<'r, 'fut>(&'r self) -> Pin<Box<dyn Future<Output = ()> + 'fut>>
-    where
-        'r: 'fut,
-    {
-        Box::pin(self.actor_ref.join())
+    fn mapped_join<'r>(&'r self) -> MappedJoin<'r> {
+        match &self.actor_ref.kind {
+            ActorRefKind::Local(sender) => match sender.is_connected() {
+                false => MappedJoin::Disconnected,
+                true => MappedJoin::Join(Box::pin(self.actor_ref.join())),
+            },
+            ActorRefKind::Mapped(sender) => sender.mapped_join(),
+        }
     }
 
     fn is_connected(&self) -> bool {
@@ -534,12 +538,32 @@ impl<'r> Future for MappedSendValue<'r> {
     type Output = Result<(), SendError>;
 
     #[track_caller]
-    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         use MappedSendValue::*;
-        match &mut *self {
+        match self.get_mut() {
             Send => Poll::Ready(Ok(())),
             SendErr => Poll::Ready(Err(SendError)),
             Sending(send_value) => send_value.as_mut().poll(ctx),
+        }
+    }
+}
+
+/// Future used in `MappedActorRef::mapped_join`
+enum MappedJoin<'r> {
+    Disconnected,
+    /// NOTE: we need a `Box` to erase the mapped message type.
+    Join(Pin<Box<dyn Future<Output = ()> + 'r>>),
+}
+
+impl<'r> Future for MappedJoin<'r> {
+    type Output = ();
+
+    #[track_caller]
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        use MappedJoin::*;
+        match self.get_mut() {
+            Disconnected => Poll::Ready(()),
+            Join(join) => join.as_mut().poll(ctx),
         }
     }
 }
@@ -616,7 +640,7 @@ pub struct Join<'r, M> {
 
 enum JoinKind<'r, M> {
     Local(inbox::Join<'r, M>),
-    Mapped(Pin<Box<dyn Future<Output = ()> + 'r>>),
+    Mapped(MappedJoin<'r>),
 }
 
 // We know that the `Local` variant is `Send` and `Sync`. Since the `Mapped`
@@ -637,9 +661,10 @@ impl<'r, M> Future for Join<'r, M> {
         // Safety: we're not moving the future to this is safe.
         let this = unsafe { self.get_unchecked_mut() };
         match &mut this.kind {
-            // Safety: we're not moving `inner` so this is safe.
-            Local(join) => unsafe { Pin::new_unchecked(join) }.poll(ctx),
-            Mapped(fut) => fut.as_mut().poll(ctx),
+            // Safety: we're not moving `fut` so this is safe.
+            Local(fut) => unsafe { Pin::new_unchecked(fut) }.poll(ctx),
+            // Safety: we're not moving `fut` so this is safe.
+            Mapped(fut) => unsafe { Pin::new_unchecked(fut) }.poll(ctx),
         }
     }
 }
