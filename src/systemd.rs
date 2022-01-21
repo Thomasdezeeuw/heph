@@ -144,12 +144,12 @@ impl Notify {
         };
         let state_update = match status {
             Some(status) => {
-                debug_assert!(!status.contains('\n'), "status contains newline");
                 let mut state_update =
                     String::with_capacity(state_line.len() + 7 + status.len() + 1);
                 state_update.push_str(state_line);
                 state_update.push_str("STATUS=");
                 state_update.push_str(status);
+                replace_newline(&mut state_update[state_line.len() + 7..]);
                 state_update.push('\n');
                 state_update
             }
@@ -182,6 +182,17 @@ impl Notify {
     /// [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html
     pub fn trigger_watchdog<'a>(&'a self) -> TriggerWatchdog<'a> {
         TriggerWatchdog { notifier: self }
+    }
+}
+
+/// Replaces new lines with spaces.
+fn replace_newline(status: &mut str) {
+    // SAFETY: replacing `\r` and `\n` with a space with is still valid UTF-8.
+    for b in unsafe { status.as_bytes_mut().iter_mut() } {
+        match *b {
+            b'\r' | b'\n' => *b = b' ',
+            _ => {}
+        }
     }
 }
 
