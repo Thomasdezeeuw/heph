@@ -94,6 +94,8 @@
 //! }
 //! ```
 
+use std::fmt;
+
 use crate::actor::SyncActor;
 use crate::actor::{Actor, NewActor};
 
@@ -290,6 +292,86 @@ where
 {
     fn decide(&mut self, _: !) -> SupervisorStrategy<A::Argument> {
         // This can't be called.
+        SupervisorStrategy::Stop
+    }
+}
+
+/// A supervisor implementation that stops the actor and logs the error.
+///
+/// This supervisor can be used for quick prototyping or for one off actors that
+/// shouldn't be restarted.
+///
+/// # Example
+///
+/// ```
+/// #![feature(never_type)]
+///
+/// use heph::actor;
+/// use heph::rt::{self, ThreadLocal, Runtime};
+/// use heph::spawn::ActorOptions;
+/// use heph::supervisor::StopSupervisor;
+///
+/// fn main() -> Result<(), rt::Error> {
+///     let mut runtime = Runtime::new()?;
+///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+///         let supervisor = StopSupervisor::for_actor("print actor");
+///         runtime_ref.spawn_local(supervisor, print_actor as fn(_) -> _, (), ActorOptions::default());
+///         Ok(())
+///     })?;
+///     runtime.start()
+/// }
+///
+/// /// Our actor that always returns an error.
+/// async fn print_actor(ctx: actor::Context<&'static str, ThreadLocal>) -> Result<(), String> {
+/// #   drop(ctx); // Silence dead code warnings.
+///     println!("Hello world!");
+///     Err("oh no! Hit an error".to_string())
+/// }
+/// ```
+#[derive(Copy, Clone, Debug)]
+pub struct StopSupervisor(&'static str);
+
+impl StopSupervisor {
+    /// Create a new `StopSupervisor` for the actor with `actor_name`.
+    pub const fn for_actor(actor_name: &'static str) -> StopSupervisor {
+        StopSupervisor(actor_name)
+    }
+}
+
+impl<NA> Supervisor<NA> for StopSupervisor
+where
+    NA: NewActor,
+    NA::Error: std::fmt::Display,
+    <NA::Actor as Actor>::Error: fmt::Display,
+{
+    fn decide(&mut self, err: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
+        log::warn!("{} failed, stopping it: {}", self.0, err);
+        SupervisorStrategy::Stop
+    }
+
+    fn decide_on_restart_error(&mut self, err: NA::Error) -> SupervisorStrategy<NA::Argument> {
+        // Shouldn't be called, but it should still have an implementation.
+        log::warn!("{} failed to restart, stopping it: {}", self.0, err);
+        SupervisorStrategy::Stop
+    }
+
+    fn second_restart_error(&mut self, err: NA::Error) {
+        // Shouldn't be called, but it should still have an implementation.
+        log::warn!(
+            "{} failed to restart a second time, stopping it: {}",
+            self.0,
+            err
+        );
+    }
+}
+
+impl<A> SyncSupervisor<A> for StopSupervisor
+where
+    A: SyncActor,
+    A::Error: std::fmt::Display,
+{
+    fn decide(&mut self, err: A::Error) -> SupervisorStrategy<A::Argument> {
+        log::warn!("{} failed, stopping it: {}", self.0, err);
         SupervisorStrategy::Stop
     }
 }
