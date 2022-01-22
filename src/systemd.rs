@@ -119,7 +119,9 @@ impl Notify {
         })
     }
 
-    /// Set the watchdog timeout.
+    /// Set the watchdog timeout of `Notify`.
+    ///
+    /// Note that this doesn't change the timeout for the service manager.
     pub fn set_watchdog_timeout(&mut self, timeout: Option<Duration>) {
         self.watch_dog = timeout;
     }
