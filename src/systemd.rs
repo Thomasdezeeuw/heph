@@ -320,6 +320,7 @@ impl<RT: rt::Access> actor::Bound<RT> for Notify {
 ///
 /// Finally it will ping the service manager if a watchdog is active. It will
 /// check using `health_check` on the current status of the application.
+#[allow(clippy::future_not_send)]
 pub async fn actor<RT, H, E>(
     mut ctx: actor::Context<ServiceMessage, RT>,
     mut health_check: H,
