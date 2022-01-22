@@ -62,48 +62,38 @@ impl Notify {
     where
         RT: rt::Access,
     {
-        const SOCKET_ENV_VAR: &str = "NOTIFY_SOCKET";
-        const WATCHDOG_PID_ENV_VAR: &str = "WATCHDOG_PID";
-        const WATCHDOG_USEC_ENV_VAR: &str = "WATCHDOG_USEC";
-
-        let socket_path = env::var_os(SOCKET_ENV_VAR);
-        let watchdog_pid = env::var_os(WATCHDOG_PID_ENV_VAR);
-        let mut watchdog_timeout = env::var_os(WATCHDOG_USEC_ENV_VAR);
+        let socket_path = match env::var_os("NOTIFY_SOCKET") {
+            Some(path) => path,
+            None => return Ok(None),
+        };
+        let watchdog_pid = env::var_os("WATCHDOG_PID");
+        let mut watchdog_timeout = env::var_os("WATCHDOG_USEC");
 
         if let Some(watchdog_pid) = watchdog_pid {
             match parse_os_string::<u32>(watchdog_pid) {
-                // All good.
                 Ok(pid) if pid == process::id() => {}
                 // Either an invalid pid, or not meant for us.
                 _ => watchdog_timeout = None,
             }
         }
 
-        let mut notifier = match socket_path {
-            Some(path) => Notify::connect(ctx, Path::new(&path))?,
-            None => return Ok(None),
-        };
-
-        if let Some(watchdog_timeout) = watchdog_timeout {
-            match parse_os_string(watchdog_timeout) {
-                Ok(micros) => {
-                    let timeout = Duration::from_micros(micros);
-                    notifier.set_watchdog_timeout(Some(timeout));
-                }
-                Err(()) => {
-                    warn!(
-                        "{} environment variable is invalid, ignoring it",
-                        WATCHDOG_USEC_ENV_VAR
-                    );
-                }
+        let watchdog_timeout = watchdog_timeout.and_then(|t| match parse_os_string(t) {
+            Ok(micros) => Some(Duration::from_micros(micros)),
+            Err(()) => {
+                warn!("WATCHDOG_USEC environment variable is invalid, ignoring it");
+                None
             }
-        }
+        });
 
-        Ok(Some(notifier))
+        Notify::connect(ctx, Path::new(&socket_path), watchdog_timeout).map(Some)
     }
 
     /// Create a systemd notifier connected to `path`.
-    pub fn connect<M, RT, P>(ctx: &mut actor::Context<M, RT>, path: P) -> io::Result<Notify>
+    pub fn connect<M, RT, P>(
+        ctx: &mut actor::Context<M, RT>,
+        path: P,
+        watchdog_timeout: Option<Duration>,
+    ) -> io::Result<Notify>
     where
         RT: rt::Access,
         P: AsRef<Path>,
@@ -119,15 +109,8 @@ impl Notify {
         }
         Ok(Notify {
             socket,
-            watch_dog: None,
+            watch_dog: watchdog_timeout,
         })
-    }
-
-    /// Set the watchdog timeout of `Notify`.
-    ///
-    /// Note that this doesn't change the timeout for the service manager.
-    pub fn set_watchdog_timeout(&mut self, timeout: Option<Duration>) {
-        self.watch_dog = timeout;
     }
 
     /// Returns the watchdog timeout, if any.
