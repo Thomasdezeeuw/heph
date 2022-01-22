@@ -29,16 +29,13 @@ fn main() -> Result<(), rt::Error> {
         .auto_cpu_affinity()
         .build()?;
 
-    #[cfg(target_os = "linux")]
-    {
-        let supervisor = StopSupervisor::for_actor("systemd actor");
-        let actor = heph::systemd::actor as fn(_, _) -> _;
-        // NOTE: this should do a proper health check of you application.
-        let health_check = || -> Result<(), !> { Ok(()) };
-        let options = ActorOptions::default().with_priority(Priority::HIGH);
-        let systemd_ref = runtime.spawn(supervisor, actor, health_check, options);
-        runtime.receive_signals(systemd_ref.try_map());
-    }
+    let supervisor = StopSupervisor::for_actor("systemd actor");
+    let actor = heph::systemd::actor as fn(_, _) -> _;
+    // NOTE: this should do a proper health check of you application.
+    let health_check = || -> Result<(), !> { Ok(()) };
+    let options = ActorOptions::default().with_priority(Priority::HIGH);
+    let systemd_ref = runtime.spawn(supervisor, actor, health_check, options);
+    runtime.receive_signals(systemd_ref.try_map());
 
     runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {
         let supervisor = ServerSupervisor::new();

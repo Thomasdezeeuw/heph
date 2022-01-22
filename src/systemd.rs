@@ -21,6 +21,7 @@ use std::{env, io, process};
 use log::{debug, warn};
 use mio::net::UnixDatagram;
 use mio::Interest;
+#[cfg(target_os = "linux")]
 use socket2::SockRef;
 
 use crate::actor::messages::Terminate;
@@ -110,6 +111,7 @@ impl Notify {
         let mut socket = UnixDatagram::unbound()?;
         socket.connect(path)?;
         ctx.runtime().register(&mut socket, Interest::WRITABLE)?;
+        #[cfg(target_os = "linux")]
         if let Some(cpu) = ctx.runtime_ref().cpu() {
             if let Err(err) = SockRef::from(&socket).set_cpu_affinity(cpu) {
                 warn!("failed to set CPU affinity on systemd::Notify: {}", err);
