@@ -76,3 +76,33 @@ Trace Event Format] so it can be opened by [Catapult trace view].
 [Trace Format design document]: ../doc/Trace%20Format.md
 [Chrome's Trace Event Format]: https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
 [Catapult trace view]: https://chromium.googlesource.com/catapult/+/refs/heads/master/tracing/README.md
+
+## 9. Systemd support
+
+Heph also has various utilties to support [systemd]. You can use the following
+[service] file to start example 9.
+
+[systemd]: https://systemd.io
+[service]: https://www.freedesktop.org/software/systemd/man/systemd.service.html
+
+```
+[Unit]
+Description=Heph Test service
+Requires=network.target
+
+[Service]
+# Required to setup communication between the service manager (systemd) and the
+# service itself.
+Type=notify
+# Restart the service if it fails.
+Restart=on-failure
+# Require the service to send a keep-alive ping every minute.
+WatchdogSec=1min
+
+# Path to the example.
+ExecStart=/path/to/heph/target/debug/examples/9_systemd
+# The port the service will listen on.
+Environment=PORT=8000
+# Enable some debug logging.
+Environment=DEBUG=1
+```
