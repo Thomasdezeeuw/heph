@@ -50,7 +50,8 @@ dev:
 # Reasons to allow lints:
 # `cargo-common-metadata`: for `benches` and `tools`.
 # `equatable-if-let`: bad lint.
-# `match-bool`: often less lines of code.
+# `match-bool`, `single-match-else`: often less lines of code and I find that
+# use `match` generally strictly better then `if`s.
 # `missing-const-for-fn`: See https://github.com/rust-lang/rust-clippy/issues/4979.
 # `module-name-repetitions`: we re-export various names.
 # `needless-lifetimes`: lifetime serves as documentation.
@@ -91,6 +92,7 @@ lint:
 		--allow clippy::ptr-as-ptr \
 		--allow clippy::redundant-pub-crate \
 		--allow clippy::semicolon-if-nothing-returned \
+		--allow clippy::single-match-else \
 		--allow clippy::shadow-unrelated \
 		--allow clippy::use-self
 
