@@ -8,6 +8,7 @@
 //! [systemd]: https://systemd.io
 //! [`actor`]: actor()
 
+use std::convert::TryFrom;
 use std::ffi::OsString;
 use std::future::Future;
 use std::path::Path;
@@ -22,6 +23,7 @@ use mio::net::UnixDatagram;
 use mio::Interest;
 use socket2::SockRef;
 
+use crate::actor::messages::Terminate;
 use crate::rt::Signal;
 use crate::timer::Interval;
 use crate::util::{either, next};
@@ -231,7 +233,7 @@ fn parse_os_string<T: FromStr>(str: OsString) -> Result<T, ()> {
 }
 
 /// State of the application.
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 pub enum State {
     /// Indicate the service startup is finished, or the service finished
     /// loading its configuration.
@@ -319,7 +321,7 @@ impl<RT: rt::Access> actor::Bound<RT> for Notify {
 /// Finally it will ping the service manager if a watchdog is active. It will
 /// check using `health_check` on the current status of the application.
 pub async fn actor<RT, H, E>(
-    mut ctx: actor::Context<Signal, RT>,
+    mut ctx: actor::Context<ServiceMessage, RT>,
     mut health_check: H,
 ) -> io::Result<()>
 where
@@ -341,11 +343,22 @@ where
         let mut interval = Interval::every(&mut ctx, timeout);
         loop {
             match either(ctx.receive_next(), next(&mut interval)).await {
-                Ok(Ok(signal)) => {
-                    if is_stop_signal(signal) {
-                        break;
+                Ok(Ok(msg)) => match msg {
+                    ServiceMessage::ChangeState { state, status } => {
+                        debug!(
+                            "setting state to {:?}, {:?} with service manager",
+                            state, status
+                        );
+                        notify.change_state(state, status.as_deref()).await?;
+                        if let State::Stopping = state {
+                            return Ok(());
+                        }
                     }
-                }
+                    ServiceMessage::ChangeStatus(status) => {
+                        debug!("setting status with service manager to '{}'", status);
+                        notify.change_status(&status).await?;
+                    }
+                },
                 Ok(Err(_)) => {
                     // All actor references are dropped since we don't have any
                     // other stopping reason we'll stop now instead of running
@@ -361,24 +374,78 @@ where
                         notify.change_status(&err).await?;
                     } else {
                         debug!("pinging service manager watchdog");
-                        notify.ping_watchdog().await?
+                        notify.ping_watchdog().await?;
                     }
                 }
             }
         }
     } else {
         // No watchdog is active, so we'll wait for a stopping signal.
-        while let Ok(signal) = ctx.receive_next().await {
-            if is_stop_signal(signal) {
-                break;
+        while let Ok(msg) = ctx.receive_next().await {
+            match msg {
+                ServiceMessage::ChangeState { state, status } => {
+                    debug!(
+                        "setting state to {:?}, {:?} with service manager",
+                        state, status
+                    );
+                    notify.change_state(state, status.as_deref()).await?;
+                    if let State::Stopping = state {
+                        return Ok(());
+                    }
+                }
+                ServiceMessage::ChangeStatus(status) => {
+                    debug!("setting status with service manager to '{}'", status);
+                    notify.change_status(&status).await?;
+                }
             }
         }
+        debug!("setting state to stopping with service manager");
+        notify.change_state(State::Stopping, None).await
     }
-
-    debug!("setting state to stopping with service manager");
-    return notify.change_state(State::Stopping, None).await;
 }
 
-const fn is_stop_signal(signal: Signal) -> bool {
-    matches!(signal, Signal::Interrupt | Signal::Terminate | Signal::Quit)
+/// Message to send to the service manager.
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum ServiceMessage {
+    /// Change the state of the application.
+    ///
+    /// See [`Notify::change_state`].
+    ChangeState {
+        /// The new state of the application.
+        state: State,
+        /// Description of the service state.
+        status: Option<String>,
+    },
+    /// Describe the service state.
+    ///
+    /// See [`Notify::change_status`].
+    ChangeStatus(String),
+}
+
+impl From<Terminate> for ServiceMessage {
+    fn from(_: Terminate) -> ServiceMessage {
+        ServiceMessage::ChangeState {
+            state: State::Stopping,
+            status: None,
+        }
+    }
+}
+
+impl TryFrom<Signal> for ServiceMessage {
+    type Error = ();
+
+    /// Converts [`Signal::Interrupt`], [`Signal::Terminate`] and
+    /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
+    fn try_from(signal: Signal) -> Result<Self, Self::Error> {
+        match signal {
+            Signal::Interrupt | Signal::Terminate | Signal::Quit => {
+                Ok(ServiceMessage::ChangeState {
+                    state: State::Stopping,
+                    status: None,
+                })
+            }
+            _ => Err(()),
+        }
+    }
 }
