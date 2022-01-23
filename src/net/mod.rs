@@ -1,6 +1,6 @@
 //! Network related types.
 //!
-//! The network module support two types of protocols:
+//! The network module supports two types of protocols:
 //!
 //! * [Transmission Control Protocol] (TCP) module provides three main types:
 //!   * A [TCP stream] between a local and a remote socket.

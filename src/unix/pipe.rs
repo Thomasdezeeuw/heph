@@ -70,8 +70,8 @@
 //! async fn process_handler<RT>(mut ctx: actor::Context<!, RT>) -> io::Result<()>
 //!     where RT: rt::Access,
 //! {
-//!     // Spawn a "echo" that echo everything read from standard in to standard
-//!     // out.
+//!     // Spawn a "echo" that echos everything read from standard in to
+//!     // standard out.
 //!     let mut process = Command::new("echo")
 //!         .stdin(Stdio::piped())
 //!         .stdout(Stdio::piped())
