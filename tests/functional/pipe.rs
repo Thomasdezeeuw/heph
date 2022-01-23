@@ -4,9 +4,9 @@ use std::io::{self, IoSlice};
 use std::time::Duration;
 
 use heph::actor::{self, Bound};
-use heph::pipe::{self, Receiver, Sender};
 use heph::spawn::ActorOptions;
 use heph::test::{join, join_many, try_spawn_local, PanicSupervisor};
+use heph::unix::pipe::{self, Receiver, Sender};
 use heph::{rt, ActorRef};
 
 const DATA: &[u8] = b"Hello world";

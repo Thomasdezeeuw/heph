@@ -26,14 +26,14 @@
 //! # #![feature(never_type)]
 //! use std::io;
 //!
-//! use heph::{actor, pipe, rt};
+//! use heph::{unix, actor, rt};
 //!
 //! const DATA: &[u8] = b"Hello, world!";
 //!
 //! async fn process_handler<RT>(mut ctx: actor::Context<!, RT>) -> io::Result<()>
 //!     where RT: rt::Access,
 //! {
-//!     let (mut sender, mut receiver) = pipe::new(&mut ctx)?;
+//!     let (mut sender, mut receiver) = unix::pipe::new(&mut ctx)?;
 //!
 //!     // Write some data.
 //!     sender.write_all(DATA).await?;
@@ -63,7 +63,7 @@
 //! use std::io;
 //! use std::process::{Command, Stdio};
 //!
-//! use heph::{actor, pipe, rt};
+//! use heph::{unix, actor, rt};
 //!
 //! const DATA: &[u8] = b"Hello, world!";
 //!
@@ -79,8 +79,8 @@
 //!         .spawn()?;
 //!
 //!     // Create our process standard in and out.
-//!     let mut stdin = pipe::Sender::from_child_stdin(&mut ctx, process.stdin.take().unwrap())?;
-//!     let mut stdout = pipe::Receiver::from_child_stdout(&mut ctx, process.stdout.take().unwrap())?;
+//!     let mut stdin = unix::pipe::Sender::from_child_stdin(&mut ctx, process.stdin.take().unwrap())?;
+//!     let mut stdout = unix::pipe::Receiver::from_child_stdout(&mut ctx, process.stdout.take().unwrap())?;
 //!
 //!     // Write some data.
 //!     stdin.write_all(DATA).await?;
