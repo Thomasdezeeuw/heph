@@ -31,6 +31,7 @@ mod functional {
     mod runtime;
     mod spawn;
     mod sync_actor;
+    mod systemd;
     mod tcp;
     mod test;
     mod timer;

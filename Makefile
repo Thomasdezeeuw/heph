@@ -19,7 +19,7 @@ TARGETS ?= x86_64-apple-darwin x86_64-unknown-linux-gnu x86_64-unknown-freebsd
 RUN ?= test
 
 test:
-	cargo test --all-features
+	cargo test --test functional --all-features -- functional::systemd
 
 test_all:
 	cargo test --all-features --workspace
