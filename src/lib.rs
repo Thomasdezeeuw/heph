@@ -139,6 +139,7 @@ macro_rules! try_io {
 pub mod actor;
 pub mod actor_ref;
 pub mod bytes;
+pub mod io;
 pub mod log;
 pub mod net;
 pub mod pipe;
