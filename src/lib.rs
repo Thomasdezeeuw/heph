@@ -77,6 +77,8 @@
     doc_cfg_hide,
     drain_filter,
     generic_associated_types,
+    io_error_more,
+    io_error_uncategorized,
     io_slice_advance,
     is_sorted,
     maybe_uninit_array_assume_init,
@@ -143,6 +145,7 @@ pub mod log;
 pub mod net;
 pub mod pipe;
 pub mod quick_start;
+pub mod retry;
 pub mod rt;
 pub mod spawn;
 pub mod supervisor;
