@@ -141,6 +141,7 @@ use std::task::{self, Poll};
 
 mod context;
 pub mod messages;
+pub mod registry;
 mod sync;
 #[cfg(test)]
 mod tests;
