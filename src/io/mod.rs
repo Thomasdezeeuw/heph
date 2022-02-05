@@ -12,12 +12,12 @@
 //! the stream as optimisation.
 
 use std::future::Future;
-use std::io;
+use std::io::{self, IoSlice};
 use std::num::NonZeroUsize;
 
 pub mod bytes;
 
-use bytes::Bytes;
+use bytes::{Bytes, BytesVectored};
 
 /// Reliable, ordered, and error-checked delivery of a stream of bytes.
 ///
@@ -48,9 +48,9 @@ pub trait RecvStream {
     /// [Receiving] using vectored I/O.
     ///
     /// [Receiving]: RecvStream::recv
-    fn recv_vectored<'a, B>(&'a mut self, buf: B) -> Self::RecvVectored<'a, B>
+    fn recv_vectored<'a, B>(&'a mut self, bufs: B) -> Self::RecvVectored<'a, B>
     where
-        B: Bytes;
+        B: BytesVectored;
 }
 
 /// Peeking of a [`Stream`].
@@ -78,9 +78,9 @@ pub trait PeekStream {
     /// [Peeking] using vectored I/O.
     ///
     /// [Peeking]: PeekStream::peek
-    fn peek_vectored<'a, B>(&'a mut self, buf: B) -> Self::PeekVectored<'a, B>
+    fn peek_vectored<'a, B>(&'a mut self, bufs: B) -> Self::PeekVectored<'a, B>
     where
-        B: Bytes;
+        B: BytesVectored;
 }
 
 /// Sending (writing) side of a [`Stream`].
@@ -105,7 +105,10 @@ pub trait SendStream {
     /// [Sending] using vectored I/O.
     ///
     /// [Sending]: SendStream::send
-    fn send_vectored<'a, 'b>(&'a mut self, buf: &'b [u8]) -> Self::SendVectored<'a, 'b>;
+    fn send_vectored<'a, 'b>(
+        &'a mut self,
+        bufs: &'b mut [IoSlice<'b>],
+    ) -> Self::SendVectored<'a, 'b>;
 }
 
 /// An optimisation trait to allow a file to send to a stream.
