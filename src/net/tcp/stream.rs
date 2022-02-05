@@ -19,6 +19,7 @@ use mio::{net, Interest};
 use socket2::SockRef;
 
 use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
+use crate::io::FileSend;
 use crate::{actor, rt};
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
@@ -928,27 +929,6 @@ where
             }
         }
     }
-}
-
-/// Trait that determines which types are safe to use in
-/// [`TcpStream::try_send_file`], [`TcpStream::send_file`] and
-/// [`TcpStream::send_file_all`].
-pub trait FileSend: PrivateFileSend {}
-
-use private::PrivateFileSend;
-
-mod private {
-    use std::fs::File;
-    use std::os::unix::io::AsRawFd;
-
-    /// Private version of [`FileSend`].
-    ///
-    /// [`FileSend`]: super::FileSend
-    pub trait PrivateFileSend: AsRawFd {}
-
-    impl super::FileSend for File {}
-
-    impl PrivateFileSend for File {}
 }
 
 impl<RT: rt::Access> actor::Bound<RT> for TcpStream {

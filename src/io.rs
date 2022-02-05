@@ -130,5 +130,22 @@ pub trait SendFile {
         length: Option<NonZeroUsize>,
     ) -> io::Result<usize>
     where
-        F: crate::net::tcp::stream::FileSend;
+        F: FileSend;
+}
+
+/// Trait that determines which types are safe to use in [`SendFile`].
+pub trait FileSend: private::PrivateFileSend {}
+
+mod private {
+    use std::fs::File;
+    use std::os::unix::io::AsRawFd;
+
+    /// Private version of [`FileSend`].
+    ///
+    /// [`FileSend`]: super::FileSend
+    pub trait PrivateFileSend: AsRawFd {}
+
+    impl super::FileSend for File {}
+
+    impl PrivateFileSend for File {}
 }
