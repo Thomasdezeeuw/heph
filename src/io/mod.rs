@@ -61,6 +61,7 @@ pub trait RecvStream {
 ///
 /// This is similar to [`RecvStream`], but doesn't remove the received (peeked)
 /// byes from its buffers, allowing them to be received again.
+#[doc(alias = "Peek")]
 pub trait PeekStream {
     /// [`Future`] behind [`peek`].
     ///
