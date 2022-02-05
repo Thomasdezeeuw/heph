@@ -33,7 +33,9 @@ pub trait RecvStream {
     /// [`Future`] behind [`recv`].
     ///
     /// [`recv`]: RecvStream::recv
-    type Recv<'a, B>: Future<Output = io::Result<usize>>;
+    type Recv<'a, B>: Future<Output = io::Result<usize>>
+    where
+        B: Bytes;
 
     /// Receive messages from the stream, writing them into `buf`.
     fn recv<'a, B>(&'a mut self, buf: B) -> Self::Recv<'a, B>
@@ -43,7 +45,9 @@ pub trait RecvStream {
     /// [`Future`] behind [`recv_vectored`].
     ///
     /// [`recv_vectored`]: RecvStream::recv_vectored
-    type RecvVectored<'a, B>: Future<Output = io::Result<usize>>;
+    type RecvVectored<'a, B>: Future<Output = io::Result<usize>>
+    where
+        B: BytesVectored;
 
     /// [Receiving] using vectored I/O.
     ///
@@ -61,7 +65,9 @@ pub trait PeekStream {
     /// [`Future`] behind [`peek`].
     ///
     /// [`peek`]: PeekStream::peek
-    type Peek<'a, B>: Future<Output = io::Result<usize>>;
+    type Peek<'a, B>: Future<Output = io::Result<usize>>
+    where
+        B: Bytes;
 
     /// Receive bytes from the stream, writing them into `buf`, without removing
     /// that data from the queue. On success, returns the number of bytes
@@ -73,7 +79,9 @@ pub trait PeekStream {
     /// [`Future`] behind [`peek_vectored`].
     ///
     /// [`peek_vectored`]: PeekStream::peek_vectored
-    type PeekVectored<'a, B>: Future<Output = io::Result<usize>>;
+    type PeekVectored<'a, B>: Future<Output = io::Result<usize>>
+    where
+        B: BytesVectored;
 
     /// [Peeking] using vectored I/O.
     ///
