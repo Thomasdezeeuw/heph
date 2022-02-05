@@ -15,7 +15,9 @@ use std::future::Future;
 use std::io;
 use std::num::NonZeroUsize;
 
-use crate::bytes::Bytes;
+pub mod bytes;
+
+use bytes::Bytes;
 
 /// Reliable, ordered, and error-checked delivery of a stream of bytes.
 ///

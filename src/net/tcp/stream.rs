@@ -18,7 +18,7 @@ use mio::{net, Interest};
 
 use socket2::SockRef;
 
-use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
+use crate::io::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
 use crate::io::FileSend;
 use crate::{actor, rt};
 

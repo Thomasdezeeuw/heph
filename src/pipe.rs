@@ -113,7 +113,7 @@ use std::task::{self, Poll};
 use mio::unix::pipe;
 use mio::Interest;
 
-use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
+use crate::io::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
 use crate::{actor, rt};
 
 /// Create a new Unix pipe.

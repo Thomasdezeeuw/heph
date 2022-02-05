@@ -112,7 +112,7 @@ where
 /// untouched.
 ///
 /// ```
-/// use heph::bytes::Bytes;
+/// use heph::io::bytes::Bytes;
 ///
 /// let mut buf = Vec::with_capacity(100);
 /// buf.extend(b"Hello world!");
@@ -254,7 +254,7 @@ impl<'a> DerefMut for MaybeUninitSlice<'a> {
 ///
 /// ```
 /// # #![feature(maybe_uninit_write_slice)]
-/// use heph::bytes::BytesVectored;
+/// use heph::io::bytes::BytesVectored;
 ///
 /// let mut buf1 = Vec::with_capacity(12);
 /// let mut buf2 = Vec::with_capacity(1);
@@ -301,7 +301,7 @@ impl<'a> DerefMut for MaybeUninitSlice<'a> {
 /// # #![feature(maybe_uninit_uninit_array, maybe_uninit_slice, maybe_uninit_write_slice)]
 /// use std::mem::MaybeUninit;
 ///
-/// use heph::bytes::{Bytes, BytesVectored};
+/// use heph::io::bytes::{Bytes, BytesVectored};
 ///
 /// // Buffers of different types.
 /// let mut buf1 = Vec::with_capacity(12);

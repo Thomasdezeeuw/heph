@@ -20,7 +20,7 @@ use log::warn;
 use mio::{net, Interest};
 use socket2::{SockAddr, SockRef};
 
-use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
+use crate::io::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
 use crate::net::convert_address;
 use crate::{actor, rt};
 
