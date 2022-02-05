@@ -19,7 +19,7 @@ use mio::{net, Interest};
 use socket2::SockRef;
 
 use crate::io::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
-use crate::io::{FileSend, SendStream};
+use crate::io::{FileSend, RecvStream, SendStream};
 use crate::{actor, rt};
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
@@ -230,39 +230,6 @@ impl TcpStream {
             })
     }
 
-    /// Receive messages from the stream, writing them into `buf`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// #![feature(never_type)]
-    ///
-    /// use std::io;
-    ///
-    /// use heph::actor;
-    /// use heph::net::TcpStream;
-    /// use heph::rt::ThreadLocal;
-    ///
-    /// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
-    ///     let address = "127.0.0.1:12345".parse().unwrap();
-    ///     let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
-    ///
-    ///     let mut buf = Vec::with_capacity(4 * 1024); // 4 KB.
-    ///     let n = stream.recv(&mut buf).await?;
-    ///     println!("read {} bytes: {:?}", n, buf);
-    ///
-    ///     Ok(())
-    /// }
-    /// #
-    /// # drop(actor); // Silent dead code warnings.
-    /// ```
-    pub fn recv<'a, B>(&'a mut self, buf: B) -> Recv<'a, B>
-    where
-        B: Bytes,
-    {
-        Recv { stream: self, buf }
-    }
-
     /// Receive at least `n` bytes from the stream, writing them into `buf`.
     ///
     /// This returns a [`Future`] that receives at least `n` bytes from a
@@ -337,18 +304,6 @@ impl TcpStream {
             }
             Err(err) => Err(err),
         }
-    }
-
-    /// Receive messages from the stream, writing them into `bufs`.
-    pub fn recv_vectored<B>(&mut self, bufs: B) -> RecvVectored<'_, B>
-    where
-        B: BytesVectored,
-    {
-        debug_assert!(
-            bufs.has_spare_capacity(),
-            "called `TcpStream::recv_vectored` with empty buffers"
-        );
-        RecvVectored { stream: self, bufs }
     }
 
     /// Receive at least `n` bytes from the stream, writing them into `bufs`.
@@ -710,6 +665,36 @@ impl<'a, 'b> Future for SendVectoredAll<'a, 'b> {
     }
 }
 
+impl RecvStream for TcpStream {
+    type Recv<'a, B>
+    where
+        B: Bytes,
+    = Recv<'a, B>;
+
+    fn recv<'a, B>(&'a mut self, buf: B) -> Self::Recv<'a, B>
+    where
+        B: Bytes,
+    {
+        Recv { stream: self, buf }
+    }
+
+    type RecvVectored<'a, B>
+    where
+        B: BytesVectored,
+    = RecvVectored<'a, B>;
+
+    fn recv_vectored<'a, B>(&'a mut self, bufs: B) -> Self::RecvVectored<'a, B>
+    where
+        B: BytesVectored,
+    {
+        debug_assert!(
+            bufs.has_spare_capacity(),
+            "called `TcpStream::recv_vectored` with empty buffers"
+        );
+        RecvVectored { stream: self, bufs }
+    }
+}
+
 /// The [`Future`] behind [`TcpStream::recv`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -720,12 +705,13 @@ pub struct Recv<'b, B> {
 
 impl<'b, B> Future for Recv<'b, B>
 where
-    B: Bytes + Unpin,
+    B: Bytes,
 {
     type Output = io::Result<usize>;
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let Recv { stream, buf } = Pin::into_inner(self);
+        // SAFETY: not moving `buf`.
+        let Recv { stream, buf } = unsafe { Pin::into_inner_unchecked(self) };
         try_io!(stream.try_recv(&mut *buf))
     }
 }
@@ -794,12 +780,13 @@ pub struct RecvVectored<'b, B> {
 
 impl<'b, B> Future for RecvVectored<'b, B>
 where
-    B: BytesVectored + Unpin,
+    B: BytesVectored,
 {
     type Output = io::Result<usize>;
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let RecvVectored { stream, bufs } = Pin::into_inner(self);
+        // SAFETY: not moving `bufs` so this is safe.
+        let RecvVectored { stream, bufs } = unsafe { Pin::into_inner_unchecked(self) };
         try_io!(stream.try_recv_vectored(&mut *bufs))
     }
 }

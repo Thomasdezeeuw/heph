@@ -23,6 +23,7 @@ use std::task::{self, Poll};
 use std::time::SystemTime;
 
 use heph::io::bytes::{Bytes, BytesVectored};
+use heph::io::RecvStream;
 use heph::net::{tcp, TcpServer, TcpStream};
 use heph::spawn::{ActorOptions, Spawn};
 use heph::{actor, rt, Actor, NewActor, Supervisor};

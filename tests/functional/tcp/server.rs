@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use heph::actor::messages::Terminate;
 use heph::actor::{self, Actor, NewActor};
-use heph::io::SendStream;
+use heph::io::{RecvStream, SendStream};
 use heph::net::tcp::server;
 use heph::net::{TcpServer, TcpStream};
 use heph::rt::{self, Signal, ThreadLocal};

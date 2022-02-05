@@ -4,6 +4,7 @@ use std::io;
 use std::net::SocketAddr;
 
 use heph::actor::NoMessages;
+use heph::io::RecvStream;
 use heph::net::TcpStream;
 use heph::util::either;
 use heph::{actor, rt};

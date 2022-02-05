@@ -12,6 +12,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use heph::actor::{self, Actor, NewActor};
+use heph::io::RecvStream;
 use heph::net::{tcp, TcpServer, TcpStream};
 use heph::rt::{self, Runtime};
 use heph::spawn::options::{ActorOptions, Priority};

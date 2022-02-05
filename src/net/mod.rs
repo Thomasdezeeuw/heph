@@ -56,6 +56,7 @@ pub mod udp;
 pub use tcp::{TcpListener, TcpServer, TcpStream};
 #[doc(no_inline)]
 pub use udp::UdpSocket;
+
 /// Convert a `socket2:::SockAddr` into a `std::net::SocketAddr`.
 #[allow(clippy::needless_pass_by_value)]
 fn convert_address(address: SockAddr) -> io::Result<SocketAddr> {

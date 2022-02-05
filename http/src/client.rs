@@ -7,6 +7,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
+use heph::io::RecvStream;
 use heph::net::tcp::stream::{self, TcpStream};
 use heph::{actor, rt};
 
