@@ -19,7 +19,7 @@ use mio::{net, Interest};
 use socket2::SockRef;
 
 use crate::io::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
-use crate::io::{FileSend, RecvStream, SendStream};
+use crate::io::{FileSend, PeekStream, RecvStream, SendStream};
 use crate::{actor, rt};
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
@@ -342,16 +342,6 @@ impl TcpStream {
             })
     }
 
-    /// Receive messages from the stream, writing them into `buf`, without
-    /// removing that data from the queue. On success, returns the number of
-    /// bytes peeked.
-    pub fn peek<'a, B>(&'a mut self, buf: B) -> Peek<'a, B>
-    where
-        B: Bytes,
-    {
-        Peek { stream: self, buf }
-    }
-
     /// Attempt to receive messages from the stream using vectored I/O, writing
     /// them into `bufs`, without removing that data from the queue. On success,
     /// returns the number of bytes peeked.
@@ -375,16 +365,6 @@ impl TcpStream {
             }
             Err(err) => Err(err),
         }
-    }
-
-    /// Receive messages from the stream using vectored I/O, writing them into
-    /// `bufs`, without removing that data from the queue. On success, returns
-    /// the number of bytes peeked.
-    pub fn peek_vectored<B>(&mut self, bufs: B) -> PeekVectored<'_, B>
-    where
-        B: BytesVectored,
-    {
-        PeekVectored { stream: self, bufs }
     }
 
     /// Attempt to make a `sendfile(2)` system call.
@@ -716,6 +696,32 @@ where
     }
 }
 
+impl PeekStream for TcpStream {
+    type Peek<'a, B>
+    where
+        B: Bytes,
+    = Peek<'a, B>;
+
+    fn peek<'a, B>(&'a mut self, buf: B) -> Self::Peek<'a, B>
+    where
+        B: Bytes,
+    {
+        Peek { stream: self, buf }
+    }
+
+    type PeekVectored<'a, B>
+    where
+        B: BytesVectored,
+    = PeekVectored<'a, B>;
+
+    fn peek_vectored<'a, B>(&'a mut self, bufs: B) -> Self::PeekVectored<'a, B>
+    where
+        B: BytesVectored,
+    {
+        PeekVectored { stream: self, bufs }
+    }
+}
+
 /// The [`Future`] behind [`TcpStream::peek`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
@@ -726,12 +732,13 @@ pub struct Peek<'b, B> {
 
 impl<'b, B> Future for Peek<'b, B>
 where
-    B: Bytes + Unpin,
+    B: Bytes,
 {
     type Output = io::Result<usize>;
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let Peek { stream, buf } = Pin::into_inner(self);
+        // SAFETY: not moving `buf`.
+        let Peek { stream, buf } = unsafe { Pin::into_inner_unchecked(self) };
         try_io!(stream.try_peek(&mut *buf))
     }
 }
@@ -835,12 +842,13 @@ pub struct PeekVectored<'b, B> {
 
 impl<'b, B> Future for PeekVectored<'b, B>
 where
-    B: BytesVectored + Unpin,
+    B: BytesVectored,
 {
     type Output = io::Result<usize>;
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let PeekVectored { stream, bufs } = Pin::into_inner(self);
+        // SAFETY: not moving `bufs`.
+        let PeekVectored { stream, bufs } = unsafe { Pin::into_inner_unchecked(self) };
         try_io!(stream.try_peek_vectored(&mut *bufs))
     }
 }
