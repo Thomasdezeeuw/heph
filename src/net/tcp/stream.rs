@@ -19,7 +19,7 @@ use mio::{net, Interest};
 use socket2::SockRef;
 
 use crate::io::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
-use crate::io::FileSend;
+use crate::io::{FileSend, SendStream};
 use crate::{actor, rt};
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
@@ -141,14 +141,6 @@ impl TcpStream {
         SockRef::from(&self.socket).send(buf)
     }
 
-    /// Send the bytes in `buf` to the peer.
-    ///
-    /// Return the number of bytes written. This may we fewer then the length of
-    /// `buf`. To ensure that all bytes are written use [`TcpStream::send_all`].
-    pub fn send<'a, 'b>(&'a mut self, buf: &'b [u8]) -> Send<'a, 'b> {
-        Send { stream: self, buf }
-    }
-
     /// Send the all bytes in `buf` to the peer.
     ///
     /// If this fails to send all bytes (this happens if a write returns
@@ -167,18 +159,6 @@ impl TcpStream {
     /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
     pub fn try_send_vectored(&mut self, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
         SockRef::from(&self.socket).send_vectored(bufs)
-    }
-
-    /// Send the bytes in `bufs` to the peer.
-    ///
-    /// Return the number of bytes written. This may we fewer then the length of
-    /// `bufs`. To ensure that all bytes are written use
-    /// [`TcpStream::send_vectored_all`].
-    pub fn send_vectored<'a, 'b>(
-        &'a mut self,
-        bufs: &'b mut [IoSlice<'b>],
-    ) -> SendVectored<'a, 'b> {
-        SendVectored { stream: self, bufs }
     }
 
     /// Send the all bytes in `bufs` to the peer.
@@ -620,6 +600,23 @@ impl Future for Connect {
             }
             None => panic!("polled `tcp::stream::Connect` after completion"),
         }
+    }
+}
+
+impl SendStream for TcpStream {
+    type Send<'a, 'b> = Send<'a, 'b>;
+
+    fn send<'a, 'b>(&'a mut self, buf: &'b [u8]) -> Self::Send<'a, 'b> {
+        Send { stream: self, buf }
+    }
+
+    type SendVectored<'a, 'b> = SendVectored<'a, 'b>;
+
+    fn send_vectored<'a, 'b>(
+        &'a mut self,
+        bufs: &'b mut [IoSlice<'b>],
+    ) -> Self::SendVectored<'a, 'b> {
+        SendVectored { stream: self, bufs }
     }
 }
 

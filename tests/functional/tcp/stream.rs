@@ -11,6 +11,7 @@ use std::time::Duration;
 
 use heph::actor::{self, Bound};
 use heph::actor_ref::{ActorRef, RpcMessage};
+use heph::io::SendStream;
 use heph::net::{TcpListener, TcpStream};
 use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph::spawn::ActorOptions;

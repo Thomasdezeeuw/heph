@@ -23,8 +23,8 @@
 //! errors (including [`WouldBlock`] errors!).
 //!
 //! In addition they provide a [`Future`] function which handles would block
-//! errors. For `TcpStream::try_send` the future version is [`TcpStream::send`],
-//! i.e. without the `try_` prefix.
+//! errors. For [`UdpSocket::try_send`] the future version is
+//! [`UdpSocket::send`], i.e. without the `try_` prefix.
 //!
 //! Finally for a lot of function a convenience version is provided that handle
 //! various cases. For example with sending you might want to ensure all bytes

@@ -5,6 +5,7 @@ use std::task::Poll;
 use std::time::Duration;
 
 use heph::actor::{self, Bound};
+use heph::io::SendStream;
 use heph::net::{TcpListener, TcpStream};
 use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph::supervisor::NoSupervisor;

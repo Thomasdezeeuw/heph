@@ -7,7 +7,8 @@ use std::marker::PhantomData;
 use std::num::NonZeroUsize;
 use std::stream::Stream;
 
-use heph::net::tcp::stream::{FileSend, SendAll, TcpStream};
+use heph::io::FileSend;
+use heph::net::tcp::stream::{SendAll, TcpStream};
 
 /// Trait that defines a HTTP body.
 ///
@@ -44,7 +45,7 @@ mod private {
     use std::stream::Stream;
     use std::task::{self, Poll};
 
-    use heph::net::tcp::stream::FileSend;
+    use heph::io::FileSend;
     use heph::net::TcpStream;
 
     const LAST_CHUNK: &[u8] = b"0\r\n\r\n";
