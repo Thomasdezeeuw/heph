@@ -179,6 +179,7 @@ impl Runtime {
 
             if self.started && !self.has_process() {
                 debug!("no processes to run, stopping runtime");
+                self.internals.shared.wake_all_workers();
                 return Ok(());
             }
 

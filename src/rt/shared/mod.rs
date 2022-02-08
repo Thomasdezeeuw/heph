@@ -298,6 +298,14 @@ impl RuntimeInternals {
         }
     }
 
+    /// Wake all worker threads, ignoring errors.
+    pub(crate) fn wake_all_workers(&self) {
+        trace!("waking all worker thread(s)");
+        for worker in self.worker_wakers.iter() {
+            let _ = worker.wake();
+        }
+    }
+
     /// See [`Scheduler::has_process`].
     pub(crate) fn has_process(&self) -> bool {
         self.scheduler.has_process()
