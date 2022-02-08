@@ -14,6 +14,8 @@
 use std::future::Future;
 use std::io::{self, IoSlice};
 use std::num::NonZeroUsize;
+use std::pin::Pin;
+use std::task::{self, Poll};
 
 pub mod bytes;
 
@@ -103,8 +105,23 @@ pub trait SendStream {
     /// Send the bytes in `buf` into the stream.
     ///
     /// Return the number of bytes written. This may we fewer then the length of
-    /// `buf`.
+    /// `buf`. To ensure that all bytes are written use [`SendStream::send_all`].
     fn send<'a, 'b>(&'a mut self, buf: &'b [u8]) -> Self::Send<'a, 'b>;
+
+    /// Send the all bytes in `buf` into the stream.
+    ///
+    /// If this fails to send all bytes (this happens if a send returns `Ok(0)`)
+    /// this will return [`io::ErrorKind::WriteZero`].
+    fn send_all<'a, 'b>(&'a mut self, buf: &'b [u8]) -> SendAll<'a, 'b, Self>
+    where
+        Self: Sized,
+    {
+        SendAll {
+            stream: self,
+            buf,
+            pending: self.send(buf),
+        }
+    }
 
     /// [`Future`] behind [`send_vectored`].
     ///
@@ -118,6 +135,57 @@ pub trait SendStream {
         &'a mut self,
         bufs: &'b mut [IoSlice<'b>],
     ) -> Self::SendVectored<'a, 'b>;
+}
+
+/// The [`Future`] behind [`SendStream::send_all`].
+#[derive(Debug)]
+#[must_use = "futures do nothing unless you `.await` or poll them"]
+pub struct SendAll<'a, 'b, S>
+where
+    S: SendStream,
+{
+    stream: &'a mut S,
+    buf: &'b [u8],
+    pending: S::Send<'a, 'b>,
+}
+
+impl<'a, 'b, S> Future for SendAll<'a, 'b, S>
+where
+    S: SendStream,
+{
+    type Output = io::Result<()>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: we can't move the `Future` in `pending` or `stream`.
+        let this = unsafe { Pin::into_inner_unchecked(self) };
+        loop {
+            /*
+            // SAFETY: can't move `fut`!
+            let fut = match this.pending.as_mut() {
+                Some(fut) => fut,
+                None => {
+                    let fut: S::Send<'a, 'b> = this.stream.send(this.buf);
+                    this.pending.insert(fut)
+                }
+            };
+            */
+            /*
+            match unsafe { Pin::new_unchecked(fut).poll(ctx) } {
+                Poll::Ready(Ok(0)) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
+                Poll::Ready(Ok(n)) if this.buf.len() <= n => return Poll::Ready(Ok(())),
+                Poll::Ready(Ok(n)) => {
+                    this.buf = &this.buf[n..];
+                    // Try to send some more bytes.
+                    this.pending = None;
+                    continue;
+                }
+                Poll::Ready(Err(err)) => return Poll::Ready(Err(err)),
+                Poll::Pending => return Poll::Pending,
+            }
+            */
+        }
+        todo!()
+    }
 }
 
 /// An optimisation trait to allow a file to send to a stream.

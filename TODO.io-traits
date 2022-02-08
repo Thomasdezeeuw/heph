@@ -1,0 +1,54 @@
+# TODO
+
+SendStream
+    // send_all
+    // send_vectored_all
+
+    Does it need flush()?
+    Does it need close()?
+
+RecvStream
+    recv docs:
+    /// # Examples
+    ///
+    /// ```
+    /// #![feature(never_type)]
+    ///
+    /// use std::io;
+    ///
+    /// use heph::actor;
+    /// use heph::net::TcpStream;
+    /// use heph::rt::ThreadLocal;
+    ///
+    /// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
+    ///     let address = "127.0.0.1:12345".parse().unwrap();
+    ///     let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+    ///
+    ///     let mut buf = Vec::with_capacity(4 * 1024); // 4 KB.
+    ///     let n = stream.recv(&mut buf).await?;
+    ///     println!("read {} bytes: {:?}", n, buf);
+    ///
+    ///     Ok(())
+    /// }
+    /// #
+    /// # drop(actor); // Silent dead code warnings.
+    /// ```
+
+    // recv_n
+    // recv_n_vectored
+
+SendFile
+    // send_file_all
+    // send_entire_file
+
+    sendfile docs:
+    ///
+    /// Users might want to use [`TcpStream::send_file_all`] to ensure all the
+    /// specified bytes (between `offset` and `length`) are send.
+
+
+
+* impl for pipe::Sender, pipe::Receiver.
+* Add #[must_use = "futures do nothing unless you `.await` or poll them"] to all
+  Future types.
+* Add io re-exports?
