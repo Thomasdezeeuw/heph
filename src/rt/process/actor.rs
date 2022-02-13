@@ -55,12 +55,21 @@ where
         runtime_ref: &mut RuntimeRef,
         pid: ProcessId,
         err: <NA::Actor as Actor>::Error,
-    ) -> Result<ProcessResult, NA::Error> {
+    ) -> ProcessResult {
         match self.supervisor.decide(err) {
-            SupervisorStrategy::Restart(arg) => self
-                .create_new_actor(runtime_ref, pid, arg)
-                .map(|()| ProcessResult::Pending),
-            SupervisorStrategy::Stop => Ok(ProcessResult::Complete),
+            SupervisorStrategy::Restart(arg) => {
+                match self.create_new_actor(runtime_ref, pid, arg) {
+                    Ok(()) => {
+                        // Mark the actor as ready just in case progress can be
+                        // made already, this required because we use edge
+                        // triggers for I/O.
+                        NA::RuntimeAccess::mark_ready(runtime_ref, pid);
+                        ProcessResult::Pending
+                    }
+                    Err(err) => self.handle_restart_error(runtime_ref, pid, err),
+                }
+            }
+            SupervisorStrategy::Stop => ProcessResult::Complete,
         }
     }
 
@@ -70,12 +79,24 @@ where
         runtime_ref: &mut RuntimeRef,
         pid: ProcessId,
         err: NA::Error,
-    ) -> Result<ProcessResult, NA::Error> {
+    ) -> ProcessResult {
         match self.supervisor.decide_on_restart_error(err) {
-            SupervisorStrategy::Restart(arg) => self
-                .create_new_actor(runtime_ref, pid, arg)
-                .map(|()| ProcessResult::Pending),
-            SupervisorStrategy::Stop => Ok(ProcessResult::Complete),
+            SupervisorStrategy::Restart(arg) => {
+                match self.create_new_actor(runtime_ref, pid, arg) {
+                    Ok(()) => {
+                        // Mark the actor as ready, same reason as for
+                        // `handle_actor_error`.
+                        NA::RuntimeAccess::mark_ready(runtime_ref, pid);
+                        ProcessResult::Pending
+                    }
+                    Err(err) => {
+                        // Let the supervisor know.
+                        self.supervisor.second_restart_error(err);
+                        ProcessResult::Complete
+                    }
+                }
+            }
+            SupervisorStrategy::Stop => ProcessResult::Complete,
         }
     }
 
@@ -119,31 +140,7 @@ where
         let mut task_ctx = task::Context::from_waker(&waker);
         match actor.as_mut().try_poll(&mut task_ctx) {
             Poll::Ready(Ok(())) => ProcessResult::Complete,
-            Poll::Ready(Err(err)) => match this.handle_actor_error(runtime_ref, pid, err) {
-                Ok(ProcessResult::Pending) => {
-                    // Mark the actor as ready just in case progress can be made
-                    // already, this required because we use edge triggers for
-                    // I/O.
-                    NA::RuntimeAccess::mark_ready(runtime_ref, pid);
-                    ProcessResult::Pending
-                }
-                // Actor wasn't restarted.
-                Ok(ProcessResult::Complete) => ProcessResult::Complete,
-                Err(err) => match this.handle_restart_error(runtime_ref, pid, err) {
-                    Ok(ProcessResult::Pending) => {
-                        // Mark the actor as ready, same reason as above.
-                        NA::RuntimeAccess::mark_ready(runtime_ref, pid);
-                        ProcessResult::Pending
-                    }
-                    // Actor wasn't restarted.
-                    Ok(ProcessResult::Complete) => ProcessResult::Complete,
-                    Err(err) => {
-                        // Let the supervisor know.
-                        this.supervisor.second_restart_error(err);
-                        ProcessResult::Complete
-                    }
-                },
-            },
+            Poll::Ready(Err(err)) => this.handle_actor_error(runtime_ref, pid, err),
             Poll::Pending => ProcessResult::Pending,
         }
     }
