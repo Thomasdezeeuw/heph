@@ -302,7 +302,7 @@ impl RuntimeInternals {
     pub(crate) fn wake_all_workers(&self) {
         trace!("waking all worker thread(s)");
         for worker in self.worker_wakers.iter() {
-            let _ = worker.wake();
+            drop(worker.wake());
         }
     }
 

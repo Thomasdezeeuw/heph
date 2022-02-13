@@ -181,7 +181,7 @@ impl Runtime {
                 match process.as_mut().run(runtime_ref) {
                     ProcessResult::Complete => {
                         // Don't want to panic when dropping the process.
-                        let _ = catch_unwind(AssertUnwindSafe(move || drop(process)));
+                        drop(catch_unwind(AssertUnwindSafe(move || drop(process))));
                     }
                     ProcessResult::Pending => {
                         self.internals.scheduler.borrow_mut().add_process(process);
