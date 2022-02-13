@@ -121,16 +121,19 @@ where
             Poll::Ready(Ok(())) => ProcessResult::Complete,
             Poll::Ready(Err(err)) => match this.handle_actor_error(runtime_ref, pid, err) {
                 Ok(ProcessResult::Pending) => {
-                    // Run the actor just in case progress can be made already,
-                    // this required because we use edge triggers for I/O.
-                    unsafe { Pin::new_unchecked(this) }.run(runtime_ref, pid)
+                    // Mark the actor as ready just in case progress can be made
+                    // already, this required because we use edge triggers for
+                    // I/O.
+                    NA::RuntimeAccess::mark_ready(runtime_ref, pid);
+                    ProcessResult::Pending
                 }
                 // Actor wasn't restarted.
                 Ok(ProcessResult::Complete) => ProcessResult::Complete,
                 Err(err) => match this.handle_restart_error(runtime_ref, pid, err) {
                     Ok(ProcessResult::Pending) => {
-                        // Run the actor, same reason as above.
-                        unsafe { Pin::new_unchecked(this) }.run(runtime_ref, pid)
+                        // Mark the actor as ready, same reason as above.
+                        NA::RuntimeAccess::mark_ready(runtime_ref, pid);
+                        ProcessResult::Pending
                     }
                     // Actor wasn't restarted.
                     Ok(ProcessResult::Complete) => ProcessResult::Complete,
@@ -157,6 +160,9 @@ pub(crate) trait RuntimeSupport {
     ) -> actor::Context<M, Self>
     where
         Self: Sized;
+
+    /// Schedule the actor with `pid` for running (used after restart).
+    fn mark_ready(runtime_ref: &mut RuntimeRef, pid: ProcessId);
 }
 
 impl RuntimeSupport for ThreadLocal {
@@ -167,6 +173,10 @@ impl RuntimeSupport for ThreadLocal {
     ) -> actor::Context<M, ThreadLocal> {
         actor::Context::new(inbox, ThreadLocal::new(pid, runtime_ref.clone()))
     }
+
+    fn mark_ready(runtime_ref: &mut RuntimeRef, pid: ProcessId) {
+        runtime_ref.mark_ready_local(pid)
+    }
 }
 
 impl RuntimeSupport for ThreadSafe {
@@ -176,5 +186,9 @@ impl RuntimeSupport for ThreadSafe {
         runtime_ref: &mut RuntimeRef,
     ) -> actor::Context<M, ThreadSafe> {
         actor::Context::new(inbox, ThreadSafe::new(pid, runtime_ref.clone_shared()))
+    }
+
+    fn mark_ready(runtime_ref: &mut RuntimeRef, pid: ProcessId) {
+        runtime_ref.mark_ready_shared(pid)
     }
 }
