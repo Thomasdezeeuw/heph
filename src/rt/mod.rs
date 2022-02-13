@@ -580,6 +580,16 @@ impl RuntimeRef {
         self.internals.shared.new_task_waker(pid)
     }
 
+    /// Mark the process, with `pid`, as ready to run.
+    fn mark_ready_local(&mut self, pid: ProcessId) {
+        self.internals.scheduler.borrow_mut().mark_ready(pid);
+    }
+
+    /// Mark the shared process, with `pid`, as ready to run.
+    fn mark_ready_shared(&mut self, pid: ProcessId) {
+        self.internals.shared.mark_ready(pid);
+    }
+
     /// Add a deadline.
     fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
         trace!("adding deadline: pid={}, deadline={:?}", pid, deadline);
