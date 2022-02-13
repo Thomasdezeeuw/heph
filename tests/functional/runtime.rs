@@ -3,7 +3,7 @@ use std::io::{self, Write};
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::process::Command;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::task::{self, Poll};
 use std::thread::{self, sleep};
@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use heph::actor::{self, Actor, NewActor, SyncContext};
 use heph::rt::{Runtime, ThreadLocal, ThreadSafe};
-use heph::spawn::options::{ActorOptions, Priority, SyncActorOptions};
+use heph::spawn::options::{ActorOptions, FutureOptions, Priority, SyncActorOptions};
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 
 use crate::util::temp_file;
@@ -509,4 +509,158 @@ fn external_thread_wakes_sync_actor() {
 
     runtime.start().unwrap();
     handle.join().unwrap();
+}
+
+#[test]
+fn catches_future_panics() {
+    static PANIC_RAN: AtomicBool = AtomicBool::new(false);
+    static OK_RAN: AtomicBool = AtomicBool::new(false);
+
+    async fn panic_future() {
+        PANIC_RAN.store(true, Ordering::SeqCst);
+        panic!("on purpose panic");
+    }
+
+    async fn ok_future() {
+        OK_RAN.store(true, Ordering::SeqCst);
+    }
+
+    let mut runtime = Runtime::new().unwrap();
+    runtime.spawn_future(
+        panic_future(),
+        FutureOptions::default().with_priority(Priority::HIGH),
+    );
+    runtime.spawn_future(
+        ok_future(),
+        FutureOptions::default().with_priority(Priority::LOW),
+    );
+
+    runtime.start().unwrap();
+
+    assert!(PANIC_RAN.load(Ordering::SeqCst));
+    assert!(OK_RAN.load(Ordering::SeqCst));
+}
+
+#[test]
+fn catches_local_future_panics() {
+    static PANIC_RAN: AtomicBool = AtomicBool::new(false);
+    static OK_RAN: AtomicBool = AtomicBool::new(false);
+
+    async fn panic_future() {
+        PANIC_RAN.store(true, Ordering::SeqCst);
+        panic!("on purpose panic");
+    }
+
+    async fn ok_future() {
+        OK_RAN.store(true, Ordering::SeqCst);
+    }
+
+    let mut runtime = Runtime::new().unwrap();
+    runtime
+        .run_on_workers(|mut runtime_ref| -> Result<(), !> {
+            runtime_ref.spawn_local_future(
+                panic_future(),
+                FutureOptions::default().with_priority(Priority::HIGH),
+            );
+            runtime_ref.spawn_local_future(
+                ok_future(),
+                FutureOptions::default().with_priority(Priority::LOW),
+            );
+            Ok(())
+        })
+        .unwrap();
+
+    runtime.start().unwrap();
+
+    assert!(PANIC_RAN.load(Ordering::SeqCst));
+    assert!(OK_RAN.load(Ordering::SeqCst));
+}
+
+#[test]
+fn catches_future_panics_on_drop() {
+    static PANIC_RAN: AtomicBool = AtomicBool::new(false);
+    static OK_RAN: AtomicBool = AtomicBool::new(false);
+
+    struct PanicOnDropFuture;
+
+    impl Future for PanicOnDropFuture {
+        type Output = ();
+
+        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+            PANIC_RAN.store(true, Ordering::SeqCst);
+            Poll::Ready(())
+        }
+    }
+
+    impl Drop for PanicOnDropFuture {
+        fn drop(&mut self) {
+            panic!("on purpose panic");
+        }
+    }
+
+    async fn ok_future() {
+        OK_RAN.store(true, Ordering::SeqCst);
+    }
+
+    let mut runtime = Runtime::new().unwrap();
+    runtime.spawn_future(
+        PanicOnDropFuture,
+        FutureOptions::default().with_priority(Priority::HIGH),
+    );
+    runtime.spawn_future(
+        ok_future(),
+        FutureOptions::default().with_priority(Priority::LOW),
+    );
+
+    runtime.start().unwrap();
+
+    assert!(PANIC_RAN.load(Ordering::SeqCst));
+    assert!(OK_RAN.load(Ordering::SeqCst));
+}
+
+#[test]
+fn catches_local_future_panics_on_drop() {
+    static PANIC_RAN: AtomicBool = AtomicBool::new(false);
+    static OK_RAN: AtomicBool = AtomicBool::new(false);
+
+    struct PanicOnDropFuture;
+
+    impl Future for PanicOnDropFuture {
+        type Output = ();
+
+        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+            PANIC_RAN.store(true, Ordering::SeqCst);
+            Poll::Ready(())
+        }
+    }
+
+    impl Drop for PanicOnDropFuture {
+        fn drop(&mut self) {
+            panic!("on purpose panic");
+        }
+    }
+
+    async fn ok_future() {
+        OK_RAN.store(true, Ordering::SeqCst);
+    }
+
+    let mut runtime = Runtime::new().unwrap();
+    runtime
+        .run_on_workers(|mut runtime_ref| -> Result<(), !> {
+            runtime_ref.spawn_local_future(
+                PanicOnDropFuture,
+                FutureOptions::default().with_priority(Priority::HIGH),
+            );
+            runtime_ref.spawn_local_future(
+                ok_future(),
+                FutureOptions::default().with_priority(Priority::LOW),
+            );
+            Ok(())
+        })
+        .unwrap();
+
+    runtime.start().unwrap();
+
+    assert!(PANIC_RAN.load(Ordering::SeqCst));
+    assert!(OK_RAN.load(Ordering::SeqCst));
 }

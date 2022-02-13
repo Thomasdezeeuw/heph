@@ -1,4 +1,5 @@
 use std::mem::replace;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::{fmt, ptr};
@@ -133,8 +134,7 @@ impl Inactive {
                         // removing the marker for a process that was added
                         // after we dropped `process`, making us miss a wake-up
                         // for another process.
-                        drop(process);
-                        return;
+                        break;
                     }
                     // Another thread changed the pointer, try again with the
                     // updated (`old`) pointer.
@@ -142,8 +142,7 @@ impl Inactive {
                 }
             } else if old_ptr.is_null() || is_process(old_ptr) || is_ready_marker(old_ptr) {
                 // No marker for the process in the tree.
-                drop(process);
-                return;
+                break;
             } else {
                 debug_assert!(is_branch(old_ptr));
                 // Pointer is a branch. Try at the next level.
@@ -158,6 +157,9 @@ impl Inactive {
                 old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
             }
         }
+
+        // Don't want to panic when dropping the process.
+        let _ = catch_unwind(AssertUnwindSafe(move || drop(process)));
     }
 
     /// Update `length` with `n` added/removed processes.

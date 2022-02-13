@@ -1,5 +1,6 @@
 //! Module containing the `Process` trait, related types and implementations.
 
+use std::any::Any;
 use std::cmp::Ordering;
 use std::fmt;
 use std::pin::Pin;
@@ -94,6 +95,18 @@ pub(crate) enum ProcessResult {
     ///
     /// [`Poll::Pending`]: std::task::Poll::Pending
     Pending,
+}
+
+/// Attempts to extract a message from a panic, defaulting to `<unknown>`.
+/// Note: be sure to derefence the `Box`!
+fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
+    match panic.downcast_ref::<&'static str>() {
+        Some(s) => *s,
+        None => match panic.downcast_ref::<String>() {
+            Some(s) => &**s,
+            None => "<unknown>",
+        },
+    }
 }
 
 /// Data related to a process.

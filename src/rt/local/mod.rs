@@ -2,6 +2,7 @@
 
 use std::cell::{RefCell, RefMut};
 use std::num::NonZeroUsize;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -62,25 +63,6 @@ pub(crate) struct Runtime {
     ///
     /// [`Runtime::start`]: rt::Runtime::start
     started: bool,
-}
-
-/// Run a block of code, catching panics when testing or not otherwise.
-macro_rules! catch_in_test {
-    ($fmt: tt, $code: block) => {
-        #[cfg(any(test, feature = "test"))]
-        if let Err(err) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| $code)) {
-            let msg = match err.downcast_ref::<&'static str>() {
-                Some(s) => *s,
-                None => match err.downcast_ref::<String>() {
-                    Some(s) => &**s,
-                    None => "<unknown>",
-                },
-            };
-            eprintln!($fmt, msg);
-        }
-        #[cfg(not(any(test, feature = "test")))]
-        $code
-    };
 }
 
 impl Runtime {
@@ -193,23 +175,24 @@ impl Runtime {
         let process = self.internals.scheduler.borrow_mut().next_process();
         match process {
             Some(mut process) => {
-                catch_in_test!("Thread-local actor panicked: '{}'", {
-                    let timing = trace::start(&*self.internals.trace_log.borrow());
-                    let pid = process.as_ref().id();
-                    let name = process.as_ref().name();
-                    match process.as_mut().run(runtime_ref) {
-                        ProcessResult::Complete => {}
-                        ProcessResult::Pending => {
-                            self.internals.scheduler.borrow_mut().add_process(process);
-                        }
+                let timing = trace::start(&*self.internals.trace_log.borrow());
+                let pid = process.as_ref().id();
+                let name = process.as_ref().name();
+                match process.as_mut().run(runtime_ref) {
+                    ProcessResult::Complete => {
+                        // Don't want to panic when dropping the process.
+                        let _ = catch_unwind(AssertUnwindSafe(move || drop(process)));
                     }
-                    trace::finish_rt(
-                        self.internals.trace_log.borrow_mut().as_mut(),
-                        timing,
-                        "Running thread-local process",
-                        &[("id", &pid.0), ("name", &name)],
-                    );
-                });
+                    ProcessResult::Pending => {
+                        self.internals.scheduler.borrow_mut().add_process(process);
+                    }
+                }
+                trace::finish_rt(
+                    self.internals.trace_log.borrow_mut().as_mut(),
+                    timing,
+                    "Running thread-local process",
+                    &[("id", &pid.0), ("name", &name)],
+                );
                 true
             }
             None => false,
@@ -222,25 +205,23 @@ impl Runtime {
         let process = self.internals.shared.remove_process();
         match process {
             Some(mut process) => {
-                catch_in_test!("Thread-safe actor panicked: '{}'", {
-                    let timing = trace::start(&*self.internals.trace_log.borrow());
-                    let pid = process.as_ref().id();
-                    let name = process.as_ref().name();
-                    match process.as_mut().run(runtime_ref) {
-                        ProcessResult::Complete => {
-                            self.internals.shared.complete(process);
-                        }
-                        ProcessResult::Pending => {
-                            self.internals.shared.add_process(process);
-                        }
+                let timing = trace::start(&*self.internals.trace_log.borrow());
+                let pid = process.as_ref().id();
+                let name = process.as_ref().name();
+                match process.as_mut().run(runtime_ref) {
+                    ProcessResult::Complete => {
+                        self.internals.shared.complete(process);
                     }
-                    trace::finish_rt(
-                        self.internals.trace_log.borrow_mut().as_mut(),
-                        timing,
-                        "Running thread-safe process",
-                        &[("id", &pid.0), ("name", &name)],
-                    );
-                });
+                    ProcessResult::Pending => {
+                        self.internals.shared.add_process(process);
+                    }
+                }
+                trace::finish_rt(
+                    self.internals.trace_log.borrow_mut().as_mut(),
+                    timing,
+                    "Running thread-safe process",
+                    &[("id", &pid.0), ("name", &name)],
+                );
                 true
             }
             None => false,

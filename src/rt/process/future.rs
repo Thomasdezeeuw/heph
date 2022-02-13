@@ -3,10 +3,13 @@
 
 use std::future::Future;
 use std::marker::PhantomData;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use crate::rt::process::{Process, ProcessId, ProcessResult};
+use log::error;
+
+use crate::rt::process::{panic_message, Process, ProcessId, ProcessResult};
 use crate::rt::{self, RuntimeRef};
 
 /// A process that represent a [`Future`].
@@ -32,7 +35,7 @@ where
     RT: rt::Access,
 {
     fn name(&self) -> &'static str {
-        crate::actor::name::<Fut>()
+        name::<Fut>()
     }
 
     fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult {
@@ -41,9 +44,19 @@ where
 
         let waker = RT::new_task_waker(runtime_ref, pid);
         let mut task_ctx = task::Context::from_waker(&waker);
-        match Future::poll(future, &mut task_ctx) {
-            Poll::Ready(()) => ProcessResult::Complete,
-            Poll::Pending => ProcessResult::Pending,
+
+        match catch_unwind(AssertUnwindSafe(|| Future::poll(future, &mut task_ctx))) {
+            Ok(Poll::Ready(())) => ProcessResult::Complete,
+            Ok(Poll::Pending) => ProcessResult::Pending,
+            Err(panic) => {
+                let msg = panic_message(&*panic);
+                error!("future '{}' panicked at '{}'", name::<Fut>(), msg);
+                ProcessResult::Complete
+            }
         }
     }
+}
+
+fn name<Fut>() -> &'static str {
+    crate::actor::name::<Fut>()
 }
