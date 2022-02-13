@@ -94,6 +94,7 @@
 //! }
 //! ```
 
+use std::any::Any;
 use std::fmt;
 
 use crate::actor::SyncActor;
@@ -128,18 +129,18 @@ where
     ///
     /// # Notes
     ///
-    /// A restarted actor will immediately will be run again. This has the
-    /// benefit that the actor can setup any asynchronous operations without
+    /// A restarted actor will immediately will be scheduled run again. This has
+    /// the benefit that the actor can setup any asynchronous operations without
     /// having to wait to be run again.
     ///
-    /// However it also has a downside: *it's easy to create create an infinite
-    /// loop*. When a supervisor always restarts an actor that always returns an
-    /// error, we've got an effective infinite loop of restarting and running
+    /// However it also has a downside: *it's easy to create create an error and
+    /// restart loop*. When a supervisor always restarts an actor that always
+    /// returns an error, we've got an effective loop of restarting and running
     /// the actor, the actor crashes and is restarted and run again, etc.
     ///
-    /// To avoid creating such an infinite loop limit the amount times an actor
-    /// can be restarted. Or use the [`restart_supervisor!`] macro to
-    /// automatically create a supervisor that handles this for you.
+    /// To avoid creating such an loop limit the amount times an actor can be
+    /// restarted. Or use the [`restart_supervisor!`] macro to automatically
+    /// create a supervisor that handles this for you.
     fn decide(&mut self, error: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument>;
 
     /// Decide what happens when an actor is restarted and the [`NewActor`]
@@ -163,6 +164,30 @@ where
     /// [`decide_on_restart_error`]: Supervisor::decide_on_restart_error
     // TODO: a better name.
     fn second_restart_error(&mut self, error: NA::Error);
+
+    /// Decide what happens to the actor that panicked.
+    ///
+    /// This is similar to [`Supervisor::decide`], but handles panics instead of
+    /// errors ([`NewActor::Error`]).
+    ///
+    /// # Default
+    ///
+    /// By default this stops the actor as a panic is always unexpected and is
+    /// generally harder to recover from then an error.
+    ///
+    /// # Notes
+    ///
+    /// The panic is always logged using the [panic hook], in addition an error
+    /// message is printed which states what actor panicked.
+    ///
+    /// [panic hook]: std::panic::set_hook
+    fn decide_on_panic(
+        &mut self,
+        panic: Box<dyn Any + Send + 'static>,
+    ) -> SupervisorStrategy<NA::Argument> {
+        drop(panic);
+        SupervisorStrategy::Stop
+    }
 }
 
 impl<F, NA> Supervisor<NA> for F

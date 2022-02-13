@@ -1,14 +1,17 @@
 //! Module containing the implementation of the [`Process`] trait for
 //! [`Actor`]s.
 
+use std::any::Any;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::task::{self, Poll};
 
 use heph_inbox::{Manager, Receiver};
+use log::error;
 
 use crate::actor::{self, Actor, NewActor};
 use crate::rt::access::PrivateAccess;
-use crate::rt::process::{Process, ProcessId, ProcessResult};
+use crate::rt::process::{panic_message, Process, ProcessId, ProcessResult};
 use crate::rt::{self, RuntimeRef, ThreadLocal, ThreadSafe};
 use crate::supervisor::{Supervisor, SupervisorStrategy};
 
@@ -47,9 +50,9 @@ where
         }
     }
 
-    /// Returns `Ok(ProcessResult::Pending)` if the actor was successfully
-    /// restarted, `Ok(ProcessResult::Complete)` if the actor wasn't restarted
-    /// or an error if the actor failed to restart.
+    /// Returns `ProcessResult::Pending` if the actor was successfully
+    /// restarted, `ProcessResult::Complete` if the actor wasn't restarted or an
+    /// error if the actor failed to restart.
     fn handle_actor_error(
         &mut self,
         runtime_ref: &mut RuntimeRef,
@@ -57,6 +60,31 @@ where
         err: <NA::Actor as Actor>::Error,
     ) -> ProcessResult {
         match self.supervisor.decide(err) {
+            SupervisorStrategy::Restart(arg) => {
+                match self.create_new_actor(runtime_ref, pid, arg) {
+                    Ok(()) => {
+                        // Mark the actor as ready just in case progress can be
+                        // made already, this required because we use edge
+                        // triggers for I/O.
+                        NA::RuntimeAccess::mark_ready(runtime_ref, pid);
+                        ProcessResult::Pending
+                    }
+                    Err(err) => self.handle_restart_error(runtime_ref, pid, err),
+                }
+            }
+            SupervisorStrategy::Stop => ProcessResult::Complete,
+        }
+    }
+
+    /// Returns `ProcessResult::Pending` if the actor was successfully
+    /// restarted, `ProcessResult::Complete` if the actor wasn't restarted.
+    fn handle_actor_panic(
+        &mut self,
+        runtime_ref: &mut RuntimeRef,
+        pid: ProcessId,
+        panic: Box<dyn Any + Send + 'static>,
+    ) -> ProcessResult {
+        match self.supervisor.decide_on_panic(panic) {
             SupervisorStrategy::Restart(arg) => {
                 match self.create_new_actor(runtime_ref, pid, arg) {
                     Ok(()) => {
@@ -138,10 +166,15 @@ where
 
         let waker = NA::RuntimeAccess::new_task_waker(runtime_ref, pid);
         let mut task_ctx = task::Context::from_waker(&waker);
-        match actor.as_mut().try_poll(&mut task_ctx) {
-            Poll::Ready(Ok(())) => ProcessResult::Complete,
-            Poll::Ready(Err(err)) => this.handle_actor_error(runtime_ref, pid, err),
-            Poll::Pending => ProcessResult::Pending,
+        match catch_unwind(AssertUnwindSafe(|| actor.as_mut().try_poll(&mut task_ctx))) {
+            Ok(Poll::Ready(Ok(()))) => ProcessResult::Complete,
+            Ok(Poll::Ready(Err(err))) => this.handle_actor_error(runtime_ref, pid, err),
+            Ok(Poll::Pending) => ProcessResult::Pending,
+            Err(panic) => {
+                let msg = panic_message(&*panic);
+                error!("actor '{}' panicked at '{}'", this.name(), msg);
+                this.handle_actor_panic(runtime_ref, pid, panic)
+            }
         }
     }
 }
