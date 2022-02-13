@@ -159,7 +159,7 @@ impl Inactive {
         }
 
         // Don't want to panic when dropping the process.
-        let _ = catch_unwind(AssertUnwindSafe(move || drop(process)));
+        drop(catch_unwind(AssertUnwindSafe(move || drop(process))));
     }
 
     /// Update `length` with `n` added/removed processes.
