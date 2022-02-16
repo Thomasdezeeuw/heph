@@ -1,0 +1,247 @@
+diff --git a/diff.79935273fcfc714991c8ad186d9034a2878fa71f.patch b/diff.79935273fcfc714991c8ad186d9034a2878fa71f.patch
+new file mode 100644
+index 0000000..7281b26
+--- /dev/null
++++ b/diff.79935273fcfc714991c8ad186d9034a2878fa71f.patch
+@@ -0,0 +1,241 @@
++commit 79935273fcfc714991c8ad186d9034a2878fa71f
++Author: Thomas de Zeeuw <thomasdezeeuw@gmail.com>
++Date:   Thu Oct 15 12:08:17 2020 +0200
++
++    [WIP] 2
++
++diff --git a/NEW.rs b/NEW.rs
++new file mode 100644
++index 0000000..e18f973
++--- /dev/null
+++++ b/NEW.rs
++@@ -0,0 +1,65 @@
+++    /// [`MessageMux`] implementation that start a new actor for each message.
+++    #[derive(Debug)]
+++    pub struct ActorStarter<R, NA, Arg> {
+++        runtime_ref: R,
+++        new_actor: NA,
+++        _phantom: PhantomData<Arg>,
+++    }
+++
+++    impl<R, NA, Arg> ActorStarter<R, NA, Arg>
+++    where
+++        R: RuntimeAccess,
+++        NA: NewActor<Argument = Arg>,
+++        NA::Error: fmt::Display,
+++    {
+++        const fn new(runtime_ref: R, new_actor: NA) -> ActorStarter<R, NA, Arg> {
+++            ActorStarter {
+++                runtime_ref,
+++                new_actor,
+++                _phantom: PhantomData,
+++            }
+++        }
+++    }
+++
+++    impl<'a, R, M, NA, Arg> MessageMux<'a, M> for ActorStarter<R, NA, Arg>
+++    where
+++        R: RuntimeAccess,
+++        NA: NewActor<Argument = Arg>,
+++        NA::Error: fmt::Display + Unpin + 'static,
+++        M: Into<Arg>,
+++        M: 'static + Unpin, // FIXME: remove.
+++    {
+++        type Error = NA::Error;
+++        type Future = StartActor<NA::Error>;
+++
+++        fn route(&'a mut self, msg: M) -> Self::Future {
+++            todo!()
+++        }
+++    }
+++
+++    #[derive(Debug)]
+++    pub struct StartActor<E> {
+++        err: Option<E>,
+++    }
+++
+++    impl<E> Future for StartActor<E>
+++    where
+++        E: Unpin,
+++    {
+++        type Output = Result<(), E>;
+++
+++        fn poll(self: Pin<&mut Self>, _ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+++            let res = match Pin::into_inner(self).err.take() {
+++                Some(err) => Err(err),
+++                None => Ok(()),
+++            };
+++            Poll::Ready(res)
+++        }
+++    }
+++
+++# TODO.
+++
+++Relay message to the correct actor based on some key. Keep actor refs in a
+++hashmap, if not in the hash map start a new actor for the message. Called `Mux`?
+++
+++Use case: consensus actors of Stored.
++diff --git a/examples/5a_remote_actors.rs b/examples/5a_remote_actors.rs
++index 335d371..fb05f6a 100644
++--- a/examples/5a_remote_actors.rs
+++++ b/examples/5a_remote_actors.rs
++@@ -1,43 +1,41 @@
++ #![feature(never_type)]
++
+++use std::io;
+++
++ use heph::actor::context::ThreadSafe;
++-use heph::net::rpc::RemoteRegistry;
+++use heph::net::relay::{Relay, RemoteRelay};
++ use heph::supervisor::NoSupervisor;
++ use heph::{actor, rt, ActorOptions, Runtime};
+++use log::info;
++
++-fn main() -> Result<(), rt::Error> {
+++fn main() -> Result<(), rt::Error<io::Error>> {
++     heph::log::init();
++
++-    let mut runtime = Runtime::new()?;
+++    let local_address = "127.0.0.1:9001".parse().unwrap();
+++
+++    let mut runtime = Runtime::new().map_err(rt::Error::map_type)?;
++
++     // Start our greeter actor.
++     #[allow(trivial_casts)]
++     let greeter_actor = greeter_actor as fn(_) -> _;
++     let options = ActorOptions::default().mark_ready();
++-    let actor_ref = runtime.spawn(NoSupervisor, greeter_actor, (), options);
++-
++-    // Create a new remote registry.
++-    let mut registry = RemoteRegistry::new();
++-    // Register our actor so it can receive messages from actor on remote nodes.
++-    registry
++-        .register("greeter", actor_ref)
++-        .expect("failed to register actor");
++-    // Spawn the listener that relays the messages for us.
++-    let address = "127.0.0.1:9001".parse().unwrap();
++-    let _actor_ref = registry.spawn_listener(&mut runtime, address);
++-    // Let remote listener receive process signals.
++-    // TODO: add below.
++-    //runtime.receive_signals(actor_ref);
++-
++-    runtime.start()
+++    let local_actor_ref = runtime.spawn(NoSupervisor, greeter_actor, (), options);
+++
+++    // Create a router that relays all remote messages to our local actor.
+++    let router = Relay::to(local_actor_ref);
+++
+++    // Spawn our remote relay actor.
+++    let options = ActorOptions::default();
+++    RemoteRelay::<()>::bind::<_, String>(&mut runtime, local_address, router, options)?;
+++
+++    info!("listening for messages on {}", local_address);
+++
+++    runtime.start().map_err(rt::Error::map_type)
++ }
++
++ async fn greeter_actor(mut ctx: actor::Context<String, ThreadSafe>) -> Result<(), !> {
++-    // TODO: change to:
++-    // while let Some(msg) = ctx.receive_next().await {
++     loop {
++         let msg = ctx.receive_next().await;
++         println!("Hello {}!", msg);
++     }
++-    //Ok(())
++ }
++diff --git a/examples/5b_remote_actors.rs b/examples/5b_remote_actors.rs
++index 2f83718..7172c9d 100644
++--- a/examples/5b_remote_actors.rs
+++++ b/examples/5b_remote_actors.rs
++@@ -2,55 +2,30 @@
++
++ #![feature(never_type)]
++
++-use heph::net::rpc::{Remote, RemoteActors};
++-use heph::supervisor::NoSupervisor;
++-use heph::{actor, rt, ActorOptions, ActorRef, Runtime};
+++use std::io;
++
++-fn main() -> Result<(), rt::Error> {
++-    heph::log::init();
+++use heph::net::relay::{Drop, RemoteRelay};
+++use heph::{rt, ActorOptions, ActorRef, Runtime};
+++use log::error;
++
++-    // See examples 1 and 2 for detailed explanation of the runtime setup.
++-    let mut runtime = Runtime::new()?;
+++fn main() -> Result<(), rt::Error<io::Error>> {
+++    heph::log::init();
++
++-    // This address of the remote node.
+++    // Reverse of example 5a.
+++    let local_address = "127.0.0.1:9002".parse().unwrap();
++     let remote_address = "127.0.0.1:9001".parse().unwrap();
++-    // Connect to the remote node.
++-    let remote_actors = RemoteActors::connect(&mut runtime, remote_address);
++-    // Create a reference to the registered greeter actor (see example 5a).
++-    let actor_ref = remote_actors.create_ref("greeter");
++-
++-    runtime
++-        .with_setup(|mut runtime_ref| {
++-            let options = ActorOptions::default().mark_ready();
++-            let actor = greeter_actor as fn(_, _) -> _;
++-            runtime_ref.spawn_local(NoSupervisor, actor, actor_ref, options);
++-            Ok(())
++-        })
++-        .start()
++-}
++
++-async fn greeter_actor(_: actor::Context<!>, mut actor_ref: ActorRef<Remote>) -> Result<(), !> {
++-    // Send the actor a message.
++-    // Note that we can't reliably detect if the message is delivered, so when
++-    // waiting for a response its advisable to use a timeout of some kind.
++-    actor_ref <<= "Thomas";
++-
++-    /* TODO: support RPC.
++-    // RPC is also supported.
++-    // Note that, much like with sending messages, we can't reliably detect if
++-    // the remote actor is going to respond. So its advisable to use a timeout
++-    // or similar mechanism to ensure this doesn't wait forever.
++-    match actor_ref.rpc(&mut ctx, "Bob") {
++-        Ok(response) => match response.await {
++-            Ok(response) => {
++-                info!("got a response: {}", response);
++-            }
++-            Err(_) => error!("remote actor didn't send a response"),
++-        },
++-        Err(err) => error!("failed to send message to remote actor"),
+++    let mut runtime = Runtime::new().map_err(rt::Error::map_type)?;
+++
+++    // Spawn our remote relay actor.
+++    let options = ActorOptions::default();
+++    let mut remote_relay =
+++        RemoteRelay::bind::<_, String>(&mut runtime, local_address, Drop, options)?;
+++
+++    let remote_actor_ref: ActorRef<String> = remote_relay.create_ref(remote_address);
+++    if let Err(err) = remote_actor_ref.send("Thomas".to_owned()) {
+++        error!("error sending message: {}", err);
++     }
++-    */
++
++-    // See example 5a for the actor that handles these messages.
++-    Ok(())
+++    runtime.start().map_err(rt::Error::map_type)
++ }
++diff --git a/examples/README.md b/examples/README.md
++index 35d42b2..23ec010 100644
++--- a/examples/README.md
+++++ b/examples/README.md
++@@ -48,9 +48,9 @@ ## 4. Synchronous actor
++ ## 5. Remote actor references
++
++ Examples 5a and 5b should be run together. Example 5a shows how to create a
++-`RemoteRegistry` allow remote actors to send messages to local actors. Example
++-5b shows how to create and use an remote actor reference, referencing the actor
++-created in example 5a.
+++`RemoteRelay` which allow remote actors to send messages to local actors.
+++Example 5b shows how to create and use an remote actor reference, referencing
+++the actor created in example 5a.
++
++ ## 6. Process signal handling
++

@@ -1,5 +1,6 @@
 //! Module with the UDP implementation of the net relay.
 
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::io;
 use std::net::SocketAddr;
@@ -13,8 +14,8 @@ use log::warn;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;
 
-use crate::net_relay::uuid::UuidGenerator;
-use crate::net_relay::{Message, Route, Serde};
+use crate::net_relay::uuid::{Uuid, UuidGenerator};
+use crate::net_relay::{GenericRpcResponder, Message, Route, RpcExtractor, Serde};
 
 const MAX_PACKET_SIZE: usize = 1 << 16; // ~65kb.
 
@@ -91,7 +92,7 @@ pub(crate) async fn remote_relay<S, Out, In, R, RT>(
 ) -> io::Result<()>
 where
     S: Serde,
-    Out: Serialize,
+    Out: Serialize + RpcExtractor,
     In: DeserializeOwned,
     RT: rt::Access,
     R: Route<In>,
@@ -99,6 +100,7 @@ where
     let mut socket = UdpSocket::bind(&mut ctx, local_address)?;
     let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
     let mut uuid_gen = UuidGenerator::new();
+    let mut rpcs = HashMap::new();
 
     loop {
         buf.clear();
@@ -106,12 +108,21 @@ where
             // Received an outgoing message we want to relay to a remote
             // actor.
             Ok(Ok(UdpRelayMessage::Relay { message, target })) => {
-                send_message::<S, Out>(&mut socket, &mut buf, &mut uuid_gen, target, &message)
-                    .await?
+                send_message::<S, Out>(
+                    &mut socket,
+                    &mut buf,
+                    &mut rpcs,
+                    &mut uuid_gen,
+                    target,
+                    message,
+                )
+                .await?
             }
             Ok(Ok(UdpRelayMessage::Terminate) | Err(NoMessages)) => return Ok(()),
             // Received an incoming packet.
-            Err(Ok((_, source))) => route_message::<S, R, In>(&mut router, &buf, source).await?,
+            Err(Ok((_, source))) => {
+                route_message::<S, R, In>(&mut rpcs, &mut router, &buf, source).await?
+            }
             // Error receiving a packet.
             Err(Err(err)) => return Err(err),
         }
@@ -123,21 +134,24 @@ where
 async fn send_message<S, M>(
     socket: &mut UdpSocket,
     buf: &mut Vec<u8>,
+    rpcs: &mut HashMap<Uuid, GenericRpcResponder<S>>,
     uuid_gen: &mut UuidGenerator,
     target: SocketAddr,
-    msg: &M,
+    msg: M,
 ) -> io::Result<()>
 where
     S: Serde,
-    M: Serialize,
+    M: Serialize + RpcExtractor,
 {
     // Serialise the message to our buffer first.
     let uuid = uuid_gen.next();
-    let msg = Message { uuid, msg };
-    if let Err(err) = S::to_buf(&mut *buf, &msg) {
+    if let Err(err) = S::to_buf(&mut *buf, &Message { uuid, msg: &msg }) {
         warn!("error serialising message (for {}): {}", target, err);
         // Don't want to stop the actor for this.
         return Ok(());
+    }
+    if let Some(rpc_response) = msg.extract::<S>() {
+        drop(rpcs.insert(uuid, rpc_response));
     }
 
     // Then send the buffer as a single packet.
@@ -165,12 +179,24 @@ where
 /// Returns an error if the message can't be routed. Errors from deserialising
 /// the message in `buf` are only logged using `warn!`.
 #[allow(clippy::future_not_send)]
-async fn route_message<S, R, M>(router: &mut R, buf: &[u8], source: SocketAddr) -> io::Result<()>
+async fn route_message<S, R, M>(
+    rpcs: &mut HashMap<Uuid, GenericRpcResponder<S>>,
+    router: &mut R,
+    buf: &[u8],
+    source: SocketAddr,
+) -> io::Result<()>
 where
     S: Serde,
     R: Route<M>,
     M: DeserializeOwned,
 {
+    /* FIXME: support RPC.
+    Ok(msg) => {
+        match rpcs.remove(uuid) {
+            Some(responder) => (responder.inner)(
+        }
+    },
+    */
     match S::from_slice::<Message<M>>(buf) {
         Ok(msg) => match router.route(msg.msg, source).await {
             Ok(()) => Ok(()),

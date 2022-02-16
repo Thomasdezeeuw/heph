@@ -76,7 +76,7 @@
 //! // listening of course).
 //! remote_ref.try_send("Hello world!").unwrap();
 //!
-//! // Dropping all reference to the relay actor will stop it.
+//! // Dropping all references to the relay actor will stop it.
 //! drop(remote_ref);
 //! // If you want keep listening for remote messages, even though you're not
 //! // sending any of your own, you'll need to keep `remote_ref` alive at least
@@ -92,6 +92,7 @@ use std::net::SocketAddr;
 use std::{fmt, io};
 
 use heph::actor::{self, Actor, NewActor};
+use heph::actor_ref::rpc::RpcResponse;
 use heph::rt;
 use serde::de::{self, Deserialize, DeserializeOwned, Deserializer, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
@@ -239,7 +240,7 @@ impl<R, S, Out, In, RT> Config<R, (), S, Out, In, RT> {
 
 impl<R, CT, Out, In, RT> Config<R, CT, (), Out, In, RT> {
     /// Use [`Json`] serialisation.
-    #[cfg(any(feature = "json"))]
+    #[cfg(feature = "json")]
     pub fn json(self) -> Config<R, CT, Json, Out, In, RT> {
         Config {
             router: self.router,
@@ -256,7 +257,7 @@ where
     In: DeserializeOwned,
     S: Serde,
     RT: rt::Access,
-    Out: Serialize,
+    Out: Serialize + RpcExtractor,
 {
     type Message = RelayMessage<Out>;
     type Argument = SocketAddr;
@@ -283,7 +284,7 @@ where
     In: DeserializeOwned,
     S: Serde,
     RT: rt::Access,
-    Out: Serialize,
+    Out: Serialize + RpcExtractor,
 {
     type Message = UdpRelayMessage<Out>;
     type Argument = SocketAddr;
@@ -373,7 +374,7 @@ mod private {
         fn byte_offset(&self) -> usize;
     }
 
-    #[cfg(any(feature = "json"))]
+    #[cfg(feature = "json")]
     impl Serde for Json {
         type Iter<'a, T>
         where
@@ -403,7 +404,7 @@ mod private {
         }
     }
 
-    #[cfg(any(feature = "json"))]
+    #[cfg(feature = "json")]
     impl<'de, R, T> DeIter<T> for serde_json::StreamDeserializer<'de, R, T>
     where
         T: DeserializeOwned,
@@ -441,6 +442,37 @@ pub trait Route<M> {
     ///
     /// [`ready`]: std::future::ready
     fn route<'a>(&'a mut self, msg: M, source: SocketAddr) -> Self::Route<'a>;
+}
+
+/// Trait to extract [`RpcResponse`].
+pub trait RpcExtractor {
+    /// Returns a [`GenericRpcResponder`] or `None` if its not a RPC.
+    fn extract<S>(self) -> Option<GenericRpcResponder<S>>
+    where
+        S: Serde;
+}
+
+/// Genric way to response RPC messages.
+#[allow(missing_debug_implementations)]
+pub struct GenericRpcResponder<S: Serde> {
+    // TODO: attempt to remove this box. Maybe a custom trait + type?
+    inner: Box<dyn FnOnce(&[u8]) -> Result<(), S::Error>>,
+}
+
+impl<S, Res> From<RpcResponse<Res>> for GenericRpcResponder<S>
+where
+    S: Serde,
+    Res: DeserializeOwned + 'static,
+{
+    fn from(response: RpcResponse<Res>) -> GenericRpcResponder<S> {
+        GenericRpcResponder {
+            inner: Box::new(move |buf| {
+                let msg = S::from_slice(buf)?;
+                drop(response.respond(msg));
+                Ok(())
+            }),
+        }
+    }
 }
 
 /// Message type used in communicating.

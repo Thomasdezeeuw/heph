@@ -12,7 +12,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 
 use crate::net_relay::uuid::UuidGenerator;
-use crate::net_relay::{DeIter, Message, Route, Serde};
+use crate::net_relay::{DeIter, Message, Route, RpcExtractor, Serde};
 
 const INITIAL_BUF_SIZE: usize = 1 << 12; // 4kb.
 
@@ -65,7 +65,7 @@ pub(crate) async fn remote_relay<S, Out, In, R, RT>(
 ) -> io::Result<()>
 where
     S: Serde,
-    Out: Serialize,
+    Out: Serialize + RpcExtractor,
     In: DeserializeOwned,
     RT: rt::Access,
     R: Route<In>,
@@ -79,7 +79,7 @@ where
         match either(ctx.receive_next(), stream.recv(&mut buf)).await {
             // Received an outgoing message we want to relay to a remote actor.
             Ok(Ok(RelayMessage::Relay(msg))) => {
-                send_message::<S, Out>(&mut stream, &mut buf, &mut uuid_gen, &msg).await?
+                send_message::<S, Out>(&mut stream, &mut buf, &mut uuid_gen, msg).await?
             }
             Ok(Ok(RelayMessage::Terminate) | Err(NoMessages)) => return Ok(()),
             // Received some incoming data.
@@ -96,19 +96,21 @@ async fn send_message<S, M>(
     stream: &mut TcpStream,
     buf: &mut Vec<u8>,
     uuid_gen: &mut UuidGenerator,
-    msg: &M,
+    msg: M,
 ) -> io::Result<()>
 where
     S: Serde,
-    M: Serialize,
+    M: Serialize + RpcExtractor,
 {
     // Serialise the message to our buffer first.
     let uuid = uuid_gen.next();
-    let msg = Message { uuid, msg };
-    if let Err(err) = S::to_buf(&mut *buf, &msg) {
+    if let Err(err) = S::to_buf(&mut *buf, &Message { uuid, msg: &msg }) {
         warn!("error serialising message: {}", err);
         // Don't want to stop the actor for this.
         return Ok(());
+    }
+    if let Some(rpc_response) = msg.extract::<S>() {
+        todo!("handle rpc");
     }
 
     stream.send_all(buf).await

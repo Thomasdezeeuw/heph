@@ -1,0 +1,10 @@
+# TODO
+
+* TCP listen on local address for incoming connections.
+* Change NewActor argument. For TCP it's the remote address and for UDP it's the
+  local address, kind of confusing:
+  * Change Config::tcp to accept remote and local address.
+  * Change Config::udp to accept local address.
+* Add connected UDP.
+* Add RPC support. Add a new variant to `UdpRelayMessage`? The problem is that
+  we might want to support multiple RPCs, but how do we keep the types correct?

@@ -1,0 +1,418 @@
+From ec98989f92aac3be49d81603a5c1fd183394990f Mon Sep 17 00:00:00 2001
+From: Thomas de Zeeuw <thomasdezeeuw@gmail.com>
+Date: Sun, 28 Nov 2021 15:58:04 +0100
+Subject: [PATCH] [WIP] RPC support
+
+---
+ remote/examples/echo.rs      | 89 ++++++++++++++++++++++++++++++++++++
+ remote/src/lib.rs            |  7 ++-
+ remote/src/net_relay/mod.rs  | 29 ++++++------
+ remote/src/net_relay/udp.rs  | 82 +++++++++++++++++++++++++++++----
+ remote/src/net_relay/uuid.rs | 16 +++++++
+ 5 files changed, 199 insertions(+), 24 deletions(-)
+ create mode 100644 remote/examples/echo.rs
+
+diff --git a/remote/examples/echo.rs b/remote/examples/echo.rs
+new file mode 100644
+index 0000000..451aa88
+--- /dev/null
++++ b/remote/examples/echo.rs
+@@ -0,0 +1,89 @@
++//! Echo server that responds to all messages with the message itself.
++//!
++//! Arguments: <local_address> [remote_address]
++//!
++//! For example, listen on port 9001:
++//! $ cargo run --example echo -- 127.0.0.1:9001
++//! Listen on port 9002 and send a message to port 9001:
++//! $ cargo run --example echo -- 127.0.0.1:9002 127.0.0.1:9001
++
++#![feature(never_type)]
++
++use std::env;
++use std::net::SocketAddr;
++
++use heph::actor_ref::{ActorRef, RpcMessage};
++use heph::rt::{self, Runtime};
++use heph::supervisor::NoSupervisor;
++use heph::{actor, restart_supervisor, ActorOptions};
++use heph_remote::net_relay::{self, Relay, UdpRelayMessage};
++
++fn main() -> Result<(), rt::Error> {
++    let mut args = env::args().skip(1);
++    let local_address = args
++        .next()
++        .expect("missing local address")
++        .parse()
++        .expect("invalid local address");
++    let remote_address = args
++        .next()
++        .map(|address| address.parse().expect("invalid remote address"));
++
++    let mut runtime = Runtime::new()?;
++
++    // Spawn our echo actor.
++    let echo = echo as fn(_) -> _;
++    let echo_actor_ref = runtime.spawn(NoSupervisor, echo, (), ActorOptions::default());
++
++    let supervisor = RelaySupervisor::new(local_address);
++    // Create a router that relays all incoming messages to our local actor.
++    let router = Relay::to(echo_actor_ref);
++    let relay = net_relay::Config::default().udp().json().route(router);
++    // Spawn our net relay actor.
++    let remote_ref: ActorRef<UdpRelayMessage<String, String>> =
++        runtime.spawn(supervisor, relay, local_address, ActorOptions::default());
++
++    if let Some(remote_address) = remote_address {
++        // For convenience we can map the actor ref to an easier to use type.
++        let remote_ref =
++            remote_ref.map_fn(
++                move |msg: RpcMessage<String, String>| UdpRelayMessage::Relay {
++                    request: msg.request,
++                    response: Some(msg.response),
++                    target: remote_address,
++                },
++            );
++
++        let rpc = rpc as fn(_, _) -> _;
++        runtime.spawn(NoSupervisor, rpc, remote_ref, ActorOptions::default());
++    }
++
++    runtime.start()
++}
++
++// Supervisor for the net relay actor.
++restart_supervisor!(RelaySupervisor, "relay actor", SocketAddr);
++
++/// Actor that echos all messages.
++async fn echo<RT>(mut ctx: actor::Context<RpcMessage<String, String>, RT>)
++where
++    RT: rt::Access,
++{
++    while let Ok(msg) = ctx.receive_next().await {
++        println!("received message: {}", msg.request);
++        if let Err(err) = msg.response.respond(msg.request) {
++            eprintln!("failed to respond to RPC: {}", err);
++        }
++    }
++}
++
++/// Actor that makes a single RPC call to `actor_ref`.
++async fn rpc<RT>(_: actor::Context<!, RT>, actor_ref: ActorRef<RpcMessage<String, String>>)
++where
++    RT: rt::Access,
++{
++    match actor_ref.rpc("Hello world".to_owned()).await {
++        Ok(response) => println!("received response: {}", response),
++        Err(err) => eprintln!("failed to receive response: {}", err),
++    }
++}
+diff --git a/remote/src/lib.rs b/remote/src/lib.rs
+index d83a15b..a8d918d 100644
+--- a/remote/src/lib.rs
++++ b/remote/src/lib.rs
+@@ -1,3 +1,8 @@
+-#![feature(generic_associated_types, never_type, type_alias_impl_trait)]
++#![feature(
++    generic_associated_types,
++    never_type,
++    stmt_expr_attributes,
++    type_alias_impl_trait
++)]
+ 
+ pub mod net_relay;
+diff --git a/remote/src/net_relay/mod.rs b/remote/src/net_relay/mod.rs
+index a7f3448..09be11d 100644
+--- a/remote/src/net_relay/mod.rs
++++ b/remote/src/net_relay/mod.rs
+@@ -158,7 +158,7 @@ pub enum Json {}
+ ///  * `Out`: outgoing message type.
+ ///  * `In`: incoming message type (those that are routed by `R`).
+ ///  * `RT`: [`rt::Access`] type used by the spawned actor.
+-pub struct Config<R, CT, S, Out, In, RT> {
++pub struct Config<R, CT, S, Out, Res, In, RT> {
+     /// How to route incoming messages.
+     router: R,
+     /// Type of connection to use.
+@@ -166,10 +166,10 @@ pub struct Config<R, CT, S, Out, In, RT> {
+     /// Type of serialisation to use.
+     serialisation: PhantomData<S>,
+     /// Types needed in the `NewActor` implementation.
+-    _types: PhantomData<(Out, In, RT)>,
++    _types: PhantomData<(Out, In, Res, RT)>,
+ }
+ 
+-impl<Out, In, RT> Config<(), (), (), Out, In, RT> {
++impl<Out, Res, In, RT> Config<(), (), (), Out, Res, In, RT> {
+     /// Create a default configuration.
+     ///
+     /// This still needs the following configuration options to be set (all set
+@@ -177,7 +177,7 @@ impl<Out, In, RT> Config<(), (), (), Out, In, RT> {
+     ///  * `R`: [`Route`]r,
+     ///  * `CT`: Connection type,
+     ///  * `S`: serialisation format.
+-    pub const fn default() -> Config<(), (), (), Out, In, RT> {
++    pub const fn default() -> Config<(), (), (), Out, Res, In, RT> {
+         Config {
+             router: (),
+             conection_type: PhantomData,
+@@ -187,9 +187,9 @@ pub const fn default() -> Config<(), (), (), Out, In, RT> {
+     }
+ }
+ 
+-impl<CT, S, Out, In, RT> Config<(), CT, S, Out, In, RT> {
++impl<CT, S, Out, Res, In, RT> Config<(), CT, S, Out, Res, In, RT> {
+     /// Use the `router` to route incoming messages.
+-    pub fn route<R>(self, router: R) -> Config<R, CT, S, Out, In, RT>
++    pub fn route<R>(self, router: R) -> Config<R, CT, S, Out, Res, In, RT>
+     where
+         R: Route<In> + Clone,
+     {
+@@ -202,9 +202,9 @@ pub fn route<R>(self, router: R) -> Config<R, CT, S, Out, In, RT>
+     }
+ }
+ 
+-impl<R, S, Out, In, RT> Config<R, (), S, Out, In, RT> {
++impl<R, S, Out, Res, In, RT> Config<R, (), S, Out, Res, In, RT> {
+     /// Use a [`Tcp`] connection.
+-    pub fn tcp(self) -> Config<R, Tcp, S, Out, In, RT> {
++    pub fn tcp(self) -> Config<R, Tcp, S, Out, Res, In, RT> {
+         Config {
+             router: self.router,
+             conection_type: PhantomData,
+@@ -214,7 +214,7 @@ pub fn tcp(self) -> Config<R, Tcp, S, Out, In, RT> {
+     }
+ 
+     /// Use a [`Udp`] connection.
+-    pub fn udp(self) -> Config<R, Udp, S, Out, In, RT> {
++    pub fn udp(self) -> Config<R, Udp, S, Out, Res, In, RT> {
+         Config {
+             router: self.router,
+             conection_type: PhantomData,
+@@ -224,10 +224,10 @@ pub fn udp(self) -> Config<R, Udp, S, Out, In, RT> {
+     }
+ }
+ 
+-impl<R, CT, Out, In, RT> Config<R, CT, (), Out, In, RT> {
++impl<R, CT, Out, Res, In, RT> Config<R, CT, (), Out, Res, In, RT> {
+     /// Use [`Json`] serialisation.
+     #[cfg(any(feature = "json"))]
+-    pub fn json(self) -> Config<R, CT, Json, Out, In, RT> {
++    pub fn json(self) -> Config<R, CT, Json, Out, Res, In, RT> {
+         Config {
+             router: self.router,
+             conection_type: self.conection_type,
+@@ -237,15 +237,16 @@ pub fn json(self) -> Config<R, CT, Json, Out, In, RT> {
+     }
+ }
+ 
+-impl<R, S, Out, In, RT> NewActor for Config<R, Udp, S, Out, In, RT>
++impl<R, S, Out, Res, In, RT> NewActor for Config<R, Udp, S, Out, Res, In, RT>
+ where
+     R: Route<In> + Clone,
+     In: DeserializeOwned,
+     S: Serde,
+     RT: rt::Access,
+     Out: Serialize,
++    Res: DeserializeOwned,
+ {
+-    type Message = UdpRelayMessage<Out>;
++    type Message = UdpRelayMessage<Out, Res>;
+     type Argument = SocketAddr;
+     type Actor = impl Actor<Error = io::Error>;
+     type Error = !;
+@@ -256,7 +257,7 @@ fn new(
+         ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
+         local_address: Self::Argument,
+     ) -> Result<Self::Actor, Self::Error> {
+-        Ok(udp::remote_relay::<S, Out, In, R, RT>(
++        Ok(udp::remote_relay::<S, Out, Res, In, R, RT>(
+             ctx,
+             local_address,
+             self.router.clone(),
+diff --git a/remote/src/net_relay/udp.rs b/remote/src/net_relay/udp.rs
+index 0c70add..f50b11b 100644
+--- a/remote/src/net_relay/udp.rs
++++ b/remote/src/net_relay/udp.rs
+@@ -1,5 +1,6 @@
+ //! Module with the UDP implementation of the net relay.
+ 
++use std::collections::HashMap;
+ use std::convert::TryFrom;
+ use std::marker::PhantomData;
+ use std::net::SocketAddr;
+@@ -7,6 +8,7 @@
+ 
+ use heph::actor::messages::Terminate;
+ use heph::actor::{self, NoMessages};
++use heph::actor_ref::RpcResponse;
+ use heph::net::UdpSocket;
+ use heph::rt::{self, Signal};
+ use heph::util::either;
+@@ -48,9 +50,17 @@
+ /// [`ActorRef`]: heph::ActorRef
+ /// [`ActorRef::map_fn`]: heph::ActorRef::map_fn
+ #[derive(Debug)]
+-pub enum UdpRelayMessage<M> {
+-    /// Relay message `M` to `target`.
+-    Relay { message: M, target: SocketAddr },
++pub enum UdpRelayMessage<M, Res = !> {
++    /// Relay message `M` to `target`, in case of RPC respond using `response`.
++    Relay {
++        /// Request send to the remote actor.
++        request: M,
++        /// Optional RPC response, in case of a normal (unidirectional) message
++        /// this can be `None` with the `Res` type of `!` (never type).
++        response: Option<RpcResponse<Res>>,
++        /// Target address to send the message to.
++        target: SocketAddr,
++    },
+     /// Stop the relay.
+     Terminate,
+ }
+@@ -79,14 +89,15 @@ fn try_from(signal: Signal) -> Result<Self, Self::Error> {
+ /// It receives `Out`going messages from it's inbox and sends them to a remote
+ /// actor using UDP. Any `In`coming message on the same socket will be routed
+ /// using the `R`outer.
+-pub(crate) async fn remote_relay<S, Out, In, R, RT>(
+-    mut ctx: actor::Context<UdpRelayMessage<Out>, RT>,
++pub(crate) async fn remote_relay<S, Out, Res, In, R, RT>(
++    mut ctx: actor::Context<UdpRelayMessage<Out, Res>, RT>,
+     local_address: SocketAddr,
+     mut router: R,
+ ) -> io::Result<()>
+ where
+     S: Serde,
+     Out: Serialize,
++    Res: DeserializeOwned,
+     In: DeserializeOwned,
+     RT: rt::Access,
+     R: Route<In>,
+@@ -94,6 +105,7 @@ pub(crate) async fn remote_relay<S, Out, In, R, RT>(
+     let mut socket = UdpSocket::bind(&mut ctx, local_address)?;
+     let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
+     let mut uuid_gen = UuidGenerator::new();
++    let mut rfcs = HashMap::new();
+ 
+     loop {
+         buf.clear();
+@@ -101,10 +113,16 @@ pub(crate) async fn remote_relay<S, Out, In, R, RT>(
+             Ok(Ok(msg)) => match msg {
+                 // Received an outgoing message we want to relay to a remote
+                 // actor.
+-                UdpRelayMessage::Relay { message, target } => {
+-                    send_message::<S, Out>(&mut socket, &mut buf, &mut uuid_gen, target, &message)
+-                        .await?
+-                }
++                #[rustfmt::skip]
++                UdpRelayMessage::Relay { request, response, target } => {
++                    if let Some(response) = response {
++                        #[rustfmt::skip]
++                        send_rpc::<S, Out, Res>(&mut socket, &mut buf, &mut rfcs, &mut uuid_gen, target, &request, response).await?
++                    } else {
++                        #[rustfmt::skip]
++                        send_message::<S, Out>(&mut socket, &mut buf, &mut uuid_gen, target, &request).await?
++                    }
++                },
+                 UdpRelayMessage::Terminate => return Ok(()),
+             },
+             // TODO: do we want to continue here? Still relaying messages from
+@@ -271,6 +289,50 @@ async fn send_message<S, M>(
+     })
+ }
+ 
++/// Send a `msg` to a remote actor at `target` address, using `socket`.
++async fn send_rpc<S, M, Res>(
++    socket: &mut UdpSocket,
++    buf: &mut Vec<u8>,
++    rfcs: &mut HashMap<Uuid, RpcResponse<Res>>,
++    uuid_gen: &mut UuidGenerator,
++    target: SocketAddr,
++    msg: &M,
++    response: RpcResponse<Res>,
++) -> io::Result<()>
++where
++    S: Serde,
++    M: Serialize,
++{
++    // Serialise the message to our buffer first.
++    let uuid = uuid_gen.next();
++    let msg = Message { uuid, msg }; // FIXME: indicate RFC.
++    if let Err(err) = S::to_buf(&mut *buf, &msg) {
++        warn!("error serialising message (for {}): {}", target, err);
++        // Don't want to stop the actor for this.
++        return Ok(());
++    }
++
++    // Then send the buffer as a single packet.
++    if buf.len() > MAX_PACKET_SIZE {
++        warn!(
++            "message too large (for {}): (serialised) message size {}, max is {}",
++            target,
++            buf.len(),
++            MAX_PACKET_SIZE,
++        );
++        // Don't want to stop the actor for this.
++        return Ok(());
++    }
++    socket.send_to(buf, target).await.and_then(|bytes_send| {
++        if bytes_send == buf.len() {
++            let _ = rfcs.insert(uuid, response);
++            Ok(())
++        } else {
++            Err(io::ErrorKind::WriteZero.into())
++        }
++    })
++}
++
+ /// Routes a message in `buf` using `router`.
+ ///
+ /// Returns an error if the message can't be routed. Errors from deserialising
+@@ -280,7 +342,9 @@ async fn route_message<S, R, M>(router: &mut R, buf: &[u8], source: SocketAddr)
+     S: Serde,
+     R: Route<M>,
+     M: DeserializeOwned,
++    //Res: DeserializeOwned,
+ {
++    // FIXME: parse RFC message.
+     match S::from_slice::<Message<M>>(buf) {
+         Ok(msg) => match router.route(msg.msg, source).await {
+             Ok(()) => Ok(()),
+diff --git a/remote/src/net_relay/uuid.rs b/remote/src/net_relay/uuid.rs
+index 22ffad2..276a793 100644
+--- a/remote/src/net_relay/uuid.rs
++++ b/remote/src/net_relay/uuid.rs
+@@ -1,5 +1,6 @@
+ use std::convert::{TryFrom, TryInto};
+ use std::fmt;
++use std::hash::{Hash, Hasher};
+ use std::ops::Range;
+ 
+ use getrandom::getrandom;
+@@ -50,8 +51,23 @@ pub(crate) fn next(&mut self) -> Uuid {
+ }
+ 
+ /// Universally Unique(-ish) Identifier (UUID).
++#[derive(Copy, Clone)]
+ pub(crate) struct Uuid([u8; 16]);
+ 
++impl Eq for Uuid {}
++
++impl PartialEq for Uuid {
++    fn eq(&self, other: &Self) -> bool {
++        u128::from_ne_bytes(self.0) == u128::from_ne_bytes(other.0)
++    }
++}
++
++impl Hash for Uuid {
++    fn hash<H: Hasher>(&self, state: &mut H) {
++        u128::from_ne_bytes(self.0).hash(state)
++    }
++}
++
+ /// Groups of 8, 4, 4, 4, 12 bytes.
+ const HYPHENS: [Range<usize>; 5] = [0..8, 9..13, 14..18, 19..23, 24..36];
+ /// 16 characters used to represents bytes in hexadecimal.
+-- 
+2.34.1
+

@@ -1,0 +1,231 @@
+diff --git a/tests/functional/relay.rs b/tests/functional/relay.rs
+new file mode 100644
+index 0000000..27361b2
+--- /dev/null
++++ b/tests/functional/relay.rs
+@@ -0,0 +1,224 @@
++//! Tests for the `RemoteRelay`.
++
++#![cfg(feature = "test")]
++#![allow(unused_imports)] // FIXME: remove.
++
++use std::ops::DerefMut;
++use std::sync::{Arc, Mutex};
++
++use heph::actor;
++use heph::actor::context::ThreadSafe;
++use heph::actor::messages::Terminate;
++use heph::actor_ref::rpc::RpcMessage;
++use heph::net::relay::{Relay, RemoteRelay};
++use heph::rt::{ActorOptions, Runtime, Signal};
++use heph::supervisor::NoSupervisor;
++use heph::ActorRef;
++use serde::{Deserialize, Serialize};
++
++use crate::util::any_local_address;
++
++/*
++#[test]
++fn sending_messages() {
++    let _ = heph::log::try_init();
++    let mut rt = Runtime::new().unwrap();
++
++    let stop_signal = Arc::new(Mutex::new(None));
++    let msgs = Arc::new(Mutex::new(Vec::new()));
++    let expected = &["Hello world", "Hello mars", "Hello sun"];
++
++    // Actor that stops `rr1` once the `tracker` actor receives all its
++    // messages.
++    let stop = stop as fn(_, _) -> _;
++    let args = stop_signal.clone();
++    let options = ActorOptions::default();
++    let stop_actor_ref = rt.spawn(NoSupervisor, stop, args, options.clone());
++
++    // Actor that receives all `expected` messages and then sends a stop signal
++    // to the `stop` actor (created above).
++    let tracker = tracker as fn(_, _, _, _) -> _;
++    let args = (expected.len(), msgs.clone(), stop_actor_ref);
++    let tracker_actor_ref = rt.spawn(NoSupervisor, tracker, args, options.clone());
++
++    // Relay all incoming messages to the `tracker` actor.
++    // This is our "local" `RemoteRelay`.
++    let rr1 = RemoteRelay::<String>::bind::<_, String>(
++        &mut rt,
++        any_local_address(),
++        Relay::to(tracker_actor_ref),
++        options.clone(),
++    )
++    .unwrap();
++    *stop_signal.lock() = Some(rr1.signal_ref());
++
++    // This our "remote" `RemoteRelay`, so pretend it runs on another node.
++    let rr2 = RemoteRelay::<String>::bind::<_, String>(&mut rt, any_local_address(), Drop, options)
++        .unwrap();
++
++    // Send the messages through the "remote" `RemoteRelay` and the "local" one
++    // to the `tracker` actor.
++    let actor_ref = rr2.create_ref(rr1.local_addr());
++    for msg in expected {
++        actor_ref.send(*msg).unwrap();
++    }
++    // And then stop the `RemoteRelay`.
++    rr2.signal_ref().send(Signal::Terminate).unwrap();
++
++    // Run the runtime to process all messages.
++    rt.start().unwrap();
++
++    // Check that all messages were delivered correctly.
++    assert_eq!(msgs.lock().len(), expected.len());
++    for (got, expected) in msgs.lock().iter().zip(expected.iter()) {
++        assert_eq!(got, expected);
++    }
++}
++
++type Messages = Arc<Mutex<Vec<String>>>;
++
++async fn tracker(
++    mut ctx: actor::Context<String, ThreadSafe>,
++    n: usize,
++    msgs: Messages,
++    stop: ActorRef<Terminate>,
++) -> Result<(), !> {
++    for _ in 0..n {
++        let msg = ctx.receive_next().await;
++        msgs.lock().push(msg);
++    }
++    stop.send(Terminate).unwrap();
++    Ok(())
++}
++
++type SignalRef = Arc<Mutex<Option<ActorRef<Signal>>>>;
++
++async fn stop(mut ctx: actor::Context<Terminate, ThreadSafe>, stop: SignalRef) -> Result<(), !> {
++    let msg = ctx.receive_next().await;
++    drop(msg);
++    stop.lock()
++        .deref_mut()
++        .as_mut()
++        .unwrap()
++        .send(Signal::Terminate)
++        .unwrap();
++    Ok(())
++}
++
++#[test]
++fn rpc() {
++    // TODO: test RPC support:
++    //   [ ] Sending RPC request.
++    //   [ ] Receiving RPC request.
++    //   [ ] Sending RPC response.
++    //   [ ] Receiving RPC response.
++
++    let _ = heph::log::try_init();
++    let mut rt = Runtime::new().unwrap();
++
++    let stop_signal = Arc::new(Mutex::new(None));
++    let expected = vec![500usize, 600, 1000];
++    let add: usize = 5;
++
++    /*
++    // Actor that stops `rr1` once the `tracker` actor receives all its
++    // messages.
++    let stop = stop as fn(_, _) -> _;
++    let args = stop_signal.clone();
++    let options = ActorOptions::default();
++    let stop_actor_ref = rt.spawn(NoSupervisor, stop, args, options.clone());
++    */
++
++    let adder = adder as fn(_, _, _) -> _;
++    let args = (expected.len(), add);
++    let options = ActorOptions::default();
++    let adder_actor_ref = rt.spawn(NoSupervisor, adder, args, options.clone());
++
++    // Relay all incoming messages to the `addr` actor.
++    // This is our "local" `RemoteRelay`.
++    let rr1 = RemoteRelay::<AddMessage>::bind::<_, AddMessage>(
++        &mut rt,
++        any_local_address(),
++        Relay::to(adder_actor_ref),
++        options.clone(),
++    )
++    .unwrap();
++    *stop_signal.lock() = Some(rr1.signal_ref());
++
++    // This our "remote" `RemoteRelay`, so pretend it runs on another node.
++    let rr2 = RemoteRelay::<AddMessage>::bind::<_, AddMessage>(
++        &mut rt,
++        any_local_address(),
++        Drop,
++        options,
++    )
++    .unwrap();
++
++    // Send the messages through the "remote" `RemoteRelay` and the "local" one
++    // to the `tracker` actor.
++    let actor_ref = rr2.create_ref(rr1.local_addr());
++    let signal_ref = rr2.signal_ref();
++    let sender = sender as fn(_, _, _, _, _) -> _;
++    let args = (expected, add, actor_ref, signal_ref);
++    let options = ActorOptions::default();
++    rt.spawn(NoSupervisor, sender, args, options.clone());
++
++    // Run the runtime to process all messages.
++    rt.start().unwrap();
++}
++
++const FINAL: usize = 111;
++
++#[derive(Serialize, Deserialize)]
++enum AddMessage {
++    Print(usize),
++    Rpc(RpcMessage<usize, usize>),
++}
++
++impl From<usize> for AddMessage {
++    fn from(msg: usize) -> AddMessage {
++        AddMessage::Print(msg)
++    }
++}
++
++impl From<RpcMessage<usize, usize>> for AddMessage {
++    fn from(msg: RpcMessage<usize, usize>) -> AddMessage {
++        AddMessage::Rpc(msg)
++    }
++}
++
++async fn adder(
++    mut ctx: actor::Context<AddMessage, ThreadSafe>,
++    n: usize,
++    add: usize,
++) -> Result<(), !> {
++    for _ in 0..n {
++        match ctx.receive_next().await {
++            AddMessage::Rpc(RpcMessage { request, response }) => {
++                response.respond(request + add).unwrap();
++            }
++            _ => panic!("unexpected message"),
++        }
++    }
++    assert!(matches!(ctx.receive_next().await, AddMessage::Print(FINAL)));
++    Ok(())
++}
++
++async fn sender(
++    mut ctx: actor::Context<!, ThreadSafe>,
++    numbers: Vec<usize>,
++    add: usize,
++    actor_ref: ActorRef<AddMessage>,
++    signal_ref: ActorRef<Signal>,
++) -> Result<(), !> {
++    for n in numbers {
++        let rpc = actor_ref.rpc(&mut ctx, n).unwrap();
++        let res = rpc.await.unwrap();
++        assert_eq!(res, n + add);
++    }
++    actor_ref.send(FINAL).unwrap();
++    // And then stop the `RemoteRelay`.
++    signal_ref.send(Signal::Terminate).unwrap();
++    Ok(())
++}
++*/
+
