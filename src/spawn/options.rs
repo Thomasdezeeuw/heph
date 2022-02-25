@@ -34,6 +34,7 @@ use std::time::Duration;
 /// # drop(opts); // Silence unused variable warning.
 /// ```
 #[derive(Clone, Debug)]
+#[must_use]
 pub struct ActorOptions {
     priority: Priority,
     ready: bool,
@@ -193,6 +194,7 @@ fn priority_duration_multiplication() {
 /// # drop(opts); // Silence unused variable warning.
 /// ```
 #[derive(Debug, Default)]
+#[must_use]
 pub struct SyncActorOptions {
     thread_name: Option<String>,
 }
@@ -242,6 +244,7 @@ impl SyncActorOptions {
 /// # drop(opts); // Silence unused variable warning.
 /// ```
 #[derive(Clone, Debug, Default)]
+#[must_use]
 pub struct FutureOptions {
     priority: Priority,
 }
