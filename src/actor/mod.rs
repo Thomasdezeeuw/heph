@@ -259,6 +259,7 @@ pub trait NewActor {
     type RuntimeAccess;
 
     /// Create a new [`Actor`](Actor).
+    #[allow(clippy::wrong_self_convention)]
     fn new(
         &mut self,
         ctx: Context<Self::Message, Self::RuntimeAccess>,

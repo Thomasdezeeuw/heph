@@ -19,7 +19,7 @@ fn main() {
     let output = if let Some(output) = args.next() {
         PathBuf::from(output)
     } else {
-        let end_idx = input.rfind('.').unwrap_or_else(|| input.len());
+        let end_idx = input.rfind('.').unwrap_or(input.len());
         let mut output = PathBuf::from(&input[..end_idx]);
         // If the input has a single extension this will add `json` to it.
         // If however it has two extensions, e.g. `.bin.log` this will
