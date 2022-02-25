@@ -65,14 +65,11 @@
 //! the `test` module which adds testing facilities.
 
 #![feature(
-    arc_new_cyclic,
     array_methods,
     async_iterator,
-    available_parallelism,
     binary_heap_retain,
     const_fn_trait_bound,
     const_option,
-    destructuring_assignment,
     doc_cfg,
     doc_cfg_hide,
     drain_filter,
@@ -80,14 +77,12 @@
     io_slice_advance,
     is_sorted,
     maybe_uninit_array_assume_init,
-    maybe_uninit_extra,
     maybe_uninit_slice,
     maybe_uninit_uninit_array,
     never_type,
     new_uninit,
     result_into_ok_or_err,
-    stmt_expr_attributes,
-    vec_spare_capacity
+    stmt_expr_attributes
 )]
 #![cfg_attr(any(test, feature = "test"), feature(once_cell))]
 #![warn(
