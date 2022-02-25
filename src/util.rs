@@ -1,8 +1,8 @@
 //! Module with various utilities.
 
+use std::async_iter::AsyncIterator;
 use std::future::Future;
 use std::pin::Pin;
-use std::stream::Stream;
 use std::task::{self, Poll};
 
 /// Helper [`Future`] that poll `future1` and `future2` and returns the output
@@ -43,26 +43,26 @@ where
     }
 }
 
-/// Returns a [`Future`] that get the next item from `stream`.
-pub const fn next<S>(stream: S) -> Next<S> {
-    Next { stream }
+/// Returns a [`Future`] that get the next item from `iter`.
+pub const fn next<I>(iter: I) -> Next<I> {
+    Next { iter }
 }
 
 /// The [`Future`] behind [`either`].
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Next<S> {
-    stream: S,
+pub struct Next<I> {
+    iter: I,
 }
 
-impl<S> Future for Next<S>
+impl<I> Future for Next<I>
 where
-    S: Stream,
+    I: AsyncIterator,
 {
-    type Output = Option<S::Item>;
+    type Output = Option<I::Item>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        // Safety: not moving `stream`.
-        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.stream).poll_next(ctx) }
+        // Safety: not moving `iter`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.iter).poll_next(ctx) }
     }
 }

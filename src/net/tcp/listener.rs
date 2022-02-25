@@ -1,10 +1,10 @@
 //! Module with [`TcpListener`] and related types.
 
+use std::async_iter::AsyncIterator;
 use std::future::Future;
 use std::io;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::stream::Stream;
 use std::task::{self, Poll};
 
 use mio::{net, Interest};
@@ -307,14 +307,14 @@ impl<'a> Future for Accept<'a> {
     }
 }
 
-/// The [`Stream`] behind [`TcpListener::incoming`].
+/// The [`AsyncIterator`] behind [`TcpListener::incoming`].
 #[derive(Debug)]
-#[must_use = "streams do nothing unless polled"]
+#[must_use = "AsyncIterators do nothing unless polled"]
 pub struct Incoming<'a> {
     listener: &'a mut TcpListener,
 }
 
-impl<'a> Stream for Incoming<'a> {
+impl<'a> AsyncIterator for Incoming<'a> {
     type Item = io::Result<(UnboundTcpStream, SocketAddr)>;
 
     fn poll_next(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
