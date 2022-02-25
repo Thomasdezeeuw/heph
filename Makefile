@@ -1,3 +1,5 @@
+# Test options.
+TEST_OPTS         = --all-features -- --quiet
 # Set by `rustup run`, or we get it ourselves.
 # Example value: `nightly-x86_64-apple-darwin`.
 RUSTUP_TOOLCHAIN ?= $(shell rustup show active-toolchain | cut -d' ' -f1)
@@ -19,10 +21,10 @@ TARGETS ?= x86_64-apple-darwin x86_64-unknown-linux-gnu x86_64-unknown-freebsd
 RUN ?= test
 
 test:
-	cargo test --all-features
+	cargo test $(TEST_OPTS)
 
 test_all:
-	cargo test --all-features --workspace
+	cargo test --workspace $(TEST_OPTS)
 
 # NOTE: Keep `RUSTFLAGS` and `RUSTDOCFLAGS` in sync to ensure the doc tests
 # compile correctly.
