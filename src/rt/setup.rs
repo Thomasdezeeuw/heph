@@ -20,6 +20,7 @@ use crate::trace;
 ///
 /// [`rt`]: crate::rt
 #[derive(Debug)]
+#[must_use = "`heph::runtime::Setup` doesn't do anything until its `build`"]
 pub struct Setup {
     /// Name of the application.
     name: Option<String>,
