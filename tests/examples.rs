@@ -64,6 +64,7 @@ fn test_4_sync_actor() {
 }
 
 #[test]
+#[ignore]
 fn test_6_process_signals() {
     let mut child = run_example("6_process_signals");
 
@@ -119,6 +120,7 @@ fn test_6_process_signals() {
 }
 
 #[test]
+#[ignore]
 fn test_7_restart_supervisor() {
     // Index of the "?" in the string below.
     const LEFT_INDEX: usize = 51;
