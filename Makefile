@@ -1,5 +1,5 @@
 # Test options.
-TEST_OPTS         = --all-features -- --quiet
+TEST_OPTS         = --all-features -- --quiet -Z unstable-options --shuffle
 # Set by `rustup run`, or we get it ourselves.
 # Example value: `nightly-x86_64-apple-darwin`.
 RUSTUP_TOOLCHAIN ?= $(shell rustup show active-toolchain | cut -d' ' -f1)
