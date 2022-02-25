@@ -424,7 +424,9 @@ pub trait Route<M> {
     /// [`Future`] that determines how to route a message, see [`route`].
     ///
     /// [`route`]: Route::route
-    type Route<'a>: Future<Output = Result<(), Self::Error>>;
+    type Route<'a>: Future<Output = Result<(), Self::Error>>
+    where
+        Self: 'a;
 
     /// Error returned by [routing]. This error is considered fatal for the
     /// relay actor, meaning it will be stopped.

@@ -20,7 +20,10 @@ where
     Fut: Future<Output = Result<(), E>>,
     E: fmt::Display,
 {
-    type Route<'a> = Fut;
+    type Route<'a>
+    where
+        Self: 'a,
+    = Fut;
     type Error = E;
 
     fn route<'a>(&'a mut self, msg: M, source: SocketAddr) -> Self::Route<'a> {
@@ -55,7 +58,10 @@ where
     M: 'static + Unpin,
 {
     type Error = SendError;
-    type Route<'a> = SendValue<'a, M>;
+    type Route<'a>
+    where
+        Self: 'a,
+    = SendValue<'a, M>;
 
     fn route<'a>(&'a mut self, msg: M, _: SocketAddr) -> Self::Route<'a> {
         self.actor_ref.send(msg)
@@ -94,7 +100,10 @@ where
     M: Clone + Unpin + 'static,
 {
     type Error = !;
-    type Route<'a> = Ready<Result<(), Self::Error>>;
+    type Route<'a>
+    where
+        Self: 'a,
+    = Ready<Result<(), Self::Error>>;
 
     fn route<'a>(&'a mut self, msg: M, _: SocketAddr) -> Self::Route<'a> {
         let _ = self.actor_group.try_send(msg, self.delivery);
@@ -108,7 +117,10 @@ pub struct Drop;
 
 impl<M> Route<M> for Drop {
     type Error = !;
-    type Route<'a> = Ready<Result<(), Self::Error>>;
+    type Route<'a>
+    where
+        Self: 'a,
+    = Ready<Result<(), Self::Error>>;
 
     fn route<'a>(&'a mut self, _: M, _: SocketAddr) -> Self::Route<'a> {
         ready(Ok(()))
