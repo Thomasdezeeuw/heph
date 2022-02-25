@@ -1,5 +1,6 @@
 #![allow(dead_code, unused_macros)] // Not all tests use all functions/types.
 
+use std::async_iter::AsyncIterator;
 use std::env::temp_dir;
 use std::fmt;
 use std::fs::{create_dir_all, remove_dir_all};
@@ -8,7 +9,6 @@ use std::mem::size_of;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::stream::Stream;
 use std::sync::Once;
 use std::task::{self, Poll};
 
@@ -135,13 +135,13 @@ impl Future for PendingOnce {
     }
 }
 
-/// Returns a [`Future`] or [`Stream`] that counts the number of times it is
-/// polled before returning a value.
+/// Returns a [`Future`] or [`AsyncIterator`] that counts the number of times it
+/// is polled before returning a value.
 ///
 /// # Notes
 ///
-/// For streams it always returns the total number of polls, not the count
-/// in between return two items.
+/// For iterators it always returns the total number of polls, not the count in
+/// between return two items.
 pub const fn count_polls<T>(inner: T) -> CountPolls<T> {
     CountPolls { count: 0, inner }
 }
@@ -166,19 +166,18 @@ where
     }
 }
 
-impl<S> Stream for CountPolls<S>
+impl<I> AsyncIterator for CountPolls<I>
 where
-    S: Stream,
+    I: AsyncIterator,
 {
-    type Item = (S::Item, usize);
+    type Item = (I::Item, usize);
 
     fn poll_next(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
         // Safety: this is safe because we're not moving the future.
         let this = unsafe { Pin::into_inner_unchecked(self) };
         this.count += 1;
-        let stream = unsafe { Pin::new_unchecked(&mut this.inner) };
-        stream
-            .poll_next(ctx)
+        let iter = unsafe { Pin::new_unchecked(&mut this.inner) };
+        iter.poll_next(ctx)
             .map(|out| out.map(|out| (out, this.count)))
     }
 }

@@ -23,7 +23,7 @@
 //!  * Polling:
 //!    * [`poll_actor`]: poll an [`Actor`].
 //!    * [`poll_future`]: poll a [`Future`].
-//!    * [`poll_next`]: poll a [`Stream`].
+//!    * [`poll_next`]: poll a [`AsyncIterator`].
 //!  * Miscellaneous:
 //!    * [`size_of_actor`], [`size_of_actor_val`]: returns the size of an actor.
 //!    * [`set_message_loss`]: set the percentage of messages lost on purpose.
@@ -45,11 +45,11 @@
 //! features = ["test"]
 //! ```
 
+use std::async_iter::AsyncIterator;
 use std::future::Future;
 use std::lazy::SyncLazy;
 use std::mem::size_of;
 use std::pin::Pin;
-use std::stream::Stream;
 use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{self, Poll};
@@ -452,7 +452,7 @@ where
     Future::poll(future, &mut ctx)
 }
 
-/// Poll a stream.
+/// Poll a [`AsyncIterator`].
 ///
 /// The [`task::Context`] will be provided by the *test* runtime.
 ///
@@ -460,13 +460,13 @@ where
 ///
 /// Wake notifications will be ignored, if this is required run an end to end
 /// test with a completely functional runtime instead.
-pub fn poll_next<S>(stream: Pin<&mut S>) -> Poll<Option<S::Item>>
+pub fn poll_next<I>(iter: Pin<&mut I>) -> Poll<Option<I::Item>>
 where
-    S: Stream + ?Sized,
+    I: AsyncIterator + ?Sized,
 {
     let waker = runtime().new_local_task_waker(TEST_PID);
     let mut ctx = task::Context::from_waker(&waker);
-    Stream::poll_next(stream, &mut ctx)
+    AsyncIterator::poll_next(iter, &mut ctx)
 }
 
 /// Poll an actor.

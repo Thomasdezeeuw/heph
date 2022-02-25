@@ -1,7 +1,7 @@
 //! Functional tests.
 
 #![feature(
-    async_stream,
+    async_iterator,
     drain_filter,
     future_poll_fn,
     maybe_uninit_slice,

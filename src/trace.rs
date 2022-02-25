@@ -594,7 +594,7 @@ mod private {
     /// Trait that defines how to write an attribute value.
     pub trait AttributeValue {
         /// The type byte for this attribute value.
-        // NOTE: this should be a assiociated constant, however that is not
+        // NOTE: this should be a associated constant, however that is not
         // object safe.
         fn type_byte(&self) -> u8;
 

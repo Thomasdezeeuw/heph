@@ -67,7 +67,7 @@
 #![feature(
     arc_new_cyclic,
     array_methods,
-    async_stream,
+    async_iterator,
     available_parallelism,
     binary_heap_retain,
     const_fn_trait_bound,

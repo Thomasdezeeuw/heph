@@ -6,13 +6,13 @@
 //!   [`DeadlinePassed`](DeadlinePassed) once the deadline has passed.
 //! - [`Deadline`](Deadline) wraps another [`Future`] and checks the deadline
 //!   each time it's polled.
-//! - [`Interval`](Interval) implements [`Stream`] which yields an item
+//! - [`Interval`](Interval) implements [`AsyncIterator`] which yields an item
 //!   after the deadline has passed each interval.
 
+use std::async_iter::AsyncIterator;
 use std::future::Future;
 use std::mem::ManuallyDrop;
 use std::pin::Pin;
-use std::stream::Stream;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{io, ptr};
@@ -360,15 +360,15 @@ impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
     }
 }
 
-/// A [`Stream`] that yields an item after an interval has passed.
+/// An [`AsyncIterator`] that yields an item after an interval has passed.
 ///
-/// This stream will never return `None`, it will always set another deadline
+/// This itertor will never return `None`, it will always set another deadline
 /// and yield another item after the deadline has passed.
 ///
 /// # Notes
 ///
 /// The next deadline will always will be set after this returns `Poll::Ready`.
-/// This means that if the interval is very short and the stream is not polled
+/// This means that if the interval is very short and the iterator is not polled
 /// often enough it's possible that the actual time between yielding two values
 /// can become bigger then the specified interval.
 ///
@@ -417,7 +417,7 @@ impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
 /// }
 /// ```
 #[derive(Debug)]
-#[must_use = "streams do nothing unless polled"]
+#[must_use = "AsyncIterators do nothing unless polled"]
 pub struct Interval<RT: rt::Access> {
     deadline: Instant,
     interval: Duration,
@@ -446,7 +446,7 @@ impl<RT: rt::Access> Interval<RT> {
     }
 }
 
-impl<RT: rt::Access> Stream for Interval<RT> {
+impl<RT: rt::Access> AsyncIterator for Interval<RT> {
     type Item = DeadlinePassed;
 
     fn poll_next(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
