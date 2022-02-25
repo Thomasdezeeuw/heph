@@ -43,7 +43,7 @@ harness = false
 
 [workspace]
 members = [
-  "http",
+  #"http", # Stuck on 2021-11-01.
   "remote",
   "tools",
 
