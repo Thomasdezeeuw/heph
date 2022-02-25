@@ -67,8 +67,8 @@ impl SyncWorker {
     }
 
     /// Checks if the `SyncWorker` is alive.
-    pub(super) fn is_alive(&mut self) -> bool {
-        match self.sender.write(&[]) {
+    pub(super) fn is_alive(&self) -> bool {
+        match (&self.sender).write(&[]) {
             Ok(..) => true,
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => true,
             Err(..) => false,

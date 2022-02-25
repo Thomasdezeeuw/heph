@@ -219,6 +219,7 @@ pub(super) struct AddActor<'s> {
 impl<'s> AddActor<'s> {
     /// Get the would be `ProcessId` for the process.
     pub(super) const fn pid(&self) -> ProcessId {
+        #[allow(clippy::borrow_as_ptr)]
         ProcessId(ptr_as_usize(&*self.alloc as *const _))
     }
 
