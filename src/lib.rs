@@ -847,10 +847,10 @@ fn try_peek<'t, T>(channel: &'t Channel<T>) -> Result<&'t T, RecvError> {
         return Ok(unsafe { (&*channel.slots[slot].get()).assume_init_ref() });
     }
 
-    if !is_connected {
-        Err(RecvError::Disconnected)
-    } else {
+    if is_connected {
         Err(RecvError::Empty)
+    } else {
+        Err(RecvError::Disconnected)
     }
 }
 
