@@ -1,0 +1,14 @@
+[package]
+name          = "heph-hyper"
+description   = "Heph-hyper is a bridge between Heph and Hyper."
+version       = "0.1.0"
+authors       = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
+license       = "MIT"
+documentation = "https://docs.rs/heph-hyper"
+repository    = "https://github.com/Thomasdezeeuw/heph"
+readme        = "README.md"
+edition       = "2018"
+
+[dependencies]
+heph  = { version = "0.3.0", path = "../", default-features = false }
+hyper = { version = "0.14.17", default-features = false }

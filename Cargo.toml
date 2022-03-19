@@ -47,5 +47,7 @@ members = [
   "remote",
   "tools",
 
+  "heph-hyper",
+
   "benches/timers_container",
 ]
