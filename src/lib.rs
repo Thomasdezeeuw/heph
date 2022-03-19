@@ -52,7 +52,7 @@
 //! receiver_handle.join().unwrap();
 //! ```
 
-#![feature(cfg_sanitize, maybe_uninit_extra)]
+#![feature(cfg_sanitize)]
 #![warn(
     missing_debug_implementations,
     missing_docs,
