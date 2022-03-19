@@ -37,6 +37,8 @@ jobs:
     timeout-minutes: 10
     steps:
     - uses: actions/checkout@v2
+    - name: Install nightly compiler
+      run: .github/install.bash
     - name: Add rustfmt
       run: rustup component add rustfmt
     - name: Check formatting
