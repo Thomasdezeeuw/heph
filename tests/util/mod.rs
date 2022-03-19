@@ -168,7 +168,7 @@ macro_rules! start_threads {
 macro_rules! r#loop {
     ($($arg: tt)*) => {{
         // Don't want to actually loop for ever.
-        let mut range = (0..500_000);
+        let mut range = (0..100_000_000);
         while range.next().is_some() {
             $($arg)*
         }
