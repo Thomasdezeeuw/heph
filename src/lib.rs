@@ -68,7 +68,6 @@
     array_methods,
     async_iterator,
     binary_heap_retain,
-    const_fn_trait_bound,
     const_option,
     doc_cfg,
     doc_cfg_hide,

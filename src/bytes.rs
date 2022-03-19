@@ -433,10 +433,7 @@ impl<B> BytesVectored for &mut B
 where
     B: BytesVectored + ?Sized,
 {
-    type Bufs<'b>
-    where
-        Self: 'b,
-    = B::Bufs<'b>;
+    type Bufs<'b> = B::Bufs<'b> where Self: 'b;
 
     fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
         (&mut **self).as_bufs()
@@ -459,10 +456,7 @@ impl<B, const N: usize> BytesVectored for [B; N]
 where
     B: Bytes,
 {
-    type Bufs<'b>
-    where
-        Self: 'b,
-    = [MaybeUninitSlice<'b>; N];
+    type Bufs<'b> = [MaybeUninitSlice<'b>; N] where Self: 'b;
 
     fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
         let mut bufs = MaybeUninit::uninit_array::<N>();
@@ -499,7 +493,7 @@ macro_rules! impl_vectored_bytes_tuple {
         impl<$( $t ),+> BytesVectored for ( $( $t ),+ )
             where $( $t: Bytes ),+
         {
-            type Bufs<'b> where Self: 'b = [MaybeUninitSlice<'b>; $N];
+            type Bufs<'b> = [MaybeUninitSlice<'b>; $N] where Self: 'b;
 
             fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
                 let mut bufs = MaybeUninit::uninit_array::<$N>();
@@ -592,10 +586,7 @@ impl<B> BytesVectored for LimitedBytes<B>
 where
     B: BytesVectored,
 {
-    type Bufs<'b>
-    where
-        Self: 'b,
-    = B::Bufs<'b>;
+    type Bufs<'b> = B::Bufs<'b> where Self: 'b;
 
     fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
         let mut bufs = self.buf.as_bufs();
