@@ -69,7 +69,7 @@ use std::cell::UnsafeCell;
 use std::error::Error;
 use std::fmt;
 use std::future::Future;
-use std::mem::{drop as unlock, replace, size_of, MaybeUninit};
+use std::mem::{drop as unlock, replace, take, MaybeUninit};
 use std::ops::Deref;
 use std::pin::Pin;
 use std::ptr::{self, NonNull};
@@ -81,7 +81,7 @@ use parking_lot::{const_mutex, Mutex};
 #[cfg(test)]
 mod tests;
 
-/// ThreadSanitizer does not support memory fences. To avoid false positive
+/// `ThreadSanitizer` does not support memory fences. To avoid false positive
 /// reports use atomic loads for synchronization instead of a fence. Macro
 /// inspired by the one found in Rust's standard library for the `Arc`
 /// implementation.
@@ -129,18 +129,18 @@ pub fn new<T>(capacity: usize) -> (Sender<T>, Receiver<T>) {
 }
 
 /// Bit mask to mark the receiver as alive.
-const RECEIVER_ALIVE: usize = 1 << (size_of::<usize>() * 8 - 1);
+const RECEIVER_ALIVE: usize = 1 << (usize::BITS - 1);
 /// Bit mask to mark the receiver still has access to the channel. See the
 /// `Drop` impl for [`Receiver`].
-const RECEIVER_ACCESS: usize = 1 << (size_of::<usize>() * 8 - 2);
+const RECEIVER_ACCESS: usize = 1 << (usize::BITS - 2);
 /// Bit mask to mark a sender still has access to the channel. See the `Drop`
 /// impl for [`Sender`].
-const SENDER_ACCESS: usize = 1 << (size_of::<usize>() * 8 - 3);
+const SENDER_ACCESS: usize = 1 << (usize::BITS - 3);
 /// Bit mask to mark the manager as alive.
-const MANAGER_ALIVE: usize = 1 << (size_of::<usize>() * 8 - 4);
+const MANAGER_ALIVE: usize = 1 << (usize::BITS - 4);
 /// Bit mask to mark the manager has access to the channel. See the `Drop` impl
 /// for [`Manager`].
-const MANAGER_ACCESS: usize = 1 << (size_of::<usize>() * 8 - 5);
+const MANAGER_ACCESS: usize = 1 << (usize::BITS - 5);
 
 /// Return `true` if the receiver or manager is alive in `ref_count`.
 #[inline(always)]
@@ -232,6 +232,7 @@ const MARK_NEXT_POS: u64 = 1 << (STATUS_BITS * MAX_CAP as u64); // Add to increa
 
 /// Returns the position of the receiver. Will be in 0..[`MAX_CAP`] range.
 #[inline(always)]
+#[allow(clippy::cast_possible_truncation)]
 fn receiver_pos(status: u64, capacity: usize) -> usize {
     (status >> (STATUS_BITS * MAX_CAP as u64)) as usize % capacity
 }
@@ -560,11 +561,11 @@ impl<'s, T> Future for Join<'s, T> {
             return Poll::Pending;
         }
 
-        if !has_receiver_or_manager(this.channel.ref_count.load(Ordering::Acquire)) {
+        if has_receiver_or_manager(this.channel.ref_count.load(Ordering::Acquire)) {
+            Poll::Pending
+        } else {
             // Other side is disconnected.
             Poll::Ready(())
-        } else {
-            Poll::Pending
         }
     }
 }
@@ -821,10 +822,10 @@ fn try_recv<T>(channel: &Channel<T>) -> Result<T, RecvError> {
         return Ok(value);
     }
 
-    if !is_connected {
-        Err(RecvError::Disconnected)
-    } else {
+    if is_connected {
         Err(RecvError::Empty)
+    } else {
+        Err(RecvError::Disconnected)
     }
 }
 
@@ -1079,7 +1080,7 @@ impl<T> Channel<T> {
     /// Wakes all wakers waiting on the sender to disconnect.
     fn wake_all_join(&self) {
         let mut join_wakers = self.join_wakers.lock();
-        let wakers = replace(&mut *join_wakers, Vec::new());
+        let wakers = take(&mut *join_wakers);
         unlock(join_wakers);
         for waker in wakers {
             waker.wake();
@@ -1088,7 +1089,7 @@ impl<T> Channel<T> {
 
     /// Wake the `Receiver`.
     fn wake_receiver(&self) {
-        self.receiver_waker.wake()
+        self.receiver_waker.wake();
     }
 }
 
@@ -1217,14 +1218,14 @@ impl<T> Manager<T> {
             .channel()
             .ref_count
             .fetch_or(RECEIVER_ALIVE, Ordering::AcqRel);
-        if !has_receiver(old_count) {
+        if has_receiver(old_count) {
+            Err(ReceiverConnected)
+        } else {
             // No receiver was connected so its safe to create one.
             debug_assert!(old_count & RECEIVER_ACCESS != 0);
             Ok(Receiver {
                 channel: self.channel,
             })
-        } else {
-            Err(ReceiverConnected)
         }
     }
 
