@@ -375,10 +375,8 @@ mod private {
 
     #[cfg(any(feature = "json"))]
     impl Serde for Json {
-        type Iter<'a, T>
-        where
-            T: DeserializeOwned,
-        = serde_json::StreamDeserializer<'a, serde_json::de::SliceRead<'a>, T>;
+        type Iter<'a, T> = serde_json::StreamDeserializer<'a, serde_json::de::SliceRead<'a>, T>
+            where T: DeserializeOwned;
         type Error = serde_json::Error;
 
         fn from_slice<'a, T>(buf: &'a [u8]) -> Result<T, Self::Error>
