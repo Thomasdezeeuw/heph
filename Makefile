@@ -63,6 +63,8 @@ dev:
 # # Could fix these later
 # `enum-glob-use`: used in enum errors.
 # `missing-errors-doc`, `missing-panics-doc`: don't want to do this.
+# `multiple-crate-versions`: caused by getrandom, pr to fix:
+# <https://github.com/rust-random/getrandom/pull/253>.
 # Too many warnings:
 #  * `must-use-candidate`.
 #  * `ptr-as-ptr`.
@@ -96,6 +98,7 @@ lint:
 		--allow clippy::semicolon-if-nothing-returned \
 		--allow clippy::shadow-unrelated \
 		--allow clippy::single-match-else \
+		--allow clippy::multiple-crate-versions \
 		--allow clippy::use-self
 
 install_clippy:

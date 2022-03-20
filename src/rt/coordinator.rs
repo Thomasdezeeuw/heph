@@ -253,7 +253,7 @@ impl Coordinator {
         signal_refs: &ActorGroup<Signal>,
         trace_log: &'l mut Option<trace::CoordinatorLog>,
     ) {
-        let timing = trace::start(&trace_log);
+        let timing = trace::start(trace_log);
         let total_cpu_time = cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID);
         let cpu_time = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID);
         let metrics = Metrics {
