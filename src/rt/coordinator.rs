@@ -16,8 +16,6 @@
 //! [sync worker threads]: crate::rt::sync_worker
 
 use std::env::consts::ARCH;
-use std::ffi::CStr;
-use std::mem::MaybeUninit;
 use std::os::unix::process::parent_id;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -29,6 +27,7 @@ use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
 use crate::actor_ref::{ActorGroup, Delivery};
+use crate::rt::setup::{host_id, host_info, Uuid};
 use crate::rt::shared::waker;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
@@ -84,25 +83,6 @@ struct Metrics<'c, 'l> {
     total_cpu_time: Duration,
     cpu_time: Duration,
     trace_log: Option<trace::CoordinatorMetrics<'l>>,
-}
-
-/// Universally Unique IDentifier (UUID), see [RFC 4122].
-///
-/// [RFC 4122]: https://datatracker.ietf.org/doc/html/rfc4122
-#[derive(Copy, Clone)]
-struct Uuid(u128);
-
-impl fmt::Display for Uuid {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // Always force a length of 32.
-        write!(f, "{:032x}", self.0)
-    }
-}
-
-impl fmt::Debug for Uuid {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
-    }
 }
 
 impl Coordinator {
@@ -291,148 +271,6 @@ impl Coordinator {
             cpu_time,
             trace_log: trace_log.as_ref().map(trace::CoordinatorLog::metrics),
         }
-    }
-}
-
-/// Returns (OS name and version, hostname).
-///
-/// Uses `uname(2)`.
-fn host_info() -> io::Result<(Box<str>, Box<str>)> {
-    // NOTE: we could also use `std::env::consts::OS`, but this looks better.
-    #[cfg(target_os = "linux")]
-    const OS: &str = "GNU/Linux";
-    #[cfg(target_os = "freebsd")]
-    const OS: &str = "FreeBSD";
-    #[cfg(target_os = "macos")]
-    const OS: &str = "macOS";
-
-    let mut uname_info: MaybeUninit<libc::utsname> = MaybeUninit::uninit();
-    if unsafe { libc::uname(uname_info.as_mut_ptr()) } == -1 {
-        return Err(io::Error::last_os_error());
-    }
-
-    // SAFETY: call to `uname(2)` above ensures `uname_info` is initialised.
-    let uname_info = unsafe { uname_info.assume_init() };
-    let sysname = unsafe { CStr::from_ptr(uname_info.sysname.as_ptr().cast()).to_string_lossy() };
-    let release = unsafe { CStr::from_ptr(uname_info.release.as_ptr().cast()).to_string_lossy() };
-    let version = unsafe { CStr::from_ptr(uname_info.version.as_ptr().cast()).to_string_lossy() };
-    let nodename = unsafe { CStr::from_ptr(uname_info.nodename.as_ptr().cast()).to_string_lossy() };
-
-    let os = format!("{} ({} {} {})", OS, sysname, release, version).into_boxed_str();
-    let hostname = nodename.into_owned().into_boxed_str();
-    Ok((os, hostname))
-}
-
-/// Get the host id by reading `/etc/machine-id` on Linux or `/etc/hostid` on
-/// FreeBSD.
-#[cfg(any(target_os = "freebsd", target_os = "linux"))]
-fn host_id() -> io::Result<Uuid> {
-    use std::fs::File;
-    use std::io::Read;
-
-    // See <https://www.freedesktop.org/software/systemd/man/machine-id.html>.
-    #[cfg(target_os = "linux")]
-    const PATH: &str = "/etc/machine-id";
-    // Hexadecimal, 32 characters.
-    #[cfg(target_os = "linux")]
-    const EXPECTED_SIZE: usize = 32;
-
-    // No docs, but a bug tracker:
-    // <https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=255293>.
-    #[cfg(target_os = "freebsd")]
-    const PATH: &str = "/etc/hostid";
-    // Hexadecimal, hypenated, 36 characters.
-    #[cfg(target_os = "freebsd")]
-    const EXPECTED_SIZE: usize = 36;
-
-    let mut buf = [0; EXPECTED_SIZE];
-    let mut file = File::open(PATH)?;
-    let n = file.read(&mut buf).map_err(|err| {
-        let msg = format!("can't open '{}': {}", PATH, err);
-        io::Error::new(err.kind(), msg)
-    })?;
-
-    if n == EXPECTED_SIZE {
-        #[cfg(target_os = "linux")]
-        let res = from_hex(&buf[..EXPECTED_SIZE]);
-        #[cfg(target_os = "freebsd")]
-        let res = from_hex_hyphenated(&buf[..EXPECTED_SIZE]);
-
-        res.map_err(|()| {
-            let msg = format!("invalid `{}` format: input is not hex", PATH);
-            io::Error::new(io::ErrorKind::InvalidData, msg)
-        })
-    } else {
-        let msg = format!(
-            "can't read '{}', invalid format: only read {} bytes (expected {})",
-            PATH, n, EXPECTED_SIZE,
-        );
-        Err(io::Error::new(io::ErrorKind::InvalidData, msg))
-    }
-}
-
-/// `input` should be 32 bytes long.
-#[cfg(target_os = "linux")]
-fn from_hex(input: &[u8]) -> Result<Uuid, ()> {
-    let mut bytes = [0; 16];
-    for (idx, chunk) in input.chunks_exact(2).enumerate() {
-        let lower = from_hex_byte(chunk[1])?;
-        let higher = from_hex_byte(chunk[0])?;
-        bytes[idx] = lower | (higher << 4);
-    }
-    Ok(Uuid(u128::from_be_bytes(bytes)))
-}
-
-/// `input` should be 36 bytes long.
-#[cfg(target_os = "freebsd")]
-fn from_hex_hyphenated(input: &[u8]) -> Result<Uuid, ()> {
-    let mut bytes = [0; 16];
-    let mut idx = 0;
-
-    // Groups of 8, 4, 4, 4, 12 bytes.
-    let groups: [std::ops::Range<usize>; 5] = [0..8, 9..13, 14..18, 19..23, 24..36];
-
-    for group in groups {
-        let group_end = group.end;
-        for chunk in input[group].chunks_exact(2) {
-            let lower = from_hex_byte(chunk[1])?;
-            let higher = from_hex_byte(chunk[0])?;
-            bytes[idx] = lower | (higher << 4);
-            idx += 1;
-        }
-
-        if let Some(b) = input.get(group_end) {
-            if *b != b'-' {
-                return Err(());
-            }
-        }
-    }
-
-    Ok(Uuid(u128::from_be_bytes(bytes)))
-}
-
-#[cfg(any(target_os = "freebsd", target_os = "linux"))]
-const fn from_hex_byte(b: u8) -> Result<u8, ()> {
-    match b {
-        b'A'..=b'F' => Ok(b - b'A' + 10),
-        b'a'..=b'f' => Ok(b - b'a' + 10),
-        b'0'..=b'9' => Ok(b - b'0'),
-        _ => Err(()),
-    }
-}
-
-/// Gets the host id by calling `gethostuuid` on macOS.
-#[cfg(target_os = "macos")]
-fn host_id() -> io::Result<Uuid> {
-    let mut bytes = [0; 16];
-    let timeout = libc::timespec {
-        tv_sec: 1, // This shouldn't block, but just in case. SQLite does this also.
-        tv_nsec: 0,
-    };
-    if unsafe { libc::gethostuuid(bytes.as_mut_ptr(), &timeout) } == -1 {
-        Err(io::Error::last_os_error())
-    } else {
-        Ok(Uuid(u128::from_be_bytes(bytes)))
     }
 }
 
