@@ -79,12 +79,12 @@ impl TcpStream {
     }
 
     /// Returns the socket address of the remote peer of this TCP connection.
-    pub fn peer_addr(&mut self) -> io::Result<SocketAddr> {
+    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.socket.peer_addr()
     }
 
     /// Returns the socket address of the local half of this TCP connection.
-    pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.socket.local_addr()
     }
 
@@ -92,27 +92,27 @@ impl TcpStream {
     ///
     /// On Linux this uses `SO_INCOMING_CPU`.
     #[cfg(target_os = "linux")]
-    pub(crate) fn set_cpu_affinity(&mut self, cpu: usize) -> io::Result<()> {
+    pub(crate) fn set_cpu_affinity(&self, cpu: usize) -> io::Result<()> {
         SockRef::from(&self.socket).set_cpu_affinity(cpu)
     }
 
     /// Sets the value for the `IP_TTL` option on this socket.
-    pub fn set_ttl(&mut self, ttl: u32) -> io::Result<()> {
+    pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
         self.socket.set_ttl(ttl)
     }
 
     /// Gets the value of the `IP_TTL` option for this socket.
-    pub fn ttl(&mut self) -> io::Result<u32> {
+    pub fn ttl(&self) -> io::Result<u32> {
         self.socket.ttl()
     }
 
     /// Sets the value of the `TCP_NODELAY` option on this socket.
-    pub fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+    pub fn set_nodelay(&self, nodelay: bool) -> io::Result<()> {
         self.socket.set_nodelay(nodelay)
     }
 
     /// Gets the value of the `TCP_NODELAY` option on this socket.
-    pub fn nodelay(&mut self) -> io::Result<bool> {
+    pub fn nodelay(&self) -> io::Result<bool> {
         self.socket.nodelay()
     }
 
@@ -530,7 +530,7 @@ impl TcpStream {
     /// This function will cause all pending and future I/O on the specified
     /// portions to return immediately with an appropriate value (see the
     /// documentation of [`Shutdown`]).
-    pub fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
+    pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
         self.socket.shutdown(how)
     }
 
@@ -539,7 +539,7 @@ impl TcpStream {
     /// This will retrieve the stored error in the underlying socket, clearing
     /// the field in the process. This can be useful for checking errors between
     /// calls.
-    pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
+    pub fn take_error(&self) -> io::Result<Option<io::Error>> {
         self.socket.take_error()
     }
 }
