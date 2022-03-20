@@ -63,10 +63,10 @@ use log::warn;
 
 use crate::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
 use crate::actor_ref::{ActorGroup, ActorRef};
-use crate::rt::local::{Control, Runtime};
 use crate::rt::shared::waker;
 use crate::rt::sync_worker::SyncWorker;
 use crate::rt::thread_waker::ThreadWaker;
+use crate::rt::worker::{Control, Worker};
 use crate::rt::{
     self, shared, ProcessId, RuntimeRef, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
@@ -102,15 +102,15 @@ static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(
 pub fn runtime() -> RuntimeRef {
     thread_local! {
         /// Per thread runtime.
-        static TEST_RT: Runtime = {
+        static TEST_RT: Worker = {
             let (_, receiver) = rt::channel::new()
                 .expect("failed to create runtime channel for test module");
-            Runtime::new_test(SHARED_INTERNAL.clone(), receiver)
+            Worker::new_test(SHARED_INTERNAL.clone(), receiver)
                 .expect("failed to create local `Runtime` for test module")
         };
     }
 
-    TEST_RT.with(Runtime::create_ref)
+    TEST_RT.with(Worker::create_ref)
 }
 
 /// Sending side of a runtime channel to control the test runtime.
@@ -127,9 +127,9 @@ fn test_runtime() -> &'static RtControl {
             .spawn(move || {
                 // NOTE: because we didn't indicate the runtime has started this
                 // will never stop.
-                Runtime::new_test(SHARED_INTERNAL.clone(), receiver)
+                Worker::new_test(SHARED_INTERNAL.clone(), receiver)
                     .expect("failed to create a runtime for test module")
-                    .run_event_loop()
+                    .run()
                     .expect("failed to run test runtime");
             })
             .expect("failed to start thread for test runtime");
