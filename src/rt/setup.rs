@@ -387,3 +387,52 @@ pub(crate) fn host_id() -> io::Result<Uuid> {
         Ok(Uuid(u128::from_be_bytes(bytes)))
     }
 }
+
+// Setup functions used by `rt::worker`.
+
+/// Set thread's CPU affinity.
+pub(crate) fn set_cpu_affinity(worker_id: NonZeroUsize) -> Option<usize> {
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = worker_id; // Silence unused variables warnings.
+        None
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let cpu = worker_id.get() - 1; // Worker ids start at 1, cpus at 0.
+        let cpu_set = cpu_set(cpu);
+        match set_affinity(&cpu_set) {
+            Ok(()) => {
+                log::debug!("worker thread using CPU '{}'", cpu);
+                Some(cpu)
+            }
+            Err(err) => {
+                log::warn!("error setting CPU affinity: {}", err);
+                None
+            }
+        }
+    }
+}
+
+/// Create a cpu set that may only run on `cpu`.
+#[cfg(target_os = "linux")]
+fn cpu_set(cpu: usize) -> libc::cpu_set_t {
+    let mut cpu_set = unsafe { std::mem::zeroed() };
+    unsafe { libc::CPU_ZERO(&mut cpu_set) };
+    unsafe { libc::CPU_SET(cpu % libc::CPU_SETSIZE as usize, &mut cpu_set) };
+    cpu_set
+}
+
+/// Set the affinity of this thread to the `cpu_set`.
+#[cfg(target_os = "linux")]
+fn set_affinity(cpu_set: &libc::cpu_set_t) -> io::Result<()> {
+    let thread = unsafe { libc::pthread_self() };
+    let res =
+        unsafe { libc::pthread_setaffinity_np(thread, std::mem::size_of_val(cpu_set), cpu_set) };
+    if res == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
+    }
+}
