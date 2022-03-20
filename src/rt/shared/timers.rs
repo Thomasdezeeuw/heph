@@ -87,14 +87,6 @@ struct Epoch {
     index: u8,
 }
 
-/// Metrics for [`Timers`].
-#[derive(Debug)]
-#[allow(dead_code)] // https://github.com/rust-lang/rust/issues/88900.
-pub(crate) struct Metrics {
-    timers: usize,
-    next_timer: Option<Duration>,
-}
-
 impl Timers {
     /// Create a new collection of timers.
     pub(crate) fn new() -> Timers {
@@ -111,13 +103,8 @@ impl Timers {
         }
     }
 
-    /// Gather metrics about the timers.
-    pub(crate) fn metrics(&self) -> Metrics {
-        let next_timer = self.next().map(|deadline| {
-            Instant::now()
-                .checked_duration_since(deadline)
-                .unwrap_or(Duration::ZERO)
-        });
+    /// Returns the total number of timers.
+    pub(crate) fn len(&self) -> usize {
         let mut timers = 0;
         for slots in &self.slots {
             let slots = slots.read().unwrap();
@@ -129,7 +116,7 @@ impl Timers {
             let overflow = self.overflow.read().unwrap();
             timers += overflow.len()
         }
-        Metrics { timers, next_timer }
+        timers
     }
 
     /// Returns the next deadline, if any.
@@ -155,6 +142,18 @@ impl Timers {
 
         #[rustfmt::skip]
         self.overflow.read().unwrap().last().map(|timer| timer.deadline)
+    }
+
+    /// Same as [`next`], but returns a [`Duration`] instead. If the next
+    /// deadline is already passed this returns a duration of zero.
+    ///
+    /// [`next`]: Timers::next
+    pub(crate) fn next_timer(&self) -> Option<Duration> {
+        self.next().map(|deadline| {
+            Instant::now()
+                .checked_duration_since(deadline)
+                .unwrap_or(Duration::ZERO)
+        })
     }
 
     /// Add a new deadline.

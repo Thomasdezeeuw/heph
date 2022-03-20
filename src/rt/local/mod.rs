@@ -541,15 +541,7 @@ impl Runtime {
                 Control::Started => self.started = true,
                 Control::Signal(signal) => {
                     if let Signal::User2 = signal {
-                        let timing = trace::start(&*self.internals.trace_log.borrow());
-                        let metrics = self.internals.metrics();
-                        info!(target: "metrics", "metrics: {:?}", metrics);
-                        trace::finish_rt(
-                            self.internals.trace_log.borrow_mut().as_mut(),
-                            timing,
-                            "Printing runtime metrics",
-                            &[],
-                        );
+                        self.internals.log_metrics();
                     }
 
                     self.relay_signal(signal)?
@@ -697,19 +689,6 @@ pub(super) struct RuntimeInternals {
     pub(super) trace_log: RefCell<Option<trace::Log>>,
 }
 
-/// Metrics for [`RuntimeInternals`].
-#[derive(Debug)]
-#[allow(dead_code)] // https://github.com/rust-lang/rust/issues/88900.
-pub(crate) struct Metrics {
-    id: NonZeroUsize,
-    scheduler: scheduler::Metrics,
-    timers: timers::Metrics,
-    process_signal_receivers: usize,
-    cpu_affinity: Option<usize>,
-    cpu_time: Duration,
-    trace_log: Option<trace::Metrics>,
-}
-
 impl RuntimeInternals {
     /// Create a local runtime internals.
     pub(super) fn new(
@@ -734,16 +713,30 @@ impl RuntimeInternals {
     }
 
     /// Gather metrics about the runtime internals.
-    fn metrics(&self) -> Metrics {
-        let cpu_time = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID);
-        Metrics {
-            id: self.id,
-            scheduler: self.scheduler.borrow().metrics(),
-            timers: self.timers.borrow_mut().metrics(),
-            process_signal_receivers: self.signal_receivers.borrow().len(),
-            cpu_affinity: self.cpu,
-            trace_log: self.trace_log.borrow().as_ref().map(trace::Log::metrics),
-            cpu_time,
-        }
+    fn log_metrics(&self) {
+        // NOTE: need mutable access to timers due to `Timers::next`.
+        let timing = trace::start(&*self.trace_log.borrow());
+        let trace_metrics = self.trace_log.borrow().as_ref().map(trace::Log::metrics);
+        let scheduler = self.scheduler.borrow();
+        let mut timers = self.timers.borrow_mut();
+        info!(
+            target: "metrics",
+            worker_id = self.id.get(),
+            cpu_affinity = self.cpu,
+            scheduler_ready = scheduler.ready(),
+            scheduler_inactive = scheduler.inactive(),
+            timers_total = timers.len(),
+            timers_next = log::as_debug!(timers.next_timer()),
+            process_signal_receivers = self.signal_receivers.borrow().len(),
+            cpu_time = log::as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
+            trace_counter = trace_metrics.map(|m| m.counter).unwrap_or(0);
+            "worker metrics",
+        );
+        trace::finish_rt(
+            self.trace_log.borrow_mut().as_mut(),
+            timing,
+            "Printing runtime metrics",
+            &[],
+        );
     }
 }

@@ -102,14 +102,6 @@ pub(super) struct Scheduler {
     inactive: Inactive,
 }
 
-/// Metrics for [`Scheduler`].
-#[derive(Debug)]
-#[allow(dead_code)] // https://github.com/rust-lang/rust/issues/88900.
-pub(crate) struct Metrics {
-    ready: usize,
-    inactive: usize,
-}
-
 impl Scheduler {
     /// Create a new `Scheduler`.
     pub(super) fn new() -> Scheduler {
@@ -119,12 +111,14 @@ impl Scheduler {
         }
     }
 
-    /// Gather metrics about the scheduler.
-    pub(crate) fn metrics(&self) -> Metrics {
-        Metrics {
-            ready: self.ready.len(),
-            inactive: self.inactive.len(),
-        }
+    /// Returns the number of processes ready to run.
+    pub(crate) fn ready(&self) -> usize {
+        self.ready.len()
+    }
+
+    /// Returns the number of inactive processes.
+    pub(crate) fn inactive(&self) -> usize {
+        self.inactive.len()
     }
 
     /// Returns `true` if the scheduler has any processes (in any state),

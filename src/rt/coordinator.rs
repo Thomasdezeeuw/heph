@@ -18,7 +18,7 @@
 use std::env::consts::ARCH;
 use std::os::unix::process::parent_id;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use std::{fmt, io, process};
 
 use log::{debug, error, info, trace};
@@ -60,29 +60,6 @@ pub(super) struct Coordinator {
     host_name: Box<str>,
     /// Id of the host.
     host_id: Uuid,
-}
-
-/// Metrics for [`Coordinator`].
-#[derive(Debug)]
-#[allow(dead_code)] // https://github.com/rust-lang/rust/issues/88900.
-struct Metrics<'c, 'l> {
-    heph_version: &'static str,
-    host_os: &'c str,
-    host_arch: &'static str,
-    host_name: &'c str,
-    host_id: Uuid,
-    app_name: &'c str,
-    process_id: u32,
-    parent_process_id: u32,
-    uptime: Duration,
-    worker_threads: usize,
-    sync_actors: usize,
-    shared: shared::Metrics,
-    process_signals: SignalSet,
-    process_signal_receivers: usize,
-    total_cpu_time: Duration,
-    cpu_time: Duration,
-    trace_log: Option<trace::CoordinatorMetrics<'l>>,
 }
 
 impl Coordinator {
@@ -254,28 +231,33 @@ impl Coordinator {
         trace_log: &'l mut Option<trace::CoordinatorLog>,
     ) {
         let timing = trace::start(trace_log);
-        let total_cpu_time = cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID);
-        let cpu_time = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID);
-        let metrics = Metrics {
-            heph_version: concat!("v", env!("CARGO_PKG_VERSION")),
-            host_os: &*self.host_os,
-            host_arch: ARCH,
-            host_name: &*self.host_name,
-            host_id: self.host_id,
-            app_name: &*self.app_name,
-            process_id: process::id(),
-            parent_process_id: parent_id(),
-            uptime: self.start.elapsed(),
-            worker_threads: workers.len(),
-            sync_actors: sync_workers.len(),
-            shared: self.internals.metrics(),
-            process_signals: SIGNAL_SET,
-            process_signal_receivers: signal_refs.len(),
-            total_cpu_time,
-            cpu_time,
-            trace_log: trace_log.as_ref().map(trace::CoordinatorLog::metrics),
-        };
-        info!(target: "metrics", "metrics: {:?}", metrics);
+        let shared_metrics = self.internals.metrics();
+        let trace_metrics = trace_log.as_ref().map(trace::CoordinatorLog::metrics);
+        info!(
+            target: "metrics",
+            heph_version = log::as_display!(concat!("v", env!("CARGO_PKG_VERSION"))),
+            host_os = self.host_os,
+            host_arch = ARCH,
+            host_name = self.host_name,
+            host_id = log::as_display!(self.host_id),
+            app_name = self.app_name,
+            process_id = process::id(),
+            parent_process_id = parent_id(),
+            uptime = log::as_debug!(self.start.elapsed()),
+            worker_threads = workers.len(),
+            sync_actors = sync_workers.len(),
+            shared_scheduler_ready = shared_metrics.scheduler_ready,
+            shared_scheduler_inactive = shared_metrics.scheduler_inactive,
+            shared_timers_total = shared_metrics.timers_total,
+            shared_timers_next = log::as_debug!(shared_metrics.timers_next),
+            process_signals = log::as_debug!(SIGNAL_SET),
+            process_signal_receivers = signal_refs.len(),
+            cpu_time = log::as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
+            total_cpu_time = log::as_debug!(cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID)),
+            trace_file = log::as_debug!(trace_metrics.as_ref().map(|m| m.file)),
+            trace_counter = trace_metrics.map(|m| m.counter).unwrap_or(0);
+            "coordinator metrics",
+        );
         trace::finish_rt(trace_log.as_mut(), timing, "Printing runtime metrics", &[]);
     }
 }
