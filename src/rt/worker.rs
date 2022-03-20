@@ -20,7 +20,7 @@ pub(super) struct WorkerSetup {
     /// See [`Worker::id`].
     id: NonZeroUsize,
     /// Poll instance for the worker thread. This is needed before starting the
-    /// thread to initialise the [`rt::waker`].
+    /// thread to initialise the [`rt::local::waker`].
     poll: Poll,
     /// Waker id used to create a `Waker` for thread-local actors.
     waker_id: WakerId,

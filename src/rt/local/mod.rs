@@ -51,8 +51,8 @@ pub(crate) struct Runtime {
     internals: Rc<RuntimeInternals>,
     /// Mio events container.
     events: Events,
-    /// Receiving side of the channel for waker events, see the [`rt::waker`]
-    /// module for the implementation.
+    /// Receiving side of the channel for waker events, see the
+    /// [`rt::local::waker`] module for the implementation.
     waker_events: Receiver<ProcessId>,
     /// Communication channel exchange control messages.
     channel: rt::channel::Receiver<Control>,
