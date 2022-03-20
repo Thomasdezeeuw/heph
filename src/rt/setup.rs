@@ -259,6 +259,7 @@ pub(crate) fn host_info() -> io::Result<(Box<str>, Box<str>)> {
 ///
 /// [RFC 4122]: https://datatracker.ietf.org/doc/html/rfc4122
 #[derive(Copy, Clone)]
+#[allow(clippy::doc_markdown)]
 pub(crate) struct Uuid(u128);
 
 impl fmt::Display for Uuid {
