@@ -139,38 +139,7 @@ impl Coordinator {
         mut signal_refs: ActorGroup<Signal>,
         mut trace_log: Option<trace::CoordinatorLog>,
     ) -> Result<(), rt::Error> {
-        debug_assert!(workers.is_sorted_by_key(Worker::id));
-        debug_assert!(sync_workers.is_sorted_by_key(SyncWorker::id));
-
-        // Register various sources of OS events that need to wake us from
-        // polling events.
-        let timing = trace::start(&trace_log);
-        let registry = self.poll.registry();
-        register_workers(registry, &mut workers)
-            .map_err(|err| rt::Error::coordinator(Error::RegisteringWorkers(err)))?;
-        register_sync_workers(registry, &mut sync_workers)
-            .map_err(|err| rt::Error::coordinator(Error::RegisteringSyncActors(err)))?;
-        // It could be that before we're able to register the sync workers above
-        // they've already completed. On macOS and Linux this will still create
-        // an kqueue/epoll event, even if the other side of the Unix pipe was
-        // already disconnected before registering it with `Poll`.
-        // However this doesn't seem to be the case on FreeBSD, so we explicitly
-        // check if the sync workers are still alive *after* we registered them.
-        check_sync_worker_alive(&mut sync_workers)?;
-        trace::finish_rt(
-            trace_log.as_mut(),
-            timing,
-            "Initialising the coordinator thread",
-            &[],
-        );
-
-        // Signal to all worker threads the runtime was started. See
-        // `local::Runtime.started` why this is needed.
-        for worker in &mut workers {
-            worker
-                .send_runtime_started()
-                .map_err(|err| rt::Error::coordinator(Error::SendingStartSignal(err)))?;
-        }
+        self.pre_run(&mut workers, &mut sync_workers, &mut trace_log)?;
 
         let mut events = Events::with_capacity(16);
         loop {
@@ -240,6 +209,50 @@ impl Coordinator {
                 return Ok(());
             }
         }
+    }
+
+    /// Do the pre-[`run`] setup.
+    ///
+    /// [`run`]: Coordinator::run
+    fn pre_run(
+        &mut self,
+        workers: &mut [Worker],
+        sync_workers: &mut Vec<SyncWorker>,
+        trace_log: &mut Option<trace::CoordinatorLog>,
+    ) -> Result<(), rt::Error> {
+        debug_assert!(workers.is_sorted_by_key(Worker::id));
+        debug_assert!(sync_workers.is_sorted_by_key(SyncWorker::id));
+
+        // Register various sources of OS events that need to wake us from
+        // polling events.
+        let timing = trace::start(&*trace_log);
+        let registry = self.poll.registry();
+        register_workers(registry, workers)
+            .map_err(|err| rt::Error::coordinator(Error::RegisteringWorkers(err)))?;
+        register_sync_workers(registry, sync_workers)
+            .map_err(|err| rt::Error::coordinator(Error::RegisteringSyncActors(err)))?;
+        // It could be that before we're able to register the sync workers above
+        // they've already completed. On macOS and Linux this will still create
+        // an kqueue/epoll event, even if the other side of the Unix pipe was
+        // already disconnected before registering it with `Poll`.
+        // However this doesn't seem to be the case on FreeBSD, so we explicitly
+        // check if the sync workers are still alive *after* we registered them.
+        check_sync_worker_alive(sync_workers)?;
+        trace::finish_rt(
+            trace_log.as_mut(),
+            timing,
+            "Initialising the coordinator thread",
+            &[],
+        );
+
+        // Signal to all worker threads the runtime was started. See
+        // `local::Runtime.started` why this is needed.
+        for worker in workers {
+            worker
+                .send_runtime_started()
+                .map_err(|err| rt::Error::coordinator(Error::SendingStartSignal(err)))?;
+        }
+        Ok(())
     }
 
     /// Gather metrics about the coordinator and runtime.
