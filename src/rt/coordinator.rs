@@ -518,11 +518,9 @@ fn relay_signals(
                         );
                     }
                 }
-                if !signal_refs.is_empty() {
-                    // Safety: only returns an error if the group is empty, so
-                    // this `unwrap` is safe.
-                    signal_refs.try_send(signal, Delivery::ToAll).unwrap();
-                }
+
+                debug!("relaying process signal to actors: signal={:?}", signal);
+                let _ = signal_refs.try_send(signal, Delivery::ToAll);
             }
             Ok(None) => break,
             Err(err) => {
