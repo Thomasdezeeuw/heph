@@ -55,7 +55,7 @@ pub(super) struct Coordinator {
     /// Name of the application.
     app_name: Box<str>,
     /// OS name and version, from `uname(2)`.
-    os: Box<str>,
+    host_os: Box<str>,
     /// Name of the host. `nodename` field from `uname(2)`.
     host_name: Box<str>,
     /// Id of the host.
@@ -67,8 +67,8 @@ pub(super) struct Coordinator {
 #[allow(dead_code)] // https://github.com/rust-lang/rust/issues/88900.
 struct Metrics<'c, 'l> {
     heph_version: &'static str,
-    os: &'c str,
-    architecture: &'static str,
+    host_os: &'c str,
+    host_arch: &'static str,
     host_name: &'c str,
     host_id: Uuid,
     app_name: &'c str,
@@ -108,10 +108,10 @@ impl Coordinator {
             setup.complete(waker_id, worker_wakers, trace_log)
         });
 
-        let (os, host_name) = host_info()?;
+        let (host_os, host_name) = host_info()?;
         let host_id = host_id()?;
         Ok(Coordinator {
-            os,
+            host_os,
             host_name,
             host_id,
             app_name,
@@ -258,8 +258,8 @@ impl Coordinator {
         let cpu_time = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID);
         let metrics = Metrics {
             heph_version: concat!("v", env!("CARGO_PKG_VERSION")),
-            os: &*self.os,
-            architecture: ARCH,
+            host_os: &*self.host_os,
+            host_arch: ARCH,
             host_name: &*self.host_name,
             host_id: self.host_id,
             app_name: &*self.app_name,
