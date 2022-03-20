@@ -7,9 +7,9 @@ use std::{io, thread};
 use crossbeam_channel::{self, Receiver};
 use mio::{Poll, Registry, Token};
 
+use crate::rt::local::waker::{self, WakerId};
 use crate::rt::local::{Control, Runtime, WAKER};
 use crate::rt::thread_waker::ThreadWaker;
-use crate::rt::waker::WakerId;
 use crate::rt::{self, shared, ProcessId, RuntimeRef, Signal};
 use crate::trace;
 
@@ -37,8 +37,8 @@ pub(super) fn setup(id: NonZeroUsize) -> io::Result<(WorkerSetup, &'static Threa
     // Setup the waking mechanism.
     let (waker_sender, waker_events) = crossbeam_channel::unbounded();
     let waker = mio::Waker::new(poll.registry(), WAKER)?;
-    let waker_id = rt::waker::init(waker, waker_sender);
-    let thread_waker = rt::waker::get_thread_waker(waker_id);
+    let waker_id = waker::init(waker, waker_sender);
+    let thread_waker = waker::get_thread_waker(waker_id);
 
     let setup = WorkerSetup {
         id,
