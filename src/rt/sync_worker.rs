@@ -1,4 +1,14 @@
 //! Synchronous actor thread code.
+//!
+//! A sync worker manages and runs a single synchronous actor. It simply runs
+//! the sync actor and handles any errors it returns (by restarting the actor or
+//! stopping the thread).
+//!
+//! The [`SyncWorker`] type is a handle to the sync worker thread managed by the
+//! [coordinator]. The [`main`] function is the entry point for the sync worker
+//! thread.
+//!
+//! [coordinator]: crate::rt::coordinator
 
 use std::io::{self, Write};
 use std::thread;
@@ -41,7 +51,7 @@ impl SyncWorker {
         A::Argument: Send + 'static,
     {
         unix::pipe::new().and_then(|(sender, receiver)| {
-            let (manager, send, _) = inbox::Manager::new_small_channel();
+            let (manager, send, ..) = inbox::Manager::new_small_channel();
             let actor_ref = ActorRef::local(send);
             let thread_name = options
                 .take_name()
@@ -157,6 +167,7 @@ fn main<S, A>(
     drop(receiver);
 }
 
+/// Called when we can't create a new receiver for the sync actor.
 #[cold]
 fn inbox_failure<T>(_: ReceiverConnected) -> T {
     panic!("failed to create new receiver for synchronous actor's inbox. Was the `SyncContext` leaked?");
