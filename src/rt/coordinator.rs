@@ -165,18 +165,8 @@ impl Coordinator {
                             "Relaying process signal(s)",
                             &[],
                         );
-
                         if log_metrics {
-                            let timing = trace::start(&trace_log);
-                            let metrics =
-                                self.metrics(&workers, &sync_workers, &signal_refs, &trace_log);
-                            info!(target: "metrics", "metrics: {:?}", metrics);
-                            trace::finish_rt(
-                                trace_log.as_mut(),
-                                timing,
-                                "Printing runtime metrics",
-                                &[],
-                            );
+                            self.log_metrics(&workers, &sync_workers, &signal_refs, &mut trace_log);
                         }
                     }
                     token if token.0 < SYNC_WORKER_ID_START => {
@@ -255,17 +245,18 @@ impl Coordinator {
         Ok(())
     }
 
-    /// Gather metrics about the coordinator and runtime.
-    fn metrics<'c, 'l>(
+    /// Log metrics about the coordinator and runtime.
+    fn log_metrics<'c, 'l>(
         &'c self,
         workers: &[Worker],
         sync_workers: &[SyncWorker],
         signal_refs: &ActorGroup<Signal>,
-        trace_log: &'l Option<trace::CoordinatorLog>,
-    ) -> Metrics<'c, 'l> {
+        trace_log: &'l mut Option<trace::CoordinatorLog>,
+    ) {
+        let timing = trace::start(&trace_log);
         let total_cpu_time = cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID);
         let cpu_time = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID);
-        Metrics {
+        let metrics = Metrics {
             heph_version: concat!("v", env!("CARGO_PKG_VERSION")),
             os: &*self.os,
             architecture: ARCH,
@@ -283,7 +274,9 @@ impl Coordinator {
             total_cpu_time,
             cpu_time,
             trace_log: trace_log.as_ref().map(trace::CoordinatorLog::metrics),
-        }
+        };
+        info!(target: "metrics", "metrics: {:?}", metrics);
+        trace::finish_rt(trace_log.as_mut(), timing, "Printing runtime metrics", &[]);
     }
 }
 
