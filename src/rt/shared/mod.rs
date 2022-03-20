@@ -98,10 +98,11 @@ pub(crate) struct RuntimeInternals {
 
 /// Metrics for [`RuntimeInternals`].
 #[derive(Debug)]
-#[allow(dead_code)] // https://github.com/rust-lang/rust/issues/88900.
 pub(crate) struct Metrics {
-    scheduler: scheduler::Metrics,
-    timers: timers::Metrics,
+    pub(crate) scheduler_ready: usize,
+    pub(crate) scheduler_inactive: usize,
+    pub(crate) timers_total: usize,
+    pub(crate) timers_next: Option<Duration>,
 }
 
 impl RuntimeInternals {
@@ -112,11 +113,13 @@ impl RuntimeInternals {
         Ok(RuntimeSetup { poll, registry })
     }
 
-    /// Gather metrics about the shared runtime state.
+    /// Returns metrics about the shared scheduler and timers.
     pub(crate) fn metrics(&self) -> Metrics {
         Metrics {
-            scheduler: self.scheduler.metrics(),
-            timers: self.timers.metrics(),
+            scheduler_ready: self.scheduler.ready(),
+            scheduler_inactive: self.scheduler.inactive(),
+            timers_total: self.timers.len(),
+            timers_next: self.timers.next_timer(),
         }
     }
 

@@ -169,10 +169,9 @@ pub(crate) struct CoordinatorLog {
 
 /// Metrics for [`CoordinatorLog`].
 #[derive(Debug)]
-#[allow(dead_code)] // https://github.com/rust-lang/rust/issues/88900.
 pub(crate) struct CoordinatorMetrics<'l> {
-    file: &'l File,
-    counter: u32,
+    pub(crate) file: &'l File,
+    pub(crate) counter: u32,
 }
 
 impl CoordinatorLog {
@@ -267,9 +266,8 @@ pub(crate) struct Log {
 
 /// Metrics for [`Log`].
 #[derive(Debug)]
-#[allow(dead_code)] // https://github.com/rust-lang/rust/issues/88900.
 pub(crate) struct Metrics {
-    counter: u32,
+    pub(crate) counter: u32,
 }
 
 impl Log {
