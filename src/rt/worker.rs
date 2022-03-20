@@ -31,19 +31,6 @@ use crate::trace;
 
 pub(super) use crate::rt::local::Error;
 
-/// Setup work required before starting a worker thread, see [`setup`].
-pub(super) struct WorkerSetup {
-    /// See [`Worker::id`].
-    id: NonZeroUsize,
-    /// Poll instance for the worker thread. This is needed before starting the
-    /// thread to initialise the [`rt::local::waker`].
-    poll: Poll,
-    /// Waker id used to create a `Waker` for thread-local actors.
-    waker_id: WakerId,
-    /// Receiving side of the channel for `Waker` events.
-    waker_events: Receiver<ProcessId>,
-}
-
 /// Setup a new worker thread.
 ///
 /// Use [`WorkerSetup::start`] to spawn the worker thread.
@@ -63,6 +50,19 @@ pub(super) fn setup(id: NonZeroUsize) -> io::Result<(WorkerSetup, &'static Threa
         waker_events,
     };
     Ok((setup, thread_waker))
+}
+
+/// Setup work required before starting a worker thread, see [`setup`].
+pub(super) struct WorkerSetup {
+    /// See [`Worker::id`].
+    id: NonZeroUsize,
+    /// Poll instance for the worker thread. This is needed before starting the
+    /// thread to initialise the [`rt::local::waker`].
+    poll: Poll,
+    /// Waker id used to create a `Waker` for thread-local actors.
+    waker_id: WakerId,
+    /// Receiving side of the channel for `Waker` events.
+    waker_events: Receiver<ProcessId>,
 }
 
 impl WorkerSetup {
