@@ -31,7 +31,7 @@ use crate::rt::setup::{host_id, host_info, Uuid};
 use crate::rt::shared::waker;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{
-    self, cpu_usage, shared, Signal, SyncWorker, Worker, SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
+    self, cpu_usage, shared, worker, Signal, SyncWorker, SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
 };
 use crate::trace;
 
@@ -111,7 +111,7 @@ impl Coordinator {
     /// `workers` and `sync_workers` must be sorted based on `id`.
     pub(super) fn run(
         mut self,
-        mut workers: Vec<Worker>,
+        mut workers: Vec<worker::Handle>,
         mut sync_workers: Vec<SyncWorker>,
         mut signal_refs: ActorGroup<Signal>,
         mut trace_log: Option<trace::CoordinatorLog>,
@@ -183,11 +183,11 @@ impl Coordinator {
     /// [`run`]: Coordinator::run
     fn pre_run(
         &mut self,
-        workers: &mut [Worker],
+        workers: &mut [worker::Handle],
         sync_workers: &mut Vec<SyncWorker>,
         trace_log: &mut Option<trace::CoordinatorLog>,
     ) -> Result<(), rt::Error> {
-        debug_assert!(workers.is_sorted_by_key(Worker::id));
+        debug_assert!(workers.is_sorted_by_key(worker::Handle::id));
         debug_assert!(sync_workers.is_sorted_by_key(SyncWorker::id));
 
         // Register various sources of OS events that need to wake us from
@@ -225,7 +225,7 @@ impl Coordinator {
     /// Log metrics about the coordinator and runtime.
     fn log_metrics<'c, 'l>(
         &'c self,
-        workers: &[Worker],
+        workers: &[worker::Handle],
         sync_workers: &[SyncWorker],
         signal_refs: &ActorGroup<Signal>,
         trace_log: &'l mut Option<trace::CoordinatorLog>,
@@ -276,7 +276,7 @@ fn setup_signals(registry: &Registry) -> io::Result<Signals> {
 }
 
 /// Register all `workers`' sending end of the pipe with `registry`.
-fn register_workers(registry: &Registry, workers: &mut [Worker]) -> io::Result<()> {
+fn register_workers(registry: &Registry, workers: &mut [worker::Handle]) -> io::Result<()> {
     workers.iter_mut().try_for_each(|worker| {
         trace!("registering worker thread: id={}", worker.id());
         worker.register(registry)
@@ -308,7 +308,7 @@ fn check_sync_worker_alive(sync_workers: &mut Vec<SyncWorker>) -> Result<(), rt:
 /// metrics from the runtime. If this returns `true` call `log_metrics`.
 fn relay_signals(
     signals: &mut Signals,
-    workers: &mut [Worker],
+    workers: &mut [worker::Handle],
     signal_refs: &mut ActorGroup<Signal>,
 ) -> bool {
     signal_refs.remove_disconnected();
@@ -359,8 +359,8 @@ fn relay_signals(
 }
 
 /// Handle an `event` for a worker.
-fn handle_worker_event(workers: &mut Vec<Worker>, event: &Event) -> Result<(), rt::Error> {
-    if let Ok(i) = workers.binary_search_by_key(&event.token().0, Worker::id) {
+fn handle_worker_event(workers: &mut Vec<worker::Handle>, event: &Event) -> Result<(), rt::Error> {
+    if let Ok(i) = workers.binary_search_by_key(&event.token().0, worker::Handle::id) {
         if event.is_error() || event.is_write_closed() {
             // Receiving end of the pipe is dropped, which means the worker has
             // shut down.
