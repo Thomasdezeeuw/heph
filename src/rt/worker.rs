@@ -1,4 +1,20 @@
 //! Worker thread code.
+//!
+//! A worker thread manages part of the [`Runtime`]. It manages two parts; the
+//! local and shared (between workers) parts of the runtime. The local part
+//! include thread-local actors and futures, timers for those local actors, I/O
+//! state, etc. The can be found in [`local::Runtime`]. The shared part is
+//! similar, but not the sole responsibility of a single worker, all workers
+//! collectively are responsible for it. This shared part can be fore in
+//! [`shared::RuntimeInternals`].
+//!
+//! Creating a new worker starts with calling [`setup`] to prepare various
+//! things that need to happen on the main/coordinator thread. After that worker
+//! thread can be [started], which runs [`main`] in a new thread.
+//!
+//! [`Runtime`]: crate::rt::Runtime
+//! [`local::Runtime`]: crate::rt::local::Runtime
+//! [started]: WorkerSetup::start
 
 use std::num::NonZeroUsize;
 use std::sync::Arc;
