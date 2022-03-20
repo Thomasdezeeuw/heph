@@ -16,14 +16,16 @@ use crate::actor_ref::{ActorGroup, Delivery, SendError};
 use crate::rt::error::StringError;
 use crate::rt::process::ProcessId;
 use crate::rt::process::ProcessResult;
-use crate::rt::{self, cpu_usage, shared, RuntimeRef, Signal, WakerId};
+use crate::rt::{self, cpu_usage, shared, RuntimeRef, Signal};
 use crate::trace;
 
 mod scheduler;
 mod timers;
+pub(super) mod waker;
 
 use scheduler::Scheduler;
 use timers::Timers;
+use waker::WakerId;
 
 /// Number of processes to run in between calls to poll.
 ///
@@ -108,7 +110,7 @@ impl Runtime {
         // sends pids into it.
         let (waker_sender, waker_events) = crossbeam_channel::unbounded();
         let waker = mio::Waker::new(poll.registry(), WAKER)?;
-        let waker_id = rt::waker::init(waker, waker_sender);
+        let waker_id = waker::init(waker, waker_sender);
 
         channel.register(poll.registry(), COMMS)?;
 
@@ -449,7 +451,7 @@ impl Runtime {
 
         // Only mark ourselves as polling if the timeout is non zero.
         let marked_polling = if timeout.map_or(true, |t| !t.is_zero()) {
-            rt::waker::mark_polling(self.internals.waker_id, true);
+            waker::mark_polling(self.internals.waker_id, true);
             // We need to check the timeout here to ensure we didn't miss any
             // wake-ups/timers since we determined the timeout and marked
             // ourselves as polling above.
@@ -482,7 +484,7 @@ impl Runtime {
             .poll(&mut self.events, timeout);
 
         if marked_polling {
-            rt::waker::mark_polling(self.internals.waker_id, false);
+            waker::mark_polling(self.internals.waker_id, false);
         }
 
         trace::finish_rt(

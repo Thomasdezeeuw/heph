@@ -1,4 +1,4 @@
-//! Module containing the `task::Waker` implementation.
+//! Module containing the local `task::Waker` implementation.
 
 use std::mem::size_of;
 use std::sync::atomic::{AtomicU8, Ordering};
@@ -225,10 +225,10 @@ mod tests {
 
     use mio::{Events, Poll, Token, Waker};
 
-    use crate::rt::waker::{self, WakerData};
+    use crate::rt::local::waker::{
+        self as waker, WakerData, MAX_THREADS, THREAD_BITS, THREAD_MASK,
+    };
     use crate::rt::ProcessId;
-
-    use super::{MAX_THREADS, THREAD_BITS, THREAD_MASK};
 
     const WAKER: Token = Token(0);
     const PID1: ProcessId = ProcessId(0);

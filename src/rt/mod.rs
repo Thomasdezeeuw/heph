@@ -146,7 +146,6 @@ pub(crate) mod shared;
 mod signal;
 pub(crate) mod sync_worker;
 pub(crate) mod thread_waker;
-pub(crate) mod waker;
 pub(crate) mod worker;
 
 pub(crate) use access::PrivateAccess;
@@ -158,8 +157,8 @@ pub use setup::Setup;
 pub use signal::Signal;
 
 use coordinator::Coordinator;
+use local::waker::MAX_THREADS;
 use sync_worker::SyncWorker;
-use waker::{WakerId, MAX_THREADS};
 use worker::Worker;
 
 pub(crate) const SYNC_WORKER_ID_START: usize = 10000;
@@ -571,7 +570,7 @@ impl RuntimeRef {
     ///
     /// Prefer `new_waker` if possible, only use `task::Waker` for `Future`s.
     pub(crate) fn new_local_task_waker(&self, pid: ProcessId) -> task::Waker {
-        waker::new(self.internals.waker_id, pid)
+        local::waker::new(self.internals.waker_id, pid)
     }
 
     /// Same as [`RuntimeRef::new_local_task_waker`] but provides a waker
