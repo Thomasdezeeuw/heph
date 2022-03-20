@@ -73,10 +73,10 @@ impl WorkerSetup {
         shared_internals: Arc<shared::RuntimeInternals>,
         auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
-    ) -> io::Result<Worker> {
+    ) -> io::Result<Handle> {
         rt::channel::new().and_then(|(channel, receiver)| {
-            // Copy id to move into `Worker`, `self` moves into the spawned
-            // thread.
+            // Copy id to move into `Handle`, `self` moves into the
+            // spawned thread.
             let id = self.id;
             thread::Builder::new()
                 .name(format!("Worker {}", id))
@@ -89,7 +89,7 @@ impl WorkerSetup {
                         trace_log,
                     )
                 })
-                .map(|handle| Worker {
+                .map(|handle| Handle {
                     id,
                     channel,
                     handle,
@@ -105,7 +105,7 @@ impl WorkerSetup {
 
 /// Handle to a worker thread.
 #[derive(Debug)]
-pub(super) struct Worker {
+pub(super) struct Handle {
     /// Unique id (among all threads in the [`rt::Runtime`]).
     id: NonZeroUsize,
     /// Two-way communication channel to share messages with the worker thread.
@@ -114,7 +114,7 @@ pub(super) struct Worker {
     handle: thread::JoinHandle<Result<(), rt::Error>>,
 }
 
-impl Worker {
+impl Handle {
     /// Return the worker's id.
     pub(super) const fn id(&self) -> usize {
         self.id.get()

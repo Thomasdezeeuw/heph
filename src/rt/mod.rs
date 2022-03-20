@@ -159,7 +159,6 @@ pub use signal::Signal;
 use coordinator::Coordinator;
 use local::waker::MAX_THREADS;
 use sync_worker::SyncWorker;
-use worker::Worker;
 
 pub(crate) const SYNC_WORKER_ID_START: usize = 10000;
 pub(crate) const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
@@ -200,7 +199,7 @@ pub struct Runtime {
     /// Coordinator thread data.
     coordinator: Coordinator,
     /// Worker threads.
-    workers: Vec<Worker>,
+    workers: Vec<worker::Handle>,
     /// Synchronous actor threads.
     sync_actors: Vec<SyncWorker>,
     /// List of actor references that want to receive process signals.

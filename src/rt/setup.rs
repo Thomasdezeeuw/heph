@@ -12,7 +12,7 @@ use log::{debug, warn};
 
 use crate::actor_ref::ActorGroup;
 use crate::rt::coordinator::Coordinator;
-use crate::rt::{worker, Error, Runtime, Worker, MAX_THREADS};
+use crate::rt::{worker, Error, Runtime, MAX_THREADS};
 use crate::trace;
 
 /// Setup a [`Runtime`].
@@ -191,7 +191,7 @@ impl Setup {
                     trace_log,
                 )
             })
-            .collect::<io::Result<Vec<Worker>>>()
+            .collect::<io::Result<Vec<worker::Handle>>>()
             .map_err(Error::start_worker)?;
 
         trace::finish_rt(
