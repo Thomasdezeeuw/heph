@@ -1,4 +1,19 @@
 //! Coordinator thread code.
+//!
+//! The coordinator, as the name suggests, coordinates the Heph runtime. This
+//! includes monitoring the [worker threads] running the thread-safe and
+//! thread-local actors and futures, monitoring the [sync worker threads]
+//! running the synchronous actors and handling process signals.
+//!
+//! Most of the time the coordinator is polling new events to handle, i.e.
+//! waiting for something to happen. Such an event can be one of the following:
+//! * An incoming process signal, which it relays to all registers actors and
+//!   (sync) worker threads.
+//! * A (sync) worker thread stopping because all actors have finished running,
+//!   the worker hit an error or the thread panicked.
+//!
+//! [worker threads]: crate::rt::worker
+//! [sync worker threads]: crate::rt::sync_worker
 
 use std::env::consts::ARCH;
 use std::ffi::CStr;
@@ -24,24 +39,28 @@ use crate::trace;
 /// Token used to receive process signals.
 const SIGNAL: Token = Token(usize::MAX);
 
+/// Coordinator responsible for coordinating the Heph runtime.
 #[derive(Debug)]
 pub(super) struct Coordinator {
+    /// OS poll, used to poll the status of the (sync) worker threads and
+    /// process `signals`.
+    poll: Poll,
+    /// Process signal notifications.
+    signals: Signals,
+    /// Internals shared between the coordinator and all workers.
+    internals: Arc<shared::RuntimeInternals>,
+
+    // Data used in [`Metrics`].
+    /// Start time, used to calculate [`Metrics`]'s uptime.
+    start: Instant,
+    /// Name of the application.
+    app_name: Box<str>,
     /// OS name and version, from `uname(2)`.
     os: Box<str>,
     /// Name of the host. `nodename` field from `uname(2)`.
     host_name: Box<str>,
+    /// Id of the host.
     host_id: Uuid,
-    /// Name of the application.
-    app_name: Box<str>,
-    /// OS poll, used to poll the status of the (sync) worker threads and
-    /// process `signals`.
-    poll: Poll,
-    /// Signal notifications.
-    signals: Signals,
-    /// Internals shared between the coordinator and workers.
-    internals: Arc<shared::RuntimeInternals>,
-    /// Start time, used to calculate [`Metrics`]'s uptime.
-    start: Instant,
 }
 
 /// Metrics for [`Coordinator`].
@@ -67,6 +86,9 @@ struct Metrics<'c, 'l> {
     trace_log: Option<trace::CoordinatorMetrics<'l>>,
 }
 
+/// Universally Unique IDentifier (UUID), see [RFC 4122].
+///
+/// [RFC 4122]: https://datatracker.ietf.org/doc/html/rfc4122
 #[derive(Copy, Clone)]
 struct Uuid(u128);
 
