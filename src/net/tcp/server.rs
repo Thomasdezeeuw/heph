@@ -8,9 +8,9 @@ use std::sync::Arc;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
-use log::debug;
 #[cfg(target_os = "linux")]
 use log::warn;
+use log::{as_display, debug};
 use mio::net::TcpListener;
 use mio::Interest;
 use socket2::{Domain, Protocol, Socket, Type};
@@ -518,7 +518,7 @@ where
                 Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue, // Try again.
                 Err(err) => return Poll::Ready(Err(Error::Accept(err))),
             };
-            debug!("TcpServer accepted connection: remote_address={}", addr);
+            debug!(remote_address = as_display!(addr); "TcpServer accepted connection");
 
             let setup_actor = move |ctx: &mut actor::Context<NA::Message, NA::RuntimeAccess>| {
                 ctx.runtime()

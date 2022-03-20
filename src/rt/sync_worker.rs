@@ -112,7 +112,7 @@ fn main<S, A>(
 {
     let thread = thread::current();
     let name = thread.name().unwrap();
-    trace!("running synchronous actor: pid={}, name='{}'", id, name);
+    trace!(sync_worker_id = id, name = name; "running synchronous actor");
     loop {
         let timing = trace::start(&trace_log);
         let receiver = inbox.new_receiver().unwrap_or_else(inbox_failure);
@@ -134,7 +134,7 @@ fn main<S, A>(
                 let timing = trace::start(&trace_log);
                 match supervisor.decide(err) {
                     SupervisorStrategy::Restart(new_arg) => {
-                        trace!("restarting synchronous actor: pid={}, name='{}'", id, name);
+                        trace!(sync_worker_id = id, name = name; "restarting synchronous actor");
                         arg = new_arg;
                         trace::finish_rt(
                             trace_log.as_mut(),
@@ -157,7 +157,7 @@ fn main<S, A>(
         }
     }
 
-    trace!("stopping synchronous actor: pid={}, name='{}'", id, name);
+    trace!(sync_worker_id = id, name = name; "stopping synchronous actor");
     // First drop all values as this might take an arbitrary time.
     drop(actor);
     drop(supervisor);

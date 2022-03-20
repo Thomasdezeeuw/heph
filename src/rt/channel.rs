@@ -4,7 +4,6 @@
 use std::io::{self, Read, Write};
 
 use crossbeam_channel as crossbeam;
-use log::trace;
 use mio::{unix, Interest, Registry, Token};
 
 /// Data send across the channel to create a `mio::Event`.
@@ -41,7 +40,6 @@ impl<T> Sender<T> {
 
         // Generate an `mio::Event` for the receiving end.
         loop {
-            trace!("notifying worker-coordinator channel of new message");
             match (&self.pipe).write(WAKE) {
                 Ok(0) => {
                     return Err(io::Error::new(
@@ -82,7 +80,6 @@ impl<T> Receiver<T> {
             // notification once the coordinator sends us another message.
             let mut buf = [0; 24]; // Fits 6 messages.
             loop {
-                trace!("emptying worker-coordinator channel pipe");
                 match self.pipe.read(&mut buf) {
                     Ok(n) if n < buf.len() => break,
                     // Didn't empty it.

@@ -234,7 +234,7 @@ impl RuntimeInternals {
         let actor_entry = self.scheduler.add_actor();
         let pid = actor_entry.pid();
         let name = new_actor.name();
-        debug!("spawning thread-safe actor: pid={}, name={}", pid, name);
+        debug!(pid = pid.0, name = name; "spawning thread-safe actor");
 
         // Create our actor context and our actor with it.
         let (manager, sender, receiver) = inbox::Manager::new_small_channel();

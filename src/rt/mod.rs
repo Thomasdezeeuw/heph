@@ -124,7 +124,7 @@ use std::time::Instant;
 use std::{io, task};
 
 use heph_inbox as inbox;
-use log::{debug, trace, warn};
+use log::{as_debug, debug, trace, warn};
 use mio::{event, Interest, Token};
 
 use crate::actor::{self, NewActor, SyncActor};
@@ -289,9 +289,9 @@ impl Runtime {
     {
         let id = SYNC_WORKER_ID_START + self.sync_actors.len();
         if let Some(name) = options.name() {
-            debug!("spawning synchronous actor: pid={}, name='{}'", id, name);
+            debug!(sync_worker_id = id, name = name; "spawning synchronous actor");
         } else {
-            debug!("spawning synchronous actor: pid={}", id);
+            debug!(sync_worker_id = id; "spawning synchronous actor");
         }
 
         #[allow(clippy::cast_possible_truncation)]
@@ -333,6 +333,7 @@ impl Runtime {
         F: FnOnce(RuntimeRef) -> Result<(), E> + Send + Clone + 'static,
         E: ToString,
     {
+        debug!("sending user function to workers");
         for worker in &mut self.workers {
             let f = f.clone();
             let f = Box::new(move |runtime_ref| f(runtime_ref).map_err(|err| err.to_string()));
@@ -362,8 +363,8 @@ impl Runtime {
     /// for more information.
     pub fn start(self) -> Result<(), Error> {
         debug!(
-            "starting Heph runtime: sync_actors={}",
-            self.sync_actors.len()
+            workers = self.workers.len(), sync_actors = self.sync_actors.len();
+            "starting Heph runtime"
         );
         self.coordinator
             .run(self.workers, self.sync_actors, self.signals, self.trace_log)
@@ -590,24 +591,19 @@ impl RuntimeRef {
 
     /// Add a deadline.
     fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        trace!("adding deadline: pid={}, deadline={:?}", pid, deadline);
+        trace!(pid = pid.0, deadline = as_debug!(deadline); "adding deadline");
         self.internals.timers.borrow_mut().add(pid, deadline);
     }
 
     /// Remove a deadline.
     fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        trace!("removing deadline: pid={}, deadline={:?}", pid, deadline);
+        trace!(pid = pid.0, deadline = as_debug!(deadline); "removing deadline");
         self.internals.timers.borrow_mut().remove(pid, deadline);
     }
 
     /// Change the `ProcessId` of a deadline.
     fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant) {
-        trace!(
-            "changing deadline: new_pid={}, old_pid={}, deadline={:?}",
-            from,
-            to,
-            deadline
-        );
+        trace!(old_pid = from.0, new_pid = to.0, deadline = as_debug!(deadline); "changing deadline");
         self.internals
             .timers
             .borrow_mut()
@@ -673,7 +669,7 @@ where
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
         let name = new_actor.name();
-        debug!("spawning thread-local actor: pid={}, name={}", pid, name);
+        debug!(pid = pid.0, name = name; "spawning thread-local actor");
 
         // Create our actor context and our actor with it.
         let (manager, sender, receiver) = inbox::Manager::new_small_channel();
@@ -735,7 +731,8 @@ fn cpu_usage(clock_id: libc::clockid_t) -> Duration {
         tv_nsec: 0,
     };
     if unsafe { libc::clock_gettime(clock_id, &mut duration) } == -1 {
-        warn!("error getting CPU time: {}", io::Error::last_os_error());
+        let err = io::Error::last_os_error();
+        warn!("error getting CPU time: {}, using zero", err);
         Duration::ZERO
     } else {
         Duration::new(

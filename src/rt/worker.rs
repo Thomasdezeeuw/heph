@@ -18,7 +18,6 @@
 
 use std::cell::RefMut;
 use std::num::NonZeroUsize;
-use std::ops::Deref;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -26,7 +25,7 @@ use std::time::{Duration, Instant};
 use std::{fmt, io, thread};
 
 use crossbeam_channel::{self, Receiver};
-use log::{debug, info, trace};
+use log::{as_debug, debug, info, trace};
 use mio::{Events, Poll, Registry, Token};
 
 use crate::actor_ref::{Delivery, SendError};
@@ -214,10 +213,12 @@ impl Worker {
 
         // Register the shared poll intance.
         let poll = setup.poll;
+        trace!(worker_id = setup.id.get(); "registring shared poll");
         shared_internals
             .register_worker_poll(poll.registry(), SHARED_POLL)
             .map_err(Error::Init)?;
         // Register the channel to the coordinator.
+        trace!(worker_id = setup.id.get(); "registring communication channel");
         receiver
             .register(poll.registry(), COMMS)
             .map_err(Error::Init)?;
@@ -254,7 +255,7 @@ impl Worker {
     #[cfg(any(test, feature = "test"))]
     pub(crate) fn new_test(
         shared_internals: Arc<shared::RuntimeInternals>,
-        mut channel: rt::channel::Receiver<Control>,
+        mut receiver: rt::channel::Receiver<Control>,
     ) -> io::Result<Worker> {
         let poll = Poll::new()?;
 
@@ -264,7 +265,7 @@ impl Worker {
         let waker = mio::Waker::new(poll.registry(), WAKER)?;
         let waker_id = waker::init(waker, waker_sender);
 
-        channel.register(poll.registry(), COMMS)?;
+        receiver.register(poll.registry(), COMMS)?;
 
         let id = NonZeroUsize::new(usize::MAX).unwrap();
         let internals = RuntimeInternals::new(id, shared_internals, waker_id, poll, None, None);
@@ -272,21 +273,21 @@ impl Worker {
             internals: Rc::new(internals),
             events: Events::with_capacity(16),
             waker_events,
-            channel,
+            channel: receiver,
             started: false,
         })
     }
 
     /// Run the worker.
     pub(crate) fn run(mut self) -> Result<(), Error> {
-        debug!("starting worker");
+        debug!(worker_id = self.internals.id.get(); "starting worker");
         // Runtime reference used in running the processes.
         let mut runtime_ref = self.create_ref();
 
         loop {
             // We first run the processes and only poll after to ensure that we
             // return if there are no processes to run.
-            trace!("running processes");
+            trace!(worker_id = self.internals.id.get(); "running processes");
             let mut n = 0;
             while n < RUN_POLL_RATIO {
                 if !self.run_local_process(&mut runtime_ref) {
@@ -302,7 +303,7 @@ impl Worker {
             }
 
             if self.started && !self.has_process() {
-                debug!("no processes to run, stopping runtime");
+                debug!(worker_id = self.internals.id.get(); "no processes to run, stopping worker");
                 self.internals.shared.wake_all_workers();
                 return Ok(());
             }
@@ -380,7 +381,7 @@ impl Worker {
     ///
     /// This polls all event subsystems and schedules processes based on them.
     fn schedule_processes(&mut self) -> Result<(), Error> {
-        trace!("polling event sources to schedule processes");
+        trace!(worker_id = self.internals.id.get(); "polling event sources to schedule processes");
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
         // Schedule local and shared processes based on various event sources.
@@ -430,17 +431,16 @@ impl Worker {
         let mut check_shared_poll = false;
         let mut amount = 0;
         for event in self.events.iter() {
-            trace!("got OS event: {:?}", event);
+            trace!(worker_id = self.internals.id.get(); "got OS event: {:?}", event);
             match event.token() {
                 WAKER => { /* Need to wake up to handle user space events. */ }
                 COMMS => check_comms = true,
                 SHARED_POLL => check_shared_poll = true,
                 token => {
-                    let pid = token.into();
+                    let pid = ProcessId::from(token);
                     trace!(
-                        "scheduling local process based on OS event: pid={}, event={:?}",
-                        pid,
-                        event
+                        worker_id = self.internals.id.get(), pid = pid.0;
+                        "scheduling local process based on OS event",
                     );
                     scheduler.mark_ready(pid);
                     amount += 1;
@@ -464,18 +464,17 @@ impl Worker {
 
     /// Schedule processes based on shared OS events.
     fn schedule_from_shared_os_events(&mut self) -> io::Result<usize> {
-        trace!("polling shared OS events");
+        trace!(worker_id = self.internals.id.get(); "polling shared OS events");
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
         let mut amount = 0;
         if self.internals.shared.try_poll(&mut self.events)? {
             for event in self.events.iter() {
-                trace!("got shared OS event: {:?}", event);
-                let pid = event.token().into();
+                trace!(worker_id = self.internals.id.get(); "got shared OS event: {:?}", event);
+                let pid = ProcessId::from(event.token());
                 trace!(
-                    "scheduling shared process based on OS event: pid={}, event={:?}",
-                    pid,
-                    event
+                    worker_id = self.internals.id.get(), pid = pid.0;
+                    "scheduling shared process based on OS event",
                 );
                 self.internals.shared.mark_ready(pid);
                 amount += 1;
@@ -494,13 +493,13 @@ impl Worker {
     /// Schedule processes based on user space waker events, e.g. used by the
     /// `Future` task system.
     fn schedule_from_waker(&mut self) -> usize {
-        trace!("polling wakup events");
+        trace!(worker_id = self.internals.id.get(); "polling wakup events");
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
         let mut scheduler = self.internals.scheduler.borrow_mut();
         let mut amount: usize = 0;
         for pid in self.waker_events.try_iter() {
-            trace!("waking up local process: pid={}", pid);
+            trace!(worker_id = self.internals.id.get(), pid = pid.0; "waking up local process");
             scheduler.mark_ready(pid);
             amount += 1;
         }
@@ -516,13 +515,13 @@ impl Worker {
 
     /// Schedule processes based on local timers.
     fn schedule_from_local_timers(&mut self, now: Instant) -> usize {
-        trace!("polling local timers");
+        trace!(worker_id = self.internals.id.get(); "polling local timers");
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
         let mut scheduler = self.internals.scheduler.borrow_mut();
         let mut amount: usize = 0;
         for pid in self.internals.timers.borrow_mut().deadlines(now) {
-            trace!("expiring timer for local process: pid={}", pid);
+            trace!(worker_id = self.internals.id.get(), pid = pid.0; "expiring timer for local process");
             scheduler.mark_ready(pid);
             amount += 1;
         }
@@ -538,12 +537,12 @@ impl Worker {
 
     /// Schedule processes based on shared timers.
     fn schedule_from_shared_timers(&mut self, now: Instant) -> usize {
-        trace!("polling shared timers");
+        trace!(worker_id = self.internals.id.get(); "polling shared timers");
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
         let mut amount: usize = 0;
         while let Some(pid) = self.internals.shared.remove_next_deadline(now) {
-            trace!("expiring timer for shared process: pid={}", pid);
+            trace!(worker_id = self.internals.id.get(), pid = pid.0; "expiring timer for shared process");
             self.internals.shared.mark_ready(pid);
             amount += 1;
         }
@@ -570,7 +569,7 @@ impl Worker {
         };
 
         if wake_n != 0 {
-            trace!("waking {} worker threads", wake_n);
+            trace!(worker_id = self.internals.id.get(); "waking {} worker threads", wake_n);
             let timing = trace::start(&*self.internals.trace_log.borrow());
             self.internals.shared.wake_workers(wake_n);
             trace::finish_rt(
@@ -616,7 +615,7 @@ impl Worker {
             false
         };
 
-        trace!("polling OS events: timeout={:?}", timeout);
+        trace!(worker_id = self.internals.id.get(), timeout = as_debug!(timeout); "polling OS events");
         let res = self
             .internals
             .poll
@@ -674,7 +673,7 @@ impl Worker {
 
     /// Process messages from the communication channel.
     fn check_comms(&mut self) -> Result<(), Error> {
-        trace!("processing messages");
+        trace!(worker_id = self.internals.id.get(); "processing coordinator messages");
         let timing = trace::start(&*self.internals.trace_log.borrow());
         while let Some(msg) = self.channel.try_recv().map_err(Error::RecvMsg)? {
             match msg {
@@ -702,7 +701,7 @@ impl Worker {
     /// returns an error if no actors want to receive it.
     fn relay_signal(&mut self, signal: Signal) -> Result<(), Error> {
         let timing = trace::start(&*self.internals.trace_log.borrow());
-        trace!("received process signal: {:?}", signal);
+        trace!(worker_id = self.internals.id.get(), signal = as_debug!(signal); "received process signal");
 
         let mut receivers = self.internals.signal_receivers.borrow_mut();
         receivers.remove_disconnected();
@@ -727,7 +726,7 @@ impl Worker {
         f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>,
     ) -> Result<(), Error> {
         let timing = trace::start(&*self.internals.trace_log.borrow());
-        trace!("running user function");
+        trace!(worker_id = self.internals.id.get(); "running user function");
         let runtime_ref = self.create_ref();
         let res = f(runtime_ref).map_err(|err| Error::UserFunction(err.into()));
         trace::finish_rt(
@@ -741,8 +740,8 @@ impl Worker {
 
     /// Gather metrics about the runtime internals.
     fn log_metrics(&self) {
-        let shared = self.internals.deref();
-        let timing = trace::start(shared.trace_log.borrow().deref());
+        let shared = &*self.internals;
+        let timing = trace::start(&*shared.trace_log.borrow());
         let trace_metrics = shared.trace_log.borrow().as_ref().map(trace::Log::metrics);
         let scheduler = shared.scheduler.borrow();
         // NOTE: need mutable access to timers due to `Timers::next`.
@@ -754,10 +753,10 @@ impl Worker {
             scheduler_ready = scheduler.ready(),
             scheduler_inactive = scheduler.inactive(),
             timers_total = timers.len(),
-            timers_next = log::as_debug!(timers.next_timer()),
+            timers_next = as_debug!(timers.next_timer()),
             process_signal_receivers = shared.signal_receivers.borrow().len(),
-            cpu_time = log::as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
-            trace_counter = trace_metrics.map(|m| m.counter).unwrap_or(0);
+            cpu_time = as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
+            trace_counter = trace_metrics.map_or(0, |m| m.counter);
             "worker metrics",
         );
         trace::finish_rt(

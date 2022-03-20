@@ -115,7 +115,7 @@ struct Waker {
 impl Waker {
     /// Wake up the process with `pid`.
     fn wake(&self, pid: ProcessId) {
-        trace!("waking: pid={}", pid);
+        trace!(pid = pid.0; "waking process");
         if let Err(err) = self.notifications.try_send(pid) {
             error!("unable to send wake up notification: {}", err);
             return;
