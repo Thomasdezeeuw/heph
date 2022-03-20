@@ -340,7 +340,7 @@ where
     notify.change_state(State::Ready, None).await?;
 
     if let Some(timeout) = notify.watchdog_timeout() {
-        debug!("started via systemd with watchdog, timeout={:?}", timeout);
+        debug!(timeout = as_debug!(timeout); "started via systemd with watchdog");
         let mut interval = Interval::every(&mut ctx, timeout);
         loop {
             match either(ctx.receive_next(), next(&mut interval)).await {

@@ -21,7 +21,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, io, process};
 
-use log::{debug, error, info, trace};
+use log::{as_debug, as_display, debug, error, info, trace};
 use mio::event::Event;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
@@ -214,6 +214,7 @@ impl Coordinator {
 
         // Signal to all worker threads the runtime was started. See
         // `local::Runtime.started` why this is needed.
+        debug!("signaling to workers the runtime started");
         for worker in workers {
             worker
                 .send_runtime_started()
@@ -235,27 +236,27 @@ impl Coordinator {
         let trace_metrics = trace_log.as_ref().map(trace::CoordinatorLog::metrics);
         info!(
             target: "metrics",
-            heph_version = log::as_display!(concat!("v", env!("CARGO_PKG_VERSION"))),
+            heph_version = as_display!(concat!("v", env!("CARGO_PKG_VERSION"))),
             host_os = self.host_os,
             host_arch = ARCH,
             host_name = self.host_name,
-            host_id = log::as_display!(self.host_id),
+            host_id = as_display!(self.host_id),
             app_name = self.app_name,
             process_id = process::id(),
             parent_process_id = parent_id(),
-            uptime = log::as_debug!(self.start.elapsed()),
+            uptime = as_debug!(self.start.elapsed()),
             worker_threads = workers.len(),
             sync_actors = sync_workers.len(),
             shared_scheduler_ready = shared_metrics.scheduler_ready,
             shared_scheduler_inactive = shared_metrics.scheduler_inactive,
             shared_timers_total = shared_metrics.timers_total,
-            shared_timers_next = log::as_debug!(shared_metrics.timers_next),
-            process_signals = log::as_debug!(SIGNAL_SET),
+            shared_timers_next = as_debug!(shared_metrics.timers_next),
+            process_signals = as_debug!(SIGNAL_SET),
             process_signal_receivers = signal_refs.len(),
-            cpu_time = log::as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
-            total_cpu_time = log::as_debug!(cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID)),
-            trace_file = log::as_debug!(trace_metrics.as_ref().map(|m| m.file)),
-            trace_counter = trace_metrics.map(|m| m.counter).unwrap_or(0);
+            cpu_time = as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
+            total_cpu_time = as_debug!(cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID)),
+            trace_file = as_debug!(trace_metrics.as_ref().map(|m| m.file)),
+            trace_counter = trace_metrics.map_or(0, |m| m.counter);
             "coordinator metrics",
         );
         trace::finish_rt(trace_log.as_mut(), timing, "Printing runtime metrics", &[]);
@@ -267,7 +268,7 @@ const SIGNAL_SET: SignalSet = SignalSet::all();
 
 /// Setup a new `Signals` instance, registering it with `registry`.
 fn setup_signals(registry: &Registry) -> io::Result<Signals> {
-    trace!("setting up signal handling: signals={:?}", SIGNAL_SET);
+    trace!(signals = as_debug!(SIGNAL_SET); "setting up signal handling");
     Signals::new(SIGNAL_SET).and_then(|mut signals| {
         registry
             .register(&mut signals, SIGNAL, Interest::READABLE)
@@ -278,16 +279,16 @@ fn setup_signals(registry: &Registry) -> io::Result<Signals> {
 /// Register all `workers`' sending end of the pipe with `registry`.
 fn register_workers(registry: &Registry, workers: &mut [worker::Handle]) -> io::Result<()> {
     workers.iter_mut().try_for_each(|worker| {
-        trace!("registering worker thread: id={}", worker.id());
+        trace!(worker_id = worker.id(); "registering worker thread");
         worker.register(registry)
     })
 }
 
 /// Register all `sync_workers`' sending end of the pipe with `registry`.
 fn register_sync_workers(registry: &Registry, sync_workers: &mut [SyncWorker]) -> io::Result<()> {
-    sync_workers.iter_mut().try_for_each(|worker| {
-        trace!("registering sync actor worker thread: id={}", worker.id());
-        worker.register(registry)
+    sync_workers.iter_mut().try_for_each(|sync_worker| {
+        trace!(sync_worker_id = sync_worker.id(); "registering sync actor worker thread");
+        sync_worker.register(registry)
     })
 }
 
@@ -297,7 +298,7 @@ fn check_sync_worker_alive(sync_workers: &mut Vec<SyncWorker>) -> Result<(), rt:
     sync_workers
         .drain_filter(|sync_worker| !sync_worker.is_alive())
         .try_for_each(|sync_worker| {
-            debug!("sync actor worker thread stopped: id={}", sync_worker.id());
+            debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
             sync_worker.join().map_err(rt::Error::sync_actor_panic)
         })
 }
@@ -322,10 +323,7 @@ fn relay_signals(
                     log_metrics = true;
                 }
 
-                debug!(
-                    "relaying process signal to worker threads: signal={:?}",
-                    signal
-                );
+                debug!(signal = as_debug!(signal); "relaying process signal to worker threads");
                 for worker in workers.iter_mut() {
                     if let Err(err) = worker.send_signal(signal) {
                         // NOTE: if the worker is unable to receive a message
@@ -337,15 +335,13 @@ fn relay_signals(
                         // more useful (i.e. it has the reason why the worker
                         // thread stopped).
                         error!(
-                            "failed to send process signal to worker: {}: signal={}, worker={}",
-                            err,
-                            signal,
-                            worker.id()
+                            signal = as_debug!(signal), worker_id = worker.id();
+                            "failed to send process signal to worker: {}", err,
                         );
                     }
                 }
 
-                debug!("relaying process signal to actors: signal={:?}", signal);
+                debug!(signal = as_debug!(signal); "relaying process signal to actors");
                 let _ = signal_refs.try_send(signal, Delivery::ToAll);
             }
             Ok(None) => break,
@@ -365,7 +361,7 @@ fn handle_worker_event(workers: &mut Vec<worker::Handle>, event: &Event) -> Resu
             // Receiving end of the pipe is dropped, which means the worker has
             // shut down.
             let worker = workers.remove(i);
-            debug!("worker thread stopped: id={}", worker.id());
+            debug!(worker_id = worker.id(); "worker thread stopped");
             worker
                 .join()
                 .map_err(rt::Error::worker_panic)
@@ -385,7 +381,7 @@ fn handle_sync_worker_event(
             // Receiving end of the pipe is dropped, which means the sync worker
             // has shut down.
             let sync_worker = sync_workers.remove(i);
-            debug!("sync actor worker thread stopped: id={}", sync_worker.id());
+            debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
             sync_worker.join().map_err(rt::Error::sync_actor_panic)?;
         }
     }

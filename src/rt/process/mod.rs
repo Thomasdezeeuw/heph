@@ -6,7 +6,7 @@ use std::fmt;
 use std::pin::Pin;
 use std::time::{Duration, Instant};
 
-use log::trace;
+use log::{as_debug, trace};
 use mio::Token;
 
 use crate::rt::RuntimeRef;
@@ -162,7 +162,7 @@ impl<P: Process + ?Sized> ProcessData<P> {
     pub(crate) fn run(mut self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef) -> ProcessResult {
         let pid = self.as_ref().id();
         let name = self.process.name();
-        trace!("running process: pid={}, name={}", pid, name);
+        trace!(pid = pid.0, name = name; "running process");
 
         let start = Instant::now();
         let result = self.process.as_mut().run(runtime_ref, pid);
@@ -171,13 +171,9 @@ impl<P: Process + ?Sized> ProcessData<P> {
         self.fair_runtime += fair_elapsed;
 
         trace!(
-            "finished running process: pid={}, name={}, elapsed_time={:?}, result={:?}",
-            pid,
-            name,
-            elapsed,
-            result
+            pid = pid.0, name = name, elapsed = as_debug!(elapsed), result = as_debug!(result);
+            "finished running process",
         );
-
         result
     }
 }

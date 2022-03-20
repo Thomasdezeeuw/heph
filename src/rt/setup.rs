@@ -154,10 +154,7 @@ impl Setup {
         #[rustfmt::skip]
         let Setup { name, threads, auto_cpu_affinity, mut trace_log } = self;
         let name = name.unwrap_or_else(default_app_name).into_boxed_str();
-        debug!(
-            "building Heph runtime: name={}, worker_threads={}",
-            name, threads
-        );
+        debug!(name = name, workers = threads; "building Heph runtime");
 
         // Setup the worker threads.
         let timing = trace::start(&trace_log);
@@ -404,11 +401,11 @@ pub(crate) fn set_cpu_affinity(worker_id: NonZeroUsize) -> Option<usize> {
         let cpu_set = cpu_set(cpu);
         match set_affinity(&cpu_set) {
             Ok(()) => {
-                log::debug!("worker thread using CPU '{}'", cpu);
+                debug!(worker_id = {}; "worker thread CPU affinity set to {}", cpu);
                 Some(cpu)
             }
             Err(err) => {
-                log::warn!("error setting CPU affinity: {}", err);
+                warn!(worker_id = {}; "failed to set CPU affinity on thread: {}", err);
                 None
             }
         }

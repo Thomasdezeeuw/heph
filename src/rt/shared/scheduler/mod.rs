@@ -158,7 +158,7 @@ impl Scheduler {
             priority,
             Box::pin(FutureProcess::<Fut, ThreadSafe>::new(future)),
         ));
-        debug!("spawning thread-safe future: pid={}", process.as_ref().id());
+        debug!(pid = process.as_ref().id().0; "spawning thread-safe future");
         self.ready.add(process)
     }
 
@@ -168,7 +168,7 @@ impl Scheduler {
     ///
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub(super) fn mark_ready(&self, pid: ProcessId) {
-        trace!("marking process as ready: pid={}", pid);
+        trace!(pid = pid.0; "marking process as ready");
         self.inactive.mark_ready(pid, &self.ready);
         // NOTE: if the process in currently not in the `Inactive` list it will
         // be marked as ready-to-run and `Scheduler::add_process` will add it to
@@ -187,7 +187,7 @@ impl Scheduler {
     /// [`Scheduler::remove`] and add it to the inactive list.
     pub(super) fn add_process(&self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
-        trace!("adding back process: pid={}", pid);
+        trace!(pid = pid.0; "adding back process");
         self.inactive.add(process, &self.ready);
     }
 
@@ -195,7 +195,7 @@ impl Scheduler {
     #[allow(clippy::unused_self)] // See NOTE below.
     pub(super) fn complete(&self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
-        trace!("removing process: pid={}", pid);
+        trace!(pid = pid.0; "removing process");
         self.inactive.complete(process);
     }
 }

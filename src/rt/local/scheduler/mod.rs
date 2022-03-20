@@ -81,10 +81,7 @@ impl Scheduler {
             priority,
             Box::pin(FutureProcess::<Fut, ThreadLocal>::new(future)),
         ));
-        debug!(
-            "spawning thread-local future: pid={}",
-            process.as_ref().id()
-        );
+        debug!(pid = process.as_ref().id().0; "spawning thread-local future");
         self.ready.push(process)
     }
 
@@ -94,7 +91,7 @@ impl Scheduler {
     ///
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub(crate) fn mark_ready(&mut self, pid: ProcessId) {
-        trace!("marking process as ready: pid={}", pid);
+        trace!(pid = pid.0; "marking process as ready");
         if let Some(process) = self.inactive.remove(pid) {
             self.ready.push(process)
         }
