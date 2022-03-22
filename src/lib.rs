@@ -107,6 +107,7 @@
 // with: `doc(cfg(feature = "test"))`. That will stay it's only supported using
 // the test feature.
 #![doc(cfg_hide(any(test, feature = "test")))]
+#![allow(unused_imports, dead_code, unused_results, unused_variables)] // FIXME: remove.
 
 #[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos")))]
 compile_error!("Heph currently only supports Linux, FreeBSD and macOS.");

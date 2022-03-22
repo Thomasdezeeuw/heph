@@ -7,6 +7,7 @@ use std::task;
 use crossbeam_channel::Sender;
 use log::{error, trace};
 
+use crate::rt::local::scheduler::WakerBitMaps;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{ptr_as_usize, ProcessId};
 
@@ -139,7 +140,6 @@ impl Waker {
 /// The 32 least significant bits (right-most) make up the process id
 /// (`ProcessId`), the next 8 bits are the waker id (`WakerId`). The 8 most
 /// significant bits are currently unused.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(transparent)]
 struct WakerData(usize);
 
@@ -188,33 +188,20 @@ impl WakerData {
 static WAKER_VTABLE: task::RawWakerVTable =
     task::RawWakerVTable::new(clone_wake_data, wake, wake_by_ref, drop_wake_data);
 
-fn assert_copy<T: Copy>() {}
-
 unsafe fn clone_wake_data(data: *const ()) -> task::RawWaker {
-    assert_copy::<WakerData>();
-    // Since the data is `Copy`, so we just copy it.
-    task::RawWaker::new(data, &WAKER_VTABLE)
+    todo!("clone_wake_data");
 }
 
 unsafe fn wake(data: *const ()) {
-    // This is safe because we received the data from the `RawWaker`, which
-    // doesn't modify the data.
-    let data = WakerData::from_raw_data(data);
-    get(data.waker_id()).wake(data.pid())
+    todo!("wake");
 }
 
 unsafe fn wake_by_ref(data: *const ()) {
-    assert_copy::<WakerData>();
-    // Since we `WakerData` is `Copy` `wake` doesn't actually consume any data,
-    // so we can just call it.
-    wake(data)
+    todo!("wake_by_ref");
 }
 
 unsafe fn drop_wake_data(data: *const ()) {
-    assert_copy::<WakerData>();
-    // Since the data is `Copy` we don't have to anything.
-    #[allow(clippy::drop_copy)]
-    drop(data)
+    todo!("drop_wake_data");
 }
 
 #[cfg(test)]

@@ -6,8 +6,10 @@
 
 use std::collections::BinaryHeap;
 use std::future::Future;
-use std::mem::MaybeUninit;
+use std::mem::{size_of, MaybeUninit};
 use std::pin::Pin;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Arc;
 
 use heph_inbox::Manager;
 use log::{debug, trace};
@@ -18,11 +20,8 @@ use crate::rt::{ptr_as_usize, ThreadLocal};
 use crate::spawn::options::Priority;
 use crate::supervisor::Supervisor;
 
-mod inactive;
 #[cfg(test)]
 mod tests;
-
-use inactive::Inactive;
 
 type ProcessData = process::ProcessData<dyn process::Process>;
 
@@ -30,8 +29,15 @@ type ProcessData = process::ProcessData<dyn process::Process>;
 pub(crate) struct Scheduler {
     /// Processes that are ready to run.
     ready: BinaryHeap<Pin<Box<ProcessData>>>,
-    /// Processes that are not ready to run.
-    inactive: Inactive,
+    /// Processes that are not ready to run held in a slab, see `status` on the
+    /// status of a slot in `inactive`.
+    inactive: Vec<Option<Pin<Box<ProcessData>>>>,
+    /// Status of the processes.
+    status: Vec<[u64; BIT_MAP_SIZE]>,
+    /// Bitmaps shared with [wakers] to indicate a process is ready to run.
+    ///
+    /// [wakers]: crate::rt::local::waker
+    wakers: Vec<WakerBitMaps>,
 }
 
 impl Scheduler {
@@ -39,7 +45,10 @@ impl Scheduler {
     pub(crate) fn new() -> Scheduler {
         Scheduler {
             ready: BinaryHeap::new(),
-            inactive: Inactive::empty(),
+            inactive: Vec::new(),
+            status: Vec::new(),
+            wakers: Vec::new(),
+            //inactive: Inactive::empty(),
         }
     }
 
@@ -50,13 +59,15 @@ impl Scheduler {
 
     /// Returns the number of inactive processes.
     pub(crate) fn inactive(&self) -> usize {
-        self.inactive.len()
+        todo!("inactive")
+        //self.inactive.len()
     }
 
     /// Returns `true` if the scheduler has any processes (in any state),
     /// `false` otherwise.
     pub(crate) fn has_process(&self) -> bool {
-        self.inactive.has_process() || self.has_ready_process()
+        todo!("has_process")
+        //self.inactive.has_process() || self.has_ready_process()
     }
 
     /// Returns `true` if the scheduler has any processes that are ready to run,
@@ -91,10 +102,13 @@ impl Scheduler {
     ///
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub(crate) fn mark_ready(&mut self, pid: ProcessId) {
+        todo!("mark_ready")
+        /*
         trace!(pid = pid.0; "marking process as ready");
         if let Some(process) = self.inactive.remove(pid) {
             self.ready.push(process)
         }
+        */
     }
 
     /// Returns the next ready process.
@@ -105,7 +119,22 @@ impl Scheduler {
     /// Add back a process that was previously removed via
     /// [`Scheduler::next_process`].
     pub(crate) fn add_process(&mut self, process: Pin<Box<ProcessData>>) {
+        todo!("add_process")
+        /*
         self.inactive.add(process);
+        */
+    }
+
+    /// Add a new process to the scheduler.
+    fn add_new(&mut self, process: Pin<Box<ProcessData>>, is_ready: bool) {
+        todo!("add_new")
+        /*
+        if is_ready {
+            scheduler.ready.push(process)
+        } else {
+            scheduler.inactive.add(process);
+        }
+        */
     }
 }
 
@@ -139,10 +168,12 @@ impl<'s> AddActor<'s> {
         S: Supervisor<NA> + 'static,
         NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
     {
+        /*
         debug_assert!(
             inactive::ok_ptr(self.alloc.as_ptr() as *const ()),
             "SKIP_BITS invalid"
         );
+        */
         let process = ProcessData::new(
             priority,
             Box::pin(ActorProcess::new(supervisor, new_actor, actor, inbox)),
@@ -156,10 +187,39 @@ impl<'s> AddActor<'s> {
             // Safe because we write into the allocation above.
             alloc.assume_init().into()
         };
-        if is_ready {
-            scheduler.ready.push(process)
-        } else {
-            scheduler.inactive.add(process);
+        scheduler.add_new(process, is_ready);
+    }
+}
+
+/// Size of a single cache line in bytes, based on
+/// <https://docs.rs/crossbeam/latest/crossbeam/utils/struct.CachePadded.html>.
+const CACHE_LINE_SIZE: usize = 128;
+/// See the `ArcInner` type in `std::sync`, which is the heap allocated part of
+/// an `Arc`.
+const ARC_OVERHEAD: usize = size_of::<AtomicUsize>() * 2;
+/// Size of a single shared bitmap in bytes.
+const BIT_MAP_BYTES: usize = CACHE_LINE_SIZE - ARC_OVERHEAD;
+/// Size of a single shared bitmap.
+const BIT_MAP_SIZE: usize = BIT_MAP_BYTES / 8;
+/// Number of bits needed for the offset.
+const OFFSET_BITS: usize = (BIT_MAP_SIZE * 64).next_power_of_two();
+
+#[derive(Debug)]
+pub(super) struct WakerBitMaps {
+    bitmaps: [AtomicU64; BIT_MAP_SIZE],
+}
+
+impl WakerBitMaps {
+    /// Wake the process `n`.
+    /// `n` may only use 10 bits.
+    fn wake(&self, n: usize) {
+        debug_assert!(n & ((1 << OFFSET_BITS) - 1) == 0);
+        let idx = n / 64;
+        let offset = n % BIT_MAP_SIZE;
+        let bitmask = 1 << offset;
+        let bitmap = &self.bitmaps[idx];
+        if bitmap.load(Ordering::Relaxed) & bitmask == 0 {
+            bitmap.fetch_or(bitmask, Ordering::AcqRel);
         }
     }
 }

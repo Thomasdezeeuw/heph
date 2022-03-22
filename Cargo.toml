@@ -31,6 +31,10 @@ socket2           = { version = "0.4.0", default-features = false, features = ["
 # Required by the `test` feature.
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"], optional = true }
 
+# FIXME: replace with released v0.4.15.
+[patch.crates-io]
+log = { git = "https://github.com/rust-lang/log", rev = "f3b4fde154c0137c611336e4107d889ad661dd06" }
+
 [dev-dependencies]
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
 # Enable logging panics via `std-logger`.
