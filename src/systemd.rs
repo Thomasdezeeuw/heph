@@ -18,7 +18,7 @@ use std::task::{self, Poll};
 use std::time::Duration;
 use std::{env, io, process};
 
-use log::{debug, warn};
+use log::{as_debug, debug, warn};
 use mio::net::UnixDatagram;
 use mio::Interest;
 use socket2::SockRef;
