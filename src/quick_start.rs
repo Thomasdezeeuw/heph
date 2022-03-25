@@ -116,7 +116,7 @@
 //!     // good idea).
 //!     warn!("Actor hit an error: {}", err);
 //!
-//!     // The we need to decide if we want to stop or restart the actor. For this
+//!     // Then we need to decide if we want to stop or restart the actor. For this
 //!     // example we'll stop the actor.
 //!     SupervisorStrategy::Stop
 //! }
