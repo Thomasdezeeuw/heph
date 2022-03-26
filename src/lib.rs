@@ -69,6 +69,7 @@
     async_iterator,
     binary_heap_retain,
     const_option,
+    doc_auto_cfg,
     doc_cfg,
     doc_cfg_hide,
     drain_filter,
