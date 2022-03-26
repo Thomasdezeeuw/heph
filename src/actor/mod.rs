@@ -140,6 +140,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 
 mod context;
+mod future;
 pub mod messages;
 mod sync;
 #[cfg(test)]
@@ -147,6 +148,8 @@ mod tests;
 
 #[doc(inline)]
 pub use context::{Context, NoMessages, ReceiveMessage, RecvError};
+#[doc(inline)]
+pub use future::ActorFuture;
 #[cfg(any(test, feature = "test"))]
 pub(crate) use sync::SyncWaker;
 #[doc(inline)]
