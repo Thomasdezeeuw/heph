@@ -45,37 +45,63 @@
 //! features = ["test"]
 //! ```
 
+#[cfg(feature = "runtime")]
 use std::async_iter::AsyncIterator;
+#[cfg(feature = "runtime")]
 use std::future::Future;
+#[cfg(feature = "runtime")]
 use std::lazy::SyncLazy;
 use std::mem::size_of;
+#[cfg(feature = "runtime")]
 use std::pin::Pin;
-use std::sync::atomic::{AtomicU8, AtomicUsize, Ordering};
+#[cfg(feature = "runtime")]
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::{AtomicU8, Ordering};
+#[cfg(feature = "runtime")]
 use std::sync::Arc;
+#[cfg(feature = "runtime")]
 use std::task::{self, Poll};
+#[cfg(feature = "runtime")]
 use std::time::{Duration, Instant};
-use std::{fmt, io, slice, thread};
+use std::{fmt, slice};
+#[cfg(feature = "runtime")]
+use std::{io, thread};
 
 use getrandom::getrandom;
+#[cfg(feature = "runtime")]
 use heph_inbox::oneshot::new_oneshot;
+#[cfg(feature = "runtime")]
 use heph_inbox::Manager;
 use log::warn;
 
-use crate::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
+use crate::actor::{self, Actor, NewActor};
+#[cfg(feature = "runtime")]
+use crate::actor::{SyncActor, SyncWaker};
+#[cfg(feature = "runtime")]
 use crate::actor_ref::{ActorGroup, ActorRef};
+#[cfg(feature = "runtime")]
 use crate::rt::shared::waker;
+#[cfg(feature = "runtime")]
 use crate::rt::sync_worker::SyncWorker;
+#[cfg(feature = "runtime")]
 use crate::rt::thread_waker::ThreadWaker;
+#[cfg(feature = "runtime")]
 use crate::rt::worker::{Control, Worker};
+#[cfg(feature = "runtime")]
 use crate::rt::{
     self, shared, ProcessId, RuntimeRef, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
+#[cfg(feature = "runtime")]
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
-use crate::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
+#[cfg(feature = "runtime")]
+use crate::supervisor::SyncSupervisor;
+use crate::supervisor::{Supervisor, SupervisorStrategy};
 
+#[cfg(feature = "runtime")]
 pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 
+#[cfg(feature = "runtime")]
 pub(crate) static NOOP_WAKER: SyncLazy<ThreadWaker> = SyncLazy::new(|| {
     let poll = mio::Poll::new().expect("failed to create `Poll` instance for test module");
     let waker = mio::Waker::new(poll.registry(), mio::Token(0))
@@ -83,6 +109,7 @@ pub(crate) static NOOP_WAKER: SyncLazy<ThreadWaker> = SyncLazy::new(|| {
     ThreadWaker::new(waker)
 });
 
+#[cfg(feature = "runtime")]
 static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(|| {
     let setup = shared::RuntimeInternals::setup()
         .expect("failed to setup runtime internals for test module");
@@ -99,6 +126,7 @@ static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(
 ///
 /// The returned runtime reference is **not** a reference to the *test* runtime
 /// as described in the module documentation.
+#[cfg(feature = "runtime")]
 pub fn runtime() -> RuntimeRef {
     thread_local! {
         /// Per thread runtime.
@@ -114,10 +142,12 @@ pub fn runtime() -> RuntimeRef {
 }
 
 /// Sending side of a runtime channel to control the test runtime.
+#[cfg(feature = "runtime")]
 type RtControl = rt::channel::Sender<Control>;
 
 /// Lazily start the *test* runtime on a new thread, returning the control
 /// channel.
+#[cfg(feature = "runtime")]
 fn test_runtime() -> &'static RtControl {
     static TEST_RT: SyncLazy<RtControl> = SyncLazy::new(|| {
         let (sender, receiver) =
@@ -140,6 +170,7 @@ fn test_runtime() -> &'static RtControl {
 }
 
 /// Run function `f` on the *test* runtime.
+#[cfg(feature = "runtime")]
 fn run_on_test_runtime<F>(f: F)
 where
     F: FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static,
@@ -150,6 +181,7 @@ where
 }
 
 /// Run function `f` on the *test* runtime, waiting for the result.
+#[cfg(feature = "runtime")]
 fn run_on_test_runtime_wait<F, T>(f: F) -> T
 where
     F: FnOnce(RuntimeRef) -> T + Send + 'static,
@@ -170,6 +202,7 @@ where
 /// Spawn `future` on the *test* runtime and wait for the result.
 ///
 /// This is useful to test async functions and futures in synchronous tests.
+#[cfg(feature = "runtime")]
 pub fn block_on<Fut>(future: Fut) -> Fut::Output
 where
     Fut: Future + Send + 'static,
@@ -206,6 +239,7 @@ where
 /// This requires the `Supervisor` (`S`) and `NewActor` (`NA`) to be [`Send`] as
 /// they are send to another thread which runs the *test* runtime (and thus the
 /// actor). The actor (`NA::Actor`) itself doesn't have to be `Send`.
+#[cfg(feature = "runtime")]
 pub fn try_spawn_local<S, NA>(
     supervisor: S,
     new_actor: NA,
@@ -239,6 +273,7 @@ where
 /// This requires the `Supervisor` (`S`) and `NewActor` (`NA`) to be [`Send`] as
 /// they are send to another thread which runs the *test* runtime (and thus the
 /// actor). The actor (`NA::Actor`) itself doesn't have to be `Send`.
+#[cfg(feature = "runtime")]
 pub fn try_spawn<S, NA>(
     supervisor: S,
     new_actor: NA,
@@ -264,6 +299,7 @@ where
 /// runtime.
 ///
 /// [module documentation]: crate::test
+#[cfg(feature = "runtime")]
 pub fn spawn_local_future<Fut>(future: Fut, options: FutureOptions)
 where
     Fut: Future<Output = ()> + Send + 'static,
@@ -280,6 +316,7 @@ where
 /// runtime.
 ///
 /// [module documentation]: crate::test
+#[cfg(feature = "runtime")]
 pub fn spawn_future<Fut>(future: Fut, options: FutureOptions)
 where
     Fut: Future<Output = ()> + Send + Sync + 'static,
@@ -293,6 +330,7 @@ where
 /// Returned by [`join`] and [`join_many`].
 #[derive(Copy, Clone, Debug)]
 #[must_use = "this `JoinResult` should be handled"]
+#[cfg(feature = "runtime")]
 pub enum JoinResult {
     /// Actor(s) finished.
     Ok,
@@ -300,6 +338,7 @@ pub enum JoinResult {
     TimedOut,
 }
 
+#[cfg(feature = "runtime")]
 impl JoinResult {
     /// Unwrap the `JoinResult` expecting [`JoinResult::Ok`].
     #[track_caller]
@@ -313,6 +352,7 @@ impl JoinResult {
 /// Wait for the actor behind `actor_ref` to finish.
 ///
 /// See [`join_many`] for more documentation.
+#[cfg(feature = "runtime")]
 pub fn join<M>(actor_ref: &ActorRef<M>, timeout: Duration) -> JoinResult {
     join_many(slice::from_ref(actor_ref), timeout)
 }
@@ -323,6 +363,7 @@ pub fn join<M>(actor_ref: &ActorRef<M>, timeout: Duration) -> JoinResult {
 ///
 /// If you want to wait for actors with different message types try
 /// [`ActorRef::map`] or [`ActorRef::try_map`].
+#[cfg(feature = "runtime")]
 pub fn join_many<M>(actor_refs: &[ActorRef<M>], timeout: Duration) -> JoinResult {
     let waker = SyncWaker::new();
     let start = Instant::now();
@@ -345,6 +386,7 @@ pub fn join_many<M>(actor_refs: &[ActorRef<M>], timeout: Duration) -> JoinResult
 ///
 /// If you want to wait for actors with different message types try
 /// [`ActorRef::map`] or [`ActorRef::try_map`].
+#[cfg(feature = "runtime")]
 pub fn join_all<M>(actors: &ActorGroup<M>, timeout: Duration) -> JoinResult {
     match SyncWaker::new().block_for(actors.join_all(), timeout) {
         Some(()) => JoinResult::Ok,
@@ -354,6 +396,7 @@ pub fn join_all<M>(actors: &ActorGroup<M>, timeout: Duration) -> JoinResult {
 
 /// Initialise a thread-local actor.
 #[allow(clippy::type_complexity)]
+#[cfg(feature = "runtime")]
 pub fn init_local_actor<NA>(
     new_actor: NA,
     arg: NA::Argument,
@@ -366,6 +409,7 @@ where
 
 /// Initialise a thread-safe actor.
 #[allow(clippy::type_complexity)]
+#[cfg(feature = "runtime")]
 pub fn init_actor<NA>(
     new_actor: NA,
     arg: NA::Argument,
@@ -378,6 +422,7 @@ where
 
 /// Initialise a thread-local actor with access to it's inbox.
 #[allow(clippy::type_complexity)]
+#[cfg(feature = "runtime")]
 pub(crate) fn init_local_actor_with_inbox<NA>(
     mut new_actor: NA,
     arg: NA::Argument,
@@ -393,6 +438,7 @@ where
 
 /// Initialise a thread-safe actor with access to it's inbox.
 #[allow(clippy::type_complexity)]
+#[cfg(feature = "runtime")]
 pub(crate) fn init_actor_with_inbox<NA>(
     mut new_actor: NA,
     arg: NA::Argument,
@@ -410,6 +456,7 @@ where
 ///
 /// This returns the thread handle for the thread the synchronous actor is
 /// running on and an actor reference to the actor.
+#[cfg(feature = "runtime")]
 pub fn spawn_sync_actor<S, A, E, Arg, M>(
     supervisor: S,
     actor: A,
@@ -443,6 +490,7 @@ where
 ///
 /// Wake notifications will be ignored, if this is required run an end to end
 /// test with a completely functional runtime instead.
+#[cfg(feature = "runtime")]
 pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
 where
     Fut: Future + ?Sized,
@@ -460,6 +508,7 @@ where
 ///
 /// Wake notifications will be ignored, if this is required run an end to end
 /// test with a completely functional runtime instead.
+#[cfg(feature = "runtime")]
 pub fn poll_next<I>(iter: Pin<&mut I>) -> Poll<Option<I::Item>>
 where
     I: AsyncIterator + ?Sized,
@@ -478,6 +527,7 @@ where
 ///
 /// Wake notifications will be ignored, if this is required run an end to end
 /// test with a completely functional runtime instead.
+#[cfg(feature = "runtime")]
 pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
 where
     A: Actor + ?Sized,
@@ -600,6 +650,7 @@ where
     }
 }
 
+#[cfg(feature = "runtime")]
 impl<A> SyncSupervisor<A> for PanicSupervisor
 where
     A: SyncActor,

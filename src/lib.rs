@@ -152,7 +152,6 @@ pub mod supervisor;
 #[cfg(all(feature = "runtime", target_os = "linux"))]
 pub mod systemd;
 #[cfg(any(test, feature = "test"))]
-#[cfg(feature = "test")]
 pub mod test;
 #[cfg(feature = "runtime")]
 pub mod timer;

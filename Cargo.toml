@@ -25,10 +25,7 @@ runtime = [
 ]
 
 # Feature that enables the `test` module.
-test = [
-  "getrandom",
-  "runtime",
-]
+test = ["getrandom"]
 
 [dependencies]
 heph-inbox        = { version = "0.2.1", default-features = false }
