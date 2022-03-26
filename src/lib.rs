@@ -117,6 +117,7 @@ compile_error!("Heph currently only supports 64 bit architectures.");
 ///
 /// Note that this is used in the net and pipe modules and has to be defined
 /// before use.
+#[cfg(feature = "runtime")]
 macro_rules! try_io {
     ($op: expr) => {
         loop {
@@ -132,20 +133,29 @@ macro_rules! try_io {
 
 pub mod actor;
 pub mod actor_ref;
+#[cfg(feature = "runtime")]
 pub mod bytes;
+#[cfg(feature = "runtime")]
 pub mod log;
+#[cfg(feature = "runtime")]
 pub mod net;
+#[cfg(feature = "runtime")]
 pub mod pipe;
+#[cfg(feature = "runtime")]
 pub mod quick_start;
+#[cfg(feature = "runtime")]
 pub mod rt;
+#[cfg(feature = "runtime")]
 pub mod spawn;
 pub mod supervisor;
-#[cfg(target_os = "linux")]
+#[cfg(all(feature = "runtime", target_os = "linux"))]
 pub mod systemd;
 #[cfg(any(test, feature = "test"))]
-#[doc(cfg(feature = "test"))]
+#[cfg(feature = "test")]
 pub mod test;
+#[cfg(feature = "runtime")]
 pub mod timer;
+#[cfg(feature = "runtime")]
 pub mod trace;
 #[doc(hidden)]
 pub mod util;
@@ -155,8 +165,10 @@ pub use actor::{Actor, NewActor};
 #[doc(no_inline)]
 pub use actor_ref::ActorRef;
 #[doc(no_inline)]
+#[cfg(feature = "runtime")]
 pub use rt::{Runtime, RuntimeRef};
 #[doc(no_inline)]
+#[cfg(feature = "runtime")]
 pub use spawn::{ActorOptions, Spawn, SyncActorOptions};
 #[doc(no_inline)]
 pub use supervisor::{Supervisor, SupervisorStrategy};

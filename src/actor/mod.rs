@@ -142,6 +142,7 @@ use std::task::{self, Poll};
 mod context;
 mod future;
 pub mod messages;
+#[cfg(feature = "runtime")]
 mod sync;
 #[cfg(test)]
 mod tests;
@@ -150,9 +151,10 @@ mod tests;
 pub use context::{Context, NoMessages, ReceiveMessage, RecvError};
 #[doc(inline)]
 pub use future::ActorFuture;
-#[cfg(any(test, feature = "test"))]
+#[cfg(all(any(test, feature = "test"), feature = "runtime"))]
 pub(crate) use sync::SyncWaker;
 #[doc(inline)]
+#[cfg(feature = "runtime")]
 pub use sync::{SyncActor, SyncContext};
 
 /// The trait that defines how to create a new [`Actor`].
