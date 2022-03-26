@@ -99,8 +99,7 @@ use std::fmt;
 
 use log::warn;
 
-use crate::actor::SyncActor;
-use crate::actor::{Actor, NewActor};
+use crate::actor::{Actor, NewActor, SyncActor};
 
 /// The supervisor of an [actor].
 ///
