@@ -10,7 +10,7 @@
 //!
 //! Creating a new worker starts with calling [`setup`] to prepare various
 //! things that need to happen on the main/coordinator thread. After that worker
-//! thread can be [started], which runs [`main`] in a new thread.
+//! thread can be [started], which runs [`Worker::run`] in a new thread.
 //!
 //! [`Runtime`]: crate::rt::Runtime
 //! [`local::Runtime`]: crate::rt::local::Runtime
