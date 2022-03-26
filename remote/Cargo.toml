@@ -9,7 +9,7 @@ default = ["json"]
 json    = ["serde_json"]
 
 [dependencies]
-heph       = { version = "0.3.0", path = "../", default-features = false }
+heph       = { version = "0.3.0", path = "../", default-features = false, features = ["runtime"] }
 log        = { version = "0.4.14", default-features = false }
 serde      = { version = "1.0.130", default-features = false }
 getrandom  = { version = "0.2.3", default-features = false }
