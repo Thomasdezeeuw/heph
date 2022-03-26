@@ -142,11 +142,13 @@ impl<M, RT> Context<M, RT> {
         &mut self.rt
     }
 
+    #[cfg(feature = "runtime")]
     pub(crate) const fn runtime_ref(&self) -> &RT {
         &self.rt
     }
 
     /// Sets the waker of the inbox to `waker`.
+    #[cfg(feature = "runtime")]
     pub(crate) fn register_inbox_waker(&mut self, waker: &task::Waker) {
         let _ = self.inbox.register_waker(waker);
     }

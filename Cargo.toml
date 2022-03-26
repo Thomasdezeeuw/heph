@@ -13,19 +13,33 @@ include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
 edition       = "2018"
 
 [features]
-default = []
+default = ["runtime"]
+
+# Enables the runtime.
+runtime = [
+  "crossbeam-channel",
+  "libc",
+  "mio",
+  "mio-signals",
+  "socket2",
+]
 
 # Feature that enables the `test` module.
-test = ["getrandom"]
+test = [
+  "getrandom",
+  "runtime",
+]
 
 [dependencies]
-crossbeam-channel = { version = "0.5.0", default-features = false, features = ["std"] }
 heph-inbox        = { version = "0.2.1", default-features = false }
-libc              = { version = "0.2.96", default-features = false }
 log               = { version = "0.4.16", default-features = false, features = ["kv_unstable"] }
-mio               = { version = "0.8.0", default-features = false, features = ["os-poll", "net"] }
-mio-signals       = { version = "0.2.0", default-features = false }
-socket2           = { version = "0.4.0", default-features = false, features = ["all"] }
+
+# Required by the runtime feature.
+crossbeam-channel = { version = "0.5.0", default-features = false, features = ["std"], optional = true }
+libc              = { version = "0.2.96", default-features = false, optional = true }
+mio               = { version = "0.8.0", default-features = false, features = ["os-poll", "net"], optional = true }
+mio-signals       = { version = "0.2.0", default-features = false, optional = true }
+socket2           = { version = "0.4.0", default-features = false, features = ["all"], optional = true }
 
 # Optional dependencies, enabled by features.
 # Required by the `test` feature.
