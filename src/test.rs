@@ -663,14 +663,14 @@ where
 }
 
 /// Assert that a `Future` is not moved between calls.
-#[cfg(test)]
+#[cfg(all(test, feature = "runtime"))]
 pub(crate) struct AssertUnmoved<Fut> {
     future: Fut,
     /// Last place the future was polled, or null if never pulled.
     last_place: *const Self,
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "runtime"))]
 impl<Fut> AssertUnmoved<Fut> {
     /// Create a new `AssertUnmoved`.
     pub(crate) const fn new(future: Fut) -> AssertUnmoved<Fut> {
@@ -681,7 +681,7 @@ impl<Fut> AssertUnmoved<Fut> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "runtime"))]
 impl<Fut> Future for AssertUnmoved<Fut>
 where
     Fut: Future,
@@ -703,7 +703,7 @@ where
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "runtime"))]
 unsafe impl<Fut: Send> Send for AssertUnmoved<Fut> {}
-#[cfg(test)]
+#[cfg(all(test, feature = "runtime"))]
 unsafe impl<Fut: Sync> Sync for AssertUnmoved<Fut> {}
