@@ -61,8 +61,15 @@
 //!
 //! ## Features
 //!
-//! This crate has a single optional feature: `test`. This feature will enable
-//! the `test` module which adds testing facilities.
+//! This crate has a two optional features:
+//!  * `runtime` and
+//!  * `test`.
+//!
+//! The `runtime` feature will enable the Heph runtime which includes, among
+//! others, a [`Future`] runtime, timers, network and tracing facilities.
+//!
+//! The `test` feature will enable the `test` module which adds testing
+//! facilities.
 
 #![feature(
     array_methods,
