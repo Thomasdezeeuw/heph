@@ -1,5 +1,5 @@
 # Test options.
-TEST_OPTS         = --all-features -- --quiet -Z unstable-options --shuffle
+TEST_OPTS         = -- --quiet -Z unstable-options --shuffle
 # Set by `rustup run`, or we get it ourselves.
 # Example value: `nightly-x86_64-apple-darwin`.
 RUSTUP_TOOLCHAIN ?= $(shell rustup show active-toolchain | cut -d' ' -f1)
@@ -21,10 +21,10 @@ TARGETS ?= x86_64-apple-darwin x86_64-unknown-linux-gnu x86_64-unknown-freebsd
 RUN ?= test
 
 test:
-	cargo test $(TEST_OPTS)
+	cargo test --features runtime,test $(TEST_OPTS)
 
 test_all:
-	cargo test --workspace $(TEST_OPTS)
+	cargo hack test --workspace --exclude benches --all-targets --feature-powerset --skip crossbeam-channel,libc,mio,mio-signals,socket2,getrandom $(TEST_OPTS)
 
 # NOTE: Keep `RUSTFLAGS` and `RUSTDOCFLAGS` in sync to ensure the doc tests
 # compile correctly.
@@ -38,7 +38,7 @@ check:
 	cargo check --all-features --all-targets
 
 check_all:
-	cargo check --all-features --workspace --all-targets
+	cargo hack check --workspace --all-targets --feature-powerset --skip crossbeam-channel,libc,mio,mio-signals,socket2,getrandom
 
 check_all_targets: $(TARGETS)
 $(TARGETS):
