@@ -15,18 +15,18 @@ use mio_signals::{send_signal, Signal};
 
 #[test]
 fn test_1_hello_world() {
-    let output = run_example_output("1_hello_world");
+    let output = run_example_output("hello_world");
     assert_eq!(output, "Hello World\n");
 }
 
 #[test]
 fn test_2_my_ip() {
-    let mut child = run_example("2_my_ip");
+    let mut child = run_example("my_ip");
 
     // First read the startup message, ensuring the runtime has time to start
     // up.
     let expected =
-        "lvl=\"INFO\" msg=\"listening on 127.0.0.1:7890\" target=\"2_my_ip\" module=\"2_my_ip\"\n";
+        "lvl=\"INFO\" msg=\"listening on 127.0.0.1:7890\" target=\"my_ip\" module=\"my_ip\"\n";
     let mut output = vec![0; expected.len() + 1];
     #[rustfmt::skip]
     let n = child.inner.stderr.as_mut().unwrap().read(&mut output).unwrap();
@@ -50,7 +50,7 @@ fn test_2_my_ip() {
 
 #[test]
 fn test_3_rpc() {
-    let output = run_example_output("3_rpc");
+    let output = run_example_output("rpc");
     assert_eq!(
         output,
         "Got a RPC request: Ping\nGot a RPC response: Pong\n"
@@ -59,14 +59,14 @@ fn test_3_rpc() {
 
 #[test]
 fn test_4_sync_actor() {
-    let output = run_example_output("4_sync_actor");
+    let output = run_example_output("sync_actor");
     assert_eq!(output, "Got a message: Hello world\nBye\n");
 }
 
 #[test]
 #[ignore]
 fn test_6_process_signals() {
-    let mut child = run_example("6_process_signals");
+    let mut child = run_example("process_signals");
 
     let want_greetings = &[
         "Got a message: Hello sync actor",
@@ -125,10 +125,10 @@ fn test_7_restart_supervisor() {
     // Index of the "?" in the string below.
     const LEFT_INDEX: usize = 51;
 
-    let output = run_example_output("7_restart_supervisor");
+    let output = run_example_output("restart_supervisor");
     let mut lines = output.lines();
 
-    let mut expected = "lvl=\"WARN\" msg=\"print actor failed, restarting it (?/5 restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"".to_owned();
+    let mut expected = "lvl=\"WARN\" msg=\"print actor failed, restarting it (?/5 restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"restart_supervisor\" module=\"restart_supervisor\"".to_owned();
     for left in (0..5).rev() {
         let line = lines.next().unwrap();
 
@@ -138,11 +138,11 @@ fn test_7_restart_supervisor() {
         assert_eq!(line, expected);
     }
 
-    let expected = "lvl=\"WARN\" msg=\"print actor failed, stopping it (no restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"";
+    let expected = "lvl=\"WARN\" msg=\"print actor failed, stopping it (no restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"restart_supervisor\" module=\"restart_supervisor\"";
     let last_line = lines.next().unwrap();
     assert_eq!(last_line, expected);
 
-    let mut expected = "lvl=\"WARN\" msg=\"print actor failed, restarting it (?/5 restarts left): can't print message 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"".to_owned();
+    let mut expected = "lvl=\"WARN\" msg=\"print actor failed, restarting it (?/5 restarts left): can't print message 'Hello world!': actor message 'Hello world!'\" target=\"restart_supervisor\" module=\"restart_supervisor\"".to_owned();
     for left in (0..5).rev() {
         let line = lines.next().unwrap();
 
@@ -152,7 +152,7 @@ fn test_7_restart_supervisor() {
         assert_eq!(line, expected);
     }
 
-    let expected = "lvl=\"WARN\" msg=\"print actor failed, stopping it (no restarts left): can't print message 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"";
+    let expected = "lvl=\"WARN\" msg=\"print actor failed, stopping it (no restarts left): can't print message 'Hello world!': actor message 'Hello world!'\" target=\"restart_supervisor\" module=\"restart_supervisor\"";
     let last_line = lines.next().unwrap();
     assert_eq!(last_line, expected);
 
@@ -211,18 +211,38 @@ fn run_example(name: &'static str) -> ChildCommand {
     ];
 
     let mut errs = Vec::new();
-    for path in paths.iter() {
-        let res = Command::new(path)
-            .stdin(Stdio::null())
-            .stderr(Stdio::piped())
-            .stdout(Stdio::piped())
-            .spawn()
-            .map(|inner| ChildCommand { inner });
-        match res {
-            Ok(cmd) => return cmd,
-            Err(ref err) if err.kind() == io::ErrorKind::NotFound => continue,
-            Err(err) => errs.push(err),
+    loop {
+        for path in paths.iter() {
+            let res = Command::new(path)
+                .stdin(Stdio::null())
+                .stderr(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()
+                .map(|inner| ChildCommand { inner });
+            match res {
+                Ok(cmd) => return cmd,
+                Err(ref err) if err.kind() == io::ErrorKind::NotFound => continue,
+                Err(err) => errs.push(err),
+            }
         }
+
+        if errs.is_empty() {
+            let res = Command::new("cargo")
+                .args(["build", "--example", name])
+                .stdin(Stdio::null())
+                .output();
+            match res {
+                Ok(output) if output.status.success() => continue,
+                Ok(output) => {
+                    let out = String::from_utf8_lossy(&output.stdout).to_owned();
+                    let err = String::from_utf8_lossy(&output.stdout).to_owned();
+                    let msg = format!("failed to build example:\n{}\n{}", out, err);
+                    errs.push(io::Error::new(io::ErrorKind::Other, msg));
+                }
+                Err(err) => errs.push(err),
+            }
+        }
+        break;
     }
 
     panic!("failed to run example '{}': errors: {:?}", name, errs);
