@@ -335,6 +335,7 @@ mod private {
     use serde::de::DeserializeOwned;
     use serde::Serialize;
 
+    #[cfg(any(feature = "json"))]
     use super::Json;
 
     /// Trait that defined (de)serialisation.
