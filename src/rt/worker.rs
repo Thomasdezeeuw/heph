@@ -706,9 +706,8 @@ impl Worker {
         let mut receivers = self.internals.signal_receivers.borrow_mut();
         receivers.remove_disconnected();
         let res = match receivers.try_send(signal, Delivery::ToAll) {
-            Ok(()) => Ok(()),
             Err(SendError) if signal.should_stop() => Err(Error::ProcessInterrupted),
-            Err(SendError) => Ok(()),
+            Ok(()) | Err(SendError) => Ok(()),
         };
 
         trace::finish_rt(
