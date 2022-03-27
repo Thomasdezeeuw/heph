@@ -45,6 +45,7 @@ where
     ///  * `rt: RT`: is used to get access to the runtime, it may be the unit
     ///    type (`()`) in case it's not needed. It needs to be `Clone` as it's
     ///    also passed to the actor (and is needed for the restart later).
+    #[allow(clippy::type_complexity)]
     pub fn new(
         supervisor: S,
         mut new_actor: NA,

@@ -378,15 +378,15 @@ impl CachedInstant {
     fn update(&mut self, deadline: Instant) {
         match self {
             CachedInstant::Empty => *self = CachedInstant::Set(deadline),
-            CachedInstant::Unset => {
-                // Can't set the instant here as we don't know if there are
-                // earlier deadlines in the [`Timers`] struct.
-            }
             CachedInstant::Set(current) if deadline < *current => {
                 // `deadline` is earlier, so we update it.
                 *current = deadline;
             }
-            CachedInstant::Set(_) => { /* Current deadline is earlier. */ }
+            // Can't set the instant as we don't know if there are earlier
+            // deadlines in the [`Timers`] struct.
+            CachedInstant::Unset |
+            // Current deadline is earlier.
+            CachedInstant::Set(_) => {},
         }
     }
 
