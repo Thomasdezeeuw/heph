@@ -148,6 +148,7 @@ fn write_vectored_all_read_n_vectored() {
 }
 
 #[test]
+#[ignore]
 fn vectored_io() {
     async fn actor<RT>(mut ctx: actor::Context<!, RT>) -> io::Result<()>
     where
