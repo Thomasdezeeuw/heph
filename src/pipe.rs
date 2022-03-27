@@ -526,7 +526,7 @@ where
         loop {
             match receiver.try_read(&mut *buf) {
                 Ok(0) => return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())),
-                Ok(n) if *left <= n => return Poll::Ready(Ok(())),
+                Ok(n) if n >= *left => return Poll::Ready(Ok(())),
                 Ok(n) => {
                     *left -= n;
                     // Try to read some more bytes.
@@ -584,7 +584,7 @@ where
         loop {
             match receiver.try_read_vectored(&mut *bufs) {
                 Ok(0) => return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())),
-                Ok(n) if *left <= n => return Poll::Ready(Ok(())),
+                Ok(n) if n >= *left => return Poll::Ready(Ok(())),
                 Ok(n) => {
                     *left -= n;
                     // Try to read some more bytes.
