@@ -63,7 +63,7 @@ required-features = ["runtime", "test"]
 name    = "process_signals"
 # Require full control over the spawned threads.
 harness = false
-required-features = ["runtime"]
+required-features = ["runtime", "test"]
 
 [[test]]
 name    = "regression"
