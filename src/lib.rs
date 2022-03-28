@@ -153,7 +153,6 @@ pub mod pipe;
 pub mod quick_start;
 #[cfg(feature = "runtime")]
 pub mod rt;
-#[cfg(feature = "runtime")]
 pub mod spawn;
 pub mod supervisor;
 #[cfg(all(feature = "runtime", target_os = "linux"))]
@@ -175,7 +174,6 @@ pub use actor_ref::ActorRef;
 #[cfg(feature = "runtime")]
 pub use rt::{Runtime, RuntimeRef};
 #[doc(no_inline)]
-#[cfg(feature = "runtime")]
 pub use spawn::{ActorOptions, Spawn, SyncActorOptions};
 #[doc(no_inline)]
 pub use supervisor::{Supervisor, SupervisorStrategy};
