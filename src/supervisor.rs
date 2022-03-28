@@ -99,7 +99,6 @@ use std::fmt;
 
 use log::warn;
 
-#[cfg(feature = "runtime")]
 use crate::actor::SyncActor;
 use crate::actor::{Actor, NewActor};
 
@@ -242,7 +241,6 @@ pub enum SupervisorStrategy<Arg> {
 ///
 /// [synchronous actors]: crate::actor::SyncActor
 /// [module documentation]: crate::supervisor
-#[cfg(feature = "runtime")]
 pub trait SyncSupervisor<A>
 where
     A: SyncActor,
@@ -251,7 +249,6 @@ where
     fn decide(&mut self, error: A::Error) -> SupervisorStrategy<A::Argument>;
 }
 
-#[cfg(feature = "runtime")]
 impl<F, A> SyncSupervisor<A> for F
 where
     F: FnMut(A::Error) -> SupervisorStrategy<A::Argument>,
@@ -316,7 +313,6 @@ where
     }
 }
 
-#[cfg(feature = "runtime")]
 impl<A> SyncSupervisor<A> for NoSupervisor
 where
     A: SyncActor<Error = !>,
@@ -395,7 +391,6 @@ where
     }
 }
 
-#[cfg(feature = "runtime")]
 impl<A> SyncSupervisor<A> for StopSupervisor
 where
     A: SyncActor,
@@ -615,7 +610,6 @@ macro_rules! __heph_restart_supervisor_impl {
             }
         }
 
-        #[cfg(feature = "runtime")]
         impl<A> $crate::supervisor::SyncSupervisor<A> for $supervisor_name
         where
             A: $crate::actor::SyncActor<Argument = ( $( $arg ),* )>,

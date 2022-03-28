@@ -5,12 +5,13 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
 use std::thread::{self, Thread};
-#[cfg(any(test, feature = "test"))]
+#[cfg(all(any(test, feature = "test"), feature = "runtime"))]
 use std::time::{Duration, Instant};
 
 use heph_inbox::Receiver;
 
 use crate::actor::{NoMessages, RecvError};
+#[cfg(feature = "runtime")]
 use crate::trace::{self, Trace};
 
 /// Synchronous actor.
@@ -143,12 +144,14 @@ impl_sync_actor!(
 pub struct SyncContext<M> {
     inbox: Receiver<M>,
     future_waker: Option<Arc<SyncWaker>>,
+    #[cfg(feature = "runtime")]
     trace_log: Option<trace::Log>,
 }
 
 impl<M> SyncContext<M> {
     /// Create a new `SyncContext`.
-    pub(crate) fn new(inbox: Receiver<M>, trace_log: Option<trace::Log>) -> SyncContext<M> {
+    #[cfg(feature = "runtime")]
+    pub(crate) const fn new(inbox: Receiver<M>, trace_log: Option<trace::Log>) -> SyncContext<M> {
         SyncContext {
             inbox,
             future_waker: None,
@@ -248,6 +251,7 @@ impl<M> SyncContext<M> {
     }
 }
 
+#[cfg(feature = "runtime")]
 impl<M> Trace for SyncContext<M> {
     fn start_trace(&self) -> Option<trace::EventTiming> {
         trace::start(&self.trace_log)
@@ -312,7 +316,7 @@ impl SyncWaker {
 
     /// Poll the `future` until completion, blocking when it can't make
     /// progress, waiting up to `timeout` time.
-    #[cfg(any(test, feature = "test"))]
+    #[cfg(all(any(test, feature = "test"), feature = "runtime"))]
     pub(crate) fn block_for<Fut>(
         self: Arc<SyncWaker>,
         future: Fut,
