@@ -153,7 +153,7 @@ pub use future::ActorFuture;
 #[cfg(all(any(test, feature = "test"), feature = "runtime"))]
 pub(crate) use sync::SyncWaker;
 #[doc(inline)]
-pub use sync::{SyncActor, SyncContext};
+pub use sync::{spawn_sync_actor, SyncActor, SyncContext};
 
 /// The trait that defines how to create a new [`Actor`].
 ///

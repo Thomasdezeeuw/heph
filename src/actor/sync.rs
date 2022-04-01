@@ -1,6 +1,7 @@
 //! Module containing the types for synchronous actors.
 
 use std::future::Future;
+use std::io;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
@@ -9,8 +10,13 @@ use std::thread::{self, Thread};
 use std::time::{Duration, Instant};
 
 use heph_inbox::Receiver;
+use heph_inbox::{self as inbox, ReceiverConnected};
+use log::trace;
 
 use crate::actor::{NoMessages, RecvError};
+use crate::actor_ref::ActorRef;
+use crate::spawn::options::SyncActorOptions;
+use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 #[cfg(feature = "runtime")]
 use crate::trace::{self, Trace};
 
@@ -150,11 +156,14 @@ pub struct SyncContext<M> {
 
 impl<M> SyncContext<M> {
     /// Create a new `SyncContext`.
-    #[cfg(feature = "runtime")]
-    pub(crate) const fn new(inbox: Receiver<M>, trace_log: Option<trace::Log>) -> SyncContext<M> {
+    pub(crate) const fn new(
+        inbox: Receiver<M>,
+        #[cfg(feature = "runtime")] trace_log: Option<trace::Log>,
+    ) -> SyncContext<M> {
         SyncContext {
             inbox,
             future_waker: None,
+            #[cfg(feature = "runtime")]
             trace_log,
         }
     }
@@ -348,4 +357,80 @@ impl SyncWaker {
             }
         }
     }
+}
+
+/// Spawn a synchronous actor.
+pub fn spawn_sync_actor<S, A>(
+    supervisor: S,
+    actor: A,
+    arg: A::Argument,
+    options: SyncActorOptions,
+) -> io::Result<(thread::JoinHandle<()>, ActorRef<A::Message>)>
+where
+    S: SyncSupervisor<A> + Send + 'static,
+    A: SyncActor + Send + 'static,
+    A::Message: Send + 'static,
+    A::Argument: Send + 'static,
+{
+    let (inbox, sender, ..) = heph_inbox::Manager::new_small_channel();
+    let actor_ref = ActorRef::local(sender);
+    let sync_worker = SyncWorker {
+        supervisor,
+        actor,
+        inbox,
+    };
+    let thread_name = options
+        .take_name()
+        .unwrap_or_else(|| "Sync actor".to_owned());
+    thread::Builder::new()
+        .name(thread_name)
+        .spawn(move || sync_worker.run(arg))
+        .map(|handle| (handle, actor_ref))
+}
+
+/// Synchronous worker.
+#[derive(Debug)]
+struct SyncWorker<S, A: SyncActor> {
+    supervisor: S,
+    actor: A,
+    inbox: inbox::Manager<A::Message>,
+}
+
+impl<S, A> SyncWorker<S, A>
+where
+    S: SyncSupervisor<A>,
+    A: SyncActor,
+{
+    /// Run a synchronous actor worker thread.
+    fn run(mut self, mut arg: A::Argument) {
+        let thread = thread::current();
+        let name = thread.name().unwrap();
+        trace!(name = name; "running synchronous actor");
+        loop {
+            let receiver = self.inbox.new_receiver().unwrap_or_else(inbox_failure);
+            #[cfg(not(feature = "runtime"))]
+            let ctx = SyncContext::new(receiver);
+            #[cfg(feature = "runtime")]
+            let ctx = SyncContext::new(receiver, None);
+
+            match self.actor.run(ctx, arg) {
+                Ok(()) => break,
+                Err(err) => match self.supervisor.decide(err) {
+                    SupervisorStrategy::Restart(new_arg) => {
+                        trace!(name = name; "restarting synchronous actor");
+                        arg = new_arg;
+                    }
+                    SupervisorStrategy::Stop => break,
+                },
+            }
+        }
+
+        trace!(name = name; "stopping synchronous actor");
+    }
+}
+
+/// Called when we can't create a new receiver for the sync actor.
+#[cold]
+fn inbox_failure<T>(_: ReceiverConnected) -> T {
+    panic!("failed to create new receiver for synchronous actor's inbox. Was the `SyncContext` leaked?");
 }
