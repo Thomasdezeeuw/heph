@@ -50,8 +50,7 @@ use std::future::Future;
 use std::lazy::SyncLazy;
 use std::mem::size_of;
 use std::pin::Pin;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
@@ -485,27 +484,6 @@ where
     let waker = runtime().new_local_task_waker(TEST_PID);
     let mut ctx = task::Context::from_waker(&waker);
     Actor::try_poll(actor, &mut ctx)
-}
-
-/// Percentage of messages lost on purpose.
-static MSG_LOSS: AtomicU8 = AtomicU8::new(0);
-
-/// Set the percentage of messages lost on purpose.
-///
-/// This is useful to test the resilience of actors with respect to message
-/// loss. Any and all messages send, thus including remote and local messages,
-/// could be lost on purpose when using this function.
-///
-/// Note that the sending of the messages will not return an error if the
-/// message is lost using this function.
-///
-/// `percent` must be number between `0` and `100`, setting this to `0` (the
-/// default) will disable the message loss.
-pub fn set_message_loss(mut percent: u8) {
-    if percent > 100 {
-        percent = 100;
-    }
-    MSG_LOSS.store(percent, Ordering::SeqCst)
 }
 
 /// Returns the size of the actor.

@@ -33,7 +33,7 @@ use crate::rt;
 ///
 /// use std::io;
 ///
-/// use heph_rt::actor;
+/// use heph::actor;
 /// use heph_rt::net::TcpStream;
 /// use heph_rt::rt::ThreadLocal;
 ///
@@ -208,7 +208,7 @@ impl TcpStream {
     ///
     /// use std::io;
     ///
-    /// use heph_rt::actor;
+    /// use heph::actor;
     /// use heph_rt::net::TcpStream;
     /// use heph_rt::rt::ThreadLocal;
     ///
@@ -259,7 +259,7 @@ impl TcpStream {
     ///
     /// use std::io;
     ///
-    /// use heph_rt::actor;
+    /// use heph::actor;
     /// use heph_rt::net::TcpStream;
     /// use heph_rt::rt::ThreadLocal;
     ///
@@ -296,7 +296,7 @@ impl TcpStream {
     ///
     /// use std::io;
     ///
-    /// use heph_rt::actor;
+    /// use heph::actor;
     /// use heph_rt::net::TcpStream;
     /// use heph_rt::rt::ThreadLocal;
     ///

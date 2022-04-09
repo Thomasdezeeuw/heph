@@ -40,10 +40,6 @@ name    = "functional"
 required-features = ["test"]
 
 [[test]]
-name    = "message_loss"
-required-features = ["test"]
-
-[[test]]
 name    = "process_signals"
 # Require full control over the spawned threads.
 harness = false
