@@ -29,52 +29,64 @@ use crate::{shared, RuntimeRef};
 /// This trait can't be implemented by types outside of the Heph crate.
 pub trait Access: PrivateAccess {}
 
-/// Actual trait behind [`rt::Access`].
-///
-/// [`rt::Access`]: crate::Access
-pub trait PrivateAccess {
-    /// Returns the process id.
-    fn pid(&self) -> ProcessId;
+mod private {
+    use std::time::Instant;
+    use std::{io, task};
 
-    /// Changes the process id to `new_pid`, returning the old process id.
-    fn change_pid(&mut self, new_pid: ProcessId) -> ProcessId;
+    use mio::{event, Interest};
 
-    /// Registers the `source`.
-    fn register<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized;
+    use crate::process::ProcessId;
+    use crate::{trace, RuntimeRef};
 
-    /// Reregisters the `source`.
-    fn reregister<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized;
+    /// Actual trait behind [`rt::Access`].
+    ///
+    /// [`rt::Access`]: crate::Access
+    pub trait PrivateAccess {
+        /// Returns the process id.
+        fn pid(&self) -> ProcessId;
 
-    /// Add a deadline.
-    fn add_deadline(&mut self, deadline: Instant);
+        /// Changes the process id to `new_pid`, returning the old process id.
+        fn change_pid(&mut self, new_pid: ProcessId) -> ProcessId;
 
-    /// Remove a previously set deadline.
-    fn remove_deadline(&mut self, deadline: Instant);
+        /// Registers the `source`.
+        fn register<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
+        where
+            S: event::Source + ?Sized;
 
-    /// Changes a deadline's pid from `old_pid` the current pid.
-    fn change_deadline(&mut self, old_pid: ProcessId, deadline: Instant);
+        /// Reregisters the `source`.
+        fn reregister<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
+        where
+            S: event::Source + ?Sized;
 
-    /// Create a new [`task::Waker`].
-    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
+        /// Add a deadline.
+        fn add_deadline(&mut self, deadline: Instant);
 
-    /// Returns the CPU the thread is bound to, if any.
-    fn cpu(&self) -> Option<usize>;
+        /// Remove a previously set deadline.
+        fn remove_deadline(&mut self, deadline: Instant);
 
-    /// Start timing an event if tracing is enabled, see [`trace::start`].
-    fn start_trace(&self) -> Option<trace::EventTiming>;
+        /// Changes a deadline's pid from `old_pid` the current pid.
+        fn change_deadline(&mut self, old_pid: ProcessId, deadline: Instant);
 
-    /// Finish tracing an event, see [`trace::finish`].
-    fn finish_trace(
-        &mut self,
-        timing: Option<trace::EventTiming>,
-        description: &str,
-        attributes: &[(&str, &dyn trace::AttributeValue)],
-    );
+        /// Create a new [`task::Waker`].
+        fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
+
+        /// Returns the CPU the thread is bound to, if any.
+        fn cpu(&self) -> Option<usize>;
+
+        /// Start timing an event if tracing is enabled, see [`trace::start`].
+        fn start_trace(&self) -> Option<trace::EventTiming>;
+
+        /// Finish tracing an event, see [`trace::finish`].
+        fn finish_trace(
+            &mut self,
+            timing: Option<trace::EventTiming>,
+            description: &str,
+            attributes: &[(&str, &dyn trace::AttributeValue)],
+        );
+    }
 }
+
+pub(crate) use private::PrivateAccess;
 
 /// Provides access to the thread-local runtime.
 ///
