@@ -104,7 +104,7 @@
 //! from_message!(Message::Get(()) -> usize);
 //!
 //! /// Receiving synchronous actor of the RPC.
-//! fn counter(mut ctx: SyncContext<Message>) {
+//! fn counter<RT>(mut ctx: SyncContext<Message, RT>) {
 //!     // State of the counter.
 //!     let mut count: usize = 0;
 //!

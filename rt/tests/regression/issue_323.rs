@@ -27,4 +27,4 @@ fn issue_323() {
 }
 
 /// Short running synchronous actor.
-fn actor(_: SyncContext<(), rt::Sync>) {}
+fn actor<RT>(_: SyncContext<(), RT>) {}

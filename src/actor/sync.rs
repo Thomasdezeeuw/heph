@@ -199,7 +199,7 @@ impl<M, RT> SyncContext<M, RT> {
     /// ```
     /// use heph::actor::SyncContext;
     ///
-    /// fn greeter_actor(mut ctx: SyncContext<String>) {
+    /// fn greeter_actor<RT>(mut ctx: SyncContext<String, RT>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
     ///         println!("Hello {}", name);
     ///     } else {
@@ -207,7 +207,7 @@ impl<M, RT> SyncContext<M, RT> {
     ///     }
     /// }
     ///
-    /// # fn assert_sync_actor<A: heph::actor::SyncActor>(_: A) { }
+    /// # fn assert_sync_actor<A: heph::actor::SyncActor<RuntimeAccess = ()>>(_: A) { }
     /// # assert_sync_actor(greeter_actor as fn(_) -> _);
     /// ```
     pub fn try_receive_next(&mut self) -> Result<M, RecvError> {
@@ -227,7 +227,7 @@ impl<M, RT> SyncContext<M, RT> {
     /// ```
     /// use heph::actor::SyncContext;
     ///
-    /// fn print_actor(mut ctx: SyncContext<String>) {
+    /// fn print_actor<RT>(mut ctx: SyncContext<String, RT>) {
     ///     if let Ok(msg) = ctx.receive_next() {
     ///         println!("Got a message: {}", msg);
     ///     } else {
@@ -235,7 +235,7 @@ impl<M, RT> SyncContext<M, RT> {
     ///     }
     /// }
     ///
-    /// # fn assert_sync_actor<A: heph::actor::SyncActor>(_: A) { }
+    /// # fn assert_sync_actor<A: heph::actor::SyncActor<RuntimeAccess = ()>>(_: A) { }
     /// # assert_sync_actor(print_actor as fn(_) -> _);
     /// ```
     pub fn receive_next(&mut self) -> Result<M, NoMessages> {
