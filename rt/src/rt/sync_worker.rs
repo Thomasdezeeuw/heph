@@ -118,7 +118,7 @@ fn main<S, A>(
         let receiver = inbox.new_receiver().unwrap_or_else(inbox_failure);
         // FIXME: add trace_log
         //let ctx = SyncContext::new(receiver, trace_log.clone());
-        let ctx = SyncContext::new(receiver, None);
+        let ctx = SyncContext::new(receiver);
         trace::finish_rt(
             trace_log.as_mut(),
             timing,

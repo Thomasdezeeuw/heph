@@ -31,7 +31,7 @@
 //! #![feature(never_type)]
 //!
 //! use heph::actor;
-//! use heph::rt::{self, Runtime, ThreadLocal};
+//! use heph_rt::rt::{self, Runtime, ThreadLocal};
 //! use heph::spawn::ActorOptions;
 //! use heph::supervisor::NoSupervisor;
 //!
@@ -69,9 +69,9 @@
 //! #![feature(never_type)]
 //!
 //! use heph::actor;
-//! use heph::rt::{self, Runtime, ThreadLocal};
 //! use heph::spawn::ActorOptions;
 //! use heph::supervisor::NoSupervisor;
+//! use heph_rt::rt::{self, Runtime, ThreadLocal};
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     let mut runtime = Runtime::new()?;
@@ -234,10 +234,7 @@ impl<M> ActorRef<M> {
     ///
     /// Before sending the message this will first change the message into a
     /// different type. This is useful when you need to send to different types
-    /// of actors (using different message types) from a central location. For
-    /// example in process signal handling, see [`RuntimeRef::receive_signals`].
-    ///
-    /// [`RuntimeRef::receive_signals`]: crate::RuntimeRef::receive_signals
+    /// of actors (using different message types) from a central location.
     ///
     /// # Notes
     ///

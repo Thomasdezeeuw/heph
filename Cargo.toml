@@ -13,17 +13,6 @@ include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
 edition       = "2018"
 
 [features]
-default = ["runtime"]
-
-# Enables the runtime.
-runtime = [
-  "crossbeam-channel",
-  "libc",
-  "mio",
-  "mio-signals",
-  "socket2",
-]
-
 # Feature that enables the `test` module.
 test = ["getrandom"]
 
@@ -31,93 +20,25 @@ test = ["getrandom"]
 heph-inbox        = { version = "0.2.1", default-features = false }
 log               = { version = "0.4.16", default-features = false, features = ["kv_unstable", "kv_unstable_std"] }
 
-# Required by the runtime feature.
-crossbeam-channel = { version = "0.5.0", default-features = false, features = ["std"], optional = true }
-libc              = { version = "0.2.96", default-features = false, optional = true }
-mio               = { version = "0.8.0", default-features = false, features = ["os-poll", "net"], optional = true }
-mio-signals       = { version = "0.2.0", default-features = false, optional = true }
-socket2           = { version = "0.4.0", default-features = false, features = ["all"], optional = true }
-
 # Optional dependencies, enabled by features.
 # Required by the `test` feature.
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
-# Enable logging panics via `std-logger`.
+heph-rt           = { version = "0.1.0", default-features = false, features = ["test"], path = "rt" }
 std-logger        = { version = "0.4.0", default-features = false, features = ["log-panic", "nightly"] }
 
 [[test]]
 name    = "examples"
-required-features = ["mio-signals"]
 
 [[test]]
 name    = "functional"
-required-features = ["runtime", "test"]
+required-features = ["test"]
 
 [[test]]
 name    = "message_loss"
-required-features = ["runtime", "test"]
-
-[[test]]
-name    = "process_signals"
-# Require full control over the spawned threads.
-harness = false
-required-features = ["runtime", "test"]
-
-[[test]]
-name    = "regression"
-required-features = ["runtime", "test"]
-
-[[example]]
-name = "hello_world"
-path = "examples/1_hello_world.rs"
-required-features = ["runtime"]
-
-[[example]]
-name = "my_ip"
-path = "examples/2_my_ip.rs"
-required-features = ["runtime"]
-
-[[example]]
-name = "rpc"
-path = "examples/3_rpc.rs"
-required-features = ["runtime"]
-
-[[example]]
-name = "sync_actor"
-path = "examples/4_sync_actor.rs"
-required-features = ["runtime"]
-
-[[example]]
-name = "process_signals"
-path = "examples/6_process_signals.rs"
-required-features = ["runtime"]
-
-[[example]]
-name = "restart_supervisor"
-path = "examples/7_restart_supervisor.rs"
-required-features = ["runtime"]
-
-[[example]]
-name = "tracing"
-path = "examples/8_tracing.rs"
-required-features = ["runtime"]
-
-[[example]]
-name = "systemd"
-path = "examples/9_systemd.rs"
-required-features = ["runtime"]
-
-[[example]]
-name = "stress_memory"
-path = "examples/99_stress_memory.rs"
-required-features = ["runtime"]
-
-[[example]]
-name = "redis"
-path = "examples/redis.rs"
-required-features = ["runtime"]
+required-features = ["test"]
 
 [workspace]
 members = [

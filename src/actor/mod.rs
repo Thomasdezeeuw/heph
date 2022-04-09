@@ -21,8 +21,8 @@
 //!
 //! Asynchronous thread-local actors, often referred to as just thread-local
 //! actors, are actors that will remain on the thread on which they are started.
-//! They can be started, or spawned, using [`RuntimeRef::try_spawn_local`], or
-//! any type that implements the [`Spawn`] trait using the [`ThreadLocal`]
+//! They can be started, or spawned, using `RuntimeRef::try_spawn_local`, or
+//! any type that implements the [`Spawn`] trait using the `ThreadLocal`
 //! context. These should be the most used as they are the cheapest to run.
 //!
 //! The upside of running a thread-local actor is that it doesn't have to be
@@ -32,16 +32,14 @@
 //! actor/tasks that transparently move between threads and hide blocking/bad
 //! actors, Heph does not (for thread-local actor).
 //!
-//! [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
 //! [`Spawn`]: crate::spawn::Spawn
-//! [`ThreadLocal`]: crate::rt::ThreadLocal
 //!
 //! ## Asynchronous thread-safe actors
 //!
 //! Asynchronous thread-safe actors, or just thread-safe actor, are actors that
 //! can be run on any of the worker threads and transparently move between them.
-//! They can be spawned using [`RuntimeRef::try_spawn`], or any type that
-//! implements the [`Spawn`] trait using the [`ThreadSafe`] context. Because
+//! They can be spawned using `RuntimeRef::try_spawn`, or any type that
+//! implements the [`Spawn`] trait using the `ThreadSafe` context. Because
 //! these actor move between threads they are required to be [`Send`] and
 //! [`Sync`].
 //!
@@ -50,9 +48,6 @@
 //! to run the other thread-safe actors (but not the thread-local actors!). A
 //! downside is that these actors are more expansive to run than thread-local
 //! actors.
-//!
-//! [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
-//! [`ThreadSafe`]: crate::rt::ThreadSafe
 //!
 //! ## Synchronous actors
 //!
@@ -80,7 +75,7 @@
 //!
 //! ```
 //! use heph::actor::{self, NewActor};
-//! use heph::rt::ThreadLocal;
+//! use heph_rt::rt::ThreadLocal;
 //!
 //! async fn actor(ctx: actor::Context<(), ThreadLocal>) {
 //! #   drop(ctx); // Use `ctx` to silence dead code warnings.
@@ -101,7 +96,7 @@
 //!
 //! ```
 //! use heph::actor::SyncContext;
-//! use heph::rt::{self, Runtime};
+//! use heph_rt::rt::{self, Runtime};
 //! use heph::spawn::SyncActorOptions;
 //! use heph::supervisor::NoSupervisor;
 //!
@@ -173,10 +168,10 @@ pub trait NewActor {
     /// ```
     /// #![feature(never_type)]
     ///
-    /// use heph::rt::{self, Runtime, ThreadLocal};
     /// use heph::spawn::ActorOptions;
     /// use heph::supervisor::NoSupervisor;
     /// use heph::{actor, from_message};
+    /// use heph_rt::rt::{self, Runtime, ThreadLocal};
     ///
     /// fn main() -> Result<(), rt::Error> {
     ///     // Create and run the runtime.
@@ -225,7 +220,7 @@ pub trait NewActor {
     /// The arguments passed to the actor are much like arguments passed to a
     /// regular function. If more then one argument is needed the arguments can
     /// be in the form of a tuple, e.g. `(123, "Hello")`. For example
-    /// [`TcpServer`] requires a `NewActor` where the argument  is a tuple
+    /// `TcpServer` requires a `NewActor` where the argument  is a tuple
     /// `(TcpStream, SocketAddr)`.
     ///
     /// An empty tuple can be used for actors that don't accept any arguments
@@ -233,11 +228,9 @@ pub trait NewActor {
     ///
     /// When using asynchronous functions arguments are passed regularly, i.e.
     /// not in the form of a tuple, however they do have be passed as a tuple to
-    /// the [`try_spawn_local`] method. See there [implementations] below.
+    /// [`ActorFuture::new`]. See there [implementations] below.
     ///
-    /// [`TcpServer`]: crate::net::TcpServer
     /// [`new`]: NewActor::new
-    /// [`try_spawn_local`]: crate::RuntimeRef::try_spawn_local
     /// [implementations]: #foreign-impls
     type Argument;
 
@@ -273,13 +266,11 @@ pub trait NewActor {
     ///
     /// This can be used when additional arguments are needed to be passed to an
     /// actor, where another function requires a certain argument list. For
-    /// example when using [`TcpServer`].
-    ///
-    /// [`TcpServer`]: crate::net::TcpServer
+    /// example when using `TcpServer`.
     ///
     /// # Examples
     ///
-    /// Using [`TcpServer`] requires a `NewActor` that accepts `(TcpStream,
+    /// Using `TcpServer` requires a `NewActor` that accepts `(TcpStream,
     /// SocketAddr)` as arguments, but we need to pass the actor additional
     /// arguments.
     ///
@@ -291,10 +282,10 @@ pub trait NewActor {
     ///
     /// use heph::actor::{self, NewActor};
     /// # use heph::actor::messages::Terminate;
-    /// # use heph::net::tcp::server;
-    /// use heph::net::{TcpServer, TcpStream};
-    /// use heph::rt::{self, Runtime, RuntimeRef, ThreadLocal};
     /// use heph::spawn::ActorOptions;
+    /// use heph_rt::net::{TcpServer, TcpStream};
+    /// # use heph_rt::net::tcp::server;
+    /// use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
     /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
     /// # use log::error;
     ///
@@ -709,15 +700,12 @@ fn format_name(full_name: &'static str) -> &'static str {
 /// will never be run and the actor that created the type will run instead.
 ///
 /// Most types that are bound can only be created with a (mutable) reference to
-/// an [`actor::Context`]. Examples of this are [`TcpStream`], [`UdpSocket`] and
-/// all futures in the [`timer`] module.
+/// an [`actor::Context`]. Examples of this are `TcpStream`, `UdpSocket` and
+/// all futures in the `heph_rt::timer` module.
 ///
 /// [future is awoken]: std::task::Waker::wake
 /// [(re)binding]: Bound::bind_to
 /// [`actor::Context`]: Context
-/// [`TcpStream`]: crate::net::TcpStream
-/// [`UdpSocket`]: crate::net::UdpSocket
-/// [`timer`]: crate::timer
 pub trait Bound<RT> {
     /// Error type used in [`bind_to`].
     ///

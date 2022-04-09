@@ -17,7 +17,7 @@ edition       = "2018"
 test = ["getrandom"]
 
 [dependencies]
-heph              = { version = "0.3.1", default-features = false, features = ["runtime"], path = "../" }
+heph              = { version = "0.3.1", default-features = false, path = "../" }
 heph-inbox        = { version = "0.2.1", default-features = false }
 log               = { version = "0.4.16", default-features = false, features = ["kv_unstable", "kv_unstable_std"] }
 crossbeam-channel = { version = "0.5.0", default-features = false, features = ["std"] }
