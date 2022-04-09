@@ -81,7 +81,7 @@ where
 /// ```
 /// use heph::actor;
 /// use heph::test::size_of_actor_val;
-/// use heph_rt::rt::ThreadLocal;
+/// use heph_rt::ThreadLocal;
 ///
 /// async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
 ///     // Receive a message.

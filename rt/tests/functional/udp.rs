@@ -9,8 +9,8 @@ use heph::actor_ref::{ActorRef, RpcMessage};
 use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
 use heph_rt::net::udp::{UdpSocket, Unconnected};
-use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph_rt::test::{join, try_spawn_local, PanicSupervisor};
+use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
 use crate::util::{any_local_address, any_local_ipv6_address};
 

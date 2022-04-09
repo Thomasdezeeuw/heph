@@ -27,7 +27,7 @@
 //! use std::io;
 //!
 //! use heph::actor;
-//! use heph_rt::{pipe, rt};
+//! use heph_rt::{self as rt, pipe};
 //!
 //! const DATA: &[u8] = b"Hello, world!";
 //!
@@ -65,7 +65,7 @@
 //! use std::process::{Command, Stdio};
 //!
 //! use heph::actor;
-//! use heph_rt::{pipe, rt};
+//! use heph_rt::{self as rt, pipe};
 //!
 //! const DATA: &[u8] = b"Hello, world!";
 //!
@@ -116,8 +116,8 @@ use heph::actor;
 use mio::unix::pipe;
 use mio::Interest;
 
+use crate as rt;
 use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
-use crate::rt;
 
 /// Create a new Unix pipe.
 ///

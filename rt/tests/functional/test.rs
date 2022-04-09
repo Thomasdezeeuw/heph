@@ -12,12 +12,12 @@ use heph::actor::{self, Actor, NewActor};
 use heph::actor_ref::ActorGroup;
 use heph::spawn::{ActorOptions, FutureOptions};
 use heph::supervisor::NoSupervisor;
-use heph_rt::rt::{self, ThreadLocal};
 use heph_rt::test::{
     self, join, join_all, join_many, size_of_actor, size_of_actor_val, spawn_future, try_spawn,
     try_spawn_local, JoinResult,
 };
 use heph_rt::timer::Timer;
+use heph_rt::{self as rt, ThreadLocal};
 
 #[test]
 fn block_on() {

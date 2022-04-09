@@ -25,7 +25,7 @@
 //! #
 //! use heph::actor;
 //! use heph::actor_ref::{ActorRef, RpcMessage};
-//! use heph_rt::rt::{self, ThreadLocal};
+//! use heph_rt::{self as rt, ThreadLocal};
 //!
 //! /// Message type for [`counter`].
 //! struct Add(RpcMessage<usize, usize>);
@@ -63,9 +63,9 @@
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {
-//! #    use heph_rt::rt::Runtime;
 //! #    use heph::spawn::ActorOptions;
 //! #    use heph::supervisor::NoSupervisor;
+//! #    use heph_rt::Runtime;
 //! #    let mut runtime = Runtime::new()?;
 //! #    runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
 //! #        let counter = counter as fn(_) -> _;
@@ -89,7 +89,7 @@
 //! use heph::actor::{self, SyncContext};
 //! use heph::actor_ref::{ActorRef, RpcMessage};
 //! use heph::from_message;
-//! use heph_rt::rt::{self, ThreadLocal};
+//! use heph_rt::{self as rt, ThreadLocal};
 //!
 //! /// Message type for [`counter`].
 //! enum Message {
@@ -139,9 +139,9 @@
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {
-//! #    use heph_rt::rt::Runtime;
 //! #    use heph::spawn::{ActorOptions, SyncActorOptions};
 //! #    use heph::supervisor::NoSupervisor;
+//! #    use heph_rt::Runtime;
 //! #
 //! #    let mut runtime = Runtime::new()?;
 //! #    let counter = counter as fn(_) -> _;

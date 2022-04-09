@@ -29,8 +29,8 @@
 //!
 //! use heph::supervisor::NoSupervisor;
 //! use heph::{actor, restart_supervisor, ActorOptions, ActorRef};
-//! use heph_rt::rt::{self, Runtime};
 //! use heph_remote::net_relay::{self, Relay, UdpRelayMessage};
+//! use heph_rt::{self as rt, Runtime};
 //!
 //! # fn main() -> Result<(), rt::Error> {
 //! # return Ok(()); // Don't want to send any packets.
@@ -92,7 +92,7 @@ use std::net::SocketAddr;
 use std::{fmt, io};
 
 use heph::actor::{self, Actor, NewActor};
-use heph_rt::rt;
+use heph_rt as rt;
 use serde::de::{self, Deserialize, DeserializeOwned, Deserializer, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 

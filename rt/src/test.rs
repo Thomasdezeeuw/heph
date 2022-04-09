@@ -27,6 +27,8 @@
 //!  * Miscellaneous:
 //!    * [`size_of_actor`], [`size_of_actor_val`]: returns the size of an actor.
 //!    * [`set_message_loss`]: set the percentage of messages lost on purpose.
+//!    * [`PanicSupervisor`]: supervisor that panics when it receives an actor's
+//!      error.
 //!
 //! [actor]: actor
 //! [synchronous actor]: SyncActor
@@ -48,30 +50,32 @@
 use std::async_iter::AsyncIterator;
 use std::future::Future;
 use std::lazy::SyncLazy;
-use std::mem::size_of;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
-use std::{fmt, slice};
-use std::{io, thread};
+use std::{io, slice, thread};
 
 use heph::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
-use heph::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
+use heph::supervisor::{Supervisor, SyncSupervisor};
 use heph_inbox::oneshot::new_oneshot;
 use heph_inbox::Manager;
 
-use crate::rt::shared::waker;
-use crate::rt::sync_worker::SyncWorker;
-use crate::rt::thread_waker::ThreadWaker;
-use crate::rt::worker::{Control, Worker};
-use crate::rt::{
-    self, shared, ProcessId, RuntimeRef, Sync, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
+use crate::shared::waker;
+use crate::sync_worker::SyncWorker;
+use crate::thread_waker::ThreadWaker;
+use crate::worker::{Control, Worker};
+use crate::{
+    self as rt, shared, ProcessId, RuntimeRef, Sync, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
+
+#[doc(no_inline)]
+#[cfg(feature = "test")]
+pub use heph::test::*;
 
 pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 
@@ -487,90 +491,6 @@ where
     let waker = runtime().new_local_task_waker(TEST_PID);
     let mut ctx = task::Context::from_waker(&waker);
     Actor::try_poll(actor, &mut ctx)
-}
-
-/// Returns the size of the actor.
-///
-/// When using asynchronous function for actors see [`size_of_actor_val`].
-pub const fn size_of_actor<NA>() -> usize
-where
-    NA: NewActor,
-{
-    size_of::<NA::Actor>()
-}
-
-/// Returns the size of the point-to actor.
-///
-/// # Examples
-///
-/// ```
-/// use heph::actor;
-/// use heph_rt::test::size_of_actor_val;
-/// use heph_rt::rt::ThreadLocal;
-///
-/// async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
-///     // Receive a message.
-///     if let Ok(msg) = ctx.receive_next().await {
-///         // Print the message.
-///         println!("got a message: {}", msg);
-///     }
-/// }
-///
-/// assert_eq!(size_of_actor_val(&(actor as fn(_) -> _)), 88);
-/// ```
-pub const fn size_of_actor_val<NA>(_: &NA) -> usize
-where
-    NA: NewActor,
-{
-    size_of_actor::<NA>()
-}
-
-/// Quick and dirty supervisor that panics whenever it receives an error.
-#[derive(Copy, Clone, Debug)]
-pub struct PanicSupervisor;
-
-impl<NA> Supervisor<NA> for PanicSupervisor
-where
-    NA: NewActor,
-    NA::Error: fmt::Display,
-    <NA::Actor as Actor>::Error: fmt::Display,
-{
-    fn decide(&mut self, err: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
-        panic!(
-            "error running '{}' actor: {}",
-            actor::name::<NA::Actor>(),
-            err
-        )
-    }
-
-    fn decide_on_restart_error(&mut self, err: NA::Error) -> SupervisorStrategy<NA::Argument> {
-        // NOTE: should never be called.
-        panic!(
-            "error restarting '{}' actor: {}",
-            actor::name::<NA::Actor>(),
-            err
-        )
-    }
-
-    fn second_restart_error(&mut self, err: NA::Error) {
-        // NOTE: should never be called.
-        panic!(
-            "error restarting '{}' actor a second time: {}",
-            actor::name::<NA::Actor>(),
-            err
-        )
-    }
-}
-
-impl<A> SyncSupervisor<A> for PanicSupervisor
-where
-    A: SyncActor,
-    A::Error: fmt::Display,
-{
-    fn decide(&mut self, err: A::Error) -> SupervisorStrategy<A::Argument> {
-        // NOTE: can't use `actor::name` for sync actors.
-        panic!("error running sync actor: {}", err)
-    }
 }
 
 /// Assert that a `Future` is not moved between calls.

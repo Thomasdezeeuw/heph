@@ -25,10 +25,9 @@ use mio::net::UnixDatagram;
 use mio::Interest;
 use socket2::SockRef;
 
-use crate::rt;
-use crate::rt::Signal;
 use crate::timer::Interval;
 use crate::util::{either, next};
+use crate::{self as rt, Signal};
 
 /// Systemd notifier.
 ///

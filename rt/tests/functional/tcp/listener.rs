@@ -8,9 +8,9 @@ use heph::actor::{self, Bound};
 use heph::supervisor::NoSupervisor;
 use heph::{ActorOptions, ActorRef};
 use heph_rt::net::{TcpListener, TcpStream};
-use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph_rt::test::{init_local_actor, join_many, poll_actor, try_spawn_local};
 use heph_rt::util::next;
+use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
 use crate::util::{any_local_address, any_local_ipv6_address, pending_once};
 

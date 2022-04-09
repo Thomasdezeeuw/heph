@@ -5,7 +5,7 @@ use std::convert::TryFrom;
 use heph::actor::{self, SyncContext};
 use heph::spawn::{ActorOptions, SyncActorOptions};
 use heph::supervisor::NoSupervisor;
-use heph_rt::rt::{self, Runtime, RuntimeRef, Signal, ThreadLocal, ThreadSafe};
+use heph_rt::{self as rt, Runtime, RuntimeRef, Signal, ThreadLocal, ThreadSafe};
 
 fn main() -> Result<(), rt::Error> {
     // Signal handling is support for all actor and its as simple as receiving

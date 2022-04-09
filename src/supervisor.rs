@@ -63,7 +63,7 @@
 //! use heph::actor;
 //! use heph::spawn::ActorOptions;
 //! use heph::supervisor::SupervisorStrategy;
-//! use heph_rt::rt::{self, ThreadLocal, Runtime};
+//! use heph_rt::{self as rt, ThreadLocal, Runtime};
 //! use log::error;
 //!
 //! fn main() -> Result<(), rt::Error> {
@@ -273,7 +273,7 @@ where
 /// use heph::actor;
 /// use heph::spawn::ActorOptions;
 /// use heph::supervisor::NoSupervisor;
-/// use heph_rt::rt::{self, ThreadLocal, Runtime};
+/// use heph_rt::{self as rt, ThreadLocal, Runtime};
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     let mut runtime = Runtime::new()?;
@@ -336,7 +336,7 @@ where
 /// use heph::actor;
 /// use heph::spawn::ActorOptions;
 /// use heph::supervisor::StopSupervisor;
-/// use heph_rt::rt::{self, ThreadLocal, Runtime};
+/// use heph_rt::{self as rt, ThreadLocal, Runtime};
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     let mut runtime = Runtime::new()?;

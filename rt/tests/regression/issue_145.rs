@@ -11,7 +11,7 @@ use heph::actor::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::{actor, Actor, ActorOptions, ActorRef, NewActor};
 use heph_rt::net::{tcp, TcpListener, TcpServer, TcpStream};
-use heph_rt::rt::{Runtime, RuntimeRef, ThreadLocal};
+use heph_rt::{Runtime, RuntimeRef, ThreadLocal};
 
 const N: usize = 4;
 

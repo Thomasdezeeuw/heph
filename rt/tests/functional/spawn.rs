@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 use heph::actor::{self, NewActor};
 use heph::spawn::Spawn;
 use heph::supervisor::NoSupervisor;
-use heph_rt::rt::{Runtime, RuntimeRef, ThreadLocal, ThreadSafe};
+use heph_rt::{Runtime, RuntimeRef, ThreadLocal, ThreadSafe};
 
 struct TestNewActor<RT>(PhantomData<RT>);
 

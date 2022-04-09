@@ -12,8 +12,8 @@ use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::ActorRef;
 use heph_rt::net::tcp::server;
 use heph_rt::net::{TcpServer, TcpStream};
-use heph_rt::rt::{self, Runtime, Signal, ThreadLocal};
 use heph_rt::test::{join_many, try_spawn_local, PanicSupervisor};
+use heph_rt::{self as rt, Runtime, Signal, ThreadLocal};
 
 use crate::util::any_local_address;
 

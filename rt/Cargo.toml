@@ -14,7 +14,7 @@ edition       = "2018"
 
 [features]
 # Feature that enables the `test` module.
-test = ["getrandom"]
+test = ["getrandom", "heph/test"]
 
 [dependencies]
 heph              = { version = "0.3.1", default-features = false, path = "../" }

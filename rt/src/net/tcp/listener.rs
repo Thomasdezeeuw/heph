@@ -10,8 +10,8 @@ use std::task::{self, Poll};
 use heph::actor;
 use mio::{net, Interest};
 
+use crate as rt;
 use crate::net::TcpStream;
-use crate::rt;
 
 /// A TCP socket listener.
 ///
@@ -40,7 +40,7 @@ use crate::rt;
 /// use heph::{actor, SupervisorStrategy};
 /// use heph_rt::net::TcpListener;
 /// # use heph_rt::net::TcpStream;
-/// use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+/// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 /// use log::info;
 ///
 /// fn main() -> Result<(), rt::Error> {
@@ -106,7 +106,7 @@ use crate::rt;
 /// use heph::{actor, SupervisorStrategy};
 /// use heph_rt::net::TcpListener;
 /// # use heph_rt::net::TcpStream;
-/// use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+/// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 /// use heph_rt::util::next;
 ///
 /// fn main() -> Result<(), rt::Error> {

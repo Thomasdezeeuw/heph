@@ -25,7 +25,7 @@
 //!
 //! ```
 //! # use heph::actor;
-//! # use heph_rt::rt::ThreadLocal;
+//! # use heph_rt::ThreadLocal;
 //! // The `ThreadLocal` means we're running a thread-local actor, see the
 //! // `actor` module for more information about the different kinds of actors.
 //! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
@@ -94,7 +94,7 @@
 //! # use heph::actor_ref::ActorRef;
 //! # use heph::spawn::options::ActorOptions;
 //! # use heph::supervisor::SupervisorStrategy;
-//! # use heph_rt::rt::{RuntimeRef, ThreadLocal};
+//! # use heph_rt::{RuntimeRef, ThreadLocal};
 //! # use log::warn;
 //! // Later on we'll see where we can get a `RuntimeRef`.
 //! fn spawn_actor(mut runtime_ref: RuntimeRef) {
@@ -169,7 +169,7 @@
 //! ```
 //! # #![feature(never_type)]
 //! #
-//! # use heph_rt::rt::{self, Runtime, RuntimeRef};
+//! # use heph_rt::{self as rt, Runtime, RuntimeRef};
 //! fn main() -> Result<(), rt::Error> {
 //!     // First we setup the runtime and configure it.
 //!     let mut runtime = Runtime::setup()

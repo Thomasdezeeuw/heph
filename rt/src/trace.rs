@@ -11,7 +11,7 @@
 //! Tracing is enabled by calling [`Setup::enable_tracing`] when setting up the
 //! runtime.
 //!
-//! [`Setup::enable_tracing`]: crate::rt::Setup::enable_tracing
+//! [`Setup::enable_tracing`]: crate::Setup::enable_tracing
 //!
 //! # Creating Trace Events
 //!
@@ -98,7 +98,7 @@ const RT_SUBSTREAM_ID: u64 = 0;
 ///
 /// ```
 /// use heph::actor;
-/// use heph_rt::rt::ThreadLocal;
+/// use heph_rt::ThreadLocal;
 /// use heph_rt::trace::Trace;
 ///
 /// async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {

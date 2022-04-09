@@ -21,9 +21,9 @@ use log::warn;
 use mio::{net, Interest};
 use socket2::{SockAddr, SockRef};
 
+use crate as rt;
 use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
 use crate::net::convert_address;
-use crate::rt;
 
 /// The unconnected mode of an [`UdpSocket`].
 #[allow(missing_debug_implementations)]
@@ -70,7 +70,7 @@ pub enum Connected {}
 /// use heph::spawn::ActorOptions;
 /// use heph::{actor, SupervisorStrategy};
 /// use heph_rt::net::UdpSocket;
-/// use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+/// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 /// use heph_rt::util::either;
 ///
 /// fn main() -> Result<(), rt::Error> {

@@ -4,8 +4,8 @@ use std::io;
 use std::net::SocketAddr;
 
 use heph::actor::{self, NoMessages};
+use heph_rt as rt;
 use heph_rt::net::TcpStream;
-use heph_rt::rt;
 use heph_rt::util::either;
 use log::warn;
 use serde::de::DeserializeOwned;
