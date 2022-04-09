@@ -10,8 +10,8 @@ use std::task::Poll;
 
 use heph::actor::{self, NoMessages};
 use heph::test::set_message_loss;
-use heph_rt::rt::ThreadLocal;
 use heph_rt::test::{init_local_actor, poll_actor};
+use heph_rt::ThreadLocal;
 
 async fn expect_1_messages(mut ctx: actor::Context<usize, ThreadLocal>) {
     let msg = ctx.receive_next().await.expect("missing first message");

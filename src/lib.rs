@@ -12,7 +12,7 @@
 //!
 //! ```
 //! # use heph::actor;
-//! # use heph_rt::rt::ThreadLocal;
+//! # use heph_rt::ThreadLocal;
 //! #
 //! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
 //!     // Receive a message.

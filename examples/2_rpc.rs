@@ -6,7 +6,7 @@ use heph::actor;
 use heph::actor_ref::{ActorRef, RpcMessage};
 use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
-use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
 fn main() -> Result<(), rt::Error> {
     // Setup is much like example 1, see that example for more information.

@@ -12,7 +12,7 @@ use std::time::Duration;
 use heph::actor::{self, Actor, NewActor, SyncContext};
 use heph::spawn::options::{ActorOptions, FutureOptions, Priority, SyncActorOptions};
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use heph_rt::rt::{Runtime, ThreadLocal, ThreadSafe};
+use heph_rt::{Runtime, ThreadLocal, ThreadSafe};
 
 use crate::util::temp_file;
 
@@ -42,7 +42,7 @@ fn auto_cpu_affinity() {
     use heph::{actor, ActorRef, NewActor};
     use heph_rt::net::tcp::server;
     use heph_rt::net::{TcpServer, TcpStream};
-    use heph_rt::rt::{RuntimeRef, ThreadLocal};
+    use heph_rt::{RuntimeRef, ThreadLocal};
 
     fn cpu_affinity(stream: &TcpStream) -> io::Result<usize> {
         // TODO: do this better.

@@ -5,8 +5,8 @@ use std::task::Poll;
 
 use heph::actor_ref::{ActorRef, RpcMessage};
 use heph::{actor, from_message};
-use heph_rt::rt::ThreadLocal;
 use heph_rt::test::{init_local_actor, poll_actor};
+use heph_rt::ThreadLocal;
 
 #[derive(Debug)]
 enum Message {

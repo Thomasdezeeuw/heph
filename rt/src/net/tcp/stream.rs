@@ -19,8 +19,8 @@ use mio::{net, Interest};
 use heph::actor;
 use socket2::SockRef;
 
+use crate as rt;
 use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
-use crate::rt;
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
 ///
@@ -35,7 +35,7 @@ use crate::rt;
 ///
 /// use heph::actor;
 /// use heph_rt::net::TcpStream;
-/// use heph_rt::rt::ThreadLocal;
+/// use heph_rt::ThreadLocal;
 ///
 /// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
 ///     let address = "127.0.0.1:12345".parse().unwrap();
@@ -210,7 +210,7 @@ impl TcpStream {
     ///
     /// use heph::actor;
     /// use heph_rt::net::TcpStream;
-    /// use heph_rt::rt::ThreadLocal;
+    /// use heph_rt::ThreadLocal;
     ///
     /// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
     ///     let address = "127.0.0.1:12345".parse().unwrap();
@@ -261,7 +261,7 @@ impl TcpStream {
     ///
     /// use heph::actor;
     /// use heph_rt::net::TcpStream;
-    /// use heph_rt::rt::ThreadLocal;
+    /// use heph_rt::ThreadLocal;
     ///
     /// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
     ///     let address = "127.0.0.1:12345".parse().unwrap();
@@ -298,7 +298,7 @@ impl TcpStream {
     ///
     /// use heph::actor;
     /// use heph_rt::net::TcpStream;
-    /// use heph_rt::rt::ThreadLocal;
+    /// use heph_rt::ThreadLocal;
     ///
     /// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
     ///     let address = "127.0.0.1:12345".parse().unwrap();

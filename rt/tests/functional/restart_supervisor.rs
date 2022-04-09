@@ -11,7 +11,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use heph::{actor, restart_supervisor, Actor, NewActor, Supervisor, SupervisorStrategy};
-use heph_rt::rt::ThreadSafe;
+use heph_rt::ThreadSafe;
 
 // NOTE: keep in sync with the documentation.
 const DEFAULT_MAX_RESTARTS: usize = 5;

@@ -31,9 +31,9 @@
 //! #![feature(never_type)]
 //!
 //! use heph::actor;
-//! use heph_rt::rt::{self, Runtime, ThreadLocal};
 //! use heph::spawn::ActorOptions;
 //! use heph::supervisor::NoSupervisor;
+//! use heph_rt::{self as rt, Runtime, ThreadLocal};
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     let mut runtime = Runtime::new()?;
@@ -71,7 +71,7 @@
 //! use heph::actor;
 //! use heph::spawn::ActorOptions;
 //! use heph::supervisor::NoSupervisor;
-//! use heph_rt::rt::{self, Runtime, ThreadLocal};
+//! use heph_rt::{self as rt, Runtime, ThreadLocal};
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     let mut runtime = Runtime::new()?;

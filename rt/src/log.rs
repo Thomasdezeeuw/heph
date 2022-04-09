@@ -20,7 +20,7 @@
 //! use heph::actor;
 //! use heph::spawn::ActorOptions;
 //! use heph::supervisor::NoSupervisor;
-//! use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+//! use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 //! use log::info;
 //!
 //! fn main() -> Result<(), rt::Error> {
@@ -43,13 +43,3 @@
 //!     info!("Hello world");
 //! }
 //! ```
-
-#[doc(hidden)]
-pub mod _private {
-    //! Private module to support the [`restart_supervisor!`] macro.
-    //!
-    //! [`restart_supervisor!`]: crate::restart_supervisor
-
-    #[doc(no_inline)]
-    pub use log::warn;
-}

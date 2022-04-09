@@ -7,8 +7,8 @@ use std::task::{self, Poll};
 use heph::actor;
 use heph::spawn::{ActorOptions, FutureOptions};
 use heph::supervisor::NoSupervisor;
-use heph_rt::rt::{Runtime, ThreadSafe};
 use heph_rt::test::poll_future;
+use heph_rt::{Runtime, ThreadSafe};
 
 use crate::util::{expect_pending, expect_ready};
 

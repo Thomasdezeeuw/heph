@@ -75,7 +75,7 @@
 //!
 //! ```
 //! use heph::actor::{self, NewActor};
-//! use heph_rt::rt::ThreadLocal;
+//! use heph_rt::ThreadLocal;
 //!
 //! async fn actor(ctx: actor::Context<(), ThreadLocal>) {
 //! #   drop(ctx); // Use `ctx` to silence dead code warnings.
@@ -96,7 +96,7 @@
 //!
 //! ```
 //! use heph::actor::SyncContext;
-//! use heph_rt::rt::{self, Runtime};
+//! use heph_rt::{self as rt, Runtime};
 //! use heph::spawn::SyncActorOptions;
 //! use heph::supervisor::NoSupervisor;
 //!
@@ -171,7 +171,7 @@ pub trait NewActor {
     /// use heph::spawn::ActorOptions;
     /// use heph::supervisor::NoSupervisor;
     /// use heph::{actor, from_message};
-    /// use heph_rt::rt::{self, Runtime, ThreadLocal};
+    /// use heph_rt::{self as rt, Runtime, ThreadLocal};
     ///
     /// fn main() -> Result<(), rt::Error> {
     ///     // Create and run the runtime.
@@ -285,7 +285,7 @@ pub trait NewActor {
     /// use heph::spawn::ActorOptions;
     /// use heph_rt::net::{TcpServer, TcpStream};
     /// # use heph_rt::net::tcp::server;
-    /// use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+    /// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
     /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
     /// # use log::error;
     ///

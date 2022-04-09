@@ -3,7 +3,7 @@
 use heph::actor;
 use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
-use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
 fn main() -> Result<(), rt::Error> {
     // We create a new runtime. Add a setup function, which adds our greeter

@@ -6,8 +6,8 @@ use std::time::Duration;
 use heph::actor::{self, Bound};
 use heph::spawn::ActorOptions;
 use heph::ActorRef;
+use heph_rt as rt;
 use heph_rt::pipe::{self, Receiver, Sender};
-use heph_rt::rt;
 use heph_rt::test::{join, join_many, try_spawn_local, PanicSupervisor};
 
 const DATA: &[u8] = b"Hello world";

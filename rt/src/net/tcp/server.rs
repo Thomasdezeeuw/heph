@@ -20,7 +20,7 @@ use mio::Interest;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::net::TcpStream;
-use crate::rt::{self, PrivateAccess, Signal};
+use crate::{self as rt, PrivateAccess, Signal};
 
 /// A intermediate structure that implements [`NewActor`], creating
 /// [`TcpServer`].
@@ -158,7 +158,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use heph::spawn::options::Priority;
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph_rt::net::tcp::{server, TcpServer, TcpStream};
-/// use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+/// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 /// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error> {
@@ -253,7 +253,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// # use heph_rt::net::tcp;
 /// use heph_rt::net::{TcpServer, TcpStream};
-/// use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
+/// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 /// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error> {
@@ -338,7 +338,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use heph::spawn::options::{ActorOptions, Priority};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph_rt::net::tcp::{server, TcpServer, TcpStream};
-/// use heph_rt::rt::{self, Runtime, ThreadSafe};
+/// use heph_rt::{self as rt, Runtime, ThreadSafe};
 /// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error> {

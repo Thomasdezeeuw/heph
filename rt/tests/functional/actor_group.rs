@@ -7,8 +7,8 @@ use std::task::Poll;
 
 use heph::actor;
 use heph::actor_ref::{ActorGroup, Delivery};
-use heph_rt::rt::ThreadLocal;
 use heph_rt::test::{init_local_actor, poll_actor, poll_future};
+use heph_rt::ThreadLocal;
 
 use crate::util::{assert_send, assert_size, assert_sync};
 

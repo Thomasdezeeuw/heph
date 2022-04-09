@@ -54,7 +54,7 @@ impl<M, RT> Context<M, RT> {
     ///
     /// ```
     /// use heph::actor;
-    /// use heph_rt::rt::ThreadLocal;
+    /// use heph_rt::ThreadLocal;
     ///
     /// async fn greeter_actor(mut ctx: actor::Context<String, ThreadLocal>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
@@ -81,7 +81,7 @@ impl<M, RT> Context<M, RT> {
     ///
     /// ```
     /// use heph::actor;
-    /// use heph_rt::rt::ThreadLocal;
+    /// use heph_rt::ThreadLocal;
     ///
     /// async fn print_actor(mut ctx: actor::Context<String, ThreadLocal>) {
     ///     if let Ok(msg) = ctx.receive_next().await {
@@ -101,7 +101,7 @@ impl<M, RT> Context<M, RT> {
     ///
     /// use heph::actor;
     /// use heph_rt::util::either;
-    /// use heph_rt::rt::ThreadLocal;
+    /// use heph_rt::ThreadLocal;
     /// use heph_rt::timer::Timer;
     ///
     /// async fn print_actor(mut ctx: actor::Context<String, ThreadLocal>) {

@@ -9,10 +9,10 @@ use heph::actor::{self, Bound};
 use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
 use heph::ActorRef;
-use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
 use heph_rt::test::{init_local_actor, poll_actor, poll_future, poll_next};
 use heph_rt::timer::{Deadline, DeadlinePassed, Interval, Timer};
 use heph_rt::util::next;
+use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
 use crate::util::{count_polls, expect_pending};
 
