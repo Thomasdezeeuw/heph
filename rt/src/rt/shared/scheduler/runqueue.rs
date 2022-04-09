@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn size_assertions() {
-        assert_eq!(size_of::<RunQueue>(), 24);
+        assert!(size_of::<RunQueue>() <= 24);
         assert_eq!(size_of::<Node>(), 24);
     }
 

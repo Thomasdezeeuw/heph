@@ -101,6 +101,7 @@ impl SyncWorker {
 }
 
 /// Run a synchronous actor worker thread.
+#[allow(clippy::too_many_arguments)]
 fn main<S, A>(
     id: usize,
     mut supervisor: S,
