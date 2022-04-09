@@ -122,8 +122,6 @@ pub mod supervisor;
 pub mod systemd;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
-#[doc(hidden)]
-pub mod util;
 
 #[doc(no_inline)]
 pub use actor::{Actor, NewActor};
