@@ -24,7 +24,10 @@ test:
 	cargo test --features test $(TEST_OPTS)
 
 test_all:
-	cargo hack test --workspace --exclude benches --all-targets --feature-powerset --skip crossbeam-channel,libc,mio,mio-signals,socket2,getrandom $(TEST_OPTS)
+	cargo hack test --all-targets --feature-powerset $(TEST_OPTS)
+	cd remote && cargo hack test --all-targets --feature-powerset $(TEST_OPTS)
+	cd rt && cargo hack test --all-targets --feature-powerset $(TEST_OPTS)
+	#cd http && cargo hack test --all-targets --feature-powerset $(TEST_OPTS)
 
 # NOTE: Keep `RUSTFLAGS` and `RUSTDOCFLAGS` in sync to ensure the doc tests
 # compile correctly.
@@ -38,7 +41,10 @@ check:
 	cargo check --all-features --all-targets
 
 check_all:
-	cargo hack check --workspace --all-targets --feature-powerset --skip crossbeam-channel,libc,mio,mio-signals,socket2,getrandom
+	cargo hack check --all-targets --feature-powerset
+	cd remote && cargo hack check --all-targets --feature-powerset
+	cd rt && cargo hack check --all-targets --feature-powerset
+	#cd http && cargo hack check --all-targets --feature-powerset
 
 check_all_targets: $(TARGETS)
 $(TARGETS):
