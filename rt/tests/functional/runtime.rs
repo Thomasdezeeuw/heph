@@ -12,7 +12,7 @@ use std::time::Duration;
 use heph::actor::{self, Actor, NewActor, SyncContext};
 use heph::spawn::options::{ActorOptions, FutureOptions, Priority, SyncActorOptions};
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use heph_rt::rt::{self, Runtime, ThreadLocal, ThreadSafe};
+use heph_rt::rt::{Runtime, ThreadLocal, ThreadSafe};
 
 use crate::util::temp_file;
 

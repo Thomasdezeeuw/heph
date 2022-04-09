@@ -8,7 +8,6 @@ use std::time::Duration;
 use heph::actor::{RecvError, SyncContext};
 use heph::spawn::SyncActorOptions;
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
-use heph_rt::rt;
 use heph_rt::test::spawn_sync_actor;
 
 #[derive(Clone, Debug)]
