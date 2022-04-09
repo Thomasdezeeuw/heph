@@ -98,7 +98,7 @@ where
 }
 
 /// Sync actor that prints all messages it receives.
-fn print_actor<RT>(mut ctx: SyncContext<&'static str, RT>) {
+fn print_actor(mut ctx: SyncContext<&'static str, rt::Sync>) {
     loop {
         // Start timing of receiving a message.
         let timing = ctx.start_trace();
