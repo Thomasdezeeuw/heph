@@ -72,19 +72,14 @@
 //! facilities.
 
 #![feature(
-    array_methods,
     async_iterator,
-    binary_heap_retain,
-    const_option,
     doc_auto_cfg,
-    doc_cfg,
     doc_cfg_hide,
     drain_filter,
     generic_associated_types,
     io_slice_advance,
     is_sorted,
     maybe_uninit_array_assume_init,
-    maybe_uninit_slice,
     maybe_uninit_uninit_array,
     never_type,
     new_uninit,
