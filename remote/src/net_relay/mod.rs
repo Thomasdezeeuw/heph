@@ -16,7 +16,7 @@
 //! When sending large messages or streaming large amounts of data you should
 //! consider setting up a [`TcpStream`] instead.
 //!
-//! [`TcpStream`]: heph::net::TcpStream
+//! [`TcpStream`]: heph_rt::net::TcpStream
 //!
 //! # Examples
 //!
@@ -27,9 +27,9 @@
 //!
 //! use std::net::SocketAddr;
 //!
-//! use heph::rt::{self, Runtime};
 //! use heph::supervisor::NoSupervisor;
 //! use heph::{actor, restart_supervisor, ActorOptions, ActorRef};
+//! use heph_rt::rt::{self, Runtime};
 //! use heph_remote::net_relay::{self, Relay, UdpRelayMessage};
 //!
 //! # fn main() -> Result<(), rt::Error> {
@@ -92,7 +92,7 @@ use std::net::SocketAddr;
 use std::{fmt, io};
 
 use heph::actor::{self, Actor, NewActor};
-use heph::rt;
+use heph_rt::rt;
 use serde::de::{self, Deserialize, DeserializeOwned, Deserializer, MapAccess, Visitor};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 
@@ -119,7 +119,7 @@ pub use udp::UdpRelayMessage;
 /// Note that "reliable" here refers to the connection type, no guarantees are
 /// provided about message delivery.
 ///
-/// [TCP]: heph::net::tcp
+/// [TCP]: heph_rt::net::tcp
 #[allow(missing_debug_implementations)]
 #[allow(clippy::empty_enum)]
 pub enum Tcp {}
@@ -130,7 +130,7 @@ pub enum Tcp {}
 /// For connections outside datacentre or local networks [`Tcp`] might be more,
 /// well, reliable.
 ///
-/// [UDP]: heph::net::udp
+/// [UDP]: heph_rt::net::udp
 ///
 /// # Notes
 ///

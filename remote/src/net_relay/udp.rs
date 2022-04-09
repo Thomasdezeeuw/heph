@@ -6,9 +6,9 @@ use std::net::SocketAddr;
 
 use heph::actor::messages::Terminate;
 use heph::actor::{self, NoMessages};
-use heph::net::UdpSocket;
-use heph::rt::{self, Signal};
 use heph::util::either;
+use heph_rt::net::UdpSocket;
+use heph_rt::rt::{self, Signal};
 use log::warn;
 use serde::de::DeserializeOwned;
 use serde::ser::Serialize;

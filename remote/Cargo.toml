@@ -9,7 +9,8 @@ default = ["json"]
 json    = ["serde_json"]
 
 [dependencies]
-heph       = { version = "0.3.0", path = "../", default-features = false, features = ["runtime"] }
+heph       = { version = "0.3.1", default-features = false, path = "../" }
+heph-rt    = { version = "0.1.0", default-features = false, path = "../rt" }
 log        = { version = "0.4.14", default-features = false }
 serde      = { version = "1.0.130", default-features = false }
 getrandom  = { version = "0.2.3", default-features = false }
@@ -18,6 +19,6 @@ getrandom  = { version = "0.2.3", default-features = false }
 # Required by the `json` feature.
 serde_json = { version = "1.0.72", default-features = false, features = ["std"], optional = true }
 
-[dev-dependencies.heph]
-path     = "../"
+[dev-dependencies.heph-rt]
+path     = "../rt"
 features = ["test"]
