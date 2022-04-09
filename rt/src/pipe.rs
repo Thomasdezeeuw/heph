@@ -59,7 +59,7 @@
 //! Spawn a process using a pipe for standard in, out and error of the spawned
 //! process.
 //!
-//! ```
+//! ```ignore
 //! # #![feature(never_type)]
 //! use std::io;
 //! use std::process::{Command, Stdio};
