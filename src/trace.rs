@@ -252,7 +252,8 @@ pub(crate) struct SharedLog {
 
 /// Trace log.
 #[derive(Debug)]
-pub(crate) struct Log {
+#[doc(hidden)] // Not part of the stable API.
+pub struct Log {
     /// Data shared between [`CoordinatorLog`] and mulitple [`Log`]s.
     shared: Arc<SharedLog>,
     /// Id of the stream, used in writing events.

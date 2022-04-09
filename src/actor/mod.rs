@@ -150,8 +150,8 @@ mod tests;
 pub use context::{Context, NoMessages, ReceiveMessage, RecvError};
 #[doc(inline)]
 pub use future::ActorFuture;
-#[cfg(all(any(test, feature = "test"), feature = "runtime"))]
-pub(crate) use sync::SyncWaker;
+#[doc(hidden)] // Not part of the stable API.
+pub use sync::SyncWaker;
 #[doc(inline)]
 pub use sync::{spawn_sync_actor, SyncActor, SyncContext};
 
@@ -604,7 +604,8 @@ mod private {
 /// Returns the name for actors of type `A`.
 ///
 /// This is the default implementation of [`NewActor::name`].
-pub(crate) fn name<A>() -> &'static str {
+#[doc(hidden)] // Not part of the stable API.
+pub fn name<A>() -> &'static str {
     format_name(type_name::<A>())
 }
 
