@@ -206,7 +206,8 @@ impl SyncActorOptions {
     }
 
     /// Removes the name.
-    pub(crate) fn take_name(self) -> Option<String> {
+    #[doc(hidden)] // Not part of the stable API.
+    pub fn take_name(self) -> Option<String> {
         self.thread_name
     }
 

@@ -6,7 +6,6 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
 use std::thread::{self, Thread};
-#[cfg(all(any(test, feature = "test"), feature = "runtime"))]
 use std::time::{Duration, Instant};
 
 use heph_inbox::Receiver;
@@ -156,7 +155,8 @@ pub struct SyncContext<M> {
 
 impl<M> SyncContext<M> {
     /// Create a new `SyncContext`.
-    pub(crate) const fn new(
+    #[doc(hidden)] // Not part of the stable API.
+    pub const fn new(
         inbox: Receiver<M>,
         #[cfg(feature = "runtime")] trace_log: Option<trace::Log>,
     ) -> SyncContext<M> {
@@ -280,7 +280,8 @@ impl<M> Trace for SyncContext<M> {
 // TODO: a `Thread` is already wrapped in an `Arc`, which mean we're double
 // `Arc`ing for the `Waker` implementation, try to remove that.
 #[derive(Debug)]
-pub(crate) struct SyncWaker {
+#[doc(hidden)] // Not part of the stable API.
+pub struct SyncWaker {
     handle: Thread,
 }
 
@@ -296,7 +297,8 @@ impl task::Wake for SyncWaker {
 
 impl SyncWaker {
     /// Create a new `SyncWaker`.
-    pub(crate) fn new() -> Arc<SyncWaker> {
+    #[doc(hidden)] // Not part of the stable API.
+    pub fn new() -> Arc<SyncWaker> {
         Arc::new(SyncWaker {
             handle: thread::current(),
         })
@@ -304,7 +306,8 @@ impl SyncWaker {
 
     /// Poll the `future` until completion, blocking when it can't make
     /// progress.
-    pub(crate) fn block_on<Fut>(self: Arc<SyncWaker>, future: Fut) -> Fut::Output
+    #[doc(hidden)] // Not part of the stable API.
+    pub fn block_on<Fut>(self: Arc<SyncWaker>, future: Fut) -> Fut::Output
     where
         Fut: Future,
     {
@@ -325,8 +328,8 @@ impl SyncWaker {
 
     /// Poll the `future` until completion, blocking when it can't make
     /// progress, waiting up to `timeout` time.
-    #[cfg(all(any(test, feature = "test"), feature = "runtime"))]
-    pub(crate) fn block_for<Fut>(
+    #[doc(hidden)] // Not part of the stable API.
+    pub fn block_for<Fut>(
         self: Arc<SyncWaker>,
         future: Fut,
         timeout: Duration,

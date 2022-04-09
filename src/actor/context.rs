@@ -40,7 +40,8 @@ pub struct Context<M, RT> {
 
 impl<M, RT> Context<M, RT> {
     /// Create a new `actor::Context`.
-    pub(crate) const fn new(inbox: Receiver<M>, rt: RT) -> Context<M, RT> {
+    #[doc(hidden)] // Not part of the stable API.
+    pub const fn new(inbox: Receiver<M>, rt: RT) -> Context<M, RT> {
         Context { inbox, rt }
     }
 
@@ -137,19 +138,19 @@ impl<M, RT> Context<M, RT> {
         ActorRef::local(self.inbox.new_sender())
     }
 
-    /// Get access to the runtime this actor is running in.
+    /// Get mutable access to the runtime this actor is running in.
     pub fn runtime(&mut self) -> &mut RT {
         &mut self.rt
     }
 
-    #[cfg(feature = "runtime")]
-    pub(crate) const fn runtime_ref(&self) -> &RT {
+    /// Get access to the runtime this actor is running in.
+    pub const fn runtime_ref(&self) -> &RT {
         &self.rt
     }
 
     /// Sets the waker of the inbox to `waker`.
-    #[cfg(feature = "runtime")]
-    pub(crate) fn register_inbox_waker(&mut self, waker: &task::Waker) {
+    #[doc(hidden)] // Not part of the stable API.
+    pub fn register_inbox_waker(&mut self, waker: &task::Waker) {
         let _ = self.inbox.register_waker(waker);
     }
 }

@@ -6,7 +6,8 @@ use crate::supervisor::Supervisor;
 
 pub mod options;
 
-pub(crate) use private::{AddActorError, PrivateSpawn};
+#[doc(hidden)] // Not part of the stable API.
+pub use private::{AddActorError, PrivateSpawn};
 
 #[doc(no_inline)]
 pub use options::{ActorOptions, FutureOptions, SyncActorOptions};
