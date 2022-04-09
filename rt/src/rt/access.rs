@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, io, task};
 
-use heph::actor::{self, NewActor};
+use heph::actor::{self, NewActor, SyncContext};
 use heph::actor_ref::ActorRef;
 use heph::spawn::{ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn};
 use heph::supervisor::Supervisor;
@@ -208,18 +208,18 @@ where
 
 impl<S, NA> Spawn<S, NA, ThreadSafe> for ThreadLocal
 where
-    S: Supervisor<NA> + Send + Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
-    NA::Actor: Send + Sync + 'static,
+    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
+    NA::Actor: Send + std::marker::Sync + 'static,
     NA::Message: Send,
 {
 }
 
 impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for ThreadLocal
 where
-    S: Supervisor<NA> + Send + Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
-    NA::Actor: Send + Sync + 'static,
+    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
+    NA::Actor: Send + std::marker::Sync + 'static,
     NA::Message: Send,
 {
     fn try_spawn_setup<ArgFn, E>(
@@ -270,7 +270,7 @@ impl ThreadSafe {
     /// See [`RuntimeRef::spawn_future`] for more documentation.
     pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
-        Fut: Future<Output = ()> + Send + Sync + 'static,
+        Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
         self.rt.spawn_future(future, options)
     }
@@ -338,18 +338,18 @@ impl PrivateAccess for ThreadSafe {
 
 impl<S, NA> Spawn<S, NA, ThreadSafe> for ThreadSafe
 where
-    S: Supervisor<NA> + Send + Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
-    NA::Actor: Send + Sync + 'static,
+    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
+    NA::Actor: Send + std::marker::Sync + 'static,
     NA::Message: Send,
 {
 }
 
 impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for ThreadSafe
 where
-    S: Supervisor<NA> + Send + Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
-    NA::Actor: Send + Sync + 'static,
+    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
+    NA::Actor: Send + std::marker::Sync + 'static,
     NA::Message: Send,
 {
     fn try_spawn_setup<ArgFn, E>(
@@ -387,5 +387,96 @@ where
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
         self.runtime().finish_trace(timing, description, attributes)
+    }
+}
+
+/// Provides access to the thread-safe parts of the runtime for synchronous
+/// actors.
+///
+/// This implements the [`Access`] trait, which is required by various APIs to
+/// get access to the runtime.
+///
+/// This is usually a part of the [`actor::Context`], see it for more
+/// information.
+///
+/// [`actor::Context`]: heph::actor::Context
+#[derive(Clone)]
+pub struct Sync {
+    rt: Arc<shared::RuntimeInternals>,
+    trace_log: Option<trace::Log>,
+}
+
+impl Sync {
+    pub(crate) const fn new(
+        rt: Arc<shared::RuntimeInternals>,
+        trace_log: Option<trace::Log>,
+    ) -> Sync {
+        Sync { rt, trace_log }
+    }
+
+    /// Spawn a thread-safe [`Future`].
+    ///
+    /// See [`RuntimeRef::spawn_future`] for more documentation.
+    pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
+    where
+        Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
+    {
+        self.rt.spawn_future(future, options)
+    }
+}
+
+impl<S, NA> Spawn<S, NA, ThreadSafe> for Sync
+where
+    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
+    NA::Actor: Send + std::marker::Sync + 'static,
+    NA::Message: Send,
+{
+}
+
+impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for Sync
+where
+    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
+    NA::Actor: Send + std::marker::Sync + 'static,
+    NA::Message: Send,
+{
+    fn try_spawn_setup<ArgFn, E>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg_fn: ArgFn,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
+    where
+        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, E>,
+    {
+        self.rt.spawn_setup(supervisor, new_actor, arg_fn, options)
+    }
+}
+
+impl fmt::Debug for Sync {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Sync")
+    }
+}
+
+impl<M> Trace for SyncContext<M, Sync> {
+    fn start_trace(&self) -> Option<trace::EventTiming> {
+        trace::start(&self.runtime_ref().trace_log)
+    }
+
+    fn finish_trace(
+        &mut self,
+        timing: Option<trace::EventTiming>,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    ) {
+        trace::finish_rt(
+            self.runtime().trace_log.as_mut(),
+            timing,
+            description,
+            attributes,
+        )
     }
 }

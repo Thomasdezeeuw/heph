@@ -11,6 +11,7 @@
 //! [coordinator]: crate::rt::coordinator
 
 use std::io::{self, Write};
+use std::sync::Arc;
 use std::thread;
 
 use heph::actor::{SyncActor, SyncContext};
@@ -21,6 +22,7 @@ use heph_inbox::{self as inbox, ReceiverConnected};
 use log::trace;
 use mio::{unix, Interest, Registry, Token};
 
+use crate::rt::{self, shared};
 use crate::trace;
 
 /// Handle to a synchronous worker.
@@ -41,12 +43,13 @@ impl SyncWorker {
         supervisor: S,
         actor: A,
         arg: A::Argument,
-        options: SyncActorOptions,
+        options: SyncActorOptions<()>,
+        rt: Arc<shared::RuntimeInternals>,
         trace_log: Option<trace::Log>,
     ) -> io::Result<(SyncWorker, ActorRef<A::Message>)>
     where
         S: SyncSupervisor<A> + Send + 'static,
-        A: SyncActor + Send + 'static,
+        A: SyncActor<RuntimeAccess = rt::Sync> + Send + 'static,
         A::Message: Send + 'static,
         A::Argument: Send + 'static,
     {
@@ -58,7 +61,7 @@ impl SyncWorker {
                 .unwrap_or_else(|| format!("Sync actor {}", id));
             thread::Builder::new()
                 .name(thread_name)
-                .spawn(move || main(id, supervisor, actor, arg, manager, receiver, trace_log))
+                .spawn(move || main(id, supervisor, actor, arg, manager, receiver, rt, trace_log))
                 .map(|handle| (SyncWorker { id, handle, sender }, actor_ref))
         })
     }
@@ -105,10 +108,11 @@ fn main<S, A>(
     mut arg: A::Argument,
     inbox: inbox::Manager<A::Message>,
     receiver: unix::pipe::Receiver,
+    rt: Arc<shared::RuntimeInternals>,
     mut trace_log: Option<trace::Log>,
 ) where
     S: SyncSupervisor<A> + 'static,
-    A: SyncActor,
+    A: SyncActor<RuntimeAccess = rt::Sync>,
 {
     let thread = thread::current();
     let name = thread.name().unwrap();
@@ -116,9 +120,8 @@ fn main<S, A>(
     loop {
         let timing = trace::start(&trace_log);
         let receiver = inbox.new_receiver().unwrap_or_else(inbox_failure);
-        // FIXME: add trace_log
-        //let ctx = SyncContext::new(receiver, trace_log.clone());
-        let ctx = SyncContext::new(receiver);
+        let rt = rt::Sync::new(rt.clone(), trace_log.clone());
+        let ctx = SyncContext::new(receiver, rt);
         trace::finish_rt(
             trace_log.as_mut(),
             timing,
@@ -165,6 +168,7 @@ fn main<S, A>(
     drop(actor);
     drop(supervisor);
     drop(inbox);
+    drop(rt);
     drop(trace_log);
     // After dropping all values let the coordinator know we're done.
     drop(receiver);

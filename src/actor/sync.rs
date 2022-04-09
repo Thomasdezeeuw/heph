@@ -68,8 +68,18 @@ pub trait SyncActor {
     /// [supervisor]: crate::supervisor
     type Error;
 
+    /// The kind of runtime access needed by the actor.
+    ///
+    /// The runtime is accessible via the actor's context. See
+    /// [`SyncContext`] for more information.
+    type RuntimeAccess;
+
     /// Run the synchronous actor.
-    fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error>;
+    fn run(
+        &self,
+        ctx: SyncContext<Self::Message, Self::RuntimeAccess>,
+        arg: Self::Argument,
+    ) -> Result<(), Self::Error>;
 }
 
 /// Macro to implement the [`SyncActor`] trait on function pointers.
@@ -79,25 +89,27 @@ macro_rules! impl_sync_actor {
         $(,)*
     ) => {
         $(
-            impl<M, E, $( $arg ),*> SyncActor for fn(ctx: SyncContext<M>, $( $arg_name: $arg ),*) -> Result<(), E> {
+            impl<M, E, RT, $( $arg ),*> SyncActor for fn(ctx: SyncContext<M, RT>, $( $arg_name: $arg ),*) -> Result<(), E> {
                 type Message = M;
                 type Argument = ($( $arg ),*);
                 type Error = E;
+                type RuntimeAccess = RT;
 
                 #[allow(non_snake_case)]
-                fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
+                fn run(&self, ctx: SyncContext<Self::Message, Self::RuntimeAccess>, arg: Self::Argument) -> Result<(), Self::Error> {
                     let ($( $arg ),*) = arg;
                     (self)(ctx, $( $arg ),*)
                 }
             }
 
-            impl<M, $( $arg ),*> SyncActor for fn(ctx: SyncContext<M>, $( $arg_name: $arg ),*) {
+            impl<M, RT, $( $arg ),*> SyncActor for fn(ctx: SyncContext<M, RT>, $( $arg_name: $arg ),*) {
                 type Message = M;
                 type Argument = ($( $arg ),*);
                 type Error = !;
+                type RuntimeAccess = RT;
 
                 #[allow(non_snake_case)]
-                fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
+                fn run(&self, ctx: SyncContext<Self::Message, Self::RuntimeAccess>, arg: Self::Argument) -> Result<(), Self::Error> {
                     let ($( $arg ),*) = arg;
                     Ok((self)(ctx, $( $arg ),*))
                 }
@@ -108,22 +120,32 @@ macro_rules! impl_sync_actor {
 
 impl_sync_actor!(());
 
-impl<M, E, Arg> SyncActor for fn(ctx: SyncContext<M>, arg: Arg) -> Result<(), E> {
+impl<M, E, RT, Arg> SyncActor for fn(ctx: SyncContext<M, RT>, arg: Arg) -> Result<(), E> {
     type Message = M;
     type Argument = Arg;
     type Error = E;
+    type RuntimeAccess = RT;
 
-    fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
+    fn run(
+        &self,
+        ctx: SyncContext<Self::Message, Self::RuntimeAccess>,
+        arg: Self::Argument,
+    ) -> Result<(), Self::Error> {
         (self)(ctx, arg)
     }
 }
 
-impl<M, Arg> SyncActor for fn(ctx: SyncContext<M>, arg: Arg) {
+impl<M, RT, Arg> SyncActor for fn(ctx: SyncContext<M, RT>, arg: Arg) {
     type Message = M;
     type Argument = Arg;
     type Error = !;
+    type RuntimeAccess = RT;
 
-    fn run(&self, ctx: SyncContext<Self::Message>, arg: Self::Argument) -> Result<(), Self::Error> {
+    fn run(
+        &self,
+        ctx: SyncContext<Self::Message, Self::RuntimeAccess>,
+        arg: Self::Argument,
+    ) -> Result<(), Self::Error> {
         #[allow(clippy::unit_arg)]
         Ok((self)(ctx, arg))
     }
@@ -143,18 +165,21 @@ impl_sync_actor!(
 /// This context can be used for a number of things including receiving
 /// messages.
 #[derive(Debug)]
-pub struct SyncContext<M> {
+pub struct SyncContext<M, RT> {
     inbox: Receiver<M>,
     future_waker: Option<Arc<SyncWaker>>,
+    /// Runtime access.
+    rt: RT,
 }
 
-impl<M> SyncContext<M> {
+impl<M, RT> SyncContext<M, RT> {
     /// Create a new `SyncContext`.
     #[doc(hidden)] // Not part of the stable API.
-    pub const fn new(inbox: Receiver<M>) -> SyncContext<M> {
+    pub const fn new(inbox: Receiver<M>, rt: RT) -> SyncContext<M, RT> {
         SyncContext {
             inbox,
             future_waker: None,
+            rt,
         }
     }
 
@@ -233,6 +258,16 @@ impl<M> SyncContext<M> {
     {
         let waker = self.future_waker();
         waker.block_on(fut)
+    }
+
+    /// Get mutable access to the runtime this actor is running in.
+    pub fn runtime(&mut self) -> &mut RT {
+        &mut self.rt
+    }
+
+    /// Get access to the runtime this actor is running in.
+    pub const fn runtime_ref(&self) -> &RT {
+        &self.rt
     }
 
     /// Returns the [`SyncWaker`] used as [`task::Waker`] in futures.
@@ -334,17 +369,18 @@ impl SyncWaker {
 }
 
 /// Spawn a synchronous actor.
-pub fn spawn_sync_actor<S, A>(
+pub fn spawn_sync_actor<S, A, RT>(
     supervisor: S,
     actor: A,
     arg: A::Argument,
-    options: SyncActorOptions,
+    options: SyncActorOptions<RT>,
 ) -> io::Result<(thread::JoinHandle<()>, ActorRef<A::Message>)>
 where
     S: SyncSupervisor<A> + Send + 'static,
-    A: SyncActor + Send + 'static,
+    A: SyncActor<RuntimeAccess = RT> + Send + 'static,
     A::Message: Send + 'static,
     A::Argument: Send + 'static,
+    RT: Clone + Send + 'static,
 {
     let (inbox, sender, ..) = heph_inbox::Manager::new_small_channel();
     let actor_ref = ActorRef::local(sender);
@@ -353,12 +389,11 @@ where
         actor,
         inbox,
     };
-    let thread_name = options
-        .take_name()
-        .unwrap_or_else(|| "Sync actor".to_owned());
+    let SyncActorOptions { thread_name, rt } = options;
+    let thread_name = thread_name.unwrap_or_else(|| "Sync actor".to_owned());
     thread::Builder::new()
         .name(thread_name)
-        .spawn(move || sync_worker.run(arg))
+        .spawn(move || sync_worker.run(arg, rt))
         .map(|handle| (handle, actor_ref))
 }
 
@@ -374,15 +409,16 @@ impl<S, A> SyncWorker<S, A>
 where
     S: SyncSupervisor<A>,
     A: SyncActor,
+    A::RuntimeAccess: Clone,
 {
     /// Run a synchronous actor worker thread.
-    fn run(mut self, mut arg: A::Argument) {
+    fn run(mut self, mut arg: A::Argument, rt: A::RuntimeAccess) {
         let thread = thread::current();
         let name = thread.name().unwrap();
         trace!(name = name; "running synchronous actor");
         loop {
             let receiver = self.inbox.new_receiver().unwrap_or_else(inbox_failure);
-            let ctx = SyncContext::new(receiver);
+            let ctx = SyncContext::new(receiver, rt.clone());
             match self.actor.run(ctx, arg) {
                 Ok(()) => break,
                 Err(err) => match self.supervisor.decide(err) {

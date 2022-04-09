@@ -253,7 +253,7 @@ pub(crate) struct SharedLog {
 /// Trace log.
 #[derive(Debug)]
 pub(crate) struct Log {
-    /// Data shared between [`CoordinatorLog`] and mulitple [`Log`]s.
+    /// Data shared between [`CoordinatorLog`] and multiple [`Log`]s.
     shared: Arc<SharedLog>,
     /// Id of the stream, used in writing events.
     /// **Immutable**.

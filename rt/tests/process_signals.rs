@@ -7,7 +7,7 @@ use std::sync::Arc;
 use heph::actor::{self, SyncContext};
 use heph::spawn::options::{ActorOptions, SyncActorOptions};
 use heph::supervisor::NoSupervisor;
-use heph_rt::rt::{Runtime, Signal};
+use heph_rt::rt::{self, Runtime, Signal};
 use mio_signals::send_signal;
 
 fn main() {
@@ -88,7 +88,7 @@ async fn actor<RT>(mut ctx: actor::Context<Signal, RT>, got_signal: Arc<AtomicUs
     got_signal.fetch_add(1, Ordering::SeqCst);
 }
 
-fn sync_actor(mut ctx: SyncContext<Signal>, got_signal: Arc<AtomicUsize>) {
+fn sync_actor(mut ctx: SyncContext<Signal, rt::Sync>, got_signal: Arc<AtomicUsize>) {
     let _msg = ctx.receive_next().unwrap();
     got_signal.fetch_add(1, Ordering::SeqCst);
 }

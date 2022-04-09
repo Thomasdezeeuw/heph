@@ -191,13 +191,23 @@ fn priority_duration_multiplication() {
 /// let opts = SyncActorOptions::default().with_name("My sync actor".to_owned());
 /// # drop(opts); // Silence unused variable warning.
 /// ```
-#[derive(Debug, Default)]
+#[derive(Debug)]
 #[must_use]
-pub struct SyncActorOptions {
-    thread_name: Option<String>,
+pub struct SyncActorOptions<RT> {
+    pub(crate) thread_name: Option<String>,
+    pub(crate) rt: RT,
 }
 
-impl SyncActorOptions {
+impl Default for SyncActorOptions<()> {
+    fn default() -> SyncActorOptions<()> {
+        SyncActorOptions {
+            thread_name: None,
+            rt: (),
+        }
+    }
+}
+
+impl<RT> SyncActorOptions<RT> {
     /// Returns the name of the synchronous actor, if any.
     pub fn name(&self) -> Option<&str> {
         self.thread_name.as_deref()
@@ -216,6 +226,16 @@ impl SyncActorOptions {
     pub fn with_name(mut self, thread_name: String) -> Self {
         self.thread_name = Some(thread_name);
         self
+    }
+
+    /// Add a runtime handle to the [`SyncContext`].
+    ///
+    /// [`SyncContext`]: crate::actor::SyncContext
+    pub fn with_rt<R>(self, rt: R) -> SyncActorOptions<R> {
+        SyncActorOptions {
+            thread_name: self.thread_name,
+            rt,
+        }
     }
 }
 
