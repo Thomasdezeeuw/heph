@@ -58,5 +58,5 @@ where
 }
 
 fn name<Fut>() -> &'static str {
-    crate::actor::name::<Fut>()
+    heph::actor::name::<Fut>()
 }

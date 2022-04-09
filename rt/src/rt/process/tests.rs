@@ -9,15 +9,15 @@ use std::sync::Arc;
 use std::thread::sleep;
 use std::time::Duration;
 
+use heph::actor::{self, Actor, NewActor};
+use heph::spawn::options::Priority;
+use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use mio::Token;
 
-use crate::actor::{self, Actor, NewActor};
 use crate::rt::process::{
     ActorProcess, FutureProcess, Process, ProcessData, ProcessId, ProcessResult,
 };
 use crate::rt::{RuntimeRef, ThreadLocal, ThreadSafe};
-use crate::spawn::options::Priority;
-use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use crate::test::{self, init_local_actor_with_inbox, AssertUnmoved, TEST_PID};
 
 #[test]

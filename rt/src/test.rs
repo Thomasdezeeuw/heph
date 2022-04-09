@@ -58,14 +58,13 @@ use std::time::{Duration, Instant};
 use std::{fmt, slice};
 use std::{io, thread};
 
-use getrandom::getrandom;
+use heph::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
+use heph::actor_ref::{ActorGroup, ActorRef};
+use heph::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
+use heph::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
 use heph_inbox::oneshot::new_oneshot;
 use heph_inbox::Manager;
-use log::warn;
 
-use crate::actor::{self, Actor, NewActor};
-use crate::actor::{SyncActor, SyncWaker};
-use crate::actor_ref::{ActorGroup, ActorRef};
 use crate::rt::shared::waker;
 use crate::rt::sync_worker::SyncWorker;
 use crate::rt::thread_waker::ThreadWaker;
@@ -74,9 +73,6 @@ use crate::rt::{
     self, shared, ProcessId, RuntimeRef, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
-use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
-use crate::supervisor::SyncSupervisor;
-use crate::supervisor::{Supervisor, SupervisorStrategy};
 
 pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 
@@ -203,7 +199,7 @@ where
 /// actors.
 ///
 /// [module documentation]: crate::test
-/// [`Spawn`]: crate::spawn::Spawn
+/// [`Spawn`]: heph::spawn::Spawn
 ///
 /// # Notes
 ///
@@ -236,7 +232,7 @@ where
 /// actors.
 ///
 /// [module documentation]: crate::test
-/// [`Spawn`]: crate::spawn::Spawn
+/// [`Spawn`]: heph::spawn::Spawn
 ///
 /// # Notes
 ///
@@ -512,25 +508,6 @@ pub fn set_message_loss(mut percent: u8) {
     MSG_LOSS.store(percent, Ordering::SeqCst)
 }
 
-/// Returns `true` if the message should be lost.
-pub(crate) fn should_lose_msg() -> bool {
-    // Safety: `Relaxed` is fine here as we'll get the update, sending a message
-    // when we're not supposed to isn't too bad.
-    let loss = MSG_LOSS.load(Ordering::Relaxed);
-    loss != 0 || random_percentage() < loss
-}
-
-/// Returns a number between [0, 100].
-fn random_percentage() -> u8 {
-    let mut p = 0;
-    if let Err(err) = getrandom(slice::from_mut(&mut p)) {
-        warn!("error getting random bytes: {}", err);
-        100
-    } else {
-        p % 100
-    }
-}
-
 /// Returns the size of the actor.
 ///
 /// When using asynchronous function for actors see [`size_of_actor_val`].
@@ -546,7 +523,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use heph_rt::actor;
+/// use heph::actor;
 /// use heph_rt::test::size_of_actor_val;
 /// use heph_rt::rt::ThreadLocal;
 ///

@@ -11,7 +11,7 @@
 //! asynchronous function looks like this:
 //!
 //! ```
-//! # use heph_rt::actor;
+//! # use heph::actor;
 //! # use heph_rt::rt::ThreadLocal;
 //! #
 //! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
@@ -138,16 +138,12 @@ macro_rules! try_io {
     };
 }
 
-pub mod actor;
-pub mod actor_ref;
 pub mod bytes;
 pub mod log;
 pub mod net;
 pub mod pipe;
 pub mod quick_start;
 pub mod rt;
-pub mod spawn;
-pub mod supervisor;
 #[cfg(target_os = "linux")]
 pub mod systemd;
 #[cfg(any(test, feature = "test"))]
@@ -158,12 +154,4 @@ pub mod trace;
 pub mod util;
 
 #[doc(no_inline)]
-pub use actor::{Actor, NewActor};
-#[doc(no_inline)]
-pub use actor_ref::ActorRef;
-#[doc(no_inline)]
 pub use rt::{Runtime, RuntimeRef};
-#[doc(no_inline)]
-pub use spawn::{ActorOptions, Spawn, SyncActorOptions};
-#[doc(no_inline)]
-pub use supervisor::{Supervisor, SupervisorStrategy};

@@ -2,11 +2,11 @@
 
 use std::fmt;
 
-use heph_rt::actor;
-use heph_rt::actor_ref::{ActorRef, RpcMessage};
+use heph::actor;
+use heph::actor_ref::{ActorRef, RpcMessage};
+use heph::spawn::ActorOptions;
+use heph::supervisor::NoSupervisor;
 use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
-use heph_rt::spawn::ActorOptions;
-use heph_rt::supervisor::NoSupervisor;
 
 fn main() -> Result<(), rt::Error> {
     // Setup is much like example 1, see that example for more information.

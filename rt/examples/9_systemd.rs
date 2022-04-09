@@ -3,11 +3,11 @@
 use std::net::{Ipv4Addr, SocketAddr};
 use std::{env, io};
 
+use heph::spawn::options::{ActorOptions, Priority};
+use heph::supervisor::StopSupervisor;
+use heph::{actor, restart_supervisor};
 use heph_rt::net::{TcpServer, TcpStream};
 use heph_rt::rt::{self, Runtime, ThreadLocal};
-use heph_rt::spawn::options::{ActorOptions, Priority};
-use heph_rt::supervisor::StopSupervisor;
-use heph_rt::{actor, restart_supervisor};
 use log::info;
 
 fn main() -> Result<(), rt::Error> {

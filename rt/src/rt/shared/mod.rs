@@ -9,17 +9,17 @@ use std::sync::{Arc, Mutex, TryLockError};
 use std::time::{Duration, Instant};
 use std::{io, task};
 
+use heph::actor::{self, NewActor};
+use heph::actor_ref::ActorRef;
+use heph::spawn::{ActorOptions, AddActorError, FutureOptions};
+use heph::supervisor::Supervisor;
 use heph_inbox as inbox;
 use log::{debug, error, trace};
 use mio::unix::SourceFd;
 use mio::{event, Events, Interest, Poll, Registry, Token};
 
-use crate::actor::{self, NewActor};
-use crate::actor_ref::ActorRef;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::{ProcessId, ThreadSafe};
-use crate::spawn::{ActorOptions, AddActorError, FutureOptions};
-use crate::supervisor::Supervisor;
 use crate::trace;
 
 mod scheduler;

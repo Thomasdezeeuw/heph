@@ -8,7 +8,7 @@
 use std::pin::Pin;
 use std::task::Poll;
 
-use heph_rt::actor::{self, NoMessages};
+use heph::actor::{self, NoMessages};
 use heph_rt::rt::ThreadLocal;
 use heph_rt::test::{init_local_actor, poll_actor, set_message_loss};
 

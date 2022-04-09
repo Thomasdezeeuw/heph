@@ -7,10 +7,10 @@
 
 use log::info;
 
-use heph_rt::actor;
+use heph::actor;
+use heph::spawn::ActorOptions;
+use heph::supervisor::NoSupervisor;
 use heph_rt::rt::{self, Runtime, ThreadLocal};
-use heph_rt::spawn::ActorOptions;
-use heph_rt::supervisor::NoSupervisor;
 
 fn main() -> Result<(), rt::Error> {
     std_logger::init();

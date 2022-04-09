@@ -1,6 +1,6 @@
 //! Tests for the [`Actor`] trait.
 
-use heph_rt::actor::{self, NewActor};
+use heph::actor::{self, NewActor};
 
 #[test]
 fn future_output_result() {

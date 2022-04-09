@@ -15,8 +15,8 @@
 //! Both the [`Sender`] and [`Receiver`] types are [bound] to an actor. See the
 //! [`actor::Bound`] trait for more information.
 //!
-//! [bound]: crate::actor::Bound
-//! [`actor::Bound`]: crate::actor::Bound
+//! [bound]: heph::actor::Bound
+//! [`actor::Bound`]: heph::actor::Bound
 //!
 //! # Examples
 //!
@@ -26,7 +26,8 @@
 //! # #![feature(never_type)]
 //! use std::io;
 //!
-//! use heph_rt::{actor, pipe, rt};
+//! use heph::actor;
+//! use heph_rt::{pipe, rt};
 //!
 //! const DATA: &[u8] = b"Hello, world!";
 //!
@@ -50,7 +51,7 @@
 //! #     heph_rt::test::PanicSupervisor,
 //! #     process_handler as fn(_) -> _,
 //! #     (),
-//! #     heph_rt::spawn::ActorOptions::default(),
+//! #     heph::spawn::ActorOptions::default(),
 //! # ).unwrap();
 //! # heph_rt::test::join(&actor_ref, std::time::Duration::from_secs(1)).unwrap();
 //! ```
@@ -63,7 +64,8 @@
 //! use std::io;
 //! use std::process::{Command, Stdio};
 //!
-//! use heph_rt::{actor, pipe, rt};
+//! use heph::actor;
+//! use heph_rt::{pipe, rt};
 //!
 //! const DATA: &[u8] = b"Hello, world!";
 //!
@@ -98,7 +100,7 @@
 //! #     heph_rt::test::PanicSupervisor,
 //! #     process_handler as fn(_) -> _,
 //! #     (),
-//! #     heph_rt::spawn::ActorOptions::default(),
+//! #     heph::spawn::ActorOptions::default(),
 //! # ).unwrap();
 //! # heph_rt::test::join(&actor_ref, std::time::Duration::from_secs(1)).unwrap();
 //! ```
@@ -110,11 +112,12 @@ use std::pin::Pin;
 use std::process::{ChildStderr, ChildStdin, ChildStdout};
 use std::task::{self, Poll};
 
+use heph::actor;
 use mio::unix::pipe;
 use mio::Interest;
 
 use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
-use crate::{actor, rt};
+use crate::rt;
 
 /// Create a new Unix pipe.
 ///

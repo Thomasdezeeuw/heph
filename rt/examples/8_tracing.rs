@@ -5,11 +5,12 @@ use std::time::Duration;
 
 use log::warn;
 
-use heph_rt::actor::{self, SyncContext};
-use heph_rt::actor_ref::{ActorRef, SendError};
+use heph::actor::{self, SyncContext};
+use heph::actor_ref::{ActorRef, SendError};
+use heph::spawn::{ActorOptions, SyncActorOptions};
+use heph::supervisor::{NoSupervisor, SupervisorStrategy};
+use heph::trace::Trace as TempTrace;
 use heph_rt::rt::{self, Runtime, RuntimeRef};
-use heph_rt::spawn::{ActorOptions, SyncActorOptions};
-use heph_rt::supervisor::{NoSupervisor, SupervisorStrategy};
 use heph_rt::trace::Trace;
 
 fn main() -> Result<(), rt::Error> {

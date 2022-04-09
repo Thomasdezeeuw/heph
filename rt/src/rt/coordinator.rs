@@ -21,12 +21,12 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, io, process};
 
+use heph::actor_ref::{ActorGroup, Delivery};
 use log::{as_debug, as_display, debug, error, info, trace};
 use mio::event::Event;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
-use crate::actor_ref::{ActorGroup, Delivery};
 use crate::rt::setup::{host_id, host_info, Uuid};
 use crate::rt::shared::waker;
 use crate::rt::thread_waker::ThreadWaker;

@@ -15,6 +15,7 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
+use heph::actor;
 #[cfg(target_os = "linux")]
 use log::warn;
 use mio::{net, Interest};
@@ -22,7 +23,7 @@ use socket2::{SockAddr, SockRef};
 
 use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
 use crate::net::convert_address;
-use crate::{actor, rt};
+use crate::rt;
 
 /// The unconnected mode of an [`UdpSocket`].
 #[allow(missing_debug_implementations)]
@@ -65,12 +66,12 @@ pub enum Connected {}
 ///
 /// use log::error;
 ///
-/// use heph_rt::actor::messages::Terminate;
+/// use heph::actor::messages::Terminate;
+/// use heph::spawn::ActorOptions;
+/// use heph::{actor, SupervisorStrategy};
 /// use heph_rt::net::UdpSocket;
 /// use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
-/// use heph_rt::spawn::ActorOptions;
 /// use heph_rt::util::either;
-/// use heph_rt::{actor, SupervisorStrategy};
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     std_logger::init();
@@ -150,7 +151,7 @@ impl UdpSocket {
     /// `actor::Context`, which means the actor will be run every time the
     /// socket is ready to be read from or write to.
     ///
-    /// [bound]: crate::actor::Bound
+    /// [bound]: heph::actor::Bound
     pub fn bind<M, RT>(
         ctx: &mut actor::Context<M, RT>,
         local: SocketAddr,

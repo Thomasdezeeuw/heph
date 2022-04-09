@@ -7,10 +7,11 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
+use heph::actor;
 use mio::{net, Interest};
 
 use crate::net::TcpStream;
-use crate::{actor, rt};
+use crate::rt;
 
 /// A TCP socket listener.
 ///
@@ -35,11 +36,11 @@ use crate::{actor, rt};
 ///
 /// use log::error;
 ///
-/// # use heph_rt::net::TcpStream;
+/// use heph::spawn::ActorOptions;
+/// use heph::{actor, SupervisorStrategy};
 /// use heph_rt::net::TcpListener;
+/// # use heph_rt::net::TcpStream;
 /// use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
-/// use heph_rt::spawn::ActorOptions;
-/// use heph_rt::{actor, SupervisorStrategy};
 /// use log::info;
 ///
 /// fn main() -> Result<(), rt::Error> {
@@ -101,12 +102,12 @@ use crate::{actor, rt};
 ///
 /// use log::{error, info};
 ///
-/// # use heph_rt::net::TcpStream;
+/// use heph::spawn::ActorOptions;
+/// use heph::{actor, SupervisorStrategy};
 /// use heph_rt::net::TcpListener;
+/// # use heph_rt::net::TcpStream;
 /// use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
-/// use heph_rt::spawn::ActorOptions;
 /// use heph_rt::util::next;
-/// use heph_rt::{actor, SupervisorStrategy};
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     std_logger::init();
@@ -177,7 +178,7 @@ impl TcpListener {
     /// `actor::Context`, which means the actor will be run every time the
     /// listener has a connection ready to be accepted.
     ///
-    /// [bound]: crate::actor::Bound
+    /// [bound]: heph::actor::Bound
     pub fn bind<M, RT>(
         ctx: &mut actor::Context<M, RT>,
         address: SocketAddr,

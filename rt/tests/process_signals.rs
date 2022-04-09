@@ -4,10 +4,10 @@ use std::process;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use heph_rt::actor::{self, SyncContext};
+use heph::actor::{self, SyncContext};
+use heph::spawn::options::{ActorOptions, SyncActorOptions};
+use heph::supervisor::NoSupervisor;
 use heph_rt::rt::{Runtime, Signal};
-use heph_rt::spawn::options::{ActorOptions, SyncActorOptions};
-use heph_rt::supervisor::NoSupervisor;
 use mio_signals::send_signal;
 
 fn main() {

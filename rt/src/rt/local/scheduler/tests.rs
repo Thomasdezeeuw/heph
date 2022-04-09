@@ -6,12 +6,13 @@ use std::mem;
 use std::pin::Pin;
 use std::rc::Rc;
 
-use crate::actor::{self, NewActor};
+use heph::actor::{self, NewActor};
+use heph::spawn::options::Priority;
+use heph::supervisor::NoSupervisor;
+
 use crate::rt::local::scheduler::{ProcessData, Scheduler};
 use crate::rt::process::{Process, ProcessId, ProcessResult};
 use crate::rt::{RuntimeRef, ThreadLocal};
-use crate::spawn::options::Priority;
-use crate::supervisor::NoSupervisor;
 use crate::test::{self, init_local_actor_with_inbox, AssertUnmoved};
 
 fn assert_size<T>(expected: usize) {

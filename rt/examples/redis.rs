@@ -11,11 +11,11 @@ use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use heph_rt::actor::{self, Actor, NewActor};
+use heph::actor::{self, Actor, NewActor};
+use heph::spawn::options::{ActorOptions, Priority};
+use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph_rt::net::{tcp, TcpServer, TcpStream};
 use heph_rt::rt::{self, Runtime};
-use heph_rt::spawn::options::{ActorOptions, Priority};
-use heph_rt::supervisor::{Supervisor, SupervisorStrategy};
 use heph_rt::timer::Deadline;
 use log::{error, info};
 use std_logger::request;

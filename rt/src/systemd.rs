@@ -18,16 +18,17 @@ use std::task::{self, Poll};
 use std::time::Duration;
 use std::{env, io, process};
 
+use heph::actor;
+use heph::actor::messages::Terminate;
 use log::{as_debug, debug, warn};
 use mio::net::UnixDatagram;
 use mio::Interest;
 use socket2::SockRef;
 
-use crate::actor::messages::Terminate;
+use crate::rt;
 use crate::rt::Signal;
 use crate::timer::Interval;
 use crate::util::{either, next};
-use crate::{actor, rt};
 
 /// Systemd notifier.
 ///

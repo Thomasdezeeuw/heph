@@ -681,10 +681,11 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
+    use heph::spawn::options::Priority;
+
     use crate::rt::process::{Process, ProcessId, ProcessResult};
     use crate::rt::shared::scheduler::RunQueue;
     use crate::rt::RuntimeRef;
-    use crate::spawn::options::Priority;
 
     use super::{
         as_pid, branch_from_tagged, diff_branch_depth, drop_tagged_pointer, is_branch, is_process,
