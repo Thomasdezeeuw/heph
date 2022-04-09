@@ -1,0 +1,57 @@
+[package]
+name          = "heph-rt"
+description   = "Heph-rt is a speciailised runtime for Heph's actor."
+version       = "0.1.0"
+authors       = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
+license       = "MIT"
+documentation = "https://docs.rs/heph-rt"
+repository    = "https://github.com/Thomasdezeeuw/heph"
+readme        = "README.md"
+keywords      = ["actor", "framework", "async", "functions", "runtime"]
+categories    = ["asynchronous"]
+include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
+edition       = "2018"
+
+[features]
+# Feature that enables the `test` module.
+test = ["getrandom"]
+
+[dependencies]
+heph              = { version = "0.3.1", default-features = false, path = "../" }
+heph-inbox        = { version = "0.2.1", default-features = false }
+log               = { version = "0.4.16", default-features = false, features = ["kv_unstable", "kv_unstable_std"] }
+crossbeam-channel = { version = "0.5.0", default-features = false, features = ["std"] }
+libc              = { version = "0.2.96", default-features = false }
+mio               = { version = "0.8.0", default-features = false, features = ["os-poll", "net"] }
+mio-signals       = { version = "0.2.0", default-features = false }
+socket2           = { version = "0.4.0", default-features = false, features = ["all"] }
+
+# Optional dependencies, enabled by features.
+# Required by the `test` feature.
+getrandom         = { version = "0.2.2", default-features = false, features = ["std"], optional = true }
+
+[dev-dependencies]
+getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
+# Enable logging panics via `std-logger`.
+std-logger        = { version = "0.4.0", default-features = false, features = ["log-panic", "nightly"] }
+
+[[test]]
+name    = "examples"
+
+[[test]]
+name    = "functional"
+required-features = ["test"]
+
+[[test]]
+name    = "message_loss"
+required-features = ["test"]
+
+[[test]]
+name    = "process_signals"
+# Require full control over the spawned threads.
+harness = false
+required-features = ["test"]
+
+[[test]]
+name    = "regression"
+required-features = ["test"]
