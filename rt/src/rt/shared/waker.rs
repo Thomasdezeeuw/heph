@@ -181,11 +181,12 @@ mod tests {
     use std::thread::{self, sleep};
     use std::time::Duration;
 
+    use heph::spawn::options::Priority;
+
     use crate::rt::process::{Process, ProcessData, ProcessId, ProcessResult};
     use crate::rt::shared::waker::{self, WakerData};
     use crate::rt::shared::{RuntimeInternals, Scheduler};
     use crate::rt::RuntimeRef;
-    use crate::spawn::options::Priority;
     use crate::test;
 
     const PID1: ProcessId = ProcessId(1);

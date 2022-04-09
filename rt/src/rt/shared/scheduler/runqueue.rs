@@ -125,9 +125,10 @@ mod tests {
     use std::pin::Pin;
     use std::time::Duration;
 
+    use heph::spawn::options::Priority;
+
     use crate::rt::process::{Process, ProcessId, ProcessResult};
     use crate::rt::RuntimeRef;
-    use crate::spawn::options::Priority;
 
     use super::{Node, ProcessData, RunQueue};
 

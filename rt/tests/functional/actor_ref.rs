@@ -6,12 +6,12 @@ use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::task::Poll;
 
-use heph_rt::actor_ref::{ActorRef, Join, RpcError, RpcMessage, SendError, SendValue};
+use heph::actor_ref::{ActorRef, Join, RpcError, RpcMessage, SendError, SendValue};
+use heph::spawn::options::Priority;
+use heph::supervisor::NoSupervisor;
+use heph::{actor, ActorOptions};
 use heph_rt::rt::{Runtime, ThreadLocal};
-use heph_rt::spawn::options::Priority;
-use heph_rt::supervisor::NoSupervisor;
 use heph_rt::test::{init_local_actor, poll_actor, poll_future};
-use heph_rt::{actor, ActorOptions};
 
 use crate::util::{assert_send, assert_size, assert_sync, pending_once};
 

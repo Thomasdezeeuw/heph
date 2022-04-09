@@ -3,10 +3,10 @@
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph_rt::actor::{self, SyncContext};
-use heph_rt::restart_supervisor;
+use heph::actor::{self, SyncContext};
+use heph::restart_supervisor;
+use heph::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
-use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 
 fn main() -> Result<(), rt::Error> {
     std_logger::init();

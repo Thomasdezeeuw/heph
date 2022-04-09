@@ -17,7 +17,9 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{io, ptr};
 
-use crate::{actor, rt};
+use heph::actor;
+
+use crate::rt;
 
 /// Type returned when the deadline has passed.
 ///
@@ -45,8 +47,8 @@ impl From<DeadlinePassed> for io::Error {
 /// use std::time::Duration;
 /// # use std::time::Instant;
 ///
-/// use heph_rt::actor;
-/// # use heph_rt::supervisor::NoSupervisor;
+/// use heph::actor;
+/// # use heph::supervisor::NoSupervisor;
 /// # use heph_rt::{rt, ActorOptions, Runtime, RuntimeRef};
 /// use heph_rt::rt::ThreadLocal;
 /// use heph_rt::timer::Timer;
@@ -189,8 +191,8 @@ impl<RT: rt::Access> Drop for Timer<RT> {
 /// use std::time::Duration;
 /// # use std::time::Instant;
 ///
-/// use heph_rt::actor;
-/// # use heph_rt::supervisor::NoSupervisor;
+/// use heph::actor;
+/// # use heph::supervisor::NoSupervisor;
 /// use heph_rt::rt::ThreadSafe;
 /// # use heph_rt::{rt, ActorOptions, Runtime};
 /// use heph_rt::timer::Deadline;
@@ -383,8 +385,8 @@ impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
 /// use std::time::Duration;
 /// # use std::time::Instant;
 ///
-/// use heph_rt::actor;
-/// # use heph_rt::supervisor::NoSupervisor;
+/// use heph::actor;
+/// # use heph::supervisor::NoSupervisor;
 /// # use heph_rt::{rt, ActorOptions, Runtime, RuntimeRef};
 /// use heph_rt::rt::ThreadLocal;
 /// use heph_rt::timer::Interval;

@@ -4,10 +4,10 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use heph_rt::actor;
+use heph::actor;
+use heph::spawn::{ActorOptions, FutureOptions};
+use heph::supervisor::NoSupervisor;
 use heph_rt::rt::{Runtime, ThreadSafe};
-use heph_rt::spawn::{ActorOptions, FutureOptions};
-use heph_rt::supervisor::NoSupervisor;
 use heph_rt::test::poll_future;
 
 use crate::util::{expect_pending, expect_ready};

@@ -13,14 +13,14 @@
 use std::io::{self, Write};
 use std::thread;
 
+use heph::actor::{SyncActor, SyncContext};
+use heph::actor_ref::ActorRef;
+use heph::spawn::options::SyncActorOptions;
+use heph::supervisor::{SupervisorStrategy, SyncSupervisor};
 use heph_inbox::{self as inbox, ReceiverConnected};
 use log::trace;
 use mio::{unix, Interest, Registry, Token};
 
-use crate::actor::{SyncActor, SyncContext};
-use crate::actor_ref::ActorRef;
-use crate::spawn::options::SyncActorOptions;
-use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 use crate::trace;
 
 /// Handle to a synchronous worker.
@@ -116,7 +116,9 @@ fn main<S, A>(
     loop {
         let timing = trace::start(&trace_log);
         let receiver = inbox.new_receiver().unwrap_or_else(inbox_failure);
-        let ctx = SyncContext::new(receiver, trace_log.clone());
+        // FIXME: add trace_log
+        //let ctx = SyncContext::new(receiver, trace_log.clone());
+        let ctx = SyncContext::new(receiver, None);
         trace::finish_rt(
             trace_log.as_mut(),
             timing,
@@ -152,6 +154,7 @@ fn main<S, A>(
                         );
                         break;
                     }
+                    _ => unreachable!(),
                 }
             }
         }

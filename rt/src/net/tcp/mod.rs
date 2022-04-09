@@ -7,7 +7,7 @@
 //!  * [`TcpServer`] is an [`Actor`] that listens for incoming connections and
 //!    starts a new actor for each.
 //!
-//! [`Actor`]: crate::actor::Actor
+//! [`Actor`]: heph::actor::Actor
 
 pub mod listener;
 pub mod server;

@@ -5,9 +5,9 @@ use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph_rt::actor::{RecvError, SyncContext};
-use heph_rt::spawn::SyncActorOptions;
-use heph_rt::supervisor::{NoSupervisor, SupervisorStrategy};
+use heph::actor::{RecvError, SyncContext};
+use heph::spawn::SyncActorOptions;
+use heph::supervisor::{NoSupervisor, SupervisorStrategy};
 use heph_rt::test::spawn_sync_actor;
 
 #[derive(Clone, Debug)]

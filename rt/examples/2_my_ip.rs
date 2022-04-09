@@ -3,11 +3,11 @@
 use std::io;
 use std::net::SocketAddr;
 
-use heph_rt::actor::{self, Actor, NewActor};
+use heph::actor::{self, Actor, NewActor};
+use heph::spawn::options::{ActorOptions, Priority};
+use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph_rt::net::{tcp, TcpServer, TcpStream};
 use heph_rt::rt::{self, Runtime, ThreadLocal};
-use heph_rt::spawn::options::{ActorOptions, Priority};
-use heph_rt::supervisor::{Supervisor, SupervisorStrategy};
 use log::{error, info};
 
 fn main() -> Result<(), rt::Error> {

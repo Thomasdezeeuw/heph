@@ -18,7 +18,7 @@
 //! using an asynchronous function, which looks like the following.
 //!
 //! ```
-//! # use heph_rt::actor;
+//! # use heph::actor;
 //! # use heph_rt::rt::ThreadLocal;
 //! // The `ThreadLocal` means we're running a thread-local actor, see the
 //! // `actor` module for more information about the different kinds of actors.
@@ -36,7 +36,7 @@
 //! The example above also shows how an actor can receive and process messages.
 //!
 //! [actor model]: https://en.wikipedia.org/wiki/Actor_model
-//! [actor]: crate::actor
+//! [actor]: heph::actor
 //!
 //! ### Sending messages
 //!
@@ -46,7 +46,7 @@
 //! below shows how to send a message to an actor.
 //!
 //! ```
-//! # use heph_rt::actor_ref::ActorRef;
+//! # use heph::actor_ref::ActorRef;
 //! // Later on we'll see how we can get an `ActorRef`.
 //! async fn send_message(actor_ref: ActorRef<String>) {
 //!     // Send a message to the actor referenced by `ActorRef`.
@@ -60,8 +60,8 @@
 //! See the [actor reference] module for more information about what actor
 //! references can do, including sending messages and RPC.
 //!
-//! [`ActorRef`]: crate::actor_ref::ActorRef
-//! [actor reference]: crate::actor_ref
+//! [`ActorRef`]: heph::actor_ref::ActorRef
+//! [actor reference]: heph::actor_ref
 //!
 //! ### Spawning Actors
 //!
@@ -84,11 +84,11 @@
 //!
 //! ```
 //! # use std::io::{self, stdout, Write};
-//! # use heph_rt::actor;
-//! # use heph_rt::actor_ref::ActorRef;
+//! # use heph::actor;
+//! # use heph::actor_ref::ActorRef;
+//! # use heph::spawn::options::ActorOptions;
+//! # use heph::supervisor::SupervisorStrategy;
 //! # use heph_rt::rt::{RuntimeRef, ThreadLocal};
-//! # use heph_rt::spawn::options::ActorOptions;
-//! # use heph_rt::supervisor::SupervisorStrategy;
 //! # use log::warn;
 //! // Later on we'll see where we can get a `RuntimeRef`.
 //! fn spawn_actor(mut runtime_ref: RuntimeRef) {
@@ -145,14 +145,14 @@
 //! the [supervisor] module for more information about actor supervision, e.g.
 //! when to stop and when to restart an actor.
 //!
-//! [`Spawn`]: crate::spawn::Spawn
+//! [`Spawn`]: heph::spawn::Spawn
 //! [`Runtime`]: crate::rt::Runtime
 //! [`RuntimeRef`]: crate::rt::RuntimeRef
-//! [`Supervisor`]: crate::supervisor::Supervisor
-//! [supervisor]: crate::supervisor
-//! [starting argument(s)]: crate::actor::NewActor::Argument
-//! [`ActorOptions`]: crate::spawn::options::ActorOptions
-//! [`NewActor`]: crate::actor::NewActor
+//! [`Supervisor`]: heph::supervisor::Supervisor
+//! [supervisor]: heph::supervisor
+//! [starting argument(s)]: heph::actor::NewActor::Argument
+//! [`ActorOptions`]: heph::spawn::options::ActorOptions
+//! [`NewActor`]: heph::actor::NewActor
 //!
 //! ## The Heph runtime
 //!

@@ -37,8 +37,8 @@
 //! parsed in such a way that parent-child relations become clear if trace
 //! events are created by the same actor.
 //!
-//! [`actor::Context`]: crate::actor::Context
-//! [`SyncContext`]: crate::actor::SyncContext
+//! [`actor::Context`]: heph::actor::Context
+//! [`SyncContext`]: heph::actor::SyncContext
 //! [`start_trace`]: Trace::start_trace
 //! [`finish_trace`]: Trace::finish_trace
 //!
@@ -97,7 +97,7 @@ const RT_SUBSTREAM_ID: u64 = 0;
 /// The following example adds tracing for receiving and handling of a message.
 ///
 /// ```
-/// use heph_rt::actor;
+/// use heph::actor;
 /// use heph_rt::rt::ThreadLocal;
 /// use heph_rt::trace::Trace;
 ///

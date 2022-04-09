@@ -3,10 +3,10 @@
 //! In this test the actor reference, to the sync actor, should be dropped allow
 //! the sync actor to stop and not prevent the test from returning.
 
-use heph_rt::actor::SyncContext;
+use heph::actor::SyncContext;
+use heph::spawn::SyncActorOptions;
+use heph::supervisor::NoSupervisor;
 use heph_rt::rt::Runtime;
-use heph_rt::spawn::SyncActorOptions;
-use heph_rt::supervisor::NoSupervisor;
 
 #[test]
 fn issue_294() {

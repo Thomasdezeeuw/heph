@@ -25,10 +25,10 @@ use std::time::{Duration, Instant};
 use std::{fmt, io, thread};
 
 use crossbeam_channel::{self, Receiver};
+use heph::actor_ref::{Delivery, SendError};
 use log::{as_debug, debug, info, trace};
 use mio::{Events, Poll, Registry, Token};
 
-use crate::actor_ref::{Delivery, SendError};
 use crate::rt::error::StringError;
 use crate::rt::local::waker::{self, WakerId};
 use crate::rt::local::RuntimeInternals;

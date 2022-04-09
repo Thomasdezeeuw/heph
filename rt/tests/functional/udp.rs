@@ -4,12 +4,12 @@ use std::io::{self, IoSlice};
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use heph_rt::actor::{self, Actor, Bound, NewActor};
-use heph_rt::actor_ref::{ActorRef, RpcMessage};
+use heph::actor::{self, Actor, Bound, NewActor};
+use heph::actor_ref::{ActorRef, RpcMessage};
+use heph::spawn::ActorOptions;
+use heph::supervisor::NoSupervisor;
 use heph_rt::net::udp::{UdpSocket, Unconnected};
 use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
-use heph_rt::spawn::ActorOptions;
-use heph_rt::supervisor::NoSupervisor;
 use heph_rt::test::{join, try_spawn_local, PanicSupervisor};
 
 use crate::util::{any_local_address, any_local_ipv6_address};

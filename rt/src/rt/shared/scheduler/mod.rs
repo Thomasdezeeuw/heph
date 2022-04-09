@@ -8,14 +8,14 @@ use std::future::Future;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
+use heph::actor::NewActor;
+use heph::spawn::options::Priority;
+use heph::supervisor::Supervisor;
 use heph_inbox::Manager;
 use log::{debug, trace};
 
-use crate::actor::NewActor;
 use crate::rt::process::{self, ActorProcess, FutureProcess, Process, ProcessId};
 use crate::rt::{ptr_as_usize, ThreadSafe};
-use crate::spawn::options::Priority;
-use crate::supervisor::Supervisor;
 
 mod inactive;
 mod runqueue;

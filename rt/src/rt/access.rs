@@ -9,14 +9,14 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, io, task};
 
+use heph::actor::{self, NewActor};
+use heph::actor_ref::ActorRef;
+use heph::spawn::{ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn};
+use heph::supervisor::Supervisor;
 use mio::{event, Interest};
 
-use crate::actor::{self, NewActor};
-use crate::actor_ref::ActorRef;
 use crate::rt::process::ProcessId;
 use crate::rt::{shared, RuntimeRef};
-use crate::spawn::{ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn};
-use crate::supervisor::Supervisor;
 use crate::trace::{self, Trace};
 
 /// Trait to indicate an API needs access to the Heph runtime.
@@ -88,7 +88,7 @@ pub trait PrivateAccess {
 /// This is an optimised version of [`ThreadSafe`], but doesn't allow the actor
 /// to move between threads.
 ///
-/// [`actor::Context`]: crate::actor::Context
+/// [`actor::Context`]: heph::actor::Context
 #[derive(Clone)]
 pub struct ThreadLocal {
     /// Process id of the actor, used as `Token` in registering things, e.g.
@@ -251,7 +251,7 @@ impl fmt::Debug for ThreadLocal {
 /// This is usually a part of the [`actor::Context`], see it for more
 /// information.
 ///
-/// [`actor::Context`]: crate::actor::Context
+/// [`actor::Context`]: heph::actor::Context
 #[derive(Clone)]
 pub struct ThreadSafe {
     /// Process id of the actor, used as `Token` in registering things, e.g.

@@ -3,10 +3,10 @@
 use std::future::Pending;
 use std::marker::PhantomData;
 
-use heph_rt::actor::{self, NewActor};
+use heph::actor::{self, NewActor};
+use heph::spawn::Spawn;
+use heph::supervisor::NoSupervisor;
 use heph_rt::rt::{Runtime, RuntimeRef, ThreadLocal, ThreadSafe};
-use heph_rt::spawn::Spawn;
-use heph_rt::supervisor::NoSupervisor;
 
 struct TestNewActor<RT>(PhantomData<RT>);
 

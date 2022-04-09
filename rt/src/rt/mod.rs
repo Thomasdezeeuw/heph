@@ -59,10 +59,10 @@
 //! ```
 //! #![feature(never_type)]
 //!
-//! use heph_rt::actor;
+//! use heph::actor;
+//! use heph::spawn::ActorOptions;
+//! use heph::supervisor::NoSupervisor;
 //! use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
-//! use heph_rt::spawn::ActorOptions;
-//! use heph_rt::supervisor::NoSupervisor;
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     // Build a new `Runtime` with two worker threads.
@@ -123,16 +123,16 @@ use std::time::Duration;
 use std::time::Instant;
 use std::{io, task};
 
+use heph::actor::{self, NewActor, SyncActor};
+use heph::actor_ref::{ActorGroup, ActorRef};
+use heph::spawn::{
+    ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn, SyncActorOptions,
+};
+use heph::supervisor::{Supervisor, SyncSupervisor};
 use heph_inbox as inbox;
 use log::{as_debug, debug, trace, warn};
 use mio::{event, Interest, Token};
 
-use crate::actor::{self, NewActor, SyncActor};
-use crate::actor_ref::{ActorGroup, ActorRef};
-use crate::spawn::{
-    ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn, SyncActorOptions,
-};
-use crate::supervisor::{Supervisor, SyncSupervisor};
 use crate::trace;
 
 pub(crate) mod access;
@@ -273,7 +273,7 @@ impl Runtime {
     /// For more information and examples of synchronous actors see the
     /// [`actor`] module.
     ///
-    /// [`actor`]: crate::actor
+    /// [`actor`]: heph::actor
     pub fn spawn_sync_actor<S, A>(
         &mut self,
         supervisor: S,

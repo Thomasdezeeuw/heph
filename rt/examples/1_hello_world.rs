@@ -1,9 +1,9 @@
 #![feature(never_type)]
 
-use heph_rt::actor;
+use heph::actor;
+use heph::spawn::ActorOptions;
+use heph::supervisor::NoSupervisor;
 use heph_rt::rt::{self, Runtime, RuntimeRef, ThreadLocal};
-use heph_rt::spawn::ActorOptions;
-use heph_rt::supervisor::NoSupervisor;
 
 fn main() -> Result<(), rt::Error> {
     // We create a new runtime. Add a setup function, which adds our greeter

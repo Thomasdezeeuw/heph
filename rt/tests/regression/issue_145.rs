@@ -7,11 +7,11 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use heph_rt::actor::messages::Terminate;
+use heph::actor::messages::Terminate;
+use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
+use heph::{actor, Actor, ActorOptions, ActorRef, NewActor};
 use heph_rt::net::{tcp, TcpListener, TcpServer, TcpStream};
 use heph_rt::rt::{Runtime, RuntimeRef, ThreadLocal};
-use heph_rt::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use heph_rt::{actor, Actor, ActorOptions, ActorRef, NewActor};
 
 const N: usize = 4;
 

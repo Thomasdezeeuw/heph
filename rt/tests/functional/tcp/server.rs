@@ -5,15 +5,15 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::Duration;
 
-use heph_rt::actor::messages::Terminate;
-use heph_rt::actor::{self, Actor, NewActor};
+use heph::actor::messages::Terminate;
+use heph::actor::{self, Actor, NewActor};
+use heph::spawn::ActorOptions;
+use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
+use heph::ActorRef;
 use heph_rt::net::tcp::server;
 use heph_rt::net::{TcpServer, TcpStream};
-use heph_rt::rt::{self, Signal, ThreadLocal};
-use heph_rt::spawn::ActorOptions;
-use heph_rt::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
+use heph_rt::rt::{self, Runtime, Signal, ThreadLocal};
 use heph_rt::test::{join_many, try_spawn_local, PanicSupervisor};
-use heph_rt::{ActorRef, Runtime};
 
 use crate::util::any_local_address;
 

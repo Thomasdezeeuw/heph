@@ -305,9 +305,10 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
+    use heph::spawn::options::Priority;
+
     use crate::rt::process::{Process, ProcessId, ProcessResult};
     use crate::rt::RuntimeRef;
-    use crate::spawn::options::Priority;
 
     use super::{
         diff_branch_depth, Branch, Inactive, Pointer, ProcessData, LEVEL_SHIFT, N_BRANCHES,

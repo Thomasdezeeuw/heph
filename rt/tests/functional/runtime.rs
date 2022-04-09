@@ -9,10 +9,10 @@ use std::task::{self, Poll};
 use std::thread::{self, sleep};
 use std::time::Duration;
 
-use heph_rt::actor::{self, Actor, NewActor, SyncContext};
+use heph::actor::{self, Actor, NewActor, SyncContext};
+use heph::spawn::options::{ActorOptions, FutureOptions, Priority, SyncActorOptions};
+use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph_rt::rt::{Runtime, ThreadLocal, ThreadSafe};
-use heph_rt::spawn::options::{ActorOptions, FutureOptions, Priority, SyncActorOptions};
-use heph_rt::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 
 use crate::util::temp_file;
 
@@ -36,13 +36,13 @@ fn auto_cpu_affinity() {
 
     use socket2::SockRef;
 
-    use heph_rt::actor::messages::Terminate;
+    use heph::actor::messages::Terminate;
+    use heph::spawn::ActorOptions;
+    use heph::supervisor::{Supervisor, SupervisorStrategy};
+    use heph::{actor, ActorRef, NewActor};
     use heph_rt::net::tcp::server;
     use heph_rt::net::{TcpServer, TcpStream};
     use heph_rt::rt::{RuntimeRef, ThreadLocal};
-    use heph_rt::spawn::ActorOptions;
-    use heph_rt::supervisor::{Supervisor, SupervisorStrategy};
-    use heph_rt::{actor, ActorRef, NewActor};
 
     fn cpu_affinity(stream: &TcpStream) -> io::Result<usize> {
         // TODO: do this better.

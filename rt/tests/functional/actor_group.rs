@@ -5,8 +5,8 @@ use std::fmt;
 use std::pin::Pin;
 use std::task::Poll;
 
-use heph_rt::actor;
-use heph_rt::actor_ref::{ActorGroup, Delivery};
+use heph::actor;
+use heph::actor_ref::{ActorGroup, Delivery};
 use heph_rt::rt::ThreadLocal;
 use heph_rt::test::{init_local_actor, poll_actor, poll_future};
 

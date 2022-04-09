@@ -8,9 +8,9 @@ use std::num::NonZeroUsize;
 use std::path::Path;
 use std::{env, fmt, io, thread};
 
+use heph::actor_ref::ActorGroup;
 use log::{debug, warn};
 
-use crate::actor_ref::ActorGroup;
 use crate::rt::coordinator::Coordinator;
 use crate::rt::{worker, Error, Runtime, MAX_THREADS};
 use crate::trace;
@@ -22,7 +22,7 @@ use crate::trace;
 ///
 /// [`rt`]: crate::rt
 #[derive(Debug)]
-#[must_use = "`heph_rt::runtime::Setup` doesn't do anything until its `build`"]
+#[must_use = "`heph_rt::Setup` doesn't do anything until its `build`"]
 pub struct Setup {
     /// Name of the application.
     name: Option<String>,

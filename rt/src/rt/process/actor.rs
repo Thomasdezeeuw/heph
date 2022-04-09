@@ -6,14 +6,14 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::task::{self, Poll};
 
+use heph::actor::{self, Actor, NewActor};
+use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph_inbox::{Manager, Receiver};
 use log::error;
 
-use crate::actor::{self, Actor, NewActor};
 use crate::rt::access::PrivateAccess;
 use crate::rt::process::{panic_message, Process, ProcessId, ProcessResult};
 use crate::rt::{self, RuntimeRef, ThreadLocal, ThreadSafe};
-use crate::supervisor::{Supervisor, SupervisorStrategy};
 
 /// A process that represent an [`Actor`].
 pub(crate) struct ActorProcess<S, NA: NewActor> {
@@ -73,6 +73,7 @@ where
                 }
             }
             SupervisorStrategy::Stop => ProcessResult::Complete,
+            _ => unreachable!(),
         }
     }
 
@@ -98,6 +99,7 @@ where
                 }
             }
             SupervisorStrategy::Stop => ProcessResult::Complete,
+            _ => unreachable!(),
         }
     }
 
@@ -125,6 +127,7 @@ where
                 }
             }
             SupervisorStrategy::Stop => ProcessResult::Complete,
+            _ => unreachable!(),
         }
     }
 

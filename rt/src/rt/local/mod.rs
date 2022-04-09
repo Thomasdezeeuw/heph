@@ -4,9 +4,9 @@ use std::cell::RefCell;
 use std::num::NonZeroUsize;
 use std::sync::Arc;
 
+use heph::actor_ref::ActorGroup;
 use mio::Poll;
 
-use crate::actor_ref::ActorGroup;
 use crate::rt::{shared, Signal};
 use crate::trace;
 
