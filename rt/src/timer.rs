@@ -49,7 +49,8 @@ impl From<DeadlinePassed> for io::Error {
 ///
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
-/// # use heph_rt::{rt, ActorOptions, Runtime, RuntimeRef};
+/// # use heph::{ActorOptions};
+/// # use heph_rt::{rt, Runtime, RuntimeRef};
 /// use heph_rt::rt::ThreadLocal;
 /// use heph_rt::timer::Timer;
 ///
@@ -192,9 +193,10 @@ impl<RT: rt::Access> Drop for Timer<RT> {
 /// # use std::time::Instant;
 ///
 /// use heph::actor;
+/// # use heph::ActorOptions;
 /// # use heph::supervisor::NoSupervisor;
 /// use heph_rt::rt::ThreadSafe;
-/// # use heph_rt::{rt, ActorOptions, Runtime};
+/// # use heph_rt::{rt, Runtime};
 /// use heph_rt::timer::Deadline;
 ///
 /// # fn main() -> Result<(), rt::Error> {
@@ -387,7 +389,8 @@ impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
 ///
 /// use heph::actor;
 /// # use heph::supervisor::NoSupervisor;
-/// # use heph_rt::{rt, ActorOptions, Runtime, RuntimeRef};
+/// # use heph::{ActorOptions};
+/// # use heph_rt::{rt, Runtime, RuntimeRef};
 /// use heph_rt::rt::ThreadLocal;
 /// use heph_rt::timer::Interval;
 /// use heph_rt::util::next;
