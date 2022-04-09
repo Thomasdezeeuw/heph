@@ -8,6 +8,7 @@ use std::time::Duration;
 use heph::actor::{RecvError, SyncContext};
 use heph::spawn::SyncActorOptions;
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
+use heph_rt::rt;
 use heph_rt::test::spawn_sync_actor;
 
 #[derive(Clone, Debug)]
@@ -51,7 +52,7 @@ impl Future for BlockFuture {
     }
 }
 
-fn block_on_actor<Fut>(mut ctx: SyncContext<String>, fut: Fut)
+fn block_on_actor<Fut>(mut ctx: SyncContext<String, rt::Sync>, fut: Fut)
 where
     Fut: Future,
 {
@@ -106,7 +107,7 @@ fn block_on_spurious_wake_up() {
     handle.join().unwrap();
 }
 
-fn try_receive_next_actor(mut ctx: SyncContext<String>) {
+fn try_receive_next_actor(mut ctx: SyncContext<String, rt::Sync>) {
     loop {
         match ctx.try_receive_next() {
             Ok(msg) => {
@@ -154,6 +155,6 @@ fn bad_actor_supervisor(err_count: usize) -> SupervisorStrategy<usize> {
     }
 }
 
-fn bad_actor(_: SyncContext<!>, count: usize) -> Result<(), usize> {
+fn bad_actor(_: SyncContext<!, rt::Sync>, count: usize) -> Result<(), usize> {
     Err(count + 1)
 }

@@ -31,7 +31,7 @@ fn main() -> Result<(), rt::Error> {
     runtime.start()
 }
 
-fn actor(mut ctx: SyncContext<String>, exit_msg: &'static str) {
+fn actor(mut ctx: SyncContext<String, rt::Sync>, exit_msg: &'static str) {
     while let Ok(msg) = ctx.receive_next() {
         println!("Got a message: {}", msg);
     }

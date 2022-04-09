@@ -69,7 +69,7 @@ use crate::rt::sync_worker::SyncWorker;
 use crate::rt::thread_waker::ThreadWaker;
 use crate::rt::worker::{Control, Worker};
 use crate::rt::{
-    self, shared, ProcessId, RuntimeRef, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
+    self, shared, ProcessId, RuntimeRef, Sync, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
 
@@ -245,9 +245,9 @@ pub fn try_spawn<S, NA>(
     options: ActorOptions,
 ) -> Result<ActorRef<NA::Message>, NA::Error>
 where
-    S: Supervisor<NA> + Send + Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
-    NA::Actor: Send + Sync + 'static,
+    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + std::marker::Sync + Send + 'static,
+    NA::Actor: Send + std::marker::Sync + 'static,
     NA::Message: Send,
     NA::Argument: Send,
     NA::Error: Send,
@@ -281,7 +281,7 @@ where
 /// [module documentation]: crate::test
 pub fn spawn_future<Fut>(future: Fut, options: FutureOptions)
 where
-    Fut: Future<Output = ()> + Send + Sync + 'static,
+    Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
 {
     run_on_test_runtime(move |mut runtime_ref| {
         runtime_ref.spawn_future(future, options);
@@ -409,15 +409,15 @@ where
 ///
 /// This returns the thread handle for the thread the synchronous actor is
 /// running on and an actor reference to the actor.
-pub fn spawn_sync_actor<S, A, E, Arg, M>(
+pub fn spawn_sync_actor<S, A, Arg, M>(
     supervisor: S,
     actor: A,
     arg: Arg,
-    options: SyncActorOptions,
+    options: SyncActorOptions<()>,
 ) -> io::Result<(thread::JoinHandle<()>, ActorRef<M>)>
 where
     S: SyncSupervisor<A> + Send + 'static,
-    A: SyncActor<Message = M, Argument = Arg, Error = E> + Send + 'static,
+    A: SyncActor<Message = M, Argument = Arg, RuntimeAccess = Sync> + Send + 'static,
     Arg: Send + 'static,
     M: Send + 'static,
 {
@@ -428,10 +428,13 @@ where
         "spawned too many synchronous test actors"
     );
 
-    SyncWorker::start(id, supervisor, actor, arg, options, None).map(|(worker, actor_ref)| {
-        let handle = worker.into_handle();
-        (handle, actor_ref)
-    })
+    let shared = runtime().clone_shared();
+    SyncWorker::start(id, supervisor, actor, arg, options, shared, None).map(
+        |(worker, actor_ref)| {
+            let handle = worker.into_handle();
+            (handle, actor_ref)
+        },
+    )
 }
 
 /// Poll a future.
@@ -614,4 +617,4 @@ where
 #[cfg(test)]
 unsafe impl<Fut: Send> Send for AssertUnmoved<Fut> {}
 #[cfg(test)]
-unsafe impl<Fut: Sync> Sync for AssertUnmoved<Fut> {}
+unsafe impl<Fut: std::marker::Sync> std::marker::Sync for AssertUnmoved<Fut> {}
