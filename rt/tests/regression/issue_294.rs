@@ -27,6 +27,6 @@ fn issue_294() {
     runtime.start().unwrap();
 }
 
-fn actor(mut ctx: SyncContext<(), rt::Sync>) {
+fn actor<RT>(mut ctx: SyncContext<(), RT>) {
     while let Ok(()) = ctx.receive_next() {}
 }

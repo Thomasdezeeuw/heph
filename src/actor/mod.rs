@@ -118,7 +118,7 @@
 //!     runtime.start()
 //! }
 //!
-//! fn actor(mut ctx: SyncContext<String>, exit_msg: &'static str) {
+//! fn actor<RT>(mut ctx: SyncContext<String, RT>, exit_msg: &'static str) {
 //!     if let Ok(msg) = ctx.receive_next() {
 //! #       assert_eq!(msg, "Hello world");
 //!         println!("Got a message: {}", msg);

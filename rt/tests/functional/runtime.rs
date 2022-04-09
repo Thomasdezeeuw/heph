@@ -494,7 +494,7 @@ fn external_thread_wakes_thread_safe_actor() {
 
 #[test]
 fn external_thread_wakes_sync_actor() {
-    fn actor(mut ctx: SyncContext<!, rt::Sync>, future: WaitFuture) -> Result<(), !> {
+    fn actor<RT>(mut ctx: SyncContext<!, RT>, future: WaitFuture) -> Result<(), !> {
         ctx.block_on(future)
     }
 

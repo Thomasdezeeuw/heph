@@ -67,7 +67,7 @@ impl TryFrom<Signal> for Message {
     }
 }
 
-fn sync_actor(mut ctx: SyncContext<Message, rt::Sync>) {
+fn sync_actor<RT>(mut ctx: SyncContext<Message, RT>) {
     while let Ok(msg) = ctx.receive_next() {
         match msg {
             Message::Print(msg) => println!("Got a message: {}", msg),

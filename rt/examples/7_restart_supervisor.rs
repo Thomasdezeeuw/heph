@@ -50,6 +50,6 @@ async fn print_actor(_: actor::Context<(), ThreadLocal>, msg: String) -> Result<
 }
 
 /// A very bad synchronous printing actor.
-fn sync_print_actor(_: SyncContext<String, rt::Sync>, msg: String) -> Result<(), String> {
+fn sync_print_actor<RT>(_: SyncContext<String, RT>, msg: String) -> Result<(), String> {
     Err(format!("can't print message synchronously '{}'", msg))
 }
