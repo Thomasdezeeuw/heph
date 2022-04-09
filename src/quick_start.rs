@@ -197,7 +197,7 @@
 //! ```
 //!
 //! For more information about setting up and using the runtime see the
-//! heph_rt. Also take a look at some of the options available on the
+//! `heph_rt`. Also take a look at some of the options available on the
 //! `heph_rt::Setup` type.
 //!
 //! Now you know the core concepts of Heph!
