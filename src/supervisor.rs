@@ -25,12 +25,12 @@
 //! Sometimes just restarting an actor is the easiest way to deal with errors.
 //! Starting the actor from a clean slate will often allow it to continue
 //! processing. However this is not possible in all cases, for example when a
-//! new argument can't be provided (think actors started by a [`TcpServer`]). In
-//! those cases the supervisor should still log the error encountered.
+//! new argument can't be provided. For example the `TcpServer` found in the
+//! heph-rt. In those cases the supervisor should still log the error
+//! encountered.
 //!
 //! [stopped]: crate::supervisor::SupervisorStrategy::Stop
 //! [restarted]: crate::supervisor::SupervisorStrategy::Restart
-//! [`TcpServer`]: crate::net::TcpServer
 //!
 //! # Actors and sync actors
 //!
@@ -61,9 +61,9 @@
 //! #![feature(never_type)]
 //!
 //! use heph::actor;
-//! use heph::rt::{self, ThreadLocal, Runtime};
 //! use heph::spawn::ActorOptions;
 //! use heph::supervisor::SupervisorStrategy;
+//! use heph_rt::rt::{self, ThreadLocal, Runtime};
 //! use log::error;
 //!
 //! fn main() -> Result<(), rt::Error> {
@@ -271,9 +271,9 @@ where
 /// #![feature(never_type)]
 ///
 /// use heph::actor;
-/// use heph::rt::{self, ThreadLocal, Runtime};
 /// use heph::spawn::ActorOptions;
 /// use heph::supervisor::NoSupervisor;
+/// use heph_rt::rt::{self, ThreadLocal, Runtime};
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     let mut runtime = Runtime::new()?;
@@ -334,9 +334,9 @@ where
 /// #![feature(never_type)]
 ///
 /// use heph::actor;
-/// use heph::rt::{self, ThreadLocal, Runtime};
 /// use heph::spawn::ActorOptions;
 /// use heph::supervisor::StopSupervisor;
+/// use heph_rt::rt::{self, ThreadLocal, Runtime};
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     let mut runtime = Runtime::new()?;

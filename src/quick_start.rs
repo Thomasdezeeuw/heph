@@ -3,6 +3,12 @@
 //! This document describes some of the core concepts of Heph as quick (10-20
 //! minute) introduction to Heph.
 //!
+//! We'll be using the Heph runtime (the [`heph-rt`] crate), but any [`Future`]
+//! runtime can be used.
+//!
+//! [`heph-rt`]: https://crates.io/crates/heph-rt
+//! [`Future`]: std::future::Future
+//!
 //! ## Actors
 //!
 //! The most important concept of Heph is an actor. The "actor" terminology
@@ -19,7 +25,7 @@
 //!
 //! ```
 //! # use heph::actor;
-//! # use heph::rt::ThreadLocal;
+//! # use heph_rt::rt::ThreadLocal;
 //! // The `ThreadLocal` means we're running a thread-local actor, see the
 //! // `actor` module for more information about the different kinds of actors.
 //! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
@@ -67,7 +73,7 @@
 //!
 //! To run an actor it must be spawned. How to spawn an actor is defined by the
 //! [`Spawn`] trait, which is implemented on most runtime types, such as
-//! [`Runtime`] and [`RuntimeRef`], but we'll get to those types in the next
+//! `Runtime` and `RuntimeRef`, but we'll get to those types in the next
 //! section.
 //!
 //! To spawn an actor we need four things:
@@ -86,9 +92,9 @@
 //! # use std::io::{self, stdout, Write};
 //! # use heph::actor;
 //! # use heph::actor_ref::ActorRef;
-//! # use heph::rt::{RuntimeRef, ThreadLocal};
 //! # use heph::spawn::options::ActorOptions;
 //! # use heph::supervisor::SupervisorStrategy;
+//! # use heph_rt::rt::{RuntimeRef, ThreadLocal};
 //! # use log::warn;
 //! // Later on we'll see where we can get a `RuntimeRef`.
 //! fn spawn_actor(mut runtime_ref: RuntimeRef) {
@@ -146,8 +152,6 @@
 //! when to stop and when to restart an actor.
 //!
 //! [`Spawn`]: crate::spawn::Spawn
-//! [`Runtime`]: crate::rt::Runtime
-//! [`RuntimeRef`]: crate::rt::RuntimeRef
 //! [`Supervisor`]: crate::supervisor::Supervisor
 //! [supervisor]: crate::supervisor
 //! [starting argument(s)]: crate::actor::NewActor::Argument
@@ -156,15 +160,16 @@
 //!
 //! ## The Heph runtime
 //!
-//! To run all the actors we need a runtime. Luckily Heph provides one! A
-//! runtime can be created by first creating a runtime setup ([`rt::Setup`]),
-//! building the runtime ([`Runtime`]) from it and finally starting the runtime.
-//! The following example shows how to do all of the above.
+//! To run all the actors we need a runtime. Luckily Heph provides one in the
+//! `heph-rt` crate! A runtime can be created by first creating a runtime setup
+//! (`heph_rt::Setup`), building the runtime (`Runtime`) from it and finally
+//! starting the runtime. The following example shows how to do all of the
+//! above.
 //!
 //! ```
 //! # #![feature(never_type)]
 //! #
-//! # use heph::rt::{self, Runtime, RuntimeRef};
+//! # use heph_rt::rt::{self, Runtime, RuntimeRef};
 //! fn main() -> Result<(), rt::Error> {
 //!     // First we setup the runtime and configure it.
 //!     let mut runtime = Runtime::setup()
@@ -192,14 +197,12 @@
 //! ```
 //!
 //! For more information about setting up and using the runtime see the
-//! [runtime] module. Also take a look at some of the options available on the
-//! [`rt::Setup`] type.
+//! heph_rt. Also take a look at some of the options available on the
+//! `heph_rt::Setup` type.
 //!
 //! Now you know the core concepts of Heph!
 //!
 //! If you want to look at some more example take a look at the [examples] in
 //! the examples directory of the source code.
 //!
-//! [`rt::Setup`]: crate::rt::Setup
-//! [runtime]: crate::rt
 //! [examples]: https://github.com/Thomasdezeeuw/heph/blob/master/examples/README.md

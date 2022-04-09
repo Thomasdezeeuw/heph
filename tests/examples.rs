@@ -1,56 +1,20 @@
 //! These tests perform an end-to-end test based on the examples in the examples
 //! directory.
 
-#![feature(stmt_expr_attributes)]
-
 use std::io::{self, Read};
-use std::net::{SocketAddr, TcpStream};
 use std::ops::{Deref, DerefMut};
 use std::panic;
 use std::process::{Child, Command, Stdio};
-use std::thread::sleep;
-use std::time::Duration;
-
-use mio_signals::{send_signal, Signal};
 
 #[test]
 fn test_1_hello_world() {
-    let output = run_example_output("hello_world");
+    let output = run_example_output("1_hello_world");
     assert_eq!(output, "Hello World\n");
 }
 
 #[test]
-fn test_2_my_ip() {
-    let mut child = run_example("my_ip");
-
-    // First read the startup message, ensuring the runtime has time to start
-    // up.
-    let expected =
-        "lvl=\"INFO\" msg=\"listening on 127.0.0.1:7890\" target=\"my_ip\" module=\"my_ip\"\n";
-    let mut output = vec![0; expected.len() + 1];
-    #[rustfmt::skip]
-    let n = child.inner.stderr.as_mut().unwrap().read(&mut output).unwrap();
-    assert_eq!(n, expected.len());
-    let got = std::str::from_utf8(&output[..n]).unwrap();
-    assert_eq!(expected, got);
-
-    // Connect to the running example.
-    let address = "127.0.0.1:7890".parse().unwrap();
-    let mut stream = tcp_retry_connect(address);
-    let mut output = String::new();
-    stream
-        .read_to_string(&mut output)
-        .expect("unable to to read from stream");
-    assert_eq!(output, "127.0.0.1");
-
-    if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
-        panic!("unexpected error sending signal to process: {}", err);
-    }
-}
-
-#[test]
-fn test_3_rpc() {
-    let output = run_example_output("rpc");
+fn test_2_rpc() {
+    let output = run_example_output("2_rpc");
     assert_eq!(
         output,
         "Got a RPC request: Ping\nGot a RPC response: Pong\n"
@@ -58,74 +22,18 @@ fn test_3_rpc() {
 }
 
 #[test]
-fn test_4_sync_actor() {
-    let output = run_example_output("sync_actor");
+fn test_3_sync_actor() {
+    let output = run_example_output("3_sync_actor");
     assert_eq!(output, "Got a message: Hello world\nBye\n");
 }
 
 #[test]
 #[ignore]
-fn test_6_process_signals() {
-    let mut child = run_example("process_signals");
-
-    let want_greetings = &[
-        "Got a message: Hello sync actor",
-        "Got a message: Hello thread local actor",
-        "Got a message: Hello thread safe actor",
-    ];
-    // All lines, including new line bytes + 1.
-    let length = want_greetings.iter().map(|l| l.len()).sum::<usize>() + want_greetings.len();
-    let mut output = vec![0; length + 1];
-
-    // First read all greeting messages, ensuring the runtime has time to start
-    // up.
-    let mut n = 0;
-    let mut max = want_greetings.len();
-    #[rustfmt::skip]
-    while n < length  {
-        if max == 0 {
-            panic!("too many reads, read only {}/{} bytes", n, length);
-        }
-        max -= 1;
-        n += child.inner.stdout.as_mut().unwrap().read(&mut output[n..]).unwrap();
-    }
-    assert_eq!(n, length);
-    output.truncate(n);
-    let output = String::from_utf8(output).unwrap();
-
-    // Because the order in which the actors are run is unspecified we don't
-    // know the order of the output.
-    let mut lines = output.lines();
-    let mut got_greetings: Vec<&str> = (&mut lines).take(3).collect();
-    got_greetings.sort_unstable();
-    assert_eq!(got_greetings, want_greetings);
-
-    // After we know the runtime started we can send it a process signal to
-    // start the actual test.
-    if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
-        panic!("unexpected error sending signal to process: {}", err);
-    }
-
-    // Read the remainder of the output, expecting the shutdown messages.
-    let output = read_output(child);
-    let lines = output.lines();
-    let mut got_shutdown: Vec<&str> = lines.collect();
-    got_shutdown.sort_unstable();
-    let want_shutdown = [
-        "shutting down the synchronous actor",
-        "shutting down the thread local actor",
-        "shutting down the thread safe actor",
-    ];
-    assert_eq!(got_shutdown, want_shutdown);
-}
-
-#[test]
-#[ignore]
-fn test_7_restart_supervisor() {
+fn test_4_restart_supervisor() {
     // Index of the "?" in the string below.
     const LEFT_INDEX: usize = 51;
 
-    let output = run_example_output("restart_supervisor");
+    let output = run_example_output("4_restart_supervisor");
     let mut lines = output.lines();
 
     let mut expected = "lvl=\"WARN\" msg=\"print actor failed, restarting it (?/5 restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"restart_supervisor\" module=\"restart_supervisor\"".to_owned();
@@ -262,14 +170,4 @@ fn read_output(mut child: ChildCommand) -> String {
         .read_to_string(&mut output)
         .expect("error reading standard error of example");
     output
-}
-
-fn tcp_retry_connect(address: SocketAddr) -> TcpStream {
-    for _ in 0..10 {
-        if let Ok(stream) = TcpStream::connect(address) {
-            return stream;
-        }
-        sleep(Duration::from_millis(10));
-    }
-    panic!("failed to connect to address");
 }

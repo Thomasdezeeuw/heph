@@ -9,9 +9,8 @@
 //! differentiate the source of the message.
 //!
 //! Three more default messages should be considered, the two variants from
-//! [`Result`]: [`Ok`] and [`Err`] and [`Signal`] to handle process signals.
-//!
-//! [`Signal`]: crate::rt::Signal
+//! [`Result`]: [`Ok`] and [`Err`]. Lastly there is the `Signal` type from the
+//! `heph-rt` crate to handle process signals.
 //!
 //! # Examples
 //!

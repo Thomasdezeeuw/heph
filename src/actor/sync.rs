@@ -16,8 +16,6 @@ use crate::actor::{NoMessages, RecvError};
 use crate::actor_ref::ActorRef;
 use crate::spawn::options::SyncActorOptions;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
-#[cfg(feature = "runtime")]
-use crate::trace::{self, Trace};
 
 /// Synchronous actor.
 ///
@@ -33,7 +31,7 @@ use crate::trace::{self, Trace};
 /// [module level]: crate::actor
 ///
 /// Synchronous actor can only be spawned before starting the runtime, see
-/// [`Runtime::spawn_sync_actor`].
+/// `Runtime::spawn_sync_actor`.
 ///
 /// # Panics
 ///
@@ -44,7 +42,6 @@ use crate::trace::{self, Trace};
 /// [actors]: crate::Actor
 /// [context]: SyncContext
 /// [actor references]: crate::ActorRef
-/// [`Runtime::spawn_sync_actor`]: crate::Runtime::spawn_sync_actor
 pub trait SyncActor {
     /// The type of messages the synchronous actor can receive.
     ///
@@ -149,22 +146,15 @@ impl_sync_actor!(
 pub struct SyncContext<M> {
     inbox: Receiver<M>,
     future_waker: Option<Arc<SyncWaker>>,
-    #[cfg(feature = "runtime")]
-    trace_log: Option<trace::Log>,
 }
 
 impl<M> SyncContext<M> {
     /// Create a new `SyncContext`.
     #[doc(hidden)] // Not part of the stable API.
-    pub const fn new(
-        inbox: Receiver<M>,
-        #[cfg(feature = "runtime")] trace_log: Option<trace::Log>,
-    ) -> SyncContext<M> {
+    pub const fn new(inbox: Receiver<M>) -> SyncContext<M> {
         SyncContext {
             inbox,
             future_waker: None,
-            #[cfg(feature = "runtime")]
-            trace_log,
         }
     }
 
@@ -234,12 +224,9 @@ impl<M> SyncContext<M> {
     ///
     /// Any [`Future`] returned by a type that is [bound] to an actor **cannot**
     /// be used by this function. Those types use specialised wake-up mechanisms
-    /// bypassing the `Future`'s [`task`] system. This currently includes all
-    /// types in the [`net`] and [`timer`] modules.
+    /// bypassing the `Future`'s [`task`] system.
     ///
     /// [bound]: crate::actor::Bound
-    /// [`net`]: crate::net
-    /// [`timer`]: crate::timer
     pub fn block_on<Fut>(&mut self, fut: Fut) -> Fut::Output
     where
         Fut: Future,
@@ -257,22 +244,6 @@ impl<M> SyncContext<M> {
             self.future_waker = Some(waker.clone());
             waker
         }
-    }
-}
-
-#[cfg(feature = "runtime")]
-impl<M> Trace for SyncContext<M> {
-    fn start_trace(&self) -> Option<trace::EventTiming> {
-        trace::start(&self.trace_log)
-    }
-
-    fn finish_trace(
-        &mut self,
-        timing: Option<trace::EventTiming>,
-        description: &str,
-        attributes: &[(&str, &dyn trace::AttributeValue)],
-    ) {
-        trace::finish(self.trace_log.as_mut(), timing, 1, description, attributes);
     }
 }
 
@@ -411,11 +382,7 @@ where
         trace!(name = name; "running synchronous actor");
         loop {
             let receiver = self.inbox.new_receiver().unwrap_or_else(inbox_failure);
-            #[cfg(not(feature = "runtime"))]
             let ctx = SyncContext::new(receiver);
-            #[cfg(feature = "runtime")]
-            let ctx = SyncContext::new(receiver, None);
-
             match self.actor.run(ctx, arg) {
                 Ok(()) => break,
                 Err(err) => match self.supervisor.decide(err) {

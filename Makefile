@@ -21,7 +21,7 @@ TARGETS ?= x86_64-apple-darwin x86_64-unknown-linux-gnu x86_64-unknown-freebsd
 RUN ?= test
 
 test:
-	cargo test --features runtime,test $(TEST_OPTS)
+	cargo test --features test $(TEST_OPTS)
 
 test_all:
 	cargo hack test --workspace --exclude benches --all-targets --feature-powerset --skip crossbeam-channel,libc,mio,mio-signals,socket2,getrandom $(TEST_OPTS)

@@ -1,7 +1,7 @@
 use heph::actor::SyncContext;
-use heph::rt::{self, Runtime};
 use heph::spawn::SyncActorOptions;
 use heph::supervisor::NoSupervisor;
+use heph_rt::rt::{self, Runtime};
 
 fn main() -> Result<(), rt::Error> {
     // Spawning synchronous actor works slightly differently the spawning

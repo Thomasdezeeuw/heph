@@ -12,7 +12,7 @@
 //!
 //! ```
 //! # use heph::actor;
-//! # use heph::rt::ThreadLocal;
+//! # use heph_rt::rt::ThreadLocal;
 //! #
 //! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
 //!     // Receive a message.
@@ -29,7 +29,7 @@
 //! do all those buzzwords actually mean?
 //!
 //!  - *Event-driven*: Heph does nothing by itself, it must first get an event
-//!    before it starts doing anything. For example when using a [`TcpListener`]
+//!    before it starts doing anything. For example when using a `TcpListener`
 //!    it waits on a notification from the OS saying the `TcpListener` is ready
 //!    before trying to accept connections.
 //!  - *Non-blocking I/O*: normal I/O operations need to wait (block) until the
@@ -44,7 +44,6 @@
 //!    messages, see the [actor model].
 //!
 //! [actor]: https://en.wikipedia.org/wiki/Actor_model
-//! [`TcpListener`]: crate::net::TcpListener
 //! [`Mutex`]: std::sync::Mutex
 //! [atomic]: std::sync::atomic
 //! [actor model]: https://en.wikipedia.org/wiki/Actor_model
@@ -61,15 +60,8 @@
 //!
 //! ## Features
 //!
-//! This crate has a two optional features:
-//!  * `runtime` and
-//!  * `test`.
-//!
-//! The `runtime` feature will enable the Heph runtime which includes, among
-//! others, a [`Future`] runtime, timers, network and tracing facilities.
-//!
-//! The `test` feature will enable the `test` module which adds testing
-//! facilities.
+//! This crate has one optional: `test`. The `test` feature will enable the
+//! `test` module which adds testing facilities.
 
 #![feature(
     array_methods,
@@ -121,48 +113,15 @@ compile_error!("Heph currently only supports Linux, FreeBSD and macOS.");
 #[cfg(not(target_pointer_width = "64"))]
 compile_error!("Heph currently only supports 64 bit architectures.");
 
-/// A macro to try an I/O function.
-///
-/// Note that this is used in the net and pipe modules and has to be defined
-/// before use.
-#[cfg(feature = "runtime")]
-macro_rules! try_io {
-    ($op: expr) => {
-        loop {
-            match $op {
-                Ok(ok) => break Poll::Ready(Ok(ok)),
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break Poll::Pending,
-                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                Err(err) => break Poll::Ready(Err(err)),
-            }
-        }
-    };
-}
-
 pub mod actor;
 pub mod actor_ref;
-#[cfg(feature = "runtime")]
-pub mod bytes;
-#[cfg(feature = "runtime")]
-pub mod log;
-#[cfg(feature = "runtime")]
-pub mod net;
-#[cfg(feature = "runtime")]
-pub mod pipe;
-#[cfg(feature = "runtime")]
 pub mod quick_start;
-#[cfg(feature = "runtime")]
-pub mod rt;
 pub mod spawn;
 pub mod supervisor;
 #[cfg(all(feature = "runtime", target_os = "linux"))]
 pub mod systemd;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
-#[cfg(feature = "runtime")]
-pub mod timer;
-#[cfg(feature = "runtime")]
-pub mod trace;
 #[doc(hidden)]
 pub mod util;
 
@@ -170,9 +129,6 @@ pub mod util;
 pub use actor::{Actor, NewActor};
 #[doc(no_inline)]
 pub use actor_ref::ActorRef;
-#[doc(no_inline)]
-#[cfg(feature = "runtime")]
-pub use rt::{Runtime, RuntimeRef};
 #[doc(no_inline)]
 pub use spawn::{ActorOptions, Spawn, SyncActorOptions};
 #[doc(no_inline)]

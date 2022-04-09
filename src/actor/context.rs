@@ -15,17 +15,12 @@ use crate::actor_ref::ActorRef;
 /// messages and getting access to the runtime.
 ///
 /// The `actor::Context` comes in two flavours:
-/// * [`ThreadLocal`] (default) is the optimised version, but doesn't allow the
+/// * `ThreadLocal` (default) is the optimised version, but doesn't allow the
 ///   actor to move between threads. Actor started with
-///   [`RuntimeRef::try_spawn_local`] will get this flavour of context.
-/// * [`ThreadSafe`] is the flavour that allows the actor to be moved between
-///   threads. Actor started with [`RuntimeRef::try_spawn`] will get this
+///   `RuntimeRef::try_spawn_local` will get this flavour of context.
+/// * `ThreadSafe` is the flavour that allows the actor to be moved between
+///   threads. Actor started with `RuntimeRef::try_spawn` will get this
 ///   flavour of context.
-///
-/// [`ThreadLocal`]: crate::rt::ThreadLocal
-/// [`RuntimeRef::try_spawn_local`]: crate::rt::RuntimeRef::try_spawn_local
-/// [`ThreadSafe`]: crate::rt::ThreadSafe
-/// [`RuntimeRef::try_spawn`]: crate::rt::RuntimeRef::try_spawn
 #[derive(Debug)]
 pub struct Context<M, RT> {
     /// Inbox of the actor, shared between this and zero or more actor
@@ -59,7 +54,7 @@ impl<M, RT> Context<M, RT> {
     ///
     /// ```
     /// use heph::actor;
-    /// use heph::rt::ThreadLocal;
+    /// use heph_rt::rt::ThreadLocal;
     ///
     /// async fn greeter_actor(mut ctx: actor::Context<String, ThreadLocal>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
@@ -86,7 +81,7 @@ impl<M, RT> Context<M, RT> {
     ///
     /// ```
     /// use heph::actor;
-    /// use heph::rt::ThreadLocal;
+    /// use heph_rt::rt::ThreadLocal;
     ///
     /// async fn print_actor(mut ctx: actor::Context<String, ThreadLocal>) {
     ///     if let Ok(msg) = ctx.receive_next().await {
@@ -105,9 +100,9 @@ impl<M, RT> Context<M, RT> {
     /// use std::time::Duration;
     ///
     /// use heph::actor;
-    /// use heph::timer::Timer;
     /// use heph::util::either;
-    /// use heph::rt::ThreadLocal;
+    /// use heph_rt::rt::ThreadLocal;
+    /// use heph_rt::timer::Timer;
     ///
     /// async fn print_actor(mut ctx: actor::Context<String, ThreadLocal>) {
     ///     // Create a timer, this will be ready once the timeout has

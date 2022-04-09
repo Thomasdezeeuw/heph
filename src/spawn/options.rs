@@ -66,10 +66,8 @@ impl ActorOptions {
     /// By default newly spawned actors will be considered to be ready to run
     /// once they are spawned. However some actors might not want to run
     /// immediately and wait for an external event before running. Such an
-    /// external event can for example be a [`TcpStream`] becoming ready to read
+    /// external event can for example be a `TcpStream` becoming ready to read
     /// or write.
-    ///
-    /// [`TcpStream`]: crate::net::TcpStream
     pub const fn mark_ready(mut self, ready: bool) -> Self {
         self.ready = ready;
         self

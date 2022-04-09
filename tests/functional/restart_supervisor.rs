@@ -10,7 +10,6 @@ use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::rt::ThreadSafe;
 use heph::{actor, restart_supervisor, Actor, NewActor, Supervisor, SupervisorStrategy};
 
 // NOTE: keep in sync with the documentation.
@@ -189,7 +188,7 @@ impl NewActor for NewActorImpl {
     type Argument = bool;
     type Actor = ActorImpl;
     type Error = &'static str;
-    type RuntimeAccess = ThreadSafe;
+    type RuntimeAccess = ();
 
     fn new(
         &mut self,
