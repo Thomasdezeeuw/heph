@@ -100,7 +100,7 @@ impl<M, RT> Context<M, RT> {
     /// use std::time::Duration;
     ///
     /// use heph::actor;
-    /// use heph::util::either;
+    /// use heph_rt::util::either;
     /// use heph_rt::rt::ThreadLocal;
     /// use heph_rt::timer::Timer;
     ///
