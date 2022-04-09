@@ -212,7 +212,7 @@ fn run_example(name: &'static str) -> ChildCommand {
 
     let mut errs = Vec::new();
     let mut build = false;
-    while !build {
+    loop {
         for path in paths.iter() {
             let res = Command::new(path)
                 .stdin(Stdio::null())
@@ -242,11 +242,10 @@ fn run_example(name: &'static str) -> ChildCommand {
                 }
                 Err(err) => errs.push(err),
             }
-        }
-        break;
+        } else {
+            panic!("failed to run example '{}': errors: {:?}", name, errs);
+        };
     }
-
-    panic!("failed to run example '{}': errors: {:?}", name, errs);
 }
 
 /// Read the standard output of the child command.
