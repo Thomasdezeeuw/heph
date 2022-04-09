@@ -205,7 +205,7 @@ use heph::supervisor::{Supervisor, SyncSupervisor};
 use heph_inbox as inbox;
 use mio::{event, Interest, Token};
 
-pub(crate) mod access;
+pub mod access;
 pub mod bytes;
 pub(crate) mod channel;
 mod coordinator;
@@ -233,6 +233,7 @@ pub(crate) mod worker;
 pub(crate) use access::PrivateAccess;
 pub(crate) use process::ProcessId;
 
+#[doc(no_inline)]
 pub use access::{Access, Sync, ThreadLocal, ThreadSafe};
 pub use error::Error;
 pub use setup::Setup;
