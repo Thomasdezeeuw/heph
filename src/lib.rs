@@ -63,27 +63,7 @@
 //! This crate has one optional: `test`. The `test` feature will enable the
 //! `test` module which adds testing facilities.
 
-#![feature(
-    array_methods,
-    async_iterator,
-    binary_heap_retain,
-    const_option,
-    doc_auto_cfg,
-    doc_cfg,
-    doc_cfg_hide,
-    drain_filter,
-    generic_associated_types,
-    io_slice_advance,
-    is_sorted,
-    maybe_uninit_array_assume_init,
-    maybe_uninit_slice,
-    maybe_uninit_uninit_array,
-    never_type,
-    new_uninit,
-    result_into_ok_or_err,
-    stmt_expr_attributes
-)]
-#![cfg_attr(any(test, feature = "test"), feature(once_cell))]
+#![feature(const_option, doc_auto_cfg, doc_cfg_hide, never_type)]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,
@@ -108,18 +88,11 @@
 // the test feature.
 #![doc(cfg_hide(any(test, feature = "test")))]
 
-#[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos")))]
-compile_error!("Heph currently only supports Linux, FreeBSD and macOS.");
-#[cfg(not(target_pointer_width = "64"))]
-compile_error!("Heph currently only supports 64 bit architectures.");
-
 pub mod actor;
 pub mod actor_ref;
 pub mod quick_start;
 pub mod spawn;
 pub mod supervisor;
-#[cfg(all(feature = "runtime", target_os = "linux"))]
-pub mod systemd;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 
