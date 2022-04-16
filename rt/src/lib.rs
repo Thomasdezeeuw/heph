@@ -825,3 +825,31 @@ fn cpu_usage(clock_id: libc::clockid_t) -> Duration {
         )
     }
 }
+
+/// Types that are bound to an [`Actor`].
+///
+/// A marker trait to indicate the type is bound to an [`Actor`]. How the type
+/// is bound to the actor is different for each type. For most futures it means
+/// that if progress can be made (when the [future is awoken]) the actor will be
+/// run. This has the unfortunate consequence that those types can't be moved
+/// away from the actor without [(re)binding] it first, otherwise the new actor
+/// will never be run and the actor that created the type will run instead.
+///
+/// Most types that are bound can only be created with a (mutable) reference to
+/// an [`actor::Context`]. Examples of this are `TcpStream`, `UdpSocket` and
+/// all futures in the `heph_rt::timer` module.
+///
+/// [`Actor`]: actor::Actor
+/// [future is awoken]: std::task::Waker::wake
+/// [(re)binding]: Bound::bind_to
+pub trait Bound<RT> {
+    /// Error type used in [`bind_to`].
+    ///
+    /// [`bind_to`]: Bound::bind_to
+    type Error;
+
+    /// Bind a type to the [`Actor`] that owns the `ctx`.
+    ///
+    /// [`Actor`]: actor::Actor
+    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> Result<(), Self::Error>;
+}

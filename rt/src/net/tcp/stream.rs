@@ -19,8 +19,8 @@ use mio::{net, Interest};
 use heph::actor;
 use socket2::SockRef;
 
-use crate as rt;
 use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
+use crate::{self as rt, Bound};
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
 ///
@@ -61,7 +61,7 @@ impl TcpStream {
     /// which means the actor will be run every time the stream is ready to read
     /// or write.
     ///
-    /// [bound]: heph::actor::Bound
+    /// [bound]: crate::Bound
     pub fn connect<M, RT>(
         ctx: &mut actor::Context<M, RT>,
         address: SocketAddr,
@@ -952,7 +952,7 @@ mod private {
     impl PrivateFileSend for File {}
 }
 
-impl<RT: rt::Access> actor::Bound<RT> for TcpStream {
+impl<RT: rt::Access> Bound<RT> for TcpStream {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {

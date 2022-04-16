@@ -19,7 +19,7 @@ use std::{io, ptr};
 
 use heph::actor;
 
-use crate as rt;
+use crate::{self as rt, Bound};
 
 /// Type returned when the deadline has passed.
 ///
@@ -152,7 +152,7 @@ impl<RT: rt::Access> Future for Timer<RT> {
 
 impl<RT: rt::Access> Unpin for Timer<RT> {}
 
-impl<RT: rt::Access> actor::Bound<RT> for Timer<RT> {
+impl<RT: rt::Access> Bound<RT> for Timer<RT> {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
@@ -348,7 +348,7 @@ where
 
 impl<Fut: Unpin, RT: rt::Access> Unpin for Deadline<Fut, RT> {}
 
-impl<Fut, RT: rt::Access> actor::Bound<RT> for Deadline<Fut, RT> {
+impl<Fut, RT: rt::Access> Bound<RT> for Deadline<Fut, RT> {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
@@ -470,7 +470,7 @@ impl<RT: rt::Access> AsyncIterator for Interval<RT> {
 
 impl<RT: rt::Access> Unpin for Interval<RT> {}
 
-impl<RT: rt::Access> actor::Bound<RT> for Interval<RT> {
+impl<RT: rt::Access> Bound<RT> for Interval<RT> {
     type Error = !;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> Result<(), !> {

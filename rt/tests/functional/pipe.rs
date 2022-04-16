@@ -3,12 +3,11 @@
 use std::io::{self, IoSlice};
 use std::time::Duration;
 
-use heph::actor::{self, Bound};
 use heph::spawn::ActorOptions;
-use heph::ActorRef;
-use heph_rt as rt;
+use heph::{actor, ActorRef};
 use heph_rt::pipe::{self, Receiver, Sender};
 use heph_rt::test::{join, join_many, try_spawn_local, PanicSupervisor};
+use heph_rt::{self as rt, Bound};
 
 const DATA: &[u8] = b"Hello world";
 const DATAV: &[&[u8]] = &[b"Hello world!", b" ", b"From mars."];

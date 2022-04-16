@@ -21,9 +21,9 @@ use log::warn;
 use mio::{net, Interest};
 use socket2::{SockAddr, SockRef};
 
-use crate as rt;
 use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
 use crate::net::convert_address;
+use crate::{self as rt, Bound};
 
 /// The unconnected mode of an [`UdpSocket`].
 #[allow(missing_debug_implementations)]
@@ -151,7 +151,7 @@ impl UdpSocket {
     /// `actor::Context`, which means the actor will be run every time the
     /// socket is ready to be read from or write to.
     ///
-    /// [bound]: heph::actor::Bound
+    /// [bound]: crate::Bound
     pub fn bind<M, RT>(
         ctx: &mut actor::Context<M, RT>,
         local: SocketAddr,
@@ -838,7 +838,7 @@ impl<M> fmt::Debug for UdpSocket<M> {
     }
 }
 
-impl<M, RT: rt::Access> actor::Bound<RT> for UdpSocket<M> {
+impl<M, RT: rt::Access> Bound<RT> for UdpSocket<M> {
     type Error = io::Error;
 
     fn bind_to<Msg>(&mut self, ctx: &mut actor::Context<Msg, RT>) -> io::Result<()> {
