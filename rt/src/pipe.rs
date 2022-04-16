@@ -13,10 +13,10 @@
 //! # Notes
 //!
 //! Both the [`Sender`] and [`Receiver`] types are [bound] to an actor. See the
-//! [`actor::Bound`] trait for more information.
+//! [`Bound`] trait for more information.
 //!
-//! [bound]: heph::actor::Bound
-//! [`actor::Bound`]: heph::actor::Bound
+//! [bound]: crate::Bound
+//! [`Bound`]: crate::Bound
 //!
 //! # Examples
 //!
@@ -116,8 +116,8 @@ use heph::actor;
 use mio::unix::pipe;
 use mio::Interest;
 
-use crate as rt;
 use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
+use crate::{self as rt, Bound};
 
 /// Create a new Unix pipe.
 ///
@@ -319,7 +319,7 @@ impl<'a, 'b> Future for WriteVectoredAll<'a, 'b> {
     }
 }
 
-impl<RT: rt::Access> actor::Bound<RT> for Sender {
+impl<RT: rt::Access> Bound<RT> for Sender {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
@@ -601,7 +601,7 @@ where
     }
 }
 
-impl<RT: rt::Access> actor::Bound<RT> for Receiver {
+impl<RT: rt::Access> Bound<RT> for Receiver {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {

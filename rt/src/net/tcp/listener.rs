@@ -10,8 +10,8 @@ use std::task::{self, Poll};
 use heph::actor;
 use mio::{net, Interest};
 
-use crate as rt;
 use crate::net::TcpStream;
+use crate::{self as rt, Bound};
 
 /// A TCP socket listener.
 ///
@@ -178,7 +178,7 @@ impl TcpListener {
     /// `actor::Context`, which means the actor will be run every time the
     /// listener has a connection ready to be accepted.
     ///
-    /// [bound]: heph::actor::Bound
+    /// [bound]: crate::Bound
     pub fn bind<M, RT>(
         ctx: &mut actor::Context<M, RT>,
         address: SocketAddr,
@@ -323,7 +323,7 @@ impl<'a> AsyncIterator for Incoming<'a> {
     }
 }
 
-impl<RT: rt::Access> actor::Bound<RT> for TcpListener {
+impl<RT: rt::Access> Bound<RT> for TcpListener {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {

@@ -247,11 +247,10 @@ impl<M, RT> SyncContext<M, RT> {
     ///
     /// # Limitations
     ///
-    /// Any [`Future`] returned by a type that is [bound] to an actor **cannot**
-    /// be used by this function. Those types use specialised wake-up mechanisms
-    /// bypassing the `Future`'s [`task`] system.
-    ///
-    /// [bound]: crate::actor::Bound
+    /// Any [`Future`] returned by a type that is bound to an actor (see `Bound`
+    /// trait of the heph-rt crate) **cannot** be used by this function. Those
+    /// types use specialised wake-up mechanisms bypassing the `Future`'s
+    /// [`task`] system.
     pub fn block_on<Fut>(&mut self, fut: Fut) -> Fut::Output
     where
         Fut: Future,

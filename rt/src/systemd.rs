@@ -27,7 +27,7 @@ use socket2::SockRef;
 
 use crate::timer::Interval;
 use crate::util::{either, next};
-use crate::{self as rt, Signal};
+use crate::{self as rt, Bound, Signal};
 
 /// Systemd notifier.
 ///
@@ -303,7 +303,7 @@ impl<'a> Future for TriggerWatchdog<'a> {
     }
 }
 
-impl<RT: rt::Access> actor::Bound<RT> for Notify {
+impl<RT: rt::Access> Bound<RT> for Notify {
     type Error = io::Error;
 
     fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {

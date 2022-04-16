@@ -9,13 +9,13 @@ use std::num::NonZeroUsize;
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::{self, Bound};
+use heph::actor;
 use heph::actor_ref::{ActorRef, RpcMessage};
 use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
 use heph_rt::net::{TcpListener, TcpStream};
 use heph_rt::test::{join, join_many, try_spawn_local, PanicSupervisor};
-use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
+use heph_rt::{self as rt, Bound, Runtime, RuntimeRef, ThreadLocal};
 
 use crate::util::{any_local_address, refused_address};
 

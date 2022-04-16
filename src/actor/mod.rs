@@ -689,29 +689,3 @@ fn format_name(full_name: &'static str) -> &'static str {
 
     name
 }
-
-/// Types that are bound to an [`Actor`].
-///
-/// A marker trait to indicate the type is bound to an [`Actor`]. How the type
-/// is bound to the actor is different for each type. For most futures it means
-/// that if progress can be made (when the [future is awoken]) the actor will be
-/// run. This has the unfortunate consequence that those types can't be moved
-/// away from the actor without [(re)binding] it first, otherwise the new actor
-/// will never be run and the actor that created the type will run instead.
-///
-/// Most types that are bound can only be created with a (mutable) reference to
-/// an [`actor::Context`]. Examples of this are `TcpStream`, `UdpSocket` and
-/// all futures in the `heph_rt::timer` module.
-///
-/// [future is awoken]: std::task::Waker::wake
-/// [(re)binding]: Bound::bind_to
-/// [`actor::Context`]: Context
-pub trait Bound<RT> {
-    /// Error type used in [`bind_to`].
-    ///
-    /// [`bind_to`]: Bound::bind_to
-    type Error;
-
-    /// Bind a type to the [`Actor`] that owns the `ctx`.
-    fn bind_to<M>(&mut self, ctx: &mut Context<M, RT>) -> Result<(), Self::Error>;
-}

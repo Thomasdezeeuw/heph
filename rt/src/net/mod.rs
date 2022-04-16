@@ -38,11 +38,11 @@
 //!
 //! # Notes
 //!
-//! All types in the `net` module are [bound] to an actor. See the
-//! [`actor::Bound`] trait for more information.
+//! All types in the `net` module are [bound] to an actor. See the [`Bound`]
+//! trait for more information.
 //!
-//! [bound]: heph::actor::Bound
-//! [`actor::Bound`]: heph::actor::Bound
+//! [bound]: crate::Bound
+//! [`Bound`]: crate::Bound
 
 use std::io;
 use std::net::SocketAddr;
