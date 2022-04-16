@@ -136,7 +136,6 @@ use std::task::{self, Poll};
 
 mod context;
 mod future;
-pub mod messages;
 mod sync;
 #[cfg(test)]
 mod tests;
@@ -281,7 +280,7 @@ pub trait NewActor {
     /// use std::net::SocketAddr;
     ///
     /// use heph::actor::{self, NewActor};
-    /// # use heph::actor::messages::Terminate;
+    /// # use heph::messages::Terminate;
     /// use heph::spawn::ActorOptions;
     /// use heph_rt::net::{TcpServer, TcpStream};
     /// # use heph_rt::net::tcp::server;

@@ -7,7 +7,7 @@ use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::thread::{self, sleep};
 use std::time::{Duration, SystemTime};
 
-use heph::actor::messages::Terminate;
+use heph::messages::Terminate;
 use heph::rt::{self, Runtime, ThreadLocal};
 use heph::spawn::options::{ActorOptions, Priority};
 use heph::{actor, Actor, ActorRef, NewActor, Supervisor, SupervisorStrategy};

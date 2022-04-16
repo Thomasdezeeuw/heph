@@ -8,8 +8,8 @@ use std::sync::Arc;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
-use heph::actor::messages::Terminate;
 use heph::actor::{self, Actor, NewActor};
+use heph::messages::Terminate;
 use heph::spawn::{ActorOptions, AddActorError, PrivateSpawn, Spawn};
 use heph::supervisor::Supervisor;
 #[cfg(target_os = "linux")]
@@ -152,7 +152,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// # use heph::actor::messages::Terminate;
+/// # use heph::messages::Terminate;
 /// use heph::actor::{self, NewActor};
 /// use heph::spawn::ActorOptions;
 /// use heph::spawn::options::Priority;
@@ -247,7 +247,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// use heph::actor::messages::Terminate;
+/// use heph::messages::Terminate;
 /// use heph::actor::{self, NewActor};
 /// use heph::spawn::options::{ActorOptions, Priority};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
@@ -334,7 +334,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::net::SocketAddr;
 ///
 /// use heph::actor::{self, NewActor};
-/// # use heph::actor::messages::Terminate;
+/// # use heph::messages::Terminate;
 /// use heph::spawn::options::{ActorOptions, Priority};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph_rt::net::tcp::{server, TcpServer, TcpStream};

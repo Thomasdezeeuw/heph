@@ -1,4 +1,4 @@
-//! Module with some generic messages.
+//! Standardised messages.
 //!
 //! To use these message the receiving actor should implement [`From`]`<Message>`,
 //! this way the sending actor can simply send the message, without having to
@@ -17,7 +17,7 @@
 //! Implementing `From<Message>` to allow for easy sending of messages.
 //!
 //! ```
-//! use heph::actor::messages::Ack;
+//! use heph::messages::Ack;
 //!
 //! #[derive(Debug, Eq, PartialEq)]
 //! struct OK;

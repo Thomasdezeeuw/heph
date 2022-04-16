@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
-use heph::actor::messages::Terminate;
+use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::{actor, Actor, ActorOptions, ActorRef, NewActor};
 use heph_rt::net::{tcp, TcpListener, TcpServer, TcpStream};

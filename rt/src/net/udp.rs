@@ -66,7 +66,7 @@ pub enum Connected {}
 ///
 /// use log::error;
 ///
-/// use heph::actor::messages::Terminate;
+/// use heph::messages::Terminate;
 /// use heph::spawn::ActorOptions;
 /// use heph::{actor, SupervisorStrategy};
 /// use heph_rt::net::UdpSocket;

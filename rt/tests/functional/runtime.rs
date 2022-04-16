@@ -36,7 +36,7 @@ fn auto_cpu_affinity() {
 
     use socket2::SockRef;
 
-    use heph::actor::messages::Terminate;
+    use heph::messages::Terminate;
     use heph::spawn::ActorOptions;
     use heph::supervisor::{Supervisor, SupervisorStrategy};
     use heph::{actor, ActorRef, NewActor};
