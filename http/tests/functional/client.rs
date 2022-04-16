@@ -10,7 +10,7 @@ use std::thread::{self, sleep};
 use std::time::{Duration, SystemTime};
 use std::{fmt, str};
 
-use heph::actor::messages::Terminate;
+use heph::messages::Terminate;
 use heph::rt::{self, Runtime, ThreadSafe};
 use heph::spawn::options::{ActorOptions, Priority};
 use heph::test::{init_actor, poll_actor};

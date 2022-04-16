@@ -90,6 +90,7 @@
 
 pub mod actor;
 pub mod actor_ref;
+pub mod messages;
 pub mod quick_start;
 pub mod spawn;
 pub mod supervisor;

@@ -5,8 +5,8 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::Duration;
 
-use heph::actor::messages::Terminate;
 use heph::actor::{self, Actor, NewActor};
+use heph::messages::Terminate;
 use heph::spawn::ActorOptions;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::ActorRef;

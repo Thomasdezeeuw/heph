@@ -96,7 +96,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// Graceful shutdown is done by sending it a [`Terminate`] message. The HTTP
 /// server can also handle (shutdown) process signals, see below for an example.
 ///
-/// [`Terminate`]: heph::actor::messages::Terminate
+/// [`Terminate`]: heph::messages::Terminate
 ///
 /// # Examples
 ///
@@ -131,7 +131,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///         let options = ActorOptions::default().with_priority(Priority::LOW);
 ///         let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
 ///
-/// #       server_ref.try_send(heph::actor::messages::Terminate).unwrap();
+/// #       server_ref.try_send(heph::messages::Terminate).unwrap();
 ///
 ///         // Allow graceful shutdown by responding to process signals.
 ///         runtime_ref.receive_signals(server_ref.try_map());

@@ -19,7 +19,7 @@ use std::time::Duration;
 use std::{env, io, process};
 
 use heph::actor;
-use heph::actor::messages::Terminate;
+use heph::messages::Terminate;
 use log::{as_debug, debug, warn};
 use mio::net::UnixDatagram;
 use mio::Interest;
