@@ -10,7 +10,7 @@ readme        = "README.md"
 keywords      = ["actor", "framework", "async", "functions"]
 categories    = ["asynchronous", "web-programming"]
 include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
-edition       = "2018"
+edition       = "2021"
 
 [features]
 # Feature that enables the `test` module.

@@ -2,7 +2,7 @@
 name = "benches"
 version = "0.1.0"
 authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
-edition = "2018"
+edition = "2021"
 
 [dev-dependencies]
 criterion    = { version = "0.3.4", default-features = false, features = ["html_reports", "cargo_bench_support"] }
