@@ -1,6 +1,10 @@
 //! Module to that defines the [`rt::Access`] trait.
 //!
+//! The types in the module can be used by the actors to get access to runtime,
+//! see [`NewActor::RuntimeAccess`] and [`SyncActor::RuntimeAccess`].
+//!
 //! [`rt::Access`]: crate::Access
+//! [`SyncActor::RuntimeAccess`]: heph::actor::SyncActor::RuntimeAccess
 
 use std::future::Future;
 use std::mem::replace;
@@ -23,6 +27,10 @@ use crate::{shared, RuntimeRef};
 ///
 /// This is used by various API to get access to the runtime, but its only
 /// usable inside the Heph crate.
+///
+/// Also see [`NewActor::RuntimeAccess`] and [`SyncActor::RuntimeAccess`].
+///
+/// [`SyncActor::RuntimeAccess`]: heph::actor::SyncActor::RuntimeAccess
 ///
 /// # Notes
 ///
