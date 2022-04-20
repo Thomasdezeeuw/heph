@@ -2,4 +2,4 @@
 name = "heph-tools"
 version = "0.1.0"
 authors = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
-edition = "2018"
+edition = "2021"

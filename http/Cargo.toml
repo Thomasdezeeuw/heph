@@ -10,7 +10,7 @@ readme        = "README.md"
 keywords      = ["http", "async"]
 categories    = ["asynchronous", "web-programming"]
 include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
-edition       = "2018"
+edition       = "2021"
 
 [dependencies]
 heph     = { version = "0.3.0", path = "../", default-features = false, features = ["runtime"] }
