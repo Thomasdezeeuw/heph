@@ -1,3 +1,52 @@
+# 0.4.0
+
+In this release the runtime was removed from the Heph crate and moved into the
+new heph-rt crate. To see the changes made to the runtime see [Heph-rt change
+log] in the rt directory.
+
+[Heph-rt change log]: ./rt/CHANGELOG.md
+
+## Added
+
+* `ActorFuture` type to start an actor implementing a `Future`
+  (https://github.com/Thomasdezeeuw/heph/commit/1fa9e0d5f80ceee84e93e6de0290cf842c2485e2).
+* `actor::spawn_sync_actor` to spawn synchronous actors, leaving the caller in
+  control of the spawned thread runnign the synchronous actor
+  (https://github.com/Thomasdezeeuw/heph/commit/48ae0fbc5cf8e8d48f318baabdeb4b0cc5dd7ecf).
+* `ActorRef::map_fn` and `ActorRef::try_map_fn` to create a mapped actor
+  reference using a function.
+  (https://github.com/Thomasdezeeuw/heph/commit/aa6ccf79de85c0abccb6a26f920c7d9d405e80cf).
+* `supervisor::StopSupervisor` logs the error and stops the actor
+  (https://github.com/Thomasdezeeuw/heph/commit/32ebc015a8f69be4c4f1c43ac020675e3c96cc09).
+
+## Changed
+
+* The `messages` module moved to the root of crate from `actor::message`
+  (https://github.com/Thomasdezeeuw/heph/commit/68de95431abca0aa33704e64364c928df5c5152c).
+* Added `RuntimeAccess` type to the `SyncActor` trait, similar to
+  `NewActor::RuntimeAccess`
+  (https://github.com/Thomasdezeeuw/heph/commit/33f0f485f1fbd9bd0ece76dce12040232fea2bc7).
+* Now using key-value logging capability of `log` crate
+  (https://github.com/Thomasdezeeuw/heph/commit/cb58771cb380aee601a733f2f66a9ada9998814e,
+  https://github.com/Thomasdezeeuw/heph/commit/0e0b0d16c11b4ed93e0f02982545ef6eff0977d4).
+* Two metrics, printed on receiving the `SIGUSR2` signal, have changed names
+  (https://github.com/Thomasdezeeuw/heph/commit/0f81654c63ca65a8c4ffb7d246cd7a219f98b637):
+  * `os` -> `host_os`.
+  * `architecture` -> `host_arch`.
+* Reduced the allocations made joining a mapped `ActorRef`
+  (https://github.com/Thomasdezeeuw/heph/commit/f0d8fc7b555fbda6d88e15032503e9516e103241).
+* Reduced the allocations made sending with a mapped `ActorRef`
+  (https://github.com/Thomasdezeeuw/heph/commit/80baf5b4e5d256372911141710a130d19dd8a5d4).
+
+## Removed
+
+* The `rt` module has been removed and now lives on as the `heph-rt` crate.
+  Along with that the `Runtime` and `RuntimeRef` aliases are removed from the
+  root of crate.
+* Furthermore the `log`, `net`, `timer` and `trace` modules also has been moved
+  to the `heph-rt` crate.
+* A lot of functions in the `test` module were moved to the `heph-rt` crate.
+
 # 0.3.1
 
 ## Added
