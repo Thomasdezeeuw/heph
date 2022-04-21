@@ -13,7 +13,7 @@ include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
 edition       = "2021"
 
 [dependencies]
-heph     = { version = "0.3.0", path = "../", default-features = false, features = ["runtime"] }
+heph     = { version = "0.4.0", path = "../", default-features = false, features = ["runtime"] }
 httparse = { version = "1.5.1", default-features = false }
 httpdate = { version = "1.0.0", default-features = false }
 log      = { version = "0.4.8", default-features = false }
