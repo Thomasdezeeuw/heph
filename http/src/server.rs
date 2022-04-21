@@ -324,7 +324,7 @@ where
     }
 
     fn name(&self) -> &'static str {
-        self.new_actor.name()
+        NA::name()
     }
 }
 

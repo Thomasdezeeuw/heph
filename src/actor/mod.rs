@@ -387,7 +387,7 @@ pub trait NewActor {
     /// This uses [`type_name`] under the hood which does not have a stable
     /// output. Like the `type_name` function the default implementation is
     /// provided on a best effort basis.
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         name::<Self::Actor>()
     }
 }
@@ -434,8 +434,8 @@ where
         self.new_actor.new(ctx, arg)
     }
 
-    fn name(&self) -> &'static str {
-        self.new_actor.name()
+    fn name() -> &'static str {
+        NA::name()
     }
 }
 
