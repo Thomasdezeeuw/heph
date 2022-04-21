@@ -21,6 +21,8 @@ log] in the rt directory.
 
 ## Changed
 
+* Changed the API of `NewActor::name` to be an associated method
+  (https://github.com/Thomasdezeeuw/heph/commit/099ddd19a0d087577a3dc84cfec8ddb8d572a05b).
 * The `messages` module moved to the root of crate from `actor::message`
   (https://github.com/Thomasdezeeuw/heph/commit/68de95431abca0aa33704e64364c928df5c5152c).
 * Added `RuntimeAccess` type to the `SyncActor` trait, similar to
@@ -37,14 +39,16 @@ log] in the rt directory.
   (https://github.com/Thomasdezeeuw/heph/commit/f0d8fc7b555fbda6d88e15032503e9516e103241).
 * Reduced the allocations made sending with a mapped `ActorRef`
   (https://github.com/Thomasdezeeuw/heph/commit/80baf5b4e5d256372911141710a130d19dd8a5d4).
+* Switch to Rust edition 2021
+  (https://github.com/Thomasdezeeuw/heph/commit/3a6c206946e656dda344da5ca36a9b35e50abed3).
 
 ## Removed
 
 * The `rt` module has been removed and now lives on as the `heph-rt` crate.
   Along with that the `Runtime` and `RuntimeRef` aliases are removed from the
   root of crate.
-* Furthermore the `log`, `net`, `timer` and `trace` modules also has been moved
-  to the `heph-rt` crate.
+* Furthermore the `log`, `net`, `spawn`, `timer` and `trace` modules also has
+  been moved to the `heph-rt` crate.
 * A lot of functions in the `test` module were moved to the `heph-rt` crate.
 
 # 0.3.1
