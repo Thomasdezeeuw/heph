@@ -28,8 +28,9 @@
 //! use std::net::SocketAddr;
 //!
 //! use heph::supervisor::NoSupervisor;
-//! use heph::{actor, restart_supervisor, ActorOptions, ActorRef};
+//! use heph::{actor, restart_supervisor, ActorRef};
 //! use heph_remote::net_relay::{self, Relay, UdpRelayMessage};
+//! use heph_rt::spawn::ActorOptions;
 //! use heph_rt::{self as rt, Runtime};
 //!
 //! # fn main() -> Result<(), rt::Error> {
