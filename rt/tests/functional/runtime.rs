@@ -10,8 +10,8 @@ use std::thread::{self, sleep};
 use std::time::Duration;
 
 use heph::actor::{self, Actor, NewActor, SyncContext};
-use heph::spawn::options::{ActorOptions, FutureOptions, Priority, SyncActorOptions};
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
+use heph_rt::spawn::options::{ActorOptions, FutureOptions, Priority, SyncActorOptions};
 use heph_rt::{Runtime, ThreadLocal, ThreadSafe};
 
 use crate::util::temp_file;
@@ -37,11 +37,11 @@ fn auto_cpu_affinity() {
     use socket2::SockRef;
 
     use heph::messages::Terminate;
-    use heph::spawn::ActorOptions;
     use heph::supervisor::{Supervisor, SupervisorStrategy};
     use heph::{actor, ActorRef, NewActor};
     use heph_rt::net::tcp::server;
     use heph_rt::net::{TcpServer, TcpStream};
+    use heph_rt::spawn::ActorOptions;
     use heph_rt::{RuntimeRef, ThreadLocal};
 
     fn cpu_affinity(stream: &TcpStream) -> io::Result<usize> {

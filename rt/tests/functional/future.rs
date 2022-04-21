@@ -5,8 +5,8 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 
 use heph::actor;
-use heph::spawn::{ActorOptions, FutureOptions};
 use heph::supervisor::NoSupervisor;
+use heph_rt::spawn::{ActorOptions, FutureOptions};
 use heph_rt::test::poll_future;
 use heph_rt::{Runtime, ThreadSafe};
 

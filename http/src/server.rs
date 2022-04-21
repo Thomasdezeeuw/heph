@@ -24,8 +24,8 @@ use std::time::SystemTime;
 
 use heph::bytes::{Bytes, BytesVectored};
 use heph::net::{tcp, TcpServer, TcpStream};
-use heph::spawn::{ActorOptions, Spawn};
 use heph::{actor, rt, Actor, NewActor, Supervisor};
+use heph_rt::spawn::{ActorOptions, Spawn};
 use httpdate::HttpDate;
 
 use crate::body::{BodyLength, EmptyBody};
@@ -110,11 +110,11 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use heph::actor::{self, Actor, NewActor};
 /// use heph::net::TcpStream;
 /// use heph::rt::{self, Runtime, ThreadLocal};
-/// use heph::spawn::options::{ActorOptions, Priority};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::timer::Deadline;
 /// use heph_http::body::OneshotBody;
 /// use heph_http::{self as http, Header, HeaderName, Headers, HttpServer, Method, StatusCode};
+/// use heph_rt::spawn::options::{ActorOptions, Priority};
 /// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error> {

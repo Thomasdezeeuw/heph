@@ -3,9 +3,9 @@
 use std::io::{self, IoSlice};
 use std::time::Duration;
 
-use heph::spawn::ActorOptions;
 use heph::{actor, ActorRef};
 use heph_rt::pipe::{self, Receiver, Sender};
+use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join, join_many, try_spawn_local, PanicSupervisor};
 use heph_rt::{self as rt, Bound};
 

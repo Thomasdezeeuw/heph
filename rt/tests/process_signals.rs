@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
 use heph::actor::{self, SyncContext};
-use heph::spawn::options::{ActorOptions, SyncActorOptions};
 use heph::supervisor::NoSupervisor;
+use heph_rt::spawn::options::{ActorOptions, SyncActorOptions};
 use heph_rt::{Runtime, Signal};
 use mio_signals::send_signal;
 

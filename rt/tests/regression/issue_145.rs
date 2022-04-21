@@ -9,8 +9,9 @@ use std::time::Duration;
 
 use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use heph::{actor, Actor, ActorOptions, ActorRef, NewActor};
+use heph::{actor, Actor, ActorRef, NewActor};
 use heph_rt::net::{tcp, TcpListener, TcpServer, TcpStream};
+use heph_rt::spawn::ActorOptions;
 use heph_rt::{Runtime, RuntimeRef, ThreadLocal};
 
 const N: usize = 4;

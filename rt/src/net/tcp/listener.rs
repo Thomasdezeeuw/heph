@@ -36,10 +36,10 @@ use crate::{self as rt, Bound};
 ///
 /// use log::error;
 ///
-/// use heph::spawn::ActorOptions;
 /// use heph::{actor, SupervisorStrategy};
-/// use heph_rt::net::TcpListener;
 /// # use heph_rt::net::TcpStream;
+/// use heph_rt::net::TcpListener;
+/// use heph_rt::spawn::ActorOptions;
 /// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 /// use log::info;
 ///
@@ -102,10 +102,10 @@ use crate::{self as rt, Bound};
 ///
 /// use log::{error, info};
 ///
-/// use heph::spawn::ActorOptions;
 /// use heph::{actor, SupervisorStrategy};
 /// use heph_rt::net::TcpListener;
 /// # use heph_rt::net::TcpStream;
+/// use heph_rt::spawn::ActorOptions;
 /// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 /// use heph_rt::util::next;
 ///

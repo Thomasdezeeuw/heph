@@ -9,11 +9,11 @@ use std::time::{Duration, SystemTime};
 
 use heph::messages::Terminate;
 use heph::rt::{self, Runtime, ThreadLocal};
-use heph::spawn::options::{ActorOptions, Priority};
 use heph::{actor, Actor, ActorRef, NewActor, Supervisor, SupervisorStrategy};
 use heph_http::body::OneshotBody;
 use heph_http::server::{HttpServer, RequestError};
 use heph_http::{self as http, Header, HeaderName, Headers, Method, StatusCode, Version};
+use heph_rt::spawn::options::{ActorOptions, Priority};
 use httpdate::fmt_http_date;
 
 /// Macro to run with a test server.

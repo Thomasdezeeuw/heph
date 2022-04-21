@@ -7,11 +7,11 @@ use std::pin::Pin;
 use std::rc::Rc;
 
 use heph::actor::{self, NewActor};
-use heph::spawn::options::Priority;
 use heph::supervisor::NoSupervisor;
 
 use crate::local::scheduler::{ProcessData, Scheduler};
 use crate::process::{Process, ProcessId, ProcessResult};
+use crate::spawn::options::Priority;
 use crate::test::{self, init_local_actor_with_inbox, AssertUnmoved};
 use crate::{RuntimeRef, ThreadLocal};
 

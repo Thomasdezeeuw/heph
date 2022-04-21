@@ -1,13 +1,12 @@
 //! Module with the [`Spawn`] trait.
 
-use crate::actor::{self, NewActor};
-use crate::actor_ref::ActorRef;
-use crate::supervisor::Supervisor;
+use heph::actor::{self, NewActor};
+use heph::actor_ref::ActorRef;
+use heph::supervisor::Supervisor;
 
 pub mod options;
 
-#[doc(hidden)] // Not part of the stable API.
-pub use private::{AddActorError, PrivateSpawn};
+pub(crate) use private::{AddActorError, PrivateSpawn};
 
 #[doc(no_inline)]
 pub use options::{ActorOptions, FutureOptions, SyncActorOptions};
@@ -73,10 +72,11 @@ pub trait Spawn<S, NA, RT>: PrivateSpawn<S, NA, RT> {
 mod private {
     //! Module with private types.
 
-    use crate::actor::{self, NewActor};
-    use crate::actor_ref::ActorRef;
+    use heph::actor::{self, NewActor};
+    use heph::actor_ref::ActorRef;
+    use heph::supervisor::Supervisor;
+
     use crate::spawn::ActorOptions;
-    use crate::supervisor::Supervisor;
 
     /// Private version of the [`Spawn`]  trait.
     ///

@@ -9,12 +9,12 @@ use std::mem::MaybeUninit;
 use std::pin::Pin;
 
 use heph::actor::NewActor;
-use heph::spawn::options::Priority;
 use heph::supervisor::Supervisor;
 use heph_inbox::Manager;
 use log::{debug, trace};
 
 use crate::process::{self, ActorProcess, FutureProcess, Process, ProcessId};
+use crate::spawn::options::Priority;
 use crate::{ptr_as_usize, ThreadSafe};
 
 mod inactive;

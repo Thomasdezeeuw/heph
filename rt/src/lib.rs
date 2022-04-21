@@ -65,8 +65,8 @@
 //! #![feature(never_type)]
 //!
 //! use heph::actor;
-//! use heph::spawn::ActorOptions;
 //! use heph::supervisor::NoSupervisor;
+//! use heph_rt::spawn::ActorOptions;
 //! use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 //!
 //! fn main() -> Result<(), rt::Error> {
@@ -127,6 +127,7 @@
 
 #![feature(
     async_iterator,
+    const_option,
     doc_auto_cfg,
     doc_cfg_hide,
     drain_filter,
@@ -198,9 +199,6 @@ use std::{io, task};
 use ::log::{as_debug, debug, warn};
 use heph::actor::{self, NewActor, SyncActor};
 use heph::actor_ref::{ActorGroup, ActorRef};
-use heph::spawn::{
-    ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn, SyncActorOptions,
-};
 use heph::supervisor::{Supervisor, SyncSupervisor};
 use heph_inbox as inbox;
 use mio::{event, Interest, Token};
@@ -218,6 +216,7 @@ mod process;
 mod setup;
 pub(crate) mod shared;
 mod signal;
+pub mod spawn;
 pub(crate) mod sync_worker;
 #[cfg(target_os = "linux")]
 pub mod systemd;
@@ -241,6 +240,7 @@ pub use signal::Signal;
 
 use coordinator::Coordinator;
 use local::waker::MAX_THREADS;
+use spawn::{ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn, SyncActorOptions};
 use sync_worker::SyncWorker;
 
 pub(crate) const SYNC_WORKER_ID_START: usize = 10000;
@@ -362,7 +362,7 @@ impl Runtime {
         supervisor: S,
         actor: A,
         arg: A::Argument,
-        options: SyncActorOptions<()>,
+        options: SyncActorOptions,
     ) -> Result<ActorRef<A::Message>, Error>
     where
         S: SyncSupervisor<A> + Send + 'static,

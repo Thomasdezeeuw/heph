@@ -59,12 +59,12 @@ use std::{io, slice, thread};
 
 use heph::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
 use heph::actor_ref::{ActorGroup, ActorRef};
-use heph::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use heph::supervisor::{Supervisor, SyncSupervisor};
 use heph_inbox::oneshot::new_oneshot;
 use heph_inbox::Manager;
 
 use crate::shared::waker;
+use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::sync_worker::SyncWorker;
 use crate::thread_waker::ThreadWaker;
 use crate::worker::{Control, Worker};
@@ -417,7 +417,7 @@ pub fn spawn_sync_actor<S, A, Arg, M>(
     supervisor: S,
     actor: A,
     arg: Arg,
-    options: SyncActorOptions<()>,
+    options: SyncActorOptions,
 ) -> io::Result<(thread::JoinHandle<()>, ActorRef<M>)>
 where
     S: SyncSupervisor<A> + Send + 'static,

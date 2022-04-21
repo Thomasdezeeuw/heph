@@ -11,13 +11,13 @@ use std::{io, task};
 
 use heph::actor::{self, NewActor};
 use heph::actor_ref::ActorRef;
-use heph::spawn::{ActorOptions, AddActorError, FutureOptions};
 use heph::supervisor::Supervisor;
 use heph_inbox as inbox;
 use log::{debug, error, trace};
 use mio::unix::SourceFd;
 use mio::{event, Events, Interest, Poll, Registry, Token};
 
+use crate::spawn::{ActorOptions, AddActorError, FutureOptions};
 use crate::thread_waker::ThreadWaker;
 use crate::{trace, ProcessId, ThreadSafe};
 

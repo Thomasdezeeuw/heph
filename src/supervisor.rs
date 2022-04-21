@@ -61,8 +61,8 @@
 //! #![feature(never_type)]
 //!
 //! use heph::actor;
-//! use heph::spawn::ActorOptions;
 //! use heph::supervisor::SupervisorStrategy;
+//! use heph_rt::spawn::ActorOptions;
 //! use heph_rt::{self as rt, ThreadLocal, Runtime};
 //! use log::error;
 //!
@@ -271,8 +271,8 @@ where
 /// #![feature(never_type)]
 ///
 /// use heph::actor;
-/// use heph::spawn::ActorOptions;
 /// use heph::supervisor::NoSupervisor;
+/// use heph_rt::spawn::ActorOptions;
 /// use heph_rt::{self as rt, ThreadLocal, Runtime};
 ///
 /// fn main() -> Result<(), rt::Error> {
@@ -334,8 +334,8 @@ where
 /// #![feature(never_type)]
 ///
 /// use heph::actor;
-/// use heph::spawn::ActorOptions;
 /// use heph::supervisor::StopSupervisor;
+/// use heph_rt::spawn::ActorOptions;
 /// use heph_rt::{self as rt, ThreadLocal, Runtime};
 ///
 /// fn main() -> Result<(), rt::Error> {

@@ -680,10 +680,9 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
 
-    use heph::spawn::options::Priority;
-
     use crate::process::{Process, ProcessId, ProcessResult};
     use crate::shared::scheduler::RunQueue;
+    use crate::spawn::options::Priority;
     use crate::RuntimeRef;
 
     use super::{
