@@ -167,7 +167,7 @@ where
             Ok(Poll::Pending) => Poll::Pending,
             Err(panic) => {
                 let msg = panic_message(&*panic);
-                error!("actor '{}' panicked at '{}'", this.new_actor.name(), msg);
+                error!("actor '{}' panicked at '{}'", NA::name(), msg);
                 this.handle_actor_panic(ctx.waker(), panic)
             }
         }
@@ -183,7 +183,7 @@ where
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ActorFuture")
             .field("supervisor", &self.supervisor)
-            .field("actor", &self.new_actor.name())
+            .field("actor", &NA::name())
             .field("rt", &self.rt)
             .finish()
     }

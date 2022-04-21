@@ -752,7 +752,7 @@ where
         let mut scheduler = self.internals.scheduler.borrow_mut();
         let actor_entry = scheduler.add_actor();
         let pid = actor_entry.pid();
-        let name = new_actor.name();
+        let name = NA::name();
         debug!(pid = pid.0, name = name; "spawning thread-local actor");
 
         // Create our actor context and our actor with it.

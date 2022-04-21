@@ -157,7 +157,7 @@ where
     NA::RuntimeAccess: rt::Access + RuntimeSupport,
 {
     fn name(&self) -> &'static str {
-        self.new_actor.name()
+        NA::name()
     }
 
     fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult {
@@ -175,7 +175,7 @@ where
             Ok(Poll::Pending) => ProcessResult::Pending,
             Err(panic) => {
                 let msg = panic_message(&*panic);
-                error!("actor '{}' panicked at '{}'", this.name(), msg);
+                error!("actor '{}' panicked at '{}'", NA::name(), msg);
                 this.handle_actor_panic(runtime_ref, pid, panic)
             }
         }
