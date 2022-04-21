@@ -7,8 +7,8 @@ use log::warn;
 
 use heph::actor::{self, SyncContext};
 use heph::actor_ref::{ActorRef, SendError};
-use heph::spawn::{ActorOptions, SyncActorOptions};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
+use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::trace::Trace;
 use heph_rt::{self as rt, Runtime, RuntimeRef};
 

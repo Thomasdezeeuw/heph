@@ -19,7 +19,7 @@ use std::time::Duration;
 /// Using the default options.
 ///
 /// ```
-/// use heph::spawn::ActorOptions;
+/// use heph_rt::spawn::ActorOptions;
 ///
 /// let opts = ActorOptions::default();
 /// # drop(opts); // Silence unused variable warning.
@@ -28,7 +28,7 @@ use std::time::Duration;
 /// Giving an actor a high priority.
 ///
 /// ```
-/// use heph::spawn::options::{ActorOptions, Priority};
+/// use heph_rt::spawn::options::{ActorOptions, Priority};
 ///
 /// let opts = ActorOptions::default().with_priority(Priority::HIGH);
 /// # drop(opts); // Silence unused variable warning.
@@ -177,7 +177,7 @@ fn priority_duration_multiplication() {
 /// Using the default options.
 ///
 /// ```
-/// use heph::spawn::SyncActorOptions;
+/// use heph_rt::spawn::SyncActorOptions;
 ///
 /// let opts = SyncActorOptions::default();
 /// # drop(opts); // Silence unused variable warning.
@@ -186,36 +186,25 @@ fn priority_duration_multiplication() {
 /// Setting the name of the thread that runs the synchronous actor.
 ///
 /// ```
-/// use heph::spawn::SyncActorOptions;
+/// use heph_rt::spawn::SyncActorOptions;
 ///
 /// let opts = SyncActorOptions::default().with_name("My sync actor".to_owned());
 /// # drop(opts); // Silence unused variable warning.
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[must_use]
-pub struct SyncActorOptions<RT> {
-    pub(crate) thread_name: Option<String>,
-    pub(crate) rt: RT,
+pub struct SyncActorOptions {
+    thread_name: Option<String>,
 }
 
-impl Default for SyncActorOptions<()> {
-    fn default() -> SyncActorOptions<()> {
-        SyncActorOptions {
-            thread_name: None,
-            rt: (),
-        }
-    }
-}
-
-impl<RT> SyncActorOptions<RT> {
+impl SyncActorOptions {
     /// Returns the name of the synchronous actor, if any.
     pub fn name(&self) -> Option<&str> {
         self.thread_name.as_deref()
     }
 
     /// Removes the name.
-    #[doc(hidden)] // Not part of the stable API.
-    pub fn take_name(self) -> Option<String> {
+    pub(crate) fn take_name(self) -> Option<String> {
         self.thread_name
     }
 
@@ -226,16 +215,6 @@ impl<RT> SyncActorOptions<RT> {
     pub fn with_name(mut self, thread_name: String) -> Self {
         self.thread_name = Some(thread_name);
         self
-    }
-
-    /// Add a runtime handle to the [`SyncContext`].
-    ///
-    /// [`SyncContext`]: crate::actor::SyncContext
-    pub fn with_rt<R>(self, rt: R) -> SyncActorOptions<R> {
-        SyncActorOptions {
-            thread_name: self.thread_name,
-            rt,
-        }
     }
 }
 
@@ -248,7 +227,7 @@ impl<RT> SyncActorOptions<RT> {
 /// Using the default options.
 ///
 /// ```
-/// use heph::spawn::FutureOptions;
+/// use heph_rt::spawn::FutureOptions;
 ///
 /// let opts = FutureOptions::default();
 /// # drop(opts); // Silence unused variable warning.
@@ -257,7 +236,7 @@ impl<RT> SyncActorOptions<RT> {
 /// Giving an actor a high priority.
 ///
 /// ```
-/// use heph::spawn::options::{FutureOptions, Priority};
+/// use heph_rt::spawn::options::{FutureOptions, Priority};
 ///
 /// let opts = FutureOptions::default().with_priority(Priority::HIGH);
 /// # drop(opts); // Silence unused variable warning.

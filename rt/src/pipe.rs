@@ -51,7 +51,7 @@
 //! #     heph_rt::test::PanicSupervisor,
 //! #     process_handler as fn(_) -> _,
 //! #     (),
-//! #     heph::spawn::ActorOptions::default(),
+//! #     heph_rt::spawn::ActorOptions::default(),
 //! # ).unwrap();
 //! # heph_rt::test::join(&actor_ref, std::time::Duration::from_secs(1)).unwrap();
 //! ```
@@ -100,7 +100,7 @@
 //! #     heph_rt::test::PanicSupervisor,
 //! #     process_handler as fn(_) -> _,
 //! #     (),
-//! #     heph::spawn::ActorOptions::default(),
+//! #     heph_rt::spawn::ActorOptions::default(),
 //! # ).unwrap();
 //! # heph_rt::test::join(&actor_ref, std::time::Duration::from_secs(1)).unwrap();
 //! ```

@@ -14,7 +14,6 @@ use log::trace;
 
 use crate::actor::{NoMessages, RecvError};
 use crate::actor_ref::ActorRef;
-use crate::spawn::options::SyncActorOptions;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 
 /// Synchronous actor.
@@ -372,7 +371,7 @@ pub fn spawn_sync_actor<S, A, RT>(
     supervisor: S,
     actor: A,
     arg: A::Argument,
-    options: SyncActorOptions<RT>,
+    rt: RT,
 ) -> io::Result<(thread::JoinHandle<()>, ActorRef<A::Message>)>
 where
     S: SyncSupervisor<A> + Send + 'static,
@@ -388,10 +387,8 @@ where
         actor,
         inbox,
     };
-    let SyncActorOptions { thread_name, rt } = options;
-    let thread_name = thread_name.unwrap_or_else(|| "Sync actor".to_owned());
     thread::Builder::new()
-        .name(thread_name)
+        .name("Sync actor".to_owned())
         .spawn(move || sync_worker.run(arg, rt))
         .map(|handle| (handle, actor_ref))
 }

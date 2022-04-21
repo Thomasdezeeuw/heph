@@ -10,7 +10,6 @@ use std::{fmt, io};
 
 use heph::actor::{self, Actor, NewActor};
 use heph::messages::Terminate;
-use heph::spawn::{ActorOptions, AddActorError, PrivateSpawn, Spawn};
 use heph::supervisor::Supervisor;
 #[cfg(target_os = "linux")]
 use log::warn;
@@ -20,6 +19,7 @@ use mio::Interest;
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::net::TcpStream;
+use crate::spawn::{ActorOptions, AddActorError, PrivateSpawn, Spawn};
 use crate::{self as rt, PrivateAccess, Signal};
 
 /// A intermediate structure that implements [`NewActor`], creating
@@ -154,10 +154,10 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///
 /// # use heph::messages::Terminate;
 /// use heph::actor::{self, NewActor};
-/// use heph::spawn::ActorOptions;
-/// use heph::spawn::options::Priority;
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph_rt::net::tcp::{server, TcpServer, TcpStream};
+/// use heph_rt::spawn::ActorOptions;
+/// use heph_rt::spawn::options::Priority;
 /// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 /// use log::error;
 ///
@@ -249,10 +249,10 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///
 /// use heph::messages::Terminate;
 /// use heph::actor::{self, NewActor};
-/// use heph::spawn::options::{ActorOptions, Priority};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// # use heph_rt::net::tcp;
 /// use heph_rt::net::{TcpServer, TcpStream};
+/// use heph_rt::spawn::options::{ActorOptions, Priority};
 /// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 /// use log::error;
 ///
@@ -335,9 +335,9 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///
 /// use heph::actor::{self, NewActor};
 /// # use heph::messages::Terminate;
-/// use heph::spawn::options::{ActorOptions, Priority};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph_rt::net::tcp::{server, TcpServer, TcpStream};
+/// use heph_rt::spawn::options::{ActorOptions, Priority};
 /// use heph_rt::{self as rt, Runtime, ThreadSafe};
 /// use log::error;
 ///

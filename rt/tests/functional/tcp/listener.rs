@@ -5,8 +5,9 @@ use std::task::Poll;
 use std::time::Duration;
 
 use heph::supervisor::NoSupervisor;
-use heph::{actor, ActorOptions, ActorRef};
+use heph::{actor, ActorRef};
 use heph_rt::net::{TcpListener, TcpStream};
+use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{init_local_actor, join_many, poll_actor, try_spawn_local};
 use heph_rt::util::next;
 use heph_rt::{self as rt, Bound, Runtime, RuntimeRef, ThreadLocal};

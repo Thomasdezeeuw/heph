@@ -1,6 +1,6 @@
 use heph::actor::SyncContext;
-use heph::spawn::SyncActorOptions;
 use heph::supervisor::NoSupervisor;
+use heph_rt::spawn::SyncActorOptions;
 use heph_rt::{self as rt, Runtime};
 
 fn main() -> Result<(), rt::Error> {

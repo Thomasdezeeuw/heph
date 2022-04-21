@@ -6,10 +6,10 @@ use std::fmt;
 use std::pin::Pin;
 use std::time::{Duration, Instant};
 
-use heph::spawn::options::Priority;
 use log::{as_debug, trace};
 use mio::Token;
 
+use crate::spawn::options::Priority;
 use crate::RuntimeRef;
 
 mod actor;

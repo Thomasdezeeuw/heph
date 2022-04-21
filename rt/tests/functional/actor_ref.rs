@@ -6,10 +6,11 @@ use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::task::Poll;
 
+use heph::actor;
 use heph::actor_ref::{ActorRef, Join, RpcError, RpcMessage, SendError, SendValue};
-use heph::spawn::options::Priority;
 use heph::supervisor::NoSupervisor;
-use heph::{actor, ActorOptions};
+use heph_rt::spawn::options::Priority;
+use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{init_local_actor, poll_actor, poll_future};
 use heph_rt::{Runtime, ThreadLocal};
 

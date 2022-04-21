@@ -4,8 +4,8 @@
 //! the sync actor to stop and not prevent the test from returning.
 
 use heph::actor::SyncContext;
-use heph::spawn::SyncActorOptions;
 use heph::supervisor::NoSupervisor;
+use heph_rt::spawn::SyncActorOptions;
 use heph_rt::Runtime;
 
 #[test]

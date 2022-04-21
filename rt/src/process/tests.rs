@@ -10,11 +10,11 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use heph::actor::{self, Actor, NewActor};
-use heph::spawn::options::Priority;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use mio::Token;
 
 use crate::process::{ActorProcess, FutureProcess, Process, ProcessData, ProcessId, ProcessResult};
+use crate::spawn::options::Priority;
 use crate::test::{self, init_local_actor_with_inbox, AssertUnmoved, TEST_PID};
 use crate::{RuntimeRef, ThreadLocal, ThreadSafe};
 

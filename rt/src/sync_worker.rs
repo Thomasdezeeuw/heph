@@ -16,12 +16,12 @@ use std::thread;
 
 use heph::actor::{SyncActor, SyncContext};
 use heph::actor_ref::ActorRef;
-use heph::spawn::options::SyncActorOptions;
 use heph::supervisor::{SupervisorStrategy, SyncSupervisor};
 use heph_inbox::{self as inbox, ReceiverConnected};
 use log::trace;
 use mio::{unix, Interest, Registry, Token};
 
+use crate::spawn::options::SyncActorOptions;
 use crate::trace;
 use crate::{self as rt, shared};
 
@@ -43,7 +43,7 @@ impl SyncWorker {
         supervisor: S,
         actor: A,
         arg: A::Argument,
-        options: SyncActorOptions<()>,
+        options: SyncActorOptions,
         rt: Arc<shared::RuntimeInternals>,
         trace_log: Option<trace::Log>,
     ) -> io::Result<(SyncWorker, ActorRef<A::Message>)>

@@ -92,7 +92,6 @@ pub mod actor;
 pub mod actor_ref;
 pub mod messages;
 pub mod quick_start;
-pub mod spawn;
 pub mod supervisor;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
@@ -101,7 +100,5 @@ pub mod test;
 pub use actor::{Actor, NewActor};
 #[doc(no_inline)]
 pub use actor_ref::ActorRef;
-#[doc(no_inline)]
-pub use spawn::{ActorOptions, Spawn, SyncActorOptions};
 #[doc(no_inline)]
 pub use supervisor::{Supervisor, SupervisorStrategy};

@@ -15,11 +15,11 @@ use std::{fmt, io, task};
 
 use heph::actor::{self, NewActor, SyncContext};
 use heph::actor_ref::ActorRef;
-use heph::spawn::{ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn};
 use heph::supervisor::Supervisor;
 use mio::{event, Interest};
 
 use crate::process::ProcessId;
+use crate::spawn::{ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn};
 use crate::trace::{self, Trace};
 use crate::{shared, RuntimeRef};
 

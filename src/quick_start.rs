@@ -92,8 +92,8 @@
 //! # use std::io::{self, stdout, Write};
 //! # use heph::actor;
 //! # use heph::actor_ref::ActorRef;
-//! # use heph::spawn::options::ActorOptions;
 //! # use heph::supervisor::SupervisorStrategy;
+//! # use heph_rt::spawn::options::ActorOptions;
 //! # use heph_rt::{RuntimeRef, ThreadLocal};
 //! # use log::warn;
 //! // Later on we'll see where we can get a `RuntimeRef`.

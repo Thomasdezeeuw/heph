@@ -12,13 +12,13 @@ use std::{fmt, str};
 
 use heph::messages::Terminate;
 use heph::rt::{self, Runtime, ThreadSafe};
-use heph::spawn::options::{ActorOptions, Priority};
 use heph::test::{init_actor, poll_actor};
 use heph::{actor, Actor, ActorRef, NewActor, Supervisor, SupervisorStrategy};
 use heph_http::body::{EmptyBody, OneshotBody};
 use heph_http::client::{Client, ResponseError};
 use heph_http::server::{HttpServer, RequestError};
 use heph_http::{self as http, Header, HeaderName, Headers, Method, Response, StatusCode, Version};
+use heph_rt::spawn::options::{ActorOptions, Priority};
 use httpdate::fmt_http_date;
 
 const USER_AGENT: &[u8] = b"Heph-HTTP/0.1.0";

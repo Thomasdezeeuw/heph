@@ -63,9 +63,9 @@
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {
-//! #    use heph::spawn::ActorOptions;
 //! #    use heph::supervisor::NoSupervisor;
 //! #    use heph_rt::Runtime;
+//! #    use heph_rt::spawn::ActorOptions;
 //! #    let mut runtime = Runtime::new()?;
 //! #    runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
 //! #        let counter = counter as fn(_) -> _;
@@ -139,9 +139,9 @@
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {
-//! #    use heph::spawn::{ActorOptions, SyncActorOptions};
 //! #    use heph::supervisor::NoSupervisor;
 //! #    use heph_rt::Runtime;
+//! #    use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 //! #
 //! #    let mut runtime = Runtime::new()?;
 //! #    let counter = counter as fn(_) -> _;

@@ -6,9 +6,9 @@ use std::time::Duration;
 
 use heph::actor::{self, Actor, NewActor};
 use heph::actor_ref::{ActorRef, RpcMessage};
-use heph::spawn::ActorOptions;
 use heph::supervisor::NoSupervisor;
 use heph_rt::net::udp::{UdpSocket, Unconnected};
+use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join, try_spawn_local, PanicSupervisor};
 use heph_rt::{self as rt, Bound, Runtime, RuntimeRef, ThreadLocal};
 

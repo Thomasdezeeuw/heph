@@ -7,11 +7,11 @@ use std::time::Duration;
 
 use heph::actor::{self, Actor, NewActor};
 use heph::messages::Terminate;
-use heph::spawn::ActorOptions;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::ActorRef;
 use heph_rt::net::tcp::server;
 use heph_rt::net::{TcpServer, TcpStream};
+use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join_many, try_spawn_local, PanicSupervisor};
 use heph_rt::{self as rt, Runtime, Signal, ThreadLocal};
 
