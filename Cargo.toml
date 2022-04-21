@@ -1,7 +1,7 @@
 [package]
 name          = "heph"
 description   = "Heph is an actor framework based on asynchronous functions."
-version       = "0.3.1"
+version       = "0.4.0"
 authors       = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license       = "MIT"
 documentation = "https://docs.rs/heph"
@@ -26,7 +26,7 @@ getrandom         = { version = "0.2.2", default-features = false, features = ["
 
 [dev-dependencies]
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
-heph-rt           = { version = "0.1.0", default-features = false, features = ["test"], path = "rt" }
+heph-rt           = { version = "0.4.0", default-features = false, features = ["test"], path = "rt" }
 std-logger        = { version = "0.4.0", default-features = false, features = ["log-panic", "nightly"] }
 
 [[test]]
