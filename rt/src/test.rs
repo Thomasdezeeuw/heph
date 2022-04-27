@@ -202,7 +202,7 @@ where
 /// actors.
 ///
 /// [module documentation]: crate::test
-/// [`Spawn`]: heph::spawn::Spawn
+/// [`Spawn`]: crate::spawn::Spawn
 ///
 /// # Notes
 ///
@@ -235,7 +235,7 @@ where
 /// actors.
 ///
 /// [module documentation]: crate::test
-/// [`Spawn`]: heph::spawn::Spawn
+/// [`Spawn`]: crate::spawn::Spawn
 ///
 /// # Notes
 ///

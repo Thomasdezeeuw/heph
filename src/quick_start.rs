@@ -72,7 +72,7 @@
 //! ### Spawning Actors
 //!
 //! To run an actor it must be spawned. How to spawn an actor is defined by the
-//! [`Spawn`] trait, which is implemented on most runtime types, such as
+//! `Spawn` trait, which is implemented on most runtime types, such as
 //! `Runtime` and `RuntimeRef`, but we'll get to those types in the next
 //! section.
 //!
@@ -83,8 +83,8 @@
 //!   For now we're going to ignore that detail and use an asynchronous function
 //!   as actor which implements the `NewActor` trait for us.
 //! * The [starting argument(s)] for the actor, see the example below.
-//! * Finally we need [`ActorOptions`]. For now we'll ignore these as they are
-//!   for more advanced use cases, out of scope for this quick start guide.
+//! * Finally we need `ActorOptions`. For now we'll ignore these as they are for
+//!   more advanced use cases, out of scope for this quick start guide.
 //!
 //! Let's take a look at an example that spawns an actor.
 //!
@@ -147,15 +147,13 @@
 //! # drop(spawn_actor); // Silence dead code warnings.
 //! ```
 //!
-//! See the [`Spawn`] trait for more information about spawning actors and see
+//! See the `Spawn` trait for more information about spawning actors and see
 //! the [supervisor] module for more information about actor supervision, e.g.
 //! when to stop and when to restart an actor.
 //!
-//! [`Spawn`]: crate::spawn::Spawn
 //! [`Supervisor`]: crate::supervisor::Supervisor
 //! [supervisor]: crate::supervisor
 //! [starting argument(s)]: crate::actor::NewActor::Argument
-//! [`ActorOptions`]: crate::spawn::options::ActorOptions
 //! [`NewActor`]: crate::actor::NewActor
 //!
 //! ## The Heph runtime

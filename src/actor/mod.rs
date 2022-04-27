@@ -22,7 +22,7 @@
 //! Asynchronous thread-local actors, often referred to as just thread-local
 //! actors, are actors that will remain on the thread on which they are started.
 //! They can be started, or spawned, using `RuntimeRef::try_spawn_local`, or
-//! any type that implements the [`Spawn`] trait using the `ThreadLocal`
+//! any type that implements the `Spawn` trait using the `ThreadLocal`
 //! context. These should be the most used as they are the cheapest to run.
 //!
 //! The upside of running a thread-local actor is that it doesn't have to be
@@ -32,14 +32,12 @@
 //! actor/tasks that transparently move between threads and hide blocking/bad
 //! actors, Heph does not (for thread-local actor).
 //!
-//! [`Spawn`]: crate::spawn::Spawn
-//!
 //! ## Asynchronous thread-safe actors
 //!
 //! Asynchronous thread-safe actors, or just thread-safe actor, are actors that
 //! can be run on any of the worker threads and transparently move between them.
 //! They can be spawned using `RuntimeRef::try_spawn`, or any type that
-//! implements the [`Spawn`] trait using the `ThreadSafe` context. Because
+//! implements the `Spawn` trait using the `ThreadSafe` context. Because
 //! these actor move between threads they are required to be [`Send`] and
 //! [`Sync`].
 //!
