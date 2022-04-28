@@ -9,12 +9,14 @@
 use std::future::Future;
 use std::mem::replace;
 use std::ops::{Deref, DerefMut};
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{self, Poll};
 use std::time::Instant;
-use std::{fmt, io, task};
+use std::{fmt, io};
 
 use heph::actor::{self, NewActor, SyncContext};
-use heph::actor_ref::ActorRef;
+use heph::actor_ref::{ActorRef, Rpc};
 use heph::supervisor::Supervisor;
 use mio::{event, Interest};
 
@@ -35,7 +37,57 @@ use crate::{shared, RuntimeRef};
 /// # Notes
 ///
 /// This trait can't be implemented by types outside of the Heph crate.
-pub trait Access: PrivateAccess {}
+pub trait Access: PrivateAccess {
+    /// Run a blocking function on a worker thread not blocking the non-blocking
+    /// runtime.
+    fn run_blocking<F, T>(&self, f: F) -> Blocking<F, T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static;
+}
+
+/// [`Future`] behind [`Access::block_on`].
+#[derive(Debug)]
+pub struct Blocking<'a, F, T> {
+    // TODO.
+//inner: Rpc<'a, F, T>,
+}
+
+impl<'a, M, T> Future for Blocking<'a, M, T> {
+    type Output = Result<T, BlockingError>;
+
+    #[track_caller]
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        todo!()
+        /*
+        // Safety: we're not moving `send` so this is safe.
+        match unsafe { self.map_unchecked_mut(|s| &mut s.inner) }.poll(ctx) {
+            Poll::Ready(Ok(response)) => Poll::Ready(Ok(response)),
+            Poll::Ready(Err(_)) => Poll::Ready(Err(BlockingError { _priv: () })),
+            Poll::Pending => Poll::Pending,
+        }
+        */
+    }
+}
+
+/// Error returned by [`BlockOn`].
+///
+/// The function failed to run, the failure reason is not specified.
+pub struct BlockingError {
+    _priv: (),
+}
+
+impl fmt::Display for BlockingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("blocking function failed to run")
+    }
+}
+
+impl fmt::Debug for BlockingError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BlockOnError").finish()
+    }
+}
 
 mod private {
     use std::time::Instant;
@@ -137,7 +189,15 @@ impl DerefMut for ThreadLocal {
     }
 }
 
-impl Access for ThreadLocal {}
+impl Access for ThreadLocal {
+    fn run_blocking<F, T>(&self, f: F) -> Blocking<F, T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        todo!()
+    }
+}
 
 impl PrivateAccess for ThreadLocal {
     fn pid(&self) -> ProcessId {
@@ -296,7 +356,15 @@ impl ThreadSafe {
     }
 }
 
-impl Access for ThreadSafe {}
+impl Access for ThreadSafe {
+    fn run_blocking<F, T>(&self, f: F) -> Blocking<F, T>
+    where
+        F: FnOnce() -> T + Send + 'static,
+        T: Send + 'static,
+    {
+        todo!()
+    }
+}
 
 impl PrivateAccess for ThreadSafe {
     fn pid(&self) -> ProcessId {

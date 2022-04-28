@@ -86,6 +86,9 @@ pub(crate) struct RuntimeInternals {
     scheduler: Scheduler,
     /// Timers for thread-safe actors.
     timers: Timers,
+    // TODO: docs.
+    blocking_threads: crossbeam_channel::Sender<Box<dyn FnOnce() -> () + Send + 'static>>,
+    blocking_threads_handles: Vec<thread::JoinHandle>,
     /// Shared trace log.
     ///
     /// # Notes
