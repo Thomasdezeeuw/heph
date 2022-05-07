@@ -42,13 +42,13 @@ all those buzzwords actually mean?
    trying to accepted connections.
  - *Non-blocking I/O*: normal I/O operations need to wait (block) until the
    operation can complete. Using non-blocking, or asynchronous, I/O means that
-   rather then waiting for the operation to complete we'll do some other more
+   rather than waiting for the operation to complete we'll do some other more
    useful work and try the operation later.
- - *Share nothing*: a lot of application share data across multiple threads. To
-   do this safely we need to protect it from data races, via a [`Mutex`] or
+ - *Share nothing*: many applications share data across multiple threads. To
+   do this safely, we need to protect it from data races via a [`Mutex`] or
    by using [atomic] operations. Heph is designed to not share any data. Each
    actor is responsible for its own memory and cannot access memory owned by
-   other actors. Instead communication is done via sending messages, see [actor
+   other actors. Instead, communication is done via sending messages–see [actor
    model].
 
 [`Mutex`]: https://doc.rust-lang.org/std/sync/struct.Mutex.html
@@ -58,9 +58,9 @@ all those buzzwords actually mean?
 
 ## Getting started
 
-First you'll need a recent nightly compiler. The easiest way to install and
-manage different rust installations is via [rustup]. The following command will
-install a nightly compiler via rustup.
+First, you'll need a recent nightly compiler. [rustup] is the easiest way
+to install and manage different rust installations. The following command will
+install a nightly compiler with rustup.
 
 ```bash
 rustup install nightly # Install the latest nightly compiler.
@@ -69,15 +69,15 @@ rustup install nightly # Install the latest nightly compiler.
 rustup default nightly # Set the nightly compiler as default.
 ```
 
-Second Heph needs to be added as a dependency.
+Second, Heph needs to be added as a dependency.
 
 ```toml
 [dependencies]
 heph = "0.3.0"
 ```
 
-Now you're ready to starting writing your application! Next you can look at some
-[examples], or look at the [API documentation].
+Now, you're ready to starting writing your application! Next, you can look at
+some [examples] or look at the [API documentation].
 
 [rustup]: https://rustup.rs
 [API documentation]: https://docs.rs/heph
@@ -85,7 +85,7 @@ Now you're ready to starting writing your application! Next you can look at some
 
 ## Platform support
 
-The main target platform is Linux, as a production target. But we also support
+The main target platform is Linux, as a production target. We also support
 macOS, but only as development target (e.g. develop on macOS and run Linux in
 production). Other BSDs are mostly supported (kqueue is fully supported),
 however no tests are run on these platforms.
@@ -93,10 +93,10 @@ however no tests are run on these platforms.
 
 ## Stability
 
-Currently this project is *unstable*. Since the crate depends on many
-experimental or Nightly only Rust features. So it can only be compiled using a
-Nightly version of the rust compiler. Furthermore the since the crate itself is
-< v1, meaning the API is far from stable as well. In fact improvements to the
+Currently this project is *unstable*, since the crate depends on many
+experimental or Nightly only Rust features. So, it can only be compiled using a
+Nightly version of the Rust compiler. Furthermore, the crate itself is
+< v1, meaning the API is far from stable as well. In fact, improvements to the
 API are very welcome!
 
 
@@ -118,29 +118,30 @@ additional terms or conditions.
 ## Inspiration
 
 Heph is inspired by a number of other frameworks and languages. The greatest
-inspiration is the [Erlang] programming language. From Erlang the concept of
+inspiration is the [Erlang] programming language. From Erlang, the concept of
 processes, or rather a function as a process, is borrowed. In line with the
-actor model the processes (actors) can't access each others memory, instead
-message passing is used.
+actor model, the processes (actors) cannot access each other's memory, instead
+message passing is used to communicate.
 
 Another inspiration is the [Akka] framework for Scala and Java. Where Erlang is
-a functional language Akka is implemented in/for Scala and Java, languages more
+a functional language, Akka is implemented in/for Scala and Java, languages more
 in line with Rust (both being object oriented, but having functional aspects). A
 lot of the API is inspired by the API provided in Akka, but there are a number
 of big differences. The main one being that Akka's actor are untyped (or at
-least can be), where Heph actors are strongly typed (just like Rust in general).
+least can be), where Heph actors are statically typed (just like Rust in 
+general).
 
-The final inspiration I would like to mention is [Nginx], Nginx is a HTTP and
+The final inspiration I would like to mention is [Nginx]. Nginx is an HTTP and
 reverse proxy server. The architecture used in Nginx is running a single master
-process (not a thread) that coordinates a number of workers processes (again not
+process (not a thread) that coordinates a number of worker processes (again not
 threads), each with their own polling instance (epoll/kqueue etc.) which all
-share the same TCP listeners. In early stages of development of Heph the idea
-was to start a new process per cpu core, must like Nginx. This would allow all
-atomic and locking operations to be dropped, later however this was changed to
+share the same TCP listeners. In early stages of development of Heph, the idea
+was to start a new process per CPU core (much like Nginx). This would allow all
+atomic and locking operations to be dropped. However, this was later changed to
 start threads instead to reduce the complexity when working with other
-libraries. In this design for example it wouldn't be possible to work with any
-libraries that started threads because then we could introduce data races,
-something that Rust tries very hard to avoid. Still most of the architecture was
+libraries. In the original design, it wouldn't be possible to work with any
+libraries that started threads because we could introduce data races–something
+that Rust tries very hard to avoid. Still, most of the architecture was
 inspired by the one used in Nginx.
 
 [Erlang]: https://www.erlang.org
@@ -150,8 +151,8 @@ inspired by the one used in Nginx.
 
 ### Building blocks
 
-Besides the inspiration gained from the work of others, Heph is also build on
-top of the work of others. Three major components used in Heph are the futures
-task system (part of the standard library), asynchronous functions and [Mio].
+Besides the inspiration gained from the work of others, Heph is also built upon
+the work of others. Three major components used in Heph are the futures task
+system (part of the standard library), asynchronous functions, and [Mio].
 
 [Mio]: https://github.com/tokio-rs/mio
