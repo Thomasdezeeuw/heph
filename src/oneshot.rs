@@ -50,9 +50,8 @@ use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Mutex;
 use std::task::{self, Poll};
-
-use parking_lot::{const_mutex, Mutex};
 
 /// Create a new one-shot channel.
 pub fn new_oneshot<T>() -> (Sender<T>, Receiver<T>) {
@@ -179,7 +178,7 @@ impl<T> Drop for Sender<T> {
 
         if has_receiver(old_status) {
             // Receiver is still alive, so we need to wake it.
-            if let Some(waker) = shared.receiver_waker.lock().take() {
+            if let Some(waker) = shared.receiver_waker.lock().unwrap().take() {
                 waker.wake();
             }
         }
@@ -321,7 +320,7 @@ impl<T> Receiver<T> {
     /// wake-up notification once messages are added to the inbox.
     pub fn register_waker(&mut self, waker: &task::Waker) -> bool {
         let shared = self.shared();
-        let mut receiver_waker = shared.receiver_waker.lock();
+        let mut receiver_waker = shared.receiver_waker.lock().unwrap();
 
         if let Some(receiver_waker) = &*receiver_waker {
             if receiver_waker.will_wake(waker) {
@@ -441,7 +440,7 @@ impl<T> Shared<T> {
         Shared {
             status: AtomicU8::new(INITIAL),
             message: UnsafeCell::new(MaybeUninit::uninit()),
-            receiver_waker: const_mutex(None),
+            receiver_waker: Mutex::new(None),
         }
     }
 }

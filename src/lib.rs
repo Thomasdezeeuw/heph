@@ -74,9 +74,8 @@ use std::ops::Deref;
 use std::pin::Pin;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Mutex;
 use std::task::{self, Poll};
-
-use parking_lot::{const_mutex, Mutex};
 
 #[cfg(test)]
 mod tests;
@@ -527,7 +526,7 @@ unsafe impl<'s, T> Sync for SendValue<'s, T> {}
 impl<'s, T> Drop for SendValue<'s, T> {
     fn drop(&mut self) {
         if let Some(waker) = self.registered_waker.take() {
-            let mut sender_wakers = self.channel.sender_wakers.lock();
+            let mut sender_wakers = self.channel.sender_wakers.lock().unwrap();
             let idx = sender_wakers.iter().position(|w| w.will_wake(&waker));
             if let Some(idx) = idx {
                 drop(sender_wakers.swap_remove(idx));
@@ -575,7 +574,7 @@ unsafe impl<'s, T> Sync for Join<'s, T> {}
 impl<'s, T> Drop for Join<'s, T> {
     fn drop(&mut self) {
         if let Some(waker) = self.registered_waker.take() {
-            let mut join_wakers = self.channel.join_wakers.lock();
+            let mut join_wakers = self.channel.join_wakers.lock().unwrap();
             let idx = join_wakers.iter().position(|w| w.will_wake(&waker));
             if let Some(idx) = idx {
                 drop(join_wakers.swap_remove(idx));
@@ -600,7 +599,7 @@ fn register_waker(
             let waker = waker.clone();
             let old_waker = replace(w, waker.clone());
 
-            let mut channel_wakers = channel_wakers.lock();
+            let mut channel_wakers = channel_wakers.lock().unwrap();
             let idx = channel_wakers.iter().position(|w| w.will_wake(&old_waker));
             if let Some(idx) = idx {
                 // Replace the old waker with the new one.
@@ -618,7 +617,7 @@ fn register_waker(
             let waker = waker.clone();
             *registered_waker = Some(waker.clone());
 
-            let mut channel_wakers = channel_wakers.lock();
+            let mut channel_wakers = channel_wakers.lock().unwrap();
             channel_wakers.push(waker);
             true
         }
@@ -1058,8 +1057,8 @@ impl<T> Channel<T> {
             ptr::addr_of_mut!((*ptr).inner.ref_count).write(AtomicUsize::new(
                 RECEIVER_ALIVE | RECEIVER_ACCESS | SENDER_ACCESS | 1,
             ));
-            ptr::addr_of_mut!((*ptr).inner.sender_wakers).write(const_mutex(Vec::new()));
-            ptr::addr_of_mut!((*ptr).inner.join_wakers).write(const_mutex(Vec::new()));
+            ptr::addr_of_mut!((*ptr).inner.sender_wakers).write(Mutex::new(Vec::new()));
+            ptr::addr_of_mut!((*ptr).inner.join_wakers).write(Mutex::new(Vec::new()));
             ptr::addr_of_mut!((*ptr).inner.receiver_waker).write(WakerRegistration::new());
         }
 
@@ -1069,7 +1068,7 @@ impl<T> Channel<T> {
 
     /// Returns the next `task::Waker` to wake, if any.
     fn wake_next_sender(&self) {
-        let mut sender_wakers = self.sender_wakers.lock();
+        let mut sender_wakers = self.sender_wakers.lock().unwrap();
         let waker = (!sender_wakers.is_empty()).then(|| sender_wakers.swap_remove(0));
         unlock(sender_wakers);
         if let Some(waker) = waker {
@@ -1079,7 +1078,7 @@ impl<T> Channel<T> {
 
     /// Wakes all wakers waiting on the sender to disconnect.
     fn wake_all_join(&self) {
-        let mut join_wakers = self.join_wakers.lock();
+        let mut join_wakers = self.join_wakers.lock().unwrap();
         let wakers = take(&mut *join_wakers);
         unlock(join_wakers);
         for waker in wakers {

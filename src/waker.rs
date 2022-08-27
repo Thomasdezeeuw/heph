@@ -1,7 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::RwLock;
 use std::task;
-
-use parking_lot::{const_rwlock, RwLock, RwLockUpgradableReadGuard};
 
 /// Registration of a [`task::Waker`].
 pub(crate) struct WakerRegistration {
@@ -16,23 +15,32 @@ impl WakerRegistration {
     pub(crate) const fn new() -> WakerRegistration {
         WakerRegistration {
             needs_wakeup: AtomicBool::new(false),
-            waker: const_rwlock(None),
+            waker: RwLock::new(None),
         }
     }
 
     /// Register `waker`.
     pub(crate) fn register(&self, waker: &task::Waker) -> bool {
-        let stored_waker = self.waker.upgradable_read();
+        let stored_waker = self.waker.read().unwrap();
         if let Some(stored_waker) = &*stored_waker {
             if stored_waker.will_wake(waker) {
                 self.needs_wakeup.store(true, Ordering::SeqCst);
                 return false;
             }
         }
+        drop(stored_waker); // Unlock read lock.
 
-        let waker = Some(waker.clone());
-        let mut stored_waker = RwLockUpgradableReadGuard::upgrade(stored_waker);
-        *stored_waker = waker;
+        let mut stored_waker = self.waker.write().unwrap();
+        // Since another thread could have changed the waker since we dropped
+        // the read lock and we got the write lock, we have to check the waker
+        // again.
+        if let Some(stored_waker) = &*stored_waker {
+            if stored_waker.will_wake(waker) {
+                self.needs_wakeup.store(true, Ordering::SeqCst);
+                return false;
+            }
+        }
+        *stored_waker = Some(waker.clone());
         drop(stored_waker);
 
         self.needs_wakeup.store(true, Ordering::SeqCst);
@@ -48,7 +56,7 @@ impl WakerRegistration {
 
         // Mark that we've woken and after actually do the waking.
         if self.needs_wakeup.swap(false, Ordering::SeqCst) {
-            if let Some(waker) = &*self.waker.read() {
+            if let Some(waker) = &*self.waker.read().unwrap() {
                 waker.wake_by_ref();
             }
         }

@@ -52,7 +52,10 @@ fn new_count_waker() -> (task::Waker, AwokenCount) {
 #[test]
 fn size_assertions() {
     let channel = unsafe { Box::from_raw(Channel::<()>::new(1).as_ptr()) };
-    assert_eq!(size_of_val(&**channel), 112);
+    #[cfg(target_os = "linux")]
+    assert_eq!(size_of_val(&**channel), 120);
+    #[cfg(not(target_os = "linux"))]
+    assert_eq!(size_of_val(&**channel), 136);
     assert_eq!(size_of::<Sender<()>>(), 16);
     assert_eq!(size_of::<Receiver<()>>(), 16);
     assert_eq!(size_of::<SendValue<()>>(), 40);
@@ -223,11 +226,11 @@ fn channel_next_sender_waker_single_waker() {
     let channel = test_channel();
     let (waker, count) = new_count_waker();
 
-    channel.sender_wakers.lock().push(waker);
+    channel.sender_wakers.lock().unwrap().push(waker);
 
     channel.wake_next_sender();
     assert_eq!(count, 1);
-    assert!(channel.sender_wakers.lock().is_empty());
+    assert!(channel.sender_wakers.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -238,7 +241,7 @@ fn channel_next_sender_waker_two_wakers() {
     let (waker2, count2) = new_count_waker();
 
     {
-        let mut sender_wakers = channel.sender_wakers.lock();
+        let mut sender_wakers = channel.sender_wakers.lock().unwrap();
         sender_wakers.push(waker1);
         sender_wakers.push(waker2);
     }
@@ -249,7 +252,7 @@ fn channel_next_sender_waker_two_wakers() {
     channel.wake_next_sender();
     assert_eq!(count1, 1);
     assert_eq!(count2, 1);
-    assert!(channel.sender_wakers.lock().is_empty());
+    assert!(channel.sender_wakers.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -261,7 +264,7 @@ fn channel_next_sender_waker_three_wakers() {
     let (waker3, count3) = new_count_waker();
 
     {
-        let mut sender_wakers = channel.sender_wakers.lock();
+        let mut sender_wakers = channel.sender_wakers.lock().unwrap();
         sender_wakers.push(waker1);
         sender_wakers.push(waker2);
         sender_wakers.push(waker3);
@@ -279,7 +282,7 @@ fn channel_next_sender_waker_three_wakers() {
     assert_eq!(count1, 1);
     assert_eq!(count2, 1);
     assert_eq!(count3, 1);
-    assert!(channel.sender_wakers.lock().is_empty());
+    assert!(channel.sender_wakers.lock().unwrap().is_empty());
 }
 
 #[test]
@@ -298,7 +301,7 @@ fn send_value_removes_waker_from_list_on_drop() {
 
     // Dropping the `SendValue` future should remove the waker from the list.
     drop(future);
-    assert!(receiver.channel().sender_wakers.lock().is_empty());
+    assert!(receiver.channel().sender_wakers.lock().unwrap().is_empty());
 
     for _ in 0..receiver.capacity() {
         assert_eq!(receiver.try_recv().unwrap(), 123);
@@ -327,7 +330,7 @@ fn send_value_removes_waker_from_list_on_drop_polled_with_different_wakers() {
 
     // Dropping the `SendValue` future should remove the waker from the list.
     drop(future);
-    assert!(receiver.channel().sender_wakers.lock().is_empty());
+    assert!(receiver.channel().sender_wakers.lock().unwrap().is_empty());
 
     for _ in 0..receiver.capacity() {
         assert_eq!(receiver.try_recv().unwrap(), 123);

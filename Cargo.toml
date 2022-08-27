@@ -18,6 +18,3 @@ edition       = "2018"
 [features]
 # Enables some tests that take a long to run.
 stress_testing = []
-
-[dependencies]
-parking_lot = { version = "0.11.0", default-features = false }
