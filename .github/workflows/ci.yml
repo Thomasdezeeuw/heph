@@ -16,10 +16,14 @@ jobs:
       fail-fast: false
       matrix:
         release: ['', release] # '' => debug.
+        toolchain: [stable, nightly]
     steps:
     - uses: actions/checkout@v2
-    - name: Install nightly compiler
-      run: .github/install.bash
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: ${{ matrix.toolchain }}
+        override: true
     - name: Run tests
       run: cargo test --verbose --${{ matrix.release }}
     - name: Run stress tests
@@ -28,10 +32,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Install nightly compiler
-      run: .github/install.bash
-    - name: Add Miri
-      run: rustup component add miri
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+        components: miri
     - name: Run tests in Miri
       run: cargo miri test
   Sanitiser:
@@ -42,10 +48,12 @@ jobs:
         sanitiser: [address, leak, memory, thread]
     steps:
     - uses: actions/checkout@v2
-    - name: Install nightly compiler
-      run: .github/install.bash
-    - name: Add rust source
-      run: rustup component add rust-src
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: nightly
+        override: true
+        components: rust-src
     - name: Run tests with sanitiser
       # NOTE: Keep `RUSTFLAGS` and `RUSTDOCFLAGS` in sync to ensure the doc
       # tests compile correctly.
