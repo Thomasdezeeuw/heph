@@ -4,7 +4,6 @@
 #![allow(unused_macros, dead_code)]
 
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::LazyLock;
 use std::sync::{Arc, Mutex};
 use std::task::{self, Wake};
 use std::thread;
@@ -116,7 +115,7 @@ impl Drop for IsDropped {
 
 /// To not create too many threads concurrently this lock is used to run the
 /// tests using `start_threads` sequentially.
-pub static THREAD_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+pub static THREAD_LOCK: Mutex<()> = Mutex::new(());
 
 /// Start a number of threads and wait for them to finish.
 macro_rules! start_threads {

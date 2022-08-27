@@ -1,7 +1,5 @@
 //! Tests using multiple threads.
 
-#![feature(once_cell)]
-
 use std::thread;
 use std::time::Duration;
 

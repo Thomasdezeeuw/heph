@@ -1,7 +1,5 @@
 //! Regression tests.
 
-#![feature(once_cell)]
-
 use heph_inbox::oneshot::{self, new_oneshot};
 use heph_inbox::{self as inbox, new};
 

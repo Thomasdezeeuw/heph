@@ -1,6 +1,6 @@
 //! Functional tests.
 
-#![feature(drain_filter, once_cell)]
+#![feature(drain_filter)]
 
 use heph_inbox::{
     self as inbox, new, Manager, Receiver, RecvError, SendError, SendValue, Sender, MAX_CAP,

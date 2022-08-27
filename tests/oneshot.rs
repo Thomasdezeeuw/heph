@@ -1,7 +1,5 @@
 //! Tests for the oneshot channel.
 
-#![feature(once_cell)]
-
 #[macro_use]
 mod util;
 
