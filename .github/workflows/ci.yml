@@ -52,4 +52,4 @@ jobs:
       run: >
         RUSTFLAGS="-Z sanitizer=${{ matrix.sanitiser }} -Z sanitizer-memory-track-origins"
         RUSTDOCFLAGS="-Z sanitizer=${{ matrix.sanitiser }} -Z sanitizer-memory-track-origins"
-        cargo test -Z build-std --target x86_64-unknown-linux-gnu
+        cargo test -Z build-std --target x86_64-unknown-linux-gnu --features unstable_nightly
