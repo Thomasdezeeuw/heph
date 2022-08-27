@@ -278,7 +278,7 @@ impl<T> Sender<T> {
     /// [`Poll::Pending`] instead.
     ///
     /// [disconnected]: Sender::is_connected
-    pub fn send<'s>(&'s self, value: T) -> SendValue<'s, T> {
+    pub fn send(&self, value: T) -> SendValue<T> {
         SendValue {
             channel: self.channel(),
             value: Some(value),
@@ -290,7 +290,7 @@ impl<T> Sender<T> {
     /// [disconnected].
     ///
     /// [disconnected]: Sender::is_connected
-    pub fn join<'s>(&'s self) -> Join<'s, T> {
+    pub fn join(&self) -> Join<T> {
         Join {
             channel: self.channel(),
             registered_waker: None,
@@ -666,14 +666,14 @@ impl<T> Receiver<T> {
     /// [`Poll::Pending`] instead.
     ///
     /// [disconnected]: Receiver::is_connected
-    pub fn recv<'r>(&'r mut self) -> RecvValue<'r, T> {
+    pub fn recv(&mut self) -> RecvValue<T> {
         RecvValue {
             channel: self.channel(),
         }
     }
 
     /// Attempts to peek a value from this channel.
-    pub fn try_peek<'r>(&'r mut self) -> Result<&'r T, RecvError> {
+    pub fn try_peek(&mut self) -> Result<&T, RecvError> {
         try_peek(self.channel())
     }
 
@@ -686,7 +686,7 @@ impl<T> Receiver<T> {
     /// [`Poll::Pending`] instead.
     ///
     /// [disconnected]: Receiver::is_connected
-    pub fn peek<'r>(&'r mut self) -> PeekValue<'r, T> {
+    pub fn peek(&mut self) -> PeekValue<T> {
         PeekValue {
             channel: self.channel(),
         }
@@ -829,7 +829,7 @@ fn try_recv<T>(channel: &Channel<T>) -> Result<T, RecvError> {
 }
 
 /// See [`Receiver::try_peek`].
-fn try_peek<'t, T>(channel: &'t Channel<T>) -> Result<&'t T, RecvError> {
+fn try_peek<T>(channel: &Channel<T>) -> Result<&T, RecvError> {
     // See `try_recv` why we do this first.
     let is_connected = sender_count(channel.ref_count.load(Ordering::Relaxed)) > 0;
 
