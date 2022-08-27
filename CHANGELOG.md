@@ -1,5 +1,19 @@
 # 0.2.2
 
+## Changed
+
+* Compiling with a stable compiler is now supported! MSRV is now 1.63.
+  (https://github.com/Thomasdezeeuw/inbox/commit/63bf02d1c26e7cc6eeed34cd6a0947e5510986c6,
+   https://github.com/Thomasdezeeuw/inbox/commit/69ace0dd39f689a154e23390fa517cb947bc81bc,
+   https://github.com/Thomasdezeeuw/inbox/commit/019bfeaaf3faf82d9bfd700311ae23ca1c587af6).
+* Replaced `parking_lot` dependency with the lock found in `std::sync`, which
+  received a lot of improvements in release Rust releases
+  (https://github.com/Thomasdezeeuw/inbox/commit/68253068ee127e0a15bcd1022cfc422c28cb4ebb).
+* Add Receiver::(try_)peek
+  (https://github.com/Thomasdezeeuw/inbox/commit/33d3a4d63f89f42012e3e3d24992eabf250b29ce).
+
+# 0.2.2
+
 ## Added
 
 * Add limited arbitary sized channels in the form of `new` and `Manager::new`
