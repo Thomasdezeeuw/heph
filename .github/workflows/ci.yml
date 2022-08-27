@@ -28,6 +28,18 @@ jobs:
       run: cargo test --verbose --${{ matrix.release }}
     - name: Run stress tests
       run: cargo test --verbose --features stress_testing --${{ matrix.release }}
+  Clippy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+        override: true
+        components: clippy
+    - name: Run Clippy
+      run: cargo clippy
   Miri:
     runs-on: ubuntu-latest
     steps:
