@@ -1,7 +1,5 @@
 //! Functional tests.
 
-#![feature(drain_filter)]
-
 use heph_inbox::{
     self as inbox, new, Manager, Receiver, RecvError, SendError, SendValue, Sender, MAX_CAP,
 };
@@ -563,12 +561,17 @@ mod future {
                 }
 
                 let mut send = 0;
-                for (waker, count, mut future) in futures.drain_filter(|(_, c, _)| c.get() == 1) {
+                futures.retain_mut(|(waker, count, future)| {
+                    if count.get() != 1 {
+                        return true;
+                    }
+
                     let mut ctx = task::Context::from_waker(&waker);
-                    assert_eq!(Pin::new(&mut future).poll(&mut ctx), Poll::Ready(Ok(())));
-                    assert_eq!(count, 1);
+                    assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(Ok(())));
+                    assert_eq!(*count, 1);
                     send += 1;
-                }
+                    false
+                });
                 assert!(
                     send == n,
                     "didn't send enough, thus didn't wake enough senders"
