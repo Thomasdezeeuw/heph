@@ -27,7 +27,7 @@ getrandom         = { version = "0.2.2", default-features = false, features = ["
 [dev-dependencies]
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
 heph-rt           = { version = "0.4.0", default-features = false, features = ["test"], path = "rt" }
-std-logger        = { version = "0.4.0", default-features = false, features = ["log-panic", "nightly"] }
+std-logger        = { version = "0.4.0", default-features = false, features = ["log-panic"] }
 
 [[test]]
 name    = "examples"
