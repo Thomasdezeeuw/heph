@@ -104,10 +104,10 @@ fn main() {
             for (name, value) in &event.attributes {
                 let fmt_args = match value {
                     // NOTE: `format_args!` is useless.
-                    Value::Unsigned(value) => format!("\"{}\": {}", name, value),
-                    Value::Signed(value) => format!("\"{}\": {}", name, value),
-                    Value::Float(value) => format!("\"{}\": {}", name, value),
-                    Value::String(value) => format!("\"{}\": \"{}\"", name, value),
+                    Value::Unsigned(value) => format!("\"{name}\": {value}"),
+                    Value::Signed(value) => format!("\"{name}\": {value}"),
+                    Value::Float(value) => format!("\"{name}\": {value}"),
+                    Value::String(value) => format!("\"{name}\": \"{value}\""),
                 };
                 write!(
                     output,
@@ -537,32 +537,25 @@ impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use ParseError::*;
         match self {
-            IO(err) => write!(f, "error reading trace: {}", err),
-            MissingPacketData { got, want } => write!(
-                f,
-                "missing packet data, want {} bytes, got {} bytes",
-                want, got
-            ),
-            InvalidMagic(got_magic) => {
-                write!(f, "packet has invalid magic value '{:#}'", got_magic)
+            IO(err) => write!(f, "error reading trace: {err}"),
+            MissingPacketData { got, want } => {
+                write!(f, "missing packet data, want {want} bytes, got {got} bytes")
             }
-            PacketTooSmall { packet_kind, got } => write!(
-                f,
-                "{} packet size too small, got {} bytes",
-                packet_kind, got
-            ),
+            InvalidMagic(got_magic) => {
+                write!(f, "packet has invalid magic value '{got_magic:#}'")
+            }
+            PacketTooSmall { packet_kind, got } => {
+                write!(f, "{packet_kind} packet size too small, got {got} bytes",)
+            }
             StringTooSmall { packet_kind, field } => write!(
                 f,
-                "missing string data in {} packet, {} field",
-                packet_kind, field
+                "missing string data in {packet_kind} packet, {field} field",
             ),
-            InvalidString { packet_kind, field } => write!(
-                f,
-                "invalid string in {} packet, {} field",
-                packet_kind, field
-            ),
-            UnknownOption(option_name) => write!(f, "unknown option name '{}'", option_name),
-            UnknownValueType(byte) => write!(f, "unknown value type byte '{:#}'", byte),
+            InvalidString { packet_kind, field } => {
+                write!(f, "invalid string in {packet_kind} packet, {field} field",)
+            }
+            UnknownOption(option_name) => write!(f, "unknown option name '{option_name}'"),
+            UnknownValueType(byte) => write!(f, "unknown value type byte '{byte:#}'"),
         }
     }
 }
