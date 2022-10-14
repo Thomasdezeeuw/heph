@@ -136,7 +136,6 @@
     is_sorted,
     maybe_uninit_array_assume_init,
     maybe_uninit_uninit_array,
-    never_type,
     new_uninit,
     result_into_ok_or_err,
     stmt_expr_attributes

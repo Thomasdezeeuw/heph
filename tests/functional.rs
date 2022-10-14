@@ -1,7 +1,5 @@
 //! Functional tests.
 
-#![feature(never_type)]
-
 mod util {
     use std::mem::size_of;
 
