@@ -7,8 +7,8 @@ use crate::util::{assert_send, assert_size, assert_sync};
 #[test]
 fn size() {
     assert_size::<ActorRef<()>>(24);
-    assert_size::<SendValue<'_, ()>>(48);
-    assert_size::<Join<'_, ()>>(40);
+    assert_size::<SendValue<'_, ()>>(40);
+    assert_size::<Join<'_, ()>>(32);
 }
 
 #[test]
