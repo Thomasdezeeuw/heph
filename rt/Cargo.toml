@@ -1,7 +1,7 @@
 [package]
 name          = "heph-rt"
 description   = "Heph-rt is a speciailised runtime for Heph's actor."
-version       = "0.4.0"
+version       = "0.4.1"
 authors       = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
 license       = "MIT"
 documentation = "https://docs.rs/heph-rt"
