@@ -58,7 +58,7 @@ impl SyncWorker {
             let actor_ref = ActorRef::local(send);
             let thread_name = options
                 .take_name()
-                .unwrap_or_else(|| format!("Sync actor {}", id));
+                .unwrap_or_else(|| format!("Sync actor {id}"));
             thread::Builder::new()
                 .name(thread_name)
                 .spawn(move || main(id, supervisor, actor, arg, manager, receiver, rt, trace_log))

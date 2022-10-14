@@ -193,9 +193,9 @@ where
 /// Note: be sure to derefence the `Box`!
 fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
     match panic.downcast_ref::<&'static str>() {
-        Some(s) => *s,
+        Some(s) => s,
         None => match panic.downcast_ref::<String>() {
-            Some(s) => &**s,
+            Some(s) => s,
             None => "<unknown>",
         },
     }

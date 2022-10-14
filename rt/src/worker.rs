@@ -96,7 +96,7 @@ impl WorkerSetup {
         rt::channel::new().and_then(move |(sender, receiver)| {
             let id = self.id;
             thread::Builder::new()
-                .name(format!("Worker {}", id))
+                .name(format!("Worker {id}"))
                 .spawn(move || {
                     let worker = Worker::setup(
                         self,
@@ -797,14 +797,14 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Error::*;
         match self {
-            Init(err) => write!(f, "error initialising local runtime: {}", err),
-            Polling(err) => write!(f, "error polling OS: {}", err),
-            RecvMsg(err) => write!(f, "error receiving message(s): {}", err),
+            Init(err) => write!(f, "error initialising local runtime: {err}"),
+            Polling(err) => write!(f, "error polling OS: {err}"),
+            RecvMsg(err) => write!(f, "error receiving message(s): {err}"),
             ProcessInterrupted => write!(
                 f,
                 "received process signal, but no receivers for it: stopping runtime"
             ),
-            UserFunction(err) => write!(f, "error running user function: {}", err),
+            UserFunction(err) => write!(f, "error running user function: {err}"),
         }
     }
 }

@@ -87,19 +87,19 @@ where
     B: Bytes + ?Sized,
 {
     fn as_bytes(&mut self) -> &mut [MaybeUninit<u8>] {
-        (&mut **self).as_bytes()
+        (**self).as_bytes()
     }
 
     fn spare_capacity(&self) -> usize {
-        (&**self).spare_capacity()
+        (**self).spare_capacity()
     }
 
     fn has_spare_capacity(&self) -> bool {
-        (&**self).has_spare_capacity()
+        (**self).has_spare_capacity()
     }
 
     unsafe fn update_length(&mut self, n: usize) {
-        (&mut **self).update_length(n)
+        (**self).update_length(n)
     }
 }
 
@@ -230,13 +230,13 @@ impl<'a> Deref for MaybeUninitSlice<'a> {
     type Target = [MaybeUninit<u8>];
 
     fn deref(&self) -> &[MaybeUninit<u8>] {
-        &*self.0
+        &self.0
     }
 }
 
 impl<'a> DerefMut for MaybeUninitSlice<'a> {
     fn deref_mut(&mut self) -> &mut [MaybeUninit<u8>] {
-        &mut *self.0
+        &mut self.0
     }
 }
 
@@ -436,19 +436,19 @@ where
     type Bufs<'b> = B::Bufs<'b> where Self: 'b;
 
     fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
-        (&mut **self).as_bufs()
+        (**self).as_bufs()
     }
 
     fn spare_capacity(&self) -> usize {
-        (&**self).spare_capacity()
+        (**self).spare_capacity()
     }
 
     fn has_spare_capacity(&self) -> bool {
-        (&**self).has_spare_capacity()
+        (**self).has_spare_capacity()
     }
 
     unsafe fn update_lengths(&mut self, n: usize) {
-        (&mut **self).update_lengths(n)
+        (**self).update_lengths(n)
     }
 }
 

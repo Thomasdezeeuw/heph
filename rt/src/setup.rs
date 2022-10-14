@@ -245,7 +245,7 @@ pub(crate) fn host_info() -> io::Result<(Box<str>, Box<str>)> {
     let version = unsafe { CStr::from_ptr(uname_info.version.as_ptr().cast()).to_string_lossy() };
     let nodename = unsafe { CStr::from_ptr(uname_info.nodename.as_ptr().cast()).to_string_lossy() };
 
-    let os = format!("{} ({} {} {})", OS, sysname, release, version).into_boxed_str();
+    let os = format!("{OS} ({sysname} {release} {version})").into_boxed_str();
     let hostname = nodename.into_owned().into_boxed_str();
     Ok((os, hostname))
 }

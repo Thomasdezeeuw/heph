@@ -175,12 +175,12 @@ where
         Ok(msg) => match router.route(msg.msg, source).await {
             Ok(()) => Ok(()),
             Err(err) => {
-                let msg = format!("failed to route message (from {}): {}", source, err);
+                let msg = format!("failed to route message (from {source}): {err}");
                 Err(io::Error::new(io::ErrorKind::Other, msg))
             }
         },
         Err(err) => {
-            warn!("error deserialising message (from {}): {}", source, err);
+            warn!("error deserialising message (from {source}): {err}");
             // Don't want to stop the relay actor over this.
             Ok(())
         }

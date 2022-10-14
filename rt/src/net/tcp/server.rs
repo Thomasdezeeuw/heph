@@ -606,8 +606,8 @@ impl<E: fmt::Display> fmt::Display for Error<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Error::*;
         match self {
-            Accept(ref err) => write!(f, "error accepting TCP stream: {}", err),
-            NewActor(ref err) => write!(f, "error creating new actor: {}", err),
+            Accept(ref err) => write!(f, "error accepting TCP stream: {err}"),
+            NewActor(ref err) => write!(f, "error creating new actor: {err}"),
         }
     }
 }

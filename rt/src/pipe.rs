@@ -242,7 +242,7 @@ impl<'a, 'b> Future for Write<'a, 'b> {
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let Write { sender, buf } = Pin::into_inner(self);
-        try_io!(sender.try_write(*buf))
+        try_io!(sender.try_write(buf))
     }
 }
 
@@ -260,7 +260,7 @@ impl<'a, 'b> Future for WriteAll<'a, 'b> {
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let WriteAll { sender, buf } = Pin::into_inner(self);
         loop {
-            match sender.try_write(*buf) {
+            match sender.try_write(buf) {
                 Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
                 Ok(n) if buf.len() <= n => return Poll::Ready(Ok(())),
                 Ok(n) => {
@@ -289,7 +289,7 @@ impl<'a, 'b> Future for WriteVectored<'a, 'b> {
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let WriteVectored { sender, bufs } = Pin::into_inner(self);
-        try_io!(sender.try_write_vectored(*bufs))
+        try_io!(sender.try_write_vectored(bufs))
     }
 }
 
@@ -307,7 +307,7 @@ impl<'a, 'b> Future for WriteVectoredAll<'a, 'b> {
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         let WriteVectoredAll { sender, bufs } = Pin::into_inner(self);
         while !bufs.is_empty() {
-            match sender.try_write_vectored(*bufs) {
+            match sender.try_write_vectored(bufs) {
                 Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
                 Ok(n) => IoSlice::advance_slices(bufs, n),
                 Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,

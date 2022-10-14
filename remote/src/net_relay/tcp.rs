@@ -134,12 +134,12 @@ where
             Some(Ok(msg)) => match router.route(msg, source).await {
                 Ok(()) => continue,
                 Err(err) => {
-                    let msg = format!("failed to route message: {}", err);
+                    let msg = format!("failed to route message: {err}");
                     return Err(io::Error::new(io::ErrorKind::Other, msg));
                 }
             },
             Some(Err(err)) => {
-                let msg = format!("failed to deserialise message: {}", err);
+                let msg = format!("failed to deserialise message: {err}");
                 return Err(io::Error::new(io::ErrorKind::InvalidData, msg));
             }
             None => break,

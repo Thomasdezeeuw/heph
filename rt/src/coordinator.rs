@@ -408,13 +408,13 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Error::*;
         match self {
-            RegisteringWorkers(err) => write!(f, "error registering worker threads: {}", err),
+            RegisteringWorkers(err) => write!(f, "error registering worker threads: {err}"),
             RegisteringSyncActors(err) => {
-                write!(f, "error registering synchronous actor threads: {}", err)
+                write!(f, "error registering synchronous actor threads: {err}")
             }
-            Polling(err) => write!(f, "error polling for OS events: {}", err),
-            SendingStartSignal(err) => write!(f, "error sending start signal to worker: {}", err),
-            SendingFunc(err) => write!(f, "error sending function to worker: {}", err),
+            Polling(err) => write!(f, "error polling for OS events: {err}"),
+            SendingStartSignal(err) => write!(f, "error sending start signal to worker: {err}"),
+            SendingFunc(err) => write!(f, "error sending function to worker: {err}"),
         }
     }
 }

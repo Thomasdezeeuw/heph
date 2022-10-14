@@ -713,7 +713,7 @@ impl RuntimeRef {
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
         trace::finish(
-            (&mut *self.internals.trace_log.borrow_mut()).as_mut(),
+            (*self.internals.trace_log.borrow_mut()).as_mut(),
             timing,
             pid.0 as u64,
             description,

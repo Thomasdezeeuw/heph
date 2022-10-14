@@ -135,39 +135,31 @@ impl fmt::Debug for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use ErrorInner::*;
+        let desc = Self::DESC;
         match self.inner {
             Setup(ref err) => {
-                write!(f, "{}: error in user-defined setup: {}", Self::DESC, err)
+                write!(f, "{desc}: error in user-defined setup: {err}")
             }
-            SetupTrace(ref err) => write!(
-                f,
-                "{}: error setting up trace infrastructure: {}",
-                Self::DESC,
-                err
-            ),
+            SetupTrace(ref err) => {
+                write!(f, "{desc}: error setting up trace infrastructure: {err}",)
+            }
             InitCoordinator(ref err) => {
-                write!(f, "{}: error creating coordinator: {}", Self::DESC, err)
+                write!(f, "{desc}: error creating coordinator: {err}")
             }
             Coordinator(ref err) => {
-                write!(f, "{}: error in coordinator thread: {}", Self::DESC, err)
+                write!(f, "{desc}: error in coordinator thread: {err}")
             }
             StartWorker(ref err) => {
-                write!(f, "{}: error starting worker thread: {}", Self::DESC, err)
+                write!(f, "{desc}: error starting worker thread: {err}")
             }
-            Worker(ref err) => write!(f, "{}: error in worker thread: {}", Self::DESC, err),
-            WorkerPanic(ref msg) => write!(f, "{}: panic in worker thread: {}", Self::DESC, msg),
-            StartSyncActor(ref err) => write!(
-                f,
-                "{}: error starting synchronous actor: {}",
-                Self::DESC,
-                err
-            ),
-            SyncActorPanic(ref msg) => write!(
-                f,
-                "{}: panic in synchronous actor thread: {}",
-                Self::DESC,
-                msg
-            ),
+            Worker(ref err) => write!(f, "{desc}: error in worker thread: {err}"),
+            WorkerPanic(ref err) => write!(f, "{desc}: panic in worker thread: {err}"),
+            StartSyncActor(ref err) => {
+                write!(f, "{desc}: error starting synchronous actor: {err}",)
+            }
+            SyncActorPanic(ref err) => {
+                write!(f, "{desc}: panic in synchronous actor thread: {err}",)
+            }
         }
     }
 }

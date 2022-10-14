@@ -142,7 +142,7 @@ impl RuntimeInternals {
         match self.poll.try_lock() {
             Ok(mut poll) => poll.poll(events, Some(Duration::ZERO)).map(|()| true),
             Err(TryLockError::WouldBlock) => Ok(false),
-            Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared poll: {}", err),
+            Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared poll: {err}"),
         }
     }
 

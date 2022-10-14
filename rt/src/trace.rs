@@ -463,7 +463,7 @@ fn format_event(
     buf.extend_from_slice(description);
     for (name, value) in event.attributes {
         use private::AttributeValue;
-        (&**name).write_attribute(buf);
+        (**name).write_attribute(buf);
         buf.push(value.type_byte());
         value.write_attribute(buf);
     }
@@ -605,11 +605,11 @@ mod private {
         T: AttributeValue + ?Sized,
     {
         fn type_byte(&self) -> u8 {
-            (&**self).type_byte()
+            (**self).type_byte()
         }
 
         fn write_attribute(&self, buf: &mut Vec<u8>) {
-            (&**self).write_attribute(buf)
+            (**self).write_attribute(buf)
         }
     }
 
@@ -683,11 +683,11 @@ mod private {
 
     impl AttributeValue for String {
         fn type_byte(&self) -> u8 {
-            (&**self).type_byte()
+            (**self).type_byte()
         }
 
         fn write_attribute(&self, buf: &mut Vec<u8>) {
-            (&**self).write_attribute(buf)
+            (**self).write_attribute(buf)
         }
     }
 
@@ -724,11 +724,11 @@ mod private {
         T: AttributeValue + Default,
     {
         fn type_byte(&self) -> u8 {
-            (&self[..]).type_byte()
+            self[..].type_byte()
         }
 
         fn write_attribute(&self, buf: &mut Vec<u8>) {
-            (&self[..]).write_attribute(buf)
+            self[..].write_attribute(buf)
         }
     }
 
