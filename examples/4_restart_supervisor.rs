@@ -1,5 +1,4 @@
-#![feature(never_type)]
-
+use std::convert::Infallible;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -21,7 +20,7 @@ fn main() -> Result<(), rt::Error> {
     // NOTE: this is only here to make the test pass.
     sleep(Duration::from_millis(100));
 
-    runtime.run_on_workers(|mut runtime_ref: RuntimeRef| -> Result<(), !> {
+    runtime.run_on_workers(|mut runtime_ref: RuntimeRef| -> Result<(), Infallible> {
         let print_actor = print_actor as fn(_, _) -> _;
         let options = ActorOptions::default();
         let arg = "Hello world!".to_owned();

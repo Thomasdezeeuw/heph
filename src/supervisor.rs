@@ -95,6 +95,7 @@
 //! ```
 
 use std::any::Any;
+use std::convert::Infallible;
 use std::fmt;
 
 use log::warn;
@@ -195,18 +196,18 @@ where
 impl<F, NA> Supervisor<NA> for F
 where
     F: FnMut(<NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument>,
-    NA: NewActor<Error = !>,
+    NA: NewActor<Error = Infallible>,
 {
     fn decide(&mut self, err: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
         (self)(err)
     }
 
-    fn decide_on_restart_error(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
+    fn decide_on_restart_error(&mut self, _: Infallible) -> SupervisorStrategy<NA::Argument> {
         // This can't be called.
         SupervisorStrategy::Stop
     }
 
-    fn second_restart_error(&mut self, _: !) {
+    fn second_restart_error(&mut self, _: Infallible) {
         // This can't be called.
     }
 }
@@ -268,7 +269,7 @@ where
 /// # Example
 ///
 /// ```
-/// #![feature(never_type)]
+/// use std::convert::Infallible
 ///
 /// use heph::actor;
 /// use heph::supervisor::NoSupervisor;
@@ -277,7 +278,7 @@ where
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     let mut runtime = Runtime::new()?;
-///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), Infallible> {
 ///         runtime_ref.spawn_local(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
 ///         Ok(())
 ///     })?;
@@ -295,29 +296,29 @@ pub struct NoSupervisor;
 
 impl<NA> Supervisor<NA> for NoSupervisor
 where
-    NA: NewActor<Error = !>,
-    NA::Actor: Actor<Error = !>,
+    NA: NewActor<Error = Infallible>,
+    NA::Actor: Actor<Error = Infallible>,
 {
-    fn decide(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
+    fn decide(&mut self, _: Infallible) -> SupervisorStrategy<NA::Argument> {
         // This can't be called.
         SupervisorStrategy::Stop
     }
 
-    fn decide_on_restart_error(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
+    fn decide_on_restart_error(&mut self, _: Infallible) -> SupervisorStrategy<NA::Argument> {
         // This can't be called.
         SupervisorStrategy::Stop
     }
 
-    fn second_restart_error(&mut self, _: !) {
+    fn second_restart_error(&mut self, _: Infallible) {
         // This can't be called.
     }
 }
 
 impl<A> SyncSupervisor<A> for NoSupervisor
 where
-    A: SyncActor<Error = !>,
+    A: SyncActor<Error = Infallible>,
 {
-    fn decide(&mut self, _: !) -> SupervisorStrategy<A::Argument> {
+    fn decide(&mut self, _: Infallible) -> SupervisorStrategy<A::Argument> {
         // This can't be called.
         SupervisorStrategy::Stop
     }
@@ -331,7 +332,7 @@ where
 /// # Example
 ///
 /// ```
-/// #![feature(never_type)]
+/// use std::convert::Infallible;
 ///
 /// use heph::actor;
 /// use heph::supervisor::StopSupervisor;
@@ -340,7 +341,7 @@ where
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     let mut runtime = Runtime::new()?;
-///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), Infallible> {
 ///         let supervisor = StopSupervisor::for_actor("print actor");
 ///         runtime_ref.spawn_local(supervisor, print_actor as fn(_) -> _, (), ActorOptions::default());
 ///         Ok(())

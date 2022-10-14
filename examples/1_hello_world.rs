@@ -1,4 +1,4 @@
-#![feature(never_type)]
+use std::convert::Infallible;
 
 use heph::actor;
 use heph::supervisor::NoSupervisor;
@@ -14,12 +14,12 @@ fn main() -> Result<(), rt::Error> {
 }
 
 /// The is the setup function used in the runtime.
-fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
+fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), Infallible> {
     // Spawn our `greeter_actor` onto the runtime.
     // All actors need supervision, however our actor doesn't return an error
-    // (it uses `!`, the never type, as error), because of this we'll use the
-    // `NoSupervisor`, which is a supervisor that does nothing and can't be
-    // called.
+    // (it uses `Infallible` or `!`, the never type, as error), because of this
+    // we'll use the `NoSupervisor`, which is a supervisor that does nothing and
+    // can't be called.
     // Along with the supervisor we'll also supply the argument to start the
     // actor, in our case this is `()` since our actor doesn't accept any
     // arguments.

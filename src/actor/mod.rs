@@ -127,6 +127,7 @@
 //! }
 
 use std::any::type_name;
+use std::convert::Infallible;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -163,7 +164,7 @@ pub trait NewActor {
     /// Here is an example of using an enum as message type.
     ///
     /// ```
-    /// #![feature(never_type)]
+    /// use std::convert::Infallible;
     ///
     /// use heph::supervisor::NoSupervisor;
     /// use heph::{actor, from_message};
@@ -173,7 +174,7 @@ pub trait NewActor {
     /// fn main() -> Result<(), rt::Error> {
     ///     // Create and run the runtime.
     ///     let mut runtime = Runtime::new()?;
-    ///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+    ///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), Infallible> {
     ///         // Spawn the actor.
     ///         let new_actor = actor as fn(_) -> _;
     ///         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
@@ -239,8 +240,8 @@ pub trait NewActor {
     /// The type of error.
     ///
     /// Note that if creating an actor is always successful the never type (`!`)
-    /// can be used. Asynchronous functions for example use the never type as
-    /// error.
+    /// or it's stable counterpart [`std::convert::Infallible`] can be used.
+    /// Asynchronous functions for example use the never type as error.
     type Error;
 
     /// The kind of runtime access needed by the actor.
@@ -272,8 +273,7 @@ pub trait NewActor {
     /// arguments.
     ///
     /// ```
-    /// #![feature(never_type)]
-    ///
+    /// use std::convert::Infallible;
     /// use std::io;
     /// use std::net::SocketAddr;
     ///
@@ -318,9 +318,9 @@ pub trait NewActor {
     /// # impl<S, NA> Supervisor<server::Setup<S, NA>> for ServerSupervisor
     /// # where
     /// #     S: Supervisor<NA> + Clone + 'static,
-    /// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
+    /// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = Infallible, RuntimeAccess = ThreadLocal> + Clone + 'static,
     /// # {
-    /// #     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
+    /// #     fn decide(&mut self, err: server::Error<Infallible>) -> SupervisorStrategy<()> {
     /// #         use server::Error::*;
     /// #         match err {
     /// #             Accept(err) => {
@@ -349,7 +349,7 @@ pub trait NewActor {
     /// #
     /// // Actor that handles a connection.
     /// async fn conn_actor(
-    ///     _: actor::Context<!, ThreadLocal>,
+    ///     _: actor::Context<Infallible, ThreadLocal>,
     ///     mut stream: TcpStream,
     ///     address: SocketAddr,
     ///     greet_mars: bool
@@ -451,7 +451,7 @@ macro_rules! impl_new_actor {
                 type Message = M;
                 type Argument = ($( $arg ),*);
                 type Actor = A;
-                type Error = !;
+                type Error = Infallible;
                 type RuntimeAccess = RT;
 
                 #[allow(non_snake_case)]
@@ -478,7 +478,7 @@ where
     type Message = M;
     type Argument = Arg;
     type Actor = A;
-    type Error = !;
+    type Error = Infallible;
     type RuntimeAccess = RT;
 
     fn new(
@@ -559,6 +559,8 @@ where
 }
 
 mod private {
+    use std::convert::Infallible;
+
     /// Trait to support [`Actor`] for `Result<(), E>` and `()`.
     ///
     /// [`Actor`]: crate::actor::Actor
@@ -581,9 +583,9 @@ mod private {
     }
 
     impl ActorResult for () {
-        type Error = !;
+        type Error = Infallible;
 
-        fn into(self) -> Result<(), !> {
+        fn into(self) -> Result<(), Infallible> {
             Ok(())
         }
     }

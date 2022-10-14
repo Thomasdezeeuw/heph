@@ -63,7 +63,7 @@
 //! This crate has one optional: `test`. The `test` feature will enable the
 //! `test` module which adds testing facilities.
 
-#![feature(const_option, doc_auto_cfg, doc_cfg_hide, never_type)]
+#![feature(const_option, doc_auto_cfg, doc_cfg_hide)]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,

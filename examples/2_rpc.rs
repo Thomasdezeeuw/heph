@@ -1,5 +1,4 @@
-#![feature(never_type)]
-
+use std::convert::Infallible;
 use std::fmt;
 
 use heph::actor;
@@ -15,7 +14,7 @@ fn main() -> Result<(), rt::Error> {
     runtime.start()
 }
 
-fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
+fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), Infallible> {
     // See example 1 for information on how to spawn actors.
     let pong_actor = pong_actor as fn(_) -> _;
     let actor_ref = runtime_ref.spawn_local(NoSupervisor, pong_actor, (), ActorOptions::default());
@@ -26,7 +25,7 @@ fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
     Ok(())
 }
 
-async fn ping_actor(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<PongMessage>) {
+async fn ping_actor(_: actor::Context<Infallible, ThreadLocal>, actor_ref: ActorRef<PongMessage>) {
     // Make a Remote Procedure Call (RPC) and await the response.
     match actor_ref.rpc(Ping).await {
         Ok(response) => println!("Got a RPC response: {}", response),

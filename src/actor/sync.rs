@@ -1,5 +1,6 @@
 //! Module containing the types for synchronous actors.
 
+use std::convert::Infallible;
 use std::future::Future;
 use std::io;
 use std::pin::Pin;
@@ -104,7 +105,7 @@ macro_rules! impl_sync_actor {
             impl<M, RT, $( $arg ),*> SyncActor for fn(ctx: SyncContext<M, RT>, $( $arg_name: $arg ),*) {
                 type Message = M;
                 type Argument = ($( $arg ),*);
-                type Error = !;
+                type Error = Infallible;
                 type RuntimeAccess = RT;
 
                 #[allow(non_snake_case)]
@@ -137,7 +138,7 @@ impl<M, E, RT, Arg> SyncActor for fn(ctx: SyncContext<M, RT>, arg: Arg) -> Resul
 impl<M, RT, Arg> SyncActor for fn(ctx: SyncContext<M, RT>, arg: Arg) {
     type Message = M;
     type Argument = Arg;
-    type Error = !;
+    type Error = Infallible;
     type RuntimeAccess = RT;
 
     fn run(

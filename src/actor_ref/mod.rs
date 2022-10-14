@@ -28,7 +28,7 @@
 //! This example shows a simple actor that prints all the messages it receives.
 //!
 //! ```
-//! #![feature(never_type)]
+//! use std::convert::Infallible;
 //!
 //! use heph::actor;
 //! use heph::supervisor::NoSupervisor;
@@ -37,7 +37,7 @@
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     let mut runtime = Runtime::new()?;
-//!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+//!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), Infallible> {
 //!         // Spawn the actor.
 //!         let new_actor = actor as fn(_) -> _;
 //!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
@@ -66,7 +66,7 @@
 //! to the same actor.
 //!
 //! ```
-//! #![feature(never_type)]
+//! use std::convert::Infallible;
 //!
 //! use heph::actor;
 //! use heph::supervisor::NoSupervisor;
@@ -75,7 +75,7 @@
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     let mut runtime = Runtime::new()?;
-//!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+//!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), Infallible> {
 //!         let new_actor = actor as fn(_) -> _;
 //!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
 //!
@@ -105,7 +105,7 @@
 //! ```
 
 use std::any::TypeId;
-use std::convert::TryFrom;
+use std::convert::{Infallible, TryFrom};
 use std::error::Error;
 use std::fmt;
 use std::future::Future;
@@ -306,7 +306,7 @@ impl<M> ActorRef<M> {
         F: Fn(Msg) -> M + 'static,
         M: 'static,
     {
-        self.try_map_fn::<Msg, _, !>(move |msg| Ok(map(msg)))
+        self.try_map_fn::<Msg, _, Infallible>(move |msg| Ok(map(msg)))
     }
 
     /// Change the message type of the actor reference.
