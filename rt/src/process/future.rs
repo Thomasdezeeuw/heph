@@ -49,8 +49,9 @@ where
             Ok(Poll::Ready(())) => ProcessResult::Complete,
             Ok(Poll::Pending) => ProcessResult::Pending,
             Err(panic) => {
+                let name = name::<Fut>();
                 let msg = panic_message(&*panic);
-                error!("future '{}' panicked at '{}'", name::<Fut>(), msg);
+                error!("future '{name}' panicked at '{msg}'");
                 ProcessResult::Complete
             }
         }

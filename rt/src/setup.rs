@@ -69,9 +69,7 @@ impl Setup {
         );
         assert!(
             n < MAX_THREADS,
-            "Can't create {} worker threads, {} is the maximum",
-            n,
-            MAX_THREADS
+            "Can't create {n} worker threads, {MAX_THREADS} is the maximum",
         );
         self.threads = n;
         self
@@ -86,8 +84,7 @@ impl Setup {
             Ok(n) => n.get(),
             Err(err) => {
                 warn!(
-                    "failed to get the available concurrency: {}, using a single worker thread",
-                    err
+                    "failed to get the available concurrency: {err}, using a single worker thread",
                 );
                 1
             }
@@ -295,7 +292,7 @@ pub(crate) fn host_id() -> io::Result<Uuid> {
     let mut buf = [0; EXPECTED_SIZE];
     let mut file = File::open(PATH)?;
     let n = file.read(&mut buf).map_err(|err| {
-        let msg = format!("can't open '{}': {}", PATH, err);
+        let msg = format!("can't open '{PATH}': {err}");
         io::Error::new(err.kind(), msg)
     })?;
 
@@ -306,13 +303,12 @@ pub(crate) fn host_id() -> io::Result<Uuid> {
         let res = from_hex_hyphenated(&buf[..EXPECTED_SIZE]);
 
         res.map_err(|()| {
-            let msg = format!("invalid `{}` format: input is not hex", PATH);
+            let msg = format!("invalid `{PATH}` format: input is not hex");
             io::Error::new(io::ErrorKind::InvalidData, msg)
         })
     } else {
         let msg = format!(
-            "can't read '{}', invalid format: only read {} bytes (expected {})",
-            PATH, n, EXPECTED_SIZE,
+            "can't read '{PATH}', invalid format: only read {n} bytes (expected {EXPECTED_SIZE})",
         );
         Err(io::Error::new(io::ErrorKind::InvalidData, msg))
     }
@@ -399,11 +395,11 @@ pub(crate) fn set_cpu_affinity(worker_id: NonZeroUsize) -> Option<usize> {
         let cpu_set = cpu_set(cpu);
         match set_affinity(&cpu_set) {
             Ok(()) => {
-                debug!(worker_id = {}; "worker thread CPU affinity set to {}", cpu);
+                debug!(worker_id = {}; "worker thread CPU affinity set to {cpu}");
                 Some(cpu)
             }
             Err(err) => {
-                warn!(worker_id = {}; "failed to set CPU affinity on thread: {}", err);
+                warn!(worker_id = {}; "failed to set CPU affinity on thread: {err}");
                 None
             }
         }

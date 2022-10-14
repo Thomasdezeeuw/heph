@@ -205,7 +205,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///             // When we hit an error accepting a connection we'll drop the old
 ///             // server and create a new one.
 ///             Accept(err) => {
-///                 error!("error accepting new connection: {}", err);
+///                 error!("error accepting new connection: {err}");
 ///                 SupervisorStrategy::Restart(())
 ///             }
 ///             // Async function never return an error creating a new actor.
@@ -215,7 +215,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///
 ///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
 ///         // If we can't create a new server we'll stop.
-///         error!("error restarting the TCP server: {}", err);
+///         error!("error restarting the TCP server: {err}");
 ///         SupervisorStrategy::Stop
 ///     }
 ///
@@ -227,7 +227,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///
 /// /// `conn_actor`'s supervisor.
 /// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-///     error!("error handling connection: {}", err);
+///     error!("error handling connection: {err}");
 ///     SupervisorStrategy::Stop
 /// }
 ///
@@ -292,7 +292,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// #         use tcp::server::Error::*;
 /// #         match err {
 /// #             Accept(err) => {
-/// #                 error!("error accepting new connection: {}", err);
+/// #                 error!("error accepting new connection: {err}");
 /// #                 SupervisorStrategy::Restart(())
 /// #             }
 /// #             NewActor(_) => unreachable!(),
@@ -300,7 +300,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// #     }
 /// #
 /// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-/// #         error!("error restarting the TCP server: {}", err);
+/// #         error!("error restarting the TCP server: {err}");
 /// #         SupervisorStrategy::Stop
 /// #     }
 /// #
@@ -312,7 +312,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// #
 /// # /// # `conn_actor`'s supervisor.
 /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-/// #     error!("error handling connection: {}", err);
+/// #     error!("error handling connection: {err}");
 /// #     SupervisorStrategy::Stop
 /// # }
 /// #
@@ -378,7 +378,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///             // When we hit an error accepting a connection we'll drop the old
 ///             // server and create a new one.
 ///             Accept(err) => {
-///                 error!("error accepting new connection: {}", err);
+///                 error!("error accepting new connection: {err}");
 ///                 SupervisorStrategy::Restart(())
 ///             }
 ///             // Async function never return an error creating a new actor.
@@ -388,7 +388,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///
 ///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
 ///         // If we can't create a new server we'll stop.
-///         error!("error restarting the TCP server: {}", err);
+///         error!("error restarting the TCP server: {err}");
 ///         SupervisorStrategy::Stop
 ///     }
 ///
@@ -400,7 +400,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///
 /// /// `conn_actor`'s supervisor.
 /// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-///     error!("error handling connection: {}", err);
+///     error!("error handling connection: {err}");
 ///     SupervisorStrategy::Stop
 /// }
 ///
@@ -528,7 +528,7 @@ where
                 #[cfg(target_os = "linux")]
                 if let Some(cpu) = ctx.runtime_ref().cpu() {
                     if let Err(err) = stream.set_cpu_affinity(cpu) {
-                        warn!("failed to set CPU affinity on TcpStream: {}", err);
+                        warn!("failed to set CPU affinity on TcpStream: {err}");
                     }
                 }
                 Ok((stream, addr))

@@ -92,7 +92,7 @@ pub enum Connected {}
 ///
 /// /// Simple supervisor that logs the error and stops the actor.
 /// fn supervisor<Arg>(err: io::Error) -> SupervisorStrategy<Arg> {
-///     error!("Encountered an error: {}", err);
+///     error!("Encountered an error: {err}");
 ///     SupervisorStrategy::Stop
 /// }
 ///
@@ -115,8 +115,8 @@ pub enum Connected {}
 ///         };
 ///
 ///         match str::from_utf8(&buf) {
-///             Ok(str) => println!("Got the following message: `{}`, from {}", str, address),
-///             Err(_) => println!("Got data: {:?}, from {}", buf, address),
+///             Ok(str) => println!("Got the following message: `{str}`, from {address}"),
+///             Err(_) => println!("Got data: {buf:?}, from {address}"),
 ///         }
 /// #       return Ok(());
 ///     }
@@ -165,7 +165,7 @@ impl UdpSocket {
         #[cfg(target_os = "linux")]
         if let Some(cpu) = ctx.runtime_ref().cpu() {
             if let Err(err) = SockRef::from(&socket).set_cpu_affinity(cpu) {
-                warn!("failed to set CPU affinity on UdpSocket: {}", err);
+                warn!("failed to set CPU affinity on UdpSocket: {err}");
             }
         }
         Ok(UdpSocket {

@@ -586,11 +586,11 @@ fn from_str_known_headers() {
     ];
     for name in known_headers {
         let header_name = HeaderName::from_str(name);
-        assert!(!header_name.is_heap_allocated(), "header: {}", name);
+        assert!(!header_name.is_heap_allocated(), "header: {name}");
 
         // Matching should be case-insensitive.
         let header_name = HeaderName::from_str(&name.to_uppercase());
-        assert!(!header_name.is_heap_allocated(), "header: {}", name);
+        assert!(!header_name.is_heap_allocated(), "header: {name}");
     }
 }
 
@@ -606,14 +606,14 @@ fn from_str_custom() {
     let unknown_headers = &["my-header", "My-Header"];
     for name in unknown_headers {
         let header_name = HeaderName::from_str(name);
-        assert!(header_name.is_heap_allocated(), "header: {}", name);
+        assert!(header_name.is_heap_allocated(), "header: {name}");
         assert_eq!(header_name, "my-header");
         assert_eq!(header_name.as_ref(), "my-header");
     }
 
     let name = "bllow"; // Matches length of "Allow" header.
     let header_name = HeaderName::from_str(name);
-    assert!(header_name.is_heap_allocated(), "header: {}", name);
+    assert!(header_name.is_heap_allocated(), "header: {name}");
 }
 
 #[test]

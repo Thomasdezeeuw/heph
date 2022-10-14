@@ -135,18 +135,16 @@ where
     let uuid = uuid_gen.next();
     let msg = Message { uuid, msg };
     if let Err(err) = S::to_buf(&mut *buf, &msg) {
-        warn!("error serialising message (for {}): {}", target, err);
+        warn!("error serialising message (for {target}): {err}");
         // Don't want to stop the actor for this.
         return Ok(());
     }
 
     // Then send the buffer as a single packet.
     if buf.len() > MAX_PACKET_SIZE {
+        let len = buf.len();
         warn!(
-            "message too large (for {}): (serialised) message size {}, max is {}",
-            target,
-            buf.len(),
-            MAX_PACKET_SIZE,
+            "message too large (for {target}): (serialised) message size {len}, max is {MAX_PACKET_SIZE}",
         );
         // Don't want to stop the actor for this.
         return Ok(());

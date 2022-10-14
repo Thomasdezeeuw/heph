@@ -117,7 +117,7 @@ impl Waker {
     fn wake(&self, pid: ProcessId) {
         trace!(pid = pid.0; "waking process");
         if let Err(err) = self.notifications.try_send(pid) {
-            error!("unable to send wake up notification: {}", err);
+            error!("unable to send wake up notification: {err}");
             return;
         }
 
@@ -127,7 +127,7 @@ impl Waker {
     /// Wake up the thread, without waking a specific process.
     fn wake_thread(&self) {
         if let Err(err) = self.thread_waker.wake() {
-            error!("unable to wake up worker thread: {}", err);
+            error!("unable to wake up worker thread: {err}");
         }
     }
 }

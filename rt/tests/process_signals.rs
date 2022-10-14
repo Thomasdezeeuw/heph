@@ -22,8 +22,7 @@ fn no_signal_handlers() {
     let err_str = runtime.start().unwrap_err().to_string();
     assert!(
         err_str.contains("received process signal, but no receivers for it: stopping runtime"),
-        "got error '{}'",
-        err_str
+        "got error '{err_str}'",
     );
 }
 

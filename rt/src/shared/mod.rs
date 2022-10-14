@@ -271,7 +271,7 @@ impl RuntimeInternals {
 
     /// Wake `n` worker threads.
     pub(crate) fn wake_workers(&self, n: usize) {
-        trace!("waking {} worker thread(s)", n);
+        trace!("waking {n} worker thread(s)");
         // To prevent the Thundering herd problem [1] we don't wake all workers,
         // only enough worker threads to handle all events. To spread the
         // workload (somewhat more) evenly we wake the workers in a Round-Robin
@@ -295,7 +295,7 @@ impl RuntimeInternals {
                     }
                 }
                 Ok(false) => {}
-                Err(err) => error!("error waking worker: {}", err),
+                Err(err) => error!("error waking worker: {err}"),
             }
         }
     }

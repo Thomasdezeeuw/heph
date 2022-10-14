@@ -30,7 +30,7 @@ fn main() -> Result<(), rt::Error> {
         runtime_ref.receive_signals(server_ref.try_map());
         Ok(())
     })?;
-    info!("listening on http://{}", address);
+    info!("listening on http://{address}");
     runtime.start()
 }
 
@@ -47,7 +47,7 @@ where
         use http::server::Error::*;
         match err {
             Accept(err) => {
-                error!("error accepting new connection: {}", err);
+                error!("error accepting new connection: {err}");
                 SupervisorStrategy::Restart(())
             }
             NewActor(_) => unreachable!(),
@@ -55,17 +55,17 @@ where
     }
 
     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-        error!("error restarting the TCP server: {}", err);
+        error!("error restarting the TCP server: {err}");
         SupervisorStrategy::Stop
     }
 
     fn second_restart_error(&mut self, err: io::Error) {
-        error!("error restarting the actor a second time: {}", err);
+        error!("error restarting the actor a second time: {err}");
     }
 }
 
 fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-    error!("error handling connection: {}", err);
+    error!("error handling connection: {err}");
     SupervisorStrategy::Stop
 }
 
@@ -78,7 +78,7 @@ async fn http_actor(
     mut connection: http::Connection,
     address: SocketAddr,
 ) -> io::Result<()> {
-    info!("accepted connection: source={}", address);
+    info!("accepted connection: source={address}");
     connection.set_nodelay(true)?;
 
     let mut read_timeout = READ_TIMEOUT;
@@ -87,7 +87,7 @@ async fn http_actor(
 
         let response = match fut.await? {
             Ok(Some(request)) => {
-                info!("received request: {:?}: source={}", request, address);
+                info!("received request: {request:?}: source={address}");
                 route!(match request {
                     GET | HEAD "/" => index,
                     GET | HEAD "/other_page" => other_page,
@@ -98,7 +98,7 @@ async fn http_actor(
             // No more requests.
             Ok(None) => return Ok(()),
             Err(err) => {
-                warn!("error reading request: {}: source={}", err, address);
+                warn!("error reading request: {err}: source={address}");
                 err.response().with_body("Bad request".into())
             }
         };

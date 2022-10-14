@@ -53,7 +53,7 @@
 //! /// Our actor.
 //! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
 //!     if let Ok(msg) = ctx.receive_next().await {
-//!         println!("got message: {}", msg);
+//!         println!("got message: {msg}");
 //!     }
 //! }
 //! ```
@@ -95,11 +95,11 @@
 //! /// Our actor.
 //! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
 //!     if let Ok(msg) = ctx.receive_next().await {
-//!         println!("First message: {}", msg);
+//!         println!("First message: {msg}");
 //!     }
 //!
 //!     if let Ok(msg) = ctx.receive_next().await {
-//!         println!("Second message: {}", msg);
+//!         println!("Second message: {msg}");
 //!     }
 //! }
 //! ```

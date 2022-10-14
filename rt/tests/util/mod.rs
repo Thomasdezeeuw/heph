@@ -59,7 +59,7 @@ pub fn temp_file(name: &str) -> PathBuf {
     CLEANUP.call_once(|| {
         let _ = remove_dir_all(&dir);
         if let Err(err) = create_dir_all(&dir) {
-            panic!("failed to create temporary directory: {}", err);
+            panic!("failed to create temporary directory: {err}");
         }
     });
 
@@ -74,7 +74,7 @@ where
 {
     match poll {
         Poll::Pending => {} // Ok.
-        Poll::Ready(value) => panic!("expected pending, got `Poll::Ready({:?})`", value),
+        Poll::Ready(value) => panic!("expected pending, got `Poll::Ready({value:?})`"),
     }
 }
 
@@ -98,7 +98,7 @@ where
     match poll {
         Poll::Pending => panic!("unexpected `Poll::Pending`"),
         Poll::Ready(Ok(value)) => assert_eq!(value, expected),
-        Poll::Ready(Err(err)) => panic!("unexpected error: {}", err),
+        Poll::Ready(Err(err)) => panic!("unexpected error: {err}"),
     }
 }
 
@@ -109,7 +109,7 @@ where
 {
     match poll {
         Poll::Ready(Ok(())) => true,
-        Poll::Ready(Err(err)) => panic!("unexpected error: {}", err),
+        Poll::Ready(Err(err)) => panic!("unexpected error: {err}"),
         Poll::Pending => false,
     }
 }

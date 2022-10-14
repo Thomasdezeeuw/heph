@@ -29,8 +29,8 @@ fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 async fn ping_actor(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<PongMessage>) {
     // Make a Remote Procedure Call (RPC) and await the response.
     match actor_ref.rpc(Ping).await {
-        Ok(response) => println!("Got a RPC response: {}", response),
-        Err(err) => eprintln!("RPC request error: {}", err),
+        Ok(response) => println!("Got a RPC response: {response}"),
+        Err(err) => eprintln!("RPC request error: {err}"),
     }
 }
 
@@ -42,13 +42,13 @@ async fn pong_actor(mut ctx: actor::Context<PongMessage, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         // Next we respond to the request.
         let res = msg.handle(|request| {
-            println!("Got a RPC request: {}", request);
+            println!("Got a RPC request: {request}");
             // Return a response.
             Pong
         });
 
         if let Err(err) = res {
-            eprintln!("failed to respond to RPC: {}", err);
+            eprintln!("failed to respond to RPC: {err}");
         }
     }
 }

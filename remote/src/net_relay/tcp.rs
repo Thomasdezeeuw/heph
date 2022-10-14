@@ -106,7 +106,7 @@ where
     let uuid = uuid_gen.next();
     let msg = Message { uuid, msg };
     if let Err(err) = S::to_buf(&mut *buf, &msg) {
-        warn!("error serialising message: {}", err);
+        warn!("error serialising message: {err}");
         // Don't want to stop the actor for this.
         return Ok(());
     }

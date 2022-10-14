@@ -167,7 +167,8 @@ where
             Ok(Poll::Pending) => Poll::Pending,
             Err(panic) => {
                 let msg = panic_message(&*panic);
-                error!("actor '{}' panicked at '{}'", NA::name(), msg);
+                let name = NA::name();
+                error!("actor '{name}' panicked at '{msg}'");
                 this.handle_actor_panic(ctx.waker(), panic)
             }
         }

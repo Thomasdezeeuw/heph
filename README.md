@@ -21,7 +21,7 @@ async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
     // Receive a message.
     let msg = ctx.receive_next().await;
     // Print the message.
-    println!("got a message: {}", msg);
+    println!("got a message: {msg}");
 }
 ```
 
@@ -128,7 +128,7 @@ a functional language, Akka is implemented in/for Scala and Java, languages more
 in line with Rust (both being object oriented, but having functional aspects). A
 lot of the API is inspired by the API provided in Akka, but there are a number
 of big differences. The main one being that Akka's actor are untyped (or at
-least can be), where Heph actors are statically typed (just like Rust in 
+least can be), where Heph actors are statically typed (just like Rust in
 general).
 
 The final inspiration I would like to mention is [Nginx]. Nginx is an HTTP and

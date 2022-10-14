@@ -141,7 +141,7 @@ impl fmt::Display for Error {
                 write!(f, "{desc}: error in user-defined setup: {err}")
             }
             SetupTrace(ref err) => {
-                write!(f, "{desc}: error setting up trace infrastructure: {err}",)
+                write!(f, "{desc}: error setting up trace infrastructure: {err}")
             }
             InitCoordinator(ref err) => {
                 write!(f, "{desc}: error creating coordinator: {err}")
@@ -155,10 +155,10 @@ impl fmt::Display for Error {
             Worker(ref err) => write!(f, "{desc}: error in worker thread: {err}"),
             WorkerPanic(ref err) => write!(f, "{desc}: panic in worker thread: {err}"),
             StartSyncActor(ref err) => {
-                write!(f, "{desc}: error starting synchronous actor: {err}",)
+                write!(f, "{desc}: error starting synchronous actor: {err}")
             }
             SyncActorPanic(ref err) => {
-                write!(f, "{desc}: panic in synchronous actor thread: {err}",)
+                write!(f, "{desc}: panic in synchronous actor thread: {err}")
             }
         }
     }

@@ -110,7 +110,7 @@ const RT_SUBSTREAM_ID: u64 = 0;
 ///
 ///         // Handle the message by printing it.
 ///         let print_timing = ctx.start_trace();
-///         println!("got a message: {}", msg);
+///         println!("got a message: {msg}");
 ///
 ///         // Finish the trace for the printing and handling of the message.
 ///         ctx.finish_trace(print_timing, "Printing message", &[]);
@@ -503,7 +503,7 @@ pub(crate) fn finish<L>(
     if let (Some(mut log), Some(timing)) = (log, timing) {
         let event = timing.finish(description, attributes);
         if let Err(err) = log.append(substream_id, &event) {
-            warn!("error writing trace data: {}", err);
+            warn!("error writing trace data: {err}");
         }
     }
 }

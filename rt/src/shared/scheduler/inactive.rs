@@ -759,7 +759,7 @@ mod tests {
             let pid1 = ProcessId(pid1);
             let pid2 = ProcessId(pid2);
             let got = diff_branch_depth(pid1, pid2);
-            assert_eq!(got, expected, "pid1: {}, pid2: {}", pid1, pid2);
+            assert_eq!(got, expected, "pid1: {pid1}, pid2: {pid2}");
         }
     }
 

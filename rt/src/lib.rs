@@ -111,7 +111,7 @@
 //!     // we'll receive the "World" message we send in the `setup` function.
 //!     if let Ok(name) = ctx.receive_next().await {
 //!         // This should print "Hello world"!
-//!         println!("{} {}", msg, name);
+//!         println!("{msg} {name}");
 //!     }
 //! }
 //! ```
@@ -814,7 +814,7 @@ fn cpu_usage(clock_id: libc::clockid_t) -> Duration {
     };
     if unsafe { libc::clock_gettime(clock_id, &mut duration) } == -1 {
         let err = io::Error::last_os_error();
-        warn!("error getting CPU time: {}, using zero", err);
+        warn!("error getting CPU time: {err}, using zero");
         Duration::ZERO
     } else {
         Duration::new(

@@ -16,7 +16,7 @@ fn main() -> Result<(), rt::Error> {
     // We should get the port from systemd, or use a default.
     let port = match env::var("PORT").as_deref().unwrap_or("7890").parse() {
         Ok(port) => port,
-        Err(err) => return Err(rt::Error::setup(format!("failed to parse port: {}", err))),
+        Err(err) => return Err(rt::Error::setup(format!("failed to parse port: {err}"))),
     };
     let address = (Ipv4Addr::LOCALHOST, port).into();
     let supervisor = StopSupervisor::for_actor("connection actor");
@@ -48,7 +48,7 @@ fn main() -> Result<(), rt::Error> {
         Ok(())
     })?;
 
-    info!("listening on {}", address);
+    info!("listening on {address}");
     runtime.start()
 }
 
@@ -59,7 +59,7 @@ async fn conn_actor(
     mut stream: TcpStream,
     address: SocketAddr,
 ) -> io::Result<()> {
-    info!("accepted connection: address={}", address);
+    info!("accepted connection: address={address}");
     let ip = address.ip().to_string();
     stream.send_all(ip.as_bytes()).await
 }

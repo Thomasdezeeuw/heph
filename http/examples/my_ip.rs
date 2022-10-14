@@ -31,7 +31,7 @@ fn main() -> Result<(), rt::Error> {
         runtime_ref.receive_signals(server_ref.try_map());
         Ok(())
     })?;
-    info!("listening on http://{}", address);
+    info!("listening on http://{address}");
     runtime.start()
 }
 
@@ -48,7 +48,7 @@ where
         use http::server::Error::*;
         match err {
             Accept(err) => {
-                error!("error accepting new connection: {}", err);
+                error!("error accepting new connection: {err}");
                 SupervisorStrategy::Restart(())
             }
             NewActor(_) => unreachable!(),
@@ -56,17 +56,17 @@ where
     }
 
     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-        error!("error restarting the TCP server: {}", err);
+        error!("error restarting the TCP server: {err}");
         SupervisorStrategy::Stop
     }
 
     fn second_restart_error(&mut self, err: io::Error) {
-        error!("error restarting the actor a second time: {}", err);
+        error!("error restarting the actor a second time: {err}");
     }
 }
 
 fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-    error!("error handling connection: {}", err);
+    error!("error handling connection: {err}");
     SupervisorStrategy::Stop
 }
 
@@ -79,7 +79,7 @@ async fn http_actor(
     mut connection: http::Connection,
     address: SocketAddr,
 ) -> io::Result<()> {
-    info!("accepted connection: source={}", address);
+    info!("accepted connection: source={address}");
     connection.set_nodelay(true)?;
 
     let mut read_timeout = READ_TIMEOUT;
@@ -88,7 +88,7 @@ async fn http_actor(
         let fut = Deadline::after(&mut ctx, read_timeout, connection.next_request());
         let (code, body, should_close) = match fut.await? {
             Ok(Some(request)) => {
-                info!("received request: {:?}: source={}", request, address);
+                info!("received request: {request:?}: source={address}");
                 if request.path() != "/" {
                     (StatusCode::NOT_FOUND, "Not found".into(), false)
                 } else if !matches!(request.method(), Method::Get | Method::Head) {
@@ -109,9 +109,9 @@ async fn http_actor(
             // No more requests.
             Ok(None) => return Ok(()),
             Err(err) => {
-                warn!("error reading request: {}: source={}", err, address);
+                warn!("error reading request: {err}: source={address}");
                 let code = err.proper_status_code();
-                let body = Cow::from(format!("Bad request: {}", err));
+                let body = Cow::from(format!("Bad request: {err}"));
                 (code, body, err.should_close())
             }
         };
@@ -120,16 +120,13 @@ async fn http_actor(
             headers.append(Header::new(HeaderName::CONNECTION, b"close"));
         }
 
-        debug!(
-            "sending response: code={}, body='{}', source={}",
-            code, body, address
-        );
+        debug!("sending response: code={code}, body='{body}', source={address}");
         let body = OneshotBody::new(body.as_bytes());
         let write_response = connection.respond(code, &headers, body);
         Deadline::after(&mut ctx, WRITE_TIMEOUT, write_response).await?;
 
         if should_close {
-            warn!("closing connection: source={}", address);
+            warn!("closing connection: source={address}");
             return Ok(());
         }
 

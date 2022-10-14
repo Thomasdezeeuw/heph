@@ -107,15 +107,15 @@ fn run_example_output(name: &'static str) -> String {
 /// Run an already build example
 fn run_example(name: &'static str) -> ChildCommand {
     let paths = [
-        format!("target/debug/examples/{}", name),
+        format!("target/debug/examples/{name}"),
         // NOTE: this is not great. These target triples should really comes
         // from rustc/cargo, but this works for now.
         #[cfg(target_os = "macos")]
-        format!("target/x86_64-apple-darwin/debug/examples/{}", name),
+        format!("target/x86_64-apple-darwin/debug/examples/{name}"),
         #[cfg(target_os = "linux")]
-        format!("target/x86_64-unknown-linux-gnu/debug/examples/{}", name),
+        format!("target/x86_64-unknown-linux-gnu/debug/examples/{name}"),
         #[cfg(target_os = "freebsd")]
-        format!("target/x86_64-unknown-freebsd/debug/examples/{}", name),
+        format!("target/x86_64-unknown-freebsd/debug/examples/{name}"),
     ];
 
     let mut errs = Vec::new();
@@ -144,7 +144,7 @@ fn run_example(name: &'static str) -> ChildCommand {
                 Ok(output) => {
                     let out = String::from_utf8_lossy(&output.stdout).to_owned();
                     let err = String::from_utf8_lossy(&output.stdout).to_owned();
-                    let msg = format!("failed to build example:\n{}\n{}", out, err);
+                    let msg = format!("failed to build example:\n{out}\n{err}");
                     errs.push(io::Error::new(io::ErrorKind::Other, msg));
                 }
                 Err(err) => errs.push(err),
@@ -153,7 +153,7 @@ fn run_example(name: &'static str) -> ChildCommand {
         break;
     }
 
-    panic!("failed to run example '{}': errors: {:?}", name, errs);
+    panic!("failed to run example '{name}': errors: {errs:?}");
 }
 
 /// Read the standard output of the child command.

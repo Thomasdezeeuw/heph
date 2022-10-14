@@ -102,15 +102,15 @@ fn auto_cpu_affinity() {
             + 'static,
     {
         fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
-            panic!("unexpected error accept stream: {}", err);
+            panic!("unexpected error accept stream: {err}");
         }
 
         fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-            panic!("unexpected restarting server: {}", err);
+            panic!("unexpected restarting server: {err}");
         }
 
         fn second_restart_error(&mut self, err: io::Error) {
-            panic!("unexpected restarting server: {}", err);
+            panic!("unexpected restarting server: {err}");
         }
     }
 
@@ -122,7 +122,7 @@ fn auto_cpu_affinity() {
         let accepted_stream_actor = accepted_stream_actor as fn(_, TcpStream, SocketAddr) -> _;
         let server = TcpServer::setup(
             address,
-            |err: io::Error| panic!("unexpected error: {}", err),
+            |err: io::Error| panic!("unexpected error: {err}"),
             accepted_stream_actor,
             ActorOptions::default(),
         )?;
@@ -133,7 +133,7 @@ fn auto_cpu_affinity() {
         let stream_actor = stream_actor as fn(_, _, _) -> _;
         let args = (address, server_ref);
         let _ = runtime_ref.spawn_local(
-            |err| panic!("unexpected error: {}", err),
+            |err| panic!("unexpected error: {err}"),
             stream_actor,
             args,
             ActorOptions::default(),
@@ -205,12 +205,12 @@ fn running_actors() {
     runtime.start().unwrap();
 
     for (i, status) in local_status.lock().unwrap().iter().enumerate() {
-        eprintln!("thread-local {}. status: {:?}", i, status);
+        eprintln!("thread-local {i}. status: {status:?}");
         status.assert();
     }
 
     for (i, status) in safe_status.into_iter().enumerate() {
-        eprintln!("thread-safe {}. status: {:?}", i, status);
+        eprintln!("thread-safe {i}. status: {status:?}");
         status.assert();
     }
 

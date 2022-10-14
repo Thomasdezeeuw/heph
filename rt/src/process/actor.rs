@@ -174,8 +174,9 @@ where
             Ok(Poll::Ready(Err(err))) => this.handle_actor_error(runtime_ref, pid, err),
             Ok(Poll::Pending) => ProcessResult::Pending,
             Err(panic) => {
+                let name = NA::name();
                 let msg = panic_message(&*panic);
-                error!("actor '{}' panicked at '{}'", NA::name(), msg);
+                error!("actor '{name}' panicked at '{msg}'");
                 this.handle_actor_panic(runtime_ref, pid, panic)
             }
         }

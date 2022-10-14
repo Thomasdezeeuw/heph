@@ -117,8 +117,7 @@ fn connect_connection_refused() {
                 assert_eq!(
                     err.kind(),
                     io::ErrorKind::ConnectionRefused,
-                    "unexpected error: {:?}",
-                    err
+                    "unexpected error: {err:?}",
                 );
                 return Ok(());
             }
@@ -128,8 +127,7 @@ fn connect_connection_refused() {
             Err(err) => assert_eq!(
                 err.kind(),
                 io::ErrorKind::ConnectionRefused,
-                "unexpected error: {:?}",
-                err
+                "unexpected error: {err:?}",
             ),
         }
         Ok(())
@@ -147,7 +145,7 @@ fn try_recv() {
 
         let mut buf = Vec::with_capacity(128);
         match stream.try_recv(&mut buf) {
-            Ok(n) => panic!("unexpected bytes: {:?} ({})", buf, n),
+            Ok(n) => panic!("unexpected bytes: {buf:?} ({n})"),
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {}
             Err(err) => return Err(err),
         }
@@ -246,7 +244,7 @@ fn recv_n_read_exact_amount() {
         // `UnexpectedEof` error.
         buf.clear();
         match stream.recv_n(&mut buf, 10).await {
-            Ok(()) => panic!("unexpected recv: {:?}", buf),
+            Ok(()) => panic!("unexpected recv: {buf:?}"),
             Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => Ok(()),
             Err(err) => Err(err),
         }
@@ -284,7 +282,7 @@ fn recv_n_read_more_bytes() {
         // `UnexpectedEof` error.
         buf.clear();
         match stream.recv_n(&mut buf, 10).await {
-            Ok(()) => panic!("unexpected recv: {:?}", buf),
+            Ok(()) => panic!("unexpected recv: {buf:?}"),
             Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => Ok(()),
             Err(err) => Err(err),
         }
@@ -313,7 +311,7 @@ fn recv_n_less_bytes() {
 
         let want_n = 2 * DATA.len();
         match stream.recv_n(&mut buf, want_n).await {
-            Ok(()) => panic!("unexpected recv: {:?}", buf),
+            Ok(()) => panic!("unexpected recv: {buf:?}"),
             Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => Ok(()),
             Err(err) => Err(err),
         }
@@ -567,7 +565,7 @@ fn recv_n_vectored_exact_amount() {
         buf2.clear();
         let bufs = [&mut buf1, &mut buf2];
         match stream.recv_n_vectored(bufs, 10).await {
-            Ok(()) => panic!("unexpected recv: {:?}", buf1),
+            Ok(()) => panic!("unexpected recv: {buf1:?}"),
             Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => Ok(()),
             Err(err) => Err(err),
         }
@@ -606,7 +604,7 @@ fn recv_n_vectored_more_bytes() {
         buf2.clear();
         let bufs = [&mut buf1, &mut buf2];
         match stream.recv_n_vectored(bufs, 10).await {
-            Ok(()) => panic!("unexpected recv: {:?}", buf1),
+            Ok(()) => panic!("unexpected recv: {buf1:?}"),
             Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => Ok(()),
             Err(err) => Err(err),
         }
@@ -636,7 +634,7 @@ fn recv_n_vectored_less_bytes() {
         let mut buf2 = Vec::with_capacity(DATA.len() + 1);
         let bufs = [&mut buf1, &mut buf2];
         match stream.recv_n_vectored(bufs, 2 * DATA.len()).await {
-            Ok(()) => panic!("unexpected recv: {:?}", buf1),
+            Ok(()) => panic!("unexpected recv: {buf1:?}"),
             Err(ref err) if err.kind() == io::ErrorKind::UnexpectedEof => Ok(()),
             Err(err) => Err(err),
         }
@@ -912,7 +910,7 @@ fn send_file_check_actor(
                 *offset += n
             }
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {}
-            Err(err) => panic!("unexpected error reading: {}", err),
+            Err(err) => panic!("unexpected error reading: {err}"),
         }
     }
 

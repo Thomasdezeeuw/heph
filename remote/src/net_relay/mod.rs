@@ -47,7 +47,7 @@
 //!     RT: rt::Access,
 //! {
 //!     while let Ok(msg) = ctx.receive_next().await {
-//!         println!("received message: {}", msg);
+//!         println!("received message: {msg}");
 //!     }
 //! }
 //! let local_actor = local_actor as fn(_) -> _;

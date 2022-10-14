@@ -83,6 +83,6 @@ fn actor_name() {
 
     for (input, expected) in tests {
         let got = actor::format_name(input);
-        assert_eq!(got, *expected, "input: {}", input);
+        assert_eq!(got, *expected, "input: {input}");
     }
 }

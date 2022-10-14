@@ -46,10 +46,10 @@ restart_supervisor!(
 
 /// A very bad printing actor.
 async fn print_actor(_: actor::Context<(), ThreadLocal>, msg: String) -> Result<(), String> {
-    Err(format!("can't print message '{}'", msg))
+    Err(format!("can't print message '{msg}'"))
 }
 
 /// A very bad synchronous printing actor.
 fn sync_print_actor<RT>(_: SyncContext<String, RT>, msg: String) -> Result<(), String> {
-    Err(format!("can't print message synchronously '{}'", msg))
+    Err(format!("can't print message synchronously '{msg}'"))
 }

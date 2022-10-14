@@ -119,11 +119,11 @@
 //! fn actor<RT>(mut ctx: SyncContext<String, RT>, exit_msg: &'static str) {
 //!     if let Ok(msg) = ctx.receive_next() {
 //! #       assert_eq!(msg, "Hello world");
-//!         println!("Got a message: {}", msg);
+//!         println!("Got a message: {msg}");
 //!     } else {
 //!         eprintln!("Receive no messages");
 //!     }
-//!     println!("{}", exit_msg);
+//!     println!("{exit_msg}");
 //! }
 
 use std::any::type_name;
@@ -206,7 +206,7 @@ pub trait NewActor {
     /// async fn actor(mut ctx: actor::Context<Message, ThreadLocal>) {
     ///     if let Ok(msg) = ctx.receive_next().await {
     /// #       assert_eq!(msg, Message::String("Hello world".to_owned()));
-    ///         println!("received message: {:?}", msg);
+    ///         println!("received message: {msg:?}");
     ///     }
     /// }
     /// ```
@@ -324,7 +324,7 @@ pub trait NewActor {
     /// #         use server::Error::*;
     /// #         match err {
     /// #             Accept(err) => {
-    /// #                 error!("error accepting new connection: {}", err);
+    /// #                 error!("error accepting new connection: {err}");
     /// #                 SupervisorStrategy::Restart(())
     /// #             }
     /// #             NewActor(_) => unreachable!(),
@@ -332,7 +332,7 @@ pub trait NewActor {
     /// #     }
     /// #
     /// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-    /// #         error!("error restarting the TCP server: {}", err);
+    /// #         error!("error restarting the TCP server: {err}");
     /// #         SupervisorStrategy::Stop
     /// #     }
     /// #
@@ -343,7 +343,7 @@ pub trait NewActor {
     /// # }
     /// #
     /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-    /// #   error!("error handling connection: {}", err);
+    /// #   error!("error handling connection: {err}");
     /// #   SupervisorStrategy::Stop
     /// # }
     /// #

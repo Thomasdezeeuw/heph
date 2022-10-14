@@ -153,7 +153,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///         use http::server::Error::*;
 ///         match err {
 ///             Accept(err) => {
-///                 error!("error accepting new connection: {}", err);
+///                 error!("error accepting new connection: {err}");
 ///                 SupervisorStrategy::Restart(())
 ///             }
 ///             NewActor(_) => unreachable!(),
@@ -161,17 +161,17 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///     }
 ///
 ///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-///         error!("error restarting the TCP server: {}", err);
+///         error!("error restarting the TCP server: {err}");
 ///         SupervisorStrategy::Stop
 ///     }
 ///
 ///     fn second_restart_error(&mut self, err: io::Error) {
-///         error!("error restarting the actor a second time: {}", err);
+///         error!("error restarting the actor a second time: {err}");
 ///     }
 /// }
 ///
 /// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-///     error!("error handling connection: {}", err);
+///     error!("error handling connection: {err}");
 ///     SupervisorStrategy::Stop
 /// }
 ///
@@ -213,7 +213,7 @@ impl<S, NA> Clone for Setup<S, NA> {
 ///                 // Determine the correct status code to return.
 ///                 let code = err.proper_status_code();
 ///                 // Create a useful error message as body.
-///                 let body = Cow::from(format!("Bad request: {}", err));
+///                 let body = Cow::from(format!("Bad request: {err}"));
 ///                 (code, body, err.should_close())
 ///             }
 ///         };
@@ -611,7 +611,7 @@ impl Connection {
     /// // here).
     /// let version = conn.last_request_version().unwrap_or(Version::Http11);
     ///
-    /// let msg = format!("Bad request: {}", err);
+    /// let msg = format!("Bad request: {err}");
     /// let body = OneshotBody::new(msg.as_bytes());
     ///
     /// // Respond with the response.
@@ -770,7 +770,7 @@ impl Connection {
         // Provide the "Date" header if the user didn't.
         if !set_date_header {
             let now = HttpDate::from(SystemTime::now());
-            write!(&mut self.buf, "Date: {}\r\n", now).unwrap();
+            write!(&mut self.buf, "Date: {now}\r\n").unwrap();
         }
 
         // Provide the "Conent-Length" or "Transfer-Encoding" header if the user

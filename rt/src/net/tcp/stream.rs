@@ -218,7 +218,7 @@ impl TcpStream {
     ///
     ///     let mut buf = Vec::with_capacity(4 * 1024); // 4 KB.
     ///     match stream.try_recv(&mut buf) {
-    ///         Ok(n) => println!("read {} bytes: {:?}", n, buf),
+    ///         Ok(n) => println!("read {n} bytes: {buf:?}"),
     ///         Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
     ///             println!("no bytes can't be read at this time");
     ///         },
@@ -269,7 +269,7 @@ impl TcpStream {
     ///
     ///     let mut buf = Vec::with_capacity(4 * 1024); // 4 KB.
     ///     let n = stream.recv(&mut buf).await?;
-    ///     println!("read {} bytes: {:?}", n, buf);
+    ///     println!("read {n} bytes: {buf:?}");
     ///
     ///     Ok(())
     /// }
@@ -309,7 +309,7 @@ impl TcpStream {
     ///     // of data before shutting down or closing the connection.
     ///     let n = 1024;
     ///     stream.recv_n(&mut buf, n).await?;
-    ///     println!("read {} bytes: {:?}", n, buf);
+    ///     println!("read {n} bytes: {buf:?}");
     ///
     ///     Ok(())
     /// }
@@ -597,7 +597,7 @@ impl Future for Connect {
                         #[cfg(target_os = "linux")]
                         if let Some(cpu) = self.cpu_affinity {
                             if let Err(err) = stream.set_cpu_affinity(cpu) {
-                                warn!("failed to set CPU affinity on TcpStream: {}", err);
+                                warn!("failed to set CPU affinity on TcpStream: {err}");
                             }
                         }
                         Poll::Ready(Ok(stream))

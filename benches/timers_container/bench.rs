@@ -210,7 +210,7 @@ mod btreemap {
         let mut map = BTreeMap::new();
         for timer in start_timers().take(START_SIZE) {
             let r = map.insert(timer.deadline, timer.pid);
-            assert!(r.is_none(), "timer: {:?}", timer);
+            assert!(r.is_none(), "timer: {timer:?}");
         }
         map
     }

@@ -162,7 +162,7 @@ mod tests {
         ];
         for (input, expected) in tests {
             let got = trim_ws(input.as_bytes());
-            assert_eq!(got, expected.as_bytes(), "input: {}", input);
+            assert_eq!(got, expected.as_bytes(), "input: {input}");
         }
     }
 
@@ -178,7 +178,7 @@ mod tests {
         ];
         for (input, expected) in tests {
             let got = is_lower_case(input);
-            assert_eq!(got, *expected, "input: {}", input);
+            assert_eq!(got, *expected, "input: {input}");
         }
     }
 
@@ -200,7 +200,7 @@ mod tests {
         ];
         for (lower_case, right, expected) in tests {
             let got = cmp_lower_case(lower_case, right);
-            assert_eq!(got, *expected, "input: '{}', '{}'", lower_case, right);
+            assert_eq!(got, *expected, "input: '{lower_case}', '{right}'");
         }
     }
 }

@@ -86,12 +86,8 @@ fn main() {
 
         write!(
             output,
-            "{}\t\t{{\"pid\": {}, \"tid\": {}, \"ts\": {}, \"dur\": {}, \"name\": \"{}\"",
+            "{}\t\t{{\"pid\": {process_id}, \"tid\": {thread_id}, \"ts\": {timestamp}, \"dur\": {duration}, \"name\": \"{}\"",
             if first { "" } else { ",\n" },
-            process_id,
-            thread_id,
-            timestamp,
-            duration,
             event.description,
         )
         .expect("failed to write event to output");
@@ -111,9 +107,8 @@ fn main() {
                 };
                 write!(
                     output,
-                    "{}{}",
+                    "{}{fmt_args}",
                     if first_attribute { "" } else { ", " },
-                    fmt_args
                 )
                 .expect("failed to write event to output");
                 first_attribute = false;
@@ -545,14 +540,14 @@ impl fmt::Display for ParseError {
                 write!(f, "packet has invalid magic value '{got_magic:#}'")
             }
             PacketTooSmall { packet_kind, got } => {
-                write!(f, "{packet_kind} packet size too small, got {got} bytes",)
+                write!(f, "{packet_kind} packet size too small, got {got} bytes")
             }
             StringTooSmall { packet_kind, field } => write!(
                 f,
                 "missing string data in {packet_kind} packet, {field} field",
             ),
             InvalidString { packet_kind, field } => {
-                write!(f, "invalid string in {packet_kind} packet, {field} field",)
+                write!(f, "invalid string in {packet_kind} packet, {field} field")
             }
             UnknownOption(option_name) => write!(f, "unknown option name '{option_name}'"),
             UnknownValueType(byte) => write!(f, "unknown value type byte '{byte:#}'"),

@@ -429,7 +429,7 @@ impl Worker {
         let mut check_shared_poll = false;
         let mut amount = 0;
         for event in self.events.iter() {
-            trace!(worker_id = self.internals.id.get(); "got OS event: {:?}", event);
+            trace!(worker_id = self.internals.id.get(); "got OS event: {event:?}");
             match event.token() {
                 WAKER => { /* Need to wake up to handle user space events. */ }
                 COMMS => check_comms = true,
@@ -468,7 +468,7 @@ impl Worker {
         let mut amount = 0;
         if self.internals.shared.try_poll(&mut self.events)? {
             for event in self.events.iter() {
-                trace!(worker_id = self.internals.id.get(); "got shared OS event: {:?}", event);
+                trace!(worker_id = self.internals.id.get(); "got shared OS event: {event:?}");
                 let pid = ProcessId::from(event.token());
                 trace!(
                     worker_id = self.internals.id.get(), pid = pid.0;
@@ -567,7 +567,7 @@ impl Worker {
         };
 
         if wake_n != 0 {
-            trace!(worker_id = self.internals.id.get(); "waking {} worker threads", wake_n);
+            trace!(worker_id = self.internals.id.get(); "waking {wake_n} worker threads");
             let timing = trace::start(&*self.internals.trace_log.borrow());
             self.internals.shared.wake_workers(wake_n);
             trace::finish_rt(

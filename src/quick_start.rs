@@ -33,7 +33,7 @@
 //!     // can receive messages of the type `String`.
 //!     if let Ok(msg) = ctx.receive_next().await {
 //!         // Process the message.
-//!         println!("got a message: {}", msg);
+//!         println!("got a message: {msg}");
 //!     }
 //! }
 //! # drop(actor); // Silence dead code warnings.
@@ -120,7 +120,7 @@
 //! fn supervisor(err: io::Error) -> SupervisorStrategy<(&'static str, bool)> {
 //!     // First we need to handle the error, in this case we'll log it (always a
 //!     // good idea).
-//!     warn!("Actor hit an error: {}", err);
+//!     warn!("Actor hit an error: {err}");
 //!
 //!     // Then we need to decide if we want to stop or restart the actor. For this
 //!     // example we'll stop the actor.
@@ -137,9 +137,9 @@
 //! ) -> io::Result<()> {
 //!     while let Ok(name) = ctx.receive_next().await {
 //!         if on_mars {
-//!             write!(stdout(), "{} {} to mars!", greeting, name)?;
+//!             write!(stdout(), "{greeting} {name} to mars!")?;
 //!         } else {
-//!             write!(stdout(), "{} {} to earth!", greeting, name)?;
+//!             write!(stdout(), "{greeting} {name} to earth!")?;
 //!         }
 //!     }
 //!     Ok(())

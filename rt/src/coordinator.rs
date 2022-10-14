@@ -130,7 +130,7 @@ impl Coordinator {
 
             let timing = trace::start(&trace_log);
             for event in events.iter() {
-                trace!("got OS event: {:?}", event);
+                trace!("got OS event: {event:?}");
 
                 match event.token() {
                     SIGNAL => {
@@ -167,7 +167,7 @@ impl Coordinator {
                             &[],
                         );
                     }
-                    _ => debug!("unexpected OS event: {:?}", event),
+                    _ => debug!("unexpected OS event: {event:?}"),
                 }
             }
             trace::finish_rt(trace_log.as_mut(), timing, "Handling OS events", &[]);
@@ -337,7 +337,7 @@ fn relay_signals(
                         // thread stopped).
                         error!(
                             signal = as_debug!(signal), worker_id = worker.id();
-                            "failed to send process signal to worker: {}", err,
+                            "failed to send process signal to worker: {err}",
                         );
                     }
                 }
@@ -347,7 +347,7 @@ fn relay_signals(
             }
             Ok(None) => break,
             Err(err) => {
-                error!("failed to retrieve process signal: {}", err);
+                error!("failed to retrieve process signal: {err}");
                 break;
             }
         }

@@ -28,7 +28,7 @@ impl UuidGenerator {
                 UuidGenerator(b0, b1)
             }
             Err(err) => {
-                warn!("unable to get random bytes, using a fallback: {}", err);
+                warn!("unable to get random bytes, using a fallback: {err}");
                 UuidGenerator(9396178701149223067, 6169990013871724815)
             }
         }

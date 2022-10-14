@@ -372,21 +372,21 @@ where
     <NA::Actor as Actor>::Error: fmt::Display,
 {
     fn decide(&mut self, err: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
-        warn!("{} failed, stopping it: {}", self.0, err);
+        warn!("{} failed, stopping it: {err}", self.0);
         SupervisorStrategy::Stop
     }
 
     fn decide_on_restart_error(&mut self, err: NA::Error) -> SupervisorStrategy<NA::Argument> {
         // Shouldn't be called, but it should still have an implementation.
-        warn!("{} failed to restart, stopping it: {}", self.0, err);
+        warn!("{} failed to restart, stopping it: {err}", self.0);
         SupervisorStrategy::Stop
     }
 
     fn second_restart_error(&mut self, err: NA::Error) {
         // Shouldn't be called, but it should still have an implementation.
         warn!(
-            "{} failed to restart a second time, stopping it: {}",
-            self.0, err
+            "{} failed to restart a second time, stopping it: {err}",
+            self.0
         );
     }
 }
@@ -397,7 +397,7 @@ where
     A::Error: std::fmt::Display,
 {
     fn decide(&mut self, err: A::Error) -> SupervisorStrategy<A::Argument> {
-        warn!("{} failed, stopping it: {}", self.0, err);
+        warn!("{} failed, stopping it: {err}", self.0);
         SupervisorStrategy::Stop
     }
 }

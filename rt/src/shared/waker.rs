@@ -54,8 +54,7 @@ pub(crate) fn init(internals: Weak<RuntimeInternals>) -> WakerId {
     let id = IDS.fetch_add(1, Ordering::SeqCst);
     assert!(
         (id as usize) < MAX_RUNTIMES,
-        "Created too many Heph `Runtime`s, maximum of {}",
-        MAX_RUNTIMES
+        "Created too many Heph `Runtime`s, maximum of {MAX_RUNTIMES}",
     );
 
     // Safety: this is safe because we are the only thread that has write access

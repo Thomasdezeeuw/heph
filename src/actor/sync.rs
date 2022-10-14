@@ -200,7 +200,7 @@ impl<M, RT> SyncContext<M, RT> {
     ///
     /// fn greeter_actor<RT>(mut ctx: SyncContext<String, RT>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
-    ///         println!("Hello {}", name);
+    ///         println!("Hello {name}");
     ///     } else {
     ///         println!("Hello world");
     ///     }
@@ -228,7 +228,7 @@ impl<M, RT> SyncContext<M, RT> {
     ///
     /// fn print_actor<RT>(mut ctx: SyncContext<String, RT>) {
     ///     if let Ok(msg) = ctx.receive_next() {
-    ///         println!("Got a message: {}", msg);
+    ///         println!("Got a message: {msg}");
     ///     } else {
     ///         eprintln!("No message received");
     ///     }

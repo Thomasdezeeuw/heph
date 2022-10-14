@@ -56,7 +56,7 @@ fn main() -> Result<(), rt::Error> {
         runtime_ref.receive_signals(server_ref.try_map());
         Ok(())
     })?;
-    info!("listening on {}", address);
+    info!("listening on {address}");
     runtime.start()
 }
 
@@ -72,7 +72,7 @@ where
         use tcp::server::Error::*;
         match err {
             Accept(err) => {
-                error!("error accepting new connection: {}", err);
+                error!("error accepting new connection: {err}");
                 SupervisorStrategy::Restart(())
             }
             NewActor(_) => unreachable!(),
@@ -80,17 +80,17 @@ where
     }
 
     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-        error!("error restarting the TCP server: {}", err);
+        error!("error restarting the TCP server: {err}");
         SupervisorStrategy::Stop
     }
 
     fn second_restart_error(&mut self, err: io::Error) {
-        error!("error restarting the actor a second time: {}", err);
+        error!("error restarting the actor a second time: {err}");
     }
 }
 
 fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-    error!("error handling connection: {}", err);
+    error!("error handling connection: {err}");
     SupervisorStrategy::Stop
 }
 
@@ -103,7 +103,7 @@ async fn conn_actor<RT>(
 where
     RT: rt::Access + Clone,
 {
-    info!("accepted connection: address={}", address);
+    info!("accepted connection: address={address}");
     let mut buffer = Vec::with_capacity(1024);
 
     let err = loop {
@@ -134,7 +134,7 @@ where
                     Err(err) => break err,
                 };
                 let buf = &buf[n..];
-                request!("'{}' command", cmd);
+                request!("'{cmd}' command");
                 match cmd {
                     "GET" => {
                         if length != 2 {

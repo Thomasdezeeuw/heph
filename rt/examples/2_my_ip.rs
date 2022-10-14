@@ -47,7 +47,7 @@ fn main() -> Result<(), rt::Error> {
         runtime_ref.receive_signals(server_ref.try_map());
         Ok(())
     })?;
-    info!("listening on {}", address);
+    info!("listening on {address}");
     runtime.start()
 }
 
@@ -66,7 +66,7 @@ where
             // When we hit an error accepting a connection we'll drop the old
             // listener and create a new one.
             Accept(err) => {
-                error!("error accepting new connection: {}", err);
+                error!("error accepting new connection: {err}");
                 SupervisorStrategy::Restart(())
             }
             // Async function never return an error creating a new actor.
@@ -76,14 +76,14 @@ where
 
     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
         // If we can't create a new listener we'll stop.
-        error!("error restarting the TCP server: {}", err);
+        error!("error restarting the TCP server: {err}");
         SupervisorStrategy::Stop
     }
 
     fn second_restart_error(&mut self, err: io::Error) {
         // This shouldn't ever be called as we don't restart the actor a second
         // time (see `decide_on_restart_error`), but just in case.
-        error!("error restarting the actor a second time: {}", err);
+        error!("error restarting the actor a second time: {err}");
     }
 }
 
@@ -92,7 +92,7 @@ where
 /// Since we can't create a new TCP connection all this supervisor does is log
 /// the error and signal to stop the actor.
 fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-    error!("error handling connection: {}", err);
+    error!("error handling connection: {err}");
     SupervisorStrategy::Stop
 }
 
@@ -105,7 +105,7 @@ async fn conn_actor(
     mut stream: TcpStream,
     address: SocketAddr,
 ) -> io::Result<()> {
-    info!("accepted connection: address={}", address);
+    info!("accepted connection: address={address}");
 
     // This will allocate a new string which isn't the most efficient way to do
     // this, but it's the easiest so we'll keep this for sake of example.

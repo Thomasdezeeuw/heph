@@ -18,7 +18,7 @@ fn main() -> Result<(), rt::Error> {
     runtime.run_on_workers(move |mut runtime_ref| -> Result<(), !> {
         const N: usize = 10_000_000;
 
-        info!("Spawning {} actors, this might take a while", N);
+        info!("Spawning {N} actors, this might take a while");
         let start = std::time::Instant::now();
         for _ in 0..N {
             let actor = actor as fn(_) -> _;

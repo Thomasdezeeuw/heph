@@ -56,9 +56,9 @@
 //! #   assert!(response.is_ok());
 //!     match response {
 //!         // We got a response.
-//!         Ok(count) => println!("Current count: {}", count),
+//!         Ok(count) => println!("Current count: {count}"),
 //!         // Actor failed to respond.
-//!         Err(err) => eprintln!("Counter didn't reply: {}", err),
+//!         Err(err) => eprintln!("Counter didn't reply: {err}"),
 //!     }
 //! }
 //!
@@ -130,12 +130,12 @@
 //!     // NOTE: do handle the errors correctly in practice, this is just an
 //!     // example.
 //!     let count = actor_ref.rpc(10).await.unwrap();
-//!     println!("Increased count to {}", count);
+//!     println!("Increased count to {count}");
 //!
 //!     // Retrieve the current count.
 //!     let count = actor_ref.rpc(()).await.unwrap();
 //! #   assert_eq!(count, 10);
-//!     println!("Current count {}", count);
+//!     println!("Current count {count}");
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {

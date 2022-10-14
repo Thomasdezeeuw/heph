@@ -70,7 +70,7 @@ impl TryFrom<Signal> for Message {
 fn sync_actor<RT>(mut ctx: SyncContext<Message, RT>) {
     while let Ok(msg) = ctx.receive_next() {
         match msg {
-            Message::Print(msg) => println!("Got a message: {}", msg),
+            Message::Print(msg) => println!("Got a message: {msg}"),
             Message::Terminate => break,
         }
     }
@@ -81,7 +81,7 @@ fn sync_actor<RT>(mut ctx: SyncContext<Message, RT>) {
 async fn thread_safe_actor(mut ctx: actor::Context<Message, ThreadSafe>) {
     while let Ok(msg) = ctx.receive_next().await {
         match msg {
-            Message::Print(msg) => println!("Got a message: {}", msg),
+            Message::Print(msg) => println!("Got a message: {msg}"),
             Message::Terminate => break,
         }
     }
@@ -92,7 +92,7 @@ async fn thread_safe_actor(mut ctx: actor::Context<Message, ThreadSafe>) {
 async fn local_actor(mut ctx: actor::Context<Message, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         match msg {
-            Message::Print(msg) => println!("Got a message: {}", msg),
+            Message::Print(msg) => println!("Got a message: {msg}"),
             Message::Terminate => break,
         }
     }

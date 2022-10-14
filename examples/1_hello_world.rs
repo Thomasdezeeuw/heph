@@ -40,6 +40,6 @@ async fn greeter_actor(mut ctx: actor::Context<&'static str, ThreadLocal>) {
     // All actors have an actor context, which give the actor access to, among
     // other things, its inbox from which it can receive a message.
     while let Ok(name) = ctx.receive_next().await {
-        println!("Hello {}", name);
+        println!("Hello {name}");
     }
 }

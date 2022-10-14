@@ -18,7 +18,7 @@
 //!     // Receive a message.
 //!     if let Ok(msg) = ctx.receive_next().await {
 //!         // Print the message.
-//!         println!("got a message: {}", msg);
+//!         println!("got a message: {msg}");
 //!     }
 //! }
 //! #

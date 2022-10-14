@@ -533,8 +533,7 @@ fn expect_response(
         assert_eq!(
             got_header.value,
             got,
-            "different header values for '{}' header, got: '{:?}', expected: '{:?}'",
-            got_header_name,
+            "different header values for '{got_header_name}' header, got: '{:?}', expected: '{:?}'",
             str::from_utf8(got_header.value),
             str::from_utf8(got)
         );
@@ -628,22 +627,22 @@ where
     fn decide(&mut self, err: http::server::Error<!>) -> SupervisorStrategy<()> {
         use http::server::Error::*;
         match err {
-            Accept(err) => panic!("error accepting new connection: {}", err),
+            Accept(err) => panic!("error accepting new connection: {err}"),
             NewActor(_) => unreachable!(),
         }
     }
 
     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-        panic!("error restarting the TCP server: {}", err);
+        panic!("error restarting the TCP server: {err}");
     }
 
     fn second_restart_error(&mut self, err: io::Error) {
-        panic!("error restarting the actor a second time: {}", err);
+        panic!("error restarting the actor a second time: {err}");
     }
 }
 
 fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(heph::net::TcpStream, SocketAddr)> {
-    panic!("error handling connection: {}", err)
+    panic!("error handling connection: {err}")
 }
 
 /// Routes:
@@ -688,7 +687,7 @@ async fn http_actor(
             Ok(None) => return Ok(()),
             Err(err) => {
                 let code = err.proper_status_code();
-                let body = Cow::from(format!("Bad request: {}", err));
+                let body = Cow::from(format!("Bad request: {err}"));
                 (code, body, err.should_close())
             }
         };

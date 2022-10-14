@@ -18,7 +18,7 @@ async fn expect_1_messages(mut ctx: actor::Context<usize, ThreadLocal>) {
     assert_eq!(msg, 123);
 
     match ctx.receive_next().await {
-        Ok(msg) => panic!("unexpected message: {:?}", msg),
+        Ok(msg) => panic!("unexpected message: {msg:?}"),
         Err(NoMessages) => return,
     }
 }

@@ -41,7 +41,7 @@ fn setup(mut runtime_ref: RuntimeRef, actor_ref: ActorRef<&'static str>) -> Resu
         let relay_actor = relay_actor as fn(_, _) -> _;
         next_actor_ref = runtime_ref.spawn_local(
             |err| {
-                warn!("error running actor: {}", err);
+                warn!("error running actor: {err}");
                 SupervisorStrategy::Stop
             },
             relay_actor,
@@ -53,7 +53,7 @@ fn setup(mut runtime_ref: RuntimeRef, actor_ref: ActorRef<&'static str>) -> Resu
     // The first actor in the chain will be a thread-safe actor.
     next_actor_ref = runtime_ref.spawn(
         |err| {
-            warn!("error running actor: {}", err);
+            warn!("error running actor: {err}");
             SupervisorStrategy::Stop
         },
         relay_actor as fn(_, _) -> _,
@@ -113,7 +113,7 @@ fn print_actor(mut ctx: SyncContext<&'static str, rt::Sync>) {
         let timing = ctx.start_trace();
         // Sleep to extend the duration of the trace.
         sleep(Duration::from_millis(5));
-        println!("Received message: {}", msg);
+        println!("Received message: {msg}");
         ctx.finish_trace(timing, "printing message", &[("message", &msg)]);
     }
 }

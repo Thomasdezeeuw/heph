@@ -1361,8 +1361,7 @@ fn expect_request(
         assert_eq!(
             got_header.value,
             got,
-            "different header values for '{}' header, got: '{:?}', expected: '{:?}'",
-            got_header_name,
+            "different header values for '{got_header_name}' header, got: '{:?}', expected: '{:?}'",
             str::from_utf8(got_header.value),
             str::from_utf8(got)
         );
@@ -1379,7 +1378,7 @@ async fn expect_response(
     headers: &Headers,
     body: &[u8],
 ) {
-    eprintln!("read response: {:?}", response);
+    eprintln!("read response: {response:?}");
     assert_eq!(response.version(), version);
     assert_eq!(response.status(), status);
     assert_eq!(
@@ -1458,7 +1457,7 @@ impl TestServer {
                 match poll_actor(actor.as_mut()) {
                     Poll::Pending => {}
                     Poll::Ready(Ok(())) => return,
-                    Poll::Ready(Err(err)) => panic!("error in actor: {}", err),
+                    Poll::Ready(Err(err)) => panic!("error in actor: {err}"),
                 }
                 sleep(Duration::from_millis(10));
             }

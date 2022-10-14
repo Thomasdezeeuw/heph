@@ -247,8 +247,6 @@ fn assert_within_margin(start: Instant, expected: Duration) {
     let elapsed = start.elapsed();
     assert!(
         elapsed <= expected + MARGIN,
-        "elapsed: {:?}, expected: {:?}",
-        elapsed,
-        expected
+        "elapsed: {elapsed:?}, expected: {expected:?}",
     );
 }

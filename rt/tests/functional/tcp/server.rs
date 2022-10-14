@@ -65,7 +65,7 @@ async fn stream_actor<RT>(
 fn smoke() {
     let server = TcpServer::setup(
         any_local_address(),
-        |err| panic!("unexpect error: {}", err),
+        |err| panic!("unexpect error: {err}"),
         actor as fn(_, _, _) -> _,
         ActorOptions::default(),
     )
@@ -76,7 +76,7 @@ fn smoke() {
     // used in it.
     let local_server = TcpServer::setup(
         any_local_address(),
-        |err| panic!("unexpect error: {}", err),
+        |err| panic!("unexpect error: {err}"),
         actor as fn(_, _, _) -> _,
         ActorOptions::default(),
     )
@@ -118,7 +118,7 @@ fn zero_port() {
     let actor = actor as fn(actor::Context<!, ThreadLocal>, _, _) -> _;
     let server = TcpServer::setup(
         any_local_address(),
-        |err| panic!("unexpect error: {}", err),
+        |err| panic!("unexpect error: {err}"),
         actor,
         ActorOptions::default(),
     )
@@ -170,7 +170,7 @@ fn new_actor_error() {
             match res {
                 Poll::Ready(Ok(())) => Poll::Ready(Ok(())),
                 Poll::Ready(Err(server::Error::Accept(err))) => {
-                    panic!("unexpected accept error: {}", err)
+                    panic!("unexpected accept error: {err}")
                 }
                 Poll::Ready(Err(server::Error::NewActor(()))) => Poll::Ready(Ok(())),
                 Poll::Pending => Poll::Pending,

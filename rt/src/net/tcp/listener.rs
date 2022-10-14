@@ -71,7 +71,7 @@ use crate::{self as rt, Bound};
 ///
 /// // Simple supervisor that logs the error and stops the actor.
 /// fn supervisor<Arg>(err: io::Error) -> SupervisorStrategy<Arg> {
-///     error!("Encountered an error: {}", err);
+///     error!("Encountered an error: {err}");
 ///     SupervisorStrategy::Stop
 /// }
 ///
@@ -81,7 +81,7 @@ use crate::{self as rt, Bound};
 ///
 ///     // Accept a connection.
 ///     let (unbound_stream, peer_address) = listener.accept().await?;
-///     info!("accepted connection from: {}", peer_address);
+///     info!("accepted connection from: {peer_address}");
 ///
 ///     // Next we need to bind the stream to this actor.
 ///     let mut stream = unbound_stream.bind_to(&mut ctx)?;
@@ -137,7 +137,7 @@ use crate::{self as rt, Bound};
 ///
 /// // Simple supervisor that logs the error and stops the actor.
 /// fn supervisor<Arg>(err: io::Error) -> SupervisorStrategy<Arg> {
-///     error!("Encountered an error: {}", err);
+///     error!("Encountered an error: {err}");
 ///     SupervisorStrategy::Stop
 /// }
 ///
@@ -152,7 +152,7 @@ use crate::{self as rt, Bound};
 ///             None => return Ok(()),
 ///         };
 ///
-///         info!("accepted connection from: {}", peer_address);
+///         info!("accepted connection from: {peer_address}");
 ///         let mut stream = unbound_stream.bind_to(&mut ctx)?;
 ///
 ///         // Next we write the IP address to the connection.

@@ -90,10 +90,7 @@ impl Notify {
                     notifier.set_watchdog_timeout(Some(timeout));
                 }
                 Err(()) => {
-                    warn!(
-                        "{} environment variable is invalid, ignoring it",
-                        WATCHDOG_USEC_ENV_VAR
-                    );
+                    warn!("{WATCHDOG_USEC_ENV_VAR} environment variable is invalid, ignoring it");
                 }
             }
         }
@@ -112,7 +109,7 @@ impl Notify {
         ctx.runtime().register(&mut socket, Interest::WRITABLE)?;
         if let Some(cpu) = ctx.runtime_ref().cpu() {
             if let Err(err) = SockRef::from(&socket).set_cpu_affinity(cpu) {
-                warn!("failed to set CPU affinity on systemd::Notify: {}", err);
+                warn!("failed to set CPU affinity on systemd::Notify: {err}");
             }
         }
         Ok(Notify {
@@ -346,17 +343,14 @@ where
             match either(ctx.receive_next(), next(&mut interval)).await {
                 Ok(Ok(msg)) => match msg {
                     ServiceMessage::ChangeState { state, status } => {
-                        debug!(
-                            "setting state to {:?}, {:?} with service manager",
-                            state, status
-                        );
+                        debug!("setting state to {state:?}, {status:?} with service manager");
                         notify.change_state(state, status.as_deref()).await?;
                         if let State::Stopping = state {
                             return Ok(());
                         }
                     }
                     ServiceMessage::ChangeStatus(status) => {
-                        debug!("setting status with service manager to '{}'", status);
+                        debug!("setting status with service manager to '{status}'");
                         notify.change_status(&status).await?;
                     }
                 },
@@ -371,7 +365,7 @@ where
                 Err(_) => {
                     if let Err(err) = health_check() {
                         let err = err.to_string();
-                        debug!("setting status with service manager to '{}'", err);
+                        debug!("setting status with service manager to '{err}'");
                         notify.change_status(&err).await?;
                     } else {
                         debug!("pinging service manager watchdog");
@@ -385,17 +379,14 @@ where
         while let Ok(msg) = ctx.receive_next().await {
             match msg {
                 ServiceMessage::ChangeState { state, status } => {
-                    debug!(
-                        "setting state to {:?}, {:?} with service manager",
-                        state, status
-                    );
+                    debug!("setting state to {state:?}, {status:?} with service manager");
                     notify.change_state(state, status.as_deref()).await?;
                     if let State::Stopping = state {
                         return Ok(());
                     }
                 }
                 ServiceMessage::ChangeStatus(status) => {
-                    debug!("setting status with service manager to '{}'", status);
+                    debug!("setting status with service manager to '{status}'");
                     notify.change_status(&status).await?;
                 }
             }

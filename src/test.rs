@@ -57,7 +57,7 @@ pub(crate) fn should_lose_msg() -> bool {
 fn random_percentage() -> u8 {
     let mut p = 0;
     if let Err(err) = getrandom(slice::from_mut(&mut p)) {
-        warn!("error getting random bytes: {}", err);
+        warn!("error getting random bytes: {err}");
         100
     } else {
         p % 100
@@ -87,7 +87,7 @@ where
 ///     // Receive a message.
 ///     if let Ok(msg) = ctx.receive_next().await {
 ///         // Print the message.
-///         println!("got a message: {}", msg);
+///         println!("got a message: {msg}");
 ///     }
 /// }
 ///
@@ -111,29 +111,20 @@ where
     <NA::Actor as Actor>::Error: fmt::Display,
 {
     fn decide(&mut self, err: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
-        panic!(
-            "error running '{}' actor: {}",
-            actor::name::<NA::Actor>(),
-            err
-        )
+        let name = actor::name::<NA::Actor>();
+        panic!("error running '{name}' actor: {err}")
     }
 
     fn decide_on_restart_error(&mut self, err: NA::Error) -> SupervisorStrategy<NA::Argument> {
         // NOTE: should never be called.
-        panic!(
-            "error restarting '{}' actor: {}",
-            actor::name::<NA::Actor>(),
-            err
-        )
+        let name = actor::name::<NA::Actor>();
+        panic!("error restarting '{name}' actor: {err}")
     }
 
     fn second_restart_error(&mut self, err: NA::Error) {
         // NOTE: should never be called.
-        panic!(
-            "error restarting '{}' actor a second time: {}",
-            actor::name::<NA::Actor>(),
-            err
-        )
+        let name = actor::name::<NA::Actor>();
+        panic!("error restarting '{name}' actor a second time: {err}")
     }
 }
 
@@ -145,6 +136,6 @@ where
 {
     fn decide(&mut self, err: A::Error) -> SupervisorStrategy<A::Argument> {
         // NOTE: can't use `actor::name` for sync actors.
-        panic!("error running sync actor: {}", err)
+        panic!("error running sync actor: {err}")
     }
 }

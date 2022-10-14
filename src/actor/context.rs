@@ -58,7 +58,7 @@ impl<M, RT> Context<M, RT> {
     ///
     /// async fn greeter_actor(mut ctx: actor::Context<String, ThreadLocal>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
-    ///         println!("Hello: {}", name);
+    ///         println!("Hello: {name}");
     ///     } else {
     ///         println!("Hello world");
     ///     }
@@ -85,7 +85,7 @@ impl<M, RT> Context<M, RT> {
     ///
     /// async fn print_actor(mut ctx: actor::Context<String, ThreadLocal>) {
     ///     if let Ok(msg) = ctx.receive_next().await {
-    ///         println!("Got a message: {}", msg);
+    ///         println!("Got a message: {msg}");
     ///     }
     /// }
     ///
@@ -113,7 +113,7 @@ impl<M, RT> Context<M, RT> {
     ///
     ///     // Now let them race!
     ///     match either(msg_future, timeout).await {
-    ///         Ok(Ok(msg)) => println!("Got a message: {}", msg),
+    ///         Ok(Ok(msg)) => println!("Got a message: {msg}"),
     ///         Ok(Err(_)) => println!("No message"),
     ///         Err(_) => println!("Timed out receiving message"),
     ///     }
