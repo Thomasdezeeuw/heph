@@ -58,7 +58,7 @@
 macro_rules! route {
     (match $request: ident {
         $( $method: ident $( | $method2: ident )* $path: literal => $handler: path, )+
-        _ => $not_found: path $(,)*
+        _ => $not_found: path $(,)?
     }) => {{
         $( $crate::_route!( _check_method $method $(, $method2 )* ); )+
         let request = $request;
@@ -116,7 +116,7 @@ macro_rules! _route {
         _single
         $match_method: ident, $request: ident,
         $( $( $method: ident),+ $path: literal => $handler: path, )+
-        _ => $not_found: path $(,)*
+        _ => $not_found: path $(,)?
     ) => {{
         let path = $request.path();
         // This branch is never taken and will be removed by the compiler.

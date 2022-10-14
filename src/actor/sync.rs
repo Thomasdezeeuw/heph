@@ -85,7 +85,7 @@ pub trait SyncActor {
 macro_rules! impl_sync_actor {
     (
         $( ( $( $arg_name: ident : $arg: ident ),* ) ),*
-        $(,)*
+        $(,)?
     ) => {
         $(
             impl<M, E, RT, $( $arg ),*> SyncActor for fn(ctx: SyncContext<M, RT>, $( $arg_name: $arg ),*) -> Result<(), E> {

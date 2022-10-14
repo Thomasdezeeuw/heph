@@ -440,7 +440,7 @@ pub struct HeaderName<'a> {
 macro_rules! known_headers {
     ($(
         $length: tt: [
-            $( $(#[$meta: meta])* ( $const_name: ident, $http_name: expr ) $(,)* ),+
+            $( $(#[$meta: meta])* ( $const_name: ident, $http_name: expr ) $(,)? ),+
         ],
     )+) => {
         $($(

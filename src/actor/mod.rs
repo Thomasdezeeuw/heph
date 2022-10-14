@@ -441,7 +441,7 @@ where
 macro_rules! impl_new_actor {
     (
         $( ( $( $arg_name: ident : $arg: ident ),* ) ),*
-        $(,)*
+        $(,)?
     ) => {
         $(
             impl<M, RT, $( $arg, )* A> NewActor for fn(ctx: Context<M, RT>, $( $arg_name: $arg ),*) -> A
