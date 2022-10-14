@@ -3,9 +3,9 @@
 use std::cmp::min;
 use std::fs::{self, File};
 use std::io::{self, IoSlice, Read, Write};
-use std::lazy::SyncLazy;
 use std::net::{self, Shutdown, SocketAddr};
 use std::num::NonZeroUsize;
+use std::sync::LazyLock;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -25,10 +25,10 @@ const TEST_FILE0: &str = "./tests/data/hello_world";
 const TEST_FILE1: &str = "./tests/data/lorem_ipsum";
 
 // Contents of the test files.
-static EXPECTED0: SyncLazy<Vec<u8>> =
-    SyncLazy::new(|| fs::read(TEST_FILE0).expect("failed to read test file 0"));
-static EXPECTED1: SyncLazy<Vec<u8>> =
-    SyncLazy::new(|| fs::read(TEST_FILE1).expect("failed to read test file 0"));
+static EXPECTED0: LazyLock<Vec<u8>> =
+    LazyLock::new(|| fs::read(TEST_FILE0).expect("failed to read test file 0"));
+static EXPECTED1: LazyLock<Vec<u8>> =
+    LazyLock::new(|| fs::read(TEST_FILE1).expect("failed to read test file 0"));
 
 #[test]
 fn smoke() {

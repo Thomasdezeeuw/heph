@@ -1,6 +1,6 @@
 //! Remote messaging for Heph.
 
-#![feature(generic_associated_types, never_type, type_alias_impl_trait)]
+#![feature(never_type, type_alias_impl_trait)]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,
