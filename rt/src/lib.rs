@@ -131,14 +131,12 @@
     doc_auto_cfg,
     doc_cfg_hide,
     drain_filter,
-    generic_associated_types,
     io_slice_advance,
     is_sorted,
     maybe_uninit_array_assume_init,
     maybe_uninit_uninit_array,
     never_type,
     new_uninit,
-    result_into_ok_or_err,
     stmt_expr_attributes
 )]
 #![cfg_attr(any(test, feature = "test"), feature(once_cell))]

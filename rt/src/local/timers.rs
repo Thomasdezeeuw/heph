@@ -305,7 +305,9 @@ fn add_timer<T>(timers: &mut Vec<Timer<T>>, timer: Timer<T>)
 where
     Timer<T>: Ord,
 {
-    let idx = timers.binary_search(&timer).into_ok_or_err();
+    let idx = match timers.binary_search(&timer) {
+        Ok(idx) | Err(idx) => idx,
+    };
     timers.insert(idx, timer);
 }
 

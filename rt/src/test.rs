@@ -49,10 +49,10 @@
 
 use std::async_iter::AsyncIterator;
 use std::future::Future;
-use std::lazy::SyncLazy;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::LazyLock;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{io, slice, thread};
@@ -79,14 +79,14 @@ pub use heph::test::*;
 
 pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 
-pub(crate) static NOOP_WAKER: SyncLazy<ThreadWaker> = SyncLazy::new(|| {
+pub(crate) static NOOP_WAKER: LazyLock<ThreadWaker> = LazyLock::new(|| {
     let poll = mio::Poll::new().expect("failed to create `Poll` instance for test module");
     let waker = mio::Waker::new(poll.registry(), mio::Token(0))
         .expect("failed to create `Waker` instance for test module");
     ThreadWaker::new(waker)
 });
 
-static SHARED_INTERNAL: SyncLazy<Arc<shared::RuntimeInternals>> = SyncLazy::new(|| {
+static SHARED_INTERNAL: LazyLock<Arc<shared::RuntimeInternals>> = LazyLock::new(|| {
     let setup = shared::RuntimeInternals::setup()
         .expect("failed to setup runtime internals for test module");
     Arc::new_cyclic(|shared_internals| {
@@ -122,7 +122,7 @@ type RtControl = rt::channel::Sender<Control>;
 /// Lazily start the *test* runtime on a new thread, returning the control
 /// channel.
 fn test_runtime() -> &'static RtControl {
-    static TEST_RT: SyncLazy<RtControl> = SyncLazy::new(|| {
+    static TEST_RT: LazyLock<RtControl> = LazyLock::new(|| {
         let (sender, receiver) =
             rt::channel::new().expect("failed to create runtime channel for test module");
         let _handle = thread::Builder::new()
