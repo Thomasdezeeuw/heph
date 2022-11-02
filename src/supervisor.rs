@@ -201,13 +201,14 @@ where
         (self)(err)
     }
 
-    fn decide_on_restart_error(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
+    fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<NA::Argument> {
         // This can't be called.
-        SupervisorStrategy::Stop
+        err
     }
 
-    fn second_restart_error(&mut self, _: !) {
+    fn second_restart_error(&mut self, err: !) {
         // This can't be called.
+        err
     }
 }
 
@@ -298,18 +299,19 @@ where
     NA: NewActor<Error = !>,
     NA::Actor: Actor<Error = !>,
 {
-    fn decide(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
+    fn decide(&mut self, err: !) -> SupervisorStrategy<NA::Argument> {
         // This can't be called.
-        SupervisorStrategy::Stop
+        err
     }
 
-    fn decide_on_restart_error(&mut self, _: !) -> SupervisorStrategy<NA::Argument> {
+    fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<NA::Argument> {
         // This can't be called.
-        SupervisorStrategy::Stop
+        err
     }
 
-    fn second_restart_error(&mut self, _: !) {
+    fn second_restart_error(&mut self, err: !) {
         // This can't be called.
+        err
     }
 }
 
@@ -317,9 +319,9 @@ impl<A> SyncSupervisor<A> for NoSupervisor
 where
     A: SyncActor<Error = !>,
 {
-    fn decide(&mut self, _: !) -> SupervisorStrategy<A::Argument> {
+    fn decide(&mut self, err: !) -> SupervisorStrategy<A::Argument> {
         // This can't be called.
-        SupervisorStrategy::Stop
+        err
     }
 }
 
