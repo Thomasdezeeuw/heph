@@ -2,9 +2,9 @@
 
 use std::mem::size_of;
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::mpsc::Sender;
 use std::task;
 
-use crossbeam_channel::Sender;
 use log::{error, trace};
 
 use crate::thread_waker::ThreadWaker;
@@ -220,6 +220,7 @@ unsafe fn drop_wake_data(data: *const ()) {
 #[cfg(test)]
 mod tests {
     use std::mem::size_of;
+    use std::sync::mpsc::channel;
     use std::thread;
     use std::time::Duration;
 
@@ -260,7 +261,7 @@ mod tests {
 
         // Initialise the waker.
         let waker = Waker::new(poll.registry(), WAKER).unwrap();
-        let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
+        let (wake_sender, wake_receiver) = channel();
         let waker_id = waker::init(waker, wake_sender);
 
         // Create a new waker.
@@ -295,7 +296,7 @@ mod tests {
 
         // Initialise the waker.
         let waker = Waker::new(poll.registry(), WAKER).unwrap();
-        let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
+        let (wake_sender, wake_receiver) = channel();
         let waker_id = waker::init(waker, wake_sender);
 
         // Create a new waker.
@@ -317,7 +318,7 @@ mod tests {
         let mut events = Events::with_capacity(8);
 
         let waker = Waker::new(poll.registry(), WAKER).unwrap();
-        let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
+        let (wake_sender, wake_receiver) = channel();
         let waker_id = waker::init(waker, wake_sender);
 
         let waker = waker::new(waker_id, PID1);
@@ -346,7 +347,7 @@ mod tests {
 
         // Initialise the waker.
         let waker = Waker::new(poll.registry(), WAKER).unwrap();
-        let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
+        let (wake_sender, wake_receiver) = channel();
         let waker_id = waker::init(waker, wake_sender);
 
         waker::mark_polling(waker_id, true);

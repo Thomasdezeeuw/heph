@@ -19,11 +19,11 @@ use std::cell::RefMut;
 use std::num::NonZeroUsize;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::rc::Rc;
+use std::sync::mpsc::{channel, Receiver};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{fmt, io, thread};
 
-use crossbeam_channel::{self, Receiver};
 use heph::actor_ref::{Delivery, SendError};
 use log::{as_debug, debug, info, trace};
 use mio::{Events, Poll, Registry, Token};
@@ -58,7 +58,7 @@ pub(super) fn setup(id: NonZeroUsize) -> io::Result<(WorkerSetup, &'static Threa
     let poll = Poll::new()?;
 
     // Setup the waking mechanism.
-    let (waker_sender, waker_events) = crossbeam_channel::unbounded();
+    let (waker_sender, waker_events) = channel();
     let waker = mio::Waker::new(poll.registry(), WAKER)?;
     let waker_id = waker::init(waker, waker_sender);
     let thread_waker = waker::get_thread_waker(waker_id);
@@ -259,7 +259,7 @@ impl Worker {
 
         // TODO: this channel will grow unbounded as the waker implementation
         // sends pids into it.
-        let (waker_sender, waker_events) = crossbeam_channel::unbounded();
+        let (waker_sender, waker_events) = channel();
         let waker = mio::Waker::new(poll.registry(), WAKER)?;
         let waker_id = waker::init(waker, waker_sender);
 
