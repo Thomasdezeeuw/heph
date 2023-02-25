@@ -526,6 +526,8 @@ macro_rules! restart_supervisor {
     };
 }
 
+pub use restart_supervisor;
+
 /// Private macro to implement the [`restart_supervisor`].
 #[doc(hidden)]
 #[macro_export]
