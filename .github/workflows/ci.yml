@@ -33,7 +33,7 @@ jobs:
       with:
         components: clippy
     - name: Run Clippy
-      run: make clippy
+      run: make clippy_all
   Rustfmt:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -57,7 +57,7 @@ jobs:
       with:
         components: rust-src
     - name: Run tests with sanitiser
-      run: make test_sanitizer sanitizer=${{ matrix.sanitiser }}
+      run: make test_sanitizer_all sanitizer=${{ matrix.sanitiser }}
   Docs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
