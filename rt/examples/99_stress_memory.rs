@@ -13,7 +13,7 @@ use heph_rt::spawn::ActorOptions;
 use heph_rt::{self as rt, Runtime, ThreadLocal};
 
 fn main() -> Result<(), rt::Error> {
-    std_logger::init();
+    std_logger::Config::logfmt().init();
     let mut runtime = Runtime::setup().build()?;
     runtime.run_on_workers(move |mut runtime_ref| -> Result<(), !> {
         const N: usize = 10_000_000;

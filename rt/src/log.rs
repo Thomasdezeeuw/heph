@@ -25,7 +25,7 @@
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     // Enable logging.
-//!     std_logger::init();
+//!     std_logger::Config::logfmt().init();
 //!
 //!     let mut runtime = Runtime::new()?;
 //!     runtime.run_on_workers(add_greeter_actor)?;

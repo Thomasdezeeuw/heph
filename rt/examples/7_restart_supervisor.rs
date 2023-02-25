@@ -9,7 +9,7 @@ use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
 fn main() -> Result<(), rt::Error> {
-    std_logger::init();
+    std_logger::Config::logfmt().init();
     let mut runtime = Runtime::setup().build()?;
 
     let sync_actor = sync_print_actor as fn(_, _) -> _;
