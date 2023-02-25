@@ -16,7 +16,7 @@ fn main() -> Result<(), rt::Error> {
     // messages, the environment variable `LOG_LEVEL` can be set to change this.
     // For example enabling logging of trace severity message can be done by
     // setting `LOG_LEVEL=trace`.
-    std_logger::init();
+    std_logger::Config::logfmt().init();
 
     // Create our TCP server. This server will create a new actor for each
     // incoming TCP connection. As always, actors needs supervision, this is

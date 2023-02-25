@@ -39,7 +39,7 @@ const ERR_PARSE_ENDLINE: &str = "-unable to parse end of line\r\n";
 const TIMEOUT: Duration = Duration::from_secs(10);
 
 fn main() -> Result<(), rt::Error> {
-    std_logger::init();
+    std_logger::Config::logfmt().init();
 
     let values = Arc::new(RwLock::new(HashMap::new()));
     let actor = (conn_actor as fn(_, _, _, _) -> _)

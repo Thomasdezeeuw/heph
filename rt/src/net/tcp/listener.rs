@@ -44,7 +44,7 @@ use crate::{self as rt, Bound};
 /// use log::info;
 ///
 /// fn main() -> Result<(), rt::Error> {
-///     std_logger::init();
+///     std_logger::Config::logfmt().init();
 ///
 ///     let mut runtime = Runtime::new()?;
 ///     runtime.run_on_workers(setup)?;
@@ -110,7 +110,7 @@ use crate::{self as rt, Bound};
 /// use heph_rt::util::next;
 ///
 /// fn main() -> Result<(), rt::Error> {
-///     std_logger::init();
+///     std_logger::Config::logfmt().init();
 ///
 ///     let mut runtime = Runtime::new()?;
 ///     runtime.run_on_workers(setup)?;

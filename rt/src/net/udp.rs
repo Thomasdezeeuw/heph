@@ -74,7 +74,7 @@ pub enum Connected {}
 /// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 ///
 /// fn main() -> Result<(), rt::Error> {
-///     std_logger::init();
+///     std_logger::Config::logfmt().init();
 ///
 ///     let mut runtime = Runtime::new()?;
 ///     runtime.run_on_workers(setup)?;

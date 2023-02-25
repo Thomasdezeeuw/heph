@@ -11,7 +11,7 @@ use heph_rt::{self as rt, Runtime, ThreadLocal};
 use log::info;
 
 fn main() -> Result<(), rt::Error> {
-    std_logger::init();
+    std_logger::Config::logfmt().init();
 
     // We should get the port from systemd, or use a default.
     let port = match env::var("PORT").as_deref().unwrap_or("7890").parse() {
