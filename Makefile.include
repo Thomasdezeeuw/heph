@@ -1,3 +1,10 @@
+# This Makefile is included in the workspace crates using
+# ```
+# include ../Makefile.include
+# ```
+# NOTE: this will generate a working whenever it overwrites a recipe, it's fine
+# to ignore it.
+
 # Test options.
 TEST_OPTS = -- --quiet -Z unstable-options --shuffle
 # Support targets.
