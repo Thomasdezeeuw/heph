@@ -142,25 +142,21 @@ const MANAGER_ALIVE: usize = 1 << (usize::BITS - 4);
 const MANAGER_ACCESS: usize = 1 << (usize::BITS - 5);
 
 /// Return `true` if the receiver or manager is alive in `ref_count`.
-#[inline(always)]
 const fn has_receiver(ref_count: usize) -> bool {
     ref_count & RECEIVER_ALIVE != 0
 }
 
 /// Returns `true` if the manager is alive in `ref_count`.
-#[inline(always)]
 const fn has_manager(ref_count: usize) -> bool {
     ref_count & MANAGER_ALIVE != 0
 }
 
 /// Return `true` if the receiver or manager is alive in `ref_count`.
-#[inline(always)]
 const fn has_receiver_or_manager(ref_count: usize) -> bool {
     ref_count & (RECEIVER_ALIVE | MANAGER_ALIVE) != 0
 }
 
 /// Returns the number of senders connected in `ref_count`.
-#[inline(always)]
 const fn sender_count(ref_count: usize) -> usize {
     ref_count & !(RECEIVER_ALIVE | RECEIVER_ACCESS | SENDER_ACCESS | MANAGER_ALIVE | MANAGER_ACCESS)
 }
@@ -183,25 +179,21 @@ const MARK_READING: u64 = 0b01; // XOR to go from FILLED -> READING.
 const MARK_EMPTIED: u64 = 0b11; // ! AND to go from FILLED or READING -> EMPTY.
 
 /// Returns `true` if `slot` in `status` is empty.
-#[inline(always)]
 fn is_available(status: u64, slot: usize) -> bool {
     has_status(status, slot, EMPTY)
 }
 
 /// Returns `true` if `slot` in `status` is filled.
-#[inline(always)]
 fn is_filled(status: u64, slot: usize) -> bool {
     has_status(status, slot, FILLED)
 }
 
 /// Returns `true` if `slot` (in `status`) equals the `expected` status.
-#[inline(always)]
 fn has_status(status: u64, slot: usize, expected: u64) -> bool {
     slot_status(status, slot) == expected
 }
 
 /// Returns the `STATUS_BITS` for `slot` in `status`.
-#[inline(always)]
 fn slot_status(status: u64, slot: usize) -> u64 {
     debug_assert!(slot <= MAX_CAP);
     (status >> (STATUS_BITS * slot as u64)) & STATUS_MASK
@@ -209,7 +201,6 @@ fn slot_status(status: u64, slot: usize) -> u64 {
 
 /// Creates a mask to transition `slot` using `transition`. `transition` must be
 /// one of the `MARK_*` constants.
-#[inline(always)]
 fn mark_slot(slot: usize, transition: u64) -> u64 {
     debug_assert!(slot <= MAX_CAP);
     transition << (STATUS_BITS * slot as u64)
@@ -230,7 +221,6 @@ fn dbg_status(slot_status: u64) -> &'static str {
 const MARK_NEXT_POS: u64 = 1 << (STATUS_BITS * MAX_CAP as u64); // Add to increase position by 1.
 
 /// Returns the position of the receiver. Will be in 0..[`MAX_CAP`] range.
-#[inline(always)]
 #[allow(clippy::cast_possible_truncation)]
 fn receiver_pos(status: u64, capacity: usize) -> usize {
     (status >> (STATUS_BITS * MAX_CAP as u64)) as usize % capacity
