@@ -67,19 +67,16 @@ const SENDER_ALIVE: u8 = 0b0100_0000;
 const SENDER_ACCESS: u8 = 0b0010_0000;
 
 /// Return `true` if the receiver is alive in `status`.
-#[inline(always)]
 const fn has_receiver(status: u8) -> bool {
     status & RECEIVER_ALIVE != 0
 }
 
 /// Return `true` if the sender is alive in `status`.
-#[inline(always)]
 const fn has_sender(status: u8) -> bool {
     status & SENDER_ALIVE != 0
 }
 
 /// Return `true` if the sender has access in `status`.
-#[inline(always)]
 const fn has_sender_access(status: u8) -> bool {
     status & SENDER_ACCESS != 0
 }
@@ -95,13 +92,11 @@ const MARK_EMPTY: u8 = !MARK_FILLED; // AND to go from FILLED -> EMPTY.
 const INITIAL: u8 = RECEIVER_ALIVE | SENDER_ALIVE | SENDER_ACCESS | EMPTY;
 
 /// Returns `true` if `status` is empty.
-#[inline(always)]
 const fn is_empty(status: u8) -> bool {
     status & FILLED == 0
 }
 
 /// Returns `true` if `status` is filled.
-#[inline(always)]
 const fn is_filled(status: u8) -> bool {
     status & FILLED != 0
 }
