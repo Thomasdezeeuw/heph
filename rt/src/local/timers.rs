@@ -265,7 +265,7 @@ impl Timers {
         // Next move all the overflow timers that now fit in the new slot (the
         // slot that was previously emptied).
         let time = self.epoch + OVERFLOW_DURATION;
-        let slot_epoch = self.epoch + OVERFLOW_DURATION - DURATION_PER_SLOT;
+        let slot_epoch = self.epoch + (OVERFLOW_DURATION - DURATION_PER_SLOT);
         let timers = &mut self.slots[last_index];
         while let Ok(timer) = remove_if_before(&mut self.overflow, time) {
             // We add the timers in reverse order here as we remove the timer
