@@ -118,7 +118,7 @@
 //!
 //! For more examples see the [examples directory] in the source code.
 //!
-//! [examples directory]: https://github.com/Thomasdezeeuw/heph/tree/master/rt/examples
+//! [examples directory]: https://github.com/Thomasdezeeuw/heph/tree/main/rt/examples
 //!
 //! ## Features
 //!

@@ -55,7 +55,7 @@
 //! If you like to learn more about some of the core concepts of Heph start with
 //! the [Quick Start] guide.
 //!
-//! [examples]: https://github.com/Thomasdezeeuw/heph/blob/master/examples/README.md
+//! [examples]: https://github.com/Thomasdezeeuw/heph/blob/main/examples/README.md
 //! [Quick Start]: crate::quick_start
 //!
 //! ## Features

@@ -63,10 +63,10 @@
 //! using [Catapult]. [Example 8 "Runtime Tracing"] shows a complete example of
 //! this.
 //!
-//! [Trace Format]: https://github.com/Thomasdezeeuw/heph/blob/master/doc/Trace%20Format.md
+//! [Trace Format]: https://github.com/Thomasdezeeuw/heph/blob/main/doc/Trace%20Format.md
 //! [Chrome's Trace Event Format]: https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
 //! [Catapult]: https://chromium.googlesource.com/catapult/+/refs/heads/master/tracing/README.md
-//! [Example 8 "Runtime Tracing"]: https://github.com/Thomasdezeeuw/heph/blob/master/examples/README.md#8-runtime-tracing
+//! [Example 8 "Runtime Tracing"]: https://github.com/Thomasdezeeuw/heph/blob/main/examples/README.md#8-runtime-tracing
 
 use std::cell::RefCell;
 use std::fs::{File, OpenOptions};

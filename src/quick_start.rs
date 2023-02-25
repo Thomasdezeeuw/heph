@@ -203,4 +203,4 @@
 //! If you want to look at some more example take a look at the [examples] in
 //! the examples directory of the source code.
 //!
-//! [examples]: https://github.com/Thomasdezeeuw/heph/blob/master/examples/README.md
+//! [examples]: https://github.com/Thomasdezeeuw/heph/blob/main/examples/README.md
