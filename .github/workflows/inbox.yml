@@ -31,7 +31,9 @@ jobs:
         toolchain: [stable, nightly]
     steps:
     - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@${{ matrix.toolchain }}
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: ${{ matrix.toolchain }}
     - name: Run tests
       run: cargo test --verbose --${{ matrix.release }}
     - name: Run stress tests
