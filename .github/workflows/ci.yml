@@ -4,6 +4,8 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+permissions:
+  contents: read
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
@@ -16,31 +18,28 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-    - uses: actions/checkout@v2
-    - name: Install nightly compiler
-      run: .github/install.bash
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@nightly
     - name: Run tests
       run: make test_all
   Clippy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-    - uses: actions/checkout@v2
-    - name: Install nightly compiler
-      run: .github/install.bash
-    - name: Add Clippy
-      run: rustup component add clippy
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: clippy
     - name: Run Clippy
       run: make clippy
   Rustfmt:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-    - uses: actions/checkout@v2
-    - name: Install nightly compiler
-      run: .github/install.bash
-    - name: Add rustfmt
-      run: rustup component add rustfmt
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: rustfmt
     - name: Check formatting
       run: cargo fmt --all -- --check
   Sanitiser:
@@ -51,10 +50,7 @@ jobs:
       matrix:
         sanitiser: [address, leak, memory, thread]
     steps:
-    - uses: actions/checkout@v2
-    - name: Install nightly compiler
-      run: .github/install.bash
-    - name: Add rust source
-      run: rustup component add rust-src
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@nightly
     - name: Run tests with sanitiser
       run: make test_sanitiser SAN=${{ matrix.sanitiser }}
