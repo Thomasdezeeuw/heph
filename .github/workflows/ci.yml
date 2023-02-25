@@ -54,3 +54,11 @@ jobs:
     - uses: dtolnay/rust-toolchain@nightly
     - name: Run tests with sanitiser
       run: make test_sanitiser SAN=${{ matrix.sanitiser }}
+  Docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@nightly
+    - name: Check docs
+      run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all --all-features
