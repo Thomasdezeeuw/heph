@@ -20,6 +20,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@nightly
+    - name: Install Cargo-hack
+      run: cargo install --debug cargo-hack
     - name: Run tests
       run: make test_all
   Clippy:
@@ -52,8 +54,10 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: rust-src
     - name: Run tests with sanitiser
-      run: make test_sanitiser SAN=${{ matrix.sanitiser }}
+      run: make test_sanitizer sanitizer=${{ matrix.sanitiser }}
   Docs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
