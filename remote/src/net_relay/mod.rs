@@ -22,7 +22,8 @@
 //!
 //! Simple example that relays messages from remote actors to a local actor.
 //!
-//! ```
+#![cfg_attr(feature = "json", doc = "```")]
+#![cfg_attr(not(feature = "json"), doc = "```rust,ignore")]
 //! #![feature(never_type)]
 //!
 //! use std::net::SocketAddr;
