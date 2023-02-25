@@ -1,0 +1,23 @@
+[package]
+name          = "heph-inbox"
+description   = """
+Bounded capacity channel designed to be used as inbox for actors. Also supports
+one shot channels.
+"""
+version       = "0.2.3"
+authors       = ["Thomas de Zeeuw <thomasdezeeuw@gmail.com>"]
+license       = "MIT"
+documentation = "https://docs.rs/heph-inbox"
+repository    = "https://github.com/Thomasdezeeuw/inbox"
+readme        = "README.md"
+keywords      = ["inbox", "channel", "actor", "async"]
+categories    = ["asynchronous"]
+include       = ["/Cargo.toml", "src/**/*.rs", "/README.md", "/LICENSE"]
+edition       = "2018"
+
+[features]
+# Enables some tests that take a long to run.
+stress_testing = []
+# Enable some unstable nightly features. Currently:
+#  * `cfg_sanitize` to fix a false positive around atomic fences.
+unstable_nightly = []
