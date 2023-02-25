@@ -3,7 +3,7 @@ include Makefile.include
 # Crates in this repo.
 CRATES := ./ inbox rt remote # http, stuck on old nightly.
 # Target that run the target in all $CRATES.
-TARGETS := test_all check_all clippy_all
+TARGETS := test_all test_sanitizers_all test_sanitizer_all check_all clippy_all
 
 # This little construct simply runs the target ($MAKECMDGOALS) for all crates
 # $CRATES.
@@ -22,4 +22,4 @@ doc_all_private:
 clean_all:
 	cargo clean
 
-.PHONY: test_all check_all clippy_all lint_all doc_all doc_private_all clean_all
+.PHONY: test_all test_sanitizers_all test_sanitizer_all check_all clippy_all lint_all doc_all doc_private_all clean_all
