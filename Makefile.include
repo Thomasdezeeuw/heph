@@ -19,6 +19,17 @@ dev:
 test:
 	cargo test $(TEST_OPTS)
 
+test_sanitizers:
+	$(MAKE) test_sanitizer sanitizer=address
+	$(MAKE) test_sanitizer sanitizer=leak
+	$(MAKE) test_sanitizer sanitizer=memory
+	$(MAKE) test_sanitizer sanitizer=thread
+
+# Run with `make test_sanitizer sanitizer=$sanitizer`, or use `test_sanitizers`.
+test_sanitizer:
+	RUSTDOCFLAGS=-Zsanitizer=$(sanitizer) RUSTFLAGS=-Zsanitizer=$(sanitizer) \
+	cargo test -Zbuild-std --target x86_64-unknown-linux-gnu $(TEST_OPTS)
+
 check:
 	cargo check --all-features --all-targets
 
