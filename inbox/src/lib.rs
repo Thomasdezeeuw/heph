@@ -373,7 +373,7 @@ fn try_send<T>(channel: &Channel<T>, value: T) -> Result<(), SendError<T>> {
         // Safety: we've acquired the slot above so we're ensured unique
         // access to the slot.
         unsafe {
-            let _ = (&mut *channel.slots[slot].get()).write(value);
+            let _ = (*channel.slots[slot].get()).write(value);
         }
 
         // Now we've writing to the slot we can mark it slot as filled.
@@ -791,7 +791,7 @@ fn try_recv<T>(channel: &Channel<T>) -> Result<T, RecvError> {
 
         // Safety: we've acquired unique access to the slot above and we're
         // ensured the slot is filled.
-        let value = unsafe { (&*channel.slots[slot].get()).assume_init_read() };
+        let value = unsafe { (*channel.slots[slot].get()).assume_init_read() };
 
         // Mark the slot as empty.
         let old_status = channel
@@ -833,7 +833,7 @@ fn try_peek<T>(channel: &Channel<T>) -> Result<&T, RecvError> {
 
         // Safety: we've acquired unique access to the slot above and we're
         // ensured the slot is filled.
-        return Ok(unsafe { (&*channel.slots[slot].get()).assume_init_ref() });
+        return Ok(unsafe { (*channel.slots[slot].get()).assume_init_ref() });
     }
 
     if is_connected {

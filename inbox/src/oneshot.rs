@@ -236,7 +236,7 @@ impl<T> Receiver<T> {
             }
         } else {
             // Safety: since we're the only thread with access this is safe.
-            let msg = unsafe { (&*shared.message.get()).assume_init_read() };
+            let msg = unsafe { (*shared.message.get()).assume_init_read() };
             Ok(msg)
         }
     }
@@ -287,7 +287,7 @@ impl<T> Receiver<T> {
             // Sender send a value we need to drop.
             // Safety: since the sender is no longer alive (checked above) we're
             // the only type (and thread) with access making this safe.
-            unsafe { (&mut *shared.message.get()).assume_init_drop() }
+            unsafe { (*shared.message.get()).assume_init_drop() }
         }
 
         // Reset the status.
@@ -444,7 +444,7 @@ impl<T> Drop for Shared<T> {
     fn drop(&mut self) {
         let status = self.status.load(Ordering::Relaxed);
         if is_filled(status) {
-            unsafe { ptr::drop_in_place((&mut *self.message.get()).as_mut_ptr()) }
+            unsafe { ptr::drop_in_place((*self.message.get()).as_mut_ptr()) }
         }
     }
 }
