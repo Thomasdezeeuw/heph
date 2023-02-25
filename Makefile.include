@@ -50,7 +50,7 @@ $(TARGETS):
 #  * `shadow-unrelated`.
 lint: clippy
 clippy:
-	cargo clippy --all-features --workspace -- \
+	cargo clippy --all-features -- \
 		--deny clippy::all \
 		--deny clippy::correctness \
 		--deny clippy::style \
@@ -79,10 +79,10 @@ clippy:
 		--allow clippy::use-self
 
 doc:
-	cargo doc --all-features --workspace
+	cargo doc --all-features
 
 doc_private:
-	cargo doc --all-features --workspace --document-private-items
+	cargo doc --all-features --document-private-items
 
 clean:
 	cargo clean
