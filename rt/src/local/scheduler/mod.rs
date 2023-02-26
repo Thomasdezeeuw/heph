@@ -49,7 +49,7 @@ impl Scheduler {
     }
 
     /// Returns the number of inactive processes.
-    pub(crate) fn inactive(&self) -> usize {
+    pub(crate) const fn inactive(&self) -> usize {
         self.inactive.len()
     }
 

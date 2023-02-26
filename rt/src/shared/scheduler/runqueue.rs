@@ -27,7 +27,7 @@ struct Node {
 
 impl RunQueue {
     /// Returns an empty `RunQueue`.
-    pub(super) fn empty() -> RunQueue {
+    pub(super) const fn empty() -> RunQueue {
         RunQueue {
             root: Mutex::new(None),
         }

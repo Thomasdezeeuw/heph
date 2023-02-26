@@ -179,35 +179,35 @@ const MARK_READING: u64 = 0b01; // XOR to go from FILLED -> READING.
 const MARK_EMPTIED: u64 = 0b11; // ! AND to go from FILLED or READING -> EMPTY.
 
 /// Returns `true` if `slot` in `status` is empty.
-fn is_available(status: u64, slot: usize) -> bool {
+const fn is_available(status: u64, slot: usize) -> bool {
     has_status(status, slot, EMPTY)
 }
 
 /// Returns `true` if `slot` in `status` is filled.
-fn is_filled(status: u64, slot: usize) -> bool {
+const fn is_filled(status: u64, slot: usize) -> bool {
     has_status(status, slot, FILLED)
 }
 
 /// Returns `true` if `slot` (in `status`) equals the `expected` status.
-fn has_status(status: u64, slot: usize, expected: u64) -> bool {
+const fn has_status(status: u64, slot: usize, expected: u64) -> bool {
     slot_status(status, slot) == expected
 }
 
 /// Returns the `STATUS_BITS` for `slot` in `status`.
-fn slot_status(status: u64, slot: usize) -> u64 {
+const fn slot_status(status: u64, slot: usize) -> u64 {
     debug_assert!(slot <= MAX_CAP);
     (status >> (STATUS_BITS * slot as u64)) & STATUS_MASK
 }
 
 /// Creates a mask to transition `slot` using `transition`. `transition` must be
 /// one of the `MARK_*` constants.
-fn mark_slot(slot: usize, transition: u64) -> u64 {
+const fn mark_slot(slot: usize, transition: u64) -> u64 {
     debug_assert!(slot <= MAX_CAP);
     transition << (STATUS_BITS * slot as u64)
 }
 
 /// Returns a string name for the `slot_status`.
-fn dbg_status(slot_status: u64) -> &'static str {
+const fn dbg_status(slot_status: u64) -> &'static str {
     match slot_status {
         EMPTY => "EMPTY",
         TAKEN => "TAKEN",
@@ -222,7 +222,7 @@ const MARK_NEXT_POS: u64 = 1 << (STATUS_BITS * MAX_CAP as u64); // Add to increa
 
 /// Returns the position of the receiver. Will be in 0..[`MAX_CAP`] range.
 #[allow(clippy::cast_possible_truncation)]
-fn receiver_pos(status: u64, capacity: usize) -> usize {
+const fn receiver_pos(status: u64, capacity: usize) -> usize {
     (status >> (STATUS_BITS * MAX_CAP as u64)) as usize % capacity
 }
 
