@@ -17,7 +17,7 @@ edition       = "2021"
 test = ["getrandom"]
 
 [dependencies]
-heph-inbox        = { version = "0.2.1", default-features = false }
+heph-inbox        = { version = "0.2.3", path = "./inbox", default-features = false }
 log               = { version = "0.4.16", default-features = false, features = ["kv_unstable", "kv_unstable_std"] }
 
 # Optional dependencies, enabled by features.
