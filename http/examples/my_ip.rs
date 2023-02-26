@@ -16,7 +16,7 @@ use heph_rt::spawn::options::{ActorOptions, Priority};
 use log::{debug, error, info, warn};
 
 fn main() -> Result<(), rt::Error> {
-    std_logger::init();
+    std_logger::Config::logfmt().init();
 
     let actor = http_actor as fn(_, _, _) -> _;
     let address = "127.0.0.1:7890".parse().unwrap();

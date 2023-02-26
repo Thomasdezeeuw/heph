@@ -80,7 +80,7 @@
 //!
 //! # fn main() -> Result<(), rt::Error> {
 //! #     // Enable logging so we can see the error message.
-//! #    std_logger::init();
+//! #     std_logger::Config::logfmt().init();
 //! #
 //! #     let mut runtime = Runtime::new()?;
 //! #     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
