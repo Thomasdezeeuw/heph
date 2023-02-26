@@ -21,8 +21,8 @@ use std::{fmt, slice};
 use getrandom::getrandom;
 use log::warn;
 
-use crate::actor::{self, Actor, NewActor};
-use crate::supervisor::{Supervisor, SupervisorStrategy};
+use crate::actor::{self, Actor, NewActor, SyncActor};
+use crate::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
 
 /// Percentage of messages lost on purpose.
 static MSG_LOSS: AtomicU8 = AtomicU8::new(0);
@@ -128,7 +128,6 @@ where
     }
 }
 
-#[cfg(feature = "runtime")]
 impl<A> SyncSupervisor<A> for PanicSupervisor
 where
     A: SyncActor,
