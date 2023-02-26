@@ -1,4 +1,4 @@
-//! The module with the supervisor and related types.
+//! Actor supervision.
 //!
 //! # Supervisor
 //!
@@ -18,16 +18,17 @@
 //! The restarted actor will have the same message inbox as the old (stopped)
 //! actor. Note however that if an actor retrieved a message from its inbox, and
 //! returned an error when processing it, the new (restarted) actor won't
-//! retrieve that message again (messages aren't cloned after all).
+//! retrieve that message again (messages aren't cloned after all). In other
+//! words that message will be lost, the sending actor should be prepared for
+//! this case, e.g. by utilising timeouts and sending the message again.
 //!
 //! # Restarting or stopping?
 //!
 //! Sometimes just restarting an actor is the easiest way to deal with errors.
 //! Starting the actor from a clean slate will often allow it to continue
 //! processing. However this is not possible in all cases, for example when a
-//! new argument can't be provided. For example the `TcpServer` found in the
-//! heph-rt. In those cases the supervisor should still log the error
-//! encountered.
+//! new argument can't be provided. In those cases the supervisor should still
+//! log the error encountered.
 //!
 //! [stopped]: crate::supervisor::SupervisorStrategy::Stop
 //! [restarted]: crate::supervisor::SupervisorStrategy::Restart
@@ -36,55 +37,63 @@
 //!
 //! As actors come in two flavours, [regular/asynchronous actors] and
 //! [synchronous actors], thus so do the supervisor traits, [`Supervisor`] and
-//! [`SyncSupervisor`].
+//! [`SyncSupervisor`]. However the core of both methods, the `decide` method,
+//! is the same.
 //!
 //! [regular/asynchronous actors]: crate::actor::Actor
 //! [synchronous actors]: crate::actor::SyncActor
 //! [`Supervisor`]: crate::supervisor::Supervisor
 //! [`SyncSupervisor`]: crate::supervisor::SyncSupervisor
 //!
-//!
 //! # Provided implementations
 //!
-//! There are two [`Supervisor`] implementations provided by Heph. First, the
-//! [`NoSupervisor`] can be used when the actor never returns an error (i.e.
-//! `Result<(), !>` or no return type) and thus doesn't need supervision.
+//! This crates provides a number of supervisor implementations.
 //!
-//! Second, the [`restart_supervisor!`] macro, which can be used to easily
-//! create a supervisor implementation that restarts the actor.
+//! First, the [`NoSupervisor`] can be used when the actor never returns an
+//! error (i.e. `Result<(), !>` or no return type) and thus doesn't need
+//! supervision.
+//!
+//! Second, the [`StopSupervisor`] will log the error and stop the actor that
+//! produced it.
+//!
+//! Third, for testing there is the [`PanicSupervisor`] found in the `test`
+//! module that panics whenever it receives an error. It's a quick and dirty
+//! supervisor only mean to be used in tests.
+//!
+//! Finally, we have the [`restart_supervisor!`] macro. This macro can be used
+//! to easily create a supervisor implementation that logs the error and
+//! restarts the actor.
+//!
+//! [`PanicSupervisor`]: crate::test::PanicSupervisor
 //!
 //! # Examples
 //!
 //! Supervisor that logs the errors of a badly behaving actor and stops it.
 //!
 //! ```
-//! #![feature(never_type)]
-//!
-//! use heph::actor;
+//! # #![feature(never_type)]
+//! # use heph::actor;
+//! # use heph_rt::spawn::ActorOptions;
+//! # use heph_rt::{self as rt, Runtime};
 //! use heph::supervisor::SupervisorStrategy;
-//! use heph_rt::spawn::ActorOptions;
-//! use heph_rt::{self as rt, ThreadLocal, Runtime};
-//! use log::error;
+//! use heph_rt::ThreadLocal;
 //!
-//! fn main() -> Result<(), rt::Error> {
-//!     // Enable logging so we can see the error message.
-//!     std_logger::init();
-//!
-//!     let mut runtime = Runtime::new()?;
-//!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-//!         runtime_ref.spawn_local(supervisor, bad_actor as fn(_) -> _, (), ActorOptions::default());
-//!         Ok(())
-//!     })?;
-//!     runtime.start()
-//! }
-//!
-//! /// The error returned by our actor.
-//! struct Error;
-//!
+//! # fn main() -> Result<(), rt::Error> {
+//! #     // Enable logging so we can see the error message.
+//! #    std_logger::init();
+//! #
+//! #     let mut runtime = Runtime::new()?;
+//! #     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+//! #         runtime_ref.spawn_local(supervisor, bad_actor as fn(_) -> _, (), ActorOptions::default());
+//! #         Ok(())
+//! #     })?;
+//! #     runtime.start()
+//! # }
+//! #
 //! /// Supervisor that gets called if the actor returns an error.
 //! fn supervisor(err: Error) -> SupervisorStrategy<()> {
 //! #   drop(err); // Silence dead code warnings.
-//!     error!("Actor encountered an error!");
+//!     log::error!("actor encountered an error!");
 //!     SupervisorStrategy::Stop
 //! }
 //!
@@ -92,6 +101,9 @@
 //! async fn bad_actor(_: actor::Context<!, ThreadLocal>) -> Result<(), Error> {
 //!     Err(Error)
 //! }
+//!
+//! /// The error returned by our actor.
+//! struct Error;
 //! ```
 
 use std::any::Any;
@@ -164,7 +176,6 @@ where
     ///
     /// [`decide`]: Supervisor::decide
     /// [`decide_on_restart_error`]: Supervisor::decide_on_restart_error
-    // TODO: a better name.
     fn second_restart_error(&mut self, error: NA::Error);
 
     /// Decide what happens to the actor that panicked.
@@ -247,6 +258,9 @@ where
     A: SyncActor,
 {
     /// Decide what happens to the actor that returned `error`.
+    ///
+    /// Also see the notes on [`Supervisor::decide`] as they also apply for
+    /// synchronous supervision.
     fn decide(&mut self, error: A::Error) -> SupervisorStrategy<A::Argument>;
 }
 
@@ -409,22 +423,22 @@ where
 /// This creates a new type that implements the [`Supervisor`] and
 /// [`SyncSupervisor`] traits. The macro accepts the following arguments:
 ///
-/// * Visibility indicator (*optional*), defaults to private (i.e. no
+/// * `$vis`: visibility indicator (*optional*), defaults to private (i.e. no
 ///   indicator).
-/// * Name of the new supervisor type.
-/// * Log friendly name of the actor, used in logging.
-/// * Type of the argument(s) used to restart the actor. Multiple arguments must
-///   be in the tuple format (same as for the [`NewActor::Argument`] type).
-/// * Maximum number of restarts (*optional*), defaults to 5.
-/// * Maximum duration before the restart counter get reset (*optional*),
-///   defaults to 5 seconds.
-/// * Additional logging message, defaults to nothing extra. This uses normal
-///   [rust formatting rules] and is added at the end of the default message,
-///   after the error. The `args` keyword gives access to the arguments. See
-///   example 7 Restart Supervisor (in the example directory of the source
-///   code).
+/// * `$supervisor_name`: name of the new supervisor type.
+/// * `$actor_name`: display friendly name of the actor, used in logging.
+/// * `$args`: type of the argument(s) used to restart the actor. Multiple
+///   arguments must be in the tuple format (same as for the
+///   [`NewActor::Argument`] type).
+/// * `$max_restarts`: maximum number of restarts (*optional*), defaults to 5.
+/// * `$max_duration`: maximum duration before the restart counter get reset
+///   (*optional*), defaults to 5 seconds.
+/// * `$log_extra` and `$log_arg_field`: additional logging message, defaults to
+///   nothing extra. This uses normal [rust formatting rules] and is added at
+///   the end of the default message, after the error. The `args` keyword gives
+///   access to the arguments. See the example below.
 ///
-/// The new type can be created using the `new` function, e.g.
+/// The supervisor can be created using the `new` function, e.g.
 /// `MySupervisor::new(args)`, see the example below.
 ///
 /// [rust formatting rules]: std::fmt
@@ -436,7 +450,7 @@ where
 /// ```text
 /// $actor_name failed, restarting it ($left/$max restarts left): ${error}$log_extra
 /// # For example, using the supervisor created in the example below.
-/// my_actor failed, restarting it (1/2 restarts left): some I/O error: actor arguments (true, 0): (true, 0)
+/// my actor failed, restarting it (1/2 restarts left): some I/O error: actor arguments (true, 0): true, 0
 /// ```
 ///
 /// If the actor failed too many times to quickly it will log the following.
@@ -444,7 +458,7 @@ where
 /// ```text
 /// $actor_name failed, stopping it (no restarts left): ${error}$log_extra
 /// # For example, using the supervisor created in the example below.
-/// my_actor failed, stopping it (no restarts left): some I/O error: actor arguments (true, 0): (true, 0)
+/// my actor failed, stopping it (no restarts left): some I/O error: actor arguments (true, 0): true, 0
 /// ```
 ///
 /// Similar messages will be logged if the actor fails to restart.
@@ -471,7 +485,7 @@ where
 ///                              // get reset, defaults to 5 seconds (optional).
 ///     // This string is added to the log message after the error. `args`
 ///     // gives access to the arguments.
-///     ": actor arguments {:?} ({}, {})",
+///     ": actor arguments {:?}: {}, {}",
 ///     args,
 ///     args.0,
 ///     args.1,
