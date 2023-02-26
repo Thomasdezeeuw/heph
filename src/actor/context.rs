@@ -11,24 +11,13 @@ use crate::actor_ref::ActorRef;
 
 /// The context in which an actor is executed.
 ///
-/// This context can be used for a number of things including receiving
-/// messages and getting access to the runtime.
-///
-/// The `actor::Context` comes in two flavours:
-/// * `ThreadLocal` (default) is the optimised version, but doesn't allow the
-///   actor to move between threads. Actor started with
-///   `RuntimeRef::try_spawn_local` will get this flavour of context.
-/// * `ThreadSafe` is the flavour that allows the actor to be moved between
-///   threads. Actor started with `RuntimeRef::try_spawn` will get this
-///   flavour of context.
+/// This context can be used for a number of things including receiving messages
+/// and getting access to the runtime which is running the actor (`RT`).
 #[derive(Debug)]
 pub struct Context<M, RT = ()> {
     /// Inbox of the actor, shared between this and zero or more actor
     /// references.
-    ///
-    /// This field is public because it is used by `TcpServer`, as we don't need
-    /// entire context there.
-    pub(crate) inbox: Receiver<M>,
+    inbox: Receiver<M>,
     /// Runtime access.
     rt: RT,
 }

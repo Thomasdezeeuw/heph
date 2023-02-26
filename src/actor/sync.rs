@@ -18,25 +18,23 @@ use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 
 /// Synchronous actor.
 ///
-/// Synchronous actor run on its own thread and therefore can perform
-/// synchronous operations such as blocking I/O. Much like regular [actors] the
-/// actor will be supplied with a [context], which can be used for receiving
-/// messages. As with regular actors communication is done via message sending,
-/// using [actor references].
+/// Synchronous actors run on their own thread and therefore can perform
+/// synchronous operations such as blocking I/O or time consuming computations.
+/// Much like asynchronous [actors] the actor will be supplied with a [context],
+/// which can be used for receiving messages. As with asynchronous actors
+/// communication is done via message sending, using [actor references].
 ///
-/// The easiest way to implement this trait by using regular functions, see the
-/// [module level] documentation for an example of this.
+/// The easiest way to implement this trait by using functions, see the [module
+/// level] documentation for an example of this.
 ///
 /// [module level]: crate::actor
 ///
-/// Synchronous actor can only be spawned before starting the runtime, see
-/// `Runtime::spawn_sync_actor`.
+/// Synchronous actor can be started using [`spawn_sync_actor`].
 ///
 /// # Panics
 ///
 /// Panics are not caught and will **not** be returned to the actor's
-/// supervisor. If a synchronous actor panics it will bring down the entire
-/// runtime.
+/// supervisor.
 ///
 /// [actors]: crate::Actor
 /// [context]: SyncContext
@@ -64,7 +62,7 @@ pub trait SyncActor {
     /// How to process non-terminal errors that happen during regular processing
     /// is up to the actor.
     ///
-    /// [supervisor]: crate::supervisor
+    /// [supervisor]: crate::supervisor::SyncSupervisor
     type Error;
 
     /// The kind of runtime access needed by the actor.
@@ -161,8 +159,12 @@ impl_sync_actor!(
 
 /// The context in which a synchronous actor is executed.
 ///
-/// This context can be used for a number of things including receiving
-/// messages.
+/// This context can be used for a number of things including receiving messages
+/// and getting access to the runtime which is running the actor (`RT`).
+///
+/// Also see the asynchronous version: [`actor::Context`].
+///
+/// [`actor::Context`]: crate::actor::Context
 #[derive(Debug)]
 pub struct SyncContext<M, RT> {
     inbox: Receiver<M>,
@@ -243,13 +245,6 @@ impl<M, RT> SyncContext<M, RT> {
     }
 
     /// Block on a [`Future`] waiting for it's completion.
-    ///
-    /// # Limitations
-    ///
-    /// Any [`Future`] returned by a type that is bound to an actor (see `Bound`
-    /// trait of the heph-rt crate) **cannot** be used by this function. Those
-    /// types use specialised wake-up mechanisms bypassing the `Future`'s
-    /// [`task`] system.
     pub fn block_on<Fut>(&mut self, fut: Fut) -> Fut::Output
     where
         Fut: Future,
@@ -361,6 +356,9 @@ impl SyncWaker {
 }
 
 /// Spawn a synchronous actor.
+///
+/// This will spawn a new thread to run `actor`, returning the thread's
+/// `JoinHandle` and an actor reference.
 pub fn spawn_sync_actor<S, A, RT>(
     supervisor: S,
     actor: A,

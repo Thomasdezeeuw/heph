@@ -15,6 +15,10 @@ use crate::actor_ref::ActorRef;
 use crate::supervisor::{Supervisor, SupervisorStrategy};
 
 /// A [`Future`] that represent an [`Actor`].
+///
+/// This can be used to wrap actors into a `Future`, it automatically handles
+/// errors and panics using the provided supervisor. This can run on any runtime
+/// that can runs `Future`s.
 pub struct ActorFuture<S, NA: NewActor, RT> {
     /// The actor's supervisor used to determine what to do when the actor, or
     /// the [`NewActor`] implementation, returns an error.
@@ -42,9 +46,10 @@ where
     ///  * `supervisor: S`: is used to handle the actor's errors.
     ///  * `new_actor: NA`: is used to start the actor the first time and
     ///    restart it when it errors, for which the `argument` is used.
+    ///  * `argument`: passed to the actor on creation.
     ///  * `rt: RT`: is used to get access to the runtime, it may be the unit
     ///    type (`()`) in case it's not needed. It needs to be `Clone` as it's
-    ///    also passed to the actor (and is needed for the restart later).
+    ///    passed to the actor and after is needed for possible restarts.
     #[allow(clippy::type_complexity)]
     pub fn new(
         supervisor: S,

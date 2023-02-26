@@ -142,10 +142,11 @@ mod tests;
 pub use context::{Context, NoMessages, ReceiveMessage, RecvError};
 #[doc(inline)]
 pub use future::ActorFuture;
-#[doc(hidden)] // Not part of the stable API.
-pub use sync::SyncWaker;
 #[doc(inline)]
 pub use sync::{spawn_sync_actor, SyncActor, SyncContext};
+
+#[doc(hidden)] // Not part of the stable API.
+pub use sync::SyncWaker;
 
 /// The trait that defines how to create a new [`Actor`].
 ///
