@@ -1039,7 +1039,7 @@ impl<T> Channel<T> {
         if ptr.is_null() {
             handle_alloc_error(layout);
         }
-        let ptr = ptr::slice_from_raw_parts_mut(ptr as *mut T, capacity) as *mut Channel<T>;
+        let ptr = ptr::slice_from_raw_parts_mut(ptr.cast::<T>(), capacity) as *mut Channel<T>;
 
         // Initialise all fields (that need it).
         unsafe {

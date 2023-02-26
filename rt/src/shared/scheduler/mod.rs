@@ -233,7 +233,7 @@ impl<'s> AddActor<'s> {
         NA::Message: Send,
     {
         debug_assert!(
-            inactive::ok_ptr(self.alloc.as_ptr() as *const ()),
+            inactive::ok_ptr(self.alloc.as_ptr().cast()),
             "SKIP_BITS invalid"
         );
 

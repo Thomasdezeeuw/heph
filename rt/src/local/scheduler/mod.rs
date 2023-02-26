@@ -140,7 +140,7 @@ impl<'s> AddActor<'s> {
         NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
     {
         debug_assert!(
-            inactive::ok_ptr(self.alloc.as_ptr() as *const ()),
+            inactive::ok_ptr(self.alloc.as_ptr().cast::<()>()),
             "SKIP_BITS invalid"
         );
         let process = ProcessData::new(

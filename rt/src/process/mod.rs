@@ -145,7 +145,8 @@ impl<P: ?Sized> ProcessData<P> {
         // this structure as pid. This way we don't have to store any additional
         // pid in the structure itself or in the scheduler.
         #[allow(trivial_casts)]
-        let ptr = unsafe { Pin::into_inner_unchecked(self) as *const _ as *const u8 };
+        let ptr =
+            unsafe { (Pin::into_inner_unchecked(self) as *const ProcessData<P>).cast::<u8>() };
         ProcessId(ptr as usize)
     }
 }

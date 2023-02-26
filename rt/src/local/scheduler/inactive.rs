@@ -211,14 +211,14 @@ impl Pointer {
     ) -> Option<Result<Pin<Box<ProcessData>>, Pin<&'a mut Branch>>> {
         match this {
             Some(pointer) if pointer.is_process() => {
-                let p = unsafe { Box::from_raw(pointer.as_ptr() as *mut _) };
+                let p = unsafe { Box::from_raw(pointer.as_ptr().cast()) };
                 // We just read the pointer so now we have to forget it.
                 forget(this.take());
                 Some(Ok(Pin::new(p)))
             }
             Some(pointer) => {
                 debug_assert!(!pointer.is_process());
-                let p: &mut Branch = unsafe { &mut *(pointer.as_ptr() as *mut _) };
+                let p: &mut Branch = unsafe { &mut *(pointer.as_ptr().cast()) };
                 Some(Err(unsafe { Pin::new_unchecked(p) }))
             }
             None => None,
@@ -262,10 +262,10 @@ impl Drop for Pointer {
     fn drop(&mut self) {
         let ptr = self.as_ptr();
         if self.is_process() {
-            let p: Box<ProcessData> = unsafe { Box::from_raw(ptr as *mut _) };
+            let p: Box<ProcessData> = unsafe { Box::from_raw(ptr.cast()) };
             drop(p);
         } else {
-            let p: Box<Branch> = unsafe { Box::from_raw(ptr as *mut _) };
+            let p: Box<Branch> = unsafe { Box::from_raw(ptr.cast()) };
             drop(p);
         }
     }
@@ -275,11 +275,11 @@ impl fmt::Debug for Pointer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ptr = self.as_ptr();
         if self.is_process() {
-            let p: &ProcessData = unsafe { &mut *(ptr as *mut _) };
+            let p: &ProcessData = unsafe { &mut *(ptr.cast()) };
             let p: Pin<&ProcessData> = unsafe { Pin::new_unchecked(p) };
             p.fmt(f)
         } else {
-            let p: &Branch = unsafe { &mut *(ptr as *mut _) };
+            let p: &Branch = unsafe { &mut *(ptr.cast()) };
             let p: Pin<&Branch> = unsafe { Pin::new_unchecked(p) };
             p.fmt(f)
         }

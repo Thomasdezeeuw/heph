@@ -81,7 +81,6 @@ clippy:
 		--allow clippy::must-use-candidate \
 		--allow clippy::needless-lifetimes \
 		--allow clippy::option-if-let-else \
-		--allow clippy::ptr-as-ptr \
 		--allow clippy::redundant-pub-crate \
 		--allow clippy::shadow-unrelated \
 		--allow clippy::single-match-else \

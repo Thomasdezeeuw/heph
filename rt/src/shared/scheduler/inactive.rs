@@ -563,7 +563,7 @@ fn diff_branch_depth(pid1: ProcessId, pid2: ProcessId) -> usize {
 /// Converts `process` into a tagged pointer.
 fn tag_process(process: Pin<Box<ProcessData>>) -> TaggedPointer {
     #[allow(trivial_casts)]
-    let ptr = Box::into_raw(Pin::into_inner(process)) as *mut _;
+    let ptr = Box::into_raw(Pin::into_inner(process)).cast();
     debug_assert!(ok_ptr(ptr));
     (ptr as usize | PROCESS_TAG) as *mut ()
 }
@@ -571,7 +571,7 @@ fn tag_process(process: Pin<Box<ProcessData>>) -> TaggedPointer {
 /// Tag a pointer as pointing to a branch.
 fn tag_branch(branch: Pin<Box<Branch>>) -> TaggedPointer {
     #[allow(trivial_casts)]
-    let ptr = Box::into_raw(Pin::into_inner(branch)) as *mut _;
+    let ptr = Box::into_raw(Pin::into_inner(branch)).cast();
     debug_assert!(ok_ptr(ptr));
     (ptr as usize | BRANCH_TAG) as *mut ()
 }
