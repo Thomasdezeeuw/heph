@@ -51,14 +51,9 @@ $(TARGETS):
 # # Could fix these later
 # `enum-glob-use`: used in enum errors.
 # `missing-errors-doc`, `missing-panics-doc`: don't want to do this.
-# `multiple-crate-versions`: caused by getrandom, pr to fix:
-# <https://github.com/rust-random/getrandom/pull/253>.
 # Too many warnings:
 #  * `must-use-candidate`.
-#  * `ptr-as-ptr`.
 #  * `redundant-pub-crate`.
-#  * `semicolon-if-nothing-returned`.
-#  * `shadow-unrelated`.
 lint: clippy
 clippy:
 	cargo clippy --all-features -- \
@@ -82,9 +77,6 @@ clippy:
 		--allow clippy::needless-lifetimes \
 		--allow clippy::option-if-let-else \
 		--allow clippy::redundant-pub-crate \
-		--allow clippy::shadow-unrelated \
-		--allow clippy::single-match-else \
-		--allow clippy::multiple-crate-versions \
 		--allow clippy::use-self
 
 doc:
