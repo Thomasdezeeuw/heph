@@ -2,7 +2,7 @@
 
 use std::future::Future;
 use std::io;
-use std::pin::Pin;
+use std::pin::pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
 use std::thread::{self, Thread};
@@ -315,10 +315,7 @@ impl SyncWaker {
     where
         Fut: Future,
     {
-        // Pin the `Future` to stack.
-        let mut future = future;
-        let mut future = unsafe { Pin::new_unchecked(&mut future) };
-
+        let mut future = pin!(future);
         let task_waker = task::Waker::from(self);
         let mut task_ctx = task::Context::from_waker(&task_waker);
         loop {
@@ -341,10 +338,7 @@ impl SyncWaker {
     where
         Fut: Future,
     {
-        // Pin the `Future` to stack.
-        let mut future = future;
-        let mut future = unsafe { Pin::new_unchecked(&mut future) };
-
+        let mut future = pin!(future);
         let task_waker = task::Waker::from(self);
         let mut task_ctx = task::Context::from_waker(&task_waker);
 

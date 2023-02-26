@@ -5,7 +5,7 @@ use std::fmt;
 use std::future::Future;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
-use std::task::{self, Poll, Waker};
+use std::task::{self, Poll};
 
 use heph_inbox::{Manager, ReceiverConnected};
 use log::error;
@@ -70,21 +70,14 @@ where
     }
 
     /// Returns `Poll::Pending` if the actor was successfully restarted,
-    /// `Poll::Ready` if the actor wasn't restarted or an error if the actor
-    /// failed to restart.
-    fn handle_actor_error(&mut self, waker: &Waker, err: <NA::Actor as Actor>::Error) -> Poll<()> {
+    /// `Poll::Ready` if the actor wasn't restarted (or failed to restart).
+    fn handle_actor_error(
+        &mut self,
+        waker: &task::Waker,
+        err: <NA::Actor as Actor>::Error,
+    ) -> Poll<()> {
         match self.supervisor.decide(err) {
-            SupervisorStrategy::Restart(arg) => {
-                match self.create_new_actor(arg) {
-                    Ok(()) => {
-                        // Mark the actor as ready just in case progress can be
-                        // made already.
-                        waker.wake_by_ref();
-                        Poll::Pending
-                    }
-                    Err(err) => self.handle_restart_error(waker, err),
-                }
-            }
+            SupervisorStrategy::Restart(arg) => self.restart_actor(waker, arg),
             SupervisorStrategy::Stop => Poll::Ready(()),
         }
     }
@@ -93,33 +86,36 @@ where
     /// `Poll::Ready` if the actor wasn't restarted.
     fn handle_actor_panic(
         &mut self,
-        waker: &Waker,
+        waker: &task::Waker,
         panic: Box<dyn Any + Send + 'static>,
     ) -> Poll<()> {
         match self.supervisor.decide_on_panic(panic) {
-            SupervisorStrategy::Restart(arg) => {
-                match self.create_new_actor(arg) {
-                    Ok(()) => {
-                        // Mark the actor as ready, same reason as for
-                        // `handle_actor_error`.
-                        waker.wake_by_ref();
-                        Poll::Pending
-                    }
-                    Err(err) => self.handle_restart_error(waker, err),
-                }
-            }
+            SupervisorStrategy::Restart(arg) => self.restart_actor(waker, arg),
             SupervisorStrategy::Stop => Poll::Ready(()),
         }
     }
 
+    /// Attempt to restart the actor with `arg`.
+    fn restart_actor(&mut self, waker: &task::Waker, arg: NA::Argument) -> Poll<()> {
+        match self.create_new_actor(arg) {
+            Ok(()) => {
+                // Mark the actor as ready just in case progress can be made
+                // already.
+                waker.wake_by_ref();
+                Poll::Pending
+            }
+            Err(err) => self.handle_restart_error(waker, err),
+        }
+    }
+
     /// Same as `handle_actor_error` but handles [`NewActor::Error`]s instead.
-    fn handle_restart_error(&mut self, waker: &Waker, err: NA::Error) -> Poll<()> {
+    fn handle_restart_error(&mut self, waker: &task::Waker, err: NA::Error) -> Poll<()> {
         match self.supervisor.decide_on_restart_error(err) {
             SupervisorStrategy::Restart(arg) => {
                 match self.create_new_actor(arg) {
                     Ok(()) => {
                         // Mark the actor as ready, same reason as for
-                        // `handle_actor_error`.
+                        // `restart_actor`.
                         waker.wake_by_ref();
                         Poll::Pending
                     }
@@ -179,7 +175,7 @@ impl<S, NA, RT> fmt::Debug for ActorFuture<S, NA, RT>
 where
     S: Supervisor<NA> + fmt::Debug,
     NA: NewActor<RuntimeAccess = RT>,
-    RT: Clone + fmt::Debug,
+    RT: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ActorFuture")
