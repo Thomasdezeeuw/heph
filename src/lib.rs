@@ -11,17 +11,15 @@
 //! asynchronous function looks like this:
 //!
 //! ```
-//! # use heph::actor;
-//! # use heph_rt::ThreadLocal;
-//! #
-//! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
+//! use heph::actor;
+//!
+//! async fn actor(mut ctx: actor::Context<String>) {
 //!     // Receive a message.
 //!     if let Ok(msg) = ctx.receive_next().await {
 //!         // Print the message.
 //!         println!("got a message: {msg}");
 //!     }
 //! }
-//! #
 //! # drop(actor); // Silence dead code warnings.
 //! ```
 //!
