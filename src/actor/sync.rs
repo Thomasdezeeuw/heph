@@ -166,7 +166,7 @@ impl_sync_actor!(
 ///
 /// [`actor::Context`]: crate::actor::Context
 #[derive(Debug)]
-pub struct SyncContext<M, RT> {
+pub struct SyncContext<M, RT = ()> {
     inbox: Receiver<M>,
     future_waker: Option<Arc<SyncWaker>>,
     /// Runtime access.
@@ -200,7 +200,7 @@ impl<M, RT> SyncContext<M, RT> {
     /// ```
     /// use heph::actor::SyncContext;
     ///
-    /// fn greeter_actor<RT>(mut ctx: SyncContext<String, RT>) {
+    /// fn greeter_actor(mut ctx: SyncContext<String>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
     ///         println!("Hello {name}");
     ///     } else {
@@ -228,7 +228,7 @@ impl<M, RT> SyncContext<M, RT> {
     /// ```
     /// use heph::actor::SyncContext;
     ///
-    /// fn print_actor<RT>(mut ctx: SyncContext<String, RT>) {
+    /// fn print_actor(mut ctx: SyncContext<String>) {
     ///     if let Ok(msg) = ctx.receive_next() {
     ///         println!("Got a message: {msg}");
     ///     } else {
