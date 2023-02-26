@@ -1,81 +1,32 @@
 //! The module with the actor trait and related definitions.
 //!
-//! Actors come in three different kinds:
+//! Actors come in two flavours:
 //!
-//! * Asynchronous thread-local actors,
-//! * Asynchronous thread-safe actors, and
+//! * Asynchronous actors, and
 //! * Synchronous actors.
 //!
-//! Both asynchronous actors must implement the [`Actor`] trait, which defines
-//! how an actor is run. The [`NewActor`] defines how an actor is created and is
-//! used in staring, or spawning, new actors. The easiest way to implement these
+//! The following sections describe each kind of actor.
+//!
+//! ## Asynchronous actors
+//!
+//! Asynchronous actors must implement the [`Actor`] trait, which defines how an
+//! actor is run. The [`NewActor`] defines how an actor is created and is used
+//! in staring, or spawning, new actors. The easiest way to implement these
 //! traits is to use asynchronous functions, see the example below.
 //!
-//! The following sections describe each kind of actor, including up- and
-//! downsides of each kind.
+//! Asynchronous are [`Future`] which means that they can share a single OS
+//! thread, but may not block that thread as it can block countless other actors
+//! (and futures). Furthermore the actors must be run by a `Future` runtime. One
+//! is provided in the [Heph-rt] crate. If you want to use another `Future`
+//! runtime take a look at the [`ActorFuture`] type.
 //!
-//! [`Actor`]: crate::actor::Actor
-//! [`NewActor`]: crate::actor::NewActor
-//!
-//! ## Asynchronous thread-local actors
-//!
-//! Asynchronous thread-local actors, often referred to as just thread-local
-//! actors, are actors that will remain on the thread on which they are started.
-//! They can be started, or spawned, using `RuntimeRef::try_spawn_local`, or
-//! any type that implements the `Spawn` trait using the `ThreadLocal`
-//! context. These should be the most used as they are the cheapest to run.
-//!
-//! The upside of running a thread-local actor is that it doesn't have to be
-//! [`Send`] or [`Sync`], allowing it to use cheaper types that don't require
-//! synchronisation. The downside is that if a single actor blocks it will block
-//! *all* actors on the thread. Something that some frameworks work around with
-//! actor/tasks that transparently move between threads and hide blocking/bad
-//! actors, Heph does not (for thread-local actor).
-//!
-//! ## Asynchronous thread-safe actors
-//!
-//! Asynchronous thread-safe actors, or just thread-safe actor, are actors that
-//! can be run on any of the worker threads and transparently move between them.
-//! They can be spawned using `RuntimeRef::try_spawn`, or any type that
-//! implements the `Spawn` trait using the `ThreadSafe` context. Because
-//! these actor move between threads they are required to be [`Send`] and
-//! [`Sync`].
-//!
-//! An upside to using thread-safe actors is that a bad actor (that blocks) only
-//! blocks a single worker thread at a time, allowing the other worker threads
-//! to run the other thread-safe actors (but not the thread-local actors!). A
-//! downside is that these actors are more expansive to run than thread-local
-//! actors.
-//!
-//! ## Synchronous actors
-//!
-//! The previous two asynchronous actors, thread-local and thread-safe actors,
-//! are not allowed to block the thread they run on, as that would block all
-//! other actors on that thread as well. However sometimes blocking operations
-//! is exactly what we need to do, for that purpose Heph has synchronous actors.
-//!
-//! Synchronous actors run own there own thread and can use blocking operations,
-//! such as blocking I/O. Instead of an [`actor::Context`] they use a
-//! [`SyncContext`], which provides a similar API to `actor::Context`, but uses
-//! blocking operations. To support blocking operations each synchronous actor
-//! requires their own thread to run on, this makes sync actors the most
-//! expansive to run (by an order of a magnitude).
-//!
-//! The [`SyncActor`] trait defines how an actor is run and is the synchronous
-//! equivalent of [`NewActor`] and [`Actor`] within a single trait.
-//!
-//! [`actor::Context`]: Context
-//!
-//! # Examples
-//!
-//! Using an asynchronous function to implement the `NewActor` and `Actor`
-//! traits.
+//! The example below shows how we can use an asynchronous function to implement
+//! the `NewActor` and `Actor` traits.
 //!
 //! ```
 //! use heph::actor::{self, NewActor};
-//! use heph_rt::ThreadLocal;
 //!
-//! async fn actor(ctx: actor::Context<(), ThreadLocal>) {
+//! async fn actor(ctx: actor::Context<()>) {
 //! #   drop(ctx); // Use `ctx` to silence dead code warnings.
 //!     println!("Actor is running!");
 //! }
@@ -90,41 +41,60 @@
 //! }
 //! ```
 //!
-//! Spawning and running a synchronous actor using a regular function.
+//! [Heph-rt]: https://crates.io/crates/heph-rt
+//!
+//! ## Synchronous actors
+//!
+//! Asynchronous actors are not allowed to block the thread they run on, as that
+//! would block all other actors running on that thread as well. However
+//! sometimes blocking operations is exactly what we need to do, for that
+//! purpose Heph has synchronous actors.
+//!
+//! Synchronous actors must implement the [`SyncActor`] trait, which defines how
+//! a synchronous actor is run. There is no `NewActor` equivalent as `SyncActor`
+//! defines both the creation and running of the actor.
+//!
+//! Synchronous actors run in their own thread and can use blocking operations,
+//! such as blocking I/O or heavy computation. Instead of an [`actor::Context`]
+//! they use a [`SyncContext`], which provides a similar API to
+//! `actor::Context`, but uses blocking operations. As each synchronous actor
+//! requires their own thread to run on, they are more expansive to run than
+//! asynchronous actors (by an order of a magnitude).
+//!
+//! Synchronous actors can be spawned using [`spawn_sync_actor`]. Note that the
+//! Heph-rt crate provides function to spawn synchronous actors that it manages
+//! for you.
+//!
+//! The example below shows how to run a synchronous actor.
 //!
 //! ```
-//! use heph::actor::SyncContext;
+//! use heph::actor::{SyncContext, spawn_sync_actor};
 //! use heph::supervisor::NoSupervisor;
-//! use heph_rt::spawn::SyncActorOptions;
-//! use heph_rt::{self as rt, Runtime};
 //!
-//! fn main() -> Result<(), rt::Error> {
-//!     // Spawning synchronous actor works slightly different from spawning
-//!     // regular (asynchronous) actors. Mainly, synchronous actors need to be
-//!     // spawned before the runtime is started.
-//!     let mut runtime = Runtime::new()?;
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Same as we saw for the asynchronous actors, we have to cast the function
+//! // to a function pointer for it to implement `SyncActor`.
+//! let actor = actor as fn(_) -> _;
+//! let (thread_handle, actor_ref) = spawn_sync_actor(NoSupervisor, actor, (), ())?;
 //!
-//!     // Spawn a new synchronous actor, returning an actor reference to it.
-//!     let actor = actor as fn(_, _);
-//!     let options = SyncActorOptions::default();
-//!     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor, "Bye", options)?;
+//! // We can send it a message like we do with asynchronous actors.
+//! actor_ref.try_send("Hello world!")?;
 //!
-//!     // Just like with any actor reference we can send the actor a message.
-//!     actor_ref.try_send("Hello world".to_string()).unwrap();
+//! // Wait for the actor to complete.
+//! thread_handle.join().unwrap();
+//! # Ok(())
+//! # }
 //!
-//!     // And now we start the runtime.
-//!     runtime.start()
-//! }
-//!
-//! fn actor<RT>(mut ctx: SyncContext<String, RT>, exit_msg: &'static str) {
+//! fn actor(mut ctx: SyncContext<String>) {
 //!     if let Ok(msg) = ctx.receive_next() {
-//! #       assert_eq!(msg, "Hello world");
 //!         println!("Got a message: {msg}");
 //!     } else {
 //!         eprintln!("Receive no messages");
 //!     }
-//!     println!("{exit_msg}");
 //! }
+//! ```
+//!
+//! [`actor::Context`]: Context
 
 use std::any::type_name;
 use std::future::Future;
@@ -148,10 +118,11 @@ pub use sync::{spawn_sync_actor, SyncActor, SyncContext};
 #[doc(hidden)] // Not part of the stable API.
 pub use sync::SyncWaker;
 
-/// The trait that defines how to create a new [`Actor`].
+/// Creating asynchronous actors.
 ///
-/// The easiest way to implement this by using an asynchronous function, see the
-/// [actor module] documentation.
+/// The trait that defines how to create a new [`Actor`]. The easiest way to
+/// implement this by using an asynchronous function, see the [actor module]
+/// documentation.
 ///
 /// [actor module]: crate::actor
 pub trait NewActor {
@@ -164,30 +135,29 @@ pub trait NewActor {
     /// Here is an example of using an enum as message type.
     ///
     /// ```
-    /// #![feature(never_type)]
-    ///
-    /// use heph::supervisor::NoSupervisor;
-    /// use heph::{actor, from_message};
-    /// use heph_rt::spawn::ActorOptions;
-    /// use heph_rt::{self as rt, Runtime, ThreadLocal};
-    ///
-    /// fn main() -> Result<(), rt::Error> {
-    ///     // Create and run the runtime.
-    ///     let mut runtime = Runtime::new()?;
-    ///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-    ///         // Spawn the actor.
-    ///         let new_actor = actor as fn(_) -> _;
-    ///         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
-    ///
-    ///         // Now we can use the reference to send the actor a message. We
-    ///         // don't have to use `Message` type we can just use `String`,
-    ///         // because `Message` implements `From<String>`.
-    ///         actor_ref.try_send("Hello world".to_owned()).unwrap();
-    ///         Ok(())
-    ///     })?;
-    ///     runtime.start()
-    /// }
-    ///
+    /// # #![feature(never_type)]
+    /// # use heph::supervisor::NoSupervisor;
+    /// # use heph::{actor, from_message};
+    /// # use heph_rt::spawn::ActorOptions;
+    /// # use heph_rt::{self as rt, Runtime, ThreadLocal};
+    /// #
+    /// # fn main() -> Result<(), rt::Error> {
+    /// #     // Create and run the runtime.
+    /// #     let mut runtime = Runtime::new()?;
+    /// #     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+    /// #         // Spawn the actor.
+    /// #         let new_actor = actor as fn(_) -> _;
+    /// #         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
+    /// #
+    /// #         // Now we can use the reference to send the actor a message. We
+    /// #         // don't have to use `Message` type we can just use `String`,
+    /// #         // because `Message` implements `From<String>`.
+    /// #         actor_ref.try_send("Hello world".to_owned()).unwrap();
+    /// #         Ok(())
+    /// #     })?;
+    /// #     runtime.start()
+    /// # }
+    /// #
     /// /// The message type for the actor.
     /// #[derive(Debug)]
     /// # #[derive(Eq, PartialEq)]
@@ -198,8 +168,7 @@ pub trait NewActor {
     /// }
     ///
     /// // Implementing `From` for the message allows us to just pass a
-    /// // `String`, rather then a `Message::String`. See sending of the
-    /// // message in the `setup` function.
+    /// // `String`, rather than a `Message::String`.
     /// from_message!(Message::String(String));
     /// from_message!(Message::Number(usize));
     ///
@@ -216,17 +185,15 @@ pub trait NewActor {
     /// The argument(s) passed to the actor.
     ///
     /// The arguments passed to the actor are much like arguments passed to a
-    /// regular function. If more then one argument is needed the arguments can
-    /// be in the form of a tuple, e.g. `(123, "Hello")`. For example
-    /// `TcpServer` requires a `NewActor` where the argument  is a tuple
-    /// `(TcpStream, SocketAddr)`.
+    /// regular function. If more than one argument is needed the arguments can
+    /// be in the form of a tuple, e.g. `(usize, String)`.
     ///
     /// An empty tuple can be used for actors that don't accept any arguments
     /// (except for the `actor::Context`, see [`new`] below).
     ///
     /// When using asynchronous functions arguments are passed regularly, i.e.
-    /// not in the form of a tuple, however they do have be passed as a tuple to
-    /// [`ActorFuture::new`]. See there [implementations] below.
+    /// not in the form of a tuple, see there [implementations] below. However
+    /// they do have be passed as a tuple to [`ActorFuture::new`].
     ///
     /// [`new`]: NewActor::new
     /// [implementations]: #foreign-impls
@@ -246,8 +213,8 @@ pub trait NewActor {
 
     /// The kind of runtime access needed by the actor.
     ///
-    /// The runtime is accessible via the actor's context. See
-    /// [`actor::Context`] for more information.
+    /// The runtime is accessible via the actor's context. This can be accessed
+    /// by the actor via the [`actor::Context`] (the `RT` generic parameter).
     ///
     /// [`actor::Context`]: crate::actor::Context
     type RuntimeAccess;
@@ -263,21 +230,18 @@ pub trait NewActor {
     /// Wrap the `NewActor` to change the arguments its accepts.
     ///
     /// This can be used when additional arguments are needed to be passed to an
-    /// actor, where another function requires a certain argument list. For
-    /// example when using `TcpServer`.
+    /// actor, where another function requires a certain argument list.
     ///
     /// # Examples
     ///
-    /// Using `TcpServer` requires a `NewActor` that accepts `(TcpStream,
-    /// SocketAddr)` as arguments, but we need to pass the actor additional
-    /// arguments.
+    /// Using `TcpServer` (from the Heph-rt crate) requires a `NewActor` that
+    /// accepts `(TcpStream, SocketAddr)` as arguments, but we need to pass the
+    /// actor additional arguments.
     ///
     /// ```
-    /// #![feature(never_type)]
-    ///
+    /// # #![feature(never_type)]
     /// use std::io;
     /// use std::net::SocketAddr;
-    ///
     /// use heph::actor::{self, NewActor};
     /// # use heph::messages::Terminate;
     /// use heph_rt::net::{TcpServer, TcpStream};
@@ -288,7 +252,7 @@ pub trait NewActor {
     /// # use log::error;
     ///
     /// fn main() -> Result<(), rt::Error> {
-    ///     // Create and run runtime
+    ///     // Create and run runtime.
     ///     let mut runtime = Runtime::new()?;
     ///     runtime.run_on_workers(setup)?;
     ///     runtime.start()
@@ -296,15 +260,17 @@ pub trait NewActor {
     ///
     /// /// In this setup function we'll spawn the `TcpServer` actor.
     /// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
-    ///     // Prepare for humans' expand to Mars.
+    ///     // Prepare for humans' expansion to Mars.
     ///     let greet_mars = true;
     ///
-    ///     // Our actor that accepts three arguments.
+    ///     // We convert our actor that accepts three arguments into an actor
+    ///     // that accept two arguments and gets `greet_mars` passed to it as
+    ///     // third argument.
     ///     let new_actor = (conn_actor as fn(_, _, _, _) -> _)
     ///         .map_arg(move |(stream, address)| (stream, address, greet_mars));
     ///
     ///     // For more information about the remainder of this example see
-    ///     // `TcpServer`.
+    ///     // `TcpServer` in the heph-rt crate.
     ///     let address = "127.0.0.1:7890".parse().unwrap();
     ///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
     ///     # let actor_ref =
@@ -378,7 +344,7 @@ pub trait NewActor {
 
     /// Returns the name of the actor.
     ///
-    /// The default implementation creates the name based on the type name of
+    /// The default implementation creates the name based on the name of type of
     /// the actor.
     ///
     /// # Notes
@@ -500,11 +466,11 @@ impl_new_actor!(
     (arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5),
 );
 
-/// The `Actor` trait defines how the actor is run.
+/// Asynchronous actor.
 ///
-/// Effectively an `Actor` is a [`Future`] which returns a `Result<(), Error>`,
-/// where `Error` is defined on the trait. All `Future`s where the [`Output`]
-/// type is `Result<(), Error>` or `()` implement the `Actor` trait.
+/// Effectively an `Actor` is a [`Future`] which returns a result. All `Future`s
+/// where the [`Output`] type is `Result<(), Error>` or `()` implement the
+/// `Actor` trait.
 ///
 /// The easiest way to implement this by using an async function, see the
 /// [actor module] documentation.
@@ -517,7 +483,7 @@ impl_new_actor!(
 /// Because this is basically a [`Future`] it also shares it's characteristics,
 /// including it's unsafety. Please read the [`Future`] documentation when
 /// implementing or using this trait manually.
-#[must_use = "actor do nothing unless you poll them"]
+#[must_use = "asynchronous actors do nothing unless you poll them"]
 pub trait Actor {
     /// An error the actor can return to its [supervisor]. This error will be
     /// considered terminal for this actor and should **not** be an error of
@@ -526,7 +492,7 @@ pub trait Actor {
     /// How to process non-terminal errors that happen during regular processing
     /// is up to the actor.
     ///
-    /// [supervisor]: crate::supervisor
+    /// [supervisor]: crate::supervisor::Supervisor
     type Error;
 
     /// Try to poll this actor.
