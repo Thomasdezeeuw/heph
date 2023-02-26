@@ -79,9 +79,9 @@
 //! # }
 //! ```
 //!
-//! Supporting multiple procedure within the same actor is possible by making
-//! the message an `enum` as the example below shows. Furthermore synchronous
-//! actors are supported.
+//! Supporting multiple procedures within the same actor is possible by making
+//! the message an `enum` as the example below shows. Furthermore this example
+//! shows that synchronous actors are supported as well.
 //!
 //! ```
 //! # #![feature(never_type)]
@@ -116,7 +116,7 @@
 //!                 // Send back the current state, ignoring any errors.
 //!                 let _ = response.respond(count);
 //!             },
-//!             Message::Get(RpcMessage { response, .. }) => {
+//!             Message::Get(RpcMessage { request: (), response }) => {
 //!                 // Send back the current state, ignoring any errors.
 //!                 let _ = response.respond(count);
 //!             },
@@ -225,7 +225,12 @@ impl<'r, M, Res> Future for Rpc<'r, M, Res> {
 pub enum RpcError {
     /// Same error as [`SendError`].
     SendError,
-    /// Returned when the other side returned no response.
+    /// Returned when the other side disconnected without returning a response.
+    ///
+    /// # Notes
+    ///
+    /// Disconnects can not always be detected, consider this error informative
+    /// rather than depending on it.
     NoResponse,
 }
 
@@ -297,7 +302,7 @@ pub struct RpcResponse<Res> {
 }
 
 impl<Res> RpcResponse<Res> {
-    /// Respond to a RPC request.
+    /// Respond to the RPC request.
     pub fn respond(self, response: Res) -> Result<(), SendError> {
         self.sender.try_send(response).map_err(|_| SendError)
     }

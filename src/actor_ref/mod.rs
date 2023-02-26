@@ -1,7 +1,20 @@
-//! Module containing actor references.
+//! Actor references.
 //!
 //! An actor reference is a generic reference to an actor that can run on the
 //! same thread, another thread on the same node or even running remotely.
+//!
+//! The two main types of this module are:
+//!  * [`ActorRef`] a reference to a single actor, and
+//!  * [`ActorGroup`] a reference to a group of actors.
+//!
+//! With both an `ActorRef` and `ActorGroup` we can do the following:
+//!  * Sending messages, see the next section.
+//!  * Remote Produce Calls (RPC), see the [`rpc`] module.
+//!  * Wait until the actor is done ("join" the actor, similar to join a
+//!    thread), see the relevant section below.
+//!
+//! Note that the following sections talk about `ActorRef`s, but similar methods
+//! can be found on `ActorGroup`.
 //!
 //! # Sending messages
 //!
@@ -20,16 +33,13 @@
 //!
 //! If guarantees are needed that a message is received or processed the
 //! receiving actor should send back an acknowledgment that the message is
-//! received and/or processed correctly.
-//!
-//! [`send`]: ActorRef::send
-//! [`try_send`]: ActorRef::try_send
+//! received and/or processed correctly. This can be done using RPC, for more
+//! information on RPC see the [`rpc`] module.
 //!
 //! This example shows a simple actor that prints all the messages it receives.
 //!
 //! ```
-//! #![feature(never_type)]
-//!
+//! # #![feature(never_type)]
 //! use heph::actor;
 //! use heph::supervisor::NoSupervisor;
 //! use heph_rt::spawn::ActorOptions;
@@ -58,16 +68,19 @@
 //! }
 //! ```
 //!
+//! [`send`]: ActorRef::send
+//! [`try_send`]: ActorRef::try_send
+//!
 //! # Sharing actor references
 //!
-//! All actor references can be cloned, which is the easiest way to share them.
+//! All actor references can be cheaply cloned, which is the easiest way to
+//! share them.
 //!
 //! The example below shows how an actor reference is cloned to send a message
 //! to the same actor.
 //!
 //! ```
-//! #![feature(never_type)]
-//!
+//! # #![feature(never_type)]
 //! use heph::actor;
 //! use heph::supervisor::NoSupervisor;
 //! use heph_rt::spawn::ActorOptions;
@@ -85,7 +98,7 @@
 //!
 //!         // Now we can use both references to send a message.
 //!         actor_ref.try_send("Hello world".to_owned()).unwrap();
-//!         second_actor_ref.try_send("Bye world".to_owned()).unwrap();
+//!         second_actor_ref.try_send("Hallo wereld".to_owned()).unwrap(); // Hah! You learned a little Dutch!
 //!
 //!         Ok(())
 //!     })?;
@@ -103,6 +116,58 @@
 //!     }
 //! }
 //! ```
+//!
+//! # Joining an actor reference
+//!
+//! Actor references can also be used to wait on actor to complete using
+//! [`ActorRef::join`]. The "join" terminology comes from threads, were "joining
+//! a thread" means waiting for it complete, joining the execution back into the
+//! current thread.
+//!
+//! Note that we can't detect (using [`ActorRef::join`]) whether or not an actor
+//! was restarted. For that see the [`supervisor`] module.
+//!
+//! ```
+//! # #![feature(never_type)]
+//! use heph::{actor, ActorRef};
+//! use heph::supervisor::NoSupervisor;
+//! use heph_rt::spawn::ActorOptions;
+//! use heph_rt::{self as rt, Runtime, ThreadLocal};
+//!
+//! fn main() -> Result<(), rt::Error> {
+//!     let mut runtime = Runtime::new()?;
+//!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
+//!         let new_actor = actor as fn(_) -> _;
+//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
+//!
+//!         // Send the actor a message to start.
+//!         actor_ref.try_send("Hello world".to_owned()).unwrap();
+//!
+//!         // Spawn our watchdog actor that watches the actor we spawned above.
+//!         let new_watchdog = watchdog as fn(_, _) -> _;
+//!         runtime_ref.spawn_local(NoSupervisor, new_watchdog, actor_ref, ActorOptions::default());
+//!
+//!         Ok(())
+//!     })?;
+//!     runtime.start()
+//! }
+//!
+//! /// Our actor.
+//! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
+//!     if let Ok(msg) = ctx.receive_next().await {
+//!         println!("First message: {msg}");
+//!     }
+//! }
+//!
+//! /// Actor that watches another actor.
+//! async fn watchdog<M>(_: actor::Context<!, ThreadLocal>, watch: ActorRef<M>) {
+//!     // Wait until the actor referenced by `watch` has completed.
+//!     watch.join().await;
+//!     println!("Actor has completed");
+//! }
+//! ```
+//!
+//! [`supervisor`]: crate::supervisor
 
 use std::any::TypeId;
 use std::convert::TryFrom;
@@ -132,7 +197,7 @@ pub struct ActorRef<M> {
 }
 
 enum ActorRefKind<M> {
-    /// Reference to an actor running on the same node.
+    /// Direct access to the inbox.
     Local(Sender<M>),
     /// Reference that attempts to map the message to a different type first.
     Mapped(Arc<dyn MappedActorRef<M>>),
@@ -164,14 +229,6 @@ impl<M> ActorRef<M> {
     /// See [Sending messages] and [`ActorRef::try_send`] for more details.
     ///
     /// [Sending messages]: index.html#sending-messages
-    ///
-    /// # Notes
-    ///
-    /// Mapped actor references, see [`ActorRef::map`] and
-    /// [`ActorRef::try_map`], require an allocation and might be expensive. If
-    /// possible try [`ActorRef::try_send`] first, which does not require an
-    /// allocation. Regular (i.e. non-mapped) actor references do not require an
-    /// allocation.
     pub fn send<'r, Msg>(&'r self, msg: Msg) -> SendValue<'r, M>
     where
         Msg: Into<M>,
@@ -318,6 +375,9 @@ impl<M> ActorRef<M> {
     ///
     /// # Notes
     ///
+    /// Errors converting from one message type to another are turned into
+    /// [`SendError`]s.
+    ///
     /// This conversion is **not** cheap, it requires an allocation so use with
     /// caution when it comes to performance sensitive code.
     ///
@@ -361,7 +421,7 @@ impl<M> ActorRef<M> {
     /// succeeded (even if the inbox isn't full). There is always a race
     /// condition between using this method and doing something based on it.
     ///
-    /// This does provide one useful feature: once this returns `false` it will
+    /// This does provide one useful property: once this returns `false` it will
     /// never return `true` again. This makes it useful in the use case where
     /// creating a message is expansive, which is wasted if the actor is no
     /// longer running. Thus this should only be used as optimisation to not do
