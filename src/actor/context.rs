@@ -22,7 +22,7 @@ use crate::actor_ref::ActorRef;
 ///   threads. Actor started with `RuntimeRef::try_spawn` will get this
 ///   flavour of context.
 #[derive(Debug)]
-pub struct Context<M, RT> {
+pub struct Context<M, RT = ()> {
     /// Inbox of the actor, shared between this and zero or more actor
     /// references.
     ///
