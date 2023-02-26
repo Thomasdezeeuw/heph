@@ -2,7 +2,8 @@
 //!
 //! To use these message the receiving actor should implement [`From`]`<Message>`,
 //! this way the sending actor can simply send the message, without having to
-//! wrap it in a message type first. See the examples below.
+//! wrap it in a message type first. See the examples below. The `From`
+//! implementations can also automated by the [`from_message!`] macro.
 //!
 //! Most message types have an optional id, defaulting to `()`. This allows a
 //! single actor to receive messages from multiple sources with the ability to
@@ -14,7 +15,8 @@
 //!
 //! # Examples
 //!
-//! Implementing `From<Message>` to allow for easy sending of messages.
+//! Implementing `From<Message>` manually to allow for easy sending of messages.
+//! Also see the [`from_message!`] macro to automate this.
 //!
 //! ```
 //! use heph::messages::Ack;
@@ -145,3 +147,5 @@ macro_rules! from_message {
         }
     };
 }
+
+pub use from_message;
