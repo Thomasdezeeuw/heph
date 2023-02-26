@@ -22,4 +22,4 @@ doc_all_private:
 clean_all:
 	cargo clean
 
-.PHONY: test_all test_sanitizers_all test_sanitizer_all check_all clippy_all lint_all doc_all doc_private_all clean_all
+.PHONY: $(TARGETS) $(CRATES) test_all test_sanitizers_all test_sanitizer_all check_all clippy_all lint_all doc_all doc_private_all clean_all
