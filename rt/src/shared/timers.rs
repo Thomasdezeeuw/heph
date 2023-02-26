@@ -114,7 +114,7 @@ impl Timers {
         }
         {
             let overflow = self.overflow.read().unwrap();
-            timers += overflow.len()
+            timers += overflow.len();
         }
         timers
     }

@@ -261,12 +261,12 @@ impl RuntimeInternals {
     where
         Fut: Future<Output = ()> + Send + Sync + 'static,
     {
-        self.scheduler.add_future(future, options.priority())
+        self.scheduler.add_future(future, options.priority());
     }
 
     /// See [`Scheduler::mark_ready`].
     pub(crate) fn mark_ready(&self, pid: ProcessId) {
-        self.scheduler.mark_ready(pid)
+        self.scheduler.mark_ready(pid);
     }
 
     /// Wake `n` worker threads.
@@ -350,6 +350,6 @@ impl RuntimeInternals {
             pid.0 as u64,
             description,
             attributes,
-        )
+        );
     }
 }

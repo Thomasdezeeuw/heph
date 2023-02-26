@@ -163,7 +163,7 @@ impl PrivateAccess for ThreadLocal {
     }
 
     fn add_deadline(&mut self, deadline: Instant) {
-        self.rt.add_deadline(self.pid, deadline)
+        self.rt.add_deadline(self.pid, deadline);
     }
 
     fn remove_deadline(&mut self, deadline: Instant) {
@@ -193,7 +193,7 @@ impl PrivateAccess for ThreadLocal {
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
         self.rt
-            .finish_trace(timing, self.pid, description, attributes)
+            .finish_trace(timing, self.pid, description, attributes);
     }
 }
 
@@ -292,7 +292,7 @@ impl ThreadSafe {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        self.rt.spawn_future(future, options)
+        self.rt.spawn_future(future, options);
     }
 }
 
@@ -322,7 +322,7 @@ impl PrivateAccess for ThreadSafe {
     }
 
     fn add_deadline(&mut self, deadline: Instant) {
-        self.rt.add_deadline(self.pid, deadline)
+        self.rt.add_deadline(self.pid, deadline);
     }
 
     fn remove_deadline(&mut self, deadline: Instant) {
@@ -352,7 +352,7 @@ impl PrivateAccess for ThreadSafe {
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
         self.rt
-            .finish_trace(timing, self.pid, description, attributes)
+            .finish_trace(timing, self.pid, description, attributes);
     }
 }
 
@@ -406,7 +406,7 @@ where
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
-        self.runtime().finish_trace(timing, description, attributes)
+        self.runtime().finish_trace(timing, description, attributes);
     }
 }
 
@@ -441,7 +441,7 @@ impl Sync {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        self.rt.spawn_future(future, options)
+        self.rt.spawn_future(future, options);
     }
 }
 
@@ -497,6 +497,6 @@ impl<M> Trace for SyncContext<M, Sync> {
             timing,
             description,
             attributes,
-        )
+        );
     }
 }

@@ -82,7 +82,7 @@ impl Scheduler {
             Box::pin(FutureProcess::<Fut, ThreadLocal>::new(future)),
         ));
         debug!(pid = process.as_ref().id().0; "spawning thread-local future");
-        self.ready.push(process)
+        self.ready.push(process);
     }
 
     /// Mark the process, with `pid`, as ready to run.
@@ -93,7 +93,7 @@ impl Scheduler {
     pub(crate) fn mark_ready(&mut self, pid: ProcessId) {
         trace!(pid = pid.0; "marking process as ready");
         if let Some(process) = self.inactive.remove(pid) {
-            self.ready.push(process)
+            self.ready.push(process);
         }
     }
 
@@ -157,7 +157,7 @@ impl<'s> AddActor<'s> {
             alloc.assume_init().into()
         };
         if is_ready {
-            scheduler.ready.push(process)
+            scheduler.ready.push(process);
         } else {
             scheduler.inactive.add(process);
         }

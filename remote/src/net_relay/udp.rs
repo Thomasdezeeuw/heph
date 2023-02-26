@@ -107,7 +107,7 @@ where
             // actor.
             Ok(Ok(UdpRelayMessage::Relay { message, target })) => {
                 send_message::<S, Out>(&mut socket, &mut buf, &mut uuid_gen, target, &message)
-                    .await?
+                    .await?;
             }
             Ok(Ok(UdpRelayMessage::Terminate) | Err(NoMessages)) => return Ok(()),
             // Received an incoming packet.

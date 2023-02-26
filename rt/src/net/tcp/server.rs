@@ -496,7 +496,7 @@ where
             // Set the waker of the inbox to ensure we get run when we receive a
             // message.
             this.ctx.register_inbox_waker(ctx.waker());
-            this.set_waker = true
+            this.set_waker = true;
         }
 
         // See if we need to shutdown.

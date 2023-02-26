@@ -79,7 +79,7 @@ where
         match either(ctx.receive_next(), stream.recv(&mut buf)).await {
             // Received an outgoing message we want to relay to a remote actor.
             Ok(Ok(RelayMessage::Relay(msg))) => {
-                send_message::<S, Out>(&mut stream, &mut buf, &mut uuid_gen, &msg).await?
+                send_message::<S, Out>(&mut stream, &mut buf, &mut uuid_gen, &msg).await?;
             }
             Ok(Ok(RelayMessage::Terminate) | Err(NoMessages)) => return Ok(()),
             // Received some incoming data.

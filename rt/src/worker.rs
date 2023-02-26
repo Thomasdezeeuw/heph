@@ -681,7 +681,7 @@ impl Worker {
                         self.log_metrics();
                     }
 
-                    self.relay_signal(signal)?
+                    self.relay_signal(signal)?;
                 }
                 Control::Run(f) => self.run_user_function(f)?,
             }

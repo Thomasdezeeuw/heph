@@ -141,7 +141,7 @@ where
         self.new_actor.new(ctx, arg).map(|actor| {
             // We pin the actor here to ensure its dropped in place when
             // replacing it with out new actor.
-            unsafe { Pin::new_unchecked(&mut self.actor) }.set(actor)
+            unsafe { Pin::new_unchecked(&mut self.actor) }.set(actor);
         })
     }
 }

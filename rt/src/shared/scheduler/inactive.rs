@@ -503,7 +503,7 @@ impl Branch {
                 Err(old) => {
                     // We failed to use `branch`, so we can use it again.
                     w_branch = Some(branch);
-                    old_ptr = old
+                    old_ptr = old;
                 }
             }
 

@@ -159,7 +159,7 @@ impl Scheduler {
             Box::pin(FutureProcess::<Fut, ThreadSafe>::new(future)),
         ));
         debug!(pid = process.as_ref().id().0; "spawning thread-safe future");
-        self.ready.add(process)
+        self.ready.add(process);
     }
 
     /// Mark the process, with `pid`, as ready to run.
@@ -254,7 +254,7 @@ impl<'s> AddActor<'s> {
         if is_ready {
             scheduler.ready.add(process);
         } else {
-            scheduler.add_process(process)
+            scheduler.add_process(process);
         }
     }
 }

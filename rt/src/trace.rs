@@ -517,7 +517,7 @@ pub(crate) fn finish_rt<L>(
 ) where
     L: TraceLog,
 {
-    finish(log, timing, RT_SUBSTREAM_ID, description, attributes)
+    finish(log, timing, RT_SUBSTREAM_ID, description, attributes);
 }
 
 /// Timing an event.
@@ -609,7 +609,7 @@ mod private {
         }
 
         fn write_attribute(&self, buf: &mut Vec<u8>) {
-            (**self).write_attribute(buf)
+            (**self).write_attribute(buf);
         }
     }
 
@@ -687,7 +687,7 @@ mod private {
         }
 
         fn write_attribute(&self, buf: &mut Vec<u8>) {
-            (**self).write_attribute(buf)
+            (**self).write_attribute(buf);
         }
     }
 
@@ -712,7 +712,7 @@ mod private {
             let length = self.len() as u16;
             buf.extend_from_slice(&length.to_be_bytes());
             for attribute in self.iter() {
-                attribute.write_attribute(buf)
+                attribute.write_attribute(buf);
             }
         }
     }
@@ -728,7 +728,7 @@ mod private {
         }
 
         fn write_attribute(&self, buf: &mut Vec<u8>) {
-            self[..].write_attribute(buf)
+            self[..].write_attribute(buf);
         }
     }
 

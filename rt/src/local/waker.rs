@@ -121,7 +121,7 @@ impl Waker {
             return;
         }
 
-        self.wake_thread()
+        self.wake_thread();
     }
 
     /// Wake up the thread, without waking a specific process.
@@ -200,21 +200,21 @@ unsafe fn wake(data: *const ()) {
     // This is safe because we received the data from the `RawWaker`, which
     // doesn't modify the data.
     let data = WakerData::from_raw_data(data);
-    get(data.waker_id()).wake(data.pid())
+    get(data.waker_id()).wake(data.pid());
 }
 
 unsafe fn wake_by_ref(data: *const ()) {
     assert_copy::<WakerData>();
     // Since we `WakerData` is `Copy` `wake` doesn't actually consume any data,
     // so we can just call it.
-    wake(data)
+    wake(data);
 }
 
 unsafe fn drop_wake_data(data: *const ()) {
     assert_copy::<WakerData>();
     // Since the data is `Copy` we don't have to anything.
     #[allow(clippy::drop_copy)]
-    drop(data)
+    drop(data);
 }
 
 #[cfg(test)]

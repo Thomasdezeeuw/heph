@@ -663,7 +663,7 @@ fn format_name(full_name: &'static str) -> &'static str {
                         name = &name[module_index + 2..];
                     } // Else only a single module in path.
                 } else {
-                    name = actor_name
+                    name = actor_name;
                 }
             }
         }

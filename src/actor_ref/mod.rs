@@ -732,7 +732,7 @@ impl<M> ActorGroup<M> {
 
     /// Add an `ActorRef` to the group.
     pub fn add(&mut self, actor_ref: ActorRef<M>) {
-        self.actor_refs.push(actor_ref)
+        self.actor_refs.push(actor_ref);
     }
 
     /// Add an `ActorRef` to the group, iff it's not already in the group.
@@ -743,7 +743,7 @@ impl<M> ActorGroup<M> {
                 return;
             }
         }
-        self.actor_refs.push(actor_ref)
+        self.actor_refs.push(actor_ref);
     }
 
     /// Remove all actor references which point to the same actor as
@@ -874,7 +874,7 @@ impl<M> Clone for ActorGroup<M> {
 
     fn clone_from(&mut self, source: &Self) {
         self.actor_refs.clone_from(&source.actor_refs);
-        *self.send_next.get_mut() = 0
+        *self.send_next.get_mut() = 0;
     }
 }
 

@@ -42,7 +42,7 @@ pub fn set_message_loss(mut percent: u8) {
     if percent > 100 {
         percent = 100;
     }
-    MSG_LOSS.store(percent, Ordering::SeqCst)
+    MSG_LOSS.store(percent, Ordering::SeqCst);
 }
 
 /// Returns `true` if the message should be lost.

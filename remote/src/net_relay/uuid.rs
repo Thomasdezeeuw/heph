@@ -66,7 +66,7 @@ impl PartialEq for Uuid {
 
 impl Hash for Uuid {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        u128::from_ne_bytes(self.0).hash(state)
+        u128::from_ne_bytes(self.0).hash(state);
     }
 }
 

@@ -164,7 +164,7 @@ unsafe fn wake_by_ref(data: *const ()) {
     assert_copy::<WakerData>();
     // Since `WakerData` is `Copy` `wake` doesn't actually consume any data, so
     // we can just call it.
-    wake(data)
+    wake(data);
 }
 
 unsafe fn drop_wake_data(_: *const ()) {

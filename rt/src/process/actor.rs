@@ -145,7 +145,7 @@ where
         self.new_actor.new(ctx, arg).map(|actor| {
             // We pin the actor here to ensure its dropped in place when
             // replacing it with out new actor.
-            unsafe { Pin::new_unchecked(&mut self.actor) }.set(actor)
+            unsafe { Pin::new_unchecked(&mut self.actor) }.set(actor);
         })
     }
 }
@@ -209,7 +209,7 @@ impl RuntimeSupport for ThreadLocal {
     }
 
     fn mark_ready(runtime_ref: &mut RuntimeRef, pid: ProcessId) {
-        runtime_ref.mark_ready_local(pid)
+        runtime_ref.mark_ready_local(pid);
     }
 }
 
@@ -223,6 +223,6 @@ impl RuntimeSupport for ThreadSafe {
     }
 
     fn mark_ready(runtime_ref: &mut RuntimeRef, pid: ProcessId) {
-        runtime_ref.mark_ready_shared(pid)
+        runtime_ref.mark_ready_shared(pid);
     }
 }

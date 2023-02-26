@@ -99,7 +99,7 @@ where
     }
 
     unsafe fn update_length(&mut self, n: usize) {
-        (**self).update_length(n)
+        (**self).update_length(n);
     }
 }
 
@@ -448,7 +448,7 @@ where
     }
 
     unsafe fn update_lengths(&mut self, n: usize) {
-        (**self).update_lengths(n)
+        (**self).update_lengths(n);
     }
 }
 

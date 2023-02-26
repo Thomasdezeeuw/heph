@@ -359,7 +359,7 @@ impl SyncWaker {
                         return None;
                     }
 
-                    thread::park_timeout(timeout - elapsed)
+                    thread::park_timeout(timeout - elapsed);
                 }
             }
         }

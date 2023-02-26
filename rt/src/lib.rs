@@ -399,7 +399,7 @@ impl Runtime {
     {
         self.coordinator
             .shared_internals()
-            .spawn_future(future, options)
+            .spawn_future(future, options);
     }
 
     /// Run the function `f` on all worker threads.
@@ -584,7 +584,7 @@ impl RuntimeRef {
         self.internals
             .scheduler
             .borrow_mut()
-            .add_future(future, options.priority())
+            .add_future(future, options.priority());
     }
 
     /// Spawn a thread-safe [`Future`].
@@ -596,7 +596,7 @@ impl RuntimeRef {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        self.internals.shared.spawn_future(future, options)
+        self.internals.shared.spawn_future(future, options);
     }
 
     /// Receive [process signals] as messages.
@@ -609,7 +609,7 @@ impl RuntimeRef {
         self.internals
             .signal_receivers
             .borrow_mut()
-            .add_unique(actor_ref)
+            .add_unique(actor_ref);
     }
 
     /// Register an `event::Source`, see [`mio::Registry::register`].
@@ -718,7 +718,7 @@ impl RuntimeRef {
             pid.0 as u64,
             description,
             attributes,
-        )
+        );
     }
 }
 

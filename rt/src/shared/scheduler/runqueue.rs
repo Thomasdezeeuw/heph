@@ -59,9 +59,9 @@ impl RunQueue {
                     // Select the next node in the branch to attempt to add
                     // ourselves to.
                     if node.process < process {
-                        next_node = &mut node.left
+                        next_node = &mut node.left;
                     } else {
-                        next_node = &mut node.right
+                        next_node = &mut node.right;
                     }
                 }
                 None => {
