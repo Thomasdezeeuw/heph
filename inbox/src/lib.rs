@@ -71,6 +71,7 @@ use std::fmt;
 use std::future::Future;
 use std::mem::{drop as unlock, replace, take, MaybeUninit};
 use std::ops::Deref;
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::pin::Pin;
 use std::ptr::{self, NonNull};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
@@ -417,12 +418,14 @@ impl<T> fmt::Debug for Sender<T> {
     }
 }
 
+impl<T> Unpin for Sender<T> {}
+
 // SAFETY: if the value can be send across thread than so can the channel.
 unsafe impl<T: Send> Send for Sender<T> {}
-
 unsafe impl<T> Sync for Sender<T> {}
 
-impl<T> Unpin for Sender<T> {}
+impl<T: RefUnwindSafe> RefUnwindSafe for Sender<T> {}
+impl<T: RefUnwindSafe> UnwindSafe for Sender<T> {}
 
 impl<T> Drop for Sender<T> {
     #[rustfmt::skip]
@@ -853,8 +856,10 @@ impl<T: fmt::Debug> fmt::Debug for Receiver<T> {
 
 // SAFETY: if the value can be send across thread than so can the channel.
 unsafe impl<T: Send> Send for Receiver<T> {}
-
 unsafe impl<T> Sync for Receiver<T> {}
+
+impl<T: RefUnwindSafe> RefUnwindSafe for Receiver<T> {}
+impl<T: RefUnwindSafe> UnwindSafe for Receiver<T> {}
 
 impl<T> Unpin for Receiver<T> {}
 
