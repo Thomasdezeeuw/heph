@@ -90,7 +90,9 @@ macro_rules! fence {
         #[cfg_attr(unstable_nightly, not(sanitize = "thread"))]
         std::sync::atomic::fence($ordering);
         #[cfg_attr(unstable_nightly, sanitize = "thread")]
-        let _ = $val.load($ordering);
+        {
+            _ = $val.load($ordering);
+        }
     };
 }
 
@@ -118,9 +120,7 @@ pub fn new_small<T>() -> (Sender<T>, Receiver<T>) {
 pub fn new<T>(capacity: usize) -> (Sender<T>, Receiver<T>) {
     assert!(
         (MIN_CAP..=MAX_CAP).contains(&capacity),
-        "inbox channel capacity must be between {} and {}",
-        MIN_CAP,
-        MAX_CAP
+        "inbox channel capacity must be between {MIN_CAP} and {MAX_CAP}",
     );
     let channel = Channel::new(capacity);
     let sender = Sender { channel };
@@ -374,7 +374,7 @@ fn try_send<T>(channel: &Channel<T>, value: T) -> Result<(), SendError<T>> {
         // SAFETY: we've acquired the slot above so we're ensured unique
         // access to the slot.
         unsafe {
-            let _ = (*channel.slots[slot].get()).write(value);
+            let _: &mut T = (*channel.slots[slot].get()).write(value);
         }
 
         // Now we've writing to the slot we can mark it slot as filled.
@@ -518,11 +518,14 @@ unsafe impl<'s, T> Sync for SendValue<'s, T> {}
 
 impl<'s, T> Drop for SendValue<'s, T> {
     fn drop(&mut self) {
+        // If we registered a waker remove ourselves from the list.
         if let Some(waker) = self.registered_waker.take() {
             let mut sender_wakers = self.channel.sender_wakers.lock().unwrap();
             let idx = sender_wakers.iter().position(|w| w.will_wake(&waker));
             if let Some(idx) = idx {
-                drop(sender_wakers.swap_remove(idx));
+                let waker = sender_wakers.swap_remove(idx);
+                unlock(sender_wakers);
+                drop(waker);
             }
         }
     }
@@ -570,7 +573,9 @@ impl<'s, T> Drop for Join<'s, T> {
             let mut join_wakers = self.channel.join_wakers.lock().unwrap();
             let idx = join_wakers.iter().position(|w| w.will_wake(&waker));
             if let Some(idx) = idx {
-                drop(join_wakers.swap_remove(idx));
+                let waker = join_wakers.swap_remove(idx);
+                unlock(join_wakers);
+                drop(waker);
             }
         }
     }
@@ -610,8 +615,7 @@ fn register_waker(
             let waker = waker.clone();
             *registered_waker = Some(waker.clone());
 
-            let mut channel_wakers = channel_wakers.lock().unwrap();
-            channel_wakers.push(waker);
+            channel_wakers.lock().unwrap().push(waker);
             true
         }
     }
@@ -697,7 +701,7 @@ impl<T> Receiver<T> {
         // For the reasoning behind this relaxed ordering see `Arc::clone`.
         let old_ref_count = self.channel().ref_count.fetch_add(1, Ordering::Relaxed);
         if old_ref_count & SENDER_ACCESS != 0 {
-            let _ = self
+            _ = self
                 .channel()
                 .ref_count
                 .fetch_or(SENDER_ACCESS, Ordering::Relaxed);
@@ -1063,9 +1067,10 @@ impl<T> Channel<T> {
 
     /// Returns the next `task::Waker` to wake, if any.
     fn wake_next_sender(&self) {
-        let mut sender_wakers = self.sender_wakers.lock().unwrap();
-        let waker = (!sender_wakers.is_empty()).then(|| sender_wakers.swap_remove(0));
-        unlock(sender_wakers);
+        let waker = {
+            let mut sender_wakers = self.sender_wakers.lock().unwrap();
+            (!sender_wakers.is_empty()).then(|| sender_wakers.swap_remove(0))
+        };
         if let Some(waker) = waker {
             waker.wake();
         }
@@ -1073,9 +1078,7 @@ impl<T> Channel<T> {
 
     /// Wakes all wakers waiting on the sender to disconnect.
     fn wake_all_join(&self) {
-        let mut join_wakers = self.join_wakers.lock().unwrap();
-        let wakers = take(&mut *join_wakers);
-        unlock(join_wakers);
+        let wakers = take(&mut *self.join_wakers.lock().unwrap());
         for waker in wakers {
             waker.wake();
         }
@@ -1194,7 +1197,7 @@ impl<T> Manager<T> {
         // For the reasoning behind this relaxed ordering see `Arc::clone`.
         let old_ref_count = self.channel().ref_count.fetch_add(1, Ordering::Relaxed);
         if old_ref_count & SENDER_ACCESS != 0 {
-            let _ = self
+            _ = self
                 .channel()
                 .ref_count
                 .fetch_or(SENDER_ACCESS, Ordering::Relaxed);
@@ -1252,7 +1255,7 @@ impl<T> Drop for Manager<T> {
         if has_receiver(old_ref_count) {
             // If the channel has a receiver we only mark the manager as dropped
             // (above).
-            let _ = self.channel().ref_count.fetch_and(!MANAGER_ACCESS, Ordering::Release);
+            _ = self.channel().ref_count.fetch_and(!MANAGER_ACCESS, Ordering::Release);
             return;
         }
 
@@ -1263,7 +1266,7 @@ impl<T> Drop for Manager<T> {
         // the function).
         let receiver = Receiver { channel: self.channel };
 
-        let _ = self.channel().ref_count.fetch_and(!MANAGER_ACCESS, Ordering::Release);
+        _ = self.channel().ref_count.fetch_and(!MANAGER_ACCESS, Ordering::Release);
         // Let the receiver do the cleanup.
         drop(receiver);
     }
