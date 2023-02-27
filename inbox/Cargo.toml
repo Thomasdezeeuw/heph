@@ -13,7 +13,7 @@ readme        = "README.md"
 keywords      = ["inbox", "channel", "actor", "async"]
 categories    = ["asynchronous"]
 include       = ["/Cargo.toml", "src/**/*.rs", "/README.md", "/LICENSE"]
-edition       = "2018"
+edition       = "2021"
 
 [features]
 # Enables some tests that take a long time to run.
