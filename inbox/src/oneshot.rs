@@ -235,7 +235,8 @@ impl<T> Receiver<T> {
                 Err(RecvError::Disconnected)
             }
         } else {
-            // SAFETY: since we're the only thread with access this is safe.
+            // SAFETY: since this is a one-shot channel, after the sender send
+            // it's only message we're the only thread with access this is safe.
             let msg = unsafe { (*shared.message.get()).assume_init_read() };
             Ok(msg)
         }
@@ -276,8 +277,8 @@ impl<T> Receiver<T> {
         // `Sender::try_send`'s status update after the write.
         let status = shared.status.load(Ordering::Acquire);
 
-        // NOTE: we need to check `SENDER_ACCESS` here as we're going to
-        // overwrite (`store`) the status below. If the `Sender` was not yet
+        // NOTE: we need to check if the sender has access here as we're going
+        // to overwrite (`store`) the status below. If the `Sender` was not yet
         // fully dropped (i.e. unset `SENDER_ACCESS`) this can lead to
         // use-after-free and double-free.
         if has_sender_access(status) {
@@ -286,7 +287,7 @@ impl<T> Receiver<T> {
         } else if is_filled(status) {
             // Sender send a value we need to drop.
             // SAFETY: since the sender is no longer alive (checked above) we're
-            // the only type (and thread) with access making this safe.
+            // the only thread with access making this safe.
             unsafe { (*shared.message.get()).assume_init_drop() }
         }
 
