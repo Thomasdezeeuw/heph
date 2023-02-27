@@ -343,7 +343,7 @@ fn relay_signals(
                 }
 
                 debug!(signal = as_debug!(signal); "relaying process signal to actors");
-                let _ = signal_refs.try_send(signal, Delivery::ToAll);
+                _ = signal_refs.try_send(signal, Delivery::ToAll);
             }
             Ok(None) => break,
             Err(err) => {

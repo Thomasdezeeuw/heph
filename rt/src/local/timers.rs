@@ -317,7 +317,7 @@ where
     Timer<T>: Ord + Copy,
 {
     if let Ok(idx) = timers.binary_search(&timer) {
-        let _ = timers.remove(idx);
+        _ = timers.remove(idx);
     }
 }
 

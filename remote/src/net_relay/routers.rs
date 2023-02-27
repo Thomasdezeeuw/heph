@@ -100,7 +100,7 @@ where
         where Self: 'a;
 
     fn route<'a>(&'a mut self, msg: M, _: SocketAddr) -> Self::Route<'a> {
-        let _ = self.actor_group.try_send(msg, self.delivery);
+        _ = self.actor_group.try_send(msg, self.delivery);
         ready(Ok(()))
     }
 }

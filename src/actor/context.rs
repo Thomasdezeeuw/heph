@@ -135,7 +135,7 @@ impl<M, RT> Context<M, RT> {
     /// Sets the waker of the inbox to `waker`.
     #[doc(hidden)] // Not part of the stable API.
     pub fn register_inbox_waker(&mut self, waker: &task::Waker) {
-        let _ = self.inbox.register_waker(waker);
+        _ = self.inbox.register_waker(waker);
     }
 }
 

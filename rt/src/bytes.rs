@@ -461,7 +461,7 @@ where
     fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
         let mut bufs = MaybeUninit::uninit_array::<N>();
         for (i, buf) in self.iter_mut().enumerate() {
-            let _ = bufs[i].write(MaybeUninitSlice::new(buf.as_bytes()));
+            _ = bufs[i].write(MaybeUninitSlice::new(buf.as_bytes()));
         }
         // Safety: initialised the buffers above.
         unsafe { MaybeUninit::array_assume_init(bufs) }
@@ -498,7 +498,7 @@ macro_rules! impl_vectored_bytes_tuple {
             fn as_bufs<'b>(&'b mut self) -> Self::Bufs<'b> {
                 let mut bufs = MaybeUninit::uninit_array::<$N>();
                 $(
-                    let _ = bufs[$idx].write(MaybeUninitSlice::new(self.$idx.as_bytes()));
+                    _ = bufs[$idx].write(MaybeUninitSlice::new(self.$idx.as_bytes()));
                 )+
                 // Safety: initialised the buffers above.
                 unsafe { MaybeUninit::array_assume_init(bufs) }

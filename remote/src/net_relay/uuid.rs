@@ -146,7 +146,7 @@ impl<'de> Deserialize<'de> for Uuid {
 
 /// `input` must be 32 bytes long.
 fn from_hex(input: &[u8]) -> Result<Uuid, ()> {
-    let _ = input[31];
+    _ = input[31];
     let mut bytes = [0; 16];
     for (idx, chunk) in input.chunks_exact(2).enumerate() {
         let lower = from_hex_byte(chunk[1])?;
@@ -158,7 +158,7 @@ fn from_hex(input: &[u8]) -> Result<Uuid, ()> {
 
 /// `input` must be 36 bytes long.
 fn from_hex_hyphenated(input: &[u8]) -> Result<Uuid, ()> {
-    let _ = input[35];
+    _ = input[35];
     let mut bytes = [0; 16];
     let mut idx = 0;
     for group in HYPHENS {

@@ -160,7 +160,7 @@ where
 {
     let (sender, mut receiver) = new_oneshot();
     let waker = SyncWaker::new();
-    let _ = receiver.register_waker(&task::Waker::from(waker.clone()));
+    _ = receiver.register_waker(&task::Waker::from(waker.clone()));
     run_on_test_runtime(move |runtime_ref| {
         drop(sender.try_send(f(runtime_ref)));
         Ok(())

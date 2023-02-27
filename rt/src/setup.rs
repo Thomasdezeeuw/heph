@@ -385,7 +385,7 @@ pub(crate) fn host_id() -> io::Result<Uuid> {
 pub(crate) fn set_cpu_affinity(worker_id: NonZeroUsize) -> Option<usize> {
     #[cfg(not(target_os = "linux"))]
     {
-        let _ = worker_id; // Silence unused variables warnings.
+        _ = worker_id; // Silence unused variables warnings.
         None
     }
 

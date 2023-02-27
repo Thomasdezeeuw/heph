@@ -246,7 +246,7 @@ impl<'s> AddActor<'s> {
             mut alloc,
         } = self;
         let process: Pin<_> = unsafe {
-            let _ = alloc.write(process);
+            _ = alloc.write(process);
             // Safe because we write into the allocation above.
             alloc.assume_init().into()
         };

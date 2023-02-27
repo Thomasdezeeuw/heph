@@ -874,7 +874,7 @@ impl<M> ActorGroup<M> {
         match delivery {
             Delivery::ToAll => {
                 for actor_ref in &self.actor_refs {
-                    let _ = actor_ref.try_send(msg.clone());
+                    _ = actor_ref.try_send(msg.clone());
                 }
                 Ok(())
             }

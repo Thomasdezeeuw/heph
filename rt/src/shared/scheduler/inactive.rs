@@ -168,11 +168,11 @@ impl Inactive {
             0 => {}
             n if n.is_negative() => {
                 // Safety: needs to sync with below.
-                let _ = self.length.fetch_sub(-n as usize, Ordering::AcqRel);
+                _ = self.length.fetch_sub(-n as usize, Ordering::AcqRel);
             }
             n => {
                 // Safety: needs to sync with above.
-                let _ = self.length.fetch_add(n as usize, Ordering::AcqRel);
+                _ = self.length.fetch_add(n as usize, Ordering::AcqRel);
             }
         }
     }
