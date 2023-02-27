@@ -1,7 +1,7 @@
 //! One-shot channel.
 //!
-//! The channel allows you to send a single value and that it. It does allow the
-//! channel's allocation to be reused via [`Receiver::try_reset`]. It is
+//! The channel allows you to send a single value and that's it. It does allow
+//! the channel's allocation to be reused via [`Receiver::try_reset`]. It is
 //! designed to be used for [Remote Procedure Calls (RPC)].
 //!
 //! [Remote Procedure Calls (RPC)]: https://en.wikipedia.org/wiki/Remote_procedure_call
@@ -16,12 +16,12 @@
 //!
 //! use heph_inbox::oneshot::{RecvError, new_oneshot};
 //!
-//! // Create a new small channel.
+//! // Create a new one-shot channel.
 //! let (sender, mut receiver) = new_oneshot();
 //!
 //! let sender_handle = thread::spawn(move || {
 //!     if let Err(err) = sender.try_send("Hello world!".to_owned()) {
-//!         panic!("Failed to send value: {}", err);
+//!         panic!("Failed to send value: {err}");
 //!     }
 //! });
 //!
@@ -32,7 +32,7 @@
 //!     // will waste CPU cycles when the channel is empty!
 //!     loop {
 //!         match receiver.try_recv() {
-//!             Ok(value) => println!("Got a value: {}", value),
+//!             Ok(value) => println!("Got the value: {value}"),
 //!             Err(RecvError::NoValue) => continue,
 //!             Err(RecvError::Disconnected) => break,
 //!         }

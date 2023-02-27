@@ -30,7 +30,7 @@
 //!
 //! let sender_handle = thread::spawn(move || {
 //!     if let Err(err) = sender.try_send("Hello world!".to_owned()) {
-//!         panic!("Failed to send value: {}", err);
+//!         panic!("Failed to send value: {err}");
 //!     }
 //! });
 //!
@@ -41,7 +41,7 @@
 //!     // will waste CPU cycles when the channel is empty!
 //!     loop {
 //!         match receiver.try_recv() {
-//!             Ok(value) => println!("Got a value: {}", value),
+//!             Ok(value) => println!("Got a value: {value}"),
 //!             Err(RecvError::Empty) => continue,
 //!             Err(RecvError::Disconnected) => break,
 //!         }
@@ -396,8 +396,8 @@ fn try_send<T>(channel: &Channel<T>, value: T) -> Result<(), SendError<T>> {
 
 /// # Safety
 ///
-/// Only `2 ^ 30` (a billion) `Sender`s may be alive concurrently, more then
-/// enough for all practical use cases.
+/// Only `2 ^ 30` (a billion) `Sender`s may be alive concurrently, more than
+/// enough for most practical use cases.
 impl<T> Clone for Sender<T> {
     fn clone(&self) -> Sender<T> {
         // For the reasoning behind this relaxed ordering see `Arc::clone`.
@@ -689,7 +689,7 @@ impl<T> Receiver<T> {
     /// The same restrictions apply to this function as they do to
     /// [`Sender::clone`].
     ///
-    /// [`Sender::clone`]: struct.Sender.html#impl-Clone
+    /// [`Sender::clone`]: struct.Sender.html#impl-Clone-for-Sender<T>
     pub fn new_sender(&self) -> Sender<T> {
         // For the reasoning behind this relaxed ordering see `Arc::clone`.
         let old_ref_count = self.channel().ref_count.fetch_add(1, Ordering::Relaxed);
@@ -1267,7 +1267,7 @@ impl<T> Drop for Manager<T> {
 /// Identifier of a channel.
 ///
 /// This type can be created by calling [`Sender::id`] or [`Receiver::id`] and
-/// be used to identify channels. It only use case is to compare two ids with
+/// be used to identify channels. Its only use case is to compare two ids with
 /// one another, if two id are the same the sender(s) and receiver(s) point to
 /// the same channel.
 ///
