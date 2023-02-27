@@ -1,12 +1,16 @@
 //! Utilities to support [systemd].
 //!
-//! The module has two main types:
-//!  * [`Notify`]: a connection to the service manager.
-//!  * [`actor`]: is an actor to manage the communication with the service
-//!    manager.
+//! This module provides some utilities to run the application as a systemd
+//! service, allowing it to inform systemd of it's state. This can only be done
+//! if the service is started by systemd and it's `Type` set to `notify`, see
+//! [`systemd.service(5)`] for more information.
+//!
+//! To notify systemd of changes you can use [`Notify`], which represents a
+//! connection to the service manager. Or you can use the [`watchdog`] actor to
+//! manage the communication with the service manager for you.
 //!
 //! [systemd]: https://systemd.io
-//! [`actor`]: actor()
+//! [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html#Type=
 
 use std::convert::TryFrom;
 use std::ffi::OsString;
@@ -99,6 +103,9 @@ impl Notify {
     }
 
     /// Create a systemd notifier connected to `path`.
+    ///
+    /// Also see [`Notify::new`] which creates a new `systemd::Notify` based on
+    /// the environment variables set by systemd.
     pub fn connect<M, RT, P>(ctx: &mut actor::Context<M, RT>, path: P) -> io::Result<Notify>
     where
         RT: rt::Access,
@@ -138,6 +145,7 @@ impl Notify {
     /// pass a human-readable error message. **Note that it must be limited to a
     /// single line.**
     pub fn change_state<'a>(&'a self, state: State, status: Option<&str>) -> ChangeState<'a> {
+        debug!(state = log::as_debug!(state), status = log::as_debug!(status); "updating state with service manager");
         let state_line = match state {
             State::Ready => "READY=1\n",
             State::Reloading => "RELOADING=1\n",
@@ -173,6 +181,7 @@ impl Notify {
     /// If you also need to change the state of the application you can use
     /// [`Notify::change_state`].
     pub fn change_status<'a>(&'a self, status: &str) -> ChangeState<'a> {
+        debug!(status = log::as_display!(status); "updating status with service manager");
         let mut state_update = String::with_capacity(7 + status.len() + 1);
         state_update.push_str("STATUS=");
         state_update.push_str(status);
@@ -189,6 +198,7 @@ impl Notify {
     /// Send a keep-alive ping that services need to issue in regular intervals
     /// if `WatchdogSec=` is enabled for it.
     pub fn ping_watchdog<'a>(&'a self) -> PingWatchdog<'a> {
+        debug!("pinging service manager watchdog");
         PingWatchdog { notifier: self }
     }
 
@@ -204,6 +214,7 @@ impl Notify {
     ///
     /// [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html
     pub fn trigger_watchdog<'a>(&'a self) -> TriggerWatchdog<'a> {
+        debug!("triggering service manager watchdog");
         TriggerWatchdog { notifier: self }
     }
 }
@@ -314,12 +325,23 @@ impl<RT: rt::Access> Bound<RT> for Notify {
 ///
 /// It will set the application state (with the service manager) to ready when
 /// it is spawned. Once it receives a signal (in the form of a  message) it will
-/// set the state to stopping.
+/// update the state accordingly.
 ///
 /// Finally it will ping the service manager if a watchdog is active. It will
 /// check using `health_check` on the current status of the application.
+///
+/// # Notes
+///
+/// This actor will stop if one of the following conditions is true:
+///  * If the service is not started by systemd.
+///  * Once this receives a message with state set to `State::Stopping`.
+///  * Once all actor references pointing to this actor are dropped. If this
+///    happens it will also set the state to `State::Stopping`.
+///
+/// If no systemd watchdog is active (i.e. `WatchdogSec` is not set in the
+/// systemd service configuration) this will not call `health_check`.
 #[allow(clippy::future_not_send)]
-pub async fn actor<RT, H, E>(
+pub async fn watchdog<RT, H, E>(
     mut ctx: actor::Context<ServiceMessage, RT>,
     mut health_check: H,
 ) -> io::Result<()>
@@ -344,32 +366,25 @@ where
             match either(ctx.receive_next(), next(&mut interval)).await {
                 Ok(Ok(msg)) => match msg {
                     ServiceMessage::ChangeState { state, status } => {
-                        debug!("setting state to {state:?}, {status:?} with service manager");
                         notify.change_state(state, status.as_deref()).await?;
                         if let State::Stopping = state {
                             return Ok(());
                         }
                     }
-                    ServiceMessage::ChangeStatus(status) => {
-                        debug!("setting status with service manager to '{status}'");
-                        notify.change_status(&status).await?;
-                    }
+                    ServiceMessage::ChangeStatus(status) => notify.change_status(&status).await?,
                 },
                 Ok(Err(_)) => {
                     // All actor references are dropped since we don't have any
                     // other stopping reason we'll stop now instead of running
                     // for ever.
-                    warn!("all references to the systemd::watchdog are dropped, stopping it");
-                    return Ok(());
+                    break;
                 }
                 // Deadline passed, ping the service manager.
                 Err(_) => {
                     if let Err(err) = health_check() {
                         let err = err.to_string();
-                        debug!("setting status with service manager to '{err}'");
                         notify.change_status(&err).await?;
                     } else {
-                        debug!("pinging service manager watchdog");
                         notify.ping_watchdog().await?;
                     }
                 }
@@ -380,24 +395,28 @@ where
         while let Ok(msg) = ctx.receive_next().await {
             match msg {
                 ServiceMessage::ChangeState { state, status } => {
-                    debug!("setting state to {state:?}, {status:?} with service manager");
                     notify.change_state(state, status.as_deref()).await?;
                     if let State::Stopping = state {
                         return Ok(());
                     }
                 }
                 ServiceMessage::ChangeStatus(status) => {
-                    debug!("setting status with service manager to '{status}'");
                     notify.change_status(&status).await?;
                 }
             }
         }
-        debug!("setting state to stopping with service manager");
-        notify.change_state(State::Stopping, None).await
     }
+    debug!("all references to the systemd::watchdog are dropped, stopping it");
+    notify.change_state(State::Stopping, None).await
 }
 
 /// Message to send to the service manager.
+///
+/// # Notes
+///
+/// The implements [`TryFrom`]`<`[`Signal`]`>` so that the actor reference can
+/// handle process signal automatically by setting the state to
+/// [`State::Stopping`].
 #[non_exhaustive]
 #[derive(Debug)]
 pub enum ServiceMessage {
@@ -435,7 +454,7 @@ impl TryFrom<Signal> for ServiceMessage {
             Signal::Interrupt | Signal::Terminate | Signal::Quit => {
                 Ok(ServiceMessage::ChangeState {
                     state: State::Stopping,
-                    status: None,
+                    status: Some("stopping after process signal".into()),
                 })
             }
             _ => Err(()),
