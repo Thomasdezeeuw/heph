@@ -175,6 +175,7 @@ use std::error::Error;
 use std::fmt;
 use std::future::Future;
 use std::iter::FromIterator;
+use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -210,6 +211,9 @@ enum ActorRefKind<M> {
 #[allow(clippy::non_send_fields_in_send_ty)]
 unsafe impl<M: Send> Send for ActorRefKind<M> {}
 unsafe impl<M: Send> Sync for ActorRefKind<M> {}
+
+impl<T: RefUnwindSafe> RefUnwindSafe for ActorRefKind<T> {}
+impl<T: RefUnwindSafe> UnwindSafe for ActorRefKind<T> {}
 
 // `ActorRefKind` is safe to move around independent of `M` as it's already heap
 // allocated.
