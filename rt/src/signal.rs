@@ -23,6 +23,7 @@ use std::fmt;
 /// the actor has enough room to receive the message.
 ///
 /// [`rt::Setup::build`]: crate::Setup::build
+#[non_exhaustive]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Signal {
     /// Interrupt signal.
