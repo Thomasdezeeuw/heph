@@ -33,16 +33,19 @@
 //! actors should run as thread-*local* actors however. To spawn a thread-local
 //! actor see the [`Spawn`] implementation for [`RuntimeRef`] or
 //! [`RuntimeRef::try_spawn_local`], which can spawn both thread-safe and
-//! thread-local actors. For documentation on the different kind of actors see
-//! the [`actor`] module.
+//! thread-local actors. For more information on the different kind of actors
+//! see the [`heph::actor`] documentation and the documentation in the [`spawn`]
+//! module.
 //!
-//! To help with initialisation and spawning of thread-local actor it's possible
+//! To help with initialisation and spawning of thread-local actors it's possible
 //! to run functions on all worker threads using [`run_on_workers`]. This will
 //! run the same (cloned) function on all workers threads with access to a
 //! [`RuntimeRef`].
 //!
-//! Finally after configurating the runtime and spawning actors the runtime can
-//! be [`start`]ed, which runs all actors and waits for them to complete.
+//! Finally after setting up the runtime and spawning actors the runtime can be
+//! [`start`]ed, which runs all actors and waits for them to complete.
+//!
+//! For an example of all of the above, see below.
 //!
 //! [`setup`]: Runtime::setup
 //! [`new`]: Runtime::new
@@ -57,61 +60,74 @@
 //!
 //! ## Examples
 //!
-//! This simple example shows how to run a `Runtime` and add how start a single
-//! actor on each thread. This should print "Hello World" twice (once on each
-//! worker thread started).
+//! This example shows how to setup and run a [`Runtime`], adding a thread-local
+//! actor on each thread. This should print four messages:
+//!  * One from the synchronous actor.
+//!  * One from the asynchronous thread-safe actor.
+//!  * One from the asynchronous thread-local actor on each worker thread, thus
+//!    two in total.
 //!
 //! ```
-//! #![feature(never_type)]
-//!
+//! # #![feature(never_type)]
 //! use heph::actor;
 //! use heph::supervisor::NoSupervisor;
 //! use heph_rt::spawn::ActorOptions;
 //! use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 //!
 //! fn main() -> Result<(), rt::Error> {
-//!     // Build a new `Runtime` with two worker threads.
-//!     let mut runtime = Runtime::setup().num_threads(2).build()?;
-//!     // On each worker thread run our setup function.
+//!     // Build a new `Runtime`.
+//!     let mut runtime = Runtime::setup()
+//!         // We can set the application name.
+//!         .with_name("my_app".into())
+//!         // Set the number of worker threads to two.
+//!         .num_threads(2)
+//!         // Finally we build the runtime.
+//!         .build()?;
+//!
+//!     // Now the runtime is build we can start spawning our actors and
+//!     // futures.
+//!
+//!     // We'll start with spawning a synchronous actor.
+//!     // For more information on spawning actors see the spawn module.
+//!     let actor_ref runtime.spawn_sync_actor(NoSupervisor, sync_actor, (), SyncActorOptions::default())?;
+//!     // And sending it a message.
+//!     actor_ref.try_send("Alice").unwrap();
+//!
+//!     // Next a thread-safe actor.
+//!     let actor_ref = runtime.spawn(NoSupervisor, actor as fn(_, _) -> _, "thread-safe", ActorOptions::default());
+//!     actor_ref.try_send("Bob").unwrap();
+//!
+//!     // To spawn thread-safe actors we need to run it on the worker thread,
+//!     // which we can do using the `run_on_workers` function.
+//!     // `run_on_workers` simply runs the provided function on each worker
+//!     // thread.
 //!     runtime.run_on_workers(setup)?;
-//!     // And start the runtime.
+//!
+//!     // And once the setup is complete we can start the runtime.
+//!     // This will run all the actors we spawned.
 //!     runtime.start()
 //! }
 //!
 //! // This setup function will on run on each created thread. In the case of
 //! // this example we create two threads (see `main`).
 //! fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-//!     // Asynchronous function don't yet implement the required `NewActor`
-//!     // trait, but function pointers do so we cast our type to a function
-//!     // pointer.
-//!     let actor = actor as fn(_, _) -> _;
-//!     // Each actors needs to be supervised, but since our actor doesn't
-//!     // return an error (the error type is `!`) we can get away with our
-//!     // `NoSupervisor` which doesn't do anything (as it can never be called).
-//!     let supervisor = NoSupervisor;
-//!     // All actors start with one or more arguments, in our case it's message
-//!     // used to greet people with. See `actor` below.
-//!     let arg = "Hello";
-//!     // Spawn the actor to run on our actor runtime. We get an actor reference
-//!     // back which can be used to send the actor messages, see below.
-//!     let actor_ref = runtime_ref.spawn_local(supervisor, actor, arg, ActorOptions::default());
-//!
-//!     // Send a message to the actor we just spawned.
-//!     actor_ref.try_send("World").unwrap();
-//!
+//!     // Spawn a thread-local actor.
+//!     let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor as fn(_, _) -> _, "thread-local", ActorOptions::default());
+//!     actor_ref.try_send("Charlie").unwrap();
 //!     Ok(())
 //! }
 //!
-//! /// Our actor that greets people.
-//! async fn actor(mut ctx: actor::Context<&'static str, ThreadLocal>, msg: &'static str) {
-//!     // `msg` is the argument passed to `spawn` in the `setup` function
-//!     // above, in this example it was "Hello".
-//!
-//!     // Using the context we can receive messages send to this actor, so here
-//!     // we'll receive the "World" message we send in the `setup` function.
+//! /// Our synchronous actor.
+//! fn sync_actor(ctx: SyncContext<&'static str>) {
 //!     if let Ok(name) = ctx.receive_next().await {
-//!         // This should print "Hello world"!
-//!         println!("{msg} {name}");
+//!         println!("Hello {name} from sync actor");
+//!     }
+//! }
+//!
+//! /// Our asynchronous actor that can be run as a thread-local or thread-safe actor.
+//! async fn actor<RT>(mut ctx: actor::Context<&'static str, RT>, actor_kind: &'static str) {
+//!     if let Ok(name) = ctx.receive_next().await {
+//!         println!("Hello {name} from {actor_kind} actor");
 //!     }
 //! }
 //! ```
@@ -190,8 +206,7 @@ use std::convert::TryInto;
 use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::time::Duration;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{io, task};
 
 use ::log::{as_debug, debug, warn};
@@ -203,32 +218,32 @@ use mio::{event, Interest, Token};
 
 pub mod access;
 pub mod bytes;
-pub(crate) mod channel;
+mod channel;
 mod coordinator;
 mod error;
-pub(crate) mod local;
+mod local;
 pub mod log;
 pub mod net;
 pub mod pipe;
 mod process;
 mod setup;
-pub(crate) mod shared;
+mod shared;
 mod signal;
 pub mod spawn;
-pub(crate) mod sync_worker;
+mod sync_worker;
 #[cfg(target_os = "linux")]
 pub mod systemd;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
-pub(crate) mod thread_waker;
+mod thread_waker;
 pub mod timer;
 pub mod trace;
 #[doc(hidden)]
 pub mod util;
-pub(crate) mod worker;
+mod worker;
 
-pub(crate) use access::PrivateAccess;
-pub(crate) use process::ProcessId;
+use access::PrivateAccess;
+use process::ProcessId;
 
 #[doc(no_inline)]
 pub use access::{Access, Sync, ThreadLocal, ThreadSafe};
@@ -241,8 +256,8 @@ use local::waker::MAX_THREADS;
 use spawn::{ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn, SyncActorOptions};
 use sync_worker::SyncWorker;
 
-pub(crate) const SYNC_WORKER_ID_START: usize = 10000;
-pub(crate) const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
+const SYNC_WORKER_ID_START: usize = 10000;
+const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
 
 /// Returns `ptr` as `usize`.
 const fn ptr_as_usize<T>(ptr: *const T) -> usize {
@@ -613,12 +628,7 @@ impl RuntimeRef {
     }
 
     /// Register an `event::Source`, see [`mio::Registry::register`].
-    pub(crate) fn register<S>(
-        &mut self,
-        source: &mut S,
-        token: Token,
-        interest: Interest,
-    ) -> io::Result<()>
+    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
@@ -630,12 +640,7 @@ impl RuntimeRef {
     }
 
     /// Reregister an `event::Source`, see [`mio::Registry::reregister`].
-    pub(crate) fn reregister<S>(
-        &mut self,
-        source: &mut S,
-        token: Token,
-        interest: Interest,
-    ) -> io::Result<()>
+    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
     where
         S: event::Source + ?Sized,
     {
@@ -651,13 +656,13 @@ impl RuntimeRef {
     /// # Notes
     ///
     /// Prefer `new_waker` if possible, only use `task::Waker` for `Future`s.
-    pub(crate) fn new_local_task_waker(&self, pid: ProcessId) -> task::Waker {
+    fn new_local_task_waker(&self, pid: ProcessId) -> task::Waker {
         local::waker::new(self.internals.waker_id, pid)
     }
 
     /// Same as [`RuntimeRef::new_local_task_waker`] but provides a waker
     /// implementation for thread-safe actors.
-    pub(crate) fn new_shared_task_waker(&self, pid: ProcessId) -> task::Waker {
+    fn new_shared_task_waker(&self, pid: ProcessId) -> task::Waker {
         self.internals.shared.new_task_waker(pid)
     }
 
@@ -693,11 +698,11 @@ impl RuntimeRef {
     }
 
     /// Returns a copy of the shared internals.
-    pub(crate) fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
+    fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
         self.internals.shared.clone()
     }
 
-    pub(crate) fn cpu(&self) -> Option<usize> {
+    fn cpu(&self) -> Option<usize> {
         self.internals.cpu
     }
 

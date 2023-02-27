@@ -43,7 +43,7 @@ impl Error {
     /// Create an error to act as user-defined setup error.
     ///
     /// The `err` will be converted into a [`String`] (using [`ToString`], which
-    /// is implemented for all type that implement [`fmt::Display`]).
+    /// is implemented for all types that implement [`fmt::Display`]).
     #[allow(clippy::needless_pass_by_value)]
     pub fn setup<E>(err: E) -> Error
     where
@@ -111,9 +111,7 @@ fn convert_panic(err: Box<dyn Any + Send + 'static>) -> StringError {
         Ok(s) => (*s).to_owned(),
         Err(err) => match err.downcast::<String>() {
             Ok(s) => *s,
-            Err(..) => {
-                "unknown panic message (use `String` or `&'static str` in the future)".to_owned()
-            }
+            Err(..) => "<unknown>".to_owned(),
         },
     };
     StringError(msg)

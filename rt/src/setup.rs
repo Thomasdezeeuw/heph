@@ -3,7 +3,7 @@
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::num::NonZeroUsize;
-use std::path::Path;
+use std::path::{self, Path};
 use std::{env, fmt, io, thread};
 
 use heph::actor_ref::ActorGroup;
@@ -18,7 +18,7 @@ use crate::{worker, Error, Runtime, MAX_THREADS};
 /// This type implements a builder pattern to build a `Runtime`. It is created
 /// via [`Runtime::setup`], for examples and usage see [crate documentation].
 ///
-/// [crate documentation]: crate
+/// [crate documentation]: crate#running-hephs-runtime
 #[derive(Debug)]
 #[must_use = "`heph_rt::Setup` doesn't do anything until its `build`"]
 pub struct Setup {
@@ -207,12 +207,12 @@ impl Setup {
 fn default_app_name() -> String {
     match env::args().next() {
         Some(mut bin_path) => {
-            if let Some(idx) = bin_path.rfind('/') {
+            if let Some(idx) = bin_path.rfind(path::MAIN_SEPARATOR) {
                 drop(bin_path.drain(..=idx));
             }
             bin_path
         }
-        None => "<unknown>".to_string(),
+        None => "<unknown>".to_owned(),
     }
 }
 
