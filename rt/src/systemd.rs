@@ -230,6 +230,7 @@ fn parse_os_string<T: FromStr>(str: OsString) -> Result<T, ()> {
 }
 
 /// State of the application.
+#[non_exhaustive]
 #[derive(Copy, Clone, Debug)]
 pub enum State {
     /// Indicate the service startup is finished, or the service finished
