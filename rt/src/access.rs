@@ -1,10 +1,32 @@
-//! Module to that defines the [`rt::Access`] trait.
+//! Access to the runtime.
 //!
-//! The types in the module can be used by the actors to get access to runtime,
-//! see [`NewActor::RuntimeAccess`] and [`SyncActor::RuntimeAccess`].
+//! Various types within this crate need access to the runtime internals to
+//! handle things such as I/O or timers. Various runtimes opt to make this
+//! implicit by using things such as global or thread-local data. Heph-rt
+//! however opts to make this explicit by using the [`rt::Access`] trait.
+//!
+//! This is reflected in a number of places:
+//!  * In actors in the [`NewActor::RuntimeAccess`] and
+//!    [`SyncActor::RuntimeAccess`] types.
+//!  * In the `RT` type [`actor::Context`] and [`SyncContext`].
+//!  * In various types and function that require runtime access as an argument,
+//!    for example [`TcpStream::connect`].
+//!
+//! This runtime access is defined by the [`Access`] trait, commonly referred to
+//! as the `rt::Access` (read runtime access) trait. It comes in the following
+//! kinds:
+//!  * [`ThreadLocal`]: passed to thread-local actors and gives access to the
+//!    local runtime.
+//!  * [`ThreadSafe`]: passed to thread-safe actors and gives access to the
+//!    runtime parts that are shared between threads.
+//!
+//! Finally we have [`Sync`], which passed to synchronous actors and also gives
+//! access to the runtime parts that are shared between threads. However it
+//! doesn't actually implement the `Access` trait.
 //!
 //! [`rt::Access`]: crate::Access
 //! [`SyncActor::RuntimeAccess`]: heph::actor::SyncActor::RuntimeAccess
+//! [`TcpStream::connect`]: crate::net::TcpStream::connect
 
 use std::future::Future;
 use std::mem::replace;
@@ -96,10 +118,11 @@ mod private {
 
 pub(crate) use private::PrivateAccess;
 
-/// Provides access to the thread-local runtime.
+/// Provides access to the thread-local parts of the runtime.
 ///
 /// This implements the [`Access`] trait, which is required by various APIs to
-/// get access to the runtime. Furthermore this gives access to a
+/// get access to the runtime. It also implements [`Spawn`] to spawn both
+/// thread-local and thread-safe actors. Furthermore this gives access to a
 /// [`RuntimeRef`] for users.
 ///
 /// This is usually a part of the [`actor::Context`], see it for more
@@ -111,8 +134,6 @@ pub(crate) use private::PrivateAccess;
 /// [`actor::Context`]: heph::actor::Context
 #[derive(Clone)]
 pub struct ThreadLocal {
-    /// Process id of the actor, used as `Token` in registering things, e.g.
-    /// a `TcpStream`, with `mio::Poll`.
     pid: ProcessId,
     rt: RuntimeRef,
 }
@@ -266,16 +287,17 @@ impl fmt::Debug for ThreadLocal {
 /// Provides access to the thread-safe parts of the runtime.
 ///
 /// This implements the [`Access`] trait, which is required by various APIs to
-/// get access to the runtime.
+/// get access to the runtime, and implements [`Spawn`] to spawn thread-safe
+/// actors. Furthermore it can spawn thread-safe [`Future`]s used
+/// [`spawn_future`].
 ///
 /// This is usually a part of the [`actor::Context`], see it for more
 /// information.
 ///
 /// [`actor::Context`]: heph::actor::Context
+/// [`spawn_future`]: ThreadSafe::spawn_future
 #[derive(Clone)]
 pub struct ThreadSafe {
-    /// Process id of the actor, used as `Token` in registering things, e.g.
-    /// a `TcpStream`, with `mio::Poll`.
     pid: ProcessId,
     rt: Arc<shared::RuntimeInternals>,
 }
@@ -413,13 +435,14 @@ where
 /// Provides access to the thread-safe parts of the runtime for synchronous
 /// actors.
 ///
-/// This implements the [`Access`] trait, which is required by various APIs to
-/// get access to the runtime.
+/// It implements [`Spawn`] to spawn new thread-safe actors and [`spawn_future`]
+/// to spawn thread-safe [`Future`]s.
 ///
-/// This is usually a part of the [`actor::Context`], see it for more
+/// This is usually a part of the actor's [`SyncContext`], see it for more
 /// information.
 ///
-/// [`actor::Context`]: heph::actor::Context
+/// [`spawn_future`]: Sync::spawn_future
+/// [`SyncContext`]: heph::actor::SyncContext
 #[derive(Clone)]
 pub struct Sync {
     rt: Arc<shared::RuntimeInternals>,
