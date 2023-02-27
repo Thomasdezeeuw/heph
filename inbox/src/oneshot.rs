@@ -107,7 +107,7 @@ const fn is_filled(status: u8) -> bool {
 ///
 /// [one-shot channel]: crate::oneshot::new_oneshot
 pub struct Sender<T> {
-    // Safety: must always point to valid memory.
+    // SAFETY: must always point to valid memory.
     shared: NonNull<Shared<T>>,
 }
 
@@ -125,7 +125,7 @@ impl<T> Sender<T> {
         unsafe { ptr::write(shared.message.get(), MaybeUninit::new(value)) };
 
         // Mark the item as filled.
-        // Safety: `AcqRel` is required here to ensure the write above is not
+        // SAFETY: `AcqRel` is required here to ensure the write above is not
         // moved after this status update.
         let old_status = shared.status.fetch_add(MARK_FILLED, Ordering::AcqRel);
         debug_assert!(is_empty(old_status));
@@ -149,7 +149,7 @@ impl<T> Sender<T> {
 
     /// Reference the shared data.
     fn shared(&self) -> &Shared<T> {
-        // Safety: see `shared` field.
+        // SAFETY: see `shared` field.
         unsafe { self.shared.as_ref() }
     }
 }
@@ -160,7 +160,7 @@ impl<T> fmt::Debug for Sender<T> {
     }
 }
 
-// Safety: if the value can be send across thread than so can the channel.
+// SAFETY: if the value can be send across thread than so can the channel.
 unsafe impl<T: Send> Send for Sender<T> {}
 
 unsafe impl<T> Sync for Sender<T> {}
@@ -193,7 +193,7 @@ impl<T> Drop for Sender<T> {
 ///
 /// [one-shot channel]: crate::oneshot::new_oneshot
 pub struct Receiver<T> {
-    // Safety: must always point to valid memory.
+    // SAFETY: must always point to valid memory.
     shared: NonNull<Shared<T>>,
 }
 
@@ -222,7 +222,7 @@ impl<T> Receiver<T> {
     /// new [`Sender`] (which can send a value to this `Receiver`).
     pub fn try_recv(&mut self) -> Result<T, RecvError> {
         let shared = self.shared();
-        // Safety: `AcqRel` is required here to ensure it syncs with
+        // SAFETY: `AcqRel` is required here to ensure it syncs with
         // `Sender::try_send`'s status update after the write.
         let status = shared.status.fetch_and(MARK_EMPTY, Ordering::AcqRel);
 
@@ -235,7 +235,7 @@ impl<T> Receiver<T> {
                 Err(RecvError::Disconnected)
             }
         } else {
-            // Safety: since we're the only thread with access this is safe.
+            // SAFETY: since we're the only thread with access this is safe.
             let msg = unsafe { (*shared.message.get()).assume_init_read() };
             Ok(msg)
         }
@@ -272,7 +272,7 @@ impl<T> Receiver<T> {
     /// If the channel contains a value it will be dropped.
     pub fn try_reset(&mut self) -> Option<Sender<T>> {
         let shared = self.shared();
-        // Safety: `Acquire` is required here to ensure it syncs with
+        // SAFETY: `Acquire` is required here to ensure it syncs with
         // `Sender::try_send`'s status update after the write.
         let status = shared.status.load(Ordering::Acquire);
 
@@ -285,13 +285,13 @@ impl<T> Receiver<T> {
             return None;
         } else if is_filled(status) {
             // Sender send a value we need to drop.
-            // Safety: since the sender is no longer alive (checked above) we're
+            // SAFETY: since the sender is no longer alive (checked above) we're
             // the only type (and thread) with access making this safe.
             unsafe { (*shared.message.get()).assume_init_drop() }
         }
 
         // Reset the status.
-        // Safety: since the `Sender` has been dropped we have unique access to
+        // SAFETY: since the `Sender` has been dropped we have unique access to
         // `shared` making Relaxed ordering fine.
         shared.status.store(INITIAL, Ordering::Release);
 
@@ -331,7 +331,7 @@ impl<T> Receiver<T> {
 
     /// Reference the shared data.
     fn shared(&self) -> &Shared<T> {
-        // Safety: see `shared` field.
+        // SAFETY: see `shared` field.
         unsafe { self.shared.as_ref() }
     }
 }

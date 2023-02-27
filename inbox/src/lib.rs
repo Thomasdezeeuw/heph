@@ -370,7 +370,7 @@ fn try_send<T>(channel: &Channel<T>, value: T) -> Result<(), SendError<T>> {
             continue;
         }
 
-        // Safety: we've acquired the slot above so we're ensured unique
+        // SAFETY: we've acquired the slot above so we're ensured unique
         // access to the slot.
         unsafe {
             let _ = (*channel.slots[slot].get()).write(value);
@@ -417,7 +417,7 @@ impl<T> fmt::Debug for Sender<T> {
     }
 }
 
-// Safety: if the value can be send across thread than so can the channel.
+// SAFETY: if the value can be send across thread than so can the channel.
 unsafe impl<T: Send> Send for Sender<T> {}
 
 unsafe impl<T> Sync for Sender<T> {}
@@ -427,7 +427,7 @@ impl<T> Unpin for Sender<T> {}
 impl<T> Drop for Sender<T> {
     #[rustfmt::skip]
     fn drop(&mut self) {
-        // Safety: for the reasoning behind this ordering see `Arc::drop`.
+        // SAFETY: for the reasoning behind this ordering see `Arc::drop`.
         let old_ref_count = self.channel().ref_count.fetch_sub(1, Ordering::Release);
         if sender_count(old_ref_count) != 1 {
             // If we're not the last sender all we have to do is decrement the
@@ -470,7 +470,7 @@ impl<'s, T> Future for SendValue<'s, T> {
     type Output = Result<(), T>;
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Self::Output> {
-        // Safety: only `waker_node` is pinned, which is only used by
+        // SAFETY: only `waker_node` is pinned, which is only used by
         // `register_waker`.
         let this = unsafe { self.as_mut().get_unchecked_mut() };
         let value = this
@@ -789,7 +789,7 @@ fn try_recv<T>(channel: &Channel<T>) -> Result<T, RecvError> {
             continue;
         }
 
-        // Safety: we've acquired unique access to the slot above and we're
+        // SAFETY: we've acquired unique access to the slot above and we're
         // ensured the slot is filled.
         let value = unsafe { (*channel.slots[slot].get()).assume_init_read() };
 
@@ -831,7 +831,7 @@ fn try_peek<T>(channel: &Channel<T>) -> Result<&T, RecvError> {
             continue;
         }
 
-        // Safety: we've acquired unique access to the slot above and we're
+        // SAFETY: we've acquired unique access to the slot above and we're
         // ensured the slot is filled.
         return Ok(unsafe { (*channel.slots[slot].get()).assume_init_ref() });
     }
@@ -851,7 +851,7 @@ impl<T: fmt::Debug> fmt::Debug for Receiver<T> {
     }
 }
 
-// Safety: if the value can be send across thread than so can the channel.
+// SAFETY: if the value can be send across thread than so can the channel.
 unsafe impl<T: Send> Send for Receiver<T> {}
 
 unsafe impl<T> Sync for Receiver<T> {}
@@ -862,7 +862,7 @@ impl<T> Drop for Receiver<T> {
     #[rustfmt::skip]
     fn drop(&mut self) {
         // First mark the receiver as dropped.
-        // Safety: for the reasoning behind this ordering see `Arc::drop`.
+        // SAFETY: for the reasoning behind this ordering see `Arc::drop`.
         let old_ref_count = self.channel().ref_count.fetch_and(!RECEIVER_ALIVE, Ordering::Release);
         if has_manager(old_ref_count) {
             // If the channel has a manager we only mark the receiver as dropped
@@ -1009,7 +1009,7 @@ struct Inner {
     receiver_waker: WakerRegistration,
 }
 
-// Safety: if the value can be send across thread than so can the channel.
+// SAFETY: if the value can be send across thread than so can the channel.
 unsafe impl<T: Send> Send for Channel<T> {}
 
 unsafe impl<T> Sync for Channel<T> {}
@@ -1029,12 +1029,12 @@ impl<T> Channel<T> {
         assert!(capacity <= MAX_CAP, "capacity too large");
 
         // Allocate some raw bytes.
-        // Safety: returns an error on arithmetic overflow, but it should be OK
+        // SAFETY: returns an error on arithmetic overflow, but it should be OK
         // with a capacity <= MAX_CAP.
         let (layout, _) = Layout::array::<UnsafeCell<MaybeUninit<T>>>(capacity)
             .and_then(|slots_layout| Layout::new::<Inner>().extend(slots_layout))
             .unwrap();
-        // Safety: we check if the allocation is successful.
+        // SAFETY: we check if the allocation is successful.
         let ptr = unsafe { alloc(layout) };
         if ptr.is_null() {
             handle_alloc_error(layout);
@@ -1052,7 +1052,7 @@ impl<T> Channel<T> {
             ptr::addr_of_mut!((*ptr).inner.receiver_waker).write(WakerRegistration::new());
         }
 
-        // Safety: checked if the pointer is null above.
+        // SAFETY: checked if the pointer is null above.
         unsafe { NonNull::new_unchecked(ptr) }
     }
 
@@ -1115,12 +1115,12 @@ impl<T> fmt::Debug for Channel<T> {
 
 impl<T> Drop for Channel<T> {
     fn drop(&mut self) {
-        // Safety: we have unique access, per the mutable reference, so relaxed
+        // SAFETY: we have unique access, per the mutable reference, so relaxed
         // is fine.
         let status: u64 = self.status.load(Ordering::Relaxed);
         for slot in 0..self.slots.len() {
             if is_filled(status, slot) {
-                // Safety: we have unique access to the slot and we've checked
+                // SAFETY: we have unique access to the slot and we've checked
                 // above whether or not the slot is filled.
                 unsafe { self.slots[slot].get_mut().assume_init_drop() };
             }
@@ -1231,7 +1231,7 @@ impl<T> fmt::Debug for Manager<T> {
     }
 }
 
-// Safety: if the value can be send across thread than so can the channel.
+// SAFETY: if the value can be send across thread than so can the channel.
 unsafe impl<T: Send> Send for Manager<T> {}
 
 unsafe impl<T> Sync for Manager<T> {}
@@ -1242,7 +1242,7 @@ impl<T> Drop for Manager<T> {
     #[rustfmt::skip]
     fn drop(&mut self) {
         // First mark the manager as dropped.
-        // Safety: for the reasoning behind this ordering see `Arc::drop`.
+        // SAFETY: for the reasoning behind this ordering see `Arc::drop`.
         let old_ref_count = self.channel().ref_count.fetch_and(!MANAGER_ALIVE, Ordering::Release);
         if has_receiver(old_ref_count) {
             // If the channel has a receiver we only mark the manager as dropped
