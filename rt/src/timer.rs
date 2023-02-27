@@ -1,13 +1,13 @@
-//! Module with time related utilities.
+//! Time related utilities.
 //!
 //! This module provides three types.
 //!
-//! - [`Timer`](Timer) is a stand-alone future that returns
-//!   [`DeadlinePassed`](DeadlinePassed) once the deadline has passed.
-//! - [`Deadline`](Deadline) wraps another [`Future`] and checks the deadline
-//!   each time it's polled.
-//! - [`Interval`](Interval) implements [`AsyncIterator`] which yields an item
-//!   after the deadline has passed each interval.
+//! - [`Timer`] is a stand-alone [`Future`] that returns [`DeadlinePassed`] once
+//!   the deadline has passed.
+//! - [`Deadline`] wraps another `Future` and checks the deadline each time it's
+//!   polled.
+//! - [`Interval`] implements [`AsyncIterator`] which yields an item after the
+//!   deadline has passed each interval.
 
 use std::async_iter::AsyncIterator;
 use std::future::Future;
@@ -30,6 +30,12 @@ pub struct DeadlinePassed;
 impl From<DeadlinePassed> for io::Error {
     fn from(_: DeadlinePassed) -> io::Error {
         io::ErrorKind::TimedOut.into()
+    }
+}
+
+impl From<DeadlinePassed> for io::ErrorKind {
+    fn from(_: DeadlinePassed) -> io::ErrorKind {
+        io::ErrorKind::TimedOut
     }
 }
 
@@ -123,7 +129,7 @@ impl<RT: rt::Access> Timer<RT> {
     pub fn wrap<Fut>(self, future: Fut) -> Deadline<Fut, RT> {
         // We don't want to run the destructor as that would remove the
         // deadline, which we need in `Deadline` as well. As a bonus we can
-        // safetly move `RT` without having to clone it (which normally can't be
+        // safely move `RT` without having to clone it (which normally can't be
         // done with `Drop` types).
         // Safety: See [`ManuallyDrop::take`], rather then taking the entire
         // thing struct at once we read (move out of) value by value.

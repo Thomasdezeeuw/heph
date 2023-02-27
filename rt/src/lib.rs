@@ -69,10 +69,11 @@
 //!
 //! ```
 //! # #![feature(never_type)]
-//! use heph::actor;
+//! use heph::actor::{self, SyncContext};
 //! use heph::supervisor::NoSupervisor;
-//! use heph_rt::spawn::ActorOptions;
-//! use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
+//! use heph_rt::spawn::{ActorOptions, SyncActorOptions};
+//! use heph_rt::{self as rt, Runtime, RuntimeRef};
+//! use heph_rt::access::Sync;
 //!
 //! fn main() -> Result<(), rt::Error> {
 //!     // Build a new `Runtime`.
@@ -89,7 +90,7 @@
 //!
 //!     // We'll start with spawning a synchronous actor.
 //!     // For more information on spawning actors see the spawn module.
-//!     let actor_ref runtime.spawn_sync_actor(NoSupervisor, sync_actor, (), SyncActorOptions::default())?;
+//!     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, sync_actor as fn(_) -> _, (), SyncActorOptions::default())?;
 //!     // And sending it a message.
 //!     actor_ref.try_send("Alice").unwrap();
 //!
@@ -118,8 +119,8 @@
 //! }
 //!
 //! /// Our synchronous actor.
-//! fn sync_actor(ctx: SyncContext<&'static str>) {
-//!     if let Ok(name) = ctx.receive_next().await {
+//! fn sync_actor(mut ctx: SyncContext<&'static str, Sync>) {
+//!     if let Ok(name) = ctx.receive_next() {
 //!         println!("Hello {name} from sync actor");
 //!     }
 //! }

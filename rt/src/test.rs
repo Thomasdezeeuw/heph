@@ -43,7 +43,7 @@
 //! following to `Cargo.toml`.
 //!
 //! ```toml
-//! [dev-dependencies.heph]
+//! [dev-dependencies.heph-rt]
 //! features = ["test"]
 //! ```
 

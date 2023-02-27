@@ -59,7 +59,7 @@
 //! Spawn a process using a pipe for standard in, out and error of the spawned
 //! process.
 //!
-//! ```ignore
+//! ```
 //! # #![feature(never_type)]
 //! use std::io;
 //! use std::process::{Command, Stdio};
@@ -72,8 +72,8 @@
 //! async fn process_handler<RT>(mut ctx: actor::Context<!, RT>) -> io::Result<()>
 //!     where RT: rt::Access,
 //! {
-//!     // Spawn a "echo" that echo everything read from standard in to standard
-//!     // out.
+//!     // Spawn the "echo" command that echos everything it reads from standard
+//!     // in to standard out.
 //!     let mut process = Command::new("echo")
 //!         .stdin(Stdio::piped())
 //!         .stdout(Stdio::piped())
