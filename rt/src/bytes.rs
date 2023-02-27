@@ -1,17 +1,17 @@
 //! Traits to work with bytes.
 //!
 //! This module contains two traits:
-//!  * [`Bytes`] to work a single buffer, e.g. `Vec<u8>`, and
+//!  * [`Bytes`] to work with a single buffer, e.g. `Vec<u8>`, and
 //!  * [`BytesVectored`] to work with multiple buffers and using vectored I/O,
 //!    e.g. `Vec<Vec<u8>>`.
 //!
 //! The basic design of both traits is the same and is fairly simple. It's split
 //! into two methods. Usage starts with a call to [`as_bytes`]/[`as_bufs`],
-//! which returns a slice to unitialised bytes. The caller should then fill that
-//! slice with valid bytes, e.g. by receiving bytes from a socket. Once the
+//! which returns a slice of uninitialised bytes. The caller should then fill
+//! that slice with valid bytes, e.g. by receiving bytes from a socket. Once the
 //! slice is (partially) filled the caller should call
 //! [`update_length`]/[`update_lengths`], which updates the length of the
-//! buffer.
+//! buffer(s).
 //!
 //! [`as_bytes`]: Bytes::as_bytes
 //! [`as_bufs`]: BytesVectored::as_bufs
@@ -240,7 +240,7 @@ impl<'a> DerefMut for MaybeUninitSlice<'a> {
     }
 }
 
-/// Trait to make easier to work with uninitialised buffers using vectored I/O.
+/// Trait to work with uninitialised buffers using vectored I/O.
 ///
 /// This trait is implemented for arrays and tuples. When all of buffers are
 /// *homogeneous*, i.e. of the same type, the array implementation is the
