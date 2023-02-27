@@ -17,7 +17,7 @@ dev:
 	find src/ tests/ examples/ Makefile Cargo.toml | entr -d -c $(MAKE) $(RUN)
 
 test:
-	cargo test $(TEST_OPTS)
+	cargo test --all-features $(TEST_OPTS)
 
 test_sanitizers:
 	$(MAKE) test_sanitizer sanitizer=address
@@ -28,7 +28,7 @@ test_sanitizers:
 # Run with `make test_sanitizer sanitizer=$sanitizer`, or use `test_sanitizers`.
 test_sanitizer:
 	RUSTDOCFLAGS=-Zsanitizer=$(sanitizer) RUSTFLAGS=-Zsanitizer=$(sanitizer) \
-	cargo test -Zbuild-std --target x86_64-unknown-linux-gnu $(TEST_OPTS)
+	cargo test -Zbuild-std --all-features --target x86_64-unknown-linux-gnu $(TEST_OPTS)
 
 check:
 	cargo check --all-features --all-targets
