@@ -1,8 +1,9 @@
-//! Options for [spawning] an [`Actor`] or [`SyncActor`].
+//! Options for [spawning] an [`Actor`], [`SyncActor`] or [`Future`].
 //!
 //! [spawning]: crate::spawn::Spawn
-//! [`Actor`]: crate::actor::Actor
-//! [`SyncActor`]: crate::actor::SyncActor
+//! [`Actor`]: heph::actor::Actor
+//! [`SyncActor`]: heph::actor::SyncActor
+//! [`Future`]: std::future::Future
 
 use std::cmp::Ordering;
 use std::num::NonZeroU8;
@@ -12,7 +13,7 @@ use std::time::Duration;
 /// Options for [spawning] an [`Actor`].
 ///
 /// [spawning]: crate::spawn::Spawn
-/// [`Actor`]: crate::actor::Actor
+/// [`Actor`]: heph::actor::Actor
 ///
 /// # Examples
 ///
@@ -65,9 +66,9 @@ impl ActorOptions {
     ///
     /// By default newly spawned actors will be considered to be ready to run
     /// once they are spawned. However some actors might not want to run
-    /// immediately and wait for an external event before running. Such an
-    /// external event can for example be a `TcpStream` becoming ready to read
-    /// or write.
+    /// immediately and wait for an external event before running. For example
+    /// actors that want to wait with running until they receive their first
+    /// message.
     pub const fn mark_ready(mut self, ready: bool) -> Self {
         self.ready = ready;
         self
@@ -83,11 +84,11 @@ impl Default for ActorOptions {
     }
 }
 
-/// Priority for an actor in the scheduler.
+/// Priority for an actor or future in the scheduler.
 ///
-/// Actors with a higher priority will be scheduled to run more often and
-/// quicker (after they return [`Poll::Pending`]) then actors with a lower
-/// priority.
+/// Actors and futures with a higher priority will be scheduled to run more
+/// often and quicker (after they return [`Poll::Pending`]) then actors/futures
+/// with a lower priority.
 ///
 /// [`Poll::Pending`]: std::task::Poll::Pending
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -170,7 +171,7 @@ fn priority_duration_multiplication() {
 
 /// Options for spawning a [`SyncActor`].
 ///
-/// [`SyncActor`]: crate::actor::SyncActor
+/// [`SyncActor`]: heph::actor::SyncActor
 ///
 /// # Examples
 ///
@@ -233,7 +234,7 @@ impl SyncActorOptions {
 /// # drop(opts); // Silence unused variable warning.
 /// ```
 ///
-/// Giving an actor a high priority.
+/// Giving the future a high priority.
 ///
 /// ```
 /// use heph_rt::spawn::options::{FutureOptions, Priority};
