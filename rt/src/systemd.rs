@@ -353,7 +353,7 @@ where
     let notify = match Notify::new(&mut ctx)? {
         Some(notify) => notify,
         None => {
-            debug!("not started via systemd, not starting `systemd::actor`");
+            debug!("not started via systemd, not starting `systemd::watchdog`");
             return Ok(());
         }
     };

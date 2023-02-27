@@ -32,7 +32,7 @@ fn main() -> Result<(), rt::Error> {
     #[cfg(target_os = "linux")]
     {
         let supervisor = StopSupervisor::for_actor("systemd actor");
-        let actor = heph_rt::systemd::actor as fn(_, _) -> _;
+        let actor = heph_rt::systemd::watchdog as fn(_, _) -> _;
         // NOTE: this should do a proper health check of you application.
         let health_check = || -> Result<(), !> { Ok(()) };
         let options = ActorOptions::default().with_priority(Priority::HIGH);
