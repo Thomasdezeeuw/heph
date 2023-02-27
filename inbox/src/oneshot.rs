@@ -445,7 +445,7 @@ impl<T> Drop for Shared<T> {
     fn drop(&mut self) {
         let status = self.status.load(Ordering::Relaxed);
         if is_filled(status) {
-            unsafe { ptr::drop_in_place((*self.message.get()).as_mut_ptr()) }
+            unsafe { (*self.message.get()).assume_init_drop() }
         }
     }
 }
