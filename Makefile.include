@@ -47,6 +47,7 @@ $(TARGETS):
 # `needless-lifetimes`: lifetime serves as documentation.
 # `option-if-let-else`: not idiomatic at all.
 # `use-self`: this is a bad lint.
+# `significant-drop-tightening`: see https://github.com/rust-lang/rust-clippy/issues/10413.
 #
 # # Could fix these later
 # `enum-glob-use`: used in enum errors.
@@ -77,7 +78,8 @@ clippy:
 		--allow clippy::needless-lifetimes \
 		--allow clippy::option-if-let-else \
 		--allow clippy::redundant-pub-crate \
-		--allow clippy::use-self
+		--allow clippy::significant-drop-tightening \
+		--allow clippy::use-self \
 
 doc:
 	cargo doc --all-features
