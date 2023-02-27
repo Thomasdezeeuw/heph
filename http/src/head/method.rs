@@ -8,6 +8,7 @@ use crate::cmp_lower_case;
 /// HTTP method.
 ///
 /// RFC 7231 section 4.
+#[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Method {
     /// GET method.

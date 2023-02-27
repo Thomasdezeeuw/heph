@@ -1453,6 +1453,7 @@ impl<'a> Drop for Body<'a> {
 }
 
 /// Error parsing HTTP request.
+#[non_exhaustive]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum RequestError {
     /// Missing part of request.

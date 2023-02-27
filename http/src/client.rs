@@ -659,6 +659,7 @@ impl<'c> Body<'c> {
 // FIXME: remove body from `Client` if it's dropped before it's fully read.
 
 /// Error parsing HTTP response.
+#[non_exhaustive]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum ResponseError {
     /// Missing part of response.

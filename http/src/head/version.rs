@@ -6,6 +6,7 @@ use std::str::FromStr;
 /// HTTP version.
 ///
 /// RFC 7231 section 2.6.
+#[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Version {
     /// HTTP/1.0.

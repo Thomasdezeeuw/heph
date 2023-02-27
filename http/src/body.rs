@@ -27,6 +27,7 @@ pub trait Body<'a>: PrivateBody<'a> {
 }
 
 /// Length of a body.
+#[non_exhaustive]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum BodyLength {
     /// Body length is known.
