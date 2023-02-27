@@ -193,6 +193,10 @@ where
     /// The panic is always logged using the [panic hook], in addition an error
     /// message is printed which states what actor panicked.
     ///
+    /// When `panic = abort` is set in `Cargo.toml` we will not be able to
+    /// recover the panic and instead the process will abort. The same is true
+    /// for a panic while panicking. Both situations are out of control of Heph.
+    ///
     /// [panic hook]: std::panic::set_hook
     fn decide_on_panic(
         &mut self,
