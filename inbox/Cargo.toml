@@ -18,6 +18,3 @@ edition       = "2021"
 [features]
 # Enables some tests that take a long time to run.
 stress_testing = []
-# Enable some unstable nightly features. Currently:
-#  * `cfg_sanitize` to fix a false positive around atomic fences.
-unstable_nightly = []

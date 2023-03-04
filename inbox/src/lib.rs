@@ -52,7 +52,7 @@
 //! receiver_handle.join().unwrap();
 //! ```
 
-#![cfg_attr(unstable_nightly, feature(cfg_sanitize))]
+#![feature(cfg_sanitize)]
 #![warn(
     missing_debug_implementations,
     missing_docs,
@@ -87,9 +87,9 @@ mod tests;
 /// implementation.
 macro_rules! fence {
     ($val: expr, $ordering: expr) => {
-        #[cfg_attr(unstable_nightly, not(sanitize = "thread"))]
+        #[cfg(not(sanitize = "thread"))]
         std::sync::atomic::fence($ordering);
-        #[cfg_attr(unstable_nightly, sanitize = "thread")]
+        #[cfg(sanitize = "thread")]
         {
             _ = $val.load($ordering);
         }
