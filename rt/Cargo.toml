@@ -14,7 +14,7 @@ edition       = "2021"
 
 [features]
 # Feature that enables the `test` module.
-test = ["getrandom", "heph/test"]
+test = ["heph/test"]
 
 [dependencies]
 heph              = { version = "0.4.0", path = "../", default-features = false }
@@ -25,10 +25,6 @@ libc              = { version = "0.2.96", default-features = false }
 mio               = { version = "0.8.0", default-features = false, features = ["os-poll", "net"] }
 mio-signals       = { version = "0.2.0", default-features = false }
 socket2           = { version = "0.4.0", default-features = false, features = ["all"] }
-
-# Optional dependencies, enabled by features.
-# Required by the `test` feature.
-getrandom         = { version = "0.2.2", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
