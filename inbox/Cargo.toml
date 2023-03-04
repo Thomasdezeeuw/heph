@@ -14,7 +14,3 @@ keywords      = ["inbox", "channel", "actor", "async"]
 categories    = ["asynchronous"]
 include       = ["/Cargo.toml", "src/**/*.rs", "/README.md", "/LICENSE"]
 edition       = "2021"
-
-[features]
-# Enables some tests that take a long time to run.
-stress_testing = []

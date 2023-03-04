@@ -230,11 +230,7 @@ macro_rules! expect_peek {
 /// Run a test with all possible capacities.
 macro_rules! with_all_capacities {
     (|$capacity: ident| $test: block) => {{
-        #[cfg(not(feature = "stress_testing"))]
-        let iter = [inbox::MIN_CAP, 8, inbox::MAX_CAP].iter().copied();
-        #[cfg(feature = "stress_testing")]
-        let iter = inbox::MIN_CAP..=inbox::MAX_CAP;
-        for $capacity in iter {
+        for $capacity in inbox::MIN_CAP..=inbox::MAX_CAP {
             $test
         }
     }};
