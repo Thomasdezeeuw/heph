@@ -81,6 +81,7 @@ clippy:
 		--allow clippy::option-if-let-else \
 		--allow clippy::redundant-pub-crate \
 		--allow clippy::significant-drop-tightening \
+		--allow clippy::single-match-else \
 		--allow clippy::use-self \
 
 doc:
