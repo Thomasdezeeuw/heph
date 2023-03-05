@@ -28,7 +28,7 @@ jobs:
       fail-fast: false
       matrix:
         release: ['', release] # '' => debug.
-        toolchain: [stable, nightly]
+        toolchain: [nightly]
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@master
@@ -36,8 +36,6 @@ jobs:
         toolchain: ${{ matrix.toolchain }}
     - name: Run tests
       run: cargo test --verbose --${{ matrix.release }}
-    - name: Run stress tests
-      run: cargo test --verbose --features stress_testing --${{ matrix.release }}
   Clippy:
     runs-on: ubuntu-latest
     timeout-minutes: 10

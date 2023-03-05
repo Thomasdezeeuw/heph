@@ -260,6 +260,7 @@ fn sender_disconnected_after_send_2_len() {
 const LARGE: usize = 1_000_000;
 
 #[test]
+#[cfg_attr(miri, ignore)] // Takes too long.
 fn stress_sending_interleaved() {
     with_all_capacities!(|capacity| {
         let (sender, mut receiver) = new::<usize>(capacity);
@@ -272,6 +273,7 @@ fn stress_sending_interleaved() {
 }
 
 #[test]
+#[cfg_attr(miri, ignore)] // Takes too long.
 fn stress_sending_fill() {
     // NOTE: this test is only run for a limited number of capacities, because
     // it doesn't work for all of them. The problem is the wrap around of the
