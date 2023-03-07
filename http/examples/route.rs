@@ -5,22 +5,22 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use heph::actor::{self, Actor, NewActor};
-use heph::net::TcpStream;
-use heph::rt::{self, Runtime, ThreadLocal};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
-use heph::timer::Deadline;
 use heph_http::body::OneshotBody;
 use heph_http::{self as http, route, HttpServer, Request, Response};
+use heph_rt::net::TcpStream;
 use heph_rt::spawn::options::{ActorOptions, Priority};
+use heph_rt::timer::Deadline;
+use heph_rt::{Runtime, ThreadLocal};
 use log::{error, info, warn};
 
-fn main() -> Result<(), rt::Error> {
+fn main() -> Result<(), heph_rt::Error> {
     std_logger::Config::logfmt().init();
 
     let actor = http_actor as fn(_, _, _) -> _;
     let address = "127.0.0.1:7890".parse().unwrap();
     let server = HttpServer::setup(address, conn_supervisor, actor, ActorOptions::default())
-        .map_err(rt::Error::setup)?;
+        .map_err(heph_rt::Error::setup)?;
 
     let mut runtime = Runtime::setup().use_all_cores().build()?;
     runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {

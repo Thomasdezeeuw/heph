@@ -1,16 +1,12 @@
 //! HTTP/1.1 implementation for Heph.
 
 #![feature(
-    async_stream,
-    const_fn_trait_bound,
+    async_iterator,
     const_mut_refs,
-    const_slice_from_raw_parts,
     drain_filter,
-    generic_associated_types,
     io_slice_advance,
     maybe_uninit_uninit_array,
-    maybe_uninit_write_slice,
-    ready_macro
+    maybe_uninit_write_slice
 )]
 #![warn(
     anonymous_parameters,

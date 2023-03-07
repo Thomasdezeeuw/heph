@@ -8,12 +8,12 @@ use std::thread::{self, sleep};
 use std::time::{Duration, SystemTime};
 
 use heph::messages::Terminate;
-use heph::rt::{self, Runtime, ThreadLocal};
 use heph::{actor, Actor, ActorRef, NewActor, Supervisor, SupervisorStrategy};
 use heph_http::body::OneshotBody;
 use heph_http::server::{HttpServer, RequestError};
 use heph_http::{self as http, Header, HeaderName, Headers, Method, StatusCode, Version};
 use heph_rt::spawn::options::{ActorOptions, Priority};
+use heph_rt::{Runtime, ThreadLocal};
 use httpdate::fmt_http_date;
 
 /// Macro to run with a test server.
@@ -571,7 +571,7 @@ impl TestServer {
         let actor = http_actor as fn(_, _, _) -> _;
         let address = "127.0.0.1:0".parse().unwrap();
         let server = HttpServer::setup(address, conn_supervisor, actor, ActorOptions::default())
-            .map_err(rt::Error::setup)
+            .map_err(heph_rt::Error::setup)
             .unwrap();
         let address = server.local_addr();
 
@@ -641,7 +641,7 @@ where
     }
 }
 
-fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(heph::net::TcpStream, SocketAddr)> {
+fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(heph_rt::net::TcpStream, SocketAddr)> {
     panic!("error handling connection: {err}")
 }
 

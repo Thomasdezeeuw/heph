@@ -7,8 +7,8 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
-use heph::net::tcp::stream::{self, TcpStream};
-use heph::{actor, rt};
+use heph::actor;
+use heph_rt::net::tcp::stream::{self, TcpStream};
 
 use crate::body::{BodyLength, EmptyBody};
 use crate::head::header::{FromHeaderValue, HeaderName, Headers};
@@ -35,7 +35,7 @@ impl Client {
         address: SocketAddr,
     ) -> io::Result<Connect>
     where
-        RT: rt::Access,
+        RT: heph_rt::Access,
     {
         TcpStream::connect(ctx, address).map(|connect| Connect { connect })
     }
@@ -67,7 +67,6 @@ impl Client {
     ///
     /// If the server doesn't respond this return an [`io::Error`] with
     /// [`io::ErrorKind::UnexpectedEof`].
-    #[allow(clippy::future_not_send)] // TODO.
     pub async fn request<'c, 'b, B>(
         &'c mut self,
         method: Method,
@@ -76,7 +75,7 @@ impl Client {
         body: B,
     ) -> io::Result<Result<Response<Body<'c>>, ResponseError>>
     where
-        B: crate::Body<'b>,
+        B: crate::Body<'b> + 'b,
     {
         self.send_request(method, path, headers, body).await?;
         match self.read_response(method).await {
@@ -99,7 +98,6 @@ impl Client {
     /// Sets the following headers if not present in `Headers`:
     ///  * User-Agent and
     ///  * Content-Length and/or Transfer-Encoding based on the `body`.
-    #[allow(clippy::future_not_send)] // TODO.
     pub async fn send_request<'b, B>(
         &mut self,
         method: Method,
@@ -108,7 +106,7 @@ impl Client {
         body: B,
     ) -> io::Result<()>
     where
-        B: crate::Body<'b>,
+        B: crate::Body<'b> + 'b,
     {
         // Clear bytes from the previous request, keeping the bytes of the
         // response.

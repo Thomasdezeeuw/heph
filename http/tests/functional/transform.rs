@@ -1,10 +1,10 @@
 //! Tests for the transform module.
 
-use heph::test;
 use heph_http::body::OneshotBody;
 use heph_http::handler::{Handler, Middleware};
 use heph_http::transform::{Body, Cloned, Path, TransformMiddleware};
 use heph_http::{Header, HeaderName, Headers, Method, Request, Response, StatusCode, Version};
+use heph_rt::test;
 
 const REQ_BODY: &'static str = "test_body";
 const OK_BODY: &'static str = "good";

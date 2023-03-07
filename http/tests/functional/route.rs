@@ -1,8 +1,8 @@
 //! Tests for the [`route!`] macro.
 
-use heph::test::block_on;
 use heph_http::body::{EmptyBody, OneshotBody};
 use heph_http::{route, Headers, Method, Request, Response, Version};
+use heph_rt::test::block_on;
 
 async fn route<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
     route!(match request {

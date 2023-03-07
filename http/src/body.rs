@@ -2,12 +2,12 @@
 //!
 //! See the [`Body`] trait.
 
+use std::async_iter::AsyncIterator;
 use std::io::{self, IoSlice};
 use std::marker::PhantomData;
 use std::num::NonZeroUsize;
-use std::stream::Stream;
 
-use heph::net::tcp::stream::{FileSend, SendAll, TcpStream};
+use heph_rt::net::tcp::stream::{FileSend, SendAll, TcpStream};
 
 /// Trait that defines a HTTP body.
 ///
@@ -32,29 +32,32 @@ pub trait Body<'a>: PrivateBody<'a> {
 pub enum BodyLength {
     /// Body length is known.
     Known(usize),
-    /// Body length is unknown and the body will be transfered using chunked
+    /// Body length is unknown and the body will be transferred using chunked
     /// encoding.
     Chunked,
 }
 
 mod private {
+    use std::async_iter::AsyncIterator;
     use std::future::Future;
     use std::io::{self, IoSlice};
     use std::num::NonZeroUsize;
     use std::pin::Pin;
-    use std::stream::Stream;
     use std::task::{self, Poll};
 
-    use heph::net::tcp::stream::FileSend;
-    use heph::net::TcpStream;
+    use heph_rt::net::tcp::stream::FileSend;
+    use heph_rt::net::TcpStream;
 
     const LAST_CHUNK: &[u8] = b"0\r\n\r\n";
 
-    /// Private extention of [`Body`].
+    /// Private extension of [`Body`].
     ///
     /// [`Body`]: super::Body
     pub trait PrivateBody<'body> {
-        type WriteBody<'stream, 'head>: Future<Output = io::Result<()>>;
+        /// [`Future`] behind [`PrivateBody::write_message`].
+        type WriteMessage<'stream, 'head>: Future<Output = io::Result<()>>
+        where
+            Self: 'body;
 
         /// Write a HTTP message to `stream`.
         ///
@@ -65,9 +68,9 @@ mod private {
             self,
             stream: &'stream mut TcpStream,
             http_head: &'head [u8],
-        ) -> Self::WriteBody<'stream, 'head>
+        ) -> Self::WriteMessage<'stream, 'head>
         where
-            'body: 'head;
+            Self: 'body;
     }
 
     /// See [`super::OneshotBody`].
@@ -126,7 +129,7 @@ mod private {
 
     impl<'s, 'h, 'b, B> Future for SendStreamingBody<'s, 'h, 'b, B>
     where
-        B: Stream<Item = io::Result<&'b [u8]>>,
+        B: AsyncIterator<Item = io::Result<&'b [u8]>>,
     {
         type Output = io::Result<()>;
 
@@ -203,7 +206,7 @@ mod private {
 
     impl<'s, 'h, 'b, B> Future for SendChunkedBody<'s, 'h, 'b, B>
     where
-        B: Stream<Item = io::Result<&'b [u8]>>,
+        B: AsyncIterator<Item = io::Result<&'b [u8]>>,
     {
         type Output = io::Result<()>;
 
@@ -363,15 +366,15 @@ impl<'b> Body<'b> for EmptyBody {
 }
 
 impl<'b> PrivateBody<'b> for EmptyBody {
-    type WriteBody<'s, 'h> = SendAll<'s, 'h>;
+    type WriteMessage<'s, 'h> = SendAll<'s, 'h> where Self: 'b;
 
     fn write_message<'s, 'h>(
         self,
         stream: &'s mut TcpStream,
         http_head: &'h [u8],
-    ) -> Self::WriteBody<'s, 'h>
+    ) -> Self::WriteMessage<'s, 'h>
     where
-        'b: 'h,
+        Self: 'b,
     {
         // Just need to write the HTTP head as we don't have a body.
         stream.send_all(http_head)
@@ -404,15 +407,16 @@ impl<'b> Body<'b> for OneshotBody<'b> {
 }
 
 impl<'b> PrivateBody<'b> for OneshotBody<'b> {
-    type WriteBody<'s, 'h> = SendOneshotBody<'s, 'h>;
+    type WriteMessage<'s, 'h> = SendOneshotBody<'s, 'h>
+    where Self: 'b;
 
     fn write_message<'s, 'h>(
         self,
         stream: &'s mut TcpStream,
         http_head: &'h [u8],
-    ) -> Self::WriteBody<'s, 'h>
+    ) -> Self::WriteMessage<'s, 'h>
     where
-        'b: 'h,
+        Self: 'b,
     {
         let head = IoSlice::new(http_head);
         let body = IoSlice::new(self.bytes);
@@ -470,9 +474,9 @@ pub struct StreamingBody<'b, B> {
 
 impl<'b, B> StreamingBody<'b, B>
 where
-    B: Stream<Item = io::Result<&'b [u8]>>,
+    B: AsyncIterator<Item = io::Result<&'b [u8]>>,
 {
-    /// Use a [`Stream`] as HTTP body with a known length.
+    /// Use a [`AsyncIterator`] as HTTP body with a known length.
     pub const fn new(length: usize, stream: B) -> StreamingBody<'b, B> {
         StreamingBody {
             length,
@@ -484,7 +488,7 @@ where
 
 impl<'b, B> Body<'b> for StreamingBody<'b, B>
 where
-    B: Stream<Item = io::Result<&'b [u8]>>,
+    B: AsyncIterator<Item = io::Result<&'b [u8]>>,
 {
     fn length(&self) -> BodyLength {
         BodyLength::Known(self.length)
@@ -493,17 +497,18 @@ where
 
 impl<'b, B> PrivateBody<'b> for StreamingBody<'b, B>
 where
-    B: Stream<Item = io::Result<&'b [u8]>>,
+    B: AsyncIterator<Item = io::Result<&'b [u8]>>,
 {
-    type WriteBody<'s, 'h> = SendStreamingBody<'s, 'h, 'b, B>;
+    type WriteMessage<'s, 'h> = SendStreamingBody<'s, 'h, 'b, B>
+        where Self: 'b;
 
     fn write_message<'s, 'h>(
         self,
         stream: &'s mut TcpStream,
         head: &'h [u8],
-    ) -> Self::WriteBody<'s, 'h>
+    ) -> Self::WriteMessage<'s, 'h>
     where
-        'b: 'h,
+        Self: 'b,
     {
         SendStreamingBody {
             stream,
@@ -524,9 +529,9 @@ pub struct ChunkedBody<'b, B> {
 
 impl<'b, B> ChunkedBody<'b, B>
 where
-    B: Stream<Item = io::Result<&'b [u8]>>,
+    B: AsyncIterator<Item = io::Result<&'b [u8]>>,
 {
-    /// Use a [`Stream`] as HTTP body with a unknown length.
+    /// Use a [`AsyncIterator`] as HTTP body with a unknown length.
     ///
     /// If the total length of `stream` is known prefer to use
     /// [`StreamingBody`].
@@ -540,7 +545,7 @@ where
 
 impl<'b, B> Body<'b> for ChunkedBody<'b, B>
 where
-    B: Stream<Item = io::Result<&'b [u8]>>,
+    B: AsyncIterator<Item = io::Result<&'b [u8]>>,
 {
     fn length(&self) -> BodyLength {
         BodyLength::Chunked
@@ -549,17 +554,18 @@ where
 
 impl<'b, B> PrivateBody<'b> for ChunkedBody<'b, B>
 where
-    B: Stream<Item = io::Result<&'b [u8]>>,
+    B: AsyncIterator<Item = io::Result<&'b [u8]>>,
 {
-    type WriteBody<'s, 'h> = SendChunkedBody<'s, 'h, 'b, B>;
+    type WriteMessage<'s, 'h> = SendChunkedBody<'s, 'h, 'b, B>
+    where Self: 'b;
 
     fn write_message<'s, 'h>(
         self,
         stream: &'s mut TcpStream,
         head: &'h [u8],
-    ) -> Self::WriteBody<'s, 'h>
+    ) -> Self::WriteMessage<'s, 'h>
     where
-        'b: 'h,
+        Self: 'b,
     {
         SendChunkedBody {
             stream,
@@ -612,15 +618,16 @@ impl<'f, F> PrivateBody<'f> for FileBody<'f, F>
 where
     F: FileSend,
 {
-    type WriteBody<'s, 'h> = SendFileBody<'s, 'h, 'f, F>;
+    type WriteMessage<'s, 'h> = SendFileBody<'s, 'h, 'f, F>
+    where Self: 'f;
 
     fn write_message<'s, 'h>(
         self,
         stream: &'s mut TcpStream,
         head: &'h [u8],
-    ) -> Self::WriteBody<'s, 'h>
+    ) -> Self::WriteMessage<'s, 'h>
     where
-        'f: 'h,
+        Self: 'f,
     {
         SendFileBody {
             stream,

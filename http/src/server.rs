@@ -22,9 +22,9 @@ use std::task::ready;
 use std::task::{self, Poll};
 use std::time::SystemTime;
 
-use heph::bytes::{Bytes, BytesVectored};
-use heph::net::{tcp, TcpServer, TcpStream};
-use heph::{actor, rt, Actor, NewActor, Supervisor};
+use heph::{actor, Actor, NewActor, Supervisor};
+use heph_rt::bytes::{Bytes, BytesVectored};
+use heph_rt::net::{tcp, TcpServer, TcpStream};
 use heph_rt::spawn::{ActorOptions, Spawn};
 use httpdate::HttpDate;
 
@@ -55,7 +55,7 @@ impl<S, NA> NewActor for Setup<S, NA>
 where
     S: Supervisor<ArgMap<NA>> + Clone + 'static,
     NA: NewActor<Argument = (Connection, SocketAddr)> + Clone + 'static,
-    NA::RuntimeAccess: rt::Access + Spawn<S, ArgMap<NA>, NA::RuntimeAccess>,
+    NA::RuntimeAccess: heph_rt::Access + Spawn<S, ArgMap<NA>, NA::RuntimeAccess>,
 {
     type Message = Message;
     type Argument = ();
@@ -108,12 +108,12 @@ impl<S, NA> Clone for Setup<S, NA> {
 /// use std::time::Duration;
 ///
 /// use heph::actor::{self, Actor, NewActor};
-/// use heph::net::TcpStream;
-/// use heph::rt::{self, Runtime, ThreadLocal};
 /// use heph::supervisor::{Supervisor, SupervisorStrategy};
 /// use heph::timer::Deadline;
 /// use heph_http::body::OneshotBody;
 /// use heph_http::{self as http, Header, HeaderName, Headers, HttpServer, Method, StatusCode};
+/// use heph_rt::net::TcpStream;
+/// use heph_rt::{Runtime, ThreadLocal};
 /// use heph_rt::spawn::options::{ActorOptions, Priority};
 /// use log::error;
 ///
@@ -270,7 +270,7 @@ impl<S, NA> Actor for HttpServer<S, NA>
 where
     S: Supervisor<ArgMap<NA>> + Clone + 'static,
     NA: NewActor<Argument = (Connection, SocketAddr)> + Clone + 'static,
-    NA::RuntimeAccess: rt::Access + Spawn<S, ArgMap<NA>, NA::RuntimeAccess>,
+    NA::RuntimeAccess: heph_rt::Access + Spawn<S, ArgMap<NA>, NA::RuntimeAccess>,
 {
     type Error = Error<NA::Error>;
 
@@ -323,7 +323,7 @@ where
         self.new_actor.new(ctx, (conn, address))
     }
 
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         NA::name()
     }
 }
@@ -652,7 +652,6 @@ impl Connection {
     ///
     /// See the notes for [`Connection::send_response`], they apply to this
     /// function also.
-    #[allow(clippy::future_not_send)] // TODO.
     pub async fn respond<'b, B>(
         &mut self,
         status: StatusCode,
@@ -660,7 +659,7 @@ impl Connection {
         body: B,
     ) -> io::Result<()>
     where
-        B: crate::Body<'b>,
+        B: crate::Body<'b> + 'b,
     {
         let req_method = self.last_method.unwrap_or(Method::Get);
         let version = self.last_version.unwrap_or(Version::Http11).highest_minor();
@@ -671,10 +670,9 @@ impl Connection {
     /// Respond to the last parsed request with `response`.
     ///
     /// See [`Connection::respond`] for more documentation.
-    #[allow(clippy::future_not_send)] // TODO.
     pub async fn respond_with<'b, B>(&mut self, response: Response<B>) -> io::Result<()>
     where
-        B: crate::Body<'b>,
+        B: crate::Body<'b> + 'b,
     {
         let (head, body) = response.split();
         self.respond(head.status(), head.headers(), body).await
@@ -703,7 +701,6 @@ impl Connection {
     ///
     /// [`expects_body()`]: Method::expects_body
     /// [`includes_body()`]: StatusCode::includes_body
-    #[allow(clippy::future_not_send)] // TODO.
     pub async fn send_response<'b, B>(
         &mut self,
         request_method: Method,
@@ -714,7 +711,7 @@ impl Connection {
         body: B,
     ) -> io::Result<()>
     where
-        B: crate::Body<'b>,
+        B: crate::Body<'b> + 'b,
     {
         let mut itoa_buf = itoa::Buffer::new();
 
@@ -1323,7 +1320,7 @@ mod private {
     use std::pin::Pin;
     use std::task::{self, ready, Poll};
 
-    use heph::net::TcpStream;
+    use heph_rt::net::TcpStream;
 
     use super::{Body, BodyKind};
 
@@ -1406,15 +1403,15 @@ mod private {
 }
 
 impl<'c> crate::body::PrivateBody<'c> for Body<'c> {
-    type WriteBody<'s, 'h> = private::SendBody<'c, 's, 'h>;
+    type WriteMessage<'s, 'h> = private::SendBody<'c, 's, 'h> where Self: 'c;
 
     fn write_message<'s, 'h>(
         self,
         stream: &'s mut TcpStream,
         head: &'h [u8],
-    ) -> Self::WriteBody<'s, 'h>
+    ) -> Self::WriteMessage<'s, 'h>
     where
-        'c: 'h,
+        Self: 'c,
     {
         private::SendBody {
             body: self,
@@ -1616,9 +1613,9 @@ impl fmt::Display for RequestError {
 /// The message type used by [`HttpServer`] (and [`TcpServer`]).
 ///
 #[doc(inline)]
-pub use heph::net::tcp::server::Message;
+pub use heph_rt::net::tcp::server::Message;
 
 /// Error returned by [`HttpServer`] (and [`TcpServer`]).
 ///
 #[doc(inline)]
-pub use heph::net::tcp::server::Error;
+pub use heph_rt::net::tcp::server::Error;
