@@ -16,6 +16,7 @@
 //! [sync worker threads]: crate::sync_worker
 
 use std::env::consts::ARCH;
+use std::os::fd::{AsFd, AsRawFd};
 use std::os::unix::process::parent_id;
 use std::sync::Arc;
 use std::time::Instant;
@@ -24,6 +25,7 @@ use std::{fmt, io, process};
 use heph::actor_ref::{ActorGroup, Delivery};
 use log::{as_debug, as_display, debug, error, info, trace};
 use mio::event::Event;
+use mio::unix::SourceFd;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
@@ -38,10 +40,13 @@ use crate::{
 
 /// Token used to receive process signals.
 const SIGNAL: Token = Token(usize::MAX);
+const RING: Token = Token(usize::MAX - 1);
 
 /// Coordinator responsible for coordinating the Heph runtime.
 #[derive(Debug)]
 pub(super) struct Coordinator {
+    /// I/O uring.
+    ring: a10::Ring,
     /// OS poll, used to poll the status of the (sync) worker threads and
     /// process `signals`.
     poll: Poll,
@@ -75,6 +80,7 @@ impl Coordinator {
         worker_wakers: Box<[&'static ThreadWaker]>,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> io::Result<Coordinator> {
+        let ring = a10::Ring::config(512).build()?;
         let poll = Poll::new()?;
         // NOTE: on Linux this MUST be created before starting the worker
         // threads.
@@ -89,14 +95,15 @@ impl Coordinator {
         let (host_os, host_name) = host_info()?;
         let host_id = host_id()?;
         Ok(Coordinator {
-            host_os,
-            host_name,
-            host_id,
-            app_name,
+            ring,
             poll,
             signals,
             internals,
             start: Instant::now(),
+            app_name,
+            host_os,
+            host_name,
+            host_id,
         })
     }
 
@@ -195,6 +202,10 @@ impl Coordinator {
         // polling events.
         let timing = trace::start(&*trace_log);
         let registry = self.poll.registry();
+        let ring_fd = &self.ring.as_fd().as_raw_fd();
+        registry
+            .register(&mut SourceFd(ring_fd), RING, Interest::READABLE)
+            .map_err(|err| rt::Error::coordinator(Error::Startup(err)))?;
         register_workers(registry, workers)
             .map_err(|err| rt::Error::coordinator(Error::RegisteringWorkers(err)))?;
         register_sync_workers(registry, sync_workers)
@@ -392,11 +403,13 @@ fn handle_sync_worker_event(
 /// Error running the [`Coordinator`].
 #[derive(Debug)]
 pub(super) enum Error {
+    /// Error in starting up the Coordinator.
+    Startup(io::Error),
     /// Error in [`register_workers`].
     RegisteringWorkers(io::Error),
     /// Error in [`register_sync_workers`].
     RegisteringSyncActors(io::Error),
-    /// Error polling ([`mio::Poll`]).
+    /// Error polling ([`mio::Poll`] or [`a10::Ring`]).
     Polling(io::Error),
     /// Error sending start signal to worker.
     SendingStartSignal(io::Error),
@@ -408,6 +421,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Error::*;
         match self {
+            Startup(err) => write!(f, "error starting coordinator: {err}"),
             RegisteringWorkers(err) => write!(f, "error registering worker threads: {err}"),
             RegisteringSyncActors(err) => {
                 write!(f, "error registering synchronous actor threads: {err}")
@@ -423,7 +437,8 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         use Error::*;
         match self {
-            RegisteringWorkers(ref err)
+            Startup(ref err)
+            | RegisteringWorkers(ref err)
             | RegisteringSyncActors(ref err)
             | Polling(ref err)
             | SendingStartSignal(ref err)
