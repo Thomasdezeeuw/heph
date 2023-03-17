@@ -17,6 +17,7 @@ edition       = "2021"
 test = ["heph/test"]
 
 [dependencies]
+a10               = { version = "0.1.0", default-features = false, git = "https://github.com/Thomasdezeeuw/a10" }
 heph              = { version = "0.4.0", path = "../", default-features = false }
 heph-inbox        = { version = "0.2.3", path = "../inbox", default-features = false }
 log               = { version = "0.4.16", default-features = false, features = ["kv_unstable", "kv_unstable_std"] }

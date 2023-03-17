@@ -181,8 +181,8 @@
 // the test feature.
 #![doc(cfg_hide(any(test, feature = "test")))]
 
-#[cfg(not(any(target_os = "linux", target_os = "freebsd", target_os = "macos")))]
-compile_error!("Heph currently only supports Linux, FreeBSD and macOS.");
+#[cfg(not(any(target_os = "linux")))]
+compile_error!("Heph currently only supports Linux.");
 #[cfg(not(target_pointer_width = "64"))]
 compile_error!("Heph currently only supports 64 bit architectures.");
 
