@@ -2,7 +2,7 @@
 
 use std::cmp::min;
 use std::future::Future;
-use std::os::unix::io::AsRawFd;
+use std::os::fd::{AsFd, AsRawFd, RawFd};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, TryLockError};
@@ -41,6 +41,7 @@ use waker::WakerId;
 /// be called inside `Arc::new_cyclic`.
 pub(crate) struct RuntimeSetup {
     poll: Poll,
+    ring: a10::Ring,
     registry: Registry,
 }
 
@@ -54,11 +55,14 @@ impl RuntimeSetup {
     ) -> RuntimeInternals {
         // Needed by `RuntimeInternals::wake_workers`.
         debug_assert!(worker_wakers.len() >= 1);
+        let sq = self.ring.submission_queue().clone();
         RuntimeInternals {
             shared_id,
             worker_wakers,
             wake_worker_idx: AtomicUsize::new(0),
             poll: Mutex::new(self.poll),
+            ring: Mutex::new(self.ring),
+            sq,
             registry: self.registry,
             scheduler: Scheduler::new(),
             timers: Timers::new(),
@@ -80,6 +84,10 @@ pub(crate) struct RuntimeInternals {
     /// Poll instance for all shared event sources. This is polled by the worker
     /// thread.
     poll: Mutex<Poll>,
+    /// I/O uring.
+    ring: Mutex<a10::Ring>,
+    /// SubmissionQueue for the `ring`.
+    sq: a10::SubmissionQueue,
     /// Registry for the `Coordinator`'s `Poll` instance.
     registry: Registry,
     /// Scheduler for thread-safe actors.
@@ -108,8 +116,14 @@ impl RuntimeInternals {
     /// Setup new runtime internals.
     pub(crate) fn setup() -> io::Result<RuntimeSetup> {
         let poll = Poll::new()?;
+        // TODO: configure ring.
+        let ring = a10::Ring::new(512)?;
         let registry = poll.registry().try_clone()?;
-        Ok(RuntimeSetup { poll, registry })
+        Ok(RuntimeSetup {
+            poll,
+            ring,
+            registry,
+        })
     }
 
     /// Returns metrics about the shared scheduler and timers.
@@ -144,6 +158,25 @@ impl RuntimeInternals {
             Err(TryLockError::WouldBlock) => Ok(false),
             Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared poll: {err}"),
         }
+    }
+
+    /// Polls the I/O uring if it's currently not being polled.
+    pub(crate) fn try_poll_ring(&self) -> io::Result<()> {
+        match self.ring.try_lock() {
+            Ok(mut ring) => ring.poll(Some(Duration::ZERO)),
+            Err(TryLockError::WouldBlock) => Ok(()),
+            Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared I/O uring: {err}"),
+        }
+    }
+
+    /// Return the file descriptor for the I/O uring.
+    pub(crate) fn ring_fd(&self) -> RawFd {
+        self.ring.lock().unwrap().as_fd().as_raw_fd()
+    }
+
+    /// Returns the I/O uring submission queue.
+    pub(crate) fn submission_queue(&self) -> &a10::SubmissionQueue {
+        &self.sq
     }
 
     /// Register an `event::Source`, see [`mio::Registry::register`].

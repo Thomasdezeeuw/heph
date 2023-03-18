@@ -54,6 +54,8 @@ const COMMS: Token = Token(usize::MAX - 1);
 const SHARED_POLL: Token = Token(usize::MAX - 2);
 /// Token used to indicate the I/O uring has events.
 const RING: Token = Token(usize::MAX - 3);
+/// Token used to indicate the shared I/O uring has events.
+const SHARED_RING: Token = Token(usize::MAX - 4);
 
 /// Setup a new worker thread.
 ///
@@ -225,6 +227,15 @@ impl Worker {
         let ring_fd = ring.as_fd().as_raw_fd();
         poll.registry()
             .register(&mut SourceFd(&ring_fd), RING, Interest::READABLE)
+            .map_err(Error::Init)?;
+        trace!(worker_id = setup.id.get(); "registering shared I/O uring");
+        let shared_ring_fd = shared_internals.ring_fd();
+        poll.registry()
+            .register(
+                &mut SourceFd(&shared_ring_fd),
+                SHARED_POLL,
+                Interest::READABLE,
+            )
             .map_err(Error::Init)?;
         trace!(worker_id = setup.id.get(); "registering shared poll");
         shared_internals
@@ -447,6 +458,7 @@ impl Worker {
         let mut check_comms = false;
         let mut check_shared_poll = false;
         let mut check_ring = false;
+        let mut check_shared_ring = false;
         let mut amount = 0;
         for event in self.events.iter() {
             trace!(worker_id = self.internals.id.get(); "got OS event: {event:?}");
@@ -455,6 +467,7 @@ impl Worker {
                 COMMS => check_comms = true,
                 SHARED_POLL => check_shared_poll = true,
                 RING => check_ring = true,
+                SHARED_RING => check_shared_ring = true,
                 token => {
                     let pid = ProcessId::from(token);
                     trace!(
@@ -472,6 +485,13 @@ impl Worker {
                 .ring
                 .borrow_mut()
                 .poll(Some(Duration::ZERO))
+                .map_err(Error::Polling)?;
+        }
+
+        if check_shared_ring {
+            self.internals
+                .shared
+                .try_poll_ring()
                 .map_err(Error::Polling)?;
         }
 
