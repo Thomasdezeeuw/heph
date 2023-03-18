@@ -407,3 +407,84 @@ mod private {
         unsafe fn as_iovec(&self) -> [libc::iovec; N];
     }
 }
+
+/// Wrapper around `B` to implement [`a10::io::BufMut`] and [`a10::io::Buf`].
+pub(crate) struct BufWrapper<B>(pub(crate) B);
+
+unsafe impl<B: BufMut> a10::io::BufMut for BufWrapper<B> {
+    unsafe fn parts(&mut self) -> (*mut u8, u32) {
+        let (ptr, size) = self.0.parts();
+        (ptr, size as u32)
+    }
+
+    unsafe fn set_init(&mut self, n: usize) {
+        self.0.update_length(n);
+    }
+}
+
+unsafe impl<B: BufMut> BufMut for BufWrapper<B> {
+    unsafe fn parts(&mut self) -> (*mut u8, usize) {
+        self.0.parts()
+    }
+
+    unsafe fn update_length(&mut self, n: usize) {
+        self.0.update_length(n);
+    }
+
+    fn spare_capacity(&self) -> usize {
+        self.0.spare_capacity()
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        self.0.has_spare_capacity()
+    }
+}
+
+unsafe impl<B: Buf> a10::io::Buf for BufWrapper<B> {
+    unsafe fn parts(&self) -> (*const u8, u32) {
+        let (ptr, size) = self.0.parts();
+        (ptr, size as u32)
+    }
+}
+
+unsafe impl<B: Buf> Buf for BufWrapper<B> {
+    unsafe fn parts(&self) -> (*const u8, usize) {
+        self.0.parts()
+    }
+}
+
+unsafe impl<B: BufMutSlice<N>, const N: usize> a10::io::BufMutSlice<N> for BufWrapper<B> {
+    unsafe fn as_iovec(&mut self) -> [libc::iovec; N] {
+        self.0.as_iovec()
+    }
+
+    unsafe fn set_init(&mut self, n: usize) {
+        self.0.update_length(n)
+    }
+}
+
+impl<B: BufMutSlice<N>, const N: usize> BufMutSlice<N> for BufWrapper<B> {}
+
+unsafe impl<B: BufMutSlice<N>, const N: usize> private::BufMutSlice<N> for BufWrapper<B> {
+    unsafe fn as_iovec(&mut self) -> [libc::iovec; N] {
+        self.0.as_iovec()
+    }
+
+    unsafe fn update_length(&mut self, n: usize) {
+        self.0.update_length(n)
+    }
+}
+
+unsafe impl<B: BufSlice<N>, const N: usize> a10::io::BufSlice<N> for BufWrapper<B> {
+    unsafe fn as_iovec(&self) -> [libc::iovec; N] {
+        self.0.as_iovec()
+    }
+}
+
+impl<B: BufSlice<N>, const N: usize> BufSlice<N> for BufWrapper<B> {}
+
+unsafe impl<B: BufSlice<N>, const N: usize> private::BufSlice<N> for BufWrapper<B> {
+    unsafe fn as_iovec(&self) -> [libc::iovec; N] {
+        self.0.as_iovec()
+    }
+}
