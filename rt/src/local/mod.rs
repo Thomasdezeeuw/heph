@@ -30,6 +30,8 @@ pub(super) struct RuntimeInternals {
     pub(super) scheduler: RefCell<Scheduler>,
     /// OS poll, used for event notifications to support non-blocking I/O.
     pub(super) poll: RefCell<Poll>,
+    /// I/O uring.
+    pub(super) ring: RefCell<a10::Ring>,
     /// Timers, deadlines and timeouts.
     pub(crate) timers: RefCell<Timers>,
     /// Actor references to relay received `Signal`s to.
@@ -47,6 +49,7 @@ impl RuntimeInternals {
         shared_internals: Arc<shared::RuntimeInternals>,
         waker_id: WakerId,
         poll: Poll,
+        ring: a10::Ring,
         cpu: Option<usize>,
         trace_log: Option<trace::Log>,
     ) -> RuntimeInternals {
@@ -56,6 +59,7 @@ impl RuntimeInternals {
             waker_id,
             scheduler: RefCell::new(Scheduler::new()),
             poll: RefCell::new(poll),
+            ring: RefCell::new(ring),
             timers: RefCell::new(Timers::new()),
             signal_receivers: RefCell::new(ActorGroup::empty()),
             cpu,
