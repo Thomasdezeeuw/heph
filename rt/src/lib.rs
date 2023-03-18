@@ -207,8 +207,8 @@ use std::convert::TryInto;
 use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
+use std::task;
 use std::time::{Duration, Instant};
-use std::{io, task};
 
 use ::log::{as_debug, debug, warn};
 use heph::actor::{self, NewActor, SyncActor};
@@ -222,6 +222,7 @@ pub mod bytes;
 mod channel;
 mod coordinator;
 mod error;
+pub mod io;
 mod local;
 pub mod log;
 pub mod net;
