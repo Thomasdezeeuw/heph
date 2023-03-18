@@ -292,6 +292,18 @@ impl Worker {
         let waker = mio::Waker::new(poll.registry(), WAKER)?;
         let waker_id = waker::init(waker, waker_sender);
 
+        // Register the shared poll intance.
+        let ring_fd = ring.as_fd().as_raw_fd();
+        poll.registry()
+            .register(&mut SourceFd(&ring_fd), RING, Interest::READABLE)?;
+        let shared_ring_fd = shared_internals.ring_fd();
+        poll.registry().register(
+            &mut SourceFd(&shared_ring_fd),
+            SHARED_POLL,
+            Interest::READABLE,
+        )?;
+        shared_internals.register_worker_poll(poll.registry(), SHARED_POLL)?;
+        // Register the channel to the coordinator.
         receiver.register(poll.registry(), COMMS)?;
 
         let id = NonZeroUsize::new(usize::MAX).unwrap();
