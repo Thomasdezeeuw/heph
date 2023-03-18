@@ -692,7 +692,12 @@ impl Worker {
             "Polling for OS events",
             &[],
         );
-        res
+        match res {
+            Ok(()) => Ok(()),
+            // The I/O uring will interrupt us.
+            Err(ref err) if err.kind() == io::ErrorKind::Interrupted => Ok(()),
+            Err(err) => Err(err),
+        }
     }
 
     /// Determine the timeout to be used in polling.

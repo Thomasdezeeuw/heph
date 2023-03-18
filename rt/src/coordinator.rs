@@ -129,9 +129,7 @@ impl Coordinator {
         let mut events = Events::with_capacity(16);
         loop {
             let timing = trace::start(&trace_log);
-            // Process OS events.
-            self.poll
-                .poll(&mut events, None)
+            self.poll_os(&mut events)
                 .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
             trace::finish_rt(trace_log.as_mut(), timing, "Polling for OS events", &[]);
 
@@ -183,6 +181,15 @@ impl Coordinator {
             if workers.is_empty() && sync_workers.is_empty() {
                 return Ok(());
             }
+        }
+    }
+
+    fn poll_os(&mut self, events: &mut Events) -> io::Result<()> {
+        match self.poll.poll(events, None) {
+            Ok(()) => Ok(()),
+            // The I/O uring will interrupt us.
+            Err(ref err) if err.kind() == io::ErrorKind::Interrupted => Ok(()),
+            Err(err) => Err(err),
         }
     }
 
