@@ -78,6 +78,9 @@ mod private {
         /// Changes the process id to `new_pid`, returning the old process id.
         fn change_pid(&mut self, new_pid: ProcessId) -> ProcessId;
 
+        /// Get access to the `SubmissionQueue`.
+        fn submission_queue(&self) -> a10::SubmissionQueue;
+
         /// Registers the `source`.
         fn register<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
         where
@@ -167,6 +170,10 @@ impl PrivateAccess for ThreadLocal {
 
     fn change_pid(&mut self, new_pid: ProcessId) -> ProcessId {
         replace(&mut self.pid, new_pid)
+    }
+
+    fn submission_queue(&self) -> a10::SubmissionQueue {
+        self.rt.internals.ring.borrow().submission_queue().clone()
     }
 
     fn register<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
@@ -327,6 +334,10 @@ impl PrivateAccess for ThreadSafe {
 
     fn change_pid(&mut self, new_pid: ProcessId) -> ProcessId {
         replace(&mut self.pid, new_pid)
+    }
+
+    fn submission_queue(&self) -> a10::SubmissionQueue {
+        self.rt.submission_queue().clone()
     }
 
     fn register<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
