@@ -17,6 +17,7 @@
 
 use std::cell::RefMut;
 use std::num::NonZeroUsize;
+use std::os::fd::{AsFd, AsRawFd};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -26,7 +27,8 @@ use std::{fmt, io, thread};
 use crossbeam_channel::{self, Receiver};
 use heph::actor_ref::{Delivery, SendError};
 use log::{as_debug, debug, info, trace};
-use mio::{Events, Poll, Registry, Token};
+use mio::unix::SourceFd;
+use mio::{Events, Interest, Poll, Registry, Token};
 
 use crate::error::StringError;
 use crate::local::waker::{self, WakerId};
@@ -50,12 +52,16 @@ const COMMS: Token = Token(usize::MAX - 1);
 /// Token used to indicate the shared [`Poll`] (in [`shared::RuntimeInternals`])
 /// has events.
 const SHARED_POLL: Token = Token(usize::MAX - 2);
+/// Token used to indicate the I/O uring has events.
+const RING: Token = Token(usize::MAX - 3);
 
 /// Setup a new worker thread.
 ///
 /// Use [`WorkerSetup::start`] to spawn the worker thread.
 pub(super) fn setup(id: NonZeroUsize) -> io::Result<(WorkerSetup, &'static ThreadWaker)> {
     let poll = Poll::new()?;
+    // TODO: configure ring.
+    let ring = a10::Ring::new(512)?;
 
     // Setup the waking mechanism.
     let (waker_sender, waker_events) = crossbeam_channel::unbounded();
@@ -66,6 +72,7 @@ pub(super) fn setup(id: NonZeroUsize) -> io::Result<(WorkerSetup, &'static Threa
     let setup = WorkerSetup {
         id,
         poll,
+        ring,
         waker_id,
         waker_events,
     };
@@ -79,6 +86,8 @@ pub(super) struct WorkerSetup {
     /// Poll instance for the worker thread. This is needed before starting the
     /// thread to initialise the [`rt::local::waker`].
     poll: Poll,
+    /// I/O uring.
+    ring: a10::Ring,
     /// Waker id used to create a `Waker` for thread-local actors.
     waker_id: WakerId,
     /// Receiving side of the channel for `Waker` events.
@@ -211,12 +220,18 @@ impl Worker {
 
         // Register the shared poll intance.
         let poll = setup.poll;
-        trace!(worker_id = setup.id.get(); "registring shared poll");
+        trace!(worker_id = setup.id.get(); "registering I/O uring");
+        let ring = setup.ring;
+        let ring_fd = ring.as_fd().as_raw_fd();
+        poll.registry()
+            .register(&mut SourceFd(&ring_fd), RING, Interest::READABLE)
+            .map_err(Error::Init)?;
+        trace!(worker_id = setup.id.get(); "registering shared poll");
         shared_internals
             .register_worker_poll(poll.registry(), SHARED_POLL)
             .map_err(Error::Init)?;
         // Register the channel to the coordinator.
-        trace!(worker_id = setup.id.get(); "registring communication channel");
+        trace!(worker_id = setup.id.get(); "registering communication channel");
         receiver
             .register(poll.registry(), COMMS)
             .map_err(Error::Init)?;
@@ -227,6 +242,7 @@ impl Worker {
             shared_internals,
             setup.waker_id,
             poll,
+            ring,
             cpu,
             trace_log,
         );
@@ -256,6 +272,8 @@ impl Worker {
         mut receiver: rt::channel::Receiver<Control>,
     ) -> io::Result<Worker> {
         let poll = Poll::new()?;
+        // TODO: configure ring.
+        let ring = a10::Ring::new(512)?;
 
         // TODO: this channel will grow unbounded as the waker implementation
         // sends pids into it.
@@ -266,7 +284,8 @@ impl Worker {
         receiver.register(poll.registry(), COMMS)?;
 
         let id = NonZeroUsize::new(usize::MAX).unwrap();
-        let internals = RuntimeInternals::new(id, shared_internals, waker_id, poll, None, None);
+        let internals =
+            RuntimeInternals::new(id, shared_internals, waker_id, poll, ring, None, None);
         Ok(Worker {
             internals: Rc::new(internals),
             events: Events::with_capacity(16),
@@ -427,6 +446,7 @@ impl Worker {
         let mut scheduler = self.internals.scheduler.borrow_mut();
         let mut check_comms = false;
         let mut check_shared_poll = false;
+        let mut check_ring = false;
         let mut amount = 0;
         for event in self.events.iter() {
             trace!(worker_id = self.internals.id.get(); "got OS event: {event:?}");
@@ -434,6 +454,7 @@ impl Worker {
                 WAKER => { /* Need to wake up to handle user space events. */ }
                 COMMS => check_comms = true,
                 SHARED_POLL => check_shared_poll = true,
+                RING => check_ring = true,
                 token => {
                     let pid = ProcessId::from(token);
                     trace!(
@@ -445,6 +466,15 @@ impl Worker {
                 }
             }
         }
+
+        if check_ring {
+            self.internals
+                .ring
+                .borrow_mut()
+                .poll(Some(Duration::ZERO))
+                .map_err(Error::Polling)?;
+        }
+
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
             timing,
