@@ -25,6 +25,20 @@ impl<'a, B: Buf> Future for Write<'a, B> {
     }
 }
 
+/// [`Future`] behind write all implementations.
+pub struct WriteAll<'a, B>(pub(crate) Extractor<a10::io::WriteAll<'a, BufWrapper<B>>>);
+
+impl<'a, B: Buf> Future for WriteAll<'a, B> {
+    type Output = io::Result<B>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the `Future`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
+            .poll(ctx)
+            .map_ok(|buf| buf.0)
+    }
+}
+
 /// [`Future`] behind write vectored implementations.
 pub struct WriteVectored<'a, B, const N: usize>(
     pub(crate) Extractor<a10::io::WriteVectored<'a, BufWrapper<B>, N>>,
@@ -38,6 +52,22 @@ impl<'a, B: BufSlice<N>, const N: usize> Future for WriteVectored<'a, B, N> {
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
             .map_ok(|(buf, len)| (buf.0, len))
+    }
+}
+
+/// [`Future`] behind write all vectored implementations.
+pub struct WriteAllVectored<'a, B, const N: usize>(
+    pub(crate) Extractor<a10::io::WriteAllVectored<'a, BufWrapper<B>, N>>,
+);
+
+impl<'a, B: BufSlice<N>, const N: usize> Future for WriteAllVectored<'a, B, N> {
+    type Output = io::Result<B>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the `Future`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
+            .poll(ctx)
+            .map_ok(|buf| buf.0)
     }
 }
 
