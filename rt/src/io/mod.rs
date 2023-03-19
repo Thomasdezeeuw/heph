@@ -5,8 +5,10 @@
 //! [`BufSlice`] and [`BufMutSlice`] traits define the behaviour of buffers in
 //! vectored I/O.
 //!
-//! Finally this module contains a number of [`Future`] implementation that
+//! Finally this module contains a number of [`Future`] implementations that
 //! facilitate I/O operations.
+//!
+//! [`Future`]: std::future:::Future
 
 // For ease of use within the crate.
 pub(crate) use std::io::{Error, Result};
