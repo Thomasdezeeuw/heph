@@ -46,7 +46,7 @@ pub unsafe trait BufMut: 'static {
     /// Returning a slice with `MaybeUninit` to such as type would be unsound as
     /// it would allow the caller to write unitialised bytes without using
     /// `unsafe`.
-    unsafe fn parts(&mut self) -> (*mut u8, usize);
+    unsafe fn parts_mut(&mut self) -> (*mut u8, usize);
 
     /// Update the length of the byte slice, marking `n` bytes as initialised.
     ///
@@ -112,7 +112,7 @@ pub unsafe trait BufMut: 'static {
 // alive, so is the slice of bytes. When the `Vec`tor is leaked the allocation
 // will also be leaked.
 unsafe impl BufMut for Vec<u8> {
-    unsafe fn parts(&mut self) -> (*mut u8, usize) {
+    unsafe fn parts_mut(&mut self) -> (*mut u8, usize) {
         let slice = self.spare_capacity_mut();
         (slice.as_mut_ptr().cast(), slice.len())
     }
@@ -156,10 +156,10 @@ impl<B: BufMut, const N: usize> BufMutSlice<N> for [B; N] {}
 // `B` implements `BufMut` it's safe to implement `BufMutSlice` for an array of
 // `B`.
 unsafe impl<B: BufMut, const N: usize> private::BufMutSlice<N> for [B; N] {
-    unsafe fn as_iovec(&mut self) -> [libc::iovec; N] {
+    unsafe fn as_iovecs_mut(&mut self) -> [libc::iovec; N] {
         let mut iovecs = MaybeUninit::uninit_array();
         for (buf, iovec) in self.iter_mut().zip(iovecs.iter_mut()) {
-            let (ptr, len) = buf.parts();
+            let (ptr, len) = buf.parts_mut();
             _ = iovec.write(libc::iovec {
                 iov_base: ptr.cast(),
                 iov_len: len,
@@ -171,7 +171,7 @@ unsafe impl<B: BufMut, const N: usize> private::BufMutSlice<N> for [B; N] {
     unsafe fn update_length(&mut self, n: usize) {
         let mut left = n;
         for buf in self.iter_mut() {
-            let (_, len) = buf.parts();
+            let (_, len) = buf.parts_mut();
             if len < left {
                 // Fully initialised the buffer.
                 buf.update_length(len);
@@ -280,7 +280,7 @@ impl<B: Buf, const N: usize> BufSlice<N> for [B; N] {}
 // SAFETY: `BufSlice` has the same safety requirements as `Buf` and since `B`
 // implements `Buf` it's safe to implement `BufSlice` for an array of `B`.
 unsafe impl<B: Buf, const N: usize> private::BufSlice<N> for [B; N] {
-    unsafe fn as_iovec(&self) -> [libc::iovec; N] {
+    unsafe fn as_iovecs(&self) -> [libc::iovec; N] {
         let mut iovecs = MaybeUninit::uninit_array();
         for (buf, iovec) in self.iter().zip(iovecs.iter_mut()) {
             let (ptr, len) = buf.parts();
@@ -305,10 +305,10 @@ macro_rules! buf_slice_for_tuple {
         // and since all generic buffers must implement `BufMut` it's safe to
         // implement `BufMutSlice` for a tuple of all those buffers.
         unsafe impl<$( $generic: BufMut ),+> private::BufMutSlice<$N> for ($( $generic ),+) {
-            unsafe fn as_iovec(&mut self) -> [libc::iovec; $N] {
+            unsafe fn as_iovecs_mut(&mut self) -> [libc::iovec; $N] {
                 [
                     $({
-                        let (ptr, len) = self.$index.parts();
+                        let (ptr, len) = self.$index.parts_mut();
                         libc::iovec {
                             iov_base: ptr.cast(),
                             iov_len: len,
@@ -320,7 +320,7 @@ macro_rules! buf_slice_for_tuple {
             unsafe fn update_length(&mut self, n: usize) {
                 let mut left = n;
                 $({
-                    let (_, len) = self.$index.parts();
+                    let (_, len) = self.$index.parts_mut();
                     if len < left {
                         // Fully initialised the buffer.
                         self.$index.update_length(len);
@@ -344,7 +344,7 @@ macro_rules! buf_slice_for_tuple {
         // since all generic buffers must implement `Buf` it's safe to implement
         // `BufSlice` for a tuple of all those buffers.
         unsafe impl<$( $generic: Buf ),+> private::BufSlice<$N> for ($( $generic ),+) {
-            unsafe fn as_iovec(&self) -> [libc::iovec; $N] {
+            unsafe fn as_iovecs(&self) -> [libc::iovec; $N] {
                 [
                     $({
                         let (ptr, len) = self.$index.parts();
@@ -378,7 +378,7 @@ mod private {
         ///
         /// This has the same safety requirements as [`BufMut::parts`], but then for
         /// all buffers used.
-        unsafe fn as_iovec(&mut self) -> [libc::iovec; N];
+        unsafe fn as_iovecs_mut(&mut self) -> [libc::iovec; N];
 
         /// Mark `n` bytes as initialised.
         ///
@@ -404,7 +404,7 @@ mod private {
         ///
         /// This has the same safety requirements as [`Buf::parts`], but then for
         /// all buffers used.
-        unsafe fn as_iovec(&self) -> [libc::iovec; N];
+        unsafe fn as_iovecs(&self) -> [libc::iovec; N];
     }
 }
 
@@ -412,8 +412,8 @@ mod private {
 pub(crate) struct BufWrapper<B>(pub(crate) B);
 
 unsafe impl<B: BufMut> a10::io::BufMut for BufWrapper<B> {
-    unsafe fn parts(&mut self) -> (*mut u8, u32) {
-        let (ptr, size) = self.0.parts();
+    unsafe fn parts_mut(&mut self) -> (*mut u8, u32) {
+        let (ptr, size) = self.0.parts_mut();
         (ptr, size as u32)
     }
 
@@ -423,8 +423,8 @@ unsafe impl<B: BufMut> a10::io::BufMut for BufWrapper<B> {
 }
 
 unsafe impl<B: BufMut> BufMut for BufWrapper<B> {
-    unsafe fn parts(&mut self) -> (*mut u8, usize) {
-        self.0.parts()
+    unsafe fn parts_mut(&mut self) -> (*mut u8, usize) {
+        self.0.parts_mut()
     }
 
     unsafe fn update_length(&mut self, n: usize) {
@@ -454,8 +454,8 @@ unsafe impl<B: Buf> Buf for BufWrapper<B> {
 }
 
 unsafe impl<B: BufMutSlice<N>, const N: usize> a10::io::BufMutSlice<N> for BufWrapper<B> {
-    unsafe fn as_iovec(&mut self) -> [libc::iovec; N] {
-        self.0.as_iovec()
+    unsafe fn as_iovecs_mut(&mut self) -> [libc::iovec; N] {
+        self.0.as_iovecs_mut()
     }
 
     unsafe fn set_init(&mut self, n: usize) {
@@ -466,8 +466,8 @@ unsafe impl<B: BufMutSlice<N>, const N: usize> a10::io::BufMutSlice<N> for BufWr
 impl<B: BufMutSlice<N>, const N: usize> BufMutSlice<N> for BufWrapper<B> {}
 
 unsafe impl<B: BufMutSlice<N>, const N: usize> private::BufMutSlice<N> for BufWrapper<B> {
-    unsafe fn as_iovec(&mut self) -> [libc::iovec; N] {
-        self.0.as_iovec()
+    unsafe fn as_iovecs_mut(&mut self) -> [libc::iovec; N] {
+        self.0.as_iovecs_mut()
     }
 
     unsafe fn update_length(&mut self, n: usize) {
@@ -476,15 +476,15 @@ unsafe impl<B: BufMutSlice<N>, const N: usize> private::BufMutSlice<N> for BufWr
 }
 
 unsafe impl<B: BufSlice<N>, const N: usize> a10::io::BufSlice<N> for BufWrapper<B> {
-    unsafe fn as_iovec(&self) -> [libc::iovec; N] {
-        self.0.as_iovec()
+    unsafe fn as_iovecs(&self) -> [libc::iovec; N] {
+        self.0.as_iovecs()
     }
 }
 
 impl<B: BufSlice<N>, const N: usize> BufSlice<N> for BufWrapper<B> {}
 
 unsafe impl<B: BufSlice<N>, const N: usize> private::BufSlice<N> for BufWrapper<B> {
-    unsafe fn as_iovec(&self) -> [libc::iovec; N] {
-        self.0.as_iovec()
+    unsafe fn as_iovecs(&self) -> [libc::iovec; N] {
+        self.0.as_iovecs()
     }
 }
