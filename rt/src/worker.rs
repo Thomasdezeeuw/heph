@@ -299,7 +299,7 @@ impl Worker {
         let shared_ring_fd = shared_internals.ring_fd();
         poll.registry().register(
             &mut SourceFd(&shared_ring_fd),
-            SHARED_POLL,
+            SHARED_RING,
             Interest::READABLE,
         )?;
         shared_internals.register_worker_poll(poll.registry(), SHARED_POLL)?;
