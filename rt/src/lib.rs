@@ -203,6 +203,18 @@ macro_rules! try_io {
     };
 }
 
+/// Helper macro to execute a system call that returns an `io::Result`.
+macro_rules! syscall {
+    ($fn: ident ( $($arg: expr),* $(,)? ) ) => {{
+        let res = unsafe { libc::$fn($( $arg, )*) };
+        if res == -1 {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(res)
+        }
+    }};
+}
+
 use std::convert::TryInto;
 use std::future::Future;
 use std::rc::Rc;
