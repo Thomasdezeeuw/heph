@@ -146,11 +146,27 @@ unsafe impl BufMut for Vec<u8> {
 ///
 /// This has the same safety requirements as [`BufMut`], but then for all
 /// buffers used.
-pub trait BufMutSlice<const N: usize>: private::BufMutSlice<N> + 'static {}
+pub trait BufMutSlice<const N: usize>: private::BufMutSlice<N> + 'static {
+    /// Returns the total length of all buffer.s
+    fn total_spare_capacity(&self) -> usize;
+
+    /// Returns `true` at least one of the buffer has spare capacity.
+    fn has_spare_capacity(&self) -> bool {
+        self.total_spare_capacity() == 0
+    }
+}
 
 // NOTE: see the `private` module below for the actual trait.
 
-impl<B: BufMut, const N: usize> BufMutSlice<N> for [B; N] {}
+impl<B: BufMut, const N: usize> BufMutSlice<N> for [B; N] {
+    fn total_spare_capacity(&self) -> usize {
+        self.iter().map(BufMut::spare_capacity).sum()
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        self.iter().any(BufMut::has_spare_capacity)
+    }
+}
 
 // SAFETY: `BufMutSlice` has the same safety requirements as `BufMut` and since
 // `B` implements `BufMut` it's safe to implement `BufMutSlice` for an array of
@@ -300,7 +316,18 @@ macro_rules! buf_slice_for_tuple {
         // Generic parameter name and tuple index.
         $( $generic: ident . $index: tt ),+
     ) => {
-        impl<$( $generic: BufMut ),+> BufMutSlice<$N> for ($( $generic ),+) { }
+        impl<$( $generic: BufMut ),+> BufMutSlice<$N> for ($( $generic ),+) {
+            fn total_spare_capacity(&self) -> usize {
+                $( self.$index.spare_capacity() + )+
+                0
+            }
+
+            fn has_spare_capacity(&self) -> bool {
+                $( self.$index.has_spare_capacity() || )+
+                false
+            }
+        }
+
         // SAFETY: `BufMutSlice` has the same safety requirements as `BufMut`
         // and since all generic buffers must implement `BufMut` it's safe to
         // implement `BufMutSlice` for a tuple of all those buffers.
@@ -463,7 +490,15 @@ unsafe impl<B: BufMutSlice<N>, const N: usize> a10::io::BufMutSlice<N> for BufWr
     }
 }
 
-impl<B: BufMutSlice<N>, const N: usize> BufMutSlice<N> for BufWrapper<B> {}
+impl<B: BufMutSlice<N>, const N: usize> BufMutSlice<N> for BufWrapper<B> {
+    fn total_spare_capacity(&self) -> usize {
+        self.0.total_spare_capacity()
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        self.0.has_spare_capacity()
+    }
+}
 
 unsafe impl<B: BufMutSlice<N>, const N: usize> private::BufMutSlice<N> for BufWrapper<B> {
     unsafe fn as_iovecs_mut(&mut self) -> [libc::iovec; N] {
