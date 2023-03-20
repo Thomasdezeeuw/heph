@@ -100,3 +100,33 @@ impl<'a, B: BufMutSlice<N>, const N: usize> Future for ReadVectored<'a, B, N> {
             .map_ok(|buf| buf.0)
     }
 }
+
+/// [`Future`] behind read `n` implementations.
+pub struct ReadN<'a, B>(pub(crate) a10::io::ReadN<'a, BufWrapper<B>>);
+
+impl<'a, B: BufMut> Future for ReadN<'a, B> {
+    type Output = io::Result<B>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the `Future`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
+            .poll(ctx)
+            .map_ok(|buf| buf.0)
+    }
+}
+
+/// [`Future`] behind read `n` vectored implementations.
+pub struct ReadNVectored<'a, B, const N: usize>(
+    pub(crate) a10::io::ReadNVectored<'a, BufWrapper<B>, N>,
+);
+
+impl<'a, B: BufMutSlice<N>, const N: usize> Future for ReadNVectored<'a, B, N> {
+    type Output = io::Result<B>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the `Future`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
+            .poll(ctx)
+            .map_ok(|buf| buf.0)
+    }
+}
