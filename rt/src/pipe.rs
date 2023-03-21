@@ -161,7 +161,7 @@ impl Sender {
 
     /// Write the bytes in `buf` into the pipe.
     ///
-    /// Return the number of bytes written. This may we fewer then the length of
+    /// Return the number of bytes written. This may we fewer than the length of
     /// `buf`. To ensure that all bytes are written use [`Sender::write_all`].
     pub fn write<'a, B: Buf>(&'a mut self, buf: B) -> Write<'a, B> {
         Write(self.fd.write(BufWrapper(buf)).extract())
@@ -177,7 +177,7 @@ impl Sender {
 
     /// Write the bytes in `bufs` intoto the pipe.
     ///
-    /// Return the number of bytes written. This may we fewer then the length of
+    /// Return the number of bytes written. This may we fewer than the length of
     /// `bufs`. To ensure that all bytes are written use
     /// [`Sender::write_vectored_all`].
     pub fn write_vectored<'a, B: BufSlice<N>, const N: usize>(
@@ -238,13 +238,12 @@ impl Receiver {
 
     /// Read at least `n` bytes from the pipe, writing them into `buf`.
     ///
-    /// This returns a [`Future`] that receives at least `n` bytes from the
-    /// `Receiver` and writes them into buffer `B`, or returns
-    /// [`io::ErrorKind::UnexpectedEof`] if less then `n` bytes could be read.
+    /// This returns [`io::ErrorKind::UnexpectedEof`] if less than `n` bytes
+    /// could be read.
     pub fn read_n<'a, B: BufMut>(&'a mut self, buf: B, n: usize) -> ReadN<'a, B> {
         debug_assert!(
             buf.spare_capacity() >= n,
-            "called `Receiver::read_n` with a buffer smaller then `n`",
+            "called `Receiver::read_n` with a buffer smaller than `n`",
         );
         ReadN(self.fd.read_n(BufWrapper(buf), n))
     }
@@ -265,7 +264,7 @@ impl Receiver {
     ) -> ReadNVectored<'a, B, N> {
         debug_assert!(
             bufs.total_spare_capacity() >= n,
-            "called `Receiver::read_n_vectored` with buffers smaller then `n`"
+            "called `Receiver::read_n_vectored` with buffers smaller than `n`"
         );
         ReadNVectored(self.fd.read_n_vectored(BufWrapper(bufs), n))
     }

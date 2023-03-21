@@ -53,9 +53,9 @@ pub unsafe trait BufMut: 'static {
     /// # Safety
     ///
     /// The caller must ensure that at least the first `n` bytes returned by
-    /// [`parts`] are initialised.
+    /// [`parts_mut`] are initialised.
     ///
-    /// [`parts`]: BufMut::parts
+    /// [`parts_mut`]: BufMut::parts_mut
     ///
     /// # Notes
     ///
@@ -66,9 +66,9 @@ pub unsafe trait BufMut: 'static {
     /// [`TcpStream::recv_n`]: crate::net::TcpStream::recv_n
     unsafe fn update_length(&mut self, n: usize);
 
-    /// Returns the length of the buffer as returned by [`parts`].
+    /// Returns the length of the buffer as returned by [`parts_mut`].
     ///
-    /// [`parts`]: BufMut::parts
+    /// [`parts_mut`]: BufMut::parts_mut
     fn spare_capacity(&self) -> usize;
 
     /// Returns `true` if the buffer has spare capacity.
