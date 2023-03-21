@@ -8,7 +8,7 @@
 //! Finally this module contains a number of [`Future`] implementations that
 //! facilitate I/O operations.
 //!
-//! [`Future`]: std::future:::Future
+//! [`Future`]: std::future::Future
 
 // For ease of use within the crate.
 pub(crate) use std::io::{Error, Result};
