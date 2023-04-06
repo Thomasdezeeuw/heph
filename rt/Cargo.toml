@@ -25,7 +25,8 @@ crossbeam-channel = { version = "0.5.0", default-features = false, features = ["
 libc              = { version = "0.2.96", default-features = false }
 mio               = { version = "0.8.0", default-features = false, features = ["os-poll", "net"] }
 mio-signals       = { version = "0.2.0", default-features = false }
-socket2           = { version = "0.4.0", default-features = false, features = ["all"] }
+# TODO: update to v0.5.0
+socket2           = { version = "0.4.0", default-features = false, features = ["all"], git = "https://github.com/Thomasdezeeuw/socket2", branch = "heph-v0.4" }
 
 [dev-dependencies]
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
