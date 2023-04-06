@@ -22,7 +22,7 @@ pub struct UnixDatagram<M = Unconnected> {
 
 impl UnixDatagram {
     /// Creates a Unix datagram socket bound to `address`.
-    pub async fn bind<RT>(rt: &RT, address: &UnixAddr) -> io::Result<UnixDatagram<Unconnected>>
+    pub async fn bind<RT>(rt: &RT, address: UnixAddr) -> io::Result<UnixDatagram<Unconnected>>
     where
         RT: rt::Access,
     {
