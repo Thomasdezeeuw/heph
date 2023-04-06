@@ -30,4 +30,5 @@ mod functional {
     mod test;
     mod timer;
     mod udp;
+    mod uds;
 }

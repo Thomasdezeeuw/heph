@@ -49,20 +49,26 @@ use std::net::SocketAddr;
 
 use socket2::SockAddr;
 
+mod futures;
 pub mod tcp;
 pub mod udp;
+pub mod uds;
 
 #[doc(no_inline)]
 pub use tcp::{TcpListener, TcpServer, TcpStream};
 #[doc(no_inline)]
 pub use udp::UdpSocket;
+#[doc(no_inline)]
+pub use uds::UnixDatagram;
 
-/// The unconnected mode of an [`UdpSocket`].
+pub use futures::{Recv, Send, SendTo};
+
+/// The unconnected mode of an [`UdpSocket`] or [`UnixDatagram`].
 #[allow(missing_debug_implementations)]
 #[allow(clippy::empty_enum)]
 pub enum Unconnected {}
 
-/// The connected mode of an [`UdpSocket`].
+/// The connected mode of an [`UdpSocket`] or [`UnixDatagram`].
 #[allow(missing_debug_implementations)]
 #[allow(clippy::empty_enum)]
 pub enum Connected {}
