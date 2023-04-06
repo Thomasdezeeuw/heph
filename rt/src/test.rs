@@ -51,8 +51,7 @@ use std::async_iter::AsyncIterator;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use std::sync::LazyLock;
+use std::sync::{Arc, OnceLock};
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{io, slice, thread};
@@ -79,22 +78,30 @@ pub use heph::test::*;
 
 pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 
-pub(crate) static NOOP_WAKER: LazyLock<ThreadWaker> = LazyLock::new(|| {
-    let poll = mio::Poll::new().expect("failed to create `Poll` instance for test module");
-    let waker = mio::Waker::new(poll.registry(), mio::Token(0))
-        .expect("failed to create `Waker` instance for test module");
-    ThreadWaker::new(waker)
-});
-
-static SHARED_INTERNAL: LazyLock<Arc<shared::RuntimeInternals>> = LazyLock::new(|| {
-    let setup = shared::RuntimeInternals::setup()
-        .expect("failed to setup runtime internals for test module");
-    Arc::new_cyclic(|shared_internals| {
-        let waker_id = waker::init(shared_internals.clone());
-        let worker_wakers = vec![&*NOOP_WAKER].into_boxed_slice();
-        setup.complete(waker_id, worker_wakers, None)
+pub(crate) fn noop_waker() -> &'static ThreadWaker {
+    static NOOP_WAKER: OnceLock<ThreadWaker> = OnceLock::new();
+    NOOP_WAKER.get_or_init(|| {
+        let poll = mio::Poll::new().expect("failed to create `Poll` instance for test module");
+        let waker = mio::Waker::new(poll.registry(), mio::Token(0))
+            .expect("failed to create `Waker` instance for test module");
+        ThreadWaker::new(waker)
     })
-});
+}
+
+fn shared_internals() -> Arc<shared::RuntimeInternals> {
+    static SHARED_INTERNALS: OnceLock<Arc<shared::RuntimeInternals>> = OnceLock::new();
+    SHARED_INTERNALS
+        .get_or_init(|| {
+            let setup = shared::RuntimeInternals::setup()
+                .expect("failed to setup runtime internals for test module");
+            Arc::new_cyclic(|shared_internals| {
+                let waker_id = waker::init(shared_internals.clone());
+                let worker_wakers = vec![noop_waker()].into_boxed_slice();
+                setup.complete(waker_id, worker_wakers, None)
+            })
+        })
+        .clone()
+}
 
 /// Returns a reference to a fake local runtime.
 ///
@@ -108,7 +115,7 @@ pub fn runtime() -> RuntimeRef {
         static TEST_RT: Worker = {
             let (_, receiver) = rt::channel::new()
                 .expect("failed to create runtime channel for test module");
-            Worker::new_test(SHARED_INTERNAL.clone(), receiver)
+            Worker::new_test(shared_internals(), receiver)
                 .expect("failed to create local `Runtime` for test module")
         };
     }
@@ -122,7 +129,8 @@ type RtControl = rt::channel::Sender<Control>;
 /// Lazily start the *test* runtime on a new thread, returning the control
 /// channel.
 fn test_runtime() -> &'static RtControl {
-    static TEST_RT: LazyLock<RtControl> = LazyLock::new(|| {
+    static TEST_RT: OnceLock<RtControl> = OnceLock::new();
+    TEST_RT.get_or_init(|| {
         let (sender, receiver) =
             rt::channel::new().expect("failed to create runtime channel for test module");
         let _handle = thread::Builder::new()
@@ -130,16 +138,14 @@ fn test_runtime() -> &'static RtControl {
             .spawn(move || {
                 // NOTE: because we didn't indicate the runtime has started this
                 // will never stop.
-                Worker::new_test(SHARED_INTERNAL.clone(), receiver)
+                Worker::new_test(shared_internals(), receiver)
                     .expect("failed to create a runtime for test module")
                     .run()
                     .expect("failed to run test runtime");
             })
             .expect("failed to start thread for test runtime");
         sender
-    });
-
-    &TEST_RT
+    })
 }
 
 /// Run function `f` on the *test* runtime.
@@ -404,7 +410,7 @@ where
     NA: NewActor<RuntimeAccess = ThreadSafe>,
 {
     let (manager, sender, receiver) = Manager::new_small_channel();
-    let ctx = actor::Context::new(receiver, ThreadSafe::new(TEST_PID, SHARED_INTERNAL.clone()));
+    let ctx = actor::Context::new(receiver, ThreadSafe::new(TEST_PID, shared_internals()));
     let actor = new_actor.new(ctx, arg)?;
     Ok((actor, manager, ActorRef::local(sender)))
 }

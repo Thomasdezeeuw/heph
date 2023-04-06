@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::io::{self, Read, Write};
 use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::str;
-use std::sync::LazyLock;
 use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::thread::{self, sleep};
 use std::time::{Duration, SystemTime};
@@ -550,8 +549,7 @@ struct TestServer {
 
 impl TestServer {
     fn spawn() -> Arc<TestServer> {
-        static TEST_SERVER: LazyLock<Mutex<Weak<TestServer>>> =
-            LazyLock::new(|| Mutex::new(Weak::new()));
+        static TEST_SERVER: Mutex<Weak<TestServer>> = Mutex::new(Weak::new());
 
         let mut test_server = TEST_SERVER.lock().unwrap();
         if let Some(test_server) = test_server.upgrade() {
