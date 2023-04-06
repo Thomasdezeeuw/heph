@@ -74,13 +74,13 @@ fn bound() {
         let path2 = temp_file("uds.bound2");
         let address1 = UnixAddr::from_pathname(path1)?;
         let address2 = UnixAddr::from_pathname(path2)?;
-        let mut listener = UnixDatagram::bind(ctx.runtime_ref(), &address1).await?;
+        let mut listener = UnixDatagram::bind(ctx.runtime_ref(), address1.clone()).await?;
 
         // Addresses must point to each other.
         assert_eq!(listener.local_addr()?, address1);
         assert!(listener.peer_addr().is_err());
 
-        let socket = UnixDatagram::bind(ctx.runtime_ref(), &address2).await?;
+        let socket = UnixDatagram::bind(ctx.runtime_ref(), address2.clone()).await?;
         let mut socket = socket.connect(address1.clone()).await?;
         assert_eq!(socket.local_addr()?, address2);
         assert_eq!(socket.peer_addr()?, address1);
