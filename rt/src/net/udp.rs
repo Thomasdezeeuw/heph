@@ -25,15 +25,7 @@ use crate::bytes::{Bytes, BytesVectored, MaybeUninitSlice};
 use crate::net::convert_address;
 use crate::{self as rt, Bound};
 
-/// The unconnected mode of an [`UdpSocket`].
-#[allow(missing_debug_implementations)]
-#[allow(clippy::empty_enum)]
-pub enum Unconnected {}
-
-/// The connected mode of an [`UdpSocket`].
-#[allow(missing_debug_implementations)]
-#[allow(clippy::empty_enum)]
-pub enum Connected {}
+pub use crate::net::{Connected, Unconnected};
 
 /// A User Datagram Protocol (UDP) socket.
 ///
