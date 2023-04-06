@@ -14,26 +14,21 @@
 
 use std::convert::TryFrom;
 use std::ffi::OsString;
-use std::future::Future;
 use std::path::Path;
-use std::pin::Pin;
 use std::str::FromStr;
-use std::task::{self, Poll};
 use std::time::Duration;
 use std::{env, io, process};
 
 use heph::actor;
 use heph::messages::Terminate;
 use log::{as_debug, debug, warn};
-use mio::net::UnixDatagram;
-use mio::Interest;
-use socket2::SockRef;
 
+use crate::net::uds::{Connected, UnixAddr, UnixDatagram};
 use crate::timer::Interval;
 use crate::util::{either, next};
-use crate::{self as rt, Bound, Signal};
+use crate::{self as rt, Signal};
 
-/// Systemd notifier.
+/// systemd notifier.
 ///
 /// This is only used by systemd if the service definition file has
 /// `Type=notify` set, see [`systemd.service(5)`]. Read [`sd_notify(3)`] for
@@ -44,8 +39,7 @@ use crate::{self as rt, Bound, Signal};
 /// [`sd_notify(3)`]: https://www.freedesktop.org/software/systemd/man/sd_notify.html
 #[derive(Debug)]
 pub struct Notify {
-    // TODO: replace with Heph version.
-    socket: UnixDatagram,
+    socket: UnixDatagram<Connected>,
     watch_dog: Option<Duration>,
 }
 
@@ -61,7 +55,7 @@ impl Notify {
     /// Returns `None` if the environment `NOTIFY_SOCKET` variable is not set.
     ///
     /// [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html#WatchdogSec=
-    pub fn new<M, RT>(ctx: &mut actor::Context<M, RT>) -> io::Result<Option<Notify>>
+    pub async fn new<RT>(rt: &RT) -> io::Result<Option<Notify>>
     where
         RT: rt::Access,
     {
@@ -83,7 +77,7 @@ impl Notify {
         }
 
         let mut notifier = match socket_path {
-            Some(path) => Notify::connect(ctx, Path::new(&path))?,
+            Some(path) => Notify::connect(rt, Path::new(&path)).await?,
             None => return Ok(None),
         };
 
@@ -106,19 +100,15 @@ impl Notify {
     ///
     /// Also see [`Notify::new`] which creates a new `systemd::Notify` based on
     /// the environment variables set by systemd.
-    pub fn connect<M, RT, P>(ctx: &mut actor::Context<M, RT>, path: P) -> io::Result<Notify>
+    pub async fn connect<RT, P>(rt: &RT, path: P) -> io::Result<Notify>
     where
         RT: rt::Access,
         P: AsRef<Path>,
     {
-        let mut socket = UnixDatagram::unbound()?;
-        socket.connect(path)?;
-        ctx.runtime().register(&mut socket, Interest::WRITABLE)?;
-        if let Some(cpu) = ctx.runtime_ref().cpu() {
-            if let Err(err) = SockRef::from(&socket).set_cpu_affinity(cpu) {
-                warn!("failed to set CPU affinity on systemd::Notify: {err}");
-            }
-        }
+        let socket = UnixDatagram::unbound(rt).await?;
+        let socket = socket
+            .connect(UnixAddr::from_pathname(path.as_ref())?)
+            .await?;
         Ok(Notify {
             socket,
             watch_dog: None,
@@ -144,7 +134,7 @@ impl Notify {
     /// programs could pass completion percentages and failing programs could
     /// pass a human-readable error message. **Note that it must be limited to a
     /// single line.**
-    pub fn change_state<'a>(&'a self, state: State, status: Option<&str>) -> ChangeState<'a> {
+    pub async fn change_state(&mut self, state: State, status: Option<&str>) -> io::Result<()> {
         debug!(state = log::as_debug!(state), status = log::as_debug!(status); "updating state with service manager");
         let state_line = match state {
             State::Ready => "READY=1\n",
@@ -164,10 +154,8 @@ impl Notify {
             }
             None => String::from(state_line),
         };
-        ChangeState {
-            notifier: self,
-            state_update,
-        }
+        _ = self.socket.send(state_update).await?;
+        Ok(())
     }
 
     /// Inform the service manager of a change in the application status.
@@ -180,26 +168,25 @@ impl Notify {
     ///
     /// If you also need to change the state of the application you can use
     /// [`Notify::change_state`].
-    pub fn change_status<'a>(&'a self, status: &str) -> ChangeState<'a> {
+    pub async fn change_status(&mut self, status: &str) -> io::Result<()> {
         debug!(status = log::as_display!(status); "updating status with service manager");
         let mut state_update = String::with_capacity(7 + status.len() + 1);
         state_update.push_str("STATUS=");
         state_update.push_str(status);
         replace_newline(&mut state_update[7..]);
         state_update.push('\n');
-        ChangeState {
-            notifier: self,
-            state_update,
-        }
+        _ = self.socket.send(state_update).await?;
+        Ok(())
     }
 
     /// Inform the service manager to update the watchdog timestamp.
     ///
     /// Send a keep-alive ping that services need to issue in regular intervals
     /// if `WatchdogSec=` is enabled for it.
-    pub fn ping_watchdog<'a>(&'a self) -> PingWatchdog<'a> {
+    pub async fn ping_watchdog(&mut self) -> io::Result<()> {
         debug!("pinging service manager watchdog");
-        PingWatchdog { notifier: self }
+        _ = self.socket.send("WATCHDOG=1").await?;
+        Ok(())
     }
 
     /// Inform the service manager that the service detected an internal error
@@ -213,9 +200,10 @@ impl Notify {
     /// the watchdog behavior.
     ///
     /// [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html
-    pub fn trigger_watchdog<'a>(&'a self) -> TriggerWatchdog<'a> {
+    pub async fn trigger_watchdog(&mut self) -> io::Result<()> {
         debug!("triggering service manager watchdog");
-        TriggerWatchdog { notifier: self }
+        _ = self.socket.send("WATCHDOG=trigger").await?;
+        Ok(())
     }
 }
 
@@ -266,61 +254,6 @@ pub enum State {
     Stopping,
 }
 
-/// The [`Future`] behind [`Notify::change_state`].
-#[derive(Debug)]
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct ChangeState<'a> {
-    notifier: &'a Notify,
-    state_update: String,
-}
-
-impl<'a> Future for ChangeState<'a> {
-    type Output = io::Result<()>;
-
-    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        try_io!(self.notifier.socket.send(self.state_update.as_bytes())).map_ok(|_| ())
-    }
-}
-
-/// The [`Future`] behind [`Notify::ping_watchdog`].
-#[derive(Debug)]
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct PingWatchdog<'a> {
-    notifier: &'a Notify,
-}
-
-impl<'a> Future for PingWatchdog<'a> {
-    type Output = io::Result<()>;
-
-    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        try_io!(self.notifier.socket.send(b"WATCHDOG=1")).map_ok(|_| ())
-    }
-}
-
-/// The [`Future`] behind [`Notify::trigger_watchdog`].
-#[derive(Debug)]
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct TriggerWatchdog<'a> {
-    notifier: &'a Notify,
-}
-
-impl<'a> Future for TriggerWatchdog<'a> {
-    type Output = io::Result<()>;
-
-    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        try_io!(self.notifier.socket.send(b"WATCHDOG=trigger")).map_ok(|_| ())
-    }
-}
-
-impl<RT: rt::Access> Bound<RT> for Notify {
-    type Error = io::Error;
-
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
-        ctx.runtime()
-            .reregister(&mut self.socket, Interest::WRITABLE)
-    }
-}
-
 /// Actor that manages the communication to the service manager.
 ///
 /// It will set the application state (with the service manager) to ready when
@@ -350,7 +283,7 @@ where
     H: FnMut() -> Result<(), E>,
     E: ToString,
 {
-    let notify = match Notify::new(&mut ctx)? {
+    let mut notify = match Notify::new(ctx.runtime_ref()).await? {
         Some(notify) => notify,
         None => {
             debug!("not started via systemd, not starting `systemd::watchdog`");
