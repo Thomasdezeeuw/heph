@@ -1,7 +1,7 @@
-use std::io;
 use std::marker::PhantomData;
 use std::net::Shutdown;
 use std::os::fd::{AsFd, IntoRawFd};
+use std::{fmt, io};
 
 use a10::{AsyncFd, Extract};
 use log::warn;
@@ -13,7 +13,6 @@ use crate::net::uds::UnixAddr;
 use crate::net::{Connected, Recv, Send, SendTo, Unconnected};
 
 /// A Unix datagram socket.
-#[derive(Debug)]
 pub struct UnixDatagram<M = Unconnected> {
     fd: AsyncFd,
     /// The mode in which the socket is in, this determines what methods are
@@ -155,5 +154,11 @@ impl UnixDatagram<Connected> {
     /// Send the bytes in `buf` to the socket's peer.
     pub fn send<'a, B: Buf>(&'a mut self, buf: B) -> Send<'a, B> {
         Send(self.fd.send(BufWrapper(buf), 0).extract())
+    }
+}
+
+impl<M> fmt::Debug for UnixDatagram<M> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fd.fmt(f)
     }
 }
