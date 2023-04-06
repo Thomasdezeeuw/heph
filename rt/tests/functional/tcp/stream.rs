@@ -5,7 +5,7 @@ use std::fs::{self, File};
 use std::io::{self, IoSlice, Read, Write};
 use std::net::{self, Shutdown, SocketAddr};
 use std::num::NonZeroUsize;
-use std::sync::LazyLock;
+use std::sync::OnceLock;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -24,11 +24,15 @@ const DATA: &[u8] = b"Hello world";
 const TEST_FILE0: &str = "./tests/data/hello_world";
 const TEST_FILE1: &str = "./tests/data/lorem_ipsum";
 
-// Contents of the test files.
-static EXPECTED0: LazyLock<Vec<u8>> =
-    LazyLock::new(|| fs::read(TEST_FILE0).expect("failed to read test file 0"));
-static EXPECTED1: LazyLock<Vec<u8>> =
-    LazyLock::new(|| fs::read(TEST_FILE1).expect("failed to read test file 0"));
+fn expected_data0() -> &'static [u8] {
+    static EXPECTED0: OnceLock<Vec<u8>> = OnceLock::new();
+    EXPECTED0.get_or_init(|| fs::read(TEST_FILE0).expect("failed to read test file 0"))
+}
+
+fn expected_data1() -> &'static [u8] {
+    static EXPECTED1: OnceLock<Vec<u8>> = OnceLock::new();
+    EXPECTED1.get_or_init(|| fs::read(TEST_FILE1).expect("failed to read test file 1"))
+}
 
 #[test]
 fn smoke() {
@@ -763,14 +767,18 @@ fn send_file() {
     stream1.set_nonblocking(true).unwrap();
 
     let mut expected0_offset = 0;
-    let expected1 = &EXPECTED1[..LENGTH];
+    let expected1 = &expected_data1()[..LENGTH];
     let mut expected1_offset = 0;
 
     let mut buf = vec![0; LENGTH + 1];
     for _ in 0..20 {
         // NOTE: can't use `&&` as that short circuits.
-        let done0 =
-            send_file_check_actor(&mut stream0, &EXPECTED0, &mut expected0_offset, &mut buf);
+        let done0 = send_file_check_actor(
+            &mut stream0,
+            expected_data0(),
+            &mut expected0_offset,
+            &mut buf,
+        );
         let done1 =
             send_file_check_actor(&mut stream1, &expected1, &mut expected1_offset, &mut buf);
 
@@ -821,9 +829,9 @@ fn send_file_all() {
     let (mut stream1, _) = listener.accept().unwrap();
     stream1.set_nonblocking(true).unwrap();
 
-    let expected0 = &EXPECTED0;
+    let expected0 = expected_data0();
     let mut expected0_offset = OFFSET;
-    let expected1 = &EXPECTED1[..OFFSET + LENGTH];
+    let expected1 = &expected_data1()[..OFFSET + LENGTH];
     let mut expected1_offset = OFFSET;
 
     let mut buf = vec![0; LENGTH + 1];
@@ -878,10 +886,18 @@ fn send_entire_file() {
     let mut buf = vec![0; 4096];
     for _ in 0..20 {
         // NOTE: can't use `&&` as that short circuits.
-        let done0 =
-            send_file_check_actor(&mut stream0, &EXPECTED0, &mut expected0_offset, &mut buf);
-        let done1 =
-            send_file_check_actor(&mut stream1, &EXPECTED1, &mut expected1_offset, &mut buf);
+        let done0 = send_file_check_actor(
+            &mut stream0,
+            expected_data0(),
+            &mut expected0_offset,
+            &mut buf,
+        );
+        let done1 = send_file_check_actor(
+            &mut stream1,
+            expected_data1(),
+            &mut expected1_offset,
+            &mut buf,
+        );
 
         if done0 && done1 {
             break;

@@ -156,7 +156,6 @@
     new_uninit,
     stmt_expr_attributes
 )]
-#![cfg_attr(any(test, feature = "test"), feature(once_cell))]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,

@@ -321,7 +321,7 @@ mod tests {
         let setup = RuntimeInternals::setup().unwrap();
         Arc::new_cyclic(|shared_internals| {
             let waker_id = waker::init(shared_internals.clone());
-            let worker_wakers = vec![&*test::NOOP_WAKER].into_boxed_slice();
+            let worker_wakers = vec![test::noop_waker()].into_boxed_slice();
             setup.complete(waker_id, worker_wakers, None)
         })
     }
