@@ -14,6 +14,7 @@ use socket2::SockAddr;
 
 mod datagram;
 
+pub use crate::net::{Connected, Unconnected};
 pub use datagram::UnixDatagram;
 
 /// Unix socket address.
