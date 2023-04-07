@@ -13,6 +13,26 @@ use crate::net::uds::UnixAddr;
 use crate::net::{Connected, Recv, Send, SendTo, Unconnected};
 
 /// A Unix datagram socket.
+///
+/// To create a socket [`UnixDatagram::bind`] or [`UnixDatagram::unbound`] can
+/// be used. The created socket will be in unconnected mode. A socket can be in
+/// one of two modes:
+///
+/// - [`Unconnected`] mode allows sending and receiving packets to and from all
+///   sources.
+/// - [`Connected`] mode only allows sending and receiving packets from/to a
+///   single source.
+///
+/// An unconnected socket can be [`connect`ed] to a specific address if needed,
+/// changing the mode to [`Connected`] in the process. The remote address of an
+/// already connected socket can be changed to a different address using the
+/// same method.
+///
+/// Both unconnected and connected sockets have three main operations send,
+/// receive and peek, all these methods return a [`Future`].
+///
+/// [`connect`ed]: UnixDatagram::connect
+/// [`Future`]: std::future::Future
 pub struct UnixDatagram<M = Unconnected> {
     fd: AsyncFd,
     /// The mode in which the socket is in, this determines what methods are
