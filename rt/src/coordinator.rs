@@ -19,7 +19,7 @@ use std::env::consts::ARCH;
 use std::os::fd::{AsFd, AsRawFd};
 use std::os::unix::process::parent_id;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{fmt, io, process};
 
 use heph::actor_ref::{ActorGroup, Delivery};
@@ -151,6 +151,19 @@ impl Coordinator {
                         if log_metrics {
                             self.log_metrics(&workers, &sync_workers, &signal_refs, &mut trace_log);
                         }
+                    }
+                    RING => {
+                        self.ring
+                            .poll(Some(Duration::ZERO))
+                            .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
+                        self.poll
+                            .registry()
+                            .reregister(
+                                &mut SourceFd(&self.ring.as_fd().as_raw_fd()),
+                                RING,
+                                Interest::READABLE,
+                            )
+                            .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
                     }
                     token if token.0 < SYNC_WORKER_ID_START => {
                         let timing = trace::start(&trace_log);
