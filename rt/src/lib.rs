@@ -154,7 +154,8 @@
     maybe_uninit_uninit_array,
     never_type,
     new_uninit,
-    stmt_expr_attributes
+    stmt_expr_attributes,
+    type_alias_impl_trait
 )]
 #![warn(
     anonymous_parameters,
@@ -255,7 +256,6 @@ pub mod trace;
 pub mod util;
 mod worker;
 
-use access::PrivateAccess;
 use process::ProcessId;
 
 #[doc(no_inline)]
@@ -432,12 +432,9 @@ impl Runtime {
 
     /// Run the function `f` on all worker threads.
     ///
-    /// This can be used to spawn thread-local actors, e.g. [`TcpServer`], or to
-    /// initialise thread-local data on each worker thread ensuring that it's
-    /// properly initialised without impacting the performance of the first
-    /// request(s).
-    ///
-    /// [`TcpServer`]: crate::net::TcpServer
+    /// This can be used to spawn thread-local actors, or to initialise
+    /// thread-local data on each worker thread ensuring that it's properly
+    /// initialised without impacting the performance of the first request(s).
     pub fn run_on_workers<F, E>(&mut self, f: F) -> Result<(), Error>
     where
         F: FnOnce(RuntimeRef) -> Result<(), E> + Send + Clone + 'static,

@@ -9,28 +9,27 @@ use heph::actor::{self, Actor, NewActor};
 use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::ActorRef;
-use heph_rt::net::tcp::server;
-use heph_rt::net::{TcpServer, TcpStream};
+use heph_rt::net::{tcp, TcpStream};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join_many, try_spawn_local, PanicSupervisor};
 use heph_rt::{self as rt, Runtime, Signal, ThreadLocal};
 
-use crate::util::any_local_address;
+use crate::util::{any_local_address, tcp_connect};
 
 #[test]
 fn message_from_terminate() {
-    let _msg = server::Message::from(Terminate);
+    let _msg = tcp::server::Message::from(Terminate);
 }
 
 #[test]
 fn message_from_process_signal() {
     let signals = &[Signal::Interrupt, Signal::Terminate, Signal::Quit];
     for signal in signals {
-        assert!(server::Message::try_from(*signal).is_ok());
+        assert!(tcp::server::Message::try_from(*signal).is_ok());
     }
 }
 
-async fn actor<RT>(_: actor::Context<!, RT>, mut stream: TcpStream, _: SocketAddr)
+async fn actor<RT>(_: actor::Context<!, RT>, mut stream: TcpStream)
 where
     RT: rt::Access,
 {
@@ -45,14 +44,11 @@ const DATA: &[u8] = b"Hello world";
 async fn stream_actor<RT>(
     mut ctx: actor::Context<!, RT>,
     address: SocketAddr,
-    actor_ref: ActorRef<server::Message>,
+    actor_ref: ActorRef<tcp::server::Message>,
 ) where
-    RT: rt::Access,
+    RT: rt::Access + Clone,
 {
-    let mut stream = TcpStream::connect(&mut ctx, address)
-        .unwrap()
-        .await
-        .unwrap();
+    let mut stream = tcp_connect(&mut ctx, address).await.unwrap();
 
     let n = stream.send(DATA).await.unwrap();
     assert_eq!(n, DATA.len());
@@ -63,21 +59,21 @@ async fn stream_actor<RT>(
 
 #[test]
 fn smoke() {
-    let server = TcpServer::setup(
+    let server = tcp::server::setup(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
-        actor as fn(_, _, _) -> _,
+        actor as fn(_, _) -> _,
         ActorOptions::default(),
     )
     .unwrap();
     let server_address = server.local_addr();
 
-    // `TcpServer` should be able to be created outside the setup function and
+    // TCP server should be able to be created outside the setup function and
     // used in it.
-    let local_server = TcpServer::setup(
+    let local_server = tcp::server::setup(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
-        actor as fn(_, _, _) -> _,
+        actor as fn(_, _) -> _,
         ActorOptions::default(),
     )
     .unwrap();
@@ -115,8 +111,8 @@ fn smoke() {
 
 #[test]
 fn zero_port() {
-    let actor = actor as fn(actor::Context<!, ThreadLocal>, _, _) -> _;
-    let server = TcpServer::setup(
+    let actor = actor as fn(actor::Context<!, ThreadLocal>, _) -> _;
+    let server = tcp::server::setup(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
         actor,
@@ -154,7 +150,7 @@ fn new_actor_error() {
     // error here.
     impl<A> Actor for ServerWrapper<A>
     where
-        A: Actor<Error = server::Error<()>>,
+        A: Actor<Error = tcp::server::Error<()>>,
     {
         type Error = !;
 
@@ -169,10 +165,10 @@ fn new_actor_error() {
             );
             match res {
                 Poll::Ready(Ok(())) => Poll::Ready(Ok(())),
-                Poll::Ready(Err(server::Error::Accept(err))) => {
+                Poll::Ready(Err(tcp::server::Error::Accept(err))) => {
                     panic!("unexpected accept error: {err}")
                 }
-                Poll::Ready(Err(server::Error::NewActor(()))) => Poll::Ready(Ok(())),
+                Poll::Ready(Err(tcp::server::Error::NewActor(()))) => Poll::Ready(Ok(())),
                 Poll::Pending => Poll::Pending,
             }
         }
@@ -197,7 +193,7 @@ fn new_actor_error() {
         RT: rt::Access,
     {
         type Message = !;
-        type Argument = (TcpStream, SocketAddr);
+        type Argument = TcpStream;
         type Actor = ActorErrorGenerator;
         type Error = ();
         type RuntimeAccess = RT;
@@ -242,7 +238,7 @@ fn new_actor_error() {
         fn second_restart_error(&mut self, _: NA::Error) {}
     }
 
-    let server = TcpServer::setup(
+    let server = tcp::server::setup(
         any_local_address(),
         ErrorSupervisor,
         NewActorErrorGenerator(PhantomData),
@@ -255,12 +251,9 @@ fn new_actor_error() {
 
     async fn stream_actor<M, RT>(mut ctx: actor::Context<M, RT>, address: SocketAddr)
     where
-        RT: rt::Access,
+        RT: rt::Access + Clone,
     {
-        let stream = TcpStream::connect(&mut ctx, address)
-            .unwrap()
-            .await
-            .unwrap();
+        let stream = tcp_connect(&mut ctx, address).await.unwrap();
 
         // Just need to create the connection.
         drop(stream);

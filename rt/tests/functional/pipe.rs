@@ -11,6 +11,7 @@ use heph_rt::{self as rt};
 
 const DATA: &[u8] = b"Hello world";
 const DATAV: &[&[u8]] = &[b"Hello world!", b" ", b"From mars."];
+const DATAV_LEN: usize = DATAV[0].len() + DATAV[1].len() + DATAV[2].len();
 
 #[test]
 fn smoke() {
@@ -154,7 +155,7 @@ fn vectored_io() {
 
         let bufs = [DATAV[0], DATAV[1], DATAV[2]];
         let (_, n) = sender.write_vectored(bufs).await?;
-        assert_eq!(n, DATA.len());
+        assert_eq!(n, DATAV_LEN);
         drop(sender);
 
         let bufs = [

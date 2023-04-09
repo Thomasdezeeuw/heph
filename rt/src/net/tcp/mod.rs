@@ -4,9 +4,10 @@
 //!
 //!  * [`TcpListener`] listens for incoming connections.
 //!  * [`TcpStream`] represents a single TCP connection.
-//!  * [`TcpServer`] is an [`Actor`] that listens for incoming connections and
+//!  * [TCP server] is an [`Actor`] that listens for incoming connections and
 //!    starts a new actor for each.
 //!
+//! [TCP server]: crate::net::tcp::server
 //! [`Actor`]: heph::actor::Actor
 
 pub mod listener;
@@ -15,7 +16,5 @@ pub mod stream;
 
 #[doc(no_inline)]
 pub use listener::TcpListener;
-#[doc(no_inline)]
-pub use server::TcpServer;
 #[doc(no_inline)]
 pub use stream::TcpStream;

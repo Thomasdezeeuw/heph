@@ -12,7 +12,7 @@
 //! [Transmission Control Protocol]: crate::net::tcp
 //! [TCP stream]: crate::net::TcpStream
 //! [TCP listening socket]: crate::net::TcpListener
-//! [TCP server]: crate::net::TcpServer
+//! [TCP server]: crate::net::tcp::server
 //! [User Datagram Protocol]: crate::net::udp
 //!
 //! # I/O with Heph's socket
@@ -54,7 +54,7 @@ pub mod udp;
 pub mod uds;
 
 #[doc(no_inline)]
-pub use tcp::{TcpListener, TcpServer, TcpStream};
+pub use tcp::{TcpListener, TcpStream};
 #[doc(no_inline)]
 pub use udp::UdpSocket;
 #[doc(no_inline)]

@@ -7,13 +7,12 @@
 
 use std::collections::HashMap;
 use std::io::{self, IoSlice, Write};
-use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use heph::actor::{self, Actor, NewActor};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
-use heph_rt::net::{tcp, TcpServer, TcpStream};
+use heph_rt::net::{tcp, TcpStream};
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::timer::Deadline;
 use heph_rt::{self as rt, Runtime};
@@ -42,16 +41,15 @@ fn main() -> Result<(), rt::Error> {
     std_logger::Config::logfmt().init();
 
     let values = Arc::new(RwLock::new(HashMap::new()));
-    let actor = (conn_actor as fn(_, _, _, _) -> _)
-        .map_arg(move |(stream, address)| (stream, address, values.clone()));
+    let actor = (conn_actor as fn(_, _, _) -> _).map_arg(move |stream| (stream, values.clone()));
     let address = "127.0.0.1:6379".parse().unwrap();
-    let server = TcpServer::setup(address, conn_supervisor, actor, ActorOptions::default())
+    let server = tcp::server::setup(address, conn_supervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;
 
     let mut runtime = Runtime::setup().use_all_cores().build()?;
     runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {
         let options = ActorOptions::default().with_priority(Priority::LOW);
-        let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
+        let server_ref = runtime_ref.spawn_local(ServerSupervisor, server, (), options);
 
         runtime_ref.receive_signals(server_ref.try_map());
         Ok(())
@@ -65,7 +63,7 @@ struct ServerSupervisor;
 
 impl<NA> Supervisor<NA> for ServerSupervisor
 where
-    NA: NewActor<Argument = (), Error = io::Error>,
+    NA: NewActor<Argument = (), Error = !>,
     NA::Actor: Actor<Error = tcp::server::Error<!>>,
 {
     fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
@@ -79,17 +77,16 @@ where
         }
     }
 
-    fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-        error!("error restarting the TCP server: {err}");
-        SupervisorStrategy::Stop
+    fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<()> {
+        err
     }
 
-    fn second_restart_error(&mut self, err: io::Error) {
-        error!("error restarting the actor a second time: {err}");
+    fn second_restart_error(&mut self, err: !) {
+        err
     }
 }
 
-fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
+fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
     error!("error handling connection: {err}");
     SupervisorStrategy::Stop
 }
@@ -97,13 +94,13 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)
 async fn conn_actor<RT>(
     mut ctx: actor::Context<!, RT>,
     mut stream: TcpStream,
-    address: SocketAddr,
     values: Arc<RwLock<HashMap<Box<str>, Arc<[u8]>>>>,
 ) -> io::Result<()>
 where
     RT: rt::Access + Clone,
 {
-    info!("accepted connection: address={address}");
+    let address = stream.peer_addr()?;
+    info!(address = log::as_display!(address); "accepted connection");
     let mut buffer = Vec::with_capacity(1024);
 
     let err = loop {

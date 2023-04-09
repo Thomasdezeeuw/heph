@@ -1,11 +1,11 @@
 #![feature(never_type)]
 
-use std::net::{Ipv4Addr, SocketAddr};
+use std::net::Ipv4Addr;
 use std::{env, io};
 
 use heph::supervisor::StopSupervisor;
 use heph::{actor, restart_supervisor};
-use heph_rt::net::{TcpServer, TcpStream};
+use heph_rt::net::{tcp, TcpStream};
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::{self as rt, Runtime, ThreadLocal};
 use log::info;
@@ -20,8 +20,8 @@ fn main() -> Result<(), rt::Error> {
     };
     let address = (Ipv4Addr::LOCALHOST, port).into();
     let supervisor = StopSupervisor::for_actor("connection actor");
-    let actor = conn_actor as fn(_, _, _) -> _;
-    let server = TcpServer::setup(address, supervisor, actor, ActorOptions::default())
+    let actor = conn_actor as fn(_, _) -> _;
+    let server = tcp::server::setup(address, supervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;
 
     let mut runtime = Runtime::setup()
@@ -43,7 +43,7 @@ fn main() -> Result<(), rt::Error> {
     runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {
         let supervisor = ServerSupervisor::new();
         let options = ActorOptions::default().with_priority(Priority::LOW);
-        let server_ref = runtime_ref.try_spawn_local(supervisor, server, (), options)?;
+        let server_ref = runtime_ref.spawn_local(supervisor, server, (), options);
         runtime_ref.receive_signals(server_ref.try_map());
         Ok(())
     })?;
@@ -54,11 +54,8 @@ fn main() -> Result<(), rt::Error> {
 
 restart_supervisor!(ServerSupervisor, "TCP server actor", ());
 
-async fn conn_actor(
-    _: actor::Context<!, ThreadLocal>,
-    mut stream: TcpStream,
-    address: SocketAddr,
-) -> io::Result<()> {
+async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream) -> io::Result<()> {
+    let address = stream.peer_addr()?;
     info!("accepted connection: address={address}");
     let ip = address.ip().to_string();
     stream.send_all(ip.as_bytes()).await

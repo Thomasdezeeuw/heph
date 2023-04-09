@@ -1,31 +1,373 @@
-//! Module with [`TcpServer`] and related types.
+//! TCP server actor.
+//!
+//! The TCP server is an actor that starts a new actor for each accepted TCP
+//! connection. This actor can start as a thread-local or thread-safe actor.
+//! When using the thread-local variant one actor runs per worker thread which
+//! spawns thread-local actors to handle the [`TcpStream`]s. See the first
+//! example below on how to run this actor as a thread-local actor.
+//!
+//! This actor can also run as thread-safe actor in which case it also spawns
+//! thread-safe actors. Note however that using thread-*local* version is
+//! recommended. The third example below shows how to run the actor as
+//! thread-safe actor.
+//!
+//! # Graceful shutdown
+//!
+//! Graceful shutdown is done by sending it a [`Terminate`] message, see below
+//! for an example. The TCP server can also handle (shutdown) process signals,
+//! see "Example 2 my ip" (in the examples directory of the source code) for an
+//! example of that.
+//!
+//! # Examples
+//!
+//! The following example is a TCP server that writes "Hello World" to the
+//! connection, using the server as a thread-local actor.
+//!
+//! ```
+//! #![feature(never_type)]
+//!
+//! use std::io;
+//!
+//! # use heph::messages::Terminate;
+//! use heph::actor::{self, NewActor};
+//! use heph::supervisor::{Supervisor, SupervisorStrategy};
+//! use heph_rt::net::{tcp, TcpStream};
+//! use heph_rt::spawn::ActorOptions;
+//! use heph_rt::spawn::options::Priority;
+//! use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
+//! use log::error;
+//!
+//! fn main() -> Result<(), rt::Error> {
+//!     // Create and start the Heph runtime.
+//!     let mut runtime = Runtime::new()?;
+//!     runtime.run_on_workers(setup)?;
+//!     runtime.start()
+//! }
+//!
+//! /// In this setup function we'll spawn the TCP server.
+//! fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
+//!     // The address to listen on.
+//!     let address = "127.0.0.1:7890".parse().unwrap();
+//!     // Create our TCP server.
+//!     let new_actor = conn_actor as fn(_, _) -> _;
+//!     // Wait for the `TcpStream` to become ready before running the actor.
+//!     let options = ActorOptions::default().mark_ready(false);
+//!     let server = tcp::server::setup(address, conn_supervisor, new_actor, options)?;
+//!
+//!     // We advice to give the TCP server a low priority to prioritise
+//!     // handling of ongoing requests over accepting new requests possibly
+//!     // overloading the system.
+//!     let options = ActorOptions::default().with_priority(Priority::LOW);
+//!     # let actor_ref =
+//!     runtime_ref.spawn_local(ServerSupervisor, server, (), options);
+//!     # actor_ref.try_send(Terminate).unwrap();
+//!
+//!     Ok(())
+//! }
+//!
+//! /// Our supervisor for the TCP server.
+//! #[derive(Copy, Clone, Debug)]
+//! struct ServerSupervisor;
+//!
+//! impl<S, NA> Supervisor<tcp::server::Setup<S, NA>> for ServerSupervisor
+//! where
+//!     // Trait bounds needed by `tcp::server::setup`.
+//!     S: Supervisor<NA> + Clone + 'static,
+//!     NA: NewActor<Argument = TcpStream, Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
+//! {
+//!     fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
+//!         match err {
+//!             // When we hit an error accepting a connection we'll drop the old
+//!             // server and create a new one.
+//!             tcp::server::Error::Accept(err) => {
+//!                 error!("error accepting new connection: {err}");
+//!                 SupervisorStrategy::Restart(())
+//!             }
+//!             // Async function never return an error creating a new actor.
+//!             tcp::server::Error::NewActor(_) => unreachable!(),
+//!         }
+//!     }
+//!
+//!     fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<()> {
+//!         err
+//!     }
+//!
+//!     fn second_restart_error(&mut self, err: !) {
+//!         err
+//!     }
+//! }
+//!
+//! /// `conn_actor`'s supervisor.
+//! fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
+//!     error!("error handling connection: {err}");
+//!     SupervisorStrategy::Stop
+//! }
+//!
+//! /// The actor responsible for a single TCP stream.
+//! async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream) -> io::Result<()> {
+//!     stream.send_all(b"Hello World").await
+//! }
+//! ```
+//!
+//! The following example shows how the actor can gracefully be shutdown by
+//! sending it a [`Terminate`] message.
+//!
+//! ```
+//! #![feature(never_type)]
+//!
+//! use std::io;
+//!
+//! use heph::messages::Terminate;
+//! use heph::actor::{self, NewActor};
+//! use heph::supervisor::{Supervisor, SupervisorStrategy};
+//! use heph_rt::net::{tcp, TcpStream};
+//! use heph_rt::spawn::options::{ActorOptions, Priority};
+//! use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
+//! use log::error;
+//!
+//! fn main() -> Result<(), rt::Error> {
+//!     let mut runtime = Runtime::new()?;
+//!     runtime.run_on_workers(setup)?;
+//!     runtime.start()
+//! }
+//!
+//! fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
+//!     // This uses the same supervisors as in the previous example, not shown here.
+//!
+//!     // Adding the TCP server is the same as in the example above.
+//!     let new_actor = conn_actor as fn(_, _) -> _;
+//!     let address = "127.0.0.1:7890".parse().unwrap();
+//!     let server = tcp::server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
+//!     let options = ActorOptions::default().with_priority(Priority::LOW);
+//!     let server_ref = runtime_ref.spawn_local(ServerSupervisor, server, (), options);
+//!
+//!     // Because the server is just another actor we can send it messages. Here
+//!     // we'll send it a terminate message so it will gracefully shutdown.
+//!     server_ref.try_send(Terminate).unwrap();
+//!
+//!     Ok(())
+//! }
+//!
+//! # /// # Our supervisor for the TCP server.
+//! # #[derive(Copy, Clone, Debug)]
+//! # struct ServerSupervisor;
+//! #
+//! # impl<S, NA> Supervisor<tcp::server::Setup<S, NA>> for ServerSupervisor
+//! # where
+//! #     S: Supervisor<NA> + Clone + 'static,
+//! #     NA: NewActor<Argument = TcpStream, Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
+//! # {
+//! #     fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
+//! #         match err {
+//! #             tcp::server::Error::Accept(err) => {
+//! #                 error!("error accepting new connection: {err}");
+//! #                 SupervisorStrategy::Restart(())
+//! #             }
+//! #             tcp::server::Error::NewActor(_) => unreachable!(),
+//! #         }
+//! #     }
+//! #
+//! #     fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<()> {
+//! #         err
+//! #     }
+//! #
+//! #     fn second_restart_error(&mut self, err: !) {
+//! #         err
+//! #     }
+//! # }
+//! #
+//! # /// # `conn_actor`'s supervisor.
+//! # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
+//! #     error!("error handling connection: {err}");
+//! #     SupervisorStrategy::Stop
+//! # }
+//! #
+//! /// The actor responsible for a single TCP stream.
+//! async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream) -> io::Result<()> {
+//!     stream.send_all(b"Hello World").await
+//! }
+//! ```
+//!
+//! This example is similar to the first example, but runs the TCP server actor
+//! as thread-safe actor. *It's recommended to run the server as thread-local
+//! actor!* This is just an example show its possible.
+//!
+//! ```
+//! #![feature(never_type)]
+//!
+//! use std::io;
+//!
+//! use heph::actor::{self, NewActor};
+//! # use heph::messages::Terminate;
+//! use heph::supervisor::{Supervisor, SupervisorStrategy};
+//! use heph_rt::net::{tcp, TcpStream};
+//! use heph_rt::spawn::options::{ActorOptions, Priority};
+//! use heph_rt::{self as rt, Runtime, ThreadSafe};
+//! use log::error;
+//!
+//! fn main() -> Result<(), rt::Error> {
+//!     let mut runtime = Runtime::new()?;
+//!
+//!     // The address to listen on.
+//!     let address = "127.0.0.1:7890".parse().unwrap();
+//!     // Create our TCP server. We'll use the default actor options.
+//!     let new_actor = conn_actor as fn(_, _) -> _;
+//!     let server = tcp::server::setup(address, conn_supervisor, new_actor, ActorOptions::default())
+//!         .map_err(rt::Error::setup)?;
+//!
+//!     let options = ActorOptions::default().with_priority(Priority::LOW);
+//!     # let actor_ref =
+//!     runtime.try_spawn(ServerSupervisor, server, (), options)
+//!         .map_err(rt::Error::setup)?;
+//!     # actor_ref.try_send(Terminate).unwrap();
+//!
+//!     runtime.start()
+//! }
+//!
+//! /// Our supervisor for the TCP server.
+//! #[derive(Copy, Clone, Debug)]
+//! struct ServerSupervisor;
+//!
+//! impl<S, NA> Supervisor<tcp::server::Setup<S, NA>> for ServerSupervisor
+//! where
+//!     // Trait bounds needed by `tcp::server::setup` using a thread-safe actor.
+//!     S: Supervisor<NA> + Send + Sync + Clone + 'static,
+//!     NA: NewActor<Argument = TcpStream, Error = !, RuntimeAccess = ThreadSafe> + Send + Sync + Clone + 'static,
+//!     NA::Actor: Send + Sync + 'static,
+//!     NA::Message: Send,
+//! {
+//!     fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
+//!         match err {
+//!             // When we hit an error accepting a connection we'll drop the old
+//!             // server and create a new one.
+//!             tcp::server::Error::Accept(err) => {
+//!                 error!("error accepting new connection: {err}");
+//!                 SupervisorStrategy::Restart(())
+//!             }
+//!             // Async function never return an error creating a new actor.
+//!             tcp::server::Error::NewActor(_) => unreachable!(),
+//!         }
+//!     }
+//!
+//!     fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<()> {
+//!         err
+//!     }
+//!
+//!     fn second_restart_error(&mut self, err: !) {
+//!         err
+//!     }
+//! }
+//!
+//! /// `conn_actor`'s supervisor.
+//! fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
+//!     error!("error handling connection: {err}");
+//!     SupervisorStrategy::Stop
+//! }
+//!
+//! /// The actor responsible for a single TCP stream.
+//! async fn conn_actor(_: actor::Context<!, ThreadSafe>, mut stream: TcpStream) -> io::Result<()> {
+//!     stream.send_all(b"Hello World").await
+//! }
 
 use std::convert::TryFrom;
+use std::future::Future;
 use std::net::SocketAddr;
-use std::os::unix::io::{FromRawFd, IntoRawFd};
-use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{self, Poll};
 use std::{fmt, io};
 
-use heph::actor::{self, Actor, NewActor};
+use heph::actor::{self, NewActor, NoMessages};
 use heph::messages::Terminate;
 use heph::supervisor::Supervisor;
-#[cfg(target_os = "linux")]
-use log::warn;
-use log::{as_display, debug};
-use mio::net::TcpListener;
-use mio::Interest;
+use log::{debug, trace};
 use socket2::{Domain, Protocol, Socket, Type};
 
-use crate::net::TcpStream;
+use crate::net::tcp::listener::UnboundTcpStream;
+use crate::net::{TcpListener, TcpStream};
 use crate::spawn::{ActorOptions, AddActorError, PrivateSpawn, Spawn};
-use crate::{self as rt, PrivateAccess, Signal};
+use crate::util::{either, next};
+use crate::{self as rt, Signal};
 
-/// A intermediate structure that implements [`NewActor`], creating
-/// [`TcpServer`].
+/// Create a new [server setup].
 ///
-/// See [`TcpServer::setup`] to create this and [`TcpServer`] for examples.
+/// Arguments:
+///  * `address`: the address to listen on.
+///  * `supervisor`: the [`Supervisor`] used to supervise each started actor,
+///  * `new_actor`: the [`NewActor`] implementation to start each actor, and
+///  * `options`: the actor options used to spawn the new actors.
+///
+/// See the [module documentation] for examples.
+///
+/// [server setup]: Setup
+/// [module documentation]: crate::net::tcp::server
+pub fn setup<S, NA>(
+    mut address: SocketAddr,
+    supervisor: S,
+    new_actor: NA,
+    options: ActorOptions,
+) -> io::Result<Setup<S, NA>>
+where
+    S: Supervisor<NA> + Clone + 'static,
+    NA: NewActor<Argument = TcpStream> + Clone + 'static,
+{
+    // We create a listener which don't actually use. However it gives a
+    // nicer user-experience to get an error up-front rather than $n errors
+    // later, where $n is the number of cpu cores when spawning a new server
+    // on each worker thread.
+    bind_listener(address).and_then(|socket| {
+        // Using a port of 0 means the OS can select one for us. However
+        // we still consistently want to use the same port instead of
+        // binding to a number of random ports.
+        if address.port() == 0 {
+            // NOTE: we just created the socket above so we know it's either
+            // IPv4 or IPv6, meaning this `unwrap` never fails.
+            address = socket.local_addr()?.as_socket().unwrap();
+        }
+
+        Ok(Setup {
+            inner: Arc::new(SetupInner {
+                _socket: socket,
+                address,
+                supervisor,
+                new_actor,
+                options,
+            }),
+        })
+    })
+}
+
+/// Create a new TCP listener bound to `address`, but **not** listening using
+/// blocking I/O.
+fn bind_listener(address: SocketAddr) -> io::Result<Socket> {
+    let socket = Socket::new(
+        Domain::for_address(address),
+        Type::STREAM,
+        Some(Protocol::TCP),
+    )?;
+
+    set_listener_options(&socket)?;
+
+    // Bind the socket and start listening if required.
+    socket.bind(&address.into())?;
+
+    Ok(socket)
+}
+
+/// Set the desired socket options on `socket`.
+fn set_listener_options(socket: &Socket) -> io::Result<()> {
+    // Allow the other worker threads and processes to reuse the address and
+    // port we're binding to. This allow reload the process without dropping
+    // clients.
+    socket.set_reuse_address(true)?;
+    socket.set_reuse_port(true)?;
+    Ok(())
+}
+
+/// A intermediate structure that implements [`NewActor`], creating an actor
+/// that spawn a new actor for each incoming TCP connection.
+///
+/// See [`setup`] to create this and the [module documentation] for examples.
+///
+/// [module documentation]: crate::net::tcp::server
 #[derive(Debug)]
 pub struct Setup<S, NA> {
     /// All fields are in an `Arc` to allow `Setup` to cheaply be cloned and
@@ -58,60 +400,29 @@ impl<S, NA> Setup<S, NA> {
 impl<S, NA> NewActor for Setup<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
+    NA: NewActor<Argument = TcpStream> + Clone + 'static,
     NA::RuntimeAccess: rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
 {
     type Message = Message;
     type Argument = ();
-    type Actor = TcpServer<S, NA>;
-    type Error = io::Error;
+    type Actor = impl Future<Output = Result<(), Error<NA::Error>>>;
+    type Error = !;
     type RuntimeAccess = NA::RuntimeAccess;
 
     fn new(
         &mut self,
-        mut ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
+        ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
         _: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let this = &*self.inner;
-        let socket = new_listener(this.address, 1024)?;
-        let mut listener = unsafe { TcpListener::from_raw_fd(socket.into_raw_fd()) };
-        ctx.runtime().register(&mut listener, Interest::READABLE)?;
-        Ok(TcpServer {
+        Ok(tcp_server(
             ctx,
-            set_waker: false,
-            listener,
-            supervisor: this.supervisor.clone(),
-            new_actor: this.new_actor.clone(),
-            options: this.options.clone(),
-        })
+            this.address,
+            this.supervisor.clone(),
+            this.new_actor.clone(),
+            this.options.clone(),
+        ))
     }
-}
-
-fn new_listener(address: SocketAddr, backlog: libc::c_int) -> io::Result<Socket> {
-    // Create a new non-blocking socket.
-    let domain = Domain::for_address(address);
-    let ty = Type::STREAM;
-    #[cfg(any(target_os = "freebsd", target_os = "linux"))]
-    let ty = ty.nonblocking();
-    let protocol = Protocol::TCP;
-    let socket = Socket::new(domain, ty, Some(protocol))?;
-    // For OSs that don't support `SOCK_NONBLOCK`.
-    #[cfg(not(any(target_os = "freebsd", target_os = "linux")))]
-    socket.set_nonblocking(true)?;
-
-    // Allow the other worker threads and processes to reuse the address and
-    // port we're binding to. This allow reload the process without dropping
-    // clients.
-    socket.set_reuse_address(true)?;
-    socket.set_reuse_port(true)?; // TODO: use `SO_REUSEPORT_LB` on FreeBSD.
-
-    // Bind the socket and start listening if required.
-    socket.bind(&address.into())?;
-    if backlog != 0 {
-        socket.listen(backlog)?;
-    }
-
-    Ok(socket)
 }
 
 impl<S, NA> Clone for Setup<S, NA> {
@@ -122,438 +433,58 @@ impl<S, NA> Clone for Setup<S, NA> {
     }
 }
 
-/// An actor that starts a new actor for each accepted TCP connection.
-///
-/// This actor can start as a thread-local or thread-safe actor. When using the
-/// thread-local variant one actor runs per worker thread which spawns
-/// thread-local actors to handle the [`TcpStream`]s. See the first example
-/// below on how to run this `TcpServer` as a thread-local actor.
-///
-/// This actor can also run as thread-safe actor in which case it also spawns
-/// thread-safe actors. Note however that using thread-*local* version is
-/// recommended. The third example below shows how to run the `TcpServer` as
-/// thread-safe actor.
-///
-/// # Graceful shutdown
-///
-/// Graceful shutdown is done by sending it a [`Terminate`] message, see below
-/// for an example. The TCP server can also handle (shutdown) process signals,
-/// see "Example 2 my ip" (in the examples directory of the source code) for an
-/// example of that.
-///
-/// # Examples
-///
-/// The following example is a TCP server that writes "Hello World" to the
-/// connection, using the server as a thread-local actor.
-///
-/// ```
-/// #![feature(never_type)]
-///
-/// use std::io;
-/// use std::net::SocketAddr;
-///
-/// # use heph::messages::Terminate;
-/// use heph::actor::{self, NewActor};
-/// use heph::supervisor::{Supervisor, SupervisorStrategy};
-/// use heph_rt::net::tcp::{server, TcpServer, TcpStream};
-/// use heph_rt::spawn::ActorOptions;
-/// use heph_rt::spawn::options::Priority;
-/// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
-/// use log::error;
-///
-/// fn main() -> Result<(), rt::Error> {
-///     // Create and start the Heph runtime.
-///     let mut runtime = Runtime::new()?;
-///     runtime.run_on_workers(setup)?;
-///     runtime.start()
-/// }
-///
-/// /// In this setup function we'll spawn the TCP server.
-/// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
-///     // The address to listen on.
-///     let address = "127.0.0.1:7890".parse().unwrap();
-///     // Create our TCP server.
-///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     // Wait for the `TcpStream` to become ready before running the actor.
-///     let options = ActorOptions::default().mark_ready(false);
-///     let server = TcpServer::setup(address, conn_supervisor, new_actor, options)?;
-///
-///     // We advice to give the TCP server a low priority to prioritise
-///     // handling of ongoing requests over accepting new requests possibly
-///     // overloading the system.
-///     let options = ActorOptions::default().with_priority(Priority::LOW);
-///     # let actor_ref =
-///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
-///     # actor_ref.try_send(Terminate).unwrap();
-///
-///     Ok(())
-/// }
-///
-/// /// Our supervisor for the TCP server.
-/// #[derive(Copy, Clone, Debug)]
-/// struct ServerSupervisor;
-///
-/// impl<S, NA> Supervisor<server::Setup<S, NA>> for ServerSupervisor
-/// where
-///     // Trait bounds needed by `server::Setup`.
-///     S: Supervisor<NA> + Clone + 'static,
-///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
-/// {
-///     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
-///         use server::Error::*;
-///         match err {
-///             // When we hit an error accepting a connection we'll drop the old
-///             // server and create a new one.
-///             Accept(err) => {
-///                 error!("error accepting new connection: {err}");
-///                 SupervisorStrategy::Restart(())
-///             }
-///             // Async function never return an error creating a new actor.
-///             NewActor(_) => unreachable!(),
-///         }
-///     }
-///
-///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-///         // If we can't create a new server we'll stop.
-///         error!("error restarting the TCP server: {err}");
-///         SupervisorStrategy::Stop
-///     }
-///
-///     fn second_restart_error(&mut self, _: io::Error) {
-///         // We don't restart a second time, so this will never be called.
-///         unreachable!();
-///     }
-/// }
-///
-/// /// `conn_actor`'s supervisor.
-/// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-///     error!("error handling connection: {err}");
-///     SupervisorStrategy::Stop
-/// }
-///
-/// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
-/// #   drop(address); // Silence dead code warnings.
-///     stream.send_all(b"Hello World").await
-/// }
-/// ```
-///
-/// The following example shows how the actor can gracefully be shutdown by
-/// sending it a [`Terminate`] message.
-///
-/// ```
-/// #![feature(never_type)]
-///
-/// use std::io;
-/// use std::net::SocketAddr;
-///
-/// use heph::messages::Terminate;
-/// use heph::actor::{self, NewActor};
-/// use heph::supervisor::{Supervisor, SupervisorStrategy};
-/// # use heph_rt::net::tcp;
-/// use heph_rt::net::{TcpServer, TcpStream};
-/// use heph_rt::spawn::options::{ActorOptions, Priority};
-/// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
-/// use log::error;
-///
-/// fn main() -> Result<(), rt::Error> {
-///     let mut runtime = Runtime::new()?;
-///     runtime.run_on_workers(setup)?;
-///     runtime.start()
-/// }
-///
-/// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
-///     // This uses the same supervisors as in the previous example, not shown here.
-///
-///     // Adding the TCP server is the same as in the example above.
-///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let address = "127.0.0.1:7890".parse().unwrap();
-///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
-///     let options = ActorOptions::default().with_priority(Priority::LOW);
-///     let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
-///
-///     // Because the server is just another actor we can send it messages. Here
-///     // we'll send it a terminate message so it will gracefully shutdown.
-///     server_ref.try_send(Terminate).unwrap();
-///
-///     Ok(())
-/// }
-///
-/// # /// # Our supervisor for the TCP server.
-/// # #[derive(Copy, Clone, Debug)]
-/// # struct ServerSupervisor;
-/// #
-/// # impl<S, NA> Supervisor<tcp::server::Setup<S, NA>> for ServerSupervisor
-/// # where
-/// #     S: Supervisor<NA> + Clone + 'static,
-/// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
-/// # {
-/// #     fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
-/// #         use tcp::server::Error::*;
-/// #         match err {
-/// #             Accept(err) => {
-/// #                 error!("error accepting new connection: {err}");
-/// #                 SupervisorStrategy::Restart(())
-/// #             }
-/// #             NewActor(_) => unreachable!(),
-/// #         }
-/// #     }
-/// #
-/// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-/// #         error!("error restarting the TCP server: {err}");
-/// #         SupervisorStrategy::Stop
-/// #     }
-/// #
-/// #     fn second_restart_error(&mut self, _: io::Error) {
-/// #         // We don't restart a second time, so this will never be called.
-/// #         unreachable!();
-/// #     }
-/// # }
-/// #
-/// # /// # `conn_actor`'s supervisor.
-/// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-/// #     error!("error handling connection: {err}");
-/// #     SupervisorStrategy::Stop
-/// # }
-/// #
-/// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
-/// #   drop(address); // Silence dead code warnings.
-///     stream.send_all(b"Hello World").await
-/// }
-/// ```
-///
-/// This example is similar to the first example, but runs the `TcpServer` actor
-/// as thread-safe actor. *It's recommended to run the server as thread-local
-/// actor!* This is just an example show its possible.
-///
-/// ```
-/// #![feature(never_type)]
-///
-/// use std::io;
-/// use std::net::SocketAddr;
-///
-/// use heph::actor::{self, NewActor};
-/// # use heph::messages::Terminate;
-/// use heph::supervisor::{Supervisor, SupervisorStrategy};
-/// use heph_rt::net::tcp::{server, TcpServer, TcpStream};
-/// use heph_rt::spawn::options::{ActorOptions, Priority};
-/// use heph_rt::{self as rt, Runtime, ThreadSafe};
-/// use log::error;
-///
-/// fn main() -> Result<(), rt::Error> {
-///     let mut runtime = Runtime::new()?;
-///
-///     // The address to listen on.
-///     let address = "127.0.0.1:7890".parse().unwrap();
-///     // Create our TCP server. We'll use the default actor options.
-///     let new_actor = conn_actor as fn(_, _, _) -> _;
-///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())
-///         .map_err(rt::Error::setup)?;
-///
-///     let options = ActorOptions::default().with_priority(Priority::LOW);
-///     # let actor_ref =
-///     runtime.try_spawn(ServerSupervisor, server, (), options)
-///         .map_err(rt::Error::setup)?;
-///     # actor_ref.try_send(Terminate).unwrap();
-///
-///     runtime.start()
-/// }
-///
-/// /// Our supervisor for the TCP server.
-/// #[derive(Copy, Clone, Debug)]
-/// struct ServerSupervisor;
-///
-/// impl<S, NA> Supervisor<server::Setup<S, NA>> for ServerSupervisor
-/// where
-///     // Trait bounds needed by `server::Setup` using a thread-safe actor.
-///     S: Supervisor<NA> + Send + Sync + Clone + 'static,
-///     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, RuntimeAccess = ThreadSafe> + Send + Sync + Clone + 'static,
-///     NA::Actor: Send + Sync + 'static,
-///     NA::Message: Send,
-/// {
-///     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
-///         use server::Error::*;
-///         match err {
-///             // When we hit an error accepting a connection we'll drop the old
-///             // server and create a new one.
-///             Accept(err) => {
-///                 error!("error accepting new connection: {err}");
-///                 SupervisorStrategy::Restart(())
-///             }
-///             // Async function never return an error creating a new actor.
-///             NewActor(_) => unreachable!(),
-///         }
-///     }
-///
-///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-///         // If we can't create a new server we'll stop.
-///         error!("error restarting the TCP server: {err}");
-///         SupervisorStrategy::Stop
-///     }
-///
-///     fn second_restart_error(&mut self, _: io::Error) {
-///         // We don't restart a second time, so this will never be called.
-///         unreachable!();
-///     }
-/// }
-///
-/// /// `conn_actor`'s supervisor.
-/// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-///     error!("error handling connection: {err}");
-///     SupervisorStrategy::Stop
-/// }
-///
-/// /// The actor responsible for a single TCP stream.
-/// async fn conn_actor(_: actor::Context<!, ThreadSafe>, mut stream: TcpStream, address: SocketAddr) -> io::Result<()> {
-/// #   drop(address); // Silence dead code warnings.
-///     stream.send_all(b"Hello World").await
-/// }
-#[derive(Debug)]
-pub struct TcpServer<S, NA: NewActor> {
-    /// Actor context in which this actor is running.
-    ctx: actor::Context<Message, NA::RuntimeAccess>,
-    /// Whether or not we set the waker for the inbox.
-    set_waker: bool,
-    /// The underlying TCP listener, backed by Mio.
-    listener: TcpListener,
-    /// Supervisor for all actors created by `NewActor`.
+async fn tcp_server<S, NA>(
+    mut ctx: actor::Context<Message, NA::RuntimeAccess>,
+    local: SocketAddr,
     supervisor: S,
-    /// `NewActor` used to create an actor for each connection.
     new_actor: NA,
-    /// Options used to spawn the actor.
     options: ActorOptions,
-}
-
-impl<S, NA> TcpServer<S, NA>
+) -> Result<(), Error<NA::Error>>
 where
     S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
-{
-    /// Create a new [server setup].
-    ///
-    /// Arguments:
-    /// * `address`: the address to listen on.
-    /// * `supervisor`: the [`Supervisor`] used to supervise each started actor,
-    /// * `new_actor`: the [`NewActor`] implementation to start each actor,
-    ///   and
-    /// * `options`: the actor options used to spawn the new actors.
-    ///
-    /// [server setup]: Setup
-    pub fn setup(
-        mut address: SocketAddr,
-        supervisor: S,
-        new_actor: NA,
-        options: ActorOptions,
-    ) -> io::Result<Setup<S, NA>> {
-        // We create a listener which don't actually use. However it gives a
-        // nicer user-experience to get an error up-front rather than $n errors
-        // later, where $n is the number of cpu cores when spawning a new server
-        // on each worker thread.
-        //
-        // Also note that we use a backlog of `0`, which causes `new_listener`
-        // to never call `listen(2)` on the socket.
-        new_listener(address, 0).and_then(|socket| {
-            // Using a port of 0 means the OS can select one for us. However
-            // we still consistently want to use the same port instead of
-            // binding to a number of random ports.
-            if address.port() == 0 {
-                // NOTE: we just created the socket above so we know it's either
-                // IPv4 or IPv6, meaning this `unwrap` never fails.
-                address = socket.local_addr()?.as_socket().unwrap();
-            }
-
-            Ok(Setup {
-                inner: Arc::new(SetupInner {
-                    _socket: socket,
-                    address,
-                    supervisor,
-                    new_actor,
-                    options,
-                }),
-            })
-        })
-    }
-}
-
-impl<S, NA> Actor for TcpServer<S, NA>
-where
-    S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = (TcpStream, SocketAddr)> + Clone + 'static,
+    NA: NewActor<Argument = TcpStream> + Clone + 'static,
     NA::RuntimeAccess: rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
 {
-    type Error = Error<NA::Error>;
+    let mut listener = TcpListener::bind_setup(ctx.runtime_ref(), local, set_listener_options)
+        .await
+        .map_err(Error::Accept)?;
+    trace!(address = log::as_display!(local); "TCP server listening");
 
-    fn try_poll(
-        self: Pin<&mut Self>,
-        ctx: &mut task::Context<'_>,
-    ) -> Poll<Result<(), Self::Error>> {
-        // Safety: This is safe because only the `actor::Context` and
-        // `set_waker` are mutably borrowed and both are `Unpin`.
-        let this = unsafe { Pin::into_inner_unchecked(self) };
+    let mut accept = listener.incoming2();
+    let mut receive = ctx.receive_next();
+    loop {
+        match either(next(&mut accept), &mut receive).await {
+            Ok(Some(Ok(fd))) => {
+                let stream = UnboundTcpStream::from_async_fd(fd);
+                trace!("TCP server accepted connection");
 
-        if !this.set_waker {
-            // Set the waker of the inbox to ensure we get run when we receive a
-            // message.
-            this.ctx.register_inbox_waker(ctx.waker());
-            this.set_waker = true;
-        }
-
-        // See if we need to shutdown.
-        //
-        // We don't return immediately here because we're using `SO_REUSEPORT`,
-        // which on most OSes causes each listener (file descriptor) to have
-        // there own accept queue. This means that connections in *ours* would
-        // be dropped if we would close the file descriptor immediately. So we
-        // first accept all pending connections and start actors for them. Note
-        // however that there is still a race condition between our last call to
-        // `accept` and the time the file descriptor is actually closed,
-        // currently we can't avoid this.
-        let should_stop = this.ctx.try_receive_next().is_ok();
-
-        loop {
-            let (mut stream, addr) = match this.listener.accept() {
-                Ok(ok) => ok,
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break,
-                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue, // Try again.
-                Err(err) => return Poll::Ready(Err(Error::Accept(err))),
-            };
-            debug!(remote_address = as_display!(addr); "TcpServer accepted connection");
-
-            let setup_actor = move |ctx: &mut actor::Context<NA::Message, NA::RuntimeAccess>| {
-                ctx.runtime()
-                    .register(&mut stream, Interest::READABLE | Interest::WRITABLE)?;
-                #[allow(unused_mut)]
-                let mut stream = TcpStream { socket: stream };
-                #[cfg(target_os = "linux")]
-                if let Some(cpu) = ctx.runtime_ref().cpu() {
-                    if let Err(err) = stream.set_cpu_affinity(cpu) {
-                        warn!("failed to set CPU affinity on TcpStream: {err}");
-                    }
-                }
-                Ok((stream, addr))
-            };
-            let res = this.ctx.try_spawn_setup(
-                this.supervisor.clone(),
-                this.new_actor.clone(),
-                setup_actor,
-                this.options.clone(),
-            );
-            if let Err(err) = res {
-                return Poll::Ready(Err(err.into()));
+                drop(receive); // Can't double borrow `ctx`.
+                _ = ctx.try_spawn_setup(
+                    supervisor.clone(),
+                    new_actor.clone(),
+                    |ctx| stream.bind_to(ctx),
+                    options.clone(),
+                )?;
+                receive = ctx.receive_next();
             }
-        }
-
-        if should_stop {
-            debug!("TCP server received shutdown message, stopping");
-            Poll::Ready(Ok(()))
-        } else {
-            Poll::Pending
+            Ok(Some(Err(err))) => return Err(Error::Accept(err)),
+            Ok(None) => {
+                debug!("no more connections to accept in TCP server, stopping");
+                return Ok(());
+            }
+            Err(Ok(_)) => {
+                debug!("TCP server received shutdown message, stopping");
+                return Ok(());
+            }
+            Err(Err(NoMessages)) => {
+                debug!("All actor references to TCP server dropped, stopping");
+                return Ok(());
+            }
         }
     }
 }
 
-/// The message type used by [`TcpServer`].
+/// The message type used by TCP server actor.
 ///
 /// The message implements [`From`]`<`[`Terminate`]`>` and
 /// [`TryFrom`]`<`[`Signal`]`>` for the message, allowing for graceful shutdown.
@@ -582,7 +513,7 @@ impl TryFrom<Signal> for Message {
     }
 }
 
-/// Error returned by the [`TcpServer`] actor.
+/// Error returned by the TCP server actor.
 #[derive(Debug)]
 pub enum Error<E> {
     /// Error accepting TCP stream.
@@ -606,8 +537,8 @@ impl<E: fmt::Display> fmt::Display for Error<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use Error::*;
         match self {
-            Accept(ref err) => write!(f, "error accepting TCP stream: {err}"),
-            NewActor(ref err) => write!(f, "error creating new actor: {err}"),
+            Accept(err) => write!(f, "error accepting TCP stream: {err}"),
+            NewActor(err) => write!(f, "error creating new actor: {err}"),
         }
     }
 }
