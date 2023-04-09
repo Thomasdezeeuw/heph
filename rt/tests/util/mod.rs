@@ -2,7 +2,6 @@
 
 use std::async_iter::AsyncIterator;
 use std::env::temp_dir;
-use std::fmt;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::future::Future;
 use std::mem::size_of;
@@ -11,6 +10,13 @@ use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Once;
 use std::task::{self, Poll};
+use std::time::Duration;
+use std::{fmt, io};
+
+use heph::actor;
+use heph_rt as rt;
+use heph_rt::net::TcpStream;
+use heph_rt::timer::Timer;
 
 macro_rules! limited_loop {
     ($($arg: tt)*) => {{
@@ -125,11 +131,12 @@ pub struct PendingOnce(bool);
 impl Future for PendingOnce {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         if self.0 {
             Poll::Ready(())
         } else {
             self.0 = true;
+            ctx.waker().wake_by_ref();
             Poll::Pending
         }
     }
@@ -179,5 +186,28 @@ where
         let iter = unsafe { Pin::new_unchecked(&mut this.inner) };
         iter.poll_next(ctx)
             .map(|out| out.map(|out| (out, this.count)))
+    }
+}
+
+/// Because creating the listening socket asynchronously it's possible we're run
+/// before the listener is setup. So try a couple of times.
+pub async fn tcp_connect<M, RT>(
+    ctx: &mut actor::Context<M, RT>,
+    address: SocketAddr,
+) -> io::Result<TcpStream>
+where
+    RT: rt::Access + Clone,
+{
+    let mut i = 10;
+    loop {
+        match TcpStream::connect(ctx, address).unwrap().await {
+            Ok(stream) => break Ok(stream),
+            Err(_) if i >= 1 => {
+                Timer::after(ctx, Duration::from_millis(1)).await;
+                i -= 1;
+                continue;
+            }
+            Err(err) => break Err(err),
+        }
     }
 }

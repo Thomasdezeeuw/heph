@@ -11,7 +11,7 @@ use std::{fmt, io};
 use a10::AsyncFd;
 use heph::actor;
 use mio::Interest;
-use socket2::{Domain, Protocol, SockRef, Type};
+use socket2::{Domain, Protocol, SockRef, Socket, Type};
 
 use crate::net::{convert_address, SockAddr, TcpStream};
 use crate::{self as rt};
@@ -177,6 +177,18 @@ impl TcpListener {
     where
         RT: rt::Access,
     {
+        TcpListener::bind_setup(rt, address, |_| Ok(())).await
+    }
+
+    pub(crate) async fn bind_setup<RT, F>(
+        rt: &RT,
+        address: SocketAddr,
+        setup: F,
+    ) -> io::Result<TcpListener>
+    where
+        RT: rt::Access,
+        F: FnOnce(&Socket) -> io::Result<()>,
+    {
         let fd = a10::net::socket(
             rt.submission_queue(),
             Domain::for_address(address).into(),
@@ -196,6 +208,7 @@ impl TcpListener {
                 }
             }
 
+            setup(&socket)?;
             socket.bind(&address.into())?;
             socket.listen(1024)?;
 
@@ -242,6 +255,11 @@ impl TcpListener {
         Incoming(self.fd.multishot_accept())
     }
 
+    /// Temp function used by `TcpListener`.
+    pub(crate) fn incoming2(&mut self) -> a10::net::MultishotAccept<'_> {
+        self.fd.multishot_accept()
+    }
+
     /// Get the value of the `SO_ERROR` option on this socket.
     ///
     /// This will retrieve the stored error in the underlying socket, clearing
@@ -251,7 +269,7 @@ impl TcpListener {
         self.with_ref(|socket| socket.take_error())
     }
 
-    fn with_ref<F, T>(&self, f: F) -> io::Result<T>
+    pub(crate) fn with_ref<F, T>(&self, f: F) -> io::Result<T>
     where
         F: FnOnce(SockRef<'_>) -> io::Result<T>,
     {
@@ -293,7 +311,7 @@ impl UnboundTcpStream {
         Ok(stream)
     }
 
-    fn from_async_fd(fd: AsyncFd) -> UnboundTcpStream {
+    pub(crate) fn from_async_fd(fd: AsyncFd) -> UnboundTcpStream {
         UnboundTcpStream {
             stream: TcpStream {
                 // SAFETY: the put `fd` in a `ManuallyDrop` to ensure we don't
