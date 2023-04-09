@@ -1,6 +1,7 @@
 //! Buffers.
 
 use std::mem::MaybeUninit;
+use std::sync::Arc;
 
 /// Trait that defines the behaviour of buffers used in reading, which requires
 /// mutable access.
@@ -252,6 +253,16 @@ unsafe impl Buf for Vec<u8> {
 unsafe impl Buf for String {
     unsafe fn parts(&self) -> (*const u8, usize) {
         let slice = self.as_bytes();
+        (slice.as_ptr().cast(), slice.len())
+    }
+}
+
+// SAFETY: `Arc<u8>` manages the allocation of the bytes, so as long as it's
+// alive, so is the slice of bytes. When the `Vec`tor is leaked the allocation
+// will also be leaked.
+unsafe impl Buf for Arc<[u8]> {
+    unsafe fn parts(&self) -> (*const u8, usize) {
+        let slice: &[u8] = &*self;
         (slice.as_ptr().cast(), slice.len())
     }
 }
