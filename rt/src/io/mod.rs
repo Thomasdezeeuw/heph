@@ -18,6 +18,6 @@ pub(crate) use buf::BufWrapper;
 pub use buf::{Buf, BufMut, BufMutSlice, BufSlice};
 
 mod futures;
-pub use futures::{
+pub(crate) use futures::{
     Read, ReadN, ReadNVectored, ReadVectored, Write, WriteAll, WriteAllVectored, WriteVectored,
 };
