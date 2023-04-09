@@ -163,16 +163,16 @@ impl Sender {
     ///
     /// Return the number of bytes written. This may we fewer than the length of
     /// `buf`. To ensure that all bytes are written use [`Sender::write_all`].
-    pub fn write<'a, B: Buf>(&'a mut self, buf: B) -> Write<'a, B> {
-        Write(self.fd.write(BufWrapper(buf)).extract())
+    pub async fn write<'a, B: Buf>(&'a mut self, buf: B) -> io::Result<(B, usize)> {
+        Write(self.fd.write(BufWrapper(buf)).extract()).await
     }
 
     /// Write the all bytes in `buf` into the pipe.
     ///
     /// If this fails to write all bytes (this happens if a write returns
     /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
-    pub fn write_all<'a, B: Buf>(&'a mut self, buf: B) -> WriteAll<'a, B> {
-        WriteAll(self.fd.write_all(BufWrapper(buf)).extract())
+    pub async fn write_all<'a, B: Buf>(&'a mut self, buf: B) -> io::Result<B> {
+        WriteAll(self.fd.write_all(BufWrapper(buf)).extract()).await
     }
 
     /// Write the bytes in `bufs` intoto the pipe.
@@ -180,22 +180,22 @@ impl Sender {
     /// Return the number of bytes written. This may we fewer than the length of
     /// `bufs`. To ensure that all bytes are written use
     /// [`Sender::write_vectored_all`].
-    pub fn write_vectored<'a, B: BufSlice<N>, const N: usize>(
+    pub async fn write_vectored<'a, B: BufSlice<N>, const N: usize>(
         &'a mut self,
         bufs: B,
-    ) -> WriteVectored<'a, B, N> {
-        WriteVectored(self.fd.write_vectored(BufWrapper(bufs)).extract())
+    ) -> io::Result<(B, usize)> {
+        WriteVectored(self.fd.write_vectored(BufWrapper(bufs)).extract()).await
     }
 
     /// Write the all bytes in `bufs` into the pipe.
     ///
     /// If this fails to write all bytes (this happens if a write returns
     /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
-    pub fn write_vectored_all<'a, B: BufSlice<N>, const N: usize>(
+    pub async fn write_vectored_all<'a, B: BufSlice<N>, const N: usize>(
         &'a mut self,
         bufs: B,
-    ) -> WriteAllVectored<'a, B, N> {
-        WriteAllVectored(self.fd.write_all_vectored(BufWrapper(bufs)).extract())
+    ) -> io::Result<B> {
+        WriteAllVectored(self.fd.write_all_vectored(BufWrapper(bufs)).extract()).await
     }
 }
 
@@ -232,40 +232,40 @@ impl Receiver {
     }
 
     /// Read bytes from the pipe, writing them into `buf`.
-    pub fn read<'a, B: BufMut>(&'a mut self, buf: B) -> Read<'a, B> {
-        Read(self.fd.read(BufWrapper(buf)))
+    pub async fn read<'a, B: BufMut>(&'a mut self, buf: B) -> io::Result<B> {
+        Read(self.fd.read(BufWrapper(buf))).await
     }
 
     /// Read at least `n` bytes from the pipe, writing them into `buf`.
     ///
     /// This returns [`io::ErrorKind::UnexpectedEof`] if less than `n` bytes
     /// could be read.
-    pub fn read_n<'a, B: BufMut>(&'a mut self, buf: B, n: usize) -> ReadN<'a, B> {
+    pub async fn read_n<'a, B: BufMut>(&'a mut self, buf: B, n: usize) -> io::Result<B> {
         debug_assert!(
             buf.spare_capacity() >= n,
             "called `Receiver::read_n` with a buffer smaller than `n`",
         );
-        ReadN(self.fd.read_n(BufWrapper(buf), n))
+        ReadN(self.fd.read_n(BufWrapper(buf), n)).await
     }
 
     /// Read bytes from the pipe, writing them into `bufs`.
-    pub fn read_vectored<'a, B: BufMutSlice<N>, const N: usize>(
+    pub async fn read_vectored<'a, B: BufMutSlice<N>, const N: usize>(
         &'a mut self,
         bufs: B,
-    ) -> ReadVectored<'a, B, N> {
-        ReadVectored(self.fd.read_vectored(BufWrapper(bufs)))
+    ) -> io::Result<B> {
+        ReadVectored(self.fd.read_vectored(BufWrapper(bufs))).await
     }
 
     /// Read at least `n` bytes from the pipe, writing them into `bufs`.
-    pub fn read_n_vectored<'a, B: BufMutSlice<N>, const N: usize>(
+    pub async fn read_n_vectored<'a, B: BufMutSlice<N>, const N: usize>(
         &'a mut self,
         bufs: B,
         n: usize,
-    ) -> ReadNVectored<'a, B, N> {
+    ) -> io::Result<B> {
         debug_assert!(
             bufs.total_spare_capacity() >= n,
             "called `Receiver::read_n_vectored` with buffers smaller than `n`"
         );
-        ReadNVectored(self.fd.read_n_vectored(BufWrapper(bufs), n))
+        ReadNVectored(self.fd.read_n_vectored(BufWrapper(bufs), n)).await
     }
 }
