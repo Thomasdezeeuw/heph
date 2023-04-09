@@ -9,9 +9,71 @@ use std::task::{self, Poll};
 
 use a10::extract::Extractor;
 
-use crate::io::{Buf, BufMut, BufWrapper};
+use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 
-/// [`Future`] behind send implementations.
+/// [`Future`] behind `recv` implementations.
+pub struct Recv<'a, B>(pub(crate) a10::net::Recv<'a, BufWrapper<B>>);
+
+impl<'a, B: BufMut> Future for Recv<'a, B> {
+    type Output = io::Result<B>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the `Future`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
+            .poll(ctx)
+            .map_ok(|buf| buf.0)
+    }
+}
+
+/// [`Future`] behind `recv_vectored` implementations.
+pub struct RecvVectored<'a, B, const N: usize>(
+    pub(crate) a10::net::RecvVectored<'a, BufWrapper<B>, N>,
+);
+
+impl<'a, B: BufMutSlice<N>, const N: usize> Future for RecvVectored<'a, B, N> {
+    type Output = io::Result<B>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the `Future`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
+            .poll(ctx)
+            .map_ok(|(buf, _)| buf.0)
+    }
+}
+
+/// [`Future`] behind `recv_from` implementations.
+pub struct RecvFrom<'a, B, A>(pub(crate) a10::net::RecvFrom<'a, BufWrapper<B>, A>);
+
+impl<'a, B: BufMut, A: a10::net::SocketAddress> Future for RecvFrom<'a, B, A> {
+    type Output = io::Result<(B, A)>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the `Future`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
+            .poll(ctx)
+            .map_ok(|(buf, addr, _)| (buf.0, addr))
+    }
+}
+
+/// [`Future`] behind `recv_from_vectored` implementations.
+pub struct RecvFromVectored<'a, B, A, const N: usize>(
+    pub(crate) a10::net::RecvFromVectored<'a, BufWrapper<B>, A, N>,
+);
+
+impl<'a, B: BufMutSlice<N>, A: a10::net::SocketAddress, const N: usize> Future
+    for RecvFromVectored<'a, B, A, N>
+{
+    type Output = io::Result<(B, A)>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the `Future`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
+            .poll(ctx)
+            .map_ok(|(buf, addr, _)| (buf.0, addr))
+    }
+}
+
+/// [`Future`] behind `send` implementations.
 pub struct Send<'a, B>(pub(crate) Extractor<a10::net::Send<'a, BufWrapper<B>>>);
 
 impl<'a, B: Buf> Future for Send<'a, B> {
@@ -25,7 +87,23 @@ impl<'a, B: Buf> Future for Send<'a, B> {
     }
 }
 
-/// [`Future`] behind send_to implementations.
+/// [`Future`] behind `send_vectored` implementations.
+pub struct SendVectored<'a, B, const N: usize>(
+    pub(crate) Extractor<a10::net::SendMsg<'a, BufWrapper<B>, a10::net::NoAddress, N>>,
+);
+
+impl<'a, B: BufSlice<N>, const N: usize> Future for SendVectored<'a, B, N> {
+    type Output = io::Result<(B, usize)>;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the `Future`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
+            .poll(ctx)
+            .map_ok(|(buf, n)| (buf.0, n))
+    }
+}
+
+/// [`Future`] behind `send_to` implementations.
 pub struct SendTo<'a, B, A>(pub(crate) Extractor<a10::net::SendTo<'a, BufWrapper<B>, A>>);
 
 impl<'a, B: Buf, A: a10::net::SocketAddress> Future for SendTo<'a, B, A> {
@@ -35,20 +113,24 @@ impl<'a, B: Buf, A: a10::net::SocketAddress> Future for SendTo<'a, B, A> {
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
-            .map_ok(|(buf, _, len)| (buf.0, len))
+            .map_ok(|(buf, len)| (buf.0, len))
     }
 }
 
-/// [`Future`] behind recv implementations.
-pub struct Recv<'a, B>(pub(crate) a10::net::Recv<'a, BufWrapper<B>>);
+/// [`Future`] behind `send_to_vectored` implementations.
+pub struct SendToVectored<'a, B, A, const N: usize>(
+    pub(crate) Extractor<a10::net::SendMsg<'a, BufWrapper<B>, A, N>>,
+);
 
-impl<'a, B: BufMut> Future for Recv<'a, B> {
-    type Output = io::Result<B>;
+impl<'a, B: BufSlice<N>, A: a10::net::SocketAddress, const N: usize> Future
+    for SendToVectored<'a, B, A, N>
+{
+    type Output = io::Result<(B, usize)>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
-            .map_ok(|buf| buf.0)
+            .map_ok(|(buf, n)| (buf.0, n))
     }
 }

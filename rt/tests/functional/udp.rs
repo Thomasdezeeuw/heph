@@ -1,16 +1,14 @@
 //! Tests related to `UdpSocket`.
 
-use std::io::{self, IoSlice};
+use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
 
 use heph::actor::{self, Actor, NewActor};
-use heph::actor_ref::{ActorRef, RpcMessage};
-use heph::supervisor::NoSupervisor;
-use heph_rt::net::udp::{UdpSocket, Unconnected};
+use heph_rt::net::udp::UdpSocket;
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join, try_spawn_local, PanicSupervisor};
-use heph_rt::{self as rt, Bound, Runtime, RuntimeRef, ThreadLocal};
+use heph_rt::ThreadLocal;
 
 use crate::util::{any_local_address, any_local_ipv6_address};
 
@@ -68,26 +66,23 @@ where
 }
 
 async fn unconnected_udp_actor(
-    mut ctx: actor::Context<!, ThreadLocal>,
+    ctx: actor::Context<!, ThreadLocal>,
     peer_address: SocketAddr,
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
-    let mut socket = UdpSocket::bind(&mut ctx, local_address)?;
+    let mut socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
     assert_eq!(socket.local_addr().unwrap().ip(), local_address.ip());
 
-    let bytes_written = socket.send_to(&DATA, peer_address).await?;
+    let (_, bytes_written) = socket.send_to(DATA, peer_address).await?;
     assert_eq!(bytes_written, DATA.len());
 
-    let mut buf = Vec::with_capacity(DATA.len() + 2);
-    let (bytes_peeked, address) = socket.peek_from(&mut buf).await?;
-    assert_eq!(bytes_peeked, DATA.len());
-    assert_eq!(&buf[..bytes_peeked], &*DATA);
+    let (mut buf, address) = socket.peek_from(Vec::with_capacity(DATA.len() + 2)).await?;
+    assert_eq!(buf, DATA);
     assert_eq!(address, peer_address);
 
     buf.clear();
-    let (bytes_read, address) = socket.recv_from(&mut buf).await?;
-    assert_eq!(bytes_read, DATA.len());
-    assert_eq!(&buf[..bytes_read], &*DATA);
+    let (buf, address) = socket.recv_from(buf).await?;
+    assert_eq!(buf, DATA);
     assert_eq!(address, peer_address);
 
     assert!(socket.take_error().unwrap().is_none());
@@ -96,26 +91,23 @@ async fn unconnected_udp_actor(
 }
 
 async fn connected_udp_actor(
-    mut ctx: actor::Context<!, ThreadLocal>,
+    ctx: actor::Context<!, ThreadLocal>,
     peer_address: SocketAddr,
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
-    let socket = UdpSocket::bind(&mut ctx, local_address)?;
-    let mut socket = socket.connect(peer_address)?;
+    let socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
+    let mut socket = socket.connect(peer_address).await?;
     assert_eq!(socket.local_addr().unwrap().ip(), local_address.ip());
 
-    let bytes_written = socket.send(&DATA).await?;
+    let (_, bytes_written) = socket.send(DATA).await?;
     assert_eq!(bytes_written, DATA.len());
 
-    let mut buf = Vec::with_capacity(DATA.len() + 2);
-    let bytes_peeked = socket.peek(&mut buf).await?;
-    assert_eq!(bytes_peeked, DATA.len());
-    assert_eq!(&buf[..bytes_peeked], &*DATA);
+    let mut buf = socket.peek(Vec::with_capacity(DATA.len() + 2)).await?;
+    assert_eq!(buf, DATA);
 
     buf.clear();
-    let bytes_read = socket.recv(&mut buf).await?;
-    assert_eq!(bytes_read, DATA.len());
-    assert_eq!(&buf[..bytes_read], &*DATA);
+    let buf = socket.recv(buf).await?;
+    assert_eq!(buf, DATA);
 
     assert!(socket.take_error().unwrap().is_none());
 
@@ -164,23 +156,23 @@ fn test_reconnecting(local_address: SocketAddr) {
 }
 
 async fn reconnecting_actor(
-    mut ctx: actor::Context<!, ThreadLocal>,
+    ctx: actor::Context<!, ThreadLocal>,
     peer_address1: SocketAddr,
     peer_address2: SocketAddr,
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address1.ip(), 0);
-    let socket = UdpSocket::bind(&mut ctx, local_address)?;
-    let mut socket = socket.connect(peer_address1)?;
+    let socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
+    let mut socket = socket.connect(peer_address1).await?;
 
-    let bytes_written = socket.send(&DATA).await?;
+    let (_, bytes_written) = socket.send(DATA).await?;
     assert_eq!(bytes_written, DATA.len());
 
-    let mut socket = socket.connect(peer_address1)?;
-    let bytes_written = socket.send(&DATA).await?;
+    let mut socket = socket.connect(peer_address1).await?;
+    let (_, bytes_written) = socket.send(DATA).await?;
     assert_eq!(bytes_written, DATA.len());
 
-    let mut socket = socket.connect(peer_address2)?;
-    let bytes_written = socket.send(&DATA).await?;
+    let mut socket = socket.connect(peer_address2).await?;
+    let (_, bytes_written) = socket.send(DATA).await?;
     assert_eq!(bytes_written, DATA.len());
 
     assert!(socket.take_error().unwrap().is_none());
@@ -213,80 +205,68 @@ fn unconnected_vectored_io_ipv6() {
 }
 
 async fn unconnected_vectored_io_actor(
-    mut ctx: actor::Context<!, ThreadLocal>,
+    ctx: actor::Context<!, ThreadLocal>,
     peer_address: SocketAddr,
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
-    let mut socket = UdpSocket::bind(&mut ctx, local_address)?;
+    let mut socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
 
-    let bufs = &mut [
-        IoSlice::new(DATAV[0]),
-        IoSlice::new(DATAV[1]),
-        IoSlice::new(DATAV[2]),
-    ];
-    let bytes_written = socket.send_to_vectored(bufs, peer_address).await?;
+    let bufs = [DATAV[0], DATAV[1], DATAV[2]];
+    let (_, bytes_written) = socket.send_to_vectored(bufs, peer_address).await?;
     assert_eq!(bytes_written, DATAV_LEN);
 
-    let mut buf1 = Vec::with_capacity(DATAV[0].len());
-    let mut buf2 = Vec::with_capacity(DATAV[1].len());
-    let mut buf3 = Vec::with_capacity(DATAV[2].len() + 2);
-    let mut bufs = [&mut buf1, &mut buf2, &mut buf3];
-    let (bytes_peeked, address) = socket.peek_from_vectored(&mut bufs).await?;
-    assert_eq!(bytes_peeked, DATAV_LEN);
-    assert_eq!(buf1, DATAV[0]);
-    assert_eq!(buf2, DATAV[1]);
-    assert_eq!(buf3, DATAV[2]);
+    let bufs = [
+        Vec::with_capacity(DATAV[0].len()),
+        Vec::with_capacity(DATAV[1].len()),
+        Vec::with_capacity(DATAV[2].len() + 2),
+    ];
+    let (mut bufs, address) = socket.peek_from_vectored(bufs).await?;
+    assert_eq!(bufs[0], DATAV[0]);
+    assert_eq!(bufs[1], DATAV[1]);
+    assert_eq!(bufs[2], DATAV[2]);
     assert_eq!(address, peer_address);
 
-    buf1.clear();
-    buf2.clear();
-    buf3.clear();
-    let mut bufs = [&mut buf1, &mut buf2, &mut buf3];
-    let (bytes_read, address) = socket.recv_from_vectored(&mut bufs).await?;
-    assert_eq!(bytes_read, DATAV_LEN);
-    assert_eq!(buf1, DATAV[0]);
-    assert_eq!(buf2, DATAV[1]);
-    assert_eq!(buf3, DATAV[2]);
+    for buf in bufs.iter_mut() {
+        buf.clear();
+    }
+    let (bufs, address) = socket.recv_from_vectored(bufs).await?;
+    assert_eq!(bufs[0], DATAV[0]);
+    assert_eq!(bufs[1], DATAV[1]);
+    assert_eq!(bufs[2], DATAV[2]);
     assert_eq!(address, peer_address);
 
     Ok(())
 }
 
 async fn connected_vectored_io_actor(
-    mut ctx: actor::Context<!, ThreadLocal>,
+    ctx: actor::Context<!, ThreadLocal>,
     peer_address: SocketAddr,
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
-    let socket = UdpSocket::bind(&mut ctx, local_address)?;
-    let mut socket = socket.connect(peer_address)?;
+    let socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
+    let mut socket = socket.connect(peer_address).await?;
 
-    let bufs = &mut [
-        IoSlice::new(DATAV[0]),
-        IoSlice::new(DATAV[1]),
-        IoSlice::new(DATAV[2]),
-    ];
-    let bytes_written = socket.send_vectored(bufs).await?;
+    let bufs = [DATAV[0], DATAV[1], DATAV[2]];
+    let (_, bytes_written) = socket.send_vectored(bufs).await?;
     assert_eq!(bytes_written, DATAV_LEN);
 
-    let mut buf1 = Vec::with_capacity(DATAV[0].len());
-    let mut buf2 = Vec::with_capacity(DATAV[1].len());
-    let mut buf3 = Vec::with_capacity(DATAV[2].len() + 2);
-    let mut bufs = [&mut buf1, &mut buf2, &mut buf3];
-    let bytes_peeked = socket.peek_vectored(&mut bufs).await?;
-    assert_eq!(bytes_peeked, DATAV_LEN);
-    assert_eq!(buf1, DATAV[0]);
-    assert_eq!(buf2, DATAV[1]);
-    assert_eq!(buf3, DATAV[2]);
+    let bufs = [
+        Vec::with_capacity(DATAV[0].len()),
+        Vec::with_capacity(DATAV[1].len()),
+        Vec::with_capacity(DATAV[2].len() + 2),
+    ];
+    let mut bufs = socket.peek_vectored(bufs).await?;
+    assert_eq!(bufs[0], DATAV[0]);
+    assert_eq!(bufs[1], DATAV[1]);
+    assert_eq!(bufs[2], DATAV[2]);
 
-    buf1.clear();
-    buf2.clear();
-    buf3.clear();
-    let mut bufs = [&mut buf1, &mut buf2, &mut buf3];
-    let bytes_read = socket.recv_vectored(&mut bufs).await?;
-    assert_eq!(bytes_read, DATAV_LEN);
-    assert_eq!(buf1, DATAV[0]);
-    assert_eq!(buf2, DATAV[1]);
-    assert_eq!(buf3, DATAV[2]);
+    for buf in bufs.iter_mut() {
+        buf.clear();
+    }
+    let bufs = socket.recv_vectored(bufs).await?;
+    assert_eq!(bufs[0], DATAV[0]);
+    assert_eq!(bufs[1], DATAV[1]);
+    assert_eq!(bufs[2], DATAV[2]);
 
     Ok(())
 }
@@ -323,72 +303,4 @@ fn assert_read(mut got: &[u8], expected: &[&[u8]]) {
         let (_, g) = got.split_at(len);
         got = g;
     }
-}
-
-#[test]
-fn actor_bound() {
-    type Message = RpcMessage<UdpSocket<Unconnected>, ()>;
-
-    async fn actor1<RT>(mut ctx: actor::Context<!, RT>, actor_ref: ActorRef<Message>)
-    where
-        RT: rt::Access,
-    {
-        let mut socket = UdpSocket::bind(&mut ctx, any_local_address()).unwrap();
-        let peer_address = socket.local_addr().unwrap();
-        let _ = actor_ref.rpc(socket).await.unwrap();
-
-        let mut socket = UdpSocket::bind(&mut ctx, any_local_address()).unwrap();
-        socket.send_to(DATA, peer_address).await.unwrap();
-    }
-
-    async fn actor2<RT>(mut ctx: actor::Context<Message, RT>)
-    where
-        RT: rt::Access,
-    {
-        let msg = ctx.receive_next().await.unwrap();
-        let mut socket = msg.request;
-        socket.bind_to(&mut ctx).unwrap();
-        msg.response.respond(()).unwrap();
-        let mut buf = Vec::with_capacity(DATA.len() + 1);
-        let (n, _) = socket.recv_from(&mut buf).await.unwrap();
-        assert_eq!(buf, DATA);
-        assert_eq!(n, DATA.len());
-    }
-
-    fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-        // Spawn thread-local actors.
-        let actor_ref = runtime_ref.spawn_local(
-            NoSupervisor,
-            actor2 as fn(_) -> _,
-            (),
-            ActorOptions::default(),
-        );
-        let _ = runtime_ref.spawn_local(
-            NoSupervisor,
-            actor1 as fn(_, _) -> _,
-            actor_ref,
-            ActorOptions::default(),
-        );
-
-        Ok(())
-    }
-
-    let mut runtime = Runtime::setup().build().unwrap();
-    runtime.run_on_workers(setup).unwrap();
-
-    // Spawn thread-safe actors.
-    let actor_ref = runtime.spawn(
-        NoSupervisor,
-        actor2 as fn(_) -> _,
-        (),
-        ActorOptions::default(),
-    );
-    let _ = runtime.spawn(
-        NoSupervisor,
-        actor1 as fn(_, _) -> _,
-        actor_ref,
-        ActorOptions::default(),
-    );
-
-    runtime.start().unwrap();
 }
