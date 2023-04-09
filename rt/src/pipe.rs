@@ -10,14 +10,6 @@
 //!
 //! [spawning another process]: std::process::Command
 //!
-//! # Notes
-//!
-//! Both the [`Sender`] and [`Receiver`] types are [bound] to an actor. See the
-//! [`Bound`] trait for more information.
-//!
-//! [bound]: crate::Bound
-//! [`Bound`]: crate::Bound
-//!
 //! # Examples
 //!
 //! Creating a new Unix pipe.
