@@ -233,7 +233,7 @@ impl Worker {
         poll.registry()
             .register(
                 &mut SourceFd(&shared_ring_fd),
-                SHARED_POLL,
+                SHARED_RING,
                 Interest::READABLE,
             )
             .map_err(Error::Init)?;
@@ -498,12 +498,32 @@ impl Worker {
                 .borrow_mut()
                 .poll(Some(Duration::ZERO))
                 .map_err(Error::Polling)?;
+            self.internals
+                .poll
+                .borrow()
+                .registry()
+                .reregister(
+                    &mut SourceFd(&self.internals.ring.borrow().as_fd().as_raw_fd()),
+                    RING,
+                    Interest::READABLE,
+                )
+                .map_err(Error::Polling)?;
         }
 
         if check_shared_ring {
             self.internals
                 .shared
                 .try_poll_ring()
+                .map_err(Error::Polling)?;
+            self.internals
+                .poll
+                .borrow()
+                .registry()
+                .reregister(
+                    &mut SourceFd(&self.internals.shared.ring_fd()),
+                    SHARED_RING,
+                    Interest::READABLE,
+                )
                 .map_err(Error::Polling)?;
         }
 
@@ -694,7 +714,7 @@ impl Worker {
         );
         match res {
             Ok(()) => Ok(()),
-            // The I/O uring will interrupt us.
+            // The io_uring will interrupt us.
             Err(ref err) if err.kind() == io::ErrorKind::Interrupted => Ok(()),
             Err(err) => Err(err),
         }
