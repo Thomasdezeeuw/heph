@@ -12,7 +12,7 @@ use a10::extract::Extractor;
 use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 
 /// [`Future`] behind `recv` implementations.
-pub struct Recv<'a, B>(pub(crate) a10::net::Recv<'a, BufWrapper<B>>);
+pub(crate) struct Recv<'a, B>(pub(crate) a10::net::Recv<'a, BufWrapper<B>>);
 
 impl<'a, B: BufMut> Future for Recv<'a, B> {
     type Output = io::Result<B>;
@@ -26,7 +26,7 @@ impl<'a, B: BufMut> Future for Recv<'a, B> {
 }
 
 /// [`Future`] behind `recv_vectored` implementations.
-pub struct RecvVectored<'a, B, const N: usize>(
+pub(crate) struct RecvVectored<'a, B, const N: usize>(
     pub(crate) a10::net::RecvVectored<'a, BufWrapper<B>, N>,
 );
 
@@ -42,7 +42,7 @@ impl<'a, B: BufMutSlice<N>, const N: usize> Future for RecvVectored<'a, B, N> {
 }
 
 /// [`Future`] behind `recv_from` implementations.
-pub struct RecvFrom<'a, B, A>(pub(crate) a10::net::RecvFrom<'a, BufWrapper<B>, A>);
+pub(crate) struct RecvFrom<'a, B, A>(pub(crate) a10::net::RecvFrom<'a, BufWrapper<B>, A>);
 
 impl<'a, B: BufMut, A: a10::net::SocketAddress> Future for RecvFrom<'a, B, A> {
     type Output = io::Result<(B, A)>;
@@ -56,7 +56,7 @@ impl<'a, B: BufMut, A: a10::net::SocketAddress> Future for RecvFrom<'a, B, A> {
 }
 
 /// [`Future`] behind `recv_from_vectored` implementations.
-pub struct RecvFromVectored<'a, B, A, const N: usize>(
+pub(crate) struct RecvFromVectored<'a, B, A, const N: usize>(
     pub(crate) a10::net::RecvFromVectored<'a, BufWrapper<B>, A, N>,
 );
 
@@ -74,7 +74,7 @@ impl<'a, B: BufMutSlice<N>, A: a10::net::SocketAddress, const N: usize> Future
 }
 
 /// [`Future`] behind `send` implementations.
-pub struct Send<'a, B>(pub(crate) Extractor<a10::net::Send<'a, BufWrapper<B>>>);
+pub(crate) struct Send<'a, B>(pub(crate) Extractor<a10::net::Send<'a, BufWrapper<B>>>);
 
 impl<'a, B: Buf> Future for Send<'a, B> {
     type Output = io::Result<(B, usize)>;
@@ -88,7 +88,7 @@ impl<'a, B: Buf> Future for Send<'a, B> {
 }
 
 /// [`Future`] behind `send_vectored` implementations.
-pub struct SendVectored<'a, B, const N: usize>(
+pub(crate) struct SendVectored<'a, B, const N: usize>(
     pub(crate) Extractor<a10::net::SendMsg<'a, BufWrapper<B>, a10::net::NoAddress, N>>,
 );
 
@@ -104,7 +104,7 @@ impl<'a, B: BufSlice<N>, const N: usize> Future for SendVectored<'a, B, N> {
 }
 
 /// [`Future`] behind `send_to` implementations.
-pub struct SendTo<'a, B, A>(pub(crate) Extractor<a10::net::SendTo<'a, BufWrapper<B>, A>>);
+pub(crate) struct SendTo<'a, B, A>(pub(crate) Extractor<a10::net::SendTo<'a, BufWrapper<B>, A>>);
 
 impl<'a, B: Buf, A: a10::net::SocketAddress> Future for SendTo<'a, B, A> {
     type Output = io::Result<(B, usize)>;
@@ -118,7 +118,7 @@ impl<'a, B: Buf, A: a10::net::SocketAddress> Future for SendTo<'a, B, A> {
 }
 
 /// [`Future`] behind `send_to_vectored` implementations.
-pub struct SendToVectored<'a, B, A, const N: usize>(
+pub(crate) struct SendToVectored<'a, B, A, const N: usize>(
     pub(crate) Extractor<a10::net::SendMsg<'a, BufWrapper<B>, A, N>>,
 );
 

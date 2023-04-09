@@ -59,7 +59,7 @@ pub use udp::UdpSocket;
 #[doc(no_inline)]
 pub use uds::UnixDatagram;
 
-pub use futures::{
+pub(crate) use futures::{
     Recv, RecvFrom, RecvFromVectored, RecvVectored, Send, SendTo, SendToVectored, SendVectored,
 };
 
