@@ -277,12 +277,20 @@ impl UnboundTcpStream {
     where
         RT: rt::Access,
     {
-        ctx.runtime()
+        let mut stream = ctx
+            .runtime()
             .register(
                 &mut self.stream.socket,
                 Interest::READABLE | Interest::WRITABLE,
             )
-            .map(|()| self.stream)
+            .map(|()| self.stream)?;
+        #[cfg(target_os = "linux")]
+        if let Some(cpu) = ctx.runtime_ref().cpu() {
+            if let Err(err) = stream.set_cpu_affinity(cpu) {
+                log::warn!("failed to set CPU affinity on TcpStream: {err}");
+            }
+        }
+        Ok(stream)
     }
 
     fn from_async_fd(fd: AsyncFd) -> UnboundTcpStream {
