@@ -992,7 +992,9 @@ fn shutdown_read() {
         mut ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
-        let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
+        let mut listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
+            .await
+            .unwrap();
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
@@ -1043,7 +1045,9 @@ fn shutdown_write() {
         mut ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
-        let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
+        let mut listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
+            .await
+            .unwrap();
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
@@ -1096,7 +1100,9 @@ fn shutdown_both() {
         mut ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
-        let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
+        let mut listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
+            .await
+            .unwrap();
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
@@ -1147,7 +1153,9 @@ fn actor_bound() {
     where
         RT: rt::Access,
     {
-        let mut listener = TcpListener::bind(&mut ctx, any_local_address()).unwrap();
+        let mut listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
+            .await
+            .unwrap();
         let peer_address = listener.local_addr().unwrap();
 
         let stream = TcpStream::connect(&mut ctx, peer_address)
