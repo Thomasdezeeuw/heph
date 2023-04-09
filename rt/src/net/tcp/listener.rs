@@ -1,17 +1,20 @@
 //! Module with [`TcpListener`] and related types.
 
 use std::async_iter::AsyncIterator;
-use std::future::Future;
-use std::io;
+use std::mem::ManuallyDrop;
 use std::net::SocketAddr;
+use std::os::fd::{AsFd, AsRawFd, FromRawFd};
 use std::pin::Pin;
 use std::task::{self, Poll};
+use std::{fmt, io};
 
+use a10::AsyncFd;
 use heph::actor;
-use mio::{net, Interest};
+use mio::Interest;
+use socket2::{Domain, Protocol, SockRef, Type};
 
-use crate::net::TcpStream;
-use crate::{self as rt, Bound};
+use crate::net::{convert_address, SockAddr, TcpStream};
+use crate::{self as rt};
 
 /// A TCP socket listener.
 ///
@@ -77,7 +80,7 @@ use crate::{self as rt, Bound};
 ///
 /// async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
-///     let mut listener = TcpListener::bind(&mut ctx, address)?;
+///     let mut listener = TcpListener::bind(ctx.runtime_ref(), address).await?;
 ///
 ///     // Accept a connection.
 ///     let (unbound_stream, peer_address) = listener.accept().await?;
@@ -143,17 +146,18 @@ use crate::{self as rt, Bound};
 ///
 /// async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
-///     let mut listener = TcpListener::bind(&mut ctx, address)?;
+///     let mut listener = TcpListener::bind(ctx.runtime_ref(), address).await?;
 ///     let mut incoming = listener.incoming();
 ///     loop {
-///         let (unbound_stream, peer_address) = match next(&mut incoming).await {
-///             Some(Ok((unbound_stream, peer_address))) => (unbound_stream, peer_address),
+///         let unbound_stream = match next(&mut incoming).await {
+///             Some(Ok(unbound_stream)) => unbound_stream,
 ///             Some(Err(err)) => return Err(err),
 ///             None => return Ok(()),
 ///         };
 ///
-///         info!("accepted connection from: {peer_address}");
 ///         let mut stream = unbound_stream.bind_to(&mut ctx)?;
+///         let peer_address = stream.peer_addr()?;
+///         info!("accepted connection from: {peer_address}");
 ///
 ///         // Next we write the IP address to the connection.
 ///         let ip = peer_address.to_string();
@@ -162,92 +166,80 @@ use crate::{self as rt, Bound};
 ///     }
 /// }
 /// ```
-#[derive(Debug)]
 pub struct TcpListener {
-    /// The underlying TCP listener, backed by Mio.
-    socket: net::TcpListener,
+    fd: AsyncFd,
 }
 
 impl TcpListener {
     /// Creates a new `TcpListener` which will be bound to the specified
     /// `address`.
-    ///
-    /// # Notes
-    ///
-    /// The listener is also [bound] to the actor that owns the
-    /// `actor::Context`, which means the actor will be run every time the
-    /// listener has a connection ready to be accepted.
-    ///
-    /// [bound]: crate::Bound
-    pub fn bind<M, RT>(
-        ctx: &mut actor::Context<M, RT>,
-        address: SocketAddr,
-    ) -> io::Result<TcpListener>
+    pub async fn bind<RT>(rt: &RT, address: SocketAddr) -> io::Result<TcpListener>
     where
         RT: rt::Access,
     {
-        let mut socket = net::TcpListener::bind(address)?;
-        ctx.runtime().register(&mut socket, Interest::READABLE)?;
-        Ok(TcpListener { socket })
+        let fd = a10::net::socket(
+            rt.submission_queue(),
+            Domain::for_address(address).into(),
+            Type::STREAM.cloexec().into(),
+            Protocol::TCP.into(),
+            0,
+        )
+        .await?;
+
+        let socket = TcpListener { fd };
+
+        socket.with_ref(|socket| {
+            #[cfg(target_os = "linux")]
+            if let Some(cpu) = rt.cpu() {
+                if let Err(err) = socket.set_cpu_affinity(cpu) {
+                    log::warn!("failed to set CPU affinity on UdpSocket: {err}");
+                }
+            }
+
+            socket.bind(&address.into())?;
+            socket.listen(1024)?;
+
+            Ok(())
+        })?;
+
+        Ok(socket)
     }
 
     /// Returns the local socket address of this listener.
     pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
-        self.socket.local_addr()
+        self.with_ref(|socket| socket.local_addr().and_then(convert_address))
     }
 
     /// Sets the value for the `IP_TTL` option on this socket.
     pub fn set_ttl(&mut self, ttl: u32) -> io::Result<()> {
-        self.socket.set_ttl(ttl)
+        self.with_ref(|socket| socket.set_ttl(ttl))
     }
 
     /// Gets the value of the `IP_TTL` option for this socket.
     pub fn ttl(&mut self) -> io::Result<u32> {
-        self.socket.ttl()
+        self.with_ref(|socket| socket.ttl())
     }
 
-    /// Attempts to accept a new incoming [`TcpStream`].
+    /// Accept a new incoming [`TcpStream`].
     ///
-    /// If an accepted TCP stream is returned, the remote address of the peer is
-    /// returned along with it.
-    ///
-    /// If no streams are currently queued this will return an error with the
-    /// [kind] set to [`ErrorKind::WouldBlock`]. Most users should prefer to use
-    /// [`TcpListener::accept`].
-    ///
-    /// See the [`TcpListener`] documentation for an example.
-    ///
-    /// [kind]: io::Error::kind
-    /// [`ErrorKind::WouldBlock`]: io::ErrorKind::WouldBlock
-    pub fn try_accept(&mut self) -> io::Result<(UnboundTcpStream, SocketAddr)> {
-        self.socket.accept().map(|(socket, address)| {
-            (
-                UnboundTcpStream {
-                    stream: TcpStream { socket },
-                },
-                address,
-            )
-        })
+    /// Returns the TCP stream and the remote address of the peer. See the
+    /// [`TcpListener`] documentation for an example.
+    pub async fn accept(&mut self) -> io::Result<(UnboundTcpStream, SocketAddr)> {
+        self.fd
+            .accept::<SockAddr>()
+            .await
+            .map(|(fd, addr)| (UnboundTcpStream::from_async_fd(fd), addr.into()))
     }
 
-    /// Accepts a new incoming [`TcpStream`].
+    /// Returns a stream of incoming [`TcpStream`]s.
     ///
-    /// If an accepted TCP stream is returned, the remote address of the peer is
-    /// returned along with it.
+    /// Note that unlike [`accept`] this doesn't return the address because uses
+    /// io_uring's multishot accept (making it faster then calling `accept` in a
+    /// loop). See the [`TcpListener`] documentation for an example.
     ///
-    /// See the [`TcpListener`] documentation for an example.
-    pub fn accept(&mut self) -> Accept<'_> {
-        Accept {
-            listener: Some(self),
-        }
-    }
-
-    /// Returns a stream that iterates over the [`TcpStream`]s being received on
-    /// this listener.
-    ///
-    /// See the [`TcpListener`] documentation for an example.
+    /// [`accept`]: TcpListener::accept
     pub fn incoming(&mut self) -> Incoming<'_> {
-        Incoming { listener: self }
+        Incoming(self.fd.multishot_accept())
     }
 
     /// Get the value of the `SO_ERROR` option on this socket.
@@ -256,7 +248,15 @@ impl TcpListener {
     /// the field in the process. This can be useful for checking errors between
     /// calls.
     pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
-        self.socket.take_error()
+        self.with_ref(|socket| socket.take_error())
+    }
+
+    fn with_ref<F, T>(&self, f: F) -> io::Result<T>
+    where
+        F: FnOnce(SockRef<'_>) -> io::Result<T>,
+    {
+        let borrowed = self.fd.as_fd(); // TODO: remove this once we update to socket2 v0.5.
+        f(SockRef::from(&borrowed))
     }
 }
 
@@ -284,26 +284,17 @@ impl UnboundTcpStream {
             )
             .map(|()| self.stream)
     }
-}
 
-/// The [`Future`] behind [`TcpListener::accept`].
-#[derive(Debug)]
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Accept<'a> {
-    listener: Option<&'a mut TcpListener>,
-}
-
-impl<'a> Future for Accept<'a> {
-    type Output = io::Result<(UnboundTcpStream, SocketAddr)>;
-
-    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        match self.listener {
-            Some(ref mut listener) => try_io!(listener.try_accept()).map(|res| {
-                // Only remove the listener if we return a stream.
-                self.listener = None;
-                res
-            }),
-            None => panic!("polled Accept after it return Poll::Ready"),
+    fn from_async_fd(fd: AsyncFd) -> UnboundTcpStream {
+        UnboundTcpStream {
+            stream: TcpStream {
+                // SAFETY: the put `fd` in a `ManuallyDrop` to ensure we don't
+                // close it, so we're free to create a `TcpStream` from the fd.
+                socket: unsafe {
+                    let fd = ManuallyDrop::new(fd);
+                    FromRawFd::from_raw_fd(fd.as_fd().as_raw_fd())
+                },
+            },
         }
     }
 }
@@ -311,23 +302,21 @@ impl<'a> Future for Accept<'a> {
 /// The [`AsyncIterator`] behind [`TcpListener::incoming`].
 #[derive(Debug)]
 #[must_use = "AsyncIterators do nothing unless polled"]
-pub struct Incoming<'a> {
-    listener: &'a mut TcpListener,
-}
+pub struct Incoming<'a>(a10::net::MultishotAccept<'a>);
 
 impl<'a> AsyncIterator for Incoming<'a> {
-    type Item = io::Result<(UnboundTcpStream, SocketAddr)>;
+    type Item = io::Result<UnboundTcpStream>;
 
-    fn poll_next(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
-        try_io!(self.listener.try_accept()).map(Some)
+    fn poll_next(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
+        // SAFETY: not moving the `Future`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
+            .poll_next(ctx)
+            .map_ok(UnboundTcpStream::from_async_fd)
     }
 }
 
-impl<RT: rt::Access> Bound<RT> for TcpListener {
-    type Error = io::Error;
-
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
-        ctx.runtime()
-            .reregister(&mut self.socket, Interest::READABLE)
+impl fmt::Debug for TcpListener {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fd.fmt(f)
     }
 }

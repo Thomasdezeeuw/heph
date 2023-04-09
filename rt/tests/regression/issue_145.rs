@@ -123,10 +123,10 @@ fn issue_145_tcp_listener() {
     runtime.start().unwrap();
 }
 
-async fn listener_actor(mut ctx: actor::Context<!, ThreadLocal>) -> Result<(), !> {
+async fn listener_actor(ctx: actor::Context<!, ThreadLocal>) -> Result<(), !> {
     let address = "127.0.0.1:0".parse().unwrap();
     // NOTE: this should not fail.
-    let mut listener = TcpListener::bind(&mut ctx, address).unwrap();
+    let mut listener = TcpListener::bind(ctx.runtime_ref(), address).await.unwrap();
     let addr = listener.local_addr().unwrap();
     assert!(addr.port() != 0);
     Ok(())
