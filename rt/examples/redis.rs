@@ -6,7 +6,7 @@
 #![feature(never_type)]
 
 use std::collections::HashMap;
-use std::io::{self, IoSlice, Write};
+use std::io::{self, Write};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -105,8 +105,8 @@ where
 
     let err = loop {
         buffer.clear();
-        let n = Deadline::after(&mut ctx, TIMEOUT, stream.recv(&mut buffer)).await?;
-        if n == 0 {
+        buffer = Deadline::after(&mut ctx, TIMEOUT, stream.recv(buffer)).await?;
+        if buffer.is_empty() {
             return Ok(());
         }
         let buf = &buffer[..];
@@ -154,14 +154,11 @@ where
                         buffer.clear();
                         if let Some(value) = value {
                             write!(&mut buffer, "${}\r\n", value.len()).unwrap();
-                            let mut bufs = [
-                                IoSlice::new(&buffer),
-                                IoSlice::new(&*value),
-                                IoSlice::new(b"\r\n"),
-                            ];
-                            stream.send_vectored_all(&mut bufs).await?;
+                            let bufs = (buffer, value, "\r\n");
+                            let bufs = stream.send_vectored_all(bufs).await?;
+                            buffer = bufs.0;
                         } else {
-                            stream.send_all(NIL.as_bytes()).await?;
+                            stream.send_all(NIL).await?;
                         }
                     }
                     "SET" => {
@@ -193,14 +190,17 @@ where
                         }
                         stream.send_all(OK.as_bytes()).await?;
                     }
-                    "COMMAND" => stream.send_all(COMMANDS.as_bytes()).await?,
+                    "COMMAND" => {
+                        stream.send_all(COMMANDS).await?;
+                    }
                     _ => break ERR_UNIMPLEMENTED,
                 }
             }
             _ => break ERR_UNIMPLEMENTED,
         }
     };
-    stream.send_all(err.as_bytes()).await
+    stream.send_all(err).await?;
+    Ok(())
 }
 
 /// Parse an integer from `buf` including `\r\n`.

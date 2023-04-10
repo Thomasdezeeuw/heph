@@ -186,23 +186,6 @@ compile_error!("Heph currently only supports Linux.");
 #[cfg(not(target_pointer_width = "64"))]
 compile_error!("Heph currently only supports 64 bit architectures.");
 
-/// A macro to try an I/O function.
-///
-/// Note that this is used in the net and pipe modules and has to be defined
-/// before use.
-macro_rules! try_io {
-    ($op: expr) => {
-        loop {
-            match $op {
-                Ok(ok) => break Poll::Ready(Ok(ok)),
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break Poll::Pending,
-                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                Err(err) => break Poll::Ready(Err(err)),
-            }
-        }
-    };
-}
-
 /// Helper macro to execute a system call that returns an `io::Result`.
 macro_rules! syscall {
     ($fn: ident ( $($arg: expr),* $(,)? ) ) => {{

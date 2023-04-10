@@ -8,8 +8,6 @@ use std::os::fd::AsFd;
 use std::{fmt, io};
 
 use a10::{AsyncFd, Extract};
-#[cfg(target_os = "linux")]
-use log::warn;
 use socket2::{Domain, Protocol, SockRef, Type};
 
 use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
@@ -154,7 +152,7 @@ impl UdpSocket {
             #[cfg(target_os = "linux")]
             if let Some(cpu) = rt.cpu() {
                 if let Err(err) = socket.set_cpu_affinity(cpu) {
-                    warn!("failed to set CPU affinity on UdpSocket: {err}");
+                    log::warn!("failed to set CPU affinity on UdpSocket: {err}");
                 }
             }
 

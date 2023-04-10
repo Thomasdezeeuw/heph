@@ -105,7 +105,8 @@
 //!
 //! /// The actor responsible for a single TCP stream.
 //! async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream) -> io::Result<()> {
-//!     stream.send_all(b"Hello World").await
+//!     stream.send_all("Hello World").await?;
+//!     Ok(())
 //! }
 //! ```
 //!
@@ -184,7 +185,8 @@
 //! #
 //! /// The actor responsible for a single TCP stream.
 //! async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream) -> io::Result<()> {
-//!     stream.send_all(b"Hello World").await
+//!     stream.send_all("Hello World").await?;
+//!     Ok(())
 //! }
 //! ```
 //!
@@ -266,7 +268,8 @@
 //!
 //! /// The actor responsible for a single TCP stream.
 //! async fn conn_actor(_: actor::Context<!, ThreadSafe>, mut stream: TcpStream) -> io::Result<()> {
-//!     stream.send_all(b"Hello World").await
+//!     stream.send_all("Hello World").await?;
+//!     Ok(())
 //! }
 
 use std::convert::TryFrom;
@@ -281,9 +284,8 @@ use heph::supervisor::Supervisor;
 use log::{debug, trace};
 use socket2::{Domain, Protocol, Socket, Type};
 
-use crate::net::tcp::listener::UnboundTcpStream;
 use crate::net::{TcpListener, TcpStream};
-use crate::spawn::{ActorOptions, AddActorError, PrivateSpawn, Spawn};
+use crate::spawn::{ActorOptions, Spawn};
 use crate::util::{either, next};
 use crate::{self as rt, Signal};
 
@@ -450,21 +452,22 @@ where
         .map_err(Error::Accept)?;
     trace!(address = log::as_display!(local); "TCP server listening");
 
-    let mut accept = listener.incoming2();
+    let mut accept = listener.incoming();
     let mut receive = ctx.receive_next();
     loop {
         match either(next(&mut accept), &mut receive).await {
-            Ok(Some(Ok(fd))) => {
-                let stream = UnboundTcpStream::from_async_fd(fd);
+            Ok(Some(Ok(mut stream))) => {
                 trace!("TCP server accepted connection");
-
                 drop(receive); // Can't double borrow `ctx`.
-                _ = ctx.try_spawn_setup(
-                    supervisor.clone(),
-                    new_actor.clone(),
-                    |ctx| stream.bind_to(ctx),
-                    options.clone(),
-                )?;
+                stream.set_auto_cpu_affinity(ctx.runtime_ref());
+                _ = ctx
+                    .try_spawn(
+                        supervisor.clone(),
+                        new_actor.clone(),
+                        stream,
+                        options.clone(),
+                    )
+                    .map_err(Error::NewActor)?;
                 receive = ctx.receive_next();
             }
             Ok(Some(Err(err))) => return Err(Error::Accept(err)),
@@ -520,17 +523,6 @@ pub enum Error<E> {
     Accept(io::Error),
     /// Error creating a new actor to handle the TCP stream.
     NewActor(E),
-}
-
-// Not part of the public API.
-#[doc(hidden)]
-impl<E> From<AddActorError<E, io::Error>> for Error<E> {
-    fn from(err: AddActorError<E, io::Error>) -> Error<E> {
-        match err {
-            AddActorError::NewActor(err) => Error::NewActor(err),
-            AddActorError::ArgFn(err) => Error::Accept(err),
-        }
-    }
 }
 
 impl<E: fmt::Display> fmt::Display for Error<E> {

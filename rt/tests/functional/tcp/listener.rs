@@ -76,19 +76,18 @@ where
     RT: rt::Access,
 {
     let address = ctx.receive_next().await.unwrap();
-    let mut stream = TcpStream::connect(&mut ctx, address)
-        .unwrap()
+    let mut stream = TcpStream::connect(ctx.runtime_ref(), address)
         .await
         .unwrap();
 
-    let n = stream.send(DATA).await.unwrap();
+    let (_, n) = stream.send(DATA).await.unwrap();
     assert_eq!(n, DATA.len());
 }
 
 #[test]
 fn accept() {
     async fn listener_actor<M>(
-        mut ctx: actor::Context<M, ThreadLocal>,
+        ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
         let mut listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
@@ -98,13 +97,11 @@ fn accept() {
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
 
-        let (stream, remote_address) = listener.accept().await.unwrap();
-        let mut stream = stream.bind_to(&mut ctx).unwrap();
+        let (mut stream, remote_address) = listener.accept().await.unwrap();
         assert!(remote_address.ip().is_loopback());
 
-        let mut buf = Vec::with_capacity(DATA.len() + 1);
-        let n = stream.recv(&mut buf).await.unwrap();
-        assert_eq!(n, DATA.len());
+        let buf = Vec::with_capacity(DATA.len() + 1);
+        let buf = stream.recv(buf).await.unwrap();
         assert_eq!(buf, DATA);
     }
 
@@ -123,7 +120,7 @@ fn accept() {
 #[test]
 fn incoming() {
     async fn listener_actor<M>(
-        mut ctx: actor::Context<M, ThreadLocal>,
+        ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
         let mut listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
@@ -134,12 +131,10 @@ fn incoming() {
         actor_ref.send(address).await.unwrap();
 
         let mut incoming = listener.incoming();
-        let stream = next(&mut incoming).await.unwrap().unwrap();
-        let mut stream = stream.bind_to(&mut ctx).unwrap();
+        let mut stream = next(&mut incoming).await.unwrap().unwrap();
 
-        let mut buf = Vec::with_capacity(DATA.len() + 1);
-        let n = stream.recv(&mut buf).await.unwrap();
-        assert_eq!(n, DATA.len());
+        let buf = Vec::with_capacity(DATA.len() + 1);
+        let buf = stream.recv(buf).await.unwrap();
         assert_eq!(buf, DATA);
     }
 
