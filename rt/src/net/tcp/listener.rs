@@ -1,16 +1,13 @@
 //! Module with [`TcpListener`] and related types.
 
 use std::async_iter::AsyncIterator;
-use std::mem::ManuallyDrop;
 use std::net::SocketAddr;
-use std::os::fd::{AsFd, AsRawFd, FromRawFd};
+use std::os::fd::AsFd;
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::{fmt, io};
 
 use a10::AsyncFd;
-use heph::actor;
-use mio::Interest;
 use socket2::{Domain, Protocol, SockRef, Socket, Type};
 
 use crate::net::{convert_address, SockAddr, TcpStream};
@@ -63,11 +60,11 @@ use crate::{self as rt};
 ///     Ok(())
 /// }
 /// #
-/// # async fn client(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-/// #   let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+/// # async fn client(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
+/// #   let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 /// #   let local_address = stream.local_addr()?.to_string();
-/// #   let mut buf = Vec::with_capacity(local_address.len() + 1);
-/// #   stream.recv_n(&mut buf, local_address.len()).await?;
+/// #   let buf = Vec::with_capacity(local_address.len() + 1);
+/// #   let buf = stream.recv_n(buf, local_address.len()).await?;
 /// #   assert_eq!(buf, local_address.as_bytes());
 /// #   Ok(())
 /// # }
@@ -78,20 +75,18 @@ use crate::{self as rt};
 ///     SupervisorStrategy::Stop
 /// }
 ///
-/// async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
+/// async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
 ///     let mut listener = TcpListener::bind(ctx.runtime_ref(), address).await?;
 ///
 ///     // Accept a connection.
-///     let (unbound_stream, peer_address) = listener.accept().await?;
+///     let (mut stream, peer_address) = listener.accept().await?;
 ///     info!("accepted connection from: {peer_address}");
-///
-///     // Next we need to bind the stream to this actor.
-///     let mut stream = unbound_stream.bind_to(&mut ctx)?;
 ///
 ///     // Next we write the IP address to the connection.
 ///     let ip = peer_address.to_string();
-///     stream.send_all(ip.as_bytes()).await
+///     stream.send_all(ip).await?;
+///     Ok(())
 /// }
 /// ```
 ///
@@ -129,11 +124,11 @@ use crate::{self as rt};
 ///     Ok(())
 /// }
 /// #
-/// # async fn client(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-/// #   let mut stream = TcpStream::connect(&mut ctx, address)?.await?;
+/// # async fn client(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
+/// #   let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 /// #   let local_address = stream.local_addr()?.to_string();
-/// #   let mut buf = Vec::with_capacity(local_address.len() + 1);
-/// #   stream.recv_n(&mut buf, local_address.len()).await?;
+/// #   let buf = Vec::with_capacity(local_address.len() + 1);
+/// #   let buf = stream.recv_n(buf, local_address.len()).await?;
 /// #   assert_eq!(buf, local_address.as_bytes());
 /// #   Ok(())
 /// # }
@@ -144,24 +139,27 @@ use crate::{self as rt};
 ///     SupervisorStrategy::Stop
 /// }
 ///
-/// async fn actor(mut ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
+/// async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
 ///     let mut listener = TcpListener::bind(ctx.runtime_ref(), address).await?;
 ///     let mut incoming = listener.incoming();
 ///     loop {
-///         let unbound_stream = match next(&mut incoming).await {
-///             Some(Ok(unbound_stream)) => unbound_stream,
+///         let mut stream = match next(&mut incoming).await {
+///             Some(Ok(stream)) => stream,
 ///             Some(Err(err)) => return Err(err),
 ///             None => return Ok(()),
 ///         };
 ///
-///         let mut stream = unbound_stream.bind_to(&mut ctx)?;
+///         // Optionally set the CPU affinity as that's not done automatically
+///         // (in case the stream is send to another thread).
+///         stream.set_auto_cpu_affinity(ctx.runtime_ref());
+///
 ///         let peer_address = stream.peer_addr()?;
 ///         info!("accepted connection from: {peer_address}");
 ///
 ///         // Next we write the IP address to the connection.
 ///         let ip = peer_address.to_string();
-///         stream.send_all(ip.as_bytes()).await?;
+///         stream.send_all(ip).await?;
 /// #       return Ok(());
 ///     }
 /// }
@@ -237,27 +235,32 @@ impl TcpListener {
     ///
     /// Returns the TCP stream and the remote address of the peer. See the
     /// [`TcpListener`] documentation for an example.
-    pub async fn accept(&mut self) -> io::Result<(UnboundTcpStream, SocketAddr)> {
+    ///
+    /// # Notes
+    ///
+    /// The CPU affinity is **not** set on the returned TCP stream. To set that
+    /// use [`TcpStream::set_auto_cpu_affinity`].
+    pub async fn accept(&mut self) -> io::Result<(TcpStream, SocketAddr)> {
         self.fd
             .accept::<SockAddr>()
             .await
-            .map(|(fd, addr)| (UnboundTcpStream::from_async_fd(fd), addr.into()))
+            .map(|(fd, addr)| (TcpStream { fd }, addr.into()))
     }
 
     /// Returns a stream of incoming [`TcpStream`]s.
     ///
-    /// Note that unlike [`accept`] this doesn't return the address because uses
-    /// io_uring's multishot accept (making it faster then calling `accept` in a
-    /// loop). See the [`TcpListener`] documentation for an example.
+    /// Note that unlike [`accept`] this doesn't return the address because it
+    /// uses io_uring's multishot accept (making it faster then calling `accept`
+    /// in a loop). See the [`TcpListener`] documentation for an example.
     ///
     /// [`accept`]: TcpListener::accept
+    ///
+    /// # Notes
+    ///
+    /// The CPU affinity is **not** set on the returned TCP stream. To set that
+    /// use [`TcpStream::set_auto_cpu_affinity`].
     pub fn incoming(&mut self) -> Incoming<'_> {
         Incoming(self.fd.multishot_accept())
-    }
-
-    /// Temp function used by `TcpListener`.
-    pub(crate) fn incoming2(&mut self) -> a10::net::MultishotAccept<'_> {
-        self.fd.multishot_accept()
     }
 
     /// Get the value of the `SO_ERROR` option on this socket.
@@ -278,66 +281,19 @@ impl TcpListener {
     }
 }
 
-/// An unbound [`TcpStream`].
-///
-/// The stream first has to be bound to an actor (using [`bind_to`]), before it
-/// can be used.
-///
-/// [`bind_to`]: UnboundTcpStream::bind_to
-#[derive(Debug)]
-pub struct UnboundTcpStream {
-    stream: TcpStream,
-}
-
-impl UnboundTcpStream {
-    /// Bind this TCP stream to the actor's `ctx`, allowing it to be used.
-    pub fn bind_to<M, RT>(mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<TcpStream>
-    where
-        RT: rt::Access,
-    {
-        let mut stream = ctx
-            .runtime()
-            .register(
-                &mut self.stream.socket,
-                Interest::READABLE | Interest::WRITABLE,
-            )
-            .map(|()| self.stream)?;
-        #[cfg(target_os = "linux")]
-        if let Some(cpu) = ctx.runtime_ref().cpu() {
-            if let Err(err) = stream.set_cpu_affinity(cpu) {
-                log::warn!("failed to set CPU affinity on TcpStream: {err}");
-            }
-        }
-        Ok(stream)
-    }
-
-    pub(crate) fn from_async_fd(fd: AsyncFd) -> UnboundTcpStream {
-        UnboundTcpStream {
-            stream: TcpStream {
-                // SAFETY: the put `fd` in a `ManuallyDrop` to ensure we don't
-                // close it, so we're free to create a `TcpStream` from the fd.
-                socket: unsafe {
-                    let fd = ManuallyDrop::new(fd);
-                    FromRawFd::from_raw_fd(fd.as_fd().as_raw_fd())
-                },
-            },
-        }
-    }
-}
-
 /// The [`AsyncIterator`] behind [`TcpListener::incoming`].
 #[derive(Debug)]
 #[must_use = "AsyncIterators do nothing unless polled"]
 pub struct Incoming<'a>(a10::net::MultishotAccept<'a>);
 
 impl<'a> AsyncIterator for Incoming<'a> {
-    type Item = io::Result<UnboundTcpStream>;
+    type Item = io::Result<TcpStream>;
 
     fn poll_next(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll_next(ctx)
-            .map_ok(UnboundTcpStream::from_async_fd)
+            .map_ok(|fd| TcpStream { fd })
     }
 }
 

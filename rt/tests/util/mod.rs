@@ -200,7 +200,7 @@ where
 {
     let mut i = 10;
     loop {
-        match TcpStream::connect(ctx, address).unwrap().await {
+        match TcpStream::connect(ctx.runtime_ref(), address).await {
             Ok(stream) => break Ok(stream),
             Err(_) if i >= 1 => {
                 Timer::after(ctx, Duration::from_millis(1)).await;

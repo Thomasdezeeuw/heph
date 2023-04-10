@@ -33,9 +33,8 @@ async fn actor<RT>(_: actor::Context<!, RT>, mut stream: TcpStream)
 where
     RT: rt::Access,
 {
-    let mut buf = Vec::with_capacity(DATA.len() + 1);
-    let n = stream.recv(&mut buf).await.unwrap();
-    assert_eq!(n, DATA.len());
+    let buf = Vec::with_capacity(DATA.len() + 1);
+    let buf = stream.recv(buf).await.unwrap();
     assert_eq!(buf, DATA);
 }
 
@@ -50,7 +49,7 @@ async fn stream_actor<RT>(
 {
     let mut stream = tcp_connect(&mut ctx, address).await.unwrap();
 
-    let n = stream.send(DATA).await.unwrap();
+    let (_, n) = stream.send(DATA).await.unwrap();
     assert_eq!(n, DATA.len());
 
     // Send a message to stop the listener.

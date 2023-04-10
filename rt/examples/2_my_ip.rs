@@ -103,5 +103,6 @@ async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream) ->
     let ip = address.ip().to_string();
 
     // Next we'll write the IP address to the connection.
-    stream.send_all(ip.as_bytes()).await
+    stream.send_all(ip).await?;
+    Ok(())
 }

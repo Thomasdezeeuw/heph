@@ -58,5 +58,6 @@ async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream) ->
     let address = stream.peer_addr()?;
     info!("accepted connection: address={address}");
     let ip = address.ip().to_string();
-    stream.send_all(ip.as_bytes()).await
+    stream.send_all(ip).await?;
+    Ok(())
 }

@@ -199,16 +199,6 @@ impl<'a> MaybeUninitSlice<'a> {
             socket2::MaybeUninitSlice::new(slice::from_raw_parts_mut(self.0.as_mut_ptr(), limit))
         };
     }
-
-    /// Returns `bufs` as [`socket2::MaybeUninitSlice`].
-    #[allow(clippy::wrong_self_convention)]
-    pub(crate) fn as_socket2<'b>(
-        bufs: &'b mut [MaybeUninitSlice<'a>],
-    ) -> &'b mut [socket2::MaybeUninitSlice<'a>] {
-        // Safety: this is safe because `MaybeUninitSlice` has the
-        // `repr(transparent)` attribute.
-        unsafe { &mut *(bufs as *mut _ as *mut _) }
-    }
 }
 
 impl<'a> Deref for MaybeUninitSlice<'a> {
