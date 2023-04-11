@@ -3,6 +3,7 @@
 use std::convert::TryFrom;
 use std::io;
 use std::net::SocketAddr;
+use std::pin::pin;
 
 use heph::actor::{self, NoMessages};
 use heph::messages::Terminate;
@@ -17,6 +18,7 @@ use crate::net_relay::uuid::UuidGenerator;
 use crate::net_relay::{Message, Route, Serde};
 
 const MAX_PACKET_SIZE: usize = 1 << 16; // ~65kb.
+const INITIAL_SEND_BUF_SIZE: usize = 1 << 12; // 4kb.
 
 /// Message type used for network relays using UDP.
 ///
@@ -95,22 +97,29 @@ where
     RT: rt::Access,
     R: Route<In>,
 {
-    let mut socket = UdpSocket::bind(&mut ctx, local_address)?;
-    let mut buf = Vec::with_capacity(MAX_PACKET_SIZE);
-    let mut uuid_gen = UuidGenerator::new();
+    let socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
 
+    let mut uuid_gen = UuidGenerator::new();
+    let mut send_buf = Vec::with_capacity(INITIAL_SEND_BUF_SIZE);
+
+    let mut recv_data = pin!(socket.recv_from(Vec::with_capacity(MAX_PACKET_SIZE)));
     loop {
-        buf.clear();
-        match either(ctx.receive_next(), socket.recv_from(&mut buf)).await {
+        match either(ctx.receive_next(), recv_data.as_mut()).await {
             // Received an outgoing message we want to relay to a remote
             // actor.
             Ok(Ok(UdpRelayMessage::Relay { message, target })) => {
-                send_message::<S, Out>(&mut socket, &mut buf, &mut uuid_gen, target, &message)
-                    .await?;
+                send_buf =
+                    send_message::<S, Out>(&socket, send_buf, &mut uuid_gen, target, &message)
+                        .await?;
+                send_buf.clear();
             }
             Ok(Ok(UdpRelayMessage::Terminate) | Err(NoMessages)) => return Ok(()),
             // Received an incoming packet.
-            Err(Ok((_, source))) => route_message::<S, R, In>(&mut router, &buf, source).await?,
+            Err(Ok((mut buf, source))) => {
+                route_message::<S, R, In>(&mut router, &buf, source).await?;
+                buf.clear();
+                recv_data.set(socket.recv_from(buf));
+            }
             // Error receiving a packet.
             Err(Err(err)) => return Err(err),
         }
@@ -119,12 +128,12 @@ where
 
 /// Send a `msg` to a remote actor at `target` address, using `socket`.
 async fn send_message<S, M>(
-    socket: &mut UdpSocket,
-    buf: &mut Vec<u8>,
+    socket: &UdpSocket,
+    mut buf: Vec<u8>,
     uuid_gen: &mut UuidGenerator,
     target: SocketAddr,
     msg: &M,
-) -> io::Result<()>
+) -> io::Result<Vec<u8>>
 where
     S: Serde,
     M: Serialize,
@@ -132,10 +141,10 @@ where
     // Serialise the message to our buffer first.
     let uuid = uuid_gen.next();
     let msg = Message { uuid, msg };
-    if let Err(err) = S::to_buf(&mut *buf, &msg) {
+    if let Err(err) = S::to_buf(&mut buf, &msg) {
         warn!("error serialising message (for {target}): {err}");
         // Don't want to stop the actor for this.
-        return Ok(());
+        return Ok(buf);
     }
 
     // Then send the buffer as a single packet.
@@ -145,15 +154,14 @@ where
             "message too large (for {target}): (serialised) message size {len}, max is {MAX_PACKET_SIZE}",
         );
         // Don't want to stop the actor for this.
-        return Ok(());
+        return Ok(buf);
     }
-    socket.send_to(buf, target).await.and_then(|bytes_send| {
-        if bytes_send == buf.len() {
-            Ok(())
-        } else {
-            Err(io::ErrorKind::WriteZero.into())
-        }
-    })
+    let (buf, bytes_send) = socket.send_to(buf, target).await?;
+    if bytes_send == buf.len() {
+        Ok(buf)
+    } else {
+        Err(io::ErrorKind::WriteZero.into())
+    }
 }
 
 /// Routes a message in `buf` using `router`.
