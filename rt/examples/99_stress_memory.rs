@@ -22,9 +22,7 @@ fn main() -> Result<(), rt::Error> {
         let start = std::time::Instant::now();
         for _ in 0..N {
             let actor = actor as fn(_) -> _;
-            // Don't run the actors as that will remove them from memory.
-            let options = ActorOptions::default().mark_ready(false);
-            runtime_ref.spawn_local(NoSupervisor, actor, (), options);
+            runtime_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
         }
         info!("Spawning took {:?}", start.elapsed());
 
@@ -48,4 +46,7 @@ async fn actor(_: actor::Context<!, ThreadLocal>) {
 async fn control_actor(_: actor::Context<!, ThreadLocal>) {
     info!("Running, check the memory usage!");
     info!("Send a signal (e.g. by pressing Ctrl-C) to stop.");
+    // NOTE: don't do this. This is only here to prevent the other actors from
+    // running.
+    std::thread::sleep(std::time::Duration::from_secs(100));
 }

@@ -134,7 +134,6 @@ impl<'s> AddActor<'s> {
         new_actor: NA,
         actor: NA::Actor,
         inbox: Manager<NA::Message>,
-        is_ready: bool,
     ) where
         S: Supervisor<NA> + 'static,
         NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
@@ -156,10 +155,6 @@ impl<'s> AddActor<'s> {
             // Safe because we write into the allocation above.
             alloc.assume_init().into()
         };
-        if is_ready {
-            scheduler.ready.push(process);
-        } else {
-            scheduler.inactive.add(process);
-        }
+        scheduler.ready.push(process);
     }
 }
