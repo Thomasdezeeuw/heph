@@ -76,6 +76,7 @@ impl From<SocketAddr> for SockAddr {
 }
 
 impl From<SocketAddrV4> for SockAddr {
+    #[allow(clippy::cast_possible_truncation)]
     fn from(addr: SocketAddrV4) -> SockAddr {
         SockAddr {
             ipv4: libc::sockaddr_in {
@@ -91,6 +92,7 @@ impl From<SocketAddrV4> for SockAddr {
 }
 
 impl From<SocketAddrV6> for SockAddr {
+    #[allow(clippy::cast_possible_truncation)]
     fn from(addr: SocketAddrV6) -> SockAddr {
         SockAddr {
             ipv6: libc::sockaddr_in6 {
@@ -107,6 +109,7 @@ impl From<SocketAddrV6> for SockAddr {
 }
 
 impl From<SockAddr> for SocketAddr {
+    #[allow(clippy::cast_lossless)]
     fn from(addr: SockAddr) -> SocketAddr {
         match unsafe { addr.ip.sa_family as _ } {
             libc::AF_INET => {
@@ -132,6 +135,7 @@ impl From<SockAddr> for SocketAddr {
 }
 
 impl a10::net::SocketAddress for SockAddr {
+    #[allow(clippy::cast_lossless)]
     unsafe fn as_ptr(&self) -> (*const libc::sockaddr, libc::socklen_t) {
         match unsafe { self.ip.sa_family as _ } {
             libc::AF_INET => self.ipv4.as_ptr(),
@@ -140,6 +144,7 @@ impl a10::net::SocketAddress for SockAddr {
         }
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     unsafe fn as_mut_ptr(this: &mut MaybeUninit<Self>) -> (*mut libc::sockaddr, libc::socklen_t) {
         (
             ptr::addr_of_mut!(*this.as_mut_ptr()).cast(),
@@ -148,7 +153,7 @@ impl a10::net::SocketAddress for SockAddr {
     }
 
     unsafe fn init(this: MaybeUninit<Self>, length: libc::socklen_t) -> Self {
-        debug_assert!(length >= size_of::<libc::sa_family_t>() as _);
+        debug_assert!(length as usize >= size_of::<libc::sa_family_t>());
         // SAFETY: caller must initialise the address.
         this.assume_init()
     }

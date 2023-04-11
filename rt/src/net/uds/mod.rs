@@ -40,6 +40,7 @@ impl a10::net::SocketAddress for UnixAddr {
         (self.inner.as_ptr(), self.inner.len())
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     unsafe fn as_mut_ptr(this: &mut MaybeUninit<Self>) -> (*mut libc::sockaddr, libc::socklen_t) {
         (
             ptr::addr_of_mut!((*this.as_mut_ptr()).inner).cast(),
@@ -48,7 +49,7 @@ impl a10::net::SocketAddress for UnixAddr {
     }
 
     unsafe fn init(this: MaybeUninit<Self>, length: libc::socklen_t) -> Self {
-        debug_assert!(length >= size_of::<libc::sa_family_t>() as _);
+        debug_assert!(length as usize >= size_of::<libc::sa_family_t>());
         // SAFETY: caller must initialise the address.
         let mut this = this.assume_init();
         this.inner.set_length(length);
