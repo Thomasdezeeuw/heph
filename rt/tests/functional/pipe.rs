@@ -19,7 +19,7 @@ fn smoke() {
     where
         RT: rt::Access,
     {
-        let (mut sender, mut receiver) = pipe::new(ctx.runtime_ref())?;
+        let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
 
         let (_, n) = sender.write(DATA).await?;
         assert_eq!(n, DATA.len());
@@ -49,7 +49,7 @@ fn write_all_read_n() {
     where
         RT: rt::Access,
     {
-        let (mut sender, receiver) = pipe::new(ctx.runtime_ref())?;
+        let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
 
         reader.send(receiver).await.unwrap();
 
@@ -62,7 +62,7 @@ fn write_all_read_n() {
     where
         RT: rt::Access,
     {
-        let mut receiver = ctx.receive_next().await.unwrap();
+        let receiver = ctx.receive_next().await.unwrap();
 
         let buf = receiver
             .read_n(Vec::with_capacity(DATA.len() + 1), DATA.len())
@@ -100,7 +100,7 @@ fn write_vectored_all_read_n_vectored() {
     where
         RT: rt::Access,
     {
-        let (mut sender, receiver) = pipe::new(ctx.runtime_ref())?;
+        let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
 
         reader.send(receiver).await.unwrap();
 
@@ -114,7 +114,7 @@ fn write_vectored_all_read_n_vectored() {
     where
         RT: rt::Access,
     {
-        let mut receiver = ctx.receive_next().await.unwrap();
+        let receiver = ctx.receive_next().await.unwrap();
 
         let bufs = [
             Vec::with_capacity(8 * 4096),
@@ -151,7 +151,7 @@ fn vectored_io() {
     where
         RT: rt::Access,
     {
-        let (mut sender, mut receiver) = pipe::new(ctx.runtime_ref())?;
+        let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
 
         let bufs = [DATAV[0], DATAV[1], DATAV[2]];
         let (_, n) = sender.write_vectored(bufs).await?;

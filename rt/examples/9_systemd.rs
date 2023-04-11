@@ -54,7 +54,7 @@ fn main() -> Result<(), rt::Error> {
 
 restart_supervisor!(ServerSupervisor, "TCP server actor", ());
 
-async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream) -> io::Result<()> {
+async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: TcpStream) -> io::Result<()> {
     let address = stream.peer_addr()?;
     info!("accepted connection: address={address}");
     let ip = address.ip().to_string();

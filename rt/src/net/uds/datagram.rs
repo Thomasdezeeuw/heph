@@ -123,12 +123,12 @@ impl<M> UnixDatagram<M> {
     }
 
     /// Returns the socket address of the remote peer of this socket.
-    pub fn peer_addr(&mut self) -> io::Result<UnixAddr> {
+    pub fn peer_addr(&self) -> io::Result<UnixAddr> {
         self.with_ref(|socket| socket.peer_addr().map(|a| UnixAddr { inner: a }))
     }
 
     /// Returns the socket address of the local half of this socket.
-    pub fn local_addr(&mut self) -> io::Result<UnixAddr> {
+    pub fn local_addr(&self) -> io::Result<UnixAddr> {
         self.with_ref(|socket| socket.local_addr().map(|a| UnixAddr { inner: a }))
     }
 
@@ -137,7 +137,7 @@ impl<M> UnixDatagram<M> {
     /// This function will cause all pending and future I/O on the specified
     /// portions to return immediately with an appropriate value (see the
     /// documentation of [`Shutdown`]).
-    pub fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
+    pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
         self.with_ref(|socket| socket.shutdown(how))
     }
 
@@ -146,7 +146,7 @@ impl<M> UnixDatagram<M> {
     /// This will retrieve the stored error in the underlying socket, clearing
     /// the field in the process. This can be useful for checking errors between
     /// calls.
-    pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
+    pub fn take_error(&self) -> io::Result<Option<io::Error>> {
         self.with_ref(|socket| socket.take_error())
     }
 
@@ -160,13 +160,13 @@ impl<M> UnixDatagram<M> {
 
 impl UnixDatagram<Unconnected> {
     /// Receives data from the unconnceted socket.
-    pub async fn recv_from<B: BufMut>(&mut self, buf: B) -> io::Result<(B, UnixAddr)> {
+    pub async fn recv_from<B: BufMut>(&self, buf: B) -> io::Result<(B, UnixAddr)> {
         RecvFrom(self.fd.recvfrom(BufWrapper(buf), 0)).await
     }
 
     /// Receives data from the unconnected socket, using vectored I/O.
     pub async fn recv_from_vectored<B: BufMutSlice<N>, const N: usize>(
-        &mut self,
+        &self,
         bufs: B,
     ) -> io::Result<(B, UnixAddr)> {
         RecvFromVectored(self.fd.recvfrom_vectored(BufWrapper(bufs), 0)).await
@@ -174,31 +174,27 @@ impl UnixDatagram<Unconnected> {
 
     /// Receives data from the unconnected socket, without removing it from the
     /// input queue.
-    pub async fn peek_from<B: BufMut>(&mut self, buf: B) -> io::Result<(B, UnixAddr)> {
+    pub async fn peek_from<B: BufMut>(&self, buf: B) -> io::Result<(B, UnixAddr)> {
         RecvFrom(self.fd.recvfrom(BufWrapper(buf), libc::MSG_PEEK)).await
     }
 
     /// Receives data from the unconnected socket, without removing it from the
     /// input queue, using vectored I/O.
     pub async fn peek_from_vectored<B: BufMutSlice<N>, const N: usize>(
-        &mut self,
+        &self,
         bufs: B,
     ) -> io::Result<(B, UnixAddr)> {
         RecvFromVectored(self.fd.recvfrom_vectored(BufWrapper(bufs), libc::MSG_PEEK)).await
     }
 
     /// Send the bytes in `buf` to `address`.
-    pub async fn send_to<'a, B: Buf>(
-        &'a mut self,
-        buf: B,
-        address: UnixAddr,
-    ) -> io::Result<(B, usize)> {
+    pub async fn send_to<B: Buf>(&self, buf: B, address: UnixAddr) -> io::Result<(B, usize)> {
         SendTo(self.fd.sendto(BufWrapper(buf), address, 0).extract()).await
     }
 
     /// Send the bytes in `bufs` to `address`, using vectored I/O.
     pub async fn send_to_vectored<B: BufSlice<N>, const N: usize>(
-        &mut self,
+        &self,
         bufs: B,
         address: UnixAddr,
     ) -> io::Result<(B, usize)> {
@@ -213,41 +209,35 @@ impl UnixDatagram<Unconnected> {
 
 impl UnixDatagram<Connected> {
     /// Receive bytes from the connected socket.
-    pub async fn recv<'a, B: BufMut>(&'a mut self, buf: B) -> io::Result<B> {
+    pub async fn recv<B: BufMut>(&self, buf: B) -> io::Result<B> {
         Recv(self.fd.recv(BufWrapper(buf), 0)).await
     }
 
     /// Receives data from the connected socket, using vectored I/O.
-    pub async fn recv_vectored<B: BufMutSlice<N>, const N: usize>(
-        &mut self,
-        bufs: B,
-    ) -> io::Result<B> {
+    pub async fn recv_vectored<B: BufMutSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B> {
         RecvVectored(self.fd.recv_vectored(BufWrapper(bufs), 0)).await
     }
 
     /// Receive bytes from the connected socket, without removing it from the
     /// input queue, writing them into `buf`.
-    pub async fn peek<'a, B: BufMut>(&'a mut self, buf: B) -> io::Result<B> {
+    pub async fn peek<B: BufMut>(&self, buf: B) -> io::Result<B> {
         Recv(self.fd.recv(BufWrapper(buf), libc::MSG_PEEK)).await
     }
 
     /// Receive bytes from the connected socket, without removing it from the
     /// input queue, using vectored I/O.
-    pub async fn peek_vectored<B: BufMutSlice<N>, const N: usize>(
-        &mut self,
-        bufs: B,
-    ) -> io::Result<B> {
+    pub async fn peek_vectored<B: BufMutSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B> {
         RecvVectored(self.fd.recv_vectored(BufWrapper(bufs), libc::MSG_PEEK)).await
     }
 
     /// Sends data on the socket to the connected socket.
-    pub async fn send<'a, B: Buf>(&'a mut self, buf: B) -> io::Result<(B, usize)> {
+    pub async fn send<B: Buf>(&self, buf: B) -> io::Result<(B, usize)> {
         Send(self.fd.send(BufWrapper(buf), 0).extract()).await
     }
 
     /// Sends data on the socket to the connected socket, using vectored I/O.
     pub async fn send_vectored<B: BufSlice<N>, const N: usize>(
-        &mut self,
+        &self,
         bufs: B,
     ) -> io::Result<(B, usize)> {
         SendVectored(self.fd.send_vectored(BufWrapper(bufs), 0).extract()).await

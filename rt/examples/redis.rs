@@ -93,7 +93,7 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
 
 async fn conn_actor<RT>(
     mut ctx: actor::Context<!, RT>,
-    mut stream: TcpStream,
+    stream: TcpStream,
     values: Arc<RwLock<HashMap<Box<str>, Arc<[u8]>>>>,
 ) -> io::Result<()>
 where

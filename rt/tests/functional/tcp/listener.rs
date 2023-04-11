@@ -15,12 +15,12 @@ use crate::util::{any_local_address, any_local_ipv6_address};
 fn local_addr() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>) {
         let address = "127.0.0.1:12345".parse().unwrap();
-        let mut listener = TcpListener::bind(ctx.runtime_ref(), address).await.unwrap();
+        let listener = TcpListener::bind(ctx.runtime_ref(), address).await.unwrap();
         assert_eq!(listener.local_addr().unwrap(), address);
         drop(listener);
 
         let address = "[::1]:12345".parse().unwrap();
-        let mut listener = TcpListener::bind(ctx.runtime_ref(), address).await.unwrap();
+        let listener = TcpListener::bind(ctx.runtime_ref(), address).await.unwrap();
         assert_eq!(listener.local_addr().unwrap(), address);
     }
 
@@ -33,14 +33,14 @@ fn local_addr() {
 fn local_addr_port_zero() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>) {
         let address = any_local_address();
-        let mut listener = TcpListener::bind(ctx.runtime_ref(), address).await.unwrap();
+        let listener = TcpListener::bind(ctx.runtime_ref(), address).await.unwrap();
         let got = listener.local_addr().unwrap();
         assert_eq!(got.ip(), address.ip());
         assert!(got.port() != 0);
         drop(listener);
 
         let address = any_local_ipv6_address();
-        let mut listener = TcpListener::bind(ctx.runtime_ref(), address).await.unwrap();
+        let listener = TcpListener::bind(ctx.runtime_ref(), address).await.unwrap();
         let got = listener.local_addr().unwrap();
         assert_eq!(got.ip(), address.ip());
         assert!(got.port() != 0);
@@ -54,7 +54,7 @@ fn local_addr_port_zero() {
 #[test]
 fn ttl() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>) {
-        let mut listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
+        let listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
             .await
             .unwrap();
 
@@ -76,7 +76,7 @@ where
     RT: rt::Access,
 {
     let address = ctx.receive_next().await.unwrap();
-    let mut stream = TcpStream::connect(ctx.runtime_ref(), address)
+    let stream = TcpStream::connect(ctx.runtime_ref(), address)
         .await
         .unwrap();
 
@@ -90,14 +90,14 @@ fn accept() {
         ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
-        let mut listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
+        let listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
             .await
             .unwrap();
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
 
-        let (mut stream, remote_address) = listener.accept().await.unwrap();
+        let (stream, remote_address) = listener.accept().await.unwrap();
         assert!(remote_address.ip().is_loopback());
 
         let buf = Vec::with_capacity(DATA.len() + 1);
@@ -123,7 +123,7 @@ fn incoming() {
         ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
-        let mut listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
+        let listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
             .await
             .unwrap();
 
@@ -131,7 +131,7 @@ fn incoming() {
         actor_ref.send(address).await.unwrap();
 
         let mut incoming = listener.incoming();
-        let mut stream = next(&mut incoming).await.unwrap().unwrap();
+        let stream = next(&mut incoming).await.unwrap().unwrap();
 
         let buf = Vec::with_capacity(DATA.len() + 1);
         let buf = stream.recv(buf).await.unwrap();

@@ -70,7 +70,7 @@ async fn unconnected_udp_actor(
     peer_address: SocketAddr,
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
-    let mut socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
+    let socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
     assert_eq!(socket.local_addr().unwrap().ip(), local_address.ip());
 
     let (_, bytes_written) = socket.send_to(DATA, peer_address).await?;
@@ -96,7 +96,7 @@ async fn connected_udp_actor(
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
     let socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
-    let mut socket = socket.connect(peer_address).await?;
+    let socket = socket.connect(peer_address).await?;
     assert_eq!(socket.local_addr().unwrap().ip(), local_address.ip());
 
     let (_, bytes_written) = socket.send(DATA).await?;
@@ -162,16 +162,16 @@ async fn reconnecting_actor(
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address1.ip(), 0);
     let socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
-    let mut socket = socket.connect(peer_address1).await?;
+    let socket = socket.connect(peer_address1).await?;
 
     let (_, bytes_written) = socket.send(DATA).await?;
     assert_eq!(bytes_written, DATA.len());
 
-    let mut socket = socket.connect(peer_address1).await?;
+    let socket = socket.connect(peer_address1).await?;
     let (_, bytes_written) = socket.send(DATA).await?;
     assert_eq!(bytes_written, DATA.len());
 
-    let mut socket = socket.connect(peer_address2).await?;
+    let socket = socket.connect(peer_address2).await?;
     let (_, bytes_written) = socket.send(DATA).await?;
     assert_eq!(bytes_written, DATA.len());
 
@@ -209,7 +209,7 @@ async fn unconnected_vectored_io_actor(
     peer_address: SocketAddr,
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
-    let mut socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
+    let socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
 
     let bufs = [DATAV[0], DATAV[1], DATAV[2]];
     let (_, bytes_written) = socket.send_to_vectored(bufs, peer_address).await?;
@@ -244,7 +244,7 @@ async fn connected_vectored_io_actor(
 ) -> io::Result<()> {
     let local_address = SocketAddr::new(peer_address.ip(), 0);
     let socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?;
-    let mut socket = socket.connect(peer_address).await?;
+    let socket = socket.connect(peer_address).await?;
 
     let bufs = [DATAV[0], DATAV[1], DATAV[2]];
     let (_, bytes_written) = socket.send_vectored(bufs).await?;

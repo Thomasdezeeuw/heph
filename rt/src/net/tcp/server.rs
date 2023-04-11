@@ -104,7 +104,7 @@
 //! }
 //!
 //! /// The actor responsible for a single TCP stream.
-//! async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream) -> io::Result<()> {
+//! async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: TcpStream) -> io::Result<()> {
 //!     stream.send_all("Hello World").await?;
 //!     Ok(())
 //! }
@@ -184,7 +184,7 @@
 //! # }
 //! #
 //! /// The actor responsible for a single TCP stream.
-//! async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream) -> io::Result<()> {
+//! async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: TcpStream) -> io::Result<()> {
 //!     stream.send_all("Hello World").await?;
 //!     Ok(())
 //! }
@@ -267,7 +267,7 @@
 //! }
 //!
 //! /// The actor responsible for a single TCP stream.
-//! async fn conn_actor(_: actor::Context<!, ThreadSafe>, mut stream: TcpStream) -> io::Result<()> {
+//! async fn conn_actor(_: actor::Context<!, ThreadSafe>, stream: TcpStream) -> io::Result<()> {
 //!     stream.send_all("Hello World").await?;
 //!     Ok(())
 //! }
@@ -447,7 +447,7 @@ where
     NA: NewActor<Argument = TcpStream> + Clone + 'static,
     NA::RuntimeAccess: rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
 {
-    let mut listener = TcpListener::bind_setup(ctx.runtime_ref(), local, set_listener_options)
+    let listener = TcpListener::bind_setup(ctx.runtime_ref(), local, set_listener_options)
         .await
         .map_err(Error::Accept)?;
     trace!(address = log::as_display!(local); "TCP server listening");
@@ -456,7 +456,7 @@ where
     let mut receive = ctx.receive_next();
     loop {
         match either(next(&mut accept), &mut receive).await {
-            Ok(Some(Ok(mut stream))) => {
+            Ok(Some(Ok(stream))) => {
                 trace!("TCP server accepted connection");
                 drop(receive); // Can't double borrow `ctx`.
                 stream.set_auto_cpu_affinity(ctx.runtime_ref());
