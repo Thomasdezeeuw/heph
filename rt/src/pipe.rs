@@ -145,9 +145,8 @@ impl Sender {
     where
         RT: rt::Access,
     {
-        let sq = rt.submission_queue();
         // Safety: `ChildStdin` is guaranteed to be a valid file descriptor.
-        let fd = unsafe { AsyncFd::new(stdin.into_raw_fd(), sq.clone()) };
+        let fd = unsafe { AsyncFd::new(stdin.into_raw_fd(), rt.submission_queue()) };
         Ok(Sender { fd })
     }
 
@@ -206,9 +205,8 @@ impl Receiver {
     where
         RT: rt::Access,
     {
-        let sq = rt.submission_queue();
         // Safety: `ChildStdout` is guaranteed to be a valid file descriptor.
-        let fd = unsafe { AsyncFd::new(stdout.into_raw_fd(), sq.clone()) };
+        let fd = unsafe { AsyncFd::new(stdout.into_raw_fd(), rt.submission_queue()) };
         Ok(Receiver { fd })
     }
 
@@ -217,9 +215,8 @@ impl Receiver {
     where
         RT: rt::Access,
     {
-        let sq = rt.submission_queue();
         // Safety: `ChildStderr` is guaranteed to be a valid file descriptor.
-        let fd = unsafe { AsyncFd::new(stderr.into_raw_fd(), sq.clone()) };
+        let fd = unsafe { AsyncFd::new(stderr.into_raw_fd(), rt.submission_queue()) };
         Ok(Receiver { fd })
     }
 

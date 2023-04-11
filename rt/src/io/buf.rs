@@ -262,7 +262,7 @@ unsafe impl Buf for String {
 // will also be leaked.
 unsafe impl Buf for Arc<[u8]> {
     unsafe fn parts(&self) -> (*const u8, usize) {
-        let slice: &[u8] = &*self;
+        let slice: &[u8] = self;
         (slice.as_ptr().cast(), slice.len())
     }
 }
@@ -450,6 +450,7 @@ mod private {
 pub(crate) struct BufWrapper<B>(pub(crate) B);
 
 unsafe impl<B: BufMut> a10::io::BufMut for BufWrapper<B> {
+    #[allow(clippy::cast_possible_truncation)]
     unsafe fn parts_mut(&mut self) -> (*mut u8, u32) {
         let (ptr, size) = self.0.parts_mut();
         (ptr, size as u32)
@@ -479,6 +480,7 @@ unsafe impl<B: BufMut> BufMut for BufWrapper<B> {
 }
 
 unsafe impl<B: Buf> a10::io::Buf for BufWrapper<B> {
+    #[allow(clippy::cast_possible_truncation)]
     unsafe fn parts(&self) -> (*const u8, u32) {
         let (ptr, size) = self.0.parts();
         (ptr, size as u32)
@@ -497,7 +499,7 @@ unsafe impl<B: BufMutSlice<N>, const N: usize> a10::io::BufMutSlice<N> for BufWr
     }
 
     unsafe fn set_init(&mut self, n: usize) {
-        self.0.update_length(n)
+        self.0.update_length(n);
     }
 }
 
@@ -517,7 +519,7 @@ unsafe impl<B: BufMutSlice<N>, const N: usize> private::BufMutSlice<N> for BufWr
     }
 
     unsafe fn update_length(&mut self, n: usize) {
-        self.0.update_length(n)
+        self.0.update_length(n);
     }
 }
 

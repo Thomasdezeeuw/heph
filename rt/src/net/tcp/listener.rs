@@ -258,6 +258,7 @@ impl TcpListener {
     ///
     /// The CPU affinity is **not** set on the returned TCP stream. To set that
     /// use [`TcpStream::set_auto_cpu_affinity`].
+    #[allow(clippy::doc_markdown)] // For "io_uring".
     pub fn incoming(&mut self) -> Incoming<'_> {
         Incoming(self.fd.multishot_accept())
     }
