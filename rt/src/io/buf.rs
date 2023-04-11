@@ -409,6 +409,10 @@ mod private {
     /// Private version of [`BufMutSlice`].
     ///
     /// [`BufMutSlice`]: crate::io::BufMutSlice
+    ///
+    /// # Safety
+    ///
+    /// See the [`a10::io::BufMutSlice`] trait.
     pub unsafe trait BufMutSlice<const N: usize>: 'static {
         /// Returns the writable buffers as `iovec` structures.
         ///
@@ -435,6 +439,10 @@ mod private {
     /// Private version of [`BufSlice`].
     ///
     /// [`BufSlice`]: crate::io::BufSlice
+    ///
+    /// # Safety
+    ///
+    /// See the [`a10::io::BufSlice`] trait.
     pub unsafe trait BufSlice<const N: usize>: 'static {
         /// Returns the reabable buffer as `iovec` structures.
         ///
