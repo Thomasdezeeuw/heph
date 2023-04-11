@@ -67,7 +67,6 @@ impl Client {
     ///
     /// If the server doesn't respond this return an [`io::Error`] with
     /// [`io::ErrorKind::UnexpectedEof`].
-    #[allow(clippy::future_not_send)] // TODO.
     pub async fn request<'c, 'b, B>(
         &'c mut self,
         method: Method,
@@ -99,7 +98,6 @@ impl Client {
     /// Sets the following headers if not present in `Headers`:
     ///  * User-Agent and
     ///  * Content-Length and/or Transfer-Encoding based on the `body`.
-    #[allow(clippy::future_not_send)] // TODO.
     pub async fn send_request<'b, B>(
         &mut self,
         method: Method,

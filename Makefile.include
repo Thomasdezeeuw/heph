@@ -40,6 +40,7 @@ $(TARGETS):
 # Reasons to allow lints:
 # `cargo-common-metadata`: for `benches` and `tools`.
 # `equatable-if-let`: bad lint.
+# `future-not-send`: we don't want to require all generic parameters to be `Send`.
 # `manual-let-else`: not really a fan of this.
 # `match-bool`, `single-match-else`: often less lines of code and I find that
 # use `match` generally strictly better then `if`s.
@@ -70,6 +71,7 @@ clippy:
 		--allow clippy::cargo-common-metadata \
 		--allow clippy::enum-glob-use \
 		--allow clippy::equatable-if-let \
+		--allow clippy::future-not-send \
 		--allow clippy::manual-let-else \
 		--allow clippy::match-bool \
 		--allow clippy::missing-const-for-fn \
