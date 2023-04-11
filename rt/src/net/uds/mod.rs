@@ -2,8 +2,8 @@
 //!
 //! Three main types are provided:
 //!
-//!  * [`UnixListener`] listens for incoming Unix connections.
-//!  * [`UnixStream`] represents a Unix stream socket.
+//!  * `UnixListener` listens for incoming Unix connections.
+//!  * `UnixStream` represents a Unix stream socket.
 //!  * [`UnixDatagram`] represents a Unix datagram socket.
 
 use std::mem::{size_of, MaybeUninit};
