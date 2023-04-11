@@ -234,17 +234,16 @@ pub trait NewActor {
     ///
     /// # Examples
     ///
-    /// Using `TcpServer` (from the Heph-rt crate) requires a `NewActor` that
-    /// accepts `(TcpStream, SocketAddr)` as arguments, but we need to pass the
-    /// actor additional arguments.
+    /// Using TCP server (from the Heph-rt crate) requires a `NewActor` that
+    /// accepts `TcpStream` as arguments, but we need to pass the actor
+    /// additional arguments.
     ///
     /// ```
     /// # #![feature(never_type)]
     /// use std::io;
-    /// use std::net::SocketAddr;
     /// use heph::actor::{self, NewActor};
     /// # use heph::messages::Terminate;
-    /// use heph_rt::net::{TcpServer, TcpStream};
+    /// use heph_rt::net::{tcp, TcpStream};
     /// # use heph_rt::net::tcp::server;
     /// use heph_rt::spawn::ActorOptions;
     /// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
@@ -258,7 +257,7 @@ pub trait NewActor {
     ///     runtime.start()
     /// }
     ///
-    /// /// In this setup function we'll spawn the `TcpServer` actor.
+    /// /// In this setup function we'll spawn the TCP server actor.
     /// fn setup(mut runtime_ref: RuntimeRef) -> io::Result<()> {
     ///     // Prepare for humans' expansion to Mars.
     ///     let greet_mars = true;
@@ -266,15 +265,15 @@ pub trait NewActor {
     ///     // We convert our actor that accepts three arguments into an actor
     ///     // that accept two arguments and gets `greet_mars` passed to it as
     ///     // third argument.
-    ///     let new_actor = (conn_actor as fn(_, _, _, _) -> _)
-    ///         .map_arg(move |(stream, address)| (stream, address, greet_mars));
+    ///     let new_actor = (conn_actor as fn(_, _, _) -> _)
+    ///         .map_arg(move |stream| (stream, greet_mars));
     ///
     ///     // For more information about the remainder of this example see
-    ///     // `TcpServer` in the heph-rt crate.
+    ///     // the `net::tcp::server` module in the heph-rt crate.
     ///     let address = "127.0.0.1:7890".parse().unwrap();
-    ///     let server = TcpServer::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
+    ///     let server = tcp::server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
     ///     # let actor_ref =
-    ///     runtime_ref.try_spawn_local(ServerSupervisor, server, (), ActorOptions::default())?;
+    ///     runtime_ref.spawn_local(ServerSupervisor, server, (), ActorOptions::default());
     ///     # actor_ref.try_send(Terminate).unwrap();
     ///     Ok(())
     /// }
@@ -285,7 +284,7 @@ pub trait NewActor {
     /// # impl<S, NA> Supervisor<server::Setup<S, NA>> for ServerSupervisor
     /// # where
     /// #     S: Supervisor<NA> + Clone + 'static,
-    /// #     NA: NewActor<Argument = (TcpStream, SocketAddr), Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
+    /// #     NA: NewActor<Argument = TcpStream, Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
     /// # {
     /// #     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
     /// #         use server::Error::*;
@@ -298,36 +297,34 @@ pub trait NewActor {
     /// #         }
     /// #     }
     /// #
-    /// #     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-    /// #         error!("error restarting the TCP server: {err}");
-    /// #         SupervisorStrategy::Stop
+    /// #     fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<()> {
+    /// #         err
     /// #     }
     /// #
-    /// #     fn second_restart_error(&mut self, _: io::Error) {
-    /// #         // We don't restart a second time, so this will never be called.
-    /// #         unreachable!();
+    /// #     fn second_restart_error(&mut self, err: !) {
+    /// #         err
     /// #     }
     /// # }
     /// #
-    /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
+    /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
     /// #   error!("error handling connection: {err}");
     /// #   SupervisorStrategy::Stop
     /// # }
     /// #
     /// // Actor that handles a connection.
     /// async fn conn_actor(
-    ///     _: actor::Context<!, ThreadLocal>,
+    ///     ctx: actor::Context<!, ThreadLocal>,
     ///     mut stream: TcpStream,
-    ///     address: SocketAddr,
     ///     greet_mars: bool
     /// ) -> io::Result<()> {
-    /// #   drop(address); // Silence dead code warnings.
+    /// #   drop(ctx); // Silence dead code warnings.
     ///     if greet_mars {
     ///         // In case this example ever reaches Mars.
-    ///         stream.send_all(b"Hello Mars").await
+    ///         stream.send_all("Hello Mars").await?;
     ///     } else {
-    ///         stream.send_all(b"Hello World").await
+    ///         stream.send_all("Hello World").await?;
     ///     }
+    ///     Ok(())
     /// }
     /// ```
     fn map_arg<F, Arg>(self, f: F) -> ArgMap<Self, F, Arg>
