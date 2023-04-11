@@ -39,7 +39,7 @@ fn smoke() {
         mut ctx: actor::Context<SocketAddr, ThreadLocal>,
         address: SocketAddr,
     ) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         assert_eq!(stream.peer_addr().unwrap(), address);
         let local_address = stream.local_addr().unwrap();
@@ -135,7 +135,7 @@ fn connect_connection_refused() {
 #[test]
 fn recv() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let buf = Vec::with_capacity(128);
         let mut buf = stream.recv(buf).await?;
@@ -166,7 +166,7 @@ fn recv() {
 #[test]
 fn recv_n_read_exact_amount() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let buf = Vec::with_capacity(128);
         let mut buf = stream.recv_n(buf, DATA.len()).await?;
@@ -200,7 +200,7 @@ fn recv_n_read_exact_amount() {
 #[test]
 fn recv_n_read_more_bytes() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let buf = Vec::with_capacity(128);
         let want_n = DATA.len() - 2;
@@ -237,7 +237,7 @@ fn recv_n_read_more_bytes() {
 #[test]
 fn recv_n_less_bytes() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let buf = Vec::with_capacity(128);
         let want_n = 2 * DATA.len();
@@ -265,7 +265,7 @@ fn recv_n_less_bytes() {
 #[test]
 fn recv_n_from_multiple_writes() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let buf = Vec::with_capacity(128);
         let buf = stream.recv_n(buf, 3 * DATA.len()).await?;
@@ -294,7 +294,7 @@ fn recv_n_from_multiple_writes() {
 #[test]
 fn send() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let (_, n) = stream.send(DATA).await?;
         assert_eq!(n, DATA.len());
@@ -325,7 +325,7 @@ fn send_all() {
     // A lot of data to get at least two write calls.
     const DATA: &[u8] = &[213; 40 * 1024];
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
         stream.send_all(DATA).await?;
         Ok(())
     }
@@ -357,7 +357,7 @@ fn send_all() {
 #[test]
 fn send_vectored() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let bufs = [DATA, DATA, DATA, DATA];
         let (_, n) = stream.send_vectored(bufs).await?;
@@ -392,7 +392,7 @@ fn send_vectored_all() {
     const DATA1: &[u8] = &[213; 40 * 1023];
     const DATA2: &[u8] = &[155; 30 * 1024];
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
         let bufs = [DATA1, DATA2];
         stream.send_vectored_all(bufs).await?;
         Ok(())
@@ -438,7 +438,7 @@ fn send_vectored_all() {
 #[test]
 fn recv_vectored() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let bufs = [
             Vec::with_capacity(2 * DATA.len()),
@@ -478,7 +478,7 @@ fn recv_vectored() {
 #[test]
 fn recv_n_vectored_exact_amount() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let bufs = [
             Vec::with_capacity(DATA.len()),
@@ -518,7 +518,7 @@ fn recv_n_vectored_exact_amount() {
 #[test]
 fn recv_n_vectored_more_bytes() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let bufs = [
             Vec::with_capacity(DATA.len()),
@@ -558,7 +558,7 @@ fn recv_n_vectored_more_bytes() {
 #[test]
 fn recv_n_vectored_less_bytes() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let bufs = [
             Vec::with_capacity(DATA.len()),
@@ -588,7 +588,7 @@ fn recv_n_vectored_less_bytes() {
 #[test]
 fn recv_n_vectored_from_multiple_writes() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let bufs = [
             Vec::with_capacity(DATA.len()),
@@ -622,7 +622,7 @@ fn recv_n_vectored_from_multiple_writes() {
 #[test]
 fn peek() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let buf = Vec::with_capacity(128);
         let mut buf = stream.peek(buf).await?;
@@ -669,7 +669,7 @@ fn send_file() {
         let file = File::open(path)?;
         let metadata = file.metadata()?;
         let length = min(metadata.len(), LENGTH as u64) as usize;
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
         let n = stream
             .send_file(&file, 0, NonZeroUsize::new(length))
             .await?;
@@ -684,13 +684,13 @@ fn send_file() {
     let args = (address, TEST_FILE0);
     let actor_ref1 =
         try_spawn_local(PanicSupervisor, actor, args, ActorOptions::default()).unwrap();
-    let (mut stream0, _) = listener.accept().unwrap();
+    let (stream0, _) = listener.accept().unwrap();
     stream0.set_nonblocking(true).unwrap();
 
     let args = (address, TEST_FILE1);
     let actor_ref2 =
         try_spawn_local(PanicSupervisor, actor, args, ActorOptions::default()).unwrap();
-    let (mut stream1, _) = listener.accept().unwrap();
+    let (stream1, _) = listener.accept().unwrap();
     stream1.set_nonblocking(true).unwrap();
 
     let mut expected0_offset = 0;
@@ -701,13 +701,13 @@ fn send_file() {
     for _ in 0..20 {
         // NOTE: can't use `&&` as that short circuits.
         let done0 = send_file_check_actor(
-            &mut stream0,
+            &stream0,
             expected_data0(),
             &mut expected0_offset,
             &mut buf,
         );
         let done1 =
-            send_file_check_actor(&mut stream1, &expected1, &mut expected1_offset, &mut buf);
+            send_file_check_actor(&stream1, &expected1, &mut expected1_offset, &mut buf);
 
         if done0 && done1 {
             break;
@@ -733,7 +733,7 @@ fn send_file_all() {
         let file = File::open(path)?;
         let metadata = file.metadata()?;
         let length = min(metadata.len(), LENGTH as u64) as usize;
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
         stream
             .send_file_all(&file, OFFSET, NonZeroUsize::new(length))
             .await?;
@@ -747,13 +747,13 @@ fn send_file_all() {
     let args = (address, TEST_FILE0);
     let actor_ref1 =
         try_spawn_local(PanicSupervisor, actor, args, ActorOptions::default()).unwrap();
-    let (mut stream0, _) = listener.accept().unwrap();
+    let (stream0, _) = listener.accept().unwrap();
     stream0.set_nonblocking(true).unwrap();
 
     let args = (address, TEST_FILE1);
     let actor_ref2 =
         try_spawn_local(PanicSupervisor, actor, args, ActorOptions::default()).unwrap();
-    let (mut stream1, _) = listener.accept().unwrap();
+    let (stream1, _) = listener.accept().unwrap();
     stream1.set_nonblocking(true).unwrap();
 
     let expected0 = expected_data0();
@@ -765,9 +765,9 @@ fn send_file_all() {
     for _ in 0..20 {
         // NOTE: can't use `&&` as that short circuits.
         let done0 =
-            send_file_check_actor(&mut stream0, &expected0, &mut expected0_offset, &mut buf);
+            send_file_check_actor(&stream0, &expected0, &mut expected0_offset, &mut buf);
         let done1 =
-            send_file_check_actor(&mut stream1, &expected1, &mut expected1_offset, &mut buf);
+            send_file_check_actor(&stream1, &expected1, &mut expected1_offset, &mut buf);
 
         if done0 && done1 {
             break;
@@ -787,7 +787,7 @@ fn send_entire_file() {
         path: &'static str,
     ) -> io::Result<()> {
         let file = File::open(path)?;
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
         stream.send_entire_file(&file).await
     }
 
@@ -798,13 +798,13 @@ fn send_entire_file() {
     let args = (address, TEST_FILE0);
     let actor_ref1 =
         try_spawn_local(PanicSupervisor, actor, args, ActorOptions::default()).unwrap();
-    let (mut stream0, _) = listener.accept().unwrap();
+    let (stream0, _) = listener.accept().unwrap();
     stream0.set_nonblocking(true).unwrap();
 
     let args = (address, TEST_FILE1);
     let actor_ref2 =
         try_spawn_local(PanicSupervisor, actor, args, ActorOptions::default()).unwrap();
-    let (mut stream1, _) = listener.accept().unwrap();
+    let (stream1, _) = listener.accept().unwrap();
     stream1.set_nonblocking(true).unwrap();
 
     let mut expected0_offset = 0;
@@ -814,13 +814,13 @@ fn send_entire_file() {
     for _ in 0..20 {
         // NOTE: can't use `&&` as that short circuits.
         let done0 = send_file_check_actor(
-            &mut stream0,
+            &stream0,
             expected_data0(),
             &mut expected0_offset,
             &mut buf,
         );
         let done1 = send_file_check_actor(
-            &mut stream1,
+            &stream1,
             expected_data1(),
             &mut expected1_offset,
             &mut buf,
@@ -864,7 +864,7 @@ fn send_file_check_actor(
 #[test]
 fn peek_vectored() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+        let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 
         let bufs = [
             Vec::with_capacity(2 * DATA.len()),
@@ -919,14 +919,14 @@ fn shutdown_read() {
         ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
-        let mut listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
+        let listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
             .await
             .unwrap();
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
 
-        let (mut stream, remote_address) = listener.accept().await.unwrap();
+        let (stream, remote_address) = listener.accept().await.unwrap();
         assert!(remote_address.ip().is_loopback());
 
         // Shutting down the reading side of the peer should return 0 bytes
@@ -938,7 +938,7 @@ fn shutdown_read() {
 
     async fn stream_actor(mut ctx: actor::Context<SocketAddr, ThreadLocal>) {
         let address = ctx.receive_next().await.unwrap();
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address)
+        let stream = TcpStream::connect(ctx.runtime_ref(), address)
             .await
             .unwrap();
 
@@ -968,14 +968,14 @@ fn shutdown_write() {
         ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
-        let mut listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
+        let listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
             .await
             .unwrap();
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
 
-        let (mut stream, remote_address) = listener.accept().await.unwrap();
+        let (stream, remote_address) = listener.accept().await.unwrap();
         assert!(remote_address.ip().is_loopback());
 
         // Shutting down the writing side of the peer should return EOF here.
@@ -987,7 +987,7 @@ fn shutdown_write() {
 
     async fn stream_actor(mut ctx: actor::Context<SocketAddr, ThreadLocal>) {
         let address = ctx.receive_next().await.unwrap();
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address)
+        let stream = TcpStream::connect(ctx.runtime_ref(), address)
             .await
             .unwrap();
 
@@ -1019,14 +1019,14 @@ fn shutdown_both() {
         ctx: actor::Context<M, ThreadLocal>,
         actor_ref: ActorRef<SocketAddr>,
     ) {
-        let mut listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
+        let listener = TcpListener::bind(ctx.runtime_ref(), any_local_address())
             .await
             .unwrap();
 
         let address = listener.local_addr().unwrap();
         actor_ref.send(address).await.unwrap();
 
-        let (mut stream, remote_address) = listener.accept().await.unwrap();
+        let (stream, remote_address) = listener.accept().await.unwrap();
         assert!(remote_address.ip().is_loopback());
 
         let buf = stream.recv(Vec::with_capacity(2)).await.unwrap();
@@ -1035,7 +1035,7 @@ fn shutdown_both() {
 
     async fn stream_actor(mut ctx: actor::Context<SocketAddr, ThreadLocal>) {
         let address = ctx.receive_next().await.unwrap();
-        let mut stream = TcpStream::connect(ctx.runtime_ref(), address)
+        let stream = TcpStream::connect(ctx.runtime_ref(), address)
             .await
             .unwrap();
 

@@ -30,7 +30,7 @@ use crate::net::{
 ///
 /// async fn actor(ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
 ///     let address = "127.0.0.1:12345".parse().unwrap();
-///     let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+///     let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 ///     stream.send_all("Hello world!").await?;
 ///     Ok(())
 /// }
@@ -56,7 +56,7 @@ impl TcpStream {
             0,
         )
         .await?;
-        let mut socket = TcpStream { fd };
+        let socket = TcpStream { fd };
         socket.set_auto_cpu_affinity(rt);
         socket.fd.connect(SockAddr::from(address)).await?;
         Ok(socket)
@@ -74,7 +74,7 @@ impl TcpStream {
     /// connection from [`TcpListener`].
     ///
     /// [`TcpListener`]: crate::net::tcp::TcpListener
-    pub fn set_auto_cpu_affinity<RT>(&mut self, rt: &RT)
+    pub fn set_auto_cpu_affinity<RT>(&self, rt: &RT)
     where
         RT: rt::Access,
     {
@@ -90,37 +90,37 @@ impl TcpStream {
     ///
     /// On Linux this uses `SO_INCOMING_CPU`.
     #[cfg(target_os = "linux")]
-    pub(crate) fn set_cpu_affinity(&mut self, cpu: usize) -> io::Result<()> {
+    pub(crate) fn set_cpu_affinity(&self, cpu: usize) -> io::Result<()> {
         self.with_ref(|socket| socket.set_cpu_affinity(cpu))
     }
 
     /// Returns the socket address of the remote peer of this TCP connection.
-    pub fn peer_addr(&mut self) -> io::Result<SocketAddr> {
+    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.with_ref(|socket| socket.peer_addr().and_then(convert_address))
     }
 
     /// Returns the socket address of the local half of this TCP connection.
-    pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.with_ref(|socket| socket.local_addr().and_then(convert_address))
     }
 
     /// Sets the value for the `IP_TTL` option on this socket.
-    pub fn set_ttl(&mut self, ttl: u32) -> io::Result<()> {
+    pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
         self.with_ref(|socket| socket.set_ttl(ttl))
     }
 
     /// Gets the value of the `IP_TTL` option for this socket.
-    pub fn ttl(&mut self) -> io::Result<u32> {
+    pub fn ttl(&self) -> io::Result<u32> {
         self.with_ref(|socket| socket.ttl())
     }
 
     /// Sets the value of the `TCP_NODELAY` option on this socket.
-    pub fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+    pub fn set_nodelay(&self, nodelay: bool) -> io::Result<()> {
         self.with_ref(|socket| socket.set_nodelay(nodelay))
     }
 
     /// Gets the value of the `TCP_NODELAY` option on this socket.
-    pub fn nodelay(&mut self) -> io::Result<bool> {
+    pub fn nodelay(&self) -> io::Result<bool> {
         self.with_ref(|socket| socket.nodelay())
     }
 
@@ -138,7 +138,7 @@ impl TcpStream {
     ///
     /// Return the number of bytes written. This may we fewer then the length of
     /// `buf`. To ensure that all bytes are written use [`TcpStream::send_all`].
-    pub async fn send<'a, B: Buf>(&'a mut self, buf: B) -> io::Result<(B, usize)> {
+    pub async fn send<B: Buf>(&self, buf: B) -> io::Result<(B, usize)> {
         Send(self.fd.send(BufWrapper(buf), 0).extract()).await
     }
 
@@ -146,13 +146,13 @@ impl TcpStream {
     ///
     /// If this fails to send all bytes (this happens if a write returns
     /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
-    pub async fn send_all<'a, B: Buf>(&'a mut self, buf: B) -> io::Result<B> {
+    pub async fn send_all<B: Buf>(&self, buf: B) -> io::Result<B> {
         SendAll(self.fd.send_all(BufWrapper(buf)).extract()).await
     }
 
     /// Sends data on the socket to the connected socket, using vectored I/O.
     pub async fn send_vectored<B: BufSlice<N>, const N: usize>(
-        &mut self,
+        &self,
         bufs: B,
     ) -> io::Result<(B, usize)> {
         SendVectored(self.fd.send_vectored(BufWrapper(bufs), 0).extract()).await
@@ -163,7 +163,7 @@ impl TcpStream {
     /// If this fails to send all bytes (this happens if a write returns
     /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
     pub async fn send_vectored_all<B: BufSlice<N>, const N: usize>(
-        &mut self,
+        &self,
         bufs: B,
     ) -> io::Result<B> {
         SendAllVectored(self.fd.send_all_vectored(BufWrapper(bufs)).extract()).await
@@ -184,7 +184,7 @@ impl TcpStream {
     ///
     /// async fn actor(ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
     ///     let address = "127.0.0.1:12345".parse().unwrap();
-    ///     let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+    ///     let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
     ///
     ///     let buf = Vec::with_capacity(4 * 1024); // 4 KB.
     ///     let buf = stream.recv(buf).await?;
@@ -195,7 +195,7 @@ impl TcpStream {
     /// #
     /// # drop(actor); // Silent dead code warnings.
     /// ```
-    pub async fn recv<'a, B: BufMut>(&'a mut self, buf: B) -> io::Result<B> {
+    pub async fn recv<B: BufMut>(&self, buf: B) -> io::Result<B> {
         Recv(self.fd.recv(BufWrapper(buf), 0)).await
     }
 
@@ -216,7 +216,7 @@ impl TcpStream {
     ///
     /// async fn actor(ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
     ///     let address = "127.0.0.1:12345".parse().unwrap();
-    ///     let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+    ///     let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
     ///
     ///     let buf = Vec::with_capacity(4 * 1024); // 4 KB.
     ///     // NOTE: this will return an error if the peer sends less than 1 KB
@@ -230,7 +230,7 @@ impl TcpStream {
     /// #
     /// # drop(actor); // Silent dead code warnings.
     /// ```
-    pub async fn recv_n<'a, B: BufMut>(&'a mut self, buf: B, n: usize) -> io::Result<B> {
+    pub async fn recv_n<B: BufMut>(&self, buf: B, n: usize) -> io::Result<B> {
         debug_assert!(
             buf.spare_capacity() >= n,
             "called `TcpStream::recv_n` with a buffer smaller then `n`"
@@ -239,10 +239,7 @@ impl TcpStream {
     }
 
     /// Receive messages from the stream, using vectored I/O.
-    pub async fn recv_vectored<B: BufMutSlice<N>, const N: usize>(
-        &mut self,
-        bufs: B,
-    ) -> io::Result<B> {
+    pub async fn recv_vectored<B: BufMutSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B> {
         RecvVectored(self.fd.recv_vectored(BufWrapper(bufs), 0)).await
     }
 
@@ -250,7 +247,7 @@ impl TcpStream {
     ///
     /// This returns [`io::ErrorKind::UnexpectedEof`] if less then `n` bytes could be read.
     pub async fn recv_n_vectored<B: BufMutSlice<N>, const N: usize>(
-        &mut self,
+        &self,
         bufs: B,
         n: usize,
     ) -> io::Result<B> {
@@ -263,16 +260,13 @@ impl TcpStream {
 
     /// Receive messages from the stream, without removing that data from the
     /// queue.
-    pub async fn peek<'a, B: BufMut>(&'a mut self, buf: B) -> io::Result<B> {
+    pub async fn peek<B: BufMut>(&self, buf: B) -> io::Result<B> {
         Recv(self.fd.recv(BufWrapper(buf), libc::MSG_PEEK)).await
     }
 
     /// Receive messages from the stream, without removing it from the input
     /// queue, using vectored I/O.
-    pub async fn peek_vectored<B: BufMutSlice<N>, const N: usize>(
-        &mut self,
-        bufs: B,
-    ) -> io::Result<B> {
+    pub async fn peek_vectored<B: BufMutSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B> {
         RecvVectored(self.fd.recv_vectored(BufWrapper(bufs), libc::MSG_PEEK)).await
     }
 
@@ -289,7 +283,7 @@ impl TcpStream {
     /// Users might want to use [`TcpStream::send_file_all`] to ensure all the
     /// specified bytes (between `offset` and `length`) are send.
     pub fn send_file<'a, 'f, F>(
-        &'a mut self,
+        &'a self,
         file: &'f F,
         offset: usize,
         length: Option<NonZeroUsize>,
@@ -310,7 +304,7 @@ impl TcpStream {
     /// Users who want to send the entire file might want to use the
     /// [`TcpStream::send_entire_file`] method.
     pub fn send_file_all<'a, 'f, F>(
-        &'a mut self,
+        &'a self,
         file: &'f F,
         offset: usize,
         length: Option<NonZeroUsize>,
@@ -329,7 +323,7 @@ impl TcpStream {
     /// Convenience method to send the entire `file`.
     ///
     /// See [`TcpStream::send_file`] for more information.
-    pub fn send_entire_file<'a, 'f, F>(&'a mut self, file: &'f F) -> SendFileAll<'a, 'f, F>
+    pub fn send_entire_file<'a, 'f, F>(&'a self, file: &'f F) -> SendFileAll<'a, 'f, F>
     where
         F: FileSend,
     {
@@ -342,7 +336,7 @@ impl TcpStream {
     /// This function will cause all pending and future I/O on the specified
     /// portions to return immediately with an appropriate value (see the
     /// documentation of [`Shutdown`]).
-    pub fn shutdown(&mut self, how: Shutdown) -> io::Result<()> {
+    pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
         self.with_ref(|socket| socket.shutdown(how))
     }
 
@@ -351,7 +345,7 @@ impl TcpStream {
     /// This will retrieve the stored error in the underlying socket, clearing
     /// the field in the process. This can be useful for checking errors between
     /// calls.
-    pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
+    pub fn take_error(&self) -> io::Result<Option<io::Error>> {
         self.with_ref(|socket| socket.take_error())
     }
 

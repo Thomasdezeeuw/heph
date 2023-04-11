@@ -89,7 +89,7 @@ where
 #[allow(clippy::type_complexity)] // `servers` is too complex.
 async fn conn_actor(
     mut ctx: actor::Context<!, ThreadLocal>,
-    mut stream: TcpStream,
+    stream: TcpStream,
     addresses: Arc<Mutex<Vec<SocketAddr>>>,
     servers: Arc<Mutex<Vec<(usize, ActorRef<tcp::server::Message>)>>>,
 ) -> Result<(), !> {
@@ -126,7 +126,7 @@ fn issue_145_tcp_listener() {
 async fn listener_actor(ctx: actor::Context<!, ThreadLocal>) -> Result<(), !> {
     let address = "127.0.0.1:0".parse().unwrap();
     // NOTE: this should not fail.
-    let mut listener = TcpListener::bind(ctx.runtime_ref(), address).await.unwrap();
+    let listener = TcpListener::bind(ctx.runtime_ref(), address).await.unwrap();
     let addr = listener.local_addr().unwrap();
     assert!(addr.port() != 0);
     Ok(())

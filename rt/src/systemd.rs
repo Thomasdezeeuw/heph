@@ -134,7 +134,7 @@ impl Notify {
     /// programs could pass completion percentages and failing programs could
     /// pass a human-readable error message. **Note that it must be limited to a
     /// single line.**
-    pub async fn change_state(&mut self, state: State, status: Option<&str>) -> io::Result<()> {
+    pub async fn change_state(&self, state: State, status: Option<&str>) -> io::Result<()> {
         debug!(state = log::as_debug!(state), status = log::as_debug!(status); "updating state with service manager");
         let state_line = match state {
             State::Ready => "READY=1\n",
@@ -168,7 +168,7 @@ impl Notify {
     ///
     /// If you also need to change the state of the application you can use
     /// [`Notify::change_state`].
-    pub async fn change_status(&mut self, status: &str) -> io::Result<()> {
+    pub async fn change_status(&self, status: &str) -> io::Result<()> {
         debug!(status = log::as_display!(status); "updating status with service manager");
         let mut state_update = String::with_capacity(7 + status.len() + 1);
         state_update.push_str("STATUS=");
@@ -183,7 +183,7 @@ impl Notify {
     ///
     /// Send a keep-alive ping that services need to issue in regular intervals
     /// if `WatchdogSec=` is enabled for it.
-    pub async fn ping_watchdog(&mut self) -> io::Result<()> {
+    pub async fn ping_watchdog(&self) -> io::Result<()> {
         debug!("pinging service manager watchdog");
         _ = self.socket.send("WATCHDOG=1").await?;
         Ok(())
@@ -200,7 +200,7 @@ impl Notify {
     /// the watchdog behavior.
     ///
     /// [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html
-    pub async fn trigger_watchdog(&mut self) -> io::Result<()> {
+    pub async fn trigger_watchdog(&self) -> io::Result<()> {
         debug!("triggering service manager watchdog");
         _ = self.socket.send("WATCHDOG=trigger").await?;
         Ok(())
@@ -282,7 +282,7 @@ where
     H: FnMut() -> Result<(), E>,
     E: ToString,
 {
-    let mut notify = match Notify::new(ctx.runtime_ref()).await? {
+    let notify = match Notify::new(ctx.runtime_ref()).await? {
         Some(notify) => notify,
         None => {
             debug!("not started via systemd, not starting `systemd::watchdog`");

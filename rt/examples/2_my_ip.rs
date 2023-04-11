@@ -94,7 +94,7 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
 ///
 /// This actor will not receive any message and thus uses `!` (the never type)
 /// as message type.
-async fn conn_actor(_: actor::Context<!, ThreadLocal>, mut stream: TcpStream) -> io::Result<()> {
+async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: TcpStream) -> io::Result<()> {
     let address = stream.peer_addr()?;
     info!(address = log::as_display!(address); "accepted connection");
 

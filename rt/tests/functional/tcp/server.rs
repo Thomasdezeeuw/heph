@@ -29,7 +29,7 @@ fn message_from_process_signal() {
     }
 }
 
-async fn actor<RT>(_: actor::Context<!, RT>, mut stream: TcpStream)
+async fn actor<RT>(_: actor::Context<!, RT>, stream: TcpStream)
 where
     RT: rt::Access,
 {
@@ -47,7 +47,7 @@ async fn stream_actor<RT>(
 ) where
     RT: rt::Access + Clone,
 {
-    let mut stream = tcp_connect(&mut ctx, address).await.unwrap();
+    let stream = tcp_connect(&mut ctx, address).await.unwrap();
 
     let (_, n) = stream.send(DATA).await.unwrap();
     assert_eq!(n, DATA.len());

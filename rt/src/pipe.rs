@@ -26,7 +26,7 @@
 //! async fn process_handler<RT>(ctx: actor::Context<!, RT>) -> io::Result<()>
 //!     where RT: rt::Access,
 //! {
-//!     let (mut sender, mut receiver) = pipe::new(ctx.runtime_ref())?;
+//!     let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
 //!
 //!     // Write some data.
 //!     sender.write_all(DATA).await?;
@@ -72,8 +72,8 @@
 //!         .spawn()?;
 //!
 //!     // Create our process standard in and out.
-//!     let mut stdin = pipe::Sender::from_child_stdin(ctx.runtime_ref(), process.stdin.take().unwrap())?;
-//!     let mut stdout = pipe::Receiver::from_child_stdout(ctx.runtime_ref(), process.stdout.take().unwrap())?;
+//!     let stdin = pipe::Sender::from_child_stdin(ctx.runtime_ref(), process.stdin.take().unwrap())?;
+//!     let stdout = pipe::Receiver::from_child_stdout(ctx.runtime_ref(), process.stdout.take().unwrap())?;
 //!
 //!     // Write some data.
 //!     stdin.write_all(DATA).await?;
@@ -154,7 +154,7 @@ impl Sender {
     ///
     /// Return the number of bytes written. This may we fewer than the length of
     /// `buf`. To ensure that all bytes are written use [`Sender::write_all`].
-    pub async fn write<'a, B: Buf>(&'a mut self, buf: B) -> io::Result<(B, usize)> {
+    pub async fn write<B: Buf>(&self, buf: B) -> io::Result<(B, usize)> {
         Write(self.fd.write(BufWrapper(buf)).extract()).await
     }
 
@@ -162,7 +162,7 @@ impl Sender {
     ///
     /// If this fails to write all bytes (this happens if a write returns
     /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
-    pub async fn write_all<'a, B: Buf>(&'a mut self, buf: B) -> io::Result<B> {
+    pub async fn write_all<B: Buf>(&self, buf: B) -> io::Result<B> {
         WriteAll(self.fd.write_all(BufWrapper(buf)).extract()).await
     }
 
@@ -171,8 +171,8 @@ impl Sender {
     /// Return the number of bytes written. This may we fewer than the length of
     /// `bufs`. To ensure that all bytes are written use
     /// [`Sender::write_vectored_all`].
-    pub async fn write_vectored<'a, B: BufSlice<N>, const N: usize>(
-        &'a mut self,
+    pub async fn write_vectored<B: BufSlice<N>, const N: usize>(
+        &self,
         bufs: B,
     ) -> io::Result<(B, usize)> {
         WriteVectored(self.fd.write_vectored(BufWrapper(bufs)).extract()).await
@@ -182,8 +182,8 @@ impl Sender {
     ///
     /// If this fails to write all bytes (this happens if a write returns
     /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
-    pub async fn write_vectored_all<'a, B: BufSlice<N>, const N: usize>(
-        &'a mut self,
+    pub async fn write_vectored_all<B: BufSlice<N>, const N: usize>(
+        &self,
         bufs: B,
     ) -> io::Result<B> {
         WriteAllVectored(self.fd.write_all_vectored(BufWrapper(bufs)).extract()).await
@@ -221,7 +221,7 @@ impl Receiver {
     }
 
     /// Read bytes from the pipe, writing them into `buf`.
-    pub async fn read<'a, B: BufMut>(&'a mut self, buf: B) -> io::Result<B> {
+    pub async fn read<B: BufMut>(&self, buf: B) -> io::Result<B> {
         Read(self.fd.read(BufWrapper(buf))).await
     }
 
@@ -229,7 +229,7 @@ impl Receiver {
     ///
     /// This returns [`io::ErrorKind::UnexpectedEof`] if less than `n` bytes
     /// could be read.
-    pub async fn read_n<'a, B: BufMut>(&'a mut self, buf: B, n: usize) -> io::Result<B> {
+    pub async fn read_n<B: BufMut>(&self, buf: B, n: usize) -> io::Result<B> {
         debug_assert!(
             buf.spare_capacity() >= n,
             "called `Receiver::read_n` with a buffer smaller than `n`",
@@ -238,16 +238,13 @@ impl Receiver {
     }
 
     /// Read bytes from the pipe, writing them into `bufs`.
-    pub async fn read_vectored<'a, B: BufMutSlice<N>, const N: usize>(
-        &'a mut self,
-        bufs: B,
-    ) -> io::Result<B> {
+    pub async fn read_vectored<B: BufMutSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B> {
         ReadVectored(self.fd.read_vectored(BufWrapper(bufs))).await
     }
 
     /// Read at least `n` bytes from the pipe, writing them into `bufs`.
-    pub async fn read_n_vectored<'a, B: BufMutSlice<N>, const N: usize>(
-        &'a mut self,
+    pub async fn read_n_vectored<B: BufMutSlice<N>, const N: usize>(
+        &self,
         bufs: B,
         n: usize,
     ) -> io::Result<B> {

@@ -60,7 +60,7 @@ use crate::{self as rt};
 /// }
 /// #
 /// # async fn client(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-/// #   let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+/// #   let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 /// #   let local_address = stream.local_addr()?.to_string();
 /// #   let buf = Vec::with_capacity(local_address.len() + 1);
 /// #   let buf = stream.recv_n(buf, local_address.len()).await?;
@@ -76,10 +76,10 @@ use crate::{self as rt};
 ///
 /// async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
-///     let mut listener = TcpListener::bind(ctx.runtime_ref(), address).await?;
+///     let listener = TcpListener::bind(ctx.runtime_ref(), address).await?;
 ///
 ///     // Accept a connection.
-///     let (mut stream, peer_address) = listener.accept().await?;
+///     let (stream, peer_address) = listener.accept().await?;
 ///     info!("accepted connection from: {peer_address}");
 ///
 ///     // Next we write the IP address to the connection.
@@ -124,7 +124,7 @@ use crate::{self as rt};
 /// }
 /// #
 /// # async fn client(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-/// #   let mut stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+/// #   let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
 /// #   let local_address = stream.local_addr()?.to_string();
 /// #   let buf = Vec::with_capacity(local_address.len() + 1);
 /// #   let buf = stream.recv_n(buf, local_address.len()).await?;
@@ -140,10 +140,10 @@ use crate::{self as rt};
 ///
 /// async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
-///     let mut listener = TcpListener::bind(ctx.runtime_ref(), address).await?;
+///     let listener = TcpListener::bind(ctx.runtime_ref(), address).await?;
 ///     let mut incoming = listener.incoming();
 ///     loop {
-///         let mut stream = match next(&mut incoming).await {
+///         let stream = match next(&mut incoming).await {
 ///             Some(Ok(stream)) => stream,
 ///             Some(Err(err)) => return Err(err),
 ///             None => return Ok(()),
@@ -216,17 +216,17 @@ impl TcpListener {
     }
 
     /// Returns the local socket address of this listener.
-    pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.with_ref(|socket| socket.local_addr().and_then(convert_address))
     }
 
     /// Sets the value for the `IP_TTL` option on this socket.
-    pub fn set_ttl(&mut self, ttl: u32) -> io::Result<()> {
+    pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
         self.with_ref(|socket| socket.set_ttl(ttl))
     }
 
     /// Gets the value of the `IP_TTL` option for this socket.
-    pub fn ttl(&mut self) -> io::Result<u32> {
+    pub fn ttl(&self) -> io::Result<u32> {
         self.with_ref(|socket| socket.ttl())
     }
 
@@ -239,7 +239,7 @@ impl TcpListener {
     ///
     /// The CPU affinity is **not** set on the returned TCP stream. To set that
     /// use [`TcpStream::set_auto_cpu_affinity`].
-    pub async fn accept(&mut self) -> io::Result<(TcpStream, SocketAddr)> {
+    pub async fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
         self.fd
             .accept::<SockAddr>()
             .await
@@ -259,7 +259,7 @@ impl TcpListener {
     /// The CPU affinity is **not** set on the returned TCP stream. To set that
     /// use [`TcpStream::set_auto_cpu_affinity`].
     #[allow(clippy::doc_markdown)] // For "io_uring".
-    pub fn incoming(&mut self) -> Incoming<'_> {
+    pub fn incoming(&self) -> Incoming<'_> {
         Incoming(self.fd.multishot_accept())
     }
 
@@ -268,7 +268,7 @@ impl TcpListener {
     /// This will retrieve the stored error in the underlying socket, clearing
     /// the field in the process. This can be useful for checking errors between
     /// calls.
-    pub fn take_error(&mut self) -> io::Result<Option<io::Error>> {
+    pub fn take_error(&self) -> io::Result<Option<io::Error>> {
         self.with_ref(|socket| socket.take_error())
     }
 
