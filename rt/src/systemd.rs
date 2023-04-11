@@ -273,7 +273,6 @@ pub enum State {
 ///
 /// If no systemd watchdog is active (i.e. `WatchdogSec` is not set in the
 /// systemd service configuration) this will not call `health_check`.
-#[allow(clippy::future_not_send)]
 pub async fn watchdog<RT, H, E>(
     mut ctx: actor::Context<ServiceMessage, RT>,
     mut health_check: H,

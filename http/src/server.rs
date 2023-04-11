@@ -652,7 +652,6 @@ impl Connection {
     ///
     /// See the notes for [`Connection::send_response`], they apply to this
     /// function also.
-    #[allow(clippy::future_not_send)] // TODO.
     pub async fn respond<'b, B>(
         &mut self,
         status: StatusCode,
@@ -671,7 +670,6 @@ impl Connection {
     /// Respond to the last parsed request with `response`.
     ///
     /// See [`Connection::respond`] for more documentation.
-    #[allow(clippy::future_not_send)] // TODO.
     pub async fn respond_with<'b, B>(&mut self, response: Response<B>) -> io::Result<()>
     where
         B: crate::Body<'b>,
@@ -703,7 +701,6 @@ impl Connection {
     ///
     /// [`expects_body()`]: Method::expects_body
     /// [`includes_body()`]: StatusCode::includes_body
-    #[allow(clippy::future_not_send)] // TODO.
     pub async fn send_response<'b, B>(
         &mut self,
         request_method: Method,
