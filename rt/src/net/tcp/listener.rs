@@ -2,7 +2,6 @@
 
 use std::async_iter::AsyncIterator;
 use std::net::SocketAddr;
-use std::os::fd::AsFd;
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::{fmt, io};
@@ -276,8 +275,7 @@ impl TcpListener {
     where
         F: FnOnce(SockRef<'_>) -> io::Result<T>,
     {
-        let borrowed = self.fd.as_fd(); // TODO: remove this once we update to socket2 v0.5.
-        f(SockRef::from(&borrowed))
+        f(SockRef::from(&self.fd))
     }
 }
 

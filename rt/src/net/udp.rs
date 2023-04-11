@@ -4,7 +4,6 @@
 
 use std::marker::PhantomData;
 use std::net::SocketAddr;
-use std::os::fd::AsFd;
 use std::{fmt, io};
 
 use a10::{AsyncFd, Extract};
@@ -199,8 +198,7 @@ impl<M> UdpSocket<M> {
     where
         F: FnOnce(SockRef<'_>) -> io::Result<T>,
     {
-        let borrowed = self.fd.as_fd(); // TODO: remove this once we update to socket2 v0.5.
-        f(SockRef::from(&borrowed))
+        f(SockRef::from(&self.fd))
     }
 }
 

@@ -2,7 +2,6 @@
 
 use std::io;
 use std::net::{Shutdown, SocketAddr};
-use std::os::fd::AsFd;
 
 use a10::{AsyncFd, Extract};
 use socket2::{Domain, Protocol, SockRef, Type};
@@ -360,7 +359,6 @@ impl TcpStream {
     where
         F: FnOnce(SockRef<'_>) -> io::Result<T>,
     {
-        let borrowed = self.fd.as_fd(); // TODO: remove this once we update to socket2 v0.5.
-        f(SockRef::from(&borrowed))
+        f(SockRef::from(&self.fd))
     }
 }
