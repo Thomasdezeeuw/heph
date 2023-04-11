@@ -123,8 +123,10 @@ pub trait Spawn<S, NA, RT>: PrivateSpawn<S, NA, RT> {
         S: Supervisor<NA>,
         NA: NewActor<Error = !, RuntimeAccess = RT>,
     {
-        self.try_spawn_setup(supervisor, new_actor, |_| Ok(arg), options)
-            .unwrap_or_else(|_: AddActorError<!, !>| unreachable!())
+        match self.try_spawn(supervisor, new_actor, arg, options) {
+            Ok(actor_ref) => actor_ref,
+            Err(err) => err,
+        }
     }
 }
 
