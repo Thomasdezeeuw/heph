@@ -2,6 +2,7 @@
 
 use std::io;
 use std::net::SocketAddr;
+use std::pin::pin;
 
 use heph::actor::{self, NoMessages};
 use heph_rt as rt;
@@ -69,20 +70,26 @@ where
     RT: rt::Access,
     R: Route<In>,
 {
-    let mut stream = TcpStream::connect(&mut ctx, remote_address)?.await?;
+    let stream = TcpStream::connect(ctx.runtime_ref(), remote_address).await?;
     stream.set_nodelay(true)?;
-    let mut buf = Vec::with_capacity(INITIAL_BUF_SIZE);
-    let mut uuid_gen = UuidGenerator::new();
 
+    let mut uuid_gen = UuidGenerator::new();
+    let mut send_buf = Vec::with_capacity(INITIAL_BUF_SIZE);
+
+    let mut recv_data = pin!(stream.recv(Vec::with_capacity(INITIAL_BUF_SIZE)));
     loop {
-        match either(ctx.receive_next(), stream.recv(&mut buf)).await {
+        match either(ctx.receive_next(), recv_data.as_mut()).await {
             // Received an outgoing message we want to relay to a remote actor.
             Ok(Ok(RelayMessage::Relay(msg))) => {
-                send_message::<S, Out>(&mut stream, &mut buf, &mut uuid_gen, &msg).await?;
+                send_buf = send_message::<S, Out>(&stream, send_buf, &mut uuid_gen, &msg).await?;
+                send_buf.clear();
             }
             Ok(Ok(RelayMessage::Terminate) | Err(NoMessages)) => return Ok(()),
             // Received some incoming data.
-            Err(Ok(_)) => route_messages::<S, R, In>(&mut router, &mut buf, remote_address).await?,
+            Err(Ok(mut buf)) => {
+                route_messages::<S, R, In>(&mut router, &mut buf, remote_address).await?;
+                recv_data.set(stream.recv(buf));
+            }
             // Error receiving data.
             Err(Err(err)) => return Err(err),
         }
@@ -91,11 +98,11 @@ where
 
 /// Send a `msg` to the remote actor, using `stream`.
 async fn send_message<S, M>(
-    stream: &mut TcpStream,
-    buf: &mut Vec<u8>,
+    stream: &TcpStream,
+    mut buf: Vec<u8>,
     uuid_gen: &mut UuidGenerator,
     msg: &M,
-) -> io::Result<()>
+) -> io::Result<Vec<u8>>
 where
     S: Serde,
     M: Serialize,
@@ -103,10 +110,10 @@ where
     // Serialise the message to our buffer first.
     let uuid = uuid_gen.next();
     let msg = Message { uuid, msg };
-    if let Err(err) = S::to_buf(&mut *buf, &msg) {
+    if let Err(err) = S::to_buf(&mut buf, &msg) {
         warn!("error serialising message: {err}");
         // Don't want to stop the actor for this.
-        return Ok(());
+        return Ok(buf);
     }
 
     stream.send_all(buf).await
