@@ -61,16 +61,9 @@ fn add_actor() {
     let actor_entry = scheduler.add_actor();
     let new_actor = simple_actor as fn(_) -> _;
     let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
-    actor_entry.add(
-        Priority::NORMAL,
-        NoSupervisor,
-        new_actor,
-        actor,
-        inbox,
-        false,
-    );
+    actor_entry.add(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
     assert!(scheduler.has_process());
-    assert!(!scheduler.has_ready_process());
+    assert!(scheduler.has_ready_process());
 }
 
 #[test]
@@ -84,18 +77,35 @@ fn mark_ready() {
     let pid = actor_entry.pid();
     let new_actor = simple_actor as fn(_) -> _;
     let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
-    actor_entry.add(
-        Priority::NORMAL,
-        NoSupervisor,
-        new_actor,
-        actor,
-        inbox,
-        false,
-    );
+    actor_entry.add(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
-    scheduler.mark_ready(pid);
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
+
+    let process = scheduler.next_process().unwrap();
+    scheduler.add_process(process);
+    scheduler.mark_ready(pid);
+}
+
+#[test]
+fn mark_ready_before_run() {
+    let mut scheduler = Scheduler::new();
+
+    // Incorrect (outdated) pid should be ok.
+    scheduler.mark_ready(ProcessId(1));
+
+    let actor_entry = scheduler.add_actor();
+    let pid = actor_entry.pid();
+    let new_actor = simple_actor as fn(_) -> _;
+    let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
+    actor_entry.add(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
+
+    assert!(scheduler.has_process());
+    assert!(scheduler.has_ready_process());
+
+    let process = scheduler.next_process().unwrap();
+    scheduler.mark_ready(pid);
+    scheduler.add_process(process);
 }
 
 #[test]
@@ -106,15 +116,7 @@ fn next_process() {
     let pid = actor_entry.pid();
     let new_actor = simple_actor as fn(_) -> _;
     let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
-    actor_entry.add(
-        Priority::NORMAL,
-        NoSupervisor,
-        new_actor,
-        actor,
-        inbox,
-        false,
-    );
-    scheduler.mark_ready(pid);
+    actor_entry.add(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
     if let Some(process) = scheduler.next_process() {
         assert_eq!(process.as_ref().id(), pid);
@@ -134,24 +136,17 @@ fn next_process_order() {
     let actor_entry = scheduler.add_actor();
     let pid1 = actor_entry.pid();
     let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
-    actor_entry.add(Priority::LOW, NoSupervisor, new_actor, actor, inbox, true);
+    actor_entry.add(Priority::LOW, NoSupervisor, new_actor, actor, inbox);
     // Actor 2.
     let actor_entry = scheduler.add_actor();
     let pid2 = actor_entry.pid();
     let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
-    actor_entry.add(Priority::HIGH, NoSupervisor, new_actor, actor, inbox, true);
+    actor_entry.add(Priority::HIGH, NoSupervisor, new_actor, actor, inbox);
     // Actor 3.
     let actor_entry = scheduler.add_actor();
     let pid3 = actor_entry.pid();
     let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
-    actor_entry.add(
-        Priority::NORMAL,
-        NoSupervisor,
-        new_actor,
-        actor,
-        inbox,
-        true,
-    );
+    actor_entry.add(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
@@ -182,18 +177,10 @@ fn add_process() {
     let pid = actor_entry.pid();
     let new_actor = simple_actor as fn(_) -> _;
     let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
-    actor_entry.add(
-        Priority::NORMAL,
-        NoSupervisor,
-        new_actor,
-        actor,
-        inbox,
-        false,
-    );
+    actor_entry.add(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
-    assert!(scheduler.next_process().is_none());
     assert!(scheduler.has_process());
-    assert!(!scheduler.has_ready_process());
+    assert!(scheduler.has_ready_process());
 
     scheduler.mark_ready(pid);
     assert!(scheduler.has_process());
@@ -210,14 +197,7 @@ fn add_process_marked_ready() {
     let pid = actor_entry.pid();
     let new_actor = simple_actor as fn(_) -> _;
     let (actor, inbox, _) = init_local_actor_with_inbox(new_actor, ()).unwrap();
-    actor_entry.add(
-        Priority::NORMAL,
-        NoSupervisor,
-        new_actor,
-        actor,
-        inbox,
-        true,
-    );
+    actor_entry.add(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
     let process = scheduler.next_process().unwrap();
     scheduler.add_process(process);
@@ -256,7 +236,7 @@ fn scheduler_run_order() {
         pids.push(actor_entry.pid());
         let (actor, inbox, _) =
             init_local_actor_with_inbox(new_actor, (id, run_order.clone())).unwrap();
-        actor_entry.add(*priority, NoSupervisor, new_actor, actor, inbox, true);
+        actor_entry.add(*priority, NoSupervisor, new_actor, actor, inbox);
     }
 
     assert!(scheduler.has_process());
@@ -308,7 +288,6 @@ fn assert_actor_process_unmoved() {
         TestAssertUnmovedNewActor,
         actor,
         inbox,
-        true,
     );
 
     // Run the process multiple times, ensure it's not moved in the process.

@@ -50,9 +50,7 @@
 //!     let address = "127.0.0.1:7890".parse().unwrap();
 //!     // Create our TCP server.
 //!     let new_actor = conn_actor as fn(_, _) -> _;
-//!     // Wait for the `TcpStream` to become ready before running the actor.
-//!     let options = ActorOptions::default().mark_ready(false);
-//!     let server = tcp::server::setup(address, conn_supervisor, new_actor, options)?;
+//!     let server = tcp::server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
 //!
 //!     // We advice to give the TCP server a low priority to prioritise
 //!     // handling of ongoing requests over accepting new requests possibly

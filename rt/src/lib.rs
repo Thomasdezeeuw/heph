@@ -744,14 +744,7 @@ where
         let actor = new_actor.new(ctx, arg)?;
 
         // Add the actor to the scheduler.
-        actor_entry.add(
-            options.priority(),
-            supervisor,
-            new_actor,
-            actor,
-            manager,
-            options.is_ready(),
-        );
+        actor_entry.add(options.priority(), supervisor, new_actor, actor, manager);
 
         Ok(actor_ref)
     }

@@ -38,7 +38,6 @@ use std::time::Duration;
 #[must_use]
 pub struct ActorOptions {
     priority: Priority,
-    ready: bool,
 }
 
 impl ActorOptions {
@@ -52,34 +51,12 @@ impl ActorOptions {
         self.priority = priority;
         self
     }
-
-    /// Returns `true` if the actor is ready to run when spawned.
-    ///
-    /// See [`mark_ready`] for more information.
-    ///
-    /// [`mark_ready`]: ActorOptions::mark_ready
-    pub const fn is_ready(&self) -> bool {
-        self.ready
-    }
-
-    /// This option will marks the actor as ready to run (or not) when spawned.
-    ///
-    /// By default newly spawned actors will be considered to be ready to run
-    /// once they are spawned. However some actors might not want to run
-    /// immediately and wait for an external event before running. For example
-    /// actors that want to wait with running until they receive their first
-    /// message.
-    pub const fn mark_ready(mut self, ready: bool) -> Self {
-        self.ready = ready;
-        self
-    }
 }
 
 impl Default for ActorOptions {
     fn default() -> ActorOptions {
         ActorOptions {
             priority: Priority::default(),
-            ready: true,
         }
     }
 }

@@ -43,19 +43,13 @@ fn adding_actor() {
     let pid = actor_entry.pid();
     let new_actor = simple_actor as fn(_) -> _;
     let (actor, inbox, _) = init_actor_with_inbox(new_actor, ()).unwrap();
-    actor_entry.add(
-        Priority::NORMAL,
-        NoSupervisor,
-        new_actor,
-        actor,
-        inbox,
-        false,
-    );
+    actor_entry.add(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
 
-    // Newly added processes aren't ready by default.
+    // Newly added processes are ready by default.
     assert!(scheduler.has_process());
-    assert!(!scheduler.has_ready_process());
-    assert_eq!(scheduler.remove(), None);
+    assert!(scheduler.has_ready_process());
+    let process = scheduler.remove().unwrap();
+    scheduler.add_process(process);
 
     // After scheduling the process should be ready to run.
     scheduler.mark_ready(pid);
@@ -125,7 +119,7 @@ fn scheduler_run_order() {
         let actor_entry = scheduler.add_actor();
         pids.push(actor_entry.pid());
         let (actor, inbox, _) = init_actor_with_inbox(new_actor, (id, run_order.clone())).unwrap();
-        actor_entry.add(*priority, NoSupervisor, new_actor, actor, inbox, true);
+        actor_entry.add(*priority, NoSupervisor, new_actor, actor, inbox);
     }
 
     assert!(scheduler.has_process());
@@ -177,7 +171,6 @@ fn assert_actor_process_unmoved() {
         TestAssertUnmovedNewActor,
         actor,
         inbox,
-        true,
     );
 
     // Run the process multiple times, ensure it's not moved in the

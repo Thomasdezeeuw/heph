@@ -225,7 +225,6 @@ impl<'s> AddActor<'s> {
         new_actor: NA,
         actor: NA::Actor,
         inbox: Manager<NA::Message>,
-        is_ready: bool,
     ) where
         S: Supervisor<NA> + Send + Sync + 'static,
         NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
@@ -251,10 +250,6 @@ impl<'s> AddActor<'s> {
             alloc.assume_init().into()
         };
 
-        if is_ready {
-            scheduler.ready.add(process);
-        } else {
-            scheduler.add_process(process);
-        }
+        scheduler.ready.add(process);
     }
 }
