@@ -17,7 +17,7 @@ use log::{debug, error, trace};
 use mio::unix::SourceFd;
 use mio::{event, Events, Interest, Poll, Registry, Token};
 
-use crate::spawn::{ActorOptions, AddActorError, FutureOptions};
+use crate::spawn::{ActorOptions, FutureOptions};
 use crate::thread_waker::ThreadWaker;
 use crate::{trace, ProcessId, ThreadSafe};
 
@@ -248,17 +248,16 @@ impl RuntimeInternals {
     }
 
     #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
-    pub(crate) fn spawn_setup<S, NA, ArgFn, E>(
+    pub(crate) fn try_spawn<S, NA>(
         self: &Arc<Self>,
         supervisor: S,
         mut new_actor: NA,
-        arg_fn: ArgFn,
+        arg: NA::Argument,
         options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
         S: Supervisor<NA> + Send + Sync + 'static,
         NA: NewActor<RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
-        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, E>,
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
@@ -271,9 +270,8 @@ impl RuntimeInternals {
         // Create our actor context and our actor with it.
         let (manager, sender, receiver) = inbox::Manager::new_small_channel();
         let actor_ref = ActorRef::local(sender);
-        let mut ctx = actor::Context::new(receiver, ThreadSafe::new(pid, self.clone()));
-        let arg = arg_fn(&mut ctx).map_err(AddActorError::ArgFn)?;
-        let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
+        let ctx = actor::Context::new(receiver, ThreadSafe::new(pid, self.clone()));
+        let actor = new_actor.new(ctx, arg)?;
 
         // Add the actor to the scheduler.
         actor_entry.add(

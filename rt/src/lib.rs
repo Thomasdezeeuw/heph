@@ -249,7 +249,7 @@ pub use signal::Signal;
 
 use coordinator::Coordinator;
 use local::waker::MAX_THREADS;
-use spawn::{ActorOptions, AddActorError, FutureOptions, PrivateSpawn, Spawn, SyncActorOptions};
+use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 use sync_worker::SyncWorker;
 
 const SYNC_WORKER_ID_START: usize = 10000;
@@ -468,28 +468,20 @@ where
     NA::Actor: Send + std::marker::Sync + 'static,
     NA::Message: Send,
 {
-}
-
-impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for Runtime
-where
-    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
-    NA::Actor: Send + std::marker::Sync + 'static,
-    NA::Message: Send,
-{
-    fn try_spawn_setup<ArgFn, E>(
+    fn try_spawn(
         &mut self,
         supervisor: S,
         new_actor: NA,
-        arg_fn: ArgFn,
+        arg: NA::Argument,
         options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
-        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, E>,
+        S: Supervisor<NA>,
+        NA: NewActor<RuntimeAccess = ThreadSafe>,
     {
         self.coordinator
             .shared_internals()
-            .spawn_setup(supervisor, new_actor, arg_fn, options)
+            .try_spawn(supervisor, new_actor, arg, options)
     }
 }
 
@@ -726,23 +718,16 @@ where
     NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
     NA::Actor: 'static,
 {
-}
-
-impl<S, NA> PrivateSpawn<S, NA, ThreadLocal> for RuntimeRef
-where
-    S: Supervisor<NA> + 'static,
-    NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
-    NA::Actor: 'static,
-{
-    fn try_spawn_setup<ArgFn, E>(
+    fn try_spawn(
         &mut self,
         supervisor: S,
         mut new_actor: NA,
-        arg_fn: ArgFn,
+        arg: NA::Argument,
         options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
-        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadLocal>) -> Result<NA::Argument, E>,
+        S: Supervisor<NA>,
+        NA: NewActor<RuntimeAccess = ThreadLocal>,
     {
         // Setup adding a new process to the scheduler.
         let mut scheduler = self.internals.scheduler.borrow_mut();
@@ -754,10 +739,9 @@ where
         // Create our actor context and our actor with it.
         let (manager, sender, receiver) = inbox::Manager::new_small_channel();
         let actor_ref = ActorRef::local(sender);
-        let mut ctx = actor::Context::new(receiver, ThreadLocal::new(pid, self.clone()));
+        let ctx = actor::Context::new(receiver, ThreadLocal::new(pid, self.clone()));
         // Create our actor argument, running any setup required by the caller.
-        let arg = arg_fn(&mut ctx).map_err(AddActorError::ArgFn)?;
-        let actor = new_actor.new(ctx, arg).map_err(AddActorError::NewActor)?;
+        let actor = new_actor.new(ctx, arg)?;
 
         // Add the actor to the scheduler.
         actor_entry.add(
@@ -780,28 +764,20 @@ where
     NA::Actor: Send + std::marker::Sync + 'static,
     NA::Message: Send,
 {
-}
-
-impl<S, NA> PrivateSpawn<S, NA, ThreadSafe> for RuntimeRef
-where
-    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
-    NA::Actor: Send + std::marker::Sync + 'static,
-    NA::Message: Send,
-{
-    fn try_spawn_setup<ArgFn, E>(
+    fn try_spawn(
         &mut self,
         supervisor: S,
         new_actor: NA,
-        arg_fn: ArgFn,
+        arg: NA::Argument,
         options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, AddActorError<NA::Error, E>>
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
-        ArgFn: FnOnce(&mut actor::Context<NA::Message, ThreadSafe>) -> Result<NA::Argument, E>,
+        S: Supervisor<NA>,
+        NA: NewActor<RuntimeAccess = ThreadSafe>,
     {
         self.internals
             .shared
-            .spawn_setup(supervisor, new_actor, arg_fn, options)
+            .try_spawn(supervisor, new_actor, arg, options)
     }
 }
 
