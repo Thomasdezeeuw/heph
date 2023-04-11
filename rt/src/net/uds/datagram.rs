@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 use std::net::Shutdown;
-use std::os::fd::{AsFd, IntoRawFd};
+use std::os::fd::IntoRawFd;
 use std::{fmt, io};
 
 use a10::{AsyncFd, Extract};
@@ -154,8 +154,7 @@ impl<M> UnixDatagram<M> {
     where
         F: FnOnce(SockRef<'_>) -> io::Result<T>,
     {
-        let borrowed = self.fd.as_fd(); // TODO: remove this once we update to socket2 v0.5.
-        f(SockRef::from(&borrowed))
+        f(SockRef::from(&self.fd))
     }
 }
 

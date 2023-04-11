@@ -48,7 +48,7 @@ fn auto_cpu_affinity() {
     fn cpu_affinity(stream: &TcpStream) -> io::Result<usize> {
         // TODO: do this better.
         let socket =
-            SockRef::from(unsafe { &*(stream as *const TcpStream as *const mio::net::TcpStream) });
+            SockRef::from(unsafe { &*(stream as *const TcpStream as *const a10::AsyncFd) });
         socket.cpu_affinity()
     }
 
