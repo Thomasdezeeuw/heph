@@ -673,15 +673,6 @@ impl RuntimeRef {
         self.internals.timers.borrow_mut().remove(pid, deadline);
     }
 
-    /// Change the `ProcessId` of a deadline.
-    fn change_deadline(&mut self, from: ProcessId, to: ProcessId, deadline: Instant) {
-        ::log::trace!(old_pid = from.0, new_pid = to.0, deadline = as_debug!(deadline); "changing deadline");
-        self.internals
-            .timers
-            .borrow_mut()
-            .change(from, deadline, to);
-    }
-
     /// Returns a copy of the shared internals.
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
         self.internals.shared.clone()

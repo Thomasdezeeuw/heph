@@ -92,7 +92,7 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
 }
 
 async fn conn_actor<RT>(
-    mut ctx: actor::Context<!, RT>,
+    ctx: actor::Context<!, RT>,
     stream: TcpStream,
     values: Arc<RwLock<HashMap<Box<str>, Arc<[u8]>>>>,
 ) -> io::Result<()>
@@ -105,7 +105,7 @@ where
 
     let err = loop {
         buffer.clear();
-        buffer = Deadline::after(&mut ctx, TIMEOUT, stream.recv(buffer)).await?;
+        buffer = Deadline::after(ctx.runtime_ref().clone(), TIMEOUT, stream.recv(buffer)).await?;
         if buffer.is_empty() {
             return Ok(());
         }

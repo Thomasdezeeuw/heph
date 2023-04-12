@@ -215,11 +215,6 @@ impl RuntimeInternals {
         self.timers.remove(pid, deadline);
     }
 
-    /// See [`Timers::change`].
-    pub(super) fn change_deadline(&self, from: ProcessId, to: ProcessId, deadline: Instant) {
-        self.timers.change(from, deadline, to);
-    }
-
     /// See [`Timers::remove_next`].
     pub(crate) fn remove_next_deadline(&self, now: Instant) -> Option<ProcessId> {
         self.timers.remove_next(now)

@@ -97,9 +97,6 @@ mod private {
         /// Remove a previously set deadline.
         fn remove_deadline(&mut self, deadline: Instant);
 
-        /// Changes a deadline's pid from `old_pid` the current pid.
-        fn change_deadline(&mut self, old_pid: ProcessId, deadline: Instant);
-
         /// Create a new [`task::Waker`].
         fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
 
@@ -196,10 +193,6 @@ impl PrivateAccess for ThreadLocal {
 
     fn remove_deadline(&mut self, deadline: Instant) {
         self.rt.remove_deadline(self.pid, deadline);
-    }
-
-    fn change_deadline(&mut self, old_pid: ProcessId, deadline: Instant) {
-        self.rt.change_deadline(old_pid, self.pid, deadline);
     }
 
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
@@ -343,10 +336,6 @@ impl PrivateAccess for ThreadSafe {
 
     fn remove_deadline(&mut self, deadline: Instant) {
         self.rt.remove_deadline(self.pid, deadline);
-    }
-
-    fn change_deadline(&mut self, old_pid: ProcessId, deadline: Instant) {
-        self.rt.change_deadline(old_pid, self.pid, deadline);
     }
 
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
