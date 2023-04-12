@@ -98,8 +98,8 @@ fn catch_panics_spawned_future() {
 const SLEEP_TIME: Duration = Duration::from_millis(200);
 
 /// Actor that sleeps and then returns.
-async fn sleepy_actor<RT: rt::Access + Clone>(mut ctx: actor::Context<!, RT>) {
-    let _ = Timer::after(&mut ctx, SLEEP_TIME).await;
+async fn sleepy_actor<RT: rt::Access + Clone>(ctx: actor::Context<!, RT>) {
+    let _ = Timer::after(ctx.runtime_ref().clone(), SLEEP_TIME).await;
 }
 
 #[test]

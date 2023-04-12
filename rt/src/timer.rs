@@ -11,15 +11,12 @@
 
 use std::async_iter::AsyncIterator;
 use std::future::Future;
-use std::mem::ManuallyDrop;
+use std::io;
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
-use std::{io, ptr};
 
-use heph::actor;
-
-use crate::{self as rt, Bound};
+use crate::{self as rt};
 
 /// Type returned when the deadline has passed.
 ///
@@ -42,8 +39,8 @@ impl From<DeadlinePassed> for io::ErrorKind {
 /// A [`Future`] that represents a timer.
 ///
 /// If this future returns [`Poll::Ready`]`(`[`DeadlinePassed`]`)` it means that
-/// the deadline has passed. If it returns [`Poll::Pending`] it's not yet
-/// passed.
+/// the deadline has passed. If it returns [`Poll::Pending`] the deadline has
+/// not yet passed.
 ///
 /// # Examples
 ///
@@ -74,10 +71,10 @@ impl From<DeadlinePassed> for io::ErrorKind {
 /// #   Ok(())
 /// # }
 /// #
-/// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
+/// async fn actor(ctx: actor::Context<!, ThreadLocal>) {
 /// #   let start = Instant::now();
 ///     // Create a timer, this will be ready once the timeout has passed.
-///     let timeout = Timer::after(&mut ctx, Duration::from_millis(200));
+///     let timeout = Timer::after(ctx.runtime_ref().clone(), Duration::from_millis(200));
 /// #   assert!(timeout.deadline() >= start + Duration::from_millis(200));
 ///
 ///     // Wait for the timer to pass.
@@ -91,28 +88,25 @@ impl From<DeadlinePassed> for io::ErrorKind {
 pub struct Timer<RT: rt::Access> {
     deadline: Instant,
     rt: RT,
-    // NOTE: when adding fields also add to [`Timer::wrap`].
+    /// If `true` it means we've added a timer that hasn't expired yet.
+    timer_pending: bool,
 }
 
 impl<RT: rt::Access> Timer<RT> {
     /// Create a new `Timer`.
-    pub fn at<M>(ctx: &mut actor::Context<M, RT>, deadline: Instant) -> Timer<RT>
-    where
-        RT: Clone,
-    {
-        let mut rt = ctx.runtime().clone();
-        rt.add_deadline(deadline);
-        Timer { deadline, rt }
+    pub const fn at(rt: RT, deadline: Instant) -> Timer<RT> {
+        Timer {
+            deadline,
+            rt,
+            timer_pending: false,
+        }
     }
 
     /// Create a new timer, based on a timeout.
     ///
-    /// Same as calling `Timer::at(&mut ctx, Instant::now() + timeout)`.
-    pub fn after<M>(ctx: &mut actor::Context<M, RT>, timeout: Duration) -> Timer<RT>
-    where
-        RT: Clone,
-    {
-        Timer::at(ctx, Instant::now() + timeout)
+    /// Same as calling `Timer::at(rt, Instant::now() + timeout)`.
+    pub fn after(rt: RT, timeout: Duration) -> Timer<RT> {
+        Timer::at(rt, Instant::now() + timeout)
     }
 
     /// Returns the deadline set for this `Timer`.
@@ -126,20 +120,10 @@ impl<RT: rt::Access> Timer<RT> {
     }
 
     /// Wrap a future creating a new `Deadline`.
-    pub fn wrap<Fut>(self, future: Fut) -> Deadline<Fut, RT> {
-        // We don't want to run the destructor as that would remove the
-        // deadline, which we need in `Deadline` as well. As a bonus we can
-        // safely move `RT` without having to clone it (which normally can't be
-        // done with `Drop` types).
-        // Safety: See [`ManuallyDrop::take`], rather then taking the entire
-        // thing struct at once we read (move out of) value by value.
-        let this = ManuallyDrop::new(self);
-        let deadline = unsafe { ptr::addr_of!(this.deadline).read() };
-        let rt = unsafe { ptr::addr_of!(this.rt).read() };
+    pub const fn wrap<Fut>(self, future: Fut) -> Deadline<Fut, RT> {
         Deadline {
-            deadline,
+            timer: self,
             future,
-            rt,
         }
     }
 }
@@ -147,38 +131,34 @@ impl<RT: rt::Access> Timer<RT> {
 impl<RT: rt::Access> Future for Timer<RT> {
     type Output = DeadlinePassed;
 
-    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
         if self.has_passed() {
-            Poll::Ready(DeadlinePassed)
-        } else {
-            Poll::Pending
+            self.timer_pending = false;
+            return Poll::Ready(DeadlinePassed);
+        } else if !self.timer_pending {
+            let deadline = self.deadline;
+            self.rt.add_deadline(deadline);
+            self.timer_pending = true;
         }
+        Poll::Pending
     }
 }
 
 impl<RT: rt::Access> Unpin for Timer<RT> {}
 
-impl<RT: rt::Access> Bound<RT> for Timer<RT> {
-    type Error = io::Error;
-
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
-        let old_pid = self.rt.change_pid(ctx.runtime_ref().pid());
-        self.rt.change_deadline(old_pid, self.deadline);
-        Ok(())
-    }
-}
-
 impl<RT: rt::Access> Drop for Timer<RT> {
     fn drop(&mut self) {
-        self.rt.remove_deadline(self.deadline);
+        if self.timer_pending {
+            self.rt.remove_deadline(self.deadline);
+        }
     }
 }
 
 /// A [`Future`] that wraps another future setting a deadline for it.
 ///
-/// When this future is polled it first checks if the deadline has passed, if so
-/// it returns [`Poll::Ready`]`(Err(`[`DeadlinePassed`]`.into()))`. Otherwise
-/// this will poll the future it wraps.
+/// When this future is polled it first checks if the underlying future `Fut`
+/// can make progress. If it returns pending it will check if the deadline has
+/// expired.
 ///
 /// # Notes
 ///
@@ -222,12 +202,12 @@ impl<RT: rt::Access> Drop for Timer<RT> {
 /// #     }
 /// # }
 /// #
-/// async fn actor(mut ctx: actor::Context<String, ThreadSafe>) {
+/// async fn actor(ctx: actor::Context<String, ThreadSafe>) {
 ///     // `OtherFuture` is a type that implements `Future`.
 ///     let future = IoFuture;
 ///     // Create our deadline.
 /// #   let start = Instant::now();
-///     let deadline_future = Deadline::after(&mut ctx, Duration::from_millis(100), future);
+///     let deadline_future = Deadline::after(ctx.runtime_ref().clone(), Duration::from_millis(100), future);
 /// #   assert!(deadline_future.deadline() >= start + Duration::from_millis(100));
 ///
 ///     // Now we await the results.
@@ -241,54 +221,34 @@ impl<RT: rt::Access> Drop for Timer<RT> {
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
 pub struct Deadline<Fut, RT: rt::Access> {
-    deadline: Instant,
+    timer: Timer<RT>,
     future: Fut,
-    rt: RT,
-    // NOTE: when adding fields also add to [`Deadline::into_inner`].
 }
 
 impl<Fut, RT: rt::Access> Deadline<Fut, RT> {
     /// Create a new `Deadline`.
-    pub fn at<M>(
-        ctx: &mut actor::Context<M, RT>,
-        deadline: Instant,
-        future: Fut,
-    ) -> Deadline<Fut, RT>
-    where
-        RT: Clone,
-    {
-        let mut rt = ctx.runtime().clone();
-        rt.add_deadline(deadline);
+    pub const fn at(rt: RT, deadline: Instant, future: Fut) -> Deadline<Fut, RT> {
         Deadline {
-            deadline,
+            timer: Timer::at(rt, deadline),
             future,
-            rt,
         }
     }
 
     /// Create a new deadline based on a timeout.
     ///
-    /// Same as calling `Deadline::at(&mut ctx, Instant::now() + timeout,
-    /// future)`.
-    pub fn after<M>(
-        ctx: &mut actor::Context<M, RT>,
-        timeout: Duration,
-        future: Fut,
-    ) -> Deadline<Fut, RT>
-    where
-        RT: Clone,
-    {
-        Deadline::at(ctx, Instant::now() + timeout, future)
+    /// Same as calling `Deadline::at(rt, Instant::now() + timeout, future)`.
+    pub fn after(rt: RT, timeout: Duration, future: Fut) -> Deadline<Fut, RT> {
+        Deadline::at(rt, Instant::now() + timeout, future)
     }
 
-    /// Returns the deadline set for this `Deadline`.
+    /// Returns the deadline set.
     pub const fn deadline(&self) -> Instant {
-        self.deadline
+        self.timer.deadline
     }
 
     /// Returns `true` if the deadline has passed.
     pub fn has_passed(&self) -> bool {
-        self.deadline <= Instant::now()
+        self.timer.deadline <= Instant::now()
     }
 
     /// Returns a reference to the wrapped future.
@@ -302,37 +262,10 @@ impl<Fut, RT: rt::Access> Deadline<Fut, RT> {
     }
 
     /// Returns the wrapped future.
-    pub fn into_inner(mut self) -> Fut {
-        self.rt.remove_deadline(self.deadline);
-        // Safety: See [`ManuallyDrop::take`], rather then taking the entire
-        // thing struct at once we read (move out of) value by value.
-        let mut this = ManuallyDrop::new(self);
-        unsafe { ptr::addr_of_mut!(this.deadline).drop_in_place() }
-        unsafe { ptr::addr_of_mut!(this.rt).drop_in_place() }
-        unsafe { ptr::addr_of!(this.future).read() }
+    pub fn into_inner(self) -> Fut {
+        self.future
     }
 }
-
-/* TODO: add this once `specialization` feature is stabilised.
-impl<Fut> Future for Deadline<Fut>
-where
-    Fut: Future,
-{
-    type Output = Result<Fut::Output, DeadlinePassed>;
-
-    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        if self.has_passed() {
-            Poll::Ready(Err(DeadlinePassed))
-        } else {
-            // Safety: this is safe because we're not moving the future.
-            let future = unsafe {
-                Pin::map_unchecked_mut(self, |this| &mut this.future)
-            };
-            future.poll(ctx).map(Ok)
-        }
-    }
-}
-*/
 
 impl<Fut, RT: rt::Access, T, E> Future for Deadline<Fut, RT>
 where
@@ -341,34 +274,24 @@ where
 {
     type Output = Result<T, E>;
 
-    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        if self.has_passed() {
-            Poll::Ready(Err(DeadlinePassed.into()))
-        } else {
-            // Safety: this is safe because we're not moving the future.
-            let future = unsafe { Pin::map_unchecked_mut(self, |this| &mut this.future) };
-            future.poll(ctx)
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the future.
+        let future = unsafe { Pin::map_unchecked_mut(self.as_mut(), |this| &mut this.future) };
+        match future.poll(ctx) {
+            Poll::Ready(result) => Poll::Ready(result),
+            Poll::Pending => {
+                // SAFETY: not moving the timer.
+                let timer = unsafe { Pin::map_unchecked_mut(self, |this| &mut this.timer) };
+                match timer.poll(ctx) {
+                    Poll::Ready(deadline) => Poll::Ready(Err(deadline.into())),
+                    Poll::Pending => Poll::Pending,
+                }
+            }
         }
     }
 }
 
 impl<Fut: Unpin, RT: rt::Access> Unpin for Deadline<Fut, RT> {}
-
-impl<Fut, RT: rt::Access> Bound<RT> for Deadline<Fut, RT> {
-    type Error = io::Error;
-
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> io::Result<()> {
-        let old_pid = self.rt.change_pid(ctx.runtime_ref().pid());
-        self.rt.change_deadline(old_pid, self.deadline);
-        Ok(())
-    }
-}
-
-impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
-    fn drop(&mut self) {
-        self.rt.remove_deadline(self.deadline);
-    }
-}
 
 /// An [`AsyncIterator`] that yields an item after an interval has passed.
 ///
@@ -377,10 +300,13 @@ impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
 ///
 /// # Notes
 ///
-/// The next deadline will always will be set after this returns `Poll::Ready`.
-/// This means that if the interval is very short and the iterator is not polled
-/// often enough it's possible that the actual time between yielding two values
-/// can become bigger then the specified interval.
+/// The next deadline will always will be set for exactly the specified interval
+/// after the last passed deadline. This means that if the iterator is not
+/// polled often enoguh it can be that deadlines will be set that expire
+/// immediately, yielding items in quick succession.
+///
+/// If the above description behaviour is not desired, but you rather wait a
+/// certain interval between work consider using a [`Timer`].
 ///
 /// # Examples
 ///
@@ -414,9 +340,9 @@ impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
 /// #   Ok(())
 /// # }
 ///
-/// async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
+/// async fn actor(ctx: actor::Context<!, ThreadLocal>) {
 /// #   let start = Instant::now();
-///     let mut interval = Interval::every(&mut ctx, Duration::from_millis(200));
+///     let mut interval = Interval::every(ctx.runtime_ref().clone(), Duration::from_millis(200));
 /// #   assert!(interval.next_deadline() >= start + Duration::from_millis(200));
 ///     loop {
 ///         // Wait until the next timer expires.
@@ -430,64 +356,39 @@ impl<Fut, RT: rt::Access> Drop for Deadline<Fut, RT> {
 #[derive(Debug)]
 #[must_use = "AsyncIterators do nothing unless polled"]
 pub struct Interval<RT: rt::Access> {
-    deadline: Instant,
+    timer: Timer<RT>,
     interval: Duration,
-    rt: RT,
 }
 
 impl<RT: rt::Access> Interval<RT> {
     /// Create a new `Interval`.
-    pub fn every<M>(ctx: &mut actor::Context<M, RT>, interval: Duration) -> Interval<RT>
-    where
-        RT: Clone,
-    {
-        let deadline = Instant::now() + interval;
-        let mut rt = ctx.runtime().clone();
-        rt.add_deadline(deadline);
+    pub fn every(rt: RT, interval: Duration) -> Interval<RT> {
         Interval {
-            deadline,
             interval,
-            rt,
+            timer: Timer::after(rt, interval),
         }
     }
 
     /// Returns the next deadline for this `Interval`.
     pub const fn next_deadline(&self) -> Instant {
-        self.deadline
+        self.timer.deadline
     }
 }
 
 impl<RT: rt::Access> AsyncIterator for Interval<RT> {
     type Item = DeadlinePassed;
 
-    fn poll_next(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.deadline <= Instant::now() {
-            // Determine the next deadline.
-            let next_deadline = Instant::now() + self.interval;
-            let this = Pin::get_mut(self);
-            this.deadline = next_deadline;
-            this.rt.add_deadline(next_deadline);
-            Poll::Ready(Some(DeadlinePassed))
-        } else {
-            Poll::Pending
+    fn poll_next(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
+        let this = Pin::into_inner(self);
+        match Pin::new(&mut this.timer).poll(ctx) {
+            Poll::Ready(deadline) => {
+                this.timer.deadline += this.interval;
+                this.timer.timer_pending = false;
+                Poll::Ready(Some(deadline))
+            }
+            Poll::Pending => Poll::Pending,
         }
     }
 }
 
 impl<RT: rt::Access> Unpin for Interval<RT> {}
-
-impl<RT: rt::Access> Bound<RT> for Interval<RT> {
-    type Error = !;
-
-    fn bind_to<M>(&mut self, ctx: &mut actor::Context<M, RT>) -> Result<(), !> {
-        let old_pid = self.rt.change_pid(ctx.runtime_ref().pid());
-        self.rt.change_deadline(old_pid, self.deadline);
-        Ok(())
-    }
-}
-
-impl<RT: rt::Access> Drop for Interval<RT> {
-    fn drop(&mut self) {
-        self.rt.remove_deadline(self.deadline);
-    }
-}

@@ -203,7 +203,7 @@ where
         match TcpStream::connect(ctx.runtime_ref(), address).await {
             Ok(stream) => break Ok(stream),
             Err(_) if i >= 1 => {
-                Timer::after(ctx, Duration::from_millis(1)).await;
+                Timer::after(ctx.runtime_ref().clone(), Duration::from_millis(1)).await;
                 i -= 1;
                 continue;
             }

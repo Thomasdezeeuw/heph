@@ -293,7 +293,7 @@ where
 
     if let Some(timeout) = notify.watchdog_timeout() {
         debug!(timeout = as_debug!(timeout); "started via systemd with watchdog");
-        let mut interval = Interval::every(&mut ctx, timeout);
+        let mut interval = Interval::every(ctx.runtime_ref().clone(), timeout);
         loop {
             match either(ctx.receive_next(), next(&mut interval)).await {
                 Ok(Ok(msg)) => match msg {

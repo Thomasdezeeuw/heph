@@ -168,16 +168,6 @@ impl Timers {
         self.get_timers(pid, deadline, remove_timer, remove_timer);
     }
 
-    /// Change the `ProcessId` of a previously added deadline.
-    pub(crate) fn change(&self, pid: ProcessId, deadline: Instant, new_pid: ProcessId) {
-        self.get_timers(
-            pid,
-            deadline,
-            |timers, timer| change_timer(timers, timer, new_pid),
-            |timers, timer| change_timer(timers, timer, new_pid),
-        );
-    }
-
     /// Determines in what list of timers a timer with `pid` and `deadline`
     /// would be/go into. Then calls the `slot_f` function for a timer list in
     /// the slots, or `overflow_f` with the overflow list.
@@ -303,18 +293,6 @@ where
 {
     if let Ok(idx) = timers.binary_search(&timer) {
         _ = timers.remove(idx);
-    }
-}
-
-/// Change the pid of a previously added `timer` in `timers`
-fn change_timer<T>(timers: &mut Vec<Timer<T>>, timer: Timer<T>, new_pid: ProcessId)
-where
-    Timer<T>: Ord + Copy,
-{
-    match timers.binary_search(&timer) {
-        Ok(idx) => timers[idx].pid = new_pid,
-        #[rustfmt::skip]
-        Err(idx) => timers.insert(idx, Timer { pid: new_pid, deadline: timer.deadline }),
     }
 }
 
