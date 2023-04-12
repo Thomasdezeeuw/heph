@@ -11,12 +11,23 @@ use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{init_local_actor, poll_actor, poll_future, poll_next};
 use heph_rt::timer::{Deadline, DeadlinePassed, Interval, Timer};
 use heph_rt::util::next;
-use heph_rt::{self as rt, Bound, Runtime, RuntimeRef, ThreadLocal};
+use heph_rt::{self as rt, Bound, Runtime, RuntimeRef, ThreadLocal, ThreadSafe};
 
-use crate::util::{count_polls, expect_pending};
+use crate::util::{assert_size, count_polls, expect_pending};
 
 const SMALL_TIMEOUT: Duration = Duration::from_millis(50);
 const TIMEOUT: Duration = Duration::from_millis(100);
+
+#[test]
+fn size() {
+    assert_size::<Timer<ThreadLocal>>(32);
+    assert_size::<Timer<ThreadSafe>>(32);
+    assert_size::<Deadline<(), ThreadLocal>>(32);
+    assert_size::<Deadline<(), ThreadSafe>>(32);
+    assert_size::<Interval<ThreadLocal>>(48);
+    assert_size::<Interval<ThreadSafe>>(48);
+    assert_size::<DeadlinePassed>(0);
+}
 
 #[test]
 fn deadline_passed_into_io_error() {
