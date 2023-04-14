@@ -29,7 +29,7 @@ pub(super) struct RuntimeInternals {
     pub(super) scheduler: RefCell<Scheduler>,
     /// OS poll, used for event notifications to support non-blocking I/O.
     pub(super) poll: RefCell<Poll>,
-    /// I/O uring.
+    /// io_uring completion ring.
     pub(super) ring: RefCell<a10::Ring>,
     /// Timers, deadlines and timeouts.
     pub(crate) timers: RefCell<Timers>,

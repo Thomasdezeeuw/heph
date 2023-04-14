@@ -214,7 +214,6 @@ use heph_inbox as inbox;
 use mio::{event, Interest, Token};
 
 pub mod access;
-pub mod bytes;
 mod channel;
 mod coordinator;
 mod error;
