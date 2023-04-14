@@ -34,7 +34,7 @@ use std::time::Duration;
 /// let opts = ActorOptions::default().with_priority(Priority::HIGH);
 /// # drop(opts); // Silence unused variable warning.
 /// ```
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 #[must_use]
 pub struct ActorOptions {
     priority: Priority,
@@ -50,14 +50,6 @@ impl ActorOptions {
     pub const fn with_priority(mut self, priority: Priority) -> Self {
         self.priority = priority;
         self
-    }
-}
-
-impl Default for ActorOptions {
-    fn default() -> ActorOptions {
-        ActorOptions {
-            priority: Priority::default(),
-        }
     }
 }
 
