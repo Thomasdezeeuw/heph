@@ -15,7 +15,7 @@ use heph::supervisor::Supervisor;
 use heph_inbox as inbox;
 use log::{as_debug, debug, error, trace};
 use mio::unix::SourceFd;
-use mio::{event, Events, Interest, Poll, Registry, Token};
+use mio::{Events, Interest, Poll, Registry, Token};
 
 use crate::spawn::{ActorOptions, FutureOptions};
 use crate::thread_waker::ThreadWaker;
@@ -42,7 +42,6 @@ use waker::WakerId;
 pub(crate) struct RuntimeSetup {
     poll: Poll,
     ring: a10::Ring,
-    registry: Registry,
 }
 
 impl RuntimeSetup {
@@ -63,7 +62,6 @@ impl RuntimeSetup {
             poll: Mutex::new(self.poll),
             ring: Mutex::new(self.ring),
             sq,
-            registry: self.registry,
             scheduler: Scheduler::new(),
             timers: Timers::new(),
             trace_log,
@@ -88,8 +86,6 @@ pub(crate) struct RuntimeInternals {
     ring: Mutex<a10::Ring>,
     /// SubmissionQueue for the `ring`.
     sq: a10::SubmissionQueue,
-    /// Registry for the `Coordinator`'s `Poll` instance.
-    registry: Registry,
     /// Scheduler for thread-safe actors.
     scheduler: Scheduler,
     /// Timers for thread-safe actors.
@@ -118,12 +114,7 @@ impl RuntimeInternals {
         let poll = Poll::new()?;
         // TODO: configure ring.
         let ring = a10::Ring::new(512)?;
-        let registry = poll.registry().try_clone()?;
-        Ok(RuntimeSetup {
-            poll,
-            ring,
-            registry,
-        })
+        Ok(RuntimeSetup { poll, ring })
     }
 
     /// Returns metrics about the shared scheduler and timers.
@@ -177,32 +168,6 @@ impl RuntimeInternals {
     /// Returns the io_uring submission queue.
     pub(crate) fn submission_queue(&self) -> &a10::SubmissionQueue {
         &self.sq
-    }
-
-    /// Register an `event::Source`, see [`mio::Registry::register`].
-    pub(crate) fn register<S>(
-        &self,
-        source: &mut S,
-        token: Token,
-        interest: Interest,
-    ) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.registry.register(source, token, interest)
-    }
-
-    /// Reregister an `event::Source`, see [`mio::Registry::reregister`].
-    pub(crate) fn reregister<S>(
-        &self,
-        source: &mut S,
-        token: Token,
-        interest: Interest,
-    ) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.registry.reregister(source, token, interest)
     }
 
     /// Add a timer.
