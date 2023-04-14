@@ -18,9 +18,9 @@ mod functional {
     mod actor_context;
     mod actor_group;
     mod actor_ref;
-    mod bytes;
     mod from_message;
     mod future;
+    mod io;
     mod pipe;
     mod restart_supervisor;
     mod runtime;
