@@ -284,9 +284,19 @@ unsafe impl Buf for String {
     }
 }
 
-// SAFETY: `Arc<u8>` manages the allocation of the bytes, so as long as it's
-// alive, so is the slice of bytes. When the `Vec`tor is leaked the allocation
-// will also be leaked.
+// SAFETY: `Box<[u8]>` manages the allocation of the bytes, so as long as it's
+// alive, so is the slice of bytes. When the `Box` is leaked the allocation will
+// also be leaked.
+unsafe impl Buf for Box<[u8]> {
+    unsafe fn parts(&self) -> (*const u8, usize) {
+        let slice: &[u8] = self;
+        (slice.as_ptr().cast(), slice.len())
+    }
+}
+
+// SAFETY: `Arc<[u8]>` manages the allocation of the bytes, so as long as it's
+// alive, so is the slice of bytes. When the `Arc` is leaked the allocation will
+// also be leaked.
 unsafe impl Buf for Arc<[u8]> {
     unsafe fn parts(&self) -> (*const u8, usize) {
         let slice: &[u8] = self;
