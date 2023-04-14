@@ -31,6 +31,7 @@ struct Epoch {
 impl Timers {
     /// Create a new collection of timers.
     pub(crate) fn new() -> Timers {
+        #[allow(clippy::declare_interior_mutable_const)]
         const EMPTY: RwLock<Vec<Timer<TimeOffset>>> = RwLock::new(Vec::new());
         Timers {
             epoch: RwLock::new(Epoch {
@@ -176,10 +177,9 @@ impl Timers {
                         if !self.maybe_update_epoch(now) {
                             // Didn't update epoch, no more timers to process.
                             return amount;
-                        } else {
-                            // Process the next slot.
-                            break;
                         }
+                        // Process the next slot.
+                        break;
                     }
                     // Slot has timers with a deadline past `now`, so no more
                     // timers to process.
@@ -194,6 +194,7 @@ impl Timers {
     /// # Panics
     ///
     /// This panics if the current slot is not empty.
+    #[allow(clippy::cast_possible_truncation)] // For `epoch.index`.
     fn maybe_update_epoch(&self, now: Instant) -> bool {
         let epoch_time = {
             let mut epoch = self.epoch.write().unwrap();
@@ -207,7 +208,6 @@ impl Timers {
             debug_assert!(self.slots[epoch.index as usize].read().unwrap().is_empty());
 
             // Move to the next slot and update the epoch.
-            #[allow(clippy::cast_possible_truncation)]
             epoch.index = (epoch.index + 1) % self.slots.len() as u8;
             epoch.time = new_epoch;
             new_epoch
