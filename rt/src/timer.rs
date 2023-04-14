@@ -166,6 +166,8 @@ impl<RT: rt::Access> Drop for Timer<RT> {
 /// dealing with lifetime issue, e.g. when calling
 /// [`actor::Context::receive_next`] and wrapping that in a `Deadline`.
 ///
+/// [`actor::Context::receive_next`]: heph::actor::Context::receive_next
+///
 /// # Examples
 ///
 /// Setting a timeout for a future.

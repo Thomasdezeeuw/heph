@@ -52,9 +52,9 @@ const COMMS: Token = Token(usize::MAX - 1);
 /// Token used to indicate the shared [`Poll`] (in [`shared::RuntimeInternals`])
 /// has events.
 const SHARED_POLL: Token = Token(usize::MAX - 2);
-/// Token used to indicate the I/O uring has events.
+/// Token used to indicate the io_uring completion ring has events.
 const RING: Token = Token(usize::MAX - 3);
-/// Token used to indicate the shared I/O uring has events.
+/// Token used to indicate the shared io_uring completion ring has events.
 const SHARED_RING: Token = Token(usize::MAX - 4);
 
 /// Setup a new worker thread.
@@ -88,7 +88,7 @@ pub(super) struct WorkerSetup {
     /// Poll instance for the worker thread. This is needed before starting the
     /// thread to initialise the [`rt::local::waker`].
     poll: Poll,
-    /// I/O uring.
+    /// io_uring completion ring.
     ring: a10::Ring,
     /// Waker id used to create a `Waker` for thread-local actors.
     waker_id: WakerId,
@@ -222,13 +222,13 @@ impl Worker {
 
         // Register the shared poll intance.
         let poll = setup.poll;
-        trace!(worker_id = setup.id.get(); "registering I/O uring");
+        trace!(worker_id = setup.id.get(); "registering io_uring completion ring");
         let ring = setup.ring;
         let ring_fd = ring.as_fd().as_raw_fd();
         poll.registry()
             .register(&mut SourceFd(&ring_fd), RING, Interest::READABLE)
             .map_err(Error::Init)?;
-        trace!(worker_id = setup.id.get(); "registering shared I/O uring");
+        trace!(worker_id = setup.id.get(); "registering shared io_uring completion ring");
         let shared_ring_fd = shared_internals.ring_fd();
         poll.registry()
             .register(

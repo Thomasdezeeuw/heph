@@ -84,7 +84,7 @@ pub(crate) struct RuntimeInternals {
     /// Poll instance for all shared event sources. This is polled by the worker
     /// thread.
     poll: Mutex<Poll>,
-    /// I/O uring.
+    /// io_uring completion ring.
     ring: Mutex<a10::Ring>,
     /// SubmissionQueue for the `ring`.
     sq: a10::SubmissionQueue,
@@ -160,21 +160,21 @@ impl RuntimeInternals {
         }
     }
 
-    /// Polls the I/O uring if it's currently not being polled.
+    /// Polls the io_uring completion ring if it's currently not being polled.
     pub(crate) fn try_poll_ring(&self) -> io::Result<()> {
         match self.ring.try_lock() {
             Ok(mut ring) => ring.poll(Some(Duration::ZERO)),
             Err(TryLockError::WouldBlock) => Ok(()),
-            Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared I/O uring: {err}"),
+            Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared io_uring: {err}"),
         }
     }
 
-    /// Return the file descriptor for the I/O uring.
+    /// Return the file descriptor for the io_uring.
     pub(crate) fn ring_fd(&self) -> RawFd {
         self.ring.lock().unwrap().as_fd().as_raw_fd()
     }
 
-    /// Returns the I/O uring submission queue.
+    /// Returns the io_uring submission queue.
     pub(crate) fn submission_queue(&self) -> &a10::SubmissionQueue {
         &self.sq
     }

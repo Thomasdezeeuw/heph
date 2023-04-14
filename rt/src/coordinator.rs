@@ -45,7 +45,7 @@ const RING: Token = Token(usize::MAX - 1);
 /// Coordinator responsible for coordinating the Heph runtime.
 #[derive(Debug)]
 pub(super) struct Coordinator {
-    /// I/O uring.
+    /// io_uring completion ring.
     ring: a10::Ring,
     /// OS poll, used to poll the status of the (sync) worker threads and
     /// process `signals`.
@@ -200,7 +200,7 @@ impl Coordinator {
     fn poll_os(&mut self, events: &mut Events) -> io::Result<()> {
         match self.poll.poll(events, None) {
             Ok(()) => Ok(()),
-            // The I/O uring will interrupt us.
+            // The io_uring will interrupt us.
             Err(ref err) if err.kind() == io::ErrorKind::Interrupted => Ok(()),
             Err(err) => Err(err),
         }
