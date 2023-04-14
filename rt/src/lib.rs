@@ -252,6 +252,7 @@ use coordinator::Coordinator;
 use local::waker::MAX_THREADS;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 use sync_worker::SyncWorker;
+use timer::TimerToken;
 
 const SYNC_WORKER_ID_START: usize = 10000;
 const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
@@ -665,17 +666,17 @@ impl RuntimeRef {
     /// Add a timer.
     ///
     /// See [`Timers::add`].
-    pub(crate) fn add_timer(&self, pid: ProcessId, deadline: Instant) {
+    pub(crate) fn add_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
         ::log::trace!(deadline = as_debug!(deadline); "adding timer");
-        self.internals.timers.borrow_mut().add(pid, deadline);
+        self.internals.timers.borrow_mut().add(deadline, waker)
     }
 
     /// Remove a previously set timer.
     ///
     /// See [`Timers::remove`].
-    pub(crate) fn remove_timer(&self, pid: ProcessId, deadline: Instant) {
+    pub(crate) fn remove_timer(&self, deadline: Instant, token: TimerToken) {
         ::log::trace!(deadline = as_debug!(deadline); "removing timer");
-        self.internals.timers.borrow_mut().remove(pid, deadline);
+        self.internals.timers.borrow_mut().remove(deadline, token);
     }
 
     /// Returns a copy of the shared internals.

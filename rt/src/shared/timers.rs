@@ -247,9 +247,7 @@ impl Timers {
                     }
                     // Slot has timers with a deadline past `now`, so no more
                     // timers to process.
-                    Err(false) => {
-                        return amount;
-                    }
+                    Err(false) => return amount,
                 }
             }
         }
