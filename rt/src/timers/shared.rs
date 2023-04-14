@@ -1,79 +1,17 @@
-//! Module with the shared timers implementation.
-//!
-//! Also see the local timers implementation.
+//! Threadsafe version of `Timers`.
 
 use std::cmp::min;
 use std::sync::RwLock;
 use std::task::Waker;
 use std::time::{Duration, Instant};
 
-use log::{as_debug, trace};
+use crate::timers::{
+    add_timer, remove_if_before, remove_timer, TimeOffset, Timer, TimerLocation, TimerToken,
+    DURATION_PER_SLOT, NS_OVERFLOW, NS_PER_SLOT, NS_PER_SLOT_BITS, NS_SLOT_MASK, OVERFLOW_DURATION,
+    SLOTS, SLOT_BITS,
+};
 
-use crate::timer::TimerToken;
-
-#[cfg(test)]
-#[path = "timers_tests.rs"]
-mod timers_tests;
-
-/// Bits needed for the number of slots.
-const SLOT_BITS: usize = 6;
-/// Number of slots in the [`Timers`] wheel, 64.
-const SLOTS: usize = 1 << SLOT_BITS;
-/// Bits needed for the nanoseconds per slot.
-const NS_PER_SLOT_BITS: usize = 30;
-/// Nanoseconds per slot, 1073741824 ns ~= 1 second.
-const NS_PER_SLOT: TimeOffset = 1 << NS_PER_SLOT_BITS;
-/// Duration per slot, [`NS_PER_SLOT`] as [`Duration`].
-const DURATION_PER_SLOT: Duration = Duration::from_nanos(NS_PER_SLOT as u64);
-/// Timers within `((1 << 6) * (1 << 30))` ~= 68 seconds since the epoch fit in
-/// the wheel, others get added to the overflow.
-const NS_OVERFLOW: u64 = SLOTS as u64 * NS_PER_SLOT as u64;
-/// Duration per slot, [`NS_OVERFLOW`] as [`Duration`].
-const OVERFLOW_DURATION: Duration = Duration::from_nanos(NS_OVERFLOW);
-/// Mask to get the nanoseconds for a slot.
-const NS_SLOT_MASK: u128 = (1 << NS_PER_SLOT_BITS) - 1;
-
-/// Time offset since the epoch of [`Timers::epoch`].
-///
-/// Must fit [`NS_PER_SLOT`].
-type TimeOffset = u32;
-
-/// Timers.
-///
-/// This implementation is based on a Timing Wheel as discussed in the paper
-/// "Hashed and hierarchical timing wheels: efficient data structures for
-/// implementing a timer facility" by George Varghese and Anthony Lauck (1997).
-///
-/// This uses a scheme that splits the timers based on when they're going to
-/// expire. It has 64 ([`SLOTS`]) slots each representing roughly a second of
-/// time ([`NS_PER_SLOT`]). This allows us to only consider a portion of all
-/// timers when processing the timers. Any timers that don't fit into these
-/// slots, i.e. timers with a deadline more than 68 seconds ([`NS_OVERFLOW`])
-/// past `epoch`, are put in a overflow list. Ideally this overflow list is
-/// empty however.
-///
-/// The `slots` hold the timers with a [`TimeOffset`] which is the number of
-/// nanosecond since epoch times it's index. The `index` field determines the
-/// current zero-slot, meaning its timers will expire next and all have a
-/// deadline within `0..NS_PER_SLOT` nanoseconds after `epoch`. The
-/// `slots[index+1]` list will have timers that expire
-/// `NS_PER_SLOT..2*NS_PER_SLOT` nanoseconds after `epoch`. In other words each
-/// slot holds the timers that expire in the ~second after the previous slot.
-///
-/// Whenever timers are removed by `remove_next` it will attempt to update the
-/// `epoch`, which is used as anchor point to determine in what slot/overflow
-/// the timer must go (see above). When updating the epoch it will increase the
-/// `index` by 1 and the `epoch` by [`NS_PER_SLOT`] nanoseconds in a single
-/// atomic step (thus requiring a lock around `Epoch`). This means the next slot
-/// (now `slots[index+1]`) holds timers that expire `0..NS_PER_SLOT` nanoseconds
-/// after `epoch`.
-///
-/// Note that it's possible for a thread to read the epoch (index and time),
-/// than gets descheduled, another thread updates the epoch and finally the
-/// second thread insert a timer based on a now outdated epoch. This situation
-/// is fine as the timer will still be added to the correct slot, but it has a
-/// higher change of being added to the overflow list (which
-/// `maybe_update_epoch` deals with correctly).
+/// Shared timers.
 #[derive(Debug)]
 pub(crate) struct Timers {
     epoch: RwLock<Epoch>,
@@ -88,13 +26,6 @@ pub(crate) struct Timers {
 struct Epoch {
     time: Instant,
     index: u8,
-}
-
-/// A timer in [`Timers`].
-#[derive(Debug)]
-struct Timer<T> {
-    deadline: T,
-    waker: Waker,
 }
 
 impl Timers {
@@ -119,6 +50,12 @@ impl Timers {
         }
         timers += self.overflow.read().unwrap().len();
         timers
+    }
+
+    #[cfg(test)]
+    pub(crate) fn epoch(&self) -> (Instant, u8) {
+        let epoch = self.epoch.read().unwrap();
+        (epoch.time, epoch.index)
     }
 
     /// Returns the next deadline, if any.
@@ -204,7 +141,6 @@ impl Timers {
     ///
     /// `now` may never go backwards between calls.
     pub(crate) fn expire_timers(&self, now: Instant) -> usize {
-        trace!(now = as_debug!(now); "expiring timers");
         let mut amount = 0;
         loop {
             // NOTE: Each loop iteration needs to calculate the `epoch_offset`
@@ -259,7 +195,6 @@ impl Timers {
     ///
     /// This panics if the current slot is not empty.
     fn maybe_update_epoch(&self, now: Instant) -> bool {
-        trace!(now = as_debug!(now); "maybe updating epoch");
         let epoch_time = {
             let mut epoch = self.epoch.write().unwrap();
             let new_epoch = epoch.time + DURATION_PER_SLOT;
@@ -277,12 +212,10 @@ impl Timers {
             epoch.time = new_epoch;
             new_epoch
         };
-        trace!(epoch_time = as_debug!(epoch_time); "new epoch time");
 
         // Next move all the overflow timers that now fit in the slots.
         let time = epoch_time + OVERFLOW_DURATION;
         while let Ok(timer) = { remove_if_before(&mut self.overflow.write().unwrap(), time) } {
-            trace!(timer = as_debug!(timer); "moving overflow timer into wheel");
             // NOTE: we can't use the same optimisation as we do in the local
             // version where we know that all timers removed here go into the
             // `self.index-1` slot.
@@ -293,45 +226,5 @@ impl Timers {
             _ = self.add(timer.deadline, timer.waker);
         }
         true
-    }
-}
-
-/// Location of a timer.
-enum TimerLocation<'a> {
-    /// In of the wheel's slots.
-    InSlot((&'a mut Vec<Timer<TimeOffset>>, TimeOffset)),
-    /// In the overflow vector.
-    Overflow((&'a mut Vec<Timer<Instant>>, Instant)),
-}
-
-/// Add a new timer to `timers`, ensuring it remains sorted.
-fn add_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, waker: Waker) -> TimerToken {
-    let idx = match timers.binary_search_by(|timer| timer.deadline.cmp(&deadline)) {
-        Ok(idx) | Err(idx) => idx,
-    };
-    let token = TimerToken(waker.as_raw().data() as usize);
-    timers.insert(idx, Timer { deadline, waker });
-    token
-}
-
-/// Remove a previously added `deadline` from `timers`, ensuring it remains sorted.
-fn remove_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, token: TimerToken) {
-    if let Ok(idx) = timers.binary_search_by(|timer| timer.deadline.cmp(&deadline)) {
-        if timers[idx].waker.as_raw().data() as usize == token.0 {
-            _ = timers.remove(idx);
-        }
-    }
-}
-
-/// Remove the first timer if it's before `time`.
-///
-/// Returns `Ok(timer)` if there is a timer with a deadline before `time`.
-/// Otherwise this returns `Err(true)` if `timers` is empty or `Err(false)` if
-/// the are more timers in `timers`, but none with a deadline before `time`.
-fn remove_if_before<T: Ord>(timers: &mut Vec<Timer<T>>, time: T) -> Result<Timer<T>, bool> {
-    match timers.last() {
-        Some(timer) if timer.deadline <= time => Ok(timers.pop().unwrap()),
-        Some(_) => Err(false),
-        None => Err(true),
     }
 }

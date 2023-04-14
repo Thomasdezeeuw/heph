@@ -235,6 +235,7 @@ pub mod systemd;
 pub mod test;
 mod thread_waker;
 pub mod timer;
+mod timers;
 pub mod trace;
 #[doc(hidden)]
 pub mod util;
@@ -252,7 +253,7 @@ use coordinator::Coordinator;
 use local::waker::MAX_THREADS;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 use sync_worker::SyncWorker;
-use timer::TimerToken;
+use timers::TimerToken;
 
 const SYNC_WORKER_ID_START: usize = 10000;
 const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;

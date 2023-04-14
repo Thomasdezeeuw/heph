@@ -10,11 +10,10 @@ use mio::Poll;
 use crate::{shared, trace, Signal};
 
 mod scheduler;
-mod timers;
 pub(super) mod waker;
 
+use crate::timers::Timers;
 use scheduler::Scheduler;
-use timers::Timers;
 use waker::WakerId;
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
