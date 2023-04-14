@@ -155,7 +155,8 @@
     never_type,
     new_uninit,
     stmt_expr_attributes,
-    type_alias_impl_trait
+    type_alias_impl_trait,
+    waker_getters
 )]
 #![warn(
     anonymous_parameters,
@@ -661,15 +662,19 @@ impl RuntimeRef {
         self.internals.shared.mark_ready(pid);
     }
 
-    /// Add a deadline.
-    fn add_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        ::log::trace!(pid = pid.0, deadline = as_debug!(deadline); "adding deadline");
+    /// Add a timer.
+    ///
+    /// See [`Timers::add`].
+    pub(crate) fn add_timer(&self, pid: ProcessId, deadline: Instant) {
+        ::log::trace!(deadline = as_debug!(deadline); "adding timer");
         self.internals.timers.borrow_mut().add(pid, deadline);
     }
 
-    /// Remove a deadline.
-    fn remove_deadline(&mut self, pid: ProcessId, deadline: Instant) {
-        ::log::trace!(pid = pid.0, deadline = as_debug!(deadline); "removing deadline");
+    /// Remove a previously set timer.
+    ///
+    /// See [`Timers::remove`].
+    pub(crate) fn remove_timer(&self, pid: ProcessId, deadline: Instant) {
+        ::log::trace!(deadline = as_debug!(deadline); "removing timer");
         self.internals.timers.borrow_mut().remove(pid, deadline);
     }
 

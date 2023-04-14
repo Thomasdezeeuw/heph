@@ -13,12 +13,13 @@ use heph::actor::{self, NewActor};
 use heph::actor_ref::ActorRef;
 use heph::supervisor::Supervisor;
 use heph_inbox as inbox;
-use log::{debug, error, trace};
+use log::{as_debug, debug, error, trace};
 use mio::unix::SourceFd;
 use mio::{event, Events, Interest, Poll, Registry, Token};
 
 use crate::spawn::{ActorOptions, FutureOptions};
 use crate::thread_waker::ThreadWaker;
+use crate::timer::TimerToken;
 use crate::{trace, ProcessId, ThreadSafe};
 
 mod scheduler;
@@ -205,19 +206,27 @@ impl RuntimeInternals {
         self.registry.reregister(source, token, interest)
     }
 
+    /// Add a timer.
+    ///
     /// See [`Timers::add`].
-    pub(super) fn add_deadline(&self, pid: ProcessId, deadline: Instant) {
-        self.timers.add(pid, deadline);
+    pub(crate) fn add_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
+        trace!(deadline = as_debug!(deadline); "adding timer");
+        self.timers.add(deadline, waker)
     }
 
+    /// Remove a previously set timer.
+    ///
     /// See [`Timers::remove`].
-    pub(super) fn remove_deadline(&self, pid: ProcessId, deadline: Instant) {
-        self.timers.remove(pid, deadline);
+    pub(crate) fn remove_timer(&self, deadline: Instant, expire_token: TimerToken) {
+        trace!(deadline = as_debug!(deadline); "removing timer");
+        self.timers.remove(deadline, expire_token);
     }
 
-    /// See [`Timers::remove_next`].
-    pub(crate) fn remove_next_deadline(&self, now: Instant) -> Option<ProcessId> {
-        self.timers.remove_next(now)
+    /// Wake all futures who's timers has expired.
+    ///
+    /// See [`Timers::expire_timers`].
+    pub(crate) fn expire_timers(&self, now: Instant) -> usize {
+        self.timers.expire_timers(now)
     }
 
     /// Determine the timeout to use in polling based on the current time

@@ -18,6 +18,19 @@ use std::time::{Duration, Instant};
 
 use crate::{self as rt};
 
+mod private {
+    //! [`TimerToken`] needs to be public because it's used in the
+    //! private-in-public trait [`PrivateAccess`].
+    //!
+    //! [`PrivateAccess`]: crate::access::private::PrivateAccess
+
+    /// Token used to expire a timer.
+    #[derive(Copy, Clone, Debug)]
+    pub struct TimerToken(pub(crate) usize);
+}
+
+pub(crate) use private::TimerToken;
+
 /// Type returned when the deadline has passed.
 ///
 /// Can be converted into [`io::ErrorKind::TimedOut`].
@@ -88,8 +101,8 @@ impl From<DeadlinePassed> for io::ErrorKind {
 pub struct Timer<RT: rt::Access> {
     deadline: Instant,
     rt: RT,
-    /// If `true` it means we've added a timer that hasn't expired yet.
-    timer_pending: bool,
+    /// If `Some` it means we've added a timer that hasn't expired yet.
+    timer_pending: Option<TimerToken>,
 }
 
 impl<RT: rt::Access> Timer<RT> {
@@ -98,7 +111,7 @@ impl<RT: rt::Access> Timer<RT> {
         Timer {
             deadline,
             rt,
-            timer_pending: false,
+            timer_pending: None,
         }
     }
 
@@ -131,14 +144,13 @@ impl<RT: rt::Access> Timer<RT> {
 impl<RT: rt::Access> Future for Timer<RT> {
     type Output = DeadlinePassed;
 
-    fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         if self.has_passed() {
-            self.timer_pending = false;
+            self.timer_pending = None;
             return Poll::Ready(DeadlinePassed);
-        } else if !self.timer_pending {
+        } else if self.timer_pending.is_none() {
             let deadline = self.deadline;
-            self.rt.add_deadline(deadline);
-            self.timer_pending = true;
+            self.timer_pending = Some(self.rt.add_timer(deadline, ctx.waker().clone()));
         }
         Poll::Pending
     }
@@ -148,8 +160,8 @@ impl<RT: rt::Access> Unpin for Timer<RT> {}
 
 impl<RT: rt::Access> Drop for Timer<RT> {
     fn drop(&mut self) {
-        if self.timer_pending {
-            self.rt.remove_deadline(self.deadline);
+        if let Some(expire_token) = self.timer_pending {
+            self.rt.remove_timer(self.deadline, expire_token);
         }
     }
 }
@@ -383,7 +395,7 @@ impl<RT: rt::Access> AsyncIterator for Interval<RT> {
         match Pin::new(&mut this.timer).poll(ctx) {
             Poll::Ready(deadline) => {
                 this.timer.deadline += this.interval;
-                this.timer.timer_pending = false;
+                this.timer.timer_pending = None;
                 Poll::Ready(Some(deadline))
             }
             Poll::Pending => Poll::Pending,

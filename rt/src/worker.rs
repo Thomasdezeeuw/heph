@@ -619,14 +619,7 @@ impl Worker {
     fn schedule_from_shared_timers(&mut self, now: Instant) -> usize {
         trace!(worker_id = self.internals.id.get(); "polling shared timers");
         let timing = trace::start(&*self.internals.trace_log.borrow());
-
-        let mut amount: usize = 0;
-        while let Some(pid) = self.internals.shared.remove_next_deadline(now) {
-            trace!(worker_id = self.internals.id.get(), pid = pid.0; "expiring timer for shared process");
-            self.internals.shared.mark_ready(pid);
-            amount += 1;
-        }
-
+        let amount = self.internals.shared.expire_timers(now);
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
             timing,
