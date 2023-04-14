@@ -19,15 +19,14 @@ use mio::{event, Events, Interest, Poll, Registry, Token};
 
 use crate::spawn::{ActorOptions, FutureOptions};
 use crate::thread_waker::ThreadWaker;
-use crate::timer::TimerToken;
+use crate::timers::TimerToken;
 use crate::{trace, ProcessId, ThreadSafe};
 
 mod scheduler;
-mod timers;
 pub(crate) mod waker;
 
+use crate::timers::shared::Timers;
 use scheduler::{ProcessData, Scheduler};
-use timers::Timers;
 use waker::WakerId;
 
 /// Setup of [`RuntimeInternals`].

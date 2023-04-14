@@ -42,7 +42,7 @@ use mio::{event, Interest};
 
 use crate::process::ProcessId;
 use crate::spawn::{ActorOptions, FutureOptions, Spawn};
-use crate::timer::TimerToken;
+use crate::timers::TimerToken;
 use crate::trace::{self, Trace};
 use crate::{shared, RuntimeRef};
 
@@ -67,7 +67,7 @@ mod private {
     use mio::{event, Interest};
 
     use crate::process::ProcessId;
-    use crate::timer::TimerToken;
+    use crate::timers::TimerToken;
     use crate::{trace, RuntimeRef};
 
     /// Actual trait behind [`rt::Access`].

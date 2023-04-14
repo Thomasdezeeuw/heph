@@ -1,16 +1,69 @@
-//! Module with the local timers implementation.
+//! Timers implementation.
 //!
-//! Also see the shared timers implementation.
+//! This module hold the timer**s** implementation, that is the collection of
+//! timers currently in the runtime. Also see the [`timer`] implementation,
+//! which exposes types to the user.
+//!
+//! [`timer`]: crate::timer
+//!
+//!
+//! # Implementation
+//!
+//! This implementation is based on a Timing Wheel as discussed in the paper
+//! "Hashed and hierarchical timing wheels: efficient data structures for
+//! implementing a timer facility" by George Varghese and Anthony Lauck (1997).
+//!
+//! This uses a scheme that splits the timers based on when they're going to
+//! expire. It has 64 ([`SLOTS`]) slots each representing roughly a second of
+//! time ([`NS_PER_SLOT`]). This allows us to only consider a portion of all
+//! timers when processing the timers. Any timers that don't fit into these
+//! slots, i.e. timers with a deadline more than 68 seconds ([`NS_OVERFLOW`])
+//! past `epoch`, are put in a overflow list. Ideally this overflow list is
+//! empty however.
+//!
+//! The `slots` hold the timers with a [`TimeOffset`] which is the number of
+//! nanosecond since epoch times it's index. The `index` field determines the
+//! current zero-slot, meaning its timers will expire next and all have a
+//! deadline within `0..NS_PER_SLOT` nanoseconds after `epoch`. The
+//! `slots[index+1]` list will have timers that expire
+//! `NS_PER_SLOT..2*NS_PER_SLOT` nanoseconds after `epoch`. In other words each
+//! slot holds the timers that expire in the ~second after the previous slot.
+//!
+//! Whenever timers are expired by `expire_timers` it will attempt to update the
+//! `epoch`, which is used as anchor point to determine in what slot/overflow
+//! the timer must go (see above). When updating the epoch it will increase the
+//! `index` by 1 and the `epoch` by [`NS_PER_SLOT`] nanoseconds. This means the
+//! next slot (now `slots[index+1]`) holds timers that expire `0..NS_PER_SLOT`
+//! nanoseconds after `epoch`.
+//!
+//! Note that for the `shared` version, which uses the same implementation as
+//! described above, it's possible for a thread to read the epoch (index and
+//! time), than gets descheduled, another thread updates the epoch and finally
+//! the second thread insert a timer based on a now outdated epoch. This
+//! situation is fine as the timer will still be added to the correct slot, but
+//! it has a higher change of being added to the overflow list (which
+//! `maybe_update_epoch` deals with correctly).
+
+pub(crate) mod shared;
+#[cfg(test)]
+mod tests;
+
+mod private {
+    //! [`TimerToken`] needs to be public because it's used in the
+    //! private-in-public trait [`PrivateAccess`].
+    //!
+    //! [`PrivateAccess`]: crate::access::private::PrivateAccess
+
+    /// Token used to expire a timer.
+    #[derive(Copy, Clone, Debug)]
+    pub struct TimerToken(pub(crate) usize);
+}
+
+pub(crate) use private::TimerToken;
 
 use std::cmp::{max, min};
 use std::task::Waker;
 use std::time::{Duration, Instant};
-
-use crate::timer::TimerToken;
-
-#[cfg(test)]
-#[path = "timers_tests.rs"]
-mod timers_tests;
 
 /// Bits needed for the number of slots.
 const SLOT_BITS: usize = 6;
@@ -35,34 +88,7 @@ const NS_SLOT_MASK: u128 = (1 << NS_PER_SLOT_BITS) - 1;
 /// Must fit [`NS_PER_SLOT`].
 type TimeOffset = u32;
 
-/// Timers.
-///
-/// This implementation is based on a Timing Wheel as discussed in the paper
-/// "Hashed and hierarchical timing wheels: efficient data structures for
-/// implementing a timer facility" by George Varghese and Anthony Lauck (1997).
-///
-/// This uses a scheme that splits the timers based on when they're going to
-/// expire. It has 64 ([`SLOTS`]) slots each representing roughly a second of
-/// time ([`NS_PER_SLOT`]). This allows us to only consider a portion of all
-/// timers when processing the timers. Any timers that don't fit into these
-/// slots, i.e. timers with a deadline more than 68 seconds ([`NS_OVERFLOW`])
-/// past `epoch`, are put in a overflow list. Ideally this overflow list is
-/// empty however.
-///
-/// The `slots` hold the timers with a [`TimeOffset`] which is the number of
-/// nanosecond since epoch times it's index. The `index` field determines the
-/// current zero-slot, meaning its timers will expire next and all have a
-/// deadline within `0..NS_PER_SLOT` nanoseconds after `epoch`. The
-/// `slots[index+1]` list will have timers that expire
-/// `NS_PER_SLOT..2*NS_PER_SLOT` nanoseconds after `epoch`. In other words each
-/// slot holds the timers that expire in the ~second after the previous slot.
-///
-/// Whenever timers are removed by `remove_next` it will attempt to update the
-/// `epoch`, which is used as anchor point to determine in what slot/overflow
-/// the timer must go (see above). When updating the epoch it will increase the
-/// `index` by 1 and the `epoch` by [`NS_PER_SLOT`] nanoseconds. This means the
-/// next slot (now `slots[index+1]`) holds timers that expire `0..NS_PER_SLOT`
-/// nanoseconds after `epoch`.
+/// Local timers.
 #[derive(Debug)]
 pub(crate) struct Timers {
     /// Current epoch.
@@ -328,7 +354,6 @@ fn remove_if_before<T: Ord>(timers: &mut Vec<Timer<T>>, time: T) -> Result<Timer
 
 /// Returns the different between `epoch` and `time`, truncated to
 /// [`TimeOffset`].
-#[allow(clippy::cast_possible_truncation)] // TODO: move to last line.
 fn as_offset(epoch: Instant, time: Instant) -> TimeOffset {
     let nanos = time.duration_since(epoch).as_nanos();
     debug_assert!(nanos < u128::from(NS_PER_SLOT));

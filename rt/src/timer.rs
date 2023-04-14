@@ -16,20 +16,8 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
+use crate::timers::TimerToken;
 use crate::{self as rt};
-
-mod private {
-    //! [`TimerToken`] needs to be public because it's used in the
-    //! private-in-public trait [`PrivateAccess`].
-    //!
-    //! [`PrivateAccess`]: crate::access::private::PrivateAccess
-
-    /// Token used to expire a timer.
-    #[derive(Copy, Clone, Debug)]
-    pub struct TimerToken(pub(crate) usize);
-}
-
-pub(crate) use private::TimerToken;
 
 /// Type returned when the deadline has passed.
 ///
