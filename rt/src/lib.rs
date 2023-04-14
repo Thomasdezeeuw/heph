@@ -211,7 +211,6 @@ use heph::actor::{self, NewActor, SyncActor};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::supervisor::{Supervisor, SyncSupervisor};
 use heph_inbox as inbox;
-use mio::{event, Interest, Token};
 
 pub mod access;
 mod channel;
@@ -612,30 +611,6 @@ impl RuntimeRef {
             .signal_receivers
             .borrow_mut()
             .add_unique(actor_ref);
-    }
-
-    /// Register an `event::Source`, see [`mio::Registry::register`].
-    fn register<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.internals
-            .poll
-            .borrow()
-            .registry()
-            .register(source, token, interest)
-    }
-
-    /// Reregister an `event::Source`, see [`mio::Registry::reregister`].
-    fn reregister<S>(&mut self, source: &mut S, token: Token, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.internals
-            .poll
-            .borrow()
-            .registry()
-            .reregister(source, token, interest)
     }
 
     /// Get a clone of the sending end of the notification channel.

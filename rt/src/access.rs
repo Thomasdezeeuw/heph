@@ -29,16 +29,14 @@
 //! [`TcpStream::connect`]: crate::net::TcpStream::connect
 
 use std::future::Future;
-use std::mem::replace;
 use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::time::Instant;
-use std::{fmt, io, task};
+use std::{fmt, task};
 
 use heph::actor::{self, NewActor, SyncContext};
 use heph::actor_ref::ActorRef;
 use heph::supervisor::Supervisor;
-use mio::{event, Interest};
 
 use crate::process::ProcessId;
 use crate::spawn::{ActorOptions, FutureOptions, Spawn};
@@ -61,10 +59,8 @@ use crate::{shared, RuntimeRef};
 pub trait Access: PrivateAccess {}
 
 mod private {
+    use std::task;
     use std::time::Instant;
-    use std::{io, task};
-
-    use mio::{event, Interest};
 
     use crate::process::ProcessId;
     use crate::timers::TimerToken;
@@ -74,24 +70,8 @@ mod private {
     ///
     /// [`rt::Access`]: crate::Access
     pub trait PrivateAccess {
-        /// Returns the process id.
-        fn pid(&self) -> ProcessId;
-
-        /// Changes the process id to `new_pid`, returning the old process id.
-        fn change_pid(&mut self, new_pid: ProcessId) -> ProcessId;
-
         /// Get access to the `SubmissionQueue`.
         fn submission_queue(&self) -> a10::SubmissionQueue;
-
-        /// Registers the `source`.
-        fn register<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
-        where
-            S: event::Source + ?Sized;
-
-        /// Reregisters the `source`.
-        fn reregister<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
-        where
-            S: event::Source + ?Sized;
 
         /// Add a new timer expiring at `deadline` waking `waker`.
         fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken;
@@ -163,30 +143,8 @@ impl DerefMut for ThreadLocal {
 impl Access for ThreadLocal {}
 
 impl PrivateAccess for ThreadLocal {
-    fn pid(&self) -> ProcessId {
-        self.pid
-    }
-
-    fn change_pid(&mut self, new_pid: ProcessId) -> ProcessId {
-        replace(&mut self.pid, new_pid)
-    }
-
     fn submission_queue(&self) -> a10::SubmissionQueue {
         self.rt.internals.ring.borrow().submission_queue().clone()
-    }
-
-    fn register<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.rt.register(source, self.pid.into(), interest)
-    }
-
-    fn reregister<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.rt.reregister(source, self.pid.into(), interest)
     }
 
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
@@ -306,30 +264,8 @@ impl ThreadSafe {
 impl Access for ThreadSafe {}
 
 impl PrivateAccess for ThreadSafe {
-    fn pid(&self) -> ProcessId {
-        self.pid
-    }
-
-    fn change_pid(&mut self, new_pid: ProcessId) -> ProcessId {
-        replace(&mut self.pid, new_pid)
-    }
-
     fn submission_queue(&self) -> a10::SubmissionQueue {
         self.rt.submission_queue().clone()
-    }
-
-    fn register<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.rt.register(source, self.pid.into(), interest)
-    }
-
-    fn reregister<S>(&mut self, source: &mut S, interest: Interest) -> io::Result<()>
-    where
-        S: event::Source + ?Sized,
-    {
-        self.rt.reregister(source, self.pid.into(), interest)
     }
 
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
