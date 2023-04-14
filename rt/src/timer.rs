@@ -160,8 +160,8 @@ impl<RT: rt::Access> Unpin for Timer<RT> {}
 
 impl<RT: rt::Access> Drop for Timer<RT> {
     fn drop(&mut self) {
-        if let Some(expire_token) = self.timer_pending {
-            self.rt.remove_timer(self.deadline, expire_token);
+        if let Some(token) = self.timer_pending {
+            self.rt.remove_timer(self.deadline, token);
         }
     }
 }

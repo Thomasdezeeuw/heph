@@ -1,65 +1,137 @@
+#![allow(unused_imports)]
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::task::{Wake, Waker};
 use std::time::Duration;
 
-use crate::process::ProcessId;
+use crate::local::timers::{Timers, DURATION_PER_SLOT, NS_PER_SLOT, OVERFLOW_DURATION, SLOTS};
+use crate::timer::TimerToken;
 
-use super::{Timers, DURATION_PER_SLOT, NS_PER_SLOT, OVERFLOW_DURATION, SLOTS};
+struct WakerBuilder<const N: usize> {
+    awoken: Arc<[AtomicBool; N]>,
+    n: usize,
+}
 
-const PID: ProcessId = ProcessId(100);
-const PID2: ProcessId = ProcessId(200);
+impl<const N: usize> WakerBuilder<N> {
+    fn new() -> WakerBuilder<N> {
+        const FALSE: AtomicBool = AtomicBool::new(false);
+        WakerBuilder {
+            awoken: Arc::new([FALSE; N]),
+            n: 0,
+        }
+    }
+
+    fn task_waker(&mut self) -> (usize, Waker) {
+        let n = self.n;
+        self.n += 1;
+        assert!(n <= N, "created too many task::Wakers");
+        (
+            n,
+            Waker::from(Arc::new(TaskWaker {
+                awoken: self.awoken.clone(),
+                n,
+            })),
+        )
+    }
+
+    fn is_awoken(&self, n: usize) -> bool {
+        self.awoken[n].load(Ordering::SeqCst)
+    }
+}
+
+/// [`Wake`] implementation.
+struct TaskWaker<const N: usize> {
+    awoken: Arc<[AtomicBool; N]>,
+    n: usize,
+}
+
+impl<const N: usize> Wake for TaskWaker<N> {
+    fn wake(self: Arc<Self>) {
+        self.awoken[self.n].store(true, Ordering::SeqCst)
+    }
+}
 
 #[test]
 fn add_deadline_first_slot() {
     let mut timers = Timers::new();
+    let mut wakers = WakerBuilder::<1>::new();
+
     let deadline = timers.epoch + Duration::from_millis(100);
-    timers.add(PID, deadline);
+    let (n, waker) = wakers.task_waker();
+    _ = timers.add(deadline, waker);
     assert_eq!(timers.next(), Some(deadline));
-    assert_eq!(timers.remove_next(timers.epoch), None);
-    assert_eq!(timers.remove_next(deadline), Some(PID));
-    assert_eq!(timers.remove_next(deadline), None);
+
+    // Not yet expired.
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
+
+    // Waker is called when the deadline is expired.
+    assert_eq!(timers.expire_timers(deadline), 1);
+    assert!(wakers.is_awoken(n));
+
+    // No more timers.
+    assert_eq!(timers.expire_timers(deadline), 0);
 }
 
 #[test]
 fn add_deadline_second_slot() {
     let mut timers = Timers::new();
+    let mut wakers = WakerBuilder::<1>::new();
+
     let deadline = timers.epoch + Duration::from_nanos(NS_PER_SLOT as u64 + 10);
-    timers.add(PID, deadline);
+    let (n, waker) = wakers.task_waker();
+    _ = timers.add(deadline, waker);
     assert_eq!(timers.next(), Some(deadline));
-    assert_eq!(timers.remove_next(timers.epoch), None);
+
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
     assert_eq!(timers.index, 0);
     assert_eq!(timers.next(), Some(deadline));
-    assert_eq!(timers.remove_next(deadline), Some(PID));
+
+    assert_eq!(timers.expire_timers(deadline), 1);
+    assert!(wakers.is_awoken(n));
     assert_eq!(timers.index, 1);
-    assert_eq!(timers.remove_next(deadline), None);
+
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
 }
 
 #[test]
 fn add_deadline_overflow() {
     let mut timers = Timers::new();
+    let mut wakers = WakerBuilder::<1>::new();
+
     let deadline = timers.epoch + Duration::from_nanos(SLOTS as u64 * NS_PER_SLOT as u64 + 10);
-    timers.add(PID, deadline);
+    let (n, waker) = wakers.task_waker();
+    _ = timers.add(deadline, waker);
     assert_eq!(timers.next(), Some(deadline));
-    assert_eq!(timers.remove_next(timers.epoch), None);
+
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
     assert_eq!(timers.index, 0);
     assert_eq!(timers.next(), Some(deadline));
-    assert_eq!(timers.remove_next(deadline), Some(PID));
+
+    assert_eq!(timers.expire_timers(deadline), 1);
+    assert!(wakers.is_awoken(n));
     // Should have advanced the epoch to come back around to 0.
     assert_eq!(timers.index, 0);
-    assert_eq!(timers.remove_next(deadline), None);
+
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
 }
 
 #[test]
 fn add_deadline_to_all_slots() {
     let mut timers = Timers::new();
+    let mut wakers = WakerBuilder::<{ SLOTS + 1 }>::new();
 
     // Add a deadline to all slots and the overflow list.
     for n in 0..=SLOTS {
         let deadline = timers.epoch + Duration::from_nanos((n as u64 * NS_PER_SLOT as u64) + 10);
-        timers.add(ProcessId(n), deadline);
+        let (n2, waker) = wakers.task_waker();
+        assert_eq!(n, n2);
+        _ = timers.add(deadline, waker);
     }
 
     let first_deadline = timers.epoch + Duration::from_nanos(10);
     assert_eq!(timers.next(), Some(first_deadline));
-    assert_eq!(timers.remove_next(timers.epoch), None);
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
     assert_eq!(timers.index, 0);
 
     let mut expected_next_deadline = first_deadline;
@@ -67,9 +139,11 @@ fn add_deadline_to_all_slots() {
     for n in 0..=SLOTS {
         assert_eq!(timers.next(), Some(expected_next_deadline));
         let now = expected_next_deadline + Duration::from_nanos(1);
-        assert_eq!(timers.remove_next(now), Some(ProcessId(n)));
+        assert_eq!(timers.expire_timers(now), 1);
+        assert!(wakers.is_awoken(n));
         assert_eq!(timers.index, expected_index);
-        assert_eq!(timers.remove_next(now), None);
+
+        assert_eq!(timers.expire_timers(timers.epoch), 0);
         assert_eq!(timers.index, expected_index);
 
         expected_index = (expected_index + 1) % SLOTS as u8;
@@ -80,76 +154,105 @@ fn add_deadline_to_all_slots() {
 #[test]
 fn add_deadline_in_the_past() {
     let mut timers = Timers::new();
-    timers.add(PID, timers.epoch - Duration::from_secs(1));
+    let mut wakers = WakerBuilder::<1>::new();
+
+    let (n, waker) = wakers.task_waker();
+    _ = timers.add(timers.epoch - Duration::from_secs(1), waker);
     assert_eq!(timers.next(), Some(timers.epoch));
-    assert_eq!(timers.remove_next(timers.epoch), Some(PID));
+
+    assert_eq!(timers.expire_timers(timers.epoch), 1);
+    assert!(wakers.is_awoken(n));
 }
 
 #[test]
 fn adding_earlier_deadline_updates_cache() {
     let mut timers = Timers::new();
+    let mut wakers = WakerBuilder::<2>::new();
+
     let deadline1 = timers.epoch + Duration::from_secs(2);
+    let (n1, waker) = wakers.task_waker();
+    _ = timers.add(deadline1, waker);
     let deadline2 = timers.epoch + Duration::from_secs(1);
-    timers.add(PID, deadline1);
-    timers.add(PID2, deadline2);
+    let (n2, waker) = wakers.task_waker();
+    _ = timers.add(deadline2, waker);
     assert_eq!(timers.next(), Some(deadline2));
-    assert_eq!(timers.remove_next(deadline1), Some(PID2));
-    assert_eq!(timers.remove_next(deadline1), Some(PID));
-    assert_eq!(timers.remove_next(deadline1), None);
+
+    assert_eq!(timers.expire_timers(deadline1), 2);
+    assert!(wakers.is_awoken(n1));
+    assert!(wakers.is_awoken(n2));
+    assert_eq!(timers.expire_timers(deadline1), 0);
 }
 
 #[test]
 fn remove_deadline() {
     let mut timers = Timers::new();
+    let mut wakers = WakerBuilder::<1>::new();
+
     let deadline = timers.epoch + Duration::from_millis(10);
-    timers.add(PID, deadline);
-    timers.remove(PID, deadline);
+    let (n, waker) = wakers.task_waker();
+    let token = timers.add(deadline, waker);
+    timers.remove(deadline, token);
     assert_eq!(timers.next(), None);
-    assert_eq!(timers.remove_next(deadline), None);
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
+    assert!(!wakers.is_awoken(n));
 }
 
 #[test]
 fn remove_never_added_deadline() {
     let mut timers = Timers::new();
+
     let deadline = timers.epoch + Duration::from_millis(10);
     assert_eq!(timers.next(), None);
-    assert_eq!(timers.remove_next(deadline), None);
-    timers.remove(PID, deadline);
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
+    timers.remove(deadline, TimerToken(0));
     assert_eq!(timers.next(), None);
-    assert_eq!(timers.remove_next(deadline), None);
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
 }
 
 #[test]
 fn remove_expired_deadline() {
     let mut timers = Timers::new();
+    let mut wakers = WakerBuilder::<1>::new();
+
     let deadline = timers.epoch + Duration::from_millis(10);
-    timers.add(PID, deadline);
+    let (n, waker) = wakers.task_waker();
+    let token = timers.add(deadline, waker);
+
     assert_eq!(timers.next(), Some(deadline));
-    assert_eq!(timers.remove_next(deadline), Some(PID));
-    assert_eq!(timers.remove_next(deadline), None);
-    timers.remove(PID, deadline);
+    assert_eq!(timers.expire_timers(deadline), 1);
+    assert!(wakers.is_awoken(n));
+    assert_eq!(timers.expire_timers(deadline), 0);
+
+    timers.remove(deadline, token);
     assert_eq!(timers.next(), None);
-    assert_eq!(timers.remove_next(deadline), None);
+    assert_eq!(timers.expire_timers(deadline), 0);
 }
 
 #[test]
 fn remove_deadline_from_all_slots() {
     let mut timers = Timers::new();
+    let mut wakers = WakerBuilder::<{ SLOTS + 1 }>::new();
 
     // Add a deadline to all slots and the overflow list.
-    for n in 0..=SLOTS {
-        let deadline = timers.epoch + Duration::from_nanos((n as u64 * NS_PER_SLOT as u64) + 10);
-        timers.add(ProcessId(n), deadline);
-    }
+    let tokens: Vec<TimerToken> = (0..=SLOTS)
+        .into_iter()
+        .map(|n| {
+            let deadline =
+                timers.epoch + Duration::from_nanos((n as u64 * NS_PER_SLOT as u64) + 10);
+            let (n2, waker) = wakers.task_waker();
+            assert_eq!(n2, n);
+            timers.add(deadline, waker)
+        })
+        .collect();
 
     let first_deadline = timers.epoch + Duration::from_nanos(10);
     assert_eq!(timers.next(), Some(first_deadline));
-    assert_eq!(timers.remove_next(timers.epoch), None);
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
     assert_eq!(timers.index, 0);
 
     let mut next_deadline = first_deadline;
-    for n in 0..=SLOTS {
-        timers.remove(ProcessId(n), next_deadline);
+    for (n, token) in tokens.into_iter().enumerate() {
+        timers.remove(next_deadline, token);
         next_deadline += DURATION_PER_SLOT;
 
         if n == SLOTS {
@@ -163,43 +266,54 @@ fn remove_deadline_from_all_slots() {
 #[test]
 fn remove_deadline_from_all_slots_interleaved() {
     let mut timers = Timers::new();
+    let mut wakers = WakerBuilder::<{ SLOTS + 1 }>::new();
 
     // Add a deadline to all slots and the overflow list.
     for n in 0..=SLOTS {
         let deadline = timers.epoch + Duration::from_nanos((n as u64 * NS_PER_SLOT as u64) + 10);
-        timers.add(ProcessId(n), deadline);
-        timers.remove(ProcessId(n), deadline);
+        let (n2, waker) = wakers.task_waker();
+        assert_eq!(n2, n);
+        let token = timers.add(deadline, waker);
+        timers.remove(deadline, token);
     }
 
     assert_eq!(timers.next(), None);
-    assert_eq!(timers.remove_next(timers.epoch), None);
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
     assert_eq!(timers.index, 0);
 }
 
 #[test]
 fn remove_deadline_after_epoch_advance() {
     let mut timers = Timers::new();
+    let mut wakers = WakerBuilder::<{ SLOTS + 1 }>::new();
 
     // Add a deadline to all slots and the overflow list.
-    for n in 0..=SLOTS {
-        let deadline = timers.epoch + Duration::from_nanos((n as u64 * NS_PER_SLOT as u64) + 10);
-        timers.add(ProcessId(n), deadline);
-    }
+    let tokens: Vec<TimerToken> = (0..=SLOTS)
+        .into_iter()
+        .map(|n| {
+            let deadline =
+                timers.epoch + Duration::from_nanos((n as u64 * NS_PER_SLOT as u64) + 10);
+            let (n2, waker) = wakers.task_waker();
+            assert_eq!(n2, n);
+            timers.add(deadline, waker)
+        })
+        .collect();
 
     let first_deadline = timers.epoch + Duration::from_nanos(10);
     let now = timers.epoch + DURATION_PER_SLOT;
     assert_eq!(timers.next(), Some(first_deadline));
-    assert_eq!(timers.remove_next(now), Some(ProcessId(0)));
-    assert_eq!(timers.remove_next(now), None);
+    assert_eq!(timers.expire_timers(now), 1);
+    assert!(wakers.is_awoken(0));
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
     assert_eq!(timers.index, 1);
     assert_eq!(timers.next(), Some(first_deadline + DURATION_PER_SLOT));
 
     let mut next_deadline = first_deadline + DURATION_PER_SLOT;
-    for n in 1..=SLOTS {
-        timers.remove(ProcessId(n), next_deadline);
+    for (n, token) in tokens.into_iter().skip(1).enumerate() {
+        timers.remove(next_deadline, token);
         next_deadline += DURATION_PER_SLOT;
 
-        if n == SLOTS {
+        if n == SLOTS - 1 {
             assert_eq!(timers.next(), None);
         } else {
             assert_eq!(timers.next(), Some(next_deadline));
@@ -210,43 +324,14 @@ fn remove_deadline_after_epoch_advance() {
 #[test]
 fn remove_deadline_in_the_past() {
     let mut timers = Timers::new();
+    let mut wakers = WakerBuilder::<1>::new();
+
     let deadline = timers.epoch - Duration::from_secs(1);
-    timers.add(PID, deadline);
+    let (n, waker) = wakers.task_waker();
+    let token = timers.add(deadline, waker);
     assert_eq!(timers.next(), Some(timers.epoch));
-    timers.remove(PID, deadline);
+    timers.remove(deadline, token);
     assert_eq!(timers.next(), None);
-    assert_eq!(timers.remove_next(timers.epoch), None);
-}
-
-#[test]
-fn deadlines() {
-    let mut timers = Timers::new();
-
-    for n in 0..=SLOTS {
-        let deadline = timers.epoch + Duration::from_nanos((n as u64 * NS_PER_SLOT as u64) + 10);
-        timers.add(ProcessId(n), deadline);
-    }
-
-    let deadlines = timers.deadlines(timers.epoch + OVERFLOW_DURATION + DURATION_PER_SLOT);
-    let mut n = 0;
-    for pid in deadlines {
-        assert_eq!(pid, ProcessId(n));
-        n += 1;
-    }
-    assert_eq!(n, SLOTS + 1);
-}
-
-#[test]
-fn empty_deadlines() {
-    let mut timers = Timers::new();
-    let mut deadline = timers.deadlines(timers.epoch);
-    assert_eq!(deadline.next(), None);
-}
-
-#[test]
-fn deadlines_not_yet_expired() {
-    let mut timers = Timers::new();
-    timers.add(PID, timers.epoch + Duration::from_secs(1));
-    let mut deadline = timers.deadlines(timers.epoch);
-    assert_eq!(deadline.next(), None);
+    assert_eq!(timers.expire_timers(timers.epoch), 0);
+    assert!(!wakers.is_awoken(n));
 }

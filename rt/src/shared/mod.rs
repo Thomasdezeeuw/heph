@@ -217,9 +217,9 @@ impl RuntimeInternals {
     /// Remove a previously set timer.
     ///
     /// See [`Timers::remove`].
-    pub(crate) fn remove_timer(&self, deadline: Instant, expire_token: TimerToken) {
+    pub(crate) fn remove_timer(&self, deadline: Instant, token: TimerToken) {
         trace!(deadline = as_debug!(deadline); "removing timer");
-        self.timers.remove(deadline, expire_token);
+        self.timers.remove(deadline, token);
     }
 
     /// Wake all futures who's timers has expired.

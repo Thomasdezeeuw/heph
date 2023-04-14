@@ -597,15 +597,7 @@ impl Worker {
     fn schedule_from_local_timers(&mut self, now: Instant) -> usize {
         trace!(worker_id = self.internals.id.get(); "polling local timers");
         let timing = trace::start(&*self.internals.trace_log.borrow());
-
-        let mut scheduler = self.internals.scheduler.borrow_mut();
-        let mut amount: usize = 0;
-        for pid in self.internals.timers.borrow_mut().deadlines(now) {
-            trace!(worker_id = self.internals.id.get(), pid = pid.0; "expiring timer for local process");
-            scheduler.mark_ready(pid);
-            amount += 1;
-        }
-
+        let amount = self.internals.timers.borrow_mut().expire_timers(now);
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
             timing,

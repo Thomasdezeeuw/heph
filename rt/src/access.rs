@@ -97,7 +97,7 @@ mod private {
         fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken;
 
         /// Remove a previously set timer.
-        fn remove_timer(&mut self, deadline: Instant, expire_token: TimerToken);
+        fn remove_timer(&mut self, deadline: Instant, token: TimerToken);
 
         /// Create a new [`task::Waker`].
         fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
@@ -189,13 +189,12 @@ impl PrivateAccess for ThreadLocal {
         self.rt.reregister(source, self.pid.into(), interest)
     }
 
-    fn add_timer(&mut self, deadline: Instant, _: task::Waker) -> TimerToken {
-        self.rt.add_timer(self.pid, deadline);
-        TimerToken(self.pid.0) // NOTE: not used.
+    fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
+        self.rt.add_timer(deadline, waker)
     }
 
-    fn remove_timer(&mut self, deadline: Instant, _: TimerToken) {
-        self.rt.remove_timer(self.pid, deadline);
+    fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
+        self.rt.remove_timer(deadline, token);
     }
 
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
@@ -337,8 +336,8 @@ impl PrivateAccess for ThreadSafe {
         self.rt.add_timer(deadline, waker)
     }
 
-    fn remove_timer(&mut self, deadline: Instant, expire_token: TimerToken) {
-        self.rt.remove_timer(deadline, expire_token);
+    fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
+        self.rt.remove_timer(deadline, token);
     }
 
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
