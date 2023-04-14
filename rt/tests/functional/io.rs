@@ -1,0 +1,170 @@
+//! Tests for the io module.
+
+use std::cmp::min;
+use std::ptr;
+use std::sync::Arc;
+
+use heph_rt::io::{Buf, BufMut, BufMutSlice};
+
+const DATA: &[u8] = b"Hello world!";
+const DATA2: &[u8] = b"Hello mars.";
+
+fn write_bytes<B: BufMut>(src: &[u8], buf: &mut B) -> usize {
+    let spare_capacity = buf.spare_capacity();
+    let (dst, len) = unsafe { buf.parts_mut() };
+    assert_eq!(len, spare_capacity);
+    let len = min(src.len(), len);
+    // Safety: both the `src` and `dst` pointers are good. And we've ensured
+    // that the length is correct, not overwriting data we don't own or reading
+    // data we don't own.
+    unsafe {
+        ptr::copy_nonoverlapping(src.as_ptr(), dst, len);
+        buf.update_length(len);
+    }
+    len
+}
+
+fn write_bytes_vectored<B: BufMutSlice<N>, const N: usize>(src: &[u8], bufs: &mut B) -> usize {
+    let mut written = 0;
+    let mut left = src;
+    for iovec in unsafe { bufs.as_iovecs_mut() } {
+        let len = min(left.len(), iovec.iov_len);
+        // Safety: both the `left` and `dst` pointers are good. And we've
+        // ensured that the length is correct, not overwriting data we don't own
+        // or reading data we don't own.
+        unsafe {
+            ptr::copy_nonoverlapping(left.as_ptr(), iovec.iov_base.cast(), len);
+        }
+
+        written += len;
+        left = &left[len..];
+        if left.is_empty() {
+            break;
+        }
+    }
+    unsafe { bufs.update_length(written) }
+    written
+}
+
+#[test]
+fn buf_mut_for_vec() {
+    test_buf_mut(Vec::with_capacity(TEST_BUF_MUT_CAPACITY));
+}
+
+#[test]
+fn buf_mut_for_limited() {
+    let buf = Vec::with_capacity(TEST_BUF_MUT_CAPACITY + 10);
+    test_buf_mut(BufMut::limit(buf, TEST_BUF_MUT_CAPACITY));
+}
+
+const TEST_BUF_MUT_CAPACITY: usize = DATA.len() + DATA2.len();
+
+fn test_buf_mut<B: BufMut>(mut buf: B) {
+    let capacity = TEST_BUF_MUT_CAPACITY;
+    let (_, len) = unsafe { buf.parts_mut() };
+    assert_eq!(len, capacity);
+    assert_eq!(buf.spare_capacity(), capacity);
+    assert!(buf.has_spare_capacity());
+
+    let written = write_bytes(DATA, &mut buf);
+    let capacity_left = capacity - written;
+    let (_, len) = unsafe { buf.parts_mut() };
+    assert_eq!(len, capacity_left);
+    assert_eq!(buf.spare_capacity(), capacity_left);
+    assert!(buf.has_spare_capacity());
+
+    let written = write_bytes(DATA2, &mut buf);
+    assert_eq!(written, capacity_left);
+    let (_, len) = unsafe { buf.parts_mut() };
+    assert_eq!(len, 0);
+    assert_eq!(buf.spare_capacity(), 0);
+    assert!(!buf.has_spare_capacity());
+}
+
+#[test]
+fn buf_for_vec() {
+    test_buf(Vec::from(DATA))
+}
+
+#[test]
+fn buf_for_string() {
+    test_buf(String::from(std::str::from_utf8(DATA).unwrap()))
+}
+
+#[test]
+fn buf_for_boxed_slice() {
+    test_buf(Box::<[u8]>::from(DATA))
+}
+
+#[test]
+fn buf_for_arc_slice() {
+    test_buf(Arc::<[u8]>::from(DATA))
+}
+
+#[test]
+fn buf_for_static_slice() {
+    test_buf(DATA)
+}
+
+#[test]
+fn buf_for_static_str() {
+    test_buf(DATA)
+}
+
+fn test_buf<B: Buf>(buf: B) {
+    let (ptr, len) = unsafe { buf.parts() };
+    let got = unsafe { std::slice::from_raw_parts(ptr, len) };
+    assert_eq!(got, DATA);
+}
+
+#[test]
+fn buf_for_limited() {
+    test_buf(DATA.limit(DATA.len())); // Same length.
+    test_buf(DATA.limit(DATA.len() + 1)); // Larger.
+    let mut buf = Vec::new();
+    buf.push(DATA);
+    buf.push(DATA2);
+    test_buf(DATA.limit(DATA.len())); // Smaller.
+}
+
+#[test]
+fn buf_mut_slice_for_array() {
+    let mut bufs = [Vec::with_capacity(1), Vec::with_capacity(DATA.len())];
+    assert_eq!(bufs.total_spare_capacity(), 1 + DATA.len());
+    assert!(bufs.has_spare_capacity());
+    let n = write_bytes_vectored(DATA, &mut bufs);
+    assert_eq!(n, DATA.len());
+    assert_eq!(bufs[0].len(), 1);
+    assert_eq!(bufs[1].len(), DATA.len() - 1);
+    assert_eq!(bufs[0], &DATA[..1]);
+    assert_eq!(bufs[1], &DATA[1..]);
+    assert_eq!(bufs.total_spare_capacity(), 1);
+    assert!(bufs.has_spare_capacity());
+    bufs[1].push(b'a');
+    assert_eq!(bufs.total_spare_capacity(), 0);
+    assert!(!bufs.has_spare_capacity());
+}
+
+#[test]
+fn buf_mut_slice_for_tuple() {
+    let mut bufs = (
+        Vec::with_capacity(1),
+        Vec::with_capacity(3),
+        Vec::with_capacity(DATA.len()),
+    );
+    assert_eq!(bufs.total_spare_capacity(), 1 + 3 + DATA.len());
+    assert!(bufs.has_spare_capacity());
+    let n = write_bytes_vectored(DATA, &mut bufs);
+    assert_eq!(n, DATA.len());
+    assert_eq!(bufs.0.len(), 1);
+    assert_eq!(bufs.1.len(), 3);
+    assert_eq!(bufs.2.len(), DATA.len() - 4);
+    assert_eq!(bufs.0, &DATA[..1]);
+    assert_eq!(bufs.1, &DATA[1..4]);
+    assert_eq!(bufs.2, &DATA[4..]);
+    assert_eq!(bufs.total_spare_capacity(), 4);
+    assert!(bufs.has_spare_capacity());
+    bufs.2.extend_from_slice(b"aaaa");
+    assert_eq!(bufs.total_spare_capacity(), 0);
+    assert!(!bufs.has_spare_capacity());
+}
