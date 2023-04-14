@@ -166,7 +166,7 @@ impl Sender {
         WriteAll(self.fd.write_all(BufWrapper(buf)).extract()).await
     }
 
-    /// Write the bytes in `bufs` intoto the pipe.
+    /// Write the bytes in `bufs` into the pipe.
     ///
     /// Return the number of bytes written. This may we fewer than the length of
     /// `bufs`. To ensure that all bytes are written use
