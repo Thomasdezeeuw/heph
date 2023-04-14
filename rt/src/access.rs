@@ -42,6 +42,7 @@ use mio::{event, Interest};
 
 use crate::process::ProcessId;
 use crate::spawn::{ActorOptions, FutureOptions, Spawn};
+use crate::timer::TimerToken;
 use crate::trace::{self, Trace};
 use crate::{shared, RuntimeRef};
 
@@ -66,6 +67,7 @@ mod private {
     use mio::{event, Interest};
 
     use crate::process::ProcessId;
+    use crate::timer::TimerToken;
     use crate::{trace, RuntimeRef};
 
     /// Actual trait behind [`rt::Access`].
@@ -91,11 +93,11 @@ mod private {
         where
             S: event::Source + ?Sized;
 
-        /// Add a deadline.
-        fn add_deadline(&mut self, deadline: Instant);
+        /// Add a new timer expiring at `deadline` waking `waker`.
+        fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken;
 
-        /// Remove a previously set deadline.
-        fn remove_deadline(&mut self, deadline: Instant);
+        /// Remove a previously set timer.
+        fn remove_timer(&mut self, deadline: Instant, expire_token: TimerToken);
 
         /// Create a new [`task::Waker`].
         fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
@@ -187,12 +189,13 @@ impl PrivateAccess for ThreadLocal {
         self.rt.reregister(source, self.pid.into(), interest)
     }
 
-    fn add_deadline(&mut self, deadline: Instant) {
-        self.rt.add_deadline(self.pid, deadline);
+    fn add_timer(&mut self, deadline: Instant, _: task::Waker) -> TimerToken {
+        self.rt.add_timer(self.pid, deadline);
+        TimerToken(self.pid.0) // NOTE: not used.
     }
 
-    fn remove_deadline(&mut self, deadline: Instant) {
-        self.rt.remove_deadline(self.pid, deadline);
+    fn remove_timer(&mut self, deadline: Instant, _: TimerToken) {
+        self.rt.remove_timer(self.pid, deadline);
     }
 
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
@@ -330,12 +333,12 @@ impl PrivateAccess for ThreadSafe {
         self.rt.reregister(source, self.pid.into(), interest)
     }
 
-    fn add_deadline(&mut self, deadline: Instant) {
-        self.rt.add_deadline(self.pid, deadline);
+    fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
+        self.rt.add_timer(deadline, waker)
     }
 
-    fn remove_deadline(&mut self, deadline: Instant) {
-        self.rt.remove_deadline(self.pid, deadline);
+    fn remove_timer(&mut self, deadline: Instant, expire_token: TimerToken) {
+        self.rt.remove_timer(deadline, expire_token);
     }
 
     fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {

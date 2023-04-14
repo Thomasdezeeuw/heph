@@ -49,7 +49,7 @@ type TimeOffset = u32;
 /// empty however.
 ///
 /// The `slots` hold the timers with a [`TimeOffset`] which is the number of
-/// nanosecond since epoch times it's index. The `index` filed determines the
+/// nanosecond since epoch times it's index. The `index` field determines the
 /// current zero-slot, meaning its timers will expire next and all have a
 /// deadline within `0..NS_PER_SLOT` nanoseconds after `epoch`. The
 /// `slots[index+1]` list will have timers that expire

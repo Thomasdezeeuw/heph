@@ -2,11 +2,14 @@
 //!
 //! Also see the local timers implementation.
 
-use std::cmp::{min, Ordering};
+use std::cmp::min;
 use std::sync::RwLock;
+use std::task::Waker;
 use std::time::{Duration, Instant};
 
-use crate::ProcessId;
+use log::{as_debug, trace};
+
+use crate::timer::TimerToken;
 
 #[cfg(test)]
 #[path = "timers_tests.rs"]
@@ -50,7 +53,7 @@ type TimeOffset = u32;
 /// empty however.
 ///
 /// The `slots` hold the timers with a [`TimeOffset`] which is the number of
-/// nanosecond since epoch times it's index. The `index` filed determines the
+/// nanosecond since epoch times it's index. The `index` field determines the
 /// current zero-slot, meaning its timers will expire next and all have a
 /// deadline within `0..NS_PER_SLOT` nanoseconds after `epoch`. The
 /// `slots[index+1]` list will have timers that expire
@@ -67,7 +70,7 @@ type TimeOffset = u32;
 ///
 /// Note that it's possible for a thread to read the epoch (index and time),
 /// than gets descheduled, another thread updates the epoch and finally the
-/// second thread insert the time based on a now outdated epoch. This situation
+/// second thread insert a timer based on a now outdated epoch. This situation
 /// is fine as the timer will still be added to the correct slot, but it has a
 /// higher change of being added to the overflow list (which
 /// `maybe_update_epoch` deals with correctly).
@@ -87,18 +90,23 @@ struct Epoch {
     index: u8,
 }
 
+/// A timer in [`Timers`].
+#[derive(Debug)]
+struct Timer<T> {
+    deadline: T,
+    waker: Waker,
+}
+
 impl Timers {
     /// Create a new collection of timers.
     pub(crate) fn new() -> Timers {
+        const EMPTY: RwLock<Vec<Timer<TimeOffset>>> = RwLock::new(Vec::new());
         Timers {
             epoch: RwLock::new(Epoch {
                 time: Instant::now(),
                 index: 0,
             }),
-            // TODO: replace with `RwLock::new(Vec::new()); SLOTS]` once
-            // possible.
-            #[rustfmt::skip]
-            slots: [RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new()), RwLock::new(Vec::new())],
+            slots: [EMPTY; SLOTS],
             overflow: RwLock::new(Vec::new()),
         }
     }
@@ -107,23 +115,13 @@ impl Timers {
     pub(crate) fn len(&self) -> usize {
         let mut timers = 0;
         for slots in &self.slots {
-            let slots = slots.read().unwrap();
-            let len = slots.len();
-            drop(slots);
-            timers += len;
+            timers += slots.read().unwrap().len();
         }
-        {
-            let overflow = self.overflow.read().unwrap();
-            timers += overflow.len();
-        }
+        timers += self.overflow.read().unwrap().len();
         timers
     }
 
     /// Returns the next deadline, if any.
-    ///
-    /// If this return `Some` `woke_from_polling` must be called after polling,
-    /// before removing timers. That thread must also wake other workers threads
-    /// as they will see `None` here, **even if there is a timer set**.
     pub(crate) fn next(&self) -> Option<Instant> {
         let (epoch_time, index) = {
             let epoch = self.epoch.read().unwrap();
@@ -132,8 +130,7 @@ impl Timers {
         let (second, first) = self.slots.split_at(index);
         let iter = first.iter().chain(second.iter());
         for (n, slot) in iter.enumerate() {
-            let deadline = { slot.read().unwrap().last().map(|timer| timer.deadline) };
-            if let Some(deadline) = deadline {
+            if let Some(deadline) = { slot.read().unwrap().last().map(|timer| timer.deadline) } {
                 let ns_since_epoch = u64::from(deadline) + (n as u64 * u64::from(NS_PER_SLOT));
                 let deadline = epoch_time + Duration::from_nanos(ns_since_epoch);
                 return Some(deadline);
@@ -157,24 +154,29 @@ impl Timers {
     }
 
     /// Add a new deadline.
-    pub(crate) fn add(&self, pid: ProcessId, deadline: Instant) {
+    pub(crate) fn add(&self, deadline: Instant, waker: Waker) -> TimerToken {
         // NOTE: it's possible that we call `add_timer` based on an outdated
         // epoch.
-        self.get_timers(pid, deadline, add_timer, add_timer);
+        self.get_timers(deadline, |timers| match timers {
+            TimerLocation::InSlot((timers, deadline)) => add_timer(timers, deadline, waker),
+            TimerLocation::Overflow((timers, deadline)) => add_timer(timers, deadline, waker),
+        })
     }
 
     /// Remove a previously added deadline.
-    pub(crate) fn remove(&self, pid: ProcessId, deadline: Instant) {
-        self.get_timers(pid, deadline, remove_timer, remove_timer);
+    pub(crate) fn remove(&self, deadline: Instant, token: TimerToken) {
+        self.get_timers(deadline, |timers| match timers {
+            TimerLocation::InSlot((timers, deadline)) => remove_timer(timers, deadline, token),
+            TimerLocation::Overflow((timers, deadline)) => remove_timer(timers, deadline, token),
+        });
     }
 
-    /// Determines in what list of timers a timer with `pid` and `deadline`
-    /// would be/go into. Then calls the `slot_f` function for a timer list in
-    /// the slots, or `overflow_f` with the overflow list.
-    fn get_timers<SF, OF>(&self, pid: ProcessId, deadline: Instant, slot_f: SF, overflow_f: OF)
+    /// Determines in what list of timers a timer with `deadline` would be/go
+    /// into. Then calls the function `f` with either a slot or the overflow
+    /// list.
+    fn get_timers<F, T>(&self, deadline: Instant, f: F) -> T
     where
-        SF: FnOnce(&mut Vec<Timer<TimeOffset>>, Timer<TimeOffset>),
-        OF: FnOnce(&mut Vec<Timer<Instant>>, Timer<Instant>),
+        F: FnOnce(TimerLocation<'_>) -> T,
     {
         let (epoch_time, epoch_index) = {
             let epoch = self.epoch.read().unwrap();
@@ -187,20 +189,23 @@ impl Timers {
             let index = ((ns_since_epoch >> NS_PER_SLOT_BITS) & ((1 << SLOT_BITS) - 1)) as usize;
             let index = (epoch_index as usize + index) % SLOTS;
             let mut timers = self.slots[index].write().unwrap();
-            slot_f(&mut timers, Timer { pid, deadline });
+            f(TimerLocation::InSlot((&mut *timers, deadline)))
         } else {
             // Too far into the future to fit in the slots.
             let mut overflow = self.overflow.write().unwrap();
-            overflow_f(&mut overflow, Timer { pid, deadline });
+            f(TimerLocation::Overflow((&mut *overflow, deadline)))
         }
     }
 
-    /// Remove the next deadline that passed `now` returning the pid.
+    /// Expire all timers that have elapsed based on `now`. Returns the amount
+    /// of expired timers.
     ///
     /// # Safety
     ///
     /// `now` may never go backwards between calls.
-    pub(crate) fn remove_next(&self, now: Instant) -> Option<ProcessId> {
+    pub(crate) fn expire_timers(&self, now: Instant) -> usize {
+        trace!(now = as_debug!(now); "expiring timers");
+        let mut amount = 0;
         loop {
             // NOTE: Each loop iteration needs to calculate the `epoch_offset`
             // as the epoch changes each iteration.
@@ -208,29 +213,44 @@ impl Timers {
                 let epoch = self.epoch.read().unwrap();
                 (epoch.time, epoch.index as usize)
             };
-            // Safety: `now` can't go backwards, otherwise this will panic.
+            // SAFETY: `now` can't go backwards, otherwise this will panic.
             let epoch_offset = now.duration_since(epoch_time).as_nanos();
-            // NOTE: this truncates, which is fine as we need a max. of
+            // NOTE: this truncates, which is fine as we need a max of
             // `NS_PER_SLOT` anyway.
             #[allow(clippy::cast_possible_truncation)]
             let epoch_offset = min(epoch_offset, u128::from(TimeOffset::MAX)) as TimeOffset;
-            let res = {
-                let mut timers = self.slots[index].write().unwrap();
-                remove_if_before(&mut timers, epoch_offset)
-            };
-            match res {
-                Ok(timer) => return Some(timer.pid),
-                Err(true) => {
-                    // Safety: slot is empty, which makes calling
-                    // `maybe_update_epoch` OK.
-                    if !self.maybe_update_epoch(now) {
-                        // Didn't update epoch, no more timers to process.
-                        return None;
+
+            loop {
+                // NOTE: don't inline this in the `match` statement, it will
+                // cause the log the be held for the entire match statement,
+                // which we don't want.
+                let result =
+                    { remove_if_before(&mut self.slots[index].write().unwrap(), epoch_offset) };
+                match result {
+                    // Wake up the future.
+                    Ok(timer) => {
+                        timer.waker.wake();
+                        amount += 1;
+                        // Try another timer in this slot.
+                        continue;
                     }
-                    // Else try again in the next loop.
+                    Err(true) => {
+                        // SAFETY: slot is empty, which makes calling
+                        // `maybe_update_epoch` OK.
+                        if !self.maybe_update_epoch(now) {
+                            // Didn't update epoch, no more timers to process.
+                            return amount;
+                        } else {
+                            // Process the next slot.
+                            break;
+                        }
+                    }
+                    // Slot has timers with a deadline past `now`, so no more
+                    // timers to process.
+                    Err(false) => {
+                        return amount;
+                    }
                 }
-                // Slot has timers with a deadline past `now`.
-                Err(false) => return None,
             }
         }
     }
@@ -240,8 +260,8 @@ impl Timers {
     /// # Panics
     ///
     /// This panics if the current slot is not empty.
-    #[allow(clippy::cast_possible_truncation)] // TODO: move to new `epoch.index` line.
     fn maybe_update_epoch(&self, now: Instant) -> bool {
+        trace!(now = as_debug!(now); "maybe updating epoch");
         let epoch_time = {
             let mut epoch = self.epoch.write().unwrap();
             let new_epoch = epoch.time + DURATION_PER_SLOT;
@@ -254,14 +274,17 @@ impl Timers {
             debug_assert!(self.slots[epoch.index as usize].read().unwrap().is_empty());
 
             // Move to the next slot and update the epoch.
+            #[allow(clippy::cast_possible_truncation)]
             epoch.index = (epoch.index + 1) % self.slots.len() as u8;
             epoch.time = new_epoch;
             new_epoch
         };
+        trace!(epoch_time = as_debug!(epoch_time); "new epoch time");
 
         // Next move all the overflow timers that now fit in the slots.
         let time = epoch_time + OVERFLOW_DURATION;
         while let Ok(timer) = { remove_if_before(&mut self.overflow.write().unwrap(), time) } {
+            trace!(timer = as_debug!(timer); "moving overflow timer into wheel");
             // NOTE: we can't use the same optimisation as we do in the local
             // version where we know that all timers removed here go into the
             // `self.index-1` slot.
@@ -269,80 +292,48 @@ impl Timers {
             // could be that it add a timers to the overflow list which could
             // have fit in one of the slots. So we have to deal with that
             // possbility here.
-            self.add(timer.pid, timer.deadline);
+            _ = self.add(timer.deadline, timer.waker);
         }
         true
     }
 }
 
-/// Add `timer` to `timers`, ensuring it remains sorted.
-fn add_timer<T>(timers: &mut Vec<Timer<T>>, timer: Timer<T>)
-where
-    Timer<T>: Ord + Copy,
-{
-    let idx = match timers.binary_search(&timer) {
-        Ok(idx) | Err(idx) => idx,
-    };
-    timers.insert(idx, timer);
+/// Location of a timer.
+enum TimerLocation<'a> {
+    /// In of the wheel's slots.
+    InSlot((&'a mut Vec<Timer<TimeOffset>>, TimeOffset)),
+    /// In the overflow vector.
+    Overflow((&'a mut Vec<Timer<Instant>>, Instant)),
 }
 
-/// Remove a previously added `timer` from `timers`, ensuring it remains sorted.
-fn remove_timer<T>(timers: &mut Vec<Timer<T>>, timer: Timer<T>)
-where
-    Timer<T>: Ord + Copy,
-{
-    if let Ok(idx) = timers.binary_search(&timer) {
-        _ = timers.remove(idx);
+/// Add a new timer to `timers`, ensuring it remains sorted.
+fn add_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, waker: Waker) -> TimerToken {
+    let idx = match timers.binary_search_by(|timer| timer.deadline.cmp(&deadline)) {
+        Ok(idx) | Err(idx) => idx,
+    };
+    let token = TimerToken(waker.as_raw().data() as usize);
+    timers.insert(idx, Timer { deadline, waker });
+    token
+}
+
+/// Remove a previously added `deadline` from `timers`, ensuring it remains sorted.
+fn remove_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, token: TimerToken) {
+    if let Ok(idx) = timers.binary_search_by(|timer| timer.deadline.cmp(&deadline)) {
+        if timers[idx].waker.as_raw().data() as usize == token.0 {
+            _ = timers.remove(idx);
+        }
     }
 }
 
 /// Remove the first timer if it's before `time`.
 ///
 /// Returns `Ok(timer)` if there is a timer with a deadline before `time`.
-/// Returns `Err(is_empty)`, indicating if `timers` is empty. Returns
-/// `Err(true)` is `timers` is empty, `Err(false)` if the are more timers in
-/// `timers`, but none with a deadline before `time`.
-fn remove_if_before<T>(timers: &mut Vec<Timer<T>>, time: T) -> Result<Timer<T>, bool>
-where
-    T: Ord + Copy,
-{
+/// Otherwise this returns `Err(true)` if `timers` is empty or `Err(false)` if
+/// the are more timers in `timers`, but none with a deadline before `time`.
+fn remove_if_before<T: Ord>(timers: &mut Vec<Timer<T>>, time: T) -> Result<Timer<T>, bool> {
     match timers.last() {
-        // TODO: is the `unwrap` removed here? Or do we need `unwrap_unchecked`?
         Some(timer) if timer.deadline <= time => Ok(timers.pop().unwrap()),
         Some(_) => Err(false),
         None => Err(true),
-    }
-}
-
-/// A timer.
-///
-/// # Notes
-///
-/// The [`Ord`] implementation is in reverse order, i.e. the deadline to expire
-/// first will have the highest ordering value. Furthermore the ordering is only
-/// done base on the deadline, the process id is ignored in ordering. This
-/// allows `change_timer` to not worry about order when changing the process id
-/// of a timer.
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-struct Timer<T> {
-    pid: ProcessId,
-    deadline: T,
-}
-
-impl<T> Ord for Timer<T>
-where
-    T: Ord,
-{
-    fn cmp(&self, other: &Self) -> Ordering {
-        other.deadline.cmp(&self.deadline)
-    }
-}
-
-impl<T> PartialOrd for Timer<T>
-where
-    T: Ord,
-{
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
     }
 }
