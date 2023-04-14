@@ -1,5 +1,6 @@
 //! Buffers.
 
+use std::cmp::min;
 use std::mem::MaybeUninit;
 use std::sync::Arc;
 
@@ -13,7 +14,7 @@ use std::sync::Arc;
 /// # Safety
 ///
 /// Unlike normal buffers the buffer implementations for Heph have additional
-/// requirements because Heph uses I/O uring.
+/// requirements because Heph uses io_uring.
 ///
 /// If the operation (that uses this buffer) is not polled to completion, i.e.
 /// the `Future` is dropped before it returns `Poll::Ready`, the kernel still
@@ -74,7 +75,20 @@ pub unsafe trait BufMut: 'static {
 
     /// Returns `true` if the buffer has spare capacity.
     fn has_spare_capacity(&self) -> bool {
-        self.spare_capacity() == 0
+        self.spare_capacity() != 0
+    }
+
+    /// Wrap the buffer in `Limited`, which limits the amount of bytes used to
+    /// `limit`.
+    ///
+    /// [`Limited::into_inner`] can be used to retrieve the buffer again,
+    /// or a mutable reference to the buffer can be used and the limited buffer
+    /// be dropped after usage.
+    fn limit(self, limit: usize) -> Limited<Self>
+    where
+        Self: Sized,
+    {
+        Limited { buf: self, limit }
     }
 }
 
@@ -87,7 +101,7 @@ pub unsafe trait BufMut: 'static {
 /// untouched.
 ///
 /// ```
-/// use heph_rt::bytes::Bytes;
+/// use heph_rt::io::BufMut;
 ///
 /// let mut buf = Vec::with_capacity(100);
 /// buf.extend(b"Hello world!");
@@ -96,15 +110,15 @@ pub unsafe trait BufMut: 'static {
 ///
 /// assert_eq!(&*buf, b"Hello world! Hello mars!");
 ///
-/// fn write_bytes<B>(src: &[u8], mut buf: B) where B: Bytes {
+/// fn write_bytes<B: BufMut>(src: &[u8], buf: &mut B) {
 ///     // Writes `src` to `buf`.
-/// #   let dst = buf.as_bytes();
-/// #   let len = std::cmp::min(src.len(), dst.len());
+/// #   let (dst, len) = unsafe { buf.parts_mut() };
+/// #   let len = std::cmp::min(src.len(), len);
 /// #   // Safety: both the src and dst pointers are good. And we've ensured
 /// #   // that the length is correct, not overwriting data we don't own or
 /// #   // reading data we don't own.
 /// #   unsafe {
-/// #       std::ptr::copy_nonoverlapping(src.as_ptr(), dst.as_mut_ptr().cast(), len);
+/// #       std::ptr::copy_nonoverlapping(src.as_ptr(), dst, len);
 /// #       buf.update_length(len);
 /// #   }
 /// }
@@ -153,7 +167,7 @@ pub trait BufMutSlice<const N: usize>: private::BufMutSlice<N> + 'static {
 
     /// Returns `true` at least one of the buffer has spare capacity.
     fn has_spare_capacity(&self) -> bool {
-        self.total_spare_capacity() == 0
+        self.total_spare_capacity() != 0
     }
 }
 
@@ -215,7 +229,7 @@ unsafe impl<B: BufMut, const N: usize> private::BufMutSlice<N> for [B; N] {
 /// # Safety
 ///
 /// Unlike normal buffers the buffer implementations for Heph have additional
-/// requirements because Heph uses I/O uring.
+/// requirements because Heph uses io_uring.
 ///
 /// If the operation (that uses this buffer) is not polled to completion, i.e.
 /// the `Future` is dropped before it returns `Poll::Ready`, the kernel still
@@ -236,6 +250,19 @@ pub unsafe trait Buf: 'static {
     /// other words the memory the pointer and length are pointing to must be a
     /// valid memory address and owned by the buffer.
     unsafe fn parts(&self) -> (*const u8, usize);
+
+    /// Wrap the buffer in `Limited`, which limits the amount of bytes used to
+    /// `limit`.
+    ///
+    /// [`Limited::into_inner`] can be used to retrieve the buffer again, or a
+    /// mutable reference to the buffer can be used and the limited buffer be
+    /// dropped after usage.
+    fn limit(self, limit: usize) -> Limited<Self>
+    where
+        Self: Sized,
+    {
+        Limited { buf: self, limit }
+    }
 }
 
 // SAFETY: `Vec<u8>` manages the allocation of the bytes, so as long as it's
@@ -542,5 +569,48 @@ impl<B: BufSlice<N>, const N: usize> BufSlice<N> for BufWrapper<B> {}
 unsafe impl<B: BufSlice<N>, const N: usize> private::BufSlice<N> for BufWrapper<B> {
     unsafe fn as_iovecs(&self) -> [libc::iovec; N] {
         self.0.as_iovecs()
+    }
+}
+
+/// Wrapper to limit the number of bytes `B` can use.
+///
+/// See [`Buf::limit`] and [`BufMut::limit`].
+#[derive(Debug)]
+pub struct Limited<B> {
+    buf: B,
+    limit: usize,
+}
+
+impl<B> Limited<B> {
+    /// Returns the underlying buffer.
+    pub fn into_inner(self) -> B {
+        self.buf
+    }
+}
+
+unsafe impl<B: BufMut> BufMut for Limited<B> {
+    unsafe fn parts_mut(&mut self) -> (*mut u8, usize) {
+        let (ptr, size) = self.buf.parts_mut();
+        (ptr, min(size, self.limit))
+    }
+
+    unsafe fn update_length(&mut self, n: usize) {
+        self.limit -= n; // For use in read N bytes kind of calls.
+        self.buf.update_length(n);
+    }
+
+    fn spare_capacity(&self) -> usize {
+        min(self.buf.spare_capacity(), self.limit)
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        self.limit != 0 && self.buf.has_spare_capacity()
+    }
+}
+
+unsafe impl<B: Buf> Buf for Limited<B> {
+    unsafe fn parts(&self) -> (*const u8, usize) {
+        let (ptr, size) = self.buf.parts();
+        (ptr, min(size, self.limit))
     }
 }
