@@ -253,10 +253,9 @@ impl Timers {
                         if !self.maybe_update_epoch(epoch_offset) {
                             // Didn't update epoch, no more timers to process.
                             return amount;
-                        } else {
-                            // Process the next slot.
-                            break;
                         }
+                        // Process the next slot.
+                        break;
                     }
                     // Slot has timers with a deadline past `now`, so no more
                     // timers to process.
@@ -271,6 +270,7 @@ impl Timers {
     /// # Panics
     ///
     /// This panics if the current slot is not empty.
+    #[allow(clippy::debug_assert_with_mut_call, clippy::cast_possible_truncation)]
     fn maybe_update_epoch(&mut self, epoch_offset: TimeOffset) -> bool {
         if epoch_offset < NS_PER_SLOT {
             // Can't move to the next slot yet.
@@ -331,6 +331,7 @@ fn add_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, waker: Waker) -> T
 }
 
 /// Remove a previously added `deadline` from `timers`, ensuring it remains sorted.
+#[allow(clippy::needless_pass_by_value)]
 fn remove_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, token: TimerToken) {
     if let Ok(idx) = timers.binary_search_by(|timer| timer.deadline.cmp(&deadline)) {
         if timers[idx].waker.as_raw().data() as usize == token.0 {
@@ -344,6 +345,7 @@ fn remove_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, token: TimerTok
 /// Returns `Ok(timer)` if there is a timer with a deadline before `time`.
 /// Otherwise this returns `Err(true)` if `timers` is empty or `Err(false)` if
 /// the are more timers in `timers`, but none with a deadline before `time`.
+#[allow(clippy::needless_pass_by_value)]
 fn remove_if_before<T: Ord>(timers: &mut Vec<Timer<T>>, time: T) -> Result<Timer<T>, bool> {
     match timers.last() {
         Some(timer) if timer.deadline <= time => Ok(timers.pop().unwrap()),
