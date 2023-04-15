@@ -66,7 +66,7 @@
 //! [Trace Format]: https://github.com/Thomasdezeeuw/heph/blob/main/doc/Trace%20Format.md
 //! [Chrome's Trace Event Format]: https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
 //! [Catapult]: https://chromium.googlesource.com/catapult/+/refs/heads/master/tracing/README.md
-//! [Example 8 "Runtime Tracing"]: https://github.com/Thomasdezeeuw/heph/blob/main/examples/README.md#8-runtime-tracing
+//! [Example 8 "Runtime Tracing"]: https://github.com/Thomasdezeeuw/heph/tree/main/rt/examples#8-runtime-tracing
 
 use std::cell::RefCell;
 use std::fs::{File, OpenOptions};
@@ -229,7 +229,7 @@ impl CoordinatorLog {
 
     /// Returns the next stream counter.
     fn next_stream_count(&mut self) -> u32 {
-        // Safety: needs to sync with itself.
+        // SAFETY: needs to sync with itself.
         self.shared.counter.fetch_add(1, atomic::Ordering::AcqRel)
     }
 }
@@ -291,13 +291,13 @@ fn write_epoch_metadata(buf: &mut Vec<u8>, time: SystemTime) {
     #[allow(clippy::unreadable_literal)]
     const MAGIC: u32 = 0x75D11D4D;
     const PACKET_SIZE: u32 = 23;
-    // Safety: `OPTION` is small enough to fit it's length in `u16`.
+    // SAFETY: `OPTION` is small enough to fit it's length in `u16`.
     #[allow(clippy::cast_possible_truncation)]
     const OPTION_LENGTH: u16 = OPTION.len() as u16;
     const OPTION: &[u8] = b"epoch";
 
     // Number of nanoseconds since Unix epoch as u64.
-    // Safety: this overflows in the year 2500+, so this will be good for a
+    // SAFETY: this overflows in the year 2500+, so this will be good for a
     // while.
     #[allow(clippy::cast_possible_truncation)]
     let nanos_since_unix = time
@@ -348,11 +348,7 @@ pub(crate) fn start<L>(log: &Option<L>) -> Option<EventTiming>
 where
     L: TraceLog,
 {
-    if log.is_some() {
-        Some(EventTiming::start())
-    } else {
-        None
-    }
+    log.is_some().then(EventTiming::start)
 }
 
 /// Trait to call [`finish`] on both [`CoordinatorLog`] and [`Log`].
@@ -416,7 +412,7 @@ impl<'a> TraceLog for &'a SharedLog {
 
         BUF.with(|buf| {
             let mut buf = buf.borrow_mut();
-            // Safety: needs to sync with itself.
+            // SAFETY: needs to sync with itself.
             let stream_count = self.counter.fetch_add(1, atomic::Ordering::AcqRel);
             format_event(
                 &mut buf,
@@ -447,7 +443,7 @@ fn format_event(
     let start_nanos: u64 = nanos_since_epoch(epoch, event.start);
     let end_nanos: u64 = nanos_since_epoch(epoch, event.end);
     let description: &[u8] = event.description.as_bytes();
-    // Safety: length has a debug_assert in `finish`.
+    // SAFETY: length has a debug_assert in `finish`.
     #[allow(clippy::cast_possible_truncation)]
     let description_len: u16 = description.len() as u16;
 
@@ -480,7 +476,7 @@ fn format_event(
 #[track_caller]
 #[allow(clippy::cast_possible_truncation)]
 fn nanos_since_epoch(epoch: Instant, time: Instant) -> u64 {
-    // Safety: this overflows after 500+ years as per the function doc.
+    // SAFETY: this overflows after 500+ years as per the function doc.
     time.duration_since(epoch).as_nanos() as u64
 }
 
@@ -540,10 +536,9 @@ impl EventTiming {
         description: &'e str,
         attributes: &'e [(&'e str, &'e dyn AttributeValue)],
     ) -> Event<'e> {
-        let end = Instant::now();
         Event {
             start: self.start,
-            end,
+            end: Instant::now(),
             description,
             attributes,
         }
@@ -551,7 +546,6 @@ impl EventTiming {
 }
 
 /// A trace event.
-// NOTE: `pub(crate)` because of `TraceLog`.
 pub(crate) struct Event<'e> {
     start: Instant,
     end: Instant,
