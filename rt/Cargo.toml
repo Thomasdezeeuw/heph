@@ -30,7 +30,7 @@ socket2           = { version = "0.5.2", default-features = false, features = ["
 
 [dev-dependencies]
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
-std-logger        = { version = "0.5.0", default-features = false, features = ["log-panic", "nightly"] }
+std-logger        = { version = "0.5.0", default-features = false, features = ["nightly"] }
 
 [[test]]
 name    = "functional"
