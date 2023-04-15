@@ -154,6 +154,7 @@
     maybe_uninit_uninit_array,
     never_type,
     new_uninit,
+    ptr_metadata,
     stmt_expr_attributes,
     type_alias_impl_trait,
     waker_getters

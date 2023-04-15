@@ -16,11 +16,13 @@
 //! [sync worker threads]: crate::sync_worker
 
 use std::env::consts::ARCH;
+use std::future::{pending, Future};
 use std::os::fd::{AsFd, AsRawFd};
 use std::os::unix::process::parent_id;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{fmt, io, process};
+use std::{fmt, io, process, task};
 
 use heph::actor_ref::{ActorGroup, Delivery};
 use log::{as_debug, as_display, debug, error, info, trace};
@@ -30,20 +32,22 @@ use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
 use crate::setup::{host_id, host_info, Uuid};
-use crate::shared::waker;
 use crate::thread_waker::ThreadWaker;
-use crate::trace;
 use crate::{
-    self as rt, cpu_usage, shared, worker, Signal, SyncWorker, SYNC_WORKER_ID_END,
+    self as rt, cpu_usage, shared, trace, worker, Signal, SyncWorker, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
+
+mod bitmap;
+mod waker;
+
+use bitmap::AtomicBitMap;
 
 /// Token used to receive process signals.
 const SIGNAL: Token = Token(usize::MAX);
 const RING: Token = Token(usize::MAX - 1);
 
 /// Coordinator responsible for coordinating the Heph runtime.
-#[derive(Debug)]
 pub(super) struct Coordinator {
     /// io_uring completion ring.
     ring: a10::Ring,
@@ -52,6 +56,10 @@ pub(super) struct Coordinator {
     poll: Poll,
     /// Process signal notifications.
     signals: Signals,
+    /// Collection of coordinator [`Future`]s.
+    futures: Box<[Pin<Box<dyn Future<Output = ()>>>]>,
+    /// Bitmap indicating which `futures` are ready to run.
+    futures_ready: Arc<AtomicBitMap>,
     /// Internals shared between the coordinator and all workers.
     internals: Arc<shared::RuntimeInternals>,
 
@@ -88,7 +96,7 @@ impl Coordinator {
 
         let setup = shared::RuntimeInternals::setup()?;
         let internals = Arc::new_cyclic(|shared_internals| {
-            let waker_id = waker::init(shared_internals.clone());
+            let waker_id = shared::waker::init(shared_internals.clone());
             setup.complete(waker_id, worker_wakers, trace_log)
         });
 
@@ -98,6 +106,8 @@ impl Coordinator {
             ring,
             poll,
             signals,
+            futures: Box::new([]),
+            futures_ready: AtomicBitMap::new(0),
             internals,
             start: Instant::now(),
             app_name,
@@ -134,8 +144,9 @@ impl Coordinator {
             trace::finish_rt(trace_log.as_mut(), timing, "Polling for OS events", &[]);
 
             let timing = trace::start(&trace_log);
+            // Poll for events.
             for event in events.iter() {
-                trace!("got OS event: {event:?}");
+                trace!(event = as_debug!(event); "got OS event");
 
                 match event.token() {
                     SIGNAL => {
@@ -185,7 +196,20 @@ impl Coordinator {
                             &[],
                         );
                     }
-                    _ => debug!("unexpected OS event: {event:?}"),
+                    _ => debug!(event = as_debug!(event); "unexpected OS event"),
+                }
+            }
+
+            // Run all coordinator futures that are ready.
+            while let Some(idx) = self.futures_ready.next_set() {
+                let waker = waker::new(self.futures_ready.clone(), idx);
+                let mut ctx = task::Context::from_waker(&waker);
+                match self.futures[idx].as_mut().poll(&mut ctx) {
+                    task::Poll::Ready(()) => {
+                        // Ensure we don't poll the future again.
+                        self.futures[idx] = Box::pin(pending());
+                    }
+                    task::Poll::Pending => { /* Nothing to do. */ }
                 }
             }
             trace::finish_rt(trace_log.as_mut(), timing, "Handling OS events", &[]);
@@ -292,6 +316,23 @@ impl Coordinator {
             "coordinator metrics",
         );
         trace::finish_rt(trace_log.as_mut(), timing, "Printing runtime metrics", &[]);
+    }
+}
+
+impl fmt::Debug for Coordinator {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Coordinator")
+            .field("ring", &self.ring)
+            .field("poll", &self.poll)
+            .field("signals", &self.signals)
+            .field("internals", &self.internals)
+            .field("futures_ready", &self.futures_ready)
+            .field("start", &self.start)
+            .field("app_name", &self.app_name)
+            .field("host_os", &self.host_os)
+            .field("host_name", &self.host_name)
+            .field("host_id", &self.host_id)
+            .finish()
     }
 }
 
