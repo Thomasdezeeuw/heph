@@ -38,8 +38,6 @@ enum ErrorInner {
 }
 
 impl Error {
-    const DESC: &'static str = "error running Heph runtime";
-
     /// Create an error to act as user-defined setup error.
     ///
     /// The `err` will be converted into a [`String`] (using [`ToString`], which
@@ -85,9 +83,8 @@ impl Error {
     }
 
     pub(super) fn worker_panic(err: Box<dyn Any + Send + 'static>) -> Error {
-        let msg = convert_panic(err);
         Error {
-            inner: ErrorInner::WorkerPanic(msg),
+            inner: ErrorInner::WorkerPanic(convert_panic(err)),
         }
     }
 
@@ -98,9 +95,8 @@ impl Error {
     }
 
     pub(super) fn sync_actor_panic(err: Box<dyn Any + Send + 'static>) -> Error {
-        let msg = convert_panic(err);
         Error {
-            inner: ErrorInner::SyncActorPanic(msg),
+            inner: ErrorInner::SyncActorPanic(convert_panic(err)),
         }
     }
 }
@@ -132,31 +128,30 @@ impl fmt::Debug for Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use ErrorInner::*;
-        let desc = Self::DESC;
+        const DESC: &'static str = "error running Heph runtime";
         match self.inner {
-            Setup(ref err) => {
-                write!(f, "{desc}: error in user-defined setup: {err}")
+            ErrorInner::Setup(ref err) => {
+                write!(f, "{DESC}: error in user-defined setup: {err}")
             }
-            SetupTrace(ref err) => {
-                write!(f, "{desc}: error setting up trace infrastructure: {err}")
+            ErrorInner::SetupTrace(ref err) => {
+                write!(f, "{DESC}: error setting up trace infrastructure: {err}")
             }
-            InitCoordinator(ref err) => {
-                write!(f, "{desc}: error creating coordinator: {err}")
+            ErrorInner::InitCoordinator(ref err) => {
+                write!(f, "{DESC}: error creating coordinator: {err}")
             }
-            Coordinator(ref err) => {
-                write!(f, "{desc}: error in coordinator thread: {err}")
+            ErrorInner::Coordinator(ref err) => {
+                write!(f, "{DESC}: error in coordinator thread: {err}")
             }
-            StartWorker(ref err) => {
-                write!(f, "{desc}: error starting worker thread: {err}")
+            ErrorInner::StartWorker(ref err) => {
+                write!(f, "{DESC}: error starting worker thread: {err}")
             }
-            Worker(ref err) => write!(f, "{desc}: error in worker thread: {err}"),
-            WorkerPanic(ref err) => write!(f, "{desc}: panic in worker thread: {err}"),
-            StartSyncActor(ref err) => {
-                write!(f, "{desc}: error starting synchronous actor: {err}")
+            ErrorInner::Worker(ref err) => write!(f, "{DESC}: error in worker thread: {err}"),
+            ErrorInner::WorkerPanic(ref err) => write!(f, "{DESC}: panic in worker thread: {err}"),
+            ErrorInner::StartSyncActor(ref err) => {
+                write!(f, "{DESC}: error starting synchronous actor: {err}")
             }
-            SyncActorPanic(ref err) => {
-                write!(f, "{desc}: panic in synchronous actor thread: {err}")
+            ErrorInner::SyncActorPanic(ref err) => {
+                write!(f, "{DESC}: panic in synchronous actor thread: {err}")
             }
         }
     }
@@ -164,17 +159,18 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use ErrorInner::*;
         match self.inner {
             // All `io::Error`.
-            SetupTrace(ref err)
-            | InitCoordinator(ref err)
-            | StartWorker(ref err)
-            | StartSyncActor(ref err) => Some(err),
-            Coordinator(ref err) => Some(err),
-            Worker(ref err) => Some(err),
+            ErrorInner::SetupTrace(ref err)
+            | ErrorInner::InitCoordinator(ref err)
+            | ErrorInner::StartWorker(ref err)
+            | ErrorInner::StartSyncActor(ref err) => Some(err),
+            ErrorInner::Coordinator(ref err) => Some(err),
+            ErrorInner::Worker(ref err) => Some(err),
             // All `StringError`.
-            Setup(ref err) | WorkerPanic(ref err) | SyncActorPanic(ref err) => Some(err),
+            ErrorInner::Setup(ref err)
+            | ErrorInner::WorkerPanic(ref err)
+            | ErrorInner::SyncActorPanic(ref err) => Some(err),
         }
     }
 }
