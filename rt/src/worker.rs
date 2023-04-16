@@ -60,10 +60,14 @@ const SHARED_RING: Token = Token(usize::MAX - 4);
 /// Setup a new worker thread.
 ///
 /// Use [`WorkerSetup::start`] to spawn the worker thread.
-pub(super) fn setup(id: NonZeroUsize) -> io::Result<(WorkerSetup, &'static ThreadWaker)> {
+pub(super) fn setup(
+    id: NonZeroUsize,
+    coordinator_sq: &a10::SubmissionQueue,
+) -> io::Result<(WorkerSetup, &'static ThreadWaker)> {
     let poll = Poll::new()?;
-    // TODO: configure ring.
-    let ring = a10::Ring::new(512)?;
+    let ring = a10::Ring::config(512)
+        .attach_queue(coordinator_sq)
+        .build()?;
 
     // Setup the waking mechanism.
     let (waker_sender, waker_events) = crossbeam_channel::unbounded();
@@ -283,8 +287,9 @@ impl Worker {
         mut receiver: rt::channel::Receiver<Control>,
     ) -> io::Result<Worker> {
         let poll = Poll::new()?;
-        // TODO: configure ring.
-        let ring = a10::Ring::new(512)?;
+        let ring = a10::Ring::config(512)
+            .attach_queue(shared_internals.submission_queue())
+            .build()?;
 
         // TODO: this channel will grow unbounded as the waker implementation
         // sends pids into it.

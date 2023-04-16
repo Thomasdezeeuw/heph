@@ -110,9 +110,18 @@ pub(crate) struct Metrics {
 
 impl RuntimeInternals {
     /// Setup new runtime internals.
-    pub(crate) fn setup() -> io::Result<RuntimeSetup> {
+    pub(crate) fn setup(coordinator_sq: &a10::SubmissionQueue) -> io::Result<RuntimeSetup> {
         let poll = Poll::new()?;
-        // TODO: configure ring.
+        let ring = a10::Ring::config(512)
+            .attach_queue(coordinator_sq)
+            .build()?;
+        Ok(RuntimeSetup { poll, ring })
+    }
+
+    /// Same as [`setup`], but doesn't attach to an existing [`a10::Ring`].
+    #[cfg(any(test, feature = "test"))]
+    pub(crate) fn test_setup() -> io::Result<RuntimeSetup> {
+        let poll = Poll::new()?;
         let ring = a10::Ring::new(512)?;
         Ok(RuntimeSetup { poll, ring })
     }
