@@ -854,12 +854,12 @@ impl Worker {
     }
 }
 
-/// Error running a [`Runtime`].
+/// Error running a [`Worker`].
 #[derive(Debug)]
 pub(crate) enum Error {
-    /// Error in [`Runtime::new`].
+    /// Error in [`Worker::setup`].
     Init(io::Error),
-    /// Error polling [`Poll`].
+    /// Error polling for OS events.
     Polling(io::Error),
     /// Error receiving message from communication channel.
     RecvMsg(io::Error),
@@ -872,16 +872,15 @@ pub(crate) enum Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Error::*;
         match self {
-            Init(err) => write!(f, "error initialising local runtime: {err}"),
-            Polling(err) => write!(f, "error polling OS: {err}"),
-            RecvMsg(err) => write!(f, "error receiving message(s): {err}"),
-            ProcessInterrupted => write!(
+            Error::Init(err) => write!(f, "error initialising local runtime: {err}"),
+            Error::Polling(err) => write!(f, "error polling OS: {err}"),
+            Error::RecvMsg(err) => write!(f, "error receiving message(s): {err}"),
+            Error::ProcessInterrupted => write!(
                 f,
                 "received process signal, but no receivers for it: stopping runtime"
             ),
-            UserFunction(err) => write!(f, "error running user function: {err}"),
+            Error::UserFunction(err) => write!(f, "error running user function: {err}"),
         }
     }
 }
