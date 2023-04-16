@@ -92,7 +92,7 @@ fn shared_internals() -> Arc<shared::RuntimeInternals> {
     static SHARED_INTERNALS: OnceLock<Arc<shared::RuntimeInternals>> = OnceLock::new();
     SHARED_INTERNALS
         .get_or_init(|| {
-            let setup = shared::RuntimeInternals::setup()
+            let setup = shared::RuntimeInternals::test_setup()
                 .expect("failed to setup runtime internals for test module");
             Arc::new_cyclic(|shared_internals| {
                 let waker_id = waker::init(shared_internals.clone());

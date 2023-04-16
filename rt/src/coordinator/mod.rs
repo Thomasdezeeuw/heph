@@ -84,17 +84,17 @@ impl Coordinator {
     /// This must be called before creating the worker threads to properly catch
     /// process signals.
     pub(super) fn init(
+        ring: a10::Ring,
         app_name: Box<str>,
         worker_wakers: Box<[&'static ThreadWaker]>,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> io::Result<Coordinator> {
-        let ring = a10::Ring::config(512).build()?;
         let poll = Poll::new()?;
         // NOTE: on Linux this MUST be created before starting the worker
         // threads.
         let signals = setup_signals(poll.registry())?;
 
-        let setup = shared::RuntimeInternals::setup()?;
+        let setup = shared::RuntimeInternals::setup(ring.submission_queue())?;
         let internals = Arc::new_cyclic(|shared_internals| {
             let waker_id = shared::waker::init(shared_internals.clone());
             setup.complete(waker_id, worker_wakers, trace_log)

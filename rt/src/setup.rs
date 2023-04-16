@@ -151,6 +151,8 @@ impl Setup {
         let name = name.unwrap_or_else(default_app_name).into_boxed_str();
         debug!(name = name, workers = threads; "building Heph runtime");
 
+        let coordinator_ring = a10::Ring::new(512).map_err(Error::init_coordinator)?;
+
         // Setup the worker threads.
         let timing = trace::start(&trace_log);
         let mut worker_setups = Vec::with_capacity(threads);
@@ -158,7 +160,9 @@ impl Setup {
         for id in 1..=threads {
             // Coordinator has id 0.
             let id = NonZeroUsize::new(id).unwrap();
-            let (worker_setup, thread_waker) = worker::setup(id).map_err(Error::start_worker)?;
+            let (worker_setup, thread_waker) =
+                worker::setup(id, coordinator_ring.submission_queue())
+                    .map_err(Error::start_worker)?;
             worker_setups.push(worker_setup);
             thread_wakers.push(thread_waker);
         }
@@ -166,8 +170,9 @@ impl Setup {
         // Create the coordinator to oversee all workers.
         let thread_wakers = thread_wakers.into_boxed_slice();
         let shared_trace_log = trace_log.as_ref().map(trace::CoordinatorLog::clone_shared);
-        let coordinator = Coordinator::init(name, thread_wakers, shared_trace_log)
-            .map_err(Error::init_coordinator)?;
+        let coordinator =
+            Coordinator::init(coordinator_ring, name, thread_wakers, shared_trace_log)
+                .map_err(Error::init_coordinator)?;
 
         // Spawn the worker threads.
         let workers = worker_setups
