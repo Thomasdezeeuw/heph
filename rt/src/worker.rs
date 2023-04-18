@@ -402,7 +402,7 @@ impl Worker {
                         self.internals.shared.complete(process);
                     }
                     task::Poll::Pending => {
-                        self.internals.shared.add_process(process);
+                        self.internals.shared.add_back_process(process);
                     }
                 }
                 trace::finish_rt(
