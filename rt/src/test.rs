@@ -56,6 +56,8 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{io, slice, thread};
 
+#[cfg(test)]
+use heph::actor::ActorFuture;
 use heph::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::supervisor::{Supervisor, SyncSupervisor};
@@ -383,6 +385,22 @@ where
     NA: NewActor<RuntimeAccess = ThreadSafe>,
 {
     init_actor_with_inbox(new_actor, arg).map(|(actor, _, actor_ref)| (actor, actor_ref))
+}
+
+/// Initialise a thread-safe `ActorFuture`.
+#[allow(clippy::type_complexity)]
+#[cfg(test)]
+pub(crate) fn init_actor_future<S, NA>(
+    supervisor: S,
+    new_actor: NA,
+    argument: NA::Argument,
+) -> Result<(ActorFuture<S, NA, ThreadSafe>, ActorRef<NA::Message>), NA::Error>
+where
+    S: Supervisor<NA>,
+    NA: NewActor<RuntimeAccess = ThreadSafe>,
+{
+    let rt = ThreadSafe::new(TEST_PID, shared_internals());
+    ActorFuture::new(supervisor, new_actor, argument, rt)
 }
 
 /// Initialise a thread-local actor with access to it's inbox.

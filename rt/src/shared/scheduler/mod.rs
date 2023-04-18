@@ -8,12 +8,9 @@ use std::future::Future;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
-use heph::actor::NewActor;
-use heph::supervisor::Supervisor;
-use heph_inbox::Manager;
 use log::{debug, trace};
 
-use crate::process::{self, ActorProcess, FutureProcess, Process, ProcessId};
+use crate::process::{self, FutureProcess, Process, ProcessId};
 use crate::spawn::options::Priority;
 use crate::{ptr_as_usize, ThreadSafe};
 
@@ -218,18 +215,9 @@ impl<'s> AddActor<'s> {
     }
 
     /// Add a new thread-safe actor to the scheduler.
-    pub(super) fn add<S, NA>(
-        self,
-        priority: Priority,
-        supervisor: S,
-        new_actor: NA,
-        actor: NA::Actor,
-        inbox: Manager<NA::Message>,
-    ) where
-        S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
-        NA::Actor: Send + Sync + 'static,
-        NA::Message: Send,
+    pub(super) fn add<Fut>(self, future: Fut, priority: Priority)
+    where
+        Fut: Future<Output = ()> + Send + Sync + 'static,
     {
         debug_assert!(
             inactive::ok_ptr(self.alloc.as_ptr().cast()),
@@ -238,7 +226,7 @@ impl<'s> AddActor<'s> {
 
         let process = ProcessData::new(
             priority,
-            Box::pin(ActorProcess::new(supervisor, new_actor, actor, inbox)),
+            Box::pin(FutureProcess::<Fut, ThreadSafe>::new(future)),
         );
         let AddActor {
             scheduler,
