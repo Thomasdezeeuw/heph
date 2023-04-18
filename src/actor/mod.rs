@@ -557,11 +557,10 @@ mod private {
 ///
 /// This is the default implementation of [`NewActor::name`].
 #[doc(hidden)] // Not part of the stable API.
-pub fn name<A>() -> &'static str {
+pub fn name<A: ?Sized>() -> &'static str {
     format_name(type_name::<A>())
 }
 
-// NOTE: split for easier testing.
 fn format_name(full_name: &'static str) -> &'static str {
     const GEN_FUTURE: &str = "GenFuture<";
     const GENERIC_START: &str = "<";
