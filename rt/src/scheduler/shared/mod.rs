@@ -1,11 +1,11 @@
-//! Thread-safe scheduler.
+//! Thread-safe version of `Scheduler`.
 
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
 use log::trace;
 
-use crate::process::{self, Process, ProcessId};
+use crate::process::{Process, ProcessId};
 use crate::ptr_as_usize;
 use crate::spawn::options::Priority;
 
@@ -17,7 +17,7 @@ mod tests;
 use inactive::Inactive;
 use runqueue::RunQueue;
 
-pub(super) type ProcessData = process::ProcessData<dyn Process + Send + Sync>;
+pub(crate) type ProcessData = crate::process::ProcessData<dyn Process + Send + Sync>;
 
 /// The thread-safe scheduler, responsible for scheduling processes that can run
 /// one any of the worker threads, e.g. thread-safe actors.
@@ -81,7 +81,7 @@ pub(super) type ProcessData = process::ProcessData<dyn Process + Send + Sync>;
 /// section above, it will not be added to the [`Inactive`] list but instead be
 /// moved to the [`RunQueue`] again.
 #[derive(Debug)]
-pub(super) struct Scheduler {
+pub(crate) struct Scheduler {
     /// Processes that are ready to run.
     ready: RunQueue,
     /// Inactive processes that are not ready to run.
@@ -90,7 +90,7 @@ pub(super) struct Scheduler {
 
 impl Scheduler {
     /// Create a new `Scheduler`.
-    pub(super) fn new() -> Scheduler {
+    pub(crate) fn new() -> Scheduler {
         Scheduler {
             ready: RunQueue::empty(),
             inactive: Inactive::empty(),
@@ -113,7 +113,7 @@ impl Scheduler {
     /// # Notes
     ///
     /// Once this function returns the value could already be outdated.
-    pub(super) fn has_process(&self) -> bool {
+    pub(crate) fn has_process(&self) -> bool {
         let has_inactive = self.inactive.has_process();
         has_inactive || self.has_ready_process()
     }
@@ -124,7 +124,7 @@ impl Scheduler {
     /// # Notes
     ///
     /// Once this function returns the value could already be outdated.
-    pub(super) fn has_ready_process(&self) -> bool {
+    pub(crate) fn has_ready_process(&self) -> bool {
         self.ready.has_process()
     }
 
@@ -157,7 +157,7 @@ impl Scheduler {
     /// # Notes
     ///
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
-    pub(super) fn mark_ready(&self, pid: ProcessId) {
+    pub(crate) fn mark_ready(&self, pid: ProcessId) {
         trace!(pid = pid.0; "marking process as ready");
         self.inactive.mark_ready(pid, &self.ready);
         // NOTE: if the process in currently not in the `Inactive` list it will
@@ -169,20 +169,20 @@ impl Scheduler {
     ///
     /// Returns `Ok(Some(..))` if a process was successfully removed or
     /// `Ok(None)` if no processes are available to run.
-    pub(super) fn remove(&self) -> Option<Pin<Box<ProcessData>>> {
+    pub(crate) fn remove(&self) -> Option<Pin<Box<ProcessData>>> {
         self.ready.remove()
     }
 
     /// Add back a process that was previously removed via
     /// [`Scheduler::remove`] and add it to the inactive list.
-    pub(super) fn add_back_process(&self, process: Pin<Box<ProcessData>>) {
+    pub(crate) fn add_back_process(&self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
         trace!(pid = pid.0; "adding back process");
         self.inactive.add(process, &self.ready);
     }
 
     /// Mark `process` as complete, removing it from the scheduler.
-    pub(super) fn complete(&self, process: Pin<Box<ProcessData>>) {
+    pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
         trace!(pid = pid.0; "removing process");
         self.inactive.complete(process);

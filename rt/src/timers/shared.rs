@@ -1,4 +1,4 @@
-//! Threadsafe version of `Timers`.
+//! Thread-safe version of `Timers`.
 
 use std::cmp::min;
 use std::sync::RwLock;
