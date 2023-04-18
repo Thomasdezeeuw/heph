@@ -2,6 +2,7 @@
 
 use std::collections::BinaryHeap;
 use std::mem::MaybeUninit;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 
 use log::trace;
@@ -105,6 +106,16 @@ impl Scheduler {
     /// Add back a process that was previously removed via
     /// [`Scheduler::next_process`].
     pub(crate) fn add_back_process(&mut self, process: Pin<Box<ProcessData>>) {
+        let pid = process.as_ref().id();
+        trace!(pid = pid.0; "adding back process");
         self.inactive.add(process);
+    }
+
+    /// Mark `process` as complete, removing it from the scheduler.
+    pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
+        let pid = process.as_ref().id();
+        trace!(pid = pid.0; "removing process");
+        // Don't want to panic when dropping the process.
+        drop(catch_unwind(AssertUnwindSafe(move || drop(process))));
     }
 }
