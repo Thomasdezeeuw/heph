@@ -9,11 +9,13 @@ use std::future::Future;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
+use heph::actor::{self, Actor, ActorFuture, NewActor};
+use heph::supervisor::Supervisor;
 use log::{debug, trace};
 
-use crate::process::{self, FutureProcess, ProcessId};
+use crate::process::{self, FutureProcess, Process, ProcessId};
+use crate::ptr_as_usize;
 use crate::spawn::options::Priority;
-use crate::{ptr_as_usize, ThreadLocal};
 
 mod inactive;
 #[cfg(test)]
@@ -74,10 +76,7 @@ impl Scheduler {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        let process = Box::pin(ProcessData::new(
-            priority,
-            Box::pin(FutureProcess::<Fut, ThreadLocal>::new(future)),
-        ));
+        let process = Box::pin(ProcessData::new(priority, Box::pin(FutureProcess(future))));
         debug!(pid = process.as_ref().id().0; "spawning thread-local future");
         self.ready.push(process);
     }
@@ -126,16 +125,13 @@ impl<'s> AddActor<'s> {
     /// Add a new inactive actor to the scheduler.
     pub(crate) fn add<Fut>(self, future: Fut, priority: Priority)
     where
-        Fut: Future<Output = ()> + 'static,
+        Fut: Process + 'static,
     {
         debug_assert!(
             inactive::ok_ptr(self.alloc.as_ptr().cast::<()>()),
             "SKIP_BITS invalid"
         );
-        let process = ProcessData::new(
-            priority,
-            Box::pin(FutureProcess::<Fut, ThreadLocal>::new(future)),
-        );
+        let process = ProcessData::new(priority, Box::pin(future));
         let AddActor {
             scheduler,
             mut alloc,

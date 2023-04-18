@@ -22,7 +22,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{fmt, io, thread};
+use std::{fmt, io, task, thread};
 
 use crossbeam_channel::{self, Receiver};
 use heph::actor_ref::{Delivery, SendError};
@@ -33,7 +33,7 @@ use mio::{Events, Interest, Poll, Registry, Token};
 use crate::error::StringError;
 use crate::local::waker::{self, WakerId};
 use crate::local::RuntimeInternals;
-use crate::process::{ProcessId, ProcessResult};
+use crate::process::ProcessId;
 use crate::setup::set_cpu_affinity;
 use crate::thread_waker::ThreadWaker;
 use crate::{self as rt, cpu_usage, shared, trace, RuntimeRef, Signal};
@@ -326,22 +326,19 @@ impl Worker {
     /// Run the worker.
     pub(crate) fn run(mut self) -> Result<(), Error> {
         debug!(worker_id = self.internals.id.get(); "starting worker");
-        // Runtime reference used in running the processes.
-        let mut runtime_ref = self.create_ref();
-
         loop {
             // We first run the processes and only poll after to ensure that we
             // return if there are no processes to run.
             trace!(worker_id = self.internals.id.get(); "running processes");
             let mut n = 0;
             while n < RUN_POLL_RATIO {
-                if !self.run_local_process(&mut runtime_ref) {
+                if !self.run_local_process() {
                     break;
                 }
                 n += 1;
             }
             while n < RUN_POLL_RATIO {
-                if !self.run_shared_process(&mut runtime_ref) {
+                if !self.run_shared_process() {
                     break;
                 }
                 n += 1;
@@ -359,19 +356,21 @@ impl Worker {
 
     /// Attempts to run a single local process. Returns `true` if it ran a
     /// process, `false` otherwise.
-    fn run_local_process(&mut self, runtime_ref: &mut RuntimeRef) -> bool {
+    fn run_local_process(&mut self) -> bool {
         let process = self.internals.scheduler.borrow_mut().next_process();
         match process {
             Some(mut process) => {
                 let timing = trace::start(&*self.internals.trace_log.borrow());
                 let pid = process.as_ref().id();
                 let name = process.as_ref().name();
-                match process.as_mut().run(runtime_ref) {
-                    ProcessResult::Complete => {
+                let waker = waker::new(self.internals.waker_id, pid);
+                let mut ctx = task::Context::from_waker(&waker);
+                match process.as_mut().run(&mut ctx) {
+                    task::Poll::Ready(()) => {
                         // Don't want to panic when dropping the process.
                         drop(catch_unwind(AssertUnwindSafe(move || drop(process))));
                     }
-                    ProcessResult::Pending => {
+                    task::Poll::Pending => {
                         self.internals.scheduler.borrow_mut().add_process(process);
                     }
                 }
@@ -389,18 +388,20 @@ impl Worker {
 
     /// Attempts to run a single shared process. Returns `true` if it ran a
     /// process, `false` otherwise.
-    fn run_shared_process(&mut self, runtime_ref: &mut RuntimeRef) -> bool {
+    fn run_shared_process(&mut self) -> bool {
         let process = self.internals.shared.remove_process();
         match process {
             Some(mut process) => {
                 let timing = trace::start(&*self.internals.trace_log.borrow());
                 let pid = process.as_ref().id();
                 let name = process.as_ref().name();
-                match process.as_mut().run(runtime_ref) {
-                    ProcessResult::Complete => {
+                let waker = self.internals.shared.new_task_waker(pid);
+                let mut ctx = task::Context::from_waker(&waker);
+                match process.as_mut().run(&mut ctx) {
+                    task::Poll::Ready(()) => {
                         self.internals.shared.complete(process);
                     }
-                    ProcessResult::Pending => {
+                    task::Poll::Pending => {
                         self.internals.shared.add_process(process);
                     }
                 }

@@ -1,35 +1,34 @@
 //! Module containing the `Process` trait, related types and implementations.
 
+#![allow(unused_imports)] // FIXME.
+
 use std::any::Any;
 use std::cmp::Ordering;
 use std::fmt;
+use std::future::Future;
 use std::pin::Pin;
+use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
+use heph::actor::{self, Actor, ActorFuture, NewActor};
+use heph::supervisor::Supervisor;
 use log::{as_debug, trace};
 use mio::Token;
 
 use crate::spawn::options::Priority;
 use crate::RuntimeRef;
 
-mod future;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use future::FutureProcess;
-
-/// Process id, or pid for short, is an identifier for a process in an
-/// [`Runtime`].
+/// Process id, or pid for short, is an identifier for a process in the runtime.
 ///
 /// This can only be created by one of the schedulers and should be seen as an
 /// opaque type for the rest of the crate. For convince this can converted from
 /// and into an [`Token`] as used by Mio.
-///
-/// [`Runtime`]: crate::Runtime
-// NOTE: public because it used in the `RuntimeAccess` trait.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[repr(transparent)]
-pub struct ProcessId(pub(crate) usize);
+pub(crate) struct ProcessId(pub(crate) usize);
 
 impl From<Token> for ProcessId {
     fn from(id: Token) -> ProcessId {
@@ -56,54 +55,36 @@ impl fmt::Display for ProcessId {
 }
 
 /// The trait that represents a process.
-///
-/// This currently has a single implementation:
-/// - `ActorProcess`, which wraps an `Actor` to implement this trait.
-pub(crate) trait Process {
+pub(crate) trait Process: Future<Output = ()> {
     /// Return the name of this process, used in logging.
-    fn name(&self) -> &'static str;
-
-    /// Run the process.
-    ///
-    /// Once the process returns `ProcessResult::Complete` it will be removed
-    /// from the scheduler and will no longer run.
-    ///
-    /// If it returns `ProcessResult::Pending` it will be considered inactive
-    /// and the process itself must make sure its gets scheduled again.
-    fn run(self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef, pid: ProcessId) -> ProcessResult;
+    fn name(&self) -> &'static str {
+        // Best we can do.
+        actor::name::<Self>()
+    }
 }
 
-/// The result of running a [`Process`].
-///
-/// See [`Process::run`].
-#[must_use]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
-pub(crate) enum ProcessResult {
-    /// The process is complete.
-    ///
-    /// Similar to [`Poll::Ready`].
-    ///
-    /// [`Poll::Ready`]: std::task::Poll::Ready
-    Complete,
-    /// Process completion is pending, but for now no further progress can be
-    /// made without blocking. The process itself is responsible for scheduling
-    /// itself again.
-    ///
-    /// Similar to [`Poll::Pending`].
-    ///
-    /// [`Poll::Pending`]: std::task::Poll::Pending
-    Pending,
+/// Wrapper around a [`Future`] to implement [`Process`].
+pub(crate) struct FutureProcess<Fut>(pub(crate) Fut);
+
+impl<Fut: Future> Future for FutureProcess<Fut> {
+    type Output = Fut::Output;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the `Fut`ure.
+        unsafe { Fut::poll(Pin::map_unchecked_mut(self, |s| &mut s.0), ctx) }
+    }
 }
 
-/// Attempts to extract a message from a panic, defaulting to `<unknown>`.
-/// Note: be sure to derefence the `Box`!
-fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
-    match panic.downcast_ref::<&'static str>() {
-        Some(s) => s,
-        None => match panic.downcast_ref::<String>() {
-            Some(s) => s,
-            None => "<unknown>",
-        },
+impl<Fut> Process for FutureProcess<Fut> where Fut: Future<Output = ()> {}
+
+impl<S, NA, RT> Process for ActorFuture<S, NA, RT>
+where
+    S: Supervisor<NA>,
+    NA: NewActor<RuntimeAccess = RT>,
+    RT: Clone,
+{
+    fn name(&self) -> &'static str {
+        NA::name()
     }
 }
 
@@ -158,13 +139,13 @@ impl<P: Process + ?Sized> ProcessData<P> {
     /// Run the process.
     ///
     /// Returns the completion state of the process.
-    pub(crate) fn run(mut self: Pin<&mut Self>, runtime_ref: &mut RuntimeRef) -> ProcessResult {
+    pub(crate) fn run(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<()> {
         let pid = self.as_ref().id();
         let name = self.process.name();
         trace!(pid = pid.0, name = name; "running process");
 
         let start = Instant::now();
-        let result = self.process.as_mut().run(runtime_ref, pid);
+        let result = self.process.as_mut().poll(ctx);
         let elapsed = start.elapsed();
         let fair_elapsed = elapsed * self.priority;
         self.fair_runtime += fair_elapsed;
@@ -181,7 +162,6 @@ impl<P: ?Sized> Eq for ProcessData<P> {}
 
 impl<P: ?Sized> PartialEq for ProcessData<P> {
     fn eq(&self, other: &Self) -> bool {
-        // FIXME: is this correct?
         Pin::new(self).id() == Pin::new(other).id()
     }
 }
@@ -203,7 +183,6 @@ impl<P: ?Sized> PartialOrd for ProcessData<P> {
 impl<P: Process + ?Sized> fmt::Debug for ProcessData<P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Process")
-            // FIXME: is this unsafe?
             .field("id", &Pin::new(self).id())
             .field("name", &self.process.name())
             .field("priority", &self.priority)
