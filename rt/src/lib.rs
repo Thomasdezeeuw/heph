@@ -203,6 +203,7 @@ macro_rules! syscall {
 use std::convert::TryInto;
 use std::future::Future;
 use std::rc::Rc;
+#[cfg(any(test, feature = "test"))]
 use std::sync::Arc;
 use std::task;
 use std::time::{Duration, Instant};
@@ -625,6 +626,7 @@ impl RuntimeRef {
     /// # Notes
     ///
     /// Prefer `new_waker` if possible, only use `task::Waker` for `Future`s.
+    #[cfg(any(test, feature = "test"))]
     fn new_local_task_waker(&self, pid: ProcessId) -> task::Waker {
         local::waker::new(self.internals.waker_id, pid)
     }
@@ -646,6 +648,7 @@ impl RuntimeRef {
     }
 
     /// Returns a copy of the shared internals.
+    #[cfg(any(test, feature = "test"))]
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
         self.internals.shared.clone()
     }
