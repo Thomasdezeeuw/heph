@@ -1,15 +1,17 @@
 //! Module containing the `Process` trait, related types and implementations.
 
+use std::any::Any;
 use std::cmp::Ordering;
 use std::fmt;
 use std::future::Future;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
 use heph::actor::{self, ActorFuture, NewActor};
 use heph::supervisor::Supervisor;
-use log::{as_debug, trace};
+use log::{as_debug, error, trace};
 use mio::Token;
 
 use crate::spawn::options::Priority;
@@ -51,6 +53,10 @@ impl fmt::Display for ProcessId {
 }
 
 /// The trait that represents a process.
+///
+/// # Panics
+///
+/// The implementation of the [`Future`] MUST catch panics.
 pub(crate) trait Process: Future<Output = ()> {
     /// Return the name of this process, used in logging.
     fn name(&self) -> &'static str {
@@ -62,17 +68,40 @@ pub(crate) trait Process: Future<Output = ()> {
 /// Wrapper around a [`Future`] to implement [`Process`].
 pub(crate) struct FutureProcess<Fut>(pub(crate) Fut);
 
-impl<Fut: Future> Future for FutureProcess<Fut> {
-    type Output = Fut::Output;
+impl<Fut: Future<Output = ()>> Future for FutureProcess<Fut> {
+    type Output = ();
 
-    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         // SAFETY: not moving the `Fut`ure.
-        unsafe { Fut::poll(Pin::map_unchecked_mut(self, |s| &mut s.0), ctx) }
+        let future = unsafe { Pin::map_unchecked_mut(self.as_mut(), |s| &mut s.0) };
+        match catch_unwind(AssertUnwindSafe(|| future.poll(ctx))) {
+            Ok(Poll::Ready(())) => Poll::Ready(()),
+            Ok(Poll::Pending) => Poll::Pending,
+            Err(panic) => {
+                let msg = panic_message(&*panic);
+                let name = self.name();
+                error!("future '{name}' panicked at '{msg}'");
+                Poll::Ready(())
+            }
+        }
+    }
+}
+
+/// Attempts to extract a message from a panic, defaulting to `<unknown>`.
+/// NOTE: be sure to derefence the `Box`!
+fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
+    match panic.downcast_ref::<&'static str>() {
+        Some(s) => s,
+        None => match panic.downcast_ref::<String>() {
+            Some(s) => s,
+            None => "<unknown>",
+        },
     }
 }
 
 impl<Fut> Process for FutureProcess<Fut> where Fut: Future<Output = ()> {}
 
+// NOTE: `ActorFuture` already catches panics for us.
 impl<S, NA, RT> Process for ActorFuture<S, NA, RT>
 where
     S: Supervisor<NA>,

@@ -199,7 +199,7 @@ where
 }
 
 /// Attempts to extract a message from a panic, defaulting to `<unknown>`.
-/// Note: be sure to derefence the `Box`!
+/// NOTE: be sure to derefence the `Box`!
 fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
     match panic.downcast_ref::<&'static str>() {
         Some(s) => s,

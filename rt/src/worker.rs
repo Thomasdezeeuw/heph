@@ -18,7 +18,6 @@
 use std::cell::RefMut;
 use std::num::NonZeroUsize;
 use std::os::fd::{AsFd, AsRawFd};
-use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -367,8 +366,7 @@ impl Worker {
                 let mut ctx = task::Context::from_waker(&waker);
                 match process.as_mut().run(&mut ctx) {
                     task::Poll::Ready(()) => {
-                        // Don't want to panic when dropping the process.
-                        drop(catch_unwind(AssertUnwindSafe(move || drop(process))));
+                        self.internals.scheduler.borrow_mut().complete(process);
                     }
                     task::Poll::Pending => {
                         self.internals
