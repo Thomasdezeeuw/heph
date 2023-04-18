@@ -113,6 +113,7 @@ impl Scheduler {
     }
 
     /// Mark `process` as complete, removing it from the scheduler.
+    #[allow(clippy::unused_self)]
     pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
         trace!(pid = pid.0; "removing process");

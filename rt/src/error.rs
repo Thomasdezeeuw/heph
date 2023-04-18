@@ -128,7 +128,7 @@ impl fmt::Debug for Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        const DESC: &'static str = "error running Heph runtime";
+        const DESC: &str = "error running Heph runtime";
         match self.inner {
             ErrorInner::Setup(ref err) => {
                 write!(f, "{DESC}: error in user-defined setup: {err}")

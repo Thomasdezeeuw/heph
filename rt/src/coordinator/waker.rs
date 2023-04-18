@@ -40,7 +40,7 @@ fn into_data_ptr(bitmap: Arc<AtomicBitMap>, id: usize) -> *const () {
     // This is a "fat" pointer, a pointer to `AtomicBitMap` and a length.
     let bitmap_ptr = Arc::into_raw(bitmap);
     // This will point to the start of the `AtomicBitMap` as is "thin".
-    let bitmap_start = bitmap_ptr as *const ();
+    let bitmap_start = bitmap_ptr.cast::<()>();
     // Ensure we have bit to put our `id`.
     assert!(bitmap_start as usize & PTR_BITS_UNUSED == 0);
     // Squash the pointer and our `id` together.
