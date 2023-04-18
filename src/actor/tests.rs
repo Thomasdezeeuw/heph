@@ -19,6 +19,10 @@ fn actor_name() {
             "core::future::from_generator::GenFuture<2_my_ip::conn_actor::{{closure}}>",
             "conn_actor"
         ),
+        (
+            "2_my_ip::conn_actor::{{closure}}",
+            "conn_actor",
+        ),
         // Generic parameter(s) wrapped in GenFuture.
         (
             "core::future::from_generator::GenFuture<functional::functional::timer::triggered_timers_run_actors::deadline_actor<heph::actor::context::ThreadLocal>::{{closure}}>",
