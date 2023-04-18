@@ -74,6 +74,13 @@ where
         Ok((future, actor_ref))
     }
 
+    /// Returns the name of the actor.
+    ///
+    /// Based on the [`NewActor::name`] implementation.
+    pub fn name() -> &'static str {
+        NA::name()
+    }
+
     /// Returns `Poll::Pending` if the actor was successfully restarted,
     /// `Poll::Ready` if the actor wasn't restarted (or failed to restart).
     fn handle_actor_error(
