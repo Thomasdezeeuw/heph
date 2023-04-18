@@ -96,7 +96,7 @@ impl<M, RT> Context<M, RT> {
     /// async fn print_actor(mut ctx: actor::Context<String, ThreadLocal>) {
     ///     // Create a timer, this will be ready once the timeout has
     ///     // passed.
-    ///     let timeout = Timer::after(&mut ctx, Duration::from_millis(100));
+    ///     let timeout = Timer::after(ctx.runtime().clone(), Duration::from_millis(100));
     ///     // Create a future to receive a message.
     ///     let msg_future = ctx.receive_next();
     ///

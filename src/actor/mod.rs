@@ -314,7 +314,7 @@ pub trait NewActor {
     /// // Actor that handles a connection.
     /// async fn conn_actor(
     ///     ctx: actor::Context<!, ThreadLocal>,
-    ///     mut stream: TcpStream,
+    ///     stream: TcpStream,
     ///     greet_mars: bool
     /// ) -> io::Result<()> {
     /// #   drop(ctx); // Silence dead code warnings.
@@ -565,7 +565,7 @@ fn format_name(full_name: &'static str) -> &'static str {
     const GEN_FUTURE: &str = "GenFuture<";
     const GENERIC_START: &str = "<";
     const GENERIC_END: &str = ">";
-    const CLOSURE: &str = "{{closure}}";
+    const CLOSURE: &str = "::{{closure}}";
 
     let mut name = full_name;
 
@@ -584,51 +584,6 @@ fn format_name(full_name: &'static str) -> &'static str {
         (Some(start_index), Some(i)) if start_index < i => {
             // Outer type is `GenFuture`, remove that.
             name = &name[start_index + GEN_FUTURE.len()..name.len() - GENERIC_END.len()];
-
-            // Async functions often end with `::{{closure}}`; also remove that,
-            // e.g. from `1_hello_world::greeter_actor::{{closure}}` to
-            // `1_hello_world::greeter_actor`.
-            if let Some(start_index) = name.rfind("::") {
-                let last_part = &name[start_index + 2..];
-                if last_part == CLOSURE {
-                    name = &name[..start_index];
-                }
-            }
-
-            // Remove generic parameters, e.g.
-            // `deadline_actor<heph::actor::context::ThreadLocal>` to
-            // `deadline_actor`.
-            if name.ends_with('>') {
-                if let Some(start_index) = name.find('<') {
-                    name = &name[..start_index];
-                }
-            }
-
-            // Function named `actor` in a module named `actor`. We'll drop the
-            // function name and keep the `actor` part of the module, e.g.
-            // `storage::actor::actor` to `storage::actor`.
-            if name.ends_with("actor::actor") {
-                // Remove `::actor`.
-                name = &name[..name.len() - 7];
-            }
-
-            // Either take the last part of the name's path, e.g. from
-            // `1_hello_world::greeter_actor` to `greeter_actor`.
-            // Or keep the module name in case the actor's name would be `actor`,
-            // e.g. from `1_hello_world::some::nested::module::greeter::actor` to
-            // `greeter::actor`.
-            if let Some(start_index) = name.rfind("::") {
-                let actor_name = &name[start_index + 2..];
-                if actor_name == "actor" {
-                    // If the actor's name is `actor` will keep the last module
-                    // name as part of the name.
-                    if let Some(module_index) = name[..start_index].rfind("::") {
-                        name = &name[module_index + 2..];
-                    } // Else only a single module in path.
-                } else {
-                    name = actor_name;
-                }
-            }
         }
         _ => {
             // Otherwise we trait it like a normal type and remove the generic
@@ -637,13 +592,47 @@ fn format_name(full_name: &'static str) -> &'static str {
             // to `heph::net::tcp::server::TcpServer`.
             if let Some(start_index) = name.find(GENERIC_START) {
                 name = &name[..start_index];
-
-                if let Some(start_index) = name.rfind("::") {
-                    // Next we remove the module path, e.g. from
-                    // `heph::net::tcp::server::TcpServer` to `TcpServer`.
-                    name = &name[start_index + 2..];
-                }
             }
+        }
+    }
+
+    // Async functions often end with `::{{closure}}`; also remove that,
+    // e.g. from `1_hello_world::greeter_actor::{{closure}}` to
+    // `1_hello_world::greeter_actor`.
+    name = name.trim_end_matches(CLOSURE);
+
+    // Remove generic parameters, e.g.
+    // `deadline_actor<heph::actor::context::ThreadLocal>` to
+    // `deadline_actor`.
+    if name.ends_with('>') {
+        if let Some(start_index) = name.find('<') {
+            name = &name[..start_index];
+        }
+    }
+
+    // Function named `actor` in a module named `actor`. We'll drop the
+    // function name and keep the `actor` part of the module, e.g.
+    // `storage::actor::actor` to `storage::actor`.
+    if name.ends_with("actor::actor") {
+        // Remove `::actor`.
+        name = &name[..name.len() - 7];
+    }
+
+    // Either take the last part of the name's path, e.g. from
+    // `1_hello_world::greeter_actor` to `greeter_actor`.
+    // Or keep the module name in case the actor's name would be `actor`,
+    // e.g. from `1_hello_world::some::nested::module::greeter::actor` to
+    // `greeter::actor`.
+    if let Some(start_index) = name.rfind("::") {
+        let actor_name = &name[start_index + 2..];
+        if actor_name == "actor" {
+            // If the actor's name is `actor` will keep the last module
+            // name as part of the name.
+            if let Some(module_index) = name[..start_index].rfind("::") {
+                name = &name[module_index + 2..];
+            } // Else only a single module in path.
+        } else if !actor_name.is_empty() {
+            name = actor_name;
         }
     }
 
