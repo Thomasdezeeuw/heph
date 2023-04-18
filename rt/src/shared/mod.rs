@@ -9,10 +9,9 @@ use std::sync::{Arc, Mutex, TryLockError};
 use std::time::{Duration, Instant};
 use std::{io, task};
 
-use heph::actor::{self, NewActor};
+use heph::actor::{ActorFuture, NewActor};
 use heph::actor_ref::ActorRef;
 use heph::supervisor::Supervisor;
-use heph_inbox as inbox;
 use log::{as_debug, debug, error, trace};
 use mio::unix::SourceFd;
 use mio::{Events, Interest, Poll, Registry, Token};
@@ -228,7 +227,7 @@ impl RuntimeInternals {
     pub(crate) fn try_spawn<S, NA>(
         self: &Arc<Self>,
         supervisor: S,
-        mut new_actor: NA,
+        new_actor: NA,
         arg: NA::Argument,
         options: ActorOptions,
     ) -> Result<ActorRef<NA::Message>, NA::Error>
@@ -244,14 +243,12 @@ impl RuntimeInternals {
         let name = NA::name();
         debug!(pid = pid.0, name = name; "spawning thread-safe actor");
 
-        // Create our actor context and our actor with it.
-        let (manager, sender, receiver) = inbox::Manager::new_small_channel();
-        let actor_ref = ActorRef::local(sender);
-        let ctx = actor::Context::new(receiver, ThreadSafe::new(pid, self.clone()));
-        let actor = new_actor.new(ctx, arg)?;
+        // Create the `ActorFuture`.
+        let rt = ThreadSafe::new(pid, self.clone());
+        let (future, actor_ref) = ActorFuture::new(supervisor, new_actor, arg, rt)?;
 
         // Add the actor to the scheduler.
-        actor_entry.add(options.priority(), supervisor, new_actor, actor, manager);
+        actor_entry.add(future, options.priority());
 
         Ok(actor_ref)
     }

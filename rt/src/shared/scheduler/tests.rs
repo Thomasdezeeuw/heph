@@ -9,7 +9,7 @@ use heph::supervisor::NoSupervisor;
 
 use crate::process::{ProcessId, ProcessResult};
 use crate::shared::scheduler::{Priority, ProcessData, Scheduler};
-use crate::test::{self, init_actor_with_inbox, AssertUnmoved};
+use crate::test::{self, init_actor_future, AssertUnmoved};
 use crate::ThreadSafe;
 
 fn assert_size<T>(expected: usize) {
@@ -42,8 +42,8 @@ fn adding_actor() {
     let actor_entry = scheduler.add_actor();
     let pid = actor_entry.pid();
     let new_actor = simple_actor as fn(_) -> _;
-    let (actor, inbox, _) = init_actor_with_inbox(new_actor, ()).unwrap();
-    actor_entry.add(Priority::NORMAL, NoSupervisor, new_actor, actor, inbox);
+    let (future, _) = init_actor_future(NoSupervisor, new_actor, ()).unwrap();
+    actor_entry.add(future, Priority::NORMAL);
 
     // Newly added processes are ready by default.
     assert!(scheduler.has_process());
@@ -118,8 +118,9 @@ fn scheduler_run_order() {
     for (id, priority) in priorities.iter().enumerate() {
         let actor_entry = scheduler.add_actor();
         pids.push(actor_entry.pid());
-        let (actor, inbox, _) = init_actor_with_inbox(new_actor, (id, run_order.clone())).unwrap();
-        actor_entry.add(*priority, NoSupervisor, new_actor, actor, inbox);
+        let (future, _) =
+            init_actor_future(NoSupervisor, new_actor, (id, run_order.clone())).unwrap();
+        actor_entry.add(future, *priority);
     }
 
     assert!(scheduler.has_process());
@@ -161,17 +162,10 @@ fn assert_actor_process_unmoved() {
     let scheduler = Scheduler::new();
     let mut runtime_ref = test::runtime();
 
-    let (actor, inbox, _) = init_actor_with_inbox(TestAssertUnmovedNewActor, ()).unwrap();
-
     let actor_entry = scheduler.add_actor();
     let pid = actor_entry.pid();
-    actor_entry.add(
-        Priority::NORMAL,
-        NoSupervisor,
-        TestAssertUnmovedNewActor,
-        actor,
-        inbox,
-    );
+    let (future, _) = init_actor_future(NoSupervisor, TestAssertUnmovedNewActor, ()).unwrap();
+    actor_entry.add(future, Priority::NORMAL);
 
     // Run the process multiple times, ensure it's not moved in the
     // process.
