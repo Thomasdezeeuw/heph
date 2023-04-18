@@ -4,8 +4,8 @@ use std::mem::{forget, replace};
 use std::pin::Pin;
 use std::ptr::NonNull;
 
-use crate::local::scheduler::ProcessData;
 use crate::process::ProcessId;
+use crate::scheduler::ProcessData;
 
 /// Number of bits to shift per level.
 const LEVEL_SHIFT: usize = 4;

@@ -1,4 +1,4 @@
-//! Thread-local scheduler.
+//! Scheduler implementation.
 
 use std::collections::BinaryHeap;
 use std::mem::MaybeUninit;
