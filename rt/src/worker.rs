@@ -371,7 +371,10 @@ impl Worker {
                         drop(catch_unwind(AssertUnwindSafe(move || drop(process))));
                     }
                     task::Poll::Pending => {
-                        self.internals.scheduler.borrow_mut().add_process(process);
+                        self.internals
+                            .scheduler
+                            .borrow_mut()
+                            .add_back_process(process);
                     }
                 }
                 trace::finish_rt(

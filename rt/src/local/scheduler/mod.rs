@@ -5,15 +5,12 @@
 //! [`RuntimeRef::try_spawn_local`]: crate::RuntimeRef::try_spawn_local
 
 use std::collections::BinaryHeap;
-use std::future::Future;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
-use heph::actor::{self, Actor, ActorFuture, NewActor};
-use heph::supervisor::Supervisor;
-use log::{debug, trace};
+use log::trace;
 
-use crate::process::{self, FutureProcess, Process, ProcessId};
+use crate::process::{self, Process, ProcessId};
 use crate::ptr_as_usize;
 use crate::spawn::options::Priority;
 
@@ -23,7 +20,7 @@ mod tests;
 
 use inactive::Inactive;
 
-type ProcessData = process::ProcessData<dyn process::Process>;
+type ProcessData = process::ProcessData<dyn Process>;
 
 #[derive(Debug)]
 pub(crate) struct Scheduler {
@@ -64,21 +61,32 @@ impl Scheduler {
         !self.ready.is_empty()
     }
 
-    /// Add an actor to the scheduler.
-    pub(crate) fn add_actor<'s>(&'s mut self) -> AddActor<'s> {
-        AddActor {
-            scheduler: self,
-            alloc: Box::new_uninit(),
-        }
-    }
-
-    pub(crate) fn add_future<Fut>(&mut self, future: Fut, priority: Priority)
+    /// Add a new proces to the scheduler.
+    pub(crate) fn add_new_process<F, P, T, E>(
+        &mut self,
+        priority: Priority,
+        setup: F,
+    ) -> Result<T, E>
     where
-        Fut: Future<Output = ()> + 'static,
+        F: FnOnce(ProcessId) -> Result<(P, T), E>,
+        P: Process + 'static,
     {
-        let process = Box::pin(ProcessData::new(priority, Box::pin(FutureProcess(future))));
-        debug!(pid = process.as_ref().id().0; "spawning thread-local future");
+        // Allocate some memory for the process.
+        let mut alloc: Box<MaybeUninit<ProcessData>> = Box::new_uninit();
+        debug_assert!(inactive::ok_ptr(alloc.as_ptr().cast()), "SKIP_BITS invalid");
+        // Based on the allocation we can determine its process id.
+        let pid = ProcessId(ptr_as_usize(alloc.as_ptr()));
+        // Let the caller create the actual process (using the pid).
+        let (process, ret) = setup(pid)?;
+        let process = ProcessData::new(priority, Box::pin(process));
+        // SAFETY: we write the processes and then safetly assume it's initialised.
+        let process = unsafe {
+            _ = alloc.write(process);
+            Pin::from(alloc.assume_init())
+        };
+        // Finally add it to ready queue.
         self.ready.push(process);
+        Ok(ret)
     }
 
     /// Mark the process, with `pid`, as ready to run.
@@ -100,47 +108,7 @@ impl Scheduler {
 
     /// Add back a process that was previously removed via
     /// [`Scheduler::next_process`].
-    pub(crate) fn add_process(&mut self, process: Pin<Box<ProcessData>>) {
+    pub(crate) fn add_back_process(&mut self, process: Pin<Box<ProcessData>>) {
         self.inactive.add(process);
-    }
-}
-
-/// A handle to add a process to the scheduler.
-///
-/// This allows the `ProcessId` to be determined before the process is actually
-/// added. This is used in registering with the system poller.
-pub(crate) struct AddActor<'s> {
-    scheduler: &'s mut Scheduler,
-    /// Already allocated `ProcessData`, used to determine the `ProcessId`.
-    alloc: Box<MaybeUninit<ProcessData>>,
-}
-
-impl<'s> AddActor<'s> {
-    /// Get the would be `ProcessId` for the process.
-    pub(crate) const fn pid(&self) -> ProcessId {
-        #[allow(clippy::borrow_as_ptr)]
-        ProcessId(ptr_as_usize(&*self.alloc as *const _))
-    }
-
-    /// Add a new inactive actor to the scheduler.
-    pub(crate) fn add<Fut>(self, future: Fut, priority: Priority)
-    where
-        Fut: Process + 'static,
-    {
-        debug_assert!(
-            inactive::ok_ptr(self.alloc.as_ptr().cast::<()>()),
-            "SKIP_BITS invalid"
-        );
-        let process = ProcessData::new(priority, Box::pin(future));
-        let AddActor {
-            scheduler,
-            mut alloc,
-        } = self;
-        let process: Pin<_> = unsafe {
-            _ = alloc.write(process);
-            // Safe because we write into the allocation above.
-            alloc.assume_init().into()
-        };
-        scheduler.ready.push(process);
     }
 }
