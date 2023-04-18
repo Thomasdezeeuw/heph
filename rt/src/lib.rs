@@ -622,12 +622,6 @@ impl RuntimeRef {
         local::waker::new(self.internals.waker_id, pid)
     }
 
-    /// Same as [`RuntimeRef::new_local_task_waker`] but provides a waker
-    /// implementation for thread-safe actors.
-    fn new_shared_task_waker(&self, pid: ProcessId) -> task::Waker {
-        self.internals.shared.new_task_waker(pid)
-    }
-
     /// Add a timer.
     ///
     /// See [`Timers::add`].

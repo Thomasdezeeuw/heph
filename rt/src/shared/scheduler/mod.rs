@@ -11,8 +11,8 @@ use std::pin::Pin;
 use log::{debug, trace};
 
 use crate::process::{self, FutureProcess, Process, ProcessId};
+use crate::ptr_as_usize;
 use crate::spawn::options::Priority;
-use crate::{ptr_as_usize, ThreadSafe};
 
 mod inactive;
 mod runqueue;
@@ -151,10 +151,7 @@ impl Scheduler {
     where
         Fut: Future<Output = ()> + Send + Sync + 'static,
     {
-        let process = Box::pin(ProcessData::new(
-            priority,
-            Box::pin(FutureProcess::<Fut, ThreadSafe>::new(future)),
-        ));
+        let process = Box::pin(ProcessData::new(priority, Box::pin(future)));
         debug!(pid = process.as_ref().id().0; "spawning thread-safe future");
         self.ready.add(process);
     }
@@ -217,17 +214,14 @@ impl<'s> AddActor<'s> {
     /// Add a new thread-safe actor to the scheduler.
     pub(super) fn add<Fut>(self, future: Fut, priority: Priority)
     where
-        Fut: Future<Output = ()> + Send + Sync + 'static,
+        Fut: Process + Send + Sync + 'static,
     {
         debug_assert!(
             inactive::ok_ptr(self.alloc.as_ptr().cast()),
             "SKIP_BITS invalid"
         );
 
-        let process = ProcessData::new(
-            priority,
-            Box::pin(FutureProcess::<Fut, ThreadSafe>::new(future)),
-        );
+        let process = ProcessData::new(priority, Box::pin(future));
         let AddActor {
             scheduler,
             mut alloc,

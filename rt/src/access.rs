@@ -62,9 +62,8 @@ mod private {
     use std::task;
     use std::time::Instant;
 
-    use crate::process::ProcessId;
     use crate::timers::TimerToken;
-    use crate::{trace, RuntimeRef};
+    use crate::trace;
 
     /// Actual trait behind [`rt::Access`].
     ///
@@ -78,9 +77,6 @@ mod private {
 
         /// Remove a previously set timer.
         fn remove_timer(&mut self, deadline: Instant, token: TimerToken);
-
-        /// Create a new [`task::Waker`].
-        fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker;
 
         /// Returns the CPU the thread is bound to, if any.
         fn cpu(&self) -> Option<usize>;
@@ -153,10 +149,6 @@ impl PrivateAccess for ThreadLocal {
 
     fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
         self.rt.remove_timer(deadline, token);
-    }
-
-    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
-        runtime_ref.new_local_task_waker(pid)
     }
 
     fn cpu(&self) -> Option<usize> {
@@ -274,10 +266,6 @@ impl PrivateAccess for ThreadSafe {
 
     fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
         self.rt.remove_timer(deadline, token);
-    }
-
-    fn new_task_waker(runtime_ref: &mut RuntimeRef, pid: ProcessId) -> task::Waker {
-        runtime_ref.new_shared_task_waker(pid)
     }
 
     fn cpu(&self) -> Option<usize> {
