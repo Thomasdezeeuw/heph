@@ -174,17 +174,19 @@ unsafe fn drop_wake_data(_: *const ()) {
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
     use std::mem::size_of;
     use std::pin::Pin;
     use std::sync::{Arc, Weak};
+    use std::task::{self, Poll};
     use std::thread::{self, sleep};
     use std::time::Duration;
 
-    use crate::process::{Process, ProcessData, ProcessId, ProcessResult};
+    use crate::process::{FutureProcess, Process, ProcessId};
     use crate::shared::waker::{self, WakerData};
     use crate::shared::{RuntimeInternals, Scheduler};
     use crate::spawn::options::Priority;
-    use crate::{test, RuntimeRef};
+    use crate::test;
 
     const PID1: ProcessId = ProcessId(1);
     const PID2: ProcessId = ProcessId(2);
@@ -196,13 +198,17 @@ mod tests {
 
     struct TestProcess;
 
+    impl Future for TestProcess {
+        type Output = ();
+
+        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+            unimplemented!();
+        }
+    }
+
     impl Process for TestProcess {
         fn name(&self) -> &'static str {
             "TestProcess"
-        }
-
-        fn run(self: Pin<&mut Self>, _: &mut RuntimeRef, _: ProcessId) -> ProcessResult {
-            unimplemented!();
         }
     }
 
@@ -211,6 +217,10 @@ mod tests {
         let shared_internals = new_internals();
 
         let pid = add_process(&shared_internals.scheduler);
+        assert!(shared_internals.scheduler.has_process());
+        assert!(shared_internals.scheduler.has_ready_process());
+        let process = shared_internals.scheduler.remove().unwrap();
+        shared_internals.scheduler.add_back_process(process);
         assert!(shared_internals.scheduler.has_process());
         assert!(!shared_internals.scheduler.has_ready_process());
 
@@ -240,6 +250,10 @@ mod tests {
         // Add a test process.
         let pid = add_process(&shared_internals.scheduler);
         assert!(shared_internals.scheduler.has_process());
+        assert!(shared_internals.scheduler.has_ready_process());
+        let process = shared_internals.scheduler.remove().unwrap();
+        shared_internals.scheduler.add_back_process(process);
+        assert!(shared_internals.scheduler.has_process());
         assert!(!shared_internals.scheduler.has_ready_process());
 
         // Create a cloned waker.
@@ -260,6 +274,10 @@ mod tests {
         let shared_internals = new_internals();
 
         let pid = add_process(&shared_internals.scheduler);
+        assert!(shared_internals.scheduler.has_process());
+        assert!(shared_internals.scheduler.has_ready_process());
+        let process = shared_internals.scheduler.remove().unwrap();
+        shared_internals.scheduler.add_back_process(process);
         assert!(shared_internals.scheduler.has_process());
         assert!(!shared_internals.scheduler.has_ready_process());
 
@@ -327,10 +345,10 @@ mod tests {
     }
 
     fn add_process(scheduler: &Scheduler) -> ProcessId {
-        let process: Pin<Box<dyn Process + Send + Sync>> = Box::pin(TestProcess);
-        let process_data = Box::pin(ProcessData::new(Priority::NORMAL, process));
-        let pid = process_data.as_ref().id();
-        scheduler.add_process(process_data);
-        pid
+        scheduler
+            .add_new_process(Priority::NORMAL, |pid| {
+                Ok::<_, !>((FutureProcess(TestProcess), pid))
+            })
+            .unwrap()
     }
 }

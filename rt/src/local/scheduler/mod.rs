@@ -1,8 +1,4 @@
-//! Module with the thread-local scheduler.
-//!
-//! Scheduler for the actors started with [`RuntimeRef::try_spawn_local`].
-//!
-//! [`RuntimeRef::try_spawn_local`]: crate::RuntimeRef::try_spawn_local
+//! Thread-local scheduler.
 
 use std::collections::BinaryHeap;
 use std::mem::MaybeUninit;

@@ -300,14 +300,15 @@ const fn skip_bits(pid: ProcessId, depth: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use std::cmp::max;
+    use std::future::Future;
     use std::mem::{align_of, size_of};
     use std::pin::Pin;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::task::{self, Poll};
 
-    use crate::process::{Process, ProcessId, ProcessResult};
+    use crate::process::{Process, ProcessId};
     use crate::spawn::options::Priority;
-    use crate::RuntimeRef;
 
     use super::{
         diff_branch_depth, Branch, Inactive, Pointer, ProcessData, LEVEL_SHIFT, N_BRANCHES,
@@ -316,13 +317,17 @@ mod tests {
 
     struct TestProcess;
 
+    impl Future for TestProcess {
+        type Output = ();
+
+        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+            unimplemented!();
+        }
+    }
+
     impl Process for TestProcess {
         fn name(&self) -> &'static str {
             "TestProcess"
-        }
-
-        fn run(self: Pin<&mut Self>, _: &mut RuntimeRef, _: ProcessId) -> ProcessResult {
-            unimplemented!()
         }
     }
 
@@ -445,13 +450,17 @@ mod tests {
             }
         }
 
+        impl Future for DropTest {
+            type Output = ();
+
+            fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+                unimplemented!();
+            }
+        }
+
         impl Process for DropTest {
             fn name(&self) -> &'static str {
                 "DropTest"
-            }
-
-            fn run(self: Pin<&mut Self>, _: &mut RuntimeRef, _: ProcessId) -> ProcessResult {
-                unimplemented!()
             }
         }
 

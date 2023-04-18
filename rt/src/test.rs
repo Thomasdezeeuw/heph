@@ -56,8 +56,6 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{io, slice, thread};
 
-#[cfg(test)]
-use heph::actor::ActorFuture;
 use heph::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::supervisor::{Supervisor, SyncSupervisor};
@@ -90,7 +88,7 @@ pub(crate) fn noop_waker() -> &'static ThreadWaker {
     })
 }
 
-fn shared_internals() -> Arc<shared::RuntimeInternals> {
+pub(crate) fn shared_internals() -> Arc<shared::RuntimeInternals> {
     static SHARED_INTERNALS: OnceLock<Arc<shared::RuntimeInternals>> = OnceLock::new();
     SHARED_INTERNALS
         .get_or_init(|| {
@@ -387,36 +385,6 @@ where
     init_actor_with_inbox(new_actor, arg).map(|(actor, _, actor_ref)| (actor, actor_ref))
 }
 
-/// Initialise a thread-local `ActorFuture`.
-#[cfg(test)]
-pub(crate) fn init_local_actor_future<S, NA>(
-    supervisor: S,
-    new_actor: NA,
-    argument: NA::Argument,
-) -> Result<(ActorFuture<S, NA, ThreadLocal>, ActorRef<NA::Message>), NA::Error>
-where
-    S: Supervisor<NA>,
-    NA: NewActor<RuntimeAccess = ThreadLocal>,
-{
-    let rt = ThreadLocal::new(TEST_PID, runtime());
-    ActorFuture::new(supervisor, new_actor, argument, rt)
-}
-
-/// Initialise a thread-safe `ActorFuture`.
-#[cfg(test)]
-pub(crate) fn init_actor_future<S, NA>(
-    supervisor: S,
-    new_actor: NA,
-    argument: NA::Argument,
-) -> Result<(ActorFuture<S, NA, ThreadSafe>, ActorRef<NA::Message>), NA::Error>
-where
-    S: Supervisor<NA>,
-    NA: NewActor<RuntimeAccess = ThreadSafe>,
-{
-    let rt = ThreadSafe::new(TEST_PID, shared_internals());
-    ActorFuture::new(supervisor, new_actor, argument, rt)
-}
-
 /// Initialise a thread-local actor with access to it's inbox.
 #[allow(clippy::type_complexity)]
 pub(crate) fn init_local_actor_with_inbox<NA>(
@@ -576,3 +544,16 @@ where
 unsafe impl<Fut: Send> Send for AssertUnmoved<Fut> {}
 #[cfg(test)]
 unsafe impl<Fut: std::marker::Sync> std::marker::Sync for AssertUnmoved<Fut> {}
+
+/// Returns a no-op [`task::Waker`].
+#[cfg(test)]
+pub(crate) fn nop_task_waker() -> task::Waker {
+    use std::task::{RawWaker, RawWakerVTable};
+    static WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
+        |_| RawWaker::new(std::ptr::null(), &WAKER_VTABLE),
+        |_| {},
+        |_| {},
+        |_| {},
+    );
+    unsafe { task::Waker::from_raw(RawWaker::new(std::ptr::null(), &WAKER_VTABLE)) }
+}

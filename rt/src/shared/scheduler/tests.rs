@@ -3,13 +3,14 @@
 use std::future::{pending, Pending};
 use std::mem::size_of;
 use std::sync::{Arc, Mutex};
+use std::task::{self, Poll};
 
-use heph::actor::{self, NewActor};
+use heph::actor::{self, ActorFuture, NewActor};
 use heph::supervisor::NoSupervisor;
 
-use crate::process::{ProcessId, ProcessResult};
+use crate::process::{FutureProcess, ProcessId};
 use crate::shared::scheduler::{Priority, ProcessData, Scheduler};
-use crate::test::{self, init_actor_future, AssertUnmoved};
+use crate::test::{self, nop_task_waker, AssertUnmoved, TEST_PID};
 use crate::ThreadSafe;
 
 fn assert_size<T>(expected: usize) {
@@ -38,18 +39,13 @@ fn adding_actor() {
     assert!(!scheduler.has_ready_process());
     assert_eq!(scheduler.remove(), None);
 
-    // Add an actor to the scheduler.
-    let actor_entry = scheduler.add_actor();
-    let pid = actor_entry.pid();
-    let new_actor = simple_actor as fn(_) -> _;
-    let (future, _) = init_actor_future(NoSupervisor, new_actor, ()).unwrap();
-    actor_entry.add(future, Priority::NORMAL);
+    let pid = add_test_actor(&scheduler, Priority::NORMAL);
 
     // Newly added processes are ready by default.
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
     let process = scheduler.remove().unwrap();
-    scheduler.add_process(process);
+    scheduler.add_back_process(process);
 
     // After scheduling the process should be ready to run.
     scheduler.mark_ready(pid);
@@ -58,8 +54,8 @@ fn adding_actor() {
     let process = scheduler.remove().unwrap();
     assert_eq!(process.as_ref().id(), pid);
 
-    // After the process is run, and returned `ProcessResult::Complete`, it
-    // should be removed.
+    // After the process is run, and returned `Poll::Ready(()`, it should be
+    // removed.
     assert!(!scheduler.has_process());
     assert!(!scheduler.has_ready_process());
     assert_eq!(scheduler.remove(), None);
@@ -67,7 +63,7 @@ fn adding_actor() {
     assert!(!scheduler.has_ready_process());
 
     // Adding the process back means its not ready.
-    scheduler.add_process(process);
+    scheduler.add_back_process(process);
     assert!(scheduler.has_process());
     assert!(!scheduler.has_ready_process());
     assert_eq!(scheduler.remove(), None);
@@ -106,7 +102,8 @@ fn scheduler_run_order() {
     }
 
     let scheduler = Scheduler::new();
-    let mut runtime_ref = test::runtime();
+    let waker = nop_task_waker();
+    let mut ctx = task::Context::from_waker(&waker);
 
     // The order in which the processes have been run.
     let run_order = Arc::new(Mutex::new(Vec::new()));
@@ -116,11 +113,14 @@ fn scheduler_run_order() {
     let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
     let mut pids = vec![];
     for (id, priority) in priorities.iter().enumerate() {
-        let actor_entry = scheduler.add_actor();
-        pids.push(actor_entry.pid());
-        let (future, _) =
-            init_actor_future(NoSupervisor, new_actor, (id, run_order.clone())).unwrap();
-        actor_entry.add(future, *priority);
+        let pid = scheduler
+            .add_new_process(*priority, |pid| {
+                let rt = ThreadSafe::new(TEST_PID, test::shared_internals());
+                ActorFuture::new(NoSupervisor, new_actor, (id, run_order.clone()), rt)
+                    .map(|(future, _)| (future, pid))
+            })
+            .unwrap();
+        pids.push(pid);
     }
 
     assert!(scheduler.has_process());
@@ -130,10 +130,7 @@ fn scheduler_run_order() {
     // are equal).
     for _ in 0..3 {
         let mut process = scheduler.remove().unwrap();
-        assert_eq!(
-            process.as_mut().run(&mut runtime_ref),
-            ProcessResult::Complete
-        );
+        assert_eq!(process.as_mut().run(&mut ctx), Poll::Ready(()));
     }
     assert!(!scheduler.has_process());
     assert_eq!(*run_order.lock().unwrap(), vec![2_usize, 1, 0]);
@@ -160,68 +157,66 @@ impl NewActor for TestAssertUnmovedNewActor {
 #[test]
 fn assert_actor_process_unmoved() {
     let scheduler = Scheduler::new();
-    let mut runtime_ref = test::runtime();
+    let waker = nop_task_waker();
+    let mut ctx = task::Context::from_waker(&waker);
 
-    let actor_entry = scheduler.add_actor();
-    let pid = actor_entry.pid();
-    let (future, _) = init_actor_future(NoSupervisor, TestAssertUnmovedNewActor, ()).unwrap();
-    actor_entry.add(future, Priority::NORMAL);
+    let pid = scheduler
+        .add_new_process(Priority::NORMAL, |pid| {
+            let rt = ThreadSafe::new(TEST_PID, test::shared_internals());
+            ActorFuture::new(NoSupervisor, TestAssertUnmovedNewActor, (), rt)
+                .map(|(future, _)| (future, pid))
+        })
+        .unwrap();
 
     // Run the process multiple times, ensure it's not moved in the
     // process.
     let mut process = scheduler.remove().unwrap();
-    assert_eq!(
-        process.as_mut().run(&mut runtime_ref),
-        ProcessResult::Pending
-    );
-    scheduler.add_process(process);
+    assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
+    scheduler.add_back_process(process);
 
     scheduler.mark_ready(pid);
     let mut process = scheduler.remove().unwrap();
-    assert_eq!(
-        process.as_mut().run(&mut runtime_ref),
-        ProcessResult::Pending
-    );
-    scheduler.add_process(process);
+    assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
+    scheduler.add_back_process(process);
 
     scheduler.mark_ready(pid);
     let mut process = scheduler.remove().unwrap();
-    assert_eq!(
-        process.as_mut().run(&mut runtime_ref),
-        ProcessResult::Pending
-    );
+    assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
 }
 
 #[test]
 fn assert_future_process_unmoved() {
     let scheduler = Scheduler::new();
-    let mut runtime_ref = test::runtime();
+    let waker = nop_task_waker();
+    let mut ctx = task::Context::from_waker(&waker);
 
-    let future = AssertUnmoved::new(pending());
-    scheduler.add_future(future, Priority::NORMAL);
+    let _ = scheduler.add_new_process(Priority::NORMAL, |_| {
+        Ok::<_, !>((FutureProcess(AssertUnmoved::new(pending())), ()))
+    });
 
     // Run the process multiple times, ensure it's not moved in the
     // process.
     let mut process = scheduler.remove().unwrap();
     let pid = process.as_ref().id();
-    assert_eq!(
-        process.as_mut().run(&mut runtime_ref),
-        ProcessResult::Pending
-    );
-    scheduler.add_process(process);
+    assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
+    scheduler.add_back_process(process);
 
     scheduler.mark_ready(pid);
     let mut process = scheduler.remove().unwrap();
-    assert_eq!(
-        process.as_mut().run(&mut runtime_ref),
-        ProcessResult::Pending
-    );
-    scheduler.add_process(process);
+    assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
+    scheduler.add_back_process(process);
 
     scheduler.mark_ready(pid);
     let mut process = scheduler.remove().unwrap();
-    assert_eq!(
-        process.as_mut().run(&mut runtime_ref),
-        ProcessResult::Pending
-    );
+    assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
+}
+
+fn add_test_actor(scheduler: &Scheduler, priority: Priority) -> ProcessId {
+    scheduler
+        .add_new_process(priority, |pid| {
+            let new_actor = simple_actor as fn(_) -> _;
+            let rt = ThreadSafe::new(TEST_PID, test::shared_internals());
+            ActorFuture::new(NoSupervisor, new_actor, (), rt).map(|(future, _)| (future, pid))
+        })
+        .unwrap()
 }
