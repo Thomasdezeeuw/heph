@@ -387,8 +387,22 @@ where
     init_actor_with_inbox(new_actor, arg).map(|(actor, _, actor_ref)| (actor, actor_ref))
 }
 
+/// Initialise a thread-local `ActorFuture`.
+#[cfg(test)]
+pub(crate) fn init_local_actor_future<S, NA>(
+    supervisor: S,
+    new_actor: NA,
+    argument: NA::Argument,
+) -> Result<(ActorFuture<S, NA, ThreadLocal>, ActorRef<NA::Message>), NA::Error>
+where
+    S: Supervisor<NA>,
+    NA: NewActor<RuntimeAccess = ThreadLocal>,
+{
+    let rt = ThreadLocal::new(TEST_PID, runtime());
+    ActorFuture::new(supervisor, new_actor, argument, rt)
+}
+
 /// Initialise a thread-safe `ActorFuture`.
-#[allow(clippy::type_complexity)]
 #[cfg(test)]
 pub(crate) fn init_actor_future<S, NA>(
     supervisor: S,
