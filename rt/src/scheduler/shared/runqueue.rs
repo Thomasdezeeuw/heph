@@ -2,7 +2,7 @@ use std::mem::replace;
 use std::pin::Pin;
 use std::sync::Mutex;
 
-use super::ProcessData;
+use crate::scheduler::shared::ProcessData;
 
 // TODO: currently this creates and drops Node on almost every operation. Maybe
 // we can keep (some of) the structure in place, changing `Node.process` into an
@@ -12,7 +12,7 @@ use super::ProcessData;
 ///
 /// Implemented as a simple binary tree.
 #[derive(Debug)]
-pub(super) struct RunQueue {
+pub(crate) struct RunQueue {
     root: Mutex<Branch>,
 }
 
@@ -27,7 +27,7 @@ struct Node {
 
 impl RunQueue {
     /// Returns an empty `RunQueue`.
-    pub(super) const fn empty() -> RunQueue {
+    pub(crate) const fn empty() -> RunQueue {
         RunQueue {
             root: Mutex::new(None),
         }
@@ -38,7 +38,7 @@ impl RunQueue {
     /// # Notes
     ///
     /// Don't call this often, it's terrible for performance.
-    pub(super) fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         match &mut *self.root.lock().unwrap() {
             Some(branch) => branch.len(),
             None => 0,
@@ -46,12 +46,12 @@ impl RunQueue {
     }
 
     /// Returns `true` if the queue contains any process.
-    pub(super) fn has_process(&self) -> bool {
+    pub(crate) fn has_process(&self) -> bool {
         self.root.lock().unwrap().is_some()
     }
 
     /// Add `process` to the queue of running processes.
-    pub(super) fn add(&self, process: Pin<Box<ProcessData>>) {
+    pub(crate) fn add(&self, process: Pin<Box<ProcessData>>) {
         let mut next_node = &mut *self.root.lock().unwrap();
         loop {
             match next_node {
@@ -74,7 +74,7 @@ impl RunQueue {
     }
 
     /// Remove the next process to run from the queue.
-    pub(super) fn remove(&self) -> Option<Pin<Box<ProcessData>>> {
+    pub(crate) fn remove(&self) -> Option<Pin<Box<ProcessData>>> {
         let mut next_node = &mut *self.root.lock().unwrap();
         loop {
             match next_node {

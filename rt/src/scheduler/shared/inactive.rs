@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::{fmt, ptr};
 
-use crate::shared::scheduler::{ProcessData, RunQueue};
+use crate::scheduler::shared::{ProcessData, RunQueue};
 use crate::ProcessId;
 
 /// Number of bits to shift per level.
@@ -683,7 +683,7 @@ mod tests {
     use std::task::{self, Poll};
 
     use crate::process::{Process, ProcessId};
-    use crate::shared::scheduler::RunQueue;
+    use crate::scheduler::shared::RunQueue;
     use crate::spawn::options::Priority;
 
     use super::{

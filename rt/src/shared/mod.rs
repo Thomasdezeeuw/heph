@@ -22,11 +22,10 @@ use crate::thread_waker::ThreadWaker;
 use crate::timers::TimerToken;
 use crate::{trace, ThreadSafe};
 
-mod scheduler;
 pub(crate) mod waker;
 
+use crate::scheduler::shared::{ProcessData, Scheduler};
 use crate::timers::shared::Timers;
-use scheduler::{ProcessData, Scheduler};
 use waker::WakerId;
 
 /// Setup of [`RuntimeInternals`].

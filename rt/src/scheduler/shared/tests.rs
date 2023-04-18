@@ -9,7 +9,7 @@ use heph::actor::{self, ActorFuture, NewActor};
 use heph::supervisor::NoSupervisor;
 
 use crate::process::{FutureProcess, ProcessId};
-use crate::shared::scheduler::{Priority, ProcessData, Scheduler};
+use crate::scheduler::shared::{Priority, ProcessData, Scheduler};
 use crate::test::{self, nop_task_waker, AssertUnmoved, TEST_PID};
 use crate::ThreadSafe;
 

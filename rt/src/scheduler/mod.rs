@@ -12,6 +12,7 @@ use crate::ptr_as_usize;
 use crate::spawn::options::Priority;
 
 mod inactive;
+pub(crate) mod shared;
 #[cfg(test)]
 mod tests;
 
