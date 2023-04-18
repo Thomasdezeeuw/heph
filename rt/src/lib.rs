@@ -223,6 +223,7 @@ pub mod log;
 pub mod net;
 pub mod pipe;
 mod process;
+mod scheduler;
 mod setup;
 mod shared;
 mod signal;

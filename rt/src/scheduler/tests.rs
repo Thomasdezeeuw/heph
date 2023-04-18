@@ -11,8 +11,8 @@ use std::task::{self, Poll};
 use heph::actor::{self, ActorFuture, NewActor};
 use heph::supervisor::NoSupervisor;
 
-use crate::local::scheduler::{ProcessData, Scheduler};
 use crate::process::{FutureProcess, Process, ProcessId};
+use crate::scheduler::{ProcessData, Scheduler};
 use crate::spawn::options::Priority;
 use crate::test::{self, nop_task_waker, AssertUnmoved, TEST_PID};
 use crate::ThreadLocal;
