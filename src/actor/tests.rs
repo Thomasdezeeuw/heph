@@ -1,4 +1,13 @@
-use crate::actor;
+use std::any::Any;
+use std::cell::Cell;
+use std::future::Future;
+use std::pin::pin;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::task::{self, Poll};
+
+use crate::actor::{self, Actor, ActorFuture, NewActor};
+use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 
 #[test]
 fn actor_name() {
@@ -89,4 +98,228 @@ fn actor_name() {
         let got = actor::format_name(input);
         assert_eq!(got, *expected, "input: {input}");
     }
+}
+
+async fn ok_actor(mut ctx: actor::Context<()>) {
+    assert_eq!(ctx.receive_next().await, Ok(()));
+}
+
+#[test]
+fn actor_future() {
+    let new_actor = ok_actor as fn(_) -> _;
+    let (actor, actor_ref) = ActorFuture::new(NoSupervisor, new_actor, (), ()).unwrap();
+    let mut actor = pin!(actor);
+
+    let (waker, count) = task_wake_counter();
+    let mut ctx = task::Context::from_waker(&waker);
+
+    // Actor should return `Poll::Pending` in the first call, since no message
+    // is available.
+    let res = actor.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Pending);
+
+    // Send a message and the actor should return Ok.
+    actor_ref.try_send(()).unwrap();
+    assert_eq!(count.load(Ordering::SeqCst), 1);
+    let res = actor.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Ready(()));
+}
+
+async fn error_actor(mut ctx: actor::Context<()>, fail: bool) -> Result<(), ()> {
+    if fail {
+        Err(())
+    } else {
+        assert_eq!(ctx.receive_next().await, Ok(()));
+        Ok(())
+    }
+}
+
+#[test]
+fn erroneous_actor_process() {
+    let mut supervisor_called_count = 0;
+    let supervisor = |()| {
+        supervisor_called_count += 1;
+        SupervisorStrategy::Stop
+    };
+    let new_actor = error_actor as fn(_, _) -> _;
+    let (actor, _) = ActorFuture::new(supervisor, new_actor, true, ()).unwrap();
+    let mut actor = pin!(actor);
+
+    // Actor should return an error and be stopped.
+    let (waker, count) = task_wake_counter();
+    let mut ctx = task::Context::from_waker(&waker);
+    let res = actor.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Ready(()));
+    assert_eq!(supervisor_called_count, 1);
+    assert_eq!(count.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn restarting_erroneous_actor_process() {
+    let supervisor_called_count = Cell::new(0);
+    let supervisor = |()| {
+        supervisor_called_count.set(supervisor_called_count.get() + 1);
+        SupervisorStrategy::Restart(false)
+    };
+    let new_actor = error_actor as fn(_, _) -> _;
+    let (actor, actor_ref) = ActorFuture::new(supervisor, new_actor, true, ()).unwrap();
+    let mut actor = pin!(actor);
+
+    // Actor should return an error and be restarted.
+    let (waker, count) = task_wake_counter();
+    let mut ctx = task::Context::from_waker(&waker);
+    let res = actor.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Pending);
+    assert_eq!(supervisor_called_count.get(), 1);
+    // The future to wake itself after a restart to ensure it gets run again.
+    assert_eq!(count.load(Ordering::SeqCst), 1);
+
+    // After a restart the actor should continue without issues.
+    let res = actor.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Pending);
+    assert_eq!(supervisor_called_count.get(), 1);
+
+    // Finally after sending it a message it should complete.
+    actor_ref.try_send(()).unwrap();
+    assert_eq!(count.load(Ordering::SeqCst), 2);
+    let res = actor.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Ready(()));
+    assert_eq!(supervisor_called_count.get(), 1);
+}
+
+async fn panic_actor(mut ctx: actor::Context<()>, fail: bool) -> Result<(), ()> {
+    if fail {
+        panic!("oops!")
+    } else {
+        assert_eq!(ctx.receive_next().await, Ok(()));
+        Ok(())
+    }
+}
+
+#[test]
+fn panicking_actor_process() {
+    struct TestSupervisor<'a>(&'a mut usize);
+
+    impl<NA> Supervisor<NA> for TestSupervisor<'_>
+    where
+        NA: NewActor<Argument = bool, Error = !>,
+    {
+        fn decide(&mut self, _: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
+            unreachable!()
+        }
+
+        fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<NA::Argument> {
+            // This can't be called.
+            err
+        }
+
+        fn second_restart_error(&mut self, err: !) {
+            // This can't be called.
+            err
+        }
+
+        fn decide_on_panic(
+            &mut self,
+            panic: Box<dyn Any + Send + 'static>,
+        ) -> SupervisorStrategy<NA::Argument> {
+            drop(panic);
+            *self.0 += 1;
+            SupervisorStrategy::Stop
+        }
+    }
+
+    let mut supervisor_called_count = 0;
+    let supervisor = TestSupervisor(&mut supervisor_called_count);
+    let new_actor = panic_actor as fn(_, _) -> _;
+    let (actor, _) = ActorFuture::new(supervisor, new_actor, true, ()).unwrap();
+    let mut actor = pin!(actor);
+
+    // Actor should panic and be stopped.
+    let (waker, count) = task_wake_counter();
+    let mut ctx = task::Context::from_waker(&waker);
+    let res = actor.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Ready(()));
+    assert_eq!(supervisor_called_count, 1);
+    assert_eq!(count.load(Ordering::SeqCst), 0);
+}
+
+#[test]
+fn restarting_panicking_actor_process() {
+    struct TestSupervisor<'a>(&'a Cell<usize>);
+
+    impl<NA> Supervisor<NA> for TestSupervisor<'_>
+    where
+        NA: NewActor<Argument = bool, Error = !>,
+    {
+        fn decide(&mut self, _: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
+            unreachable!()
+        }
+
+        fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<NA::Argument> {
+            // This can't be called.
+            err
+        }
+
+        fn second_restart_error(&mut self, err: !) {
+            // This can't be called.
+            err
+        }
+
+        fn decide_on_panic(
+            &mut self,
+            panic: Box<dyn Any + Send + 'static>,
+        ) -> SupervisorStrategy<NA::Argument> {
+            drop(panic);
+            self.0.set(self.0.get() + 1);
+            SupervisorStrategy::Restart(false)
+        }
+    }
+
+    let supervisor_called_count = Cell::new(0);
+    let supervisor = TestSupervisor(&supervisor_called_count);
+    let new_actor = panic_actor as fn(_, _) -> _;
+    let (actor, actor_ref) = ActorFuture::new(supervisor, new_actor, true, ()).unwrap();
+    let mut actor = pin!(actor);
+
+    // Actor should panic and be restarted.
+    let (waker, count) = task_wake_counter();
+    let mut ctx = task::Context::from_waker(&waker);
+    let res = actor.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Pending);
+    assert_eq!(supervisor_called_count.get(), 1);
+    // The future to wake itself after a restart to ensure it gets run again.
+    assert_eq!(count.load(Ordering::SeqCst), 1);
+
+    // After a restart the actor should continue without issues.
+    let res = actor.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Pending);
+    assert_eq!(supervisor_called_count.get(), 1);
+
+    // Finally after sending it a message it should complete.
+    actor_ref.try_send(()).unwrap();
+    assert_eq!(count.load(Ordering::SeqCst), 2);
+    let res = actor.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Ready(()));
+    assert_eq!(supervisor_called_count.get(), 1);
+}
+
+/// Returns a [`task::Waker`] that counts the times it's called in `call_count`.
+pub(crate) fn task_wake_counter() -> (task::Waker, Arc<AtomicUsize>) {
+    #[repr(transparent)]
+    struct WakeCounter(AtomicUsize);
+
+    impl task::Wake for WakeCounter {
+        fn wake(self: Arc<Self>) {
+            _ = self.0.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+
+    let call_count = Arc::new(AtomicUsize::new(0));
+    (
+        // SAFETY: safe with `repr(transparent)`.
+        task::Waker::from(unsafe {
+            std::mem::transmute::<Arc<AtomicUsize>, Arc<WakeCounter>>(call_count.clone())
+        }),
+        call_count,
+    )
 }

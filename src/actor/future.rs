@@ -163,10 +163,10 @@ where
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        // This is safe because we're not moving the actor.
+        // SAFETY: not moving the actor.
         let this = unsafe { Pin::get_unchecked_mut(self) };
-        // The actor need to be called with `Pin`. So we're undoing the previous
-        // operation, still ensuring that the actor is not moved.
+        // SAFETY: undoing the previous operation, still ensuring that the actor
+        // is not moved.
         let mut actor = unsafe { Pin::new_unchecked(&mut this.actor) };
 
         match catch_unwind(AssertUnwindSafe(|| actor.as_mut().try_poll(ctx))) {
