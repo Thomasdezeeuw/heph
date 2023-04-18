@@ -12,12 +12,10 @@ use mio::Token;
 use crate::spawn::options::Priority;
 use crate::RuntimeRef;
 
-mod actor;
 mod future;
 #[cfg(test)]
 mod tests;
 
-pub(crate) use actor::ActorProcess;
 pub(crate) use future::FutureProcess;
 
 /// Process id, or pid for short, is an identifier for a process in an

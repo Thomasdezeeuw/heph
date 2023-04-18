@@ -208,10 +208,9 @@ use std::task;
 use std::time::{Duration, Instant};
 
 use ::log::{as_debug, debug, warn};
-use heph::actor::{self, NewActor, SyncActor};
+use heph::actor::{ActorFuture, NewActor, SyncActor};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::supervisor::{Supervisor, SyncSupervisor};
-use heph_inbox as inbox;
 
 pub mod access;
 mod channel;
@@ -629,16 +628,6 @@ impl RuntimeRef {
         self.internals.shared.new_task_waker(pid)
     }
 
-    /// Mark the process, with `pid`, as ready to run.
-    fn mark_ready_local(&mut self, pid: ProcessId) {
-        self.internals.scheduler.borrow_mut().mark_ready(pid);
-    }
-
-    /// Mark the shared process, with `pid`, as ready to run.
-    fn mark_ready_shared(&mut self, pid: ProcessId) {
-        self.internals.shared.mark_ready(pid);
-    }
-
     /// Add a timer.
     ///
     /// See [`Timers::add`].
@@ -694,7 +683,7 @@ where
     fn try_spawn(
         &mut self,
         supervisor: S,
-        mut new_actor: NA,
+        new_actor: NA,
         arg: NA::Argument,
         options: ActorOptions,
     ) -> Result<ActorRef<NA::Message>, NA::Error>
@@ -709,15 +698,12 @@ where
         let name = NA::name();
         debug!(pid = pid.0, name = name; "spawning thread-local actor");
 
-        // Create our actor context and our actor with it.
-        let (manager, sender, receiver) = inbox::Manager::new_small_channel();
-        let actor_ref = ActorRef::local(sender);
-        let ctx = actor::Context::new(receiver, ThreadLocal::new(pid, self.clone()));
-        // Create our actor argument, running any setup required by the caller.
-        let actor = new_actor.new(ctx, arg)?;
+        // Create the `ActorFuture`.
+        let rt = ThreadLocal::new(pid, self.clone());
+        let (future, actor_ref) = ActorFuture::new(supervisor, new_actor, arg, rt)?;
 
         // Add the actor to the scheduler.
-        actor_entry.add(options.priority(), supervisor, new_actor, actor, manager);
+        actor_entry.add(future, options.priority());
 
         Ok(actor_ref)
     }
