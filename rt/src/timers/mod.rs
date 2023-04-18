@@ -6,7 +6,6 @@
 //!
 //! [`timer`]: crate::timer
 //!
-//!
 //! # Implementation
 //!
 //! This implementation is based on a Timing Wheel as discussed in the paper

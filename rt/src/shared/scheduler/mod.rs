@@ -1,8 +1,4 @@
-//! Module with the thread-safe scheduler.
-//!
-//! Scheduler for the actors started with [`RuntimeRef::try_spawn`].
-//!
-//! [`RuntimeRef::try_spawn`]: crate::RuntimeRef::try_spawn
+//! Thread-safe scheduler.
 
 use std::mem::MaybeUninit;
 use std::pin::Pin;

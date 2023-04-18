@@ -1,18 +1,18 @@
 //! Tests for the process module.
 
 use std::cmp::Ordering;
-use std::future::pending;
+use std::future::{pending, Future};
 use std::mem::size_of;
 use std::pin::Pin;
+use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
 use mio::Token;
 
-use crate::process::{FutureProcess, Process, ProcessData, ProcessId, ProcessResult};
+use crate::process::{FutureProcess, Process, ProcessData, ProcessId};
 use crate::spawn::options::Priority;
-use crate::test::{self, AssertUnmoved};
-use crate::{RuntimeRef, ThreadLocal, ThreadSafe};
+use crate::test::{nop_task_waker, AssertUnmoved};
 
 #[test]
 fn pid() {
@@ -51,13 +51,17 @@ fn size_assertions() {
 #[derive(Debug)]
 struct NopTestProcess;
 
+impl Future for NopTestProcess {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+        unimplemented!();
+    }
+}
+
 impl Process for NopTestProcess {
     fn name(&self) -> &'static str {
         "NopTestProcess"
-    }
-
-    fn run(self: Pin<&mut Self>, _: &mut RuntimeRef, _: ProcessId) -> ProcessResult {
-        unimplemented!();
     }
 }
 
@@ -124,14 +128,18 @@ fn process_data_ordering() {
 #[derive(Debug)]
 struct SleepyProcess(Duration);
 
+impl Future for SleepyProcess {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+        sleep(self.0);
+        Poll::Pending
+    }
+}
+
 impl Process for SleepyProcess {
     fn name(&self) -> &'static str {
         "SleepyProcess"
-    }
-
-    fn run(self: Pin<&mut Self>, _: &mut RuntimeRef, _: ProcessId) -> ProcessResult {
-        sleep(self.0);
-        ProcessResult::Pending
     }
 }
 
@@ -146,40 +154,26 @@ fn process_data_runtime_increase() {
     process.fair_runtime = Duration::from_millis(10);
 
     // Runtime must increase after running.
-    let mut runtime_ref = test::runtime();
-    let res = process.as_mut().run(&mut runtime_ref);
-    assert_eq!(res, ProcessResult::Pending);
+    let waker = nop_task_waker();
+    let mut ctx = task::Context::from_waker(&waker);
+    let res = process.as_mut().run(&mut ctx);
+    assert_eq!(res, Poll::Pending);
     assert!(process.fair_runtime >= SLEEP_TIME);
 }
 
 #[test]
-fn future_process_thread_local_assert_future_unmoved() {
-    let process = FutureProcess::<_, ThreadLocal>::new(AssertUnmoved::new(pending()));
+fn future_process_assert_future_unmoved() {
+    let process = FutureProcess(AssertUnmoved::new(pending()));
     let mut process: Pin<Box<dyn Process>> = Box::pin(process);
 
     // All we do is run it a couple of times, it should panic if the actor is
     // moved.
-    let mut runtime_ref = test::runtime();
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
-    assert_eq!(res, ProcessResult::Pending);
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
-    assert_eq!(res, ProcessResult::Pending);
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
-    assert_eq!(res, ProcessResult::Pending);
-}
-
-#[test]
-fn future_process_thread_safe_assert_future_unmoved() {
-    let process = FutureProcess::<_, ThreadSafe>::new(AssertUnmoved::new(pending()));
-    let mut process: Pin<Box<dyn Process>> = Box::pin(process);
-
-    // All we do is run it a couple of times, it should panic if the actor is
-    // moved.
-    let mut runtime_ref = test::runtime();
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
-    assert_eq!(res, ProcessResult::Pending);
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
-    assert_eq!(res, ProcessResult::Pending);
-    let res = process.as_mut().run(&mut runtime_ref, ProcessId(0));
-    assert_eq!(res, ProcessResult::Pending);
+    let waker = nop_task_waker();
+    let mut ctx = task::Context::from_waker(&waker);
+    let res = process.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Pending);
+    let res = process.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Pending);
+    let res = process.as_mut().poll(&mut ctx);
+    assert_eq!(res, Poll::Pending);
 }
