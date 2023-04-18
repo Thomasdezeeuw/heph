@@ -4,13 +4,12 @@
 //!
 //! [`RuntimeRef::try_spawn`]: crate::RuntimeRef::try_spawn
 
-use std::future::Future;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 
-use log::{debug, trace};
+use log::trace;
 
-use crate::process::{self, FutureProcess, Process, ProcessId};
+use crate::process::{self, Process, ProcessId};
 use crate::ptr_as_usize;
 use crate::spawn::options::Priority;
 
@@ -51,17 +50,11 @@ pub(super) type ProcessData = process::ProcessData<dyn Process + Send + Sync>;
 /// * Stopped: final state of a process, at this point its deallocated and its
 ///   resources cleaned up.
 ///
-/// ## Adding actors (processes)
+/// ## Adding processes
 ///
-/// Adding new actors to the scheduler is a two step process. First, the
-/// resources are allocated in [`Scheduler::add_actor`], which returns an
-/// [`AddActor`] structure. This `AddActor` can be used to determine the
-/// [`ProcessId`] (pid) of the actor and can be used in setting up the actor,
-/// before the actor itself is initialised.
-///
-/// Second, after the actor is initialised, it can be added to the scheduler
-/// using [`AddActor::add`]. This adds to the [`RunQueue`] or [`Inactive`] list
-/// depending on whether its ready to run.
+/// Adding new processes can be done using [`Scheduler::add_new_process`]. It
+/// accepts a callback function to get access to the PID before the process is
+/// actually added.
 ///
 /// ## Marking a process as ready to run
 ///
@@ -84,7 +77,7 @@ pub(super) type ProcessData = process::ProcessData<dyn Process + Send + Sync>;
 ///
 /// If `remove` returns `Some(process)` the process must be run. Depending on
 /// the result of the process it should be added back the schduler using
-/// [`Scheduler::add_process`], adding it back to the [`Inactive`] list, or
+/// [`Scheduler::add_back_process`], adding it back to the [`Inactive`] list, or
 /// marked as completed using [`Scheduler::complete`], which cleans up any
 /// resources assiociated with the process.
 ///
@@ -139,21 +132,28 @@ impl Scheduler {
         self.ready.has_process()
     }
 
-    /// Add a new actor to the scheduler.
-    pub(super) fn add_actor<'s>(&'s self) -> AddActor<'s> {
-        AddActor {
-            scheduler: self,
-            alloc: Box::new_uninit(),
-        }
-    }
-
-    pub(super) fn add_future<Fut>(&self, future: Fut, priority: Priority)
+    /// Add a new proces to the scheduler.
+    pub(crate) fn add_new_process<F, P, T, E>(&self, priority: Priority, setup: F) -> Result<T, E>
     where
-        Fut: Future<Output = ()> + Send + Sync + 'static,
+        F: FnOnce(ProcessId) -> Result<(P, T), E>,
+        P: Process + Send + Sync + 'static,
     {
-        let process = Box::pin(ProcessData::new(priority, Box::pin(future)));
-        debug!(pid = process.as_ref().id().0; "spawning thread-safe future");
+        // Allocate some memory for the process.
+        let mut alloc: Box<MaybeUninit<ProcessData>> = Box::new_uninit();
+        debug_assert!(inactive::ok_ptr(alloc.as_ptr().cast()), "SKIP_BITS invalid");
+        // Based on the allocation we can determine its process id.
+        let pid = ProcessId(ptr_as_usize(alloc.as_ptr()));
+        // Let the caller create the actual process (using the pid).
+        let (process, ret) = setup(pid)?;
+        let process = ProcessData::new(priority, Box::pin(process));
+        // SAFETY: we write the processes and then safetly assume it's initialised.
+        let process = unsafe {
+            _ = alloc.write(process);
+            Pin::from(alloc.assume_init())
+        };
+        // Finally add it to ready queue.
         self.ready.add(process);
+        Ok(ret)
     }
 
     /// Mark the process, with `pid`, as ready to run.
@@ -165,7 +165,7 @@ impl Scheduler {
         trace!(pid = pid.0; "marking process as ready");
         self.inactive.mark_ready(pid, &self.ready);
         // NOTE: if the process in currently not in the `Inactive` list it will
-        // be marked as ready-to-run and `Scheduler::add_process` will add it to
+        // be marked as ready-to-run and `Scheduler::add_back_process` will add it to
         // the run queue once its done running.
     }
 
@@ -179,7 +179,7 @@ impl Scheduler {
 
     /// Add back a process that was previously removed via
     /// [`Scheduler::remove`] and add it to the inactive list.
-    pub(super) fn add_process(&self, process: Pin<Box<ProcessData>>) {
+    pub(super) fn add_back_process(&self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
         trace!(pid = pid.0; "adding back process");
         self.inactive.add(process, &self.ready);
@@ -191,47 +191,5 @@ impl Scheduler {
         let pid = process.as_ref().id();
         trace!(pid = pid.0; "removing process");
         self.inactive.complete(process);
-    }
-}
-
-/// A handle to add a process to the scheduler.
-///
-/// This allows the `ProcessId` to be determined before the process is actually
-/// added. This is used in registering with the system poller.
-pub(super) struct AddActor<'s> {
-    scheduler: &'s Scheduler,
-    /// Already allocated `ProcessData`, used to determine the `ProcessId`.
-    alloc: Box<MaybeUninit<ProcessData>>,
-}
-
-impl<'s> AddActor<'s> {
-    /// Get the would be `ProcessId` for the process.
-    pub(super) const fn pid(&self) -> ProcessId {
-        #[allow(clippy::borrow_as_ptr)]
-        ProcessId(ptr_as_usize(&*self.alloc as *const _))
-    }
-
-    /// Add a new thread-safe actor to the scheduler.
-    pub(super) fn add<Fut>(self, future: Fut, priority: Priority)
-    where
-        Fut: Process + Send + Sync + 'static,
-    {
-        debug_assert!(
-            inactive::ok_ptr(self.alloc.as_ptr().cast()),
-            "SKIP_BITS invalid"
-        );
-
-        let process = ProcessData::new(priority, Box::pin(future));
-        let AddActor {
-            scheduler,
-            mut alloc,
-        } = self;
-        let process: Pin<_> = unsafe {
-            _ = alloc.write(process);
-            // Safe because we write into the allocation above.
-            alloc.assume_init().into()
-        };
-
-        scheduler.ready.add(process);
     }
 }

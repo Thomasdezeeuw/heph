@@ -16,10 +16,11 @@ use log::{as_debug, debug, error, trace};
 use mio::unix::SourceFd;
 use mio::{Events, Interest, Poll, Registry, Token};
 
+use crate::process::{FutureProcess, Process, ProcessId};
 use crate::spawn::{ActorOptions, FutureOptions};
 use crate::thread_waker::ThreadWaker;
 use crate::timers::TimerToken;
-use crate::{trace, ProcessId, ThreadSafe};
+use crate::{trace, ThreadSafe};
 
 mod scheduler;
 pub(crate) mod waker;
@@ -223,6 +224,7 @@ impl RuntimeInternals {
         }
     }
 
+    /// Spawn a thread-safe actor.
     #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
     pub(crate) fn try_spawn<S, NA>(
         self: &Arc<Self>,
@@ -237,20 +239,12 @@ impl RuntimeInternals {
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
-        // Setup adding a new process to the scheduler.
-        let actor_entry = self.scheduler.add_actor();
-        let pid = actor_entry.pid();
-        let name = NA::name();
-        debug!(pid = pid.0, name = name; "spawning thread-safe actor");
-
-        // Create the `ActorFuture`.
-        let rt = ThreadSafe::new(pid, self.clone());
-        let (future, actor_ref) = ActorFuture::new(supervisor, new_actor, arg, rt)?;
-
-        // Add the actor to the scheduler.
-        actor_entry.add(future, options.priority());
-
-        Ok(actor_ref)
+        self.scheduler.add_new_process(options.priority(), |pid| {
+            let name = NA::name();
+            debug!(pid = pid.0, name = name; "spawning thread-safe actor");
+            let rt = ThreadSafe::new(pid, self.clone());
+            ActorFuture::new(supervisor, new_actor, arg, rt)
+        })
     }
 
     /// Spawn a thread-safe `future`.
@@ -259,7 +253,12 @@ impl RuntimeInternals {
     where
         Fut: Future<Output = ()> + Send + Sync + 'static,
     {
-        self.scheduler.add_future(future, options.priority());
+        _ = self.scheduler.add_new_process(options.priority(), |pid| {
+            let process = FutureProcess(future);
+            let name = process.name();
+            debug!(pid = pid.0, name = name; "spawning thread-safe future");
+            Ok::<_, !>((process, ()))
+        });
     }
 
     /// See [`Scheduler::mark_ready`].
@@ -321,9 +320,9 @@ impl RuntimeInternals {
         self.scheduler.remove()
     }
 
-    /// See [`Scheduler::add_process`].
-    pub(crate) fn add_process(&self, process: Pin<Box<ProcessData>>) {
-        self.scheduler.add_process(process);
+    /// See [`Scheduler::add_back_process`].
+    pub(crate) fn add_back_process(&self, process: Pin<Box<ProcessData>>) {
+        self.scheduler.add_back_process(process);
     }
 
     /// See [`Scheduler::complete`].

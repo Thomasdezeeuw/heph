@@ -1,8 +1,5 @@
 //! Module containing the `Process` trait, related types and implementations.
 
-#![allow(unused_imports)] // FIXME.
-
-use std::any::Any;
 use std::cmp::Ordering;
 use std::fmt;
 use std::future::Future;
@@ -10,13 +7,12 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
-use heph::actor::{self, Actor, ActorFuture, NewActor};
+use heph::actor::{self, ActorFuture, NewActor};
 use heph::supervisor::Supervisor;
 use log::{as_debug, trace};
 use mio::Token;
 
 use crate::spawn::options::Priority;
-use crate::RuntimeRef;
 
 #[cfg(test)]
 mod tests;
