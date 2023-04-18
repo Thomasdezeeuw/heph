@@ -887,11 +887,10 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use Error::*;
         match self {
-            Init(ref err) | Polling(ref err) | RecvMsg(ref err) => Some(err),
-            ProcessInterrupted => None,
-            UserFunction(ref err) => Some(err),
+            Error::Init(ref err) | Error::Polling(ref err) | Error::RecvMsg(ref err) => Some(err),
+            Error::ProcessInterrupted => None,
+            Error::UserFunction(ref err) => Some(err),
         }
     }
 }
@@ -909,12 +908,10 @@ pub(crate) enum Control {
 
 impl fmt::Debug for Control {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Control::*;
-        f.write_str("Control::")?;
         match self {
-            Started => f.write_str("Started"),
-            Signal(signal) => f.debug_tuple("Signal").field(&signal).finish(),
-            Run(..) => f.write_str("Run(..)"),
+            Control::Started => f.write_str("Control::Started"),
+            Control::Signal(signal) => f.debug_tuple("Control::Signal").field(&signal).finish(),
+            Control::Run(..) => f.write_str("Control::Run(..)"),
         }
     }
 }

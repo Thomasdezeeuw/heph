@@ -525,10 +525,9 @@ pub enum Error<E> {
 
 impl<E: fmt::Display> fmt::Display for Error<E> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Error::*;
         match self {
-            Accept(err) => write!(f, "error accepting TCP stream: {err}"),
-            NewActor(err) => write!(f, "error creating new actor: {err}"),
+            Error::Accept(err) => write!(f, "error accepting TCP stream: {err}"),
+            Error::NewActor(err) => write!(f, "error creating new actor: {err}"),
         }
     }
 }

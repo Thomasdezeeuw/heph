@@ -480,30 +480,30 @@ pub(super) enum Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        use Error::*;
         match self {
-            Startup(err) => write!(f, "error starting coordinator: {err}"),
-            RegisteringWorkers(err) => write!(f, "error registering worker threads: {err}"),
-            RegisteringSyncActors(err) => {
+            Error::Startup(err) => write!(f, "error starting coordinator: {err}"),
+            Error::RegisteringWorkers(err) => write!(f, "error registering worker threads: {err}"),
+            Error::RegisteringSyncActors(err) => {
                 write!(f, "error registering synchronous actor threads: {err}")
             }
-            Polling(err) => write!(f, "error polling for OS events: {err}"),
-            SendingStartSignal(err) => write!(f, "error sending start signal to worker: {err}"),
-            SendingFunc(err) => write!(f, "error sending function to worker: {err}"),
+            Error::Polling(err) => write!(f, "error polling for OS events: {err}"),
+            Error::SendingStartSignal(err) => {
+                write!(f, "error sending start signal to worker: {err}")
+            }
+            Error::SendingFunc(err) => write!(f, "error sending function to worker: {err}"),
         }
     }
 }
 
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        use Error::*;
         match self {
-            Startup(ref err)
-            | RegisteringWorkers(ref err)
-            | RegisteringSyncActors(ref err)
-            | Polling(ref err)
-            | SendingStartSignal(ref err)
-            | SendingFunc(ref err) => Some(err),
+            Error::Startup(ref err)
+            | Error::RegisteringWorkers(ref err)
+            | Error::RegisteringSyncActors(ref err)
+            | Error::Polling(ref err)
+            | Error::SendingStartSignal(ref err)
+            | Error::SendingFunc(ref err) => Some(err),
         }
     }
 }
