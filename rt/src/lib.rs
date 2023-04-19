@@ -240,6 +240,7 @@ mod timers;
 pub mod trace;
 #[doc(hidden)]
 pub mod util;
+mod waker;
 mod worker;
 
 use process::ProcessId;
