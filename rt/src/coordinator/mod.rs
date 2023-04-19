@@ -63,14 +63,14 @@ pub(super) struct Coordinator {
     /// Internals shared between the coordinator and all workers.
     internals: Arc<shared::RuntimeInternals>,
 
-    // Data used in [`Metrics`].
-    /// Start time, used to calculate [`Metrics`]'s uptime.
+    // Data used in [`Coordinator::log_metrics`].
+    /// Start time of the application.
     start: Instant,
     /// Name of the application.
     app_name: Box<str>,
     /// OS name and version, from `uname(2)`.
     host_os: Box<str>,
-    /// Name of the host. `nodename` field from `uname(2)`.
+    /// Name of the host, `nodename` field from `uname(2)`.
     host_name: Box<str>,
     /// Id of the host.
     host_id: Uuid,

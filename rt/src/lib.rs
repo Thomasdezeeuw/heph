@@ -579,7 +579,7 @@ impl RuntimeRef {
     ///
     /// Similar to thread-local actors this will only run on a single thread.
     /// See the discussion of thread-local vs. thread-safe actors in the
-    /// [`actor`] module for additional information.
+    /// [`heph::actor`] module for additional information.
     #[allow(clippy::needless_pass_by_value)]
     pub fn spawn_local_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
@@ -601,7 +601,7 @@ impl RuntimeRef {
     ///
     /// Similar to thread-safe actors this can run on any of the workers
     /// threads. See the discussion of thread-local vs. thread-safe actors in
-    /// the [`actor`] module for additional information.
+    /// the [`heph::actor`] module for additional information.
     pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
@@ -633,16 +633,12 @@ impl RuntimeRef {
     }
 
     /// Add a timer.
-    ///
-    /// See [`Timers::add`].
     pub(crate) fn add_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
         ::log::trace!(deadline = as_debug!(deadline); "adding timer");
         self.internals.timers.borrow_mut().add(deadline, waker)
     }
 
     /// Remove a previously set timer.
-    ///
-    /// See [`Timers::remove`].
     pub(crate) fn remove_timer(&self, deadline: Instant, token: TimerToken) {
         ::log::trace!(deadline = as_debug!(deadline); "removing timer");
         self.internals.timers.borrow_mut().remove(deadline, token);

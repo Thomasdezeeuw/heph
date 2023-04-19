@@ -49,9 +49,10 @@ mod tests;
 
 mod private {
     //! [`TimerToken`] needs to be public because it's used in the
-    //! private-in-public trait [`PrivateAccess`].
+    //! private-in-public trait [`PrivateAccess`], so we use the same trick
+    //! here.
     //!
-    //! [`PrivateAccess`]: crate::access::private::PrivateAccess
+    //! [`PrivateAccess`]: crate::access::PrivateAccess
 
     /// Token used to expire a timer.
     #[derive(Copy, Clone, Debug)]

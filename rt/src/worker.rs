@@ -86,7 +86,7 @@ pub(super) fn setup(
 
 /// Setup work required before starting a worker thread, see [`setup`].
 pub(super) struct WorkerSetup {
-    /// See [`Worker::id`].
+    /// See [`WorkerSetup::id`].
     id: NonZeroUsize,
     /// Poll instance for the worker thread. This is needed before starting the
     /// thread to initialise the [`rt::local::waker`].
@@ -153,8 +153,7 @@ impl Handle {
         self.id.get()
     }
 
-    /// Registers the channel used to communicate with the thread. Uses the
-    /// [`Worker::id`] as [`Token`].
+    /// Registers the channel used to communicate with the thread.
     pub(super) fn register(&mut self, registry: &Registry) -> io::Result<()> {
         self.channel.register(registry, Token(self.id()))
     }
@@ -897,7 +896,7 @@ impl std::error::Error for Error {
     }
 }
 
-/// Control the [`Runtime`].
+/// Control message send to the worker threads.
 #[allow(variant_size_differences)] // Can't make `Run` smaller.
 pub(crate) enum Control {
     /// Runtime has started, i.e. [`rt::Runtime::start`] was called.

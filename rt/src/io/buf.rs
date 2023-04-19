@@ -455,8 +455,10 @@ mod private {
         ///
         /// # Safety
         ///
-        /// This has the same safety requirements as [`BufMut::parts`], but then for
-        /// all buffers used.
+        /// This has the same safety requirements as [`BufMut::parts_mut`], but
+        /// then for all buffers used.
+        ///
+        /// [`BufMut::parts_mut`]: crate::io::BufMut::parts_mut
         unsafe fn as_iovecs_mut(&mut self) -> [libc::iovec; N];
 
         /// Mark `n` bytes as initialised.
@@ -464,7 +466,7 @@ mod private {
         /// # Safety
         ///
         /// The caller must ensure that `n` bytes are initialised in the vectors
-        /// return by [`BufMutSlice::as_iovec`].
+        /// return by [`BufMutSlice::as_iovecs_mut`].
         ///
         /// The implementation must ensure that that proper buffer(s) are
         /// initialised. For example when this is called with `n = 10` with two
@@ -487,6 +489,8 @@ mod private {
         ///
         /// This has the same safety requirements as [`Buf::parts`], but then for
         /// all buffers used.
+        ///
+        /// [`Buf::parts`]: crate::io::Buf::parts
         unsafe fn as_iovecs(&self) -> [libc::iovec; N];
     }
 }
