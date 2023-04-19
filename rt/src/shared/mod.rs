@@ -24,7 +24,7 @@ use crate::spawn::{ActorOptions, FutureOptions};
 use crate::thread_waker::ThreadWaker;
 use crate::timers::shared::Timers;
 use crate::timers::TimerToken;
-use crate::waker::shared::Wakers;
+use crate::wakers::shared::Wakers;
 use crate::{trace, ThreadSafe};
 
 /// Setup of [`RuntimeInternals`].

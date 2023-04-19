@@ -10,7 +10,7 @@ mod shared {
     use crate::shared::RuntimeInternals;
     use crate::spawn::options::Priority;
     use crate::test;
-    use crate::waker::shared::Wakers;
+    use crate::wakers::shared::Wakers;
 
     const PID1: ProcessId = ProcessId(1);
     const PID2: ProcessId = ProcessId(2);
