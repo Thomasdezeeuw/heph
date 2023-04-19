@@ -31,12 +31,13 @@
 //!
 //! The upside of running a thread-local actor is that it doesn't have to be
 //! [`Send`] or [`Sync`], allowing it to use cheaper types that don't require
-//! synchronisation. Futhermore these kind of actors are the cheapest to run.
+//! synchronisation. Futhermore these kind of actors are the cheapest to run
+//! from a runtime perspective.
 //!
 //! The downside is that if a single actor blocks it will block *all* actors on
 //! the thread the actor is running on. Something that some runtimes work around
 //! with actor/futures/tasks that transparently move between threads and hide
-//! blocking/bad actors, Heph does not (for thread-local actor).
+//! blocking/bad actors, Heph does not (for thread-local actors).
 //!
 //! [`RuntimeRef::try_spawn_local`]: crate::RuntimeRef::try_spawn_local
 //! [`ThreadLocal`]: crate::access::ThreadLocal
@@ -69,6 +70,16 @@ pub mod options;
 pub use options::{ActorOptions, FutureOptions, SyncActorOptions};
 
 /// The `Spawn` trait defines how new actors are added to the runtime.
+///
+/// This trait can be implemented using the two flavours of `RT`, either
+/// [`ThreadLocal`] or [`ThreadSafe`], because of this it's implemented twice
+/// for types that support spawning both thread-local and thread-safe actors.
+/// For information on the difference between thread-local and thread-safe
+/// actors see the [`spawn`] module.
+///
+/// [`spawn`]: crate::spawn
+/// [`ThreadLocal`]: crate::ThreadLocal
+/// [`ThreadSafe`]: crate::ThreadSafe
 pub trait Spawn<S, NA, RT> {
     /// Attempts to spawn an actor.
     ///

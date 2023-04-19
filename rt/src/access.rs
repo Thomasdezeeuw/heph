@@ -20,9 +20,10 @@
 //!  * [`ThreadSafe`]: passed to thread-safe actors and gives access to the
 //!    runtime parts that are shared between threads.
 //!
-//! Finally we have [`Sync`], which passed to synchronous actors and also gives
-//! access to the runtime parts that are shared between threads. However it
-//! doesn't actually implement the `Access` trait.
+//! Finally we have [`Sync`], which is passed to synchronous actors and also
+//! gives access to the runtime parts that are shared between threads. However
+//! it doesn't actually implement the `Access` trait as synchronous actors can
+//! block.
 //!
 //! [`rt::Access`]: crate::Access
 //! [`SyncActor::RuntimeAccess`]: heph::actor::SyncActor::RuntimeAccess
@@ -44,10 +45,11 @@ use crate::timers::TimerToken;
 use crate::trace::{self, Trace};
 use crate::{shared, RuntimeRef};
 
-/// Trait to indicate an API needs access to the Heph runtime.
+/// Runtime Access Trait.
 ///
-/// This is used by various API to get access to the runtime, but its only
-/// usable inside the Heph crate.
+/// This trait is used to indicate an API needs access to the Heph runtime. It
+/// is used by various API to get access to the runtime, but its only usable
+/// inside the Heph crate.
 ///
 /// Also see [`NewActor::RuntimeAccess`] and [`SyncActor::RuntimeAccess`].
 ///

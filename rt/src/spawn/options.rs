@@ -178,10 +178,10 @@ impl SyncActorOptions {
         self.thread_name
     }
 
-    /// Set the name of the actor. This is for example used in the naming of the
-    /// thread in which the actor runs.
+    /// Set the name of the actor. This is used in the naming of the thread in
+    /// which the actor runs.
     ///
-    /// Defaults to "Sync actor `$n`", where `$n` is some number.
+    /// Defaults to "Sync actor *n*", where *n* is some number.
     pub fn with_name(mut self, thread_name: String) -> Self {
         self.thread_name = Some(thread_name);
         self

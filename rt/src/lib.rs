@@ -367,9 +367,7 @@ impl Runtime {
     /// Spawn an synchronous actor that runs on its own thread.
     ///
     /// For more information and examples of synchronous actors see the
-    /// [`actor`] module.
-    ///
-    /// [`actor`]: heph::actor
+    /// [`heph::actor`] module.
     pub fn spawn_sync_actor<S, A>(
         &mut self,
         supervisor: S,
@@ -579,7 +577,7 @@ impl RuntimeRef {
     ///
     /// Similar to thread-local actors this will only run on a single thread.
     /// See the discussion of thread-local vs. thread-safe actors in the
-    /// [`heph::actor`] module for additional information.
+    /// [`spawn`] module for additional information.
     #[allow(clippy::needless_pass_by_value)]
     pub fn spawn_local_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
@@ -601,7 +599,7 @@ impl RuntimeRef {
     ///
     /// Similar to thread-safe actors this can run on any of the workers
     /// threads. See the discussion of thread-local vs. thread-safe actors in
-    /// the [`heph::actor`] module for additional information.
+    /// the [`spawn`] module for additional information.
     pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
