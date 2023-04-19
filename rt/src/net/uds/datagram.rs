@@ -7,7 +7,7 @@ use a10::{AsyncFd, Extract};
 use log::warn;
 use socket2::{Domain, SockRef, Type};
 
-use crate as rt;
+use crate::access::Access;
 use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 use crate::net::uds::UnixAddr;
 use crate::net::{
@@ -47,7 +47,7 @@ impl UnixDatagram {
     /// Creates a Unix datagram socket bound to `address`.
     pub async fn bind<RT>(rt: &RT, address: UnixAddr) -> io::Result<UnixDatagram<Unconnected>>
     where
-        RT: rt::Access,
+        RT: Access,
     {
         let socket = UnixDatagram::unbound(rt).await?;
         socket.with_ref(|socket| socket.bind(&address.inner))?;
@@ -57,7 +57,7 @@ impl UnixDatagram {
     /// Creates a Unix Datagram socket which is not bound to any address.
     pub async fn unbound<RT>(rt: &RT) -> io::Result<UnixDatagram<Unconnected>>
     where
-        RT: rt::Access,
+        RT: Access,
     {
         let fd = a10::net::socket(
             rt.submission_queue(),
@@ -73,7 +73,7 @@ impl UnixDatagram {
     /// Creates an unnamed pair of connected sockets.
     pub fn pair<RT>(rt: &RT) -> io::Result<(UnixDatagram<Connected>, UnixDatagram<Connected>)>
     where
-        RT: rt::Access,
+        RT: Access,
     {
         let (s1, s2) = socket2::Socket::pair(Domain::UNIX, Type::DGRAM.cloexec(), None)?;
         let s1 = UnixDatagram::new(rt, unsafe {
@@ -90,7 +90,7 @@ impl UnixDatagram {
 
     fn new<RT, M>(rt: &RT, fd: AsyncFd) -> io::Result<UnixDatagram<M>>
     where
-        RT: rt::Access,
+        RT: Access,
     {
         let socket = UnixDatagram {
             fd,

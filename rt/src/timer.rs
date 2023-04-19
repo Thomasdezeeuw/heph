@@ -16,8 +16,8 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
+use crate::access::Access;
 use crate::timers::TimerToken;
-use crate::{self as rt};
 
 /// Type returned when the deadline has passed.
 ///
@@ -86,14 +86,14 @@ impl From<DeadlinePassed> for io::ErrorKind {
 /// ```
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Timer<RT: rt::Access> {
+pub struct Timer<RT: Access> {
     deadline: Instant,
     rt: RT,
     /// If `Some` it means we've added a timer that hasn't expired yet.
     timer_pending: Option<TimerToken>,
 }
 
-impl<RT: rt::Access> Timer<RT> {
+impl<RT: Access> Timer<RT> {
     /// Create a new `Timer`.
     pub const fn at(rt: RT, deadline: Instant) -> Timer<RT> {
         Timer {
@@ -129,7 +129,7 @@ impl<RT: rt::Access> Timer<RT> {
     }
 }
 
-impl<RT: rt::Access> Future for Timer<RT> {
+impl<RT: Access> Future for Timer<RT> {
     type Output = DeadlinePassed;
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
@@ -144,9 +144,9 @@ impl<RT: rt::Access> Future for Timer<RT> {
     }
 }
 
-impl<RT: rt::Access> Unpin for Timer<RT> {}
+impl<RT: Access> Unpin for Timer<RT> {}
 
-impl<RT: rt::Access> Drop for Timer<RT> {
+impl<RT: Access> Drop for Timer<RT> {
     fn drop(&mut self) {
         if let Some(token) = self.timer_pending {
             self.rt.remove_timer(self.deadline, token);
@@ -222,12 +222,12 @@ impl<RT: rt::Access> Drop for Timer<RT> {
 /// ```
 #[derive(Debug)]
 #[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Deadline<Fut, RT: rt::Access> {
+pub struct Deadline<Fut, RT: Access> {
     timer: Timer<RT>,
     future: Fut,
 }
 
-impl<Fut, RT: rt::Access> Deadline<Fut, RT> {
+impl<Fut, RT: Access> Deadline<Fut, RT> {
     /// Create a new `Deadline`.
     pub const fn at(rt: RT, deadline: Instant, future: Fut) -> Deadline<Fut, RT> {
         Deadline {
@@ -269,7 +269,7 @@ impl<Fut, RT: rt::Access> Deadline<Fut, RT> {
     }
 }
 
-impl<Fut, RT: rt::Access, T, E> Future for Deadline<Fut, RT>
+impl<Fut, RT: Access, T, E> Future for Deadline<Fut, RT>
 where
     Fut: Future<Output = Result<T, E>>,
     E: From<DeadlinePassed>,
@@ -293,7 +293,7 @@ where
     }
 }
 
-impl<Fut: Unpin, RT: rt::Access> Unpin for Deadline<Fut, RT> {}
+impl<Fut: Unpin, RT: Access> Unpin for Deadline<Fut, RT> {}
 
 /// An [`AsyncIterator`] that yields an item after an interval has passed.
 ///
@@ -357,12 +357,12 @@ impl<Fut: Unpin, RT: rt::Access> Unpin for Deadline<Fut, RT> {}
 /// ```
 #[derive(Debug)]
 #[must_use = "AsyncIterators do nothing unless polled"]
-pub struct Interval<RT: rt::Access> {
+pub struct Interval<RT: Access> {
     timer: Timer<RT>,
     interval: Duration,
 }
 
-impl<RT: rt::Access> Interval<RT> {
+impl<RT: Access> Interval<RT> {
     /// Create a new `Interval`.
     pub fn every(rt: RT, interval: Duration) -> Interval<RT> {
         Interval {
@@ -377,7 +377,7 @@ impl<RT: rt::Access> Interval<RT> {
     }
 }
 
-impl<RT: rt::Access> AsyncIterator for Interval<RT> {
+impl<RT: Access> AsyncIterator for Interval<RT> {
     type Item = DeadlinePassed;
 
     fn poll_next(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
@@ -393,4 +393,4 @@ impl<RT: rt::Access> AsyncIterator for Interval<RT> {
     }
 }
 
-impl<RT: rt::Access> Unpin for Interval<RT> {}
+impl<RT: Access> Unpin for Interval<RT> {}

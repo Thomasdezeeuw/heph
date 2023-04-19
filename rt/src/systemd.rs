@@ -23,10 +23,11 @@ use heph::actor;
 use heph::messages::Terminate;
 use log::{as_debug, debug, warn};
 
+use crate::access::Access;
 use crate::net::uds::{Connected, UnixAddr, UnixDatagram};
 use crate::timer::Interval;
 use crate::util::{either, next};
-use crate::{self as rt, Signal};
+use crate::Signal;
 
 /// systemd notifier.
 ///
@@ -57,7 +58,7 @@ impl Notify {
     /// [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html#WatchdogSec=
     pub async fn new<RT>(rt: &RT) -> io::Result<Option<Notify>>
     where
-        RT: rt::Access,
+        RT: Access,
     {
         const SOCKET_ENV_VAR: &str = "NOTIFY_SOCKET";
         const WATCHDOG_PID_ENV_VAR: &str = "WATCHDOG_PID";
@@ -102,7 +103,7 @@ impl Notify {
     /// the environment variables set by systemd.
     pub async fn connect<RT, P>(rt: &RT, path: P) -> io::Result<Notify>
     where
-        RT: rt::Access,
+        RT: Access,
         P: AsRef<Path>,
     {
         let socket = UnixDatagram::unbound(rt).await?;
@@ -278,7 +279,7 @@ pub async fn watchdog<RT, H, E>(
     mut health_check: H,
 ) -> io::Result<()>
 where
-    RT: rt::Access + Clone,
+    RT: Access + Clone,
     H: FnMut() -> Result<(), E>,
     E: ToString,
 {

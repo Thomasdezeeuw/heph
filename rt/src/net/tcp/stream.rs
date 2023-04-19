@@ -6,7 +6,7 @@ use std::net::{Shutdown, SocketAddr};
 use a10::{AsyncFd, Extract};
 use socket2::{Domain, Protocol, SockRef, Type};
 
-use crate as rt;
+use crate::access::Access;
 use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 use crate::net::{
     convert_address, Recv, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored,
@@ -46,7 +46,7 @@ impl TcpStream {
     /// specified `address`.
     pub async fn connect<RT>(rt: &RT, address: SocketAddr) -> io::Result<TcpStream>
     where
-        RT: rt::Access,
+        RT: Access,
     {
         let fd = a10::net::socket(
             rt.submission_queue(),
@@ -76,7 +76,7 @@ impl TcpStream {
     /// [`TcpListener`]: crate::net::tcp::TcpListener
     pub fn set_auto_cpu_affinity<RT>(&self, rt: &RT)
     where
-        RT: rt::Access,
+        RT: Access,
     {
         #[cfg(target_os = "linux")]
         if let Some(cpu) = rt.cpu() {

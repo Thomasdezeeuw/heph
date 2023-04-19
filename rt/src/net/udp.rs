@@ -9,12 +9,12 @@ use std::{fmt, io};
 use a10::{AsyncFd, Extract};
 use socket2::{Domain, Protocol, SockRef, Type};
 
+use crate::access::Access;
 use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 use crate::net::{
     convert_address, Recv, RecvFrom, RecvFromVectored, RecvVectored, Send, SendTo, SendToVectored,
     SendVectored, SockAddr,
 };
-use crate::{self as rt};
 
 pub use crate::net::{Connected, Unconnected};
 
@@ -131,7 +131,7 @@ impl UdpSocket {
     /// Create a UDP socket binding to the `local` address.
     pub async fn bind<RT>(rt: &RT, local: SocketAddr) -> io::Result<UdpSocket<Unconnected>>
     where
-        RT: rt::Access,
+        RT: Access,
     {
         let fd = a10::net::socket(
             rt.submission_queue(),

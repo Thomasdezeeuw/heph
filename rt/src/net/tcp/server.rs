@@ -282,10 +282,11 @@ use heph::supervisor::Supervisor;
 use log::{debug, trace};
 use socket2::{Domain, Protocol, Socket, Type};
 
+use crate::access::Access;
 use crate::net::{TcpListener, TcpStream};
 use crate::spawn::{ActorOptions, Spawn};
 use crate::util::{either, next};
-use crate::{self as rt, Signal};
+use crate::Signal;
 
 /// Create a new [server setup].
 ///
@@ -401,7 +402,7 @@ impl<S, NA> NewActor for Setup<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = TcpStream> + Clone + 'static,
-    NA::RuntimeAccess: rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
+    NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
 {
     type Message = Message;
     type Argument = ();
@@ -443,7 +444,7 @@ async fn tcp_server<S, NA>(
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = TcpStream> + Clone + 'static,
-    NA::RuntimeAccess: rt::Access + Spawn<S, NA, NA::RuntimeAccess>,
+    NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
 {
     let listener = TcpListener::bind_setup(ctx.runtime_ref(), local, set_listener_options)
         .await

@@ -38,7 +38,7 @@
 
 use a10::Extract;
 
-use crate as rt;
+use crate::access::Access;
 
 // For ease of use within the crate.
 pub(crate) use std::io::{Error, Result};
@@ -57,7 +57,7 @@ macro_rules! stdio {
         $fn: ident () -> $name: ident, $fd: expr
     ) => {
         #[doc = concat!("Create a new `", stringify!($name), "`.\n\n")]
-        pub fn $fn<RT: rt::Access>(rt: &RT) -> $name {
+        pub fn $fn<RT: Access>(rt: &RT) -> $name {
             $name(std::mem::ManuallyDrop::new(unsafe { a10::AsyncFd::new(
                 $fd,
                 rt.submission_queue(),
