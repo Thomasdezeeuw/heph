@@ -9,8 +9,8 @@ use std::{fmt, io};
 use a10::AsyncFd;
 use socket2::{Domain, Protocol, SockRef, Socket, Type};
 
+use crate::access::Access;
 use crate::net::{convert_address, SockAddr, TcpStream};
-use crate::{self as rt};
 
 /// A TCP socket listener.
 ///
@@ -172,7 +172,7 @@ impl TcpListener {
     /// `address`.
     pub async fn bind<RT>(rt: &RT, address: SocketAddr) -> io::Result<TcpListener>
     where
-        RT: rt::Access,
+        RT: Access,
     {
         TcpListener::bind_setup(rt, address, |_| Ok(())).await
     }
@@ -183,7 +183,7 @@ impl TcpListener {
         setup: F,
     ) -> io::Result<TcpListener>
     where
-        RT: rt::Access,
+        RT: Access,
         F: FnOnce(&Socket) -> io::Result<()>,
     {
         let fd = a10::net::socket(

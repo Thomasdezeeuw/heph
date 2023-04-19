@@ -101,7 +101,7 @@ use std::process::{ChildStderr, ChildStdin, ChildStdout};
 
 use a10::{AsyncFd, Extract};
 
-use crate as rt;
+use crate::access::Access;
 use crate::io::{
     Buf, BufMut, BufMutSlice, BufSlice, BufWrapper, Read, ReadN, ReadNVectored, ReadVectored,
     Write, WriteAll, WriteAllVectored, WriteVectored,
@@ -119,7 +119,7 @@ use crate::io::{
 /// [`pipe(2)`]: https://pubs.opengroup.org/onlinepubs/9699919799/functions/pipe.html
 pub fn new<RT>(rt: &RT) -> io::Result<(Sender, Receiver)>
 where
-    RT: rt::Access,
+    RT: Access,
 {
     let mut fds: [RawFd; 2] = [-1, -1];
     let _ = syscall!(pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC))?;
@@ -143,7 +143,7 @@ impl Sender {
     /// Convert a [`ChildStdin`] to a `Sender`.
     pub fn from_child_stdin<RT>(rt: &RT, stdin: ChildStdin) -> io::Result<Sender>
     where
-        RT: rt::Access,
+        RT: Access,
     {
         // Safety: `ChildStdin` is guaranteed to be a valid file descriptor.
         let fd = unsafe { AsyncFd::new(stdin.into_raw_fd(), rt.submission_queue()) };
@@ -203,7 +203,7 @@ impl Receiver {
     /// Convert a [`ChildStdout`] to a `Receiver`.
     pub fn from_child_stdout<RT>(rt: &RT, stdout: ChildStdout) -> io::Result<Receiver>
     where
-        RT: rt::Access,
+        RT: Access,
     {
         // Safety: `ChildStdout` is guaranteed to be a valid file descriptor.
         let fd = unsafe { AsyncFd::new(stdout.into_raw_fd(), rt.submission_queue()) };
@@ -213,7 +213,7 @@ impl Receiver {
     /// Convert a [`ChildStderr`] to a `Receiver`.
     pub fn from_child_stderr<RT>(rt: &RT, stderr: ChildStderr) -> io::Result<Receiver>
     where
-        RT: rt::Access,
+        RT: Access,
     {
         // Safety: `ChildStderr` is guaranteed to be a valid file descriptor.
         let fd = unsafe { AsyncFd::new(stderr.into_raw_fd(), rt.submission_queue()) };

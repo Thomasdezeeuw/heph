@@ -80,7 +80,7 @@ pub(crate) struct RuntimeInternals {
     poll: Mutex<Poll>,
     /// io_uring completion ring.
     ring: Mutex<a10::Ring>,
-    /// SubmissionQueue for the `ring`.
+    /// Submission queue for the `ring`.
     sq: a10::SubmissionQueue,
     /// Wakers used to create [`task::Waker`]s for thread-safe actors.
     wakers: Wakers,
