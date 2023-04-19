@@ -73,7 +73,7 @@ Second, Heph needs to be added as a dependency.
 
 ```toml
 [dependencies]
-heph = "0.4.0"
+heph = "0.5.0"
 ```
 
 Now, you're ready to starting writing your application! Next, you can look at
