@@ -38,10 +38,10 @@ pub(crate) struct WakerId(u8);
 /// that only a single write happens to each element of the array. And because
 /// after the initial write each element is read only there are no further data
 /// races possible.
-static mut RUNTIMES: [Option<Weak<RuntimeInternals>>; MAX_RUNTIMES] = [NO_RUNTIME; MAX_RUNTIMES];
+static mut RUNTIMES: [Weak<RuntimeInternals>; MAX_RUNTIMES] = [NO_RUNTIME; MAX_RUNTIMES];
 // NOTE: this is only here because `NO_WAKER` is not `Copy`, thus
 // `[None; MAX_THREADS]` doesn't work, but explicitly using a `const` does.
-const NO_RUNTIME: Option<Weak<RuntimeInternals>> = None;
+const NO_RUNTIME: Weak<RuntimeInternals> = Weak::new();
 
 /// Initialise a new waker.
 ///
@@ -59,7 +59,7 @@ pub(crate) fn init(internals: Weak<RuntimeInternals>) -> WakerId {
 
     // Safety: this is safe because we are the only thread that has write access
     // to the given index. See documentation of `WAKERS` for more.
-    unsafe { RUNTIMES[id as usize] = Some(internals) }
+    unsafe { RUNTIMES[id as usize] = internals }
     WakerId(id)
 }
 
@@ -78,11 +78,7 @@ fn get(waker_id: WakerId) -> &'static Weak<RuntimeInternals> {
     // Safety: `WakerId` is only created by `init`, which ensures its valid.
     // Furthermore `init` ensures that `RUNTIMES[waker_id]` is initialised and
     // is read-only after that. See `RUNTIMES` documentation for more.
-    unsafe {
-        RUNTIMES[waker_id.0 as usize]
-            .as_ref()
-            .expect("tried to get a waker for a thread that isn't initialised")
-    }
+    unsafe { &RUNTIMES[waker_id.0 as usize] }
 }
 
 /// Waker data passed to the [`task::Waker`] implementation.
