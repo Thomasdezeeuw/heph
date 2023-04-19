@@ -1,4 +1,5 @@
-//! Module containing the `task::Waker` implementation for thread-safe actors.
+//! Module containing the `task::Waker` implementation for thread-safe actors
+//! and futures.
 
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Weak;
@@ -9,16 +10,20 @@ use crate::{ptr_as_usize, ProcessId};
 
 /// Maximum number of runtimes supported.
 pub(crate) const MAX_RUNTIMES: usize = 1 << MAX_RUNTIMES_BITS;
+/// Number of most significate bits used for the [`WakerId`].
 #[cfg(not(any(test, feature = "test")))]
-pub(crate) const MAX_RUNTIMES_BITS: usize = 0; // 1.
+const MAX_RUNTIMES_BITS: usize = 0; // 1.
 #[cfg(any(test, feature = "test"))]
-pub(crate) const MAX_RUNTIMES_BITS: usize = 5; // 32.
+const MAX_RUNTIMES_BITS: usize = 8; // 256.
+const WAKER_ID_SHIFT: usize = usize::BITS as usize - MAX_RUNTIMES_BITS;
+const WAKER_ID_MASK: usize = (MAX_RUNTIMES - 1) << WAKER_ID_SHIFT;
+const PID_MASK: usize = !WAKER_ID_MASK;
 
 /// An id for a waker.
 ///
 /// Returned by [`init`] and used in [`new`] to create a new [`task::Waker`].
-//
-// This serves as index into `WAKERS`.
+///
+/// This serves as index into `WAKERS`.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(transparent)]
 pub(crate) struct WakerId(u8);
@@ -57,7 +62,7 @@ pub(crate) fn init(internals: Weak<RuntimeInternals>) -> WakerId {
         "Created too many Heph `Runtime`s, maximum of {MAX_RUNTIMES}",
     );
 
-    // Safety: this is safe because we are the only thread that has write access
+    // SAFETY: this is safe because we are the only thread that has write access
     // to the given index. See documentation of `WAKERS` for more.
     unsafe { RUNTIMES[id as usize] = internals }
     WakerId(id)
@@ -69,13 +74,13 @@ pub(crate) fn init(internals: Weak<RuntimeInternals>) -> WakerId {
 pub(crate) fn new(waker_id: WakerId, pid: ProcessId) -> task::Waker {
     let data = WakerData::new(waker_id, pid).into_raw_data();
     let raw_waker = task::RawWaker::new(data, &WAKER_VTABLE);
-    // Safety: we follow the contract on `RawWaker`.
+    // SAFETY: we follow the contract on `RawWaker`.
     unsafe { task::Waker::from_raw(raw_waker) }
 }
 
 /// Get the internals for `waker_id`.
 fn get(waker_id: WakerId) -> &'static Weak<RuntimeInternals> {
-    // Safety: `WakerId` is only created by `init`, which ensures its valid.
+    // SAFETY: `WakerId` is only created by `init`, which ensures its valid.
     // Furthermore `init` ensures that `RUNTIMES[waker_id]` is initialised and
     // is read-only after that. See `RUNTIMES` documentation for more.
     unsafe { &RUNTIMES[waker_id.0 as usize] }
@@ -85,37 +90,36 @@ fn get(waker_id: WakerId) -> &'static Weak<RuntimeInternals> {
 ///
 /// # Layout
 ///
-/// The [`MAX_RUNTIMES_BITS`] least significant bits are the [`WakerId`]. The
+/// The [`MAX_RUNTIMES_BITS`] most significant bits are the [`WakerId`]. The
 /// remaining bits are the [`ProcessId`], from which at least
 /// `MAX_RUNTIMES_BITS` most significant bits are not used.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(transparent)]
 struct WakerData(usize);
 
-const WAKER_ID_MASK: usize = (1 << MAX_RUNTIMES_BITS) - 1;
-
 impl WakerData {
     /// Create new `WakerData`.
     fn new(waker_id: WakerId, pid: ProcessId) -> WakerData {
-        let data =
-            WakerData((pid.0 << MAX_RUNTIMES_BITS) | ((waker_id.0 as usize) & WAKER_ID_MASK));
-        assert!(data.pid() == pid, "`ProcessId` too large for `WakerData`");
+        let data = WakerData(pid.0 | ((waker_id.0 as usize) << WAKER_ID_SHIFT));
+        debug_assert!(
+            data.pid() == pid && data.waker_id() == waker_id,
+            "`ProcessId` too large for `WakerData`"
+        );
         data
     }
 
     /// Get the waker id.
     const fn waker_id(self) -> WakerId {
-        // Safety: we know we won't truncate the waker id as it's an u8.
+        // SAFETY: we know we won't truncate the waker id as it's an u8.
         #[allow(clippy::cast_possible_truncation)]
-        WakerId((self.0 & WAKER_ID_MASK) as u8)
+        WakerId(((self.0 & WAKER_ID_MASK) >> WAKER_ID_SHIFT) as u8)
     }
 
     /// Get the process id.
     const fn pid(self) -> ProcessId {
-        // Safety: we know we won't truncate the pid, we check in
+        // SAFETY: we know we won't truncate the pid, we checked in
         // `WakerData::new`.
-        #[allow(clippy::cast_possible_truncation)]
-        ProcessId(self.0 >> MAX_RUNTIMES_BITS)
+        ProcessId(self.0 & PID_MASK)
     }
 
     /// Convert raw data from [`task::RawWaker`] into [`WakerData`].
@@ -147,9 +151,9 @@ unsafe fn clone_wake_data(data: *const ()) -> task::RawWaker {
 }
 
 unsafe fn wake(data: *const ()) {
-    // This is safe because we received the data from the `RawWaker`, which
-    // doesn't modify the data.
-    let data = WakerData::from_raw_data(data);
+    // SAFETY: we received the data from the `RawWaker`, which doesn't modify
+    // `data`.
+    let data = unsafe { WakerData::from_raw_data(data) };
     if let Some(shared_internals) = get(data.waker_id()).upgrade() {
         shared_internals.mark_ready(data.pid());
         shared_internals.wake_workers(1);
@@ -158,14 +162,14 @@ unsafe fn wake(data: *const ()) {
 
 unsafe fn wake_by_ref(data: *const ()) {
     assert_copy::<WakerData>();
-    // Since `WakerData` is `Copy` `wake` doesn't actually consume any data, so
-    // we can just call it.
-    wake(data);
+    // SAFETY: Since `WakerData` is `Copy` `wake` doesn't actually consume any
+    // data, so we can just call it.
+    unsafe { wake(data) };
 }
 
 unsafe fn drop_wake_data(_: *const ()) {
     assert_copy::<WakerData>();
-    // Since the data is `Copy` we don't have to do anything.
+    // Since `WakerData` is `Copy` we don't have to do anything.
 }
 
 #[cfg(test)]
