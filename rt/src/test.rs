@@ -65,7 +65,7 @@ use heph_inbox::Manager;
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::sync_worker::SyncWorker;
 use crate::thread_waker::ThreadWaker;
-use crate::waker::shared::init_shared_waker;
+use crate::waker::shared::Wakers;
 use crate::worker::{Control, Worker};
 use crate::{
     self as rt, shared, ProcessId, RuntimeRef, Sync, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
@@ -95,9 +95,9 @@ pub(crate) fn shared_internals() -> Arc<shared::RuntimeInternals> {
             let setup = shared::RuntimeInternals::test_setup()
                 .expect("failed to setup runtime internals for test module");
             Arc::new_cyclic(|shared_internals| {
-                let waker_id = init_shared_waker(shared_internals.clone());
+                let wakers = Wakers::new(shared_internals.clone());
                 let worker_wakers = vec![noop_waker()].into_boxed_slice();
-                setup.complete(waker_id, worker_wakers, None)
+                setup.complete(wakers, worker_wakers, None)
             })
         })
         .clone()

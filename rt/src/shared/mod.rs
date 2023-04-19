@@ -24,7 +24,7 @@ use crate::spawn::{ActorOptions, FutureOptions};
 use crate::thread_waker::ThreadWaker;
 use crate::timers::shared::Timers;
 use crate::timers::TimerToken;
-use crate::waker::shared::{new_shared_task_waker, WakerId};
+use crate::waker::shared::Wakers;
 use crate::{trace, ThreadSafe};
 
 /// Setup of [`RuntimeInternals`].
@@ -46,7 +46,7 @@ impl RuntimeSetup {
     /// Complete the runtime setup.
     pub(crate) fn complete(
         self,
-        shared_id: WakerId,
+        wakers: Wakers,
         worker_wakers: Box<[&'static ThreadWaker]>,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> RuntimeInternals {
@@ -54,12 +54,12 @@ impl RuntimeSetup {
         debug_assert!(worker_wakers.len() >= 1);
         let sq = self.ring.submission_queue().clone();
         RuntimeInternals {
-            shared_id,
             worker_wakers,
             wake_worker_idx: AtomicUsize::new(0),
             poll: Mutex::new(self.poll),
             ring: Mutex::new(self.ring),
             sq,
+            wakers,
             scheduler: Scheduler::new(),
             timers: Timers::new(),
             trace_log,
@@ -70,8 +70,6 @@ impl RuntimeSetup {
 /// Shared internals of the runtime.
 #[derive(Debug)]
 pub(crate) struct RuntimeInternals {
-    /// Waker id used to create [`task::Waker`]s for thread-safe actors.
-    shared_id: WakerId,
     /// Thread wakers for all the workers.
     worker_wakers: Box<[&'static ThreadWaker]>,
     /// Index into `worker_wakers` to wake next, see
@@ -84,6 +82,8 @@ pub(crate) struct RuntimeInternals {
     ring: Mutex<a10::Ring>,
     /// SubmissionQueue for the `ring`.
     sq: a10::SubmissionQueue,
+    /// Wakers used to create [`task::Waker`]s for thread-safe actors.
+    wakers: Wakers,
     /// Scheduler for thread-safe actors.
     scheduler: Scheduler,
     /// Timers for thread-safe actors.
@@ -136,12 +136,7 @@ impl RuntimeInternals {
 
     /// Returns a new [`task::Waker`] for the thread-safe actor with `pid`.
     pub(crate) fn new_task_waker(&self, pid: ProcessId) -> task::Waker {
-        new_shared_task_waker(self.shared_id, pid)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn waker_id(&self) -> WakerId {
-        self.shared_id
+        self.wakers.new_task_waker(pid)
     }
 
     /// Register the shared [`Poll`] instance with `registry`.
