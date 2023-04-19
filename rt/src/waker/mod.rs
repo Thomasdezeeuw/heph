@@ -1,4 +1,4 @@
-//! `task::Waker` implementation.
+//! Wakers implementation.
 
 pub(crate) mod shared;
 #[cfg(test)]

@@ -10,7 +10,7 @@ mod shared {
     use crate::shared::RuntimeInternals;
     use crate::spawn::options::Priority;
     use crate::test;
-    use crate::waker::shared::{init_shared_waker, new_shared_task_waker};
+    use crate::waker::shared::Wakers;
 
     const PID1: ProcessId = ProcessId(1);
     const PID2: ProcessId = ProcessId(2);
@@ -44,7 +44,7 @@ mod shared {
         assert!(!shared_internals.has_ready_process());
 
         // Create a new waker.
-        let waker = new_shared_task_waker(shared_internals.waker_id(), pid);
+        let waker = shared_internals.new_task_waker(pid);
 
         // Waking should move the process to the ready queue.
         waker.wake_by_ref();
@@ -76,7 +76,7 @@ mod shared {
         assert!(!shared_internals.has_ready_process());
 
         // Create a cloned waker.
-        let waker1 = new_shared_task_waker(shared_internals.waker_id(), pid);
+        let waker1 = shared_internals.new_task_waker(pid);
         let waker2 = waker1.clone();
         drop(waker1);
 
@@ -102,7 +102,7 @@ mod shared {
 
         let shared_internals2 = shared_internals.clone();
         let handle = thread::spawn(move || {
-            let waker = new_shared_task_waker(shared_internals2.waker_id(), pid);
+            let waker = shared_internals2.new_task_waker(pid);
             waker.wake_by_ref();
             waker.wake();
         });
@@ -122,8 +122,8 @@ mod shared {
 
     #[test]
     fn no_internals() {
-        let waker_id = init_shared_waker(Weak::new());
-        let waker = new_shared_task_waker(waker_id, PID1);
+        let wakers = Wakers::new(Weak::new());
+        let waker = wakers.new_task_waker(PID1);
 
         // This shouldn't be a problem.
         waker.wake_by_ref();
@@ -132,10 +132,10 @@ mod shared {
 
     #[test]
     fn will_wake() {
-        let waker_id = init_shared_waker(Weak::new());
-        let waker1a = new_shared_task_waker(waker_id, PID1);
-        let waker1b = new_shared_task_waker(waker_id, PID1);
-        let waker2a = new_shared_task_waker(waker_id, PID2);
+        let wakers = Wakers::new(Weak::new());
+        let waker1a = wakers.new_task_waker(PID1);
+        let waker1b = wakers.new_task_waker(PID1);
+        let waker2a = wakers.new_task_waker(PID2);
         let waker2b = waker2a.clone();
 
         assert!(waker1a.will_wake(&waker1a));
@@ -157,9 +157,9 @@ mod shared {
     fn new_internals() -> Arc<RuntimeInternals> {
         let setup = RuntimeInternals::test_setup().unwrap();
         Arc::new_cyclic(|shared_internals| {
-            let waker_id = init_shared_waker(shared_internals.clone());
+            let wakers = Wakers::new(shared_internals.clone());
             let worker_wakers = vec![test::noop_waker()].into_boxed_slice();
-            setup.complete(waker_id, worker_wakers, None)
+            setup.complete(wakers, worker_wakers, None)
         })
     }
 
