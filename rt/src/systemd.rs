@@ -257,8 +257,8 @@ pub enum State {
 /// Actor that manages the communication to the service manager.
 ///
 /// It will set the application state (with the service manager) to ready when
-/// it is spawned. Once it receives a signal (in the form of a  message) it will
-/// update the state accordingly.
+/// it is spawned. Once it receives a signal (in the form of a
+/// [`ServiceMessage`]) it will update the state accordingly.
 ///
 /// Finally it will ping the service manager if a watchdog is active. It will
 /// check using `health_check` on the current status of the application.

@@ -3,15 +3,15 @@
 //! # Working with Buffers
 //!
 //! For working with buffers we define two plus two traits. For "regular", i.e.
-//! single buffer I/O, we have the following traits:
+//! single buffer I/O, we have the following two traits:
 //!  * [`Buf`] is used in writing/sending.
 //!  * [`BufMut`] is used in reading/receiving.
 //!
 //! The basic design of both traits is the same and is fairly simple. Usage
 //! starts with a call to [`parts`]/[`parts_mut`], which returns a pointer to
-//! the bytes in the bufer to read from or writing into. For `BufMut` the caller
-//! an write into the buffer and update the length using [`update_length`],
-//! though normally this is done by an I/O operation.
+//! the bytes in the bufer to read from or write into. For `BufMut` the caller
+//! writes into the buffer and updates the length using [`update_length`], though
+//! normally this is done by an I/O operation.
 //!
 //! For vectored I/O we have the same two traits as above, but suffixed with
 //! `Slice`:
