@@ -145,6 +145,7 @@
 #![feature(
     async_iterator,
     const_option,
+    const_weak_new,
     doc_auto_cfg,
     doc_cfg_hide,
     drain_filter,
