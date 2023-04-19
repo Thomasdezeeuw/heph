@@ -65,7 +65,7 @@ use heph_inbox::Manager;
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::sync_worker::SyncWorker;
 use crate::thread_waker::ThreadWaker;
-use crate::waker::shared::Wakers;
+use crate::wakers::shared::Wakers;
 use crate::worker::{Control, Worker};
 use crate::{
     self as rt, shared, ProcessId, RuntimeRef, Sync, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,

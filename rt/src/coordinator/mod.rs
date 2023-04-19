@@ -33,7 +33,7 @@ use mio_signals::{SignalSet, Signals};
 
 use crate::setup::{host_id, host_info, Uuid};
 use crate::thread_waker::ThreadWaker;
-use crate::waker::shared::Wakers;
+use crate::wakers::shared::Wakers;
 use crate::{
     self as rt, cpu_usage, shared, trace, worker, Signal, SyncWorker, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
