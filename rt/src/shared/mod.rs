@@ -17,16 +17,15 @@ use mio::unix::SourceFd;
 use mio::{Events, Interest, Poll, Registry, Token};
 
 use crate::process::{FutureProcess, Process, ProcessId};
+use crate::scheduler::shared::{ProcessData, Scheduler};
+#[cfg(test)]
+use crate::spawn::options::Priority;
 use crate::spawn::{ActorOptions, FutureOptions};
 use crate::thread_waker::ThreadWaker;
-use crate::timers::TimerToken;
-use crate::{trace, ThreadSafe};
-
-pub(crate) mod waker;
-
-use crate::scheduler::shared::{ProcessData, Scheduler};
 use crate::timers::shared::Timers;
-use waker::WakerId;
+use crate::timers::TimerToken;
+use crate::waker::shared::{new_shared_task_waker, WakerId};
+use crate::{trace, ThreadSafe};
 
 /// Setup of [`RuntimeInternals`].
 ///
@@ -137,7 +136,12 @@ impl RuntimeInternals {
 
     /// Returns a new [`task::Waker`] for the thread-safe actor with `pid`.
     pub(crate) fn new_task_waker(&self, pid: ProcessId) -> task::Waker {
-        waker::new(self.shared_id, pid)
+        new_shared_task_waker(self.shared_id, pid)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn waker_id(&self) -> WakerId {
+        self.shared_id
     }
 
     /// Register the shared [`Poll`] instance with `registry`.
@@ -258,6 +262,16 @@ impl RuntimeInternals {
             debug!(pid = pid.0, name = name; "spawning thread-safe future");
             Ok::<_, !>((process, ()))
         });
+    }
+
+    /// Add a new proces to the scheduler.
+    #[cfg(test)]
+    pub(crate) fn add_new_process<F, P, T, E>(&self, priority: Priority, setup: F) -> Result<T, E>
+    where
+        F: FnOnce(ProcessId) -> Result<(P, T), E>,
+        P: Process + Send + Sync + 'static,
+    {
+        self.scheduler.add_new_process(priority, setup)
     }
 
     /// See [`Scheduler::mark_ready`].

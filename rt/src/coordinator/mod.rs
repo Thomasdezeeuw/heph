@@ -33,6 +33,7 @@ use mio_signals::{SignalSet, Signals};
 
 use crate::setup::{host_id, host_info, Uuid};
 use crate::thread_waker::ThreadWaker;
+use crate::waker::shared::init_shared_waker;
 use crate::{
     self as rt, cpu_usage, shared, trace, worker, Signal, SyncWorker, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
@@ -96,7 +97,7 @@ impl Coordinator {
 
         let setup = shared::RuntimeInternals::setup(ring.submission_queue())?;
         let internals = Arc::new_cyclic(|shared_internals| {
-            let waker_id = shared::waker::init(shared_internals.clone());
+            let waker_id = init_shared_waker(shared_internals.clone());
             setup.complete(waker_id, worker_wakers, trace_log)
         });
 
