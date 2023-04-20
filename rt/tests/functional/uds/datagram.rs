@@ -48,8 +48,8 @@ fn pair() {
         buf.clear();
 
         // Shutdown.
-        s1.shutdown(Shutdown::Both)?;
-        s2.shutdown(Shutdown::Both)?;
+        s1.shutdown(Shutdown::Both).await?;
+        s2.shutdown(Shutdown::Both).await?;
 
         // No errors.
         assert!(s1.take_error()?.is_none());
