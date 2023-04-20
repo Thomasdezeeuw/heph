@@ -34,15 +34,11 @@ use mio_signals::{SignalSet, Signals};
 use crate::setup::{host_id, host_info, Uuid};
 use crate::thread_waker::ThreadWaker;
 use crate::wakers::shared::Wakers;
+use crate::wakers::{self, AtomicBitMap};
 use crate::{
     self as rt, cpu_usage, shared, trace, worker, Signal, SyncWorker, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
-
-mod bitmap;
-mod waker;
-
-use bitmap::AtomicBitMap;
 
 /// Token used to receive process signals.
 const SIGNAL: Token = Token(usize::MAX);
@@ -203,7 +199,7 @@ impl Coordinator {
 
             // Run all coordinator futures that are ready.
             while let Some(idx) = self.futures_ready.next_set() {
-                let waker = waker::new(self.futures_ready.clone(), idx);
+                let waker = wakers::new(self.futures_ready.clone(), idx);
                 let mut ctx = task::Context::from_waker(&waker);
                 match self.futures[idx].as_mut().poll(&mut ctx) {
                     task::Poll::Ready(()) => {
