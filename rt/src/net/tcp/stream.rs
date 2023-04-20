@@ -336,8 +336,8 @@ impl TcpStream {
     /// This function will cause all pending and future I/O on the specified
     /// portions to return immediately with an appropriate value (see the
     /// documentation of [`Shutdown`]).
-    pub fn shutdown(&self, how: Shutdown) -> io::Result<()> {
-        self.with_ref(|socket| socket.shutdown(how))
+    pub async fn shutdown(&self, how: Shutdown) -> io::Result<()> {
+        self.fd.shutdown(how).await
     }
 
     /// Get the value of the `SO_ERROR` option on this socket.

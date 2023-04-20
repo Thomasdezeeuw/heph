@@ -942,7 +942,7 @@ fn shutdown_read() {
             .await
             .unwrap();
 
-        stream.shutdown(Shutdown::Read).unwrap();
+        stream.shutdown(Shutdown::Read).await.unwrap();
 
         let buf = stream.recv(Vec::with_capacity(2)).await.unwrap();
         assert!(buf.is_empty());
@@ -991,7 +991,7 @@ fn shutdown_write() {
             .await
             .unwrap();
 
-        stream.shutdown(Shutdown::Write).unwrap();
+        stream.shutdown(Shutdown::Write).await.unwrap();
 
         let err = stream.send(DATA).await.unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
@@ -1039,7 +1039,7 @@ fn shutdown_both() {
             .await
             .unwrap();
 
-        stream.shutdown(Shutdown::Both).unwrap();
+        stream.shutdown(Shutdown::Both).await.unwrap();
 
         let err = stream.send(DATA).await.unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::BrokenPipe);
