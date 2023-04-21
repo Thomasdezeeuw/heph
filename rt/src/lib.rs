@@ -149,6 +149,7 @@
     doc_auto_cfg,
     doc_cfg_hide,
     drain_filter,
+    impl_trait_in_assoc_type,
     io_slice_advance,
     is_sorted,
     maybe_uninit_array_assume_init,
@@ -157,7 +158,6 @@
     new_uninit,
     ptr_metadata,
     stmt_expr_attributes,
-    type_alias_impl_trait,
     waker_getters
 )]
 #![warn(
