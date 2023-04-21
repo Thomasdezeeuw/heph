@@ -1,4 +1,4 @@
-//! Logging related types.
+//! Logging.
 //!
 //! Logging in Heph is done via the [`log`] crate, much like the entire Rust
 //! ecosystem does (or should). However the log crate doesn't provide an actual

@@ -11,9 +11,6 @@ use crate::{ptr_as_usize, ProcessId};
 /// Maximum number of runtimes supported.
 const MAX_RUNTIMES: usize = 1 << MAX_RUNTIMES_BITS;
 /// Number of most significate bits used for the [`WakersId`].
-#[cfg(not(any(test, feature = "test")))]
-const MAX_RUNTIMES_BITS: usize = 1; // 3.
-#[cfg(any(test, feature = "test"))]
 const MAX_RUNTIMES_BITS: usize = 8; // 256.
 const WAKER_ID_SHIFT: usize = usize::BITS as usize - MAX_RUNTIMES_BITS;
 const WAKER_ID_MASK: usize = (MAX_RUNTIMES - 1) << WAKER_ID_SHIFT;
