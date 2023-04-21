@@ -47,12 +47,13 @@ fn into_data_ptr(bitmap: Arc<AtomicBitMap>, id: usize) -> *const () {
 
     // This is a "fat" pointer, a pointer to `AtomicBitMap` and a length.
     let bitmap_ptr = Arc::into_raw(bitmap);
-    // This will point to the start of the `AtomicBitMap` as is "thin".
+    // This will point to the start of the `AtomicBitMap` and makes the pointer
+    // "thin".
     let bitmap_start = bitmap_ptr.cast::<()>();
     // Ensure we have bit to put our `id`.
-    assert!(bitmap_start as usize & PTR_BITS_UNUSED == 0);
+    assert!(bitmap_start as usize & PTR_MASK == bitmap_start as usize);
     // Squash the pointer and our `id` together.
-    ((bitmap_start as usize) & (id << PTR_DATA_SHIFT)) as *const ()
+    ((bitmap_start as usize) | (id << PTR_DATA_SHIFT)) as *const ()
 }
 
 static WAKER_VTABLE: task::RawWakerVTable =
@@ -102,7 +103,7 @@ unsafe fn data_as_raw_ptr(data: *const ()) -> (*const AtomicBitMap, usize) {
     // bitmap that has at least enough capacity that we can set the `id`-th bit.
     // The returned pointer might be a shorter than the true length of
     // `AtomicBitMap`, but we can work with that.
-    let id = data as usize & DATA_MASK;
+    let id = (data as usize & DATA_MASK) >> PTR_DATA_SHIFT;
     let bitmap_start = (data as usize & PTR_MASK) as *const ();
     let bitmap_size = min_bitmap_size(id);
     let bitmap_ptr = ptr::from_raw_parts(bitmap_start, bitmap_size);
@@ -111,9 +112,5 @@ unsafe fn data_as_raw_ptr(data: *const ()) -> (*const AtomicBitMap, usize) {
 
 /// Returns the minimum bitmap size such that `id` can be set.
 fn min_bitmap_size(id: usize) -> usize {
-    let mut bitmap_size = id / usize::BITS as usize;
-    if (id % usize::BITS as usize) != 0 {
-        bitmap_size += 1;
-    }
-    bitmap_size
+    (id + usize::BITS as usize) / usize::BITS as usize
 }
