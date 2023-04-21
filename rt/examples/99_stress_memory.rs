@@ -1,9 +1,11 @@
 //! This is just a memory stress test of the runtime.
 //!
-//! Currently using 10 million "actors" this test uses 2.59 GB and takes ~5
+//! Currently using 10 million "actors" this test uses ~3 GB and takes ~3
 //! seconds to spawn the actors.
 
 #![feature(never_type)]
+
+use std::future::pending;
 
 use log::info;
 
@@ -40,13 +42,10 @@ fn main() -> Result<(), rt::Error> {
 
 /// Our "actor", but it doesn't do much.
 async fn actor(_: actor::Context<!, ThreadLocal>) {
-    /* Nothing. */
+    pending().await
 }
 
 async fn control_actor(_: actor::Context<!, ThreadLocal>) {
     info!("Running, check the memory usage!");
     info!("Send a signal (e.g. by pressing Ctrl-C) to stop.");
-    // NOTE: don't do this. This is only here to prevent the other actors from
-    // running.
-    std::thread::sleep(std::time::Duration::from_secs(100));
 }
