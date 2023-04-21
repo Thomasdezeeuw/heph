@@ -1,4 +1,4 @@
-//! Network related types.
+//! Networking primitives.
 //!
 //! The network module support two types of protocols:
 //!
