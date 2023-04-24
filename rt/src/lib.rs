@@ -698,7 +698,7 @@ where
             .add_new_process(options.priority(), |pid| {
                 let name = NA::name();
                 debug!(pid = pid.0, name = name; "spawning thread-local actor");
-                let rt = ThreadLocal::new(pid, self.clone());
+                let rt = ThreadLocal::new(self.clone());
                 ActorFuture::new(supervisor, new_actor, arg, rt)
             })
     }

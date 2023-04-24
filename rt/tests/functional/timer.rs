@@ -20,12 +20,12 @@ const TIMEOUT: Duration = Duration::from_millis(100);
 
 #[test]
 fn size() {
-    assert_size::<Timer<ThreadLocal>>(48);
-    assert_size::<Timer<ThreadSafe>>(48);
-    assert_size::<Deadline<(), ThreadLocal>>(48);
-    assert_size::<Deadline<(), ThreadSafe>>(48);
-    assert_size::<Interval<ThreadLocal>>(64);
-    assert_size::<Interval<ThreadSafe>>(64);
+    assert_size::<Timer<ThreadLocal>>(40);
+    assert_size::<Timer<ThreadSafe>>(40);
+    assert_size::<Deadline<(), ThreadLocal>>(40);
+    assert_size::<Deadline<(), ThreadSafe>>(40);
+    assert_size::<Interval<ThreadLocal>>(56);
+    assert_size::<Interval<ThreadSafe>>(56);
     assert_size::<DeadlinePassed>(0);
 }
 
