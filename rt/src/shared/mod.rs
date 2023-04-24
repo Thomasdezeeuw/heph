@@ -345,14 +345,14 @@ impl RuntimeInternals {
     pub(crate) fn finish_trace(
         &self,
         timing: Option<trace::EventTiming>,
-        pid: ProcessId,
+        substream_id: u64,
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
         trace::finish(
             self.trace_log.as_deref(),
             timing,
-            pid.0 as u64,
+            substream_id,
             description,
             attributes,
         );

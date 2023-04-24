@@ -660,15 +660,15 @@ impl RuntimeRef {
 
     fn finish_trace(
         &mut self,
+        substream_id: u64,
         timing: Option<trace::EventTiming>,
-        pid: ProcessId,
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
         trace::finish(
             (*self.internals.trace_log.borrow_mut()).as_mut(),
             timing,
-            pid.0 as u64,
+            substream_id,
             description,
             attributes,
         );
