@@ -90,6 +90,7 @@ mod private {
         fn finish_trace(
             &mut self,
             timing: Option<trace::EventTiming>,
+            substream_id: u64,
             description: &str,
             attributes: &[(&str, &dyn trace::AttributeValue)],
         );
@@ -164,11 +165,12 @@ impl PrivateAccess for ThreadLocal {
     fn finish_trace(
         &mut self,
         timing: Option<trace::EventTiming>,
+        substream_id: u64,
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
         self.rt
-            .finish_trace(timing, self.pid, description, attributes);
+            .finish_trace(substream_id, timing, description, attributes);
     }
 }
 
@@ -281,11 +283,12 @@ impl PrivateAccess for ThreadSafe {
     fn finish_trace(
         &mut self,
         timing: Option<trace::EventTiming>,
+        substream_id: u64,
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
         self.rt
-            .finish_trace(timing, self.pid, description, attributes);
+            .finish_trace(timing, substream_id, description, attributes);
     }
 }
 
@@ -331,7 +334,9 @@ where
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
-        self.runtime().finish_trace(timing, description, attributes);
+        let substream_id = self.pid() as u64;
+        self.runtime()
+            .finish_trace(timing, substream_id, description, attributes);
     }
 }
 

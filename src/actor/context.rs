@@ -137,6 +137,11 @@ impl<M, RT> Context<M, RT> {
     pub fn register_inbox_waker(&mut self, waker: &task::Waker) {
         _ = self.inbox.register_waker(waker);
     }
+
+    #[doc(hidden)] // Not part of the stable API.
+    pub fn pid(&self) -> usize {
+        self.inbox.id().as_usize()
+    }
 }
 
 /// Error returned in case receiving a value from an actor's inbox fails.
