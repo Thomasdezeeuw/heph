@@ -10,7 +10,7 @@ use heph::supervisor::NoSupervisor;
 
 use crate::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Priority, ProcessData, Scheduler};
-use crate::test::{self, nop_task_waker, AssertUnmoved, TEST_PID};
+use crate::test::{self, nop_task_waker, AssertUnmoved};
 use crate::ThreadSafe;
 
 fn assert_size<T>(expected: usize) {
@@ -115,7 +115,7 @@ fn scheduler_run_order() {
     for (id, priority) in priorities.iter().enumerate() {
         let pid = scheduler
             .add_new_process(*priority, |pid| {
-                let rt = ThreadSafe::new(TEST_PID, test::shared_internals());
+                let rt = ThreadSafe::new(test::shared_internals());
                 ActorFuture::new(NoSupervisor, new_actor, (id, run_order.clone()), rt)
                     .map(|(future, _)| (future, pid))
             })
@@ -162,7 +162,7 @@ fn assert_actor_process_unmoved() {
 
     let pid = scheduler
         .add_new_process(Priority::NORMAL, |pid| {
-            let rt = ThreadSafe::new(TEST_PID, test::shared_internals());
+            let rt = ThreadSafe::new(test::shared_internals());
             ActorFuture::new(NoSupervisor, TestAssertUnmovedNewActor, (), rt)
                 .map(|(future, _)| (future, pid))
         })
@@ -215,7 +215,7 @@ fn add_test_actor(scheduler: &Scheduler, priority: Priority) -> ProcessId {
     scheduler
         .add_new_process(priority, |pid| {
             let new_actor = simple_actor as fn(_) -> _;
-            let rt = ThreadSafe::new(TEST_PID, test::shared_internals());
+            let rt = ThreadSafe::new(test::shared_internals());
             ActorFuture::new(NoSupervisor, new_actor, (), rt).map(|(future, _)| (future, pid))
         })
         .unwrap()

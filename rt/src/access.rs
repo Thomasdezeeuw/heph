@@ -39,7 +39,6 @@ use heph::actor::{self, NewActor, SyncContext};
 use heph::actor_ref::ActorRef;
 use heph::supervisor::Supervisor;
 
-use crate::process::ProcessId;
 use crate::spawn::{ActorOptions, FutureOptions, Spawn};
 use crate::timers::TimerToken;
 use crate::trace::{self, Trace};
@@ -115,13 +114,12 @@ pub(crate) use private::PrivateAccess;
 /// [`actor::Context`]: heph::actor::Context
 #[derive(Clone)]
 pub struct ThreadLocal {
-    pid: ProcessId,
     rt: RuntimeRef,
 }
 
 impl ThreadLocal {
-    pub(crate) const fn new(pid: ProcessId, rt: RuntimeRef) -> ThreadLocal {
-        ThreadLocal { pid, rt }
+    pub(crate) const fn new(rt: RuntimeRef) -> ThreadLocal {
+        ThreadLocal { rt }
     }
 }
 
@@ -237,13 +235,12 @@ impl fmt::Debug for ThreadLocal {
 /// [`spawn_future`]: ThreadSafe::spawn_future
 #[derive(Clone)]
 pub struct ThreadSafe {
-    pid: ProcessId,
     rt: Arc<shared::RuntimeInternals>,
 }
 
 impl ThreadSafe {
-    pub(crate) const fn new(pid: ProcessId, rt: Arc<shared::RuntimeInternals>) -> ThreadSafe {
-        ThreadSafe { pid, rt }
+    pub(crate) const fn new(rt: Arc<shared::RuntimeInternals>) -> ThreadSafe {
+        ThreadSafe { rt }
     }
 
     /// Spawn a thread-safe [`Future`].

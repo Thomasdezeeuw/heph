@@ -14,7 +14,7 @@ use heph::supervisor::NoSupervisor;
 use crate::process::{FutureProcess, Process, ProcessId};
 use crate::scheduler::{ProcessData, Scheduler};
 use crate::spawn::options::Priority;
-use crate::test::{self, nop_task_waker, AssertUnmoved, TEST_PID};
+use crate::test::{self, nop_task_waker, AssertUnmoved};
 use crate::ThreadLocal;
 
 fn assert_size<T>(expected: usize) {
@@ -64,7 +64,7 @@ fn add_actor() {
     let _ = scheduler
         .add_new_process(Priority::NORMAL, |_| {
             let new_actor = simple_actor as fn(_) -> _;
-            let rt = ThreadLocal::new(TEST_PID, test::runtime());
+            let rt = ThreadLocal::new(test::runtime());
             ActorFuture::new(NoSupervisor, new_actor, (), rt)
         })
         .unwrap();
@@ -82,7 +82,7 @@ fn mark_ready() {
     let pid = scheduler
         .add_new_process(Priority::NORMAL, |pid| {
             let new_actor = simple_actor as fn(_) -> _;
-            let rt = ThreadLocal::new(TEST_PID, test::runtime());
+            let rt = ThreadLocal::new(test::runtime());
             ActorFuture::new(NoSupervisor, new_actor, (), rt).map(|(future, _)| (future, pid))
         })
         .unwrap();
@@ -214,7 +214,7 @@ fn scheduler_run_order() {
     for (id, priority) in priorities.iter().enumerate() {
         let pid = scheduler
             .add_new_process(*priority, |pid| {
-                let rt = ThreadLocal::new(TEST_PID, test::runtime());
+                let rt = ThreadLocal::new(test::runtime());
                 ActorFuture::new(NoSupervisor, new_actor, (id, run_order.clone()), rt)
                     .map(|(future, _)| (future, pid))
             })
@@ -261,7 +261,7 @@ fn assert_actor_process_unmoved() {
 
     let pid = scheduler
         .add_new_process(Priority::NORMAL, |pid| {
-            let rt = ThreadLocal::new(TEST_PID, test::runtime());
+            let rt = ThreadLocal::new(test::runtime());
             ActorFuture::new(NoSupervisor, TestAssertUnmovedNewActor, (), rt)
                 .map(|(future, _)| (future, pid))
         })
@@ -312,7 +312,7 @@ fn add_test_actor(scheduler: &mut Scheduler, priority: Priority) -> ProcessId {
     scheduler
         .add_new_process(priority, |pid| {
             let new_actor = simple_actor as fn(_) -> _;
-            let rt = ThreadLocal::new(TEST_PID, test::runtime());
+            let rt = ThreadLocal::new(test::runtime());
             ActorFuture::new(NoSupervisor, new_actor, (), rt).map(|(future, _)| (future, pid))
         })
         .unwrap()

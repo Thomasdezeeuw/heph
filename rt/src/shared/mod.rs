@@ -240,7 +240,7 @@ impl RuntimeInternals {
         self.scheduler.add_new_process(options.priority(), |pid| {
             let name = NA::name();
             debug!(pid = pid.0, name = name; "spawning thread-safe actor");
-            let rt = ThreadSafe::new(pid, self.clone());
+            let rt = ThreadSafe::new(self.clone());
             ActorFuture::new(supervisor, new_actor, arg, rt)
         })
     }
