@@ -237,12 +237,12 @@ impl RuntimeInternals {
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
-        self.scheduler.add_new_process(options.priority(), |pid| {
-            let name = NA::name();
-            debug!(pid = pid.0, name = name; "spawning thread-safe actor");
-            let rt = ThreadSafe::new(self.clone());
-            ActorFuture::new(supervisor, new_actor, arg, rt)
-        })
+        let rt = ThreadSafe::new(self.clone());
+        let (process, actor_ref) = ActorFuture::new(supervisor, new_actor, arg, rt)?;
+        let pid = self.scheduler.add_new_process(options.priority(), process);
+        let name = NA::name();
+        debug!(pid = pid.0, name = name; "spawning thread-safe actor");
+        Ok(actor_ref)
     }
 
     /// Spawn a thread-safe `future`.
@@ -251,22 +251,19 @@ impl RuntimeInternals {
     where
         Fut: Future<Output = ()> + Send + Sync + 'static,
     {
-        _ = self.scheduler.add_new_process(options.priority(), |pid| {
-            let process = FutureProcess(future);
-            let name = process.name();
-            debug!(pid = pid.0, name = name; "spawning thread-safe future");
-            Ok::<_, !>((process, ()))
-        });
+        let process = FutureProcess(future);
+        let name = process.name();
+        let pid = self.scheduler.add_new_process(options.priority(), process);
+        debug!(pid = pid.0, name = name; "spawning thread-safe future");
     }
 
     /// Add a new proces to the scheduler.
     #[cfg(test)]
-    pub(crate) fn add_new_process<F, P, T, E>(&self, priority: Priority, setup: F) -> Result<T, E>
+    pub(crate) fn add_new_process<P>(&self, priority: Priority, process: P) -> ProcessId
     where
-        F: FnOnce(ProcessId) -> Result<(P, T), E>,
         P: Process + Send + Sync + 'static,
     {
-        self.scheduler.add_new_process(priority, setup)
+        self.scheduler.add_new_process(priority, process)
     }
 
     /// See [`Scheduler::mark_ready`].

@@ -113,13 +113,10 @@ fn scheduler_run_order() {
     let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
     let mut pids = vec![];
     for (id, priority) in priorities.iter().enumerate() {
-        let pid = scheduler
-            .add_new_process(*priority, |pid| {
-                let rt = ThreadSafe::new(test::shared_internals());
-                ActorFuture::new(NoSupervisor, new_actor, (id, run_order.clone()), rt)
-                    .map(|(future, _)| (future, pid))
-            })
-            .unwrap();
+        let rt = ThreadSafe::new(test::shared_internals());
+        let (process, _) =
+            ActorFuture::new(NoSupervisor, new_actor, (id, run_order.clone()), rt).unwrap();
+        let pid = scheduler.add_new_process(*priority, process);
         pids.push(pid);
     }
 
@@ -160,13 +157,9 @@ fn assert_actor_process_unmoved() {
     let waker = nop_task_waker();
     let mut ctx = task::Context::from_waker(&waker);
 
-    let pid = scheduler
-        .add_new_process(Priority::NORMAL, |pid| {
-            let rt = ThreadSafe::new(test::shared_internals());
-            ActorFuture::new(NoSupervisor, TestAssertUnmovedNewActor, (), rt)
-                .map(|(future, _)| (future, pid))
-        })
-        .unwrap();
+    let rt = ThreadSafe::new(test::shared_internals());
+    let (process, _) = ActorFuture::new(NoSupervisor, TestAssertUnmovedNewActor, (), rt).unwrap();
+    let pid = scheduler.add_new_process(Priority::NORMAL, process);
 
     // Run the process multiple times, ensure it's not moved in the
     // process.
@@ -190,14 +183,12 @@ fn assert_future_process_unmoved() {
     let waker = nop_task_waker();
     let mut ctx = task::Context::from_waker(&waker);
 
-    let _ = scheduler.add_new_process(Priority::NORMAL, |_| {
-        Ok::<_, !>((FutureProcess(AssertUnmoved::new(pending())), ()))
-    });
+    let process = FutureProcess(AssertUnmoved::new(pending()));
+    let pid = scheduler.add_new_process(Priority::NORMAL, process);
 
     // Run the process multiple times, ensure it's not moved in the
     // process.
     let mut process = scheduler.remove().unwrap();
-    let pid = process.as_ref().id();
     assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
     scheduler.add_back_process(process);
 
@@ -212,11 +203,8 @@ fn assert_future_process_unmoved() {
 }
 
 fn add_test_actor(scheduler: &Scheduler, priority: Priority) -> ProcessId {
-    scheduler
-        .add_new_process(priority, |pid| {
-            let new_actor = simple_actor as fn(_) -> _;
-            let rt = ThreadSafe::new(test::shared_internals());
-            ActorFuture::new(NoSupervisor, new_actor, (), rt).map(|(future, _)| (future, pid))
-        })
-        .unwrap()
+    let new_actor = simple_actor as fn(_) -> _;
+    let rt = ThreadSafe::new(test::shared_internals());
+    let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
+    scheduler.add_new_process(priority, process)
 }

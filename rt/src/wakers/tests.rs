@@ -35,7 +35,7 @@ mod shared {
     fn waker() {
         let shared_internals = new_internals();
 
-        let pid = add_process(&shared_internals);
+        let pid = shared_internals.add_new_process(Priority::NORMAL, FutureProcess(TestProcess));
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
@@ -67,7 +67,7 @@ mod shared {
         let shared_internals = new_internals();
 
         // Add a test process.
-        let pid = add_process(&shared_internals);
+        let pid = shared_internals.add_new_process(Priority::NORMAL, FutureProcess(TestProcess));
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
@@ -92,7 +92,7 @@ mod shared {
     fn wake_from_different_thread() {
         let shared_internals = new_internals();
 
-        let pid = add_process(&shared_internals);
+        let pid = shared_internals.add_new_process(Priority::NORMAL, FutureProcess(TestProcess));
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
@@ -161,14 +161,6 @@ mod shared {
             let worker_wakers = vec![test::noop_waker()].into_boxed_slice();
             setup.complete(wakers, worker_wakers, None)
         })
-    }
-
-    fn add_process(internals: &RuntimeInternals) -> ProcessId {
-        internals
-            .add_new_process(Priority::NORMAL, |pid| {
-                Ok::<_, !>((FutureProcess(TestProcess), pid))
-            })
-            .unwrap()
     }
 }
 

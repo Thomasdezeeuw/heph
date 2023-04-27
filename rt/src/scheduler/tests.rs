@@ -49,9 +49,7 @@ fn has_process() {
     assert!(!scheduler.has_process());
     assert!(!scheduler.has_ready_process());
 
-    let _ = scheduler.add_new_process(Priority::NORMAL, |_| {
-        Ok::<_, !>((FutureProcess(NopTestProcess), ()))
-    });
+    let _ = scheduler.add_new_process(Priority::NORMAL, FutureProcess(NopTestProcess));
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
 }
@@ -61,13 +59,10 @@ async fn simple_actor(_: actor::Context<!, ThreadLocal>) {}
 #[test]
 fn add_actor() {
     let mut scheduler = Scheduler::new();
-    let _ = scheduler
-        .add_new_process(Priority::NORMAL, |_| {
-            let new_actor = simple_actor as fn(_) -> _;
-            let rt = ThreadLocal::new(test::runtime());
-            ActorFuture::new(NoSupervisor, new_actor, (), rt)
-        })
-        .unwrap();
+    let new_actor = simple_actor as fn(_) -> _;
+    let rt = ThreadLocal::new(test::runtime());
+    let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
+    let _ = scheduler.add_new_process(Priority::NORMAL, process);
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
 }
@@ -77,15 +72,12 @@ fn mark_ready() {
     let mut scheduler = Scheduler::new();
 
     // Incorrect (outdated) pid should be ok.
-    scheduler.mark_ready(ProcessId(1));
+    scheduler.mark_ready(ProcessId(100));
 
-    let pid = scheduler
-        .add_new_process(Priority::NORMAL, |pid| {
-            let new_actor = simple_actor as fn(_) -> _;
-            let rt = ThreadLocal::new(test::runtime());
-            ActorFuture::new(NoSupervisor, new_actor, (), rt).map(|(future, _)| (future, pid))
-        })
-        .unwrap();
+    let new_actor = simple_actor as fn(_) -> _;
+    let rt = ThreadLocal::new(test::runtime());
+    let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
+    let pid = scheduler.add_new_process(Priority::NORMAL, process);
 
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
@@ -212,13 +204,10 @@ fn scheduler_run_order() {
     let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
     let mut pids = vec![];
     for (id, priority) in priorities.iter().enumerate() {
-        let pid = scheduler
-            .add_new_process(*priority, |pid| {
-                let rt = ThreadLocal::new(test::runtime());
-                ActorFuture::new(NoSupervisor, new_actor, (id, run_order.clone()), rt)
-                    .map(|(future, _)| (future, pid))
-            })
-            .unwrap();
+        let rt = ThreadLocal::new(test::runtime());
+        let (process, _) =
+            ActorFuture::new(NoSupervisor, new_actor, (id, run_order.clone()), rt).unwrap();
+        let pid = scheduler.add_new_process(*priority, process);
         pids.push(pid);
     }
 
@@ -259,13 +248,9 @@ fn assert_actor_process_unmoved() {
     let waker = nop_task_waker();
     let mut ctx = task::Context::from_waker(&waker);
 
-    let pid = scheduler
-        .add_new_process(Priority::NORMAL, |pid| {
-            let rt = ThreadLocal::new(test::runtime());
-            ActorFuture::new(NoSupervisor, TestAssertUnmovedNewActor, (), rt)
-                .map(|(future, _)| (future, pid))
-        })
-        .unwrap();
+    let rt = ThreadLocal::new(test::runtime());
+    let (process, _) = ActorFuture::new(NoSupervisor, TestAssertUnmovedNewActor, (), rt).unwrap();
+    let pid = scheduler.add_new_process(Priority::NORMAL, process);
 
     // Run the process multiple times, ensure it's not moved in the process.
     let mut process = scheduler.next_process().unwrap();
@@ -288,9 +273,8 @@ fn assert_future_process_unmoved() {
     let waker = nop_task_waker();
     let mut ctx = task::Context::from_waker(&waker);
 
-    let _ = scheduler.add_new_process(Priority::NORMAL, |_| {
-        Ok::<_, !>((FutureProcess(AssertUnmoved::new(pending())), ()))
-    });
+    let process = FutureProcess(AssertUnmoved::new(pending()));
+    let _ = scheduler.add_new_process(Priority::NORMAL, process);
 
     // Run the process multiple times, ensure it's not moved in the process.
     let mut process = scheduler.next_process().unwrap();
@@ -309,11 +293,8 @@ fn assert_future_process_unmoved() {
 }
 
 fn add_test_actor(scheduler: &mut Scheduler, priority: Priority) -> ProcessId {
-    scheduler
-        .add_new_process(priority, |pid| {
-            let new_actor = simple_actor as fn(_) -> _;
-            let rt = ThreadLocal::new(test::runtime());
-            ActorFuture::new(NoSupervisor, new_actor, (), rt).map(|(future, _)| (future, pid))
-        })
-        .unwrap()
+    let new_actor = simple_actor as fn(_) -> _;
+    let rt = ThreadLocal::new(test::runtime());
+    let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
+    scheduler.add_new_process(priority, process)
 }

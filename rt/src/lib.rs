@@ -585,16 +585,14 @@ impl RuntimeRef {
     where
         Fut: Future<Output = ()> + 'static,
     {
-        _ = self
+        let process = FutureProcess(future);
+        let name = process.name();
+        let pid = self
             .internals
             .scheduler
             .borrow_mut()
-            .add_new_process(options.priority(), |pid| {
-                let process = FutureProcess(future);
-                let name = process.name();
-                debug!(pid = pid.0, name = name; "spawning thread-local future");
-                Ok::<_, !>((process, ()))
-            });
+            .add_new_process(options.priority(), process);
+        debug!(pid = pid.0, name = name; "spawning thread-local future");
     }
 
     /// Spawn a thread-safe [`Future`].
@@ -692,15 +690,16 @@ where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = ThreadLocal>,
     {
-        self.internals
+        let rt = ThreadLocal::new(self.clone());
+        let (process, actor_ref) = ActorFuture::new(supervisor, new_actor, arg, rt)?;
+        let pid = self
+            .internals
             .scheduler
             .borrow_mut()
-            .add_new_process(options.priority(), |pid| {
-                let name = NA::name();
-                debug!(pid = pid.0, name = name; "spawning thread-local actor");
-                let rt = ThreadLocal::new(self.clone());
-                ActorFuture::new(supervisor, new_actor, arg, rt)
-            })
+            .add_new_process(options.priority(), process);
+        let name = NA::name();
+        debug!(pid = pid.0, name = name; "spawning thread-local actor");
+        Ok(actor_ref)
     }
 }
 
