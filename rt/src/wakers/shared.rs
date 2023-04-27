@@ -5,8 +5,8 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Weak;
 use std::task;
 
+use crate::process::ProcessId;
 use crate::shared::RuntimeInternals;
-use crate::{ptr_as_usize, ProcessId};
 
 /// Maximum number of runtimes supported.
 const MAX_RUNTIMES: usize = 1 << MAX_RUNTIMES_BITS;
@@ -125,8 +125,8 @@ impl WakerData {
     ///
     /// The caller must ensure the `data` is created using
     /// [`WakerData::into_raw_data`].
-    const unsafe fn from_raw_data(data: *const ()) -> WakerData {
-        WakerData(ptr_as_usize(data))
+    unsafe fn from_raw_data(data: *const ()) -> WakerData {
+        WakerData(data as usize)
     }
 
     /// Convert [`WakerData`] into raw data for [`task::RawWaker`].

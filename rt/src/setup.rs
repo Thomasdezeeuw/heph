@@ -34,7 +34,7 @@ pub struct Setup {
 
 impl Setup {
     /// See [`Runtime::setup`].
-    pub(super) const fn new() -> Setup {
+    pub(crate) const fn new() -> Setup {
         Setup {
             name: None,
             threads: 1,
@@ -63,10 +63,7 @@ impl Setup {
     /// Most applications would want to use [`Setup::use_all_cores`] which sets
     /// the number of threads equal to the number of CPU cores.
     pub fn num_threads(mut self, n: usize) -> Self {
-        assert!(
-            n != 0,
-            "Can't create zero worker threads, one is the minimum"
-        );
+        assert!(n != 0, "Can't create zero worker threads, 1 is the minimum");
         assert!(
             n < MAX_THREADS,
             "Can't create {n} worker threads, {MAX_THREADS} is the maximum",
