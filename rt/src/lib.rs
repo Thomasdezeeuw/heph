@@ -610,16 +610,6 @@ impl RuntimeRef {
             .add_unique(actor_ref);
     }
 
-    /// Get a clone of the sending end of the notification channel.
-    ///
-    /// # Notes
-    ///
-    /// Prefer `new_waker` if possible, only use `task::Waker` for `Future`s.
-    #[cfg(any(test, feature = "test"))]
-    fn new_local_task_waker(&self, pid: ProcessId) -> task::Waker {
-        local::waker::new(self.internals.waker_id, pid)
-    }
-
     /// Add a timer.
     pub(crate) fn add_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
         ::log::trace!(deadline = as_debug!(deadline); "adding timer");

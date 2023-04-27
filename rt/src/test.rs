@@ -68,15 +68,13 @@ use crate::thread_waker::ThreadWaker;
 use crate::wakers::shared::Wakers;
 use crate::worker::{Control, Worker};
 use crate::{
-    self as rt, shared, ProcessId, RuntimeRef, Sync, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
+    self as rt, shared, RuntimeRef, Sync, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
 };
 
 #[doc(no_inline)]
 #[cfg(feature = "test")]
 pub use heph::test::*;
-
-pub(crate) const TEST_PID: ProcessId = ProcessId(0);
 
 pub(crate) fn noop_waker() -> &'static ThreadWaker {
     static NOOP_WAKER: OnceLock<ThreadWaker> = OnceLock::new();
@@ -449,8 +447,6 @@ where
 
 /// Poll a future.
 ///
-/// The [`task::Context`] will be provided by the *test* runtime.
-///
 /// # Notes
 ///
 /// Wake notifications will be ignored, if this is required run an end to end
@@ -459,14 +455,12 @@ pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
 where
     Fut: Future + ?Sized,
 {
-    let waker = runtime().new_local_task_waker(TEST_PID);
+    let waker = nop_task_waker();
     let mut ctx = task::Context::from_waker(&waker);
     Future::poll(future, &mut ctx)
 }
 
 /// Poll a [`AsyncIterator`].
-///
-/// The [`task::Context`] will be provided by the *test* runtime.
 ///
 /// # Notes
 ///
@@ -476,7 +470,7 @@ pub fn poll_next<I>(iter: Pin<&mut I>) -> Poll<Option<I::Item>>
 where
     I: AsyncIterator + ?Sized,
 {
-    let waker = runtime().new_local_task_waker(TEST_PID);
+    let waker = nop_task_waker();
     let mut ctx = task::Context::from_waker(&waker);
     AsyncIterator::poll_next(iter, &mut ctx)
 }
@@ -484,7 +478,7 @@ where
 /// Poll an actor.
 ///
 /// This is effectively the same function as [`poll_future`], but instead polls
-/// an actor. The [`task::Context`] will be provided by the *test* runtime.
+/// an actor.
 ///
 /// # Notes
 ///
@@ -494,7 +488,7 @@ pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
 where
     A: Actor + ?Sized,
 {
-    let waker = runtime().new_local_task_waker(TEST_PID);
+    let waker = nop_task_waker();
     let mut ctx = task::Context::from_waker(&waker);
     Actor::try_poll(actor, &mut ctx)
 }
@@ -546,7 +540,6 @@ unsafe impl<Fut: Send> Send for AssertUnmoved<Fut> {}
 unsafe impl<Fut: std::marker::Sync> std::marker::Sync for AssertUnmoved<Fut> {}
 
 /// Returns a no-op [`task::Waker`].
-#[cfg(test)]
 pub(crate) fn nop_task_waker() -> task::Waker {
     use std::task::{RawWaker, RawWakerVTable};
     static WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
