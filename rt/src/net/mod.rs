@@ -8,12 +8,20 @@
 //!   * A [TCP server], listens for connections and starts a new actor for each.
 //! * [User Datagram Protocol] (UDP) only provides a single socket type:
 //!   * [`UdpSocket`].
+//! * [Unix Domain Socket] (UDS) module provides three types:
+//!   * A [Unix stream] between two socket.
+//!   * A [Unix listening socket], a socket used to listen for connections.
+//!   * A [Unix datagram socket].
 //!
 //! [Transmission Control Protocol]: crate::net::tcp
 //! [TCP stream]: crate::net::TcpStream
 //! [TCP listening socket]: crate::net::TcpListener
 //! [TCP server]: crate::net::tcp::server
 //! [User Datagram Protocol]: crate::net::udp
+//! [Unix Domain Socket]: crate::net::uds
+//! [Unix stream]: crate::net::UnixStream
+//! [Unix listening socket]: crate::net::UnixListener
+//! [Unix datagram socket]: crate::net::UnixDatagram
 
 use std::mem::{size_of, MaybeUninit};
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
