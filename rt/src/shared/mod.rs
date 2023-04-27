@@ -282,7 +282,7 @@ impl RuntimeInternals {
         // [1]: https://en.wikipedia.org/wiki/Thundering_herd_problem
         // [2]: https://en.wikipedia.org/wiki/Round-robin_scheduling
         let n = min(n, self.worker_wakers.len());
-        // Safety: needs to sync with itself.
+        // SAFETY: needs to sync with itself.
         let wake_worker_idx =
             self.wake_worker_idx.fetch_add(n, Ordering::AcqRel) % self.worker_wakers.len();
         let (wake_second, wake_first) = self.worker_wakers.split_at(wake_worker_idx);

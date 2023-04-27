@@ -158,7 +158,7 @@ fn new_actor_error() {
             ctx: &mut task::Context<'_>,
         ) -> Poll<Result<(), Self::Error>> {
             let res = Actor::try_poll(
-                // Safety: not moving.
+                // SAFETY: not moving.
                 unsafe { Pin::new_unchecked(&mut Pin::into_inner_unchecked(self).0) },
                 ctx,
             );

@@ -307,7 +307,7 @@ impl Timers {
     }
 
     fn current_slot(&mut self) -> &mut Vec<Timer<TimeOffset>> {
-        // Safety: `self.index` is always valid.
+        // SAFETY: `self.index` is always valid.
         &mut self.slots[self.index as usize]
     }
 }

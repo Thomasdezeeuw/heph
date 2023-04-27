@@ -14,7 +14,7 @@ fn write_bytes<B: BufMut>(src: &[u8], buf: &mut B) -> usize {
     let (dst, len) = unsafe { buf.parts_mut() };
     assert_eq!(len, spare_capacity);
     let len = min(src.len(), len);
-    // Safety: both the `src` and `dst` pointers are good. And we've ensured
+    // SAFETY: both the `src` and `dst` pointers are good. And we've ensured
     // that the length is correct, not overwriting data we don't own or reading
     // data we don't own.
     unsafe {
@@ -29,7 +29,7 @@ fn write_bytes_vectored<B: BufMutSlice<N>, const N: usize>(src: &[u8], bufs: &mu
     let mut left = src;
     for iovec in unsafe { bufs.as_iovecs_mut() } {
         let len = min(left.len(), iovec.iov_len);
-        // Safety: both the `left` and `dst` pointers are good. And we've
+        // SAFETY: both the `left` and `dst` pointers are good. And we've
         // ensured that the length is correct, not overwriting data we don't own
         // or reading data we don't own.
         unsafe {

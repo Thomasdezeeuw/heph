@@ -165,7 +165,7 @@ where
     type Output = (Fut::Output, usize);
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        // Safety: this is safe because we're not moving the future.
+        // SAFETY: this is safe because we're not moving the future.
         let this = unsafe { Pin::into_inner_unchecked(self) };
         this.count += 1;
         let future = unsafe { Pin::new_unchecked(&mut this.inner) };
@@ -180,7 +180,7 @@ where
     type Item = (I::Item, usize);
 
     fn poll_next(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
-        // Safety: this is safe because we're not moving the future.
+        // SAFETY: this is safe because we're not moving the future.
         let this = unsafe { Pin::into_inner_unchecked(self) };
         this.count += 1;
         let iter = unsafe { Pin::new_unchecked(&mut this.inner) };

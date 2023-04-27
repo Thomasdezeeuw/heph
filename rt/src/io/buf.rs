@@ -114,7 +114,7 @@ pub unsafe trait BufMut: 'static {
 ///     // Writes `src` to `buf`.
 /// #   let (dst, len) = unsafe { buf.parts_mut() };
 /// #   let len = std::cmp::min(src.len(), len);
-/// #   // Safety: both the src and dst pointers are good. And we've ensured
+/// #   // SAFETY: both the src and dst pointers are good. And we've ensured
 /// #   // that the length is correct, not overwriting data we don't own or
 /// #   // reading data we don't own.
 /// #   unsafe {
