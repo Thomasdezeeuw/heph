@@ -20,6 +20,7 @@ pub use datagram::UnixDatagram;
 /// Unix socket address.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct UnixAddr {
+    /// NOTE: must always be of type `AF_UNIX`.
     inner: SockAddr,
 }
 
@@ -30,6 +31,11 @@ impl UnixAddr {
         P: AsRef<Path>,
     {
         SockAddr::unix(path.as_ref()).map(|a| UnixAddr { inner: a })
+    }
+
+    /// Returns the contents of this address if it is a pathname address.
+    pub fn as_pathname(&self) -> Option<&Path> {
+        self.inner.as_pathname()
     }
 }
 
@@ -53,6 +59,7 @@ impl a10::net::SocketAddress for UnixAddr {
         // SAFETY: caller must initialise the address.
         let mut this = this.assume_init();
         this.inner.set_length(length);
+        debug_assert!(this.inner.is_unix());
         this
     }
 }
