@@ -59,8 +59,8 @@ use std::{io, slice, thread};
 use heph::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::supervisor::{Supervisor, SyncSupervisor};
+use heph_inbox as inbox;
 use heph_inbox::oneshot::new_oneshot;
-use heph_inbox::Manager;
 
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::sync_worker::SyncWorker;
@@ -362,55 +362,31 @@ pub fn join_all<M>(actors: &ActorGroup<M>, timeout: Duration) -> JoinResult {
 /// Initialise a thread-local actor.
 #[allow(clippy::type_complexity)]
 pub fn init_local_actor<NA>(
-    new_actor: NA,
+    mut new_actor: NA,
     arg: NA::Argument,
 ) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
 where
     NA: NewActor<RuntimeAccess = ThreadLocal>,
 {
-    init_local_actor_with_inbox(new_actor, arg).map(|(actor, _, actor_ref)| (actor, actor_ref))
+    let (sender, receiver) = inbox::new_small();
+    let ctx = actor::Context::new(receiver, ThreadLocal::new(runtime()));
+    let actor = new_actor.new(ctx, arg)?;
+    Ok((actor, ActorRef::local(sender)))
 }
 
 /// Initialise a thread-safe actor.
 #[allow(clippy::type_complexity)]
 pub fn init_actor<NA>(
-    new_actor: NA,
+    mut new_actor: NA,
     arg: NA::Argument,
 ) -> Result<(NA::Actor, ActorRef<NA::Message>), NA::Error>
 where
     NA: NewActor<RuntimeAccess = ThreadSafe>,
 {
-    init_actor_with_inbox(new_actor, arg).map(|(actor, _, actor_ref)| (actor, actor_ref))
-}
-
-/// Initialise a thread-local actor with access to it's inbox.
-#[allow(clippy::type_complexity)]
-pub(crate) fn init_local_actor_with_inbox<NA>(
-    mut new_actor: NA,
-    arg: NA::Argument,
-) -> Result<(NA::Actor, Manager<NA::Message>, ActorRef<NA::Message>), NA::Error>
-where
-    NA: NewActor<RuntimeAccess = ThreadLocal>,
-{
-    let (manager, sender, receiver) = Manager::new_small_channel();
-    let ctx = actor::Context::new(receiver, ThreadLocal::new(runtime()));
-    let actor = new_actor.new(ctx, arg)?;
-    Ok((actor, manager, ActorRef::local(sender)))
-}
-
-/// Initialise a thread-safe actor with access to it's inbox.
-#[allow(clippy::type_complexity)]
-pub(crate) fn init_actor_with_inbox<NA>(
-    mut new_actor: NA,
-    arg: NA::Argument,
-) -> Result<(NA::Actor, Manager<NA::Message>, ActorRef<NA::Message>), NA::Error>
-where
-    NA: NewActor<RuntimeAccess = ThreadSafe>,
-{
-    let (manager, sender, receiver) = Manager::new_small_channel();
+    let (sender, receiver) = inbox::new_small();
     let ctx = actor::Context::new(receiver, ThreadSafe::new(shared_internals()));
     let actor = new_actor.new(ctx, arg)?;
-    Ok((actor, manager, ActorRef::local(sender)))
+    Ok((actor, ActorRef::local(sender)))
 }
 
 /// Spawn a synchronous actor.
