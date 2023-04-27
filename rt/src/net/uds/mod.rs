@@ -2,7 +2,7 @@
 //!
 //! Three main types are provided:
 //!
-//!  * `UnixListener` listens for incoming Unix connections.
+//!  * [`UnixListener`] listens for incoming Unix connections.
 //!  * [`UnixStream`] represents a Unix stream socket.
 //!  * [`UnixDatagram`] represents a Unix datagram socket.
 
@@ -13,10 +13,12 @@ use std::{io, ptr};
 use socket2::SockAddr;
 
 mod datagram;
+mod listener;
 mod stream;
 
 pub use crate::net::{Connected, Unconnected};
 pub use datagram::UnixDatagram;
+pub use listener::UnixListener;
 pub use stream::UnixStream;
 
 /// Unix socket address.
