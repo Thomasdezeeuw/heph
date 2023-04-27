@@ -100,7 +100,7 @@ fn mark_ready_before_run() {
     let mut scheduler = Scheduler::new();
 
     // Incorrect (outdated) pid should be ok.
-    scheduler.mark_ready(ProcessId(1));
+    scheduler.mark_ready(ProcessId(100));
 
     let pid = add_test_actor(&mut scheduler, Priority::NORMAL);
 
