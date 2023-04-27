@@ -14,9 +14,9 @@ use std::fmt;
 ///
 /// What happens to threads spawned outside of Heph's control, i.e. manually
 /// spawned, before calling [`rt::Setup::build`] is unspecified. They may still
-/// receive a process signal or they may not. This is due to platform
-/// limitations and differences. Any manually spawned threads spawned after
-/// calling build should not get a process signal.
+/// receive a process signal or they may not. This is due to OS limitations and
+/// differences. Any manually spawned threads spawned after calling build should
+/// not get a process signal.
 ///
 /// The runtime will only attempt to send the process signal to the actor once.
 /// If the message can't be send it's **not** retried. Ensure that the inbox of
@@ -67,7 +67,7 @@ pub enum Signal {
 
 impl Signal {
     /// Convert a [`mio_signals::Signal`] into our own `Signal`.
-    pub(super) const fn from_mio(signal: mio_signals::Signal) -> Signal {
+    pub(crate) const fn from_mio(signal: mio_signals::Signal) -> Signal {
         match signal {
             mio_signals::Signal::Interrupt => Signal::Interrupt,
             mio_signals::Signal::Terminate => Signal::Terminate,
@@ -78,7 +78,7 @@ impl Signal {
     }
 
     /// Whether or not the `Signal` is considered a "stopping" signal.
-    pub(super) const fn should_stop(self) -> bool {
+    pub(crate) const fn should_stop(self) -> bool {
         match self {
             Signal::Interrupt | Signal::Terminate | Signal::Quit => true,
             Signal::User1 | Signal::User2 => false,
@@ -86,7 +86,7 @@ impl Signal {
     }
 
     /// Returns a human readable name for the signal.
-    pub(super) const fn as_str(self) -> &'static str {
+    pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Signal::Interrupt => "interrupt",
             Signal::Terminate => "terminate",
