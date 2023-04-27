@@ -45,7 +45,7 @@ const SIGNAL: Token = Token(usize::MAX);
 const RING: Token = Token(usize::MAX - 1);
 
 /// Coordinator responsible for coordinating the Heph runtime.
-pub(super) struct Coordinator {
+pub(crate) struct Coordinator {
     /// io_uring completion ring.
     ring: a10::Ring,
     /// OS poll, used to poll the status of the (sync) worker threads and
@@ -80,7 +80,7 @@ impl Coordinator {
     ///
     /// This must be called before creating the worker threads to properly catch
     /// process signals.
-    pub(super) fn init(
+    pub(crate) fn init(
         ring: a10::Ring,
         app_name: Box<str>,
         worker_wakers: Box<[&'static ThreadWaker]>,
@@ -115,7 +115,7 @@ impl Coordinator {
     }
 
     /// Get access to the shared runtime internals.
-    pub(super) const fn shared_internals(&self) -> &Arc<shared::RuntimeInternals> {
+    pub(crate) const fn shared_internals(&self) -> &Arc<shared::RuntimeInternals> {
         &self.internals
     }
 
@@ -124,7 +124,7 @@ impl Coordinator {
     /// # Notes
     ///
     /// `workers` and `sync_workers` must be sorted based on `id`.
-    pub(super) fn run(
+    pub(crate) fn run(
         mut self,
         mut workers: Vec<worker::Handle>,
         mut sync_workers: Vec<SyncWorker>,
@@ -460,7 +460,7 @@ fn handle_sync_worker_event(
 
 /// Error running the [`Coordinator`].
 #[derive(Debug)]
-pub(super) enum Error {
+pub(crate) enum Error {
     /// Error in starting up the Coordinator.
     Startup(io::Error),
     /// Error in [`register_workers`].

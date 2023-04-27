@@ -57,7 +57,7 @@ impl<T> Sender<T> {
     }
 
     /// Register the sending end of the Unix pipe of this channel.
-    pub(super) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
+    pub(crate) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
         registry.register(&mut self.pipe, token, Interest::WRITABLE)
     }
 }
@@ -71,7 +71,7 @@ pub(crate) struct Receiver<T> {
 
 impl<T> Receiver<T> {
     /// Try to receive a message from the channel.
-    pub(super) fn try_recv(&mut self) -> io::Result<Option<T>> {
+    pub(crate) fn try_recv(&mut self) -> io::Result<Option<T>> {
         if let Ok(msg) = self.channel.try_recv() {
             Ok(Some(msg))
         } else {
@@ -98,7 +98,7 @@ impl<T> Receiver<T> {
     }
 
     /// Register the receiving end of the Unix pipe of this channel.
-    pub(super) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
+    pub(crate) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
         registry.register(&mut self.pipe, token, Interest::READABLE)
     }
 }
