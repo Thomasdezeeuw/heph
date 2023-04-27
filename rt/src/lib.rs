@@ -261,16 +261,6 @@ use timers::TimerToken;
 const SYNC_WORKER_ID_START: usize = 10000;
 const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
 
-/// Returns `ptr` as `usize`.
-const fn ptr_as_usize<T>(ptr: *const T) -> usize {
-    union Pointer<T> {
-        ptr: *const T,
-        int: usize,
-    }
-    let ptr = Pointer { ptr };
-    unsafe { ptr.int }
-}
-
 #[test]
 #[allow(clippy::assertions_on_constants)] // This is the point of the test.
 fn sync_worker_id() {
@@ -391,7 +381,7 @@ impl Runtime {
         }
 
         #[allow(clippy::cast_possible_truncation)]
-        // Safety: MAX_THREADS always fits in u32.
+        // SAFETY: MAX_THREADS always fits in u32.
         let trace_log = self
             .trace_log
             .as_ref()

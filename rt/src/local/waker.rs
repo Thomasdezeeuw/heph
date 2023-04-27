@@ -7,8 +7,8 @@ use std::task;
 use crossbeam_channel::Sender;
 use log::{error, trace};
 
+use crate::process::ProcessId;
 use crate::thread_waker::ThreadWaker;
-use crate::{ptr_as_usize, ProcessId};
 
 /// Maximum number of threads currently supported by this `Waker`
 /// implementation.
@@ -174,8 +174,8 @@ impl WakerData {
     ///
     /// This doesn't check if the provided `data` is valid, the caller is
     /// responsible for this.
-    const unsafe fn from_raw_data(data: *const ()) -> WakerData {
-        WakerData(ptr_as_usize(data))
+    unsafe fn from_raw_data(data: *const ()) -> WakerData {
+        WakerData(data as usize)
     }
 
     /// Convert `WakerData` into raw data for `RawWaker`.
