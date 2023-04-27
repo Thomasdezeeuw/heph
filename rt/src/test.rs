@@ -6,8 +6,6 @@
 //! (properly).
 //!
 //! Available utilities:
-//!  * Blocking on [`Future`]s:
-//!    * [`block_on`]: spawns a `Future` and waits for the result.
 //!  * Spawning:
 //!    * [`try_spawn_local`]: attempt to spawn a thread-local [actor].
 //!    * [`try_spawn`]: attempt to spawn a thread-safe [actor].
@@ -17,20 +15,22 @@
 //!  * Waiting on spawned actors:
 //!    * [`join`], [`join_many`]: wait for the actor(s) to finish running.
 //!    * [`join_all`]: wait all actors in a group to finish running.
+//!  * Blocking on [`Future`]s:
+//!    * [`block_on`]: spawns a `Future` and waits for the result.
 //!  * Initialising actors:
 //!    * [`init_local_actor`]: initialise a thread-local actor.
 //!    * [`init_actor`]: initialise a thread-safe actor.
 //!  * Polling:
 //!    * [`poll_actor`]: poll an [`Actor`].
 //!    * [`poll_future`]: poll a [`Future`].
-//!    * [`poll_next`]: poll a [`AsyncIterator`].
+//!    * [`poll_next`]: poll an [`AsyncIterator`].
 //!  * Miscellaneous:
 //!    * [`size_of_actor`], [`size_of_actor_val`]: returns the size of an actor.
 //!    * [`set_message_loss`]: set the percentage of messages lost on purpose.
 //!    * [`PanicSupervisor`]: supervisor that panics when it receives an actor's
 //!      error.
 //!
-//! [actor]: actor
+//! [actor]: heph::actor
 //! [synchronous actor]: SyncActor
 //!
 //! # Notes
@@ -107,7 +107,7 @@ pub(crate) fn shared_internals() -> Arc<shared::RuntimeInternals> {
 ///
 /// The returned runtime reference is **not** a reference to the *test* runtime
 /// as described in the module documentation.
-pub fn runtime() -> RuntimeRef {
+pub(crate) fn runtime() -> RuntimeRef {
     thread_local! {
         /// Per thread runtime.
         static TEST_RT: Worker = {
