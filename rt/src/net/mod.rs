@@ -29,7 +29,7 @@ pub use tcp::{TcpListener, TcpStream};
 #[doc(no_inline)]
 pub use udp::UdpSocket;
 #[doc(no_inline)]
-pub use uds::{UnixDatagram, UnixStream};
+pub use uds::{UnixDatagram, UnixListener, UnixStream};
 
 pub(crate) use futures::{
     Recv, RecvFrom, RecvFromVectored, RecvN, RecvNVectored, RecvVectored, Send, SendAll,
