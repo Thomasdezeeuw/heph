@@ -45,7 +45,7 @@ use crate::{self as rt, cpu_usage, shared, trace, RuntimeRef, Signal};
 const RUN_POLL_RATIO: usize = 32;
 
 /// Token used to indicate user space events have happened.
-pub(super) const WAKER: Token = Token(usize::MAX);
+pub(crate) const WAKER: Token = Token(usize::MAX);
 /// Token used to indicate a message was received on the communication channel.
 const COMMS: Token = Token(usize::MAX - 1);
 /// Token used to indicate the shared [`Poll`] (in [`shared::RuntimeInternals`])
@@ -59,7 +59,7 @@ const SHARED_RING: Token = Token(usize::MAX - 4);
 /// Setup a new worker thread.
 ///
 /// Use [`WorkerSetup::start`] to spawn the worker thread.
-pub(super) fn setup(
+pub(crate) fn setup(
     id: NonZeroUsize,
     coordinator_sq: &a10::SubmissionQueue,
 ) -> io::Result<(WorkerSetup, &'static ThreadWaker)> {
@@ -85,7 +85,7 @@ pub(super) fn setup(
 }
 
 /// Setup work required before starting a worker thread, see [`setup`].
-pub(super) struct WorkerSetup {
+pub(crate) struct WorkerSetup {
     /// See [`WorkerSetup::id`].
     id: NonZeroUsize,
     /// Poll instance for the worker thread. This is needed before starting the
@@ -101,7 +101,7 @@ pub(super) struct WorkerSetup {
 
 impl WorkerSetup {
     /// Start a new worker thread.
-    pub(super) fn start(
+    pub(crate) fn start(
         self,
         shared_internals: Arc<shared::RuntimeInternals>,
         auto_cpu_affinity: bool,
@@ -131,14 +131,14 @@ impl WorkerSetup {
     }
 
     /// Return the worker's id.
-    pub(super) const fn id(&self) -> usize {
+    pub(crate) const fn id(&self) -> usize {
         self.id.get()
     }
 }
 
 /// Handle to a worker thread.
 #[derive(Debug)]
-pub(super) struct Handle {
+pub(crate) struct Handle {
     /// Unique id (among all threads in the [`rt::Runtime`]).
     id: NonZeroUsize,
     /// Two-way communication channel to share messages with the worker thread.
@@ -149,27 +149,27 @@ pub(super) struct Handle {
 
 impl Handle {
     /// Return the worker's id.
-    pub(super) const fn id(&self) -> usize {
+    pub(crate) const fn id(&self) -> usize {
         self.id.get()
     }
 
     /// Registers the channel used to communicate with the thread.
-    pub(super) fn register(&mut self, registry: &Registry) -> io::Result<()> {
+    pub(crate) fn register(&mut self, registry: &Registry) -> io::Result<()> {
         self.channel.register(registry, Token(self.id()))
     }
 
     /// Send the worker thread a signal that the runtime has started.
-    pub(super) fn send_runtime_started(&mut self) -> io::Result<()> {
+    pub(crate) fn send_runtime_started(&mut self) -> io::Result<()> {
         self.channel.try_send(Control::Started)
     }
 
     /// Send the worker thread a `signal`.
-    pub(super) fn send_signal(&mut self, signal: Signal) -> io::Result<()> {
+    pub(crate) fn send_signal(&mut self, signal: Signal) -> io::Result<()> {
         self.channel.try_send(Control::Signal(signal))
     }
 
     /// Send the worker thread the function `f` to run.
-    pub(super) fn send_function(
+    pub(crate) fn send_function(
         &mut self,
         f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>,
     ) -> io::Result<()> {
@@ -177,7 +177,7 @@ impl Handle {
     }
 
     /// See [`thread::JoinHandle::join`].
-    pub(super) fn join(self) -> thread::Result<Result<(), rt::Error>> {
+    pub(crate) fn join(self) -> thread::Result<Result<(), rt::Error>> {
         self.handle.join()
     }
 }

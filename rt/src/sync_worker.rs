@@ -67,7 +67,7 @@ impl SyncWorker {
     }
 
     /// Return the worker's id.
-    pub(super) const fn id(&self) -> usize {
+    pub(crate) const fn id(&self) -> usize {
         self.id
     }
 
@@ -75,12 +75,12 @@ impl SyncWorker {
     /// thread. Uses the [`id`] as [`Token`].
     ///
     /// [`id`]: SyncWorker::id
-    pub(super) fn register(&mut self, registry: &Registry) -> io::Result<()> {
+    pub(crate) fn register(&mut self, registry: &Registry) -> io::Result<()> {
         registry.register(&mut self.sender, Token(self.id), Interest::WRITABLE)
     }
 
     /// Checks if the `SyncWorker` is alive.
-    pub(super) fn is_alive(&self) -> bool {
+    pub(crate) fn is_alive(&self) -> bool {
         match (&self.sender).write(&[]) {
             Ok(..) => true,
             Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => true,
@@ -89,7 +89,7 @@ impl SyncWorker {
     }
 
     /// See [`thread::JoinHandle::join`].
-    pub(super) fn join(self) -> thread::Result<()> {
+    pub(crate) fn join(self) -> thread::Result<()> {
         self.handle.join()
     }
 

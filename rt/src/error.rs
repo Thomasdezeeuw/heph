@@ -52,49 +52,49 @@ impl Error {
         }
     }
 
-    pub(super) const fn setup_trace(err: io::Error) -> Error {
+    pub(crate) const fn setup_trace(err: io::Error) -> Error {
         Error {
             inner: ErrorInner::SetupTrace(err),
         }
     }
 
-    pub(super) const fn init_coordinator(err: io::Error) -> Error {
+    pub(crate) const fn init_coordinator(err: io::Error) -> Error {
         Error {
             inner: ErrorInner::InitCoordinator(err),
         }
     }
 
-    pub(super) const fn coordinator(err: coordinator::Error) -> Error {
+    pub(crate) const fn coordinator(err: coordinator::Error) -> Error {
         Error {
             inner: ErrorInner::Coordinator(err),
         }
     }
 
-    pub(super) const fn start_worker(err: io::Error) -> Error {
+    pub(crate) const fn start_worker(err: io::Error) -> Error {
         Error {
             inner: ErrorInner::StartWorker(err),
         }
     }
 
-    pub(super) const fn worker(err: worker::Error) -> Error {
+    pub(crate) const fn worker(err: worker::Error) -> Error {
         Error {
             inner: ErrorInner::Worker(err),
         }
     }
 
-    pub(super) fn worker_panic(err: Box<dyn Any + Send + 'static>) -> Error {
+    pub(crate) fn worker_panic(err: Box<dyn Any + Send + 'static>) -> Error {
         Error {
             inner: ErrorInner::WorkerPanic(convert_panic(err)),
         }
     }
 
-    pub(super) const fn start_sync_actor(err: io::Error) -> Error {
+    pub(crate) const fn start_sync_actor(err: io::Error) -> Error {
         Error {
             inner: ErrorInner::StartSyncActor(err),
         }
     }
 
-    pub(super) fn sync_actor_panic(err: Box<dyn Any + Send + 'static>) -> Error {
+    pub(crate) fn sync_actor_panic(err: Box<dyn Any + Send + 'static>) -> Error {
         Error {
             inner: ErrorInner::SyncActorPanic(convert_panic(err)),
         }

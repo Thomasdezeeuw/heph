@@ -9,7 +9,7 @@ use mio::Poll;
 
 use crate::{shared, trace, Signal};
 
-pub(super) mod waker;
+pub(crate) mod waker;
 
 use crate::scheduler::Scheduler;
 use crate::timers::Timers;
@@ -17,32 +17,32 @@ use waker::WakerId;
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
-pub(super) struct RuntimeInternals {
+pub(crate) struct RuntimeInternals {
     /// Unique id among the worker threads.
-    pub(super) id: NonZeroUsize,
+    pub(crate) id: NonZeroUsize,
     /// Runtime internals shared between coordinator and worker threads.
-    pub(super) shared: Arc<shared::RuntimeInternals>,
+    pub(crate) shared: Arc<shared::RuntimeInternals>,
     /// Waker id used to create a `Waker` for thread-local actors.
-    pub(super) waker_id: WakerId,
+    pub(crate) waker_id: WakerId,
     /// Scheduler for thread-local actors.
-    pub(super) scheduler: RefCell<Scheduler>,
+    pub(crate) scheduler: RefCell<Scheduler>,
     /// OS poll, used for event notifications to support non-blocking I/O.
-    pub(super) poll: RefCell<Poll>,
+    pub(crate) poll: RefCell<Poll>,
     /// io_uring completion ring.
-    pub(super) ring: RefCell<a10::Ring>,
+    pub(crate) ring: RefCell<a10::Ring>,
     /// Timers, deadlines and timeouts.
     pub(crate) timers: RefCell<Timers>,
     /// Actor references to relay received `Signal`s to.
-    pub(super) signal_receivers: RefCell<ActorGroup<Signal>>,
+    pub(crate) signal_receivers: RefCell<ActorGroup<Signal>>,
     /// CPU affinity of the worker thread, or `None` if not set.
-    pub(super) cpu: Option<usize>,
+    pub(crate) cpu: Option<usize>,
     /// Log used for tracing, `None` is tracing is disabled.
-    pub(super) trace_log: RefCell<Option<trace::Log>>,
+    pub(crate) trace_log: RefCell<Option<trace::Log>>,
 }
 
 impl RuntimeInternals {
     /// Create a local runtime internals.
-    pub(super) fn new(
+    pub(crate) fn new(
         id: NonZeroUsize,
         shared_internals: Arc<shared::RuntimeInternals>,
         waker_id: WakerId,
