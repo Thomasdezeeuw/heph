@@ -1,12 +1,10 @@
 //! Thread-safe version of `Scheduler`.
 
-use std::mem::MaybeUninit;
 use std::pin::Pin;
 
 use log::trace;
 
 use crate::process::{Process, ProcessId};
-use crate::ptr_as_usize;
 use crate::spawn::options::Priority;
 
 mod inactive;
@@ -129,27 +127,14 @@ impl Scheduler {
     }
 
     /// Add a new proces to the scheduler.
-    pub(crate) fn add_new_process<F, P, T, E>(&self, priority: Priority, setup: F) -> Result<T, E>
+    pub(crate) fn add_new_process<P>(&self, priority: Priority, process: P) -> ProcessId
     where
-        F: FnOnce(ProcessId) -> Result<(P, T), E>,
         P: Process + Send + Sync + 'static,
     {
-        // Allocate some memory for the process.
-        let mut alloc: Box<MaybeUninit<ProcessData>> = Box::new_uninit();
-        debug_assert!(inactive::ok_ptr(alloc.as_ptr().cast()), "SKIP_BITS invalid");
-        // Based on the allocation we can determine its process id.
-        let pid = ProcessId(ptr_as_usize(alloc.as_ptr()));
-        // Let the caller create the actual process (using the pid).
-        let (process, ret) = setup(pid)?;
-        let process = ProcessData::new(priority, Box::pin(process));
-        // SAFETY: we write the processes and then safetly assume it's initialised.
-        let process = unsafe {
-            _ = alloc.write(process);
-            Pin::from(alloc.assume_init())
-        };
-        // Finally add it to ready queue.
+        let process = Box::pin(ProcessData::new(priority, Box::pin(process)));
+        let pid = process.as_ref().id();
         self.ready.add(process);
-        Ok(ret)
+        pid
     }
 
     /// Mark the process, with `pid`, as ready to run.
