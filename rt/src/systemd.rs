@@ -24,7 +24,8 @@ use heph::messages::Terminate;
 use log::{as_debug, debug, warn};
 
 use crate::access::Access;
-use crate::net::uds::{Connected, UnixAddr, UnixDatagram};
+use crate::net::uds::datagram::{Connected, UnixDatagram};
+use crate::net::uds::UnixAddr;
 use crate::timer::Interval;
 use crate::util::{either, next};
 use crate::Signal;

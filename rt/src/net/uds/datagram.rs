@@ -12,9 +12,11 @@ use crate::access::Access;
 use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 use crate::net::uds::UnixAddr;
 use crate::net::{
-    Connected, Recv, RecvFrom, RecvFromVectored, RecvVectored, Send, SendTo, SendToVectored,
-    SendVectored, Unconnected,
+    Recv, RecvFrom, RecvFromVectored, RecvVectored, Send, SendTo, SendToVectored, SendVectored,
 };
+
+#[doc(no_inline)]
+pub use crate::net::{Connected, Unconnected};
 
 /// A Unix datagram socket.
 ///

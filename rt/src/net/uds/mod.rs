@@ -12,13 +12,15 @@ use std::{io, ptr};
 
 use socket2::SockAddr;
 
-mod datagram;
-mod listener;
-mod stream;
+pub mod datagram;
+pub mod listener;
+pub mod stream;
 
-pub use crate::net::{Connected, Unconnected};
+#[doc(no_inline)]
 pub use datagram::UnixDatagram;
+#[doc(no_inline)]
 pub use listener::UnixListener;
+#[doc(no_inline)]
 pub use stream::UnixStream;
 
 /// Unix socket address.
