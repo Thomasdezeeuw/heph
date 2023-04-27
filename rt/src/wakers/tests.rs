@@ -197,7 +197,6 @@ mod bitmap {
         setting_and_unsetting(1024)
     }
 
-    #[cfg(test)]
     fn setting_and_unsetting(entries: usize) {
         let map = AtomicBitMap::new(entries);
         assert_eq!(map.capacity(), entries);
