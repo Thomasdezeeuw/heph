@@ -2,13 +2,13 @@
 
 use std::any::Any;
 use std::cmp::Ordering;
-use std::fmt;
 use std::future::Future;
 use std::mem::size_of_val;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
+use std::{fmt, ptr};
 
 use heph::actor::{ActorFuture, NewActor};
 use heph::supervisor::Supervisor;
@@ -67,7 +67,7 @@ pub(crate) trait Process: Future<Output = ()> {
             // i.e. not unique.
             alternative
         } else {
-            ProcessId((&*self as *const Self).cast::<()>() as usize)
+            ProcessId(ptr::addr_of!(*self).cast::<()>() as usize)
         }
     }
 
@@ -168,7 +168,7 @@ impl<P: ?Sized> ProcessData<P> {
 impl<P: Process + ?Sized> ProcessData<P> {
     /// Returns the process identifier, or pid for short.
     pub(crate) fn id(&self) -> ProcessId {
-        let alternative = ProcessId(&*self as *const Self as usize);
+        let alternative = ProcessId(ptr::addr_of!(*self) as usize);
         self.process.as_ref().id(alternative)
     }
 

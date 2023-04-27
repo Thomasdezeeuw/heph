@@ -66,7 +66,7 @@ impl RunQueue {
                 }
                 None => {
                     // Last node in the branch add our process to it.
-                    *next_node = Some(Node::new(process));
+                    *next_node = Some(Box::new(Node::new(process)));
                     return;
                 }
             }
@@ -98,12 +98,12 @@ impl RunQueue {
 
 impl Node {
     /// Returns a new `Node`.
-    fn new(process: Pin<Box<ProcessData>>) -> Box<Node> {
-        Box::new(Node {
+    const fn new(process: Pin<Box<ProcessData>>) -> Node {
+        Node {
             process,
             left: None,
             right: None,
-        })
+        }
     }
 
     /// Returns the number of processes in this node and it's descendants.
