@@ -1,7 +1,6 @@
 //! Tests for the shared scheduler.
 
 use std::future::{pending, Pending};
-use std::mem::size_of;
 use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
 
@@ -10,12 +9,8 @@ use heph::supervisor::NoSupervisor;
 
 use crate::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Priority, ProcessData, Scheduler};
-use crate::test::{self, nop_task_waker, AssertUnmoved};
+use crate::test::{self, assert_size, nop_task_waker, AssertUnmoved};
 use crate::ThreadSafe;
-
-fn assert_size<T>(expected: usize) {
-    assert_eq!(size_of::<T>(), expected);
-}
 
 #[test]
 fn size_assertions() {

@@ -3,7 +3,6 @@
 use std::cell::RefCell;
 use std::future::Future;
 use std::future::{pending, Pending};
-use std::mem;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{self, Poll};
@@ -14,12 +13,8 @@ use heph::supervisor::NoSupervisor;
 use crate::process::{FutureProcess, Process, ProcessId};
 use crate::scheduler::{ProcessData, Scheduler};
 use crate::spawn::options::Priority;
-use crate::test::{self, nop_task_waker, AssertUnmoved};
+use crate::test::{self, assert_size, nop_task_waker, AssertUnmoved};
 use crate::ThreadLocal;
-
-fn assert_size<T>(expected: usize) {
-    assert_eq!(mem::size_of::<T>(), expected);
-}
 
 #[test]
 fn size_assertions() {
