@@ -557,3 +557,9 @@ pub(crate) fn nop_task_waker() -> task::Waker {
     );
     unsafe { task::Waker::from_raw(RawWaker::new(std::ptr::null(), &WAKER_VTABLE)) }
 }
+
+#[cfg(test)]
+#[track_caller]
+pub(crate) fn assert_size<T>(expected: usize) {
+    assert_eq!(std::mem::size_of::<T>(), expected);
+}

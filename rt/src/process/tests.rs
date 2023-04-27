@@ -2,7 +2,6 @@
 
 use std::cmp::Ordering;
 use std::future::{pending, Future};
-use std::mem::size_of;
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::thread::sleep;
@@ -12,7 +11,7 @@ use mio::Token;
 
 use crate::process::{FutureProcess, Process, ProcessData, ProcessId};
 use crate::spawn::options::Priority;
-use crate::test::{nop_task_waker, AssertUnmoved};
+use crate::test::{assert_size, nop_task_waker, AssertUnmoved};
 
 #[test]
 fn pid() {
@@ -35,10 +34,6 @@ fn pid_and_evented_id() {
     let id = Token(0);
     let pid: ProcessId = id.into();
     assert_eq!(pid, ProcessId(0));
-}
-
-fn assert_size<T>(expected: usize) {
-    assert_eq!(size_of::<T>(), expected);
 }
 
 #[test]
