@@ -515,6 +515,33 @@ unsafe impl<Fut: Send> Send for AssertUnmoved<Fut> {}
 #[cfg(test)]
 unsafe impl<Fut: std::marker::Sync> std::marker::Sync for AssertUnmoved<Fut> {}
 
+#[cfg(test)]
+pub(crate) struct TestAssertUnmovedNewActor<RT>(std::marker::PhantomData<RT>);
+
+#[cfg(test)]
+impl<RT> TestAssertUnmovedNewActor<RT> {
+    pub(crate) const fn new() -> TestAssertUnmovedNewActor<RT> {
+        TestAssertUnmovedNewActor(std::marker::PhantomData)
+    }
+}
+
+#[cfg(test)]
+impl<RT> NewActor for TestAssertUnmovedNewActor<RT> {
+    type Message = ();
+    type Argument = ();
+    type Actor = AssertUnmoved<std::future::Pending<Result<(), !>>>;
+    type Error = !;
+    type RuntimeAccess = RT;
+
+    fn new(
+        &mut self,
+        _: actor::Context<Self::Message, Self::RuntimeAccess>,
+        _: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
+        Ok(AssertUnmoved::new(std::future::pending()))
+    }
+}
+
 /// Returns a no-op [`task::Waker`].
 pub(crate) fn nop_task_waker() -> task::Waker {
     use std::task::{RawWaker, RawWakerVTable};
