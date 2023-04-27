@@ -1,15 +1,15 @@
 //! Tests for the shared scheduler.
 
-use std::future::{pending, Pending};
+use std::future::pending;
 use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
 
-use heph::actor::{self, ActorFuture, NewActor};
+use heph::actor::{self, ActorFuture};
 use heph::supervisor::NoSupervisor;
 
 use crate::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Priority, ProcessData, Scheduler};
-use crate::test::{self, assert_size, nop_task_waker, AssertUnmoved};
+use crate::test::{self, assert_size, nop_task_waker, AssertUnmoved, TestAssertUnmovedNewActor};
 use crate::ThreadSafe;
 
 #[test]
@@ -128,24 +128,6 @@ fn scheduler_run_order() {
     assert_eq!(*run_order.lock().unwrap(), vec![2_usize, 1, 0]);
 }
 
-struct TestAssertUnmovedNewActor;
-
-impl NewActor for TestAssertUnmovedNewActor {
-    type Message = ();
-    type Argument = ();
-    type Actor = AssertUnmoved<Pending<Result<(), !>>>;
-    type Error = !;
-    type RuntimeAccess = ThreadSafe;
-
-    fn new(
-        &mut self,
-        _: actor::Context<Self::Message, Self::RuntimeAccess>,
-        _: Self::Argument,
-    ) -> Result<Self::Actor, Self::Error> {
-        Ok(AssertUnmoved::new(pending()))
-    }
-}
-
 #[test]
 fn assert_actor_process_unmoved() {
     let scheduler = Scheduler::new();
@@ -153,7 +135,8 @@ fn assert_actor_process_unmoved() {
     let mut ctx = task::Context::from_waker(&waker);
 
     let rt = ThreadSafe::new(test::shared_internals());
-    let (process, _) = ActorFuture::new(NoSupervisor, TestAssertUnmovedNewActor, (), rt).unwrap();
+    let (process, _) =
+        ActorFuture::new(NoSupervisor, TestAssertUnmovedNewActor::new(), (), rt).unwrap();
     let pid = scheduler.add_new_process(Priority::NORMAL, process);
 
     // Run the process multiple times, ensure it's not moved in the
