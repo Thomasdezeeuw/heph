@@ -149,7 +149,6 @@ fn auto_cpu_affinity() {
 
 #[test]
 #[allow(clippy::type_complexity, clippy::too_many_arguments)]
-#[ignore]
 fn running_actors() {
     use SupervisorStrategy::*;
 
