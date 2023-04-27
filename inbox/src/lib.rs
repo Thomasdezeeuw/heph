@@ -1226,6 +1226,11 @@ impl<T> Manager<T> {
         }
     }
 
+    /// Returns the id of the channel.
+    pub fn id(&self) -> Id {
+        Id(self.channel.as_ptr() as *const () as usize)
+    }
+
     fn channel(&self) -> &Channel<T> {
         unsafe { self.channel.as_ref() }
     }

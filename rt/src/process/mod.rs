@@ -4,12 +4,13 @@ use std::any::Any;
 use std::cmp::Ordering;
 use std::fmt;
 use std::future::Future;
+use std::mem::size_of_val;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
-use heph::actor::{self, ActorFuture, NewActor};
+use heph::actor::{ActorFuture, NewActor};
 use heph::supervisor::Supervisor;
 use log::{as_debug, error, trace};
 use mio::Token;
@@ -58,11 +59,20 @@ impl fmt::Display for ProcessId {
 ///
 /// The implementation of the [`Future`] MUST catch panics.
 pub(crate) trait Process: Future<Output = ()> {
-    /// Return the name of this process, used in logging.
-    fn name(&self) -> &'static str {
-        // Best we can do.
-        actor::name::<Self>()
+    /// Return the id for the process.
+    fn id(self: Pin<&Self>, alternative: ProcessId) -> ProcessId {
+        if size_of_val(&*self) == 0 {
+            // For zero sized types Box doesn't make an actual allocation, which
+            // means that the pointer will be the same for all zero sized types,
+            // i.e. not unique.
+            alternative
+        } else {
+            ProcessId((&*self as *const Self).cast::<()>() as usize)
+        }
     }
+
+    /// Return the name of this process, used in logging.
+    fn name(&self) -> &'static str;
 }
 
 /// Wrapper around a [`Future`] to implement [`Process`].
@@ -99,7 +109,14 @@ fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
     }
 }
 
-impl<Fut> Process for FutureProcess<Fut> where Fut: Future<Output = ()> {}
+impl<Fut> Process for FutureProcess<Fut>
+where
+    Fut: Future<Output = ()>,
+{
+    fn name(&self) -> &'static str {
+        "FutureProcess"
+    }
+}
 
 // NOTE: `ActorFuture` already catches panics for us.
 impl<S, NA, RT> Process for ActorFuture<S, NA, RT>
@@ -108,6 +125,10 @@ where
     NA: NewActor<RuntimeAccess = RT>,
     RT: Clone,
 {
+    fn id(self: Pin<&Self>, _: ProcessId) -> ProcessId {
+        ProcessId(self.pid())
+    }
+
     fn name(&self) -> &'static str {
         NA::name()
     }
@@ -142,22 +163,17 @@ impl<P: ?Sized> ProcessData<P> {
     pub(crate) fn set_fair_runtime(&mut self, fair_runtime: Duration) {
         self.fair_runtime = fair_runtime;
     }
-
-    /// Returns the process identifier, or pid for short.
-    pub(crate) fn id(self: Pin<&Self>) -> ProcessId {
-        // Since the pid only job is to be unique we just use the pointer to
-        // this structure as pid. This way we don't have to store any additional
-        // pid in the structure itself or in the scheduler.
-        #[allow(trivial_casts)]
-        let ptr =
-            unsafe { (Pin::into_inner_unchecked(self) as *const ProcessData<P>).cast::<u8>() };
-        ProcessId(ptr as usize)
-    }
 }
 
 impl<P: Process + ?Sized> ProcessData<P> {
+    /// Returns the process identifier, or pid for short.
+    pub(crate) fn id(&self) -> ProcessId {
+        let alternative = ProcessId(&*self as *const Self as usize);
+        self.process.as_ref().id(alternative)
+    }
+
     /// Returns the name of the process.
-    pub(crate) fn name(self: Pin<&Self>) -> &'static str {
+    pub(crate) fn name(&self) -> &'static str {
         self.process.name()
     }
 
@@ -183,15 +199,15 @@ impl<P: Process + ?Sized> ProcessData<P> {
     }
 }
 
-impl<P: ?Sized> Eq for ProcessData<P> {}
+impl<P: Process + ?Sized> Eq for ProcessData<P> {}
 
-impl<P: ?Sized> PartialEq for ProcessData<P> {
+impl<P: Process + ?Sized> PartialEq for ProcessData<P> {
     fn eq(&self, other: &Self) -> bool {
         Pin::new(self).id() == Pin::new(other).id()
     }
 }
 
-impl<P: ?Sized> Ord for ProcessData<P> {
+impl<P: Process + ?Sized> Ord for ProcessData<P> {
     fn cmp(&self, other: &Self) -> Ordering {
         (other.fair_runtime)
             .cmp(&(self.fair_runtime))
@@ -199,7 +215,7 @@ impl<P: ?Sized> Ord for ProcessData<P> {
     }
 }
 
-impl<P: ?Sized> PartialOrd for ProcessData<P> {
+impl<P: Process + ?Sized> PartialOrd for ProcessData<P> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
@@ -208,8 +224,8 @@ impl<P: ?Sized> PartialOrd for ProcessData<P> {
 impl<P: Process + ?Sized> fmt::Debug for ProcessData<P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Process")
-            .field("id", &Pin::new(self).id())
-            .field("name", &self.process.name())
+            .field("id", &self.id())
+            .field("name", &self.name())
             .field("priority", &self.priority)
             .field("fair_runtime", &self.fair_runtime)
             .finish()
