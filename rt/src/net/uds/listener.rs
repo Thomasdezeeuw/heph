@@ -123,7 +123,7 @@ impl UnixListener {
             }
 
             socket.bind(&address.inner)?;
-            socket.listen(1024)?;
+            socket.listen(libc::SOMAXCONN)?;
 
             Ok(())
         })?;

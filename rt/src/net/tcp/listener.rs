@@ -207,7 +207,7 @@ impl TcpListener {
 
             setup(&socket)?;
             socket.bind(&address.into())?;
-            socket.listen(1024)?;
+            socket.listen(libc::SOMAXCONN)?;
 
             Ok(())
         })?;
