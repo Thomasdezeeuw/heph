@@ -14,14 +14,14 @@ const N_BRANCHES: usize = 1 << LEVEL_SHIFT; // 16
 /// Number of bits to mask per level.
 const LEVEL_MASK: usize = (1 << LEVEL_SHIFT) - 1;
 /// For alignment reasons the two least significant bits of a boxed
-/// `ProcessData` are always 0, so we can safely skip them. Also see `ok_ptr`
+/// `ProcessData` are always 0, so we can safely skip them. Also see `ok_pid`
 /// and alignment tests below.
 const SKIP_BITS: usize = 2;
 const SKIP_MASK: usize = (1 << SKIP_BITS) - 1;
 
-/// Returns `false` if `ptr`'s `SKIP_BITS` aren't valid.
-pub(super) fn ok_ptr(ptr: *const ()) -> bool {
-    ptr as usize & max(SKIP_MASK, POINTER_TAG_BITS) == 0
+/// Returns `false` if `pid`'s `SKIP_BITS` aren't valid.
+fn ok_pid(pid: ProcessId) -> bool {
+    pid.0 & max(SKIP_MASK, POINTER_TAG_BITS) == 0
 }
 
 /// Inactive processes.
@@ -29,6 +29,9 @@ pub(super) fn ok_ptr(ptr: *const ()) -> bool {
 /// Implemented as a tree with four pointers on each level. A pointer can point
 /// to a `Branch`, which again contains four pointers, or point to
 /// `ProcessData`.
+///
+/// Indexing into the structure is done using the `ProcessId` of the process,
+/// however the pointer itself points to `ProcessData`.
 ///
 /// Because processes should have short ready state times (see process states),
 /// but longer total lifetime they quickly move into and out from the structure.
@@ -41,16 +44,15 @@ pub(super) fn ok_ptr(ptr: *const ()) -> bool {
 /// * <https://idea.popcount.org/2012-07-25-introduction-to-hamt>,
 /// * Ideal Hash Trees by Phil Bagwell
 /// * Fast And Space Efficient Trie Searches by Phil Bagwell
-// `pub(super)` because its used in `AddActor`.
 #[derive(Debug)]
-pub(super) struct Inactive {
+pub(crate) struct Inactive {
     root: Branch,
     length: usize,
 }
 
 impl Inactive {
     /// Create an empty `Inactive` tree.
-    pub(super) const fn empty() -> Inactive {
+    pub(crate) const fn empty() -> Inactive {
         Inactive {
             root: Branch::empty(),
             length: 0,
@@ -58,26 +60,26 @@ impl Inactive {
     }
 
     /// Returns the number of processes in the inactive list.
-    pub(super) const fn len(&self) -> usize {
+    pub(crate) const fn len(&self) -> usize {
         self.length
     }
 
     /// Returns `true` if the queue contains a process.
-    pub(super) const fn has_process(&self) -> bool {
+    pub(crate) const fn has_process(&self) -> bool {
         self.length != 0
     }
 
     /// Add a `process`.
-    pub(super) fn add(&mut self, process: Pin<Box<ProcessData>>) {
+    pub(crate) fn add(&mut self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
-        // Ensure `SKIP_BITS` is correct.
-        debug_assert!(pid.0 & SKIP_MASK == 0);
+        debug_assert!(ok_pid(pid));
         self.root.add(process, pid.0 >> SKIP_BITS, 0);
         self.length += 1;
     }
 
     /// Removes the process with id `pid`, if any.
-    pub(super) fn remove(&mut self, pid: ProcessId) -> Option<Pin<Box<ProcessData>>> {
+    pub(crate) fn remove(&mut self, pid: ProcessId) -> Option<Pin<Box<ProcessData>>> {
+        debug_assert!(ok_pid(pid));
         self.root.remove(pid, pid.0 >> SKIP_BITS).map(|process| {
             debug_assert_eq!(process.as_ref().id(), pid);
             self.length -= 1;
@@ -239,7 +241,7 @@ impl Pointer {
 impl From<Pin<Box<ProcessData>>> for Pointer {
     fn from(process: Pin<Box<ProcessData>>) -> Pointer {
         #[allow(trivial_casts)]
-        let ptr = Box::leak(Pin::into_inner(process)) as *mut _;
+        let ptr = Box::into_raw(Pin::into_inner(process));
         let ptr = (ptr as usize | PROCESS_TAG) as *mut ();
         Pointer {
             tagged_ptr: unsafe { NonNull::new_unchecked(ptr) },
@@ -250,7 +252,7 @@ impl From<Pin<Box<ProcessData>>> for Pointer {
 impl From<Pin<Box<Branch>>> for Pointer {
     fn from(process: Pin<Box<Branch>>) -> Pointer {
         #[allow(trivial_casts)]
-        let ptr = Box::leak(Pin::into_inner(process)) as *mut _;
+        let ptr = Box::into_raw(Pin::into_inner(process));
         let ptr = (ptr as usize | BRANCH_TAG) as *mut ();
         Pointer {
             tagged_ptr: unsafe { NonNull::new_unchecked(ptr) },

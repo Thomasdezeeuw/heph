@@ -18,9 +18,9 @@ const LEVEL_MASK: usize = (1 << LEVEL_SHIFT) - 1;
 const SKIP_BITS: usize = 2;
 const SKIP_MASK: usize = (1 << SKIP_BITS) - 1;
 
-/// Returns `false` if `ptr`'s `SKIP_BITS` aren't valid.
-pub(super) fn ok_ptr(ptr: *const ()) -> bool {
-    ptr as usize & SKIP_MASK == 0
+/// Returns `false` if `pid`'s `SKIP_BITS` aren't valid.
+fn ok_pid(pid: ProcessId) -> bool {
+    pid.0 & SKIP_MASK == 0
 }
 
 /// Inactive processes.
@@ -31,6 +31,9 @@ pub(super) fn ok_ptr(ptr: *const ()) -> bool {
 ///  * a pointer to `ProcessData`, which hold the processes,
 ///  * a marker to indicate a process was marked as ready to run,
 ///  * or a null pointer to indicate the slot is empty.
+///
+/// Indexing into the structure is done using the `ProcessId` of the process,
+/// however the pointer itself points to `ProcessData`.
 ///
 /// Because processes should have short ready state times (see process states),
 /// but longer total lifetime they quickly move into and out from this
@@ -45,9 +48,9 @@ pub(super) fn ok_ptr(ptr: *const ()) -> bool {
 /// * Ideal Hash Trees by Phil Bagwell
 /// * Fast And Space Efficient Trie Searches by Phil Bagwell
 #[derive(Debug)]
-pub(super) struct Inactive {
+pub(crate) struct Inactive {
     root: Branch,
-    /// The number of processes is the tree, **not** markers.
+    /// The number of processes in the tree, **not** markers.
     /// NOTE: do not use the value for correctness, it's highly likely to be
     /// outdated.
     length: AtomicUsize,
@@ -55,7 +58,7 @@ pub(super) struct Inactive {
 
 impl Inactive {
     /// Create an empty `Inactive` tree.
-    pub(super) const fn empty() -> Inactive {
+    pub(crate) const fn empty() -> Inactive {
         Inactive {
             root: Branch::empty(),
             length: AtomicUsize::new(0),
@@ -63,7 +66,7 @@ impl Inactive {
     }
 
     /// Returns the number of processes in the inactive list.
-    pub(super) fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         let len = self.length.load(Ordering::Relaxed);
         // The `length` can actually underflow quite easily, to not report a
         // clearly incorrect value we'll report zero instead.
@@ -79,7 +82,7 @@ impl Inactive {
     /// # Notes
     ///
     /// Once this function returns the value could already be outdated.
-    pub(super) fn has_process(&self) -> bool {
+    pub(crate) fn has_process(&self) -> bool {
         // NOTE: doing anything based on this function is prone to race
         // conditions, so relaxed ordering is fine.
         self.length.load(Ordering::Relaxed) != 0
@@ -89,9 +92,9 @@ impl Inactive {
     ///
     /// It will add `process` to `run_queue` if it was marked as ready-to-run
     /// while it was removed from the `Inactive` tree.
-    pub(super) fn add(&self, process: Pin<Box<ProcessData>>, run_queue: &RunQueue) {
+    pub(crate) fn add(&self, process: Pin<Box<ProcessData>>, run_queue: &RunQueue) {
         let pid = process.as_ref().id();
-        debug_assert!(ok_ptr(pid.0 as *mut ()));
+        debug_assert!(ok_pid(pid));
         let changed = self.root.add(process, pid.0 >> SKIP_BITS, 0, run_queue);
         self.update_length(changed);
     }
@@ -99,30 +102,29 @@ impl Inactive {
     /// Removes the process with id `pid`, if the process is currently not
     /// stored in the `Inactive` tree it is marked as ready and
     /// [`Inactive::add`] will return it once added back.
-    pub(super) fn mark_ready(&self, pid: ProcessId, run_queue: &RunQueue) {
-        debug_assert!(ok_ptr(pid.0 as *mut ()));
+    pub(crate) fn mark_ready(&self, pid: ProcessId, run_queue: &RunQueue) {
+        debug_assert!(ok_pid(pid));
         let changed = self.root.mark_ready(pid, pid.0 >> SKIP_BITS, 0, run_queue);
         self.update_length(changed);
     }
 
     /// Mark `process` as complete, removing a ready marker from the tree.
-    pub(super) fn complete(&self, process: Pin<Box<ProcessData>>) {
+    pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
         let pid = process.as_ref().id();
-        debug_assert!(ok_ptr(pid.0 as *mut ()));
-        let tagged_pid = ready_to_run(pid);
+        debug_assert!(ok_pid(pid));
+        let ready_marker = ready_to_run(pid);
 
         let mut node = &self.root;
         let mut w_pid = pid.0 >> SKIP_BITS;
-        // Safety: this needs to sync with all possible points that can change
+        // SAFETY: this needs to sync with all possible points that can change
         // this value; all need to use `Acquire`/`Release` (or `AcqRel`).
         let mut old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
         loop {
-            if old_ptr == tagged_pid {
+            if old_ptr == ready_marker {
                 // Found the marker, try to remove it.
-                debug_assert!(is_ready_marker(old_ptr));
-                // Safety: see comment for `load` above.
+                // SAFETY: see comment for `load` above.
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
-                    tagged_pid,
+                    old_ptr,
                     ptr::null_mut(),
                     Ordering::AcqRel,
                     Ordering::Acquire,
@@ -139,21 +141,19 @@ impl Inactive {
                     // updated (`old`) pointer.
                     Err(old) => old_ptr = old,
                 }
-            } else if old_ptr.is_null() || is_process(old_ptr) || is_ready_marker(old_ptr) {
-                // No marker for the process in the tree.
-                break;
-            } else {
-                debug_assert!(is_branch(old_ptr));
+            } else if is_branch(old_ptr) {
                 // Pointer is a branch. Try at the next level.
                 let branch_ptr: *mut Branch = as_ptr(old_ptr).cast();
                 w_pid >>= LEVEL_SHIFT;
                 debug_assert!(!branch_ptr.is_null());
-                // Safety: if the pointer is not null, a process or a ready
-                // marker it must be a branch. Non-null pointers must always be
-                // valid.
+                // SAFETY: if the pointer is a branch it must be always valid as
+                // per the comment on `Branch.branches`.
                 node = unsafe { &*branch_ptr };
-                // Safety: see comment for `load` above.
+                // SAFETY: see comment for `load` above.
                 old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
+            } else {
+                // No marker for the process in the tree.
+                break;
             }
         }
 
@@ -167,11 +167,11 @@ impl Inactive {
         match n {
             0 => {}
             n if n.is_negative() => {
-                // Safety: needs to sync with below.
+                // SAFETY: needs to sync with below.
                 _ = self.length.fetch_sub(-n as usize, Ordering::AcqRel);
             }
             n => {
-                // Safety: needs to sync with above.
+                // SAFETY: needs to sync with above.
                 _ = self.length.fetch_add(n as usize, Ordering::AcqRel);
             }
         }
@@ -197,9 +197,9 @@ type TaggedPointer = *mut ();
 /// Tags used for the `Pointer`.
 const TAG_BITS: usize = 2;
 const TAG_MASK: usize = (1 << TAG_BITS) - 1;
-const BRANCH_TAG: usize = 0b00;
-const PROCESS_TAG: usize = 0b01;
-const READY_TO_RUN: usize = 0b10;
+const BRANCH_TAG: usize = 0b01;
+const PROCESS_TAG: usize = 0b10;
+const READY_TO_RUN: usize = 0b11;
 
 impl Branch {
     /// Create an empty `Branch`.
@@ -220,13 +220,15 @@ impl Branch {
         depth: usize,
         run_queue: &RunQueue,
     ) -> isize {
+        let pid = process.as_ref().id();
         let process = tag_process(process);
-        self._add(process, w_pid, depth, run_queue)
+        self._add(process, pid, w_pid, depth, run_queue)
     }
 
     fn _add(
         &self,
         process: TaggedPointer,
+        pid: ProcessId,
         mut w_pid: usize,
         mut depth: usize,
         run_queue: &RunQueue,
@@ -240,7 +242,7 @@ impl Branch {
             if old_ptr.is_null() {
                 // Empty slot, we can put the `process` into it.
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
-                    ptr::null_mut(),
+                    old_ptr,
                     process,
                     Ordering::AcqRel,
                     Ordering::Acquire,
@@ -256,13 +258,14 @@ impl Branch {
                 w_pid >>= LEVEL_SHIFT;
                 depth += 1;
                 debug_assert!(!branch_ptr.is_null());
-                // Safety: checked if the pointer is a branch above and per the
+                // SAFETY: checked if the pointer is a branch above and per the
                 // docs of `Branch.branches` once it's a branch it's immutable.
                 node = unsafe { &*branch_ptr };
                 old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
-            } else if is_ready_marker(old_ptr) && as_pid(old_ptr) == as_pid(process) {
+            } else if is_ready_marker(old_ptr) && unsafe { as_pid(old_ptr) } == pid {
+                // SAFETY: (above) `as_pid` is safe to call on ready markers.
                 // Found a ready marker for the process we want to add.
-                // Remove it and add the process to the run queue.
+                // Remove it and add the process to the run queue instead.
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
                     old_ptr,
                     ptr::null_mut(),
@@ -271,9 +274,10 @@ impl Branch {
                 ) {
                     Ok(old) => {
                         debug_assert!(is_ready_marker(old));
-                        debug_assert!(as_pid(old) == as_pid(process));
-                        debug_assert!(is_process(process));
-                        // Safety: caller must ensure `process` is tagged
+                        // SAFETY: per above `old` is a ready marker, thus it is
+                        // safe to call `as_pid`.
+                        debug_assert!(unsafe { as_pid(old) } == pid);
+                        // SAFETY: caller must ensure `process` is tagged
                         // pointer to a process.
                         let process = unsafe { process_from_tagged(process) };
                         run_queue.add(process);
@@ -298,22 +302,24 @@ impl Branch {
                         // Now we have to add two processes (or markers). First
                         // we create the branch structure that can hold the two
                         // processes, i.e. create enough branches to the point
-                        // the two pointers differ in the branch slots.
-                        // Required depth to go were the pointers are in
-                        // different slots.
-                        let req_depth = diff_branch_depth(as_pid(other_process), as_pid(process));
+                        // the two pointers differ in the branch slots. Required
+                        // depth to go were the pointers are in different slots.
+                        // SAFETY: we own `other_process` so we can safely call
+                        // `as_pid`.
+                        let other_pid = unsafe { as_pid(other_process) };
+                        let req_depth = diff_branch_depth(other_pid, pid);
                         debug_assert!(req_depth > depth);
                         changed +=
                             node.add_branches(req_depth, ptr::null_mut(), w_pid, depth, run_queue);
                         // Add the other process/marker.
                         changed += if is_process(other_process) {
-                            let w_pid = wpid_for(other_process, depth);
+                            let w_pid = wpid_for(other_pid, depth);
                             // NOTE: `-1` because we've just removed the process
                             // above that we're going to add again here.
-                            node._add(other_process, w_pid, depth, run_queue) - 1
+                            node._add(other_process, other_pid, w_pid, depth, run_queue) - 1
                         } else {
                             debug_assert!(is_ready_marker(other_process));
-                            let w_pid = wpid_for(other_process, depth);
+                            let w_pid = wpid_for(other_pid, depth);
                             node._mark_ready(other_process, w_pid, depth, run_queue)
                         };
                         // Continue our own adding process.
@@ -349,6 +355,8 @@ impl Branch {
         run_queue: &RunQueue,
     ) -> isize {
         debug_assert!(is_ready_marker(marker));
+        // SAFETY: `as_pid` is safe to call with a ready marker.
+        let marker_pid = unsafe { as_pid(marker) };
         let mut node = self;
         // NOTE: from this point on `self` is invalid, use `node` instead.
         let mut old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
@@ -373,14 +381,17 @@ impl Branch {
                 w_pid >>= LEVEL_SHIFT;
                 depth += 1;
                 debug_assert!(!branch_ptr.is_null());
-                // Safety: checked if the pointer is a branch above and per the
+                // SAFETY: checked if the pointer is a branch above and per the
                 // docs of `Branch.branches` once it's a branch it's immutable.
                 node = unsafe { &*branch_ptr };
                 old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
-            } else if is_ready_marker(old_ptr) && as_pid(old_ptr) == as_pid(marker) {
+            } else if is_ready_marker(old_ptr) && unsafe { as_pid(old_ptr) } == marker_pid {
+                // SAFETY: (above) `as_pid` is safe to call on ready markers.
                 // Already has a marker for the process.
                 return changed;
-            } else if is_process(old_ptr) && as_pid(old_ptr) == as_pid(marker) {
+            } else if is_process(old_ptr) && unsafe { as_pid(old_ptr) } == marker_pid {
+                // SAFETY: (above) `as_pid` is safe to call on ready markers.
+                // Already has a marker for the process.
                 // Found the process, remove it.
                 match node.branches[w_pid & LEVEL_MASK].compare_exchange(
                     old_ptr,
@@ -391,7 +402,7 @@ impl Branch {
                     Ok(_) => {
                         debug_assert!(is_process(old_ptr));
                         debug_assert!(!as_ptr(old_ptr).is_null());
-                        // Safety: checked if the pointer is a process above.
+                        // SAFETY: checked if the pointer is a process above.
                         let process = unsafe { process_from_tagged(old_ptr) };
                         run_queue.add(process);
                         return changed - 1;
@@ -416,21 +427,24 @@ impl Branch {
                         // processes, i.e. create enough branches to the point
                         // the two pointers differ in the branch slots.
                         debug_assert!(is_process(other_process) || is_ready_marker(other_process));
+                        // SAFETY: we own `other_process` so we can safely call
+                        // `as_pid`.
+                        let other_pid = unsafe { as_pid(other_process) };
                         // Required depth to go were the pointers are in different slots.
-                        let req_depth = diff_branch_depth(as_pid(other_process), as_pid(marker));
+                        let req_depth = diff_branch_depth(other_pid, marker_pid);
                         debug_assert!(req_depth > depth);
                         changed +=
                             node.add_branches(req_depth, ptr::null_mut(), w_pid, depth, run_queue);
                         // Add the other process/marker.
                         changed += if is_process(other_process) {
                             debug_assert!(is_process(other_process));
-                            let w_pid = wpid_for(other_process, depth);
+                            let w_pid = wpid_for(other_pid, depth);
                             // NOTE: `-1` because we've just removed the process
                             // above that we're going to add again here.
-                            node._add(other_process, w_pid, depth, run_queue) - 1
+                            node._add(other_process, other_pid, w_pid, depth, run_queue) - 1
                         } else {
                             debug_assert!(is_ready_marker(other_process));
-                            let w_pid = wpid_for(other_process, depth);
+                            let w_pid = wpid_for(other_pid, depth);
                             node._mark_ready(other_process, w_pid, depth, run_queue)
                         };
                         // Continue our own adding process.
@@ -481,19 +495,23 @@ impl Branch {
                     w_pid >>= LEVEL_SHIFT;
                     depth += 1;
                     debug_assert!(!branch_ptr.is_null());
-                    // Safety: create the branch pointer ourselves, so we know
+                    // SAFETY: created the branch pointer ourselves, so we know
                     // it's a branch.
                     node = unsafe { &*branch_ptr.cast() };
                     old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
 
                     if is_process(old) {
                         debug_assert!(is_process(old));
-                        let w_pid = wpid_for(old, depth);
+                        // SAFETY: we own `old` so we can safely call `as_pid`.
+                        let old_pid = unsafe { as_pid(old) };
+                        let w_pid = wpid_for(old_pid, depth);
                         // NOTE: -1 because we've just removed the process.
-                        changed += node._add(old, w_pid, depth, run_queue) - 1;
+                        changed += node._add(old, old_pid, w_pid, depth, run_queue) - 1;
                     } else if is_ready_marker(old) {
                         debug_assert!(is_ready_marker(old));
-                        let w_pid = wpid_for(old, depth);
+                        // SAFETY: `old` is a ready marker so it's safe to call.
+                        let old_pid = unsafe { as_pid(old) };
+                        let w_pid = wpid_for(old_pid, depth);
                         changed += node._mark_ready(old, w_pid, depth, run_queue);
                     } else {
                         debug_assert!(old_ptr.is_null());
@@ -513,14 +531,14 @@ impl Branch {
                 w_pid >>= LEVEL_SHIFT;
                 depth += 1;
                 debug_assert!(!branch_ptr.is_null());
-                // Safety: checked if it's a branch pointer and non-null above.
+                // SAFETY: checked if it's a branch pointer and non-null above.
                 node = unsafe { &*branch_ptr.cast() };
                 old_ptr = node.branches[w_pid & LEVEL_MASK].load(Ordering::Acquire);
             }
         }
 
         if let Some(branch) = w_branch {
-            // Safety: created the pointer ourselves.
+            // SAFETY: created the pointer ourselves.
             unsafe { drop(branch_from_tagged(branch)) };
         }
 
@@ -536,7 +554,7 @@ impl fmt::Debug for Branch {
                 _ if ptr.is_null() => &"null",
                 BRANCH_TAG => {
                     let branch: *mut Branch = as_ptr(ptr).cast();
-                    // Safety: check if it's a branch pointer.
+                    // SAFETY: check if it's a branch pointer.
                     unsafe { &*branch }
                 }
                 PROCESS_TAG => &"process",
@@ -563,22 +581,19 @@ fn diff_branch_depth(pid1: ProcessId, pid2: ProcessId) -> usize {
 /// Converts `process` into a tagged pointer.
 fn tag_process(process: Pin<Box<ProcessData>>) -> TaggedPointer {
     #[allow(trivial_casts)]
-    let ptr = Box::into_raw(Pin::into_inner(process)).cast();
-    debug_assert!(ok_ptr(ptr));
+    let ptr = Box::into_raw(Pin::into_inner(process)).cast::<()>();
     (ptr as usize | PROCESS_TAG) as *mut ()
 }
 
 /// Tag a pointer as pointing to a branch.
 fn tag_branch(branch: Pin<Box<Branch>>) -> TaggedPointer {
     #[allow(trivial_casts)]
-    let ptr = Box::into_raw(Pin::into_inner(branch)).cast();
-    debug_assert!(ok_ptr(ptr));
+    let ptr = Box::into_raw(Pin::into_inner(branch)).cast::<()>();
     (ptr as usize | BRANCH_TAG) as *mut ()
 }
 
 /// Create a mark ready-to-run `Pointer`.
 fn ready_to_run(pid: ProcessId) -> TaggedPointer {
-    debug_assert!(ok_ptr(pid.0 as *mut ()));
     (pid.0 | READY_TO_RUN) as *mut ()
 }
 
@@ -623,14 +638,18 @@ fn has_tag(ptr: TaggedPointer, tag: usize) -> bool {
     (ptr as usize & TAG_MASK) == tag
 }
 
-/// Returns this pointer `ProcessId`.
+/// Returns this pointer as `ProcessId`.
 ///
-/// # Notes
+/// # Safety
 ///
-/// This is only valid for process pointers and ready-to-run markers.
-fn as_pid(ptr: TaggedPointer) -> ProcessId {
-    debug_assert!(is_process(ptr) || is_ready_marker(ptr));
-    ProcessId(as_ptr(ptr) as usize)
+/// This is only valid for ready-to-run markers or **owned** processes.
+unsafe fn as_pid(ptr: TaggedPointer) -> ProcessId {
+    if is_process(ptr) {
+        Pin::new(unsafe { &*(as_ptr(ptr).cast::<ProcessData>()) }).id()
+    } else {
+        debug_assert!(is_ready_marker(ptr));
+        ProcessId(as_ptr(ptr) as usize)
+    }
 }
 
 /// Returns the raw pointer without its tag.
@@ -639,8 +658,8 @@ fn as_ptr(ptr: TaggedPointer) -> *mut () {
 }
 
 /// Returns the working pid for `ptr` at `depth`.
-fn wpid_for(ptr: TaggedPointer, depth: usize) -> usize {
-    ptr as usize >> ((depth * LEVEL_SHIFT) + SKIP_BITS)
+fn wpid_for(pid: ProcessId, depth: usize) -> usize {
+    pid.0 >> ((depth * LEVEL_SHIFT) + SKIP_BITS)
 }
 
 impl Drop for Branch {
@@ -663,9 +682,9 @@ unsafe fn drop_tagged_pointer(ptr: TaggedPointer) {
     }
 
     match ptr as usize & TAG_MASK {
-        // Safety: checked for non-null and that it's a branch.
+        // SAFETY: checked for non-null and that it's a branch.
         BRANCH_TAG => drop(branch_from_tagged(ptr)),
-        // Safety: checked for non-null and that it's a process.
+        // SAFETY: checked for non-null and that it's a process.
         PROCESS_TAG => drop(process_from_tagged(ptr)),
         READY_TO_RUN => { /* Just a marker, nothing to drop. */ }
         _ => unreachable!(),
@@ -797,7 +816,8 @@ mod tests {
         assert!(!is_process(tagged_pid));
         assert!(!is_branch(tagged_pid));
         assert!(is_ready_marker(tagged_pid));
-        let pid2 = as_pid(tagged_pid);
+        // SAFETY: `tagged_pid` is a ready marker so it's safe to call.
+        let pid2 = unsafe { as_pid(tagged_pid) };
         assert_eq!(pid, pid2);
     }
 
