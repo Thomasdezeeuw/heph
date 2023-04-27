@@ -1,10 +1,11 @@
+//! Module with [`UnixDatagram`].
+
 use std::marker::PhantomData;
 use std::net::Shutdown;
 use std::os::fd::IntoRawFd;
 use std::{fmt, io};
 
 use a10::{AsyncFd, Extract};
-use log::warn;
 use socket2::{Domain, SockRef, Type};
 
 use crate::access::Access;
@@ -101,7 +102,7 @@ impl UnixDatagram {
         socket.with_ref(|socket| {
             if let Some(cpu) = rt.cpu() {
                 if let Err(err) = socket.set_cpu_affinity(cpu) {
-                    warn!("failed to set CPU affinity on UnixDatagram: {err}");
+                    log::warn!("failed to set CPU affinity on UnixDatagram: {err}");
                 }
             }
             Ok(())
