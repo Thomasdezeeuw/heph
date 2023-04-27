@@ -27,12 +27,12 @@ where
     type Output = Result<Fut1::Output, Fut2::Output>;
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        // Safety: not moving `future1`.
+        // SAFETY: not moving `future1`.
         let future1 = unsafe { Pin::map_unchecked_mut(self.as_mut(), |s| &mut s.future1) };
         match future1.poll(ctx) {
             Poll::Ready(value) => Poll::Ready(Ok(value)),
             Poll::Pending => {
-                // Safety: not moving `future2`.
+                // SAFETY: not moving `future2`.
                 let future2 = unsafe { Pin::map_unchecked_mut(self, |s| &mut s.future2) };
                 match future2.poll(ctx) {
                     Poll::Ready(value) => Poll::Ready(Err(value)),
@@ -62,7 +62,7 @@ where
     type Output = Option<I::Item>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        // Safety: not moving `iter`.
+        // SAFETY: not moving `iter`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.iter).poll_next(ctx) }
     }
 }

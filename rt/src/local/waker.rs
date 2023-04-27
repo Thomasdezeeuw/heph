@@ -39,7 +39,7 @@ pub(crate) fn init(waker: mio::Waker, notifications: Sender<ProcessId>) -> Waker
         "Created too many Heph worker threads"
     );
 
-    // Safety: this is safe because we are the only thread that has write access
+    // SAFETY: this is safe because we are the only thread that has write access
     // to the given index. See documentation of `THREAD_WAKERS` for more.
     unsafe {
         THREAD_WAKERS[thread_id as usize] = Some(Waker {
@@ -56,7 +56,7 @@ pub(crate) fn init(waker: mio::Waker, notifications: Sender<ProcessId>) -> Waker
 pub(crate) fn new(waker_id: WakerId, pid: ProcessId) -> task::Waker {
     let data = WakerData::new(waker_id, pid).into_raw_data();
     let raw_waker = task::RawWaker::new(data, &WAKER_VTABLE);
-    // Safety: we follow the contract on `RawWaker`.
+    // SAFETY: we follow the contract on `RawWaker`.
     unsafe { task::Waker::from_raw(raw_waker) }
 }
 
@@ -90,7 +90,7 @@ const NO_WAKER: Option<Waker> = None;
 
 /// Get waker data for `waker_id`
 fn get(waker_id: WakerId) -> &'static Waker {
-    // Safety: `WakerId` is only created by `init`, which ensures its valid.
+    // SAFETY: `WakerId` is only created by `init`, which ensures its valid.
     // Furthermore `init` ensures that `THREAD_WAKER[waker_id]` is initialised
     // and is read-only after that. See `THREAD_WAKERS` documentation for more.
     unsafe {
@@ -156,14 +156,14 @@ impl WakerData {
 
     /// Get the thread id of from the waker data.
     const fn waker_id(self) -> WakerId {
-        // Safety: `WakerId` is u8, so no truncating.
+        // SAFETY: `WakerId` is u8, so no truncating.
         #[allow(clippy::cast_possible_truncation)]
         WakerId((self.0 >> THREAD_SHIFT) as u8)
     }
 
     /// Get the process id from the waker data.
     const fn pid(self) -> ProcessId {
-        // Safety: checked pid in `WakerData::new`, so no truncation.
+        // SAFETY: checked pid in `WakerData::new`, so no truncation.
         #[allow(clippy::cast_possible_truncation)]
         ProcessId(self.0 & !THREAD_MASK)
     }
