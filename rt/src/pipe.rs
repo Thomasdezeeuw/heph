@@ -23,7 +23,7 @@
 //!
 //! const DATA: &[u8] = b"Hello, world!";
 //!
-//! async fn process_handler<RT>(ctx: actor::Context<!, RT>) -> io::Result<()>
+//! async fn actor<RT>(ctx: actor::Context<!, RT>) -> io::Result<()>
 //!     where RT: rt::Access,
 //! {
 //!     let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
@@ -40,7 +40,7 @@
 //! #
 //! # let actor_ref = heph_rt::test::try_spawn(
 //! #     heph_rt::test::PanicSupervisor,
-//! #     process_handler as fn(_) -> _,
+//! #     actor as fn(_) -> _,
 //! #     (),
 //! #     heph_rt::spawn::ActorOptions::default(),
 //! # ).unwrap();

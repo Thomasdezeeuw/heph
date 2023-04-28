@@ -29,8 +29,11 @@ use crate::net::{
 /// use heph_rt::ThreadLocal;
 ///
 /// async fn actor(ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
+///     // Connect to an IP address.
 ///     let address = "127.0.0.1:12345".parse().unwrap();
 ///     let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
+///
+///     // Send them a nice greeting.
 ///     stream.send_all("Hello world!").await?;
 ///     Ok(())
 /// }
