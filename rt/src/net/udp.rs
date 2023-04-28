@@ -48,37 +48,12 @@ pub use crate::net::{Connected, Unconnected};
 /// use std::net::SocketAddr;
 /// use std::{io, str};
 ///
-/// use log::error;
-///
+/// use heph::actor;
 /// use heph::messages::Terminate;
-/// use heph::{actor, SupervisorStrategy};
+/// use heph_rt::ThreadLocal;
 /// use heph_rt::net::UdpSocket;
-/// use heph_rt::spawn::ActorOptions;
 /// use heph_rt::util::either;
-/// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
-///
-/// fn main() -> Result<(), rt::Error> {
-///     std_logger::Config::logfmt().init();
-///
-///     let mut runtime = Runtime::new()?;
-///     runtime.run_on_workers(setup)?;
-///     runtime.start()
-/// }
-///
-/// fn setup(mut runtime: RuntimeRef) -> Result<(), !> {
-///     let address = "127.0.0.1:7000".parse().unwrap();
-///     // Add our server actor.
-///     runtime.spawn_local(supervisor, echo_server as fn(_, _) -> _, address, ActorOptions::default());
-///     // Add our client actor.
-///     runtime.spawn_local(supervisor, client as fn(_, _) -> _, address, ActorOptions::default());
-///     Ok(())
-/// }
-///
-/// /// Simple supervisor that logs the error and stops the actor.
-/// fn supervisor<Arg>(err: io::Error) -> SupervisorStrategy<Arg> {
-///     error!("Encountered an error: {err}");
-///     SupervisorStrategy::Stop
-/// }
+/// use log::info;
 ///
 /// /// Actor that will bind a UDP socket and waits for incoming packets and
 /// /// echos the message to standard out.
@@ -102,23 +77,13 @@ pub use crate::net::{Connected, Unconnected};
 ///         };
 ///
 ///         match str::from_utf8(&buf) {
-///             Ok(str) => println!("Got the following message: `{str}`, from {address}"),
-///             Err(_) => println!("Got data: {buf:?}, from {address}"),
+///             Ok(str) => info!("Got the following message: `{str}`, from {address}"),
+///             Err(_) => info!("Got data: {buf:?}, from {address}"),
 ///         }
 /// #       return Ok(());
 ///     }
 /// }
-///
-/// /// The client that will send a message to the server.
-/// async fn client(ctx: actor::Context<!, ThreadLocal>, server_address: SocketAddr) -> io::Result<()> {
-///     let local_address = "127.0.0.1:7001".parse().unwrap();
-///     let socket = UdpSocket::bind(ctx.runtime_ref(), local_address).await?
-///         .connect(server_address).await?;
-///
-///     let (msg, n) = socket.send("Hello world").await?;
-///     assert_eq!(n, msg.len());
-///     Ok(())
-/// }
+/// # drop(echo_server); // Silence unused warnings.
 /// ```
 pub struct UdpSocket<M = Unconnected> {
     fd: AsyncFd,

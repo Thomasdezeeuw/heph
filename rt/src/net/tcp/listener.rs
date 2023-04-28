@@ -33,46 +33,10 @@ use crate::net::{convert_address, SockAddr, TcpStream};
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// use log::error;
-///
-/// use heph::{actor, SupervisorStrategy};
-/// # use heph_rt::net::TcpStream;
+/// use heph::actor;
+/// use heph_rt::ThreadLocal;
 /// use heph_rt::net::TcpListener;
-/// use heph_rt::spawn::ActorOptions;
-/// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 /// use log::info;
-///
-/// fn main() -> Result<(), rt::Error> {
-///     std_logger::Config::logfmt().init();
-///
-///     let mut runtime = Runtime::new()?;
-///     runtime.run_on_workers(setup)?;
-///     runtime.start()
-/// }
-///
-/// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-///     let address = "127.0.0.1:8000".parse().unwrap();
-///
-///     runtime_ref.spawn_local(supervisor, actor as fn(_, _) -> _, address, ActorOptions::default());
-/// #   runtime_ref.spawn_local(supervisor, client as fn(_, _) -> _, address, ActorOptions::default());
-///
-///     Ok(())
-/// }
-/// #
-/// # async fn client(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-/// #   let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
-/// #   let local_address = stream.local_addr()?.to_string();
-/// #   let buf = Vec::with_capacity(local_address.len() + 1);
-/// #   let buf = stream.recv_n(buf, local_address.len()).await?;
-/// #   assert_eq!(buf, local_address.as_bytes());
-/// #   Ok(())
-/// # }
-///
-/// // Simple supervisor that logs the error and stops the actor.
-/// fn supervisor<Arg>(err: io::Error) -> SupervisorStrategy<Arg> {
-///     error!("Encountered an error: {err}");
-///     SupervisorStrategy::Stop
-/// }
 ///
 /// async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
@@ -87,6 +51,7 @@ use crate::net::{convert_address, SockAddr, TcpStream};
 ///     stream.send_all(ip).await?;
 ///     Ok(())
 /// }
+/// # drop(actor); // Silence unused item warning.
 /// ```
 ///
 /// Accepting multiple [`TcpStream`]s, using [`TcpListener::incoming`].
@@ -97,46 +62,11 @@ use crate::net::{convert_address, SockAddr, TcpStream};
 /// use std::io;
 /// use std::net::SocketAddr;
 ///
-/// use log::{error, info};
-///
-/// use heph::{actor, SupervisorStrategy};
+/// use heph::actor;
+/// use heph_rt::ThreadLocal;
 /// use heph_rt::net::TcpListener;
-/// # use heph_rt::net::TcpStream;
-/// use heph_rt::spawn::ActorOptions;
-/// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 /// use heph_rt::util::next;
-///
-/// fn main() -> Result<(), rt::Error> {
-///     std_logger::Config::logfmt().init();
-///
-///     let mut runtime = Runtime::new()?;
-///     runtime.run_on_workers(setup)?;
-///     runtime.start()
-/// }
-///
-/// fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-///     let address = "127.0.0.1:8000".parse().unwrap();
-///
-///     runtime_ref.spawn_local(supervisor, actor as fn(_, _) -> _, address, ActorOptions::default());
-/// #   runtime_ref.spawn_local(supervisor, client as fn(_, _) -> _, address, ActorOptions::default());
-///
-///     Ok(())
-/// }
-/// #
-/// # async fn client(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
-/// #   let stream = TcpStream::connect(ctx.runtime_ref(), address).await?;
-/// #   let local_address = stream.local_addr()?.to_string();
-/// #   let buf = Vec::with_capacity(local_address.len() + 1);
-/// #   let buf = stream.recv_n(buf, local_address.len()).await?;
-/// #   assert_eq!(buf, local_address.as_bytes());
-/// #   Ok(())
-/// # }
-///
-/// // Simple supervisor that logs the error and stops the actor.
-/// fn supervisor<Arg>(err: io::Error) -> SupervisorStrategy<Arg> {
-///     error!("Encountered an error: {err}");
-///     SupervisorStrategy::Stop
-/// }
+/// use log::info;
 ///
 /// async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
 ///     // Create a new listener.
@@ -162,6 +92,7 @@ use crate::net::{convert_address, SockAddr, TcpStream};
 /// #       return Ok(());
 ///     }
 /// }
+/// # drop(actor); // Silence unused warning.
 /// ```
 pub struct TcpListener {
     fd: AsyncFd,

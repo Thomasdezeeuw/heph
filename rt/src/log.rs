@@ -17,29 +17,16 @@
 //! ```
 //! #![feature(never_type)]
 //!
-//! use heph::actor;
-//! use heph::supervisor::NoSupervisor;
-//! use heph_rt::spawn::ActorOptions;
-//! use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
+//! use heph_rt::Runtime;
 //! use log::info;
 //!
-//! fn main() -> Result<(), rt::Error> {
+//! fn main() -> Result<(), heph_rt::Error> {
 //!     // Enable logging.
 //!     std_logger::Config::logfmt().init();
 //!
-//!     let mut runtime = Runtime::new()?;
-//!     runtime.run_on_workers(add_greeter_actor)?;
+//!     let runtime = Runtime::new()?;
+//!     // Runtime setup etc.
+//!     info!("starting runtime");
 //!     runtime.start()
-//! }
-//!
-//! fn add_greeter_actor(mut system_ref: RuntimeRef) -> Result<(), !> {
-//!     let actor = greeter_actor as fn(_) -> _;
-//!     system_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
-//!     Ok(())
-//! }
-//!
-//! async fn greeter_actor(_: actor::Context<!, ThreadLocal>) {
-//!     // Log an informational message.
-//!     info!("Hello world");
 //! }
 //! ```
