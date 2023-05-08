@@ -126,8 +126,8 @@ where
 
     let sq = rt.submission_queue();
     // SAFETY: we just initialised the `fds` above.
-    let r = unsafe { AsyncFd::new(fds[0], sq.clone()) };
-    let w = unsafe { AsyncFd::new(fds[1], sq) };
+    let r = unsafe { AsyncFd::from_raw_fd(fds[0], sq.clone()) };
+    let w = unsafe { AsyncFd::from_raw_fd(fds[1], sq) };
     Ok((Sender { fd: w }, Receiver { fd: r }))
 }
 
@@ -146,7 +146,7 @@ impl Sender {
         RT: Access,
     {
         // SAFETY: `ChildStdin` is guaranteed to be a valid file descriptor.
-        let fd = unsafe { AsyncFd::new(stdin.into_raw_fd(), rt.submission_queue()) };
+        let fd = unsafe { AsyncFd::from_raw_fd(stdin.into_raw_fd(), rt.submission_queue()) };
         Ok(Sender { fd })
     }
 
@@ -206,7 +206,7 @@ impl Receiver {
         RT: Access,
     {
         // SAFETY: `ChildStdout` is guaranteed to be a valid file descriptor.
-        let fd = unsafe { AsyncFd::new(stdout.into_raw_fd(), rt.submission_queue()) };
+        let fd = unsafe { AsyncFd::from_raw_fd(stdout.into_raw_fd(), rt.submission_queue()) };
         Ok(Receiver { fd })
     }
 
@@ -216,7 +216,7 @@ impl Receiver {
         RT: Access,
     {
         // SAFETY: `ChildStderr` is guaranteed to be a valid file descriptor.
-        let fd = unsafe { AsyncFd::new(stderr.into_raw_fd(), rt.submission_queue()) };
+        let fd = unsafe { AsyncFd::from_raw_fd(stderr.into_raw_fd(), rt.submission_queue()) };
         Ok(Receiver { fd })
     }
 

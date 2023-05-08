@@ -58,7 +58,7 @@ macro_rules! stdio {
     ) => {
         #[doc = concat!("Create a new `", stringify!($name), "`.\n\n")]
         pub fn $fn<RT: Access>(rt: &RT) -> $name {
-            $name(std::mem::ManuallyDrop::new(unsafe { a10::AsyncFd::new(
+            $name(std::mem::ManuallyDrop::new(unsafe { a10::AsyncFd::from_raw_fd(
                 $fd,
                 rt.submission_queue(),
             )}))
