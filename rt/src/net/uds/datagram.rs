@@ -82,11 +82,11 @@ impl UnixDatagram {
         let s1 = UnixDatagram::new(rt, unsafe {
             // SAFETY: the call to `pair` above ensures the file descriptors are
             // valid.
-            AsyncFd::new(s1.into_raw_fd(), rt.submission_queue())
+            AsyncFd::from_raw_fd(s1.into_raw_fd(), rt.submission_queue())
         })?;
         let s2 = UnixDatagram::new(rt, unsafe {
             // SAFETY: Same as above.
-            AsyncFd::new(s2.into_raw_fd(), rt.submission_queue())
+            AsyncFd::from_raw_fd(s2.into_raw_fd(), rt.submission_queue())
         })?;
         Ok((s1, s2))
     }
