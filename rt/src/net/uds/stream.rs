@@ -38,7 +38,7 @@ use crate::net::{
 ///     stream.send_all("Hello world!").await?;
 ///     Ok(())
 /// }
-/// # drop(actor); // Silent dead code warnings.
+/// # _ = actor; // Silent dead code warnings.
 /// ```
 #[derive(Debug)]
 pub struct UnixStream {
@@ -194,7 +194,7 @@ impl UnixStream {
     ///     Ok(())
     /// }
     /// #
-    /// # drop(actor); // Silent dead code warnings.
+    /// # _ = actor; // Silent dead code warnings.
     /// ```
     pub async fn recv<B: BufMut>(&self, buf: B) -> io::Result<B> {
         Recv(self.fd.recv(BufWrapper(buf), 0)).await
@@ -229,7 +229,7 @@ impl UnixStream {
     ///     Ok(())
     /// }
     /// #
-    /// # drop(actor); // Silent dead code warnings.
+    /// # _ = actor; // Silent dead code warnings.
     /// ```
     pub async fn recv_n<B: BufMut>(&self, buf: B, n: usize) -> io::Result<B> {
         debug_assert!(

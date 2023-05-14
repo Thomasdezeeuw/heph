@@ -121,7 +121,7 @@ const RT_SUBSTREAM_ID: u64 = 0;
 ///     }
 /// }
 ///
-/// # drop(actor);
+/// # _ = actor;
 /// ```
 pub trait Trace {
     /// Start timing an event if tracing is enabled.

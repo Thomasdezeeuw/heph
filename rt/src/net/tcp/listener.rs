@@ -51,7 +51,7 @@ use crate::net::{convert_address, SockAddr, TcpStream};
 ///     stream.send_all(ip).await?;
 ///     Ok(())
 /// }
-/// # drop(actor); // Silence unused item warning.
+/// # _ = actor; // Silence unused item warning.
 /// ```
 ///
 /// Accepting multiple [`TcpStream`]s, using [`TcpListener::incoming`].
@@ -92,7 +92,7 @@ use crate::net::{convert_address, SockAddr, TcpStream};
 /// #       return Ok(());
 ///     }
 /// }
-/// # drop(actor); // Silence unused warning.
+/// # _ = actor; // Silence unused warning.
 /// ```
 pub struct TcpListener {
     fd: AsyncFd,
