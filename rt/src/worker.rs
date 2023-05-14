@@ -64,9 +64,7 @@ pub(crate) fn setup(
     coordinator_sq: &a10::SubmissionQueue,
 ) -> io::Result<(WorkerSetup, &'static ThreadWaker)> {
     let poll = Poll::new()?;
-    let ring = a10::Ring::config(512)
-        .attach_queue(coordinator_sq)
-        .build()?;
+    let ring = a10::Ring::config(64).attach_queue(coordinator_sq).build()?;
 
     // Setup the waking mechanism.
     let (waker_sender, waker_events) = crossbeam_channel::unbounded();
@@ -285,7 +283,7 @@ impl Worker {
         mut receiver: rt::channel::Receiver<Control>,
     ) -> io::Result<Worker> {
         let poll = Poll::new()?;
-        let ring = a10::Ring::config(512)
+        let ring = a10::Ring::config(64)
             .attach_queue(shared_internals.submission_queue())
             .build()?;
 

@@ -148,7 +148,7 @@ impl Setup {
         let name = name.unwrap_or_else(default_app_name).into_boxed_str();
         debug!(name = name, workers = threads; "building Heph runtime");
 
-        let coordinator_ring = a10::Ring::new(512).map_err(Error::init_coordinator)?;
+        let coordinator_ring = a10::Ring::new(32).map_err(Error::init_coordinator)?;
 
         // Setup the worker threads.
         let timing = trace::start(&trace_log);
