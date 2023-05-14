@@ -110,7 +110,7 @@ impl RuntimeInternals {
     /// Setup new runtime internals.
     pub(crate) fn setup(coordinator_sq: &a10::SubmissionQueue) -> io::Result<RuntimeSetup> {
         let poll = Poll::new()?;
-        let ring = a10::Ring::config(512)
+        let ring = a10::Ring::config(128)
             .attach_queue(coordinator_sq)
             .build()?;
         Ok(RuntimeSetup { poll, ring })
@@ -120,7 +120,7 @@ impl RuntimeInternals {
     #[cfg(any(test, feature = "test"))]
     pub(crate) fn test_setup() -> io::Result<RuntimeSetup> {
         let poll = Poll::new()?;
-        let ring = a10::Ring::new(512)?;
+        let ring = a10::Ring::new(128)?;
         Ok(RuntimeSetup { poll, ring })
     }
 
