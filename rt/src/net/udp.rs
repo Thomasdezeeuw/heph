@@ -83,7 +83,7 @@ pub use crate::net::{Connected, Unconnected};
 /// #       return Ok(());
 ///     }
 /// }
-/// # drop(echo_server); // Silence unused warnings.
+/// # _ = echo_server; // Silence unused warnings.
 /// ```
 pub struct UdpSocket<M = Unconnected> {
     fd: AsyncFd,

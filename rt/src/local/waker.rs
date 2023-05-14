@@ -213,8 +213,7 @@ unsafe fn wake_by_ref(data: *const ()) {
 unsafe fn drop_wake_data(data: *const ()) {
     assert_copy::<WakerData>();
     // Since the data is `Copy` we don't have to anything.
-    #[allow(clippy::drop_copy)]
-    drop(data);
+    _ = data;
 }
 
 #[cfg(test)]

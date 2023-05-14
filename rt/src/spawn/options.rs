@@ -23,7 +23,7 @@ use std::time::Duration;
 /// use heph_rt::spawn::ActorOptions;
 ///
 /// let opts = ActorOptions::default();
-/// # drop(opts); // Silence unused variable warning.
+/// # _ = opts; // Silence unused variable warning.
 /// ```
 ///
 /// Giving an actor a high priority.
@@ -32,7 +32,7 @@ use std::time::Duration;
 /// use heph_rt::spawn::options::{ActorOptions, Priority};
 ///
 /// let opts = ActorOptions::default().with_priority(Priority::HIGH);
-/// # drop(opts); // Silence unused variable warning.
+/// # _ = opts; // Silence unused variable warning.
 /// ```
 #[derive(Clone, Debug, Default)]
 #[must_use]
@@ -150,7 +150,7 @@ fn priority_duration_multiplication() {
 /// use heph_rt::spawn::SyncActorOptions;
 ///
 /// let opts = SyncActorOptions::default();
-/// # drop(opts); // Silence unused variable warning.
+/// # _ = opts; // Silence unused variable warning.
 /// ```
 ///
 /// Setting the name of the thread that runs the synchronous actor.
@@ -159,7 +159,7 @@ fn priority_duration_multiplication() {
 /// use heph_rt::spawn::SyncActorOptions;
 ///
 /// let opts = SyncActorOptions::default().with_name("My sync actor".to_owned());
-/// # drop(opts); // Silence unused variable warning.
+/// # _ = opts; // Silence unused variable warning.
 /// ```
 #[derive(Debug, Default)]
 #[must_use]
@@ -200,7 +200,7 @@ impl SyncActorOptions {
 /// use heph_rt::spawn::FutureOptions;
 ///
 /// let opts = FutureOptions::default();
-/// # drop(opts); // Silence unused variable warning.
+/// # _ = opts; // Silence unused variable warning.
 /// ```
 ///
 /// Giving the future a high priority.
@@ -209,7 +209,7 @@ impl SyncActorOptions {
 /// use heph_rt::spawn::options::{FutureOptions, Priority};
 ///
 /// let opts = FutureOptions::default().with_priority(Priority::HIGH);
-/// # drop(opts); // Silence unused variable warning.
+/// # _ = opts; // Silence unused variable warning.
 /// ```
 #[derive(Clone, Debug, Default)]
 #[must_use]

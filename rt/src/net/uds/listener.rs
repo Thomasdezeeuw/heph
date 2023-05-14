@@ -50,7 +50,7 @@ use crate::net::uds::{UnixAddr, UnixStream};
 ///     }
 ///     Ok(())
 /// }
-/// # drop(actor); // Silent dead code warnings.
+/// # _ = actor; // Silent dead code warnings.
 /// ```
 ///
 /// Accepting multiple [`UnixStream`]s, using [`UnixListener::incoming`].
@@ -91,7 +91,7 @@ use crate::net::uds::{UnixAddr, UnixStream};
 ///         }
 ///     }
 /// }
-/// # drop(actor); // Silent dead code warnings.
+/// # _ = actor; // Silent dead code warnings.
 /// ```
 pub struct UnixListener {
     fd: AsyncFd,
