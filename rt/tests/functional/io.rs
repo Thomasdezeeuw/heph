@@ -82,6 +82,17 @@ fn test_buf_mut<B: BufMut>(mut buf: B) {
 }
 
 #[test]
+fn buf_mut_extend_from_slice() {
+    let mut buf = Vec::with_capacity(DATA.len() + DATA2.len() + 2);
+
+    BufMut::extend_from_slice(&mut buf, DATA);
+    assert_eq!(buf, DATA);
+
+    BufMut::extend_from_slice(&mut buf, DATA2);
+    assert_eq!(&buf[DATA.len()..], DATA2);
+}
+
+#[test]
 fn buf_for_vec() {
     test_buf(Vec::from(DATA))
 }
