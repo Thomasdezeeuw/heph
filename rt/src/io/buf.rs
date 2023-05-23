@@ -68,6 +68,20 @@ pub unsafe trait BufMut: 'static {
     /// [`TcpStream::recv_n`]: crate::net::TcpStream::recv_n
     unsafe fn update_length(&mut self, n: usize);
 
+    /// Extend the buffer with `bytes`, returns the number of bytes copied.
+    fn extend_from_slice(&mut self, bytes: &[u8]) -> usize {
+        let (ptr, capacity) = unsafe { self.parts_mut() };
+        let len = min(bytes.len(), capacity);
+        // SAFETY: since we have mutable access to `self` we know that `bytes`
+        // can point to (part of) the same buffer as that would be UB already.
+        // Furthermore we checked that the length doesn't overrun the buffer and
+        // `parts_mut` impl must ensure that the `ptr` is valid.
+        unsafe { ptr.copy_from_nonoverlapping(bytes.as_ptr(), len) };
+        // SAFETY: just written the bytes in the call above.
+        unsafe { self.update_length(len) };
+        len
+    }
+
     /// Returns the length of the buffer as returned by [`parts_mut`].
     ///
     /// [`parts_mut`]: BufMut::parts_mut
