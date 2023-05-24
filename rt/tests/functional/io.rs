@@ -4,7 +4,7 @@ use std::cmp::min;
 use std::ptr;
 use std::sync::Arc;
 
-use heph_rt::io::{Buf, BufMut, BufMutSlice};
+use heph_rt::io::{Buf, BufMut, BufMutSlice, BufSlice};
 
 const DATA: &[u8] = b"Hello world!";
 const DATA2: &[u8] = b"Hello mars.";
@@ -124,12 +124,6 @@ fn buf_for_static_str() {
     test_buf(DATA)
 }
 
-fn test_buf<B: Buf>(buf: B) {
-    let (ptr, len) = unsafe { buf.parts() };
-    let got = unsafe { std::slice::from_raw_parts(ptr, len) };
-    assert_eq!(got, DATA);
-}
-
 #[test]
 fn buf_for_limited() {
     test_buf(DATA.limit(DATA.len())); // Same length.
@@ -138,6 +132,25 @@ fn buf_for_limited() {
     buf.push(DATA);
     buf.push(DATA2);
     test_buf(DATA.limit(DATA.len())); // Smaller.
+}
+
+fn test_buf<B: Buf>(buf: B) {
+    let (ptr, len) = unsafe { buf.parts() };
+    let got = unsafe { std::slice::from_raw_parts(ptr, len) };
+    assert_eq!(got, DATA);
+}
+
+#[test]
+fn buf_slice_as_io_slices() {
+    test_buf_slice([DATA, DATA2]);
+    test_buf_slice([Vec::from(DATA), Vec::from(DATA2)]);
+    test_buf_slice((DATA, Vec::from(DATA2)));
+}
+
+fn test_buf_slice<B: BufSlice<2>>(buf: B) {
+    let [got0, got1] = buf.as_io_slices();
+    assert_eq!(&*got0, DATA);
+    assert_eq!(&*got1, DATA2);
 }
 
 #[test]

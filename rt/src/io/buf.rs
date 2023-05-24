@@ -1,7 +1,9 @@
 //! Buffers.
 
 use std::cmp::min;
+use std::io::IoSlice;
 use std::mem::MaybeUninit;
+use std::slice;
 use std::sync::Arc;
 
 /// Trait that defines the behaviour of buffers used in reading, which requires
@@ -379,7 +381,17 @@ unsafe impl Buf for &'static str {
 ///
 /// This has the same safety requirements as [`Buf`], but then for all buffers
 /// used.
-pub trait BufSlice<const N: usize>: private::BufSlice<N> + 'static {}
+pub trait BufSlice<const N: usize>: private::BufSlice<N> + 'static {
+    /// Returns the reabable buffer as `IoSlice` structures.
+    fn as_io_slices<'a>(&'a self) -> [IoSlice<'a>; N] {
+        // SAFETY: `as_iovecs` requires the returned iovec to be valid.
+        unsafe {
+            self.as_iovecs().map(|iovec| {
+                IoSlice::new(slice::from_raw_parts(iovec.iov_base.cast(), iovec.iov_len))
+            })
+        }
+    }
+}
 
 // NOTE: see the `private` module below for the actual trait.
 
