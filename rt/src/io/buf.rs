@@ -391,6 +391,19 @@ pub trait BufSlice<const N: usize>: private::BufSlice<N> + 'static {
             })
         }
     }
+
+    /// Wrap the buffer in `Limited`, which limits the amount of bytes used to
+    /// `limit`.
+    ///
+    /// [`Limited::into_inner`] can be used to retrieve the buffer again,
+    /// or a mutable reference to the buffer can be used and the limited buffer
+    /// be dropped after usage.
+    fn limit(self, limit: usize) -> Limited<Self>
+    where
+        Self: Sized,
+    {
+        Limited { buf: self, limit }
+    }
 }
 
 // NOTE: see the `private` module below for the actual trait.
@@ -682,5 +695,24 @@ unsafe impl<B: Buf> Buf for Limited<B> {
     unsafe fn parts(&self) -> (*const u8, usize) {
         let (ptr, size) = self.buf.parts();
         (ptr, min(size, self.limit))
+    }
+}
+
+impl<B: BufSlice<N>, const N: usize> BufSlice<N> for Limited<B> {}
+
+unsafe impl<B: BufSlice<N>, const N: usize> private::BufSlice<N> for Limited<B> {
+    unsafe fn as_iovecs(&self) -> [libc::iovec; N] {
+        let mut total_len = 0;
+        let mut iovecs = unsafe { self.buf.as_iovecs() };
+        for iovec in &mut iovecs {
+            let n = total_len + iovec.iov_len;
+            if n > self.limit {
+                iovec.iov_len = self.limit - total_len;
+                total_len = self.limit;
+            } else {
+                total_len = n;
+            }
+        }
+        iovecs
     }
 }

@@ -147,6 +147,17 @@ fn buf_slice_as_io_slices() {
     test_buf_slice((DATA, Vec::from(DATA2)));
 }
 
+#[test]
+fn buf_slice_for_limited() {
+    test_buf_slice([DATA, DATA2].limit(DATA.len() + DATA2.len())); // Same length.
+    test_buf_slice([DATA, DATA2].limit(DATA.len() + DATA2.len() + 1)); // Larger.
+    let buf0 = Vec::from(DATA);
+    let mut buf1 = Vec::with_capacity(30);
+    buf1.extend_from_slice(DATA2);
+    buf1.resize(DATA2.len() * 2, 0);
+    test_buf_slice([buf0, buf1].limit(DATA.len() + DATA2.len())); // Smaller.
+}
+
 fn test_buf_slice<B: BufSlice<2>>(buf: B) {
     let [got0, got1] = buf.as_io_slices();
     assert_eq!(&*got0, DATA);
