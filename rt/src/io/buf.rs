@@ -1,5 +1,6 @@
 //! Buffers.
 
+use std::borrow::Cow;
 use std::cmp::min;
 use std::io::IoSlice;
 use std::mem::MaybeUninit;
@@ -376,6 +377,22 @@ unsafe impl Buf for &'static [u8] {
 unsafe impl Buf for &'static str {
     unsafe fn parts(&self) -> (*const u8, usize) {
         (self.as_bytes().as_ptr(), self.len())
+    }
+}
+
+// SAFETY: mix of `Vec<u8>` and `&'static [u8]`, see those Buf implementations
+// for safety reasoning.
+unsafe impl Buf for Cow<'static, [u8]> {
+    unsafe fn parts(&self) -> (*const u8, usize) {
+        (self.as_ptr(), self.len())
+    }
+}
+
+// SAFETY: mix of `String` and `&'static str`, see those Buf implementations for
+// safety reasoning.
+unsafe impl Buf for Cow<'static, str> {
+    unsafe fn parts(&self) -> (*const u8, usize) {
+        (self.as_ptr(), self.len())
     }
 }
 

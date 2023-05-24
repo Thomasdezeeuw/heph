@@ -1,5 +1,6 @@
 //! Tests for the io module.
 
+use std::borrow::Cow;
 use std::cmp::min;
 use std::ptr;
 use std::sync::Arc;
@@ -122,6 +123,18 @@ fn buf_for_static_slice() {
 #[test]
 fn buf_for_static_str() {
     test_buf(DATA)
+}
+
+#[test]
+fn buf_for_static_cow() {
+    test_buf::<Cow<'static, [u8]>>(Cow::Borrowed(DATA));
+    test_buf::<Cow<'static, [u8]>>(Cow::Owned(Vec::from(DATA)));
+}
+
+#[test]
+fn buf_for_static_cow_str() {
+    test_buf::<Cow<'static, str>>(Cow::Borrowed("Hello world!"));
+    test_buf::<Cow<'static, str>>(Cow::Owned(String::from("Hello world!")));
 }
 
 #[test]
