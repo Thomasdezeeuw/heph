@@ -215,6 +215,19 @@ pub trait BufMutSlice<const N: usize>: private::BufMutSlice<N> + 'static {
         unsafe { self.update_length(written) };
         written
     }
+
+    /// Wrap the buffer in `Limited`, which limits the amount of bytes used to
+    /// `limit`.
+    ///
+    /// [`Limited::into_inner`] can be used to retrieve the buffer again,
+    /// or a mutable reference to the buffer can be used and the limited buffer
+    /// be dropped after usage.
+    fn limit(self, limit: usize) -> Limited<Self>
+    where
+        Self: Sized,
+    {
+        Limited { buf: self, limit }
+    }
 }
 
 // NOTE: see the `private` module below for the actual trait.
@@ -695,6 +708,38 @@ unsafe impl<B: Buf> Buf for Limited<B> {
     unsafe fn parts(&self) -> (*const u8, usize) {
         let (ptr, size) = self.buf.parts();
         (ptr, min(size, self.limit))
+    }
+}
+
+impl<B: BufMutSlice<N>, const N: usize> BufMutSlice<N> for Limited<B> {
+    fn total_spare_capacity(&self) -> usize {
+        min(self.limit, self.buf.total_spare_capacity())
+    }
+
+    fn has_spare_capacity(&self) -> bool {
+        self.limit != 0 && self.buf.has_spare_capacity()
+    }
+}
+
+unsafe impl<B: BufMutSlice<N>, const N: usize> private::BufMutSlice<N> for Limited<B> {
+    unsafe fn as_iovecs_mut(&mut self) -> [libc::iovec; N] {
+        let mut total_len = 0;
+        let mut iovecs = unsafe { self.buf.as_iovecs_mut() };
+        for iovec in &mut iovecs {
+            let n = total_len + iovec.iov_len;
+            if n > self.limit {
+                iovec.iov_len = self.limit - total_len;
+                total_len = self.limit;
+            } else {
+                total_len = n;
+            }
+        }
+        iovecs
+    }
+
+    unsafe fn update_length(&mut self, n: usize) {
+        self.limit -= n; // For use in read N bytes kind of calls.
+        self.buf.update_length(n);
     }
 }
 
