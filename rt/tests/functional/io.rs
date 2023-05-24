@@ -155,7 +155,7 @@ fn buf_slice_for_limited() {
     let mut buf1 = Vec::with_capacity(30);
     buf1.extend_from_slice(DATA2);
     buf1.resize(DATA2.len() * 2, 0);
-    test_buf_slice([buf0, buf1].limit(DATA.len() + DATA2.len())); // Smaller.
+    test_buf_slice(BufSlice::limit([buf0, buf1], DATA.len() + DATA2.len())); // Smaller.
 }
 
 fn test_buf_slice<B: BufSlice<2>>(buf: B) {
@@ -219,4 +219,52 @@ fn buf_mut_slice_extend_from_slice() {
     let n = BufMutSlice::extend_from_slice(&mut bufs, DATA2);
     assert_eq!(n, DATA2.len());
     assert_eq!(bufs[1], DATA2);
+}
+
+#[test]
+fn buf_mut_slice_for_limited() {
+    const TARGET_LENGTH: usize = DATA.len() + DATA2.len();
+    // Same length.
+    test_buf_mut_slice(
+        BufMutSlice::limit(
+            [
+                Vec::with_capacity(DATA.len()),
+                Vec::with_capacity(DATA2.len()),
+            ],
+            TARGET_LENGTH,
+        ),
+        TARGET_LENGTH,
+    );
+    // Larger.
+    test_buf_mut_slice(
+        BufMutSlice::limit(
+            [
+                Vec::with_capacity(DATA.len()),
+                Vec::with_capacity(DATA2.len()),
+            ],
+            TARGET_LENGTH + 1,
+        ),
+        TARGET_LENGTH,
+    );
+    // Smaller.
+    test_buf_mut_slice(
+        BufMutSlice::limit(
+            [
+                Vec::with_capacity(DATA.len()),
+                Vec::with_capacity(DATA2.len()),
+            ],
+            TARGET_LENGTH - 1,
+        ),
+        TARGET_LENGTH - 1,
+    );
+}
+
+fn test_buf_mut_slice<B: BufMutSlice<2>>(mut bufs: B, expected_limit: usize) {
+    let total_capacity = bufs.total_spare_capacity();
+    assert_eq!(total_capacity, expected_limit);
+    let n = bufs.extend_from_slice(DATA);
+    let m = bufs.extend_from_slice(DATA2);
+    assert!(total_capacity <= n + m);
+    assert!(!bufs.has_spare_capacity());
+    assert!(bufs.total_spare_capacity() == 0);
 }
