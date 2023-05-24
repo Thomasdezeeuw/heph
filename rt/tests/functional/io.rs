@@ -85,10 +85,12 @@ fn test_buf_mut<B: BufMut>(mut buf: B) {
 fn buf_mut_extend_from_slice() {
     let mut buf = Vec::with_capacity(DATA.len() + DATA2.len() + 2);
 
-    BufMut::extend_from_slice(&mut buf, DATA);
+    let n = BufMut::extend_from_slice(&mut buf, DATA);
+    assert_eq!(n, DATA.len());
     assert_eq!(buf, DATA);
 
-    BufMut::extend_from_slice(&mut buf, DATA2);
+    let n = BufMut::extend_from_slice(&mut buf, DATA2);
+    assert_eq!(n, DATA2.len());
     assert_eq!(&buf[DATA.len()..], DATA2);
 }
 
@@ -178,4 +180,19 @@ fn buf_mut_slice_for_tuple() {
     bufs.2.extend_from_slice(b"aaaa");
     assert_eq!(bufs.total_spare_capacity(), 0);
     assert!(!bufs.has_spare_capacity());
+}
+
+#[test]
+fn buf_mut_slice_extend_from_slice() {
+    let buf1 = Vec::with_capacity(DATA.len());
+    let buf2 = Vec::with_capacity(DATA2.len() + 1);
+    let mut bufs = [buf1, buf2];
+
+    let n = BufMutSlice::extend_from_slice(&mut bufs, DATA);
+    assert_eq!(n, DATA.len());
+    assert_eq!(bufs[0], DATA);
+
+    let n = BufMutSlice::extend_from_slice(&mut bufs, DATA2);
+    assert_eq!(n, DATA2.len());
+    assert_eq!(bufs[1], DATA2);
 }

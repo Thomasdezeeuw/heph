@@ -71,15 +71,11 @@ pub unsafe trait BufMut: 'static {
     /// Extend the buffer with `bytes`, returns the number of bytes copied.
     fn extend_from_slice(&mut self, bytes: &[u8]) -> usize {
         let (ptr, capacity) = unsafe { self.parts_mut() };
-        let len = min(bytes.len(), capacity);
-        // SAFETY: since we have mutable access to `self` we know that `bytes`
-        // can point to (part of) the same buffer as that would be UB already.
-        // Furthermore we checked that the length doesn't overrun the buffer and
-        // `parts_mut` impl must ensure that the `ptr` is valid.
-        unsafe { ptr.copy_from_nonoverlapping(bytes.as_ptr(), len) };
+        // SAFETY: `parts_mut` requirements are the same for `copy_bytes`.
+        let written = unsafe { copy_bytes(ptr, capacity, bytes) };
         // SAFETY: just written the bytes in the call above.
-        unsafe { self.update_length(len) };
-        len
+        unsafe { self.update_length(written) };
+        written
     }
 
     /// Returns the length of the buffer as returned by [`parts_mut`].
@@ -104,6 +100,23 @@ pub unsafe trait BufMut: 'static {
     {
         Limited { buf: self, limit }
     }
+}
+
+/// Copies bytes from `src` to `dst`, copies up to `min(dst_len, src.len())`,
+/// i.e. it won't write beyond `dst` or read beyond `src` bounds. Returns the
+/// number of bytes copied.
+///
+/// # Safety
+///
+/// Caller must ensure that `dst` and `dst_len` are valid for writing.
+unsafe fn copy_bytes(dst: *mut u8, dst_len: usize, src: &[u8]) -> usize {
+    let len = min(src.len(), dst_len);
+    // SAFETY: since we have mutable access to `self` we know that `bytes`
+    // can point to (part of) the same buffer as that would be UB already.
+    // Furthermore we checked that the length doesn't overrun the buffer and
+    // `parts_mut` impl must ensure that the `ptr` is valid.
+    unsafe { dst.copy_from_nonoverlapping(src.as_ptr(), len) };
+    len
 }
 
 /// The implementation for `Vec<u8>` only uses the uninitialised capacity of the
@@ -182,6 +195,23 @@ pub trait BufMutSlice<const N: usize>: private::BufMutSlice<N> + 'static {
     /// Returns `true` at least one of the buffer has spare capacity.
     fn has_spare_capacity(&self) -> bool {
         self.total_spare_capacity() != 0
+    }
+
+    /// Extend the buffer with `bytes`, returns the number of bytes copied.
+    fn extend_from_slice(&mut self, bytes: &[u8]) -> usize {
+        let mut left = bytes;
+        for iovec in unsafe { self.as_iovecs_mut() } {
+            // SAFETY: `as_iovecs_mut` requirements are the same for `copy_bytes`.
+            let n = unsafe { copy_bytes(iovec.iov_base.cast(), iovec.iov_len, left) };
+            left = &left[n..];
+            if left.is_empty() {
+                break;
+            }
+        }
+        let written = bytes.len() - left.len();
+        // SAFETY: just written the bytes above.
+        unsafe { self.update_length(written) };
+        written
     }
 }
 
