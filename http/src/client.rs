@@ -6,6 +6,7 @@ use std::{fmt, io};
 
 use heph_rt::io::{BufMut, BufMutSlice};
 use heph_rt::net::TcpStream;
+use heph_rt::timer::DeadlinePassed;
 use heph_rt::Access;
 
 use crate::body::{BodyLength, EmptyBody};
@@ -788,6 +789,12 @@ impl From<ResponseError> for io::Error {
             ResponseError::Io(err) => err,
             err => io::Error::new(io::ErrorKind::InvalidData, err.as_str()),
         }
+    }
+}
+
+impl From<DeadlinePassed> for ResponseError {
+    fn from(_: DeadlinePassed) -> ResponseError {
+        ResponseError::Io(io::ErrorKind::TimedOut.into())
     }
 }
 
