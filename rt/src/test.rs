@@ -18,6 +18,8 @@
 //!  * Blocking on [`Future`]s:
 //!    * [`block_on_local_actor`]: spawns a thread-local [actor] and waits for
 //!      the result.
+//!    * [`block_on_actor`]: spawns a thread-safe [actor] and waits for the
+//!      result.
 //!    * [`block_on`]: spawns a `Future` and waits for the result.
 //!  * Initialising actors:
 //!    * [`init_local_actor`]: initialise a thread-local actor.
@@ -259,6 +261,59 @@ where
         .expect("failed to receive result from test runtime")
 }
 
+/// Spawn a thread-safe actor on the *test* runtime and wait for it to
+/// complete.
+///
+/// See the [module documentation] for more information about the *test*
+/// runtime. And see the [`Spawn`] trait for more information about spawning
+/// actors.
+///
+/// [module documentation]: crate::test
+/// [`Spawn`]: crate::spawn::Spawn
+///
+/// # Notes
+///
+/// No superisor is used instead all errors and panics are returned by this
+/// function.
+///
+/// This requires the `NewActor` (`NA`) to be [`Send`] as they are send to
+/// another thread which runs the *test* runtime (and thus the actor). The actor
+/// (`NA::Actor`) itself doesn't have to be `Send`.
+pub fn block_on_actor<NA>(mut new_actor: NA, arg: NA::Argument) -> Result<(), BlockOnError<NA>>
+where
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + 'static,
+    NA::Actor: Send + std::marker::Sync + 'static,
+    <NA::Actor as Actor>::Error: Send,
+    NA::Argument: Send,
+    NA::Error: Send,
+{
+    let (sender, mut receiver) = new_oneshot();
+    let waker = SyncWaker::new();
+    _ = receiver.register_waker(&task::Waker::from(waker.clone()));
+    run_on_test_runtime(move |mut runtime_ref| {
+        let (_, receiver) = heph_inbox::new(heph_inbox::MIN_CAP);
+        let ctx = actor::Context::new(receiver, ThreadSafe::new(runtime_ref.clone_shared()));
+        let actor = match new_actor.new(ctx, arg) {
+            Ok(actor) => actor,
+            Err(err) => {
+                _ = sender.try_send(Err(BlockOnError::Creating(err)));
+                return Ok(());
+            }
+        };
+
+        let future = ErrorCatcher {
+            sender: Some(sender),
+            actor,
+        };
+
+        runtime_ref.spawn_future(future, FutureOptions::default());
+        Ok(())
+    });
+    waker
+        .block_on(receiver.recv_once())
+        .expect("failed to receive result from test runtime")
+}
+
 /// Error return by spawn an actor and waiting for the result.
 pub enum BlockOnError<NA: NewActor> {
     /// Error creating the actor.
@@ -367,7 +422,7 @@ pub fn try_spawn<S, NA>(
 ) -> Result<ActorRef<NA::Message>, NA::Error>
 where
     S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + std::marker::Sync + Send + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
     NA::Actor: Send + std::marker::Sync + 'static,
     NA::Message: Send,
     NA::Argument: Send,
