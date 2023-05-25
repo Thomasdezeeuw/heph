@@ -152,6 +152,7 @@ use heph::{actor, NewActor, Supervisor};
 use heph_rt::io::{BufMut, BufMutSlice};
 use heph_rt::net::{tcp, TcpStream};
 use heph_rt::spawn::ActorOptions;
+use heph_rt::timer::DeadlinePassed;
 use httpdate::HttpDate;
 
 use crate::body::{BodyLength, EmptyBody};
@@ -1191,6 +1192,12 @@ impl From<RequestError> for io::Error {
             RequestError::Io(err) => err,
             err => io::Error::new(io::ErrorKind::InvalidData, err.as_str()),
         }
+    }
+}
+
+impl From<DeadlinePassed> for RequestError {
+    fn from(_: DeadlinePassed) -> RequestError {
+        RequestError::Io(io::ErrorKind::TimedOut.into())
     }
 }
 
