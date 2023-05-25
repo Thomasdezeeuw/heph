@@ -33,28 +33,28 @@
 //! use std::time::Duration;
 //!
 //! use heph::actor::{self, Actor, NewActor};
-//! use heph::net::TcpStream;
-//! use heph::rt::{self, Runtime, ThreadLocal};
 //! use heph::supervisor::{Supervisor, SupervisorStrategy};
-//! use heph::timer::Deadline;
 //! use heph_http::body::OneshotBody;
-//! use heph_http::{self as http, Header, HeaderName, Headers, HttpServer, Method, StatusCode};
+//! use heph_http::{self as http, server, Header, HeaderName, Headers, Method, StatusCode};
+//! use heph_rt::net::TcpStream;
 //! use heph_rt::spawn::options::{ActorOptions, Priority};
+//! use heph_rt::timer::Deadline;
+//! use heph_rt::{Runtime, ThreadLocal};
 //! use log::error;
 //!
-//! fn main() -> Result<(), rt::Error> {
+//! fn main() -> Result<(), heph_rt::Error> {
 //!     // Setup the HTTP server.
-//!     let actor = http_actor as fn(_, _, _) -> _;
+//!     let actor = http_actor as fn(_, _) -> _;
 //!     let address = "127.0.0.1:7890".parse().unwrap();
-//!     let server = HttpServer::setup(address, conn_supervisor, actor, ActorOptions::default())
-//!         .map_err(rt::Error::setup)?;
+//!     let server = server::setup(address, conn_supervisor, actor, ActorOptions::default())
+//!         .map_err(heph_rt::Error::setup)?;
 //!
 //!     // Build the runtime.
 //!     let mut runtime = Runtime::setup().use_all_cores().build()?;
 //!     // On each worker thread start our HTTP server.
 //!     runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {
 //!         let options = ActorOptions::default().with_priority(Priority::LOW);
-//!         let server_ref = runtime_ref.try_spawn_local(server_supervisor, server, (), options)?;
+//!         let server_ref = runtime_ref.spawn_local(server_supervisor, server, (), options);
 //!
 //! #       server_ref.try_send(heph::messages::Terminate).unwrap();
 //!
@@ -66,16 +66,16 @@
 //! }
 //!
 //! /// Our supervisor for the HTTP server.
-//! fn server_supervisor(err: http::server::Error<!>) -> SupervisorStrategy<()> {
+//! fn server_supervisor(err: server::Error<!>) -> SupervisorStrategy<()> {
 //!     match err {
 //!         // When we hit an error accepting a connection we'll drop the old
 //!         // server and create a new one.
-//!         tcp::server::Error::Accept(err) => {
+//!         server::Error::Accept(err) => {
 //!             error!("error accepting new connection: {err}");
 //!             SupervisorStrategy::Restart(())
 //!         }
 //!         // Async function never return an error creating a new actor.
-//!         tcp::server::Error::NewActor(_) => unreachable!(),
+//!         server::Error::NewActor(_) => unreachable!(),
 //!     }
 //! }
 //!
@@ -95,7 +95,7 @@
 //!     let mut headers = Headers::EMPTY;
 //!     loop {
 //!         // Read the next request.
-//!         let (code, body, should_close) = match connection.next_request().await? {
+//!         let (code, body, should_close) = match connection.next_request().await {
 //!             Ok(Some(request)) => {
 //!                 // Only support GET/HEAD to "/", with an empty body.
 //!                 if request.path() != "/" {
@@ -130,7 +130,7 @@
 //!         }
 //!
 //!         // Send the body as a single payload.
-//!         let body = OneshotBody::new(body.as_bytes());
+//!         let body = OneshotBody::new(body);
 //!         // Respond to the request.
 //!         connection.respond(code, &headers, body).await?;
 //!
