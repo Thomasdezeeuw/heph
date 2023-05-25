@@ -16,6 +16,8 @@
 //!    * [`join`], [`join_many`]: wait for the actor(s) to finish running.
 //!    * [`join_all`]: wait all actors in a group to finish running.
 //!  * Blocking on [`Future`]s:
+//!    * [`block_on_local_actor`]: spawns a thread-local [actor] and waits for
+//!      the result.
 //!    * [`block_on`]: spawns a `Future` and waits for the result.
 //!  * Initialising actors:
 //!    * [`init_local_actor`]: initialise a thread-local actor.
@@ -47,14 +49,16 @@
 //! features = ["test"]
 //! ```
 
+use std::any::Any;
 use std::async_iter::AsyncIterator;
 use std::future::Future;
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
-use std::{io, slice, thread};
+use std::{fmt, io, slice, thread};
 
 use heph::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
 use heph::actor_ref::{ActorGroup, ActorRef};
@@ -197,6 +201,115 @@ where
     waker
         .block_on(receiver.recv_once())
         .expect("failed to receive result from future")
+}
+
+/// Spawn a thread-local actor on the *test* runtime and wait for it to
+/// complete.
+///
+/// See the [module documentation] for more information about the *test*
+/// runtime. And see the [`Spawn`] trait for more information about spawning
+/// actors.
+///
+/// [module documentation]: crate::test
+/// [`Spawn`]: crate::spawn::Spawn
+///
+/// # Notes
+///
+/// No superisor is used instead all errors and panics are returned by this
+/// function.
+///
+/// This requires the `NewActor` (`NA`) to be [`Send`] as they are send to
+/// another thread which runs the *test* runtime (and thus the actor). The actor
+/// (`NA::Actor`) itself doesn't have to be `Send`.
+pub fn block_on_local_actor<NA>(
+    mut new_actor: NA,
+    arg: NA::Argument,
+) -> Result<(), BlockOnError<NA>>
+where
+    NA: NewActor<RuntimeAccess = ThreadLocal> + Send + 'static,
+    NA::Actor: 'static,
+    <NA::Actor as Actor>::Error: Send,
+    NA::Argument: Send,
+    NA::Error: Send,
+{
+    let (sender, mut receiver) = new_oneshot();
+    let waker = SyncWaker::new();
+    _ = receiver.register_waker(&task::Waker::from(waker.clone()));
+    run_on_test_runtime(move |mut runtime_ref| {
+        let (_, receiver) = heph_inbox::new(heph_inbox::MIN_CAP);
+        let ctx = actor::Context::new(receiver, ThreadLocal::new(runtime_ref.clone()));
+        let actor = match new_actor.new(ctx, arg) {
+            Ok(actor) => actor,
+            Err(err) => {
+                _ = sender.try_send(Err(BlockOnError::Creating(err)));
+                return Ok(());
+            }
+        };
+
+        let future = ErrorCatcher {
+            sender: Some(sender),
+            actor,
+        };
+
+        runtime_ref.spawn_local_future(future, FutureOptions::default());
+        Ok(())
+    });
+    waker
+        .block_on(receiver.recv_once())
+        .expect("failed to receive result from test runtime")
+}
+
+/// Error return by spawn an actor and waiting for the result.
+pub enum BlockOnError<NA: NewActor> {
+    /// Error creating the actor.
+    Creating(NA::Error),
+    /// Error running the actor.
+    Running(<NA::Actor as Actor>::Error),
+    /// Panic while running the actor.
+    Panic(Box<dyn Any + Send + 'static>),
+}
+
+impl<NA> fmt::Debug for BlockOnError<NA>
+where
+    NA: NewActor,
+    NA::Error: fmt::Debug,
+    <NA::Actor as Actor>::Error: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("BlockOnError::")?;
+        match self {
+            BlockOnError::Creating(err) => f.debug_tuple("Creating").field(&err).finish(),
+            BlockOnError::Running(err) => f.debug_tuple("Running").field(&err).finish(),
+            BlockOnError::Panic(err) => f.debug_tuple("Panic").field(&err).finish(),
+        }
+    }
+}
+
+/// [`Future`]/[`Actor`] wrapper to catch errors and panics.
+#[derive(Debug)]
+struct ErrorCatcher<NA: NewActor> {
+    sender: Option<heph_inbox::oneshot::Sender<Result<(), BlockOnError<NA>>>>,
+    actor: NA::Actor,
+}
+
+impl<NA: NewActor> Future for ErrorCatcher<NA> {
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        // SAFETY: not moving the actor.
+        let this = unsafe { Pin::get_unchecked_mut(self) };
+        // SAFETY: undoing the previous operation, still ensuring that the actor
+        // is not moved.
+        let mut actor = unsafe { Pin::new_unchecked(&mut this.actor) };
+        let res = match catch_unwind(AssertUnwindSafe(|| actor.as_mut().try_poll(ctx))) {
+            Ok(Poll::Ready(Ok(()))) => Ok(()),
+            Ok(Poll::Ready(Err(err))) => Err(BlockOnError::Running(err)),
+            Ok(Poll::Pending) => return Poll::Pending,
+            Err(panic) => Err(BlockOnError::Panic(panic)),
+        };
+        _ = this.sender.take().unwrap().try_send(res);
+        Poll::Ready(())
+    }
 }
 
 /// Attempt to spawn a thread-local actor on the *test* runtime.
