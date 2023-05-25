@@ -1,18 +1,19 @@
 use std::borrow::Cow;
 use std::io::{self, Read, Write};
-use std::net::{Shutdown, SocketAddr, TcpStream};
+use std::net::{self, Shutdown, SocketAddr};
 use std::str;
 use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::thread::{self, sleep};
 use std::time::{Duration, SystemTime};
 
 use heph::messages::Terminate;
-use heph::rt::{self, Runtime, ThreadLocal};
-use heph::{actor, Actor, ActorRef, NewActor, Supervisor, SupervisorStrategy};
+use heph::{actor, ActorRef, SupervisorStrategy};
 use heph_http::body::OneshotBody;
-use heph_http::server::{HttpServer, RequestError};
+use heph_http::server::{self, RequestError};
 use heph_http::{self as http, Header, HeaderName, Headers, Method, StatusCode, Version};
+use heph_rt::net::TcpStream;
 use heph_rt::spawn::options::{ActorOptions, Priority};
+use heph_rt::{self, Runtime, ThreadLocal};
 use httpdate::fmt_http_date;
 
 /// Macro to run with a test server.
@@ -23,7 +24,17 @@ macro_rules! with_test_server {
         // server are dropped before we call `test_server.join()` below (which
         // would block a shutdown.
         {
-            let mut $stream = TcpStream::connect(test_server.address).unwrap();
+            let mut $stream = loop {
+                match net::TcpStream::connect(test_server.address) {
+                    Ok(stream) => break stream,
+                    Err(err) if err.kind() == io::ErrorKind::ConnectionRefused => {
+                        // Give the server some time to start up.
+                        sleep(Duration::from_millis(1));
+                        continue;
+                    }
+                    Err(err) => panic!("failed to connect to {}: {err}", test_server.address),
+                }
+            };
             $stream.set_nodelay(true).unwrap();
             $stream
                 .set_read_timeout(Some(Duration::from_secs(1)))
@@ -499,7 +510,7 @@ fn too_many_header() {
 }
 
 fn expect_response(
-    stream: &mut TcpStream,
+    stream: &mut net::TcpStream,
     // Expected values:
     version: Version,
     status: StatusCode,
@@ -566,36 +577,38 @@ impl TestServer {
     fn new() -> TestServer {
         const TIMEOUT: Duration = Duration::from_secs(1);
 
-        let actor = http_actor as fn(_, _, _) -> _;
+        let server_ref = Arc::new((Mutex::new(None), Condvar::new()));
+        let set_ref = server_ref.clone();
+
+        let actor = http_actor as fn(_, _) -> _;
         let address = "127.0.0.1:0".parse().unwrap();
-        let server = HttpServer::setup(address, conn_supervisor, actor, ActorOptions::default())
-            .map_err(rt::Error::setup)
+        let server = server::setup(address, conn_supervisor, actor, ActorOptions::default())
+            .map_err(heph_rt::Error::setup)
             .unwrap();
         let address = server.local_addr();
 
-        let mut runtime = Runtime::setup().num_threads(1).build().unwrap();
-        let server_ref = Arc::new(Mutex::new(None));
-        let set_ref = Arc::new(Condvar::new());
-        let srv_ref = server_ref.clone();
-        let set_ref2 = set_ref.clone();
-        runtime
-            .run_on_workers(move |mut runtime_ref| -> Result<(), !> {
-                let mut server_ref = srv_ref.lock().unwrap();
-                let options = ActorOptions::default().with_priority(Priority::LOW);
-                *server_ref = Some(
-                    runtime_ref
-                        .try_spawn_local(ServerSupervisor, server, (), options)
-                        .unwrap()
-                        .map(),
-                );
-                set_ref2.notify_all();
-                Ok(())
-            })
-            .unwrap();
+        let handle = thread::spawn(move || {
+            let mut runtime = Runtime::setup().num_threads(1).build().unwrap();
+            runtime
+                .run_on_workers(move |mut runtime_ref| -> Result<(), !> {
+                    let mut server_ref = set_ref.0.lock().unwrap();
+                    let options = ActorOptions::default().with_priority(Priority::LOW);
+                    *server_ref = Some(
+                        runtime_ref
+                            .try_spawn_local(server_supervisor, server, (), options)
+                            .unwrap()
+                            .map(),
+                    );
+                    set_ref.1.notify_all();
+                    Ok(())
+                })
+                .unwrap();
 
-        let handle = thread::spawn(move || runtime.start().unwrap());
-        let mut server_ref = set_ref
-            .wait_timeout_while(server_ref.lock().unwrap(), TIMEOUT, |r| r.is_none())
+            runtime.start().unwrap()
+        });
+        let mut server_ref = server_ref
+            .1
+            .wait_timeout_while(server_ref.0.lock().unwrap(), TIMEOUT, |r| r.is_none())
             .unwrap()
             .0;
         let server_ref = server_ref.take().unwrap();
@@ -614,32 +627,15 @@ impl TestServer {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-struct ServerSupervisor;
-
-impl<NA> Supervisor<NA> for ServerSupervisor
-where
-    NA: NewActor<Argument = (), Error = io::Error>,
-    NA::Actor: Actor<Error = http::server::Error<!>>,
-{
-    fn decide(&mut self, err: http::server::Error<!>) -> SupervisorStrategy<()> {
-        use http::server::Error::*;
-        match err {
-            Accept(err) => panic!("error accepting new connection: {err}"),
-            NewActor(_) => unreachable!(),
-        }
-    }
-
-    fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-        panic!("error restarting the TCP server: {err}");
-    }
-
-    fn second_restart_error(&mut self, err: io::Error) {
-        panic!("error restarting the actor a second time: {err}");
+fn server_supervisor(err: http::server::Error<!>) -> SupervisorStrategy<()> {
+    use http::server::Error::*;
+    match err {
+        Accept(err) => panic!("error accepting new connection: {err}"),
+        NewActor(_) => unreachable!(),
     }
 }
 
-fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(heph::net::TcpStream, SocketAddr)> {
+fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
     panic!("error handling connection: {err}")
 }
 
@@ -650,7 +646,6 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(heph::net::TcpStream, 
 async fn http_actor(
     _: actor::Context<!, ThreadLocal>,
     mut connection: http::Connection,
-    _: SocketAddr,
 ) -> io::Result<()> {
     connection.set_nodelay(true)?;
 
@@ -658,7 +653,7 @@ async fn http_actor(
     loop {
         let mut got_version = None;
         let mut got_method = None;
-        let (code, body, should_close) = match connection.next_request().await? {
+        let (code, body, should_close) = match connection.next_request().await {
             Ok(Some(mut request)) => {
                 got_version = Some(request.version());
                 got_method = Some(request.method());
@@ -667,8 +662,7 @@ async fn http_actor(
                     (Method::Get | Method::Head, "/") => (StatusCode::OK, "OK".into(), false),
                     (Method::Post, "/echo-body") => {
                         let body_len = request.body().len();
-                        let mut buf = Vec::with_capacity(128);
-                        request.body_mut().read_all(&mut buf, 1024).await?;
+                        let buf = request.body_mut().recv(Vec::with_capacity(1024)).await?;
                         assert!(request.body().is_empty());
                         if let http::body::BodyLength::Known(length) = body_len {
                             assert_eq!(length, buf.len());
@@ -700,8 +694,9 @@ async fn http_actor(
             headers.append(Header::new(HeaderName::CONNECTION, b"close"));
         }
 
-        let body = OneshotBody::new(body.as_bytes());
-        connection.respond(code, &headers, body).await?;
+        connection
+            .respond(code, &headers, OneshotBody::new(body))
+            .await?;
         if should_close {
             return Ok(());
         }

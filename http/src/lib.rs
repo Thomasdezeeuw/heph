@@ -1,16 +1,12 @@
 //! HTTP/1.1 implementation for Heph.
 
 #![feature(
-    async_stream,
-    const_fn_trait_bound,
+    async_iterator,
     const_mut_refs,
-    const_slice_from_raw_parts,
     drain_filter,
-    generic_associated_types,
-    io_slice_advance,
+    impl_trait_in_assoc_type,
     maybe_uninit_uninit_array,
-    maybe_uninit_write_slice,
-    ready_macro
+    maybe_uninit_write_slice
 )]
 #![warn(
     anonymous_parameters,
@@ -52,7 +48,7 @@ pub use head::StatusCode;
 pub use request::Request;
 pub use response::Response;
 #[doc(no_inline)]
-pub use server::{Connection, HttpServer};
+pub use server::Connection;
 
 /// Maximum size of the HTTP head (the start line and the headers).
 ///
@@ -69,6 +65,9 @@ const MIN_READ_SIZE: usize = 4096;
 
 /// Size of the buffer used in [`server::Connection`] and [`Client`].
 const BUF_SIZE: usize = 8192;
+
+/// Initial size of a buffer holding just a request/response head.
+const INIT_HEAD_SIZE: usize = 2048;
 
 /// Map a `version` byte to a [`Version`].
 const fn map_version_byte(version: u8) -> Version {

@@ -1,20 +1,18 @@
 //! Module with the HTTP client implementation.
 
-use std::cmp::min;
-use std::future::Future;
+use std::mem::take;
 use std::net::SocketAddr;
-use std::pin::Pin;
-use std::task::{self, Poll};
 use std::{fmt, io};
 
-use heph::net::tcp::stream::{self, TcpStream};
-use heph::{actor, rt};
+use heph_rt::io::{BufMut, BufMutSlice};
+use heph_rt::net::TcpStream;
+use heph_rt::Access;
 
 use crate::body::{BodyLength, EmptyBody};
 use crate::head::header::{FromHeaderValue, HeaderName, Headers};
 use crate::{
-    map_version_byte, trim_ws, Method, Response, StatusCode, BUF_SIZE, MAX_HEADERS, MAX_HEAD_SIZE,
-    MIN_READ_SIZE,
+    map_version_byte, trim_ws, Method, Response, StatusCode, BUF_SIZE, INIT_HEAD_SIZE, MAX_HEADERS,
+    MAX_HEAD_SIZE, MIN_READ_SIZE,
 };
 
 /// HTTP/1.1 client.
@@ -30,14 +28,17 @@ pub struct Client {
 
 impl Client {
     /// Create a new HTTP client, connected to `address`.
-    pub fn connect<M, RT>(
-        ctx: &mut actor::Context<M, RT>,
-        address: SocketAddr,
-    ) -> io::Result<Connect>
+    pub async fn connect<RT>(rt: &RT, address: SocketAddr) -> io::Result<Client>
     where
-        RT: rt::Access,
+        RT: Access,
     {
-        TcpStream::connect(ctx, address).map(|connect| Connect { connect })
+        let stream = TcpStream::connect(rt, address).await?;
+        stream.set_nodelay(true)?;
+        Ok(Client {
+            stream,
+            buf: Vec::with_capacity(BUF_SIZE),
+            parsed_bytes: 0,
+        })
     }
 
     /// Send a GET request.
@@ -46,15 +47,12 @@ impl Client {
     ///
     /// Any [`ResponseError`] are turned into [`io::Error`]. If you want to
     /// handle the `ResponseError`s separately use [`Client::request`].
-    pub async fn get<'c, 'p>(&'c mut self, path: &'p str) -> io::Result<Response<Body<'c>>> {
-        let res = self
-            .request(Method::Get, path, &Headers::EMPTY, EmptyBody)
-            .await;
-        match res {
-            Ok(Ok(response)) => Ok(response),
-            Ok(Err(err)) => Err(err.into()),
-            Err(err) => Err(err),
-        }
+    pub async fn get<'c, 'p>(
+        &'c mut self,
+        path: &'p str,
+    ) -> Result<Response<Body<'c>>, ResponseError> {
+        self.request(Method::Get, path, &Headers::EMPTY, EmptyBody)
+            .await
     }
 
     /// Make a [`Request`] and wait (non-blocking) for a [`Response`].
@@ -64,27 +62,20 @@ impl Client {
     /// # Notes
     ///
     /// This always uses HTTP/1.1 to make the requests.
-    ///
-    /// If the server doesn't respond this return an [`io::Error`] with
-    /// [`io::ErrorKind::UnexpectedEof`].
     pub async fn request<'c, 'b, B>(
         &'c mut self,
         method: Method,
         path: &str,
         headers: &Headers,
         body: B,
-    ) -> io::Result<Result<Response<Body<'c>>, ResponseError>>
+    ) -> Result<Response<Body<'c>>, ResponseError>
     where
-        B: crate::Body<'b>,
+        B: crate::Body,
     {
         self.send_request(method, path, headers, body).await?;
         match self.read_response(method).await {
-            Ok(Ok(Some(request))) => Ok(Ok(request)),
-            Ok(Ok(None)) => Err(io::Error::new(
-                io::ErrorKind::UnexpectedEof,
-                "no HTTP response",
-            )),
-            Ok(Err(err)) => Ok(Err(err)),
+            Ok(Some(request)) => Ok(request),
+            Ok(None) => Err(ResponseError::IncompleteResponse),
             Err(err) => Err(err),
         }
     }
@@ -106,18 +97,25 @@ impl Client {
         body: B,
     ) -> io::Result<()>
     where
-        B: crate::Body<'b>,
+        B: crate::Body,
     {
         // Clear bytes from the previous request, keeping the bytes of the
         // response.
         self.clear_buffer();
-        let ignore_end = self.buf.len();
+
+        // If the read buffer is empty we can use, otherwise we need to create a
+        // new buffer to ensure we don't lose bytes.
+        let mut http_head = if self.buf.is_empty() {
+            take(&mut self.buf)
+        } else {
+            Vec::with_capacity(INIT_HEAD_SIZE)
+        };
 
         // Request line.
-        self.buf.extend_from_slice(method.as_str().as_bytes());
-        self.buf.push(b' ');
-        self.buf.extend_from_slice(path.as_bytes());
-        self.buf.extend_from_slice(b" HTTP/1.1\r\n");
+        http_head.extend_from_slice(method.as_str().as_bytes());
+        http_head.push(b' ');
+        http_head.extend_from_slice(path.as_bytes());
+        http_head.extend_from_slice(b" HTTP/1.1\r\n");
 
         // Headers.
         let mut set_user_agent_header = false;
@@ -126,13 +124,13 @@ impl Client {
         for header in headers.iter() {
             let name = header.name();
             // Field-name.
-            self.buf.extend_from_slice(name.as_ref().as_bytes());
+            http_head.extend_from_slice(name.as_ref().as_bytes());
             // NOTE: spacing after the colon (`:`) is optional.
-            self.buf.extend_from_slice(b": ");
+            http_head.extend_from_slice(b": ");
             // Append the header's value.
             // NOTE: `header.value` shouldn't contain CRLF (`\r\n`).
-            self.buf.extend_from_slice(header.value());
-            self.buf.extend_from_slice(b"\r\n");
+            http_head.extend_from_slice(header.value());
+            http_head.extend_from_slice(b"\r\n");
 
             if name == &HeaderName::USER_AGENT {
                 set_user_agent_header = true;
@@ -146,13 +144,13 @@ impl Client {
         /* TODO: set "Host" header.
         // Provide the "Host" header if the user didn't.
         if !set_host_header {
-            write!(&mut self.buf, "Host: {}\r\n", self.host).unwrap();
+            write!(&mut http_head, "Host: {}\r\n", self.host).unwrap();
         }
         */
 
         // Provide the "User-Agent" header if the user didn't.
         if !set_user_agent_header {
-            self.buf.extend_from_slice(
+            http_head.extend_from_slice(
                 concat!("User-Agent: Heph-HTTP/", env!("CARGO_PKG_VERSION"), "\r\n").as_bytes(),
             );
         }
@@ -162,27 +160,27 @@ impl Client {
                 BodyLength::Known(0) => {} // No need for a "Content-Length" header.
                 BodyLength::Known(length) => {
                     let mut itoa_buf = itoa::Buffer::new();
-                    self.buf.extend_from_slice(b"Content-Length: ");
-                    self.buf
-                        .extend_from_slice(itoa_buf.format(length).as_bytes());
-                    self.buf.extend_from_slice(b"\r\n");
+                    http_head.extend_from_slice(b"Content-Length: ");
+                    http_head.extend_from_slice(itoa_buf.format(length).as_bytes());
+                    http_head.extend_from_slice(b"\r\n");
                 }
                 BodyLength::Chunked => {
-                    self.buf
-                        .extend_from_slice(b"Transfer-Encoding: chunked\r\n");
+                    http_head.extend_from_slice(b"Transfer-Encoding: chunked\r\n");
                 }
             }
         }
 
         // End of the HTTP head.
-        self.buf.extend_from_slice(b"\r\n");
+        http_head.extend_from_slice(b"\r\n");
 
         // Write the request to the stream.
-        let http_head = &self.buf[ignore_end..];
-        body.write_message(&mut self.stream, http_head).await?;
+        let mut http_head = body.write_message(&mut self.stream, http_head).await?;
+        if self.buf.is_empty() {
+            // We used the read buffer so let's put it back.
+            http_head.clear();
+            self.buf = http_head;
+        }
 
-        // Remove the request from the buffer.
-        self.buf.truncate(ignore_end);
         Ok(())
     }
 
@@ -198,7 +196,7 @@ impl Client {
     pub async fn read_response<'a>(
         &'a mut self,
         request_method: Method,
-    ) -> io::Result<Result<Option<Response<Body<'a>>>, ResponseError>> {
+    ) -> Result<Option<Response<Body<'a>>>, ResponseError> {
         let mut too_short = 0;
         loop {
             // In case of pipelined responses it could be that while reading a
@@ -211,17 +209,15 @@ impl Client {
                 // while we have less than `too_short` bytes we try to receive
                 // some more bytes.
 
-                self.clear_buffer();
-                self.buf.reserve(MIN_READ_SIZE);
-                if self.stream.recv(&mut self.buf).await? == 0 {
+                if self.recv().await? {
                     return if self.buf.is_empty() {
                         // Read the entire stream, so we're done.
-                        Ok(Ok(None))
+                        Ok(None)
                     } else {
                         // Couldn't read any more bytes, but we still have bytes
                         // in the buffer. This means it contains a partial
                         // response.
-                        Ok(Err(ResponseError::IncompleteResponse))
+                        Err(ResponseError::IncompleteResponse)
                     };
                 }
             }
@@ -242,90 +238,94 @@ impl Client {
 
                     // RFC 7230 section 3.3.3 Message Body Length.
                     let mut body_length: Option<ResponseBodyLength> = None;
-                    let res = Headers::from_httparse_headers(response.headers, |name, value| {
-                        if *name == HeaderName::CONTENT_LENGTH {
-                            // RFC 7230 section 3.3.3 point 4:
-                            // > If a message is received without
-                            // > Transfer-Encoding and with either multiple
-                            // > Content-Length header fields having differing
-                            // > field-values or a single Content-Length header
-                            // > field having an invalid value, then the message
-                            // > framing is invalid and the recipient MUST treat
-                            // > it as an unrecoverable error. [..] If this is a
-                            // > response message received by a user agent, the
-                            // > user agent MUST close the connection to the
-                            // > server and discard the received response.
-                            if let Ok(length) = FromHeaderValue::from_bytes(value) {
-                                match body_length.as_mut() {
-                                    Some(ResponseBodyLength::Known(body_length))
-                                        if *body_length == length => {}
-                                    Some(ResponseBodyLength::Known(_)) => {
-                                        return Err(ResponseError::DifferentContentLengths)
-                                    }
-                                    Some(
-                                        ResponseBodyLength::Chunked | ResponseBodyLength::ReadToEnd,
-                                    ) => {
-                                        return Err(ResponseError::ContentLengthAndTransferEncoding)
-                                    }
-                                    // RFC 7230 section 3.3.3 point 5:
-                                    // > If a valid Content-Length header field
-                                    // > is present without Transfer-Encoding,
-                                    // > its decimal value defines the expected
-                                    // > message body length in octets.
-                                    None => body_length = Some(ResponseBodyLength::Known(length)),
-                                }
-                            } else {
-                                return Err(ResponseError::InvalidContentLength);
-                            }
-                        } else if *name == HeaderName::TRANSFER_ENCODING {
-                            let mut encodings = value.split(|b| *b == b',').peekable();
-                            while let Some(encoding) = encodings.next() {
-                                match trim_ws(encoding) {
-                                    b"chunked" => {
-                                        // RFC 7230 section 3.3.3 point 3:
-                                        // > If a message is received with both
-                                        // > a Transfer-Encoding and a
-                                        // > Content-Length header field, the
-                                        // > Transfer-Encoding overrides the
-                                        // > Content-Length. Such a message
-                                        // > might indicate an attempt to
-                                        // > perform request smuggling (Section
-                                        // > 9.5) or response splitting (Section
-                                        // > 9.4) and ought to be handled as an
-                                        // > error.
-                                        if body_length.is_some() {
+                    let headers =
+                        Headers::from_httparse_headers(response.headers, |name, value| {
+                            if *name == HeaderName::CONTENT_LENGTH {
+                                // RFC 7230 section 3.3.3 point 4:
+                                // > If a message is received without
+                                // > Transfer-Encoding and with either multiple
+                                // > Content-Length header fields having differing
+                                // > field-values or a single Content-Length header
+                                // > field having an invalid value, then the message
+                                // > framing is invalid and the recipient MUST treat
+                                // > it as an unrecoverable error. [..] If this is a
+                                // > response message received by a user agent, the
+                                // > user agent MUST close the connection to the
+                                // > server and discard the received response.
+                                if let Ok(length) = FromHeaderValue::from_bytes(value) {
+                                    match body_length.as_mut() {
+                                        Some(ResponseBodyLength::Known(body_length))
+                                            if *body_length == length => {}
+                                        Some(ResponseBodyLength::Known(_)) => {
+                                            return Err(ResponseError::DifferentContentLengths)
+                                        }
+                                        Some(
+                                            ResponseBodyLength::Chunked
+                                            | ResponseBodyLength::ReadToEnd,
+                                        ) => {
                                             return Err(
                                                 ResponseError::ContentLengthAndTransferEncoding,
-                                            );
+                                            )
                                         }
-
-                                        // RFC 7230 section 3.3.3 point 3:
-                                        // > If a Transfer-Encoding header field
-                                        // > is present in a response and the
-                                        // > chunked transfer coding is not the
-                                        // > final encoding, the message body
-                                        // > length is determined by reading the
-                                        // > connection until it is closed by
-                                        // > the server.
-                                        if encodings.peek().is_some() {
-                                            body_length = Some(ResponseBodyLength::ReadToEnd)
-                                        } else {
-                                            body_length = Some(ResponseBodyLength::Chunked);
+                                        // RFC 7230 section 3.3.3 point 5:
+                                        // > If a valid Content-Length header field
+                                        // > is present without Transfer-Encoding,
+                                        // > its decimal value defines the expected
+                                        // > message body length in octets.
+                                        None => {
+                                            body_length = Some(ResponseBodyLength::Known(length))
                                         }
                                     }
-                                    b"identity" => {} // No changes.
-                                    // TODO: support "compress", "deflate" and
-                                    // "gzip".
-                                    _ => return Err(ResponseError::UnsupportedTransferEncoding),
+                                } else {
+                                    return Err(ResponseError::InvalidContentLength);
+                                }
+                            } else if *name == HeaderName::TRANSFER_ENCODING {
+                                let mut encodings = value.split(|b| *b == b',').peekable();
+                                while let Some(encoding) = encodings.next() {
+                                    match trim_ws(encoding) {
+                                        b"chunked" => {
+                                            // RFC 7230 section 3.3.3 point 3:
+                                            // > If a message is received with both
+                                            // > a Transfer-Encoding and a
+                                            // > Content-Length header field, the
+                                            // > Transfer-Encoding overrides the
+                                            // > Content-Length. Such a message
+                                            // > might indicate an attempt to
+                                            // > perform request smuggling (Section
+                                            // > 9.5) or response splitting (Section
+                                            // > 9.4) and ought to be handled as an
+                                            // > error.
+                                            if body_length.is_some() {
+                                                return Err(
+                                                    ResponseError::ContentLengthAndTransferEncoding,
+                                                );
+                                            }
+
+                                            // RFC 7230 section 3.3.3 point 3:
+                                            // > If a Transfer-Encoding header field
+                                            // > is present in a response and the
+                                            // > chunked transfer coding is not the
+                                            // > final encoding, the message body
+                                            // > length is determined by reading the
+                                            // > connection until it is closed by
+                                            // > the server.
+                                            if encodings.peek().is_some() {
+                                                body_length = Some(ResponseBodyLength::ReadToEnd)
+                                            } else {
+                                                body_length = Some(ResponseBodyLength::Chunked);
+                                            }
+                                        }
+                                        b"identity" => {} // No changes.
+                                        // TODO: support "compress", "deflate" and
+                                        // "gzip".
+                                        _ => {
+                                            return Err(ResponseError::UnsupportedTransferEncoding)
+                                        }
+                                    }
                                 }
                             }
-                        }
-                        Ok(())
-                    });
-                    let headers = match res {
-                        Ok(headers) => headers,
-                        Err(err) => return Ok(Err(err)),
-                    };
+                            Ok(())
+                        })?;
 
                     let kind = match body_length {
                         // RFC 7230 section 3.3.3 point 2:
@@ -357,10 +357,12 @@ impl Client {
                                     left_in_chunk: 0,
                                     read_complete: false,
                                 },
-                                Err(_) => return Ok(Err(ResponseError::InvalidChunkSize)),
+                                Err(_) => return Err(ResponseError::InvalidChunkSize),
                             }
                         }
-                        Some(ResponseBodyLength::ReadToEnd) => BodyKind::Unknown,
+                        Some(ResponseBodyLength::ReadToEnd) => BodyKind::Unknown {
+                            read_complete: false,
+                        },
                         // RFC 7230 section 3.3.3 point 1:
                         // > Any response to a HEAD request and any response
                         // > with a 1xx (Informational), 204 (No Content), or
@@ -381,22 +383,24 @@ impl Client {
                         // > length is determined by the number of octets
                         // > received prior to the server closing the
                         // > connection.
-                        None => BodyKind::Unknown,
+                        None => BodyKind::Unknown {
+                            read_complete: false,
+                        },
                     };
                     let body = Body { client: self, kind };
-                    return Ok(Ok(Some(Response::new(version, status, headers, body))));
+                    return Ok(Some(Response::new(version, status, headers, body)));
                 }
                 Ok(httparse::Status::Partial) => {
                     // Buffer doesn't include the entire response head, try
                     // reading more bytes (in the next iteration).
                     too_short = self.buf.len();
                     if too_short >= MAX_HEAD_SIZE {
-                        return Ok(Err(ResponseError::HeadTooLarge));
+                        return Err(ResponseError::HeadTooLarge);
                     }
 
                     continue;
                 }
-                Err(err) => return Ok(Err(ResponseError::from_httparse(err))),
+                Err(err) => return Err(ResponseError::from_httparse(err)),
             }
         }
     }
@@ -406,7 +410,7 @@ impl Client {
         // Fields of `BodyKind::Chunked`:
         left_in_chunk: &mut usize,
         read_complete: &mut bool,
-    ) -> io::Result<()> {
+    ) -> Result<(), ResponseError> {
         loop {
             match httparse::parse_chunk_size(&self.buf[self.parsed_bytes..]) {
                 #[allow(clippy::cast_possible_truncation)] // For truncate below.
@@ -421,22 +425,24 @@ impl Client {
                     return Ok(());
                 }
                 Ok(httparse::Status::Partial) => {} // Read some more data below.
-                Err(_) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "invalid chunk size",
-                    ))
-                }
+                Err(_) => return Err(ResponseError::InvalidChunkSize),
             }
 
-            // Ensure we have space in the buffer to read into.
-            self.clear_buffer();
-            self.buf.reserve(MIN_READ_SIZE);
-
-            if self.stream.recv(&mut self.buf).await? == 0 {
-                return Err(io::ErrorKind::UnexpectedEof.into());
+            if self.recv().await? {
+                return Err(ResponseError::IncompleteResponse);
             }
         }
+    }
+
+    /// Returns true if we read all bytes (i.e. we read 0 bytes).
+    async fn recv(&mut self) -> io::Result<bool> {
+        // Ensure we have space in the buffer to read into.
+        self.clear_buffer();
+        self.buf.reserve(MIN_READ_SIZE);
+
+        let buf_len = self.buf.len();
+        self.buf = self.stream.recv(take(&mut self.buf)).await?;
+        Ok(self.buf.len() == buf_len)
     }
 
     /// Clear parsed request(s) from the buffer.
@@ -445,7 +451,7 @@ impl Client {
         if self.parsed_bytes >= buf_len {
             // Parsed all bytes in the buffer, so we can clear it.
             self.buf.clear();
-            self.parsed_bytes -= buf_len;
+            self.parsed_bytes = 0;
         }
 
         // TODO: move bytes to the start.
@@ -463,33 +469,7 @@ enum ResponseBodyLength {
     ReadToEnd,
 }
 
-/// [`Future`] behind [`Client::connect`].
-#[derive(Debug)]
-pub struct Connect {
-    connect: stream::Connect,
-}
-
-impl Future for Connect {
-    type Output = io::Result<Client>;
-
-    #[track_caller]
-    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        match Pin::new(&mut self.connect).poll(ctx) {
-            Poll::Ready(Ok(mut stream)) => {
-                stream.set_nodelay(true)?;
-                Poll::Ready(Ok(Client {
-                    stream,
-                    buf: Vec::with_capacity(BUF_SIZE),
-                    parsed_bytes: 0,
-                }))
-            }
-            Poll::Ready(Err(err)) => Poll::Ready(Err(err)),
-            Poll::Pending => Poll::Pending,
-        }
-    }
-}
-
-/// Body returned used by [`Client`].
+/// Body used by the [`Client`] for response for responsess.
 #[derive(Debug)]
 pub struct Body<'c> {
     client: &'c mut Client,
@@ -512,11 +492,13 @@ enum BodyKind {
     },
     /// Body length is not known, read the body until the server closes the
     /// connection.
-    Unknown,
+    Unknown {
+        /// Last read call returned 0.
+        read_complete: bool,
+    },
 }
 
 impl<'c> Body<'c> {
-    /*
     /// Returns `true` if the body is completely read (or was empty to begin
     /// with).
     ///
@@ -530,6 +512,10 @@ impl<'c> Body<'c> {
     /// unknown and thus not empty. However if the body would then send a single
     /// empty chunk (signaling the end of the body), this would return `true` as
     /// it turns out the body is indeed empty.
+    ///
+    /// This can also incorrectly return `false` for cases where the server
+    /// doesn't return a Content-Length header, but instead closes the
+    /// connection after the entire response is send, common before HTTP/1.1.
     pub fn is_empty(&self) -> bool {
         match self.kind {
             BodyKind::Known { left } => left == 0,
@@ -537,6 +523,21 @@ impl<'c> Body<'c> {
                 left_in_chunk,
                 read_complete,
             } => read_complete && left_in_chunk == 0,
+            BodyKind::Unknown { read_complete } => read_complete,
+        }
+    }
+
+    /// Returns the size of the next chunk in the body, or the entire body if
+    /// not chunked.
+    ///
+    /// However note that this is based on the server's information and thus
+    /// should not be relied opun as it be not be accurate or even possible to
+    /// determine.
+    pub fn chunk_size_hint(&self) -> Option<usize> {
+        match self.kind {
+            BodyKind::Known { left } => Some(left),
+            BodyKind::Chunked { left_in_chunk, .. } => Some(left_in_chunk),
+            BodyKind::Unknown { .. } => None,
         }
     }
 
@@ -544,7 +545,6 @@ impl<'c> Body<'c> {
     pub fn is_chunked(&self) -> bool {
         matches!(self.kind, BodyKind::Chunked { .. })
     }
-    */
 
     /*
     TODO: RFC 7230 section 3.3.3 point 5:
@@ -553,76 +553,107 @@ impl<'c> Body<'c> {
        consider the message to be incomplete and close the connection.
     */
 
-    /// Read the entire body into `buf`.
-    ///
-    /// Reads up to `limit` bytes.
-    pub async fn read_all(&mut self, buf: &mut Vec<u8>, limit: usize) -> io::Result<()> {
-        let mut total = 0;
+    /// Receive bytes from the request body, writing them into `buf`.
+    pub async fn recv<B: BufMut>(&mut self, mut buf: B) -> io::Result<B> {
         loop {
-            // Copy bytes in our buffer.
-            let bytes = self.buf_bytes();
-            let len = bytes.len();
-            if limit < total + len {
-                return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
+            // Quick return for if we read all bytes in the body already.
+            if self.is_empty() {
+                return Ok(buf);
             }
 
-            buf.extend_from_slice(bytes);
-            self.processed(len);
-            total += len;
+            // First try to copy already buffered bytes.
+            let buf_bytes = self.buf_bytes();
+            if !buf_bytes.is_empty() {
+                let written = buf.extend_from_slice(buf_bytes);
+                self.processed(written);
+                return Ok(buf);
+            }
 
-            match &mut self.kind {
-                // Read all the bytes from the body.
-                BodyKind::Known { left: 0 } => return Ok(()),
-                // Read all the bytes in the chunk, so need to read another
-                // chunk.
+            // We need to ensure that we don't read another response head or
+            // chunk head into `buf`. So we need to determine a limit on the
+            // amount of bytes we can safely read. We only can't determine that
+            // for the case were we read an entire chunk, but don't know
+            // anything about the next chunk. In this case we need our own
+            // buffer to ensure we don't lose not-body bytes to the user's
+            // `buf`fer.
+            let limit = match &mut self.kind {
+                BodyKind::Known { left } => *left,
                 BodyKind::Chunked {
                     left_in_chunk,
                     read_complete,
-                } if *left_in_chunk == 0 => {
-                    if *read_complete {
-                        return Ok(());
+                } => {
+                    if *left_in_chunk != 0 {
+                        *left_in_chunk
+                    } else {
+                        self.client.read_chunk(left_in_chunk, read_complete).await?;
+                        // Read from the client's buffer again.
+                        continue;
                     }
-
-                    self.client.read_chunk(left_in_chunk, read_complete).await?;
-                    // Copy read bytes again.
-                    continue;
                 }
-                // Continue to reading below.
-                BodyKind::Known { .. } | BodyKind::Chunked { .. } | BodyKind::Unknown => break,
-            }
-        }
-
-        loop {
-            // Limit the read until the end of the chunk/body.
-            let chunk_len = match self.kind {
-                BodyKind::Known { left } => Some(left),
-                BodyKind::Chunked { left_in_chunk, .. } => Some(left_in_chunk),
-                BodyKind::Unknown => None,
+                // We don't have an actual limit, but all the remaining bytes
+                // make up the response body, so we can safely read them all.
+                BodyKind::Unknown { .. } => usize::MAX,
             };
 
-            if let Some(chunk_len) = chunk_len {
-                if chunk_len == 0 {
-                    return Ok(());
-                } else if total + chunk_len > limit {
-                    return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
-                }
+            let len_before = buf.spare_capacity();
+            let limited_buf = self.client.stream.recv(buf.limit(limit)).await?;
+            let buf = limited_buf.into_inner();
+            self.processed(buf.spare_capacity() - len_before);
+            return Ok(buf);
+        }
+    }
+
+    /// Receive bytes from the request body, writing them into `bufs` using
+    /// vectored I/O.
+    pub async fn recv_vectored<B: BufMutSlice<N>, const N: usize>(
+        &mut self,
+        mut bufs: B,
+    ) -> io::Result<B> {
+        loop {
+            // Quick return for if we read all bytes in the body already.
+            if self.is_empty() {
+                return Ok(bufs);
             }
 
-            let capacity = chunk_len
-                .unwrap_or_else(|| min(MIN_READ_SIZE, limit.saturating_sub(buf.capacity())));
-            (&mut *buf).reserve(capacity);
-            if let Some(chunk_len) = chunk_len {
-                // FIXME: doesn't deal with chunked bodies.
-                return self.client.stream.recv_n(&mut *buf, chunk_len).await;
+            // First try to copy already buffered bytes.
+            let buf_bytes = self.buf_bytes();
+            if !buf_bytes.is_empty() {
+                let written = bufs.extend_from_slice(buf_bytes);
+                self.processed(written);
+                return Ok(bufs);
             }
-            let n = self.client.stream.recv(&mut *buf).await?;
-            if n == 0 {
-                return Ok(());
-            }
-            total += n;
-            if total > limit {
-                return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
-            }
+
+            // We need to ensure that we don't read another response head or
+            // chunk head into `buf`. So we need to determine a limit on the
+            // amount of bytes we can safely read. We only can't determine that
+            // for the case were we read an entire chunk, but don't know
+            // anything about the next chunk. In this case we need our own
+            // buffer to ensure we don't lose not-body bytes to the user's
+            // `buf`fer.
+            let limit = match &mut self.kind {
+                BodyKind::Known { left } => *left,
+                BodyKind::Chunked {
+                    left_in_chunk,
+                    read_complete,
+                } => {
+                    if *left_in_chunk != 0 {
+                        *left_in_chunk
+                    } else {
+                        self.client.read_chunk(left_in_chunk, read_complete).await?;
+                        // Read from the client's buffer again.
+                        continue;
+                    }
+                }
+                // We don't have an actual limit, but all the remaining bytes
+                // make up the response body, so we can safely read them all.
+                BodyKind::Unknown { .. } => usize::MAX,
+            };
+
+            let len_before = bufs.total_spare_capacity();
+            let limited_bufs = self.client.stream.recv_vectored(bufs.limit(limit)).await?;
+            let bufs = limited_bufs.into_inner();
+            self.processed(bufs.total_spare_capacity() - len_before);
+            return Ok(bufs);
         }
     }
 
@@ -648,7 +679,7 @@ impl<'c> Body<'c> {
         match &mut self.kind {
             BodyKind::Known { left } => *left -= n,
             BodyKind::Chunked { left_in_chunk, .. } => *left_in_chunk -= n,
-            BodyKind::Unknown => {}
+            BodyKind::Unknown { .. } => {}
         }
         self.client.parsed_bytes += n;
     }
@@ -658,9 +689,9 @@ impl<'c> Body<'c> {
 
 /// Error parsing HTTP response.
 #[non_exhaustive]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum ResponseError {
-    /// Missing part of response.
+    /// Missing the entire (or part of) a response.
     IncompleteResponse,
     /// HTTP Head (start line and headers) is too large.
     ///
@@ -694,60 +725,107 @@ pub enum ResponseError {
     InvalidStatus,
     /// Chunk size is invalid.
     InvalidChunkSize,
+    /// I/O error.
+    Io(io::Error),
 }
 
 impl ResponseError {
     /// Returns `true` if the connection should be closed based on the error
     /// (after sending a error response).
     #[allow(clippy::unused_self)]
-    pub const fn should_close(self) -> bool {
+    pub const fn should_close(&self) -> bool {
         // Currently all errors are fatal for the connection.
         true
     }
 
     fn from_httparse(err: httparse::Error) -> ResponseError {
-        use httparse::Error::*;
         match err {
-            HeaderName => ResponseError::InvalidHeaderName,
-            HeaderValue => ResponseError::InvalidHeaderValue,
-            Token => unreachable!(),
-            NewLine => ResponseError::InvalidNewLine,
-            Version => ResponseError::InvalidVersion,
-            TooManyHeaders => ResponseError::TooManyHeaders,
-            Status => ResponseError::InvalidStatus,
+            httparse::Error::HeaderName => ResponseError::InvalidHeaderName,
+            httparse::Error::HeaderValue => ResponseError::InvalidHeaderValue,
+            // Actually unreachable, but don't want to create a panic branch.
+            httparse::Error::Token => ResponseError::IncompleteResponse,
+            httparse::Error::NewLine => ResponseError::InvalidNewLine,
+            httparse::Error::Version => ResponseError::InvalidVersion,
+            httparse::Error::TooManyHeaders => ResponseError::TooManyHeaders,
+            httparse::Error::Status => ResponseError::InvalidStatus,
         }
     }
 
-    fn as_str(self) -> &'static str {
-        use ResponseError::*;
+    #[rustfmt::skip]
+    fn as_str(&self) -> &'static str {
         match self {
-            IncompleteResponse => "incomplete response",
-            HeadTooLarge => "response head too large",
-            InvalidContentLength => "invalid response Content-Length header",
-            DifferentContentLengths => "response has different Content-Length headers",
-            InvalidHeaderName => "invalid response header name",
-            InvalidHeaderValue => "invalid response header value",
-            TooManyHeaders => "too many response headers",
-            UnsupportedTransferEncoding => "response has unsupported Transfer-Encoding header",
-            ContentLengthAndTransferEncoding => {
-                "response contained both Content-Length and Transfer-Encoding headers"
-            }
-            InvalidNewLine => "invalid response syntax",
-            InvalidVersion => "invalid HTTP response version",
-            InvalidStatus => "invalid HTTP response status",
-            InvalidChunkSize => "invalid response chunk size",
+            ResponseError::IncompleteResponse => "incomplete response",
+            ResponseError::HeadTooLarge => "response head too large",
+            ResponseError::InvalidContentLength => "invalid response Content-Length header",
+            ResponseError::DifferentContentLengths => "response has different Content-Length headers",
+            ResponseError::InvalidHeaderName => "invalid response header name",
+            ResponseError::InvalidHeaderValue => "invalid response header value",
+            ResponseError::TooManyHeaders => "too many response headers",
+            ResponseError::UnsupportedTransferEncoding => "response has unsupported Transfer-Encoding header",
+            ResponseError::ContentLengthAndTransferEncoding => "response contained both Content-Length and Transfer-Encoding headers",
+            ResponseError::InvalidNewLine => "invalid response syntax",
+            ResponseError::InvalidVersion => "invalid HTTP response version",
+            ResponseError::InvalidStatus => "invalid HTTP response status",
+            ResponseError::InvalidChunkSize => "invalid response chunk size",
+            ResponseError::Io(_) => "I/O error",
+        }
+    }
+}
+
+impl From<io::Error> for ResponseError {
+    fn from(err: io::Error) -> ResponseError {
+        if let io::ErrorKind::UnexpectedEof = err.kind() {
+            ResponseError::IncompleteResponse
+        } else {
+            ResponseError::Io(err)
         }
     }
 }
 
 impl From<ResponseError> for io::Error {
     fn from(err: ResponseError) -> io::Error {
-        io::Error::new(io::ErrorKind::InvalidData, err.as_str())
+        match err {
+            ResponseError::Io(err) => err,
+            err => io::Error::new(io::ErrorKind::InvalidData, err.as_str()),
+        }
+    }
+}
+
+impl PartialEq for ResponseError {
+    fn eq(&self, other: &ResponseError) -> bool {
+        use ResponseError::*;
+        match (self, other) {
+            (IncompleteResponse, IncompleteResponse) => true,
+            (HeadTooLarge, HeadTooLarge) => true,
+            (InvalidContentLength, InvalidContentLength) => true,
+            (DifferentContentLengths, DifferentContentLengths) => true,
+            (InvalidHeaderName, InvalidHeaderName) => true,
+            (InvalidHeaderValue, InvalidHeaderValue) => true,
+            (TooManyHeaders, TooManyHeaders) => true,
+            (UnsupportedTransferEncoding, UnsupportedTransferEncoding) => true,
+            (ContentLengthAndTransferEncoding, ContentLengthAndTransferEncoding) => true,
+            (InvalidNewLine, InvalidNewLine) => true,
+            (InvalidVersion, InvalidVersion) => true,
+            (InvalidStatus, InvalidStatus) => true,
+            (InvalidChunkSize, InvalidChunkSize) => true,
+            (Io(err1), Io(err2)) => {
+                if let (Some(errno1), Some(errno2)) = (err1.raw_os_error(), err2.raw_os_error()) {
+                    errno1 == errno2
+                } else {
+                    // Not always accurate, but good enough for our testing.
+                    false
+                }
+            }
+            (_, _) => false,
+        }
     }
 }
 
 impl fmt::Display for ResponseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
+        match self {
+            ResponseError::Io(err) => err.fmt(f),
+            err => err.as_str().fmt(f),
+        }
     }
 }

@@ -1,10 +1,10 @@
 //! Tests for the [`route!`] macro.
 
-use heph::test::block_on;
 use heph_http::body::{EmptyBody, OneshotBody};
 use heph_http::{route, Headers, Method, Request, Response, Version};
+use heph_rt::test::block_on;
 
-async fn route<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
+async fn route<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
     route!(match request {
         GET | HEAD "/" => index,
         GET "/test1" => handlers::get,
@@ -22,72 +22,72 @@ async fn route<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
     })
 }
 
-async fn index<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
+async fn index<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
     assert!(matches!(request.method(), Method::Get | Method::Head));
     assert_eq!(request.path(), "/");
-    Response::ok().with_body("index".into())
+    Response::ok().with_body(OneshotBody::new("index"))
 }
 
 mod handlers {
     use heph_http::body::OneshotBody;
     use heph_http::{Method, Request, Response};
 
-    pub async fn get<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
+    pub async fn get<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
         assert!(matches!(request.method(), Method::Get));
         assert_eq!(request.path(), "/test1");
-        Response::ok().with_body("GET".into())
+        Response::ok().with_body(OneshotBody::new("GET"))
     }
 
-    pub async fn head<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
+    pub async fn head<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
         assert!(matches!(request.method(), Method::Head));
         assert_eq!(request.path(), "/test1");
-        Response::ok().with_body("HEAD".into())
+        Response::ok().with_body(OneshotBody::new("HEAD"))
     }
 
-    pub async fn post<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
+    pub async fn post<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
         assert!(matches!(request.method(), Method::Post));
         assert_eq!(request.path(), "/test1");
-        Response::ok().with_body("POST".into())
+        Response::ok().with_body(OneshotBody::new("POST"))
     }
 
-    pub async fn put<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
+    pub async fn put<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
         assert!(matches!(request.method(), Method::Put));
         assert_eq!(request.path(), "/test1");
-        Response::ok().with_body("PUT".into())
+        Response::ok().with_body(OneshotBody::new("PUT"))
     }
 
-    pub async fn delete<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
+    pub async fn delete<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
         assert!(matches!(request.method(), Method::Delete));
         assert_eq!(request.path(), "/test1");
-        Response::ok().with_body("DELETE".into())
+        Response::ok().with_body(OneshotBody::new("DELETE"))
     }
 
-    pub async fn connect<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
+    pub async fn connect<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
         assert!(matches!(request.method(), Method::Connect));
         assert_eq!(request.path(), "/test1");
-        Response::ok().with_body("CONNECT".into())
+        Response::ok().with_body(OneshotBody::new("CONNECT"))
     }
 
-    pub async fn options<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
+    pub async fn options<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
         assert!(matches!(request.method(), Method::Options));
         assert_eq!(request.path(), "/test1");
-        Response::ok().with_body("OPTIONS".into())
+        Response::ok().with_body(OneshotBody::new("OPTIONS"))
     }
 
-    pub async fn trace<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
+    pub async fn trace<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
         assert!(matches!(request.method(), Method::Trace));
         assert_eq!(request.path(), "/test1");
-        Response::ok().with_body("TRACE".into())
+        Response::ok().with_body(OneshotBody::new("TRACE"))
     }
 
-    pub async fn patch<B>(request: Request<B>) -> Response<OneshotBody<'static>> {
+    pub async fn patch<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
         assert!(matches!(request.method(), Method::Patch));
         assert_eq!(request.path(), "/test1");
-        Response::ok().with_body("PATCH".into())
+        Response::ok().with_body(OneshotBody::new("PATCH"))
     }
 
-    pub async fn not_found<B>(_: Request<B>) -> Response<OneshotBody<'static>> {
-        Response::not_found().with_body("not found".into())
+    pub async fn not_found<B>(_: Request<B>) -> Response<OneshotBody<&'static str>> {
+        Response::not_found().with_body(OneshotBody::new("not found"))
     }
 }
 
@@ -97,7 +97,7 @@ fn multiple_methods_same_route() {
         let tests = [Request::get("/".to_owned()), Request::head("/".to_owned())];
         for test_request in tests {
             let response = route(test_request).await;
-            assert_eq!(response.body(), "index")
+            assert_eq!(response.body().into_inner(), "index")
         }
     });
 }
@@ -125,7 +125,7 @@ fn correct_routing_based_on_method() {
                 EmptyBody,
             );
             let response = route(request).await;
-            assert_eq!(response.body(), method.as_str())
+            assert_eq!(response.body().into_inner(), method.as_str())
         }
     });
 }
@@ -141,7 +141,7 @@ fn not_found_fallback() {
         ];
         for test_request in tests {
             let response = route(test_request).await;
-            assert_eq!(response.body(), "not found")
+            assert_eq!(response.body().into_inner(), "not found")
         }
     });
 }

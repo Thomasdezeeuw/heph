@@ -1,6 +1,3 @@
-// TODO: `S: Supervisor` currently uses `TcpStream` as argument due to `ArgMap`.
-//       Maybe disconnect `S` from `NA`?
-//
 // TODO: Continue reading RFC 7230 section 4 Transfer Codings.
 //
 // TODO: RFC 7230 section 3.3.3 point 5:
@@ -9,307 +6,207 @@
 // > received, the recipient MUST consider the message to be
 // > incomplete and close the connection.
 
-//! Module with the HTTP server implementation.
+//! HTTP server.
+//!
+//! The HTTP server is an actor that starts a new actor for each accepted HTTP
+//! connection. This actor can start as a thread-local or thread-safe actor.
+//! When using the thread-local variant one actor runs per worker thread which
+//! spawns thread-local actors to handle the [`Connection`]s, from which HTTP
+//! [`Request`]s can be read and HTTP [`Response`]s can be written.
+//!
+//! [`Response`]: crate::Response
+//!
+//! # Graceful shutdown
+//!
+//! Graceful shutdown is done by sending it a [`Terminate`] message. The HTTP
+//! server can also handle (shutdown) process signals, see below for an example.
+//!
+//! [`Terminate`]: heph::messages::Terminate
+//!
+//! # Examples
+//!
+//! ```rust
+//! # #![feature(never_type)]
+//! use std::borrow::Cow;
+//! use std::io;
+//! use std::net::SocketAddr;
+//! use std::time::Duration;
+//!
+//! use heph::actor::{self, Actor, NewActor};
+//! use heph::net::TcpStream;
+//! use heph::rt::{self, Runtime, ThreadLocal};
+//! use heph::supervisor::{Supervisor, SupervisorStrategy};
+//! use heph::timer::Deadline;
+//! use heph_http::body::OneshotBody;
+//! use heph_http::{self as http, Header, HeaderName, Headers, HttpServer, Method, StatusCode};
+//! use heph_rt::spawn::options::{ActorOptions, Priority};
+//! use log::error;
+//!
+//! fn main() -> Result<(), rt::Error> {
+//!     // Setup the HTTP server.
+//!     let actor = http_actor as fn(_, _, _) -> _;
+//!     let address = "127.0.0.1:7890".parse().unwrap();
+//!     let server = HttpServer::setup(address, conn_supervisor, actor, ActorOptions::default())
+//!         .map_err(rt::Error::setup)?;
+//!
+//!     // Build the runtime.
+//!     let mut runtime = Runtime::setup().use_all_cores().build()?;
+//!     // On each worker thread start our HTTP server.
+//!     runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {
+//!         let options = ActorOptions::default().with_priority(Priority::LOW);
+//!         let server_ref = runtime_ref.try_spawn_local(server_supervisor, server, (), options)?;
+//!
+//! #       server_ref.try_send(heph::messages::Terminate).unwrap();
+//!
+//!         // Allow graceful shutdown by responding to process signals.
+//!         runtime_ref.receive_signals(server_ref.try_map());
+//!         Ok(())
+//!     })?;
+//!     runtime.start()
+//! }
+//!
+//! /// Our supervisor for the HTTP server.
+//! fn server_supervisor(err: http::server::Error<!>) -> SupervisorStrategy<()> {
+//!     match err {
+//!         // When we hit an error accepting a connection we'll drop the old
+//!         // server and create a new one.
+//!         tcp::server::Error::Accept(err) => {
+//!             error!("error accepting new connection: {err}");
+//!             SupervisorStrategy::Restart(())
+//!         }
+//!         // Async function never return an error creating a new actor.
+//!         tcp::server::Error::NewActor(_) => unreachable!(),
+//!     }
+//! }
+//!
+//! fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
+//!     error!("error handling connection: {err}");
+//!     SupervisorStrategy::Stop
+//! }
+//!
+//! /// Our actor that handles a single HTTP connection.
+//! async fn http_actor(
+//!     mut ctx: actor::Context<!, ThreadLocal>,
+//!     mut connection: http::Connection,
+//! ) -> io::Result<()> {
+//!     // Set `TCP_NODELAY` on the underlying `TcpStream`.
+//!     connection.set_nodelay(true)?;
+//!
+//!     let mut headers = Headers::EMPTY;
+//!     loop {
+//!         // Read the next request.
+//!         let (code, body, should_close) = match connection.next_request().await? {
+//!             Ok(Some(request)) => {
+//!                 // Only support GET/HEAD to "/", with an empty body.
+//!                 if request.path() != "/" {
+//!                     (StatusCode::NOT_FOUND, "Not found".into(), false)
+//!                 } else if !matches!(request.method(), Method::Get | Method::Head) {
+//!                     // Add the "Allow" header to show the HTTP methods we do
+//!                     // support.
+//!                     headers.append(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
+//!                     (StatusCode::METHOD_NOT_ALLOWED, "Method not allowed".into(), false)
+//!                 } else if !request.body().is_empty() {
+//!                     (StatusCode::PAYLOAD_TOO_LARGE, "Not expecting a body".into(), true)
+//!                 } else {
+//!                     (StatusCode::OK, "Hello world".into(), false)
+//!                 }
+//!             }
+//!             // No more requests.
+//!             Ok(None) => return Ok(()),
+//!             // Error parsing request.
+//!             Err(err) => {
+//!                 // Determine the correct status code to return.
+//!                 let code = err.proper_status_code();
+//!                 // Create a useful error message as body.
+//!                 let body = Cow::from(format!("Bad request: {err}"));
+//!                 (code, body, err.should_close())
+//!             }
+//!         };
+//!
+//!         // If we want to close the connection add the "Connection: close"
+//!         // header.
+//!         if should_close {
+//!             headers.append(Header::new(HeaderName::CONNECTION, b"close"));
+//!         }
+//!
+//!         // Send the body as a single payload.
+//!         let body = OneshotBody::new(body.as_bytes());
+//!         // Respond to the request.
+//!         connection.respond(code, &headers, body).await?;
+//!
+//!         if should_close {
+//!             return Ok(());
+//!         }
+//!         headers.clear();
+//!     }
+//! }
+//! ```
 
-use std::cmp::min;
 use std::fmt;
-use std::future::Future;
 use std::io::{self, Write};
-use std::mem::MaybeUninit;
+use std::mem::{take, MaybeUninit};
 use std::net::SocketAddr;
-use std::pin::Pin;
-use std::task::ready;
-use std::task::{self, Poll};
 use std::time::SystemTime;
 
-use heph::bytes::{Bytes, BytesVectored};
-use heph::net::{tcp, TcpServer, TcpStream};
-use heph::{actor, rt, Actor, NewActor, Supervisor};
-use heph_rt::spawn::{ActorOptions, Spawn};
+use heph::{actor, NewActor, Supervisor};
+use heph_rt::io::{BufMut, BufMutSlice};
+use heph_rt::net::{tcp, TcpStream};
+use heph_rt::spawn::ActorOptions;
 use httpdate::HttpDate;
 
 use crate::body::{BodyLength, EmptyBody};
 use crate::head::header::{FromHeaderValue, Header, HeaderName, Headers};
 use crate::{
     map_version_byte, trim_ws, Method, Request, Response, StatusCode, Version, BUF_SIZE,
-    MAX_HEADERS, MAX_HEAD_SIZE, MIN_READ_SIZE,
+    INIT_HEAD_SIZE, MAX_HEADERS, MAX_HEAD_SIZE, MIN_READ_SIZE,
 };
 
-/// A intermediate structure that implements [`NewActor`], creating
-/// [`HttpServer`].
+/// Create a new [server setup].
 ///
-/// See [`HttpServer::setup`] to create this and [`HttpServer`] for examples.
-#[derive(Debug)]
-pub struct Setup<S, NA> {
-    inner: tcp::server::Setup<S, ArgMap<NA>>,
-}
-
-impl<S, NA> Setup<S, NA> {
-    /// Returns the address the server is bound to.
-    pub fn local_addr(&self) -> SocketAddr {
-        self.inner.local_addr()
-    }
-}
-
-impl<S, NA> NewActor for Setup<S, NA>
+/// Arguments:
+///  * `address`: the address to listen on.
+///  * `supervisor`: the [`Supervisor`] used to supervise each started actor,
+///  * `new_actor`: the [`NewActor`] implementation to start each actor, and
+///  * `options`: the actor options used to spawn the new actors.
+///
+/// See the [module documentation] for examples.
+///
+/// [server setup]: Setup
+/// [module documentation]: crate::server
+pub fn setup<S, NA>(
+    address: SocketAddr,
+    supervisor: S,
+    new_actor: NA,
+    options: ActorOptions,
+) -> io::Result<Setup<S, NA>>
 where
-    S: Supervisor<ArgMap<NA>> + Clone + 'static,
-    NA: NewActor<Argument = (Connection, SocketAddr)> + Clone + 'static,
-    NA::RuntimeAccess: rt::Access + Spawn<S, ArgMap<NA>, NA::RuntimeAccess>,
+    S: Supervisor<HttpNewActor<NA>> + Clone + 'static,
+    NA: NewActor<Argument = Connection> + Clone + 'static,
 {
-    type Message = Message;
-    type Argument = ();
-    type Actor = HttpServer<S, NA>;
-    type Error = io::Error;
-    type RuntimeAccess = NA::RuntimeAccess;
-
-    fn new(
-        &mut self,
-        ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
-        arg: Self::Argument,
-    ) -> Result<Self::Actor, Self::Error> {
-        self.inner.new(ctx, arg).map(|inner| HttpServer { inner })
-    }
+    let new_actor = HttpNewActor { new_actor };
+    tcp::server::setup(address, supervisor, new_actor, options)
 }
 
-impl<S, NA> Clone for Setup<S, NA> {
-    fn clone(&self) -> Setup<S, NA> {
-        Setup {
-            inner: self.inner.clone(),
-        }
-    }
-}
+/// A intermediate structure that implements [`NewActor`], creating an actor
+/// that spawn a new actor for each incoming HTTP connection.
+///
+/// See [`setup`] to create this and the [module documentation] for examples.
+///
+/// [module documentation]: crate::server
+pub type Setup<S, NA> = tcp::server::Setup<S, HttpNewActor<NA>>;
 
-/// An actor that starts a new actor for each accepted HTTP [`Connection`].
-///
-/// `HttpServer` has the same design as [`TcpServer`]. It accept `TcpStream`s
-/// and converts those into HTTP [`Connection`]s, from which HTTP [`Request`]s
-/// can be read and HTTP [`Response`]s can be written.
-///
-/// Similar to `TcpServer` this type works with thread-safe and thread-local
-/// actors.
-///
-/// [`Response`]: crate::Response
-///
-/// # Graceful shutdown
-///
-/// Graceful shutdown is done by sending it a [`Terminate`] message. The HTTP
-/// server can also handle (shutdown) process signals, see below for an example.
-///
-/// [`Terminate`]: heph::messages::Terminate
-///
-/// # Examples
-///
-/// ```rust
-/// # #![feature(never_type)]
-/// use std::borrow::Cow;
-/// use std::io;
-/// use std::net::SocketAddr;
-/// use std::time::Duration;
-///
-/// use heph::actor::{self, Actor, NewActor};
-/// use heph::net::TcpStream;
-/// use heph::rt::{self, Runtime, ThreadLocal};
-/// use heph::supervisor::{Supervisor, SupervisorStrategy};
-/// use heph::timer::Deadline;
-/// use heph_http::body::OneshotBody;
-/// use heph_http::{self as http, Header, HeaderName, Headers, HttpServer, Method, StatusCode};
-/// use heph_rt::spawn::options::{ActorOptions, Priority};
-/// use log::error;
-///
-/// fn main() -> Result<(), rt::Error> {
-///     // Setup the HTTP server.
-///     let actor = http_actor as fn(_, _, _) -> _;
-///     let address = "127.0.0.1:7890".parse().unwrap();
-///     let server = HttpServer::setup(address, conn_supervisor, actor, ActorOptions::default())
-///         .map_err(rt::Error::setup)?;
-///
-///     // Build the runtime.
-///     let mut runtime = Runtime::setup().use_all_cores().build()?;
-///     // On each worker thread start our HTTP server.
-///     runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {
-///         let options = ActorOptions::default().with_priority(Priority::LOW);
-///         let server_ref = runtime_ref.try_spawn_local(ServerSupervisor, server, (), options)?;
-///
-/// #       server_ref.try_send(heph::messages::Terminate).unwrap();
-///
-///         // Allow graceful shutdown by responding to process signals.
-///         runtime_ref.receive_signals(server_ref.try_map());
-///         Ok(())
-///     })?;
-///     runtime.start()
-/// }
-///
-/// /// Our supervisor for the TCP server.
-/// #[derive(Copy, Clone, Debug)]
-/// struct ServerSupervisor;
-///
-/// impl<NA> Supervisor<NA> for ServerSupervisor
-/// where
-///     NA: NewActor<Argument = (), Error = io::Error>,
-///     NA::Actor: Actor<Error = http::server::Error<!>>,
-/// {
-///     fn decide(&mut self, err: http::server::Error<!>) -> SupervisorStrategy<()> {
-///         use http::server::Error::*;
-///         match err {
-///             Accept(err) => {
-///                 error!("error accepting new connection: {err}");
-///                 SupervisorStrategy::Restart(())
-///             }
-///             NewActor(_) => unreachable!(),
-///         }
-///     }
-///
-///     fn decide_on_restart_error(&mut self, err: io::Error) -> SupervisorStrategy<()> {
-///         error!("error restarting the TCP server: {err}");
-///         SupervisorStrategy::Stop
-///     }
-///
-///     fn second_restart_error(&mut self, err: io::Error) {
-///         error!("error restarting the actor a second time: {err}");
-///     }
-/// }
-///
-/// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<(TcpStream, SocketAddr)> {
-///     error!("error handling connection: {err}");
-///     SupervisorStrategy::Stop
-/// }
-///
-/// /// Our actor that handles a single HTTP connection.
-/// async fn http_actor(
-///     mut ctx: actor::Context<!, ThreadLocal>,
-///     mut connection: http::Connection,
-///     address: SocketAddr,
-/// ) -> io::Result<()> {
-///     // Set `TCP_NODELAY` on the `TcpStream`.
-///     connection.set_nodelay(true)?;
-///
-///     let mut headers = Headers::EMPTY;
-///     loop {
-///         // Read the next request.
-///         let (code, body, should_close) = match connection.next_request().await? {
-///             Ok(Some(request)) => {
-///                 // Only support GET/HEAD to "/", with an empty body.
-///                 if request.path() != "/" {
-///                     (StatusCode::NOT_FOUND, "Not found".into(), false)
-///                 } else if !matches!(request.method(), Method::Get | Method::Head) {
-///                     // Add the "Allow" header to show the HTTP methods we do
-///                     // support.
-///                     headers.append(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
-///                     let body = "Method not allowed".into();
-///                     (StatusCode::METHOD_NOT_ALLOWED, body, false)
-///                 } else if !request.body().is_empty() {
-///                     (StatusCode::PAYLOAD_TOO_LARGE, "Not expecting a body".into(), true)
-///                 } else {
-///                     // Use the IP address as body.
-///                     let body = Cow::from(address.ip().to_string());
-///                     (StatusCode::OK, body, false)
-///                 }
-///             }
-///             // No more requests.
-///             Ok(None) => return Ok(()),
-///             // Error parsing request.
-///             Err(err) => {
-///                 // Determine the correct status code to return.
-///                 let code = err.proper_status_code();
-///                 // Create a useful error message as body.
-///                 let body = Cow::from(format!("Bad request: {err}"));
-///                 (code, body, err.should_close())
-///             }
-///         };
-///
-///         // If we want to close the connection add the "Connection: close"
-///         // header.
-///         if should_close {
-///             headers.append(Header::new(HeaderName::CONNECTION, b"close"));
-///         }
-///
-///         // Send the body as a single payload.
-///         let body = OneshotBody::new(body.as_bytes());
-///         // Respond to the request.
-///         connection.respond(code, &headers, body).await?;
-///
-///         if should_close {
-///             return Ok(());
-///         }
-///         headers.clear();
-///     }
-/// }
-/// ```
-pub struct HttpServer<S, NA: NewActor<Argument = (Connection, SocketAddr)>> {
-    inner: TcpServer<S, ArgMap<NA>>,
-}
-
-impl<S, NA> HttpServer<S, NA>
-where
-    S: Supervisor<ArgMap<NA>> + Clone + 'static,
-    NA: NewActor<Argument = (Connection, SocketAddr)> + Clone + 'static,
-{
-    /// Create a new [server setup].
-    ///
-    /// Arguments:
-    /// * `address`: the address to listen on.
-    /// * `supervisor`: the [`Supervisor`] used to supervise each started actor,
-    /// * `new_actor`: the [`NewActor`] implementation to start each actor,
-    ///   and
-    /// * `options`: the actor options used to spawn the new actors.
-    ///
-    /// [server setup]: Setup
-    pub fn setup(
-        address: SocketAddr,
-        supervisor: S,
-        new_actor: NA,
-        options: ActorOptions,
-    ) -> io::Result<Setup<S, NA>> {
-        let new_actor = ArgMap { new_actor };
-        TcpServer::setup(address, supervisor, new_actor, options).map(|inner| Setup { inner })
-    }
-}
-
-impl<S, NA> Actor for HttpServer<S, NA>
-where
-    S: Supervisor<ArgMap<NA>> + Clone + 'static,
-    NA: NewActor<Argument = (Connection, SocketAddr)> + Clone + 'static,
-    NA::RuntimeAccess: rt::Access + Spawn<S, ArgMap<NA>, NA::RuntimeAccess>,
-{
-    type Error = Error<NA::Error>;
-
-    fn try_poll(
-        self: Pin<&mut Self>,
-        ctx: &mut task::Context<'_>,
-    ) -> Poll<Result<(), Self::Error>> {
-        let this = unsafe { self.map_unchecked_mut(|s| &mut s.inner) };
-        this.try_poll(ctx)
-    }
-}
-
-impl<S, NA> fmt::Debug for HttpServer<S, NA>
-where
-    S: fmt::Debug,
-    NA: NewActor<Argument = (Connection, SocketAddr)> + fmt::Debug,
-    NA::RuntimeAccess: fmt::Debug,
-{
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("HttpServer")
-            .field("inner", &self.inner)
-            .finish()
-    }
-}
-
-// TODO: better name. Like `TcpStreamToConnection`?
-/// Maps `NA` to accept `(TcpStream, SocketAddr)` as argument, creating a
-/// [`Connection`].
+/// Maps `NA` to accept `TcpStream` as argument, creating a [`Connection`].
 #[derive(Debug, Clone)]
-pub struct ArgMap<NA> {
+pub struct HttpNewActor<NA> {
     new_actor: NA,
 }
 
-impl<NA> NewActor for ArgMap<NA>
+impl<NA> NewActor for HttpNewActor<NA>
 where
-    NA: NewActor<Argument = (Connection, SocketAddr)>,
+    NA: NewActor<Argument = Connection>,
 {
     type Message = NA::Message;
-    type Argument = (TcpStream, SocketAddr);
+    type Argument = TcpStream;
     type Actor = NA::Actor;
     type Error = NA::Error;
     type RuntimeAccess = NA::RuntimeAccess;
@@ -317,13 +214,13 @@ where
     fn new(
         &mut self,
         ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
-        (stream, address): Self::Argument,
+        stream: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let conn = Connection::new(stream);
-        self.new_actor.new(ctx, (conn, address))
+        self.new_actor.new(ctx, conn)
     }
 
-    fn name(&self) -> &'static str {
+    fn name() -> &'static str {
         NA::name()
     }
 }
@@ -367,19 +264,9 @@ impl Connection {
 
     /// Parse the next request from the connection.
     ///
-    /// The return is a bit complex so let's break it down. The outer type is an
-    /// [`io::Result`], which often needs to be handled seperately from errors
-    /// in the request, e.g. by using `?`.
-    ///
-    /// Next is a `Result<Option<`[`Request`]`>, `[`RequestError`]`>`.
-    /// `Ok(None)` is returned if the connection contains no more requests, i.e.
-    /// when all bytes are read. If the connection contains a request it will
-    /// return `Ok(Some(`[`Request`]`)`. If the request is somehow invalid it
-    /// will return an `Err(`[`RequestError`]`)`.
-    ///
     /// # Notes
     ///
-    /// Most [`RequestError`]s can't be receover from and the connection should
+    /// Most [`RequestError`]s can't be recovered from and the connection should
     /// be closed when hitting them, see [`RequestError::should_close`]. If the
     /// connection is not closed and `next_request` is called again it will
     /// likely return the same error (but this is not guaranteed).
@@ -388,9 +275,7 @@ impl Connection {
     /// [`Connection::last_request_method`] functions to properly respond to
     /// request errors.
     #[allow(clippy::too_many_lines)] // TODO.
-    pub async fn next_request<'a>(
-        &'a mut self,
-    ) -> io::Result<Result<Option<Request<Body<'a>>>, RequestError>> {
+    pub async fn next_request<'a>(&'a mut self) -> Result<Option<Request<Body<'a>>>, RequestError> {
         // NOTE: not resetting the version as that doesn't change between
         // requests.
         self.last_method = None;
@@ -407,17 +292,15 @@ impl Connection {
                 // while we have less than `too_short` bytes we try to receive
                 // some more bytes.
 
-                self.clear_buffer();
-                self.buf.reserve(MIN_READ_SIZE);
-                if self.stream.recv(&mut self.buf).await? == 0 {
+                if self.recv().await? {
                     return if self.buf.is_empty() {
                         // Read the entire stream, so we're done.
-                        Ok(Ok(None))
+                        Ok(None)
                     } else {
                         // Couldn't read any more bytes, but we still have bytes
                         // in the buffer. This means it contains a partial
                         // request.
-                        Ok(Err(RequestError::IncompleteRequest))
+                        Err(RequestError::IncompleteRequest)
                     };
                 }
             }
@@ -434,7 +317,7 @@ impl Connection {
                     // ensures there all `Some`.
                     let method = match request.method.unwrap().parse() {
                         Ok(method) => method,
-                        Err(_) => return Ok(Err(RequestError::UnknownMethod)),
+                        Err(_) => return Err(RequestError::UnknownMethod),
                     };
                     self.last_method = Some(method);
                     let path = request.path.unwrap().to_string();
@@ -443,91 +326,90 @@ impl Connection {
 
                     // RFC 7230 section 3.3.3 Message Body Length.
                     let mut body_length: Option<BodyLength> = None;
-                    let res = Headers::from_httparse_headers(request.headers, |name, value| {
-                        if *name == HeaderName::CONTENT_LENGTH {
-                            // RFC 7230 section 3.3.3 point 4:
-                            // > If a message is received without
-                            // > Transfer-Encoding and with either multiple
-                            // > Content-Length header fields having differing
-                            // > field-values or a single Content-Length header
-                            // > field having an invalid value, then the message
-                            // > framing is invalid and the recipient MUST treat
-                            // > it as an unrecoverable error. If this is a
-                            // > request message, the server MUST respond with a
-                            // > 400 (Bad Request) status code and then close
-                            // > the connection.
-                            if let Ok(length) = FromHeaderValue::from_bytes(value) {
-                                match body_length.as_mut() {
-                                    Some(BodyLength::Known(body_length))
-                                        if *body_length == length => {}
-                                    Some(BodyLength::Known(_)) => {
-                                        return Err(RequestError::DifferentContentLengths)
-                                    }
-                                    Some(BodyLength::Chunked) => {
-                                        return Err(RequestError::ContentLengthAndTransferEncoding)
-                                    }
-                                    // RFC 7230 section 3.3.3 point 5:
-                                    // > If a valid Content-Length header field
-                                    // > is present without Transfer-Encoding,
-                                    // > its decimal value defines the expected
-                                    // > message body length in octets.
-                                    None => body_length = Some(BodyLength::Known(length)),
-                                }
-                            } else {
-                                return Err(RequestError::InvalidContentLength);
-                            }
-                        } else if *name == HeaderName::TRANSFER_ENCODING {
-                            let mut encodings = value.split(|b| *b == b',').peekable();
-                            while let Some(encoding) = encodings.next() {
-                                match trim_ws(encoding) {
-                                    b"chunked" => {
-                                        // RFC 7230 section 3.3.3 point 3:
-                                        // > If a Transfer-Encoding header field
-                                        // > is present in a request and the
-                                        // > chunked transfer coding is not the
-                                        // > final encoding, the message body
-                                        // > length cannot be determined
-                                        // > reliably; the server MUST respond
-                                        // > with the 400 (Bad Request) status
-                                        // > code and then close the connection.
-                                        if encodings.peek().is_some() {
-                                            return Err(
-                                                RequestError::ChunkedNotLastTransferEncoding,
-                                            );
+                    let headers =
+                        Headers::from_httparse_headers(request.headers, |name, value| {
+                            if *name == HeaderName::CONTENT_LENGTH {
+                                // RFC 7230 section 3.3.3 point 4:
+                                // > If a message is received without
+                                // > Transfer-Encoding and with either multiple
+                                // > Content-Length header fields having differing
+                                // > field-values or a single Content-Length header
+                                // > field having an invalid value, then the message
+                                // > framing is invalid and the recipient MUST treat
+                                // > it as an unrecoverable error. If this is a
+                                // > request message, the server MUST respond with a
+                                // > 400 (Bad Request) status code and then close
+                                // > the connection.
+                                if let Ok(length) = FromHeaderValue::from_bytes(value) {
+                                    match body_length.as_mut() {
+                                        Some(BodyLength::Known(body_length))
+                                            if *body_length == length => {}
+                                        Some(BodyLength::Known(_)) => {
+                                            return Err(RequestError::DifferentContentLengths)
                                         }
-
-                                        // RFC 7230 section 3.3.3 point 3:
-                                        // > If a message is received with both
-                                        // > a Transfer-Encoding and a
-                                        // > Content-Length header field, the
-                                        // > Transfer-Encoding overrides the
-                                        // > Content-Length. Such a message
-                                        // > might indicate an attempt to
-                                        // > perform request smuggling (Section
-                                        // > 9.5) or response splitting (Section
-                                        // > 9.4) and ought to be handled as an
-                                        // > error.
-                                        if body_length.is_some() {
+                                        Some(BodyLength::Chunked) => {
                                             return Err(
                                                 RequestError::ContentLengthAndTransferEncoding,
-                                            );
+                                            )
                                         }
-
-                                        body_length = Some(BodyLength::Chunked);
+                                        // RFC 7230 section 3.3.3 point 5:
+                                        // > If a valid Content-Length header field
+                                        // > is present without Transfer-Encoding,
+                                        // > its decimal value defines the expected
+                                        // > message body length in octets.
+                                        None => body_length = Some(BodyLength::Known(length)),
                                     }
-                                    b"identity" => {} // No changes.
-                                    // TODO: support "compress", "deflate" and
-                                    // "gzip".
-                                    _ => return Err(RequestError::UnsupportedTransferEncoding),
+                                } else {
+                                    return Err(RequestError::InvalidContentLength);
+                                }
+                            } else if *name == HeaderName::TRANSFER_ENCODING {
+                                let mut encodings = value.split(|b| *b == b',').peekable();
+                                while let Some(encoding) = encodings.next() {
+                                    match trim_ws(encoding) {
+                                        b"chunked" => {
+                                            // RFC 7230 section 3.3.3 point 3:
+                                            // > If a Transfer-Encoding header field
+                                            // > is present in a request and the
+                                            // > chunked transfer coding is not the
+                                            // > final encoding, the message body
+                                            // > length cannot be determined
+                                            // > reliably; the server MUST respond
+                                            // > with the 400 (Bad Request) status
+                                            // > code and then close the connection.
+                                            if encodings.peek().is_some() {
+                                                return Err(
+                                                    RequestError::ChunkedNotLastTransferEncoding,
+                                                );
+                                            }
+
+                                            // RFC 7230 section 3.3.3 point 3:
+                                            // > If a message is received with both
+                                            // > a Transfer-Encoding and a
+                                            // > Content-Length header field, the
+                                            // > Transfer-Encoding overrides the
+                                            // > Content-Length. Such a message
+                                            // > might indicate an attempt to
+                                            // > perform request smuggling (Section
+                                            // > 9.5) or response splitting (Section
+                                            // > 9.4) and ought to be handled as an
+                                            // > error.
+                                            if body_length.is_some() {
+                                                return Err(
+                                                    RequestError::ContentLengthAndTransferEncoding,
+                                                );
+                                            }
+
+                                            body_length = Some(BodyLength::Chunked);
+                                        }
+                                        b"identity" => {} // No changes.
+                                        // TODO: support "compress", "deflate" and
+                                        // "gzip".
+                                        _ => return Err(RequestError::UnsupportedTransferEncoding),
+                                    }
                                 }
                             }
-                        }
-                        Ok(())
-                    });
-                    let headers = match res {
-                        Ok(headers) => headers,
-                        Err(err) => return Ok(Err(err)),
-                    };
+                            Ok(())
+                        })?;
 
                     let kind = match body_length {
                         Some(BodyLength::Known(left)) => BodyKind::Oneshot { left },
@@ -547,7 +429,7 @@ impl Connection {
                                     left_in_chunk: 0,
                                     read_complete: false,
                                 },
-                                Err(_) => return Ok(Err(RequestError::InvalidChunkSize)),
+                                Err(_) => return Err(RequestError::InvalidChunkSize),
                             }
                         }
                         // RFC 7230 section 3.3.3 point 6:
@@ -557,7 +439,7 @@ impl Connection {
                         None => BodyKind::Oneshot { left: 0 },
                     };
                     let body = Body { conn: self, kind };
-                    return Ok(Ok(Some(Request::new(method, path, version, headers, body))));
+                    return Ok(Some(Request::new(method, path, version, headers, body)));
                 }
                 Ok(httparse::Status::Partial) => {
                     // Buffer doesn't include the entire request head, try
@@ -569,12 +451,12 @@ impl Connection {
                     }
 
                     if too_short >= MAX_HEAD_SIZE {
-                        return Ok(Err(RequestError::HeadTooLarge));
+                        return Err(RequestError::HeadTooLarge);
                     }
 
                     continue;
                 }
-                Err(err) => return Ok(Err(RequestError::from_httparse(err))),
+                Err(err) => return Err(RequestError::from_httparse(err)),
             }
         }
     }
@@ -652,14 +534,14 @@ impl Connection {
     ///
     /// See the notes for [`Connection::send_response`], they apply to this
     /// function also.
-    pub async fn respond<'b, B>(
+    pub async fn respond<B>(
         &mut self,
         status: StatusCode,
         headers: &Headers,
         body: B,
     ) -> io::Result<()>
     where
-        B: crate::Body<'b>,
+        B: crate::Body,
     {
         let req_method = self.last_method.unwrap_or(Method::Get);
         let version = self.last_version.unwrap_or(Version::Http11).highest_minor();
@@ -670,9 +552,9 @@ impl Connection {
     /// Respond to the last parsed request with `response`.
     ///
     /// See [`Connection::respond`] for more documentation.
-    pub async fn respond_with<'b, B>(&mut self, response: Response<B>) -> io::Result<()>
+    pub async fn respond_with<B>(&mut self, response: Response<B>) -> io::Result<()>
     where
-        B: crate::Body<'b>,
+        B: crate::Body,
     {
         let (head, body) = response.split();
         self.respond(head.status(), head.headers(), body).await
@@ -701,7 +583,7 @@ impl Connection {
     ///
     /// [`expects_body()`]: Method::expects_body
     /// [`includes_body()`]: StatusCode::includes_body
-    pub async fn send_response<'b, B>(
+    pub async fn send_response<B>(
         &mut self,
         request_method: Method,
         // Response data:
@@ -711,23 +593,29 @@ impl Connection {
         body: B,
     ) -> io::Result<()>
     where
-        B: crate::Body<'b>,
+        B: crate::Body,
     {
         let mut itoa_buf = itoa::Buffer::new();
 
-        // Clear bytes from the previous request, keeping the bytes of the
-        // request.
+        // Clear bytes from the previous request, keeping the bytes of any
+        // unprocessed request(s).
         self.clear_buffer();
-        let ignore_end = self.buf.len();
+
+        // If the read buffer is empty we can use, otherwise we need to create a
+        // new buffer to ensure we don't lose bytes.
+        let mut http_head = if self.buf.is_empty() {
+            take(&mut self.buf)
+        } else {
+            Vec::with_capacity(INIT_HEAD_SIZE)
+        };
 
         // Format the status-line (RFC 7230 section 3.1.2).
-        self.buf.extend_from_slice(version.as_str().as_bytes());
-        self.buf.push(b' ');
-        self.buf
-            .extend_from_slice(itoa_buf.format(status.0).as_bytes());
+        http_head.extend_from_slice(version.as_str().as_bytes());
+        http_head.push(b' ');
+        http_head.extend_from_slice(itoa_buf.format(status.0).as_bytes());
         // NOTE: we're not sending a reason-phrase, but the space is required
         // before \r\n.
-        self.buf.extend_from_slice(b" \r\n");
+        http_head.extend_from_slice(b" \r\n");
 
         // Format the headers (RFC 7230 section 3.2).
         let mut set_connection_header = false;
@@ -737,13 +625,13 @@ impl Connection {
         for header in headers.iter() {
             let name = header.name();
             // Field-name:
-            self.buf.extend_from_slice(name.as_ref().as_bytes());
+            http_head.extend_from_slice(name.as_ref().as_bytes());
             // NOTE: spacing after the colon (`:`) is optional.
-            self.buf.extend_from_slice(b": ");
+            http_head.extend_from_slice(b": ");
             // Append the header's value.
             // NOTE: `header.value` shouldn't contain CRLF (`\r\n`).
-            self.buf.extend_from_slice(header.value());
-            self.buf.extend_from_slice(b"\r\n");
+            http_head.extend_from_slice(header.value());
+            http_head.extend_from_slice(b"\r\n");
 
             if name == &HeaderName::CONNECTION {
                 set_connection_header = true;
@@ -761,13 +649,13 @@ impl Connection {
             // Per RFC 7230 section 6.3, HTTP/1.0 needs the "Connection:
             // keep-alive" header to persistent the connection. Connections
             // using HTTP/1.1 persistent by default.
-            self.buf.extend_from_slice(b"Connection: keep-alive\r\n");
+            http_head.extend_from_slice(b"Connection: keep-alive\r\n");
         }
 
         // Provide the "Date" header if the user didn't.
         if !set_date_header {
             let now = HttpDate::from(SystemTime::now());
-            write!(&mut self.buf, "Date: {now}\r\n").unwrap();
+            write!(&mut http_head, "Date: {now}\r\n").unwrap();
         }
 
         // Provide the "Conent-Length" or "Transfer-Encoding" header if the user
@@ -777,31 +665,33 @@ impl Connection {
             match body.length() {
                 _ if !request_method.expects_body() || !status.includes_body() => {
                     send_body = false;
-                    extend_content_length_header(&mut self.buf, &mut itoa_buf, 0)
+                    extend_content_length_header(&mut http_head, &mut itoa_buf, 0)
                 }
                 BodyLength::Known(length) => {
-                    extend_content_length_header(&mut self.buf, &mut itoa_buf, length)
+                    extend_content_length_header(&mut http_head, &mut itoa_buf, length)
                 }
                 BodyLength::Chunked => {
-                    self.buf
-                        .extend_from_slice(b"Transfer-Encoding: chunked\r\n");
+                    http_head.extend_from_slice(b"Transfer-Encoding: chunked\r\n");
                 }
             }
         }
 
         // End of the HTTP head.
-        self.buf.extend_from_slice(b"\r\n");
+        http_head.extend_from_slice(b"\r\n");
 
         // Write the response to the stream.
-        let http_head = &self.buf[ignore_end..];
-        if send_body {
-            body.write_message(&mut self.stream, http_head).await?;
+        let mut http_head = if send_body {
+            body.write_message(&mut self.stream, http_head).await?
         } else {
-            self.stream.send_all(http_head).await?;
+            self.stream.send_all(http_head).await?
+        };
+
+        if self.buf.is_empty() {
+            // We used the read buffer so let's put it back.
+            http_head.clear();
+            self.buf = http_head;
         }
 
-        // Remove the response head from the buffer.
-        self.buf.truncate(ignore_end);
         Ok(())
     }
 
@@ -815,16 +705,6 @@ impl Connection {
         self.stream.local_addr()
     }
 
-    /// See [`TcpStream::set_ttl`].
-    pub fn set_ttl(&mut self, ttl: u32) -> io::Result<()> {
-        self.stream.set_ttl(ttl)
-    }
-
-    /// See [`TcpStream::ttl`].
-    pub fn ttl(&mut self) -> io::Result<u32> {
-        self.stream.ttl()
-    }
-
     /// See [`TcpStream::set_nodelay`].
     pub fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
         self.stream.set_nodelay(nodelay)
@@ -835,89 +715,12 @@ impl Connection {
         self.stream.nodelay()
     }
 
-    /// See [`TcpStream::keepalive`].
-    pub fn keepalive(&self) -> io::Result<bool> {
-        self.stream.keepalive()
-    }
-
-    /// See [`TcpStream::set_keepalive`].
-    pub fn set_keepalive(&self, enable: bool) -> io::Result<()> {
-        self.stream.set_keepalive(enable)
-    }
-
-    /// Clear parsed request(s) from the buffer.
-    fn clear_buffer(&mut self) {
-        let buf_len = self.buf.len();
-        if self.parsed_bytes >= buf_len {
-            // Parsed all bytes in the buffer, so we can clear it.
-            self.buf.clear();
-            self.parsed_bytes -= buf_len;
-        }
-
-        // TODO: move bytes to the start.
-    }
-
-    /// Recv bytes from the underlying stream, reading into `self.buf`.
-    ///
-    /// Returns an `UnexpectedEof` error if zero bytes are received.
-    fn try_recv(&mut self) -> Poll<io::Result<usize>> {
-        // Ensure we have space in the buffer to read into.
-        self.clear_buffer();
-        self.buf.reserve(MIN_READ_SIZE);
-
-        loop {
-            match self.stream.try_recv(&mut self.buf) {
-                Ok(0) => return Poll::Ready(Err(io::ErrorKind::UnexpectedEof.into())),
-                Ok(n) => return Poll::Ready(Ok(n)),
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Poll::Pending,
-                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                Err(err) => return Poll::Ready(Err(err)),
-            }
-        }
-    }
-
-    /// Read a HTTP body chunk.
-    ///
-    /// Returns an I/O error, or an `InvalidData` error if the chunk size is
-    /// invalid.
-    fn try_read_chunk(
-        &mut self,
-        // Fields of `BodyKind::Chunked`:
-        left_in_chunk: &mut usize,
-        read_complete: &mut bool,
-    ) -> Poll<io::Result<()>> {
-        loop {
-            match httparse::parse_chunk_size(&self.buf[self.parsed_bytes..]) {
-                #[allow(clippy::cast_possible_truncation)] // For truncate below.
-                Ok(httparse::Status::Complete((idx, chunk_size))) => {
-                    self.parsed_bytes += idx;
-                    if chunk_size == 0 {
-                        *read_complete = true;
-                    }
-                    // FIXME: add check here. It's fine on 64 bit (only currently
-                    // supported).
-                    *left_in_chunk = chunk_size as usize;
-                    return Poll::Ready(Ok(()));
-                }
-                Ok(httparse::Status::Partial) => {} // Read some more data below.
-                Err(_) => {
-                    return Poll::Ready(Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "invalid chunk size",
-                    )))
-                }
-            }
-
-            let _ = ready!(self.try_recv())?;
-        }
-    }
-
     async fn read_chunk(
         &mut self,
         // Fields of `BodyKind::Chunked`:
         left_in_chunk: &mut usize,
         read_complete: &mut bool,
-    ) -> io::Result<()> {
+    ) -> Result<(), RequestError> {
         loop {
             match httparse::parse_chunk_size(&self.buf[self.parsed_bytes..]) {
                 #[allow(clippy::cast_possible_truncation)] // For truncate below.
@@ -932,22 +735,36 @@ impl Connection {
                     return Ok(());
                 }
                 Ok(httparse::Status::Partial) => {} // Read some more data below.
-                Err(_) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "invalid chunk size",
-                    ))
-                }
+                Err(_) => return Err(RequestError::InvalidChunkSize),
             }
 
-            // Ensure we have space in the buffer to read into.
-            self.clear_buffer();
-            self.buf.reserve(MIN_READ_SIZE);
-
-            if self.stream.recv(&mut self.buf).await? == 0 {
-                return Err(io::ErrorKind::UnexpectedEof.into());
+            if self.recv().await? {
+                return Err(RequestError::IncompleteRequest);
             }
         }
+    }
+
+    /// Returns true if we read all bytes (i.e. we read 0 bytes).
+    async fn recv(&mut self) -> io::Result<bool> {
+        // Ensure we have space in the buffer to read into.
+        self.clear_buffer();
+        self.buf.reserve(MIN_READ_SIZE);
+
+        let buf_len = self.buf.len();
+        self.buf = self.stream.recv(take(&mut self.buf)).await?;
+        Ok(self.buf.len() == buf_len)
+    }
+
+    /// Clear parsed request(s) from the buffer.
+    fn clear_buffer(&mut self) {
+        let buf_len = self.buf.len();
+        if self.parsed_bytes >= buf_len {
+            // Parsed all bytes in the buffer, so we can clear it.
+            self.buf.clear();
+            self.parsed_bytes = 0;
+        }
+
+        // TODO: move bytes to the start.
     }
 }
 
@@ -991,7 +808,7 @@ enum BodyKind {
 }
 
 impl<'a> Body<'a> {
-    /// Returns the length of the body (in bytes) *left*, or a
+    /// Returns the length of the body (in bytes) *left*.
     ///
     /// Calling this before [`recv`] or [`recv_vectored`] will return the
     /// original body length, after removing bytes from the body this will
@@ -1006,15 +823,6 @@ impl<'a> Body<'a> {
         match self.kind {
             BodyKind::Oneshot { left } => BodyLength::Known(left),
             BodyKind::Chunked { .. } => BodyLength::Chunked,
-        }
-    }
-
-    /// Return the length of this chunk *left*, or the entire body in case of a
-    /// oneshot body.
-    fn chunk_len(&self) -> usize {
-        match self.kind {
-            BodyKind::Oneshot { left } => left,
-            BodyKind::Chunked { left_in_chunk, .. } => left_in_chunk,
         }
     }
 
@@ -1047,77 +855,100 @@ impl<'a> Body<'a> {
     }
 
     /// Receive bytes from the request body, writing them into `buf`.
-    pub const fn recv<B>(&'a mut self, buf: B) -> Recv<'a, B>
-    where
-        B: Bytes,
-    {
-        Recv { body: self, buf }
-    }
-
-    /// Receive bytes from the request body, writing them into `bufs`.
-    pub const fn recv_vectored<B>(&'a mut self, bufs: B) -> RecvVectored<'a, B>
-    where
-        B: BytesVectored,
-    {
-        RecvVectored { body: self, bufs }
-    }
-
-    /// Read the entire body into `buf`, up to `limit` bytes.
-    ///
-    /// If the body is larger then `limit` bytes it return an `io::Error`.
-    pub async fn read_all(&mut self, buf: &mut Vec<u8>, limit: usize) -> io::Result<()> {
-        let mut total = 0;
+    pub async fn recv<B: BufMut>(&mut self, mut buf: B) -> io::Result<B> {
         loop {
-            // Copy bytes in our buffer.
-            let bytes = self.buf_bytes();
-            let len = bytes.len();
-            if limit < total + len {
-                return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
+            // Quick return for if we read all bytes in the body already.
+            if self.is_empty() {
+                return Ok(buf);
             }
 
-            buf.extend_from_slice(bytes);
-            self.processed(len);
-            total += len;
+            // First try to copy already buffered bytes.
+            let buf_bytes = self.buf_bytes();
+            if !buf_bytes.is_empty() {
+                let written = buf.extend_from_slice(buf_bytes);
+                self.processed(written);
+                return Ok(buf);
+            }
 
-            let chunk_len = self.chunk_len();
-            if chunk_len == 0 {
-                match &mut self.kind {
-                    // Read all the bytes from the oneshot body.
-                    BodyKind::Oneshot { .. } => return Ok(()),
-                    // Read all the bytes in the chunk, so need to read another
-                    // chunk.
-                    BodyKind::Chunked {
-                        left_in_chunk,
-                        read_complete,
-                    } => {
-                        if *read_complete {
-                            return Ok(());
-                        }
-
+            // We need to ensure that we don't read another response head or
+            // chunk head into `buf`. So we need to determine a limit on the
+            // amount of bytes we can safely read. We only can't determine that
+            // for the case were we read an entire chunk, but don't know
+            // anything about the next chunk. In this case we need our own
+            // buffer to ensure we don't lose not-body bytes to the user's
+            // `buf`fer.
+            let limit = match &mut self.kind {
+                BodyKind::Oneshot { left } => *left,
+                BodyKind::Chunked {
+                    left_in_chunk,
+                    read_complete,
+                } => {
+                    if *left_in_chunk != 0 {
+                        *left_in_chunk
+                    } else {
                         self.conn.read_chunk(left_in_chunk, read_complete).await?;
-                        // Copy read bytes again.
+                        // Read from the client's buffer again.
                         continue;
                     }
                 }
-            }
-            // Continue to reading below.
-            break;
+            };
+
+            let len_before = buf.spare_capacity();
+            let limited_buf = self.conn.stream.recv(buf.limit(limit)).await?;
+            let buf = limited_buf.into_inner();
+            self.processed(buf.spare_capacity() - len_before);
+            return Ok(buf);
         }
+    }
 
+    /// Receive bytes from the request body, writing them into `bufs` using
+    /// vectored I/O.
+    pub async fn recv_vectored<B: BufMutSlice<N>, const N: usize>(
+        &mut self,
+        mut bufs: B,
+    ) -> io::Result<B> {
         loop {
-            // Limit the read until the end of the chunk/body.
-            let chunk_len = self.chunk_len();
-            if chunk_len == 0 {
-                return Ok(());
-            } else if total + chunk_len > limit {
-                return Err(io::Error::new(io::ErrorKind::Other, "body too large"));
+            // Quick return for if we read all bytes in the body already.
+            if self.is_empty() {
+                return Ok(bufs);
             }
 
-            (&mut *buf).reserve(chunk_len);
-            self.conn.stream.recv_n(&mut *buf, chunk_len).await?;
-            total += chunk_len;
+            // First try to copy already buffered bytes.
+            let buf_bytes = self.buf_bytes();
+            if !buf_bytes.is_empty() {
+                let written = bufs.extend_from_slice(buf_bytes);
+                self.processed(written);
+                return Ok(bufs);
+            }
 
-            // FIXME: doesn't deal with chunked bodies.
+            // We need to ensure that we don't read another response head or
+            // chunk head into `buf`. So we need to determine a limit on the
+            // amount of bytes we can safely read. We only can't determine that
+            // for the case were we read an entire chunk, but don't know
+            // anything about the next chunk. In this case we need our own
+            // buffer to ensure we don't lose not-body bytes to the user's
+            // `buf`fer.
+            let limit = match &mut self.kind {
+                BodyKind::Oneshot { left } => *left,
+                BodyKind::Chunked {
+                    left_in_chunk,
+                    read_complete,
+                } => {
+                    if *left_in_chunk != 0 {
+                        *left_in_chunk
+                    } else {
+                        self.conn.read_chunk(left_in_chunk, read_complete).await?;
+                        // Read from the client's buffer again.
+                        continue;
+                    }
+                }
+            };
+
+            let len_before = bufs.total_spare_capacity();
+            let limited_bufs = self.conn.stream.recv_vectored(bufs.limit(limit)).await?;
+            let bufs = limited_bufs.into_inner();
+            self.processed(bufs.total_spare_capacity() - len_before);
+            return Ok(bufs);
         }
     }
 
@@ -1138,20 +969,6 @@ impl<'a> Body<'a> {
         }
     }
 
-    /// Copy already read bytes.
-    ///
-    /// Same as [`Body::buf_bytes`] this is limited to the bytes of this
-    /// request/chunk, i.e. it doesn't contain the next request/chunk.
-    fn copy_buf_bytes(&mut self, dst: &mut [MaybeUninit<u8>]) -> usize {
-        let bytes = self.buf_bytes();
-        let len = min(bytes.len(), dst.len());
-        if len != 0 {
-            let _ = MaybeUninit::write_slice(&mut dst[..len], &bytes[..len]);
-            self.processed(len);
-        }
-        len
-    }
-
     /// Mark `n` bytes are processed.
     fn processed(&mut self, n: usize) {
         // TODO: should this be `unsafe`? We don't do underflow checks...
@@ -1160,264 +977,6 @@ impl<'a> Body<'a> {
             BodyKind::Chunked { left_in_chunk, .. } => *left_in_chunk -= n,
         }
         self.conn.parsed_bytes += n;
-    }
-}
-
-/// The [`Future`] behind [`Body::recv`].
-#[derive(Debug)]
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct Recv<'b, B> {
-    body: &'b mut Body<'b>,
-    buf: B,
-}
-
-impl<'b, B> Future for Recv<'b, B>
-where
-    B: Bytes + Unpin,
-{
-    type Output = io::Result<usize>;
-
-    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let Recv { body, buf } = Pin::into_inner(self);
-
-        let mut len = 0;
-        loop {
-            // Copy bytes in our buffer.
-            len += body.copy_buf_bytes(buf.as_bytes());
-            if len != 0 {
-                unsafe { buf.update_length(len) };
-            }
-
-            let limit = body.chunk_len();
-            if limit == 0 {
-                match &mut body.kind {
-                    // Read all the bytes from the oneshot body.
-                    BodyKind::Oneshot { .. } => return Poll::Ready(Ok(len)),
-                    // Read all the bytes in the chunk, so need to read another
-                    // chunk.
-                    BodyKind::Chunked {
-                        left_in_chunk,
-                        read_complete,
-                    } => {
-                        ready!(body.conn.try_read_chunk(left_in_chunk, read_complete))?;
-                        // Copy read bytes again.
-                        continue;
-                    }
-                }
-            }
-            // Continue to reading below.
-            break;
-        }
-
-        // Read from the stream if there is space left.
-        if buf.has_spare_capacity() {
-            // Limit the read until the end of the chunk/body.
-            let limit = body.chunk_len();
-            loop {
-                match body.conn.stream.try_recv(buf.limit(limit)) {
-                    Ok(n) => return Poll::Ready(Ok(len + n)),
-                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                        return if len == 0 {
-                            Poll::Pending
-                        } else {
-                            Poll::Ready(Ok(len))
-                        }
-                    }
-                    Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                    Err(err) => return Poll::Ready(Err(err)),
-                }
-            }
-        } else {
-            Poll::Ready(Ok(len))
-        }
-    }
-}
-
-/// The [`Future`] behind [`Body::recv_vectored`].
-#[derive(Debug)]
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-pub struct RecvVectored<'b, B> {
-    body: &'b mut Body<'b>,
-    bufs: B,
-}
-
-impl<'b, B> Future for RecvVectored<'b, B>
-where
-    B: BytesVectored + Unpin,
-{
-    type Output = io::Result<usize>;
-
-    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let RecvVectored { body, bufs } = Pin::into_inner(self);
-
-        let mut len = 0;
-        loop {
-            // Copy bytes in our buffer.
-            for buf in bufs.as_bufs().as_mut() {
-                match body.copy_buf_bytes(buf) {
-                    0 => break,
-                    n => len += n,
-                }
-            }
-            if len != 0 {
-                unsafe { bufs.update_lengths(len) };
-            }
-
-            let limit = body.chunk_len();
-            if limit == 0 {
-                match &mut body.kind {
-                    // Read all the bytes from the oneshot body.
-                    BodyKind::Oneshot { .. } => return Poll::Ready(Ok(len)),
-                    // Read all the bytes in the chunk, so need to read another
-                    // chunk.
-                    BodyKind::Chunked {
-                        left_in_chunk,
-                        read_complete,
-                    } => {
-                        ready!(body.conn.try_read_chunk(left_in_chunk, read_complete))?;
-                        // Copy read bytes again.
-                        continue;
-                    }
-                }
-            }
-            // Continue to reading below.
-            break;
-        }
-
-        // Read from the stream if there is space left.
-        if bufs.has_spare_capacity() {
-            // Limit the read until the end of the chunk/body.
-            let limit = body.chunk_len();
-            loop {
-                match body.conn.stream.try_recv_vectored(bufs.limit(limit)) {
-                    Ok(n) => return Poll::Ready(Ok(len + n)),
-                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                        return if len == 0 {
-                            Poll::Pending
-                        } else {
-                            Poll::Ready(Ok(len))
-                        }
-                    }
-                    Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                    Err(err) => return Poll::Ready(Err(err)),
-                }
-            }
-        } else {
-            Poll::Ready(Ok(len))
-        }
-    }
-}
-
-impl<'a> crate::Body<'a> for Body<'a> {
-    fn length(&self) -> BodyLength {
-        self.len()
-    }
-}
-
-mod private {
-    use std::future::Future;
-    use std::io;
-    use std::pin::Pin;
-    use std::task::{self, ready, Poll};
-
-    use heph::net::TcpStream;
-
-    use super::{Body, BodyKind};
-
-    #[derive(Debug)]
-    pub struct SendBody<'c, 's, 'h> {
-        pub(super) body: Body<'c>,
-        /// Stream we're writing the body to.
-        pub(super) stream: &'s mut TcpStream,
-        /// HTTP head for the response.
-        pub(super) head: &'h [u8],
-    }
-
-    impl<'c, 's, 'h> Future for SendBody<'c, 's, 'h> {
-        type Output = io::Result<()>;
-
-        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-            let SendBody { body, stream, head } = Pin::into_inner(self);
-
-            // Send the HTTP head first.
-            // TODO: try to use vectored I/O on first call.
-            while !head.is_empty() {
-                match stream.try_send(*head) {
-                    Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
-                    Ok(n) => *head = &head[n..],
-                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                        return Poll::Pending
-                    }
-                    Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                    Err(err) => return Poll::Ready(Err(err)),
-                }
-            }
-
-            while !body.is_empty() {
-                let limit = body.chunk_len();
-                let bytes = body.buf_bytes();
-                let bytes = if bytes.len() > limit {
-                    &bytes[..limit]
-                } else {
-                    bytes
-                };
-                // TODO: maybe read first if we have less then N bytes?
-                if !bytes.is_empty() {
-                    match stream.try_send(bytes) {
-                        Ok(0) => return Poll::Ready(Err(io::ErrorKind::WriteZero.into())),
-                        Ok(n) => {
-                            body.processed(n);
-                            continue;
-                        }
-                        Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => {
-                            return Poll::Pending
-                        }
-                        Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                        Err(err) => return Poll::Ready(Err(err)),
-                    }
-                    // NOTE: we don't continue here, we always return on start
-                    // the next iteration of the loop.
-                }
-
-                // Read some more data, or the next chunk.
-                match &mut body.kind {
-                    BodyKind::Oneshot { .. } => {
-                        let _ = ready!(body.conn.try_recv())?;
-                    }
-                    BodyKind::Chunked {
-                        left_in_chunk,
-                        read_complete,
-                    } => {
-                        if *left_in_chunk == 0 {
-                            ready!(body.conn.try_read_chunk(left_in_chunk, read_complete))?;
-                        } else {
-                            let _ = ready!(body.conn.try_recv())?;
-                        }
-                    }
-                }
-            }
-
-            Poll::Ready(Ok(()))
-        }
-    }
-}
-
-impl<'c> crate::body::PrivateBody<'c> for Body<'c> {
-    type WriteBody<'s, 'h> = private::SendBody<'c, 's, 'h>;
-
-    fn write_message<'s, 'h>(
-        self,
-        stream: &'s mut TcpStream,
-        head: &'h [u8],
-    ) -> Self::WriteBody<'s, 'h>
-    where
-        'c: 'h,
-    {
-        private::SendBody {
-            body: self,
-            stream,
-            head,
-        }
     }
 }
 
@@ -1451,7 +1010,7 @@ impl<'a> Drop for Body<'a> {
 
 /// Error parsing HTTP request.
 #[non_exhaustive]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Debug)]
 pub enum RequestError {
     /// Missing part of request.
     IncompleteRequest,
@@ -1495,11 +1054,13 @@ pub enum RequestError {
     UnknownMethod,
     /// Chunk size is invalid.
     InvalidChunkSize,
+    /// I/O error.
+    Io(io::Error),
 }
 
 impl RequestError {
     /// Returns the proper status code for a given error.
-    pub const fn proper_status_code(self) -> StatusCode {
+    pub const fn proper_status_code(&self) -> StatusCode {
         use RequestError::*;
         // See the parsing code for various references to the RFC(s) that
         // determine the values here.
@@ -1516,7 +1077,7 @@ impl RequestError {
             | InvalidToken
             | InvalidNewLine
             | InvalidVersion
-            | InvalidChunkSize=> StatusCode::BAD_REQUEST,
+            | InvalidChunkSize => StatusCode::BAD_REQUEST,
             // RFC 7230 section 3.3.1:
             // > A server that receives a request message with a transfer coding
             // > it does not understand SHOULD respond with 501 (Not
@@ -1527,12 +1088,13 @@ impl RequestError {
             // > implemented by an origin server, the origin server SHOULD
             // > respond with the 501 (Not Implemented) status code.
             | UnknownMethod => StatusCode::NOT_IMPLEMENTED,
+            Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
     /// Returns `true` if the connection should be closed based on the error
     /// (after sending a error response).
-    pub const fn should_close(self) -> bool {
+    pub const fn should_close(&self) -> bool {
         use RequestError::*;
         // See the parsing code for various references to the RFC(s) that
         // determine the values here.
@@ -1550,7 +1112,8 @@ impl RequestError {
             | InvalidToken
             | InvalidNewLine
             | InvalidVersion
-            | InvalidChunkSize => true,
+            | InvalidChunkSize
+            | Io(_) => true,
             UnknownMethod => false,
         }
     }
@@ -1561,7 +1124,7 @@ impl RequestError {
     /// [proper status code]: RequestError::proper_status_code
     /// [Connection]: HeaderName::CONNECTION
     /// [connection should be closed]: RequestError::should_close
-    pub fn response(self) -> Response<EmptyBody> {
+    pub fn response(&self) -> Response<EmptyBody> {
         let mut response = Response::build_new(self.proper_status_code());
         if self.should_close() {
             response
@@ -1580,16 +1143,17 @@ impl RequestError {
             NewLine => RequestError::InvalidNewLine,
             Version => RequestError::InvalidVersion,
             TooManyHeaders => RequestError::TooManyHeaders,
-            // SAFETY: request never contain a status, only responses do.
-            Status => unreachable!(),
+            // Requests never contain a status, only responses do, but we don't
+            // want a panic branch (from `unreachable!`) here.
+            Status => RequestError::IncompleteRequest,
         }
     }
-}
 
-impl fmt::Display for RequestError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+
+    #[rustfmt::skip]
+    fn as_str(&self) -> &'static str {
         use RequestError::*;
-        f.write_str(match self {
+        match self {
             IncompleteRequest => "incomplete request",
             HeadTooLarge => "head too large",
             InvalidContentLength => "invalid Content-Length header",
@@ -1606,16 +1170,45 @@ impl fmt::Display for RequestError {
             InvalidVersion => "invalid version",
             UnknownMethod => "unknown method",
             InvalidChunkSize => "invalid chunk size",
-        })
+            Io(_) => "I/O error",
+        }
     }
 }
 
-/// The message type used by [`HttpServer`] (and [`TcpServer`]).
-///
-#[doc(inline)]
-pub use heph::net::tcp::server::Message;
+impl From<io::Error> for RequestError {
+    fn from(err: io::Error) -> RequestError {
+        if let io::ErrorKind::UnexpectedEof = err.kind() {
+            RequestError::IncompleteRequest
+        } else {
+            RequestError::Io(err)
+        }
+    }
+}
 
-/// Error returned by [`HttpServer`] (and [`TcpServer`]).
+impl From<RequestError> for io::Error {
+    fn from(err: RequestError) -> io::Error {
+        match err {
+            RequestError::Io(err) => err,
+            err => io::Error::new(io::ErrorKind::InvalidData, err.as_str()),
+        }
+    }
+}
+
+impl fmt::Display for RequestError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RequestError::Io(err) => err.fmt(f),
+            err => err.as_str().fmt(f),
+        }
+    }
+}
+
+/// The message type used by the HTTP server.
 ///
 #[doc(inline)]
-pub use heph::net::tcp::server::Error;
+pub use heph_rt::net::tcp::server::Message;
+
+/// Error returned by the HTTP server.
+///
+#[doc(inline)]
+pub use heph_rt::net::tcp::server::Error;

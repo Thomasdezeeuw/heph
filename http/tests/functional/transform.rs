@@ -1,23 +1,23 @@
 //! Tests for the transform module.
 
-use heph::test;
 use heph_http::body::OneshotBody;
 use heph_http::handler::{Handler, Middleware};
 use heph_http::transform::{Body, Cloned, Path, TransformMiddleware};
 use heph_http::{Header, HeaderName, Headers, Method, Request, Response, StatusCode, Version};
+use heph_rt::test;
 
 const REQ_BODY: &'static str = "test_body";
 const OK_BODY: &'static str = "good";
 const BAD_BODY: &'static str = "bad";
 const HOST: &'static str = "localhost";
 
-type TestBody = OneshotBody<'static>;
+type TestBody = OneshotBody<&'static str>;
 
 struct Error(&'static str);
 
 impl From<Error> for Response<TestBody> {
     fn from(err: Error) -> Response<TestBody> {
-        Response::bad_request().with_body(err.0.into())
+        Response::bad_request().with_body(TestBody::new(err.0))
     }
 }
 
@@ -25,7 +25,7 @@ struct Text(&'static str);
 
 impl From<Text> for Response<TestBody> {
     fn from(txt: Text) -> Response<TestBody> {
-        Response::ok().with_body(txt.0.into())
+        Response::ok().with_body(TestBody::new(txt.0))
     }
 }
 
@@ -63,8 +63,8 @@ fn transform_middleware() {
                 .unwrap(),
             HOST,
         );
-        assert_eq!((cloned_body.0).0, REQ_BODY);
-        assert_eq!(body.0, REQ_BODY);
+        assert_eq!((cloned_body.0).0.into_inner(), REQ_BODY);
+        assert_eq!(body.0.into_inner(), REQ_BODY);
 
         if path.0 == "/ok" {
             Ok(Text(OK_BODY))
@@ -89,10 +89,10 @@ fn transform_middleware() {
                 headers.append(Header::new(HeaderName::HOST, HOST.as_bytes()));
                 headers
             },
-            TestBody::from(REQ_BODY),
+            TestBody::new(REQ_BODY),
         );
         let response: Response<TestBody> = test::block_on(middleware.handle(request));
         assert_eq!(response.status(), expected_status);
-        assert_eq!(response.body(), expected_body);
+        assert_eq!(response.body().into_inner(), expected_body);
     }
 }

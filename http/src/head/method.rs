@@ -53,9 +53,9 @@ impl Method {
     /// Returns `true` if the method is safe.
     ///
     /// RFC 7321 section 4.2.1.
+    #[rustfmt::skip]
     pub const fn is_safe(self) -> bool {
-        use Method::*;
-        matches!(self, Get | Head | Options | Trace)
+        matches!(self, Method::Get | Method::Head | Method::Options | Method::Trace)
     }
 
     /// Returns `true` if the method is idempotent.
@@ -80,17 +80,16 @@ impl Method {
 
     /// Returns the method as string.
     pub const fn as_str(self) -> &'static str {
-        use Method::*;
         match self {
-            Options => "OPTIONS",
-            Get => "GET",
-            Post => "POST",
-            Put => "PUT",
-            Delete => "DELETE",
-            Head => "HEAD",
-            Trace => "TRACE",
-            Connect => "CONNECT",
-            Patch => "PATCH",
+            Method::Options => "OPTIONS",
+            Method::Get => "GET",
+            Method::Post => "POST",
+            Method::Put => "PUT",
+            Method::Delete => "DELETE",
+            Method::Head => "HEAD",
+            Method::Trace => "TRACE",
+            Method::Connect => "CONNECT",
+            Method::Patch => "PATCH",
         }
     }
 }
