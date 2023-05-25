@@ -111,7 +111,7 @@ fn request_map_body() {
         EmptyBody,
     )
     .map_body(|_body: EmptyBody| OneshotBody::new(BODY1));
-    assert_eq!(request.body(), BODY1);
+    assert_eq!(request.body().into_inner(), BODY1);
 }
 
 #[test]
@@ -125,12 +125,12 @@ fn request_builder() {
     ];
 
     for (create, expected) in tests {
-        let request = create("/".to_owned()).with_body::<OneshotBody>(BODY1.into());
+        let request = create("/".to_owned()).with_body(OneshotBody::new(BODY1));
         assert_eq!(request.method(), expected);
         assert_eq!(request.path(), "/");
         assert_eq!(request.version(), Version::Http11);
         assert!(request.headers().is_empty());
-        assert_eq!(request.body(), BODY1);
+        assert_eq!(request.body().into_inner(), BODY1);
     }
 }
 
@@ -213,7 +213,7 @@ fn response_header_or_else() {
 fn response_map_body() {
     let response = Response::new(Version::Http10, StatusCode::OK, Headers::EMPTY, EmptyBody)
         .map_body(|_body: EmptyBody| OneshotBody::new(BODY1));
-    assert_eq!(response.body(), BODY1);
+    assert_eq!(response.body().into_inner(), BODY1);
 }
 
 #[test]
@@ -238,11 +238,11 @@ fn response_builder() {
     ];
 
     for (create, expected) in tests {
-        let response = create().with_body::<OneshotBody>(BODY1.into());
+        let response = create().with_body(OneshotBody::new(BODY1));
         assert_eq!(response.version(), Version::Http11);
         assert_eq!(response.status(), expected);
         assert!(response.headers().is_empty());
-        assert_eq!(response.body(), BODY1);
+        assert_eq!(response.body().into_inner(), BODY1);
     }
 
     let tests: [(fn(&str) -> Response<EmptyBody>, StatusCode); 3] = [
@@ -253,7 +253,7 @@ fn response_builder() {
 
     for (create, expected) in tests {
         let uri = "/other_location";
-        let response = create(uri).with_body::<OneshotBody>(BODY1.into());
+        let response = create(uri).with_body(OneshotBody::new(BODY1));
         assert_eq!(response.version(), Version::Http11);
         assert_eq!(response.status(), expected);
         assert!(!response.headers().is_empty());
@@ -262,6 +262,6 @@ fn response_builder() {
             response.headers().get_bytes(&HeaderName::LOCATION),
             Some(uri.as_bytes())
         );
-        assert_eq!(response.body(), BODY1);
+        assert_eq!(response.body().into_inner(), BODY1);
     }
 }

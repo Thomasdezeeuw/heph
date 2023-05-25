@@ -99,6 +99,7 @@ macro_rules! route {
                 $( $method $(, $method2 )* $path => $handler, )+
                 _ => $not_found
             ),
+            _ => $not_found(request).await,
         }
     }};
 }

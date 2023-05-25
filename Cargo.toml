@@ -19,7 +19,7 @@ test = ["getrandom"]
 
 [dependencies]
 heph-inbox        = { version = "0.2.3", path = "./inbox", default-features = false }
-log               = { version = "0.4.16", default-features = false, features = ["kv_unstable", "kv_unstable_std"] }
+log               = { version = "0.4.17", default-features = false, features = ["kv_unstable", "kv_unstable_std"] }
 
 # Optional dependencies, enabled by features.
 # Required by the `test` feature.
@@ -43,7 +43,7 @@ required-features = ["test"]
 
 [workspace]
 members = [
-  #"http", # Stuck on 2021-11-01, also enable in Makefile.
+  "http",
   "inbox",
   "remote",
   "rt",
