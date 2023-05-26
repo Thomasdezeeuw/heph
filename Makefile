@@ -1,7 +1,7 @@
 include Makefile.include
 
 # Crates in this repo.
-CRATES := ./ inbox rt remote # http, stuck on old nightly.
+CRATES := ./ inbox rt remote http
 # Target that run the target in all $CRATES.
 TARGETS := test_all test_sanitizers_all test_sanitizer_all check_all clippy_all
 
