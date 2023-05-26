@@ -687,7 +687,8 @@ unsafe impl<B: BufSlice<N>, const N: usize> private::BufSlice<N> for BufWrapper<
 
 /// Wrapper to limit the number of bytes `B` can use.
 ///
-/// See [`Buf::limit`] and [`BufMut::limit`].
+/// Created using [`Buf::limit`], [`BufMut::limit`], [`BufSlice::limit`] or
+/// [`BufMutSlice::limit`].
 #[derive(Debug)]
 pub struct Limited<B> {
     buf: B,

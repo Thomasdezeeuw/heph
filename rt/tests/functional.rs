@@ -19,6 +19,7 @@ mod functional {
     mod actor_group;
     mod actor_ref;
     mod from_message;
+    mod fs;
     mod future;
     mod io;
     mod pipe;
