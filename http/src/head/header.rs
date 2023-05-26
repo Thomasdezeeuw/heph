@@ -95,13 +95,13 @@ impl Headers {
     /// If you don't want duplicate headers you can use (the more expansive)
     /// [`Headers::insert`] method.
     pub fn append(&mut self, header: Header<'static, '_>) {
-        self._append(header.name, header.value)
+        self._append(header.name, header.value);
     }
 
     /// Insert `header`, removing all existing headers with the same name.
     pub fn insert(&mut self, header: Header<'static, '_>) {
         self.remove_all(&header.name);
-        self._append(header.name, header.value)
+        self._append(header.name, header.value);
     }
 
     fn _append(&mut self, name: HeaderName<'static>, value: &[u8]) {
@@ -1087,7 +1087,7 @@ macro_rules! int_impl {
 
                 let mut value: $ty = 0;
                 for b in src.iter().copied() {
-                    if (b'0'..=b'9').contains(&b) {
+                    if b.is_ascii_digit() {
                         match value.checked_mul(10) {
                             Some(v) => value = v,
                             None => return Err(ParseIntError),

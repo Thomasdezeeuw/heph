@@ -44,6 +44,7 @@ impl Version {
     ///
     /// This function can be used to return the highest version given a major
     /// version.
+    #[must_use]
     pub const fn highest_minor(self) -> Version {
         match self {
             Version::Http10 | Version::Http11 => Version::Http11,
