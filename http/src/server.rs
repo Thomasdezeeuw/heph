@@ -666,10 +666,10 @@ impl Connection {
             match body.length() {
                 _ if !request_method.expects_body() || !status.includes_body() => {
                     send_body = false;
-                    extend_content_length_header(&mut http_head, &mut itoa_buf, 0)
+                    extend_content_length_header(&mut http_head, &mut itoa_buf, 0);
                 }
                 BodyLength::Known(length) => {
-                    extend_content_length_header(&mut http_head, &mut itoa_buf, length)
+                    extend_content_length_header(&mut http_head, &mut itoa_buf, length);
                 }
                 BodyLength::Chunked => {
                     http_head.extend_from_slice(b"Transfer-Encoding: chunked\r\n");
@@ -884,13 +884,12 @@ impl<'a> Body<'a> {
                     left_in_chunk,
                     read_complete,
                 } => {
-                    if *left_in_chunk != 0 {
-                        *left_in_chunk
-                    } else {
+                    if *left_in_chunk == 0 {
                         self.conn.read_chunk(left_in_chunk, read_complete).await?;
                         // Read from the client's buffer again.
                         continue;
                     }
+                    *left_in_chunk
                 }
             };
 
@@ -935,13 +934,12 @@ impl<'a> Body<'a> {
                     left_in_chunk,
                     read_complete,
                 } => {
-                    if *left_in_chunk != 0 {
-                        *left_in_chunk
-                    } else {
+                    if *left_in_chunk == 0 {
                         self.conn.read_chunk(left_in_chunk, read_complete).await?;
                         // Read from the client's buffer again.
                         continue;
                     }
+                    *left_in_chunk
                 }
             };
 

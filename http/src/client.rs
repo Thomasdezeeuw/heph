@@ -274,7 +274,7 @@ impl Client {
                                         // > its decimal value defines the expected
                                         // > message body length in octets.
                                         None => {
-                                            body_length = Some(ResponseBodyLength::Known(length))
+                                            body_length = Some(ResponseBodyLength::Known(length));
                                         }
                                     }
                                 } else {
@@ -311,7 +311,7 @@ impl Client {
                                             // > connection until it is closed by
                                             // > the server.
                                             if encodings.peek().is_some() {
-                                                body_length = Some(ResponseBodyLength::ReadToEnd)
+                                                body_length = Some(ResponseBodyLength::ReadToEnd);
                                             } else {
                                                 body_length = Some(ResponseBodyLength::Chunked);
                                             }
@@ -361,9 +361,6 @@ impl Client {
                                 Err(_) => return Err(ResponseError::InvalidChunkSize),
                             }
                         }
-                        Some(ResponseBodyLength::ReadToEnd) => BodyKind::Unknown {
-                            read_complete: false,
-                        },
                         // RFC 7230 section 3.3.3 point 1:
                         // > Any response to a HEAD request and any response
                         // > with a 1xx (Informational), 204 (No Content), or
@@ -384,7 +381,7 @@ impl Client {
                         // > length is determined by the number of octets
                         // > received prior to the server closing the
                         // > connection.
-                        None => BodyKind::Unknown {
+                        None | Some(ResponseBodyLength::ReadToEnd) => BodyKind::Unknown {
                             read_complete: false,
                         },
                     };
@@ -583,13 +580,12 @@ impl<'c> Body<'c> {
                     left_in_chunk,
                     read_complete,
                 } => {
-                    if *left_in_chunk != 0 {
-                        *left_in_chunk
-                    } else {
+                    if *left_in_chunk == 0 {
                         self.client.read_chunk(left_in_chunk, read_complete).await?;
                         // Read from the client's buffer again.
                         continue;
                     }
+                    *left_in_chunk
                 }
                 // We don't have an actual limit, but all the remaining bytes
                 // make up the response body, so we can safely read them all.
@@ -637,13 +633,12 @@ impl<'c> Body<'c> {
                     left_in_chunk,
                     read_complete,
                 } => {
-                    if *left_in_chunk != 0 {
-                        *left_in_chunk
-                    } else {
+                    if *left_in_chunk == 0 {
                         self.client.read_chunk(left_in_chunk, read_complete).await?;
                         // Read from the client's buffer again.
                         continue;
                     }
+                    *left_in_chunk
                 }
                 // We don't have an actual limit, but all the remaining bytes
                 // make up the response body, so we can safely read them all.
@@ -802,19 +797,19 @@ impl PartialEq for ResponseError {
     fn eq(&self, other: &ResponseError) -> bool {
         use ResponseError::*;
         match (self, other) {
-            (IncompleteResponse, IncompleteResponse) => true,
-            (HeadTooLarge, HeadTooLarge) => true,
-            (InvalidContentLength, InvalidContentLength) => true,
-            (DifferentContentLengths, DifferentContentLengths) => true,
-            (InvalidHeaderName, InvalidHeaderName) => true,
-            (InvalidHeaderValue, InvalidHeaderValue) => true,
-            (TooManyHeaders, TooManyHeaders) => true,
-            (UnsupportedTransferEncoding, UnsupportedTransferEncoding) => true,
-            (ContentLengthAndTransferEncoding, ContentLengthAndTransferEncoding) => true,
-            (InvalidNewLine, InvalidNewLine) => true,
-            (InvalidVersion, InvalidVersion) => true,
-            (InvalidStatus, InvalidStatus) => true,
-            (InvalidChunkSize, InvalidChunkSize) => true,
+            (IncompleteResponse, IncompleteResponse)
+            | (HeadTooLarge, HeadTooLarge)
+            | (InvalidContentLength, InvalidContentLength)
+            | (DifferentContentLengths, DifferentContentLengths)
+            | (InvalidHeaderName, InvalidHeaderName)
+            | (InvalidHeaderValue, InvalidHeaderValue)
+            | (TooManyHeaders, TooManyHeaders)
+            | (UnsupportedTransferEncoding, UnsupportedTransferEncoding)
+            | (ContentLengthAndTransferEncoding, ContentLengthAndTransferEncoding)
+            | (InvalidNewLine, InvalidNewLine)
+            | (InvalidVersion, InvalidVersion)
+            | (InvalidStatus, InvalidStatus)
+            | (InvalidChunkSize, InvalidChunkSize) => true,
             (Io(err1), Io(err2)) => {
                 if let (Some(errno1), Some(errno2)) = (err1.raw_os_error(), err2.raw_os_error()) {
                     errno1 == errno2
