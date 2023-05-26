@@ -125,7 +125,7 @@ impl Notify {
     }
 
     /// Returns the watchdog timeout, if any.
-    pub fn watchdog_timeout(&self) -> Option<Duration> {
+    pub const fn watchdog_timeout(&self) -> Option<Duration> {
         self.watch_dog
     }
 

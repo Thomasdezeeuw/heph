@@ -179,7 +179,7 @@ fn from_hex_hyphenated(input: &[u8]) -> Result<Uuid, ()> {
     Ok(Uuid(bytes))
 }
 
-fn from_hex_byte(b: u8) -> Result<u8, ()> {
+const fn from_hex_byte(b: u8) -> Result<u8, ()> {
     match b {
         b'A'..=b'F' => Ok(b - b'A' + 10),
         b'a'..=b'f' => Ok(b - b'a' + 10),

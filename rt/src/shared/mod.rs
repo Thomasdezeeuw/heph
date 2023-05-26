@@ -173,7 +173,7 @@ impl RuntimeInternals {
     }
 
     /// Returns the io_uring submission queue.
-    pub(crate) fn submission_queue(&self) -> &a10::SubmissionQueue {
+    pub(crate) const fn submission_queue(&self) -> &a10::SubmissionQueue {
         &self.sq
     }
 

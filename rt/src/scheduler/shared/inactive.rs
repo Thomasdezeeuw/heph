@@ -19,7 +19,7 @@ const SKIP_BITS: usize = 2;
 const SKIP_MASK: usize = (1 << SKIP_BITS) - 1;
 
 /// Returns `false` if `pid`'s `SKIP_BITS` aren't valid.
-fn ok_pid(pid: ProcessId) -> bool {
+const fn ok_pid(pid: ProcessId) -> bool {
     pid.0 & SKIP_MASK == 0
 }
 
@@ -593,7 +593,7 @@ fn tag_branch(branch: Pin<Box<Branch>>) -> TaggedPointer {
 }
 
 /// Create a mark ready-to-run `Pointer`.
-fn ready_to_run(pid: ProcessId) -> TaggedPointer {
+const fn ready_to_run(pid: ProcessId) -> TaggedPointer {
     (pid.0 | READY_TO_RUN) as *mut ()
 }
 
@@ -658,7 +658,7 @@ fn as_ptr(ptr: TaggedPointer) -> *mut () {
 }
 
 /// Returns the working pid for `ptr` at `depth`.
-fn wpid_for(pid: ProcessId, depth: usize) -> usize {
+const fn wpid_for(pid: ProcessId, depth: usize) -> usize {
     pid.0 >> ((depth * LEVEL_SHIFT) + SKIP_BITS)
 }
 
