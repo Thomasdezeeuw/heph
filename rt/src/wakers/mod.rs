@@ -111,6 +111,6 @@ unsafe fn data_as_raw_ptr(data: *const ()) -> (*const AtomicBitMap, usize) {
 }
 
 /// Returns the minimum bitmap size such that `id` can be set.
-fn min_bitmap_size(id: usize) -> usize {
+const fn min_bitmap_size(id: usize) -> usize {
     (id + usize::BITS as usize) / usize::BITS as usize
 }

@@ -1297,7 +1297,7 @@ pub struct Id(usize);
 
 impl Id {
     #[doc(hidden)] // Not part of the stable API.
-    pub fn as_usize(self) -> usize {
+    pub const fn as_usize(self) -> usize {
         self.0
     }
 }

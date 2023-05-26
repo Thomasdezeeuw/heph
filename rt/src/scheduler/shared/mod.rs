@@ -88,7 +88,7 @@ pub(crate) struct Scheduler {
 
 impl Scheduler {
     /// Create a new `Scheduler`.
-    pub(crate) fn new() -> Scheduler {
+    pub(crate) const fn new() -> Scheduler {
         Scheduler {
             ready: RunQueue::empty(),
             inactive: Inactive::empty(),
