@@ -1,6 +1,5 @@
 //! Module containing the `Process` trait, related types and implementations.
 
-use std::any::Any;
 use std::cmp::Ordering;
 use std::future::Future;
 use std::mem::size_of_val;
@@ -15,6 +14,7 @@ use heph::supervisor::Supervisor;
 use log::{as_debug, error, trace};
 use mio::Token;
 
+use crate::panic_message;
 use crate::spawn::options::Priority;
 
 #[cfg(test)]
@@ -94,18 +94,6 @@ impl<Fut: Future<Output = ()>> Future for FutureProcess<Fut> {
                 Poll::Ready(())
             }
         }
-    }
-}
-
-/// Attempts to extract a message from a panic, defaulting to `<unknown>`.
-/// NOTE: be sure to derefence the `Box`!
-fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
-    match panic.downcast_ref::<&'static str>() {
-        Some(s) => s,
-        None => match panic.downcast_ref::<String>() {
-            Some(s) => s,
-            None => "<unknown>",
-        },
     }
 }
 

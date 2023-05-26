@@ -201,6 +201,7 @@ macro_rules! syscall {
     }};
 }
 
+use std::any::Any;
 use std::convert::TryInto;
 use std::future::Future;
 use std::rc::Rc;
@@ -722,5 +723,17 @@ fn cpu_usage(clock_id: libc::clockid_t) -> Duration {
             duration.tv_sec.try_into().unwrap_or(0),
             duration.tv_nsec.try_into().unwrap_or(u32::MAX),
         )
+    }
+}
+
+/// Attempts to extract a message from a panic, defaulting to `<unknown>`.
+/// NOTE: be sure to derefence the `Box`!
+fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
+    match panic.downcast_ref::<&'static str>() {
+        Some(s) => s,
+        None => match panic.downcast_ref::<String>() {
+            Some(s) => s,
+            None => "<unknown>",
+        },
     }
 }
