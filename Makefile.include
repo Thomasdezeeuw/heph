@@ -42,7 +42,6 @@ $(TARGETS):
 # `doc-markdown`: too many false positives.
 # `equatable-if-let`: bad lint.
 # `future-not-send`: we don't want to require all generic parameters to be `Send`.
-# `manual-let-else`: not really a fan of this.
 # `match-bool`: often less lines of code and I find that use `match` generally
 # strictly better then `if`s.
 # `missing-const-for-fn`: See https://github.com/rust-lang/rust-clippy/issues/4979.
@@ -74,7 +73,6 @@ clippy:
 		--allow clippy::enum-glob-use \
 		--allow clippy::equatable-if-let \
 		--allow clippy::future-not-send \
-		--allow clippy::manual-let-else \
 		--allow clippy::match-bool \
 		--allow clippy::missing-const-for-fn \
 		--allow clippy::missing-errors-doc \
