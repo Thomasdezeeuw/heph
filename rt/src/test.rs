@@ -74,8 +74,8 @@ use crate::thread_waker::ThreadWaker;
 use crate::wakers::shared::Wakers;
 use crate::worker::{Control, Worker};
 use crate::{
-    self as rt, shared, RuntimeRef, Sync, ThreadLocal, ThreadSafe, SYNC_WORKER_ID_END,
-    SYNC_WORKER_ID_START,
+    self as rt, panic_message, shared, RuntimeRef, Sync, ThreadLocal, ThreadSafe,
+    SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
 };
 
 #[doc(no_inline)]
@@ -335,7 +335,10 @@ where
         match self {
             BlockOnError::Creating(err) => f.debug_tuple("Creating").field(&err).finish(),
             BlockOnError::Running(err) => f.debug_tuple("Running").field(&err).finish(),
-            BlockOnError::Panic(err) => f.debug_tuple("Panic").field(&err).finish(),
+            BlockOnError::Panic(err) => f
+                .debug_tuple("Panic")
+                .field(&panic_message(&**err))
+                .finish(),
         }
     }
 }
