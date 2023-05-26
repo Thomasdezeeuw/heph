@@ -316,9 +316,8 @@ impl Connection {
 
                     // SAFETY: all these unwraps are safe because `parse` above
                     // ensures there all `Some`.
-                    let method = match request.method.unwrap().parse() {
-                        Ok(method) => method,
-                        Err(_) => return Err(RequestError::UnknownMethod),
+                    let Ok(method) = request.method.unwrap().parse() else {
+                        return Err(RequestError::UnknownMethod);
                     };
                     self.last_method = Some(method);
                     let path = request.path.unwrap().to_string();

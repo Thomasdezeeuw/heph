@@ -284,9 +284,7 @@ where
     H: FnMut() -> Result<(), E>,
     E: ToString,
 {
-    let notify = if let Some(notify) = Notify::new(ctx.runtime_ref()).await? {
-        notify
-    } else {
+    let Some(notify) = Notify::new(ctx.runtime_ref()).await? else {
         debug!("not started via systemd, not starting `systemd::watchdog`");
         return Ok(());
     };
