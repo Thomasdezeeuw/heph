@@ -218,6 +218,7 @@ pub mod access;
 mod channel;
 mod coordinator;
 mod error;
+pub mod fs;
 pub mod io;
 mod local;
 pub mod log;

@@ -57,10 +57,18 @@ pub fn refused_address() -> SocketAddr {
 
 /// Returns a path to a non-existing temporary file.
 pub fn temp_file(name: &str) -> PathBuf {
+    let mut dir = temp_dir_root();
+    dir.push(name);
+    dir
+}
+
+/// Returns the path to root of our temporary directory, cleaned before each
+/// test run.
+pub fn temp_dir_root() -> PathBuf {
     static CLEANUP: Once = Once::new();
 
     let mut dir = temp_dir();
-    dir.push("heph.test/");
+    dir.push("heph_rt.test/");
 
     CLEANUP.call_once(|| {
         let _ = remove_dir_all(&dir);
@@ -69,7 +77,6 @@ pub fn temp_file(name: &str) -> PathBuf {
         }
     });
 
-    dir.push(name);
     dir
 }
 
