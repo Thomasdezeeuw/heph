@@ -154,7 +154,7 @@ pub enum Tcp {}
 pub enum Udp {}
 
 /// Use JSON serialisation.
-#[cfg(any(feature = "json"))]
+#[cfg(feature = "json")]
 #[allow(missing_debug_implementations)]
 #[allow(clippy::empty_enum)]
 pub enum Json {}
@@ -241,7 +241,7 @@ impl<R, S, Out, In, RT> Config<R, (), S, Out, In, RT> {
 
 impl<R, CT, Out, In, RT> Config<R, CT, (), Out, In, RT> {
     /// Use [`Json`] serialisation.
-    #[cfg(any(feature = "json"))]
+    #[cfg(feature = "json")]
     pub fn json(self) -> Config<R, CT, Json, Out, In, RT> {
         Config {
             router: self.router,
@@ -337,7 +337,7 @@ mod private {
     use serde::de::DeserializeOwned;
     use serde::Serialize;
 
-    #[cfg(any(feature = "json"))]
+    #[cfg(feature = "json")]
     use super::Json;
 
     /// Trait that defined (de)serialisation.
@@ -376,7 +376,7 @@ mod private {
         fn byte_offset(&self) -> usize;
     }
 
-    #[cfg(any(feature = "json"))]
+    #[cfg(feature = "json")]
     impl Serde for Json {
         type Iter<'a, T> = serde_json::StreamDeserializer<'a, serde_json::de::SliceRead<'a>, T>
             where T: DeserializeOwned;
@@ -404,7 +404,7 @@ mod private {
         }
     }
 
-    #[cfg(any(feature = "json"))]
+    #[cfg(feature = "json")]
     impl<'de, R, T> DeIter<T> for serde_json::StreamDeserializer<'de, R, T>
     where
         T: DeserializeOwned,
