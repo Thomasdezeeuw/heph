@@ -37,7 +37,7 @@
 //!         println!("got a message: {msg}");
 //!     }
 //! }
-//! # drop(actor); // Silence dead code warnings.
+//! # _ = actor; // Silence dead code warnings.
 //! ```
 //!
 //! The example above also shows how an actor can receive and process messages.
@@ -75,7 +75,7 @@
 //!     }
 //!     Ok(())
 //! }
-//! # drop(filter); // Silence dead code warnings.
+//! # _ = filter; // Silence dead code warnings.
 //! ```
 //!
 //! See the [actor reference] module for more information about what actor
@@ -173,7 +173,7 @@
 //!     }
 //!     Ok(())
 //! }
-//! # drop(spawn_actor); // Silence dead code warnings.
+//! # _ = spawn_actor; // Silence dead code warnings.
 //! ```
 //!
 //! See the [`Spawn`] trait for more information about spawning actors and see

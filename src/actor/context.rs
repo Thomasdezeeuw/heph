@@ -52,9 +52,7 @@ impl<M, RT> Context<M, RT> {
     ///         println!("Hello world");
     ///     }
     /// }
-    ///
-    /// # // Use the `greeter_actor` function to silence dead code warning.
-    /// # drop(greeter_actor);
+    /// # _ = greeter_actor; // Silence dead code warnings.
     /// ```
     pub fn try_receive_next(&mut self) -> Result<M, RecvError> {
         self.inbox.try_recv().map_err(RecvError::from)
@@ -77,9 +75,7 @@ impl<M, RT> Context<M, RT> {
     ///         println!("Got a message: {msg}");
     ///     }
     /// }
-    ///
-    /// # // Use the `print_actor` function to silence dead code warning.
-    /// # drop(print_actor);
+    /// # _ = print_actor; // Silence dead code warnings.
     /// ```
     ///
     /// Same as the example above, but this actor will only wait for a limited
@@ -107,9 +103,7 @@ impl<M, RT> Context<M, RT> {
     ///         Err(_) => println!("Timed out receiving message"),
     ///     }
     /// }
-    ///
-    /// # // Use the `print_actor` function to silence dead code warning.
-    /// # drop(print_actor);
+    /// # _ = print_actor; // Silence dead code warnings.
     /// ```
     pub fn receive_next<'ctx>(&'ctx mut self) -> ReceiveMessage<'ctx, M> {
         ReceiveMessage {
