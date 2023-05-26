@@ -20,7 +20,7 @@
 //!         println!("got a message: {msg}");
 //!     }
 //! }
-//! # drop(actor); // Silence dead code warnings.
+//! # _ = actor; // Silence dead code warnings.
 //! ```
 //!
 //! Heph uses an event-driven, non-blocking I/O, share nothing design. But what
