@@ -284,12 +284,11 @@ where
     H: FnMut() -> Result<(), E>,
     E: ToString,
 {
-    let notify = match Notify::new(ctx.runtime_ref()).await? {
-        Some(notify) => notify,
-        None => {
-            debug!("not started via systemd, not starting `systemd::watchdog`");
-            return Ok(());
-        }
+    let notify = if let Some(notify) = Notify::new(ctx.runtime_ref()).await? {
+        notify
+    } else {
+        debug!("not started via systemd, not starting `systemd::watchdog`");
+        return Ok(());
     };
     notify.change_state(State::Ready, None).await?;
 
