@@ -20,8 +20,8 @@ use heph_rt::timer::Timer;
 use heph_rt::{self as rt, ThreadLocal};
 
 #[test]
-fn block_on() {
-    let result = test::block_on(async move { "All good" });
+fn block_on_future() {
+    let result = test::block_on_future(async move { "All good" });
     assert_eq!(result, "All good");
 }
 

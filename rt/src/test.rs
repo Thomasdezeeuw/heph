@@ -20,7 +20,7 @@
 //!      the result.
 //!    * [`block_on_actor`]: spawns a thread-safe [actor] and waits for the
 //!      result.
-//!    * [`block_on`]: spawns a `Future` and waits for the result.
+//!    * [`block_on_future`]: spawns a `Future` and waits for the result.
 //!  * Initialising actors:
 //!    * [`init_local_actor`]: initialise a thread-local actor.
 //!    * [`init_actor`]: initialise a thread-safe actor.
@@ -183,7 +183,7 @@ where
 /// Spawn `future` on the *test* runtime and wait for the result.
 ///
 /// This is useful to test async functions and futures in synchronous tests.
-pub fn block_on<Fut>(future: Fut) -> Fut::Output
+pub fn block_on_future<Fut>(future: Fut) -> Fut::Output
 where
     Fut: Future + Send + 'static,
     Fut::Output: Send,
