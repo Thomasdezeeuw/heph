@@ -170,7 +170,7 @@ where
 {
     let (sender, mut receiver) = new_oneshot();
     let waker = SyncWaker::new();
-    _ = receiver.register_waker(&task::Waker::from(waker.clone()));
+    _ = receiver.register_waker(&waker.clone().into_waker());
     run_on_test_runtime(move |runtime_ref| {
         drop(sender.try_send(f(runtime_ref)));
         Ok(())
@@ -236,7 +236,7 @@ where
 {
     let (sender, mut receiver) = new_oneshot();
     let waker = SyncWaker::new();
-    _ = receiver.register_waker(&task::Waker::from(waker.clone()));
+    _ = receiver.register_waker(&waker.clone().into_waker());
     run_on_test_runtime(move |mut runtime_ref| {
         let (_, receiver) = heph_inbox::new(heph_inbox::MIN_CAP);
         let ctx = actor::Context::new(receiver, ThreadLocal::new(runtime_ref.clone()));
@@ -289,7 +289,7 @@ where
 {
     let (sender, mut receiver) = new_oneshot();
     let waker = SyncWaker::new();
-    _ = receiver.register_waker(&task::Waker::from(waker.clone()));
+    _ = receiver.register_waker(&waker.clone().into_waker());
     run_on_test_runtime(move |mut runtime_ref| {
         let (_, receiver) = heph_inbox::new(heph_inbox::MIN_CAP);
         let ctx = actor::Context::new(receiver, ThreadSafe::new(runtime_ref.clone_shared()));

@@ -3,8 +3,7 @@
 use std::future::Future;
 use std::io;
 use std::pin::pin;
-use std::sync::Arc;
-use std::task::{self, Poll};
+use std::task::{self, Poll, RawWaker, RawWakerVTable};
 use std::thread::{self, Thread};
 use std::time::{Duration, Instant};
 
@@ -168,7 +167,7 @@ impl_sync_actor!(
 #[derive(Debug)]
 pub struct SyncContext<M, RT = ()> {
     inbox: Receiver<M>,
-    future_waker: Option<Arc<SyncWaker>>,
+    future_waker: Option<SyncWaker>,
     /// Runtime access.
     rt: RT,
 }
@@ -264,7 +263,7 @@ impl<M, RT> SyncContext<M, RT> {
     }
 
     /// Returns the [`SyncWaker`] used as [`task::Waker`] in futures.
-    fn future_waker(&mut self) -> Arc<SyncWaker> {
+    fn future_waker(&mut self) -> SyncWaker {
         if let Some(waker) = self.future_waker.as_ref() {
             waker.clone()
         } else {
@@ -278,40 +277,37 @@ impl<M, RT> SyncContext<M, RT> {
 /// [`task::Waker`] implementation for blocking on [`Future`]s.
 // TODO: a `Thread` is already wrapped in an `Arc`, which mean we're double
 // `Arc`ing for the `Waker` implementation, try to remove that.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 #[doc(hidden)] // Not part of the stable API.
 pub struct SyncWaker {
     handle: Thread,
 }
 
-impl task::Wake for SyncWaker {
-    fn wake(self: Arc<Self>) {
-        self.handle.unpark();
-    }
-
-    fn wake_by_ref(self: &Arc<Self>) {
-        self.handle.unpark();
-    }
-}
-
 impl SyncWaker {
+    const VTABLE: RawWakerVTable = RawWakerVTable::new(
+        sync_waker_clone,
+        sync_waker_wake,
+        sync_waker_wake_by_ref,
+        sync_waker_drop,
+    );
+
     /// Create a new `SyncWaker`.
     #[doc(hidden)] // Not part of the stable API.
-    pub fn new() -> Arc<SyncWaker> {
-        Arc::new(SyncWaker {
+    pub fn new() -> SyncWaker {
+        SyncWaker {
             handle: thread::current(),
-        })
+        }
     }
 
     /// Poll the `future` until completion, blocking when it can't make
     /// progress.
     #[doc(hidden)] // Not part of the stable API.
-    pub fn block_on<Fut>(self: Arc<SyncWaker>, future: Fut) -> Fut::Output
+    pub fn block_on<Fut>(self: SyncWaker, future: Fut) -> Fut::Output
     where
         Fut: Future,
     {
         let mut future = pin!(future);
-        let task_waker = task::Waker::from(self);
+        let task_waker = self.into_waker();
         let mut task_ctx = task::Context::from_waker(&task_waker);
         loop {
             match Future::poll(future.as_mut(), &mut task_ctx) {
@@ -325,16 +321,12 @@ impl SyncWaker {
     /// Poll the `future` until completion, blocking when it can't make
     /// progress, waiting up to `timeout` time.
     #[doc(hidden)] // Not part of the stable API.
-    pub fn block_for<Fut>(
-        self: Arc<SyncWaker>,
-        future: Fut,
-        timeout: Duration,
-    ) -> Option<Fut::Output>
+    pub fn block_for<Fut>(self: SyncWaker, future: Fut, timeout: Duration) -> Option<Fut::Output>
     where
         Fut: Future,
     {
         let mut future = pin!(future);
-        let task_waker = task::Waker::from(self);
+        let task_waker = self.into_waker();
         let mut task_ctx = task::Context::from_waker(&task_waker);
 
         let start = Instant::now();
@@ -353,6 +345,57 @@ impl SyncWaker {
             }
         }
     }
+
+    /// Returns the `SyncWaker` as task `Waker`.
+    #[doc(hidden)] // Not part of the stable API.
+    pub fn into_waker(self) -> task::Waker {
+        let data = self.into_data();
+        let raw_waker = RawWaker::new(data, &SyncWaker::VTABLE);
+        unsafe { task::Waker::from_raw(raw_waker) }
+    }
+
+    /// Returns itself as `task::RawWaker` data.
+    fn into_data(self) -> *const () {
+        // SAFETY: this is not safe. This only works because `Thread` uses
+        // `Pin<Arc<_>>`, which is a pointer underneath.
+        unsafe { std::mem::transmute(self) }
+    }
+
+    /// Inverse of [`SyncWaker::into_data`].
+    ///
+    /// # Safety
+    ///
+    /// `data` MUST be created by [`SyncWaker::into_data`].
+    unsafe fn from_data(data: *const ()) -> SyncWaker {
+        // SAFETY: inverse of `into_data`, see that for more info.
+        unsafe { std::mem::transmute(data) }
+    }
+
+    /// Same as [`SyncWaker::from_data`], but returns a reference instead of an
+    /// owned `SyncWaker`.
+    unsafe fn from_data_ref(data: &*const ()) -> &SyncWaker {
+        // SAFETY: inverse of `into_data`, see that for more info, also see
+        // `from_data`.
+        unsafe { std::mem::transmute(data) }
+    }
+}
+
+unsafe fn sync_waker_clone(data: *const ()) -> RawWaker {
+    let waker = SyncWaker::from_data_ref(&data);
+    let data = waker.clone().into_data();
+    RawWaker::new(data, &SyncWaker::VTABLE)
+}
+
+unsafe fn sync_waker_wake(data: *const ()) {
+    SyncWaker::from_data(data).handle.unpark();
+}
+
+unsafe fn sync_waker_wake_by_ref(data: *const ()) {
+    SyncWaker::from_data_ref(&data).handle.unpark();
+}
+
+unsafe fn sync_waker_drop(data: *const ()) {
+    drop(SyncWaker::from_data(data));
 }
 
 /// Spawn a synchronous actor.
