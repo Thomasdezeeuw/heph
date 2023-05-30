@@ -1,7 +1,5 @@
 //! Types for the HTTP message head.
 
-use std::fmt;
-
 pub mod header;
 pub mod method;
 mod status_code;
@@ -19,6 +17,7 @@ use crate::{Request, Response};
 use header::FromHeaderValue;
 
 /// Head of a [`Request`].
+#[derive(Debug)]
 pub struct RequestHead {
     method: Method,
     pub(crate) path: String,
@@ -130,18 +129,8 @@ impl RequestHead {
     }
 }
 
-impl fmt::Debug for RequestHead {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("RequestHead")
-            .field("method", &self.method)
-            .field("path", &self.path)
-            .field("version", &self.version)
-            .field("headers", &self.headers)
-            .finish()
-    }
-}
-
 /// Head of a [`Response`].
+#[derive(Debug)]
 pub struct ResponseHead {
     version: Version,
     status: StatusCode,
@@ -231,15 +220,5 @@ impl ResponseHead {
     /// Add a body to the response head creating a complete response.
     pub const fn add_body<B>(self, body: B) -> Response<B> {
         Response::from_head(self, body)
-    }
-}
-
-impl fmt::Debug for ResponseHead {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ResponseHead")
-            .field("version", &self.version)
-            .field("status", &self.status)
-            .field("headers", &self.headers)
-            .finish()
     }
 }
