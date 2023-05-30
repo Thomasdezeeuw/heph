@@ -17,7 +17,7 @@ use crate::{Request, Response};
 use header::FromHeaderValue;
 
 /// Head of a [`Request`].
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RequestHead {
     method: Method,
     pub(crate) path: String,
@@ -130,7 +130,7 @@ impl RequestHead {
 }
 
 /// Head of a [`Response`].
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct ResponseHead {
     version: Version,
     status: StatusCode,
