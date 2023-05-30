@@ -1,4 +1,4 @@
-//! Module with HTTP method related types.
+//! Method related types.
 
 use std::fmt;
 use std::str::FromStr;
@@ -7,41 +7,41 @@ use crate::cmp_lower_case;
 
 /// HTTP method.
 ///
-/// RFC 7231 section 4.
+/// RFC 9110 section 9.3
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Method {
     /// GET method.
     ///
-    /// RFC 7231 section 4.3.1.
+    /// RFC 9110 section 9.3.1.
     Get,
     /// HEAD method.
     ///
-    /// RFC 7231 section 4.3.2.
+    /// RFC 9110 section 9.3.2.
     Head,
     /// POST method.
     ///
-    /// RFC 7231 section 4.3.3.
+    /// RFC 9110 section 9.3.3.
     Post,
     /// PUT method.
     ///
-    /// RFC 7231 section 4.3.4.
+    /// RFC 9110 section 9.3.4.
     Put,
     /// DELETE method.
     ///
-    /// RFC 7231 section 4.3.5.
+    /// RFC 9110 section 9.3.5.
     Delete,
     /// CONNECT method.
     ///
-    /// RFC 7231 section 4.3.6.
+    /// RFC 9110 section 9.3.6.
     Connect,
     /// OPTIONS method.
     ///
-    /// RFC 7231 section 4.3.7.
+    /// RFC 9110 section 9.3.7.
     Options,
     /// TRACE method.
     ///
-    /// RFC 7231 section 4.3.8.
+    /// RFC 9110 section 9.3.8.
     Trace,
     /// PATCH method.
     ///
@@ -52,7 +52,7 @@ pub enum Method {
 impl Method {
     /// Returns `true` if the method is safe.
     ///
-    /// RFC 7321 section 4.2.1.
+    /// RFC 9110 section 9.2.1.
     #[rustfmt::skip]
     pub const fn is_safe(self) -> bool {
         matches!(self, Method::Get | Method::Head | Method::Options | Method::Trace)
@@ -60,7 +60,7 @@ impl Method {
 
     /// Returns `true` if the method is idempotent.
     ///
-    /// RFC 7321 section 4.2.2.
+    /// RFC 9110 section 9.2.2.
     pub const fn is_idempotent(self) -> bool {
         matches!(self, Method::Put | Method::Delete) || self.is_safe()
     }
@@ -69,12 +69,8 @@ impl Method {
     ///
     /// This is only the case for the HEAD method.
     ///
-    /// RFC 7230 section 3.3 and RFC 7321 section 4.3.2.
+    /// RFC 9110 section 6.4.1.
     pub const fn expects_body(self) -> bool {
-        // RFC 7231 section 4.3.2:
-        // > The HEAD method is identical to GET except that the server MUST NOT
-        // > send a message body in the response (i.e., the response terminates
-        // > at the end of the header section).
         !matches!(self, Method::Head)
     }
 

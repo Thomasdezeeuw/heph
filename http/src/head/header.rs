@@ -1,4 +1,4 @@
-//! Module with HTTP header related types.
+//! Header related types.
 //!
 //! This module has three main types:
 //!  * [`Headers`] is a list of mulitple headers,
@@ -366,7 +366,7 @@ impl<'a> FusedIterator for Names<'a> {}
 
 /// HTTP header.
 ///
-/// RFC 7230 section 3.2.
+/// RFC 9110 section 6.3.
 #[derive(Clone, PartialEq, Eq)]
 pub struct Header<'n, 'v> {
     name: HeaderName<'n>,
