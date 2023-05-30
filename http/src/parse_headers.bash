@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-# Get the two csv files (permanent and provisional) from:
-# https://www.iana.org/assignments/message-headers/message-headers.xhtml
-# Remove the header from both file and run:
-# $ cat perm-headers.csv prov-headers.csv | ./parse.bash
+# Get the csv file with registered headers from
+# <https://www.iana.org/assignments/http-fields/http-fields.xhtml>.
+# Remove the header from the file and run:
+# $ cat field-names.csv | ./src/parse_headers.bash
 
 set -eu
 
@@ -27,8 +27,10 @@ clean_reference_partial() {
 	if [[ "${reference:0:3}" == "RFC" ]]; then
 		# Add a space after 'RFC'.
 		reference="RFC ${reference:3}"
-		# Remove comma and lower case section.
-		reference="${reference/, S/ s}"
+		# Remove double space
+		# Lowercase "Section"
+		# Remove ": $section_name" part.
+		reference=$(echo "$reference" | sed -e 's/Section/section/g' -e 's/:.*//' -e 's/  / /g')
 	fi
 
 	echo -n "$reference"
@@ -57,10 +59,27 @@ clean_reference() {
 
 # Collect all known header name by length in `header_names`.
 declare -a header_names
-while IFS=$',' read -r name template protocol status reference; do
-	# We're only interested in HTTP headers.
-	if [[ "http" != "$protocol" ]]; then
-		continue
+while IFS=$',' read -r -a values; do
+	# The reference column may contain commas, so we have to use an array to
+	# extract the columns we're interested in. Specifically in the case of
+	# the reference column we need to join multiple columns.
+
+	name="${values[0]}"
+
+	# Only include "permanent" headers, ignoring deprecated and obsoleted
+	# headers.
+	status="${values[2]}"
+	if [[ "permanent" != "$status" ]]; then
+		continue;
+	fi
+
+	# Stitch together the reference.
+	reference=''
+	if [[ "${#values[@]}" == 5 ]]; then
+		reference="${values[3]}"
+	else
+		unset values[-1] # Remove the comment.
+		reference=$(echo "${values[@]:3}" | xargs)
 	fi
 
 	reference="$(clean_reference "$reference")"
@@ -71,6 +90,8 @@ while IFS=$',' read -r name template protocol status reference; do
 	value_length="${#const_value}"    # Value length.
 	docs="#[doc = \"$name.\\\\n\\\\n$reference.\"]"
 
+	# NOTE: can't assign arrays/list to array values, so we have to use a
+	# string and parse that below (which is a little error prone).
 	header_names[$value_length]+="$docs|$const_name|$const_value
 "
 done
