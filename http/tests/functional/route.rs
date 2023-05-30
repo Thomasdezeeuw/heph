@@ -2,7 +2,7 @@
 
 use heph_http::body::{EmptyBody, OneshotBody};
 use heph_http::{route, Headers, Method, Request, Response, Version};
-use heph_rt::test::block_on;
+use heph_rt::test::block_on_future;
 
 async fn route<B>(request: Request<B>) -> Response<OneshotBody<&'static str>> {
     route!(match request {
@@ -93,7 +93,7 @@ mod handlers {
 
 #[test]
 fn multiple_methods_same_route() {
-    block_on(async move {
+    block_on_future(async move {
         let tests = [Request::get("/".to_owned()), Request::head("/".to_owned())];
         for test_request in tests {
             let response = route(test_request).await;
@@ -104,7 +104,7 @@ fn multiple_methods_same_route() {
 
 #[test]
 fn correct_routing_based_on_method() {
-    block_on(async move {
+    block_on_future(async move {
         let methods = [
             Method::Options,
             Method::Get,
@@ -132,7 +132,7 @@ fn correct_routing_based_on_method() {
 
 #[test]
 fn not_found_fallback() {
-    block_on(async move {
+    block_on_future(async move {
         let tests = [
             // Unknown path.
             Request::get("/unknown".to_owned()),
