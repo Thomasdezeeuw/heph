@@ -1,4 +1,4 @@
-//! Module with the type part of a HTTP message head.
+//! Types for the HTTP message head.
 
 use std::fmt;
 
@@ -64,7 +64,7 @@ impl RequestHead {
     /// Requests from the HTTP server will return the highest version it
     /// understands, e.g. if a client used HTTP/1.2 (which doesn't exists) the
     /// version would be set to HTTP/1.1 (the highest version this crate
-    /// understands) per RFC 7230 section 2.6.
+    /// understands) per RFC 9110 section 6.2.
     pub const fn version(&self) -> Version {
         self.version
     }

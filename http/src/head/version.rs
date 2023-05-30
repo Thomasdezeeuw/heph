@@ -1,11 +1,11 @@
-//! Module with HTTP version related types.
+//! Version related types.
 
 use std::fmt;
 use std::str::FromStr;
 
 /// HTTP version.
 ///
-/// RFC 7231 section 2.6.
+/// RFC 9110 section 2.5.
 #[non_exhaustive]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Version {
@@ -15,7 +15,7 @@ pub enum Version {
     Http10,
     /// HTTP/1.1.
     ///
-    /// RFC 7230.
+    /// RFC 9112.
     Http11,
 }
 
@@ -36,14 +36,6 @@ impl Version {
     }
 
     /// Returns the highest minor version with the same major version as `self`.
-    ///
-    /// According to RFC 7230 section 2.6:
-    /// > A server SHOULD send a response version equal to the highest version
-    /// > to which the server is conformant that has a major version less than or
-    /// > equal to the one received in the request.
-    ///
-    /// This function can be used to return the highest version given a major
-    /// version.
     #[must_use]
     pub const fn highest_minor(self) -> Version {
         match self {
