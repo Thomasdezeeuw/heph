@@ -19,8 +19,8 @@ use crate::{cmp_lower_case, is_lower_case};
 
 /// List of headers.
 ///
-/// A complete list can be found at the "Message Headers" registry:
-/// <http://www.iana.org/assignments/message-headers>.
+/// A complete list can be found at the HTTP Field Name Registry:
+/// <https://www.iana.org/assignments/http-fields/http-fields.xhtml>.
 #[derive(Clone)]
 pub struct Headers {
     /// All values appended in a single allocation.
@@ -964,7 +964,7 @@ impl<'a> fmt::Display for HeaderName<'a> {
 
 /// Analogous trait to [`FromStr`].
 ///
-/// The main use case for this trait in [`Header::parse`]. Because of this the
+/// The main use case for this trait is [`Header::parse`]. Because of this the
 /// implementations should expect the `value`s passed to be ASCII/UTF-8, but
 /// this not true in all cases.
 ///
