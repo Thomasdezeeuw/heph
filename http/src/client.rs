@@ -43,11 +43,6 @@ impl Client {
     }
 
     /// Send a GET request.
-    ///
-    /// # Notes
-    ///
-    /// Any [`ResponseError`] are turned into [`io::Error`]. If you want to
-    /// handle the `ResponseError`s separately use [`Client::request`].
     pub async fn get<'c, 'p>(
         &'c mut self,
         path: &'p str,
