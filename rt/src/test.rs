@@ -53,9 +53,9 @@
 
 use std::any::Any;
 use std::async_iter::AsyncIterator;
-use std::future::Future;
+use std::future::{poll_fn, Future};
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::pin::Pin;
+use std::pin::{pin, Pin};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::task::{self, Poll};
@@ -183,7 +183,7 @@ where
 /// Spawn `future` on the *test* runtime and wait for the result.
 ///
 /// This is useful to test async functions and futures in synchronous tests.
-pub fn block_on_future<Fut>(future: Fut) -> Fut::Output
+pub fn block_on_future<Fut>(future: Fut) -> Result<Fut::Output, BlockOnError<!>>
 where
     Fut: Future + Send + 'static,
     Fut::Output: Send,
@@ -192,7 +192,15 @@ where
     let waker = SyncWaker::new();
     spawn_local_future(
         async move {
-            let result = future.await;
+            let mut future = pin!(future);
+            let result = poll_fn(move |ctx| {
+                match catch_unwind(AssertUnwindSafe(|| future.as_mut().poll(ctx))) {
+                    Ok(Poll::Ready(output)) => Poll::Ready(Ok(output)),
+                    Ok(Poll::Pending) => Poll::Pending,
+                    Err(panic) => Poll::Ready(Err(BlockOnError::Panic(panic))),
+                }
+            })
+            .await;
             assert!(
                 sender.try_send(result).is_ok(),
                 "failed to return future result"
