@@ -1,11 +1,12 @@
 //! Tests for the `from_message!` macro.
 
-use std::pin::Pin;
-use std::task::Poll;
+use std::time::Duration;
 
 use heph::actor_ref::{ActorRef, RpcMessage};
+use heph::supervisor::NoSupervisor;
 use heph::{actor, from_message};
-use heph_rt::test::{init_local_actor, poll_actor};
+use heph_rt::spawn::ActorOptions;
+use heph_rt::test::{join, try_spawn_local};
 use heph_rt::ThreadLocal;
 
 #[derive(Debug)]
@@ -22,34 +23,19 @@ from_message!(Message::Rpc2(String, usize) -> (usize, usize));
 #[test]
 fn from_message() {
     let pong_actor = pong_actor as fn(_) -> _;
-    let (pong_actor, actor_ref) = init_local_actor(pong_actor, ()).unwrap();
-    let mut pong_actor = Box::pin(pong_actor);
+    let pong_ref = try_spawn_local(NoSupervisor, pong_actor, (), ActorOptions::default()).unwrap();
 
     let ping_actor = ping_actor as fn(_, _) -> _;
-    let (ping_actor, actor_ref) = init_local_actor(ping_actor, actor_ref).unwrap();
-    drop(actor_ref);
-    let mut ping_actor = Box::pin(ping_actor);
+    let ping_ref = try_spawn_local(
+        NoSupervisor,
+        ping_actor,
+        pong_ref.clone(),
+        ActorOptions::default(),
+    )
+    .unwrap();
 
-    // Waiting for the first message.
-    assert_eq!(poll_actor(Pin::as_mut(&mut pong_actor)), Poll::Pending);
-    // Wait for first RPC call.
-    assert_eq!(poll_actor(Pin::as_mut(&mut ping_actor)), Poll::Pending);
-
-    // Receives first message and first RPC, waits for second RPC.
-    assert_eq!(poll_actor(Pin::as_mut(&mut pong_actor)), Poll::Pending);
-    // Receives first RPC response, waits on second RPC.
-    assert_eq!(poll_actor(Pin::as_mut(&mut ping_actor)), Poll::Pending);
-
-    // Receives second RPC and is done.
-    assert_eq!(
-        poll_actor(Pin::as_mut(&mut pong_actor)),
-        Poll::Ready(Ok(()))
-    );
-    // Receives second RPC response and is done.
-    assert_eq!(
-        poll_actor(Pin::as_mut(&mut ping_actor)),
-        Poll::Ready(Ok(()))
-    );
+    join(&ping_ref, Duration::from_secs(1)).unwrap();
+    join(&pong_ref, Duration::from_secs(1)).unwrap();
 }
 
 async fn ping_actor(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<Message>) {
