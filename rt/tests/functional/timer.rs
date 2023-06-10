@@ -2,13 +2,12 @@ use std::future::Future;
 use std::io;
 use std::pin::Pin;
 use std::task::{self, Poll};
-use std::thread;
 use std::time::{Duration, Instant};
 
 use heph::actor;
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::ActorOptions;
-use heph_rt::test::{init_local_actor, poll_actor, poll_future, poll_next};
+use heph_rt::test::{block_on_local_actor, poll_future, poll_next};
 use heph_rt::timer::{Deadline, DeadlinePassed, Interval, Timer};
 use heph_rt::util::next;
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal, ThreadSafe};
@@ -46,15 +45,10 @@ fn timer() {
         let _ = (&mut timer).await;
         assert!(timer.deadline() >= start + TIMEOUT);
         assert!(timer.has_passed());
+        assert!(start.elapsed() >= TIMEOUT);
     }
 
-    let actor = actor as fn(_) -> _;
-    let (actor, _) = init_local_actor(actor, ()).unwrap();
-    let mut actor = Box::pin(actor);
-    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Pending);
-
-    thread::sleep(TIMEOUT);
-    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -81,15 +75,10 @@ fn timer_wrap() {
         assert_eq!(res, Err(DeadlinePassed));
         assert!(deadline.deadline() >= start + TIMEOUT);
         assert!(deadline.has_passed());
+        assert!(start.elapsed() >= TIMEOUT);
     }
 
-    let actor = actor as fn(_) -> _;
-    let (actor, _) = init_local_actor(actor, ()).unwrap();
-    let mut actor = Box::pin(actor);
-    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Pending);
-
-    thread::sleep(TIMEOUT);
-    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
 }
 
 #[test]
@@ -110,15 +99,10 @@ fn deadline() {
         assert_eq!(*deadline.get_ref(), future);
         assert_eq!(*deadline.get_mut(), future);
         assert_eq!(deadline.into_inner(), future);
+        assert!(start.elapsed() >= TIMEOUT);
     }
 
-    let actor = actor as fn(_) -> _;
-    let (actor, _) = init_local_actor(actor, ()).unwrap();
-    let mut actor = Box::pin(actor);
-    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Pending);
-
-    thread::sleep(TIMEOUT);
-    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
 }
 
 #[test]
@@ -128,15 +112,10 @@ fn interval() {
         let mut interval = Interval::every(ctx.runtime_ref().clone(), TIMEOUT);
         assert!(interval.next_deadline() >= start + TIMEOUT);
         let _ = next(&mut interval).await;
+        assert!(start.elapsed() >= TIMEOUT);
     }
 
-    let actor = actor as fn(_) -> _;
-    let (actor, _) = init_local_actor(actor, ()).unwrap();
-    let mut actor = Box::pin(actor);
-    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Pending);
-
-    thread::sleep(TIMEOUT);
-    assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
+    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
 }
 
 #[test]
