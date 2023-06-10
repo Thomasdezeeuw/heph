@@ -6,6 +6,12 @@
 //! (properly).
 //!
 //! Available utilities:
+//!  * Blocking:
+//!    * [`block_on_local_actor`]: spawns a thread-local [actor] and waits for
+//!      the result.
+//!    * [`block_on_actor`]: spawns a thread-safe [actor] and waits for the
+//!      result.
+//!    * [`block_on_future`]: spawns a `Future` and waits for the result.
 //!  * Spawning:
 //!    * [`try_spawn_local`]: attempt to spawn a thread-local [actor].
 //!    * [`try_spawn`]: attempt to spawn a thread-safe [actor].
@@ -15,12 +21,6 @@
 //!  * Waiting on spawned actors:
 //!    * [`join`], [`join_many`]: wait for the actor(s) to finish running.
 //!    * [`join_all`]: wait all actors in a group to finish running.
-//!  * Blocking on [`Future`]s:
-//!    * [`block_on_local_actor`]: spawns a thread-local [actor] and waits for
-//!      the result.
-//!    * [`block_on_actor`]: spawns a thread-safe [actor] and waits for the
-//!      result.
-//!    * [`block_on_future`]: spawns a `Future` and waits for the result.
 //!  * Initialising actors:
 //!    * [`init_local_actor`]: initialise a thread-local actor.
 //!    * [`init_actor`]: initialise a thread-safe actor.
@@ -615,7 +615,7 @@ where
     Future::poll(future, &mut ctx)
 }
 
-/// Poll a [`AsyncIterator`].
+/// Poll an [`AsyncIterator`].
 ///
 /// # Notes
 ///
