@@ -14,7 +14,7 @@ use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::{ActorOptions, FutureOptions};
 use heph_rt::test::{
     self, join, join_all, join_many, size_of_actor, size_of_actor_val, spawn_future, try_spawn,
-    try_spawn_local, BlockOnError, JoinResult,
+    try_spawn_local, JoinResult,
 };
 use heph_rt::timer::Timer;
 use heph_rt::{self as rt, ThreadLocal};
@@ -27,8 +27,7 @@ fn block_on_future() {
 
 #[test]
 fn block_on_future_panic() {
-    let result = test::block_on_future(async move { panic!("Not good") }).unwrap_err();
-    assert!(matches!(result, BlockOnError::Panic(_)));
+    assert!(test::block_on_future(async move { panic!("Not good") }).is_err());
 }
 
 #[test]
