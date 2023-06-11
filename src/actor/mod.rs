@@ -463,22 +463,6 @@ impl_new_actor!(
     (arg1: Arg1, arg2: Arg2, arg3: Arg3, arg4: Arg4, arg5: Arg5),
 );
 
-impl NewActor for ! {
-    type Message = !;
-    type Argument = !;
-    type Actor = impl Actor<Error = !>;
-    type Error = !;
-    type RuntimeAccess = !;
-
-    fn new(
-        &mut self,
-        _: Context<Self::Message, Self::RuntimeAccess>,
-        _: Self::Argument,
-    ) -> Result<Self::Actor, Self::Error> {
-        Ok(std::future::ready(Ok(())))
-    }
-}
-
 /// Asynchronous actor.
 ///
 /// Effectively an `Actor` is a [`Future`] which returns a result. All `Future`s
