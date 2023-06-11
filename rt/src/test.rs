@@ -66,7 +66,7 @@ use heph::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::supervisor::{Supervisor, SyncSupervisor};
 use heph_inbox as inbox;
-use heph_inbox::oneshot::new_oneshot;
+use heph_inbox::oneshot::{self, new_oneshot};
 
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::sync_worker::SyncWorker;
@@ -183,7 +183,9 @@ where
 /// Spawn `future` on the *test* runtime and wait for the result.
 ///
 /// This is useful to test async functions and futures in synchronous tests.
-pub fn block_on_future<Fut>(future: Fut) -> Result<Fut::Output, BlockOnError<!>>
+///
+/// If the future panics it will be caught and returned as error.
+pub fn block_on_future<Fut>(future: Fut) -> Result<Fut::Output, Box<dyn Any + Send + 'static>>
 where
     Fut: Future + Send + 'static,
     Fut::Output: Send,
@@ -197,7 +199,7 @@ where
                 match catch_unwind(AssertUnwindSafe(|| future.as_mut().poll(ctx))) {
                     Ok(Poll::Ready(output)) => Poll::Ready(Ok(output)),
                     Ok(Poll::Pending) => Poll::Pending,
-                    Err(panic) => Poll::Ready(Err(BlockOnError::Panic(panic))),
+                    Err(panic) => Poll::Ready(Err(panic)),
                 }
             })
             .await;
@@ -354,7 +356,7 @@ where
 /// [`Future`]/[`Actor`] wrapper to catch errors and panics.
 #[derive(Debug)]
 struct ErrorCatcher<NA: NewActor> {
-    sender: Option<heph_inbox::oneshot::Sender<Result<(), BlockOnError<NA>>>>,
+    sender: Option<oneshot::Sender<Result<(), BlockOnError<NA>>>>,
     actor: NA::Actor,
 }
 
