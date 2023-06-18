@@ -99,7 +99,8 @@ fn multiple_methods_same_route() {
             let response = route(test_request).await;
             assert_eq!(response.body().into_inner(), "index")
         }
-    });
+    })
+    .unwrap();
 }
 
 #[test]
@@ -127,7 +128,8 @@ fn correct_routing_based_on_method() {
             let response = route(request).await;
             assert_eq!(response.body().into_inner(), method.as_str())
         }
-    });
+    })
+    .unwrap();
 }
 
 #[test]
@@ -143,7 +145,8 @@ fn not_found_fallback() {
             let response = route(test_request).await;
             assert_eq!(response.body().into_inner(), "not found")
         }
-    });
+    })
+    .unwrap();
 }
 
 // TODO: test compile failure with the following errors:
