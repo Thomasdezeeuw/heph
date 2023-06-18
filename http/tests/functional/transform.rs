@@ -91,7 +91,8 @@ fn transform_middleware() {
             },
             TestBody::new(REQ_BODY),
         );
-        let response: Response<TestBody> = test::block_on_future(middleware.handle(request));
+        let response: Response<TestBody> =
+            test::block_on_future(middleware.handle(request)).unwrap();
         assert_eq!(response.status(), expected_status);
         assert_eq!(response.body().into_inner(), expected_body);
     }
