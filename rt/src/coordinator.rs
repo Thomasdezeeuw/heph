@@ -366,7 +366,7 @@ fn register_sync_workers(registry: &Registry, sync_workers: &mut [SyncWorker]) -
 /// stopped.
 fn check_sync_worker_alive(sync_workers: &mut Vec<SyncWorker>) -> Result<(), rt::Error> {
     sync_workers
-        .drain_filter(|sync_worker| !sync_worker.is_alive())
+        .extract_if(|sync_worker| !sync_worker.is_alive())
         .try_for_each(|sync_worker| {
             debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
             sync_worker.join().map_err(rt::Error::sync_actor_panic)
