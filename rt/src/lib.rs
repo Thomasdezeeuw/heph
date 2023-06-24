@@ -148,7 +148,7 @@
     const_weak_new,
     doc_auto_cfg,
     doc_cfg_hide,
-    drain_filter,
+    extract_if,
     impl_trait_in_assoc_type,
     io_slice_advance,
     is_sorted,
