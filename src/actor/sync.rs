@@ -376,7 +376,7 @@ impl SyncWaker {
     unsafe fn from_data_ref(data: &*const ()) -> &SyncWaker {
         // SAFETY: inverse of `into_data`, see that for more info, also see
         // `from_data`.
-        unsafe { std::mem::transmute(data) }
+        &*((data as *const *const ()).cast::<SyncWaker>())
     }
 }
 

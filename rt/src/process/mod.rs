@@ -209,6 +209,7 @@ impl<P: Process + ?Sized> PartialOrd for ProcessData<P> {
     }
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl<P: Process + ?Sized> fmt::Debug for ProcessData<P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Process")

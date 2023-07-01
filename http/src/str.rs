@@ -124,7 +124,7 @@ impl<'a> Drop for Str<'a> {
     fn drop(&mut self) {
         if self.is_heap_allocated() {
             let len = self.len();
-            unsafe { drop(Vec::<u8>::from_raw_parts(self.ptr as *mut u8, len, len)) }
+            unsafe { drop(Vec::<u8>::from_raw_parts(self.ptr.cast_mut(), len, len)) }
         }
     }
 }
