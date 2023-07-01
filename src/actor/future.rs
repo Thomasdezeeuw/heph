@@ -188,6 +188,7 @@ where
     }
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl<S, NA, RT> fmt::Debug for ActorFuture<S, NA, RT>
 where
     S: Supervisor<NA> + fmt::Debug,
@@ -198,6 +199,7 @@ where
         f.debug_struct("ActorFuture")
             .field("supervisor", &self.supervisor)
             .field("actor", &NA::name())
+            .field("inbox", &self.inbox)
             .field("rt", &self.rt)
             .finish()
     }

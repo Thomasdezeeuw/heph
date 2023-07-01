@@ -316,14 +316,15 @@ impl Coordinator {
     }
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl fmt::Debug for Coordinator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Coordinator")
             .field("ring", &self.ring)
             .field("poll", &self.poll)
             .field("signals", &self.signals)
-            .field("internals", &self.internals)
             .field("futures_ready", &self.futures_ready)
+            .field("internals", &self.internals)
             .field("start", &self.start)
             .field("app_name", &self.app_name)
             .field("host_os", &self.host_os)

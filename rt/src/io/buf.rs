@@ -448,7 +448,7 @@ unsafe impl<B: Buf, const N: usize> private::BufSlice<N> for [B; N] {
         for (buf, iovec) in self.iter().zip(iovecs.iter_mut()) {
             let (ptr, len) = buf.parts();
             _ = iovec.write(libc::iovec {
-                iov_base: ptr as _,
+                iov_base: ptr.cast::<libc::c_void>().cast_mut(),
                 iov_len: len,
             });
         }

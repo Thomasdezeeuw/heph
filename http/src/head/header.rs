@@ -173,7 +173,9 @@ impl Headers {
 
     /// Remove all headers with `name`.
     pub fn remove_all(&mut self, name: &HeaderName<'_>) {
-        drop(self.parts.drain_filter(move |part| part.name == *name));
+        self.parts
+            .extract_if(move |part| part.name == *name)
+            .for_each(drop);
     }
 
     /// Returns an iterator that iterates over all headers.

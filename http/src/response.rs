@@ -206,6 +206,7 @@ impl<B> DerefMut for Response<B> {
     }
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl<B> fmt::Debug for Response<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Response")

@@ -325,7 +325,7 @@ impl<T> Sender<T> {
 
     /// Returns the id of this sender.
     pub fn id(&self) -> Id {
-        Id(self.channel.as_ptr() as *const () as usize)
+        Id(self.channel.as_ptr().cast_const().cast::<()>() as usize)
     }
 
     fn channel(&self) -> &Channel<T> {
@@ -749,7 +749,7 @@ impl<T> Receiver<T> {
 
     /// Returns the id of this receiver.
     pub fn id(&self) -> Id {
-        Id(self.channel.as_ptr() as *const () as usize)
+        Id(self.channel.as_ptr().cast_const().cast::<()>() as usize)
     }
 
     fn channel(&self) -> &Channel<T> {
@@ -1100,6 +1100,7 @@ impl<T> Deref for Channel<T> {
     }
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl<T> fmt::Debug for Channel<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let status = self.status.load(Ordering::Relaxed);
@@ -1228,7 +1229,7 @@ impl<T> Manager<T> {
 
     /// Returns the id of the channel.
     pub fn id(&self) -> Id {
-        Id(self.channel.as_ptr() as *const () as usize)
+        Id(self.channel.as_ptr().cast_const().cast::<()>() as usize)
     }
 
     fn channel(&self) -> &Channel<T> {

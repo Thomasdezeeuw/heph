@@ -115,6 +115,7 @@ impl<B> DerefMut for Request<B> {
     }
 }
 
+#[allow(clippy::missing_fields_in_debug)]
 impl<B> fmt::Debug for Request<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Request").field("head", &self.head).finish()
