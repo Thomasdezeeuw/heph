@@ -332,6 +332,7 @@ impl<M> ActorRef<M> {
     ///
     /// Prefer to clone an existing mapped `ActorRef` over creating a new one as
     /// that can reuse the allocation mentioned above.
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn try_map<Msg>(self) -> ActorRef<Msg>
     where
         M: TryFrom<Msg> + 'static,
@@ -387,6 +388,7 @@ impl<M> ActorRef<M> {
     ///
     /// Prefer to clone an existing mapped `ActorRef` over creating a new one as
     /// that can reuse the allocation mentioned above.
+    #[allow(clippy::arc_with_non_send_sync)]
     pub fn try_map_fn<Msg, F, E>(self, map: F) -> ActorRef<Msg>
     where
         F: Fn(Msg) -> Result<M, E> + 'static,
