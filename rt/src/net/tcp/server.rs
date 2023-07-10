@@ -251,6 +251,7 @@ use crate::Signal;
 ///
 /// [server setup]: Setup
 /// [module documentation]: crate::net::tcp::server
+#[allow(clippy::arc_with_non_send_sync)]
 pub fn setup<S, NA>(
     mut address: SocketAddr,
     supervisor: S,

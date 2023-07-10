@@ -261,7 +261,7 @@ unsafe impl<B: BufMut, const N: usize> private::BufMutSlice<N> for [B; N] {
 
     unsafe fn update_length(&mut self, n: usize) {
         let mut left = n;
-        for buf in self.iter_mut() {
+        for buf in self {
             let (_, len) = buf.parts_mut();
             if len < left {
                 // Fully initialised the buffer.

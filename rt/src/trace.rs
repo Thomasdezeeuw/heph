@@ -705,7 +705,7 @@ mod private {
             #[allow(clippy::cast_possible_truncation)]
             let length = self.len() as u16;
             buf.extend_from_slice(&length.to_be_bytes());
-            for attribute in self.iter() {
+            for attribute in self {
                 attribute.write_attribute(buf);
             }
         }

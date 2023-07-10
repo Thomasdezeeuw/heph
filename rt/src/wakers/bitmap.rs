@@ -78,7 +78,7 @@ const fn is_set(value: usize, n: usize) -> bool {
 impl fmt::Debug for AtomicBitMap {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         const WIDTH: usize = usize::BITS as usize;
-        for data in self.data.iter() {
+        for data in &self.data {
             let value = data.load(Ordering::Relaxed);
             write!(f, "{value:0WIDTH$b}")?;
         }

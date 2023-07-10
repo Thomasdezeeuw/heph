@@ -142,7 +142,7 @@ impl Coordinator {
 
             let timing = trace::start(&trace_log);
             // Poll for events.
-            for event in events.iter() {
+            for event in &events {
                 trace!(event = as_debug!(event); "got OS event");
 
                 match event.token() {
@@ -395,7 +395,7 @@ fn relay_signals(
                 }
 
                 debug!(signal = as_debug!(signal); "relaying process signal to worker threads");
-                for worker in workers.iter_mut() {
+                for worker in &mut *workers {
                     if let Err(err) = worker.send_signal(signal) {
                         // NOTE: if the worker is unable to receive a message
                         // it's likely already shutdown or is shutting down.

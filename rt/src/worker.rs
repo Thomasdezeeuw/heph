@@ -476,7 +476,7 @@ impl Worker {
         let mut check_ring = false;
         let mut check_shared_ring = false;
         let mut amount = 0;
-        for event in self.events.iter() {
+        for event in &self.events {
             trace!(worker_id = self.internals.id.get(); "got OS event: {event:?}");
             match event.token() {
                 WAKER => { /* Need to wake up to handle user space events. */ }
@@ -553,7 +553,7 @@ impl Worker {
 
         let mut amount = 0;
         if self.internals.shared.try_poll(&mut self.events)? {
-            for event in self.events.iter() {
+            for event in &self.events {
                 trace!(worker_id = self.internals.id.get(); "got shared OS event: {event:?}");
                 let pid = ProcessId::from(event.token());
                 trace!(
