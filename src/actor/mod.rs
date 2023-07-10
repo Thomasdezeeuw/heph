@@ -243,11 +243,11 @@ pub trait NewActor {
     /// use std::io;
     /// use heph::actor::{self, NewActor};
     /// # use heph::messages::Terminate;
+    /// # use heph::supervisor::SupervisorStrategy;
     /// use heph_rt::net::{tcp, TcpStream};
     /// # use heph_rt::net::tcp::server;
     /// use heph_rt::spawn::ActorOptions;
     /// use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
-    /// # use heph::supervisor::{Supervisor, SupervisorStrategy};
     /// # use log::error;
     ///
     /// fn main() -> Result<(), rt::Error> {
@@ -273,37 +273,17 @@ pub trait NewActor {
     ///     let address = "127.0.0.1:7890".parse().unwrap();
     ///     let server = tcp::server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
     ///     # let actor_ref =
-    ///     runtime_ref.spawn_local(ServerSupervisor, server, (), ActorOptions::default());
+    ///     runtime_ref.spawn_local(server_supervisor, server, (), ActorOptions::default());
     ///     # actor_ref.try_send(Terminate).unwrap();
     ///     Ok(())
     /// }
     ///
-    /// # #[derive(Copy, Clone, Debug)]
-    /// # struct ServerSupervisor;
-    /// #
-    /// # impl<S, NA> Supervisor<server::Setup<S, NA>> for ServerSupervisor
-    /// # where
-    /// #     S: Supervisor<NA> + Clone + 'static,
-    /// #     NA: NewActor<Argument = TcpStream, Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
-    /// # {
-    /// #     fn decide(&mut self, err: server::Error<!>) -> SupervisorStrategy<()> {
-    /// #         use server::Error::*;
-    /// #         match err {
-    /// #             Accept(err) => {
-    /// #                 error!("error accepting new connection: {err}");
-    /// #                 SupervisorStrategy::Restart(())
-    /// #             }
-    /// #             NewActor(_) => unreachable!(),
-    /// #         }
-    /// #     }
-    /// #
-    /// #     fn decide_on_restart_error(&mut self, err: !) -> SupervisorStrategy<()> {
-    /// #         err
-    /// #     }
-    /// #
-    /// #     fn second_restart_error(&mut self, err: !) {
-    /// #         err
-    /// #     }
+    /// # fn server_supervisor(err: server::Error<!>) -> SupervisorStrategy<()> {
+    /// #   match err {
+    /// #       server::Error::Accept(err) => error!("error accepting new connection: {err}"),
+    /// #       server::Error::NewActor::<!>(_) => {},
+    /// #   }
+    /// #   SupervisorStrategy::Restart(())
     /// # }
     /// #
     /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
