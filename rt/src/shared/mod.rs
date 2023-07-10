@@ -305,7 +305,7 @@ impl RuntimeInternals {
     /// Wake all worker threads, ignoring errors.
     pub(crate) fn wake_all_workers(&self) {
         trace!("waking all worker thread(s)");
-        for worker in self.worker_wakers.iter() {
+        for worker in &*self.worker_wakers {
             drop(worker.wake());
         }
     }
