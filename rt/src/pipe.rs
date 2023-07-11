@@ -19,6 +19,7 @@
 //! use std::io;
 //!
 //! use heph::actor;
+//! use heph_rt::io::Read;
 //! use heph_rt::{self as rt, pipe};
 //!
 //! const DATA: &[u8] = b"Hello, world!";
@@ -33,7 +34,7 @@
 //!     drop(sender); // Close the sending side.
 //!
 //!     // And read the data back.
-//!     let buf = receiver.read_n(Vec::with_capacity(DATA.len() + 1), DATA.len()).await?;
+//!     let buf = (&receiver).read_n(Vec::with_capacity(DATA.len() + 1), DATA.len()).await?;
 //!     assert_eq!(buf, DATA);
 //!     Ok(())
 //! }
@@ -56,6 +57,7 @@
 //! use std::process::{Command, Stdio};
 //!
 //! use heph::actor;
+//! use heph_rt::io::Read;
 //! use heph_rt::{self as rt, pipe};
 //!
 //! const DATA: &[u8] = b"Hello, world!";
@@ -81,7 +83,7 @@
 //! #   process.wait()?; // Needed to pass the test on macOS.
 //!
 //!     // And read the data back.
-//!     let buf = stdout.read_n(Vec::with_capacity(DATA.len() + 1), DATA.len()).await?;
+//!     let buf = (&stdout).read_n(Vec::with_capacity(DATA.len() + 1), DATA.len()).await?;
 //!     assert_eq!(buf, DATA);
 //!     Ok(())
 //! }
@@ -102,10 +104,8 @@ use std::process::{ChildStderr, ChildStdin, ChildStdout};
 use a10::{AsyncFd, Extract};
 
 use crate::access::Access;
-use crate::io::futures::{
-    Read, ReadN, ReadNVectored, ReadVectored, Write, WriteAll, WriteAllVectored, WriteVectored,
-};
-use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
+use crate::io::futures::{Write, WriteAll, WriteAllVectored, WriteVectored};
+use crate::io::{impl_read, Buf, BufSlice, BufWrapper};
 
 /// Create a new Unix pipe.
 ///
@@ -219,39 +219,6 @@ impl Receiver {
         let fd = unsafe { AsyncFd::from_raw_fd(stderr.into_raw_fd(), rt.submission_queue()) };
         Ok(Receiver { fd })
     }
-
-    /// Read bytes from the pipe, writing them into `buf`.
-    pub async fn read<B: BufMut>(&self, buf: B) -> io::Result<B> {
-        Read(self.fd.read(BufWrapper(buf))).await
-    }
-
-    /// Read at least `n` bytes from the pipe, writing them into `buf`.
-    ///
-    /// This returns [`io::ErrorKind::UnexpectedEof`] if less than `n` bytes
-    /// could be read.
-    pub async fn read_n<B: BufMut>(&self, buf: B, n: usize) -> io::Result<B> {
-        debug_assert!(
-            buf.spare_capacity() >= n,
-            "called `Receiver::read_n` with a buffer smaller than `n`",
-        );
-        ReadN(self.fd.read_n(BufWrapper(buf), n)).await
-    }
-
-    /// Read bytes from the pipe, writing them into `bufs`.
-    pub async fn read_vectored<B: BufMutSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B> {
-        ReadVectored(self.fd.read_vectored(BufWrapper(bufs))).await
-    }
-
-    /// Read at least `n` bytes from the pipe, writing them into `bufs`.
-    pub async fn read_n_vectored<B: BufMutSlice<N>, const N: usize>(
-        &self,
-        bufs: B,
-        n: usize,
-    ) -> io::Result<B> {
-        debug_assert!(
-            bufs.total_spare_capacity() >= n,
-            "called `Receiver::read_n_vectored` with buffers smaller than `n`"
-        );
-        ReadNVectored(self.fd.read_n_vectored(BufWrapper(bufs), n)).await
-    }
 }
+
+impl_read!(Receiver, &Receiver);

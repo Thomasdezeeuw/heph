@@ -12,7 +12,7 @@ use crate::access::Access;
 use crate::io::futures::{
     Read, ReadN, ReadNVectored, ReadVectored, Write, WriteAll, WriteAllVectored, WriteVectored,
 };
-use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
+use crate::io::{impl_read, Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 
 /// Access to an open file on the filesystem.
 ///
@@ -52,11 +52,6 @@ impl File {
         OpenOptions::new()
     }
 
-    /// Read bytes from the file, writing them into `buf`.
-    pub async fn read<B: BufMut>(&self, buf: B) -> io::Result<B> {
-        Read(self.fd.read(BufWrapper(buf))).await
-    }
-
     /// Read bytes from the file at `offset`, writing them into `buf`.
     ///
     /// The current file cursor is not affected by this function. This means
@@ -64,18 +59,6 @@ impl File {
     /// continue reading at 2kb in the next call to `read`.
     pub async fn read_at<B: BufMut>(&self, buf: B, offset: u64) -> io::Result<B> {
         Read(self.fd.read_at(BufWrapper(buf), offset)).await
-    }
-
-    /// Read at least `n` bytes from the file, writing them into `buf`.
-    ///
-    /// Returns [`io::ErrorKind::UnexpectedEof`] if less than `n` bytes could be
-    /// read.
-    pub async fn read_n<B: BufMut>(&self, buf: B, n: usize) -> io::Result<B> {
-        debug_assert!(
-            buf.spare_capacity() >= n,
-            "called `File::read_n` with a buffer smaller than `n`",
-        );
-        ReadN(self.fd.read_n(BufWrapper(buf), n)).await
     }
 
     /// Read at least `n` bytes from the file at `offset`, writing them into
@@ -94,11 +77,6 @@ impl File {
     }
 
     /// Read bytes from the file, writing them into `bufs`.
-    pub async fn read_vectored<B: BufMutSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B> {
-        ReadVectored(self.fd.read_vectored(BufWrapper(bufs))).await
-    }
-
-    /// Read bytes from the file, writing them into `bufs`.
     ///
     /// The current file cursor is not affected by this function.
     pub async fn read_vectored_at<B: BufMutSlice<N>, const N: usize>(
@@ -107,19 +85,6 @@ impl File {
         offset: u64,
     ) -> io::Result<B> {
         ReadVectored(self.fd.read_vectored_at(BufWrapper(bufs), offset)).await
-    }
-
-    /// Read at least `n` bytes from the file, writing them into `bufs`.
-    pub async fn read_n_vectored<B: BufMutSlice<N>, const N: usize>(
-        &self,
-        bufs: B,
-        n: usize,
-    ) -> io::Result<B> {
-        debug_assert!(
-            bufs.total_spare_capacity() >= n,
-            "called `File::read_n_vectored` with buffers smaller than `n`"
-        );
-        ReadNVectored(self.fd.read_n_vectored(BufWrapper(bufs), n)).await
     }
 
     /// Read at least `n` bytes from the file at `offset`, writing them into `bufs`.
@@ -281,6 +246,8 @@ impl File {
         self.fd.allocate(offset, length, mode.as_libc()).await
     }
 }
+
+impl_read!(File, &File);
 
 impl fmt::Debug for File {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

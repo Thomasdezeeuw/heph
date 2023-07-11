@@ -58,10 +58,10 @@ macro_rules! stdio {
     ) => {
         #[doc = concat!("Create a new `", stringify!($name), "`.\n\n")]
         pub fn $fn<RT: Access>(rt: &RT) -> $name {
-            $name(std::mem::ManuallyDrop::new(unsafe { a10::AsyncFd::from_raw_fd(
-                $fd,
-                rt.submission_queue(),
-            )}))
+            let fd = std::mem::ManuallyDrop::new(unsafe {
+                a10::AsyncFd::from_raw_fd($fd, rt.submission_queue())
+            });
+            $name { fd }
         }
 
         #[doc = concat!(
@@ -71,7 +71,9 @@ macro_rules! stdio {
             "When this type is dropped it will not close ", stringify!($fn), ".",
         )]
         #[derive(Debug)]
-        pub struct $name(std::mem::ManuallyDrop<a10::AsyncFd>);
+        pub struct $name {
+            fd: std::mem::ManuallyDrop<a10::AsyncFd>,
+        }
     };
 }
 
@@ -79,44 +81,53 @@ stdio!(stdin() -> Stdin, libc::STDIN_FILENO);
 stdio!(stdout() -> Stdout, libc::STDOUT_FILENO);
 stdio!(stderr() -> Stderr, libc::STDERR_FILENO);
 
-impl Stdin {
-    /// Read bytes from standard in, writing them into `buf`.
-    pub async fn read<B: BufMut>(&self, buf: B) -> Result<B> {
-        futures::Read(self.0.read(BufWrapper(buf))).await
-    }
+/// Macro to implement the [`Read`] trait using the `fd: a10::AsyncFd` field.
+macro_rules! impl_read {
+    ( $( $name: ty ),+) => {
+        $(
+        impl $crate::io::Read for $name {
+            async fn read<B: $crate::io::BufMut>(&mut self, buf: B) -> ::std::io::Result<B> {
+                $crate::io::futures::Read(self.fd.read($crate::io::BufWrapper(buf))).await
+            }
 
-    /// Read at least `n` bytes from standard in, writing them into `buf`.
-    ///
-    /// This returns [`io::ErrorKind::UnexpectedEof`] if less than `n` bytes
-    /// could be read.
-    ///
-    /// [`io::ErrorKind::UnexpectedEof`]: std::io::ErrorKind::UnexpectedEof
-    pub async fn read_n<B: BufMut>(&self, buf: B, n: usize) -> Result<B> {
-        debug_assert!(
-            buf.spare_capacity() >= n,
-            "called `Receiver::read_n` with a buffer smaller than `n`",
-        );
-        futures::ReadN(self.0.read_n(BufWrapper(buf), n)).await
-    }
+            async fn read_n<B: $crate::io::BufMut>(&mut self, buf: B, n: usize) -> ::std::io::Result<B> {
+                debug_assert!(
+                    buf.spare_capacity() >= n,
+                    concat!("called `", stringify!($name), "::read_n` with a buffer smaller than `n`"),
+                );
+                $crate::io::futures::ReadN(self.fd.read_n($crate::io::BufWrapper(buf), n)).await
+            }
 
-    /// Read bytes from standard in, writing them into `bufs`.
-    pub async fn read_vectored<B: BufMutSlice<N>, const N: usize>(&self, bufs: B) -> Result<B> {
-        futures::ReadVectored(self.0.read_vectored(BufWrapper(bufs))).await
-    }
+            fn is_read_vectored(&self) -> bool {
+                true
+            }
 
-    /// Read at least `n` bytes from standard in, writing them into `bufs`.
-    pub async fn read_n_vectored<B: BufMutSlice<N>, const N: usize>(
-        &self,
-        bufs: B,
-        n: usize,
-    ) -> Result<B> {
-        debug_assert!(
-            bufs.total_spare_capacity() >= n,
-            "called `Receiver::read_n_vectored` with buffers smaller than `n`"
-        );
-        futures::ReadNVectored(self.0.read_n_vectored(BufWrapper(bufs), n)).await
-    }
+            async fn read_vectored<B: $crate::io::BufMutSlice<N>, const N: usize>(
+                &mut self,
+                bufs: B,
+            ) -> ::std::io::Result<B> {
+                $crate::io::futures::ReadVectored(self.fd.read_vectored($crate::io::BufWrapper(bufs))).await
+            }
+
+            async fn read_n_vectored<B: $crate::io::BufMutSlice<N>, const N: usize>(
+                &mut self,
+                bufs: B,
+                n: usize,
+            ) -> ::std::io::Result<B> {
+                debug_assert!(
+                    bufs.total_spare_capacity() >= n,
+                    concat!("called `", stringify!($name), "::read_n_vectored` with buffers smaller than `n`"),
+                );
+                $crate::io::futures::ReadNVectored(self.fd.read_n_vectored($crate::io::BufWrapper(bufs), n)).await
+            }
+        }
+        )+
+    };
 }
+
+pub(crate) use impl_read;
+
+impl_read!(Stdin, &Stdin);
 
 impl Stdout {
     /// Write the bytes in `buf` to standard out.
@@ -124,7 +135,7 @@ impl Stdout {
     /// Return the number of bytes written. This may we fewer than the length of
     /// `buf`. To ensure that all bytes are written use [`Stdout::write_all`].
     pub async fn write<B: Buf>(&self, buf: B) -> Result<(B, usize)> {
-        futures::Write(self.0.write(BufWrapper(buf)).extract()).await
+        futures::Write(self.fd.write(BufWrapper(buf)).extract()).await
     }
 
     /// Write the all bytes in `buf` to standard out.
@@ -134,7 +145,7 @@ impl Stdout {
     ///
     /// [`io::ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
     pub async fn write_all<B: Buf>(&self, buf: B) -> Result<B> {
-        futures::WriteAll(self.0.write_all(BufWrapper(buf)).extract()).await
+        futures::WriteAll(self.fd.write_all(BufWrapper(buf)).extract()).await
     }
 
     /// Write the bytes in `bufs` to standard out.
@@ -146,7 +157,7 @@ impl Stdout {
         &self,
         bufs: B,
     ) -> Result<(B, usize)> {
-        futures::WriteVectored(self.0.write_vectored(BufWrapper(bufs)).extract()).await
+        futures::WriteVectored(self.fd.write_vectored(BufWrapper(bufs)).extract()).await
     }
 
     /// Write the all bytes in `bufs` to standard out.
@@ -156,7 +167,7 @@ impl Stdout {
     ///
     /// [`io::ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
     pub async fn write_vectored_all<B: BufSlice<N>, const N: usize>(&self, bufs: B) -> Result<B> {
-        futures::WriteAllVectored(self.0.write_all_vectored(BufWrapper(bufs)).extract()).await
+        futures::WriteAllVectored(self.fd.write_all_vectored(BufWrapper(bufs)).extract()).await
     }
 }
 
@@ -166,7 +177,7 @@ impl Stderr {
     /// Return the number of bytes written. This may we fewer than the length of
     /// `buf`. To ensure that all bytes are written use [`Stderr::write_all`].
     pub async fn write<B: Buf>(&self, buf: B) -> Result<(B, usize)> {
-        futures::Write(self.0.write(BufWrapper(buf)).extract()).await
+        futures::Write(self.fd.write(BufWrapper(buf)).extract()).await
     }
 
     /// Write the all bytes in `buf` to standard error.
@@ -176,7 +187,7 @@ impl Stderr {
     ///
     /// [`io::ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
     pub async fn write_all<B: Buf>(&self, buf: B) -> Result<B> {
-        futures::WriteAll(self.0.write_all(BufWrapper(buf)).extract()).await
+        futures::WriteAll(self.fd.write_all(BufWrapper(buf)).extract()).await
     }
 
     /// Write the bytes in `bufs` to standard error.
@@ -188,7 +199,7 @@ impl Stderr {
         &self,
         bufs: B,
     ) -> Result<(B, usize)> {
-        futures::WriteVectored(self.0.write_vectored(BufWrapper(bufs)).extract()).await
+        futures::WriteVectored(self.fd.write_vectored(BufWrapper(bufs)).extract()).await
     }
 
     /// Write the all bytes in `bufs` to standard error.
@@ -198,6 +209,6 @@ impl Stderr {
     ///
     /// [`io::ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
     pub async fn write_vectored_all<B: BufSlice<N>, const N: usize>(&self, bufs: B) -> Result<B> {
-        futures::WriteAllVectored(self.0.write_all_vectored(BufWrapper(bufs)).extract()).await
+        futures::WriteAllVectored(self.fd.write_all_vectored(BufWrapper(bufs)).extract()).await
     }
 }
