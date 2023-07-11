@@ -289,6 +289,14 @@ impl<T: Write> Write for Box<T> {
     }
 }
 
+/// Write is implemented for `&mut [u8]` by copying into the slice, overwriting
+/// its data.
+///
+/// Note that writing updates the slice to point to the yet unwritten part. The
+/// slice will be empty when it has been completely overwritten.
+///
+/// If the number of bytes to be written exceeds the size of the slice, write
+/// operations will return short writes: ultimately, `Ok(0)`.
 impl Write for &mut [u8] {
     async fn write<B: Buf>(&mut self, buf: B) -> io::Result<(B, usize)> {
         let (ptr, buf_len) = unsafe { buf.parts() };
