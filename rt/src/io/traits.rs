@@ -169,6 +169,20 @@ pub trait Write {
     /// [`io::ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
     async fn write_all<B: Buf>(&self, buf: B) -> io::Result<B>;
 
+    /// Determines if this `Write`r has an efficient [`write_vectored`]
+    /// implementation.
+    ///
+    /// If a `Write`r does not override the default [`write_vectored`]
+    /// implementation, code using it may want to avoid the method all together
+    /// and coalesce writes into a single buffer for higher performance.
+    ///
+    /// The default implementation returns `false`.
+    ///
+    /// [`write_vectored`]: Write::write_vectored
+    fn is_write_vectored(&self) -> bool {
+        false
+    }
+
     /// Write the bytes in `bufs`.
     ///
     /// Return the number of bytes written. This may we fewer than the length of
