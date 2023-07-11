@@ -49,6 +49,9 @@ pub use buf::{Buf, BufMut, BufMutSlice, BufSlice, Limited};
 
 pub(crate) mod futures;
 
+mod traits;
+pub use traits::Read;
+
 macro_rules! stdio {
     (
         $fn: ident () -> $name: ident, $fd: expr
