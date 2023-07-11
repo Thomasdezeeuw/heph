@@ -6,13 +6,11 @@ use crate::io::{BufMut, BufMutSlice};
 pub trait Read {
     /// Read bytes, writing them into `buf`.
     ///
-    /// The `buf`fer keep track of how many bytes have been read.
-    ///
     /// # Notes
     ///
     /// The caller must always check if at least one byte was read as reading
-    /// zero bytes is an indication that no bytes can be read. Failing to do so
-    /// can result in an infinite loop.
+    /// zero bytes is an indication that no more bytes can be read. Failing to
+    /// do so can result in an infinite loop.
     async fn read<B: BufMut>(&mut self, buf: B) -> io::Result<B>;
 
     /// Read at least `n` bytes, writing them into `buf`.
