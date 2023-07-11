@@ -45,3 +45,55 @@ pub trait Read {
         n: usize,
     ) -> io::Result<B>;
 }
+
+impl<T: Read> Read for &mut T {
+    async fn read<B: BufMut>(&mut self, buf: B) -> io::Result<B> {
+        (**self).read(buf).await
+    }
+
+    async fn read_n<B: BufMut>(&mut self, buf: B, n: usize) -> io::Result<B> {
+        (**self).read_n(buf, n).await
+    }
+
+    fn is_read_vectored(&self) -> bool {
+        (**self).is_read_vectored()
+    }
+
+    async fn read_vectored<B: BufMutSlice<N>, const N: usize>(&mut self, bufs: B) -> io::Result<B> {
+        (**self).read_vectored(bufs).await
+    }
+
+    async fn read_n_vectored<B: BufMutSlice<N>, const N: usize>(
+        &mut self,
+        bufs: B,
+        n: usize,
+    ) -> io::Result<B> {
+        (**self).read_n_vectored(bufs, n).await
+    }
+}
+
+impl<T: Read> Read for Box<T> {
+    async fn read<B: BufMut>(&mut self, buf: B) -> io::Result<B> {
+        (**self).read(buf).await
+    }
+
+    async fn read_n<B: BufMut>(&mut self, buf: B, n: usize) -> io::Result<B> {
+        (**self).read_n(buf, n).await
+    }
+
+    fn is_read_vectored(&self) -> bool {
+        (**self).is_read_vectored()
+    }
+
+    async fn read_vectored<B: BufMutSlice<N>, const N: usize>(&mut self, bufs: B) -> io::Result<B> {
+        (**self).read_vectored(bufs).await
+    }
+
+    async fn read_n_vectored<B: BufMutSlice<N>, const N: usize>(
+        &mut self,
+        bufs: B,
+        n: usize,
+    ) -> io::Result<B> {
+        (**self).read_n_vectored(bufs, n).await
+    }
+}
