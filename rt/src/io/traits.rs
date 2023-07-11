@@ -104,7 +104,7 @@ impl<T: Read> Read for Box<T> {
 /// slice will be empty when EOF is reached.
 impl Read for &[u8] {
     async fn read<B: BufMut>(&mut self, mut buf: B) -> io::Result<B> {
-        let read = buf.extend_from_slice(&**self);
+        let read = buf.extend_from_slice(self);
         *self = &self[read..];
         Ok(buf)
     }
@@ -117,7 +117,7 @@ impl Read for &[u8] {
         if self.len() <= n {
             Err(io::ErrorKind::UnexpectedEof.into())
         } else {
-            let read = buf.extend_from_slice(&**self);
+            let read = buf.extend_from_slice(self);
             *self = &self[read..];
             Ok(buf)
         }
@@ -131,7 +131,7 @@ impl Read for &[u8] {
         &mut self,
         mut bufs: B,
     ) -> io::Result<B> {
-        let read = bufs.extend_from_slice(&**self);
+        let read = bufs.extend_from_slice(self);
         *self = &self[read..];
         Ok(bufs)
     }
@@ -148,7 +148,7 @@ impl Read for &[u8] {
         if self.len() <= n {
             Err(io::ErrorKind::UnexpectedEof.into())
         } else {
-            let read = bufs.extend_from_slice(&**self);
+            let read = bufs.extend_from_slice(self);
             *self = &self[read..];
             Ok(bufs)
         }
