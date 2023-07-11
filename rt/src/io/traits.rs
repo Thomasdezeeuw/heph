@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::io::Empty;
 use std::{io, mem, slice};
 
 use crate::io::{Buf, BufMut, BufMutSlice, BufSlice};
@@ -151,6 +152,32 @@ impl Read for &[u8] {
             *self = &self[read..];
             Ok(bufs)
         }
+    }
+}
+
+impl Read for Empty {
+    async fn read<B: BufMut>(&mut self, buf: B) -> io::Result<B> {
+        Ok(buf)
+    }
+
+    async fn read_n<B: BufMut>(&mut self, _: B, _: usize) -> io::Result<B> {
+        Err(io::ErrorKind::UnexpectedEof.into())
+    }
+
+    fn is_read_vectored(&self) -> bool {
+        true
+    }
+
+    async fn read_vectored<B: BufMutSlice<N>, const N: usize>(&mut self, bufs: B) -> io::Result<B> {
+        Ok(bufs)
+    }
+
+    async fn read_n_vectored<B: BufMutSlice<N>, const N: usize>(
+        &mut self,
+        _: B,
+        _: usize,
+    ) -> io::Result<B> {
+        Err(io::ErrorKind::UnexpectedEof.into())
     }
 }
 
