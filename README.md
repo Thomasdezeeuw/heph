@@ -5,21 +5,14 @@ carpenters, craftsmen, artisans, sculptors, metallurgy, fire, and volcanoes.
 Well this crate has very little to do with Greek gods, but I needed a name.
 
 Quick links:
- * Heph:
-   * [crates.io](https://crates.io/crates/heph)
-   * [docs.rs](https://docs.rs/heph)
- * Heph-rt:
-   * [crates.io](https://crates.io/crates/heph-rt)
-   * [docs.rs](https://docs.rs/heph-rt)
- * Heph-http:
-   * [crates.io](https://crates.io/crates/heph-http)
-   * [docs.rs](https://docs.rs/heph-http)
- * Heph-remote:
-   * [crates.io](https://crates.io/crates/heph-remote)
-   * [docs.rs](https://docs.rs/heph-remote)
- * Heph-inbox:
-   * [crates.io](https://crates.io/crates/heph-inbox)
-   * [docs.rs](https://docs.rs/heph-inbox)
+
+| Crate       | [crates.io](https://crates.io)                      | [docs.rs](https://docs.rs)                 |
+| ----------- | --------------------------------------------------- | ------------------------------------------ |
+| Heph        | [heph](https://crates.io/crates/heph)               | [heph](https://docs.rs/heph)               |
+| Heph-rt     | [heph-rt](https://crates.io/crates/heph-rt)         | [heph-rt](https://docs.rs/heph-rt)         |
+| Heph-http   | [heph-http](https://crates.io/crates/heph-http)     | [heph-http](https://docs.rs/heph-http)     |
+| Heph-remote | [heph-remote](https://crates.io/crates/heph-remote) | [heph-remote](https://docs.rs/heph-remote) |
+| Heph-inbox  | [heph-inbox](https://crates.io/crates/heph-inbox)   | [heph-inbox](https://docs.rs/heph-inbox)   |
 
 [Hephaestus]: https://en.wikipedia.org/wiki/Hephaestus
 
