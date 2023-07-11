@@ -85,10 +85,14 @@ some [examples] or look at the [API documentation].
 
 ## Platform support
 
-The main target platform is Linux, as a production target. We also support
+~~The main target platform is Linux, as a production target. We also support
 macOS, but only as development target (e.g. develop on macOS and run Linux in
 production). Other BSDs are mostly supported (kqueue is fully supported),
-however no tests are run on these platforms.
+however no tests are run on these platforms.~~
+
+Since the switch to io\_uring only Linux is supported. Best supported is Linux
+TLS versions, at the time of writing Linux v6.1. Support for other Unix targets
+such as macOS and the BSDs might return in the future.
 
 
 ## Stability
@@ -153,6 +157,6 @@ inspired by the one used in Nginx.
 
 Besides the inspiration gained from the work of others, Heph is also built upon
 the work of others. Three major components used in Heph are the futures task
-system (part of the standard library), asynchronous functions, and [Mio].
+system (part of the standard library), asynchronous functions, and [A10].
 
-[Mio]: https://github.com/tokio-rs/mio
+[A10]: https://github.com/Thomasdezeeuw/a10
