@@ -1,5 +1,22 @@
 //! Type definitions for I/O functionality.
 //!
+//! # Working with I/O
+//!
+//! For working with I/O we define two traits:
+//!  * [`Read`]: for reading bytes.
+//!  * [`Write`]: for writing bytes.
+//!
+//! They are similar to the [`io::Read`] and [`io::Write`] trait, but are
+//! asynchronous instead of blocking.
+//!
+//! Unlike the blocking `Read` and `Write` traits they also take ownership the
+//! buffers, instead of accepting `&mut [u8]`, as that is required to ensure the
+//! buffer is no deallocated while it's still used in I/O. For more information
+//! about using buffer see the next section.
+//!
+//! [`io::Read`]: std::io::Read
+//! [`io::Write`]: std::io::Write
+//!
 //! # Working with Buffers
 //!
 //! For working with buffers we define two plus two traits. For "regular", i.e.
@@ -25,7 +42,7 @@
 //! [`parts_mut`]: BufMut::parts_mut
 //! [`update_length`]: BufMut::update_length
 //!
-//! # Working with Standard I/O Stream
+//! # Working with Standard I/O Streams
 //!
 //! The [`stdin`], [`stdout`] and [`stderr`] function provide handles to
 //! standard I/O streams of all Unix processes. All I/O performed using these
