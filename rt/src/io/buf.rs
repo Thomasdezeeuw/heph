@@ -311,6 +311,18 @@ pub unsafe trait Buf: 'static {
     /// valid memory address and owned by the buffer.
     unsafe fn parts(&self) -> (*const u8, usize);
 
+    /// Length of the buffer in bytes.
+    ///
+    /// # Implementation
+    ///
+    /// This cals [`Buf::parts`] and returns the second part. **Do not overwrite
+    /// this method**.
+    fn len(&self) -> usize {
+        // SAFETY: not using the pointer. The implementation of `Buf::parts`
+        // must ensure the length is correct.
+        unsafe { self.parts() }.1
+    }
+
     /// Wrap the buffer in `Limited`, which limits the amount of bytes used to
     /// `limit`.
     ///
@@ -331,7 +343,7 @@ pub unsafe trait Buf: 'static {
 unsafe impl Buf for Vec<u8> {
     unsafe fn parts(&self) -> (*const u8, usize) {
         let slice = self.as_slice();
-        (slice.as_ptr().cast(), slice.len())
+        (slice.as_ptr().cast(), <[u8]>::len(slice))
     }
 }
 
@@ -340,7 +352,7 @@ unsafe impl Buf for Vec<u8> {
 unsafe impl Buf for String {
     unsafe fn parts(&self) -> (*const u8, usize) {
         let slice = self.as_bytes();
-        (slice.as_ptr().cast(), slice.len())
+        (slice.as_ptr().cast(), <[u8]>::len(slice))
     }
 }
 
@@ -350,7 +362,7 @@ unsafe impl Buf for String {
 unsafe impl Buf for Box<[u8]> {
     unsafe fn parts(&self) -> (*const u8, usize) {
         let slice: &[u8] = self;
-        (slice.as_ptr().cast(), slice.len())
+        (slice.as_ptr().cast(), <[u8]>::len(slice))
     }
 }
 
@@ -360,7 +372,7 @@ unsafe impl Buf for Box<[u8]> {
 unsafe impl Buf for Arc<[u8]> {
     unsafe fn parts(&self) -> (*const u8, usize) {
         let slice: &[u8] = self;
-        (slice.as_ptr().cast(), slice.len())
+        (slice.as_ptr().cast(), <[u8]>::len(slice))
     }
 }
 
@@ -368,7 +380,7 @@ unsafe impl Buf for Arc<[u8]> {
 // can't be deallocated, so it's safe to implement `Buf`.
 unsafe impl Buf for &'static [u8] {
     unsafe fn parts(&self) -> (*const u8, usize) {
-        (self.as_ptr(), self.len())
+        (self.as_ptr(), <[u8]>::len(self))
     }
 }
 
@@ -376,7 +388,7 @@ unsafe impl Buf for &'static [u8] {
 // can't be deallocated, so it's safe to implement `Buf`.
 unsafe impl Buf for &'static str {
     unsafe fn parts(&self) -> (*const u8, usize) {
-        (self.as_bytes().as_ptr(), self.len())
+        (self.as_ptr(), <str>::len(self))
     }
 }
 
@@ -384,7 +396,7 @@ unsafe impl Buf for &'static str {
 // for safety reasoning.
 unsafe impl Buf for Cow<'static, [u8]> {
     unsafe fn parts(&self) -> (*const u8, usize) {
-        (self.as_ptr(), self.len())
+        (self.as_ptr(), <[u8]>::len(self))
     }
 }
 
@@ -392,7 +404,7 @@ unsafe impl Buf for Cow<'static, [u8]> {
 // safety reasoning.
 unsafe impl Buf for Cow<'static, str> {
     unsafe fn parts(&self) -> (*const u8, usize) {
-        (self.as_ptr(), self.len())
+        (self.as_ptr(), <str>::len(self))
     }
 }
 
