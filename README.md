@@ -1,12 +1,25 @@
 # Heph
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Crates.io](https://img.shields.io/crates/v/heph.svg)](https://crates.io/crates/heph)
-[![Docs](https://docs.rs/heph/badge.svg)](https://docs.rs/heph)
-
 Heph, derived from [Hephaestus], is the Greek god of blacksmiths, metalworking,
 carpenters, craftsmen, artisans, sculptors, metallurgy, fire, and volcanoes.
 Well this crate has very little to do with Greek gods, but I needed a name.
+
+Quick links:
+ * Heph:
+   * [crates.io](https://crates.io/crates/heph)
+   * [docs.rs](https://docs.rs/heph)
+ * Heph-rt:
+   * [crates.io](https://crates.io/crates/heph-rt)
+   * [docs.rs](https://docs.rs/heph-rt)
+ * Heph-http:
+   * [crates.io](https://crates.io/crates/heph-http)
+   * [docs.rs](https://docs.rs/heph-http)
+ * Heph-remote:
+   * [crates.io](https://crates.io/crates/heph-remote)
+   * [docs.rs](https://docs.rs/heph-remote)
+ * Heph-inbox:
+   * [crates.io](https://crates.io/crates/heph-inbox)
+   * [docs.rs](https://docs.rs/heph-inbox)
 
 [Hephaestus]: https://en.wikipedia.org/wiki/Hephaestus
 
