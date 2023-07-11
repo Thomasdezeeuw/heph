@@ -50,7 +50,7 @@ pub use buf::{Buf, BufMut, BufMutSlice, BufSlice, Limited};
 pub(crate) mod futures;
 
 mod traits;
-pub use traits::Read;
+pub use traits::{Read, Write};
 
 macro_rules! stdio {
     (
