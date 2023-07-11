@@ -19,7 +19,7 @@
 //! use std::io;
 //!
 //! use heph::actor;
-//! use heph_rt::io::Read;
+//! use heph_rt::io::{Read, Write};
 //! use heph_rt::{self as rt, pipe};
 //!
 //! const DATA: &[u8] = b"Hello, world!";
@@ -57,7 +57,7 @@
 //! use std::process::{Command, Stdio};
 //!
 //! use heph::actor;
-//! use heph_rt::io::Read;
+//! use heph_rt::io::{Read, Write};
 //! use heph_rt::{self as rt, pipe};
 //!
 //! const DATA: &[u8] = b"Hello, world!";
@@ -101,11 +101,10 @@ use std::io;
 use std::os::fd::{IntoRawFd, RawFd};
 use std::process::{ChildStderr, ChildStdin, ChildStdout};
 
-use a10::{AsyncFd, Extract};
+use a10::AsyncFd;
 
 use crate::access::Access;
-use crate::io::futures::{Write, WriteAll, WriteAllVectored, WriteVectored};
-use crate::io::{impl_read, Buf, BufSlice, BufWrapper};
+use crate::io::{impl_read, impl_write};
 
 /// Create a new Unix pipe.
 ///
@@ -149,46 +148,9 @@ impl Sender {
         let fd = unsafe { AsyncFd::from_raw_fd(stdin.into_raw_fd(), rt.submission_queue()) };
         Ok(Sender { fd })
     }
-
-    /// Write the bytes in `buf` into the pipe.
-    ///
-    /// Return the number of bytes written. This may we fewer than the length of
-    /// `buf`. To ensure that all bytes are written use [`Sender::write_all`].
-    pub async fn write<B: Buf>(&self, buf: B) -> io::Result<(B, usize)> {
-        Write(self.fd.write(BufWrapper(buf)).extract()).await
-    }
-
-    /// Write the all bytes in `buf` into the pipe.
-    ///
-    /// If this fails to write all bytes (this happens if a write returns
-    /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
-    pub async fn write_all<B: Buf>(&self, buf: B) -> io::Result<B> {
-        WriteAll(self.fd.write_all(BufWrapper(buf)).extract()).await
-    }
-
-    /// Write the bytes in `bufs` into the pipe.
-    ///
-    /// Return the number of bytes written. This may we fewer than the length of
-    /// `bufs`. To ensure that all bytes are written use
-    /// [`Sender::write_vectored_all`].
-    pub async fn write_vectored<B: BufSlice<N>, const N: usize>(
-        &self,
-        bufs: B,
-    ) -> io::Result<(B, usize)> {
-        WriteVectored(self.fd.write_vectored(BufWrapper(bufs)).extract()).await
-    }
-
-    /// Write the all bytes in `bufs` into the pipe.
-    ///
-    /// If this fails to write all bytes (this happens if a write returns
-    /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
-    pub async fn write_vectored_all<B: BufSlice<N>, const N: usize>(
-        &self,
-        bufs: B,
-    ) -> io::Result<B> {
-        WriteAllVectored(self.fd.write_all_vectored(BufWrapper(bufs)).extract()).await
-    }
 }
+
+impl_write!(Sender, &Sender);
 
 /// Receiving end of an Unix pipe.
 ///

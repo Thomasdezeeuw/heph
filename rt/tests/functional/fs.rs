@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use heph::actor;
 use heph_rt::access::ThreadLocal;
 use heph_rt::fs::{self, Advice, AllocateMode, File};
-use heph_rt::io::Read;
+use heph_rt::io::{Read, Write};
 use heph_rt::test::block_on_local_actor;
 
 use crate::util::{temp_dir_root, temp_file};

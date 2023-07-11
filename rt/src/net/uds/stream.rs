@@ -10,7 +10,7 @@ use a10::{AsyncFd, Extract};
 use socket2::{Domain, Protocol, SockRef, Type};
 
 use crate::access::Access;
-use crate::io::{impl_read, Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
+use crate::io::{impl_read, impl_write, Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 use crate::net::uds::UnixAddr;
 use crate::net::{
     convert_address, Recv, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored,
@@ -298,3 +298,4 @@ impl UnixStream {
 }
 
 impl_read!(UnixStream, &UnixStream);
+impl_write!(UnixStream, &UnixStream);
