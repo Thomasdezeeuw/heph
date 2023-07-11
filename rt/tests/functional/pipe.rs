@@ -4,6 +4,7 @@ use std::io;
 use std::time::Duration;
 
 use heph::{actor, ActorRef};
+use heph_rt::io::Read;
 use heph_rt::pipe::{self, Receiver};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join, join_many, try_spawn_local, PanicSupervisor};
@@ -25,7 +26,7 @@ fn smoke() {
         assert_eq!(n, DATA.len());
         drop(sender);
 
-        let buf = receiver.read(Vec::with_capacity(DATA.len() + 1)).await?;
+        let buf = (&receiver).read(Vec::with_capacity(DATA.len() + 1)).await?;
         assert_eq!(buf.len(), DATA.len());
         assert_eq!(buf, DATA);
         Ok(())
@@ -64,7 +65,7 @@ fn write_all_read_n() {
     {
         let receiver = ctx.receive_next().await.unwrap();
 
-        let buf = receiver
+        let buf = (&receiver)
             .read_n(Vec::with_capacity(DATA.len() + 1), DATA.len())
             .await?;
         assert_eq!(buf, DATA);
@@ -121,7 +122,7 @@ fn write_vectored_all_read_n_vectored() {
             Vec::with_capacity(6 * 4096),
             Vec::with_capacity((4 * 4096) + 1),
         ];
-        let [buf1, buf2, buf3] = receiver.read_n_vectored(bufs, DATA_LEN).await?;
+        let [buf1, buf2, buf3] = (&receiver).read_n_vectored(bufs, DATA_LEN).await?;
         debug_assert!(buf1 == DATA[0]);
         debug_assert!(buf2 == DATA[1]);
         debug_assert!(buf3 == DATA[2]);
@@ -163,7 +164,7 @@ fn vectored_io() {
             Vec::with_capacity(DATAV[1].len()),
             Vec::with_capacity(DATAV[2].len() + 2),
         ];
-        let [buf1, buf2, buf3] = receiver.read_vectored(bufs).await?;
+        let [buf1, buf2, buf3] = (&receiver).read_vectored(bufs).await?;
         assert!(buf1 == DATAV[0]);
         assert!(buf2 == DATAV[1]);
         assert!(buf3 == DATAV[2]);

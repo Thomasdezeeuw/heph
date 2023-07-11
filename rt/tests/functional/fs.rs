@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use heph::actor;
 use heph_rt::access::ThreadLocal;
 use heph_rt::fs::{self, Advice, AllocateMode, File};
+use heph_rt::io::Read;
 use heph_rt::test::block_on_local_actor;
 
 use crate::util::{temp_dir_root, temp_file};
@@ -18,7 +19,7 @@ fn file_read_write() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>) {
         let path = temp_file("file_read_write");
         let file = File::create(ctx.runtime_ref(), path).await.unwrap();
-        let buf = file.read(Vec::with_capacity(128)).await.unwrap();
+        let buf = (&file).read(Vec::with_capacity(128)).await.unwrap();
         assert!(buf.is_empty());
 
         file.write_all(DATA1).await.unwrap();
@@ -99,7 +100,7 @@ fn file_advise() {
         file.advise(0, 0, Advice::Sequential).await.unwrap(); // Entire file.
 
         let len = file.metadata().await.unwrap().len() as usize;
-        let buf = file.read_n(Vec::with_capacity(len), len).await.unwrap();
+        let buf = (&file).read_n(Vec::with_capacity(len), len).await.unwrap();
         assert_eq!(buf.len(), len);
 
         file.advise(0, 0, Advice::DontNeed).await.unwrap(); // Entire file.
@@ -127,7 +128,10 @@ fn file_allocate() {
             .unwrap();
         assert_eq!(file.metadata().await.unwrap().len(), SIZE as u64);
 
-        let buf = file.read_n(Vec::with_capacity(SIZE), SIZE).await.unwrap();
+        let buf = (&file)
+            .read_n(Vec::with_capacity(SIZE), SIZE)
+            .await
+            .unwrap();
         assert_eq!(buf.len(), SIZE);
     }
 
@@ -165,7 +169,7 @@ fn rename() {
             .unwrap();
 
         let file = File::open(ctx.runtime_ref(), to).await.unwrap();
-        let buf = file
+        let buf = (&file)
             .read(Vec::with_capacity(DATA1.len() + 1))
             .await
             .unwrap();

@@ -7,7 +7,7 @@ use a10::{AsyncFd, Extract};
 use socket2::{Domain, Protocol, SockRef, Type};
 
 use crate::access::Access;
-use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
+use crate::io::{impl_read, Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 use crate::net::{
     convert_address, Recv, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored,
     SendVectored, SockAddr,
@@ -359,3 +359,5 @@ impl TcpStream {
         f(SockRef::from(&self.fd))
     }
 }
+
+impl_read!(TcpStream, &TcpStream);
