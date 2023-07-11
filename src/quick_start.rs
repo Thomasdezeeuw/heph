@@ -47,7 +47,7 @@
 //! [actor model]: https://en.wikipedia.org/wiki/Actor_model
 //! [actor]: crate::actor
 //!
-//! ### Sending messages
+//! ### Sending Messages
 //!
 //! On to the second point of the actor model: sending message. Sending messages
 //! is done using the [`ActorRef`] type. An actor reference (`ActorRef`) is a
@@ -188,7 +188,7 @@
 //! [starting argument(s)]: crate::actor::NewActor::Argument
 //! [`NewActor`]: crate::actor::NewActor
 //!
-//! ## The Heph runtime
+//! ## The Heph Runtime
 //!
 //! To run all the actors we need a runtime. Luckily Heph provides one in the
 //! [Heph-rt] crate!
@@ -240,3 +240,43 @@
 //! [examples]: https://github.com/Thomasdezeeuw/heph/blob/main/examples/README.md
 //! [`heph_rt::Setup`]: https://docs.rs/heph-rt/latest/heph_rt/struct.Setup.html
 //! [`Runtime`]: https://docs.rs/heph-rt/latest/heph_rt/struct.Runtime.html
+//!
+//! ## Not Using the Heph Runtime
+//!
+//! If you already have a [`Future`] runtime you're happy with you can still use
+//! Heph. Instead of using `heph-rt` specific ways to spawn an actor you can use
+//! the [`ActorFuture`] type and spawn that on your existing runtime. The
+//! example below shows how to do just that.
+//!
+//! ```
+//! # #![feature(never_type)]
+//! use heph::actor::{self, ActorFuture};
+//! use heph::supervisor::NoSupervisor;
+//!
+//! fn main() -> Result<(), rt::Error> {
+//!     // The `Supervisor`, `NewActor` and argument are the same as for using
+//!     // heph-rt.
+//!     let supervisor = NoSupervisor;
+//!     let new_actor = actor as fn(_);
+//!     let arguments = (); // No arguments required.
+//!     // The runtime (`rt`) argument gives access to the runtime within the
+//!     // context of the actor. Note that not all runtimes need this, so you
+//!     // can use `()` if it's not required.
+//!     let rt = ();
+//!     let (actor, actor_ref) = ActorFuture::new(supervisor, new_actor, arguments, rt)?;
+//!
+//!     // Spawn the `Future` that runs the actor using your runtime.
+//!     my_runtime.spawn(actor);
+//! }
+//!
+//! async fn actor(mut ctx: actor::Context<String>) {
+//!     // Messages can be received from the `actor::Context`. In this example we
+//!     // can receive messages of the type `String`.
+//!     if let Ok(msg) = ctx.receive_next().await {
+//!         // Process the message.
+//!         println!("got a message: {msg}");
+//!     }
+//! }
+//! ```
+//!
+//! [`ActorFuture`]: crate::actor::ActorFuture
