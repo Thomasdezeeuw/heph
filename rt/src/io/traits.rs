@@ -214,6 +214,10 @@ impl<T: Write> Write for &mut T {
         (**self).write_all(buf).await
     }
 
+    fn is_write_vectored(&self) -> bool {
+        (**self).is_write_vectored()
+    }
+
     async fn write_vectored<B: BufSlice<N>, const N: usize>(
         &mut self,
         bufs: B,
@@ -236,6 +240,10 @@ impl<T: Write> Write for Box<T> {
 
     async fn write_all<B: Buf>(&mut self, buf: B) -> io::Result<B> {
         (**self).write_all(buf).await
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        (**self).is_write_vectored()
     }
 
     async fn write_vectored<B: BufSlice<N>, const N: usize>(
