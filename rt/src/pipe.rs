@@ -102,10 +102,10 @@ use std::process::{ChildStderr, ChildStdin, ChildStdout};
 use a10::{AsyncFd, Extract};
 
 use crate::access::Access;
-use crate::io::{
-    Buf, BufMut, BufMutSlice, BufSlice, BufWrapper, Read, ReadN, ReadNVectored, ReadVectored,
-    Write, WriteAll, WriteAllVectored, WriteVectored,
+use crate::io::futures::{
+    Read, ReadN, ReadNVectored, ReadVectored, Write, WriteAll, WriteAllVectored, WriteVectored,
 };
+use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 
 /// Create a new Unix pipe.
 ///

@@ -9,10 +9,10 @@ use std::{fmt, io};
 use a10::{AsyncFd, Extract};
 
 use crate::access::Access;
-use crate::io::{
-    Buf, BufMut, BufMutSlice, BufSlice, BufWrapper, Read, ReadN, ReadNVectored, ReadVectored,
-    Write, WriteAll, WriteAllVectored, WriteVectored,
+use crate::io::futures::{
+    Read, ReadN, ReadNVectored, ReadVectored, Write, WriteAll, WriteAllVectored, WriteVectored,
 };
+use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 
 /// Access to an open file on the filesystem.
 ///
