@@ -311,6 +311,22 @@ pub unsafe trait Buf: 'static {
     /// valid memory address and owned by the buffer.
     unsafe fn parts(&self) -> (*const u8, usize);
 
+    /// Returns itself as slice of bytes.
+    ///
+    /// # Implementation
+    ///
+    /// This cals [`Buf::parts`] and converts that into a slice. **Do not
+    /// overwrite this method**.
+    fn as_slice(&self) -> &[u8] {
+        // SAFETY: the `Buf::parts` implementation ensures that the `ptr` and
+        // `len` are valid, as well as the memory allocation they point to. So
+        // creating a slice from it is safe.
+        unsafe {
+            let (ptr, len) = self.parts();
+            slice::from_raw_parts(ptr, len)
+        }
+    }
+
     /// Length of the buffer in bytes.
     ///
     /// # Implementation
