@@ -1,6 +1,6 @@
 use std::io;
 
-use crate::io::{BufMut, BufMutSlice};
+use crate::io::{Buf, BufMut, BufMutSlice, BufSlice};
 
 /// Asynchronous reading bytes from a source.
 pub trait Read {
@@ -151,4 +151,39 @@ impl Read for &[u8] {
             Ok(bufs)
         }
     }
+}
+
+/// Asynchronous writing bytes to a source.
+pub trait Write {
+    /// Write the bytes in `buf`.
+    ///
+    /// Returns the number of bytes written. This may we fewer than the length
+    /// of `buf`. To ensure that all bytes are written use [`Write::write_all`].
+    async fn write<B: Buf>(&self, buf: B) -> io::Result<(B, usize)>;
+
+    /// Write all bytes in `buf`.
+    ///
+    /// If this fails to write all bytes (this happens if a write returns
+    /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
+    ///
+    /// [`io::ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
+    async fn write_all<B: Buf>(&self, buf: B) -> io::Result<B>;
+
+    /// Write the bytes in `bufs`.
+    ///
+    /// Return the number of bytes written. This may we fewer than the length of
+    /// `bufs`. To ensure that all bytes are written use
+    /// [`Write::write_vectored_all`].
+    async fn write_vectored<B: BufSlice<N>, const N: usize>(
+        &self,
+        bufs: B,
+    ) -> io::Result<(B, usize)>;
+
+    /// Write all bytes in `bufs`.
+    ///
+    /// If this fails to write all bytes (this happens if a write returns
+    /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
+    ///
+    /// [`io::ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
+    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B>;
 }
