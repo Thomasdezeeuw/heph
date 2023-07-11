@@ -201,3 +201,45 @@ pub trait Write {
     /// [`io::ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
     async fn write_vectored_all<B: BufSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B>;
 }
+
+impl<T: Write> Write for &mut T {
+    async fn write<B: Buf>(&self, buf: B) -> io::Result<(B, usize)> {
+        (**self).write(buf).await
+    }
+
+    async fn write_all<B: Buf>(&self, buf: B) -> io::Result<B> {
+        (**self).write_all(buf).await
+    }
+
+    async fn write_vectored<B: BufSlice<N>, const N: usize>(
+        &self,
+        bufs: B,
+    ) -> io::Result<(B, usize)> {
+        (**self).write_vectored(bufs).await
+    }
+
+    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B> {
+        (**self).write_vectored_all(bufs).await
+    }
+}
+
+impl<T: Write> Write for Box<T> {
+    async fn write<B: Buf>(&self, buf: B) -> io::Result<(B, usize)> {
+        (**self).write(buf).await
+    }
+
+    async fn write_all<B: Buf>(&self, buf: B) -> io::Result<B> {
+        (**self).write_all(buf).await
+    }
+
+    async fn write_vectored<B: BufSlice<N>, const N: usize>(
+        &self,
+        bufs: B,
+    ) -> io::Result<(B, usize)> {
+        (**self).write_vectored(bufs).await
+    }
+
+    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B> {
+        (**self).write_vectored_all(bufs).await
+    }
+}
