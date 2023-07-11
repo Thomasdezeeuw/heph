@@ -1,6 +1,6 @@
 use std::cmp::min;
-use std::io::Empty;
-use std::{io, mem, slice};
+use std::io::{self, Empty, Sink};
+use std::{mem, slice};
 
 use crate::io::{Buf, BufMut, BufMutSlice, BufSlice};
 
@@ -344,5 +344,35 @@ impl Write for &mut [u8] {
             Ok((bufs, _)) => Ok(bufs),
             Err(err) => Err(err),
         }
+    }
+}
+
+impl Write for Sink {
+    async fn write<B: Buf>(&mut self, buf: B) -> io::Result<(B, usize)> {
+        let len = buf.len();
+        Ok((buf, len))
+    }
+
+    async fn write_all<B: Buf>(&mut self, buf: B) -> io::Result<B> {
+        Ok(buf)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        true
+    }
+
+    async fn write_vectored<B: BufSlice<N>, const N: usize>(
+        &mut self,
+        bufs: B,
+    ) -> io::Result<(B, usize)> {
+        let len = bufs.total_len();
+        Ok((bufs, len))
+    }
+
+    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(
+        &mut self,
+        bufs: B,
+    ) -> io::Result<B> {
+        Ok(bufs)
     }
 }
