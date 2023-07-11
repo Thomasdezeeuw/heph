@@ -33,17 +33,17 @@ For more examples see the [examples] directory.
 
 ## Design
 
-Heph uses an event-driven, non-blocking I/O, share nothing design. But what do
-all those buzzwords actually mean?
+Heph uses event-driven scheduling, non-blocking I/O (utiling io\_uring) and a
+share nothing design. But what do all those buzzwords actually mean?
 
  - *Event-driven*: Heph does nothing by itself, it must first get an event
-   before it starts doing anything. For example when using a `TcpListener` it
-   waits on a notification from the OS saying the `TcpListener` is ready before
-   trying to accepted connections.
+   before it starts doing anything. For example an actor is only run when it
+   receives a message or I/O has been completed.
  - *Non-blocking I/O*: normal I/O operations need to wait (block) until the
    operation can complete. Using non-blocking, or asynchronous, I/O means that
    rather than waiting for the operation to complete we'll do some other more
-   useful work and try the operation later.
+   useful work and try the operation later. Furthermore using io\_uring we don't
+   even have to make system calls (to do I/O) anymore!
  - *Share nothing*: many applications share data across multiple threads. To
    do this safely, we need to protect it from data races via a [`Mutex`] or
    by using [atomic] operations. Heph is designed to not share any data. Each
@@ -69,18 +69,22 @@ rustup install nightly # Install the latest nightly compiler.
 rustup default nightly # Set the nightly compiler as default.
 ```
 
-Second, Heph needs to be added as a dependency.
+Second, Heph needs to be added as a dependency. Most likely you'll also want the
+Heph runtime (`heph-rt`).
 
 ```toml
 [dependencies]
-heph = "0.5.0"
+heph    = "0.5.0"
+heph-rt = "0.5.0"
 ```
 
 Now, you're ready to starting writing your application! Next, you can look at
-some [examples] or look at the [API documentation].
+some [examples], look at the [API documentation] or get started with the [Quick
+Start Guide].
 
 [rustup]: https://rustup.rs
 [API documentation]: https://docs.rs/heph
+[Quick Start Guide]:  https://docs.rs/heph/latest/heph/quick_start/index.html
 
 
 ## Platform support

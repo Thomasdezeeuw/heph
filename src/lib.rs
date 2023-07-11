@@ -23,17 +23,17 @@
 //! # _ = actor; // Silence dead code warnings.
 //! ```
 //!
-//! Heph uses an event-driven, non-blocking I/O, share nothing design. But what
-//! do all those buzzwords actually mean?
+//! Heph uses event-driven scheduling, non-blocking I/O (utiling io\_uring) and
+//! a share nothing design. But what do all those buzzwords actually mean?
 //!
 //!  - *Event-driven*: Heph does nothing by itself, it must first get an event
-//!    before it starts doing anything. For example when using a `TcpListener`
-//!    it waits on a notification from the OS saying the `TcpListener` is ready
-//!    before trying to accept connections.
+//!    before it starts doing anything. For example an actor is only run when it
+//!    receives a message or I/O has been completed.
 //!  - *Non-blocking I/O*: normal I/O operations need to wait (block) until the
 //!    operation can complete. Using non-blocking, or asynchronous, I/O means
 //!    that rather then waiting for the operation to complete we'll do some
-//!    other, more useful, work and try the operation later.
+//!    other, more useful, work and try the operation later. Furthermore using
+//!    io\_uring we don't even have to make system calls (to do I/O) anymore!
 //!  - *Share nothing*: a lot of application share data across multiple threads.
 //!    To do this safely we need to protect it from data races, via a [`Mutex`]
 //!    or by using [atomic] operations. Heph is designed to not share any data.
@@ -51,15 +51,15 @@
 //! There are two ways to get starting with Heph. If you like to see examples,
 //! take a look at the [examples] in the examples directory of the source code.
 //! If you like to learn more about some of the core concepts of Heph start with
-//! the [Quick Start] guide.
+//! the [Quick Start Guide].
 //!
 //! [examples]: https://github.com/Thomasdezeeuw/heph/blob/main/examples/README.md
-//! [Quick Start]: crate::quick_start
+//! [Quick Start Guide]: crate::quick_start
 //!
 //! ## Features
 //!
-//! This crate has one optional: `test`. The `test` feature will enable the
-//! `test` module which adds testing facilities.
+//! This crate has one optional feature: `test`. The `test` feature will enable
+//! the `test` module which adds testing facilities.
 
 #![feature(
     const_option,
