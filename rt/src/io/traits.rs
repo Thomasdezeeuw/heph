@@ -97,3 +97,60 @@ impl<T: Read> Read for Box<T> {
         (**self).read_n_vectored(bufs, n).await
     }
 }
+
+/// Read is implemented for `&[u8]` by copying from the slice.
+///
+/// Note that reading updates the slice to point to the yet unread part. The
+/// slice will be empty when EOF is reached.
+impl Read for &[u8] {
+    async fn read<B: BufMut>(&mut self, mut buf: B) -> io::Result<B> {
+        let read = buf.extend_from_slice(&**self);
+        *self = &self[read..];
+        Ok(buf)
+    }
+
+    async fn read_n<B: BufMut>(&mut self, mut buf: B, n: usize) -> io::Result<B> {
+        debug_assert!(
+            buf.spare_capacity() >= n,
+            "called `[u8]::read_n` with a buffer smaller than `n`",
+        );
+        if self.len() <= n {
+            Err(io::ErrorKind::UnexpectedEof.into())
+        } else {
+            let read = buf.extend_from_slice(&**self);
+            *self = &self[read..];
+            Ok(buf)
+        }
+    }
+
+    fn is_read_vectored(&self) -> bool {
+        true
+    }
+
+    async fn read_vectored<B: BufMutSlice<N>, const N: usize>(
+        &mut self,
+        mut bufs: B,
+    ) -> io::Result<B> {
+        let read = bufs.extend_from_slice(&**self);
+        *self = &self[read..];
+        Ok(bufs)
+    }
+
+    async fn read_n_vectored<B: BufMutSlice<N>, const N: usize>(
+        &mut self,
+        mut bufs: B,
+        n: usize,
+    ) -> io::Result<B> {
+        debug_assert!(
+            bufs.total_spare_capacity() >= n,
+            "called `[u8]::read_n_vectored` with buffers smaller than `n`",
+        );
+        if self.len() <= n {
+            Err(io::ErrorKind::UnexpectedEof.into())
+        } else {
+            let read = bufs.extend_from_slice(&**self);
+            *self = &self[read..];
+            Ok(bufs)
+        }
+    }
+}
