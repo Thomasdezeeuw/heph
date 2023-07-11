@@ -253,11 +253,11 @@
 //! use heph::actor::{self, ActorFuture};
 //! use heph::supervisor::NoSupervisor;
 //!
-//! fn main() -> Result<(), rt::Error> {
+//! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // The `Supervisor`, `NewActor` and argument are the same as for using
 //!     // heph-rt.
 //!     let supervisor = NoSupervisor;
-//!     let new_actor = actor as fn(_);
+//!     let new_actor = actor as fn(_) -> _;
 //!     let arguments = (); // No arguments required.
 //!     // The runtime (`rt`) argument gives access to the runtime within the
 //!     // context of the actor. Note that not all runtimes need this, so you
@@ -265,9 +265,17 @@
 //!     let rt = ();
 //!     let (actor, actor_ref) = ActorFuture::new(supervisor, new_actor, arguments, rt)?;
 //!
+//!     // Actor reference can be used as normal.
+//!     actor_ref.try_send("Hello!")?;
+//!
 //!     // Spawn the `Future` that runs the actor using your runtime.
+//! #   let my_runtime = RT;
 //!     my_runtime.spawn(actor);
+//!     Ok(())
 //! }
+//! #
+//! # struct RT;
+//! # impl RT { fn spawn<Fut: std::future::Future>(&self, fut: Fut) { drop(fut) } }
 //!
 //! async fn actor(mut ctx: actor::Context<String>) {
 //!     // Messages can be received from the `actor::Context`. In this example we
