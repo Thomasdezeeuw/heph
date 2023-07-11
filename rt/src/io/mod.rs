@@ -133,6 +133,10 @@ macro_rules! impl_write {
                 $crate::io::futures::WriteAll(a10::Extract::extract(self.fd.write_all($crate::io::BufWrapper(buf)))).await
             }
 
+            fn is_write_vectored(&self) -> bool {
+                true
+            }
+
             async fn write_vectored<B: $crate::io::BufSlice<N>, const N: usize>(
                 &self,
                 bufs: B,
