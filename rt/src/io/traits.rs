@@ -159,7 +159,7 @@ pub trait Write {
     ///
     /// Returns the number of bytes written. This may we fewer than the length
     /// of `buf`. To ensure that all bytes are written use [`Write::write_all`].
-    async fn write<B: Buf>(&self, buf: B) -> io::Result<(B, usize)>;
+    async fn write<B: Buf>(&mut self, buf: B) -> io::Result<(B, usize)>;
 
     /// Write all bytes in `buf`.
     ///
@@ -167,7 +167,7 @@ pub trait Write {
     /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
     ///
     /// [`io::ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
-    async fn write_all<B: Buf>(&self, buf: B) -> io::Result<B>;
+    async fn write_all<B: Buf>(&mut self, buf: B) -> io::Result<B>;
 
     /// Determines if this `Write`r has an efficient [`write_vectored`]
     /// implementation.
@@ -189,7 +189,7 @@ pub trait Write {
     /// `bufs`. To ensure that all bytes are written use
     /// [`Write::write_vectored_all`].
     async fn write_vectored<B: BufSlice<N>, const N: usize>(
-        &self,
+        &mut self,
         bufs: B,
     ) -> io::Result<(B, usize)>;
 
@@ -199,47 +199,56 @@ pub trait Write {
     /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
     ///
     /// [`io::ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
-    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B>;
+    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(
+        &mut self,
+        bufs: B,
+    ) -> io::Result<B>;
 }
 
 impl<T: Write> Write for &mut T {
-    async fn write<B: Buf>(&self, buf: B) -> io::Result<(B, usize)> {
+    async fn write<B: Buf>(&mut self, buf: B) -> io::Result<(B, usize)> {
         (**self).write(buf).await
     }
 
-    async fn write_all<B: Buf>(&self, buf: B) -> io::Result<B> {
+    async fn write_all<B: Buf>(&mut self, buf: B) -> io::Result<B> {
         (**self).write_all(buf).await
     }
 
     async fn write_vectored<B: BufSlice<N>, const N: usize>(
-        &self,
+        &mut self,
         bufs: B,
     ) -> io::Result<(B, usize)> {
         (**self).write_vectored(bufs).await
     }
 
-    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B> {
+    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(
+        &mut self,
+        bufs: B,
+    ) -> io::Result<B> {
         (**self).write_vectored_all(bufs).await
     }
 }
 
 impl<T: Write> Write for Box<T> {
-    async fn write<B: Buf>(&self, buf: B) -> io::Result<(B, usize)> {
+    async fn write<B: Buf>(&mut self, buf: B) -> io::Result<(B, usize)> {
         (**self).write(buf).await
     }
 
-    async fn write_all<B: Buf>(&self, buf: B) -> io::Result<B> {
+    async fn write_all<B: Buf>(&mut self, buf: B) -> io::Result<B> {
         (**self).write_all(buf).await
     }
 
     async fn write_vectored<B: BufSlice<N>, const N: usize>(
-        &self,
+        &mut self,
         bufs: B,
     ) -> io::Result<(B, usize)> {
         (**self).write_vectored(bufs).await
     }
 
-    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(&self, bufs: B) -> io::Result<B> {
+    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(
+        &mut self,
+        bufs: B,
+    ) -> io::Result<B> {
         (**self).write_vectored_all(bufs).await
     }
 }
