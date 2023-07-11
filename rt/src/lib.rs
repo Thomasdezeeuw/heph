@@ -716,7 +716,7 @@ fn cpu_usage(clock_id: libc::clockid_t) -> Duration {
         tv_nsec: 0,
     };
     if unsafe { libc::clock_gettime(clock_id, &mut duration) } == -1 {
-        let err = io::Error::last_os_error();
+        let err = std::io::Error::last_os_error();
         warn!("error getting CPU time: {err}, using zero");
         Duration::ZERO
     } else {

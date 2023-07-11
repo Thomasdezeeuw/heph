@@ -4,7 +4,7 @@ use std::io;
 use std::time::Duration;
 
 use heph::{actor, ActorRef};
-use heph_rt::io::Read;
+use heph_rt::io::{Read, Write};
 use heph_rt::pipe::{self, Receiver};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join, join_many, try_spawn_local, PanicSupervisor};

@@ -12,7 +12,7 @@ use crate::access::Access;
 use crate::io::futures::{
     Read, ReadN, ReadNVectored, ReadVectored, Write, WriteAll, WriteAllVectored, WriteVectored,
 };
-use crate::io::{impl_read, Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
+use crate::io::{impl_read, impl_write, Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 
 /// Access to an open file on the filesystem.
 ///
@@ -103,30 +103,13 @@ impl File {
         ReadNVectored(self.fd.read_n_vectored_at(BufWrapper(bufs), offset, n)).await
     }
 
-    /// Write the bytes in `buf` to the file.
-    ///
-    /// Returns the number of bytes written. This may we fewer than the length
-    /// of `buf`. To ensure that all bytes are written use
-    /// [`File::write_all`].
-    pub async fn write<B: Buf>(&self, buf: B) -> io::Result<(B, usize)> {
-        Write(self.fd.write(BufWrapper(buf)).extract()).await
-    }
-
     /// Write the bytes in `buf` to the file at `offset`.
     ///
     /// Returns the number of bytes written. This may we fewer than the length
     /// of `buf`. To ensure that all bytes are written use
-    /// [`File::write_all`].
+    /// [`File::write_all_at`].
     pub async fn write_at<B: Buf>(&self, buf: B, offset: u64) -> io::Result<(B, usize)> {
         Write(self.fd.write_at(BufWrapper(buf), offset).extract()).await
-    }
-
-    /// Write the all bytes in `buf` to the file.
-    ///
-    /// If this fails to write all bytes (this happens if a write returns
-    /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
-    pub async fn write_all<B: Buf>(&self, buf: B) -> io::Result<B> {
-        WriteAll(self.fd.write_all(BufWrapper(buf)).extract()).await
     }
 
     /// Write the all bytes in `buf` to the file at `offset`.
@@ -137,23 +120,11 @@ impl File {
         WriteAll(self.fd.write_all_at(BufWrapper(buf), offset).extract()).await
     }
 
-    /// Write the bytes in `bufs` to the file.
-    ///
-    /// Return the number of bytes written. This may we fewer than the length of
-    /// `bufs`. To ensure that all bytes are written use
-    /// [`File::write_vectored_all`].
-    pub async fn write_vectored<B: BufSlice<N>, const N: usize>(
-        &self,
-        bufs: B,
-    ) -> io::Result<(B, usize)> {
-        WriteVectored(self.fd.write_vectored(BufWrapper(bufs)).extract()).await
-    }
-
     /// Write the bytes in `bufs` to the file at `offset`.
     ///
     /// Return the number of bytes written. This may we fewer than the length of
     /// `bufs`. To ensure that all bytes are written use
-    /// [`File::write_vectored_all`].
+    /// [`File::write_vectored_all_at`].
     pub async fn write_vectored_at<B: BufSlice<N>, const N: usize>(
         &self,
         bufs: B,
@@ -165,17 +136,6 @@ impl File {
                 .extract(),
         )
         .await
-    }
-
-    /// Write the all bytes in `bufs` to the file.
-    ///
-    /// If this fails to write all bytes (this happens if a write returns
-    /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
-    pub async fn write_vectored_all<B: BufSlice<N>, const N: usize>(
-        &self,
-        bufs: B,
-    ) -> io::Result<B> {
-        WriteAllVectored(self.fd.write_all_vectored(BufWrapper(bufs)).extract()).await
     }
 
     /// Write the all bytes in `bufs` to the file at `offset`.
@@ -248,6 +208,7 @@ impl File {
 }
 
 impl_read!(File, &File);
+impl_write!(File, &File);
 
 impl fmt::Debug for File {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
