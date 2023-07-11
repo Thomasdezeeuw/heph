@@ -175,6 +175,7 @@ fn test_buf_slice<B: BufSlice<2>>(buf: B) {
     let [got0, got1] = buf.as_io_slices();
     assert_eq!(&*got0, DATA);
     assert_eq!(&*got1, DATA2);
+    assert_eq!(buf.total_len(), got0.len() + got1.len());
 }
 
 #[test]

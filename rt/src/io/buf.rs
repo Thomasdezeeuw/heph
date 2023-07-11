@@ -450,6 +450,12 @@ pub trait BufSlice<const N: usize>: private::BufSlice<N> + 'static {
         }
     }
 
+    /// Returns the total length of all buffers in bytes.
+    fn total_len(&self) -> usize {
+        // SAFETY: `as_iovecs` requires the returned iovec to be valid.
+        unsafe { self.as_iovecs().iter().map(|iovec| iovec.iov_len).sum() }
+    }
+
     /// Wrap the buffer in `Limited`, which limits the amount of bytes used to
     /// `limit`.
     ///
