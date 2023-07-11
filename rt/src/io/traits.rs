@@ -1,4 +1,5 @@
-use std::io;
+use std::cmp::min;
+use std::{io, mem, slice};
 
 use crate::io::{Buf, BufMut, BufMutSlice, BufSlice};
 
@@ -258,5 +259,55 @@ impl<T: Write> Write for Box<T> {
         bufs: B,
     ) -> io::Result<B> {
         (**self).write_vectored_all(bufs).await
+    }
+}
+
+impl Write for &mut [u8] {
+    async fn write<B: Buf>(&mut self, buf: B) -> io::Result<(B, usize)> {
+        let (ptr, buf_len) = unsafe { buf.parts() };
+        let written = min(self.len(), buf_len);
+        let (this, to_write) = mem::take(self).split_at_mut(written);
+        let data = unsafe { slice::from_raw_parts(ptr, written) };
+        to_write.copy_from_slice(data);
+        *self = this;
+        Ok((buf, written))
+    }
+
+    async fn write_all<B: Buf>(&mut self, buf: B) -> io::Result<B> {
+        match self.write(buf).await {
+            Ok((_, 0)) => Err(io::ErrorKind::WriteZero.into()),
+            Ok((buf, _)) => Ok(buf),
+            Err(err) => Err(err),
+        }
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        true
+    }
+
+    async fn write_vectored<B: BufSlice<N>, const N: usize>(
+        &mut self,
+        bufs: B,
+    ) -> io::Result<(B, usize)> {
+        let mut written = 0;
+        for buf in bufs.as_io_slices() {
+            let max = min(self.len(), buf.len());
+            let (this, to_write) = mem::take(self).split_at_mut(max);
+            to_write.copy_from_slice(&buf[..max]);
+            *self = this;
+            written += max;
+        }
+        Ok((bufs, written))
+    }
+
+    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(
+        &mut self,
+        bufs: B,
+    ) -> io::Result<B> {
+        match self.write_vectored(bufs).await {
+            Ok((_, 0)) => Err(io::ErrorKind::WriteZero.into()),
+            Ok((bufs, _)) => Ok(bufs),
+            Err(err) => Err(err),
+        }
     }
 }
