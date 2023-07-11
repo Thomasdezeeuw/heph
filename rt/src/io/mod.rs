@@ -125,11 +125,11 @@ macro_rules! impl_write {
     ( $( $name: ty ),+) => {
         $(
         impl $crate::io::Write for $name {
-            async fn write<B: $crate::io::Buf>(&self, buf: B) -> ::std::io::Result<(B, usize)> {
+            async fn write<B: $crate::io::Buf>(&mut self, buf: B) -> ::std::io::Result<(B, usize)> {
                 $crate::io::futures::Write(a10::Extract::extract(self.fd.write($crate::io::BufWrapper(buf)))).await
             }
 
-            async fn write_all<B: $crate::io::Buf>(&self, buf: B) -> ::std::io::Result<B> {
+            async fn write_all<B: $crate::io::Buf>(&mut self, buf: B) -> ::std::io::Result<B> {
                 $crate::io::futures::WriteAll(a10::Extract::extract(self.fd.write_all($crate::io::BufWrapper(buf)))).await
             }
 
@@ -138,13 +138,13 @@ macro_rules! impl_write {
             }
 
             async fn write_vectored<B: $crate::io::BufSlice<N>, const N: usize>(
-                &self,
+                &mut self,
                 bufs: B,
             ) -> ::std::io::Result<(B, usize)> {
                 $crate::io::futures::WriteVectored(a10::Extract::extract(self.fd.write_vectored($crate::io::BufWrapper(bufs)))).await
             }
 
-            async fn write_vectored_all<B: $crate::io::BufSlice<N>, const N: usize>(&self, bufs: B) -> ::std::io::Result<B> {
+            async fn write_vectored_all<B: $crate::io::BufSlice<N>, const N: usize>(&mut self, bufs: B) -> ::std::io::Result<B> {
                 $crate::io::futures::WriteAllVectored(a10::Extract::extract(self.fd.write_all_vectored($crate::io::BufWrapper(bufs)))).await
             }
         }

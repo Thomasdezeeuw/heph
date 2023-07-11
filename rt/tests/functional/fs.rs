@@ -22,11 +22,11 @@ fn file_read_write() {
         let buf = (&file).read(Vec::with_capacity(128)).await.unwrap();
         assert!(buf.is_empty());
 
-        file.write_all(DATA1).await.unwrap();
+        (&file).write_all(DATA1).await.unwrap();
         let mut buf = file.read_at(buf, 0).await.unwrap();
         assert_eq!(buf, DATA1);
 
-        file.write_all_at(&DATA2[7..], 7).await.unwrap();
+        (&file).write_all_at(&DATA2[7..], 7).await.unwrap();
         buf.clear();
         let buf = file.read_at(buf, 0).await.unwrap();
         assert_eq!(buf, DATA2);
@@ -41,7 +41,7 @@ fn file_sync_all() {
         let path = temp_file("file_sync_all");
         let file = File::create(ctx.runtime_ref(), path).await.unwrap();
 
-        file.write_all(DATA1).await.unwrap();
+        (&file).write_all(DATA1).await.unwrap();
         file.sync_all().await.unwrap();
     }
 
@@ -54,7 +54,7 @@ fn file_sync_data() {
         let path = temp_file("file_sync_data");
         let file = File::create(ctx.runtime_ref(), path).await.unwrap();
 
-        file.write_all(DATA1).await.unwrap();
+        (&file).write_all(DATA1).await.unwrap();
         file.sync_all().await.unwrap();
     }
 
@@ -149,7 +149,7 @@ fn create_dir() {
 
         dir.push("test.txt");
         let file = File::create(ctx.runtime_ref(), dir).await.unwrap();
-        file.write(DATA1).await.unwrap();
+        (&file).write(DATA1).await.unwrap();
     }
 
     block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
@@ -161,7 +161,7 @@ fn rename() {
         let to = temp_file("rename.1");
         let from = temp_file("rename.2");
         let file = File::create(ctx.runtime_ref(), from.clone()).await.unwrap();
-        file.write(DATA1).await.unwrap();
+        (&file).write(DATA1).await.unwrap();
         drop(file);
 
         fs::rename(ctx.runtime_ref(), from, to.clone())
@@ -184,7 +184,7 @@ fn remove_file() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>) {
         let path = temp_file("remove_file");
         let file = File::create(ctx.runtime_ref(), path.clone()).await.unwrap();
-        file.write(DATA1).await.unwrap();
+        (&file).write(DATA1).await.unwrap();
         drop(file);
 
         fs::remove_file(ctx.runtime_ref(), path.clone())

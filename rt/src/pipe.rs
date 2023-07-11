@@ -30,7 +30,7 @@
 //!     let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
 //!
 //!     // Write some data.
-//!     sender.write_all(DATA).await?;
+//!     (&sender).write_all(DATA).await?;
 //!     drop(sender); // Close the sending side.
 //!
 //!     // And read the data back.
@@ -78,7 +78,7 @@
 //!     let stdout = pipe::Receiver::from_child_stdout(ctx.runtime_ref(), process.stdout.take().unwrap())?;
 //!
 //!     // Write some data.
-//!     stdin.write_all(DATA).await?;
+//!     (&stdin).write_all(DATA).await?;
 //!     drop(stdin); // Close standard in for the child process.
 //! #   process.wait()?; // Needed to pass the test on macOS.
 //!

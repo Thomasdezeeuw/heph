@@ -22,7 +22,7 @@ fn smoke() {
     {
         let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
 
-        let (_, n) = sender.write(DATA).await?;
+        let (_, n) = (&sender).write(DATA).await?;
         assert_eq!(n, DATA.len());
         drop(sender);
 
@@ -54,7 +54,7 @@ fn write_all_read_n() {
 
         reader.send(receiver).await.unwrap();
 
-        sender.write_all(DATA).await?;
+        (&sender).write_all(DATA).await?;
         drop(sender);
         Ok(())
     }
@@ -106,7 +106,7 @@ fn write_vectored_all_read_n_vectored() {
         reader.send(receiver).await.unwrap();
 
         let bufs = [DATA[0], DATA[1], DATA[2]];
-        sender.write_vectored_all(bufs).await?;
+        (&sender).write_vectored_all(bufs).await?;
         drop(sender);
         Ok(())
     }
@@ -155,7 +155,7 @@ fn vectored_io() {
         let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
 
         let bufs = [DATAV[0], DATAV[1], DATAV[2]];
-        let (_, n) = sender.write_vectored(bufs).await?;
+        let (_, n) = (&sender).write_vectored(bufs).await?;
         assert_eq!(n, DATAV_LEN);
         drop(sender);
 
