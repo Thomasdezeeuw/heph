@@ -143,6 +143,7 @@
 //! `test` module which adds testing facilities.
 
 #![feature(
+    async_fn_in_trait,
     async_iterator,
     const_option,
     const_weak_new,
