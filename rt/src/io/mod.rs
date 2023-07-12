@@ -67,9 +67,7 @@ macro_rules! stdio {
     ) => {
         #[doc = concat!("Create a new `", stringify!($name), "`.\n\n")]
         pub fn $fn<RT: Access>(rt: &RT) -> $name {
-            let fd = std::mem::ManuallyDrop::new(unsafe {
-                a10::AsyncFd::from_raw_fd($fd, rt.submission_queue())
-            });
+            let fd = a10::io::$fn(rt.submission_queue());
             $name { fd }
         }
 
@@ -81,7 +79,7 @@ macro_rules! stdio {
         )]
         #[derive(Debug)]
         pub struct $name {
-            fd: std::mem::ManuallyDrop<a10::AsyncFd>,
+            fd: a10::io::$name,
         }
     };
 }
