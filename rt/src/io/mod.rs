@@ -63,7 +63,7 @@ pub use traits::{Read, Write};
 
 macro_rules! stdio {
     (
-        $fn: ident () -> $name: ident, $fd: expr
+        $fn: ident () -> $name: ident
     ) => {
         #[doc = concat!("Create a new `", stringify!($name), "`.\n\n")]
         pub fn $fn<RT: Access>(rt: &RT) -> $name {
@@ -84,9 +84,9 @@ macro_rules! stdio {
     };
 }
 
-stdio!(stdin() -> Stdin, libc::STDIN_FILENO);
-stdio!(stdout() -> Stdout, libc::STDOUT_FILENO);
-stdio!(stderr() -> Stderr, libc::STDERR_FILENO);
+stdio!(stdin() -> Stdin);
+stdio!(stdout() -> Stdout);
+stdio!(stderr() -> Stderr);
 
 /// Macro to implement the [`Read`] trait using the `fd: a10::AsyncFd` field.
 macro_rules! impl_read {
