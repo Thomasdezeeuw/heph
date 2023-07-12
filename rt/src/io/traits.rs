@@ -4,15 +4,16 @@ use std::{mem, slice};
 
 use crate::io::{Buf, BufMut, BufMutSlice, BufSlice};
 
-/// Asynchronous reading bytes from a source.
+/// Asynchronously reading bytes from a source.
 pub trait Read {
     /// Read bytes, writing them into `buf`.
     ///
     /// # Notes
     ///
     /// The caller must always check if at least one byte was read as reading
-    /// zero bytes is an indication that no more bytes can be read. Failing to
-    /// do so can result in an infinite loop.
+    /// zero bytes is an indication that no more bytes can be read (we've hit
+    /// the end of the file, `EOF`). Failing to do so can result in an infinite
+    /// loop.
     async fn read<B: BufMut>(&mut self, buf: B) -> io::Result<B>;
 
     /// Read at least `n` bytes, writing them into `buf`.
@@ -181,7 +182,7 @@ impl Read for Empty {
     }
 }
 
-/// Asynchronous writing bytes to a source.
+/// Asynchronously writing bytes to a source.
 pub trait Write {
     /// Write the bytes in `buf`.
     ///

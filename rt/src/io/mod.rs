@@ -6,16 +6,13 @@
 //!  * [`Read`]: for reading bytes.
 //!  * [`Write`]: for writing bytes.
 //!
-//! They are similar to the [`io::Read`] and [`io::Write`] trait, but are
-//! asynchronous instead of blocking.
+//! They are similar to the [`std::io::Read`] and [`std::io::Write`] traits, but
+//! are asynchronous instead of blocking.
 //!
-//! Unlike the blocking `Read` and `Write` traits they also take ownership the
-//! buffers, instead of accepting `&mut [u8]`, as that is required to ensure the
-//! buffer is no deallocated while it's still used in I/O. For more information
-//! about using buffer see the next section.
-//!
-//! [`io::Read`]: std::io::Read
-//! [`io::Write`]: std::io::Write
+//! Unlike the blocking `Read` and `Write` traits they also take ownership of
+//! the buffers, instead of accepting `&mut [u8]`, as that is required to ensure
+//! the buffer is not deallocated while it's still used in I/O. For more
+//! information about using buffers see the next section.
 //!
 //! # Working with Buffers
 //!
