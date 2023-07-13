@@ -97,6 +97,7 @@
 //! [`actor::Context`]: Context
 
 use std::any::type_name;
+use std::fmt;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::pin::Pin;
@@ -381,6 +382,32 @@ where
     }
 }
 
+/// A [`NewActor`] implementation backed by a function.
+///
+/// This type is a workaround for not being able to implement the `NewActor`
+/// trait directly for types `T` where `T: Fn(Context<M, RT>, Args) -> A`, as it
+/// triggers rustc error `E0207` ("unconstrained type parameters").
+pub const fn actor_fn<F, M, RT, Arg, A>(f: F) -> ActorFn<F, M, RT, Arg, A> {
+    ActorFn {
+        inner: f,
+        _phantom: PhantomData,
+    }
+}
+
+/// Implementation behind [`actor_fn`].
+pub struct ActorFn<F, M, RT, Args, A> {
+    /// The actual implementation.
+    inner: F,
+    /// Required parameters to implement `NewActor` for this type.
+    _phantom: PhantomData<fn(Context<M, RT>, Args) -> A>,
+}
+
+impl<T: fmt::Debug, M, RT, Args, A> fmt::Debug for ActorFn<T, M, RT, Args, A> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.inner.fmt(f)
+    }
+}
+
 /// Macro to implement the [`NewActor`] trait on function pointers.
 macro_rules! impl_new_actor {
     (
@@ -408,6 +435,32 @@ macro_rules! impl_new_actor {
                     Ok((self)(ctx, $( $arg ),*))
                 }
             }
+
+            impl<F, M, RT, $( $arg, )* A> NewActor for ActorFn<F, M, RT, ($( $arg, )*), A>
+            where
+                F: FnMut(Context<M, RT>, $( $arg ),*) -> A,
+                A: Actor,
+            {
+                type Message = M;
+                type Argument = ($( $arg ),*);
+                type Actor = A;
+                type Error = !;
+                type RuntimeAccess = RT;
+
+                #[allow(non_snake_case)]
+                fn new(
+                    &mut self,
+                    ctx: Context<Self::Message, Self::RuntimeAccess>,
+                    arg: Self::Argument,
+                ) -> Result<Self::Actor, Self::Error> {
+                    let ($( $arg ),*) = arg;
+                    Ok((self.inner)(ctx, $( $arg ),*))
+                }
+
+                fn name() -> &'static str {
+                    name::<F>()
+                }
+            }
         )*
     };
 }
@@ -431,6 +484,31 @@ where
         arg: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         Ok((self)(ctx, arg))
+    }
+}
+
+impl<F, M, RT, Arg, A> NewActor for ActorFn<F, M, RT, (Arg,), A>
+where
+    F: FnMut(Context<M, RT>, Arg) -> A,
+    A: Actor,
+{
+    type Message = M;
+    type Argument = Arg;
+    type Actor = A;
+    type Error = !;
+    type RuntimeAccess = RT;
+
+    #[allow(non_snake_case)]
+    fn new(
+        &mut self,
+        ctx: Context<Self::Message, Self::RuntimeAccess>,
+        arg: Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
+        Ok((self.inner)(ctx, arg))
+    }
+
+    fn name() -> &'static str {
+        name::<F>()
     }
 }
 
