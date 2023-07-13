@@ -411,6 +411,20 @@ pub struct ActorFn<F, M, RT, Args, A> {
     _phantom: PhantomData<fn(Context<M, RT>, Args) -> A>,
 }
 
+impl<F, M, RT, Arg, A> From<F> for ActorFn<F, M, RT, Arg, A>
+where
+    ActorFn<F, M, RT, Arg, A>: NewActor,
+    F: FnMut(Context<M, RT>, Arg) -> A,
+    A: Actor,
+{
+    fn from(new_actor: F) -> ActorFn<F, M, RT, Arg, A> {
+        ActorFn {
+            inner: new_actor,
+            _phantom: PhantomData,
+        }
+    }
+}
+
 impl<T: fmt::Debug, M, RT, Args, A> fmt::Debug for ActorFn<T, M, RT, Args, A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.inner.fmt(f)
