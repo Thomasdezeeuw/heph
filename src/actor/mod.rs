@@ -382,6 +382,23 @@ where
     }
 }
 
+/// Conversion into a [`NewActor`] implementation.
+pub trait IntoNewActor {
+    /// The type of [`NewActor`] we turning this into.
+    type IntoNewActor: NewActor;
+
+    /// Create a [`NewActor`] implementation.
+    fn into_new_actor(self) -> Self::IntoNewActor;
+}
+
+impl<NA: NewActor> IntoNewActor for NA {
+    type IntoNewActor = NA;
+
+    fn into_new_actor(self) -> Self::IntoNewActor {
+        self
+    }
+}
+
 /// A [`NewActor`] implementation backed by a function.
 ///
 /// This type is a workaround for not being able to implement the `NewActor`
