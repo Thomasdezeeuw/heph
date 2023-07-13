@@ -425,6 +425,24 @@ where
     }
 }
 
+/*
+impl<F, M, RT, Arg, A> IntoNewActor for F
+where
+    ActorFn<F, M, RT, Arg, A>: NewActor,
+    //F: FnMut(Context<M, RT>, Arg) -> A,
+    //A: Actor,
+{
+    type IntoNewActor = ActorFn<F, M, RT, Arg, A>;
+
+    fn into_new_actor(self) -> Self::IntoNewActor {
+        ActorFn {
+            inner: self,
+            _phantom: PhantomData,
+        }
+    }
+}
+*/
+
 impl<T: fmt::Debug, M, RT, Args, A> fmt::Debug for ActorFn<T, M, RT, Args, A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.inner.fmt(f)

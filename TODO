@@ -1,0 +1,7 @@
+# TODO
+
+* Add IntoNewActor trait.
+* Use IntoNewActor trait.
+* SyncActor for ActorFn
+* Add IntoSyncActor trait.
+* Use IntoSyncActor trait.

@@ -19,3 +19,8 @@ fn future_output_tuple() {
 }
 
 fn is_new_actor<NA: NewActor>(_: NA) {}
+
+#[test]
+fn actor_fn_name() {
+    todo!();
+}
