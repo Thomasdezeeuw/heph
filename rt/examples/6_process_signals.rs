@@ -2,7 +2,7 @@
 
 use std::convert::TryFrom;
 
-use heph::actor::{self, SyncContext};
+use heph::actor::{self, actor_fn, SyncContext};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::{self as rt, Runtime, RuntimeRef, Signal, ThreadLocal, ThreadSafe};
@@ -17,7 +17,7 @@ fn main() -> Result<(), rt::Error> {
     // Thread-local actors.
     runtime.run_on_workers(|mut runtime_ref: RuntimeRef| -> Result<(), !> {
         // Spawn our actor.
-        let local_actor = local_actor as fn(_) -> _;
+        let local_actor = actor_fn(local_actor);
         let actor_ref =
             runtime_ref.spawn_local(NoSupervisor, local_actor, (), ActorOptions::default());
         actor_ref.try_send("Hello thread local actor").unwrap();
@@ -28,14 +28,14 @@ fn main() -> Result<(), rt::Error> {
     })?;
 
     // Synchronous actors (following the same structure as thread-local actors).
-    let sync_actor = sync_actor as fn(_);
+    let sync_actor = actor_fn(sync_actor);
     let actor_ref =
         runtime.spawn_sync_actor(NoSupervisor, sync_actor, (), SyncActorOptions::default())?;
     actor_ref.try_send("Hello sync actor").unwrap();
     runtime.receive_signals(actor_ref.try_map());
 
     // Thread-safe actor (following the same structure as thread-local actors).
-    let thread_safe_actor = thread_safe_actor as fn(_) -> _;
+    let thread_safe_actor = actor_fn(thread_safe_actor);
     let actor_ref = runtime.spawn(NoSupervisor, thread_safe_actor, (), ActorOptions::default());
     actor_ref.try_send("Hello thread safe actor").unwrap();
     runtime.receive_signals(actor_ref.try_map());

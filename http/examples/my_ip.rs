@@ -4,7 +4,7 @@ use std::borrow::Cow;
 use std::io;
 use std::time::Duration;
 
-use heph::actor;
+use heph::actor::{self, actor_fn};
 use heph::supervisor::SupervisorStrategy;
 use heph_http::body::OneshotBody;
 use heph_http::{self as http, server, Header, HeaderName, Headers, Method, StatusCode};
@@ -17,7 +17,7 @@ use log::{debug, error, info, warn};
 fn main() -> Result<(), heph_rt::Error> {
     std_logger::Config::logfmt().init();
 
-    let actor = http_actor as fn(_, _) -> _;
+    let actor = actor_fn(http_actor);
     let address = "127.0.0.1:7890".parse().unwrap();
     let server = server::setup(address, conn_supervisor, actor, ActorOptions::default())
         .map_err(heph_rt::Error::setup)?;

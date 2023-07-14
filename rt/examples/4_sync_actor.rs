@@ -1,4 +1,4 @@
-use heph::actor::SyncContext;
+use heph::actor::{actor_fn, SyncContext};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::SyncActorOptions;
 use heph_rt::{self as rt, Runtime};
@@ -10,7 +10,7 @@ fn main() -> Result<(), rt::Error> {
     let mut runtime = Runtime::new()?;
 
     // Spawn a new synchronous actor, returning an actor reference to it.
-    let actor = actor as fn(_, _);
+    let actor = actor_fn(actor);
     // Options used to spawn the synchronous actor. Here we'll set the name of
     // the thread that runs the actor.
     let options = SyncActorOptions::default().with_name("My actor".to_owned());

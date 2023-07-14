@@ -3,7 +3,7 @@
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::{self, SyncContext};
+use heph::actor::{self, actor_fn, SyncContext};
 use heph::restart_supervisor;
 use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
@@ -12,7 +12,7 @@ fn main() -> Result<(), rt::Error> {
     std_logger::Config::logfmt().init();
     let mut runtime = Runtime::setup().build()?;
 
-    let sync_actor = sync_print_actor as fn(_, _) -> _;
+    let sync_actor = actor_fn(sync_print_actor);
     let arg = "Hello world!".to_owned();
     let supervisor = PrintSupervisor::new(arg.clone());
     let options = SyncActorOptions::default();
@@ -22,7 +22,7 @@ fn main() -> Result<(), rt::Error> {
     sleep(Duration::from_millis(100));
 
     runtime.run_on_workers(|mut runtime_ref: RuntimeRef| -> Result<(), !> {
-        let print_actor = print_actor as fn(_, _) -> _;
+        let print_actor = actor_fn(print_actor);
         let options = ActorOptions::default();
         let arg = "Hello world!".to_owned();
         let supervisor = PrintSupervisor::new(arg.clone());

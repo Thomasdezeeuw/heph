@@ -28,7 +28,7 @@
 //!
 //! use std::io;
 //!
-//! use heph::actor;
+//! use heph::actor::{self, actor_fn};
 //! # use heph::messages::Terminate;
 //! use heph::supervisor::SupervisorStrategy;
 //! use heph_rt::net::{tcp, TcpStream};
@@ -49,7 +49,7 @@
 //!     // The address to listen on.
 //!     let address = "127.0.0.1:7890".parse().unwrap();
 //!     // Create our TCP server.
-//!     let new_actor = conn_actor as fn(_, _) -> _;
+//!     let new_actor = actor_fn(conn_actor);
 //!     let server = tcp::server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
 //!
 //!     // We advice to give the TCP server a low priority to prioritise
@@ -99,7 +99,7 @@
 //! #
 //! use std::io;
 //!
-//! use heph::actor;
+//! use heph::actor::{self, actor_fn};
 //! use heph::messages::Terminate;
 //! # use heph::supervisor::SupervisorStrategy;
 //! use heph_rt::net::{tcp, TcpStream};
@@ -118,7 +118,7 @@
 //!     // This uses the same supervisors as in the previous example, not shown here.
 //!
 //!     // Adding the TCP server is the same as in the example above.
-//!     let new_actor = conn_actor as fn(_, _) -> _;
+//!     let new_actor = actor_fn(conn_actor);
 //!     let address = "127.0.0.1:7890".parse().unwrap();
 //!     let server = tcp::server::setup(address, conn_supervisor, new_actor, ActorOptions::default())?;
 //!     let options = ActorOptions::default().with_priority(Priority::LOW);
@@ -167,7 +167,7 @@
 //!
 //! use std::io;
 //!
-//! use heph::actor;
+//! use heph::actor::{self, actor_fn};
 //! # use heph::messages::Terminate;
 //! use heph::supervisor::{SupervisorStrategy};
 //! use heph_rt::net::{tcp, TcpStream};
@@ -181,7 +181,7 @@
 //!     // The address to listen on.
 //!     let address = "127.0.0.1:7890".parse().unwrap();
 //!     // Create our TCP server. We'll use the default actor options.
-//!     let new_actor = conn_actor as fn(_, _) -> _;
+//!     let new_actor = actor_fn(conn_actor);
 //!     let server = tcp::server::setup(address, conn_supervisor, new_actor, ActorOptions::default())
 //!         .map_err(rt::Error::setup)?;
 //!

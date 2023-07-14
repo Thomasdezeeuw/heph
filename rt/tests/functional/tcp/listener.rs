@@ -1,8 +1,9 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
-use heph::{actor, ActorRef};
+use heph::ActorRef;
 use heph_rt::net::{TcpListener, TcpStream};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join, join_many, try_spawn_local};
@@ -24,7 +25,7 @@ fn local_addr() {
         assert_eq!(listener.local_addr().unwrap(), address);
     }
 
-    let actor = actor as fn(_) -> _;
+    let actor = actor_fn(actor);
     let actor_ref = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
@@ -46,7 +47,7 @@ fn local_addr_port_zero() {
         assert!(got.port() != 0);
     }
 
-    let actor = actor as fn(_) -> _;
+    let actor = actor_fn(actor);
     let actor_ref = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
@@ -64,7 +65,7 @@ fn ttl() {
         assert_eq!(listener.ttl().unwrap(), expected);
     }
 
-    let actor = actor as fn(_) -> _;
+    let actor = actor_fn(actor);
     let actor_ref = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
@@ -105,11 +106,11 @@ fn accept() {
         assert_eq!(buf, DATA);
     }
 
-    let stream_actor = stream_actor as fn(_) -> _;
+    let stream_actor = actor_fn(stream_actor);
     let stream_ref =
         try_spawn_local(NoSupervisor, stream_actor, (), ActorOptions::default()).unwrap();
 
-    let listener_actor = listener_actor as fn(_, _) -> _;
+    let listener_actor = actor_fn(listener_actor);
     let s_ref = stream_ref.clone();
     let listener_ref =
         try_spawn_local(NoSupervisor, listener_actor, s_ref, ActorOptions::default()).unwrap();
@@ -138,11 +139,11 @@ fn incoming() {
         assert_eq!(buf, DATA);
     }
 
-    let stream_actor = stream_actor as fn(_) -> _;
+    let stream_actor = actor_fn(stream_actor);
     let stream_ref =
         try_spawn_local(NoSupervisor, stream_actor, (), ActorOptions::default()).unwrap();
 
-    let listener_actor = listener_actor as fn(_, _) -> _;
+    let listener_actor = actor_fn(listener_actor);
     let s_ref = stream_ref.clone();
     let listener_ref =
         try_spawn_local(NoSupervisor, listener_actor, s_ref, ActorOptions::default()).unwrap();

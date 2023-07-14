@@ -5,7 +5,7 @@ use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::{RecvError, SyncContext};
+use heph::actor::{actor_fn, RecvError, SyncContext};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
 use heph_rt::spawn::SyncActorOptions;
 use heph_rt::test::spawn_sync_actor;
@@ -64,7 +64,7 @@ fn block_on() {
 
     let (handle, _) = spawn_sync_actor(
         NoSupervisor,
-        block_on_actor as fn(_, _) -> _,
+        actor_fn(block_on_actor),
         future.clone(),
         SyncActorOptions::default(),
     )
@@ -84,7 +84,7 @@ fn block_on_spurious_wake_up() {
 
     let (handle, _) = spawn_sync_actor(
         NoSupervisor,
-        block_on_actor as fn(_, _) -> _,
+        actor_fn(block_on_actor),
         future.clone(),
         SyncActorOptions::default(),
     )
@@ -123,7 +123,7 @@ fn try_receive_next_actor<RT>(mut ctx: SyncContext<String, RT>) {
 fn context_try_receive_next() {
     let (handle, actor_ref) = spawn_sync_actor(
         NoSupervisor,
-        try_receive_next_actor as fn(_) -> _,
+        actor_fn(try_receive_next_actor),
         (),
         SyncActorOptions::default(),
     )
@@ -137,7 +137,7 @@ fn context_try_receive_next() {
 fn supervision() {
     let (handle, _) = spawn_sync_actor(
         bad_actor_supervisor,
-        bad_actor as fn(_, _) -> _,
+        actor_fn(bad_actor),
         0usize,
         SyncActorOptions::default(),
     )

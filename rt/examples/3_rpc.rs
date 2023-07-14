@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use heph::actor;
+use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, RpcMessage};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::ActorOptions;
@@ -17,10 +17,10 @@ fn main() -> Result<(), rt::Error> {
 
 fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
     // See example 1 for information on how to spawn actors.
-    let pong_actor = pong_actor as fn(_) -> _;
+    let pong_actor = actor_fn(pong_actor);
     let actor_ref = runtime_ref.spawn_local(NoSupervisor, pong_actor, (), ActorOptions::default());
 
-    let ping_actor = ping_actor as fn(_, _) -> _;
+    let ping_actor = actor_fn(ping_actor);
     runtime_ref.spawn_local(NoSupervisor, ping_actor, actor_ref, ActorOptions::default());
 
     Ok(())

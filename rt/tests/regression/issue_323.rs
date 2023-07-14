@@ -4,7 +4,7 @@
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::SyncContext;
+use heph::actor::{actor_fn, SyncContext};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::SyncActorOptions;
 use heph_rt::Runtime;
@@ -13,7 +13,7 @@ use heph_rt::Runtime;
 fn issue_323() {
     let mut runtime = Runtime::new().unwrap();
 
-    let actor = actor as fn(_) -> _;
+    let actor = actor_fn(actor);
     let options = SyncActorOptions::default();
     runtime
         .spawn_sync_actor(NoSupervisor, actor, (), options)

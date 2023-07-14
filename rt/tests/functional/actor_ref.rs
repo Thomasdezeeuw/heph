@@ -6,7 +6,7 @@ use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::task::Poll;
 
-use heph::actor;
+use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, Join, RpcError, RpcMessage, SendError, SendValue};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::options::Priority;
@@ -57,7 +57,7 @@ where
 
 #[test]
 fn try_send() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, MSGS.to_vec()).unwrap();
     let mut actor = Box::pin(actor);
 
@@ -71,7 +71,7 @@ fn try_send() {
 #[test]
 fn try_send_full_inbox() {
     let expected: Vec<usize> = (0..INBOX_SIZE + 2).collect();
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected.clone()).unwrap();
     let mut actor = Box::pin(actor);
 
@@ -90,7 +90,7 @@ fn try_send_full_inbox() {
 
 #[test]
 fn try_send_disconnected() {
-    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
+    let expect_msgs = actor_fn::<_, usize, _, _, _>(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, Vec::new()).unwrap();
     drop(actor);
     assert_eq!(actor_ref.try_send(1usize), Err(SendError));
@@ -107,11 +107,11 @@ where
 
 #[test]
 fn send() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, MSGS.to_vec()).unwrap();
     let mut actor = Box::pin(actor);
 
-    let relay_msgs = relay_msgs as fn(_, _, _) -> _;
+    let relay_msgs = actor_fn(relay_msgs);
     let (relay_actor, _) = init_local_actor(relay_msgs, (actor_ref, MSGS.to_vec())).unwrap();
     let mut relay_actor = Box::pin(relay_actor);
 
@@ -126,11 +126,11 @@ fn send() {
 #[test]
 fn send_full_inbox() {
     let expected: Vec<usize> = (0..INBOX_SIZE + 2).collect();
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected.clone()).unwrap();
     let mut actor = Box::pin(actor);
 
-    let relay_msgs = relay_msgs as fn(_, _, _) -> _;
+    let relay_msgs = actor_fn(relay_msgs);
     let (relay_actor, _) = init_local_actor(relay_msgs, (actor_ref, expected)).unwrap();
     let mut relay_actor = Box::pin(relay_actor);
 
@@ -152,11 +152,11 @@ async fn relay_error(_: actor::Context<!, ThreadLocal>, relay_ref: ActorRef<usiz
 
 #[test]
 fn send_disconnected() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, Vec::new()).unwrap();
     drop(actor);
 
-    let relay_error = relay_error as fn(_, _) -> _;
+    let relay_error = actor_fn(relay_error);
     let (relay_actor, _) = init_local_actor(relay_error, actor_ref).unwrap();
     let mut relay_actor = Box::pin(relay_actor);
 
@@ -169,7 +169,7 @@ fn send_disconnected() {
 #[test]
 fn cloned() {
     let expected: Vec<usize> = (0..INBOX_SIZE - 1).collect();
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected.clone()).unwrap();
     let mut actor = Box::pin(actor);
 
@@ -186,7 +186,7 @@ fn cloned() {
 
 #[test]
 fn mapped() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let expected = MSGS.iter().map(|s| (*s).to_owned()).collect();
     let (actor, actor_ref): (_, ActorRef<String>) =
         init_local_actor(expect_msgs, expected).unwrap();
@@ -202,7 +202,7 @@ fn mapped() {
 
 #[test]
 fn mapped_same_type() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let expected = MSGS.iter().map(|s| (*s).to_owned()).collect();
     let (actor, actor_ref): (_, ActorRef<String>) =
         init_local_actor(expect_msgs, expected).unwrap();
@@ -219,13 +219,13 @@ fn mapped_same_type() {
 
 #[test]
 fn mapped_send() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let expected = MSGS.iter().map(|s| (*s).to_owned()).collect();
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected).unwrap();
     let mut actor = Box::pin(actor);
     let actor_ref: ActorRef<&str> = actor_ref.map();
 
-    let relay_msgs = relay_msgs as fn(_, _, _) -> _;
+    let relay_msgs = actor_fn(relay_msgs);
     let (relay_actor, _) = init_local_actor(relay_msgs, (actor_ref, MSGS.to_vec())).unwrap();
     let mut relay_actor = Box::pin(relay_actor);
 
@@ -240,7 +240,7 @@ fn mapped_send() {
 #[test]
 fn mapped_cloned() {
     let expected: Vec<usize> = (0..INBOX_SIZE - 1).collect();
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected.clone()).unwrap();
     let actor_ref = actor_ref.map();
     let mut actor = Box::pin(actor);
@@ -258,7 +258,7 @@ fn mapped_cloned() {
 
 #[test]
 fn try_mapped() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let expected = vec![
         NonZeroUsize::new(1).unwrap(),
         NonZeroUsize::new(2).unwrap(),
@@ -279,7 +279,7 @@ fn try_mapped() {
 
 #[test]
 fn try_mapped_same_type() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let expected = vec![
         NonZeroUsize::new(1).unwrap(),
         NonZeroUsize::new(2).unwrap(),
@@ -301,13 +301,13 @@ fn try_mapped_same_type() {
 
 #[test]
 fn try_mapped_send() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let expected = MSGS.iter().map(|s| (*s).to_owned()).collect();
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected).unwrap();
     let mut actor = Box::pin(actor);
     let actor_ref: ActorRef<&str> = actor_ref.try_map();
 
-    let relay_msgs = relay_msgs as fn(_, _, _) -> _;
+    let relay_msgs = actor_fn(relay_msgs);
     let (relay_actor, _) = init_local_actor(relay_msgs, (actor_ref, MSGS.to_vec())).unwrap();
     let mut relay_actor = Box::pin(relay_actor);
 
@@ -328,13 +328,13 @@ async fn send_error(_: actor::Context<!, ThreadLocal>, relay_ref: ActorRef<usize
 
 #[test]
 fn try_mapped_send_conversion_error() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let expected = vec![NonZeroUsize::new(1).unwrap(), NonZeroUsize::new(2).unwrap()];
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected.clone()).unwrap();
     let mut actor = Box::pin(actor);
     let actor_ref: ActorRef<usize> = actor_ref.try_map();
 
-    let send_error = send_error as fn(_, _) -> _;
+    let send_error = actor_fn(send_error);
     let (relay_actor, _) = init_local_actor(send_error, actor_ref.clone()).unwrap();
     let mut relay_actor = Box::pin(relay_actor);
 
@@ -355,7 +355,7 @@ fn try_mapped_send_conversion_error() {
 #[test]
 fn try_mapped_cloned() {
     let expected: Vec<usize> = (0..INBOX_SIZE - 1).collect();
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected.clone()).unwrap();
     let actor_ref = actor_ref.try_map();
     let mut actor = Box::pin(actor);
@@ -373,7 +373,7 @@ fn try_mapped_cloned() {
 
 #[test]
 fn is_connected() {
-    let expect_msgs = expect_msgs as fn(_, Vec<()>) -> _;
+    let expect_msgs = actor_fn::<_, Vec<()>, _, _, _>(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, Vec::new()).unwrap();
     assert!(actor_ref.is_connected());
 
@@ -383,7 +383,7 @@ fn is_connected() {
 
 #[test]
 fn mapped_is_connected() {
-    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
+    let expect_msgs = actor_fn::<_, u8, _, _, _>(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, Vec::new()).unwrap();
     let actor_ref: ActorRef<u8> = actor_ref.map();
     assert!(actor_ref.is_connected());
@@ -394,7 +394,7 @@ fn mapped_is_connected() {
 
 #[test]
 fn mapped_fn() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let expected = MSGS.iter().map(|s| (*s).to_owned()).collect();
     let (actor, actor_ref): (_, ActorRef<String>) =
         init_local_actor(expect_msgs, expected).unwrap();
@@ -410,13 +410,13 @@ fn mapped_fn() {
 
 #[test]
 fn mapped_fn_send() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let expected = MSGS.iter().map(|s| (*s).to_owned()).collect();
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected).unwrap();
     let mut actor = Box::pin(actor);
     let actor_ref: ActorRef<&str> = actor_ref.map_fn(|msg: &str| msg.to_owned());
 
-    let relay_msgs = relay_msgs as fn(_, _, _) -> _;
+    let relay_msgs = actor_fn(relay_msgs);
     let (relay_actor, _) = init_local_actor(relay_msgs, (actor_ref, MSGS.to_vec())).unwrap();
     let mut relay_actor = Box::pin(relay_actor);
 
@@ -431,7 +431,7 @@ fn mapped_fn_send() {
 #[test]
 fn mapped_fn_cloned() {
     let expected: Vec<usize> = (0..INBOX_SIZE - 1).collect();
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected.clone()).unwrap();
     let actor_ref = actor_ref.map_fn(|msg: u8| msg as usize);
     let mut actor = Box::pin(actor);
@@ -449,7 +449,7 @@ fn mapped_fn_cloned() {
 
 #[test]
 fn try_mapped_fn() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let expected = vec![
         NonZeroUsize::new(1).unwrap(),
         NonZeroUsize::new(2).unwrap(),
@@ -471,13 +471,13 @@ fn try_mapped_fn() {
 
 #[test]
 fn try_mapped_fn_send() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let expected = MSGS.iter().map(|s| (*s).to_owned()).collect();
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected).unwrap();
     let mut actor = Box::pin(actor);
     let actor_ref: ActorRef<&str> = actor_ref.try_map_fn::<_, _, !>(|msg: &str| Ok(msg.to_owned()));
 
-    let relay_msgs = relay_msgs as fn(_, _, _) -> _;
+    let relay_msgs = actor_fn(relay_msgs);
     let (relay_actor, _) = init_local_actor(relay_msgs, (actor_ref, MSGS.to_vec())).unwrap();
     let mut relay_actor = Box::pin(relay_actor);
 
@@ -491,14 +491,14 @@ fn try_mapped_fn_send() {
 
 #[test]
 fn try_mapped_fn_send_conversion_error() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let expected = vec![NonZeroUsize::new(1).unwrap(), NonZeroUsize::new(2).unwrap()];
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected.clone()).unwrap();
     let mut actor = Box::pin(actor);
     let actor_ref: ActorRef<usize> =
         actor_ref.try_map_fn(|msg| NonZeroUsize::new(msg).ok_or(SendError));
 
-    let send_error = send_error as fn(_, _) -> _;
+    let send_error = actor_fn(send_error);
     let (relay_actor, _) = init_local_actor(send_error, actor_ref.clone()).unwrap();
     let mut relay_actor = Box::pin(relay_actor);
 
@@ -519,7 +519,7 @@ fn try_mapped_fn_send_conversion_error() {
 #[test]
 fn try_mapped_fn_cloned() {
     let expected: Vec<usize> = (0..INBOX_SIZE - 1).collect();
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, expected.clone()).unwrap();
     let actor_ref = actor_ref.try_map_fn::<_, _, !>(|msg| Ok(msg as usize));
     let mut actor = Box::pin(actor);
@@ -537,7 +537,7 @@ fn try_mapped_fn_cloned() {
 
 #[test]
 fn mapped_fn_is_connected() {
-    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, Vec::new()).unwrap();
     let actor_ref: ActorRef<u8> = actor_ref.map_fn(|msg| msg as usize);
     assert!(actor_ref.is_connected());
@@ -548,7 +548,7 @@ fn mapped_fn_is_connected() {
 
 #[test]
 fn sends_to() {
-    let expect_msgs = expect_msgs as fn(_, Vec<u16>) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (_, actor_ref1a) = init_local_actor(expect_msgs, Vec::new()).unwrap();
     let actor_ref1b: ActorRef<u16> = actor_ref1a.clone();
     let actor_ref1c: ActorRef<u8> = actor_ref1a.clone().map();
@@ -597,7 +597,7 @@ fn waking() {
         .run_on_workers::<_, !>(|mut runtime_ref| {
             let mut expected: Vec<usize> = (0..INBOX_SIZE).into_iter().collect();
             expected.push(123);
-            let wake_on_receive = wake_on_receive as fn(_, _) -> _;
+            let wake_on_receive = actor_fn(wake_on_receive);
             let options = ActorOptions::default().with_priority(Priority::LOW);
             let actor_ref =
                 runtime_ref.spawn_local(NoSupervisor, wake_on_receive, expected, options);
@@ -607,7 +607,7 @@ fn waking() {
                 actor_ref.try_send(msg).unwrap();
             }
 
-            let wake_on_send = wake_on_send as fn(_, _) -> _;
+            let wake_on_send = actor_fn(wake_on_send);
             // Run before `wake_on_receive`.
             let options = ActorOptions::default().with_priority(Priority::HIGH);
             let _ = runtime_ref.spawn_local(NoSupervisor, wake_on_send, actor_ref, options);
@@ -658,11 +658,11 @@ async fn pong(mut ctx: actor::Context<RpcTestMessage, ThreadLocal>) {
 
 #[test]
 fn rpc() {
-    let pong = pong as fn(_) -> _;
+    let pong = actor_fn(pong);
     let (pong_actor, relay_ref) = init_local_actor(pong, ()).unwrap();
     let mut pong_actor = Box::pin(pong_actor);
 
-    let ping = ping as fn(_, _) -> _;
+    let ping = actor_fn(ping);
     let (ping_actor, _) = init_local_actor(ping, relay_ref).unwrap();
     let mut ping_actor = Box::pin(ping_actor);
 
@@ -694,11 +694,11 @@ async fn rpc_send_error_actor(
 
 #[test]
 fn rpc_send_error() {
-    let pong = pong as fn(_) -> _;
+    let pong = actor_fn(pong);
     let (pong_actor, relay_ref) = init_local_actor(pong, ()).unwrap();
     drop(pong_actor);
 
-    let actor = rpc_send_error_actor as fn(_, _) -> _;
+    let actor = actor_fn(rpc_send_error_actor);
     let (send_error, _) = init_local_actor(actor, relay_ref).unwrap();
     let mut send_error = Box::pin(send_error);
 
@@ -711,7 +711,7 @@ fn rpc_send_error() {
 
 #[test]
 fn rpc_full_inbox() {
-    let pong = pong as fn(_) -> _;
+    let pong = actor_fn(pong);
     let (pong_actor, relay_ref) = init_local_actor(pong, ()).unwrap();
     let mut pong_actor = Box::pin(pong_actor);
 
@@ -719,7 +719,7 @@ fn rpc_full_inbox() {
         relay_ref.try_send(RpcTestMessage::Check).unwrap();
     }
 
-    let ping = ping as fn(_, _) -> _;
+    let ping = actor_fn(ping);
     let (ping_actor, _) = init_local_actor(ping, relay_ref).unwrap();
     let mut ping_actor = Box::pin(ping_actor);
 
@@ -753,10 +753,10 @@ async fn ping_no_response(_: actor::Context<!, ThreadLocal>, relay_ref: ActorRef
 
 #[test]
 fn rpc_no_response() {
-    let pong = pong as fn(_) -> _;
+    let pong = actor_fn(pong);
     let (pong_actor, relay_ref) = init_local_actor(pong, ()).unwrap();
 
-    let ping = ping_no_response as fn(_, _) -> _;
+    let ping = actor_fn(ping_no_response);
     let (ping_actor, _) = init_local_actor(ping, relay_ref).unwrap();
     let mut ping_actor = Box::pin(ping_actor);
 
@@ -784,11 +784,11 @@ async fn pong_respond_error(mut ctx: actor::Context<RpcTestMessage, ThreadLocal>
 
 #[test]
 fn rpc_respond_error() {
-    let pong = pong_respond_error as fn(_) -> _;
+    let pong = actor_fn(pong_respond_error);
     let (pong_actor, relay_ref) = init_local_actor(pong, ()).unwrap();
     let mut pong_actor = Box::pin(pong_actor);
 
-    let ping = ping as fn(_, _) -> _;
+    let ping = actor_fn(ping);
     let (ping_actor, _) = init_local_actor(ping, relay_ref).unwrap();
     let mut ping_actor = Box::pin(ping_actor);
 
@@ -821,11 +821,11 @@ async fn pong_is_connected(mut ctx: actor::Context<RpcTestMessage, ThreadLocal>)
 
 #[test]
 fn rpc_response_is_connected() {
-    let pong = pong_is_connected as fn(_) -> _;
+    let pong = actor_fn(pong_is_connected);
     let (pong_actor, relay_ref) = init_local_actor(pong, ()).unwrap();
     let mut pong_actor = Box::pin(pong_actor);
 
-    let ping = ping as fn(_, _) -> _;
+    let ping = actor_fn(ping);
     let (ping_actor, _) = init_local_actor(ping, relay_ref).unwrap();
     let mut ping_actor = Box::pin(ping_actor);
 
@@ -868,7 +868,7 @@ fn rpc_waking() {
     let mut runtime = Runtime::setup().num_threads(1).build().unwrap();
     runtime
         .run_on_workers::<_, !>(|mut runtime_ref| {
-            let wake_on_rpc_receive = wake_on_rpc_receive as fn(_) -> _;
+            let wake_on_rpc_receive = actor_fn(wake_on_rpc_receive);
             let options = ActorOptions::default().with_priority(Priority::LOW);
             let actor_ref = runtime_ref.spawn_local(NoSupervisor, wake_on_rpc_receive, (), options);
 
@@ -877,7 +877,7 @@ fn rpc_waking() {
                 actor_ref.try_send(RpcTestMessage::Check).unwrap();
             }
 
-            let wake_on_response = wake_on_response as fn(_, _) -> _;
+            let wake_on_response = actor_fn(wake_on_response);
             // Run before `wake_on_rpc_receive`.
             let options = ActorOptions::default().with_priority(Priority::HIGH);
             let _ = runtime_ref.spawn_local(NoSupervisor, wake_on_response, actor_ref, options);
@@ -902,7 +902,7 @@ async fn stop_on_run(ctx: actor::Context<Infallible, ThreadLocal>) {
 
 #[test]
 fn join() {
-    let stop_on_run = stop_on_run as fn(_) -> _;
+    let stop_on_run = actor_fn(stop_on_run);
     let (actor, actor_ref) = init_local_actor(stop_on_run, ()).unwrap();
     let mut actor = Box::pin(actor);
 
@@ -917,7 +917,7 @@ fn join() {
 
 #[test]
 fn join_mapped() {
-    let stop_on_run = stop_on_run as fn(_) -> _;
+    let stop_on_run = actor_fn(stop_on_run);
     let (actor, actor_ref) = init_local_actor(stop_on_run, ()).unwrap();
     let mut actor = Box::pin(actor);
 
@@ -933,7 +933,7 @@ fn join_mapped() {
 
 #[test]
 fn join_before_actor_finished() {
-    let stop_on_run = stop_on_run as fn(_) -> _;
+    let stop_on_run = actor_fn(stop_on_run);
     let (actor, actor_ref) = init_local_actor(stop_on_run, ()).unwrap();
     let mut actor = Box::pin(actor);
 

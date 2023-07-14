@@ -4,7 +4,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use heph::actor;
+use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::{ActorOptions, FutureOptions};
 use heph_rt::test::poll_future;
@@ -72,7 +72,7 @@ fn thread_safe_waking() {
     let mut runtime = Runtime::new().unwrap();
     let _ = runtime.spawn(
         NoSupervisor,
-        spawn_actor as fn(_) -> _,
+        actor_fn(spawn_actor),
         (),
         ActorOptions::default(),
     );

@@ -4,7 +4,7 @@ use std::mem::size_of;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use heph::actor::{self, Actor, NewActor};
+use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::test::{size_of_actor, size_of_actor_val};
 
 #[test]
@@ -13,10 +13,7 @@ fn test_size_of_actor() {
         /* Nothing. */
     }
 
-    #[allow(trivial_casts)]
-    {
-        assert_eq!(size_of_actor_val(&(actor1 as fn(_) -> _)), 24);
-    }
+    assert_eq!(size_of_actor_val(&actor_fn(actor1)), 24);
 
     struct Na;
 

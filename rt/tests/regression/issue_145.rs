@@ -7,9 +7,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
 
+use heph::actor::{self, actor_fn};
 use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use heph::{actor, Actor, ActorRef, NewActor};
+use heph::{Actor, ActorRef, NewActor};
 use heph_rt::net::{tcp, TcpListener, TcpStream};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::{Runtime, RuntimeRef, ThreadLocal};
@@ -24,8 +25,8 @@ fn issue_145_tcp_server() {
     let servers = Arc::new(Mutex::new(Vec::new()));
     let addr2 = addresses.clone();
     let srv2 = servers.clone();
-    let conn_actor = (conn_actor as fn(_, _, _, _) -> _)
-        .map_arg(move |stream| (stream, addr2.clone(), srv2.clone()));
+    let conn_actor =
+        actor_fn(conn_actor).map_arg(move |stream| (stream, addr2.clone(), srv2.clone()));
     let address = "127.0.0.1:0".parse().unwrap();
     let server =
         tcp::server::setup(address, NoSupervisor, conn_actor, ActorOptions::default()).unwrap();
@@ -113,7 +114,7 @@ fn issue_145_tcp_listener() {
     let mut runtime = Runtime::new().unwrap();
     runtime
         .run_on_workers::<_, !>(move |mut runtime_ref| {
-            let actor = listener_actor as fn(_) -> _;
+            let actor = actor_fn(listener_actor);
             runtime_ref
                 .try_spawn_local(NoSupervisor, actor, (), ActorOptions::default())
                 .unwrap();

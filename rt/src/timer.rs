@@ -52,6 +52,7 @@ impl From<DeadlinePassed> for io::ErrorKind {
 /// # use std::time::Instant;
 ///
 /// use heph::actor;
+/// # use heph::actor::actor_fn;
 /// # use heph::supervisor::NoSupervisor;
 /// # use heph_rt::spawn::ActorOptions;
 /// # use heph_rt::{self as rt, Runtime, RuntimeRef};
@@ -66,9 +67,7 @@ impl From<DeadlinePassed> for io::ErrorKind {
 /// #
 /// #
 /// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-/// #   let actor = actor as fn(_) -> _;
-/// #   let options = ActorOptions::default();
-/// #   runtime_ref.spawn_local(NoSupervisor, actor, (), options);
+/// #   runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), (), ActorOptions::default());
 /// #   Ok(())
 /// # }
 /// #
@@ -181,6 +180,7 @@ impl<RT: Access> Drop for Timer<RT> {
 /// # use std::time::Instant;
 ///
 /// use heph::actor;
+/// # use heph::actor::actor_fn;
 /// # use heph::supervisor::NoSupervisor;
 /// use heph_rt::ThreadSafe;
 /// # use heph_rt::spawn::ActorOptions;
@@ -188,7 +188,7 @@ impl<RT: Access> Drop for Timer<RT> {
 /// use heph_rt::timer::Deadline;
 ///
 /// # fn main() -> Result<(), rt::Error> {
-/// #     let actor = actor as fn(_) -> _;
+/// #     let actor = actor_fn(actor);
 /// #     let options = ActorOptions::default();
 /// #     let mut rt = Runtime::new()?;
 /// #     let _ = rt.spawn(NoSupervisor, actor, (), options);
@@ -322,6 +322,7 @@ impl<Fut: Unpin, RT: Access> Unpin for Deadline<Fut, RT> {}
 /// # use std::time::Instant;
 ///
 /// use heph::actor;
+/// # use heph::actor::actor_fn;
 /// # use heph::supervisor::NoSupervisor;
 /// # use heph_rt::spawn::ActorOptions;
 /// # use heph_rt::{self as rt, Runtime, RuntimeRef};
@@ -336,7 +337,7 @@ impl<Fut: Unpin, RT: Access> Unpin for Deadline<Fut, RT> {}
 /// # }
 /// #
 /// # fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-/// #   let actor = actor as fn(_) -> _;
+/// #   let actor = actor_fn(actor);
 /// #   let options = ActorOptions::default();
 /// #   runtime_ref.spawn_local(NoSupervisor, actor, (), options);
 /// #   Ok(())

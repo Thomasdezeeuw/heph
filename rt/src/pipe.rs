@@ -41,7 +41,7 @@
 //! #
 //! # let actor_ref = heph_rt::test::try_spawn(
 //! #     heph_rt::test::PanicSupervisor,
-//! #     actor as fn(_) -> _,
+//! #     heph::actor::actor_fn(actor),
 //! #     (),
 //! #     heph_rt::spawn::ActorOptions::default(),
 //! # ).unwrap();
@@ -90,7 +90,7 @@
 //! #
 //! # let actor_ref = heph_rt::test::try_spawn(
 //! #     heph_rt::test::PanicSupervisor,
-//! #     process_handler as fn(_) -> _,
+//! #     heph::actor::actor_fn(process_handler),
 //! #     (),
 //! #     heph_rt::spawn::ActorOptions::default(),
 //! # ).unwrap();

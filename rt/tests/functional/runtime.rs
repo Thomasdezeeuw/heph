@@ -9,7 +9,7 @@ use std::task::{self, Poll};
 use std::thread::{self, sleep};
 use std::time::Duration;
 
-use heph::actor::{self, Actor, NewActor, SyncContext};
+use heph::actor::{self, actor_fn, Actor, NewActor, SyncContext};
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph_rt::spawn::options::{ActorOptions, FutureOptions, Priority, SyncActorOptions};
 use heph_rt::{Runtime, ThreadLocal, ThreadSafe};
@@ -119,7 +119,7 @@ fn auto_cpu_affinity() {
         check_thread_affinity(0)?;
 
         let address = "127.0.0.1:0".parse().unwrap();
-        let accepted_stream_actor = accepted_stream_actor as fn(_, TcpStream) -> _;
+        let accepted_stream_actor = actor_fn(accepted_stream_actor);
         let server = tcp::server::setup(
             address,
             |err: io::Error| panic!("unexpected error: {err}"),
@@ -130,7 +130,7 @@ fn auto_cpu_affinity() {
         let server_ref =
             runtime_ref.spawn_local(ServerSupervisor, server, (), ActorOptions::default());
 
-        let stream_actor = stream_actor as fn(_, _, _) -> _;
+        let stream_actor = actor_fn(stream_actor);
         let args = (address, server_ref);
         let _ = runtime_ref.spawn_local(
             |err| panic!("unexpected error: {err}"),
@@ -459,7 +459,7 @@ fn external_thread_wakes_thread_local_actor() {
         .run_on_workers::<_, !>(|mut runtime_ref| {
             let _ = runtime_ref.spawn_local(
                 NoSupervisor,
-                actor as fn(_, _) -> _,
+                actor_fn(actor),
                 future,
                 ActorOptions::default(),
             );
@@ -482,7 +482,7 @@ fn external_thread_wakes_thread_safe_actor() {
     let mut runtime = Runtime::new().unwrap();
     let _ = runtime.spawn(
         NoSupervisor,
-        actor as fn(_, _) -> _,
+        actor_fn(actor),
         future,
         ActorOptions::default(),
     );
@@ -502,7 +502,7 @@ fn external_thread_wakes_sync_actor() {
     let mut runtime = Runtime::new().unwrap();
     let _ = runtime.spawn_sync_actor(
         NoSupervisor,
-        actor as fn(_, _) -> _,
+        actor_fn(actor),
         future,
         SyncActorOptions::default(),
     );
@@ -558,13 +558,13 @@ fn catches_actor_panics() {
     let mut runtime = Runtime::new().unwrap();
     runtime.spawn(
         NoSupervisor,
-        panic_actor as fn(_, _) -> _,
+        actor_fn(panic_actor),
         &PANIC_RAN,
         ActorOptions::default().with_priority(Priority::HIGH),
     );
     runtime.spawn(
         NoSupervisor,
-        ok_actor as fn(_, _) -> _,
+        actor_fn(ok_actor),
         &OK_RAN,
         ActorOptions::default().with_priority(Priority::LOW),
     );
@@ -584,13 +584,13 @@ fn catches_local_actor_panics() {
         .run_on_workers(|mut runtime_ref| -> Result<(), !> {
             runtime_ref.spawn_local(
                 NoSupervisor,
-                panic_actor as fn(_, _) -> _,
+                actor_fn(panic_actor),
                 &PANIC_RAN,
                 ActorOptions::default().with_priority(Priority::HIGH),
             );
             runtime_ref.spawn_local(
                 NoSupervisor,
-                ok_actor as fn(_, _) -> _,
+                actor_fn(ok_actor),
                 &OK_RAN,
                 ActorOptions::default().with_priority(Priority::LOW),
             );
@@ -611,13 +611,13 @@ fn catches_actor_panics_on_drop() {
     let mut runtime = Runtime::new().unwrap();
     runtime.spawn(
         NoSupervisor,
-        actor_drop_panic as fn(_, _) -> _,
+        actor_fn(actor_drop_panic),
         &PANIC_RAN,
         ActorOptions::default().with_priority(Priority::HIGH),
     );
     runtime.spawn(
         NoSupervisor,
-        ok_actor as fn(_, _) -> _,
+        actor_fn(ok_actor),
         &OK_RAN,
         ActorOptions::default().with_priority(Priority::LOW),
     );
@@ -637,13 +637,13 @@ fn catches_local_actor_panics_on_drop() {
         .run_on_workers(|mut runtime_ref| -> Result<(), !> {
             runtime_ref.spawn_local(
                 NoSupervisor,
-                actor_drop_panic as fn(_, _) -> _,
+                actor_fn(actor_drop_panic),
                 &PANIC_RAN,
                 ActorOptions::default().with_priority(Priority::HIGH),
             );
             runtime_ref.spawn_local(
                 NoSupervisor,
-                ok_actor as fn(_, _) -> _,
+                actor_fn(ok_actor),
                 &OK_RAN,
                 ActorOptions::default().with_priority(Priority::LOW),
             );

@@ -1,6 +1,6 @@
 #![feature(never_type)]
 
-use heph::actor;
+use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::ActorOptions;
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
@@ -25,7 +25,7 @@ fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
     // arguments.
     // We'll use the default actor options here, other examples expand on the
     // options available.
-    let actor = greeter_actor as fn(_) -> _;
+    let actor = actor_fn(greeter_actor);
     let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
 
     // Now we can send our actor a message using its `actor_ref`.

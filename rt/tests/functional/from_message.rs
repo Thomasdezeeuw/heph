@@ -2,9 +2,10 @@
 
 use std::time::Duration;
 
+use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, RpcMessage};
+use heph::from_message;
 use heph::supervisor::NoSupervisor;
-use heph::{actor, from_message};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join, try_spawn_local};
 use heph_rt::ThreadLocal;
@@ -22,10 +23,10 @@ from_message!(Message::Rpc2(String, usize) -> (usize, usize));
 
 #[test]
 fn from_message() {
-    let pong_actor = pong_actor as fn(_) -> _;
+    let pong_actor = actor_fn(pong_actor);
     let pong_ref = try_spawn_local(NoSupervisor, pong_actor, (), ActorOptions::default()).unwrap();
 
-    let ping_actor = ping_actor as fn(_, _) -> _;
+    let ping_actor = actor_fn(ping_actor);
     let ping_ref = try_spawn_local(
         NoSupervisor,
         ping_actor,

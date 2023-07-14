@@ -4,7 +4,7 @@ use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
 
-use heph::actor::{self, Actor, NewActor};
+use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph_rt::net::udp::UdpSocket;
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join, try_spawn_local, PanicSupervisor};
@@ -18,26 +18,22 @@ const DATAV_LEN: usize = DATAV[0].len() + DATAV[1].len() + DATAV[2].len();
 
 #[test]
 fn unconnected_ipv4() {
-    let new_actor = unconnected_udp_actor as fn(_, _) -> _;
-    test(any_local_address(), new_actor)
+    test(any_local_address(), actor_fn(unconnected_udp_actor))
 }
 
 #[test]
 fn unconnected_ipv6() {
-    let new_actor = unconnected_udp_actor as fn(_, _) -> _;
-    test(any_local_ipv6_address(), new_actor)
+    test(any_local_ipv6_address(), actor_fn(unconnected_udp_actor))
 }
 
 #[test]
 fn connected_ipv4() {
-    let new_actor = connected_udp_actor as fn(_, _) -> _;
-    test(any_local_address(), new_actor)
+    test(any_local_address(), actor_fn(connected_udp_actor))
 }
 
 #[test]
 fn connected_ipv6() {
-    let new_actor = connected_udp_actor as fn(_, _) -> _;
-    test(any_local_ipv6_address(), new_actor)
+    test(any_local_ipv6_address(), actor_fn(connected_udp_actor))
 }
 
 fn test<NA>(local_address: SocketAddr, new_actor: NA)
@@ -132,8 +128,7 @@ fn test_reconnecting(local_address: SocketAddr) {
     let address1 = socket1.local_addr().unwrap();
     let address2 = socket2.local_addr().unwrap();
 
-    #[allow(trivial_casts)]
-    let actor = reconnecting_actor as fn(_, _, _) -> _;
+    let actor = actor_fn(reconnecting_actor);
     let args = (address1, address2);
     let actor_ref = try_spawn_local(PanicSupervisor, actor, args, ActorOptions::default()).unwrap();
 
@@ -182,25 +177,25 @@ async fn reconnecting_actor(
 
 #[test]
 fn connected_vectored_io_ipv4() {
-    let new_actor = connected_vectored_io_actor as fn(_, _) -> _;
+    let new_actor = actor_fn(connected_vectored_io_actor);
     test_vectored_io(any_local_address(), new_actor)
 }
 
 #[test]
 fn connected_vectored_io_ipv6() {
-    let new_actor = connected_vectored_io_actor as fn(_, _) -> _;
+    let new_actor = actor_fn(connected_vectored_io_actor);
     test_vectored_io(any_local_ipv6_address(), new_actor)
 }
 
 #[test]
 fn unconnected_vectored_io_ipv4() {
-    let new_actor = unconnected_vectored_io_actor as fn(_, _) -> _;
+    let new_actor = actor_fn(unconnected_vectored_io_actor);
     test_vectored_io(any_local_address(), new_actor)
 }
 
 #[test]
 fn unconnected_vectored_io_ipv6() {
-    let new_actor = unconnected_vectored_io_actor as fn(_, _) -> _;
+    let new_actor = actor_fn(unconnected_vectored_io_actor);
     test_vectored_io(any_local_ipv6_address(), new_actor)
 }
 

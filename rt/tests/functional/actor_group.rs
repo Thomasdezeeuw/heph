@@ -5,7 +5,7 @@ use std::fmt;
 use std::pin::Pin;
 use std::task::Poll;
 
-use heph::actor;
+use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorGroup, Delivery};
 use heph_rt::test::{init_local_actor, poll_actor, poll_future};
 use heph_rt::ThreadLocal;
@@ -52,7 +52,7 @@ fn new() {
     let mut actors = Vec::new();
     let mut actor_refs = Vec::new();
     for _ in 0..3 {
-        let expect_msgs = expect_msgs as fn(_, _) -> _;
+        let expect_msgs = actor_fn(expect_msgs);
         let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
         actors.push(Box::pin(actor));
         actor_refs.push(actor_ref);
@@ -70,7 +70,7 @@ fn new() {
 
 #[test]
 fn from_actor_ref() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, vec![()]).unwrap();
     let mut actor = Box::pin(actor);
 
@@ -87,7 +87,7 @@ fn from_iter() {
     let group: ActorGroup<()> = (0..3)
         .into_iter()
         .map(|_| {
-            let expect_msgs = expect_msgs as fn(_, _) -> _;
+            let expect_msgs = actor_fn(expect_msgs);
             let (actor, actor_ref) = init_local_actor(expect_msgs, vec![()]).unwrap();
             actors.push(Box::pin(actor));
             actor_ref
@@ -105,7 +105,7 @@ fn from_iter() {
 fn add_to_empty_group() {
     let mut group = ActorGroup::<usize>::empty();
 
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let (actor, actor_ref) = init_local_actor(expect_msgs, vec![1usize]).unwrap();
     let mut actor = Box::pin(actor);
     group.add(actor_ref);
@@ -116,7 +116,7 @@ fn add_to_empty_group() {
 
 #[test]
 fn add_actor_to_group() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let mut actors = Vec::new();
     let mut group: ActorGroup<usize> = (0..3)
         .into_iter()
@@ -143,7 +143,7 @@ fn add_actor_to_group() {
 
 #[test]
 fn add_unique() {
-    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let mut actors = Vec::new();
     let mut group = ActorGroup::empty();
     let mut add_later = Vec::new();
@@ -173,7 +173,7 @@ fn extend_empty_actor_group() {
 
     let mut actors = Vec::new();
     group.extend((0..3).into_iter().map(|_| {
-        let expect_msgs = expect_msgs as fn(_, _) -> _;
+        let expect_msgs = actor_fn(expect_msgs);
         let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
         actors.push(Box::pin(actor));
         actor_ref
@@ -187,7 +187,7 @@ fn extend_empty_actor_group() {
 
 #[test]
 fn extend_actor_group() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let mut actors = Vec::new();
     let mut group: ActorGroup<usize> = (0..3)
         .into_iter()
@@ -212,7 +212,7 @@ fn extend_actor_group() {
 
 #[test]
 fn remove() {
-    let expect_msgs = expect_msgs as fn(_, _) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let mut actor_refs = Vec::new();
     let mut group = ActorGroup::empty();
     for _ in 0..3 {
@@ -240,7 +240,7 @@ fn remove_disconnected() {
     let mut actors = Vec::new();
     let mut group = ActorGroup::empty();
     for _ in 0..3 {
-        let expect_msgs = expect_msgs as fn(_, _) -> _;
+        let expect_msgs = actor_fn(expect_msgs);
         let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
         actors.push(Box::pin(actor));
         group.add(actor_ref);
@@ -262,7 +262,7 @@ fn remove_disconnected() {
 
 #[test]
 fn make_unique() {
-    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let mut actors = Vec::new();
     let mut group = ActorGroup::empty();
     let mut add_later = Vec::new();
@@ -298,7 +298,7 @@ fn make_unique_empty() {
 
 #[test]
 fn make_unique_one() {
-    let expect_msgs = expect_msgs as fn(_, Vec<usize>) -> _;
+    let expect_msgs = actor_fn(expect_msgs);
     let mut group = ActorGroup::empty();
     let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
     let mut actor = Box::pin(actor);
@@ -318,7 +318,7 @@ fn send_delivery_to_all() {
     let mut actors = Vec::new();
     let mut group = ActorGroup::empty();
     for _ in 0..10 {
-        let expect_msgs = expect_msgs as fn(_, _) -> _;
+        let expect_msgs = actor_fn(expect_msgs);
         let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
         actors.push(Box::pin(actor));
         group.add(actor_ref);
@@ -336,7 +336,7 @@ fn send_delivery_to_one() {
     let mut actors = Vec::new();
     let mut group = ActorGroup::empty();
     for _ in 0..N {
-        let expect_msgs = expect_msgs as fn(_, _) -> _;
+        let expect_msgs = actor_fn(expect_msgs);
         let (actor, actor_ref) = init_local_actor(expect_msgs, vec![123usize]).unwrap();
         actors.push(Box::pin(actor));
         group.add(actor_ref);
@@ -359,7 +359,7 @@ fn join_all(n: usize) {
     let group: ActorGroup<_> = (0..n)
         .into_iter()
         .map(|_| {
-            let stop_on_run = stop_on_run as fn(_) -> _;
+            let stop_on_run = actor_fn(stop_on_run);
             let (actor, actor_ref) = init_local_actor(stop_on_run, ()).unwrap();
             actors.push(Box::pin(actor));
             actor_ref
@@ -400,7 +400,7 @@ fn join_all_ten() {
 
 #[test]
 fn join_all_before_actor_finished() {
-    let stop_on_run = stop_on_run as fn(_) -> _;
+    let stop_on_run = actor_fn(stop_on_run);
     let (actor, actor_ref) = init_local_actor(stop_on_run, ()).unwrap();
     let mut actor = Box::pin(actor);
 
@@ -418,7 +418,7 @@ fn join_all_before_one_actor_finished() {
         let group: ActorGroup<_> = (0..10)
             .into_iter()
             .map(|_| {
-                let stop_on_run = stop_on_run as fn(_) -> _;
+                let stop_on_run = actor_fn(stop_on_run);
                 let (actor, actor_ref) = init_local_actor(stop_on_run, ()).unwrap();
                 actors.push(Box::pin(actor));
                 actor_ref

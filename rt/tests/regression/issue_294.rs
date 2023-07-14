@@ -3,7 +3,7 @@
 //! In this test the actor reference, to the sync actor, should be dropped allow
 //! the sync actor to stop and not prevent the test from returning.
 
-use heph::actor::SyncContext;
+use heph::actor::{actor_fn, SyncContext};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::SyncActorOptions;
 use heph_rt::Runtime;
@@ -12,7 +12,7 @@ use heph_rt::Runtime;
 fn issue_294() {
     let mut runtime = Runtime::new().unwrap();
 
-    let actor = actor as fn(_);
+    let actor = actor_fn(actor);
     let options = SyncActorOptions::default();
     let actor_ref = runtime
         .spawn_sync_actor(NoSupervisor, actor, (), options)

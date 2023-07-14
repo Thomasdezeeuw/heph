@@ -29,7 +29,8 @@
 //! use std::net::SocketAddr;
 //!
 //! use heph::supervisor::NoSupervisor;
-//! use heph::{actor, restart_supervisor, ActorRef};
+//! use heph::actor::{self, actor_fn};
+//! use heph::{restart_supervisor, ActorRef};
 //! use heph_remote::net_relay::{self, Relay, UdpRelayMessage};
 //! use heph_rt::spawn::ActorOptions;
 //! use heph_rt::{self as rt, Runtime};
@@ -51,7 +52,7 @@
 //!         println!("received message: {msg}");
 //!     }
 //! }
-//! let local_actor = local_actor as fn(_) -> _;
+//! let local_actor = actor_fn(local_actor);
 //! let local_actor_ref = runtime.spawn(NoSupervisor, local_actor, (), ActorOptions::default());
 //!
 //! // Next we're going to spawn our net relay actor.

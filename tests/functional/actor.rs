@@ -1,6 +1,6 @@
 //! Tests for the [`Actor`] trait.
 
-use heph::actor::{self, NewActor};
+use heph::actor::{self, actor_fn, NewActor};
 
 #[test]
 fn future_output_result() {
@@ -8,14 +8,14 @@ fn future_output_result() {
     async fn actor(_: actor::Context<(), ()>) -> Result<(), ()> {
         Ok(())
     }
-    is_new_actor(actor as fn(_) -> _);
+    is_new_actor(actor_fn(actor));
 }
 
 #[test]
 fn future_output_tuple() {
     // Actor is implemented for `Future<Output = ()>`.
     async fn actor(_: actor::Context<(), ()>) {}
-    is_new_actor(actor as fn(_) -> _);
+    is_new_actor(actor_fn(actor));
 }
 
 fn is_new_actor<NA: NewActor>(_: NA) {}

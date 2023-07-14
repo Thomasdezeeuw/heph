@@ -3,7 +3,7 @@
 use std::io;
 use std::path::PathBuf;
 
-use heph::actor;
+use heph::actor::{self, actor_fn};
 use heph_rt::access::ThreadLocal;
 use heph_rt::fs::{self, Advice, AllocateMode, File};
 use heph_rt::io::{Read, Write};
@@ -32,7 +32,7 @@ fn file_read_write() {
         assert_eq!(buf, DATA2);
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[test]
@@ -45,7 +45,7 @@ fn file_sync_all() {
         file.sync_all().await.unwrap();
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[test]
@@ -58,7 +58,7 @@ fn file_sync_data() {
         file.sync_all().await.unwrap();
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[test]
@@ -89,7 +89,7 @@ fn file_metadata() {
         assert!(!permissions.owner_can_execute());
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn file_advise() {
         drop(file);
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn file_allocate() {
         assert_eq!(buf.len(), SIZE);
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[test]
@@ -152,7 +152,7 @@ fn create_dir() {
         (&file).write(DATA1).await.unwrap();
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[test]
@@ -176,7 +176,7 @@ fn rename() {
         assert_eq!(buf, DATA1);
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[test]
@@ -195,7 +195,7 @@ fn remove_file() {
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[test]
@@ -212,5 +212,5 @@ fn remove_dir() {
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }

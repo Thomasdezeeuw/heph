@@ -79,7 +79,7 @@ where
 /// # Examples
 ///
 /// ```
-/// use heph::actor;
+/// use heph::actor::{self, actor_fn};
 /// use heph::test::size_of_actor_val;
 /// use heph_rt::ThreadLocal;
 ///
@@ -91,7 +91,7 @@ where
 ///     }
 /// }
 ///
-/// assert_eq!(size_of_actor_val(&(actor as fn(_) -> _)), 72);
+/// assert_eq!(size_of_actor_val(&actor_fn(actor)), 72);
 /// ```
 pub const fn size_of_actor_val<NA>(_: &NA) -> usize
 where

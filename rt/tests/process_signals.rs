@@ -4,7 +4,7 @@ use std::process;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use heph::actor::{self, SyncContext};
+use heph::actor::{self, actor_fn, SyncContext};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::options::{ActorOptions, SyncActorOptions};
 use heph_rt::{Runtime, Signal};
@@ -40,11 +40,11 @@ fn with_signal_handles() {
     let ts = thread_safe1.clone();
     runtime
         .run_on_workers(|mut runtime_ref| -> Result<(), !> {
-            let tla = actor as fn(_, _) -> _;
+            let tla = actor_fn(actor);
             let actor_ref = runtime_ref.spawn_local(NoSupervisor, tla, tl, ActorOptions::default());
             runtime_ref.receive_signals(actor_ref);
 
-            let tsa = actor as fn(_, _) -> _;
+            let tsa = actor_fn(actor);
             let actor_ref = runtime_ref.spawn(NoSupervisor, tsa, ts, ActorOptions::default());
             runtime_ref.receive_signals(actor_ref);
 
@@ -54,7 +54,7 @@ fn with_signal_handles() {
 
     let actor_ref = runtime.spawn(
         NoSupervisor,
-        actor as fn(_, _) -> _,
+        actor_fn(actor),
         thread_safe2.clone(),
         ActorOptions::default(),
     );
@@ -63,7 +63,7 @@ fn with_signal_handles() {
     let actor_ref = runtime
         .spawn_sync_actor(
             NoSupervisor,
-            sync_actor as fn(_, _) -> _,
+            actor_fn(sync_actor),
             sync.clone(),
             SyncActorOptions::default(),
         )

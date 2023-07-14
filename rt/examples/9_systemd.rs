@@ -3,8 +3,9 @@
 use std::net::Ipv4Addr;
 use std::{env, io};
 
+use heph::actor::{self, actor_fn};
+use heph::restart_supervisor;
 use heph::supervisor::StopSupervisor;
-use heph::{actor, restart_supervisor};
 use heph_rt::net::{tcp, TcpStream};
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::{self as rt, Runtime, ThreadLocal};
@@ -20,7 +21,7 @@ fn main() -> Result<(), rt::Error> {
     };
     let address = (Ipv4Addr::LOCALHOST, port).into();
     let supervisor = StopSupervisor::for_actor("connection actor");
-    let actor = conn_actor as fn(_, _) -> _;
+    let actor = actor_fn(conn_actor);
     let server = tcp::server::setup(address, supervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;
 
@@ -32,7 +33,7 @@ fn main() -> Result<(), rt::Error> {
     #[cfg(target_os = "linux")]
     {
         let supervisor = StopSupervisor::for_actor("systemd actor");
-        let actor = heph_rt::systemd::watchdog as fn(_, _) -> _;
+        let actor = actor_fn(heph_rt::systemd::watchdog);
         // NOTE: this should do a proper health check of you application.
         let health_check = || -> Result<(), !> { Ok(()) };
         let options = ActorOptions::default().with_priority(Priority::HIGH);
