@@ -395,11 +395,27 @@ pub const fn actor_fn<F, M, RT, Arg, A>(f: F) -> ActorFn<F, M, RT, Arg, A> {
 }
 
 /// Implementation behind [`actor_fn`].
+#[allow(clippy::type_complexity)]
 pub struct ActorFn<F, M, RT, Args, A> {
     /// The actual implementation.
     inner: F,
     /// Required parameters to implement `NewActor` for this type.
     _phantom: PhantomData<fn(Context<M, RT>, Args) -> A>,
+}
+
+impl<T: Copy, M, RT, Args, A> Copy for ActorFn<T, M, RT, Args, A> {}
+
+impl<T: Clone, M, RT, Args, A> Clone for ActorFn<T, M, RT, Args, A> {
+    fn clone(&self) -> Self {
+        ActorFn {
+            inner: self.inner.clone(),
+            _phantom: PhantomData,
+        }
+    }
+
+    fn clone_from(&mut self, source: &Self) {
+        self.inner.clone_from(&source.inner);
+    }
 }
 
 impl<T: fmt::Debug, M, RT, Args, A> fmt::Debug for ActorFn<T, M, RT, Args, A> {
