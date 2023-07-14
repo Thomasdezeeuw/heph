@@ -11,6 +11,7 @@ use heph_inbox::Receiver;
 use heph_inbox::{self as inbox, ReceiverConnected};
 use log::trace;
 
+use crate::actor::private::ActorResult;
 use crate::actor::{NoMessages, RecvError};
 use crate::actor_ref::ActorRef;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
@@ -85,29 +86,19 @@ macro_rules! impl_sync_actor {
         $(,)?
     ) => {
         $(
-            impl<M, E, RT, $( $arg ),*> SyncActor for fn(ctx: SyncContext<M, RT>, $( $arg_name: $arg ),*) -> Result<(), E> {
+            impl<M, RT, $( $arg, )* R> SyncActor for fn(ctx: SyncContext<M, RT>, $( $arg_name: $arg ),*) -> R
+            where
+                R: ActorResult,
+            {
                 type Message = M;
                 type Argument = ($( $arg ),*);
-                type Error = E;
+                type Error = R::Error;
                 type RuntimeAccess = RT;
 
                 #[allow(non_snake_case)]
                 fn run(&self, ctx: SyncContext<Self::Message, Self::RuntimeAccess>, arg: Self::Argument) -> Result<(), Self::Error> {
                     let ($( $arg ),*) = arg;
-                    (self)(ctx, $( $arg ),*)
-                }
-            }
-
-            impl<M, RT, $( $arg ),*> SyncActor for fn(ctx: SyncContext<M, RT>, $( $arg_name: $arg ),*) {
-                type Message = M;
-                type Argument = ($( $arg ),*);
-                type Error = !;
-                type RuntimeAccess = RT;
-
-                #[allow(non_snake_case)]
-                fn run(&self, ctx: SyncContext<Self::Message, Self::RuntimeAccess>, arg: Self::Argument) -> Result<(), Self::Error> {
-                    let ($( $arg ),*) = arg;
-                    Ok((self)(ctx, $( $arg ),*))
+                    (self)(ctx, $( $arg ),*).into()
                 }
             }
         )*
@@ -116,10 +107,13 @@ macro_rules! impl_sync_actor {
 
 impl_sync_actor!(());
 
-impl<M, E, RT, Arg> SyncActor for fn(ctx: SyncContext<M, RT>, arg: Arg) -> Result<(), E> {
+impl<M, RT, Arg, R> SyncActor for fn(ctx: SyncContext<M, RT>, arg: Arg) -> R
+where
+    R: ActorResult,
+{
     type Message = M;
     type Argument = Arg;
-    type Error = E;
+    type Error = R::Error;
     type RuntimeAccess = RT;
 
     fn run(
@@ -127,23 +121,7 @@ impl<M, E, RT, Arg> SyncActor for fn(ctx: SyncContext<M, RT>, arg: Arg) -> Resul
         ctx: SyncContext<Self::Message, Self::RuntimeAccess>,
         arg: Self::Argument,
     ) -> Result<(), Self::Error> {
-        (self)(ctx, arg)
-    }
-}
-
-impl<M, RT, Arg> SyncActor for fn(ctx: SyncContext<M, RT>, arg: Arg) {
-    type Message = M;
-    type Argument = Arg;
-    type Error = !;
-    type RuntimeAccess = RT;
-
-    fn run(
-        &self,
-        ctx: SyncContext<Self::Message, Self::RuntimeAccess>,
-        arg: Self::Argument,
-    ) -> Result<(), Self::Error> {
-        #[allow(clippy::unit_arg)]
-        Ok((self)(ctx, arg))
+        (self)(ctx, arg).into()
     }
 }
 
