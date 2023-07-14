@@ -2,8 +2,8 @@
 //! worker thread.
 
 use std::io::{self, Read, Write};
+use std::sync::mpsc;
 
-use crossbeam_channel as crossbeam;
 use mio::{unix, Interest, Registry, Token};
 
 /// Data send across the channel to create a `mio::Event`.
@@ -12,7 +12,7 @@ const WAKE: &[u8] = b"WAKE";
 /// Create a new communication channel.
 pub(crate) fn new<T>() -> io::Result<(Sender<T>, Receiver<T>)> {
     let (p_send, p_recv) = unix::pipe::new()?;
-    let (c_send, c_recv) = crossbeam::unbounded();
+    let (c_send, c_recv) = mpsc::channel();
     let sender = Sender {
         channel: c_send,
         pipe: p_send,
@@ -27,7 +27,7 @@ pub(crate) fn new<T>() -> io::Result<(Sender<T>, Receiver<T>)> {
 /// Sending end of the communication channel.
 #[derive(Debug)]
 pub(crate) struct Sender<T> {
-    channel: crossbeam::Sender<T>,
+    channel: mpsc::Sender<T>,
     pipe: unix::pipe::Sender,
 }
 
@@ -35,7 +35,7 @@ impl<T> Sender<T> {
     /// Try to send a message onto the channel.
     pub(crate) fn try_send(&self, msg: T) -> io::Result<()> {
         self.channel
-            .try_send(msg)
+            .send(msg)
             .map_err(|_| io::Error::new(io::ErrorKind::NotConnected, "failed to send message"))?;
 
         // Generate an `mio::Event` for the receiving end.
@@ -65,7 +65,7 @@ impl<T> Sender<T> {
 /// Receiving end of the communication channel.
 #[derive(Debug)]
 pub(crate) struct Receiver<T> {
-    channel: crossbeam::Receiver<T>,
+    channel: mpsc::Receiver<T>,
     pipe: unix::pipe::Receiver,
 }
 
