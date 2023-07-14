@@ -487,12 +487,12 @@ pub trait Actor {
 /// Supported are [`Future`]s with `Result<(), E>` or `()` [`Output`].
 ///
 /// [`Output`]: Future::Output
-impl<Fut, O, E> Actor for Fut
+impl<Fut> Actor for Fut
 where
-    Fut: Future<Output = O>,
-    O: private::ActorResult<Error = E>,
+    Fut: Future,
+    Fut::Output: private::ActorResult,
 {
-    type Error = E;
+    type Error = <Fut::Output as private::ActorResult>::Error;
 
     fn try_poll(
         self: Pin<&mut Self>,
