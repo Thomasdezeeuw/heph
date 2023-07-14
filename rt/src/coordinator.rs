@@ -82,7 +82,7 @@ impl Coordinator {
     pub(crate) fn init(
         ring: a10::Ring,
         app_name: Box<str>,
-        worker_sqs: Box<[&'static a10::SubmissionQueue]>,
+        worker_sqs: Box<[a10::SubmissionQueue]>,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> io::Result<Coordinator> {
         let poll = Poll::new()?;

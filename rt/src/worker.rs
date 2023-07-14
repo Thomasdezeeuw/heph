@@ -61,14 +61,14 @@ const SHARED_RING: Token = Token(usize::MAX - 4);
 pub(crate) fn setup(
     id: NonZeroUsize,
     coordinator_sq: &a10::SubmissionQueue,
-) -> io::Result<(WorkerSetup, &'static a10::SubmissionQueue)> {
+) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
     let poll = Poll::new()?;
     let ring = a10::Ring::config(64).attach_queue(coordinator_sq).build()?;
+    let sq = ring.submission_queue().clone();
 
     // Setup the waking mechanism.
     let (waker_sender, waker_events) = crossbeam_channel::unbounded();
-    let waker_id = waker::init(ring.submission_queue().clone(), waker_sender);
-    let sq = waker::get_sq(waker_id);
+    let waker_id = waker::init(sq.clone(), waker_sender);
 
     let setup = WorkerSetup {
         id,

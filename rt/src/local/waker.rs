@@ -88,11 +88,6 @@ fn get(waker_id: WakerId) -> &'static Waker {
     }
 }
 
-/// Returns the `SubmissionQueue` for `waker_id`.
-pub(crate) fn get_sq(waker_id: WakerId) -> &'static a10::SubmissionQueue {
-    &get(waker_id).sq
-}
-
 /// Waker mechanism.
 #[derive(Debug)]
 struct Waker {
