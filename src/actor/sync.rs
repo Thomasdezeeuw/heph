@@ -25,7 +25,10 @@ use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 /// communication is done via message sending, using [actor references].
 ///
 /// The easiest way to implement this trait by using functions, see the [module
-/// level] documentation for an example of this.
+/// level] documentation for an example of this. All functions *pointers* that
+/// accept a [`SyncContext`] as argument and return `Result<(), Error>` or `()`
+/// implement the `SyncActor` trait. There is also the [`ActorFn`] helper type
+/// to implement the trait for any function.
 ///
 /// [module level]: crate::actor
 ///
