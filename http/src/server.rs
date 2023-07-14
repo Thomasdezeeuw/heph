@@ -32,7 +32,7 @@
 //! use std::net::SocketAddr;
 //! use std::time::Duration;
 //!
-//! use heph::actor::{self, Actor, NewActor};
+//! use heph::actor::{self, Actor, NewActor, actor_fn};
 //! use heph::supervisor::{Supervisor, SupervisorStrategy};
 //! use heph_http::body::OneshotBody;
 //! use heph_http::{self as http, server, Header, HeaderName, Headers, Method, StatusCode};
@@ -44,7 +44,7 @@
 //!
 //! fn main() -> Result<(), heph_rt::Error> {
 //!     // Setup the HTTP server.
-//!     let actor = http_actor as fn(_, _) -> _;
+//!     let actor = actor_fn(http_actor);
 //!     let address = "127.0.0.1:7890".parse().unwrap();
 //!     let server = server::setup(address, conn_supervisor, actor, ActorOptions::default())
 //!         .map_err(heph_rt::Error::setup)?;

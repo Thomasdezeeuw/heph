@@ -8,7 +8,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
-use heph::actor::{self, Actor, NewActor};
+use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::actor_ref::ActorGroup;
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::{ActorOptions, FutureOptions};
@@ -36,10 +36,7 @@ fn test_size_of_actor() {
         /* Nothing. */
     }
 
-    #[allow(trivial_casts)]
-    {
-        assert_eq!(size_of_actor_val(&(actor1 as fn(_) -> _)), 32);
-    }
+    assert_eq!(size_of_actor_val(&actor_fn(actor1)), 32);
 
     struct Na;
 
@@ -83,13 +80,13 @@ async fn panic_actor<RT>(_: actor::Context<!, RT>) {
 
 #[test]
 fn catch_panics_spawned_local_actor() {
-    let actor = panic_actor as fn(_) -> _;
+    let actor = actor_fn(panic_actor);
     try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
 }
 
 #[test]
 fn catch_panics_spawned_actor() {
-    let actor = panic_actor as fn(_) -> _;
+    let actor = actor_fn(panic_actor);
     try_spawn(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
 }
 
@@ -109,7 +106,7 @@ async fn sleepy_actor<RT: rt::Access + Clone>(ctx: actor::Context<!, RT>) {
 
 #[test]
 fn join_local_actor() {
-    let actor = sleepy_actor as fn(_) -> _;
+    let actor = actor_fn(sleepy_actor);
     let actor_ref = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let start = Instant::now();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
@@ -118,7 +115,7 @@ fn join_local_actor() {
 
 #[test]
 fn join_actor() {
-    let actor = sleepy_actor as fn(_) -> _;
+    let actor = actor_fn(sleepy_actor);
     let actor_ref = try_spawn(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let start = Instant::now();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
@@ -134,7 +131,7 @@ async fn never_actor<RT>(_: actor::Context<!, RT>) {
 
 #[test]
 fn join_local_actor_timeout() {
-    let actor = never_actor as fn(_) -> _;
+    let actor = actor_fn(never_actor);
     let actor_ref = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let start = Instant::now();
     if let JoinResult::Ok = join(&actor_ref, TIMEOUT) {
@@ -145,7 +142,7 @@ fn join_local_actor_timeout() {
 
 #[test]
 fn join_actor_timeout() {
-    let actor = never_actor as fn(_) -> _;
+    let actor = actor_fn(never_actor);
     let actor_ref = try_spawn(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let start = Instant::now();
     if let JoinResult::Ok = join(&actor_ref, TIMEOUT) {
@@ -156,7 +153,7 @@ fn join_actor_timeout() {
 
 #[test]
 fn join_many_local_actors() {
-    let actor = sleepy_actor as fn(_) -> _;
+    let actor = actor_fn(sleepy_actor);
     let actor_ref1 = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let actor_ref2 = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let start = Instant::now();
@@ -166,7 +163,7 @@ fn join_many_local_actors() {
 
 #[test]
 fn join_many_actors() {
-    let actor = sleepy_actor as fn(_) -> _;
+    let actor = actor_fn(sleepy_actor);
     let actor_ref1 = try_spawn(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let actor_ref2 = try_spawn(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let start = Instant::now();
@@ -176,9 +173,9 @@ fn join_many_actors() {
 
 #[test]
 fn join_many_local_and_thread_safe() {
-    let actor = sleepy_actor as fn(_) -> _;
+    let actor = actor_fn(sleepy_actor);
     let actor_ref1 = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
-    let actor = sleepy_actor as fn(_) -> _;
+    let actor = actor_fn(sleepy_actor);
     let actor_ref2 = try_spawn(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let start = Instant::now();
     join_many(&[actor_ref1, actor_ref2], Duration::from_secs(1)).unwrap();
@@ -187,9 +184,9 @@ fn join_many_local_and_thread_safe() {
 
 #[test]
 fn join_many_local_and_thread_safe_timeout() {
-    let actor = sleepy_actor as fn(_) -> _;
+    let actor = actor_fn(sleepy_actor);
     let actor_ref1 = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
-    let actor = never_actor as fn(_) -> _;
+    let actor = actor_fn(never_actor);
     let actor_ref2 = try_spawn(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let start = Instant::now();
     if let JoinResult::Ok = join_many(&[actor_ref1, actor_ref2], TIMEOUT) {
@@ -200,7 +197,7 @@ fn join_many_local_and_thread_safe_timeout() {
 
 #[test]
 fn join_all_local_actors() {
-    let actor = sleepy_actor as fn(_) -> _;
+    let actor = actor_fn(sleepy_actor);
     let actor_ref1 = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let actor_ref2 = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let group = ActorGroup::from_iter([actor_ref1, actor_ref2]);
@@ -211,7 +208,7 @@ fn join_all_local_actors() {
 
 #[test]
 fn join_all_actors() {
-    let actor = sleepy_actor as fn(_) -> _;
+    let actor = actor_fn(sleepy_actor);
     let actor_ref1 = try_spawn(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let actor_ref2 = try_spawn(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let group = ActorGroup::from_iter([actor_ref1, actor_ref2]);
@@ -222,9 +219,9 @@ fn join_all_actors() {
 
 #[test]
 fn join_all_local_and_thread_safe() {
-    let actor = sleepy_actor as fn(_) -> _;
+    let actor = actor_fn(sleepy_actor);
     let actor_ref1 = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
-    let actor = sleepy_actor as fn(_) -> _;
+    let actor = actor_fn(sleepy_actor);
     let actor_ref2 = try_spawn(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let group = ActorGroup::from_iter([actor_ref1, actor_ref2]);
     let start = Instant::now();
@@ -234,9 +231,9 @@ fn join_all_local_and_thread_safe() {
 
 #[test]
 fn join_all_local_and_thread_safe_timeout() {
-    let actor = sleepy_actor as fn(_) -> _;
+    let actor = actor_fn(sleepy_actor);
     let actor_ref1 = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
-    let actor = never_actor as fn(_) -> _;
+    let actor = actor_fn(never_actor);
     let actor_ref2 = try_spawn(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     let group = ActorGroup::from_iter([actor_ref1, actor_ref2]);
     let start = Instant::now();

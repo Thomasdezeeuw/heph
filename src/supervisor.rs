@@ -72,7 +72,7 @@
 //!
 //! ```
 //! # #![feature(never_type)]
-//! # use heph::actor;
+//! # use heph::actor::{self, actor_fn};
 //! # use heph_rt::spawn::ActorOptions;
 //! # use heph_rt::{self as rt, Runtime};
 //! use heph::supervisor::SupervisorStrategy;
@@ -84,7 +84,7 @@
 //! #
 //! #     let mut runtime = Runtime::new()?;
 //! #     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-//! #         runtime_ref.spawn_local(supervisor, bad_actor as fn(_) -> _, (), ActorOptions::default());
+//! #         runtime_ref.spawn_local(supervisor, actor_fn(bad_actor), (), ActorOptions::default());
 //! #         Ok(())
 //! #     })?;
 //! #     runtime.start()
@@ -289,7 +289,7 @@ where
 /// ```
 /// #![feature(never_type)]
 ///
-/// use heph::actor;
+/// use heph::actor::{self, actor_fn};
 /// use heph::supervisor::NoSupervisor;
 /// use heph_rt::spawn::ActorOptions;
 /// use heph_rt::{self as rt, ThreadLocal, Runtime};
@@ -297,7 +297,7 @@ where
 /// fn main() -> Result<(), rt::Error> {
 ///     let mut runtime = Runtime::new()?;
 ///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-///         runtime_ref.spawn_local(NoSupervisor, actor as fn(_) -> _, (), ActorOptions::default());
+///         runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), (), ActorOptions::default());
 ///         Ok(())
 ///     })?;
 ///     runtime.start()
@@ -353,7 +353,7 @@ where
 /// ```
 /// #![feature(never_type)]
 ///
-/// use heph::actor;
+/// use heph::actor::{self, actor_fn};
 /// use heph::supervisor::StopSupervisor;
 /// use heph_rt::spawn::ActorOptions;
 /// use heph_rt::{self as rt, ThreadLocal, Runtime};
@@ -362,7 +362,7 @@ where
 ///     let mut runtime = Runtime::new()?;
 ///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
 ///         let supervisor = StopSupervisor::for_actor("print actor");
-///         runtime_ref.spawn_local(supervisor, print_actor as fn(_) -> _, (), ActorOptions::default());
+///         runtime_ref.spawn_local(supervisor, actor_fn(print_actor), (), ActorOptions::default());
 ///         Ok(())
 ///     })?;
 ///     runtime.start()

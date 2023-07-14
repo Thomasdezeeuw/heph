@@ -6,8 +6,9 @@ use std::sync::{Arc, Condvar, Mutex, Weak};
 use std::thread::{self, sleep};
 use std::time::{Duration, SystemTime};
 
+use heph::actor::{self, actor_fn};
 use heph::messages::Terminate;
-use heph::{actor, ActorRef, SupervisorStrategy};
+use heph::{ActorRef, SupervisorStrategy};
 use heph_http::body::OneshotBody;
 use heph_http::server::{self, RequestError};
 use heph_http::{self as http, Header, HeaderName, Headers, Method, StatusCode, Version};
@@ -580,7 +581,7 @@ impl TestServer {
         let server_ref = Arc::new((Mutex::new(None), Condvar::new()));
         let set_ref = server_ref.clone();
 
-        let actor = http_actor as fn(_, _) -> _;
+        let actor = actor_fn(http_actor);
         let address = "127.0.0.1:0".parse().unwrap();
         let server = server::setup(address, conn_supervisor, actor, ActorOptions::default())
             .map_err(heph_rt::Error::setup)

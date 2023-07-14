@@ -69,7 +69,7 @@
 //!
 //! ```
 //! # #![feature(never_type)]
-//! use heph::actor::{self, SyncContext};
+//! use heph::actor::{self, SyncContext, actor_fn};
 //! use heph::supervisor::NoSupervisor;
 //! use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 //! use heph_rt::{self as rt, Runtime, RuntimeRef};
@@ -90,12 +90,12 @@
 //!
 //!     // We'll start with spawning a synchronous actor.
 //!     // For more information on spawning actors see the spawn module.
-//!     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, sync_actor as fn(_) -> _, (), SyncActorOptions::default())?;
+//!     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor_fn(sync_actor), (), SyncActorOptions::default())?;
 //!     // And sending it a message.
 //!     actor_ref.try_send("Alice").unwrap();
 //!
 //!     // Next a thread-safe actor.
-//!     let actor_ref = runtime.spawn(NoSupervisor, actor as fn(_, _) -> _, "thread-safe", ActorOptions::default());
+//!     let actor_ref = runtime.spawn(NoSupervisor, actor_fn(actor), "thread-safe", ActorOptions::default());
 //!     actor_ref.try_send("Bob").unwrap();
 //!
 //!     // To spawn thread-safe actors we need to run it on the worker thread,
@@ -113,7 +113,7 @@
 //! // this example we create two threads (see `main`).
 //! fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 //!     // Spawn a thread-local actor.
-//!     let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor as fn(_, _) -> _, "thread-local", ActorOptions::default());
+//!     let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), "thread-local", ActorOptions::default());
 //!     actor_ref.try_send("Charlie").unwrap();
 //!     Ok(())
 //! }

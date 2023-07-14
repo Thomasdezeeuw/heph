@@ -226,7 +226,7 @@ impl<M, RT> SyncContext<M, RT> {
     /// }
     ///
     /// # fn assert_sync_actor<A: heph::actor::SyncActor<RuntimeAccess = ()>>(_: A) { }
-    /// # assert_sync_actor(greeter_actor as fn(_) -> _);
+    /// # assert_sync_actor(heph::actor::actor_fn(greeter_actor));
     /// ```
     pub fn try_receive_next(&mut self) -> Result<M, RecvError> {
         self.inbox.try_recv().map_err(RecvError::from)
@@ -254,7 +254,7 @@ impl<M, RT> SyncContext<M, RT> {
     /// }
     ///
     /// # fn assert_sync_actor<A: heph::actor::SyncActor<RuntimeAccess = ()>>(_: A) { }
-    /// # assert_sync_actor(print_actor as fn(_) -> _);
+    /// # assert_sync_actor(heph::actor::actor_fn(print_actor));
     /// ```
     pub fn receive_next(&mut self) -> Result<M, NoMessages> {
         let waker = self.future_waker();

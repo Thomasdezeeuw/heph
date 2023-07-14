@@ -4,7 +4,7 @@ use std::future::pending;
 use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
 
-use heph::actor::{self, ActorFuture};
+use heph::actor::{self, actor_fn, ActorFuture};
 use heph::supervisor::NoSupervisor;
 
 use crate::process::{FutureProcess, ProcessId};
@@ -104,7 +104,7 @@ fn scheduler_run_order() {
     let run_order = Arc::new(Mutex::new(Vec::new()));
 
     // Add our processes.
-    let new_actor = order_actor as fn(_, _, _) -> _;
+    let new_actor = actor_fn(order_actor);
     let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
     let mut pids = vec![];
     for (id, priority) in priorities.iter().enumerate() {
@@ -181,7 +181,7 @@ fn assert_future_process_unmoved() {
 }
 
 fn add_test_actor(scheduler: &Scheduler, priority: Priority) -> ProcessId {
-    let new_actor = simple_actor as fn(_) -> _;
+    let new_actor = actor_fn(simple_actor);
     let rt = ThreadSafe::new(test::shared_internals());
     let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
     scheduler.add_new_process(priority, process)

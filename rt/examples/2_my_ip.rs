@@ -2,7 +2,7 @@
 
 use std::io;
 
-use heph::actor::{self, Actor, NewActor};
+use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph_rt::net::{tcp, TcpStream};
 use heph_rt::spawn::options::{ActorOptions, Priority};
@@ -22,7 +22,7 @@ fn main() -> Result<(), rt::Error> {
     // done by `conn_supervisor` in this example. And as each actor will need to
     // be added to the runtime it needs the `ActorOptions` to do that, we'll use
     // the defaults options here.
-    let actor = conn_actor as fn(_, _) -> _;
+    let actor = actor_fn(conn_actor);
     let address = "127.0.0.1:7890".parse().unwrap();
     let server = tcp::server::setup(address, conn_supervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;

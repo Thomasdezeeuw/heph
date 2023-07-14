@@ -114,8 +114,8 @@
 //!
 //! ```
 //! use std::io::{self, stdout, Write};
-//! use heph::{actor, ActorRef};
-//! use heph::actor_ref::SendError;
+//! use heph::actor::{self, actor_fn};
+//! use heph::actor_ref::{ActorRef, SendError};
 //! use heph::supervisor::SupervisorStrategy;
 //! use heph_rt::spawn::options::ActorOptions;
 //! use heph_rt::ThreadLocal;
@@ -126,8 +126,12 @@
 //!         // Our supervisor for the error, see the function below.
 //!         let supervisor = greeter_supervisor;
 //!         // An unfortunate implementation detail requires us to convert our
-//!         // actor into a *function pointer* to implement the required traits.
-//!         let actor = greeter_actor as fn(_, _, _) -> _;
+//!         // asynchronous function to an `NewActor` implementation (trait
+//!         // that defines how actors are (re)started).
+//!         // The easiest way to do this is to use the `actor_fn` helper
+//!         // function. See the documentation of `actor_fn` for more details on
+//!         // why this is required.
+//!         let actor = actor_fn(greeter_actor);
 //!         // The arguments passed to the actor, see the `actor` implementation
 //!         // below. Since we want to pass multiple arguments we must do so in
 //!         // the tuple notation.
@@ -250,14 +254,14 @@
 //!
 //! ```
 //! # #![feature(never_type)]
-//! use heph::actor::{self, ActorFuture};
+//! use heph::actor::{self, actor_fn, ActorFuture};
 //! use heph::supervisor::NoSupervisor;
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!     // The `Supervisor`, `NewActor` and argument are the same as for using
 //!     // heph-rt.
 //!     let supervisor = NoSupervisor;
-//!     let new_actor = actor as fn(_) -> _;
+//!     let new_actor = actor_fn(actor);
 //!     let arguments = (); // No arguments required.
 //!     // The runtime (`rt`) argument gives access to the runtime within the
 //!     // context of the actor. Note that not all runtimes need this, so you

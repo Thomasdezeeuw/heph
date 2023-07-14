@@ -7,12 +7,11 @@
 
 use std::future::pending;
 
-use log::info;
-
-use heph::actor;
+use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::ActorOptions;
 use heph_rt::{self as rt, Runtime, ThreadLocal};
+use log::info;
 
 fn main() -> Result<(), rt::Error> {
     std_logger::Config::logfmt().init();
@@ -22,18 +21,14 @@ fn main() -> Result<(), rt::Error> {
 
         info!("Spawning {N} actors, this might take a while");
         let start = std::time::Instant::now();
+        let actor = actor_fn(actor);
         for _ in 0..N {
-            let actor = actor as fn(_) -> _;
             runtime_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
         }
         info!("Spawning took {:?}", start.elapsed());
 
-        runtime_ref.spawn_local(
-            NoSupervisor,
-            control_actor as fn(_) -> _,
-            (),
-            ActorOptions::default(),
-        );
+        let control_actor = actor_fn(control_actor);
+        runtime_ref.spawn_local(NoSupervisor, control_actor, (), ActorOptions::default());
 
         Ok(())
     })?;

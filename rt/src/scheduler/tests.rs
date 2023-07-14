@@ -7,7 +7,7 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{self, Poll};
 
-use heph::actor::{self, ActorFuture};
+use heph::actor::{self, actor_fn, ActorFuture};
 use heph::supervisor::NoSupervisor;
 
 use crate::process::{FutureProcess, Process, ProcessId};
@@ -54,7 +54,7 @@ async fn simple_actor(_: actor::Context<!, ThreadLocal>) {}
 #[test]
 fn add_actor() {
     let mut scheduler = Scheduler::new();
-    let new_actor = simple_actor as fn(_) -> _;
+    let new_actor = actor_fn(simple_actor);
     let rt = ThreadLocal::new(test::runtime());
     let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
     let _ = scheduler.add_new_process(Priority::NORMAL, process);
@@ -69,7 +69,7 @@ fn mark_ready() {
     // Incorrect (outdated) pid should be ok.
     scheduler.mark_ready(ProcessId(100));
 
-    let new_actor = simple_actor as fn(_) -> _;
+    let new_actor = actor_fn(simple_actor);
     let rt = ThreadLocal::new(test::runtime());
     let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
     let pid = scheduler.add_new_process(Priority::NORMAL, process);
@@ -195,7 +195,7 @@ fn scheduler_run_order() {
     let run_order = Rc::new(RefCell::new(Vec::new()));
 
     // Add our processes.
-    let new_actor = order_actor as fn(_, _, _) -> _;
+    let new_actor = actor_fn(order_actor);
     let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
     let mut pids = vec![];
     for (id, priority) in priorities.iter().enumerate() {
@@ -271,7 +271,7 @@ fn assert_future_process_unmoved() {
 }
 
 fn add_test_actor(scheduler: &mut Scheduler, priority: Priority) -> ProcessId {
-    let new_actor = simple_actor as fn(_) -> _;
+    let new_actor = actor_fn(simple_actor);
     let rt = ThreadLocal::new(test::runtime());
     let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
     scheduler.add_new_process(priority, process)

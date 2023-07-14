@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
-use heph::actor;
+use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{block_on_local_actor, poll_future, poll_next};
@@ -48,7 +48,7 @@ fn timer() {
         assert!(start.elapsed() >= TIMEOUT);
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -78,7 +78,7 @@ fn timer_wrap() {
         assert!(start.elapsed() >= TIMEOUT);
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[test]
@@ -102,7 +102,7 @@ fn deadline() {
         assert!(start.elapsed() >= TIMEOUT);
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[test]
@@ -115,7 +115,7 @@ fn interval() {
         assert!(start.elapsed() >= TIMEOUT);
     }
 
-    block_on_local_actor(actor as fn(_) -> _, ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 #[test]
@@ -150,19 +150,19 @@ fn triggered_timers_run_actors() {
         // Spawn thread-local actors.
         let _ = runtime_ref.spawn_local(
             NoSupervisor,
-            timer_actor as fn(_) -> _,
+            actor_fn(timer_actor),
             (),
             ActorOptions::default(),
         );
         let _ = runtime_ref.spawn_local(
             NoSupervisor,
-            deadline_actor as fn(_) -> _,
+            actor_fn(deadline_actor),
             (),
             ActorOptions::default(),
         );
         let _ = runtime_ref.spawn_local(
             NoSupervisor,
-            interval_actor as fn(_) -> _,
+            actor_fn(interval_actor),
             (),
             ActorOptions::default(),
         );
@@ -175,19 +175,19 @@ fn triggered_timers_run_actors() {
     // Spawn thread-safe actors.
     let _ = runtime.spawn(
         NoSupervisor,
-        timer_actor as fn(_) -> _,
+        actor_fn(timer_actor),
         (),
         ActorOptions::default(),
     );
     let _ = runtime.spawn(
         NoSupervisor,
-        deadline_actor as fn(_) -> _,
+        actor_fn(deadline_actor),
         (),
         ActorOptions::default(),
     );
     let _ = runtime.spawn(
         NoSupervisor,
-        interval_actor as fn(_) -> _,
+        actor_fn(interval_actor),
         (),
         ActorOptions::default(),
     );
@@ -243,19 +243,19 @@ fn timers_dont_trigger_after_drop() {
         // Spawn thread-local actors.
         let _ = runtime_ref.spawn_local(
             NoSupervisor,
-            timer_actor as fn(_) -> _,
+            actor_fn(timer_actor),
             (),
             ActorOptions::default(),
         );
         let _ = runtime_ref.spawn_local(
             NoSupervisor,
-            deadline_actor as fn(_) -> _,
+            actor_fn(deadline_actor),
             (),
             ActorOptions::default(),
         );
         let _ = runtime_ref.spawn_local(
             NoSupervisor,
-            interval_actor as fn(_) -> _,
+            actor_fn(interval_actor),
             (),
             ActorOptions::default(),
         );
@@ -268,19 +268,19 @@ fn timers_dont_trigger_after_drop() {
     // Spawn thread-safe actors.
     let _ = runtime.spawn(
         NoSupervisor,
-        timer_actor as fn(_) -> _,
+        actor_fn(timer_actor),
         (),
         ActorOptions::default(),
     );
     let _ = runtime.spawn(
         NoSupervisor,
-        deadline_actor as fn(_) -> _,
+        actor_fn(deadline_actor),
         (),
         ActorOptions::default(),
     );
     let _ = runtime.spawn(
         NoSupervisor,
-        interval_actor as fn(_) -> _,
+        actor_fn(interval_actor),
         (),
         ActorOptions::default(),
     );

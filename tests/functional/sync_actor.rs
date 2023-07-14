@@ -5,8 +5,7 @@ use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::spawn_sync_actor;
-use heph::actor::{RecvError, SyncContext};
+use heph::actor::{actor_fn, spawn_sync_actor, RecvError, SyncContext};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
 
 #[derive(Clone, Debug)]
@@ -61,13 +60,8 @@ where
 fn block_on() {
     let future = BlockFuture::new();
 
-    let (handle, _) = spawn_sync_actor(
-        NoSupervisor,
-        block_on_actor as fn(_, _) -> _,
-        future.clone(),
-        (),
-    )
-    .unwrap();
+    let (handle, _) =
+        spawn_sync_actor(NoSupervisor, actor_fn(block_on_actor), future.clone(), ()).unwrap();
 
     while !future.has_waker() {
         sleep(Duration::from_millis(10));
@@ -81,13 +75,8 @@ fn block_on() {
 fn block_on_spurious_wake_up() {
     let future = BlockFuture::new();
 
-    let (handle, _) = spawn_sync_actor(
-        NoSupervisor,
-        block_on_actor as fn(_, _) -> _,
-        future.clone(),
-        (),
-    )
-    .unwrap();
+    let (handle, _) =
+        spawn_sync_actor(NoSupervisor, actor_fn(block_on_actor), future.clone(), ()).unwrap();
 
     // Wait until the future is polled a first time.
     while !future.has_waker() {
@@ -121,7 +110,7 @@ fn try_receive_next_actor<RT>(mut ctx: SyncContext<String, RT>) {
 #[test]
 fn context_try_receive_next() {
     let (handle, actor_ref) =
-        spawn_sync_actor(NoSupervisor, try_receive_next_actor as fn(_) -> _, (), ()).unwrap();
+        spawn_sync_actor(NoSupervisor, actor_fn(try_receive_next_actor), (), ()).unwrap();
 
     actor_ref.try_send("Hello world".to_owned()).unwrap();
     handle.join().unwrap();
@@ -130,7 +119,7 @@ fn context_try_receive_next() {
 #[test]
 fn supervision() {
     let (handle, _) =
-        spawn_sync_actor(bad_actor_supervisor, bad_actor as fn(_, _) -> _, 0usize, ()).unwrap();
+        spawn_sync_actor(bad_actor_supervisor, actor_fn(bad_actor), 0usize, ()).unwrap();
 
     handle.join().unwrap();
 }

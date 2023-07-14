@@ -8,7 +8,7 @@
 use std::pin::Pin;
 use std::task::Poll;
 
-use heph::actor::{self, NoMessages};
+use heph::actor::{self, actor_fn, NoMessages};
 use heph::test::set_message_loss;
 use heph_rt::test::{init_local_actor, poll_actor};
 use heph_rt::ThreadLocal;
@@ -25,8 +25,7 @@ async fn expect_1_messages(mut ctx: actor::Context<usize, ThreadLocal>) {
 
 #[test]
 fn actor_ref_message_loss() {
-    let actor = expect_1_messages as fn(_) -> _;
-    let (actor, actor_ref) = init_local_actor(actor, ()).unwrap();
+    let (actor, actor_ref) = init_local_actor(actor_fn(expect_1_messages), ()).unwrap();
     let mut actor = Box::pin(actor);
 
     // Should arrive.

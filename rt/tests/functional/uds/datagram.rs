@@ -4,7 +4,7 @@ use std::io;
 use std::net::Shutdown;
 use std::time::Duration;
 
-use heph::actor;
+use heph::actor::{self, actor_fn};
 use heph_rt::net::uds::{UnixAddr, UnixDatagram};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join, try_spawn_local, PanicSupervisor};
@@ -58,8 +58,7 @@ fn pair() {
         Ok(())
     }
 
-    #[allow(trivial_casts)]
-    let actor = actor as fn(_) -> _;
+    let actor = actor_fn(actor);
     let actor_ref = try_spawn_local(PanicSupervisor, actor, (), ActorOptions::default()).unwrap();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
@@ -98,8 +97,7 @@ fn bound() {
         Ok(())
     }
 
-    #[allow(trivial_casts)]
-    let actor = actor as fn(_) -> _;
+    let actor = actor_fn(actor);
     let actor_ref = try_spawn_local(PanicSupervisor, actor, (), ActorOptions::default()).unwrap();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
 }

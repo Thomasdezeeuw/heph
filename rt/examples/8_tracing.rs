@@ -3,14 +3,13 @@
 use std::thread::sleep;
 use std::time::Duration;
 
-use log::warn;
-
-use heph::actor::{self, SyncContext};
+use heph::actor::{self, actor_fn, SyncContext};
 use heph::actor_ref::{ActorRef, SendError};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
 use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::trace::Trace;
 use heph_rt::{self as rt, Runtime, RuntimeRef};
+use log::warn;
 
 fn main() -> Result<(), rt::Error> {
     let mut runtime_setup = Runtime::setup();
@@ -21,7 +20,7 @@ fn main() -> Result<(), rt::Error> {
     // NOTE: to enable tracing for this sync actor it must be spawned after
     // enabling tracing.
     let options = SyncActorOptions::default().with_name("Printer".to_owned());
-    let print_actor = print_actor as fn(_) -> _;
+    let print_actor = actor_fn(print_actor);
     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, print_actor, (), options)?;
 
     runtime.run_on_workers(|runtime_ref| setup(runtime_ref, actor_ref))?;
@@ -38,7 +37,7 @@ fn setup(mut runtime_ref: RuntimeRef, actor_ref: ActorRef<&'static str>) -> Resu
     // actor.
     let mut next_actor_ref = actor_ref;
     for _ in 0..CHAIN_SIZE {
-        let relay_actor = relay_actor as fn(_, _) -> _;
+        let relay_actor = actor_fn(relay_actor);
         next_actor_ref = runtime_ref.spawn_local(
             |err| {
                 warn!("error running actor: {err}");
@@ -56,7 +55,7 @@ fn setup(mut runtime_ref: RuntimeRef, actor_ref: ActorRef<&'static str>) -> Resu
             warn!("error running actor: {err}");
             SupervisorStrategy::Stop
         },
-        relay_actor as fn(_, _) -> _,
+        actor_fn(relay_actor),
         next_actor_ref,
         ActorOptions::default(),
     );

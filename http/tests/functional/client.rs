@@ -9,8 +9,9 @@ use std::thread::{self, sleep};
 use std::time::{Duration, SystemTime};
 use std::{fmt, str};
 
+use heph::actor::{self, actor_fn};
 use heph::messages::Terminate;
-use heph::{actor, Actor, ActorRef, NewActor, Supervisor, SupervisorStrategy};
+use heph::{Actor, ActorRef, NewActor, Supervisor, SupervisorStrategy};
 use heph_http::body::{EmptyBody, OneshotBody};
 use heph_http::client::{Client, ResponseError};
 use heph_http::server::RequestError;
@@ -45,11 +46,8 @@ fn get() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -82,11 +80,8 @@ fn get_no_response() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -117,11 +112,8 @@ fn get_invalid_response() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -159,11 +151,8 @@ fn request_with_headers() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -204,11 +193,8 @@ fn request_with_user_agent_header() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -252,9 +238,8 @@ fn request_with_content_length_header() {
         }
 
         let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
+            init_actor(actor_fn(http_actor), address).unwrap().0
+
         });
 
         expect_request(
@@ -298,9 +283,8 @@ fn request_with_transfer_encoding_header() {
         }
 
         let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
+            init_actor(actor_fn(http_actor), address).unwrap().0
+
         });
 
         expect_request(
@@ -343,9 +327,8 @@ fn request_sets_content_length_header() {
         }
 
         let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
+            init_actor(actor_fn(http_actor), address).unwrap().0
+
         });
 
         expect_request(
@@ -388,11 +371,8 @@ fn partial_response() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -430,11 +410,8 @@ fn same_content_length() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -469,11 +446,8 @@ fn different_content_length() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -508,11 +482,8 @@ fn transfer_encoding_and_content_length_and() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -547,11 +518,8 @@ fn invalid_content_length() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -584,11 +552,8 @@ fn chunked_transfer_encoding() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -621,11 +586,8 @@ fn slow_chunked_transfer_encoding() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -660,11 +622,8 @@ fn empty_chunked_transfer_encoding() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -700,11 +659,8 @@ fn content_length_and_identity_transfer_encoding() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -741,11 +697,8 @@ fn unsupported_transfer_encoding() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -781,11 +734,8 @@ fn chunked_not_last_transfer_encoding() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -821,11 +771,8 @@ fn content_length_and_transfer_encoding() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -860,11 +807,8 @@ fn invalid_chunk_size() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -900,11 +844,8 @@ fn connect() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -939,11 +880,8 @@ fn head() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -979,11 +917,8 @@ fn response_status_204() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -1018,11 +953,8 @@ fn no_content_length_no_transfer_encoding_response() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -1057,11 +989,8 @@ fn response_head_too_large() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -1098,11 +1027,8 @@ fn invalid_header_name() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -1136,11 +1062,8 @@ fn invalid_header_value() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -1176,11 +1099,8 @@ fn invalid_new_line() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -1214,11 +1134,8 @@ fn invalid_version() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -1252,11 +1169,8 @@ fn invalid_status() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,
@@ -1290,11 +1204,8 @@ fn too_many_headers() {
             Ok(())
         }
 
-        let (mut stream, handle) = test_server.accept(|address| {
-            let http_actor = http_actor as fn(_, _) -> _;
-            let (actor, _) = init_actor(http_actor, address).unwrap();
-            actor
-        });
+        let (mut stream, handle) =
+            test_server.accept(|address| init_actor(actor_fn(http_actor), address).unwrap().0);
 
         expect_request(
             &mut stream,

@@ -5,7 +5,7 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::Duration;
 
-use heph::actor::{self, Actor, NewActor};
+use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::ActorRef;
@@ -61,7 +61,7 @@ fn smoke() {
     let server = tcp::server::setup(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
-        actor as fn(_, _) -> _,
+        actor_fn(actor),
         ActorOptions::default(),
     )
     .unwrap();
@@ -72,7 +72,7 @@ fn smoke() {
     let local_server = tcp::server::setup(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
-        actor as fn(_, _) -> _,
+        actor_fn(actor),
         ActorOptions::default(),
     )
     .unwrap();
@@ -86,7 +86,7 @@ fn smoke() {
                 .unwrap();
             let _ = runtime_ref.spawn_local(
                 NoSupervisor,
-                stream_actor as fn(_, _, _) -> _,
+                actor_fn(stream_actor),
                 (server_address, server_ref),
                 ActorOptions::default(),
             );
@@ -100,7 +100,7 @@ fn smoke() {
         .unwrap();
     let _ = runtime.spawn(
         NoSupervisor,
-        stream_actor as fn(_, _, _) -> _,
+        actor_fn(stream_actor),
         (server_address, server_ref),
         ActorOptions::default(),
     );
@@ -110,11 +110,10 @@ fn smoke() {
 
 #[test]
 fn zero_port() {
-    let actor = actor as fn(actor::Context<!, ThreadLocal>, _) -> _;
     let server = tcp::server::setup(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
-        actor,
+        actor_fn::<_, _, ThreadLocal, _, _>(actor),
         ActorOptions::default(),
     )
     .unwrap();
@@ -258,7 +257,7 @@ fn new_actor_error() {
         drop(stream);
     }
 
-    let stream_actor = stream_actor as fn(_, _) -> _;
+    let stream_actor = actor_fn(stream_actor);
     let stream_ref =
         try_spawn_local(NoSupervisor, stream_actor, address, ActorOptions::default()).unwrap();
 

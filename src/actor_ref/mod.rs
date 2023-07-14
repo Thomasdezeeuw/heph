@@ -40,7 +40,7 @@
 //!
 //! ```
 //! # #![feature(never_type)]
-//! use heph::actor;
+//! use heph::actor::{self, actor_fn};
 //! use heph::supervisor::NoSupervisor;
 //! use heph_rt::spawn::ActorOptions;
 //! use heph_rt::{self as rt, Runtime, ThreadLocal};
@@ -49,8 +49,7 @@
 //!     let mut runtime = Runtime::new()?;
 //!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
 //!         // Spawn the actor.
-//!         let new_actor = actor as fn(_) -> _;
-//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
+//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), (), ActorOptions::default());
 //!
 //!         // Now we can use the actor reference to send the actor a message.
 //!         actor_ref.try_send("Hello world".to_owned()).unwrap();
@@ -81,7 +80,7 @@
 //!
 //! ```
 //! # #![feature(never_type)]
-//! use heph::actor;
+//! use heph::actor::{self, actor_fn};
 //! use heph::supervisor::NoSupervisor;
 //! use heph_rt::spawn::ActorOptions;
 //! use heph_rt::{self as rt, Runtime, ThreadLocal};
@@ -89,8 +88,7 @@
 //! fn main() -> Result<(), rt::Error> {
 //!     let mut runtime = Runtime::new()?;
 //!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-//!         let new_actor = actor as fn(_) -> _;
-//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
+//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), (), ActorOptions::default());
 //!
 //!         // To create another actor reference we can simply clone the
 //!         // first one.
@@ -129,7 +127,8 @@
 //!
 //! ```
 //! # #![feature(never_type)]
-//! use heph::{actor, ActorRef};
+//! use heph::ActorRef;
+//! use heph::actor::{self, actor_fn};
 //! use heph::supervisor::NoSupervisor;
 //! use heph_rt::spawn::ActorOptions;
 //! use heph_rt::{self as rt, Runtime, ThreadLocal};
@@ -137,15 +136,13 @@
 //! fn main() -> Result<(), rt::Error> {
 //!     let mut runtime = Runtime::new()?;
 //!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-//!         let new_actor = actor as fn(_) -> _;
-//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
+//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), (), ActorOptions::default());
 //!
 //!         // Send the actor a message to start.
 //!         actor_ref.try_send("Hello world".to_owned()).unwrap();
 //!
 //!         // Spawn our watchdog actor that watches the actor we spawned above.
-//!         let new_watchdog = watchdog as fn(_, _) -> _;
-//!         runtime_ref.spawn_local(NoSupervisor, new_watchdog, actor_ref, ActorOptions::default());
+//!         runtime_ref.spawn_local(NoSupervisor, actor_fn(watchdog), actor_ref, ActorOptions::default());
 //!
 //!         Ok(())
 //!     })?;

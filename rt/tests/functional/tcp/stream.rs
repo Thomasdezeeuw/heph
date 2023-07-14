@@ -5,7 +5,7 @@ use std::io::{self, IoSlice, Read, Write};
 use std::net::{self, Shutdown, SocketAddr};
 use std::time::Duration;
 
-use heph::actor;
+use heph::actor::{self, actor_fn};
 use heph::actor_ref::ActorRef;
 use heph::supervisor::NoSupervisor;
 use heph_rt::net::{TcpListener, TcpStream};
@@ -68,7 +68,7 @@ fn smoke() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -94,7 +94,7 @@ fn connect() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -127,7 +127,7 @@ fn connect_connection_refused() {
         }
     }
 
-    let actor = actor as fn(_) -> _;
+    let actor = actor_fn(actor);
     let actor_ref = try_spawn_local(PanicSupervisor, actor, (), ActorOptions::default()).unwrap();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
@@ -152,7 +152,7 @@ fn recv() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -186,7 +186,7 @@ fn recv_n_read_exact_amount() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -223,7 +223,7 @@ fn recv_n_read_more_bytes() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -251,7 +251,7 @@ fn recv_n_less_bytes() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -278,7 +278,7 @@ fn recv_n_from_multiple_writes() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -305,7 +305,7 @@ fn send() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -333,7 +333,7 @@ fn send_all() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -369,7 +369,7 @@ fn send_vectored() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -401,7 +401,7 @@ fn send_vectored_all() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -456,7 +456,7 @@ fn recv_vectored() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -503,7 +503,7 @@ fn recv_n_vectored_exact_amount() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -543,7 +543,7 @@ fn recv_n_vectored_more_bytes() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -574,7 +574,7 @@ fn recv_n_vectored_less_bytes() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -606,7 +606,7 @@ fn recv_n_vectored_from_multiple_writes() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -644,7 +644,7 @@ fn peek() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -680,7 +680,7 @@ fn send_file() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _, _) -> _;
+    let actor = actor_fn(actor);
     let args = (address, TEST_FILE0);
     let actor_ref1 =
         try_spawn_local(PanicSupervisor, actor, args, ActorOptions::default()).unwrap();
@@ -743,7 +743,7 @@ fn send_file_all() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _, _) -> _;
+    let actor = actor_fn(actor);
     let args = (address, TEST_FILE0);
     let actor_ref1 =
         try_spawn_local(PanicSupervisor, actor, args, ActorOptions::default()).unwrap();
@@ -794,7 +794,7 @@ fn send_entire_file() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _, _) -> _;
+    let actor = actor_fn(actor);
     let args = (address, TEST_FILE0);
     let actor_ref1 =
         try_spawn_local(PanicSupervisor, actor, args, ActorOptions::default()).unwrap();
@@ -892,7 +892,7 @@ fn peek_vectored() {
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
 
-    let actor = actor as fn(_, _) -> _;
+    let actor = actor_fn(actor);
     let actor_ref =
         try_spawn_local(PanicSupervisor, actor, address, ActorOptions::default()).unwrap();
 
@@ -950,11 +950,11 @@ fn shutdown_read() {
         stream.send_all(DATA).await.unwrap();
     }
 
-    let stream_actor = stream_actor as fn(_) -> _;
+    let stream_actor = actor_fn(stream_actor);
     let stream_ref =
         try_spawn_local(NoSupervisor, stream_actor, (), ActorOptions::default()).unwrap();
 
-    let listener_actor = listener_actor as fn(_, _) -> _;
+    let listener_actor = actor_fn(listener_actor);
     let s_ref = stream_ref.clone();
     let listener_ref =
         try_spawn_local(NoSupervisor, listener_actor, s_ref, ActorOptions::default()).unwrap();
@@ -1001,11 +1001,11 @@ fn shutdown_write() {
         assert_eq!(buf, DATA);
     }
 
-    let stream_actor = stream_actor as fn(_) -> _;
+    let stream_actor = actor_fn(stream_actor);
     let stream_ref =
         try_spawn_local(NoSupervisor, stream_actor, (), ActorOptions::default()).unwrap();
 
-    let listener_actor = listener_actor as fn(_, _) -> _;
+    let listener_actor = actor_fn(listener_actor);
     let s_ref = stream_ref.clone();
     let listener_ref =
         try_spawn_local(NoSupervisor, listener_actor, s_ref, ActorOptions::default()).unwrap();
@@ -1048,11 +1048,11 @@ fn shutdown_both() {
         assert!(buf.is_empty());
     }
 
-    let stream_actor = stream_actor as fn(_) -> _;
+    let stream_actor = actor_fn(stream_actor);
     let stream_ref =
         try_spawn_local(NoSupervisor, stream_actor, (), ActorOptions::default()).unwrap();
 
-    let listener_actor = listener_actor as fn(_, _) -> _;
+    let listener_actor = actor_fn(listener_actor);
     let s_ref = stream_ref.clone();
     let listener_ref =
         try_spawn_local(NoSupervisor, listener_actor, s_ref, ActorOptions::default()).unwrap();

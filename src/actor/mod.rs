@@ -24,16 +24,18 @@
 //! the `NewActor` and `Actor` traits.
 //!
 //! ```
-//! use heph::actor::{self, NewActor};
+//! use heph::actor::{self, actor_fn, NewActor};
 //!
 //! async fn actor(ctx: actor::Context<()>) {
 //! #   drop(ctx); // Use `ctx` to silence dead code warnings.
 //!     println!("Actor is running!");
 //! }
 //!
-//! // Unfortunately `actor` doesn't yet implement `NewActor`, it first needs
-//! // to be cast into a function pointer, which does implement `NewActor`.
-//! use_actor(actor as fn(_) -> _);
+//! // Unfortunately `actor` doesn't yet implement `NewActor`.
+//! // use_actor(actor); // This will not compile :(
+//!
+//! // Luckily we can use the `actor_fn` helper function to implement `NewActor`.
+//! use_actor(actor_fn(actor));
 //!
 //! fn use_actor<NA>(new_actor: NA) where NA: NewActor {
 //!     // Do stuff with the actor ...
@@ -68,13 +70,13 @@
 //! The example below shows how to run a synchronous actor.
 //!
 //! ```
-//! use heph::actor::{SyncContext, spawn_sync_actor};
+//! use heph::actor::{actor_fn, spawn_sync_actor, SyncContext};
 //! use heph::supervisor::NoSupervisor;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Same as we saw for the asynchronous actors, we have to cast the function
-//! // to a function pointer for it to implement `SyncActor`.
-//! let actor = actor as fn(_) -> _;
+//! // Same as we saw for the asynchronous actors, we have to use the `actor_fn`
+//! // helper to implement `SyncActor`.
+//! let actor = actor_fn(actor);
 //! let (thread_handle, actor_ref) = spawn_sync_actor(NoSupervisor, actor, (), ())?;
 //!
 //! // We can send it a message like we do with asynchronous actors.
@@ -137,8 +139,9 @@ pub trait NewActor {
     ///
     /// ```
     /// # #![feature(never_type)]
+    /// # use heph::actor::{self, actor_fn};
+    /// # use heph::from_message;
     /// # use heph::supervisor::NoSupervisor;
-    /// # use heph::{actor, from_message};
     /// # use heph_rt::spawn::ActorOptions;
     /// # use heph_rt::{self as rt, Runtime, ThreadLocal};
     /// #
@@ -147,8 +150,7 @@ pub trait NewActor {
     /// #     let mut runtime = Runtime::new()?;
     /// #     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
     /// #         // Spawn the actor.
-    /// #         let new_actor = actor as fn(_) -> _;
-    /// #         let actor_ref = runtime_ref.spawn_local(NoSupervisor, new_actor, (), ActorOptions::default());
+    /// #         let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), (), ActorOptions::default());
     /// #
     /// #         // Now we can use the reference to send the actor a message. We
     /// #         // don't have to use `Message` type we can just use `String`,
@@ -242,7 +244,7 @@ pub trait NewActor {
     /// ```
     /// # #![feature(never_type)]
     /// use std::io;
-    /// use heph::actor::{self, NewActor};
+    /// use heph::actor::{self, actor_fn, NewActor};
     /// # use heph::messages::Terminate;
     /// # use heph::supervisor::SupervisorStrategy;
     /// use heph_rt::net::{tcp, TcpStream};
@@ -266,7 +268,7 @@ pub trait NewActor {
     ///     // We convert our actor that accepts three arguments into an actor
     ///     // that accept two arguments and gets `greet_mars` passed to it as
     ///     // third argument.
-    ///     let new_actor = (conn_actor as fn(_, _, _) -> _)
+    ///     let new_actor = actor_fn(conn_actor)
     ///         .map_arg(move |stream| (stream, greet_mars));
     ///
     ///     // For more information about the remainder of this example see

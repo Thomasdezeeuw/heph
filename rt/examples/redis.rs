@@ -10,7 +10,7 @@ use std::io::{self, Write};
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use heph::actor::{self, Actor, NewActor};
+use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph_rt::net::{tcp, TcpStream};
 use heph_rt::spawn::options::{ActorOptions, Priority};
@@ -41,7 +41,7 @@ fn main() -> Result<(), rt::Error> {
     std_logger::Config::logfmt().init();
 
     let values = Arc::new(RwLock::new(HashMap::new()));
-    let actor = (conn_actor as fn(_, _, _) -> _).map_arg(move |stream| (stream, values.clone()));
+    let actor = actor_fn(conn_actor).map_arg(move |stream| (stream, values.clone()));
     let address = "127.0.0.1:6379".parse().unwrap();
     let server = tcp::server::setup(address, conn_supervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;

@@ -3,7 +3,7 @@
 use std::pin::Pin;
 use std::task::Poll;
 
-use heph::actor::{self, NoMessages, RecvError};
+use heph::actor::{self, actor_fn, NoMessages, RecvError};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::{ActorOptions, Spawn};
 use heph_rt::test::{init_local_actor, poll_actor};
@@ -29,7 +29,7 @@ async fn local_actor_context_actor(mut ctx: actor::Context<usize, ThreadLocal>) 
 
 #[test]
 fn local_actor_context() {
-    let local_actor_context_actor = local_actor_context_actor as fn(_) -> _;
+    let local_actor_context_actor = actor_fn(local_actor_context_actor);
     let (actor, actor_ref) = init_local_actor(local_actor_context_actor, ()).unwrap();
     let mut actor = Box::pin(actor);
 
@@ -57,7 +57,7 @@ async fn actor_ref_actor(mut ctx: actor::Context<usize, ThreadLocal>) {
 
 #[test]
 fn actor_ref() {
-    let actor_ref_actor = actor_ref_actor as fn(_) -> _;
+    let actor_ref_actor = actor_fn(actor_ref_actor);
     let (actor, actor_ref) = init_local_actor(actor_ref_actor, ()).unwrap();
     let mut actor = Box::pin(actor);
 
@@ -69,14 +69,14 @@ async fn thread_safe_try_spawn_actor(mut ctx: actor::Context<usize, ThreadSafe>)
     let actor_ref1 = ctx
         .try_spawn(
             NoSupervisor,
-            spawned_actor1 as fn(_) -> _,
+            actor_fn(spawned_actor1),
             (),
             ActorOptions::default(),
         )
         .unwrap();
     let actor_ref2 = ctx.spawn(
         NoSupervisor,
-        spawned_actor1 as fn(_) -> _,
+        actor_fn(spawned_actor1),
         (),
         ActorOptions::default(),
     );
@@ -92,7 +92,7 @@ async fn spawned_actor1(mut ctx: actor::Context<usize, ThreadSafe>) {
 
 #[test]
 fn thread_safe_try_spawn() {
-    let thread_safe_try_spawn_actor = thread_safe_try_spawn_actor as fn(_) -> _;
+    let thread_safe_try_spawn_actor = actor_fn(thread_safe_try_spawn_actor);
     let mut runtime = Runtime::new().unwrap();
     let _ = runtime.spawn(
         NoSupervisor,

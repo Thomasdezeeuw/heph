@@ -3,7 +3,8 @@
 use std::io;
 use std::time::Duration;
 
-use heph::{actor, ActorRef};
+use heph::actor::{self, actor_fn};
+use heph::ActorRef;
 use heph_rt::io::{Read, Write};
 use heph_rt::pipe::{self, Receiver};
 use heph_rt::spawn::ActorOptions;
@@ -32,8 +33,7 @@ fn smoke() {
         Ok(())
     }
 
-    #[allow(trivial_casts)]
-    let actor = actor as fn(_) -> _;
+    let actor = actor_fn(actor);
     let actor_ref = try_spawn_local(PanicSupervisor, actor, (), ActorOptions::default()).unwrap();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
 }
@@ -72,12 +72,10 @@ fn write_all_read_n() {
         Ok(())
     }
 
-    #[allow(trivial_casts)]
-    let reader = reader as fn(_) -> _;
+    let reader = actor_fn(reader);
     let reader_ref = try_spawn_local(PanicSupervisor, reader, (), ActorOptions::default()).unwrap();
 
-    #[allow(trivial_casts)]
-    let writer = writer as fn(_, _) -> _;
+    let writer = actor_fn(writer);
     let writer_ref = try_spawn_local(
         PanicSupervisor,
         writer,
@@ -129,12 +127,10 @@ fn write_vectored_all_read_n_vectored() {
         Ok(())
     }
 
-    #[allow(trivial_casts)]
-    let reader = reader as fn(_) -> _;
+    let reader = actor_fn(reader);
     let reader_ref = try_spawn_local(PanicSupervisor, reader, (), ActorOptions::default()).unwrap();
 
-    #[allow(trivial_casts)]
-    let writer = writer as fn(_, _) -> _;
+    let writer = actor_fn(writer);
     let writer_ref = try_spawn_local(
         PanicSupervisor,
         writer,
@@ -171,8 +167,7 @@ fn vectored_io() {
         Ok(())
     }
 
-    #[allow(trivial_casts)]
-    let actor = actor as fn(_) -> _;
+    let actor = actor_fn(actor);
     let actor_ref = try_spawn_local(PanicSupervisor, actor, (), ActorOptions::default()).unwrap();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
 }

@@ -63,16 +63,14 @@
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {
+//! #    use heph::actor::actor_fn;
 //! #    use heph::supervisor::NoSupervisor;
 //! #    use heph_rt::Runtime;
 //! #    use heph_rt::spawn::ActorOptions;
 //! #    let mut runtime = Runtime::new()?;
 //! #    runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-//! #        let counter = counter as fn(_) -> _;
-//! #        let actor_ref = runtime_ref.spawn_local(NoSupervisor, counter, (), ActorOptions::default());
-//! #
-//! #        let requester = requester as fn(_, _) -> _;
-//! #        runtime_ref.spawn_local(NoSupervisor, requester, actor_ref, ActorOptions::default());
+//! #        let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor_fn(counter), (), ActorOptions::default());
+//! #        runtime_ref.spawn_local(NoSupervisor, actor_fn(requester), actor_ref, ActorOptions::default());
 //! #        Ok(())
 //! #    })?;
 //! #    runtime.start()
@@ -139,17 +137,16 @@
 //! }
 //!
 //! # fn main() -> Result<(), rt::Error> {
+//! #    use heph::actor::actor_fn;
 //! #    use heph::supervisor::NoSupervisor;
 //! #    use heph_rt::Runtime;
 //! #    use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 //! #
 //! #    let mut runtime = Runtime::new()?;
-//! #    let counter = counter as fn(_) -> _;
 //! #    let options = SyncActorOptions::default();
-//! #    let actor_ref = runtime.spawn_sync_actor(NoSupervisor, counter, (), options)?;
+//! #    let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor_fn(counter), (), options)?;
 //! #    runtime.run_on_workers(move |mut runtime_ref| -> Result<(), !> {
-//! #        let requester = requester as fn(_, _) -> _;
-//! #        runtime_ref.spawn_local(NoSupervisor, requester, actor_ref, ActorOptions::default());
+//! #        runtime_ref.spawn_local(NoSupervisor, actor_fn(requester), actor_ref, ActorOptions::default());
 //! #        Ok(())
 //! #    })?;
 //! #    runtime.start()
