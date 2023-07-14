@@ -46,7 +46,7 @@ impl RuntimeSetup {
     pub(crate) fn complete(
         self,
         wakers: Wakers,
-        worker_sqs: Box<[&'static a10::SubmissionQueue]>,
+        worker_sqs: Box<[a10::SubmissionQueue]>,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> RuntimeInternals {
         // Needed by `RuntimeInternals::wake_workers`.
@@ -70,7 +70,7 @@ impl RuntimeSetup {
 #[derive(Debug)]
 pub(crate) struct RuntimeInternals {
     /// Submission queues for the workers, used to wake them.
-    worker_sqs: Box<[&'static a10::SubmissionQueue]>,
+    worker_sqs: Box<[a10::SubmissionQueue]>,
     /// Index into `worker_sqs` to wake next, see
     /// [`RuntimeInternals::wake_workers`].
     wake_worker_idx: AtomicUsize,

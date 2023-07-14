@@ -81,12 +81,14 @@ use crate::{
 #[cfg(feature = "test")]
 pub use heph::test::*;
 
-pub(crate) fn noop_waker() -> &'static a10::SubmissionQueue {
+pub(crate) fn noop_waker() -> a10::SubmissionQueue {
     static NOOP_WAKER: OnceLock<a10::SubmissionQueue> = OnceLock::new();
-    NOOP_WAKER.get_or_init(|| {
-        let ring = a10::Ring::new(1).expect("failed to create `a10::Ring` for test module");
-        ring.submission_queue().clone()
-    })
+    NOOP_WAKER
+        .get_or_init(|| {
+            let ring = a10::Ring::new(1).expect("failed to create `a10::Ring` for test module");
+            ring.submission_queue().clone()
+        })
+        .clone()
 }
 
 pub(crate) fn shared_internals() -> Arc<shared::RuntimeInternals> {
