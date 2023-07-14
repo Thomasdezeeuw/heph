@@ -34,7 +34,6 @@ use crate::local::waker::{self, WakerId};
 use crate::local::RuntimeInternals;
 use crate::process::ProcessId;
 use crate::setup::set_cpu_affinity;
-use crate::thread_waker::ThreadWaker;
 use crate::{self as rt, cpu_usage, shared, trace, RuntimeRef, Signal};
 
 /// Number of processes to run in between calls to poll.
@@ -62,15 +61,14 @@ const SHARED_RING: Token = Token(usize::MAX - 4);
 pub(crate) fn setup(
     id: NonZeroUsize,
     coordinator_sq: &a10::SubmissionQueue,
-) -> io::Result<(WorkerSetup, &'static ThreadWaker)> {
+) -> io::Result<(WorkerSetup, &'static a10::SubmissionQueue)> {
     let poll = Poll::new()?;
     let ring = a10::Ring::config(64).attach_queue(coordinator_sq).build()?;
 
     // Setup the waking mechanism.
     let (waker_sender, waker_events) = crossbeam_channel::unbounded();
-    let waker = mio::Waker::new(poll.registry(), WAKER)?;
-    let waker_id = waker::init(waker, waker_sender);
-    let thread_waker = waker::get_thread_waker(waker_id);
+    let waker_id = waker::init(ring.submission_queue().clone(), waker_sender);
+    let sq = waker::get_sq(waker_id);
 
     let setup = WorkerSetup {
         id,
@@ -79,7 +77,7 @@ pub(crate) fn setup(
         waker_id,
         waker_events,
     };
-    Ok((setup, thread_waker))
+    Ok((setup, sq))
 }
 
 /// Setup work required before starting a worker thread, see [`setup`].
@@ -290,8 +288,7 @@ impl Worker {
         // TODO: this channel will grow unbounded as the waker implementation
         // sends pids into it.
         let (waker_sender, waker_events) = crossbeam_channel::unbounded();
-        let waker = mio::Waker::new(poll.registry(), WAKER)?;
-        let waker_id = waker::init(waker, waker_sender);
+        let waker_id = waker::init(ring.submission_queue().clone(), waker_sender);
 
         // Register the shared poll intance.
         let ring_fd = ring.as_fd().as_raw_fd();
@@ -655,34 +652,7 @@ impl Worker {
     /// Returns a boolean indicating if the shared timers should be checked.
     fn poll_os(&mut self) -> io::Result<()> {
         let timing = trace::start(&*self.internals.trace_log.borrow());
-        let mut timeout = self.determine_timeout();
-
-        // Only mark ourselves as polling if the timeout is non zero.
-        let marked_polling = if timeout.map_or(true, |t| !t.is_zero()) {
-            waker::mark_polling(self.internals.waker_id, true);
-            // We need to check the timeout here to ensure we didn't miss any
-            // wake-ups/timers since we determined the timeout and marked
-            // ourselves as polling above.
-            //
-            // It could be that between the two calls (`determine_timeout` and
-            // `mark_polling`) we received e.g. a wake-up event but didn't
-            // consider it in `determine_timeout`. But because we didn't mark
-            // ourselves as polling yet we also won't be awoken from polling,
-            // causing us to poll for ever, missing the wake-up. That would look
-            // something like the following:
-            //
-            // Thread 0                    | Thread 1
-            // 1. determine_timeout = None |
-            //                             | 2. task::Waker: wake-up pid=1.
-            //                             | 3. ThreadWaker: not polling -> no wakeup.
-            // 4. mark_polling(true)       |
-            // 5. poll(None)               |
-            // 6. Waiting for ever...      |
-            timeout = self.check_timeout(timeout);
-            true
-        } else {
-            false
-        };
+        let timeout = self.determine_timeout();
 
         trace!(worker_id = self.internals.id.get(), timeout = as_debug!(timeout); "polling OS events");
         let res = self
@@ -690,10 +660,6 @@ impl Worker {
             .poll
             .borrow_mut()
             .poll(&mut self.events, timeout);
-
-        if marked_polling {
-            waker::mark_polling(self.internals.waker_id, false);
-        }
 
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
@@ -730,18 +696,6 @@ impl Worker {
             },
             // If there are no local timers check the shared timers.
             None => self.internals.shared.next_timeout(now, None),
-        }
-    }
-
-    /// Check if `timeout` is still correct in regard to shared event resources,
-    /// i.e. wake-ups, shared scheduler and timers.
-    fn check_timeout(&self, timeout: Option<Duration>) -> Option<Duration> {
-        // NOTE: we don't have to check local resources as those can't be
-        // changed from outside this thread.
-        if !self.waker_events.is_empty() || self.internals.shared.has_ready_process() {
-            Some(Duration::ZERO)
-        } else {
-            self.internals.shared.next_timeout(Instant::now(), timeout)
         }
     }
 

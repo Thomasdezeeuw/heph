@@ -237,7 +237,6 @@ mod sync_worker;
 pub mod systemd;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
-mod thread_waker;
 pub mod timer;
 mod timers;
 pub mod trace;
