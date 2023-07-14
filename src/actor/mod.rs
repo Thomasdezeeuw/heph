@@ -382,19 +382,58 @@ where
     }
 }
 
-/// A [`NewActor`] or [`SyncActor`] implementation backed by a function.
+/// A [`NewActor`] or [`SyncActor`] implementation wrapping a function.
+///
+/// # Why use this?
 ///
 /// This type is a workaround for not being able to implement the `NewActor`
 /// trait directly for types `T` where `T: Fn(Context<M, RT>, Args) -> A`, as it
 /// triggers rustc error `E0207` ("unconstrained type parameters").
-pub const fn actor_fn<F, M, RT, Arg, A>(f: F) -> ActorFn<F, M, RT, Arg, A> {
+///
+/// This is caused by the fact that `T` could implement the `Fn` trait multiple
+/// times, but the `NewActor` trait can (and should) only be implemented once.
+///
+/// # Examples
+///
+/// ```
+/// use heph::actor::{self, actor_fn, ActorFuture, NewActor};
+/// use heph::supervisor::{Supervisor, NoSupervisor};
+///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// let new_actor = actor_fn(my_actor); // Now it implements `NewActor`.
+/// let (future, actor_ref) = ActorFuture::new(NoSupervisor, new_actor, (), ())?;
+/// # _ = actor_ref;
+/// print_actor_name(&future);
+/// # Ok(())
+/// # }
+///
+/// fn print_actor_name<S, NA>(_: &ActorFuture<S, NA>)
+/// where
+///       S: Supervisor<NA>,
+///       NA: NewActor<RuntimeAccess = ()>,
+/// {
+///     let actor_name = ActorFuture::<S, NA>::name();
+///     println!("actor's name is: {actor_name}");
+/// #   assert_eq!(actor_name, "my_actor");
+/// }
+///
+/// async fn my_actor(mut ctx: actor::Context<String>) {
+///     if let Ok(msg) = ctx.receive_next().await {
+///         println!("got a message: {msg}");
+///     }
+/// }
+/// ```
+pub const fn actor_fn<T, M, RT, Arg, A>(implementation: T) -> ActorFn<T, M, RT, Arg, A> {
     ActorFn {
-        inner: f,
+        inner: implementation,
         _phantom: PhantomData,
     }
 }
 
 /// Implementation behind [`actor_fn`].
+///
+/// This implement both the [`NewActor`] and [`SyncActor`] traits, dependening
+/// of what kind of function type `F` is.
 #[allow(clippy::type_complexity)]
 pub struct ActorFn<F, M, RT, Args, A> {
     /// The actual implementation.
