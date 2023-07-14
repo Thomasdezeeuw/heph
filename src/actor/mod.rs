@@ -382,7 +382,7 @@ where
     }
 }
 
-/// A [`NewActor`] implementation backed by a function.
+/// A [`NewActor`] or [`SyncActor`] implementation backed by a function.
 ///
 /// This type is a workaround for not being able to implement the `NewActor`
 /// trait directly for types `T` where `T: Fn(Context<M, RT>, Args) -> A`, as it
