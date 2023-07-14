@@ -12,7 +12,7 @@ use heph_inbox::{self as inbox, ReceiverConnected};
 use log::trace;
 
 use crate::actor::private::ActorResult;
-use crate::actor::{NoMessages, RecvError};
+use crate::actor::{ActorFn, NoMessages, RecvError};
 use crate::actor_ref::ActorRef;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 
@@ -104,6 +104,23 @@ macro_rules! impl_sync_actor {
                     (self)(ctx, $( $arg ),*).into()
                 }
             }
+
+            impl<F, M, RT, $( $arg, )* R> SyncActor for ActorFn<F, M, RT, ($( $arg, )*), R>
+            where
+                F: Fn(SyncContext<M, RT>, $( $arg ),*) -> R,
+                R: ActorResult,
+            {
+                type Message = M;
+                type Argument = ($( $arg ),*);
+                type Error = R::Error;
+                type RuntimeAccess = RT;
+
+                #[allow(non_snake_case)]
+                fn run(&self, ctx: SyncContext<Self::Message, Self::RuntimeAccess>, arg: Self::Argument) -> Result<(), Self::Error> {
+                    let ($( $arg ),*) = arg;
+                    (self.inner)(ctx, $( $arg ),*).into()
+                }
+            }
         )*
     };
 }
@@ -125,6 +142,26 @@ where
         arg: Self::Argument,
     ) -> Result<(), Self::Error> {
         (self)(ctx, arg).into()
+    }
+}
+
+impl<F, M, RT, Arg, R> SyncActor for ActorFn<F, M, RT, (Arg,), R>
+where
+    F: Fn(SyncContext<M, RT>, Arg) -> R,
+    R: ActorResult,
+{
+    type Message = M;
+    type Argument = Arg;
+    type Error = R::Error;
+    type RuntimeAccess = RT;
+
+    #[allow(non_snake_case)]
+    fn run(
+        &self,
+        ctx: SyncContext<Self::Message, Self::RuntimeAccess>,
+        arg: Self::Argument,
+    ) -> Result<(), Self::Error> {
+        ((self.inner)(ctx, arg)).into()
     }
 }
 
