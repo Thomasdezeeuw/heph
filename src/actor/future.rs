@@ -19,7 +19,7 @@ use crate::supervisor::{Supervisor, SupervisorStrategy};
 /// This can be used to wrap actors into a `Future`, it automatically handles
 /// errors and panics using the provided supervisor. This can run on any runtime
 /// that can runs `Future`s.
-pub struct ActorFuture<S, NA: NewActor, RT> {
+pub struct ActorFuture<S, NA: NewActor, RT = ()> {
     /// The actor's supervisor used to determine what to do when the actor, or
     /// the [`NewActor`] implementation, returns an error.
     supervisor: S,
