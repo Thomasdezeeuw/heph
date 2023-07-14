@@ -32,7 +32,6 @@ use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
 use crate::setup::{host_id, host_info, Uuid};
-use crate::thread_waker::ThreadWaker;
 use crate::wakers::shared::Wakers;
 use crate::wakers::{self, AtomicBitMap};
 use crate::{
@@ -83,7 +82,7 @@ impl Coordinator {
     pub(crate) fn init(
         ring: a10::Ring,
         app_name: Box<str>,
-        worker_wakers: Box<[&'static ThreadWaker]>,
+        worker_sqs: Box<[&'static a10::SubmissionQueue]>,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> io::Result<Coordinator> {
         let poll = Poll::new()?;
@@ -94,7 +93,7 @@ impl Coordinator {
         let setup = shared::RuntimeInternals::setup(ring.submission_queue())?;
         let internals = Arc::new_cyclic(|shared_internals| {
             let wakers = Wakers::new(shared_internals.clone());
-            setup.complete(wakers, worker_wakers, trace_log)
+            setup.complete(wakers, worker_sqs, trace_log)
         });
 
         let (host_os, host_name) = host_info()?;

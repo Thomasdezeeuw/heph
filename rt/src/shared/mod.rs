@@ -12,7 +12,7 @@ use std::{io, task};
 use heph::actor::{ActorFuture, NewActor};
 use heph::actor_ref::ActorRef;
 use heph::supervisor::Supervisor;
-use log::{as_debug, debug, error, trace};
+use log::{as_debug, debug, trace};
 use mio::unix::SourceFd;
 use mio::{Events, Interest, Poll, Registry, Token};
 
@@ -21,7 +21,6 @@ use crate::scheduler::shared::{ProcessData, Scheduler};
 #[cfg(test)]
 use crate::spawn::options::Priority;
 use crate::spawn::{ActorOptions, FutureOptions};
-use crate::thread_waker::ThreadWaker;
 use crate::timers::shared::Timers;
 use crate::timers::TimerToken;
 use crate::wakers::shared::Wakers;
@@ -47,14 +46,14 @@ impl RuntimeSetup {
     pub(crate) fn complete(
         self,
         wakers: Wakers,
-        worker_wakers: Box<[&'static ThreadWaker]>,
+        worker_sqs: Box<[&'static a10::SubmissionQueue]>,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> RuntimeInternals {
         // Needed by `RuntimeInternals::wake_workers`.
-        debug_assert!(worker_wakers.len() >= 1);
+        debug_assert!(worker_sqs.len() >= 1);
         let sq = self.ring.submission_queue().clone();
         RuntimeInternals {
-            worker_wakers,
+            worker_sqs,
             wake_worker_idx: AtomicUsize::new(0),
             poll: Mutex::new(self.poll),
             ring: Mutex::new(self.ring),
@@ -70,9 +69,9 @@ impl RuntimeSetup {
 /// Shared internals of the runtime.
 #[derive(Debug)]
 pub(crate) struct RuntimeInternals {
-    /// Thread wakers for all the workers.
-    worker_wakers: Box<[&'static ThreadWaker]>,
-    /// Index into `worker_wakers` to wake next, see
+    /// Submission queues for the workers, used to wake them.
+    worker_sqs: Box<[&'static a10::SubmissionQueue]>,
+    /// Index into `worker_sqs` to wake next, see
     /// [`RuntimeInternals::wake_workers`].
     wake_worker_idx: AtomicUsize,
     /// Poll instance for all shared event sources. This is polled by the worker
@@ -281,32 +280,22 @@ impl RuntimeInternals {
         //
         // [1]: https://en.wikipedia.org/wiki/Thundering_herd_problem
         // [2]: https://en.wikipedia.org/wiki/Round-robin_scheduling
-        let n = min(n, self.worker_wakers.len());
+        let n = min(n, self.worker_sqs.len());
         // SAFETY: needs to sync with itself.
         let wake_worker_idx =
-            self.wake_worker_idx.fetch_add(n, Ordering::AcqRel) % self.worker_wakers.len();
-        let (wake_second, wake_first) = self.worker_wakers.split_at(wake_worker_idx);
+            self.wake_worker_idx.fetch_add(n, Ordering::AcqRel) % self.worker_sqs.len();
+        let (wake_second, wake_first) = self.worker_sqs.split_at(wake_worker_idx);
         let workers_to_wake = wake_first.iter().chain(wake_second.iter());
-        let mut wakes_left = n;
         for worker in workers_to_wake {
-            match worker.wake() {
-                Ok(true) => {
-                    wakes_left -= 1;
-                    if wakes_left == 0 {
-                        break;
-                    }
-                }
-                Ok(false) => {}
-                Err(err) => error!("error waking worker: {err}"),
-            }
+            worker.wake();
         }
     }
 
     /// Wake all worker threads, ignoring errors.
     pub(crate) fn wake_all_workers(&self) {
         trace!("waking all worker thread(s)");
-        for worker in &*self.worker_wakers {
-            drop(worker.wake());
+        for worker in &*self.worker_sqs {
+            worker.wake()
         }
     }
 

@@ -70,7 +70,6 @@ use heph_inbox::oneshot::{self, new_oneshot};
 
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::sync_worker::SyncWorker;
-use crate::thread_waker::ThreadWaker;
 use crate::wakers::shared::Wakers;
 use crate::worker::{Control, Worker};
 use crate::{
@@ -82,13 +81,11 @@ use crate::{
 #[cfg(feature = "test")]
 pub use heph::test::*;
 
-pub(crate) fn noop_waker() -> &'static ThreadWaker {
-    static NOOP_WAKER: OnceLock<ThreadWaker> = OnceLock::new();
+pub(crate) fn noop_waker() -> &'static a10::SubmissionQueue {
+    static NOOP_WAKER: OnceLock<a10::SubmissionQueue> = OnceLock::new();
     NOOP_WAKER.get_or_init(|| {
-        let poll = mio::Poll::new().expect("failed to create `Poll` instance for test module");
-        let waker = mio::Waker::new(poll.registry(), mio::Token(0))
-            .expect("failed to create `Waker` instance for test module");
-        ThreadWaker::new(waker)
+        let ring = a10::Ring::new(1).expect("failed to create `a10::Ring` for test module");
+        ring.submission_queue().clone()
     })
 }
 
