@@ -24,16 +24,19 @@ use std::time::{Duration, Instant};
 use std::{fmt, io, task, thread};
 
 use crossbeam_channel::{self, Receiver};
+use heph::actor::{self, actor_fn};
+use heph::supervisor::NoSupervisor;
 use log::{as_debug, debug, trace};
 use mio::unix::SourceFd;
-use mio::{Events, Interest, Poll, Registry, Token};
+use mio::{Events, Interest, Poll, Token};
 
 use crate::error::StringError;
 use crate::local::waker::{self, WakerId};
 use crate::local::RuntimeInternals;
 use crate::process::ProcessId;
 use crate::setup::set_cpu_affinity;
-use crate::{self as rt, shared, trace, RuntimeRef, Signal};
+use crate::spawn::options::ActorOptions;
+use crate::{self as rt, shared, trace, RuntimeRef, Signal, ThreadLocal};
 
 /// Number of processes to run in between calls to poll.
 ///
@@ -44,8 +47,6 @@ const RUN_POLL_RATIO: usize = 32;
 
 /// Token used to indicate user space events have happened.
 pub(crate) const WAKER: Token = Token(usize::MAX);
-/// Token used to indicate a message was received on the communication channel.
-const COMMS: Token = Token(usize::MAX - 1);
 /// Token used to indicate the shared [`Poll`] (in [`shared::RuntimeInternals`])
 /// has events.
 const SHARED_POLL: Token = Token(usize::MAX - 2);
@@ -61,8 +62,20 @@ pub(crate) fn setup(
     id: NonZeroUsize,
     coordinator_sq: &a10::SubmissionQueue,
 ) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let poll = Poll::new()?;
     let ring = a10::Ring::config(64).attach_queue(coordinator_sq).build()?;
+    setup2(id, ring)
+}
+
+/// Test version of [`setup`].
+#[cfg(any(test, feature = "test"))]
+pub(crate) fn setup_test() -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
+    let ring = a10::Ring::config(64).build()?;
+    setup2(NonZeroUsize::MAX, ring)
+}
+
+/// Second part of the [`setup`].
+fn setup2(id: NonZeroUsize, ring: a10::Ring) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
+    let poll = Poll::new()?;
     let sq = ring.submission_queue().clone();
 
     // Setup the waking mechanism.
@@ -102,10 +115,27 @@ impl WorkerSetup {
         auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
     ) -> io::Result<Handle> {
-        rt::channel::new().and_then(move |(sender, receiver)| {
+        let id = self.id;
+        self.start_named(
+            shared_internals,
+            auto_cpu_affinity,
+            trace_log,
+            format!("Worker {id}"),
+        )
+    }
+
+    pub(crate) fn start_named(
+        self,
+        shared_internals: Arc<shared::RuntimeInternals>,
+        auto_cpu_affinity: bool,
+        trace_log: Option<trace::Log>,
+        thread_name: String,
+    ) -> io::Result<Handle> {
+        let sq = self.ring.submission_queue().clone();
+        rt::channel::new(sq).and_then(move |(sender, receiver)| {
             let id = self.id;
             thread::Builder::new()
-                .name(format!("Worker {id}"))
+                .name(thread_name)
                 .spawn(move || {
                     let worker = Worker::setup(
                         self,
@@ -148,27 +178,22 @@ impl Handle {
         self.id.get()
     }
 
-    /// Registers the channel used to communicate with the thread.
-    pub(crate) fn register(&mut self, registry: &Registry) -> io::Result<()> {
-        self.channel.register(registry, Token(self.id()))
-    }
-
     /// Send the worker thread a signal that the runtime has started.
-    pub(crate) fn send_runtime_started(&mut self) -> io::Result<()> {
-        self.channel.try_send(Control::Started)
+    pub(crate) fn send_runtime_started(&self) -> io::Result<()> {
+        self.channel.send(Control::Started)
     }
 
     /// Send the worker thread a `signal`.
-    pub(crate) fn send_signal(&mut self, signal: Signal) -> io::Result<()> {
-        self.channel.try_send(Control::Signal(signal))
+    pub(crate) fn send_signal(&self, signal: Signal) -> io::Result<()> {
+        self.channel.send(Control::Signal(signal))
     }
 
     /// Send the worker thread the function `f` to run.
     pub(crate) fn send_function(
-        &mut self,
+        &self,
         f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>,
     ) -> io::Result<()> {
-        self.channel.try_send(Control::Run(f))
+        self.channel.send(Control::Run(f))
     }
 
     /// See [`thread::JoinHandle::join`].
@@ -187,19 +212,18 @@ pub(crate) struct Worker {
     /// Receiving side of the channel for waker events, see the
     /// [`rt::local::waker`] module for the implementation.
     waker_events: Receiver<ProcessId>,
-    /// Communication channel exchange control messages.
-    channel: rt::channel::Receiver<Control>,
 }
 
 impl Worker {
     /// Setup the worker. Must be called on the worker thread.
-    fn setup(
+    pub(crate) fn setup(
         setup: WorkerSetup,
-        mut receiver: rt::channel::Receiver<Control>,
+        receiver: rt::channel::Receiver<Control>,
         shared_internals: Arc<shared::RuntimeInternals>,
         auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
     ) -> Result<Worker, Error> {
+        let worker_id = setup.id.get();
         let timing = trace::start(&trace_log);
 
         let cpu = if auto_cpu_affinity {
@@ -210,13 +234,13 @@ impl Worker {
 
         // Register the shared poll intance.
         let poll = setup.poll;
-        trace!(worker_id = setup.id.get(); "registering io_uring completion ring");
+        trace!(worker_id = worker_id; "registering io_uring completion ring");
         let ring = setup.ring;
         let ring_fd = ring.as_fd().as_raw_fd();
         poll.registry()
             .register(&mut SourceFd(&ring_fd), RING, Interest::READABLE)
             .map_err(Error::Init)?;
-        trace!(worker_id = setup.id.get(); "registering shared io_uring completion ring");
+        trace!(worker_id = worker_id; "registering shared io_uring completion ring");
         let shared_ring_fd = shared_internals.ring_fd();
         poll.registry()
             .register(
@@ -225,17 +249,11 @@ impl Worker {
                 Interest::READABLE,
             )
             .map_err(Error::Init)?;
-        trace!(worker_id = setup.id.get(); "registering shared poll");
+        trace!(worker_id = worker_id; "registering shared poll");
         shared_internals
             .register_worker_poll(poll.registry(), SHARED_POLL)
             .map_err(Error::Init)?;
-        // Register the channel to the coordinator.
-        trace!(worker_id = setup.id.get(); "registering communication channel");
-        receiver
-            .register(poll.registry(), COMMS)
-            .map_err(Error::Init)?;
 
-        // Finally create all the runtime internals.
         let internals = RuntimeInternals::new(
             setup.id,
             shared_internals,
@@ -249,8 +267,16 @@ impl Worker {
             internals: Rc::new(internals),
             events: Events::with_capacity(128),
             waker_events: setup.waker_events,
-            channel: receiver,
         };
+
+        trace!(worker_id = worker_id; "spawning system actors");
+        let mut runtime_ref = worker.create_ref();
+        let _ = runtime_ref.spawn_local(
+            NoSupervisor,
+            actor_fn(comm_actor),
+            receiver,
+            ActorOptions::SYSTEM,
+        );
 
         trace::finish_rt(
             worker.trace_log().as_mut(),
@@ -259,49 +285,6 @@ impl Worker {
             &[],
         );
         Ok(worker)
-    }
-
-    /// Create a new local `Runtime` for testing.
-    ///
-    /// Used in the [`crate::test`] module.
-    #[cfg(any(test, feature = "test"))]
-    pub(crate) fn new_test(
-        shared_internals: Arc<shared::RuntimeInternals>,
-        mut receiver: rt::channel::Receiver<Control>,
-    ) -> io::Result<Worker> {
-        let poll = Poll::new()?;
-        let ring = a10::Ring::config(64)
-            .attach_queue(shared_internals.submission_queue())
-            .build()?;
-
-        // TODO: this channel will grow unbounded as the waker implementation
-        // sends pids into it.
-        let (waker_sender, waker_events) = crossbeam_channel::unbounded();
-        let waker_id = waker::init(ring.submission_queue().clone(), waker_sender);
-
-        // Register the shared poll intance.
-        let ring_fd = ring.as_fd().as_raw_fd();
-        poll.registry()
-            .register(&mut SourceFd(&ring_fd), RING, Interest::READABLE)?;
-        let shared_ring_fd = shared_internals.ring_fd();
-        poll.registry().register(
-            &mut SourceFd(&shared_ring_fd),
-            SHARED_RING,
-            Interest::READABLE,
-        )?;
-        shared_internals.register_worker_poll(poll.registry(), SHARED_POLL)?;
-        // Register the channel to the coordinator.
-        receiver.register(poll.registry(), COMMS)?;
-
-        let id = NonZeroUsize::new(usize::MAX).unwrap();
-        let internals =
-            RuntimeInternals::new(id, shared_internals, waker_id, poll, ring, None, None);
-        Ok(Worker {
-            internals: Rc::new(internals),
-            events: Events::with_capacity(16),
-            waker_events,
-            channel: receiver,
-        })
     }
 
     /// Run the worker.
@@ -459,7 +442,6 @@ impl Worker {
         // Based on the OS event scheduler thread-local processes.
         let timing = trace::start(&*self.internals.trace_log.borrow());
         let mut scheduler = self.internals.scheduler.borrow_mut();
-        let mut check_comms = false;
         let mut check_shared_poll = false;
         let mut check_ring = false;
         let mut check_shared_ring = false;
@@ -468,7 +450,6 @@ impl Worker {
             trace!(worker_id = self.internals.id.get(); "got OS event: {event:?}");
             match event.token() {
                 WAKER => { /* Need to wake up to handle user space events. */ }
-                COMMS => check_comms = true,
                 SHARED_POLL => check_shared_poll = true,
                 RING => check_ring = true,
                 SHARED_RING => check_shared_ring = true,
@@ -526,11 +507,6 @@ impl Worker {
             &[],
         );
 
-        if check_comms {
-            // Don't need this anymore.
-            drop(scheduler);
-            self.check_comms()?;
-        }
         Ok((amount, check_shared_poll))
     }
 
@@ -690,31 +666,6 @@ impl Worker {
         }
     }
 
-    /// Process messages from the communication channel.
-    fn check_comms(&mut self) -> Result<(), Error> {
-        trace!(worker_id = self.internals.id.get(); "processing coordinator messages");
-        let timing = trace::start(&*self.internals.trace_log.borrow());
-        while let Some(msg) = self.channel.try_recv().map_err(Error::RecvMsg)? {
-            match msg {
-                Control::Started => self.internals.start(),
-                Control::Signal(signal) => self.internals.relay_signal(signal),
-                Control::Run(f) => self.run_user_function(f),
-            }
-        }
-        trace::finish_rt(
-            self.internals.trace_log.borrow_mut().as_mut(),
-            timing,
-            "Processing communication message(s)",
-            &[],
-        );
-        Ok(())
-    }
-
-    /// Run user function `f`.
-    fn run_user_function(&mut self, f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>) {
-        self.internals.run_user_function(f)
-    }
-
     /// Create a new reference to this runtime.
     pub(crate) fn create_ref(&self) -> RuntimeRef {
         RuntimeRef {
@@ -735,8 +686,6 @@ pub(crate) enum Error {
     Init(io::Error),
     /// Error polling for OS events.
     Polling(io::Error),
-    /// Error receiving message from communication channel.
-    RecvMsg(io::Error),
     /// Process was interrupted (i.e. received process signal), but no actor can
     /// receive the signal.
     ProcessInterrupted,
@@ -749,7 +698,6 @@ impl fmt::Display for Error {
         match self {
             Error::Init(err) => write!(f, "error initialising local runtime: {err}"),
             Error::Polling(err) => write!(f, "error polling OS: {err}"),
-            Error::RecvMsg(err) => write!(f, "error receiving message(s): {err}"),
             Error::ProcessInterrupted => write!(
                 f,
                 "received process signal, but no receivers for it: stopping runtime"
@@ -762,7 +710,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Error::Init(ref err) | Error::Polling(ref err) | Error::RecvMsg(ref err) => Some(err),
+            Error::Init(ref err) | Error::Polling(ref err) => Some(err),
             Error::ProcessInterrupted => None,
             Error::UserFunction(ref err) => Some(err),
         }
@@ -787,5 +735,30 @@ impl fmt::Debug for Control {
             Control::Signal(signal) => f.debug_tuple("Control::Signal").field(&signal).finish(),
             Control::Run(..) => f.write_str("Control::Run(..)"),
         }
+    }
+}
+
+/// System actor that communicates with the coordinator.
+///
+/// It receives the coordinator's messages and processes them.
+async fn comm_actor(
+    ctx: actor::Context<!, ThreadLocal>,
+    mut receiver: rt::channel::Receiver<Control>,
+) {
+    while let Some(msg) = receiver.recv().await {
+        let internals = &ctx.runtime_ref().internals;
+        trace!(worker_id = internals.id.get(), message = as_debug!(msg); "processing coordinator message");
+        let timing = trace::start(&*internals.trace_log.borrow());
+        match msg {
+            Control::Started => internals.start(),
+            Control::Signal(signal) => internals.relay_signal(signal),
+            Control::Run(f) => internals.run_user_function(f),
+        }
+        trace::finish_rt(
+            internals.trace_log.borrow_mut().as_mut(),
+            timing,
+            "Processing communication message(s)",
+            &[],
+        );
     }
 }
