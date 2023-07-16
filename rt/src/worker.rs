@@ -344,6 +344,9 @@ impl Worker {
             }
 
             self.schedule_processes()?;
+            if let Some(err) = self.internals.take_err() {
+                return Err(err);
+            }
         }
     }
 
