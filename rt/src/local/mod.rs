@@ -7,12 +7,12 @@ use std::sync::Arc;
 use heph::actor_ref::ActorGroup;
 use mio::Poll;
 
-use crate::{shared, trace, Signal};
+use crate::scheduler::Scheduler;
+use crate::timers::Timers;
+use crate::{shared, trace, worker, Signal};
 
 pub(crate) mod waker;
 
-use crate::scheduler::Scheduler;
-use crate::timers::Timers;
 use waker::WakerId;
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
@@ -38,6 +38,8 @@ pub(crate) struct RuntimeInternals {
     pub(crate) cpu: Option<usize>,
     /// Log used for tracing, `None` is tracing is disabled.
     pub(crate) trace_log: RefCell<Option<trace::Log>>,
+    /// Fatal error hit in one of the system actors that should stop the worker.
+    error: RefCell<Option<worker::Error>>,
 }
 
 impl RuntimeInternals {
@@ -62,6 +64,21 @@ impl RuntimeInternals {
             signal_receivers: RefCell::new(ActorGroup::empty()),
             cpu,
             trace_log: RefCell::new(trace_log),
+            error: RefCell::new(None),
         }
+    }
+
+    /// Set a fatal worker error.
+    pub(crate) fn set_err(&self, err: worker::Error) {
+        let mut got_err = self.error.borrow_mut();
+        // We always keep the first error.
+        if got_err.is_none() {
+            *got_err = Some(err)
+        }
+    }
+
+    /// Take a fatal worker error, if set.
+    pub(crate) fn take_err(&self) -> Option<worker::Error> {
+        self.error.borrow_mut().take()
     }
 }
