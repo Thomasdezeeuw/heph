@@ -71,9 +71,9 @@ use heph_inbox::oneshot::{self, new_oneshot};
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::sync_worker::SyncWorker;
 use crate::wakers::shared::Wakers;
-use crate::worker::{Control, Worker};
+use crate::worker::Worker;
 use crate::{
-    self as rt, panic_message, shared, RuntimeRef, Sync, ThreadLocal, ThreadSafe,
+    self as rt, panic_message, shared, worker, RuntimeRef, Sync, ThreadLocal, ThreadSafe,
     SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
 };
 
@@ -116,9 +116,9 @@ pub(crate) fn runtime() -> RuntimeRef {
     thread_local! {
         /// Per thread runtime.
         static TEST_RT: Worker = {
-            let (_, receiver) = rt::channel::new()
-                .expect("failed to create runtime channel for test module");
-            Worker::new_test(shared_internals(), receiver)
+            let (setup, sq) = worker::setup_test().expect("failed to setup test runtime");
+            let (_, receiver) = rt::channel::new(sq).expect("failed to test runtime channel");
+            Worker::setup(setup, receiver, shared_internals(), false, None)
                 .expect("failed to create local `Runtime` for test module")
         };
     }
@@ -126,28 +126,20 @@ pub(crate) fn runtime() -> RuntimeRef {
     TEST_RT.with(Worker::create_ref)
 }
 
-/// Sending side of a runtime channel to control the test runtime.
-type RtControl = rt::channel::Sender<Control>;
-
 /// Lazily start the *test* runtime on a new thread, returning the control
 /// channel.
-fn test_runtime() -> &'static RtControl {
-    static TEST_RT: OnceLock<RtControl> = OnceLock::new();
+fn test_runtime() -> &'static worker::Handle {
+    static TEST_RT: OnceLock<worker::Handle> = OnceLock::new();
     TEST_RT.get_or_init(|| {
-        let (sender, receiver) =
-            rt::channel::new().expect("failed to create runtime channel for test module");
-        let _handle = thread::Builder::new()
-            .name("Heph Test Runtime".to_string())
-            .spawn(move || {
-                // NOTE: because we didn't indicate the runtime has started this
-                // will never stop.
-                Worker::new_test(shared_internals(), receiver)
-                    .expect("failed to create a runtime for test module")
-                    .run()
-                    .expect("failed to run test runtime");
-            })
-            .expect("failed to start thread for test runtime");
-        sender
+        let (setup, _) = worker::setup_test().expect("failed to setup test runtime");
+        setup
+            .start_named(
+                shared_internals(),
+                false,
+                None,
+                "Heph Test Runtime".to_string(),
+            )
+            .expect("failed to start test worker thread")
     })
 }
 
@@ -157,7 +149,7 @@ where
     F: FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static,
 {
     test_runtime()
-        .try_send(Control::Run(Box::new(f)))
+        .send_function(Box::new(f))
         .expect("failed to communicate with the test runtime");
 }
 
@@ -592,7 +584,7 @@ where
         "spawned too many synchronous test actors"
     );
 
-    let shared = runtime().clone_shared();
+    let shared = shared_internals();
     SyncWorker::start(id, supervisor, actor, arg, options, shared, None).map(
         |(worker, actor_ref)| {
             let handle = worker.into_handle();

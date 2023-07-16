@@ -1,104 +1,74 @@
 //! Runtime channel for use in communicating between the coordinator and a
 //! worker thread.
 
-use std::io::{self, Read, Write};
+// TODO: remove `rt::channel` entirely and replace it with an `ActorRef` to the
+// `worker::comm_actor`.
+
+use std::future::poll_fn;
+use std::io;
+use std::pin::Pin;
 use std::sync::mpsc;
+use std::task::Poll;
 
-use mio::{unix, Interest, Registry, Token};
+use a10::msg::{MsgListener, MsgToken};
 
-/// Data send across the channel to create a `mio::Event`.
-const WAKE: &[u8] = b"WAKE";
+const WAKE: u32 = 0;
 
 /// Create a new communication channel.
-pub(crate) fn new<T>() -> io::Result<(Sender<T>, Receiver<T>)> {
-    let (p_send, p_recv) = unix::pipe::new()?;
-    let (c_send, c_recv) = mpsc::channel();
-    let sender = Sender {
-        channel: c_send,
-        pipe: p_send,
-    };
-    let receiver = Receiver {
-        channel: c_recv,
-        pipe: p_recv,
-    };
+///
+/// The `sq` will be used to wake up the receiving end when sending.
+pub(crate) fn new<T>(sq: a10::SubmissionQueue) -> io::Result<(Sender<T>, Receiver<T>)> {
+    let (listener, token) = sq.clone().msg_listener()?;
+    let (sender, receiver) = mpsc::channel();
+    let sender = Sender { sender, sq, token };
+    let receiver = Receiver { receiver, listener };
     Ok((sender, receiver))
 }
 
-/// Sending end of the communication channel.
+/// Sending side of the communication channel.
 #[derive(Debug)]
 pub(crate) struct Sender<T> {
-    channel: mpsc::Sender<T>,
-    pipe: unix::pipe::Sender,
+    sender: mpsc::Sender<T>,
+    /// Receiver's submission queue and token used to wake it up.
+    sq: a10::SubmissionQueue,
+    token: MsgToken,
 }
 
 impl<T> Sender<T> {
-    /// Try to send a message onto the channel.
-    pub(crate) fn try_send(&self, msg: T) -> io::Result<()> {
-        self.channel
+    /// Send a message into the channel.
+    pub(crate) fn send(&self, msg: T) -> io::Result<()> {
+        self.sender
             .send(msg)
-            .map_err(|_| io::Error::new(io::ErrorKind::NotConnected, "failed to send message"))?;
-
-        // Generate an `mio::Event` for the receiving end.
-        loop {
-            match (&self.pipe).write(WAKE) {
-                Ok(0) => {
-                    return Err(io::Error::new(
-                        io::ErrorKind::NotConnected,
-                        "failed to send into channel pipe",
-                    ))
-                }
-                Ok(..) => return Ok(()),
-                // Can't do too much here.
-                Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => return Ok(()),
-                Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                Err(err) => return Err(err),
-            }
-        }
-    }
-
-    /// Register the sending end of the Unix pipe of this channel.
-    pub(crate) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
-        registry.register(&mut self.pipe, token, Interest::WRITABLE)
+            .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "receiver closed channel"))?;
+        self.sq.try_send_msg(self.token, WAKE)
     }
 }
 
-/// Receiving end of the communication channel.
+/// Receiving side of the communication channel.
 #[derive(Debug)]
 pub(crate) struct Receiver<T> {
-    channel: mpsc::Receiver<T>,
-    pipe: unix::pipe::Receiver,
+    receiver: mpsc::Receiver<T>,
+    listener: MsgListener,
 }
 
 impl<T> Receiver<T> {
-    /// Try to receive a message from the channel.
-    pub(crate) fn try_recv(&mut self) -> io::Result<Option<T>> {
-        if let Ok(msg) = self.channel.try_recv() {
-            Ok(Some(msg))
-        } else {
-            // If the channel is empty this will likely be the last call in a
-            // while, so we'll empty the pipe to ensure we'll get another
-            // notification once the coordinator sends us another message.
-            let mut buf = [0; 24]; // Fits 6 messages.
-            loop {
-                match self.pipe.read(&mut buf) {
-                    Ok(n) if n < buf.len() => break,
-                    // Didn't empty it.
-                    Ok(..) => continue,
-                    Err(ref err) if err.kind() == io::ErrorKind::WouldBlock => break,
-                    Err(ref err) if err.kind() == io::ErrorKind::Interrupted => continue,
-                    Err(err) => return Err(err),
+    /// Receive a message from the channel.
+    pub(crate) async fn recv(&mut self) -> Option<T> {
+        loop {
+            poll_fn(|ctx| match Pin::new(&mut self.listener).poll_next(ctx) {
+                Poll::Ready(data) => {
+                    debug_assert_eq!(data, Some(WAKE));
+                    Poll::Ready(())
                 }
-            }
-            // Try one last time in case the coordinator send a message in
-            // between the time we last checked and we emptied the pipe above
-            // (for which we won't get another event as we just emptied the
-            // pipe).
-            Ok(self.channel.try_recv().ok())
-        }
-    }
+                Poll::Pending => Poll::Pending,
+            })
+            .await;
 
-    /// Register the receiving end of the Unix pipe of this channel.
-    pub(crate) fn register(&mut self, registry: &Registry, token: Token) -> io::Result<()> {
-        registry.register(&mut self.pipe, token, Interest::READABLE)
+            match self.receiver.try_recv() {
+                Ok(msg) => return Some(msg),
+                Err(mpsc::TryRecvError::Empty) => continue,
+                Err(mpsc::TryRecvError::Disconnected) => return None,
+            }
+        }
     }
 }

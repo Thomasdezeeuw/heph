@@ -246,8 +246,6 @@ impl Coordinator {
         registry
             .register(&mut SourceFd(ring_fd), RING, Interest::READABLE)
             .map_err(|err| rt::Error::coordinator(Error::Startup(err)))?;
-        register_workers(registry, workers)
-            .map_err(|err| rt::Error::coordinator(Error::RegisteringWorkers(err)))?;
         register_sync_workers(registry, sync_workers)
             .map_err(|err| rt::Error::coordinator(Error::RegisteringSyncActors(err)))?;
         // It could be that before we're able to register the sync workers above
@@ -343,14 +341,6 @@ fn setup_signals(registry: &Registry) -> io::Result<Signals> {
         registry
             .register(&mut signals, SIGNAL, Interest::READABLE)
             .map(|()| signals)
-    })
-}
-
-/// Register all `workers`' sending end of the pipe with `registry`.
-fn register_workers(registry: &Registry, workers: &mut [worker::Handle]) -> io::Result<()> {
-    workers.iter_mut().try_for_each(|worker| {
-        trace!(worker_id = worker.id(); "registering worker thread");
-        worker.register(registry)
     })
 }
 
@@ -463,8 +453,6 @@ fn handle_sync_worker_event(
 pub(crate) enum Error {
     /// Error in starting up the Coordinator.
     Startup(io::Error),
-    /// Error in [`register_workers`].
-    RegisteringWorkers(io::Error),
     /// Error in [`register_sync_workers`].
     RegisteringSyncActors(io::Error),
     /// Error polling ([`mio::Poll`] or [`a10::Ring`]).
@@ -479,7 +467,6 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::Startup(err) => write!(f, "error starting coordinator: {err}"),
-            Error::RegisteringWorkers(err) => write!(f, "error registering worker threads: {err}"),
             Error::RegisteringSyncActors(err) => {
                 write!(f, "error registering synchronous actor threads: {err}")
             }
@@ -496,7 +483,6 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Error::Startup(ref err)
-            | Error::RegisteringWorkers(ref err)
             | Error::RegisteringSyncActors(ref err)
             | Error::Polling(ref err)
             | Error::SendingStartSignal(ref err)
