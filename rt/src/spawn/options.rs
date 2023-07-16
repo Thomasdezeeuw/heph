@@ -40,6 +40,11 @@ pub struct ActorOptions {
 }
 
 impl ActorOptions {
+    /// Default options for system actors.
+    pub(crate) const SYSTEM: ActorOptions = ActorOptions {
+        priority: Priority::SYSTEM,
+    };
+
     /// Returns the priority set in the options.
     pub const fn priority(&self) -> Priority {
         self.priority
