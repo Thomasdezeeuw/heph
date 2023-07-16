@@ -5,12 +5,13 @@ use std::num::NonZeroUsize;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use heph::actor_ref::ActorGroup;
+use heph::actor_ref::{ActorGroup, Delivery, SendError};
+use log::{as_debug, info, trace};
 use mio::Poll;
 
 use crate::scheduler::Scheduler;
 use crate::timers::Timers;
-use crate::{shared, trace, worker, RuntimeRef, Signal};
+use crate::{cpu_usage, shared, trace, worker, RuntimeRef, Signal};
 
 pub(crate) mod waker;
 
@@ -67,6 +68,61 @@ impl RuntimeInternals {
             trace_log: RefCell::new(trace_log),
             error: RefCell::new(None),
         }
+    }
+
+    /// Relay a process `signal` to all actors that wanted to receive it, or
+    /// returns an error if no actors want to receive it.
+    pub(crate) fn relay_signal(&self, signal: Signal) {
+        let timing = trace::start(&*self.trace_log.borrow());
+        trace!(worker_id = self.id.get(), signal = as_debug!(signal); "received process signal");
+
+        if let Signal::User2 = signal {
+            self.log_metrics();
+        }
+
+        let mut receivers = self.signal_receivers.borrow_mut();
+        receivers.remove_disconnected();
+        match receivers.try_send(signal, Delivery::ToAll) {
+            Err(SendError) if signal.should_stop() => {
+                self.set_err(worker::Error::ProcessInterrupted)
+            }
+            Ok(()) | Err(SendError) => {}
+        };
+
+        trace::finish_rt(
+            self.trace_log.borrow_mut().as_mut(),
+            timing,
+            "Relaying process signal to actors",
+            &[("signal", &signal.as_str())],
+        );
+    }
+
+    /// Print metrics about the runtime internals.
+    pub(crate) fn log_metrics(&self) {
+        let timing = trace::start(&*self.trace_log.borrow());
+        let trace_metrics = self.trace_log.borrow().as_ref().map(trace::Log::metrics);
+        let scheduler = self.scheduler.borrow();
+        // NOTE: need mutable access to timers due to `Timers::next`.
+        let mut timers = self.timers.borrow_mut();
+        info!(
+            target: "metrics",
+            worker_id = self.id.get(),
+            cpu_affinity = self.cpu,
+            scheduler_ready = scheduler.ready(),
+            scheduler_inactive = scheduler.inactive(),
+            timers_total = timers.len(),
+            timers_next = as_debug!(timers.next_timer()),
+            process_signal_receivers = self.signal_receivers.borrow().len(),
+            cpu_time = as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
+            trace_counter = trace_metrics.map_or(0, |m| m.counter);
+            "worker metrics",
+        );
+        trace::finish_rt(
+            self.trace_log.borrow_mut().as_mut(),
+            timing,
+            "Printing runtime metrics",
+            &[],
+        );
     }
 
     /// Run user function `f`, setting the error if it fails.

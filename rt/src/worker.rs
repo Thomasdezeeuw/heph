@@ -24,8 +24,7 @@ use std::time::{Duration, Instant};
 use std::{fmt, io, task, thread};
 
 use crossbeam_channel::{self, Receiver};
-use heph::actor_ref::{Delivery, SendError};
-use log::{as_debug, debug, info, trace};
+use log::{as_debug, debug, trace};
 use mio::unix::SourceFd;
 use mio::{Events, Interest, Poll, Registry, Token};
 
@@ -34,7 +33,7 @@ use crate::local::waker::{self, WakerId};
 use crate::local::RuntimeInternals;
 use crate::process::ProcessId;
 use crate::setup::set_cpu_affinity;
-use crate::{self as rt, cpu_usage, shared, trace, RuntimeRef, Signal};
+use crate::{self as rt, shared, trace, RuntimeRef, Signal};
 
 /// Number of processes to run in between calls to poll.
 ///
@@ -709,13 +708,7 @@ impl Worker {
         while let Some(msg) = self.channel.try_recv().map_err(Error::RecvMsg)? {
             match msg {
                 Control::Started => self.started = true,
-                Control::Signal(signal) => {
-                    if let Signal::User2 = signal {
-                        self.log_metrics();
-                    }
-
-                    self.relay_signal(signal)?;
-                }
+                Control::Signal(signal) => self.internals.relay_signal(signal),
                 Control::Run(f) => self.run_user_function(f),
             }
         }
@@ -728,60 +721,9 @@ impl Worker {
         Ok(())
     }
 
-    /// Relay a process `signal` to all actors that wanted to receive it, or
-    /// returns an error if no actors want to receive it.
-    fn relay_signal(&mut self, signal: Signal) -> Result<(), Error> {
-        let timing = trace::start(&*self.internals.trace_log.borrow());
-        trace!(worker_id = self.internals.id.get(), signal = as_debug!(signal); "received process signal");
-
-        let mut receivers = self.internals.signal_receivers.borrow_mut();
-        receivers.remove_disconnected();
-        let res = match receivers.try_send(signal, Delivery::ToAll) {
-            Err(SendError) if signal.should_stop() => Err(Error::ProcessInterrupted),
-            Ok(()) | Err(SendError) => Ok(()),
-        };
-
-        trace::finish_rt(
-            self.internals.trace_log.borrow_mut().as_mut(),
-            timing,
-            "Relaying process signal to actors",
-            &[("signal", &signal.as_str())],
-        );
-        res
-    }
-
     /// Run user function `f`.
     fn run_user_function(&mut self, f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>) {
         self.internals.run_user_function(f)
-    }
-
-    /// Gather metrics about the runtime internals.
-    fn log_metrics(&self) {
-        let shared = &*self.internals;
-        let timing = trace::start(&*shared.trace_log.borrow());
-        let trace_metrics = shared.trace_log.borrow().as_ref().map(trace::Log::metrics);
-        let scheduler = shared.scheduler.borrow();
-        // NOTE: need mutable access to timers due to `Timers::next`.
-        let mut timers = shared.timers.borrow_mut();
-        info!(
-            target: "metrics",
-            worker_id = shared.id.get(),
-            cpu_affinity = shared.cpu,
-            scheduler_ready = scheduler.ready(),
-            scheduler_inactive = scheduler.inactive(),
-            timers_total = timers.len(),
-            timers_next = as_debug!(timers.next_timer()),
-            process_signal_receivers = shared.signal_receivers.borrow().len(),
-            cpu_time = as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
-            trace_counter = trace_metrics.map_or(0, |m| m.counter);
-            "worker metrics",
-        );
-        trace::finish_rt(
-            shared.trace_log.borrow_mut().as_mut(),
-            timing,
-            "Printing runtime metrics",
-            &[],
-        );
     }
 
     /// Create a new reference to this runtime.
