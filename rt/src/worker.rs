@@ -189,15 +189,6 @@ pub(crate) struct Worker {
     waker_events: Receiver<ProcessId>,
     /// Communication channel exchange control messages.
     channel: rt::channel::Receiver<Control>,
-    /// Whether or not the runtime was started.
-    /// This is here because the worker threads are started before
-    /// [`rt::Runtime::start`] is called and thus before any actors are added to
-    /// the runtime. Because of this the worker could check all schedulers, see
-    /// that no actors are in them and determine it's done before even starting
-    /// the runtime.
-    ///
-    /// [`Runtime::start`]: rt::Runtime::start
-    started: bool,
 }
 
 impl Worker {
@@ -259,7 +250,6 @@ impl Worker {
             events: Events::with_capacity(128),
             waker_events: setup.waker_events,
             channel: receiver,
-            started: false,
         };
 
         trace::finish_rt(
@@ -311,7 +301,6 @@ impl Worker {
             events: Events::with_capacity(16),
             waker_events,
             channel: receiver,
-            started: false,
         })
     }
 
@@ -336,7 +325,7 @@ impl Worker {
                 n += 1;
             }
 
-            if self.started && !self.has_process() {
+            if self.internals.started() && !self.has_process() {
                 debug!(worker_id = self.internals.id.get(); "no processes to run, stopping worker");
                 self.internals.shared.wake_all_workers();
                 return Ok(());
@@ -707,7 +696,7 @@ impl Worker {
         let timing = trace::start(&*self.internals.trace_log.borrow());
         while let Some(msg) = self.channel.try_recv().map_err(Error::RecvMsg)? {
             match msg {
-                Control::Started => self.started = true,
+                Control::Started => self.internals.start(),
                 Control::Signal(signal) => self.internals.relay_signal(signal),
                 Control::Run(f) => self.run_user_function(f),
             }

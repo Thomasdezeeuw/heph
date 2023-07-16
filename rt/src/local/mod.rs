@@ -1,6 +1,6 @@
 //! Module with shared runtime internals.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::num::NonZeroUsize;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -40,6 +40,16 @@ pub(crate) struct RuntimeInternals {
     pub(crate) cpu: Option<usize>,
     /// Log used for tracing, `None` is tracing is disabled.
     pub(crate) trace_log: RefCell<Option<trace::Log>>,
+    /// Whether or not the runtime was started.
+    ///
+    /// This is here because the worker threads are started before
+    /// [`crate::Runtime::start`] is called and thus before any actors are added
+    /// to the runtime. Because of this the worker could check all schedulers,
+    /// see that no actors are in them and determine it's done before even
+    /// starting the runtime.
+    ///
+    /// [`Runtime::start`]: rt::Runtime::start
+    started: Cell<bool>,
     /// Fatal error hit in one of the system actors that should stop the worker.
     error: RefCell<Option<worker::Error>>,
 }
@@ -66,6 +76,7 @@ impl RuntimeInternals {
             signal_receivers: RefCell::new(ActorGroup::empty()),
             cpu,
             trace_log: RefCell::new(trace_log),
+            started: Cell::new(false),
             error: RefCell::new(None),
         }
     }
@@ -144,6 +155,16 @@ impl RuntimeInternals {
         if let Err(err) = result {
             self.set_err(worker::Error::UserFunction(err.into()));
         }
+    }
+
+    /// Make [`RuntimeInternals::started`] return true.
+    pub(crate) fn start(&self) {
+        self.started.set(true)
+    }
+
+    /// Whether or not the runtime has been started.
+    pub(crate) fn started(&self) -> bool {
+        self.started.get()
     }
 
     /// Set a fatal worker error.
