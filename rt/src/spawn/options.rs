@@ -6,7 +6,6 @@
 //! [`Future`]: std::future::Future
 
 use std::cmp::Ordering;
-use std::num::NonZeroU8;
 use std::ops::Mul;
 use std::time::Duration;
 
@@ -62,24 +61,27 @@ impl ActorOptions {
 /// [`Poll::Pending`]: std::task::Poll::Pending
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(transparent)]
-pub struct Priority(NonZeroU8);
+pub struct Priority(u8);
 
 impl Priority {
     /// Low priority.
     ///
     /// Other actors have priority over this actor.
-    pub const LOW: Priority = Priority(NonZeroU8::new(15).unwrap());
+    pub const LOW: Priority = Priority(15);
 
     /// Normal priority.
     ///
     /// Most actors should run at this priority, hence its also the default
     /// priority.
-    pub const NORMAL: Priority = Priority(NonZeroU8::new(10).unwrap());
+    pub const NORMAL: Priority = Priority(10);
 
     /// High priority.
     ///
     /// Takes priority over other actors.
-    pub const HIGH: Priority = Priority(NonZeroU8::new(5).unwrap());
+    pub const HIGH: Priority = Priority(5);
+
+    /// System priority.
+    const SYSTEM: Priority = Priority(0);
 }
 
 impl Default for Priority {
@@ -122,20 +124,24 @@ impl Mul<Priority> for Duration {
     type Output = Duration;
 
     fn mul(self, rhs: Priority) -> Duration {
-        self * u32::from(rhs.0.get())
+        self * u32::from(rhs.0)
     }
 }
 
 #[test]
 fn priority_duration_multiplication() {
     let duration = Duration::from_millis(1);
+    let system = duration * Priority::SYSTEM;
     let high = duration * Priority::HIGH;
     let normal = duration * Priority::NORMAL;
     let low = duration * Priority::LOW;
 
+    assert!(system < high);
+    assert!(system < normal);
+    assert!(system < low);
     assert!(high < normal);
-    assert!(normal < low);
     assert!(high < low);
+    assert!(normal < low);
 }
 
 /// Options for spawning a [`SyncActor`].
