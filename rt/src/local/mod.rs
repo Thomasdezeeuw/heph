@@ -2,6 +2,7 @@
 
 use std::cell::RefCell;
 use std::num::NonZeroUsize;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use heph::actor_ref::ActorGroup;
@@ -9,7 +10,7 @@ use mio::Poll;
 
 use crate::scheduler::Scheduler;
 use crate::timers::Timers;
-use crate::{shared, trace, worker, Signal};
+use crate::{shared, trace, worker, RuntimeRef, Signal};
 
 pub(crate) mod waker;
 
@@ -65,6 +66,27 @@ impl RuntimeInternals {
             cpu,
             trace_log: RefCell::new(trace_log),
             error: RefCell::new(None),
+        }
+    }
+
+    /// Run user function `f`, setting the error if it fails.
+    pub(crate) fn run_user_function(
+        self: &Rc<Self>,
+        f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>,
+    ) {
+        let timing = trace::start(&*self.trace_log.borrow());
+        let runtime_ref = RuntimeRef {
+            internals: self.clone(),
+        };
+        let result = f(runtime_ref);
+        trace::finish_rt(
+            self.trace_log.borrow_mut().as_mut(),
+            timing,
+            "Running user function",
+            &[],
+        );
+        if let Err(err) = result {
+            self.set_err(worker::Error::UserFunction(err.into()));
         }
     }
 

@@ -716,7 +716,7 @@ impl Worker {
 
                     self.relay_signal(signal)?;
                 }
-                Control::Run(f) => self.run_user_function(f)?,
+                Control::Run(f) => self.run_user_function(f),
             }
         }
         trace::finish_rt(
@@ -751,21 +751,8 @@ impl Worker {
     }
 
     /// Run user function `f`.
-    fn run_user_function(
-        &mut self,
-        f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>,
-    ) -> Result<(), Error> {
-        let timing = trace::start(&*self.internals.trace_log.borrow());
-        trace!(worker_id = self.internals.id.get(); "running user function");
-        let runtime_ref = self.create_ref();
-        let res = f(runtime_ref).map_err(|err| Error::UserFunction(err.into()));
-        trace::finish_rt(
-            self.internals.trace_log.borrow_mut().as_mut(),
-            timing,
-            "Running user function",
-            &[],
-        );
-        res
+    fn run_user_function(&mut self, f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String>>) {
+        self.internals.run_user_function(f)
     }
 
     /// Gather metrics about the runtime internals.
