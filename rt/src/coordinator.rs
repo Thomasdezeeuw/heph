@@ -16,13 +16,11 @@
 //! [sync worker threads]: crate::sync_worker
 
 use std::env::consts::ARCH;
-use std::future::{pending, Future};
 use std::os::fd::{AsFd, AsRawFd};
 use std::os::unix::process::parent_id;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use std::{fmt, io, process, task};
+use std::{fmt, io, process};
 
 use heph::actor_ref::{ActorGroup, Delivery};
 use log::{as_debug, as_display, debug, error, info, trace};
@@ -31,9 +29,9 @@ use mio::unix::SourceFd;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
 
+use crate::scheduler::SystemScheduler;
 use crate::setup::{host_id, host_info, Uuid};
 use crate::wakers::shared::Wakers;
-use crate::wakers::{self, AtomicBitMap};
 use crate::{
     self as rt, cpu_usage, shared, trace, worker, Signal, SyncWorker, SYNC_WORKER_ID_END,
     SYNC_WORKER_ID_START,
@@ -52,10 +50,8 @@ pub(crate) struct Coordinator {
     poll: Poll,
     /// Process signal notifications.
     signals: Signals,
-    /// Collection of coordinator [`Future`]s.
-    futures: Box<[Pin<Box<dyn Future<Output = ()>>>]>,
-    /// Bitmap indicating which `futures` are ready to run.
-    futures_ready: Arc<AtomicBitMap>,
+    /// System actors and `Future`s.
+    system_futures: SystemScheduler,
     /// Internals shared between the coordinator and all workers.
     internals: Arc<shared::RuntimeInternals>,
 
@@ -102,8 +98,7 @@ impl Coordinator {
             ring,
             poll,
             signals,
-            futures: Box::new([]),
-            futures_ready: AtomicBitMap::new(0),
+            system_futures: SystemScheduler::new(Box::new([])),
             internals,
             start: Instant::now(),
             app_name,
@@ -190,20 +185,10 @@ impl Coordinator {
                     _ => debug!(event = as_debug!(event); "unexpected OS event"),
                 }
             }
+            trace::finish_rt(trace_log.as_mut(), timing, "Handling OS events", &[]);
 
             // Run all coordinator futures that are ready.
-            while let Some(idx) = self.futures_ready.next_set() {
-                let waker = wakers::new(self.futures_ready.clone(), idx);
-                let mut ctx = task::Context::from_waker(&waker);
-                match self.futures[idx].as_mut().poll(&mut ctx) {
-                    task::Poll::Ready(()) => {
-                        // Ensure we don't poll the future again.
-                        self.futures[idx] = Box::pin(pending());
-                    }
-                    task::Poll::Pending => { /* Nothing to do. */ }
-                }
-            }
-            trace::finish_rt(trace_log.as_mut(), timing, "Handling OS events", &[]);
+            self.system_futures.run_ready();
 
             // Once all (sync) worker threads are done running we can return.
             if workers.is_empty() && sync_workers.is_empty() {
@@ -315,7 +300,7 @@ impl fmt::Debug for Coordinator {
             .field("ring", &self.ring)
             .field("poll", &self.poll)
             .field("signals", &self.signals)
-            .field("futures_ready", &self.futures_ready)
+            .field("system_futures", &self.system_futures)
             .field("internals", &self.internals)
             .field("start", &self.start)
             .field("app_name", &self.app_name)
