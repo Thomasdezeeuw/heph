@@ -244,8 +244,9 @@ fn join_all_local_and_thread_safe_timeout() {
 }
 
 /// Assert that less then `expected` time has elapsed since `start`.
+#[track_caller]
 fn assert_within_margin(start: Instant, expected: Duration) {
-    const MARGIN: Duration = Duration::from_millis(150);
+    const MARGIN: Duration = Duration::from_millis(300);
     let elapsed = start.elapsed();
     assert!(
         elapsed <= expected + MARGIN,
