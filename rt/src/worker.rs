@@ -331,15 +331,15 @@ impl Worker {
                 n += 1;
             }
 
+            if let Some(err) = self.internals.take_err() {
+                return Err(err);
+            }
             if self.internals.started() && !self.has_user_process() {
                 debug!(worker_id = self.internals.id.get(); "no processes to run, stopping worker");
                 self.internals.shared.wake_all_workers();
                 return Ok(());
             }
 
-            if let Some(err) = self.internals.take_err() {
-                return Err(err);
-            }
             self.schedule_processes()?;
         }
     }
