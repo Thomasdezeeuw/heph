@@ -171,18 +171,13 @@ impl Coordinator {
                                 Interest::READABLE,
                             )
                             .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
-                    }
-                    token if token.0 < SYNC_WORKER_ID_START => {
+
+                        // When a worker stops it will wake to coordinator.
                         let timing = trace::start(&trace_log);
-                        handle_worker_event(&mut workers, event)?;
-                        trace::finish_rt(
-                            trace_log.as_mut(),
-                            timing,
-                            "Processing worker event",
-                            &[],
-                        );
+                        check_workers(&mut workers)?;
+                        trace::finish_rt(trace_log.as_mut(), timing, "Checking workers", &[]);
                     }
-                    token if token.0 <= SYNC_WORKER_ID_END => {
+                    token if token.0 >= SYNC_WORKER_ID_START && token.0 <= SYNC_WORKER_ID_END => {
                         let timing = trace::start(&trace_log);
                         handle_sync_worker_event(&mut sync_workers, event)?;
                         trace::finish_rt(
@@ -414,19 +409,14 @@ fn relay_signals(
     log_metrics
 }
 
-/// Handle an `event` for a worker.
-fn handle_worker_event(workers: &mut Vec<worker::Handle>, event: &Event) -> Result<(), rt::Error> {
-    if let Ok(i) = workers.binary_search_by_key(&event.token().0, worker::Handle::id) {
-        if event.is_error() || event.is_write_closed() {
-            // Receiving end of the pipe is dropped, which means the worker has
-            // shut down.
-            let worker = workers.remove(i);
-            debug!(worker_id = worker.id(); "worker thread stopped");
-            worker
-                .join()
-                .map_err(rt::Error::worker_panic)
-                .and_then(|res| res)?;
-        }
+/// Check if the workers are still alive.
+fn check_workers(workers: &mut Vec<worker::Handle>) -> Result<(), rt::Error> {
+    for worker in workers.extract_if(|w| w.is_finished()) {
+        debug!(worker_id = worker.id(); "worker thread stopped");
+        worker
+            .join()
+            .map_err(rt::Error::worker_panic)
+            .and_then(|res| res)?;
     }
     Ok(())
 }

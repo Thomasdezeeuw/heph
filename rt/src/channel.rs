@@ -12,7 +12,7 @@ use std::task::Poll;
 
 use a10::msg::{MsgListener, MsgToken};
 
-const WAKE: u32 = 0;
+const WAKE: u32 = u32::from_ne_bytes([b'W', b'A', b'K', b'E']); // 1162559831.
 
 /// Create a new communication channel.
 ///
