@@ -423,14 +423,14 @@ impl Worker {
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
         // Schedule local and shared processes based on various event sources.
-        let (mut local_amount, check_shared_poll) = self.schedule_from_os_events()?;
+        let check_shared_poll = self.schedule_from_os_events()?;
         let mut shared_amount = if check_shared_poll {
             self.schedule_from_shared_os_events()
                 .map_err(Error::Polling)?
         } else {
             0
         };
-        local_amount += self.schedule_from_waker();
+        let mut local_amount = self.schedule_from_waker();
         let now = Instant::now();
         local_amount += self.schedule_from_local_timers(now);
         shared_amount += self.schedule_from_shared_timers(now);
@@ -458,17 +458,15 @@ impl Worker {
     ///
     /// Returns the amount of processes marked as active and a boolean
     /// indicating whether or not the shared timers should be checked.
-    fn schedule_from_os_events(&mut self) -> Result<(usize, bool), Error> {
+    fn schedule_from_os_events(&mut self) -> Result<bool, Error> {
         // Start with polling for OS events.
         self.poll_os().map_err(Error::Polling)?;
 
         // Based on the OS event scheduler thread-local processes.
         let timing = trace::start(&*self.internals.trace_log.borrow());
-        let mut scheduler = self.internals.scheduler.borrow_mut();
         let mut check_shared_poll = false;
         let mut check_ring = false;
         let mut check_shared_ring = false;
-        let mut amount = 0;
         for event in &self.events {
             trace!(worker_id = self.internals.id.get(); "got OS event: {event:?}");
             match event.token() {
@@ -476,15 +474,7 @@ impl Worker {
                 SHARED_POLL => check_shared_poll = true,
                 RING => check_ring = true,
                 SHARED_RING => check_shared_ring = true,
-                token => {
-                    let pid = ProcessId::from(token);
-                    trace!(
-                        worker_id = self.internals.id.get(), pid = pid.0;
-                        "scheduling local process based on OS event",
-                    );
-                    scheduler.mark_ready(pid);
-                    amount += 1;
-                }
+                _ => log::warn!(event = as_debug!(event); "unknown event"),
             }
         }
 
@@ -530,7 +520,7 @@ impl Worker {
             &[],
         );
 
-        Ok((amount, check_shared_poll))
+        Ok(check_shared_poll)
     }
 
     /// Schedule processes based on shared OS events.
