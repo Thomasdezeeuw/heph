@@ -48,8 +48,6 @@ pub(crate) const SYSTEM_ACTORS: usize = 1;
 // running processes.
 const RUN_POLL_RATIO: usize = 32;
 
-/// Token used to indicate user space events have happened.
-pub(crate) const WAKER: Token = Token(usize::MAX);
 /// Token used to indicate the shared [`Poll`] (in [`shared::RuntimeInternals`])
 /// has events.
 const SHARED_POLL: Token = Token(usize::MAX - 2);
@@ -470,7 +468,6 @@ impl Worker {
         for event in &self.events {
             trace!(worker_id = self.internals.id.get(); "got OS event: {event:?}");
             match event.token() {
-                WAKER => { /* Need to wake up to handle user space events. */ }
                 SHARED_POLL => check_shared_poll = true,
                 RING => check_ring = true,
                 SHARED_RING => check_shared_ring = true,
