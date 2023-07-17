@@ -2,6 +2,7 @@
 
 use std::cell::{Cell, RefCell};
 use std::num::NonZeroUsize;
+use std::panic::{self, AssertUnwindSafe};
 use std::rc::Rc;
 use std::sync::Arc;
 
@@ -11,7 +12,7 @@ use mio::Poll;
 
 use crate::scheduler::Scheduler;
 use crate::timers::Timers;
-use crate::{cpu_usage, shared, trace, worker, RuntimeRef, Signal};
+use crate::{cpu_usage, panic_message, shared, trace, worker, RuntimeRef, Signal};
 
 pub(crate) mod waker;
 
@@ -145,15 +146,20 @@ impl RuntimeInternals {
         let runtime_ref = RuntimeRef {
             internals: self.clone(),
         };
-        let result = f(runtime_ref);
+        let result = panic::catch_unwind(AssertUnwindSafe(move || f(runtime_ref)));
         trace::finish_rt(
             self.trace_log.borrow_mut().as_mut(),
             timing,
             "Running user function",
             &[],
         );
-        if let Err(err) = result {
-            self.set_err(worker::Error::UserFunction(err.into()));
+        match result {
+            Ok(Ok(())) => {}
+            Ok(Err(err)) => self.set_err(worker::Error::UserFunction(err.into())),
+            Err(err) => {
+                let msg = format!("user function panicked: {}", panic_message(&err));
+                self.set_err(worker::Error::UserFunction(msg.into()));
+            }
         }
     }
 
