@@ -39,13 +39,13 @@ impl Process for NopTestProcess {
 }
 
 #[test]
-fn has_process() {
+fn has_user_process() {
     let mut scheduler = Scheduler::new();
-    assert!(!scheduler.has_process());
+    assert!(!scheduler.has_user_process());
     assert!(!scheduler.has_ready_process());
 
     let _ = scheduler.add_new_process(Priority::NORMAL, FutureProcess(NopTestProcess));
-    assert!(scheduler.has_process());
+    assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 }
 
@@ -58,7 +58,7 @@ fn add_actor() {
     let rt = ThreadLocal::new(test::runtime());
     let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
     let _ = scheduler.add_new_process(Priority::NORMAL, process);
-    assert!(scheduler.has_process());
+    assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 }
 
@@ -74,7 +74,7 @@ fn mark_ready() {
     let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
     let pid = scheduler.add_new_process(Priority::NORMAL, process);
 
-    assert!(scheduler.has_process());
+    assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 
     let process = scheduler.next_process().unwrap();
@@ -91,7 +91,7 @@ fn mark_ready_before_run() {
 
     let pid = add_test_actor(&mut scheduler, Priority::NORMAL);
 
-    assert!(scheduler.has_process());
+    assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 
     let process = scheduler.next_process().unwrap();
@@ -107,7 +107,7 @@ fn next_process() {
 
     if let Some(process) = scheduler.next_process() {
         assert_eq!(process.as_ref().id(), pid);
-        assert!(!scheduler.has_process());
+        assert!(!scheduler.has_user_process());
         assert!(!scheduler.has_ready_process());
     } else {
         panic!("expected a process");
@@ -122,7 +122,7 @@ fn next_process_order() {
     let pid2 = add_test_actor(&mut scheduler, Priority::HIGH);
     let pid3 = add_test_actor(&mut scheduler, Priority::NORMAL);
 
-    assert!(scheduler.has_process());
+    assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 
     // Process 2 has a higher priority, should be scheduled first.
@@ -149,11 +149,11 @@ fn add_process() {
 
     let pid = add_test_actor(&mut scheduler, Priority::NORMAL);
 
-    assert!(scheduler.has_process());
+    assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 
     scheduler.mark_ready(pid);
-    assert!(scheduler.has_process());
+    assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
     let process = scheduler.next_process().unwrap();
     assert_eq!(process.as_ref().id(), pid);
@@ -167,11 +167,11 @@ fn add_process_marked_ready() {
 
     let process = scheduler.next_process().unwrap();
     scheduler.add_back_process(process);
-    assert!(scheduler.has_process());
+    assert!(scheduler.has_user_process());
     assert!(!scheduler.has_ready_process());
 
     scheduler.mark_ready(pid);
-    assert!(scheduler.has_process());
+    assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
     let process = scheduler.next_process().unwrap();
     assert_eq!(process.as_ref().id(), pid);
@@ -206,7 +206,7 @@ fn scheduler_run_order() {
         pids.push(pid);
     }
 
-    assert!(scheduler.has_process());
+    assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 
     // Run all processes, should be in order of priority (since there runtimes
@@ -215,7 +215,7 @@ fn scheduler_run_order() {
         let mut process = scheduler.next_process().unwrap();
         assert_eq!(process.as_mut().run(&mut ctx), Poll::Ready(()));
     }
-    assert!(!scheduler.has_process());
+    assert!(!scheduler.has_user_process());
     assert_eq!(*run_order.borrow(), vec![2_usize, 1, 0]);
 }
 

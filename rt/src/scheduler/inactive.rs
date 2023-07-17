@@ -6,6 +6,7 @@ use std::ptr::NonNull;
 
 use crate::process::ProcessId;
 use crate::scheduler::ProcessData;
+use crate::worker::SYSTEM_ACTORS;
 
 /// Number of bits to shift per level.
 const LEVEL_SHIFT: usize = 4;
@@ -64,9 +65,9 @@ impl Inactive {
         self.length
     }
 
-    /// Returns `true` if the queue contains a process.
-    pub(crate) const fn has_process(&self) -> bool {
-        self.length != 0
+    /// Returns `true` if the list contains a user process.
+    pub(crate) fn has_user_process(&self) -> bool {
+        self.length > SYSTEM_ACTORS
     }
 
     /// Add a `process`.

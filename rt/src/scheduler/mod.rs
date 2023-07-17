@@ -45,10 +45,10 @@ impl Scheduler {
         self.inactive.len()
     }
 
-    /// Returns `true` if the scheduler has any processes (in any state),
-    /// `false` otherwise.
-    pub(crate) fn has_process(&self) -> bool {
-        self.inactive.has_process() || self.has_ready_process()
+    /// Returns `true` if the scheduler has any user processes (in any state),
+    /// `false` otherwise. This ignore system processes.
+    pub(crate) fn has_user_process(&self) -> bool {
+        self.has_ready_process() || self.inactive.has_user_process()
     }
 
     /// Returns `true` if the scheduler has any processes that are ready to run,
