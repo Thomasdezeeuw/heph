@@ -63,21 +63,29 @@ const SHARED_RING: Token = Token(usize::MAX - 4);
 /// Use [`WorkerSetup::start`] to spawn the worker thread.
 pub(crate) fn setup(
     id: NonZeroUsize,
-    coordinator_sq: &a10::SubmissionQueue,
+    coordinator_sq: a10::SubmissionQueue,
 ) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let ring = a10::Ring::config(64).attach_queue(coordinator_sq).build()?;
-    setup2(id, ring)
+    let ring = a10::Ring::config(64)
+        .attach_queue(&coordinator_sq)
+        .build()?;
+    setup2(id, ring, coordinator_sq)
 }
 
 /// Test version of [`setup`].
 #[cfg(any(test, feature = "test"))]
 pub(crate) fn setup_test() -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
     let ring = a10::Ring::config(64).build()?;
-    setup2(NonZeroUsize::MAX, ring)
+    // We don't have a coordinator, so we'll message ourselves.
+    let coordinator_sq = ring.submission_queue().clone();
+    setup2(NonZeroUsize::MAX, ring, coordinator_sq)
 }
 
 /// Second part of the [`setup`].
-fn setup2(id: NonZeroUsize, ring: a10::Ring) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
+fn setup2(
+    id: NonZeroUsize,
+    ring: a10::Ring,
+    coordinator_sq: a10::SubmissionQueue,
+) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
     let poll = Poll::new()?;
     let sq = ring.submission_queue().clone();
 
@@ -91,6 +99,7 @@ fn setup2(id: NonZeroUsize, ring: a10::Ring) -> io::Result<(WorkerSetup, a10::Su
         ring,
         waker_id,
         waker_events,
+        coordinator_sq,
     };
     Ok((setup, sq))
 }
@@ -104,6 +113,8 @@ pub(crate) struct WorkerSetup {
     poll: Poll,
     /// io_uring completion ring.
     ring: a10::Ring,
+    /// SubmissionQueue for the coordinator.
+    coordinator_sq: a10::SubmissionQueue,
     /// Waker id used to create a `Waker` for thread-local actors.
     waker_id: WakerId,
     /// Receiving side of the channel for `Waker` events.
@@ -181,6 +192,11 @@ impl Handle {
         self.id.get()
     }
 
+    /// See [`thread::JoinHandle::is_finished`].
+    pub(crate) fn is_finished(&self) -> bool {
+        self.handle.is_finished()
+    }
+
     /// Send the worker thread a signal that the runtime has started.
     pub(crate) fn send_runtime_started(&self) -> io::Result<()> {
         self.channel.send(Control::Started)
@@ -215,6 +231,7 @@ pub(crate) struct Worker {
     /// Receiving side of the channel for waker events, see the
     /// [`rt::local::waker`] module for the implementation.
     waker_events: Receiver<ProcessId>,
+    coordinator_sq: a10::SubmissionQueue,
 }
 
 impl Worker {
@@ -270,6 +287,7 @@ impl Worker {
             internals: Rc::new(internals),
             events: Events::with_capacity(128),
             waker_events: setup.waker_events,
+            coordinator_sq: setup.coordinator_sq,
         };
 
         trace!(worker_id = worker_id; "spawning system actors");
@@ -681,6 +699,13 @@ impl Worker {
     /// Returns the trace log, if any.
     fn trace_log(&mut self) -> RefMut<'_, Option<trace::Log>> {
         self.internals.trace_log.borrow_mut()
+    }
+}
+
+impl Drop for Worker {
+    fn drop(&mut self) {
+        // Wake the coordinator forcing it check if the workers are still alive.
+        self.coordinator_sq.wake()
     }
 }
 
