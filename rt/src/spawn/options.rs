@@ -86,7 +86,7 @@ impl Priority {
     pub const HIGH: Priority = Priority(5);
 
     /// System priority.
-    const SYSTEM: Priority = Priority(0);
+    pub(crate) const SYSTEM: Priority = Priority(0);
 }
 
 impl Default for Priority {

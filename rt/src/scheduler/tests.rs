@@ -14,6 +14,7 @@ use crate::process::{FutureProcess, Process, ProcessId};
 use crate::scheduler::{ProcessData, Scheduler};
 use crate::spawn::options::Priority;
 use crate::test::{self, assert_size, nop_task_waker, AssertUnmoved, TestAssertUnmovedNewActor};
+use crate::worker::SYSTEM_ACTORS;
 use crate::ThreadLocal;
 
 #[test]
@@ -40,7 +41,7 @@ impl Process for NopTestProcess {
 
 #[test]
 fn has_user_process() {
-    let mut scheduler = Scheduler::new();
+    let mut scheduler = test_scheduler();
     assert!(!scheduler.has_user_process());
     assert!(!scheduler.has_ready_process());
 
@@ -53,7 +54,7 @@ async fn simple_actor(_: actor::Context<!, ThreadLocal>) {}
 
 #[test]
 fn add_actor() {
-    let mut scheduler = Scheduler::new();
+    let mut scheduler = test_scheduler();
     let new_actor = actor_fn(simple_actor);
     let rt = ThreadLocal::new(test::runtime());
     let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
@@ -64,7 +65,7 @@ fn add_actor() {
 
 #[test]
 fn mark_ready() {
-    let mut scheduler = Scheduler::new();
+    let mut scheduler = test_scheduler();
 
     // Incorrect (outdated) pid should be ok.
     scheduler.mark_ready(ProcessId(100));
@@ -84,7 +85,7 @@ fn mark_ready() {
 
 #[test]
 fn mark_ready_before_run() {
-    let mut scheduler = Scheduler::new();
+    let mut scheduler = test_scheduler();
 
     // Incorrect (outdated) pid should be ok.
     scheduler.mark_ready(ProcessId(100));
@@ -101,7 +102,7 @@ fn mark_ready_before_run() {
 
 #[test]
 fn next_process() {
-    let mut scheduler = Scheduler::new();
+    let mut scheduler = test_scheduler();
 
     let pid = add_test_actor(&mut scheduler, Priority::NORMAL);
 
@@ -116,7 +117,7 @@ fn next_process() {
 
 #[test]
 fn next_process_order() {
-    let mut scheduler = Scheduler::new();
+    let mut scheduler = test_scheduler();
 
     let pid1 = add_test_actor(&mut scheduler, Priority::LOW);
     let pid2 = add_test_actor(&mut scheduler, Priority::HIGH);
@@ -145,7 +146,7 @@ fn next_process_order() {
 
 #[test]
 fn add_process() {
-    let mut scheduler = Scheduler::new();
+    let mut scheduler = test_scheduler();
 
     let pid = add_test_actor(&mut scheduler, Priority::NORMAL);
 
@@ -161,7 +162,7 @@ fn add_process() {
 
 #[test]
 fn add_process_marked_ready() {
-    let mut scheduler = Scheduler::new();
+    let mut scheduler = test_scheduler();
 
     let pid = add_test_actor(&mut scheduler, Priority::NORMAL);
 
@@ -187,7 +188,7 @@ fn scheduler_run_order() {
         order.borrow_mut().push(id);
     }
 
-    let mut scheduler = Scheduler::new();
+    let mut scheduler = test_scheduler();
     let waker = nop_task_waker();
     let mut ctx = task::Context::from_waker(&waker);
 
@@ -221,7 +222,7 @@ fn scheduler_run_order() {
 
 #[test]
 fn assert_actor_process_unmoved() {
-    let mut scheduler = Scheduler::new();
+    let mut scheduler = test_scheduler();
     let waker = nop_task_waker();
     let mut ctx = task::Context::from_waker(&waker);
 
@@ -247,7 +248,7 @@ fn assert_actor_process_unmoved() {
 
 #[test]
 fn assert_future_process_unmoved() {
-    let mut scheduler = Scheduler::new();
+    let mut scheduler = test_scheduler();
     let waker = nop_task_waker();
     let mut ctx = task::Context::from_waker(&waker);
 
@@ -275,4 +276,21 @@ fn add_test_actor(scheduler: &mut Scheduler, priority: Priority) -> ProcessId {
     let rt = ThreadLocal::new(test::runtime());
     let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
     scheduler.add_new_process(priority, process)
+}
+
+/// Creates a `Scheduler` with `SYSTEM_ACTORS` number of fake system actors.
+fn test_scheduler() -> Scheduler {
+    async fn fake_system_actor(_: actor::Context<!, ThreadLocal>) {
+        pending().await
+    }
+
+    let mut scheduler = Scheduler::new();
+    let new_actor = actor_fn(fake_system_actor);
+    let rt = ThreadLocal::new(test::runtime());
+    for _ in 0..SYSTEM_ACTORS {
+        let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt.clone()).unwrap();
+        let process = Box::pin(ProcessData::new(Priority::SYSTEM, Box::pin(process)));
+        scheduler.inactive.add(process);
+    }
+    scheduler
 }
