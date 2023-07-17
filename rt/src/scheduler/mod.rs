@@ -11,10 +11,12 @@ use crate::spawn::options::Priority;
 
 mod inactive;
 pub(crate) mod shared;
+mod system;
 #[cfg(test)]
 mod tests;
 
 use inactive::Inactive;
+pub(crate) use system::SystemScheduler;
 
 type ProcessData = process::ProcessData<dyn Process>;
 
