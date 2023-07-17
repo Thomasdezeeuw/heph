@@ -13,8 +13,6 @@ use heph::actor::{ActorFuture, NewActor};
 use heph::actor_ref::ActorRef;
 use heph::supervisor::Supervisor;
 use log::{as_debug, debug, trace};
-use mio::unix::SourceFd;
-use mio::{Events, Interest, Poll, Registry, Token};
 
 use crate::process::{FutureProcess, Process, ProcessId};
 use crate::scheduler::shared::{ProcessData, Scheduler};
@@ -37,7 +35,6 @@ use crate::{trace, ThreadSafe};
 /// the second step (`RuntimeSetup::complete`) doesn't return an error and can
 /// be called inside `Arc::new_cyclic`.
 pub(crate) struct RuntimeSetup {
-    poll: Poll,
     ring: a10::Ring,
 }
 
@@ -55,7 +52,6 @@ impl RuntimeSetup {
         RuntimeInternals {
             worker_sqs,
             wake_worker_idx: AtomicUsize::new(0),
-            poll: Mutex::new(self.poll),
             ring: Mutex::new(self.ring),
             sq,
             wakers,
@@ -74,9 +70,6 @@ pub(crate) struct RuntimeInternals {
     /// Index into `worker_sqs` to wake next, see
     /// [`RuntimeInternals::wake_workers`].
     wake_worker_idx: AtomicUsize,
-    /// Poll instance for all shared event sources. This is polled by the worker
-    /// thread.
-    poll: Mutex<Poll>,
     /// io_uring completion ring.
     ring: Mutex<a10::Ring>,
     /// Submission queue for the `ring`.
@@ -108,19 +101,17 @@ pub(crate) struct Metrics {
 impl RuntimeInternals {
     /// Setup new runtime internals.
     pub(crate) fn setup(coordinator_sq: &a10::SubmissionQueue) -> io::Result<RuntimeSetup> {
-        let poll = Poll::new()?;
         let ring = a10::Ring::config(128)
             .attach_queue(coordinator_sq)
             .build()?;
-        Ok(RuntimeSetup { poll, ring })
+        Ok(RuntimeSetup { ring })
     }
 
     /// Same as [`RuntimeInternals::setup`], but doesn't attach to an existing [`a10::Ring`].
     #[cfg(any(test, feature = "test"))]
     pub(crate) fn test_setup() -> io::Result<RuntimeSetup> {
-        let poll = Poll::new()?;
         let ring = a10::Ring::new(128)?;
-        Ok(RuntimeSetup { poll, ring })
+        Ok(RuntimeSetup { ring })
     }
 
     /// Returns metrics about the shared scheduler and timers.
@@ -136,25 +127,6 @@ impl RuntimeInternals {
     /// Returns a new [`task::Waker`] for the thread-safe actor with `pid`.
     pub(crate) fn new_task_waker(&self, pid: ProcessId) -> task::Waker {
         self.wakers.new_task_waker(pid)
-    }
-
-    /// Register the shared [`Poll`] instance with `registry`.
-    pub(crate) fn register_worker_poll(&self, registry: &Registry, token: Token) -> io::Result<()> {
-        use mio::event::Source;
-        let poll = self.poll.lock().unwrap();
-        SourceFd(&poll.as_raw_fd()).register(registry, token, Interest::READABLE)
-    }
-
-    /// Returns `Ok(true)` if it polled the shared [`Poll`] instance, writing OS
-    /// events to `events`. Returns `Ok(false)` if another worker is currently
-    /// polling, which means this worker doesn't have to anymore. Otherwise it
-    /// returns an error.
-    pub(crate) fn try_poll(&self, events: &mut Events) -> io::Result<bool> {
-        match self.poll.try_lock() {
-            Ok(mut poll) => poll.poll(events, Some(Duration::ZERO)).map(|()| true),
-            Err(TryLockError::WouldBlock) => Ok(false),
-            Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared poll: {err}"),
-        }
     }
 
     /// Polls the io_uring completion ring if it's currently not being polled.

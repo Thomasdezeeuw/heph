@@ -48,9 +48,6 @@ pub(crate) const SYSTEM_ACTORS: usize = 1;
 // running processes.
 const RUN_POLL_RATIO: usize = 32;
 
-/// Token used to indicate the shared [`Poll`] (in [`shared::RuntimeInternals`])
-/// has events.
-const SHARED_POLL: Token = Token(usize::MAX - 2);
 /// Token used to indicate the io_uring completion ring has events.
 const RING: Token = Token(usize::MAX - 3);
 /// Token used to indicate the shared io_uring completion ring has events.
@@ -267,10 +264,6 @@ impl Worker {
                 Interest::READABLE,
             )
             .map_err(Error::Init)?;
-        trace!(worker_id = worker_id; "registering shared poll");
-        shared_internals
-            .register_worker_poll(poll.registry(), SHARED_POLL)
-            .map_err(Error::Init)?;
 
         let internals = RuntimeInternals::new(
             setup.id,
@@ -421,17 +414,11 @@ impl Worker {
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
         // Schedule local and shared processes based on various event sources.
-        let check_shared_poll = self.schedule_from_os_events()?;
-        let mut shared_amount = if check_shared_poll {
-            self.schedule_from_shared_os_events()
-                .map_err(Error::Polling)?
-        } else {
-            0
-        };
+        self.schedule_from_os_events()?;
         let mut local_amount = self.schedule_from_waker();
         let now = Instant::now();
         local_amount += self.schedule_from_local_timers(now);
-        shared_amount += self.schedule_from_shared_timers(now);
+        let shared_amount = self.schedule_from_shared_timers(now);
 
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
@@ -456,19 +443,17 @@ impl Worker {
     ///
     /// Returns the amount of processes marked as active and a boolean
     /// indicating whether or not the shared timers should be checked.
-    fn schedule_from_os_events(&mut self) -> Result<bool, Error> {
+    fn schedule_from_os_events(&mut self) -> Result<(), Error> {
         // Start with polling for OS events.
         self.poll_os().map_err(Error::Polling)?;
 
         // Based on the OS event scheduler thread-local processes.
         let timing = trace::start(&*self.internals.trace_log.borrow());
-        let mut check_shared_poll = false;
         let mut check_ring = false;
         let mut check_shared_ring = false;
         for event in &self.events {
             trace!(worker_id = self.internals.id.get(); "got OS event: {event:?}");
             match event.token() {
-                SHARED_POLL => check_shared_poll = true,
                 RING => check_ring = true,
                 SHARED_RING => check_shared_ring = true,
                 _ => log::warn!(event = as_debug!(event); "unknown event"),
@@ -517,35 +502,7 @@ impl Worker {
             &[],
         );
 
-        Ok(check_shared_poll)
-    }
-
-    /// Schedule processes based on shared OS events.
-    fn schedule_from_shared_os_events(&mut self) -> io::Result<usize> {
-        trace!(worker_id = self.internals.id.get(); "polling shared OS events");
-        let timing = trace::start(&*self.internals.trace_log.borrow());
-
-        let mut amount = 0;
-        if self.internals.shared.try_poll(&mut self.events)? {
-            for event in &self.events {
-                trace!(worker_id = self.internals.id.get(); "got shared OS event: {event:?}");
-                let pid = ProcessId::from(event.token());
-                trace!(
-                    worker_id = self.internals.id.get(), pid = pid.0;
-                    "scheduling shared process based on OS event",
-                );
-                self.internals.shared.mark_ready(pid);
-                amount += 1;
-            }
-        }
-
-        trace::finish_rt(
-            self.internals.trace_log.borrow_mut().as_mut(),
-            timing,
-            "Scheduling thread-safe processes based on shared OS events",
-            &[("amount", &amount)],
-        );
-        Ok(amount)
+        Ok(())
     }
 
     /// Schedule processes based on user space waker events, e.g. used by the
