@@ -38,6 +38,9 @@ use crate::setup::set_cpu_affinity;
 use crate::spawn::options::ActorOptions;
 use crate::{self as rt, shared, trace, RuntimeRef, Signal, ThreadLocal};
 
+/// Number of system actors (spawned in the local scheduler).
+pub(crate) const SYSTEM_ACTORS: usize = 1;
+
 /// Number of processes to run in between calls to poll.
 ///
 /// This number is chosen arbitrarily.
@@ -277,6 +280,8 @@ impl Worker {
             receiver,
             ActorOptions::SYSTEM,
         );
+        // Keep this up to date, otherwise we'll exit early.
+        assert!(SYSTEM_ACTORS == 1);
 
         trace::finish_rt(
             worker.trace_log().as_mut(),
@@ -308,16 +313,16 @@ impl Worker {
                 n += 1;
             }
 
-            if self.internals.started() && !self.has_process() {
+            if self.internals.started() && !self.has_user_process() {
                 debug!(worker_id = self.internals.id.get(); "no processes to run, stopping worker");
                 self.internals.shared.wake_all_workers();
                 return Ok(());
             }
 
-            self.schedule_processes()?;
             if let Some(err) = self.internals.take_err() {
                 return Err(err);
             }
+            self.schedule_processes()?;
         }
     }
 
@@ -388,8 +393,8 @@ impl Worker {
 
     /// Returns `true` if there are processes in either the local or shared
     /// schedulers.
-    fn has_process(&self) -> bool {
-        self.internals.scheduler.borrow().has_process() || self.internals.shared.has_process()
+    fn has_user_process(&self) -> bool {
+        self.internals.scheduler.borrow().has_user_process() || self.internals.shared.has_process()
     }
 
     /// Schedule processes.
