@@ -44,6 +44,7 @@ impl SystemScheduler {
 impl fmt::Debug for SystemScheduler {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SystemScheduler")
+            .field("futures", &self.futures.len())
             .field("ready", &self.ready)
             .finish()
     }
