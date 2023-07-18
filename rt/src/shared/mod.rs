@@ -111,8 +111,8 @@ impl RuntimeInternals {
 
     /// Same as [`RuntimeInternals::setup`], but doesn't attach to an existing [`a10::Ring`].
     #[cfg(any(test, feature = "test"))]
-    pub(crate) fn test_setup() -> io::Result<RuntimeSetup> {
-        let ring = a10::Ring::new(128)?;
+    pub(crate) fn test_setup(ring_entries: u32) -> io::Result<RuntimeSetup> {
+        let ring = a10::Ring::new(ring_entries)?;
         Ok(RuntimeSetup { ring })
     }
 

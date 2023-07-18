@@ -85,7 +85,7 @@ pub(crate) fn noop_waker() -> a10::SubmissionQueue {
     static NOOP_WAKER: OnceLock<a10::SubmissionQueue> = OnceLock::new();
     NOOP_WAKER
         .get_or_init(|| {
-            let ring = a10::Ring::new(1).expect("failed to create `a10::Ring` for test module");
+            let ring = a10::Ring::new(2).expect("failed to create `a10::Ring` for test module");
             ring.submission_queue().clone()
         })
         .clone()
@@ -95,7 +95,7 @@ pub(crate) fn shared_internals() -> Arc<shared::RuntimeInternals> {
     static SHARED_INTERNALS: OnceLock<Arc<shared::RuntimeInternals>> = OnceLock::new();
     SHARED_INTERNALS
         .get_or_init(|| {
-            let setup = shared::RuntimeInternals::test_setup()
+            let setup = shared::RuntimeInternals::test_setup(256)
                 .expect("failed to setup runtime internals for test module");
             Arc::new_cyclic(|shared_internals| {
                 let wakers = Wakers::new(shared_internals.clone());

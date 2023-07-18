@@ -155,7 +155,7 @@ mod shared {
     }
 
     fn new_internals() -> Arc<RuntimeInternals> {
-        let setup = RuntimeInternals::test_setup().unwrap();
+        let setup = RuntimeInternals::test_setup(2).unwrap();
         Arc::new_cyclic(|shared_internals| {
             let wakers = Wakers::new(shared_internals.clone());
             let worker_wakers = vec![test::noop_waker()].into_boxed_slice();
