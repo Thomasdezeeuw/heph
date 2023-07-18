@@ -15,6 +15,7 @@
 //! [worker threads]: crate::worker
 //! [sync worker threads]: crate::sync_worker
 
+use std::cmp::max;
 use std::env::consts::ARCH;
 use std::os::fd::{AsFd, AsRawFd};
 use std::os::unix::process::parent_id;
@@ -86,7 +87,9 @@ impl Coordinator {
         // threads.
         let signals = setup_signals(poll.registry())?;
 
-        let setup = shared::RuntimeInternals::setup(ring.submission_queue())?;
+        // Use 64 entries per worker thread for the shared `a10::Ring`.
+        let entries = max((worker_sqs.len() * 64) as u32, 8);
+        let setup = shared::RuntimeInternals::setup(ring.submission_queue(), entries)?;
         let internals = Arc::new_cyclic(|shared_internals| {
             let wakers = Wakers::new(shared_internals.clone());
             setup.complete(wakers, worker_sqs, trace_log)

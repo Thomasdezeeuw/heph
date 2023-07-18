@@ -1,5 +1,6 @@
 //! Module with [`Setup`].
 
+use std::cmp::max;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::num::NonZeroUsize;
@@ -148,7 +149,10 @@ impl Setup {
         let name = name.unwrap_or_else(default_app_name).into_boxed_str();
         debug!(name = name, workers = threads; "building Heph runtime");
 
-        let coordinator_ring = a10::Ring::new(32).map_err(Error::init_coordinator)?;
+        // At most we expect each worker thread to generate a completion and a
+        // possibly an incoming signal.
+        let entries = max((threads + 1).next_power_of_two() as u32, 8);
+        let coordinator_ring = a10::Ring::new(entries).map_err(Error::init_coordinator)?;
 
         // Setup the worker threads.
         let timing = trace::start(&trace_log);
