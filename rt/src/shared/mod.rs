@@ -99,8 +99,11 @@ pub(crate) struct Metrics {
 
 impl RuntimeInternals {
     /// Setup new runtime internals.
-    pub(crate) fn setup(coordinator_sq: &a10::SubmissionQueue) -> io::Result<RuntimeSetup> {
-        let ring = a10::Ring::config(128)
+    pub(crate) fn setup(
+        coordinator_sq: &a10::SubmissionQueue,
+        ring_entries: u32,
+    ) -> io::Result<RuntimeSetup> {
+        let ring = a10::Ring::config(ring_entries)
             .attach_queue(coordinator_sq)
             .build()?;
         Ok(RuntimeSetup { ring })
