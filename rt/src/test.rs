@@ -119,7 +119,6 @@ pub(crate) fn runtime() -> RuntimeRef {
             let (setup, sq) = worker::setup_test().expect("failed to setup test runtime");
             let (_, receiver) = rt::channel::new(sq).expect("failed to test runtime channel");
             Worker::setup(setup, receiver, shared_internals(), false, None)
-                .expect("failed to create local `Runtime` for test module")
         };
     }
 

@@ -151,6 +151,7 @@ impl Setup {
 
         // At most we expect each worker thread to generate a completion and a
         // possibly an incoming signal.
+        #[allow(clippy::cast_possible_truncation)]
         let entries = max((threads + 1).next_power_of_two() as u32, 8);
         let coordinator_ring = a10::Ring::new(entries).map_err(Error::init_coordinator)?;
 

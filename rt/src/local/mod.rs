@@ -91,7 +91,7 @@ impl RuntimeInternals {
         receivers.remove_disconnected();
         match receivers.try_send(signal, Delivery::ToAll) {
             Err(SendError) if signal.should_stop() => {
-                self.set_err(worker::Error::ProcessInterrupted)
+                self.set_err(worker::Error::ProcessInterrupted);
             }
             Ok(()) | Err(SendError) => {}
         };
@@ -160,7 +160,7 @@ impl RuntimeInternals {
 
     /// Make [`RuntimeInternals::started`] return true.
     pub(crate) fn start(&self) {
-        self.started.set(true)
+        self.started.set(true);
     }
 
     /// Whether or not the runtime has been started.
@@ -173,7 +173,7 @@ impl RuntimeInternals {
         let mut got_err = self.error.borrow_mut();
         // We always keep the first error.
         if got_err.is_none() {
-            *got_err = Some(err)
+            *got_err = Some(err);
         }
     }
 

@@ -55,7 +55,7 @@ pub(crate) fn setup(
     let ring = a10::Ring::config(128)
         .attach_queue(&coordinator_sq)
         .build()?;
-    setup2(id, ring, coordinator_sq)
+    Ok(setup2(id, ring, coordinator_sq))
 }
 
 /// Test version of [`setup`].
@@ -64,7 +64,7 @@ pub(crate) fn setup_test() -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
     let ring = a10::Ring::config(128).build()?;
     // We don't have a coordinator, so we'll message ourselves.
     let coordinator_sq = ring.submission_queue().clone();
-    setup2(NonZeroUsize::MAX, ring, coordinator_sq)
+    Ok(setup2(NonZeroUsize::MAX, ring, coordinator_sq))
 }
 
 /// Second part of the [`setup`].
@@ -72,7 +72,7 @@ fn setup2(
     id: NonZeroUsize,
     ring: a10::Ring,
     coordinator_sq: a10::SubmissionQueue,
-) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
+) -> (WorkerSetup, a10::SubmissionQueue) {
     let sq = ring.submission_queue().clone();
 
     // Setup the waking mechanism.
@@ -82,11 +82,11 @@ fn setup2(
     let setup = WorkerSetup {
         id,
         ring,
+        coordinator_sq,
         waker_id,
         waker_events,
-        coordinator_sq,
     };
-    Ok((setup, sq))
+    (setup, sq)
 }
 
 /// Setup work required before starting a worker thread, see [`setup`].
@@ -139,8 +139,7 @@ impl WorkerSetup {
                         shared_internals,
                         auto_cpu_affinity,
                         trace_log,
-                    )
-                    .map_err(rt::Error::worker)?;
+                    );
                     worker.run().map_err(rt::Error::worker)
                 })
                 .map(|handle| Handle {
@@ -222,7 +221,7 @@ impl Worker {
         shared_internals: Arc<shared::RuntimeInternals>,
         auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
-    ) -> Result<Worker, Error> {
+    ) -> Worker {
         let worker_id = setup.id.get();
         let timing = trace::start(&trace_log);
 
@@ -259,7 +258,7 @@ impl Worker {
             "Initialising the worker thread",
             &[],
         );
-        Ok(worker)
+        worker
     }
 
     /// Run the worker.
@@ -546,7 +545,7 @@ impl Worker {
 impl Drop for Worker {
     fn drop(&mut self) {
         // Wake the coordinator forcing it check if the workers are still alive.
-        self.coordinator_sq.wake()
+        self.coordinator_sq.wake();
     }
 }
 
@@ -586,6 +585,7 @@ impl std::error::Error for Error {
 }
 
 /// Create all system actors and put them in the returned
+#[allow(clippy::assertions_on_constants)]
 fn spawn_system_actors(mut runtime_ref: RuntimeRef, receiver: rt::channel::Receiver<Control>) {
     let _ = runtime_ref.spawn_local(
         NoSupervisor,

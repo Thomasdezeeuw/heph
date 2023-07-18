@@ -88,6 +88,7 @@ impl Coordinator {
         let signals = setup_signals(poll.registry())?;
 
         // Use 64 entries per worker thread for the shared `a10::Ring`.
+        #[allow(clippy::cast_possible_truncation)]
         let entries = max((worker_sqs.len() * 64) as u32, 8);
         let setup = shared::RuntimeInternals::setup(ring.submission_queue(), entries)?;
         let internals = Arc::new_cyclic(|shared_internals| {
