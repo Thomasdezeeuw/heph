@@ -2,7 +2,6 @@
 
 use std::cmp::min;
 use std::future::Future;
-use std::os::fd::{AsFd, AsRawFd, RawFd};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, TryLockError};
@@ -136,11 +135,6 @@ impl RuntimeInternals {
             Err(TryLockError::WouldBlock) => Ok(()),
             Err(TryLockError::Poisoned(err)) => panic!("failed to lock shared io_uring: {err}"),
         }
-    }
-
-    /// Return the file descriptor for the io_uring.
-    pub(crate) fn ring_fd(&self) -> RawFd {
-        self.ring.lock().unwrap().as_fd().as_raw_fd()
     }
 
     /// Returns the io_uring submission queue.

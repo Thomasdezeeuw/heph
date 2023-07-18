@@ -17,7 +17,6 @@
 
 use std::cell::RefMut;
 use std::num::NonZeroUsize;
-use std::os::fd::{AsFd, AsRawFd};
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -27,8 +26,6 @@ use crossbeam_channel::{self, Receiver};
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use log::{as_debug, debug, trace};
-use mio::unix::SourceFd;
-use mio::{Events, Interest, Poll, Token};
 
 use crate::error::StringError;
 use crate::local::waker::{self, WakerId};
@@ -47,11 +44,6 @@ pub(crate) const SYSTEM_ACTORS: usize = 1;
 // TODO: find a good balance between polling, polling user space events only and
 // running processes.
 const RUN_POLL_RATIO: usize = 32;
-
-/// Token used to indicate the io_uring completion ring has events.
-const RING: Token = Token(usize::MAX - 3);
-/// Token used to indicate the shared io_uring completion ring has events.
-const SHARED_RING: Token = Token(usize::MAX - 4);
 
 /// Setup a new worker thread.
 ///
@@ -81,7 +73,6 @@ fn setup2(
     ring: a10::Ring,
     coordinator_sq: a10::SubmissionQueue,
 ) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let poll = Poll::new()?;
     let sq = ring.submission_queue().clone();
 
     // Setup the waking mechanism.
@@ -90,7 +81,6 @@ fn setup2(
 
     let setup = WorkerSetup {
         id,
-        poll,
         ring,
         waker_id,
         waker_events,
@@ -103,9 +93,6 @@ fn setup2(
 pub(crate) struct WorkerSetup {
     /// See [`WorkerSetup::id`].
     id: NonZeroUsize,
-    /// Poll instance for the worker thread. This is needed before starting the
-    /// thread to initialise the [`rt::local::waker`].
-    poll: Poll,
     /// io_uring completion ring.
     ring: a10::Ring,
     /// SubmissionQueue for the coordinator.
@@ -221,8 +208,6 @@ impl Handle {
 pub(crate) struct Worker {
     /// Internals of the runtime, shared with zero or more [`RuntimeRef`]s.
     internals: Rc<RuntimeInternals>,
-    /// Mio events container.
-    events: Events,
     /// Receiving side of the channel for waker events, see the
     /// [`rt::local::waker`] module for the implementation.
     waker_events: Receiver<ProcessId>,
@@ -247,30 +232,11 @@ impl Worker {
             None
         };
 
-        // Register the shared poll intance.
-        let poll = setup.poll;
-        trace!(worker_id = worker_id; "registering io_uring completion ring");
-        let ring = setup.ring;
-        let ring_fd = ring.as_fd().as_raw_fd();
-        poll.registry()
-            .register(&mut SourceFd(&ring_fd), RING, Interest::READABLE)
-            .map_err(Error::Init)?;
-        trace!(worker_id = worker_id; "registering shared io_uring completion ring");
-        let shared_ring_fd = shared_internals.ring_fd();
-        poll.registry()
-            .register(
-                &mut SourceFd(&shared_ring_fd),
-                SHARED_RING,
-                Interest::READABLE,
-            )
-            .map_err(Error::Init)?;
-
         let internals = Rc::new(RuntimeInternals::new(
             setup.id,
             shared_internals,
             setup.waker_id,
-            poll,
-            ring,
+            setup.ring,
             cpu,
             trace_log,
         ));
@@ -283,7 +249,6 @@ impl Worker {
 
         let mut worker = Worker {
             internals,
-            events: Events::with_capacity(128),
             waker_events: setup.waker_events,
             coordinator_sq: setup.coordinator_sq,
         };
@@ -411,7 +376,7 @@ impl Worker {
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
         // Schedule local and shared processes based on various event sources.
-        self.schedule_from_os_events()?;
+        self.poll_os().map_err(Error::Polling)?;
         let mut local_amount = self.schedule_from_waker();
         let now = Instant::now();
         local_amount += self.schedule_from_local_timers(now);
@@ -431,73 +396,6 @@ impl Worker {
         // Possibly wake other worker threads if we've scheduled any shared
         // processes (that we can't directly run).
         self.wake_workers(local_amount, shared_amount);
-
-        Ok(())
-    }
-
-    /// Schedule processes based on OS events. First polls for events and
-    /// schedules processes based on them.
-    ///
-    /// Returns the amount of processes marked as active and a boolean
-    /// indicating whether or not the shared timers should be checked.
-    fn schedule_from_os_events(&mut self) -> Result<(), Error> {
-        // Start with polling for OS events.
-        self.poll_os().map_err(Error::Polling)?;
-
-        // Based on the OS event scheduler thread-local processes.
-        let timing = trace::start(&*self.internals.trace_log.borrow());
-        let mut check_ring = false;
-        let mut check_shared_ring = false;
-        for event in &self.events {
-            trace!(worker_id = self.internals.id.get(), event = as_debug!(event); "got OS event");
-            match event.token() {
-                RING => check_ring = true,
-                SHARED_RING => check_shared_ring = true,
-                _ => log::warn!(event = as_debug!(event); "unexpected OS event"),
-            }
-        }
-
-        if check_ring {
-            self.internals
-                .ring
-                .borrow_mut()
-                .poll(Some(Duration::ZERO))
-                .map_err(Error::Polling)?;
-            self.internals
-                .poll
-                .borrow()
-                .registry()
-                .reregister(
-                    &mut SourceFd(&self.internals.ring.borrow().as_fd().as_raw_fd()),
-                    RING,
-                    Interest::READABLE,
-                )
-                .map_err(Error::Polling)?;
-        }
-
-        if check_shared_ring {
-            self.internals
-                .shared
-                .try_poll_ring()
-                .map_err(Error::Polling)?;
-            self.internals
-                .poll
-                .borrow()
-                .registry()
-                .reregister(
-                    &mut SourceFd(&self.internals.shared.ring_fd()),
-                    SHARED_RING,
-                    Interest::READABLE,
-                )
-                .map_err(Error::Polling)?;
-        }
-
-        trace::finish_rt(
-            self.internals.trace_log.borrow_mut().as_mut(),
-            timing,
-            "Handling OS events",
-            &[],
-        );
 
         Ok(())
     }
@@ -583,14 +481,21 @@ impl Worker {
     /// Returns a boolean indicating if the shared timers should be checked.
     fn poll_os(&mut self) -> io::Result<()> {
         let timing = trace::start(&*self.internals.trace_log.borrow());
-        let timeout = self.determine_timeout();
 
+        // First process any shared completions, this influences
+        // `determine_timeout` below as we might schedule shared processes etc.
+        // Note that the call never blocks.
+        trace!(worker_id = self.internals.id.get(); "polling shared ring");
+        self.internals.shared.try_poll_ring()?;
+
+        let timeout = self.determine_timeout();
         trace!(worker_id = self.internals.id.get(), timeout = as_debug!(timeout); "polling for OS events");
-        let res = self
-            .internals
-            .poll
-            .borrow_mut()
-            .poll(&mut self.events, timeout);
+        self.internals.ring.borrow_mut().poll(timeout)?;
+
+        // Since we could have been polling our own ring for a long time we poll
+        // the shared ring again.
+        trace!(worker_id = self.internals.id.get(); "polling shared ring");
+        self.internals.shared.try_poll_ring()?;
 
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
@@ -598,12 +503,7 @@ impl Worker {
             "Polling for OS events",
             &[],
         );
-        match res {
-            Ok(()) => Ok(()),
-            // The io_uring will interrupt us.
-            Err(ref err) if err.kind() == io::ErrorKind::Interrupted => Ok(()),
-            Err(err) => Err(err),
-        }
+        Ok(())
     }
 
     /// Determine the timeout to be used in polling.
@@ -653,8 +553,6 @@ impl Drop for Worker {
 /// Error running a [`Worker`].
 #[derive(Debug)]
 pub(crate) enum Error {
-    /// Error in [`Worker::setup`].
-    Init(io::Error),
     /// Error polling for OS events.
     Polling(io::Error),
     /// Process was interrupted (i.e. received process signal), but no actor can
@@ -667,7 +565,6 @@ pub(crate) enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Init(err) => write!(f, "error initialising local runtime: {err}"),
             Error::Polling(err) => write!(f, "error polling OS: {err}"),
             Error::ProcessInterrupted => write!(
                 f,
@@ -681,7 +578,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Error::Init(ref err) | Error::Polling(ref err) => Some(err),
+            Error::Polling(ref err) => Some(err),
             Error::ProcessInterrupted => None,
             Error::UserFunction(ref err) => Some(err),
         }

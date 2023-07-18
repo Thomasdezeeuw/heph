@@ -8,7 +8,6 @@ use std::sync::Arc;
 
 use heph::actor_ref::{ActorGroup, Delivery, SendError};
 use log::{as_debug, info, trace};
-use mio::Poll;
 
 use crate::scheduler::Scheduler;
 use crate::timers::Timers;
@@ -29,8 +28,6 @@ pub(crate) struct RuntimeInternals {
     pub(crate) waker_id: WakerId,
     /// Scheduler for thread-local actors.
     pub(crate) scheduler: RefCell<Scheduler>,
-    /// OS poll, used for event notifications to support non-blocking I/O.
-    pub(crate) poll: RefCell<Poll>,
     /// io_uring completion ring.
     pub(crate) ring: RefCell<a10::Ring>,
     /// Timers, deadlines and timeouts.
@@ -61,7 +58,6 @@ impl RuntimeInternals {
         id: NonZeroUsize,
         shared_internals: Arc<shared::RuntimeInternals>,
         waker_id: WakerId,
-        poll: Poll,
         ring: a10::Ring,
         cpu: Option<usize>,
         trace_log: Option<trace::Log>,
@@ -71,7 +67,6 @@ impl RuntimeInternals {
             shared: shared_internals,
             waker_id,
             scheduler: RefCell::new(Scheduler::new()),
-            poll: RefCell::new(poll),
             ring: RefCell::new(ring),
             timers: RefCell::new(Timers::new()),
             signal_receivers: RefCell::new(ActorGroup::empty()),
