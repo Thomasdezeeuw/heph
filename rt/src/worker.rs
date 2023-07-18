@@ -265,7 +265,7 @@ impl Worker {
             )
             .map_err(Error::Init)?;
 
-        let internals = RuntimeInternals::new(
+        let internals = Rc::new(RuntimeInternals::new(
             setup.id,
             shared_internals,
             setup.waker_id,
@@ -273,24 +273,20 @@ impl Worker {
             ring,
             cpu,
             trace_log,
-        );
+        ));
+
+        trace!(worker_id = worker_id; "spawning system actors");
+        let runtime_ref = RuntimeRef {
+            internals: internals.clone(),
+        };
+        spawn_system_actors(runtime_ref, receiver);
+
         let mut worker = Worker {
-            internals: Rc::new(internals),
+            internals,
             events: Events::with_capacity(128),
             waker_events: setup.waker_events,
             coordinator_sq: setup.coordinator_sq,
         };
-
-        trace!(worker_id = worker_id; "spawning system actors");
-        let mut runtime_ref = worker.create_ref();
-        let _ = runtime_ref.spawn_local(
-            NoSupervisor,
-            actor_fn(comm_actor),
-            receiver,
-            ActorOptions::SYSTEM,
-        );
-        // Keep this up to date, otherwise we'll exit early.
-        assert!(SYSTEM_ACTORS == 1);
 
         trace::finish_rt(
             worker.trace_log().as_mut(),
@@ -691,7 +687,20 @@ impl std::error::Error for Error {
     }
 }
 
-/// Control message send to the worker threads.
+/// Create all system actors and put them in the returned
+fn spawn_system_actors(mut runtime_ref: RuntimeRef, receiver: rt::channel::Receiver<Control>) {
+    let _ = runtime_ref.spawn_local(
+        NoSupervisor,
+        actor_fn(comm_actor),
+        receiver,
+        ActorOptions::SYSTEM,
+    );
+    // Keep this up to date, otherwise we'll exit early.
+    assert!(SYSTEM_ACTORS == 1);
+}
+
+/// Control message send to the worker threads by the coordinator, handled by
+/// [`comm_actor`].
 #[allow(variant_size_differences)] // Can't make `Run` smaller.
 pub(crate) enum Control {
     /// Runtime has started, i.e. [`rt::Runtime::start`] was called.
