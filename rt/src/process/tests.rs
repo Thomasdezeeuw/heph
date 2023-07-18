@@ -7,8 +7,6 @@ use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
-use mio::Token;
-
 use crate::process::{FutureProcess, Process, ProcessData, ProcessId};
 use crate::spawn::options::Priority;
 use crate::test::{assert_size, nop_task_waker, AssertUnmoved};
@@ -23,17 +21,6 @@ fn pid() {
     assert_eq!(ProcessId(0).to_string(), "0");
     assert_eq!(ProcessId(100).to_string(), "100");
     assert_eq!(ProcessId(8000).to_string(), "8000");
-}
-
-#[test]
-fn pid_and_evented_id() {
-    let pid = ProcessId(0);
-    let id: Token = pid.into();
-    assert_eq!(id, Token(0));
-
-    let id = Token(0);
-    let pid: ProcessId = id.into();
-    assert_eq!(pid, ProcessId(0));
 }
 
 #[test]

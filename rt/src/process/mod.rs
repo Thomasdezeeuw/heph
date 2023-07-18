@@ -12,7 +12,6 @@ use std::{fmt, ptr};
 use heph::actor::{ActorFuture, NewActor};
 use heph::supervisor::Supervisor;
 use log::{as_debug, error, trace};
-use mio::Token;
 
 use crate::panic_message;
 use crate::spawn::options::Priority;
@@ -23,23 +22,10 @@ mod tests;
 /// Process id, or pid for short, is an identifier for a process in the runtime.
 ///
 /// This can only be created by one of the schedulers and should be seen as an
-/// opaque type for the rest of the crate. For convince this can converted from
-/// and into an [`Token`] as used by Mio.
+/// opaque type for the rest of the crate.
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Ord, PartialOrd)]
 #[repr(transparent)]
 pub(crate) struct ProcessId(pub(crate) usize);
-
-impl From<Token> for ProcessId {
-    fn from(id: Token) -> ProcessId {
-        ProcessId(id.0)
-    }
-}
-
-impl From<ProcessId> for Token {
-    fn from(id: ProcessId) -> Token {
-        Token(id.0)
-    }
-}
 
 impl fmt::Debug for ProcessId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -49,7 +35,7 @@ impl fmt::Debug for ProcessId {
 
 impl fmt::Display for ProcessId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.0)
+        self.0.fmt(f)
     }
 }
 
