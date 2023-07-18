@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn waker() {
-        let mut ring = a10::Ring::new(1).unwrap();
+        let mut ring = a10::Ring::new(2).unwrap();
 
         // Initialise the waker.
         let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
@@ -250,7 +250,7 @@ mod tests {
 
     #[test]
     fn waker_different_thread() {
-        let mut ring = a10::Ring::new(1).unwrap();
+        let mut ring = a10::Ring::new(2).unwrap();
 
         // Initialise the waker.
         let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
