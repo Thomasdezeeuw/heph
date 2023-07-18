@@ -303,7 +303,6 @@ impl Worker {
         loop {
             // We first run the processes and only poll after to ensure that we
             // return if there are no processes to run.
-            trace!(worker_id = self.internals.id.get(); "running processes");
             let mut n = 0;
             while n < RUN_POLL_RATIO {
                 if !self.run_local_process() {
@@ -340,6 +339,7 @@ impl Worker {
                 let timing = trace::start(&*self.internals.trace_log.borrow());
                 let pid = process.as_ref().id();
                 let name = process.as_ref().name();
+                trace!(worker_id = self.internals.id.get(), pid = pid.0, name = name; "running local process");
                 let waker = waker::new(self.internals.waker_id, pid);
                 let mut ctx = task::Context::from_waker(&waker);
                 match process.as_mut().run(&mut ctx) {
@@ -374,6 +374,7 @@ impl Worker {
                 let timing = trace::start(&*self.internals.trace_log.borrow());
                 let pid = process.as_ref().id();
                 let name = process.as_ref().name();
+                trace!(worker_id = self.internals.id.get(), pid = pid.0, name = name; "running shared process");
                 let waker = self.internals.shared.new_task_waker(pid);
                 let mut ctx = task::Context::from_waker(&waker);
                 match process.as_mut().run(&mut ctx) {
@@ -448,11 +449,11 @@ impl Worker {
         let mut check_ring = false;
         let mut check_shared_ring = false;
         for event in &self.events {
-            trace!(worker_id = self.internals.id.get(); "got OS event: {event:?}");
+            trace!(worker_id = self.internals.id.get(), event = as_debug!(event); "got OS event");
             match event.token() {
                 RING => check_ring = true,
                 SHARED_RING => check_shared_ring = true,
-                _ => log::warn!(event = as_debug!(event); "unknown event"),
+                _ => log::warn!(event = as_debug!(event); "unexpected OS event"),
             }
         }
 
@@ -584,7 +585,7 @@ impl Worker {
         let timing = trace::start(&*self.internals.trace_log.borrow());
         let timeout = self.determine_timeout();
 
-        trace!(worker_id = self.internals.id.get(), timeout = as_debug!(timeout); "polling OS events");
+        trace!(worker_id = self.internals.id.get(), timeout = as_debug!(timeout); "polling for OS events");
         let res = self
             .internals
             .poll
