@@ -164,11 +164,6 @@ impl Handle {
         self.id.get()
     }
 
-    /// See [`thread::JoinHandle::is_finished`].
-    pub(crate) fn is_finished(&self) -> bool {
-        self.handle.is_finished()
-    }
-
     /// Send the worker thread a signal that the runtime has started.
     pub(crate) fn send_runtime_started(&self) -> io::Result<()> {
         self.channel.send(Control::Started)
@@ -185,6 +180,11 @@ impl Handle {
         f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>,
     ) -> io::Result<()> {
         self.channel.send(Control::Run(f))
+    }
+
+    /// See [`thread::JoinHandle::is_finished`].
+    pub(crate) fn is_finished(&self) -> bool {
+        self.handle.is_finished()
     }
 
     /// See [`thread::JoinHandle::join`].

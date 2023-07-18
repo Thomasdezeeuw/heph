@@ -257,7 +257,6 @@ use crate::process::{FutureProcess, Process};
 use coordinator::Coordinator;
 use local::waker::MAX_THREADS;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
-use sync_worker::SyncWorker;
 use timers::TimerToken;
 
 const SYNC_WORKER_ID_START: usize = 10000;
@@ -291,7 +290,7 @@ pub struct Runtime {
     /// Worker threads.
     workers: Vec<worker::Handle>,
     /// Synchronous actor threads.
-    sync_actors: Vec<SyncWorker>,
+    sync_actors: Vec<sync_worker::Handle>,
     /// List of actor references that want to receive process signals.
     signals: ActorGroup<Signal>,
     /// Trace log.
@@ -389,7 +388,7 @@ impl Runtime {
             .as_ref()
             .map(|trace_log| trace_log.new_stream(id as u32));
         let shared = self.coordinator.shared_internals().clone();
-        SyncWorker::start(id, supervisor, actor, arg, options, shared, trace_log)
+        sync_worker::start(id, supervisor, actor, arg, options, shared, trace_log)
             .map(|(worker, actor_ref)| {
                 self.sync_actors.push(worker);
                 actor_ref

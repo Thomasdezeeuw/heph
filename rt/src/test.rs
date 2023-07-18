@@ -69,12 +69,11 @@ use heph_inbox as inbox;
 use heph_inbox::oneshot::{self, new_oneshot};
 
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
-use crate::sync_worker::SyncWorker;
 use crate::wakers::shared::Wakers;
 use crate::worker::Worker;
 use crate::{
-    self as rt, panic_message, shared, worker, RuntimeRef, Sync, ThreadLocal, ThreadSafe,
-    SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
+    self as rt, panic_message, shared, sync_worker, worker, RuntimeRef, Sync, ThreadLocal,
+    ThreadSafe, SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
 };
 
 #[doc(no_inline)]
@@ -584,7 +583,7 @@ where
     );
 
     let shared = shared_internals();
-    SyncWorker::start(id, supervisor, actor, arg, options, shared, None).map(
+    sync_worker::start(id, supervisor, actor, arg, options, shared, None).map(
         |(worker, actor_ref)| {
             let handle = worker.into_handle();
             (handle, actor_ref)

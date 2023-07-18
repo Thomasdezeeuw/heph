@@ -24,8 +24,7 @@ use std::time::{Duration, Instant};
 use std::{fmt, io, process};
 
 use heph::actor_ref::{ActorGroup, Delivery};
-use log::{as_debug, as_display, debug, error, info, trace};
-use mio::event::Event;
+use log::{as_debug, as_display, debug, error, info, trace, warn};
 use mio::unix::SourceFd;
 use mio::{Events, Interest, Poll, Registry, Token};
 use mio_signals::{SignalSet, Signals};
@@ -33,10 +32,7 @@ use mio_signals::{SignalSet, Signals};
 use crate::scheduler::SystemScheduler;
 use crate::setup::{host_id, host_info, Uuid};
 use crate::wakers::shared::Wakers;
-use crate::{
-    self as rt, cpu_usage, shared, trace, worker, Signal, SyncWorker, SYNC_WORKER_ID_END,
-    SYNC_WORKER_ID_START,
-};
+use crate::{self as rt, cpu_usage, shared, sync_worker, trace, worker, Signal};
 
 /// Token used to receive process signals.
 const SIGNAL: Token = Token(usize::MAX);
@@ -125,7 +121,7 @@ impl Coordinator {
     pub(crate) fn run(
         mut self,
         mut workers: Vec<worker::Handle>,
-        mut sync_workers: Vec<SyncWorker>,
+        mut sync_workers: Vec<sync_worker::Handle>,
         mut signal_refs: ActorGroup<Signal>,
         mut trace_log: Option<trace::CoordinatorLog>,
     ) -> Result<(), rt::Error> {
@@ -171,22 +167,12 @@ impl Coordinator {
                             )
                             .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
 
-                        // When a worker stops it will wake to coordinator.
+                        // When a (sync) worker stops it will wake to coordinator.
                         let timing = trace::start(&trace_log);
-                        check_workers(&mut workers)?;
+                        check_workers(&mut workers, &mut sync_workers)?;
                         trace::finish_rt(trace_log.as_mut(), timing, "Checking workers", &[]);
                     }
-                    token if token.0 >= SYNC_WORKER_ID_START && token.0 <= SYNC_WORKER_ID_END => {
-                        let timing = trace::start(&trace_log);
-                        handle_sync_worker_event(&mut sync_workers, event)?;
-                        trace::finish_rt(
-                            trace_log.as_mut(),
-                            timing,
-                            "Processing sync worker event",
-                            &[],
-                        );
-                    }
-                    _ => debug!(event = as_debug!(event); "unexpected OS event"),
+                    _ => warn!(event = as_debug!(event); "unexpected OS event"),
                 }
             }
             trace::finish_rt(trace_log.as_mut(), timing, "Handling OS events", &[]);
@@ -216,11 +202,11 @@ impl Coordinator {
     fn pre_run(
         &mut self,
         workers: &mut [worker::Handle],
-        sync_workers: &mut Vec<SyncWorker>,
+        sync_workers: &mut Vec<sync_worker::Handle>,
         trace_log: &mut Option<trace::CoordinatorLog>,
     ) -> Result<(), rt::Error> {
         debug_assert!(workers.is_sorted_by_key(worker::Handle::id));
-        debug_assert!(sync_workers.is_sorted_by_key(SyncWorker::id));
+        debug_assert!(sync_workers.is_sorted_by_key(sync_worker::Handle::id));
 
         // Register various sources of OS events that need to wake us from
         // polling events.
@@ -230,15 +216,6 @@ impl Coordinator {
         registry
             .register(&mut SourceFd(ring_fd), RING, Interest::READABLE)
             .map_err(|err| rt::Error::coordinator(Error::Startup(err)))?;
-        register_sync_workers(registry, sync_workers)
-            .map_err(|err| rt::Error::coordinator(Error::RegisteringSyncActors(err)))?;
-        // It could be that before we're able to register the sync workers above
-        // they've already completed. On macOS and Linux this will still create
-        // an kqueue/epoll event, even if the other side of the Unix pipe was
-        // already disconnected before registering it with `Poll`.
-        // However this doesn't seem to be the case on FreeBSD, so we explicitly
-        // check if the sync workers are still alive *after* we registered them.
-        check_sync_worker_alive(sync_workers)?;
         trace::finish_rt(
             trace_log.as_mut(),
             timing,
@@ -261,7 +238,7 @@ impl Coordinator {
     fn log_metrics<'c, 'l>(
         &'c self,
         workers: &[worker::Handle],
-        sync_workers: &[SyncWorker],
+        sync_workers: &[sync_worker::Handle],
         signal_refs: &ActorGroup<Signal>,
         trace_log: &'l mut Option<trace::CoordinatorLog>,
     ) {
@@ -328,25 +305,6 @@ fn setup_signals(registry: &Registry) -> io::Result<Signals> {
     })
 }
 
-/// Register all `sync_workers`' sending end of the pipe with `registry`.
-fn register_sync_workers(registry: &Registry, sync_workers: &mut [SyncWorker]) -> io::Result<()> {
-    sync_workers.iter_mut().try_for_each(|sync_worker| {
-        trace!(sync_worker_id = sync_worker.id(); "registering sync actor worker thread");
-        sync_worker.register(registry)
-    })
-}
-
-/// Checks all `sync_workers` if they're alive and removes any that have
-/// stopped.
-fn check_sync_worker_alive(sync_workers: &mut Vec<SyncWorker>) -> Result<(), rt::Error> {
-    sync_workers
-        .extract_if(|sync_worker| !sync_worker.is_alive())
-        .try_for_each(|sync_worker| {
-            debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
-            sync_worker.join().map_err(rt::Error::sync_actor_panic)
-        })
-}
-
 /// Relay all signals received from `signals` to the `workers` and
 /// `signal_refs`.
 /// Returns a bool indicating we received `SIGUSR2`, which is used to get
@@ -399,7 +357,10 @@ fn relay_signals(
 }
 
 /// Check if the workers are still alive.
-fn check_workers(workers: &mut Vec<worker::Handle>) -> Result<(), rt::Error> {
+fn check_workers(
+    workers: &mut Vec<worker::Handle>,
+    sync_workers: &mut Vec<sync_worker::Handle>,
+) -> Result<(), rt::Error> {
     for worker in workers.extract_if(|w| w.is_finished()) {
         debug!(worker_id = worker.id(); "worker thread stopped");
         worker
@@ -407,23 +368,12 @@ fn check_workers(workers: &mut Vec<worker::Handle>) -> Result<(), rt::Error> {
             .map_err(rt::Error::worker_panic)
             .and_then(|res| res)?;
     }
-    Ok(())
-}
 
-/// Handle an `event` for a sync actor worker.
-fn handle_sync_worker_event(
-    sync_workers: &mut Vec<SyncWorker>,
-    event: &Event,
-) -> Result<(), rt::Error> {
-    if let Ok(i) = sync_workers.binary_search_by_key(&event.token().0, SyncWorker::id) {
-        if event.is_error() || event.is_write_closed() {
-            // Receiving end of the pipe is dropped, which means the sync worker
-            // has shut down.
-            let sync_worker = sync_workers.remove(i);
-            debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
-            sync_worker.join().map_err(rt::Error::sync_actor_panic)?;
-        }
+    for sync_worker in sync_workers.extract_if(|w| w.is_finished()) {
+        debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
+        sync_worker.join().map_err(rt::Error::sync_actor_panic)?;
     }
+
     Ok(())
 }
 
@@ -432,8 +382,6 @@ fn handle_sync_worker_event(
 pub(crate) enum Error {
     /// Error in starting up the Coordinator.
     Startup(io::Error),
-    /// Error in [`register_sync_workers`].
-    RegisteringSyncActors(io::Error),
     /// Error polling ([`mio::Poll`] or [`a10::Ring`]).
     Polling(io::Error),
     /// Error sending start signal to worker.
@@ -446,9 +394,6 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Error::Startup(err) => write!(f, "error starting coordinator: {err}"),
-            Error::RegisteringSyncActors(err) => {
-                write!(f, "error registering synchronous actor threads: {err}")
-            }
             Error::Polling(err) => write!(f, "error polling for OS events: {err}"),
             Error::SendingStartSignal(err) => {
                 write!(f, "error sending start signal to worker: {err}")
@@ -462,7 +407,6 @@ impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Error::Startup(ref err)
-            | Error::RegisteringSyncActors(ref err)
             | Error::Polling(ref err)
             | Error::SendingStartSignal(ref err)
             | Error::SendingFunc(ref err) => Some(err),
