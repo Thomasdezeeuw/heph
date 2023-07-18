@@ -52,7 +52,7 @@ pub(crate) fn setup(
     id: NonZeroUsize,
     coordinator_sq: a10::SubmissionQueue,
 ) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let ring = a10::Ring::config(64)
+    let ring = a10::Ring::config(128)
         .attach_queue(&coordinator_sq)
         .build()?;
     setup2(id, ring, coordinator_sq)
@@ -61,7 +61,7 @@ pub(crate) fn setup(
 /// Test version of [`setup`].
 #[cfg(any(test, feature = "test"))]
 pub(crate) fn setup_test() -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let ring = a10::Ring::config(64).build()?;
+    let ring = a10::Ring::config(128).build()?;
     // We don't have a coordinator, so we'll message ourselves.
     let coordinator_sq = ring.submission_queue().clone();
     setup2(NonZeroUsize::MAX, ring, coordinator_sq)
