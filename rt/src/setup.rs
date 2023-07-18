@@ -162,9 +162,8 @@ impl Setup {
         for id in 1..=threads {
             // Coordinator has id 0.
             let id = NonZeroUsize::new(id).unwrap();
-            let coordinator_sq = coordinator_ring.submission_queue().clone();
-            let (worker_setup, worker_sq) =
-                worker::setup(id, coordinator_sq).map_err(Error::start_worker)?;
+            let (worker_setup, worker_sq) = worker::setup(id, coordinator_ring.submission_queue())
+                .map_err(Error::start_worker)?;
             worker_setups.push(worker_setup);
             worker_sqs.push(worker_sq);
         }

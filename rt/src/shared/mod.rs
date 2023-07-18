@@ -35,6 +35,7 @@ use crate::{trace, ThreadSafe};
 /// be called inside `Arc::new_cyclic`.
 pub(crate) struct RuntimeSetup {
     ring: a10::Ring,
+    coordinator_sq: a10::SubmissionQueue,
 }
 
 impl RuntimeSetup {
@@ -57,6 +58,7 @@ impl RuntimeSetup {
             scheduler: Scheduler::new(),
             timers: Timers::new(),
             trace_log,
+            coordinator_sq: self.coordinator_sq,
         }
     }
 }
@@ -86,6 +88,8 @@ pub(crate) struct RuntimeInternals {
     /// Prefer not to use this but use [`trace::Log`] in local internals
     /// instead.
     trace_log: Option<Arc<trace::SharedLog>>,
+    /// Coordinator submission queue used to wake it.
+    coordinator_sq: a10::SubmissionQueue,
 }
 
 /// Metrics for [`RuntimeInternals`].
@@ -100,20 +104,28 @@ pub(crate) struct Metrics {
 impl RuntimeInternals {
     /// Setup new runtime internals.
     pub(crate) fn setup(
-        coordinator_sq: &a10::SubmissionQueue,
+        coordinator_sq: a10::SubmissionQueue,
         ring_entries: u32,
     ) -> io::Result<RuntimeSetup> {
         let ring = a10::Ring::config(ring_entries)
-            .attach_queue(coordinator_sq)
+            .attach_queue(&coordinator_sq)
             .build()?;
-        Ok(RuntimeSetup { ring })
+        Ok(RuntimeSetup {
+            ring,
+            coordinator_sq,
+        })
     }
 
     /// Same as [`RuntimeInternals::setup`], but doesn't attach to an existing [`a10::Ring`].
     #[cfg(any(test, feature = "test"))]
     pub(crate) fn test_setup(ring_entries: u32) -> io::Result<RuntimeSetup> {
         let ring = a10::Ring::new(ring_entries)?;
-        Ok(RuntimeSetup { ring })
+        // Don't have a coordinator so we use our own submission queue.
+        let coordinator_sq = ring.submission_queue().clone();
+        Ok(RuntimeSetup {
+            ring,
+            coordinator_sq,
+        })
     }
 
     /// Returns metrics about the shared scheduler and timers.
@@ -311,5 +323,10 @@ impl RuntimeInternals {
             description,
             attributes,
         );
+    }
+
+    /// Wake the coordinator.
+    pub(crate) fn wake_coordinator(&self) {
+        self.coordinator_sq.wake();
     }
 }

@@ -50,29 +50,23 @@ const RUN_POLL_RATIO: usize = 32;
 /// Use [`WorkerSetup::start`] to spawn the worker thread.
 pub(crate) fn setup(
     id: NonZeroUsize,
-    coordinator_sq: a10::SubmissionQueue,
+    coordinator_sq: &a10::SubmissionQueue,
 ) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
     let ring = a10::Ring::config(128)
-        .attach_queue(&coordinator_sq)
+        .attach_queue(coordinator_sq)
         .build()?;
-    Ok(setup2(id, ring, coordinator_sq))
+    Ok(setup2(id, ring))
 }
 
 /// Test version of [`setup`].
 #[cfg(any(test, feature = "test"))]
 pub(crate) fn setup_test() -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
     let ring = a10::Ring::config(128).build()?;
-    // We don't have a coordinator, so we'll message ourselves.
-    let coordinator_sq = ring.submission_queue().clone();
-    Ok(setup2(NonZeroUsize::MAX, ring, coordinator_sq))
+    Ok(setup2(NonZeroUsize::MAX, ring))
 }
 
 /// Second part of the [`setup`].
-fn setup2(
-    id: NonZeroUsize,
-    ring: a10::Ring,
-    coordinator_sq: a10::SubmissionQueue,
-) -> (WorkerSetup, a10::SubmissionQueue) {
+fn setup2(id: NonZeroUsize, ring: a10::Ring) -> (WorkerSetup, a10::SubmissionQueue) {
     let sq = ring.submission_queue().clone();
 
     // Setup the waking mechanism.
@@ -82,7 +76,6 @@ fn setup2(
     let setup = WorkerSetup {
         id,
         ring,
-        coordinator_sq,
         waker_id,
         waker_events,
     };
@@ -95,8 +88,6 @@ pub(crate) struct WorkerSetup {
     id: NonZeroUsize,
     /// io_uring completion ring.
     ring: a10::Ring,
-    /// SubmissionQueue for the coordinator.
-    coordinator_sq: a10::SubmissionQueue,
     /// Waker id used to create a `Waker` for thread-local actors.
     waker_id: WakerId,
     /// Receiving side of the channel for `Waker` events.
@@ -210,7 +201,6 @@ pub(crate) struct Worker {
     /// Receiving side of the channel for waker events, see the
     /// [`rt::local::waker`] module for the implementation.
     waker_events: Receiver<ProcessId>,
-    coordinator_sq: a10::SubmissionQueue,
 }
 
 impl Worker {
@@ -249,7 +239,6 @@ impl Worker {
         let mut worker = Worker {
             internals,
             waker_events: setup.waker_events,
-            coordinator_sq: setup.coordinator_sq,
         };
 
         trace::finish_rt(
@@ -545,7 +534,7 @@ impl Worker {
 impl Drop for Worker {
     fn drop(&mut self) {
         // Wake the coordinator forcing it check if the workers are still alive.
-        self.coordinator_sq.wake();
+        self.internals.shared.wake_coordinator();
     }
 }
 
