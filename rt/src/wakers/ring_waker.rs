@@ -28,7 +28,7 @@ unsafe fn from_data(data: *const ()) -> a10::SubmissionQueue {
 /// Same safety requirement as [`from_data`]
 unsafe fn from_data_ref<'a>(data: &'a *const ()) -> &'a a10::SubmissionQueue {
     // SAFETY: same as `from_data`.
-    unsafe { std::mem::transmute(data) }
+    unsafe { &*(data as *const *const ()).cast() }
 }
 
 static WAKER_VTABLE: task::RawWakerVTable =

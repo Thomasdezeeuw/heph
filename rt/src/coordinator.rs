@@ -181,6 +181,7 @@ impl Coordinator {
         loop {
             match self.signals.poll_signal(&mut ctx) {
                 Poll::Ready(Some(Ok(info))) => {
+                    #[allow(clippy::cast_possible_wrap)]
                     let Some(signal) = Signal::from_signo(info.ssi_signo as _) else {
                         debug!("received unexpected signal (number {})", info.ssi_signo);
                         continue;
