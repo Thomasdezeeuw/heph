@@ -1,5 +1,14 @@
 use std::fmt;
 
+/// All signals supported by [`Signal`].
+pub(crate) const ALL_SIGNALS: [Signal; 5] = [
+    Signal::Interrupt,
+    Signal::Terminate,
+    Signal::Quit,
+    Signal::User1,
+    Signal::User2,
+];
+
 /// Process signal.
 ///
 /// All actors can receive process signals by calling
@@ -66,14 +75,27 @@ pub enum Signal {
 }
 
 impl Signal {
-    /// Convert a [`mio_signals::Signal`] into our own `Signal`.
-    pub(crate) const fn from_mio(signal: mio_signals::Signal) -> Signal {
-        match signal {
-            mio_signals::Signal::Interrupt => Signal::Interrupt,
-            mio_signals::Signal::Terminate => Signal::Terminate,
-            mio_signals::Signal::Quit => Signal::Quit,
-            mio_signals::Signal::User1 => Signal::User1,
-            mio_signals::Signal::User2 => Signal::User2,
+    /// Turns a signal number into a `Signal`. Returns `None` if we don't have a
+    /// variant for the signal number.
+    pub(crate) fn from_signo(signo: libc::c_int) -> Option<Signal> {
+        Some(match signo {
+            libc::SIGINT => Signal::Interrupt,
+            libc::SIGTERM => Signal::Terminate,
+            libc::SIGQUIT => Signal::Quit,
+            libc::SIGUSR1 => Signal::User1,
+            libc::SIGUSR2 => Signal::User2,
+            _ => return None,
+        })
+    }
+
+    /// Returns the signal as signal number.
+    pub(crate) fn to_signo(self) -> libc::c_int {
+        match self {
+            Signal::Interrupt => libc::SIGINT,
+            Signal::Terminate => libc::SIGTERM,
+            Signal::Quit => libc::SIGQUIT,
+            Signal::User1 => libc::SIGUSR1,
+            Signal::User2 => libc::SIGUSR2,
         }
     }
 

@@ -17,41 +17,30 @@
 
 use std::cmp::max;
 use std::env::consts::ARCH;
-use std::os::fd::{AsFd, AsRawFd};
 use std::os::unix::process::parent_id;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::task::{self, Poll};
+use std::time::Instant;
 use std::{fmt, io, process};
 
+use a10::signals::{ReceiveSignals, Signals};
 use heph::actor_ref::{ActorGroup, Delivery};
-use log::{as_debug, as_display, debug, error, info, trace, warn};
-use mio::unix::SourceFd;
-use mio::{Events, Interest, Poll, Registry, Token};
-use mio_signals::{SignalSet, Signals};
+use log::{as_debug, as_display, debug, error, info};
 
-use crate::scheduler::SystemScheduler;
 use crate::setup::{host_id, host_info, Uuid};
+use crate::signal::{Signal, ALL_SIGNALS};
+use crate::wakers::ring_waker;
 use crate::wakers::shared::Wakers;
-use crate::{self as rt, cpu_usage, shared, sync_worker, trace, worker, Signal};
-
-/// Token used to receive process signals.
-const SIGNAL: Token = Token(usize::MAX);
-const RING: Token = Token(usize::MAX - 1);
+use crate::{self as rt, cpu_usage, shared, sync_worker, trace, worker};
 
 /// Coordinator responsible for coordinating the Heph runtime.
 pub(crate) struct Coordinator {
     /// io_uring completion ring.
     ring: a10::Ring,
-    /// OS poll, used to poll the status of the (sync) worker threads and
-    /// process `signals`.
-    poll: Poll,
-    /// Process signal notifications.
-    signals: Signals,
-    /// System actors and `Future`s.
-    system_futures: SystemScheduler,
-    /// Internals shared between the coordinator and all workers.
+    /// Internals shared between the coordinator and all (sync) workers.
     internals: Arc<shared::RuntimeInternals>,
-
+    /// Process signal receiver.
+    signals: ReceiveSignals,
     // Data used in [`Coordinator::log_metrics`].
     /// Start time of the application.
     start: Instant,
@@ -78,15 +67,21 @@ impl Coordinator {
         worker_sqs: Box<[a10::SubmissionQueue]>,
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> io::Result<Coordinator> {
-        let poll = Poll::new()?;
-        // NOTE: on Linux this MUST be created before starting the worker
-        // threads.
-        let signals = setup_signals(poll.registry())?;
+        let signals = ALL_SIGNALS.into_iter().map(Signal::to_signo);
+        let signals = match Signals::from_signals(ring.submission_queue().clone(), signals) {
+            Ok(signals) => signals.receive_signals(),
+            Err(err) => {
+                return Err(io::Error::new(
+                    err.kind(),
+                    format!("failed to setup process signal handling: {err}"),
+                ))
+            }
+        };
 
-        let coordinator_sq = ring.submission_queue().clone();
+        let sq = ring.submission_queue().clone();
         #[allow(clippy::cast_possible_truncation)]
         let entries = max((worker_sqs.len() * 64) as u32, 8);
-        let setup = shared::RuntimeInternals::setup(coordinator_sq, entries)?;
+        let setup = shared::RuntimeInternals::setup(sq, entries)?;
         let internals = Arc::new_cyclic(|shared_internals| {
             let wakers = Wakers::new(shared_internals.clone());
             setup.complete(wakers, worker_sqs, trace_log)
@@ -96,10 +91,8 @@ impl Coordinator {
         let host_id = host_id()?;
         Ok(Coordinator {
             ring,
-            poll,
-            signals,
-            system_futures: SystemScheduler::new(Box::new([])),
             internals,
+            signals,
             start: Instant::now(),
             app_name,
             host_os,
@@ -125,122 +118,115 @@ impl Coordinator {
         mut signal_refs: ActorGroup<Signal>,
         mut trace_log: Option<trace::CoordinatorLog>,
     ) -> Result<(), rt::Error> {
-        self.pre_run(&mut workers, &mut sync_workers, &mut trace_log)?;
+        // Signal to all worker threads the runtime was started. See
+        // `local::RuntimeInternals::started` why this is needed.
+        debug!("signaling to workers the runtime started");
+        for worker in &workers {
+            worker
+                .send_runtime_started()
+                .map_err(|err| rt::Error::coordinator(Error::SendingStartSignal(err)))?;
+        }
 
-        let mut events = Events::with_capacity(16);
+        // Start listening for process signals.
+        self.check_process_signals(
+            &mut workers,
+            &sync_workers,
+            &mut signal_refs,
+            &mut trace_log,
+        )
+        .map_err(|err| rt::Error::coordinator(Error::SignalHandling(err)))?;
+
         loop {
             let timing = trace::start(&trace_log);
-            self.poll_os(&mut events)
+            self.ring
+                .poll(None)
                 .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
             trace::finish_rt(trace_log.as_mut(), timing, "Polling for OS events", &[]);
 
+            // We get awoken when we get a process signal.
             let timing = trace::start(&trace_log);
-            // Poll for events.
-            for event in &events {
-                trace!(event = as_debug!(event); "got OS event");
+            self.check_process_signals(
+                &mut workers,
+                &sync_workers,
+                &mut signal_refs,
+                &mut trace_log,
+            )
+            .map_err(|err| rt::Error::coordinator(Error::SignalHandling(err)))?;
+            trace::finish_rt(trace_log.as_mut(), timing, "Checking process signals", &[]);
 
-                match event.token() {
-                    SIGNAL => {
-                        let timing = trace::start(&trace_log);
-                        let log_metrics =
-                            relay_signals(&mut self.signals, &mut workers, &mut signal_refs);
-                        trace::finish_rt(
-                            trace_log.as_mut(),
-                            timing,
-                            "Relaying process signal(s)",
-                            &[],
-                        );
-                        if log_metrics {
-                            self.log_metrics(&workers, &sync_workers, &signal_refs, &mut trace_log);
-                        }
-                    }
-                    RING => {
-                        self.ring
-                            .poll(Some(Duration::ZERO))
-                            .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
-                        self.poll
-                            .registry()
-                            .reregister(
-                                &mut SourceFd(&self.ring.as_fd().as_raw_fd()),
-                                RING,
-                                Interest::READABLE,
-                            )
-                            .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
+            // When a (sync) worker stops it will wake to coordinator, so check
+            // for a change in the worker threads.
+            let timing = trace::start(&trace_log);
+            check_workers(&mut workers, &mut sync_workers)?;
+            trace::finish_rt(trace_log.as_mut(), timing, "Checking workers", &[]);
 
-                        // When a (sync) worker stops it will wake to coordinator.
-                        let timing = trace::start(&trace_log);
-                        check_workers(&mut workers, &mut sync_workers)?;
-                        trace::finish_rt(trace_log.as_mut(), timing, "Checking workers", &[]);
-                    }
-                    _ => warn!(event = as_debug!(event); "unexpected OS event"),
-                }
-            }
-            trace::finish_rt(trace_log.as_mut(), timing, "Handling OS events", &[]);
-
-            // Run all coordinator futures that are ready.
-            self.system_futures.run_ready();
-
-            // Once all (sync) worker threads are done running we can return.
+            // Once all (sync) workers are done running we can return.
             if workers.is_empty() && sync_workers.is_empty() {
                 return Ok(());
             }
         }
     }
 
-    fn poll_os(&mut self, events: &mut Events) -> io::Result<()> {
-        match self.poll.poll(events, None) {
-            Ok(()) => Ok(()),
-            // The io_uring will interrupt us.
-            Err(ref err) if err.kind() == io::ErrorKind::Interrupted => Ok(()),
-            Err(err) => Err(err),
-        }
-    }
-
-    /// Do the pre-[`run`] setup.
-    ///
-    /// [`run`]: Coordinator::run
-    fn pre_run(
+    /// Check if a process signal was received, relaying it to the `workers` and
+    /// actors in `signal_refs`.
+    fn check_process_signals(
         &mut self,
         workers: &mut [worker::Handle],
-        sync_workers: &mut Vec<sync_worker::Handle>,
+        sync_workers: &[sync_worker::Handle],
+        signal_refs: &mut ActorGroup<Signal>,
         trace_log: &mut Option<trace::CoordinatorLog>,
-    ) -> Result<(), rt::Error> {
-        debug_assert!(workers.is_sorted_by_key(worker::Handle::id));
-        debug_assert!(sync_workers.is_sorted_by_key(sync_worker::Handle::id));
+    ) -> io::Result<()> {
+        let waker = ring_waker::new(self.ring.submission_queue().clone());
+        let mut ctx = task::Context::from_waker(&waker);
+        loop {
+            match self.signals.poll_signal(&mut ctx) {
+                Poll::Ready(Some(Ok(info))) => {
+                    let Some(signal) = Signal::from_signo(info.ssi_signo as _) else {
+                        debug!("received unexpected signal (number {})", info.ssi_signo);
+                        continue;
+                    };
+                    if let Signal::User2 = signal {
+                        self.log_metrics(workers, sync_workers, signal_refs, trace_log);
+                    }
 
-        // Register various sources of OS events that need to wake us from
-        // polling events.
-        let timing = trace::start(&*trace_log);
-        let registry = self.poll.registry();
-        let ring_fd = &self.ring.as_fd().as_raw_fd();
-        registry
-            .register(&mut SourceFd(ring_fd), RING, Interest::READABLE)
-            .map_err(|err| rt::Error::coordinator(Error::Startup(err)))?;
-        trace::finish_rt(
-            trace_log.as_mut(),
-            timing,
-            "Initialising the coordinator thread",
-            &[],
-        );
+                    debug!(signal = as_debug!(signal); "relaying process signal to worker threads");
+                    for worker in &mut *workers {
+                        if let Err(err) = worker.send_signal(signal) {
+                            // NOTE: if the worker is unable to receive a
+                            // message it's likely already shutdown or is
+                            // shutting down. Rather than returning the error
+                            // here and stopping the coordinator (which was the
+                            // case previously) we log the error and instead
+                            // wait until the worker thread stopped returning
+                            // that error instead, which is likely more useful
+                            // (i.e. it has the reason why the worker thread
+                            // stopped).
+                            error!(
+                                signal = as_debug!(signal), worker_id = worker.id();
+                                "failed to send process signal to worker: {err}",
+                            );
+                        }
+                    }
 
-        // Signal to all worker threads the runtime was started. See
-        // `local::Runtime.started` why this is needed.
-        debug!("signaling to workers the runtime started");
-        for worker in workers {
-            worker
-                .send_runtime_started()
-                .map_err(|err| rt::Error::coordinator(Error::SendingStartSignal(err)))?;
+                    debug!(signal = as_debug!(signal); "relaying process signal to actors");
+                    signal_refs.remove_disconnected();
+                    _ = signal_refs.try_send(signal, Delivery::ToAll);
+                }
+                Poll::Ready(Some(Err(err))) => return Err(err),
+                Poll::Ready(None) | Poll::Pending => break,
+            }
         }
+
         Ok(())
     }
 
     /// Log metrics about the coordinator and runtime.
-    fn log_metrics<'c, 'l>(
-        &'c self,
+    fn log_metrics(
+        &self,
         workers: &[worker::Handle],
         sync_workers: &[sync_worker::Handle],
         signal_refs: &ActorGroup<Signal>,
-        trace_log: &'l mut Option<trace::CoordinatorLog>,
+        trace_log: &mut Option<trace::CoordinatorLog>,
     ) {
         let timing = trace::start(trace_log);
         let shared_metrics = self.internals.metrics();
@@ -262,7 +248,7 @@ impl Coordinator {
             shared_scheduler_inactive = shared_metrics.scheduler_inactive,
             shared_timers_total = shared_metrics.timers_total,
             shared_timers_next = as_debug!(shared_metrics.timers_next),
-            process_signals = as_debug!(SIGNAL_SET),
+            process_signals = as_debug!(ALL_SIGNALS),
             process_signal_receivers = signal_refs.len(),
             cpu_time = as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
             total_cpu_time = as_debug!(cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID)),
@@ -279,9 +265,6 @@ impl fmt::Debug for Coordinator {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Coordinator")
             .field("ring", &self.ring)
-            .field("poll", &self.poll)
-            .field("signals", &self.signals)
-            .field("system_futures", &self.system_futures)
             .field("internals", &self.internals)
             .field("start", &self.start)
             .field("app_name", &self.app_name)
@@ -292,71 +275,7 @@ impl fmt::Debug for Coordinator {
     }
 }
 
-/// Set of signals we're listening for.
-const SIGNAL_SET: SignalSet = SignalSet::all();
-
-/// Setup a new `Signals` instance, registering it with `registry`.
-fn setup_signals(registry: &Registry) -> io::Result<Signals> {
-    trace!(signals = as_debug!(SIGNAL_SET); "setting up signal handling");
-    Signals::new(SIGNAL_SET).and_then(|mut signals| {
-        registry
-            .register(&mut signals, SIGNAL, Interest::READABLE)
-            .map(|()| signals)
-    })
-}
-
-/// Relay all signals received from `signals` to the `workers` and
-/// `signal_refs`.
-/// Returns a bool indicating we received `SIGUSR2`, which is used to get
-/// metrics from the runtime. If this returns `true` call `log_metrics`.
-fn relay_signals(
-    signals: &mut Signals,
-    workers: &mut [worker::Handle],
-    signal_refs: &mut ActorGroup<Signal>,
-) -> bool {
-    signal_refs.remove_disconnected();
-
-    let mut log_metrics = false;
-    loop {
-        match signals.receive() {
-            Ok(Some(signal)) => {
-                let signal = Signal::from_mio(signal);
-                if let Signal::User2 = signal {
-                    log_metrics = true;
-                }
-
-                debug!(signal = as_debug!(signal); "relaying process signal to worker threads");
-                for worker in &mut *workers {
-                    if let Err(err) = worker.send_signal(signal) {
-                        // NOTE: if the worker is unable to receive a message
-                        // it's likely already shutdown or is shutting down.
-                        // Rather than returning the error here and stopping the
-                        // coordinator (which was the case previously) we log
-                        // the error and instead wait until the worker thread
-                        // stopped returning that error instead, which is likely
-                        // more useful (i.e. it has the reason why the worker
-                        // thread stopped).
-                        error!(
-                            signal = as_debug!(signal), worker_id = worker.id();
-                            "failed to send process signal to worker: {err}",
-                        );
-                    }
-                }
-
-                debug!(signal = as_debug!(signal); "relaying process signal to actors");
-                _ = signal_refs.try_send(signal, Delivery::ToAll);
-            }
-            Ok(None) => break,
-            Err(err) => {
-                error!("failed to retrieve process signal: {err}");
-                break;
-            }
-        }
-    }
-    log_metrics
-}
-
-/// Check if the workers are still alive.
+/// Check if the (sync) workers are still alive, removing any that are not.
 fn check_workers(
     workers: &mut Vec<worker::Handle>,
     sync_workers: &mut Vec<sync_worker::Handle>,
@@ -380,10 +299,10 @@ fn check_workers(
 /// Error running the [`Coordinator`].
 #[derive(Debug)]
 pub(crate) enum Error {
-    /// Error in starting up the Coordinator.
-    Startup(io::Error),
-    /// Error polling ([`mio::Poll`] or [`a10::Ring`]).
+    /// Error polling [`a10::Ring`].
     Polling(io::Error),
+    /// Error handling a process signal.
+    SignalHandling(io::Error),
     /// Error sending start signal to worker.
     SendingStartSignal(io::Error),
     /// Error sending function to worker.
@@ -393,8 +312,8 @@ pub(crate) enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Error::Startup(err) => write!(f, "error starting coordinator: {err}"),
             Error::Polling(err) => write!(f, "error polling for OS events: {err}"),
+            Error::SignalHandling(err) => write!(f, "error handling process signal: {err}"),
             Error::SendingStartSignal(err) => {
                 write!(f, "error sending start signal to worker: {err}")
             }
@@ -406,8 +325,8 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Error::Startup(ref err)
-            | Error::Polling(ref err)
+            Error::Polling(ref err)
+            | Error::SignalHandling(ref err)
             | Error::SendingStartSignal(ref err)
             | Error::SendingFunc(ref err) => Some(err),
         }
