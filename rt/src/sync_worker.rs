@@ -48,7 +48,7 @@ where
     let handle = thread::Builder::new().name(thread_name).spawn(move || {
         #[rustfmt::skip]
         let worker = SyncWorker { id, supervisor, actor, inbox, shared, trace_log };
-        worker.run(arg)
+        worker.run(arg);
     })?;
     Ok((Handle { id, handle }, actor_ref))
 }

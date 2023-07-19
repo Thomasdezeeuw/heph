@@ -237,7 +237,11 @@ pub(crate) fn host_info() -> io::Result<(Box<str>, Box<str>)> {
 
     let mut uname_info: MaybeUninit<libc::utsname> = MaybeUninit::uninit();
     if unsafe { libc::uname(uname_info.as_mut_ptr()) } == -1 {
-        return Err(io::Error::last_os_error());
+        let os_err = io::Error::last_os_error();
+        return Err(io::Error::new(
+            os_err.kind(),
+            format!("failed to get OS information: {os_err}"),
+        ));
     }
 
     // SAFETY: call to `uname(2)` above ensures `uname_info` is initialised.
@@ -297,8 +301,10 @@ pub(crate) fn host_id() -> io::Result<Uuid> {
     let mut buf = [0; EXPECTED_SIZE];
     let mut file = File::open(PATH)?;
     let n = file.read(&mut buf).map_err(|err| {
-        let msg = format!("can't open '{PATH}': {err}");
-        io::Error::new(err.kind(), msg)
+        io::Error::new(
+            err.kind(),
+            format!("failed to get host id: can't open '{PATH}': {err}"),
+        )
     })?;
 
     if n == EXPECTED_SIZE {
@@ -308,14 +314,16 @@ pub(crate) fn host_id() -> io::Result<Uuid> {
         let res = from_hex_hyphenated(&buf[..EXPECTED_SIZE]);
 
         res.map_err(|()| {
-            let msg = format!("invalid `{PATH}` format: input is not hex");
-            io::Error::new(io::ErrorKind::InvalidData, msg)
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                format!("failed to get host id: invalid '{PATH}' format: input is not hex"),
+            )
         })
     } else {
-        let msg = format!(
-            "can't read '{PATH}', invalid format: only read {n} bytes (expected {EXPECTED_SIZE})",
-        );
-        Err(io::Error::new(io::ErrorKind::InvalidData, msg))
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("failed to get host id: can't read '{PATH}', invalid format: only read {n} bytes (expected {EXPECTED_SIZE})"),
+        ))
     }
 }
 
@@ -378,7 +386,11 @@ pub(crate) fn host_id() -> io::Result<Uuid> {
         tv_nsec: 0,
     };
     if unsafe { libc::gethostuuid(bytes.as_mut_ptr(), &timeout) } == -1 {
-        Err(io::Error::last_os_error())
+        let os_err = io::Error::last_os_error();
+        Err(io::Error::new(
+            os_err.kind(),
+            format!("failed to get host id: {os_err}"),
+        ))
     } else {
         Ok(Uuid(u128::from_be_bytes(bytes)))
     }
