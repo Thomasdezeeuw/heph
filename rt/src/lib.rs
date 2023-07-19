@@ -260,7 +260,6 @@ use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 use timers::TimerToken;
 
 const SYNC_WORKER_ID_START: usize = 10000;
-const SYNC_WORKER_ID_END: usize = SYNC_WORKER_ID_START + 10000;
 
 #[test]
 #[allow(clippy::assertions_on_constants)] // This is the point of the test.
