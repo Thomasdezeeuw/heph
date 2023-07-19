@@ -9,6 +9,7 @@ use std::sync::Arc;
 use std::{ptr, task};
 
 mod bitmap;
+pub(crate) mod ring_waker;
 pub(crate) mod shared;
 #[cfg(test)]
 mod tests;

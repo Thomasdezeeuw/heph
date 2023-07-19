@@ -573,7 +573,7 @@ impl std::error::Error for Error {
     }
 }
 
-/// Create all system actors and put them in the returned
+/// Spawn all system actors.
 #[allow(clippy::assertions_on_constants)]
 fn spawn_system_actors(mut runtime_ref: RuntimeRef, receiver: rt::channel::Receiver<Control>) {
     let _ = runtime_ref.spawn_local(
