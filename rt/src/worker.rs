@@ -519,6 +519,7 @@ impl Worker {
     }
 
     /// Create a new reference to this runtime.
+    #[cfg(any(test, feature = "test"))]
     pub(crate) fn create_ref(&self) -> RuntimeRef {
         RuntimeRef {
             internals: self.internals.clone(),

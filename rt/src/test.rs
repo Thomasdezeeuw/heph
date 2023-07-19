@@ -73,7 +73,7 @@ use crate::wakers::shared::Wakers;
 use crate::worker::Worker;
 use crate::{
     self as rt, panic_message, shared, sync_worker, worker, RuntimeRef, Sync, ThreadLocal,
-    ThreadSafe, SYNC_WORKER_ID_END, SYNC_WORKER_ID_START,
+    ThreadSafe, SYNC_WORKER_ID_START,
 };
 
 #[doc(no_inline)]
@@ -577,10 +577,6 @@ where
 {
     static SYNC_WORKER_TEST_ID: AtomicUsize = AtomicUsize::new(SYNC_WORKER_ID_START);
     let id = SYNC_WORKER_TEST_ID.fetch_add(1, Ordering::SeqCst);
-    assert!(
-        id < SYNC_WORKER_ID_END,
-        "spawned too many synchronous test actors"
-    );
 
     let shared = shared_internals();
     sync_worker::start(id, supervisor, actor, arg, options, shared, None).map(
