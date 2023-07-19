@@ -218,3 +218,10 @@ where
         }
     }
 }
+
+pub(crate) fn send_signal(pid: u32, signal: libc::c_int) -> io::Result<()> {
+    match unsafe { libc::kill(pid as libc::pid_t, signal) } {
+        -1 => Err(io::Error::last_os_error()),
+        _ => Ok(()),
+    }
+}

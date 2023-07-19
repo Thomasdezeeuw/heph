@@ -1,4 +1,4 @@
-#![feature(never_type)]
+#![feature(async_iterator, never_type, write_all_vectored)]
 
 use std::process;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -8,7 +8,12 @@ use heph::actor::{self, actor_fn, SyncContext};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::options::{ActorOptions, SyncActorOptions};
 use heph_rt::{Runtime, Signal};
-use mio_signals::send_signal;
+
+#[path = "util/mod.rs"] // rustfmt can't find the file.
+#[macro_use]
+mod util;
+
+use util::send_signal;
 
 fn main() {
     no_signal_handlers();
@@ -18,7 +23,7 @@ fn main() {
 /// Runtime without any actor to receive the signal should stop itself.
 fn no_signal_handlers() {
     let runtime = Runtime::setup().build().unwrap();
-    send_signal(process::id(), mio_signals::Signal::Interrupt).expect("failed to send signal");
+    send_signal(process::id(), libc::SIGINT).expect("failed to send signal");
     let err_str = runtime.start().unwrap_err().to_string();
     assert!(
         err_str.contains("received process signal, but no receivers for it: stopping runtime"),
@@ -72,7 +77,7 @@ fn with_signal_handles() {
 
     // Sending a signal now shouldn't cause the runtime to return an error (as
     // the signal is handled by one or more actors).
-    send_signal(process::id(), mio_signals::Signal::Interrupt).expect("failed to send signal");
+    send_signal(process::id(), libc::SIGINT).expect("failed to send signal");
     runtime.start().unwrap();
 
     // Make sure that all the actor received the signal once.

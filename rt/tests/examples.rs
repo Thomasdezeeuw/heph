@@ -1,7 +1,7 @@
 //! These tests perform an end-to-end test based on the examples in the examples
 //! directory.
 
-#![feature(stmt_expr_attributes)]
+#![feature(async_iterator, never_type, stmt_expr_attributes, write_all_vectored)]
 
 use std::io::{self, Read};
 use std::net::{SocketAddr, TcpStream};
@@ -11,7 +11,11 @@ use std::process::{Child, Command, Stdio};
 use std::thread::sleep;
 use std::time::Duration;
 
-use mio_signals::{send_signal, Signal};
+#[path = "util/mod.rs"] // rustfmt can't find the file.
+#[macro_use]
+mod util;
+
+use util::send_signal;
 
 #[test]
 fn test_1_hello_world() {
@@ -43,7 +47,7 @@ fn test_2_my_ip() {
         .expect("unable to to read from stream");
     assert_eq!(output, "127.0.0.1");
 
-    if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
+    if let Err(err) = send_signal(child.inner.id(), libc::SIGINT) {
         panic!("unexpected error sending signal to process: {err}");
     }
 }
@@ -101,7 +105,7 @@ fn test_6_process_signals() {
 
     // After we know the runtime started we can send it a process signal to
     // start the actual test.
-    if let Err(err) = send_signal(child.inner.id(), Signal::Interrupt) {
+    if let Err(err) = send_signal(child.inner.id(), libc::SIGINT) {
         panic!("unexpected error sending signal to process: {err}");
     }
 
