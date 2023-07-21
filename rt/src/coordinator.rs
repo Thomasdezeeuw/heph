@@ -162,37 +162,20 @@ impl Coordinator {
         }
 
         // Start listening for process signals.
-        self.check_process_signals()
-            .map_err(|err| rt::Error::coordinator(Error::SignalHandling(err)))?;
+        self.check_process_signals()?;
 
         loop {
-            let timing = trace::start(&self.trace_log);
-            self.ring
-                .poll(None)
-                .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
-            trace::finish_rt(
-                self.trace_log.as_mut(),
-                timing,
-                "Polling for OS events",
-                &[],
-            );
+            // Wait for something to happen.
+            self.poll_os()?;
+            // Normally we would get informed what "thing" happened, but to keep
+            // the coordinator simple we don't we simply wake the coordinator
+            // and check everything.
 
-            // We get awoken when we get a process signal.
-            let timing = trace::start(&self.trace_log);
-            self.check_process_signals()
-                .map_err(|err| rt::Error::coordinator(Error::SignalHandling(err)))?;
-            trace::finish_rt(
-                self.trace_log.as_mut(),
-                timing,
-                "Checking process signals",
-                &[],
-            );
+            // First check for process signals.
+            self.check_process_signals()?;
 
-            // When a (sync) worker stops it will wake to coordinator, so check
-            // for a change in the worker threads.
-            let timing = trace::start(&self.trace_log);
-            check_workers(&mut self.workers, &mut self.sync_workers)?;
-            trace::finish_rt(self.trace_log.as_mut(), timing, "Checking workers", &[]);
+            // Next check the (sync) workers.
+            self.check_workers()?;
 
             // Once all (sync) workers are done running we can return.
             if self.workers.is_empty() && self.sync_workers.is_empty() {
@@ -201,9 +184,25 @@ impl Coordinator {
         }
     }
 
+    /// Poll the [`a10::Ring`].
+    fn poll_os(&mut self) -> Result<(), rt::Error> {
+        let timing = trace::start(&self.trace_log);
+        self.ring
+            .poll(None)
+            .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
+        trace::finish_rt(
+            self.trace_log.as_mut(),
+            timing,
+            "Polling for OS events",
+            &[],
+        );
+        Ok(())
+    }
+
     /// Check if a process signal was received, relaying it to the `workers` and
     /// actors in `signal_refs`.
-    fn check_process_signals(&mut self) -> io::Result<()> {
+    fn check_process_signals(&mut self) -> Result<(), rt::Error> {
+        let timing = trace::start(&self.trace_log);
         let waker = ring_waker::new(self.ring.submission_queue().clone());
         let mut ctx = task::Context::from_waker(&waker);
         loop {
@@ -245,11 +244,19 @@ impl Coordinator {
                     self.signal_refs.remove_disconnected();
                     _ = self.signal_refs.try_send(signal, Delivery::ToAll);
                 }
-                Poll::Ready(Some(Err(err))) => return Err(err),
+                Poll::Ready(Some(Err(err))) => {
+                    return Err(rt::Error::coordinator(Error::SignalHandling(err)))
+                }
                 Poll::Ready(None) | Poll::Pending => break,
             }
         }
 
+        trace::finish_rt(
+            self.trace_log.as_mut(),
+            timing,
+            "Checking process signals",
+            &[],
+        );
         Ok(())
     }
 
@@ -290,6 +297,31 @@ impl Coordinator {
             &[],
         );
     }
+
+    /// Check if the (sync) workers are still alive, removing any that are not.
+    fn check_workers(&mut self) -> Result<(), rt::Error> {
+        let timing = trace::start(&self.trace_log);
+        for worker in self.workers.extract_if(|w| w.is_finished()) {
+            debug!(worker_id = worker.id(); "worker thread stopped");
+            worker
+                .join()
+                .map_err(rt::Error::worker_panic)
+                .and_then(|res| res)?;
+        }
+
+        for sync_worker in self.sync_workers.extract_if(|w| w.is_finished()) {
+            debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
+            sync_worker.join().map_err(rt::Error::sync_actor_panic)?;
+        }
+
+        trace::finish_rt(
+            self.trace_log.as_mut(),
+            timing,
+            "Checking (sync) workers",
+            &[],
+        );
+        Ok(())
+    }
 }
 
 #[allow(clippy::missing_fields_in_debug)]
@@ -305,27 +337,6 @@ impl fmt::Debug for Coordinator {
             .field("host_id", &self.host_id)
             .finish()
     }
-}
-
-/// Check if the (sync) workers are still alive, removing any that are not.
-fn check_workers(
-    workers: &mut Vec<worker::Handle>,
-    sync_workers: &mut Vec<sync_worker::Handle>,
-) -> Result<(), rt::Error> {
-    for worker in workers.extract_if(|w| w.is_finished()) {
-        debug!(worker_id = worker.id(); "worker thread stopped");
-        worker
-            .join()
-            .map_err(rt::Error::worker_panic)
-            .and_then(|res| res)?;
-    }
-
-    for sync_worker in sync_workers.extract_if(|w| w.is_finished()) {
-        debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
-        sync_worker.join().map_err(rt::Error::sync_actor_panic)?;
-    }
-
-    Ok(())
 }
 
 /// Error running the [`Coordinator`].
