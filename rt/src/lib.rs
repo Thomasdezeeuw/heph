@@ -206,7 +206,6 @@ use std::any::Any;
 use std::convert::TryInto;
 use std::future::Future;
 use std::rc::Rc;
-#[cfg(any(test, feature = "test"))]
 use std::sync::Arc;
 use std::task;
 use std::time::{Duration, Instant};
@@ -254,7 +253,7 @@ pub use setup::Setup;
 pub use signal::Signal;
 
 use crate::process::{FutureProcess, Process};
-use coordinator::Coordinator;
+use coordinator::CoordinatorSetup;
 use local::waker::MAX_THREADS;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 use timers::TimerToken;
@@ -284,8 +283,10 @@ fn max_threads() {
 /// [crate documentation]: crate
 #[derive(Debug)]
 pub struct Runtime {
-    /// Coordinator thread data.
-    coordinator: Coordinator,
+    /// Setup of the coordinator that oversee the worker threads.
+    coordinator_setup: CoordinatorSetup,
+    /// Internals shared between the coordinator and all (sync) workers.
+    internals: Arc<shared::RuntimeInternals>,
     /// Worker threads.
     workers: Vec<worker::Handle>,
     /// Synchronous actor threads.
@@ -386,7 +387,7 @@ impl Runtime {
             .trace_log
             .as_ref()
             .map(|trace_log| trace_log.new_stream(id as u32));
-        let shared = self.coordinator.shared_internals().clone();
+        let shared = self.internals.clone();
         sync_worker::start(id, supervisor, actor, arg, options, shared, trace_log)
             .map(|(worker, actor_ref)| {
                 self.sync_actors.push(worker);
@@ -402,9 +403,7 @@ impl Runtime {
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
-        self.coordinator
-            .shared_internals()
-            .spawn_future(future, options);
+        self.internals.spawn_future(future, options);
     }
 
     /// Run the function `f` on all worker threads.
@@ -450,8 +449,14 @@ impl Runtime {
             workers = self.workers.len(), sync_actors = self.sync_actors.len();
             "starting Heph runtime"
         );
-        self.coordinator
-            .run(self.workers, self.sync_actors, self.signals, self.trace_log)
+        let coordinator = self.coordinator_setup.complete(
+            self.internals,
+            self.workers,
+            self.sync_actors,
+            self.signals,
+            self.trace_log,
+        );
+        coordinator.run()
     }
 }
 
@@ -473,8 +478,7 @@ where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = ThreadSafe>,
     {
-        self.coordinator
-            .shared_internals()
+        self.internals
             .try_spawn(supervisor, new_actor, arg, options)
     }
 }

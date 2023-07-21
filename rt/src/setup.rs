@@ -5,14 +5,15 @@ use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::num::NonZeroUsize;
 use std::path::{self, Path};
+use std::sync::Arc;
 use std::{env, fmt, io, thread};
 
 use heph::actor_ref::ActorGroup;
 use log::{debug, warn};
 
-use crate::coordinator::Coordinator;
 use crate::trace;
-use crate::{worker, Error, Runtime, MAX_THREADS};
+use crate::wakers::shared::Wakers;
+use crate::{coordinator, shared, worker, Error, Runtime, MAX_THREADS};
 
 /// Setup a [`Runtime`].
 ///
@@ -146,35 +147,47 @@ impl Setup {
     pub fn build(self) -> Result<Runtime, Error> {
         #[rustfmt::skip]
         let Setup { name, threads, auto_cpu_affinity, mut trace_log } = self;
+        let timing = trace::start(&trace_log);
+
         let name = name.unwrap_or_else(default_app_name).into_boxed_str();
         debug!(name = name, workers = threads; "building Heph runtime");
 
-        // At most we expect each worker thread to generate a completion and a
-        // possibly an incoming signal.
-        #[allow(clippy::cast_possible_truncation)]
-        let entries = max((threads + 1).next_power_of_two() as u32, 8);
-        let coordinator_ring = a10::Ring::new(entries).map_err(Error::init_coordinator)?;
+        let coordinator_setup = coordinator::setup(name, threads)?;
+        let coordinator_sq = coordinator_setup.submission_queue();
 
-        // Setup the worker threads.
-        let timing = trace::start(&trace_log);
+        // Setup the worker threads, but don't spawn them yet.
         let mut worker_setups = Vec::with_capacity(threads);
         let mut worker_sqs = Vec::with_capacity(threads);
         for id in 1..=threads {
             // Coordinator has id 0.
             let id = NonZeroUsize::new(id).unwrap();
-            let (worker_setup, worker_sq) = worker::setup(id, coordinator_ring.submission_queue())
-                .map_err(Error::start_worker)?;
+            let (worker_setup, worker_sq) =
+                worker::setup(id, coordinator_sq).map_err(Error::start_worker)?;
             worker_setups.push(worker_setup);
             worker_sqs.push(worker_sq);
         }
 
-        // Create the coordinator to oversee all workers.
+        // Create the internal data structure shared by all threads.
+        #[allow(clippy::cast_possible_truncation)]
+        let entries = max((threads * 64) as u32, 8);
+        let setup = shared::RuntimeInternals::setup(coordinator_sq.clone(), entries)
+            .map_err(Error::init_coordinator)?;
         let worker_sqs = worker_sqs.into_boxed_slice();
         let shared_trace_log = trace_log.as_ref().map(trace::CoordinatorLog::clone_shared);
-        let coordinator = Coordinator::init(coordinator_ring, name, worker_sqs, shared_trace_log)
-            .map_err(Error::init_coordinator)?;
+        let internals = Arc::new_cyclic(|shared_internals| {
+            let wakers = Wakers::new(shared_internals.clone());
+            setup.complete(wakers, worker_sqs, shared_trace_log)
+        });
+
+        trace::finish_rt(
+            trace_log.as_mut(),
+            timing,
+            "Setting up the coordinator",
+            &[],
+        );
 
         // Spawn the worker threads.
+        let timing = trace::start(&trace_log);
         let workers = worker_setups
             .into_iter()
             .map(|worker_setup| {
@@ -182,15 +195,10 @@ impl Setup {
                 let trace_log = trace_log
                     .as_ref()
                     .map(|trace_log| trace_log.new_stream(worker_setup.id() as u32));
-                worker_setup.start(
-                    coordinator.shared_internals().clone(),
-                    auto_cpu_affinity,
-                    trace_log,
-                )
+                worker_setup.start(internals.clone(), auto_cpu_affinity, trace_log)
             })
             .collect::<io::Result<Vec<worker::Handle>>>()
             .map_err(Error::start_worker)?;
-
         trace::finish_rt(
             trace_log.as_mut(),
             timing,
@@ -199,7 +207,8 @@ impl Setup {
         );
 
         Ok(Runtime {
-            coordinator,
+            coordinator_setup,
+            internals,
             workers,
             sync_actors: Vec::new(),
             signals: ActorGroup::empty(),

@@ -30,8 +30,90 @@ use log::{as_debug, as_display, debug, error, info};
 use crate::setup::{host_id, host_info, Uuid};
 use crate::signal::{Signal, ALL_SIGNALS};
 use crate::wakers::ring_waker;
-use crate::wakers::shared::Wakers;
 use crate::{self as rt, cpu_usage, shared, sync_worker, trace, worker};
+
+/// Setup the [`Coordinator`].
+pub(crate) fn setup(app_name: Box<str>, threads: usize) -> Result<CoordinatorSetup, rt::Error> {
+    let (host_os, host_name) = host_info().map_err(rt::Error::init_coordinator)?;
+    let host_id = host_id().map_err(rt::Error::init_coordinator)?;
+
+    // At most we expect each worker thread to generate a single completion and
+    // a possibly an incoming signal.
+    #[allow(clippy::cast_possible_truncation)]
+    let entries = max((threads + 1).next_power_of_two() as u32, 8);
+    let ring = a10::Ring::new(entries).map_err(rt::Error::init_coordinator)?;
+    let sq = ring.submission_queue();
+
+    // NOTE: signal handling MUST be setup before spawning the worker threads as
+    // they need to inherint the signal handling properties.
+    let signals = ALL_SIGNALS.into_iter().map(Signal::to_signo);
+    let signals = match Signals::from_signals(sq.clone(), signals) {
+        Ok(signals) => signals.receive_signals(),
+        Err(err) => {
+            return Err(rt::Error::init_coordinator(io::Error::new(
+                err.kind(),
+                format!("failed to setup process signal handling: {err}"),
+            )))
+        }
+    };
+
+    Ok(CoordinatorSetup {
+        ring,
+        signals,
+        app_name,
+        host_os,
+        host_name,
+        host_id,
+    })
+}
+
+/// Setup the [`Coordinator`].
+///
+/// # Notes
+///
+/// This must be called before creating the worker threads to properly catch
+/// process signals.
+#[derive(Debug)]
+pub(crate) struct CoordinatorSetup {
+    ring: a10::Ring,
+    signals: ReceiveSignals,
+    app_name: Box<str>,
+    host_os: Box<str>,
+    host_name: Box<str>,
+    host_id: Uuid,
+}
+
+impl CoordinatorSetup {
+    /// Coordinator's submission queue.
+    pub(crate) fn submission_queue(&self) -> &a10::SubmissionQueue {
+        self.ring.submission_queue()
+    }
+
+    /// Complete the coordinator setup.
+    pub(crate) fn complete(
+        self,
+        internals: Arc<shared::RuntimeInternals>,
+        workers: Vec<worker::Handle>,
+        sync_workers: Vec<sync_worker::Handle>,
+        signal_refs: ActorGroup<Signal>,
+        trace_log: Option<trace::CoordinatorLog>,
+    ) -> Coordinator {
+        Coordinator {
+            ring: self.ring,
+            internals,
+            workers,
+            sync_workers,
+            signals: self.signals,
+            signal_refs,
+            trace_log,
+            start: Instant::now(),
+            app_name: self.app_name,
+            host_os: self.host_os,
+            host_name: self.host_name,
+            host_id: self.host_id,
+        }
+    }
+}
 
 /// Coordinator responsible for coordinating the Heph runtime.
 pub(crate) struct Coordinator {
@@ -39,10 +121,18 @@ pub(crate) struct Coordinator {
     ring: a10::Ring,
     /// Internals shared between the coordinator and all (sync) workers.
     internals: Arc<shared::RuntimeInternals>,
+    /// Handles to the worker threads.
+    workers: Vec<worker::Handle>,
+    /// Handles to the sync worker threads.
+    sync_workers: Vec<sync_worker::Handle>,
     /// Process signal receiver.
     signals: ReceiveSignals,
+    /// Actor that want to receive a process signal.
+    signal_refs: ActorGroup<Signal>,
+    /// Trace log for the coordinator.
+    trace_log: Option<trace::CoordinatorLog>,
     // Data used in [`Coordinator::log_metrics`].
-    /// Start time of the application.
+    /// Time when the coordinator start running.
     start: Instant,
     /// Name of the application.
     app_name: Box<str>,
@@ -55,113 +145,57 @@ pub(crate) struct Coordinator {
 }
 
 impl Coordinator {
-    /// Initialise the `Coordinator`.
-    ///
-    /// # Notes
-    ///
-    /// This must be called before creating the worker threads to properly catch
-    /// process signals.
-    pub(crate) fn init(
-        ring: a10::Ring,
-        app_name: Box<str>,
-        worker_sqs: Box<[a10::SubmissionQueue]>,
-        trace_log: Option<Arc<trace::SharedLog>>,
-    ) -> io::Result<Coordinator> {
-        let signals = ALL_SIGNALS.into_iter().map(Signal::to_signo);
-        let signals = match Signals::from_signals(ring.submission_queue().clone(), signals) {
-            Ok(signals) => signals.receive_signals(),
-            Err(err) => {
-                return Err(io::Error::new(
-                    err.kind(),
-                    format!("failed to setup process signal handling: {err}"),
-                ))
-            }
-        };
-
-        let sq = ring.submission_queue().clone();
-        #[allow(clippy::cast_possible_truncation)]
-        let entries = max((worker_sqs.len() * 64) as u32, 8);
-        let setup = shared::RuntimeInternals::setup(sq, entries)?;
-        let internals = Arc::new_cyclic(|shared_internals| {
-            let wakers = Wakers::new(shared_internals.clone());
-            setup.complete(wakers, worker_sqs, trace_log)
-        });
-
-        let (host_os, host_name) = host_info()?;
-        let host_id = host_id()?;
-        Ok(Coordinator {
-            ring,
-            internals,
-            signals,
-            start: Instant::now(),
-            app_name,
-            host_os,
-            host_name,
-            host_id,
-        })
-    }
-
-    /// Get access to the shared runtime internals.
-    pub(crate) const fn shared_internals(&self) -> &Arc<shared::RuntimeInternals> {
-        &self.internals
-    }
-
     /// Run the coordinator.
     ///
     /// # Notes
     ///
     /// `workers` and `sync_workers` must be sorted based on `id`.
-    pub(crate) fn run(
-        mut self,
-        mut workers: Vec<worker::Handle>,
-        mut sync_workers: Vec<sync_worker::Handle>,
-        mut signal_refs: ActorGroup<Signal>,
-        mut trace_log: Option<trace::CoordinatorLog>,
-    ) -> Result<(), rt::Error> {
+    pub(crate) fn run(mut self) -> Result<(), rt::Error> {
+        self.start = Instant::now();
         // Signal to all worker threads the runtime was started. See
         // `local::RuntimeInternals::started` why this is needed.
         debug!("signaling to workers the runtime started");
-        for worker in &workers {
+        for worker in &self.workers {
             worker
                 .send_runtime_started()
                 .map_err(|err| rt::Error::coordinator(Error::SendingStartSignal(err)))?;
         }
 
         // Start listening for process signals.
-        self.check_process_signals(
-            &mut workers,
-            &sync_workers,
-            &mut signal_refs,
-            &mut trace_log,
-        )
-        .map_err(|err| rt::Error::coordinator(Error::SignalHandling(err)))?;
+        self.check_process_signals()
+            .map_err(|err| rt::Error::coordinator(Error::SignalHandling(err)))?;
 
         loop {
-            let timing = trace::start(&trace_log);
+            let timing = trace::start(&self.trace_log);
             self.ring
                 .poll(None)
                 .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
-            trace::finish_rt(trace_log.as_mut(), timing, "Polling for OS events", &[]);
+            trace::finish_rt(
+                self.trace_log.as_mut(),
+                timing,
+                "Polling for OS events",
+                &[],
+            );
 
             // We get awoken when we get a process signal.
-            let timing = trace::start(&trace_log);
-            self.check_process_signals(
-                &mut workers,
-                &sync_workers,
-                &mut signal_refs,
-                &mut trace_log,
-            )
-            .map_err(|err| rt::Error::coordinator(Error::SignalHandling(err)))?;
-            trace::finish_rt(trace_log.as_mut(), timing, "Checking process signals", &[]);
+            let timing = trace::start(&self.trace_log);
+            self.check_process_signals()
+                .map_err(|err| rt::Error::coordinator(Error::SignalHandling(err)))?;
+            trace::finish_rt(
+                self.trace_log.as_mut(),
+                timing,
+                "Checking process signals",
+                &[],
+            );
 
             // When a (sync) worker stops it will wake to coordinator, so check
             // for a change in the worker threads.
-            let timing = trace::start(&trace_log);
-            check_workers(&mut workers, &mut sync_workers)?;
-            trace::finish_rt(trace_log.as_mut(), timing, "Checking workers", &[]);
+            let timing = trace::start(&self.trace_log);
+            check_workers(&mut self.workers, &mut self.sync_workers)?;
+            trace::finish_rt(self.trace_log.as_mut(), timing, "Checking workers", &[]);
 
             // Once all (sync) workers are done running we can return.
-            if workers.is_empty() && sync_workers.is_empty() {
+            if self.workers.is_empty() && self.sync_workers.is_empty() {
                 return Ok(());
             }
         }
@@ -169,13 +203,7 @@ impl Coordinator {
 
     /// Check if a process signal was received, relaying it to the `workers` and
     /// actors in `signal_refs`.
-    fn check_process_signals(
-        &mut self,
-        workers: &mut [worker::Handle],
-        sync_workers: &[sync_worker::Handle],
-        signal_refs: &mut ActorGroup<Signal>,
-        trace_log: &mut Option<trace::CoordinatorLog>,
-    ) -> io::Result<()> {
+    fn check_process_signals(&mut self) -> io::Result<()> {
         let waker = ring_waker::new(self.ring.submission_queue().clone());
         let mut ctx = task::Context::from_waker(&waker);
         loop {
@@ -187,11 +215,11 @@ impl Coordinator {
                         continue;
                     };
                     if let Signal::User2 = signal {
-                        self.log_metrics(workers, sync_workers, signal_refs, trace_log);
+                        self.log_metrics();
                     }
 
                     debug!(signal = as_debug!(signal); "relaying process signal to worker threads");
-                    for worker in &mut *workers {
+                    for worker in &mut self.workers {
                         if let Err(err) = worker.send_signal(signal) {
                             // NOTE: if the worker is unable to receive a
                             // message it's likely already shutdown or is
@@ -210,8 +238,8 @@ impl Coordinator {
                     }
 
                     debug!(signal = as_debug!(signal); "relaying process signal to actors");
-                    signal_refs.remove_disconnected();
-                    _ = signal_refs.try_send(signal, Delivery::ToAll);
+                    self.signal_refs.remove_disconnected();
+                    _ = self.signal_refs.try_send(signal, Delivery::ToAll);
                 }
                 Poll::Ready(Some(Err(err))) => return Err(err),
                 Poll::Ready(None) | Poll::Pending => break,
@@ -222,16 +250,10 @@ impl Coordinator {
     }
 
     /// Log metrics about the coordinator and runtime.
-    fn log_metrics(
-        &self,
-        workers: &[worker::Handle],
-        sync_workers: &[sync_worker::Handle],
-        signal_refs: &ActorGroup<Signal>,
-        trace_log: &mut Option<trace::CoordinatorLog>,
-    ) {
-        let timing = trace::start(trace_log);
+    fn log_metrics(&mut self) {
+        let timing = trace::start(&self.trace_log);
         let shared_metrics = self.internals.metrics();
-        let trace_metrics = trace_log.as_ref().map(trace::CoordinatorLog::metrics);
+        let trace_metrics = self.trace_log.as_ref().map(trace::CoordinatorLog::metrics);
         info!(
             target: "metrics",
             heph_version = as_display!(concat!("v", env!("CARGO_PKG_VERSION"))),
@@ -243,21 +265,26 @@ impl Coordinator {
             process_id = process::id(),
             parent_process_id = parent_id(),
             uptime = as_debug!(self.start.elapsed()),
-            worker_threads = workers.len(),
-            sync_actors = sync_workers.len(),
+            worker_threads = self.workers.len(),
+            sync_actors = self.sync_workers.len(),
             shared_scheduler_ready = shared_metrics.scheduler_ready,
             shared_scheduler_inactive = shared_metrics.scheduler_inactive,
             shared_timers_total = shared_metrics.timers_total,
             shared_timers_next = as_debug!(shared_metrics.timers_next),
             process_signals = as_debug!(ALL_SIGNALS),
-            process_signal_receivers = signal_refs.len(),
+            process_signal_receivers = self.signal_refs.len(),
             cpu_time = as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
             total_cpu_time = as_debug!(cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID)),
             trace_file = as_debug!(trace_metrics.as_ref().map(|m| m.file)),
             trace_counter = trace_metrics.map_or(0, |m| m.counter);
             "coordinator metrics",
         );
-        trace::finish_rt(trace_log.as_mut(), timing, "Printing runtime metrics", &[]);
+        trace::finish_rt(
+            self.trace_log.as_mut(),
+            timing,
+            "Printing runtime metrics",
+            &[],
+        );
     }
 }
 
