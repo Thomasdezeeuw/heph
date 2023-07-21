@@ -20,7 +20,7 @@ use std::env::consts::ARCH;
 use std::os::unix::process::parent_id;
 use std::sync::Arc;
 use std::task::{self, Poll};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{fmt, io, process};
 
 use a10::signals::{ReceiveSignals, Signals};
@@ -162,33 +162,48 @@ impl Coordinator {
         }
 
         // Start listening for process signals.
-        self.check_process_signals()?;
+        self.check_process_signals(&mut false)?;
 
+        let mut timeout = None;
         loop {
             // Wait for something to happen.
-            self.poll_os()?;
+            self.poll_os(timeout)?;
             // Normally we would get informed what "thing" happened, but to keep
-            // the coordinator simple we don't we simply wake the coordinator
+            // the coordinator simple we don't. We simply wake the coordinator
             // and check everything.
 
+            // There is a race between 1) the waking of the coordinator by the
+            // (sync) workers when they are dropped (the call to
+            // `shared::RuntimeInternals::wake_coordinator` in their `Drop`
+            // implementation) and 2) the coordinator checking if the (sync)
+            // workers are finished.
+            // If the time between 1) and 2) is too short then the thread might
+            // not yet be terminated. To prevent the coordinator from waiting
+            // for ever on nothing (because all worker threads have finished) we
+            // poll in next loop with a small-ish timeout (see `timeout`
+            // below`).
+            let mut wake_up_reason_found = false;
+
             // First check for process signals.
-            self.check_process_signals()?;
+            self.check_process_signals(&mut wake_up_reason_found)?;
 
             // Next check the (sync) workers.
-            self.check_workers()?;
+            self.check_workers(&mut wake_up_reason_found)?;
 
             // Once all (sync) workers are done running we can return.
             if self.workers.is_empty() && self.sync_workers.is_empty() {
                 return Ok(());
             }
+
+            timeout = (!wake_up_reason_found).then(|| Duration::from_millis(100));
         }
     }
 
     /// Poll the [`a10::Ring`].
-    fn poll_os(&mut self) -> Result<(), rt::Error> {
+    fn poll_os(&mut self, timeout: Option<Duration>) -> Result<(), rt::Error> {
         let timing = trace::start(&self.trace_log);
         self.ring
-            .poll(None)
+            .poll(timeout)
             .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
         trace::finish_rt(
             self.trace_log.as_mut(),
@@ -201,13 +216,14 @@ impl Coordinator {
 
     /// Check if a process signal was received, relaying it to the `workers` and
     /// actors in `signal_refs`.
-    fn check_process_signals(&mut self) -> Result<(), rt::Error> {
+    fn check_process_signals(&mut self, signal_received: &mut bool) -> Result<(), rt::Error> {
         let timing = trace::start(&self.trace_log);
         let waker = ring_waker::new(self.ring.submission_queue().clone());
         let mut ctx = task::Context::from_waker(&waker);
         loop {
             match self.signals.poll_signal(&mut ctx) {
                 Poll::Ready(Some(Ok(info))) => {
+                    *signal_received = true;
                     #[allow(clippy::cast_possible_wrap)]
                     let Some(signal) = Signal::from_signo(info.ssi_signo as _) else {
                         debug!(signal_number = info.ssi_signo, signal_code = info.ssi_code,
@@ -299,9 +315,10 @@ impl Coordinator {
     }
 
     /// Check if the (sync) workers are still alive, removing any that are not.
-    fn check_workers(&mut self) -> Result<(), rt::Error> {
+    fn check_workers(&mut self, worker_stopped: &mut bool) -> Result<(), rt::Error> {
         let timing = trace::start(&self.trace_log);
         for worker in self.workers.extract_if(|w| w.is_finished()) {
+            *worker_stopped = true;
             debug!(worker_id = worker.id(); "worker thread stopped");
             worker
                 .join()
@@ -310,6 +327,7 @@ impl Coordinator {
         }
 
         for sync_worker in self.sync_workers.extract_if(|w| w.is_finished()) {
+            *worker_stopped = true;
             debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
             sync_worker.join().map_err(rt::Error::sync_actor_panic)?;
         }
