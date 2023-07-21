@@ -258,15 +258,6 @@ use local::waker::MAX_THREADS;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 use timers::TimerToken;
 
-const SYNC_WORKER_ID_START: usize = 10000;
-
-#[test]
-#[allow(clippy::assertions_on_constants)] // This is the point of the test.
-fn sync_worker_id() {
-    // Sync worker and worker thread ids may not overlap.
-    assert!(SYNC_WORKER_ID_START > MAX_THREADS + 1); // Worker ids start at 1.
-}
-
 #[test]
 #[allow(clippy::assertions_on_constants)] // This is the point of the test.
 fn max_threads() {
@@ -374,7 +365,7 @@ impl Runtime {
         A::Message: Send + 'static,
         A::Argument: Send + 'static,
     {
-        let id = SYNC_WORKER_ID_START + self.sync_actors.len();
+        let id = self.workers.len() + self.sync_actors.len() + 1;
         if let Some(name) = options.name() {
             debug!(sync_worker_id = id, name = name; "spawning synchronous actor");
         } else {
