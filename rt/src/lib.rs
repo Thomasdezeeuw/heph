@@ -157,6 +157,7 @@
     maybe_uninit_uninit_array,
     never_type,
     new_uninit,
+    noop_waker,
     ptr_metadata,
     stmt_expr_attributes,
     waker_getters

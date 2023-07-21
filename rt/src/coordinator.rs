@@ -29,7 +29,6 @@ use log::{as_debug, as_display, debug, error, info, trace};
 
 use crate::setup::{host_id, host_info, Uuid};
 use crate::signal::{Signal, ALL_SIGNALS};
-use crate::wakers::ring_waker;
 use crate::{self as rt, cpu_usage, shared, sync_worker, trace, worker};
 
 /// Setup the [`Coordinator`].
@@ -218,7 +217,7 @@ impl Coordinator {
     /// actors in `signal_refs`.
     fn check_process_signals(&mut self, signal_received: &mut bool) -> Result<(), rt::Error> {
         let timing = trace::start(&self.trace_log);
-        let waker = ring_waker::new(self.ring.submission_queue().clone());
+        let waker = task::Waker::noop();
         let mut ctx = task::Context::from_waker(&waker);
         loop {
             match self.signals.poll_signal(&mut ctx) {
