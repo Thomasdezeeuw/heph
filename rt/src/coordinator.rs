@@ -25,7 +25,7 @@ use std::{fmt, io, process};
 
 use a10::signals::{ReceiveSignals, Signals};
 use heph::actor_ref::{ActorGroup, Delivery};
-use log::{as_debug, as_display, debug, error, info};
+use log::{as_debug, as_display, debug, error, info, trace};
 
 use crate::setup::{host_id, host_info, Uuid};
 use crate::signal::{Signal, ALL_SIGNALS};
@@ -211,14 +211,18 @@ impl Coordinator {
                 Poll::Ready(Some(Ok(info))) => {
                     #[allow(clippy::cast_possible_wrap)]
                     let Some(signal) = Signal::from_signo(info.ssi_signo as _) else {
-                        debug!("received unexpected signal (number {})", info.ssi_signo);
+                        debug!(signal_number = info.ssi_signo, signal_code = info.ssi_code,
+                            sending_pid = info.ssi_pid, sending_uid = info.ssi_uid; "received unexpected signal, not relaying");
                         continue;
                     };
+                    debug!(signal = as_debug!(signal), signal_number = info.ssi_signo, signal_code = info.ssi_code,
+                        sending_pid = info.ssi_pid, sending_uid = info.ssi_uid; "received process signal");
+
                     if let Signal::User2 = signal {
                         self.log_metrics();
                     }
 
-                    debug!(signal = as_debug!(signal); "relaying process signal to worker threads");
+                    trace!(signal = as_debug!(signal); "relaying process signal to worker threads");
                     for worker in &mut self.workers {
                         if let Err(err) = worker.send_signal(signal) {
                             // NOTE: if the worker is unable to receive a
@@ -237,7 +241,7 @@ impl Coordinator {
                         }
                     }
 
-                    debug!(signal = as_debug!(signal); "relaying process signal to actors");
+                    trace!(signal = as_debug!(signal); "relaying process signal to actors");
                     self.signal_refs.remove_disconnected();
                     _ = self.signal_refs.try_send(signal, Delivery::ToAll);
                 }
