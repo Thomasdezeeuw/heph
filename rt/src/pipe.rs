@@ -61,7 +61,7 @@
 //! {
 //!     // Spawn the "echo" command that echos everything it reads from standard
 //!     // in to standard out.
-//!     let mut process = Command::new("echo")
+//!     let mut process = Command::new("cat")
 //!         .stdin(Stdio::piped())
 //!         .stdout(Stdio::piped())
 //!         .stderr(Stdio::null())
