@@ -39,13 +39,7 @@
 //!     Ok(())
 //! }
 //! #
-//! # let actor_ref = heph_rt::test::try_spawn(
-//! #     heph_rt::test::PanicSupervisor,
-//! #     heph::actor::actor_fn(actor),
-//! #     (),
-//! #     heph_rt::spawn::ActorOptions::default(),
-//! # ).unwrap();
-//! # heph_rt::test::join(&actor_ref, std::time::Duration::from_secs(1)).unwrap();
+//! # heph_rt::test::block_on_local_actor(heph::actor::actor_fn(actor), ()).unwrap();
 //! ```
 //!
 //! Spawn a process using a pipe for standard in, out and error of the spawned
@@ -88,13 +82,7 @@
 //!     Ok(())
 //! }
 //! #
-//! # let actor_ref = heph_rt::test::try_spawn(
-//! #     heph_rt::test::PanicSupervisor,
-//! #     heph::actor::actor_fn(process_handler),
-//! #     (),
-//! #     heph_rt::spawn::ActorOptions::default(),
-//! # ).unwrap();
-//! # heph_rt::test::join(&actor_ref, std::time::Duration::from_secs(1)).unwrap();
+//! # heph_rt::test::block_on_local_actor(heph::actor::actor_fn(process_handler), ()).unwrap();
 //! ```
 
 use std::io;
