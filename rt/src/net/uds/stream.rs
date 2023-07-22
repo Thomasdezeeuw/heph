@@ -1,20 +1,17 @@
 //! Module with [`UnixStream`] and related types.
 
-#![allow(unused_imports)] // FIXME: remove.
-
 use std::io;
-use std::net::{Shutdown, SocketAddr};
+use std::net::Shutdown;
 use std::os::fd::IntoRawFd;
 
 use a10::{AsyncFd, Extract};
-use socket2::{Domain, Protocol, SockRef, Type};
+use socket2::{Domain, SockRef, Type};
 
 use crate::access::Access;
 use crate::io::{impl_read, impl_write, Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 use crate::net::uds::UnixAddr;
 use crate::net::{
-    convert_address, Recv, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored,
-    SendVectored, SockAddr,
+    Recv, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored, SendVectored,
 };
 
 /// A non-blocking Unix stream.
