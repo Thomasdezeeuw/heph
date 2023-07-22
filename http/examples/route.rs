@@ -14,6 +14,7 @@ use heph_rt::{Runtime, ThreadLocal};
 use log::{error, info, warn};
 
 fn main() -> Result<(), heph_rt::Error> {
+    // Enable logging.
     std_logger::Config::logfmt().init();
 
     let actor = actor_fn(http_actor);

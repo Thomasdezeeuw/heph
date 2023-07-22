@@ -38,6 +38,7 @@ const ERR_PARSE_ENDLINE: &str = "-unable to parse end of line\r\n";
 const TIMEOUT: Duration = Duration::from_secs(10);
 
 fn main() -> Result<(), rt::Error> {
+    // Enable logging.
     std_logger::Config::logfmt().init();
 
     let values = Arc::new(RwLock::new(HashMap::new()));

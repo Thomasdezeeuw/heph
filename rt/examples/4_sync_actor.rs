@@ -4,6 +4,9 @@ use heph_rt::spawn::SyncActorOptions;
 use heph_rt::{self as rt, Runtime};
 
 fn main() -> Result<(), rt::Error> {
+    // Enable logging.
+    std_logger::Config::logfmt().init();
+
     // Spawning synchronous actor works slightly differently the spawning
     // regular (asynchronous) actors. Mainly, synchronous actors need to be
     // spawned before the runtime is started.

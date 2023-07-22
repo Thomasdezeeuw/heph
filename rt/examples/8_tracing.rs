@@ -12,6 +12,9 @@ use heph_rt::{self as rt, Runtime, RuntimeRef};
 use log::warn;
 
 fn main() -> Result<(), rt::Error> {
+    // Enable logging.
+    std_logger::Config::logfmt().init();
+
     let mut runtime_setup = Runtime::setup();
     runtime_setup.enable_tracing("heph_tracing_example.bin.log")?;
     let mut runtime = runtime_setup.build()?;

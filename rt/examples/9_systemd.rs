@@ -12,6 +12,7 @@ use heph_rt::{self as rt, Runtime, ThreadLocal};
 use log::info;
 
 fn main() -> Result<(), rt::Error> {
+    // Enable logging.
     std_logger::Config::logfmt().init();
 
     // We should get the port from systemd, or use a default.
