@@ -8,6 +8,9 @@ use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::{self as rt, Runtime, RuntimeRef, Signal, ThreadLocal, ThreadSafe};
 
 fn main() -> Result<(), rt::Error> {
+    // Enable logging.
+    std_logger::Config::logfmt().init();
+
     // Signal handling is support for all actor and its as simple as receiving
     // `Signal` messages from the runtime and handling them accordingly in the
     // actors.

@@ -14,7 +14,9 @@ use heph_rt::{self as rt, Runtime, ThreadLocal};
 use log::info;
 
 fn main() -> Result<(), rt::Error> {
+    // Enable logging.
     std_logger::Config::logfmt().init();
+
     let mut runtime = Runtime::setup().build()?;
     runtime.run_on_workers(move |mut runtime_ref| -> Result<(), !> {
         const N: usize = 10_000_000;

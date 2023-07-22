@@ -10,6 +10,7 @@ use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
 fn main() -> Result<(), rt::Error> {
     // Setup is much like example 1, see that example for more information.
+    std_logger::Config::logfmt().init();
     let mut runtime = Runtime::setup().build()?;
     runtime.run_on_workers(add_rpc_actor)?;
     runtime.start()

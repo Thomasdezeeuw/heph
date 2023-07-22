@@ -6,6 +6,9 @@ use heph_rt::spawn::ActorOptions;
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
 fn main() -> Result<(), rt::Error> {
+    // Enable logging.
+    std_logger::Config::logfmt().init();
+
     // We create a new runtime. Add a setup function, which adds our greeter
     // actor. And finally we start it.
     let mut runtime = Runtime::setup().build()?;

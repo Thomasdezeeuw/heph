@@ -9,7 +9,9 @@ use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
 fn main() -> Result<(), rt::Error> {
+    // Enable logging.
     std_logger::Config::logfmt().init();
+
     let mut runtime = Runtime::setup().build()?;
 
     let arg = "Hello world!".to_owned();
