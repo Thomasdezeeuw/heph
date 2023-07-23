@@ -597,7 +597,7 @@ pub fn poll_future<Fut>(future: Pin<&mut Fut>) -> Poll<Fut::Output>
 where
     Fut: Future + ?Sized,
 {
-    let waker = nop_task_waker();
+    let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
     Future::poll(future, &mut ctx)
 }
@@ -612,7 +612,7 @@ pub fn poll_next<I>(iter: Pin<&mut I>) -> Poll<Option<I::Item>>
 where
     I: AsyncIterator + ?Sized,
 {
-    let waker = nop_task_waker();
+    let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
     AsyncIterator::poll_next(iter, &mut ctx)
 }
@@ -630,7 +630,7 @@ pub fn poll_actor<A>(actor: Pin<&mut A>) -> Poll<Result<(), A::Error>>
 where
     A: Actor + ?Sized,
 {
-    let waker = nop_task_waker();
+    let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
     Actor::try_poll(actor, &mut ctx)
 }
@@ -706,18 +706,6 @@ impl<RT> NewActor for TestAssertUnmovedNewActor<RT> {
     ) -> Result<Self::Actor, Self::Error> {
         Ok(AssertUnmoved::new(std::future::pending()))
     }
-}
-
-/// Returns a no-op [`task::Waker`].
-pub(crate) fn nop_task_waker() -> task::Waker {
-    use std::task::{RawWaker, RawWakerVTable};
-    static WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
-        |_| RawWaker::new(std::ptr::null(), &WAKER_VTABLE),
-        |_| {},
-        |_| {},
-        |_| {},
-    );
-    unsafe { task::Waker::from_raw(RawWaker::new(std::ptr::null(), &WAKER_VTABLE)) }
 }
 
 #[cfg(test)]

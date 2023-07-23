@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use crate::process::{FutureProcess, Process, ProcessData, ProcessId};
 use crate::spawn::options::Priority;
-use crate::test::{assert_size, nop_task_waker, AssertUnmoved};
+use crate::test::{assert_size, AssertUnmoved};
 
 #[test]
 fn pid() {
@@ -136,7 +136,7 @@ fn process_data_runtime_increase() {
     process.fair_runtime = Duration::from_millis(10);
 
     // Runtime must increase after running.
-    let waker = nop_task_waker();
+    let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
     let res = process.as_mut().run(&mut ctx);
     assert_eq!(res, Poll::Pending);
@@ -150,7 +150,7 @@ fn future_process_assert_future_unmoved() {
 
     // All we do is run it a couple of times, it should panic if the actor is
     // moved.
-    let waker = nop_task_waker();
+    let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
     let res = process.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Pending);
