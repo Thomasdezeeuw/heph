@@ -28,11 +28,11 @@ use heph::supervisor::NoSupervisor;
 use log::{as_debug, debug, trace};
 
 use crate::error::StringError;
-use crate::local::waker::{self, WakerId};
 use crate::local::RuntimeInternals;
 use crate::process::ProcessId;
 use crate::setup::set_cpu_affinity;
 use crate::spawn::options::ActorOptions;
+use crate::wakers::Wakers;
 use crate::{self as rt, shared, trace, RuntimeRef, Signal, ThreadLocal};
 
 /// Number of system actors (spawned in the local scheduler).
@@ -71,12 +71,12 @@ fn setup2(id: NonZeroUsize, ring: a10::Ring) -> (WorkerSetup, a10::SubmissionQue
 
     // Setup the waking mechanism.
     let (waker_sender, waker_events) = crossbeam_channel::unbounded();
-    let waker_id = waker::init(sq.clone(), waker_sender);
+    let wakers = Wakers::new(waker_sender, sq.clone());
 
     let setup = WorkerSetup {
         id,
         ring,
-        waker_id,
+        wakers,
         waker_events,
     };
     (setup, sq)
@@ -88,8 +88,8 @@ pub(crate) struct WorkerSetup {
     id: NonZeroUsize,
     /// io_uring completion ring.
     ring: a10::Ring,
-    /// Waker id used to create a `Waker` for thread-local actors.
-    waker_id: WakerId,
+    /// Creation of `task::Waker`s for for thread-local actors.
+    wakers: Wakers,
     /// Receiving side of the channel for `Waker` events.
     waker_events: Receiver<ProcessId>,
 }
@@ -224,7 +224,7 @@ impl Worker {
         let internals = Rc::new(RuntimeInternals::new(
             setup.id,
             shared_internals,
-            setup.waker_id,
+            setup.wakers,
             setup.ring,
             cpu,
             trace_log,
@@ -293,7 +293,8 @@ impl Worker {
                 let pid = process.as_ref().id();
                 let name = process.as_ref().name();
                 trace!(worker_id = self.internals.id.get(), pid = pid.0, name = name; "running local process");
-                let waker = waker::new(self.internals.waker_id, pid);
+                // TODO: reuse wakers, maybe by storing them in the processes?
+                let waker = self.internals.wakers.borrow_mut().new_task_waker(pid);
                 let mut ctx = task::Context::from_waker(&waker);
                 match process.as_mut().run(&mut ctx) {
                     task::Poll::Ready(()) => {

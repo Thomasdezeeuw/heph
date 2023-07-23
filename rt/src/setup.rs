@@ -13,7 +13,7 @@ use log::{debug, warn};
 
 use crate::trace;
 use crate::wakers::shared::Wakers;
-use crate::{coordinator, shared, worker, Error, Runtime, MAX_THREADS};
+use crate::{coordinator, shared, worker, Error, Runtime};
 
 /// Setup a [`Runtime`].
 ///
@@ -66,10 +66,6 @@ impl Setup {
     /// the number of threads equal to the number of CPU cores.
     pub fn num_threads(mut self, n: usize) -> Self {
         assert!(n != 0, "Can't create zero worker threads, 1 is the minimum");
-        assert!(
-            n < MAX_THREADS,
-            "Can't create {n} worker threads, {MAX_THREADS} is the maximum",
-        );
         self.threads = n;
         self
     }
