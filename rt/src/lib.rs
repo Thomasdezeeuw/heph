@@ -255,16 +255,8 @@ pub use signal::Signal;
 
 use crate::process::{FutureProcess, Process};
 use coordinator::CoordinatorSetup;
-use local::waker::MAX_THREADS;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 use timers::TimerToken;
-
-#[test]
-#[allow(clippy::assertions_on_constants)] // This is the point of the test.
-fn max_threads() {
-    // `trace::Log` uses 32 bit integers as id.
-    assert!(MAX_THREADS < u32::MAX as usize);
-}
 
 /// The runtime that runs all actors.
 ///
@@ -374,7 +366,7 @@ impl Runtime {
         }
 
         #[allow(clippy::cast_possible_truncation)]
-        // SAFETY: MAX_THREADS always fits in u32.
+        // SAFETY: I doubt we'll spawn 2 << 32 threads...
         let trace_log = self
             .trace_log
             .as_ref()

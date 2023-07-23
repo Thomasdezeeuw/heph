@@ -1,3 +1,60 @@
+mod local {
+    use std::thread;
+
+    use crate::wakers::Wakers;
+    use crate::ProcessId;
+
+    const PID1: ProcessId = ProcessId(0);
+    const PID2: ProcessId = ProcessId(usize::MAX);
+
+    #[test]
+    fn waker() {
+        let mut ring = a10::Ring::new(2).unwrap();
+
+        // Create the wakers.
+        let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
+        let mut wakers = Wakers::new(wake_sender, ring.submission_queue().clone());
+
+        // Create a new waker.
+        let waker = wakers.new_task_waker(PID1);
+
+        // The waker should wake up the polling.
+        waker.wake();
+        ring.poll(None).unwrap();
+        // And the process id that needs to be scheduled.
+        assert_eq!(wake_receiver.try_recv(), Ok(PID1));
+
+        let waker = wakers.new_task_waker(PID2);
+        waker.wake();
+        ring.poll(None).unwrap();
+        // Should receive an event for the Waker.
+        // And the process id that needs to be scheduled.
+        assert_eq!(wake_receiver.try_recv(), Ok(PID2));
+    }
+
+    #[test]
+    fn waker_different_thread() {
+        let mut ring = a10::Ring::new(2).unwrap();
+
+        // Create the wakers.
+        let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
+        let mut wakers = Wakers::new(wake_sender, ring.submission_queue().clone());
+
+        // Create a new waker.
+        let waker = wakers.new_task_waker(PID1);
+
+        // A call to the waker should wake a polling thread.
+        let handle = thread::spawn(move || {
+            ring.poll(None).unwrap();
+        });
+        waker.wake();
+        handle.join().unwrap();
+
+        // And the process id that needs to be scheduled.
+        assert_eq!(wake_receiver.try_recv(), Ok(PID1));
+    }
+}
+
 mod shared {
     use std::future::Future;
     use std::pin::Pin;

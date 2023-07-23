@@ -1,4 +1,4 @@
-//! Scheduler implementation.
+//! Scheduler implementations.
 
 use std::collections::BinaryHeap;
 use std::panic::{catch_unwind, AssertUnwindSafe};

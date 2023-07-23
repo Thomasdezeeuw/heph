@@ -11,11 +11,8 @@ use log::{as_debug, info, trace};
 
 use crate::scheduler::Scheduler;
 use crate::timers::Timers;
+use crate::wakers::Wakers;
 use crate::{cpu_usage, panic_message, shared, trace, worker, RuntimeRef, Signal};
-
-pub(crate) mod waker;
-
-use waker::WakerId;
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
@@ -24,8 +21,8 @@ pub(crate) struct RuntimeInternals {
     pub(crate) id: NonZeroUsize,
     /// Runtime internals shared between coordinator and worker threads.
     pub(crate) shared: Arc<shared::RuntimeInternals>,
-    /// Waker id used to create a `Waker` for thread-local actors.
-    pub(crate) waker_id: WakerId,
+    /// Creation of `task::Waker`s for for thread-local actors.
+    pub(crate) wakers: RefCell<Wakers>,
     /// Scheduler for thread-local actors.
     pub(crate) scheduler: RefCell<Scheduler>,
     /// io_uring completion ring.
@@ -57,7 +54,7 @@ impl RuntimeInternals {
     pub(crate) fn new(
         id: NonZeroUsize,
         shared_internals: Arc<shared::RuntimeInternals>,
-        waker_id: WakerId,
+        wakers: Wakers,
         ring: a10::Ring,
         cpu: Option<usize>,
         trace_log: Option<trace::Log>,
@@ -65,7 +62,7 @@ impl RuntimeInternals {
         RuntimeInternals {
             id,
             shared: shared_internals,
-            waker_id,
+            wakers: RefCell::new(wakers),
             scheduler: RefCell::new(Scheduler::new()),
             ring: RefCell::new(ring),
             timers: RefCell::new(Timers::new()),
