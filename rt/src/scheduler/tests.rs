@@ -13,7 +13,7 @@ use heph::supervisor::NoSupervisor;
 use crate::process::{FutureProcess, Process, ProcessId};
 use crate::scheduler::{ProcessData, Scheduler};
 use crate::spawn::options::Priority;
-use crate::test::{self, assert_size, nop_task_waker, AssertUnmoved, TestAssertUnmovedNewActor};
+use crate::test::{self, assert_size, AssertUnmoved, TestAssertUnmovedNewActor};
 use crate::worker::SYSTEM_ACTORS;
 use crate::ThreadLocal;
 
@@ -189,7 +189,7 @@ fn scheduler_run_order() {
     }
 
     let mut scheduler = test_scheduler();
-    let waker = nop_task_waker();
+    let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
 
     // The order in which the processes have been run.
@@ -223,7 +223,7 @@ fn scheduler_run_order() {
 #[test]
 fn assert_actor_process_unmoved() {
     let mut scheduler = test_scheduler();
-    let waker = nop_task_waker();
+    let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
 
     let rt = ThreadLocal::new(test::runtime());
@@ -249,7 +249,7 @@ fn assert_actor_process_unmoved() {
 #[test]
 fn assert_future_process_unmoved() {
     let mut scheduler = test_scheduler();
-    let waker = nop_task_waker();
+    let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
 
     let process = FutureProcess(AssertUnmoved::new(pending()));
