@@ -101,6 +101,7 @@ struct WakerData {
 impl WakerData {
     /// Create empty `WakerData`.
     fn empty(notifications: Sender<ProcessId>, sq: a10::SubmissionQueue) -> Arc<WakerData> {
+        #[allow(clippy::declare_interior_mutable_const)]
         const ZERO_PID: AtomicUsize = AtomicUsize::new(0);
         Arc::new(WakerData {
             notifications,
@@ -177,7 +178,7 @@ impl WakerData {
     ///
     /// `data` MUST be created by [`WakerData::into_data_ptr`].
     unsafe fn drop_data(data: *const ()) {
-        drop(WakerData::from_data_ptr(data))
+        drop(WakerData::from_data_ptr(data));
     }
 
     /// Wake the process with `pid`.
@@ -192,7 +193,6 @@ impl WakerData {
         trace!(pid = pid.0; "waking process");
         if let Err(err) = self.notifications.try_send(pid) {
             error!("unable to send wake up notification: {err}");
-            return;
         }
     }
 }
@@ -232,6 +232,7 @@ impl<Fut: Future> Future for NoRing<Fut> {
 
 /// Create a `task::Waker` that does **not** wake the worker thread. Returns
 /// `None` if the ctx doesn't use a Heph provided waker implementation.
+#[allow(clippy::needless_pass_by_ref_mut)] // Matching `Future::poll` signature.
 pub(crate) fn create_no_ring_waker(ctx: &mut task::Context<'_>) -> Option<task::Waker> {
     let raw_waker = ctx.waker().as_raw();
     let vtable = *raw_waker.vtable();
