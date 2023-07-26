@@ -62,7 +62,7 @@ mod private {
 pub(crate) use private::TimerToken;
 
 use std::cmp::{max, min};
-use std::task::Waker;
+use std::task;
 use std::time::{Duration, Instant};
 
 /// Bits needed for the number of slots.
@@ -110,7 +110,7 @@ pub(crate) struct Timers {
 #[derive(Debug)]
 struct Timer<T> {
     deadline: T,
-    waker: Waker,
+    waker: task::Waker,
 }
 
 impl Timers {
@@ -177,7 +177,7 @@ impl Timers {
     }
 
     /// Add a new deadline.
-    pub(crate) fn add(&mut self, deadline: Instant, waker: Waker) -> TimerToken {
+    pub(crate) fn add(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
         // Can't have deadline before the epoch, so we'll add a deadline with
         // same time as the epoch instead.
         let deadline = max(deadline, self.epoch);
@@ -321,7 +321,7 @@ enum TimerLocation<'a> {
 }
 
 /// Add a new timer to `timers`, ensuring it remains sorted.
-fn add_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, waker: Waker) -> TimerToken {
+fn add_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, waker: task::Waker) -> TimerToken {
     let idx = match timers.binary_search_by(|timer| timer.deadline.cmp(&deadline)) {
         Ok(idx) | Err(idx) => idx,
     };
