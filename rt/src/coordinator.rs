@@ -28,8 +28,7 @@ use heph::actor_ref::{ActorGroup, Delivery};
 use log::{as_debug, as_display, debug, error, info, trace};
 
 use crate::setup::{host_id, host_info, Uuid};
-use crate::signal::{Signal, ALL_SIGNALS};
-use crate::{self as rt, cpu_usage, shared, sync_worker, trace, worker};
+use crate::{self as rt, cpu_usage, shared, sync_worker, trace, worker, Signal};
 
 /// Setup the [`Coordinator`].
 pub(crate) fn setup(app_name: Box<str>, threads: usize) -> Result<CoordinatorSetup, rt::Error> {
@@ -45,7 +44,7 @@ pub(crate) fn setup(app_name: Box<str>, threads: usize) -> Result<CoordinatorSet
 
     // NOTE: signal handling MUST be setup before spawning the worker threads as
     // they need to inherint the signal handling properties.
-    let signals = ALL_SIGNALS.into_iter().map(Signal::to_signo);
+    let signals = Signal::ALL.into_iter().map(Signal::to_signo);
     let signals = match Signals::from_signals(sq.clone(), signals) {
         Ok(signals) => signals.receive_signals(),
         Err(err) => {
@@ -297,7 +296,7 @@ impl Coordinator {
             shared_scheduler_inactive = shared_metrics.scheduler_inactive,
             shared_timers_total = shared_metrics.timers_total,
             shared_timers_next = as_debug!(shared_metrics.timers_next),
-            process_signals = as_debug!(ALL_SIGNALS),
+            process_signals = as_debug!(Signal::ALL),
             process_signal_receivers = self.signal_refs.len(),
             cpu_time = as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
             total_cpu_time = as_debug!(cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID)),

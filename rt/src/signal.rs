@@ -1,14 +1,5 @@
 use std::fmt;
 
-/// All signals supported by [`Signal`].
-pub(crate) const ALL_SIGNALS: [Signal; 5] = [
-    Signal::Interrupt,
-    Signal::Terminate,
-    Signal::Quit,
-    Signal::User1,
-    Signal::User2,
-];
-
 /// Process signal.
 ///
 /// All actors can receive process signals by calling
@@ -75,6 +66,15 @@ pub enum Signal {
 }
 
 impl Signal {
+    /// All signals supported by [`Signal`].
+    pub(crate) const ALL: [Signal; 5] = [
+        Signal::Interrupt,
+        Signal::Terminate,
+        Signal::Quit,
+        Signal::User1,
+        Signal::User2,
+    ];
+
     /// Turns a signal number into a `Signal`. Returns `None` if we don't have a
     /// variant for the signal number.
     pub(crate) fn from_signo(signo: libc::c_int) -> Option<Signal> {
