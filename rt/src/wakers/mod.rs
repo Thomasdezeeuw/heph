@@ -1,9 +1,11 @@
 //! Wakers implementations.
 
+use std::future::Future;
 use std::mem::{replace, ManuallyDrop};
+use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::task;
+use std::task::{self, Poll};
 
 use crossbeam_channel::Sender;
 use log::{error, trace};
@@ -153,40 +155,151 @@ impl WakerData {
         (data, ProcessId(pid))
     }
 
+    /// Clone `data` to another owned version of the data.
+    ///
+    /// # Safety
+    ///
+    /// `data` MUST be created by [`WakerData::into_data_ptr`].
+    unsafe fn clone_data(data: *const ()) -> *const () {
+        // Since we don't want to drop the `Arc`, neither the one we crate from
+        // `data` or the one we clone, we put both in a `ManuallyDrop` wrapper and
+        // don't drop them. After the clone we can reuse `data`.
+        let waker_data = ManuallyDrop::new(WakerData::from_data_ptr(data).0);
+        let _: ManuallyDrop<Arc<WakerData>> = waker_data.clone();
+        // `data` remains the same, so we can just return it. All we needed to
+        // do was increment the `Arc`'s strong count.
+        data
+    }
+
+    /// Drop `data`.
+    ///
+    /// # Safety
+    ///
+    /// `data` MUST be created by [`WakerData::into_data_ptr`].
+    unsafe fn drop_data(data: *const ()) {
+        drop(WakerData::from_data_ptr(data))
+    }
+
     /// Wake the process with `pid`.
     fn wake(&self, pid: ProcessId) {
+        self.wake_no_ring(pid);
+        trace!(pid = pid.0; "waking worker thread to run process");
+        self.sq.wake();
+    }
+
+    /// Wake the process with `pid`, but do **not** wake the thread.
+    fn wake_no_ring(&self, pid: ProcessId) {
         trace!(pid = pid.0; "waking process");
         if let Err(err) = self.notifications.try_send(pid) {
             error!("unable to send wake up notification: {err}");
             return;
         }
-        self.sq.wake();
     }
 }
 
-/// Virtual table used by the `task::Waker` implementation of [`Wakers`].
-static WAKER_VTABLE: task::RawWakerVTable =
-    task::RawWakerVTable::new(clone_wake_data, wake, wake_by_ref, drop_wake_data);
-
-unsafe fn clone_wake_data(data: *const ()) -> task::RawWaker {
-    // Since we don't want to drop the `Arc`, neither the one we crate from
-    // `data` or the one we clone, we put both in a `ManuallyDrop` wrapper and
-    // don't drop them. After the clone we can reuse `data`.
-    let waker_data = ManuallyDrop::new(WakerData::from_data_ptr(data).0);
-    let _: ManuallyDrop<Arc<WakerData>> = waker_data.clone();
-    task::RawWaker::new(data, &WAKER_VTABLE)
+/// Overwrite `$ctx` with a [`task::Context`] that does **not** wake the worker
+/// thread. This will only work if the `Future` wake the worker thread in some
+/// other way, for example I/O futures will wake the thread via a10::Ring
+/// (io_uring).
+macro_rules! no_ring_ctx {
+    ($ctx: ident) => {
+        let task_waker;
+        let mut task_ctx;
+        if let Some(waker) = $crate::wakers::create_no_ring_waker($ctx) {
+            task_waker = waker;
+            task_ctx = std::task::Context::from_waker(&task_waker);
+        } else {
+            task_ctx = std::task::Context::from_waker($ctx.waker());
+        };
+        let $ctx = &mut task_ctx;
+    };
 }
 
-unsafe fn wake(data: *const ()) {
-    let (data, pid) = WakerData::from_data_ptr(data);
-    data.wake(pid);
+pub(crate) use no_ring_ctx;
+
+/// [`Future`] that uses [`no_ring_ctx`] internally.
+pub(crate) struct NoRing<Fut>(pub(crate) Fut);
+
+impl<Fut: Future> Future for NoRing<Fut> {
+    type Output = Fut::Output;
+
+    fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
+        // SAFETY: not moving the `Future`.
+        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }.poll(ctx)
+    }
 }
 
-unsafe fn wake_by_ref(data: *const ()) {
-    let (data, pid) = WakerData::from_data_ptr_ref(data);
-    data.wake(pid);
+/// Create a `task::Waker` that does **not** wake the worker thread. Returns
+/// `None` if the ctx doesn't use a Heph provided waker implementation.
+pub(crate) fn create_no_ring_waker(ctx: &mut task::Context<'_>) -> Option<task::Waker> {
+    let raw_waker = ctx.waker().as_raw();
+    if raw_waker.vtable() == &WAKER_VTABLE {
+        unsafe {
+            Some(task::Waker::from_raw(
+                waker_vtable_no_ring::clone_wake_data(raw_waker.data()),
+            ))
+        }
+    } else {
+        None
+    }
 }
 
-unsafe fn drop_wake_data(data: *const ()) {
-    drop(WakerData::from_data_ptr(data));
+// The two waker implementations below share the same `data`, see `WakerData`.
+// The `WAKER_VTABLE` implementation schedules the process and wakes the worker
+// thread, while `WAKER_VTABLE_NO_RING` only schedules the process and does
+// **not** wake the worker thread. The latter can be used by I/O Futures that
+// already wake the worker thread through the a10::Ring.
+use waker_vtable::WAKER_VTABLE;
+
+mod waker_vtable {
+    use std::task;
+
+    use crate::wakers::WakerData;
+
+    /// Virtual table used by the `task::Waker` implementation of [`Wakers`].
+    pub(crate) static WAKER_VTABLE: task::RawWakerVTable =
+        task::RawWakerVTable::new(clone_wake_data, wake, wake_by_ref, WakerData::drop_data);
+
+    unsafe fn clone_wake_data(data: *const ()) -> task::RawWaker {
+        let data = WakerData::clone_data(data);
+        task::RawWaker::new(data, &WAKER_VTABLE)
+    }
+
+    unsafe fn wake(data: *const ()) {
+        let (data, pid) = WakerData::from_data_ptr(data);
+        data.wake(pid);
+    }
+
+    unsafe fn wake_by_ref(data: *const ()) {
+        let (data, pid) = WakerData::from_data_ptr_ref(data);
+        data.wake(pid);
+    }
+}
+
+mod waker_vtable_no_ring {
+    //! [`task::Waker`] implementation that does **not** wake the worker thread.
+
+    use std::task;
+
+    use crate::wakers::WakerData;
+
+    /// Virtual table used by the `task::Waker` implementation of [`Wakers`].
+    static WAKER_VTABLE_NO_RING: task::RawWakerVTable =
+        task::RawWakerVTable::new(clone_wake_data, wake, wake_by_ref, WakerData::drop_data);
+
+    pub(crate) unsafe fn clone_wake_data(data: *const ()) -> task::RawWaker {
+        let data = WakerData::clone_data(data);
+        task::RawWaker::new(data, &WAKER_VTABLE_NO_RING)
+    }
+
+    unsafe fn wake(data: *const ()) {
+        let (data, pid) = WakerData::from_data_ptr(data);
+        data.wake_no_ring(pid);
+    }
+
+    unsafe fn wake_by_ref(data: *const ()) {
+        let (data, pid) = WakerData::from_data_ptr_ref(data);
+        data.wake_no_ring(pid);
+    }
 }
