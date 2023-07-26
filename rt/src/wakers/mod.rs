@@ -17,13 +17,13 @@ mod tests;
 /// Maximum number of wakers this implementation supports.
 pub(crate) const MAX_WAKERS: usize = 1 << PTR_BITS_UNUSED;
 /// Number of bits we expect a 64 bit pointer to not use, leaving them for us to
-/// fill with our index (into [`AtomicBitMap`]).
+/// fill with our index (into [`WakerData::slot`]).
 const PTR_BITS_UNUSED: usize = 10;
 /// Amount of bits to shift to not overwrite the pointer address.
 const PTR_DATA_SHIFT: usize = usize::BITS as usize - PTR_BITS_UNUSED;
 /// Mask to get the data from a pointer.
 const DATA_MASK: usize = ((1 << PTR_BITS_UNUSED) - 1) << PTR_DATA_SHIFT;
-/// Mask to get the pointer to the `AtomicBitMap`.
+/// Mask to get the pointer to [`WakerData`].
 const PTR_MASK: usize = (1 << PTR_DATA_SHIFT) - 1;
 
 #[derive(Debug)]
