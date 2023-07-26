@@ -135,36 +135,89 @@ impl WakerData {
     }
 }
 
-/// Virtual table used by the `Waker` implementation.
-static WAKER_VTABLE: task::RawWakerVTable =
-    task::RawWakerVTable::new(clone_wake_data, wake, wake_by_ref, drop_wake_data);
+// The two waker implementations below share the same `data`, see `WakerData`.
+// The `WAKER_VTABLE` implementation schedules the process and wakes a worker
+// thread, while `WAKER_VTABLE_NO_RING` only schedules the process and does
+// **not** wake a worker thread. The latter can be used by I/O Futures that
+// already wake a worker thread through the a10::Ring.
+pub(super) use waker_vtable::WAKER_VTABLE;
 
 const fn assert_copy<T: Copy>() {}
 
-unsafe fn clone_wake_data(data: *const ()) -> task::RawWaker {
-    assert_copy::<WakerData>();
-    // Since the data is `Copy`, we just copy it.
-    task::RawWaker::new(data, &WAKER_VTABLE)
-}
+mod waker_vtable {
+    use std::task;
 
-unsafe fn wake(data: *const ()) {
-    // SAFETY: we received the data from the `RawWaker`, which doesn't modify
-    // `data`.
-    let data = unsafe { WakerData::from_raw_data(data) };
-    if let Some(shared_internals) = get(data.waker_id()).upgrade() {
-        shared_internals.mark_ready(data.pid());
-        shared_internals.wake_workers(1);
+    use crate::wakers::shared::{assert_copy, get, WakerData};
+
+    /// Virtual table used by the `Waker` implementation.
+    pub(crate) static WAKER_VTABLE: task::RawWakerVTable =
+        task::RawWakerVTable::new(clone_wake_data, wake, wake_by_ref, drop_wake_data);
+
+    unsafe fn clone_wake_data(data: *const ()) -> task::RawWaker {
+        assert_copy::<WakerData>();
+        // Since the data is `Copy`, we just copy it.
+        task::RawWaker::new(data, &WAKER_VTABLE)
+    }
+
+    unsafe fn wake(data: *const ()) {
+        // SAFETY: we received the data from the `RawWaker`, which doesn't modify
+        // `data`.
+        let data = unsafe { WakerData::from_raw_data(data) };
+        if let Some(shared_internals) = get(data.waker_id()).upgrade() {
+            shared_internals.mark_ready(data.pid());
+            shared_internals.wake_workers(1);
+        }
+    }
+
+    unsafe fn wake_by_ref(data: *const ()) {
+        assert_copy::<WakerData>();
+        // SAFETY: Since `WakerData` is `Copy` `wake` doesn't actually consume any
+        // data, so we can just call it.
+        unsafe { wake(data) };
+    }
+
+    unsafe fn drop_wake_data(_: *const ()) {
+        assert_copy::<WakerData>();
+        // Since `WakerData` is `Copy` we don't have to do anything.
     }
 }
 
-unsafe fn wake_by_ref(data: *const ()) {
-    assert_copy::<WakerData>();
-    // SAFETY: Since `WakerData` is `Copy` `wake` doesn't actually consume any
-    // data, so we can just call it.
-    unsafe { wake(data) };
-}
+pub(super) mod waker_vtable_no_ring {
+    //! [`task::Waker`] implementation that does **not** wake the worker thread.
 
-unsafe fn drop_wake_data(_: *const ()) {
-    assert_copy::<WakerData>();
-    // Since `WakerData` is `Copy` we don't have to do anything.
+    use std::task;
+
+    use crate::wakers::shared::{assert_copy, get, WakerData};
+
+    /// Virtual table used by the `Waker` implementation.
+    pub(crate) static WAKER_VTABLE_NO_RING: task::RawWakerVTable =
+        task::RawWakerVTable::new(clone_wake_data, wake, wake_by_ref, drop_wake_data);
+
+    pub(crate) unsafe fn clone_wake_data(data: *const ()) -> task::RawWaker {
+        assert_copy::<WakerData>();
+        // Since the data is `Copy`, we just copy it.
+        task::RawWaker::new(data, &WAKER_VTABLE_NO_RING)
+    }
+
+    unsafe fn wake(data: *const ()) {
+        // SAFETY: we received the data from the `RawWaker`, which doesn't modify
+        // `data`.
+        let data = unsafe { WakerData::from_raw_data(data) };
+        if let Some(shared_internals) = get(data.waker_id()).upgrade() {
+            shared_internals.mark_ready(data.pid());
+            // NOTE: difference is that we don't wake any workers here.
+        }
+    }
+
+    unsafe fn wake_by_ref(data: *const ()) {
+        assert_copy::<WakerData>();
+        // SAFETY: Since `WakerData` is `Copy` `wake` doesn't actually consume any
+        // data, so we can just call it.
+        unsafe { wake(data) };
+    }
+
+    unsafe fn drop_wake_data(_: *const ()) {
+        assert_copy::<WakerData>();
+        // Since `WakerData` is `Copy` we don't have to do anything.
+    }
 }
