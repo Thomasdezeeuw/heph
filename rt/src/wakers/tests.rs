@@ -1,3 +1,54 @@
+use std::task;
+
+use crate::process::{FutureProcess, ProcessId};
+use crate::spawn::options::Priority;
+use crate::wakers::{self, create_no_ring_waker};
+
+#[test]
+fn create_no_ring_waker_local() {
+    const PID1: ProcessId = ProcessId(0);
+
+    let ring = a10::Ring::new(2).unwrap();
+    let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
+    let mut wakers = wakers::Wakers::new(wake_sender, ring.submission_queue().clone());
+
+    // Should be able to convert the waker.
+    let waker = wakers.new_task_waker(PID1);
+    let mut ctx = task::Context::from_waker(&waker);
+    let waker = create_no_ring_waker(&mut ctx).unwrap();
+
+    // Waking should still mark the process as ready.
+    waker.wake();
+    assert_eq!(wake_receiver.try_recv(), Ok(PID1));
+}
+
+#[test]
+fn create_no_ring_waker_shared() {
+    let shared_internals = shared::new_internals();
+
+    let pid =
+        shared_internals.add_new_process(Priority::NORMAL, FutureProcess(shared::TestProcess));
+
+    // Should be able to convert the waker.
+    let waker = shared_internals.new_task_waker(pid);
+    let mut ctx = task::Context::from_waker(&waker);
+    let waker = create_no_ring_waker(&mut ctx).unwrap();
+    waker.wake();
+
+    // Waking should still mark the process as ready.
+    assert!(shared_internals.has_process());
+    assert!(shared_internals.has_ready_process());
+    let process = shared_internals.remove_process().unwrap();
+    assert_eq!(process.as_ref().id(), pid);
+}
+
+#[test]
+fn create_no_ring_waker_other() {
+    let waker = task::Waker::noop();
+    let mut ctx = task::Context::from_waker(&waker);
+    assert!(create_no_ring_waker(&mut ctx).is_none());
+}
+
 mod local {
     use std::thread;
 
@@ -72,7 +123,7 @@ mod shared {
     const PID1: ProcessId = ProcessId(1);
     const PID2: ProcessId = ProcessId(2);
 
-    struct TestProcess;
+    pub(super) struct TestProcess;
 
     impl Future for TestProcess {
         type Output = ();
@@ -211,7 +262,7 @@ mod shared {
         assert!(waker2a.will_wake(&waker2b));
     }
 
-    fn new_internals() -> Arc<RuntimeInternals> {
+    pub(super) fn new_internals() -> Arc<RuntimeInternals> {
         let setup = RuntimeInternals::test_setup(2).unwrap();
         Arc::new_cyclic(|shared_internals| {
             let wakers = Wakers::new(shared_internals.clone());
