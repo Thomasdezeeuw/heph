@@ -12,6 +12,8 @@ use std::task::Poll;
 
 use a10::msg::{MsgListener, MsgToken};
 
+use crate::wakers::no_ring_ctx;
+
 const WAKE: u32 = u32::from_ne_bytes([b'W', b'A', b'K', b'E']); // 1162559831.
 
 /// Create a new communication channel.
@@ -55,12 +57,15 @@ impl<T> Receiver<T> {
     /// Receive a message from the channel.
     pub(crate) async fn recv(&mut self) -> Option<T> {
         loop {
-            poll_fn(|ctx| match Pin::new(&mut self.listener).poll_next(ctx) {
-                Poll::Ready(data) => {
-                    debug_assert_eq!(data, Some(WAKE));
-                    Poll::Ready(())
+            poll_fn(|ctx| {
+                no_ring_ctx!(ctx);
+                match Pin::new(&mut self.listener).poll_next(ctx) {
+                    Poll::Ready(data) => {
+                        debug_assert_eq!(data, Some(WAKE));
+                        Poll::Ready(())
+                    }
+                    Poll::Pending => Poll::Pending,
                 }
-                Poll::Pending => Poll::Pending,
             })
             .await;
 
