@@ -1,9 +1,5 @@
 # Inbox
 
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Crates.io](https://img.shields.io/crates/v/heph-inbox.svg)](https://crates.io/crates/heph-inbox)
-[![Docs](https://docs.rs/heph-inbox/badge.svg)](https://docs.rs/heph-inbox)
-
 Bounded capacity channel.
 
 The channel is a multi-producer, single-consumer (MPSC) bounded queue. It is
