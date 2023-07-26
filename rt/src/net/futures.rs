@@ -10,6 +10,7 @@ use std::task::{self, Poll};
 use a10::extract::Extractor;
 
 use crate::io::{Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
+use crate::wakers::no_ring_ctx;
 
 /// [`Future`] behind `recv` implementations.
 pub(crate) struct Recv<'a, B>(pub(crate) a10::net::Recv<'a, BufWrapper<B>>);
@@ -18,6 +19,7 @@ impl<'a, B: BufMut> Future for Recv<'a, B> {
     type Output = io::Result<B>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
@@ -32,6 +34,7 @@ impl<'a, B: BufMut> Future for RecvN<'a, B> {
     type Output = io::Result<B>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
@@ -48,6 +51,7 @@ impl<'a, B: BufMutSlice<N>, const N: usize> Future for RecvVectored<'a, B, N> {
     type Output = io::Result<B>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
@@ -64,6 +68,7 @@ impl<'a, B: BufMutSlice<N>, const N: usize> Future for RecvNVectored<'a, B, N> {
     type Output = io::Result<B>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
@@ -78,6 +83,7 @@ impl<'a, B: BufMut, A: a10::net::SocketAddress> Future for RecvFrom<'a, B, A> {
     type Output = io::Result<(B, A)>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
@@ -96,6 +102,7 @@ impl<'a, B: BufMutSlice<N>, A: a10::net::SocketAddress, const N: usize> Future
     type Output = io::Result<(B, A)>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
@@ -110,6 +117,7 @@ impl<'a, B: Buf> Future for Send<'a, B> {
     type Output = io::Result<(B, usize)>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
@@ -124,6 +132,7 @@ impl<'a, B: Buf> Future for SendAll<'a, B> {
     type Output = io::Result<B>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
@@ -140,6 +149,7 @@ impl<'a, B: BufSlice<N>, const N: usize> Future for SendVectored<'a, B, N> {
     type Output = io::Result<(B, usize)>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
@@ -156,6 +166,7 @@ impl<'a, B: BufSlice<N>, const N: usize> Future for SendAllVectored<'a, B, N> {
     type Output = io::Result<B>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
@@ -170,6 +181,7 @@ impl<'a, B: Buf, A: a10::net::SocketAddress> Future for SendTo<'a, B, A> {
     type Output = io::Result<(B, usize)>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)
@@ -188,6 +200,7 @@ impl<'a, B: BufSlice<N>, A: a10::net::SocketAddress, const N: usize> Future
     type Output = io::Result<(B, usize)>;
 
     fn poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        no_ring_ctx!(ctx);
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll(ctx)

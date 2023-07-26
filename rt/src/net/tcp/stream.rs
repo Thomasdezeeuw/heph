@@ -12,6 +12,7 @@ use crate::net::{
     convert_address, Recv, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored,
     SendVectored, SockAddr,
 };
+use crate::wakers::NoRing;
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
 ///
@@ -51,17 +52,17 @@ impl TcpStream {
     where
         RT: Access,
     {
-        let fd = a10::net::socket(
+        let fd = NoRing(a10::net::socket(
             rt.submission_queue(),
             Domain::for_address(address).into(),
             Type::STREAM.cloexec().into(),
             Protocol::TCP.into(),
             0,
-        )
+        ))
         .await?;
         let socket = TcpStream { fd };
         socket.set_auto_cpu_affinity(rt);
-        socket.fd.connect(SockAddr::from(address)).await?;
+        NoRing(socket.fd.connect(SockAddr::from(address))).await?;
         Ok(socket)
     }
 
@@ -340,7 +341,7 @@ impl TcpStream {
     /// portions to return immediately with an appropriate value (see the
     /// documentation of [`Shutdown`]).
     pub async fn shutdown(&self, how: Shutdown) -> io::Result<()> {
-        self.fd.shutdown(how).await
+        NoRing(self.fd.shutdown(how)).await
     }
 
     /// Get the value of the `SO_ERROR` option on this socket.

@@ -13,6 +13,7 @@ use crate::net::uds::UnixAddr;
 use crate::net::{
     Recv, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored, SendVectored,
 };
+use crate::wakers::NoRing;
 
 /// A non-blocking Unix stream.
 ///
@@ -49,16 +50,16 @@ impl UnixStream {
     where
         RT: Access,
     {
-        let fd = a10::net::socket(
+        let fd = NoRing(a10::net::socket(
             rt.submission_queue(),
             Domain::UNIX.into(),
             Type::STREAM.cloexec().into(),
             0,
             0,
-        )
+        ))
         .await?;
         let socket = UnixStream::new(rt, fd);
-        socket.fd.connect(address).await?;
+        NoRing(socket.fd.connect(address)).await?;
         Ok(socket)
     }
 
@@ -274,7 +275,7 @@ impl UnixStream {
     /// portions to return immediately with an appropriate value (see the
     /// documentation of [`Shutdown`]).
     pub async fn shutdown(&self, how: Shutdown) -> io::Result<()> {
-        self.fd.shutdown(how).await
+        NoRing(self.fd.shutdown(how)).await
     }
 
     /// Get the value of the `SO_ERROR` option on this socket.
