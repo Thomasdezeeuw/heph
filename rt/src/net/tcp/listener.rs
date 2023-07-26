@@ -11,6 +11,7 @@ use socket2::{Domain, Protocol, SockRef, Socket, Type};
 
 use crate::access::Access;
 use crate::net::{convert_address, SockAddr, TcpStream};
+use crate::wakers::NoRing;
 
 /// A TCP socket listener.
 ///
@@ -117,13 +118,13 @@ impl TcpListener {
         RT: Access,
         F: FnOnce(&Socket) -> io::Result<()>,
     {
-        let fd = a10::net::socket(
+        let fd = NoRing(a10::net::socket(
             rt.submission_queue(),
             Domain::for_address(address).into(),
             Type::STREAM.cloexec().into(),
             Protocol::TCP.into(),
             0,
-        )
+        ))
         .await?;
 
         let socket = TcpListener { fd };
@@ -171,8 +172,7 @@ impl TcpListener {
     /// The CPU affinity is **not** set on the returned TCP stream. To set that
     /// use [`TcpStream::set_auto_cpu_affinity`].
     pub async fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
-        self.fd
-            .accept::<SockAddr>()
+        NoRing(self.fd.accept::<SockAddr>())
             .await
             .map(|(fd, addr)| (TcpStream { fd }, addr.into()))
     }

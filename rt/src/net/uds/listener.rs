@@ -10,6 +10,7 @@ use socket2::{Domain, SockRef, Type};
 
 use crate::access::Access;
 use crate::net::uds::{UnixAddr, UnixStream};
+use crate::wakers::NoRing;
 
 /// A Unix socket listener.
 ///
@@ -103,13 +104,13 @@ impl UnixListener {
     where
         RT: Access,
     {
-        let fd = a10::net::socket(
+        let fd = NoRing(a10::net::socket(
             rt.submission_queue(),
             Domain::UNIX.into(),
             Type::STREAM.cloexec().into(),
             0,
             0,
-        )
+        ))
         .await?;
 
         let socket = UnixListener { fd };
@@ -146,8 +147,7 @@ impl UnixListener {
     /// The CPU affinity is **not** set on the returned Unix stream. To set that
     /// use [`UnixStream::set_auto_cpu_affinity`].
     pub async fn accept(&self) -> io::Result<(UnixStream, UnixAddr)> {
-        self.fd
-            .accept()
+        NoRing(self.fd.accept())
             .await
             .map(|(fd, addr)| (UnixStream { fd }, addr))
     }

@@ -14,6 +14,7 @@ use crate::net::uds::UnixAddr;
 use crate::net::{
     Recv, RecvFrom, RecvFromVectored, RecvVectored, Send, SendTo, SendToVectored, SendVectored,
 };
+use crate::wakers::NoRing;
 
 #[doc(no_inline)]
 pub use crate::net::{Connected, Unconnected};
@@ -62,13 +63,13 @@ impl UnixDatagram {
     where
         RT: Access,
     {
-        let fd = a10::net::socket(
+        let fd = NoRing(a10::net::socket(
             rt.submission_queue(),
             Domain::UNIX.into(),
             Type::DGRAM.cloexec().into(),
             0,
             0,
-        )
+        ))
         .await?;
         UnixDatagram::new(rt, fd)
     }
@@ -118,7 +119,7 @@ impl<M> UnixDatagram<M> {
     /// Connects the socket by setting the default destination and limiting
     /// packets that are received and send to the `remote` address.
     pub async fn connect(self, remote: UnixAddr) -> io::Result<UnixDatagram<Connected>> {
-        self.fd.connect(remote).await?;
+        NoRing(self.fd.connect(remote)).await?;
         Ok(UnixDatagram {
             fd: self.fd,
             mode: PhantomData,
@@ -141,7 +142,7 @@ impl<M> UnixDatagram<M> {
     /// portions to return immediately with an appropriate value (see the
     /// documentation of [`Shutdown`]).
     pub async fn shutdown(&self, how: Shutdown) -> io::Result<()> {
-        self.fd.shutdown(how).await
+        NoRing(self.fd.shutdown(how)).await
     }
 
     /// Get the value of the `SO_ERROR` option on this socket.

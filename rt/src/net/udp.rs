@@ -15,6 +15,7 @@ use crate::net::{
     convert_address, Recv, RecvFrom, RecvFromVectored, RecvVectored, Send, SendTo, SendToVectored,
     SendVectored, SockAddr,
 };
+use crate::wakers::NoRing;
 
 pub use crate::net::{Connected, Unconnected};
 
@@ -98,13 +99,13 @@ impl UdpSocket {
     where
         RT: Access,
     {
-        let fd = a10::net::socket(
+        let fd = NoRing(a10::net::socket(
             rt.submission_queue(),
             Domain::for_address(local).into(),
             Type::DGRAM.cloexec().into(),
             Protocol::UDP.into(),
             0,
-        )
+        ))
         .await?;
 
         let socket = UdpSocket {
@@ -133,7 +134,7 @@ impl<M> UdpSocket<M> {
     /// Connects the UDP socket by setting the default destination and limiting
     /// packets that are received, send and peeked to the `remote` address.
     pub async fn connect(self, remote: SocketAddr) -> io::Result<UdpSocket<Connected>> {
-        self.fd.connect(SockAddr::from(remote)).await?;
+        NoRing(self.fd.connect(SockAddr::from(remote))).await?;
         Ok(UdpSocket {
             fd: self.fd,
             mode: PhantomData,
