@@ -13,6 +13,7 @@ use crate::io::futures::{
     Read, ReadN, ReadNVectored, ReadVectored, Write, WriteAll, WriteAllVectored, WriteVectored,
 };
 use crate::io::{impl_read, impl_write, Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
+use crate::wakers::NoRing;
 
 /// Access to an open file on the filesystem.
 ///
@@ -28,7 +29,7 @@ impl File {
     where
         RT: Access,
     {
-        OpenOptions::new().read().open(rt, path).await
+        NoRing(OpenOptions::new().read().open(rt, path)).await
     }
 
     /// Opens a file in write-only mode.
@@ -39,12 +40,14 @@ impl File {
     where
         RT: Access,
     {
-        OpenOptions::new()
-            .write()
-            .create()
-            .truncate()
-            .open(rt, path)
-            .await
+        NoRing(
+            OpenOptions::new()
+                .write()
+                .create()
+                .truncate()
+                .open(rt, path),
+        )
+        .await
     }
 
     /// Returns the default `OpenOptions`.
@@ -161,7 +164,7 @@ impl File {
     ///
     /// Any uncompleted writes may not be synced to disk.
     pub async fn sync_all(&self) -> io::Result<()> {
-        self.fd.sync_all().await
+        NoRing(self.fd.sync_all()).await
     }
 
     /// This function is similar to [`sync_all`], except that it may not
@@ -177,12 +180,14 @@ impl File {
     ///
     /// Any uncompleted writes may not be synced to disk.
     pub async fn sync_data(&self) -> io::Result<()> {
-        self.fd.sync_data().await
+        NoRing(self.fd.sync_data()).await
     }
 
     /// Retrieve metadata about the file.
     pub async fn metadata(&self) -> io::Result<Metadata> {
-        self.fd.metadata().await.map(|m| Metadata { inner: *m })
+        NoRing(self.fd.metadata())
+            .await
+            .map(|m| Metadata { inner: *m })
     }
 
     /// Predeclare an access pattern for file data.
@@ -195,7 +200,7 @@ impl File {
     /// is 0). The advice is not binding; it merely constitutes an expectation
     /// on behalf of the application.
     pub async fn advise(&self, offset: u64, length: u32, advice: Advice) -> io::Result<()> {
-        self.fd.advise(offset, length, advice.as_libc()).await
+        NoRing(self.fd.advise(offset, length, advice.as_libc())).await
     }
 
     /// Manipulate file space.
@@ -203,7 +208,7 @@ impl File {
     /// Manipulate the allocated disk space for the file referred for the byte
     /// range starting at `offset` and continuing for `length` bytes.
     pub async fn allocate(&self, offset: u64, length: u32, mode: AllocateMode) -> io::Result<()> {
-        self.fd.allocate(offset, length, mode.as_libc()).await
+        NoRing(self.fd.allocate(offset, length, mode.as_libc())).await
     }
 }
 
@@ -345,8 +350,7 @@ impl OpenOptions {
     where
         RT: Access,
     {
-        self.inner
-            .open_temp_file(rt.submission_queue(), dir)
+        NoRing(self.inner.open_temp_file(rt.submission_queue(), dir))
             .await
             .map(|fd| File { fd })
     }
@@ -356,8 +360,7 @@ impl OpenOptions {
     where
         RT: Access,
     {
-        self.inner
-            .open(rt.submission_queue(), path)
+        NoRing(self.inner.open(rt.submission_queue(), path))
             .await
             .map(|fd| File { fd })
     }
@@ -622,7 +625,7 @@ pub async fn create_dir<RT>(rt: &RT, path: PathBuf) -> io::Result<()>
 where
     RT: Access,
 {
-    a10::fs::create_dir(rt.submission_queue(), path).await
+    NoRing(a10::fs::create_dir(rt.submission_queue(), path)).await
 }
 
 /// Rename a file or directory to a new name.
@@ -630,7 +633,7 @@ pub async fn rename<RT>(rt: &RT, from: PathBuf, to: PathBuf) -> io::Result<()>
 where
     RT: Access,
 {
-    a10::fs::rename(rt.submission_queue(), from, to).await
+    NoRing(a10::fs::rename(rt.submission_queue(), from, to)).await
 }
 
 /// Remove a file.
@@ -638,7 +641,7 @@ pub async fn remove_file<RT>(rt: &RT, path: PathBuf) -> io::Result<()>
 where
     RT: Access,
 {
-    a10::fs::remove_file(rt.submission_queue(), path).await
+    NoRing(a10::fs::remove_file(rt.submission_queue(), path)).await
 }
 
 /// Remove a directory.
@@ -646,5 +649,5 @@ pub async fn remove_dir<RT>(rt: &RT, path: PathBuf) -> io::Result<()>
 where
     RT: Access,
 {
-    a10::fs::remove_dir(rt.submission_queue(), path).await
+    NoRing(a10::fs::remove_dir(rt.submission_queue(), path)).await
 }
