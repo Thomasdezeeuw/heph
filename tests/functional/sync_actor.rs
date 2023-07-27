@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
@@ -6,9 +7,8 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use heph::actor::{actor_fn, RecvError};
-use heph::supervisor::{NoSupervisor, SupervisorStrategy};
-use heph::sync::spawn_sync_actor;
-use heph::sync::SyncContext;
+use heph::supervisor::{NoSupervisor, SupervisorStrategy, SyncSupervisor};
+use heph::sync::{spawn_sync_actor, SyncActor, SyncContext};
 
 #[derive(Clone, Debug)]
 struct BlockFuture {
@@ -136,4 +136,39 @@ fn bad_actor_supervisor(err_count: usize) -> SupervisorStrategy<usize> {
 
 fn bad_actor<RT>(_: SyncContext<!, RT>, count: usize) -> Result<(), usize> {
     Err(count + 1)
+}
+
+#[test]
+fn panics_are_caught() {
+    let panics = Arc::new(Mutex::new(Vec::new()));
+    let supervisor = PanicSupervisor {
+        panics: panics.clone(),
+    };
+    let (handle, _) = spawn_sync_actor(supervisor, actor_fn(panic_actor), (), ()).unwrap();
+    handle.join().unwrap();
+
+    let panics = Arc::into_inner(panics).unwrap().into_inner().unwrap();
+    assert_eq!(panics.len(), 1);
+}
+
+struct PanicSupervisor {
+    panics: Arc<Mutex<Vec<Box<dyn Any + Send + 'static>>>>,
+}
+
+impl<A: SyncActor> SyncSupervisor<A> for PanicSupervisor {
+    fn decide(&mut self, _: A::Error) -> SupervisorStrategy<A::Argument> {
+        unreachable!();
+    }
+
+    fn decide_on_panic(
+        &mut self,
+        panic: Box<dyn Any + Send + 'static>,
+    ) -> SupervisorStrategy<A::Argument> {
+        self.panics.lock().unwrap().push(panic);
+        SupervisorStrategy::Stop
+    }
+}
+
+fn panic_actor<RT>(_: SyncContext<!, RT>) {
+    panic!("oops!");
 }

@@ -11,6 +11,7 @@
 //! [coordinator]: crate::coordinator
 //! [`sync_worker::Handle`]: Handle
 
+use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 use std::{io, thread};
 
@@ -114,7 +115,7 @@ impl<S: SyncSupervisor<A>, A: SyncActor<RuntimeAccess = rt::Sync>> SyncWorker<S,
             );
 
             let timing = trace::start(&self.trace_log);
-            let res = self.actor.run(ctx, arg);
+            let res = panic::catch_unwind(AssertUnwindSafe(|| self.actor.run(ctx, arg)));
             trace::finish_rt(
                 self.trace_log.as_mut(),
                 timing,
@@ -123,8 +124,8 @@ impl<S: SyncSupervisor<A>, A: SyncActor<RuntimeAccess = rt::Sync>> SyncWorker<S,
             );
 
             match res {
-                Ok(()) => break,
-                Err(err) => {
+                Ok(Ok(())) => break,
+                Ok(Err(err)) => {
                     let timing = trace::start(&self.trace_log);
                     match self.supervisor.decide(err) {
                         SupervisorStrategy::Restart(new_arg) => {
@@ -142,6 +143,31 @@ impl<S: SyncSupervisor<A>, A: SyncActor<RuntimeAccess = rt::Sync>> SyncWorker<S,
                                 self.trace_log.as_mut(),
                                 timing,
                                 "stopping synchronous actor",
+                                &[],
+                            );
+                            break;
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                Err(panic) => {
+                    let timing = trace::start(&self.trace_log);
+                    match self.supervisor.decide_on_panic(panic) {
+                        SupervisorStrategy::Restart(new_arg) => {
+                            trace!(sync_worker_id = self.id, name = name; "restarting synchronous actor after panic");
+                            arg = new_arg;
+                            trace::finish_rt(
+                                self.trace_log.as_mut(),
+                                timing,
+                                "restarting synchronous actor after panic",
+                                &[],
+                            );
+                        }
+                        SupervisorStrategy::Stop => {
+                            trace::finish_rt(
+                                self.trace_log.as_mut(),
+                                timing,
+                                "stopping synchronous actor after panic",
                                 &[],
                             );
                             break;

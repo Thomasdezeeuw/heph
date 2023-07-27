@@ -7,6 +7,7 @@
 
 use std::future::Future;
 use std::io;
+use std::panic::{self, AssertUnwindSafe};
 use std::pin::pin;
 use std::task::{self, Poll, RawWaker, RawWakerVTable};
 use std::thread::{self, Thread};
@@ -38,11 +39,6 @@ use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 /// [module level]: crate::actor
 ///
 /// Synchronous actor can be started using [`spawn_sync_actor`].
-///
-/// # Panics
-///
-/// Panics are not caught and will **not** be returned to the actor's
-/// supervisor.
 ///
 /// [actors]: crate::Actor
 /// [context]: SyncContext
@@ -465,7 +461,7 @@ where
     A: SyncActor,
     A::RuntimeAccess: Clone,
 {
-    /// Run a synchronous actor worker thread.
+    /// Run the synchronous actor.
     fn run(mut self, mut arg: A::Argument, rt: A::RuntimeAccess) {
         let thread = thread::current();
         let name = thread.name().unwrap();
@@ -473,18 +469,24 @@ where
         loop {
             let receiver = self.inbox.new_receiver().unwrap_or_else(inbox_failure);
             let ctx = SyncContext::new(receiver, rt.clone());
-            match self.actor.run(ctx, arg) {
-                Ok(()) => break,
-                Err(err) => match self.supervisor.decide(err) {
+            match panic::catch_unwind(AssertUnwindSafe(|| self.actor.run(ctx, arg))) {
+                Ok(Ok(())) => break,
+                Ok(Err(err)) => match self.supervisor.decide(err) {
                     SupervisorStrategy::Restart(new_arg) => {
                         trace!(name = name; "restarting synchronous actor");
                         arg = new_arg;
                     }
                     SupervisorStrategy::Stop => break,
                 },
+                Err(panic) => match self.supervisor.decide_on_panic(panic) {
+                    SupervisorStrategy::Restart(new_arg) => {
+                        trace!(name = name; "restarting synchronous actor after panic");
+                        arg = new_arg;
+                    }
+                    SupervisorStrategy::Stop => break,
+                },
             }
         }
-
         trace!(name = name; "stopping synchronous actor");
     }
 }

@@ -265,6 +265,34 @@ where
     /// Also see the notes on [`Supervisor::decide`] as they also apply for
     /// synchronous supervision.
     fn decide(&mut self, error: A::Error) -> SupervisorStrategy<A::Argument>;
+
+    /// Decide what happens to the actor that panicked.
+    ///
+    /// This is similar to [`SyncSupervisor::decide`], but handles panics
+    /// instead of errors ([`SyncActor::Error`]).
+    ///
+    /// # Default
+    ///
+    /// By default this stops the actor as a panic is always unexpected and is
+    /// generally harder to recover from then an error.
+    ///
+    /// # Notes
+    ///
+    /// The panic is always logged using the [panic hook], in addition an error
+    /// message is printed which states what actor panicked.
+    ///
+    /// When `panic = abort` is set in `Cargo.toml` we will not be able to
+    /// recover the panic and instead the process will abort. The same is true
+    /// for a panic while panicking. Both situations are out of control of Heph.
+    ///
+    /// [panic hook]: std::panic::set_hook
+    fn decide_on_panic(
+        &mut self,
+        panic: Box<dyn Any + Send + 'static>,
+    ) -> SupervisorStrategy<A::Argument> {
+        drop(panic);
+        SupervisorStrategy::Stop
+    }
 }
 
 impl<F, A> SyncSupervisor<A> for F
