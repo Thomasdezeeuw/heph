@@ -345,6 +345,11 @@ impl InboxSize {
             Err(InvalidInboxSize)
         }
     }
+
+    /// Returns itself as `usize`.
+    pub const fn get(self) -> usize {
+        self.0.get() as usize
+    }
 }
 
 impl Default for InboxSize {
