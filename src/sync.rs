@@ -546,6 +546,13 @@ where
         }
         trace!(name = name; "stopping synchronous actor");
     }
+
+    /// Returns the name of the actor.
+    ///
+    /// Based on the [`SyncActor::name`] implementation.
+    pub fn name() -> &'static str {
+        A::name()
+    }
 }
 
 /// Called when we can't create a new receiver for the sync actor.
