@@ -459,6 +459,19 @@ where
     A: SyncActor,
     A::RuntimeAccess: Clone,
 {
+    /// Create a new `SyncActorRunner`.
+    ///
+    /// Arguments:
+    ///  * `supervisor: S`: is used to handle the actor's errors.
+    ///  * `actor: A`: the actor we're running.
+    pub fn new(self, supervisor: S, actor: A) -> (SyncActorRunner<S, A>, ActorRef<A::Message>)
+    where
+        S: SyncSupervisor<A>,
+        A: SyncActor<RuntimeAccess = ()>,
+    {
+        SyncActorRunnerBuilder::new().build(supervisor, actor)
+    }
+
     /// Run the synchronous actor.
     ///
     /// This handles errors and catches panics, and depending on the supervisor
