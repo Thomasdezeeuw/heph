@@ -38,7 +38,7 @@
 //! events are created by the same actor.
 //!
 //! [`actor::Context`]: heph::actor::Context
-//! [`SyncContext`]: heph::actor::SyncContext
+//! [`SyncContext`]: heph::sync::SyncContext
 //! [`start_trace`]: Trace::start_trace
 //! [`finish_trace`]: Trace::finish_trace
 //!

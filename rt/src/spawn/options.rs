@@ -2,7 +2,7 @@
 //!
 //! [spawning]: crate::spawn::Spawn
 //! [`Actor`]: heph::actor::Actor
-//! [`SyncActor`]: heph::actor::SyncActor
+//! [`SyncActor`]: heph::sync::SyncActor
 //! [`Future`]: std::future::Future
 
 use std::cmp::Ordering;
@@ -151,7 +151,7 @@ fn priority_duration_multiplication() {
 
 /// Options for spawning a [`SyncActor`].
 ///
-/// [`SyncActor`]: heph::actor::SyncActor
+/// [`SyncActor`]: heph::sync::SyncActor
 ///
 /// # Examples
 ///

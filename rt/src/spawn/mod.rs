@@ -17,7 +17,7 @@
 //! hides the issue, it doesn't solve it.
 //!
 //! [`Actor`]: heph::actor::Actor
-//! [`SyncActor`]: heph::actor::SyncActor
+//! [`SyncActor`]: heph::sync::SyncActor
 //! [`Future`]: std::future::Future
 //! [crate documentation]: crate#examples
 //!

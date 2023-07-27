@@ -1,4 +1,9 @@
 //! Synchronous actors.
+//!
+//! See the [`actor`] module for a description of actors, including synchronous
+//! actors.
+//!
+//! [`actor`]: crate::actor
 
 use std::future::Future;
 use std::io;

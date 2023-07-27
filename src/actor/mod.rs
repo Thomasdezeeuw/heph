@@ -98,6 +98,9 @@
 //! ```
 //!
 //! [`actor::Context`]: Context
+//! [`SyncActor`]: crate::sync::SyncActor
+//! [`SyncContext`]: crate::sync::SyncContext
+//! [`spawn_sync_actor`]: crate::sync::spawn_sync_actor
 
 use std::any::type_name;
 use std::fmt;
@@ -390,6 +393,8 @@ where
 /// This is caused by the fact that `T` could implement the `Fn` trait multiple
 /// times, but the `NewActor` trait can (and should) only be implemented once.
 ///
+/// [`SyncActor`]: crate::sync::SyncActor
+///
 /// # Examples
 ///
 /// ```
@@ -431,6 +436,8 @@ pub const fn actor_fn<T, M, RT, Arg, A>(implementation: T) -> ActorFn<T, M, RT, 
 ///
 /// This implement both the [`NewActor`] and [`SyncActor`] traits, dependening
 /// of what kind of function type `F` is.
+///
+/// [`SyncActor`]: crate::sync::SyncActor
 #[allow(clippy::type_complexity)]
 pub struct ActorFn<F, M, RT, Args, A> {
     /// The actual implementation.

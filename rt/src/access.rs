@@ -26,7 +26,7 @@
 //! block.
 //!
 //! [`rt::Access`]: crate::Access
-//! [`SyncActor::RuntimeAccess`]: heph::actor::SyncActor::RuntimeAccess
+//! [`SyncActor::RuntimeAccess`]: heph::sync::SyncActor::RuntimeAccess
 //! [`TcpStream::connect`]: crate::net::TcpStream::connect
 
 use std::future::Future;
@@ -53,7 +53,7 @@ use crate::{shared, RuntimeRef};
 ///
 /// Also see [`NewActor::RuntimeAccess`] and [`SyncActor::RuntimeAccess`].
 ///
-/// [`SyncActor::RuntimeAccess`]: heph::actor::SyncActor::RuntimeAccess
+/// [`SyncActor::RuntimeAccess`]: heph::sync::SyncActor::RuntimeAccess
 ///
 /// # Notes
 ///
@@ -348,7 +348,7 @@ where
 /// information.
 ///
 /// [`spawn_future`]: Sync::spawn_future
-/// [`SyncContext`]: heph::actor::SyncContext
+/// [`SyncContext`]: heph::sync::SyncContext
 #[derive(Clone)]
 pub struct Sync {
     rt: Arc<shared::RuntimeInternals>,

@@ -41,7 +41,7 @@
 //! is the same.
 //!
 //! [regular/asynchronous actors]: crate::actor::Actor
-//! [synchronous actors]: crate::actor::SyncActor
+//! [synchronous actors]: crate::sync::SyncActor
 //! [`Supervisor`]: crate::supervisor::Supervisor
 //! [`SyncSupervisor`]: crate::supervisor::SyncSupervisor
 //!
@@ -254,7 +254,7 @@ pub enum SupervisorStrategy<Arg> {
 /// `SyncSupervisor` is implemented for any function that takes an error `E` and
 /// returns `SupervisorStrategy<Arg>` automatically.
 ///
-/// [synchronous actors]: crate::actor::SyncActor
+/// [synchronous actors]: crate::sync::SyncActor
 /// [module documentation]: crate::supervisor
 pub trait SyncSupervisor<A>
 where
