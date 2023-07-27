@@ -1,9 +1,49 @@
 //! Synchronous actors.
 //!
-//! See the [`actor`] module for a description of actors, including synchronous
-//! actors.
+//! How synchronous actor are run is defined in [`SyncActor`]. An introduction of
+//! actors, including the different kinds (synchronous actors included), is given
+//! in the [`actor`] module.
+//!
+//! Synchronous actors are generally run by a `SyncActorRunner` as it handles
+//! error and panic handling in combination with the actor's supervisor (see the
+//! [`SyncSupervisor`] trait). However as they are often regular function they
+//! can also be called directly, though error and panic handling will be up to
+//! the caller.
 //!
 //! [`actor`]: crate::actor
+//!
+//! # Examples
+//!
+//! Running a synchronous actor using [`SyncActorRunner`].
+//!
+//! ```
+//! use heph::actor::{actor_fn};
+//! use heph::supervisor::NoSupervisor;
+//! use heph::sync::{SyncContext, SyncActorRunnerBuilder};
+//!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // Create a `SyncActorRunner`.
+//! let actor = actor_fn(actor);
+//! let (sync_actor_runner, actor_ref) = SyncActorRunnerBuilder::new()
+//!     .build(NoSupervisor, actor);
+//!
+//! // The `ActorRef` we can use as expected.
+//! actor_ref.try_send("Hello world!")?;
+//!
+//! // Run the synchronous actor.
+//! let arg = ();
+//! sync_actor_runner.run(arg);
+//! # Ok(())
+//! # }
+//!
+//! fn actor(mut ctx: SyncContext<String>) {
+//!     if let Ok(msg) = ctx.receive_next() {
+//!         println!("Got a message: {msg}");
+//!     } else {
+//!         eprintln!("Receive no messages");
+//!     }
+//! }
+//! ```
 
 use std::future::Future;
 use std::io;
@@ -445,6 +485,8 @@ unsafe fn sync_waker_drop(data: *const ()) {
 }
 
 /// Synchronous actor runner.
+///
+/// See [`SyncActorRunnerBuilder`] for setting various options.
 #[derive(Debug)]
 pub struct SyncActorRunner<S, A: SyncActor> {
     supervisor: S,
