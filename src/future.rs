@@ -330,6 +330,7 @@ impl InboxSize {
     pub const LARGE: InboxSize = InboxSize(NonZeroU8::new(24).unwrap());
 
     /// Maximum inbox size, currently 29 messages.
+    #[allow(clippy::cast_possible_truncation)]
     pub const MAX: InboxSize = InboxSize(NonZeroU8::new(heph_inbox::MAX_CAP as u8).unwrap());
 
     /// Default inbox size.
@@ -338,7 +339,9 @@ impl InboxSize {
     /// Use a fixed inbox size.
     ///
     /// Returns an error if the inbox size is either zero or too big.
+    #[allow(clippy::cast_possible_truncation)] // We check the capacity.
     pub const fn fixed(size: usize) -> Result<InboxSize, InvalidInboxSize> {
+        assert!(heph_inbox::MAX_CAP <= u8::MAX as usize);
         if size >= 1 && size <= heph_inbox::MAX_CAP {
             Ok(InboxSize(NonZeroU8::new(size as u8).unwrap()))
         } else {
