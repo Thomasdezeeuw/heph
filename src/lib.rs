@@ -102,7 +102,7 @@ pub mod sync;
 pub mod test;
 
 #[doc(no_inline)]
-pub use actor::{Actor, NewActor};
+pub use actor::{Actor, NewActor, SyncActor};
 #[doc(no_inline)]
 pub use actor_ref::ActorRef;
 #[doc(no_inline)]
