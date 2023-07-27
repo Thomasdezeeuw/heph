@@ -1,8 +1,10 @@
 //! The [`ActorFuture`] and related types.
 
 use std::any::Any;
+use std::error::Error;
 use std::fmt;
 use std::future::Future;
+use std::num::NonZeroU8;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::task::{self, Poll};
@@ -245,7 +247,7 @@ impl<RT> ActorFutureBuilder<RT> {
     where
         RT: Clone,
     {
-        ActorFutureBuilder { rt: rt }
+        ActorFutureBuilder { rt }
     }
 
     /// Create a new `ActorFuture`.
@@ -285,3 +287,64 @@ impl<RT> ActorFutureBuilder<RT> {
         Ok((future, actor_ref))
     }
 }
+
+/// Maximum size of the actor's inbox before sending to it will (asynchronously)
+/// block the sender.
+///
+/// # Notes
+///
+/// The sizes defines by the constants may change in the future.
+#[derive(Copy, Clone, Debug)]
+pub struct InboxSize(NonZeroU8);
+
+impl InboxSize {
+    /// Space for a single message.
+    pub const ONE: InboxSize = InboxSize(NonZeroU8::new(1).unwrap());
+
+    /// Small inbox, currently 8 messages.
+    pub const SMALL: InboxSize = InboxSize(NonZeroU8::new(8).unwrap());
+
+    /// Medium sized inbox, currently 16 messages.
+    pub const MEDIUM: InboxSize = InboxSize(NonZeroU8::new(16).unwrap());
+
+    /// Maximum inbox size, currently 24 messages.
+    pub const LARGE: InboxSize = InboxSize(NonZeroU8::new(24).unwrap());
+
+    /// Maximum inbox size, currently 29 messages.
+    pub const MAX: InboxSize = InboxSize(NonZeroU8::new(heph_inbox::MAX_CAP as u8).unwrap());
+
+    /// Use a fixed inbox size.
+    ///
+    /// Returns an error if the inbox size is either zero or too big.
+    pub const fn fixed(size: usize) -> Result<InboxSize, InvalidInboxSize> {
+        if size >= 1 && size <= heph_inbox::MAX_CAP {
+            Ok(InboxSize(NonZeroU8::new(size as u8).unwrap()))
+        } else {
+            Err(InvalidInboxSize)
+        }
+    }
+}
+
+impl Default for InboxSize {
+    fn default() -> InboxSize {
+        InboxSize::SMALL
+    }
+}
+
+/// Error returned by [`InboxSize::fixed`].
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct InvalidInboxSize;
+
+impl fmt::Display for InvalidInboxSize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "actor inbox capacity must be between {} and {}",
+            heph_inbox::MIN_CAP,
+            heph_inbox::MAX_CAP
+        )
+    }
+}
+
+impl Error for InvalidInboxSize {}
