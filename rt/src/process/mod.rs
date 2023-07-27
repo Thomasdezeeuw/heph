@@ -93,11 +93,11 @@ where
 }
 
 // NOTE: `ActorFuture` already catches panics for us.
-impl<S, NA, RT> Process for ActorFuture<S, NA, RT>
+impl<S, NA> Process for ActorFuture<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewActor<RuntimeAccess = RT>,
-    RT: Clone,
+    NA: NewActor,
+    NA::RuntimeAccess: Clone,
 {
     fn id(self: Pin<&Self>, _: ProcessId) -> ProcessId {
         ProcessId(self.pid())

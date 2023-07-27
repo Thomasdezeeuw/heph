@@ -21,7 +21,7 @@ use crate::supervisor::{Supervisor, SupervisorStrategy};
 /// This can be used to wrap actors into a `Future`, it automatically handles
 /// errors and panics using the provided supervisor. This can run on any runtime
 /// that can run `Future`s.
-pub struct ActorFuture<S, NA: NewActor, RT = ()> {
+pub struct ActorFuture<S, NA: NewActor> {
     /// The actor's supervisor used to determine what to do when the actor, or
     /// the [`NewActor`] implementation, returns an error.
     supervisor: S,
@@ -33,7 +33,7 @@ pub struct ActorFuture<S, NA: NewActor, RT = ()> {
     /// The running actor.
     actor: NA::Actor,
     /// Runtime access.
-    rt: RT,
+    rt: NA::RuntimeAccess,
 }
 
 impl<S, NA> ActorFuture<S, NA>
@@ -61,11 +61,11 @@ where
     }
 }
 
-impl<S, NA, RT> ActorFuture<S, NA, RT>
+impl<S, NA> ActorFuture<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewActor<RuntimeAccess = RT>,
-    RT: Clone,
+    NA: NewActor,
+    NA::RuntimeAccess: Clone,
 {
     /// Returns the name of the actor.
     ///
@@ -152,11 +152,11 @@ where
     }
 }
 
-impl<S, NA, RT> Future for ActorFuture<S, NA, RT>
+impl<S, NA> Future for ActorFuture<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewActor<RuntimeAccess = RT>,
-    RT: Clone,
+    NA: NewActor,
+    NA::RuntimeAccess: Clone,
 {
     type Output = ();
 
@@ -182,11 +182,11 @@ where
 }
 
 #[allow(clippy::missing_fields_in_debug)]
-impl<S, NA, RT> fmt::Debug for ActorFuture<S, NA, RT>
+impl<S, NA> fmt::Debug for ActorFuture<S, NA>
 where
     S: Supervisor<NA> + fmt::Debug,
-    NA: NewActor<RuntimeAccess = RT>,
-    RT: fmt::Debug,
+    NA: NewActor,
+    NA::RuntimeAccess: fmt::Debug,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ActorFuture")
@@ -282,7 +282,7 @@ impl<RT> ActorFutureBuilder<RT> {
         supervisor: S,
         mut new_actor: NA,
         argument: NA::Argument,
-    ) -> Result<(ActorFuture<S, NA, RT>, ActorRef<NA::Message>), NA::Error>
+    ) -> Result<(ActorFuture<S, NA>, ActorRef<NA::Message>), NA::Error>
     where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = RT>,
