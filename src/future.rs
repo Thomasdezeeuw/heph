@@ -9,7 +9,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use heph_inbox::{Manager, ReceiverConnected};
+use heph_inbox::{self as inbox, ReceiverConnected};
 use log::error;
 
 use crate::actor::{self, Actor, NewActor};
@@ -25,13 +25,13 @@ use crate::supervisor::{Supervisor, SupervisorStrategy};
 /// See [`ActorFutureBuilder`] for setting various options.
 pub struct ActorFuture<S, NA: NewActor> {
     /// The actor's supervisor used to determine what to do when the actor, or
-    /// the [`NewActor`] implementation, returns an error.
+    /// the [`NewActor`] implementation, returns an error or panics.
     supervisor: S,
     /// The [`NewActor`] implementation used to restart the actor.
     new_actor: NA,
     /// The inbox of the actor, used in creating a new [`actor::Context`]
     /// if the actor is restarted.
-    inbox: Manager<NA::Message>,
+    inbox: inbox::Manager<NA::Message>,
     /// The running actor.
     actor: NA::Actor,
     /// Runtime access.
@@ -289,7 +289,7 @@ impl<RT> ActorFutureBuilder<RT> {
     {
         let rt = self.rt;
         let (inbox, sender, receiver) =
-            heph_inbox::Manager::new_channel(self.inbox_size.0.get() as usize);
+            inbox::Manager::new_channel(self.inbox_size.0.get() as usize);
         let actor_ref = ActorRef::local(sender);
         let ctx = actor::Context::new(receiver, rt.clone());
         let actor = match new_actor.new(ctx, argument) {

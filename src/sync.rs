@@ -491,9 +491,15 @@ unsafe fn sync_waker_drop(data: *const ()) {
 /// See [`SyncActorRunnerBuilder`] for setting various options.
 #[derive(Debug)]
 pub struct SyncActorRunner<S, A: SyncActor> {
+    /// The actor's supervisor used to determine what to do when the actor
+    /// returns an error or panics.
     supervisor: S,
-    actor: A,
+    /// The inbox of the actor, used in creating a new [`SyncContext`] if the
+    /// actor is restarted.
     inbox: inbox::Manager<A::Message>,
+    /// The running actor.
+    actor: A,
+    /// Runtime access.
     rt: A::RuntimeAccess,
 }
 
@@ -629,12 +635,12 @@ impl<RT> SyncActorRunnerBuilder<RT> {
         A: SyncActor<RuntimeAccess = RT>,
         RT: Clone,
     {
-        let (inbox, sender, ..) = heph_inbox::Manager::new_channel(self.inbox_size.get());
+        let (inbox, sender, ..) = inbox::Manager::new_channel(self.inbox_size.get());
         let actor_ref = ActorRef::local(sender);
         let sync_worker = SyncActorRunner {
             supervisor,
-            actor,
             inbox,
+            actor,
             rt: self.rt,
         };
         (sync_worker, actor_ref)
