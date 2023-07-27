@@ -662,6 +662,7 @@ where
         let rt = ThreadLocal::new(self.clone());
         let (process, actor_ref) = ActorFutureBuilder::new()
             .with_rt(rt)
+            .with_inbox_size(options.inbox_size())
             .build(supervisor, new_actor, arg)?;
         let pid = self
             .internals
