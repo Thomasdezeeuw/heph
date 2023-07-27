@@ -107,7 +107,7 @@ pub use actor::{Actor, NewActor};
 #[doc(no_inline)]
 pub use actor_ref::ActorRef;
 #[doc(no_inline)]
-pub use future::ActorFuture;
+pub use future::{ActorFuture, ActorFutureBuilder};
 #[doc(no_inline)]
 pub use supervisor::{Supervisor, SupervisorStrategy};
 #[doc(no_inline)]
