@@ -1,4 +1,4 @@
-//! Module containing the [`ActorFuture`].
+//! The [`ActorFuture`] and related types.
 
 use std::any::Any;
 use std::fmt;

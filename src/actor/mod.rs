@@ -44,6 +44,7 @@
 //! ```
 //!
 //! [Heph-rt]: https://crates.io/crates/heph-rt
+//! [`ActorFuture`]: crate::ActorFuture
 //!
 //! ## Synchronous actors
 //!
@@ -196,6 +197,7 @@ pub trait NewActor {
     ///
     /// [`new`]: NewActor::new
     /// [implementations]: #foreign-impls
+    /// [`ActorFuture::new`]: crate::ActorFuture::new
     type Argument;
 
     /// The type of the actor.

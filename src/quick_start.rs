@@ -185,7 +185,7 @@
 //! when to stop and when to restart an actor.
 //!
 //! [`Future`]: std::future::Future
-//! [`ActorFuture`]: crate::actor::ActorFuture
+//! [`ActorFuture`]: crate::ActorFuture
 //! [`Spawn`]: https://docs.rs/heph-rt/latest/heph_rt/spawn/trait.Spawn.html
 //! [`Supervisor`]: crate::supervisor::Supervisor
 //! [supervisor]: crate::supervisor
