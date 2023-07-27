@@ -63,7 +63,7 @@
 //! requires their own thread to run on, they are more expansive to run than
 //! asynchronous actors (by an order of a magnitude).
 //!
-//! Synchronous actors can be spawned using [`spawn_sync_actor`]. Note that the
+//! Synchronous actors can be ran using [`SyncActorRunner`]. Note that the
 //! Heph-rt crate provides function to spawn synchronous actors that it manages
 //! for you.
 //!
@@ -72,13 +72,14 @@
 //! ```
 //! use heph::actor::{actor_fn};
 //! use heph::supervisor::NoSupervisor;
-//! use heph::sync::{SyncContext, spawn_sync_actor};
+//! use heph::sync::{SyncContext, SyncActorRunnerBuilder};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Same as we saw for the asynchronous actors, we have to use the `actor_fn`
 //! // helper to implement `SyncActor`.
 //! let actor = actor_fn(actor);
-//! let (thread_handle, actor_ref) = spawn_sync_actor(NoSupervisor, actor, (), ())?;
+//! let (thread_handle, actor_ref) = SyncActorRunnerBuilder::new()
+//!     .spawn(NoSupervisor, actor, ())?;
 //!
 //! // We can send it a message like we do with asynchronous actors.
 //! actor_ref.try_send("Hello world!")?;
@@ -100,7 +101,7 @@
 //! [`actor::Context`]: Context
 //! [`SyncActor`]: crate::sync::SyncActor
 //! [`SyncContext`]: crate::sync::SyncContext
-//! [`spawn_sync_actor`]: crate::sync::spawn_sync_actor
+//! [`SyncActorRunner`]: crate::sync::SyncActorRunner
 
 use std::any::type_name;
 use std::fmt;

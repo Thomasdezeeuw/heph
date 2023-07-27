@@ -38,7 +38,7 @@ use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 ///
 /// [module level]: crate::actor
 ///
-/// Synchronous actor can be started using [`spawn_sync_actor`].
+/// Synchronous actor can be run using [`SyncActorRunner`].
 ///
 /// [actors]: crate::Actor
 /// [context]: SyncContext
@@ -444,37 +444,6 @@ unsafe fn sync_waker_drop(data: *const ()) {
     drop(SyncWaker::from_data(data));
 }
 
-/// Spawn a synchronous actor.
-///
-/// This will spawn a new thread to run `actor`, returning the thread's
-/// `JoinHandle` and an actor reference.
-pub fn spawn_sync_actor<S, A, RT>(
-    supervisor: S,
-    actor: A,
-    arg: A::Argument,
-    rt: RT,
-) -> io::Result<(thread::JoinHandle<()>, ActorRef<A::Message>)>
-where
-    S: SyncSupervisor<A> + Send + 'static,
-    A: SyncActor<RuntimeAccess = RT> + Send + 'static,
-    A::Message: Send + 'static,
-    A::Argument: Send + 'static,
-    RT: Clone + Send + 'static,
-{
-    let (inbox, sender, ..) = heph_inbox::Manager::new_small_channel();
-    let actor_ref = ActorRef::local(sender);
-    let sync_worker = SyncActorRunner {
-        supervisor,
-        actor,
-        inbox,
-        rt,
-    };
-    thread::Builder::new()
-        .name("Sync actor".to_owned())
-        .spawn(move || sync_worker.run(arg))
-        .map(|handle| (handle, actor_ref))
-}
-
 /// Synchronous actor runner.
 #[derive(Debug)]
 pub struct SyncActorRunner<S, A: SyncActor> {
@@ -586,5 +555,29 @@ impl<RT> SyncActorRunnerBuilder<RT> {
             rt: self.rt,
         };
         (sync_worker, actor_ref)
+    }
+
+    /// Spawn a synchronous actor.
+    ///
+    /// This will spawn a new thread to run `actor`, returning the thread's
+    /// `JoinHandle` and an actor reference.
+    pub fn spawn<S, A>(
+        self,
+        supervisor: S,
+        actor: A,
+        argument: A::Argument,
+    ) -> io::Result<(thread::JoinHandle<()>, ActorRef<A::Message>)>
+    where
+        S: SyncSupervisor<A> + Send + 'static,
+        A: SyncActor<RuntimeAccess = RT> + Send + 'static,
+        A::Message: Send + 'static,
+        A::Argument: Send + 'static,
+        RT: Clone + Send + 'static,
+    {
+        let (sync_worker, actor_ref) = self.build(supervisor, actor);
+        thread::Builder::new()
+            .name(A::name().to_owned())
+            .spawn(move || sync_worker.run(argument))
+            .map(|handle| (handle, actor_ref))
     }
 }
