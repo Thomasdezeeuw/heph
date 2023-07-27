@@ -527,3 +527,64 @@ where
 fn inbox_failure<T>(_: ReceiverConnected) -> T {
     panic!("failed to create new receiver for synchronous actor's inbox. Was the `SyncContext` leaked?");
 }
+
+/// Builder for [`SyncActorRunner`].
+///
+/// This allows setting various options.
+#[derive(Debug)]
+pub struct SyncActorRunnerBuilder<RT = ()> {
+    rt: RT,
+}
+
+impl SyncActorRunnerBuilder {
+    /// Create a new `SyncActorRunnerBuilder`, which allows for the creation of
+    /// `SyncActorRunner` with more options.
+    pub const fn new() -> SyncActorRunnerBuilder {
+        SyncActorRunnerBuilder { rt: () }
+    }
+}
+
+impl<RT> SyncActorRunnerBuilder<RT> {
+    /// Returns the runtime access used by the actor.
+    pub fn rt(&self) -> &RT {
+        &self.rt
+    }
+
+    /// Set the runtime access used by the actor.
+    ///
+    /// `rt: RT`: is used to get access to the runtime, it defaults to the unit
+    /// type (`()`) in case it's not needed. It needs to be `Clone` as it's
+    /// passed to the actor and after is needed for possible restarts.
+    pub fn with_rt<RT2>(self, rt: RT2) -> SyncActorRunnerBuilder<RT2>
+    where
+        RT: Clone,
+    {
+        SyncActorRunnerBuilder { rt }
+    }
+
+    /// Create a new `SyncActorRunner`.
+    ///
+    /// Arguments:
+    ///  * `supervisor: S`: is used to handle the actor's errors.
+    ///  * `actor: A`: the actor we're running.
+    pub fn build<S, A>(
+        self,
+        supervisor: S,
+        actor: A,
+    ) -> (SyncActorRunner<S, A>, ActorRef<A::Message>)
+    where
+        S: SyncSupervisor<A>,
+        A: SyncActor<RuntimeAccess = RT>,
+        RT: Clone,
+    {
+        let (inbox, sender, ..) = heph_inbox::Manager::new_small_channel();
+        let actor_ref = ActorRef::local(sender);
+        let sync_worker = SyncActorRunner {
+            supervisor,
+            actor,
+            inbox,
+            rt: self.rt,
+        };
+        (sync_worker, actor_ref)
+    }
+}
