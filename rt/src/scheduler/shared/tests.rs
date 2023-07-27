@@ -6,7 +6,7 @@ use std::task::{self, Poll};
 
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
-use heph::ActorFuture;
+use heph::ActorFutureBuilder;
 
 use crate::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Priority, ProcessData, Scheduler};
@@ -110,8 +110,10 @@ fn scheduler_run_order() {
     let mut pids = vec![];
     for (id, priority) in priorities.iter().enumerate() {
         let rt = ThreadSafe::new(test::shared_internals());
-        let (process, _) =
-            ActorFuture::new(NoSupervisor, new_actor, (id, run_order.clone()), rt).unwrap();
+        let (process, _) = ActorFutureBuilder::new()
+            .with_rt(rt)
+            .build(NoSupervisor, new_actor, (id, run_order.clone()))
+            .unwrap();
         let pid = scheduler.add_new_process(*priority, process);
         pids.push(pid);
     }
@@ -136,8 +138,10 @@ fn assert_actor_process_unmoved() {
     let mut ctx = task::Context::from_waker(&waker);
 
     let rt = ThreadSafe::new(test::shared_internals());
-    let (process, _) =
-        ActorFuture::new(NoSupervisor, TestAssertUnmovedNewActor::new(), (), rt).unwrap();
+    let (process, _) = ActorFutureBuilder::new()
+        .with_rt(rt)
+        .build(NoSupervisor, TestAssertUnmovedNewActor::new(), ())
+        .unwrap();
     let pid = scheduler.add_new_process(Priority::NORMAL, process);
 
     // Run the process multiple times, ensure it's not moved in the
@@ -184,6 +188,9 @@ fn assert_future_process_unmoved() {
 fn add_test_actor(scheduler: &Scheduler, priority: Priority) -> ProcessId {
     let new_actor = actor_fn(simple_actor);
     let rt = ThreadSafe::new(test::shared_internals());
-    let (process, _) = ActorFuture::new(NoSupervisor, new_actor, (), rt).unwrap();
+    let (process, _) = ActorFutureBuilder::new()
+        .with_rt(rt)
+        .build(NoSupervisor, new_actor, ())
+        .unwrap();
     scheduler.add_new_process(priority, process)
 }

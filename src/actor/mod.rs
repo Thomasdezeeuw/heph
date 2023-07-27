@@ -404,7 +404,7 @@ where
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let new_actor = actor_fn(my_actor); // Now it implements `NewActor`.
-/// let (future, actor_ref) = ActorFuture::new(NoSupervisor, new_actor, (), ())?;
+/// let (future, actor_ref) = ActorFuture::new(NoSupervisor, new_actor, ())?;
 /// # _ = actor_ref;
 /// print_actor_name(&future);
 /// # Ok(())

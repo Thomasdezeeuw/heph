@@ -107,7 +107,7 @@ async fn ok_actor(mut ctx: actor::Context<()>) {
 
 #[test]
 fn actor_future() {
-    let (actor, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(ok_actor), (), ()).unwrap();
+    let (actor, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(ok_actor), ()).unwrap();
     let mut actor = pin!(actor);
 
     let (waker, count) = task_wake_counter();
@@ -141,7 +141,7 @@ fn erroneous_actor_process() {
         supervisor_called_count += 1;
         SupervisorStrategy::Stop
     };
-    let (actor, _) = ActorFuture::new(supervisor, actor_fn(error_actor), true, ()).unwrap();
+    let (actor, _) = ActorFuture::new(supervisor, actor_fn(error_actor), true).unwrap();
     let mut actor = pin!(actor);
 
     // Actor should return an error and be stopped.
@@ -160,7 +160,7 @@ fn restarting_erroneous_actor_process() {
         supervisor_called_count.set(supervisor_called_count.get() + 1);
         SupervisorStrategy::Restart(false)
     };
-    let (actor, actor_ref) = ActorFuture::new(supervisor, actor_fn(error_actor), true, ()).unwrap();
+    let (actor, actor_ref) = ActorFuture::new(supervisor, actor_fn(error_actor), true).unwrap();
     let mut actor = pin!(actor);
 
     // Actor should return an error and be restarted.
@@ -228,7 +228,7 @@ fn panicking_actor_process() {
 
     let mut supervisor_called_count = 0;
     let supervisor = TestSupervisor(&mut supervisor_called_count);
-    let (actor, _) = ActorFuture::new(supervisor, actor_fn(panic_actor), true, ()).unwrap();
+    let (actor, _) = ActorFuture::new(supervisor, actor_fn(panic_actor), true).unwrap();
     let mut actor = pin!(actor);
 
     // Actor should panic and be stopped.
@@ -274,7 +274,7 @@ fn restarting_panicking_actor_process() {
 
     let supervisor_called_count = Cell::new(0);
     let supervisor = TestSupervisor(&supervisor_called_count);
-    let (actor, actor_ref) = ActorFuture::new(supervisor, actor_fn(panic_actor), true, ()).unwrap();
+    let (actor, actor_ref) = ActorFuture::new(supervisor, actor_fn(panic_actor), true).unwrap();
     let mut actor = pin!(actor);
 
     // Actor should panic and be restarted.

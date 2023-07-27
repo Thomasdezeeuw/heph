@@ -215,7 +215,7 @@ use std::time::{Duration, Instant};
 use ::log::{as_debug, debug, warn};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::supervisor::{Supervisor, SyncSupervisor};
-use heph::{ActorFuture, NewActor, SyncActor};
+use heph::{ActorFutureBuilder, NewActor, SyncActor};
 
 pub mod access;
 mod channel;
@@ -660,7 +660,9 @@ where
         NA: NewActor<RuntimeAccess = ThreadLocal>,
     {
         let rt = ThreadLocal::new(self.clone());
-        let (process, actor_ref) = ActorFuture::new(supervisor, new_actor, arg, rt)?;
+        let (process, actor_ref) = ActorFutureBuilder::new()
+            .with_rt(rt)
+            .build(supervisor, new_actor, arg)?;
         let pid = self
             .internals
             .scheduler

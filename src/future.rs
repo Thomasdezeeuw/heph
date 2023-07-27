@@ -34,11 +34,10 @@ pub struct ActorFuture<S, NA: NewActor, RT = ()> {
     rt: RT,
 }
 
-impl<S, NA, RT> ActorFuture<S, NA, RT>
+impl<S, NA> ActorFuture<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewActor<RuntimeAccess = RT>,
-    RT: Clone,
+    NA: NewActor<RuntimeAccess = ()>,
 {
     /// Create a new `ActorFuture`.
     ///
@@ -47,9 +46,6 @@ where
     ///  * `new_actor: NA`: is used to start the actor the first time and
     ///    restart it when it errors, for which the `argument` is used.
     ///  * `argument`: passed to the actor on creation.
-    ///  * `rt: RT`: is used to get access to the runtime, it may be the unit
-    ///    type (`()`) in case it's not needed. It needs to be `Clone` as it's
-    ///    passed to the actor and after is needed for possible restarts.
     ///
     /// For creation of an [`ActorFuture`] with non-default options see
     /// [`ActorFutureBuilder`].
@@ -58,13 +54,17 @@ where
         supervisor: S,
         new_actor: NA,
         argument: NA::Argument,
-        rt: RT,
-    ) -> Result<(ActorFuture<S, NA, RT>, ActorRef<NA::Message>), NA::Error> {
-        ActorFutureBuilder::new()
-            .with_rt(rt)
-            .build(supervisor, new_actor, argument)
+    ) -> Result<(ActorFuture<S, NA>, ActorRef<NA::Message>), NA::Error> {
+        ActorFutureBuilder::new().build(supervisor, new_actor, argument)
     }
+}
 
+impl<S, NA, RT> ActorFuture<S, NA, RT>
+where
+    S: Supervisor<NA>,
+    NA: NewActor<RuntimeAccess = RT>,
+    RT: Clone,
+{
     /// Returns the name of the actor.
     ///
     /// Based on the [`NewActor::name`] implementation.
@@ -237,7 +237,14 @@ impl<RT> ActorFutureBuilder<RT> {
     }
 
     /// Set the runtime access used by the actor.
-    pub fn with_rt<RT2>(self, rt: RT2) -> ActorFutureBuilder<RT2> {
+    ///
+    /// `rt: RT`: is used to get access to the runtime, it defaults to the unit
+    /// type (`()`) in case it's not needed. It needs to be `Clone` as it's
+    /// passed to the actor and after is needed for possible restarts.
+    pub fn with_rt<RT2>(self, rt: RT2) -> ActorFutureBuilder<RT2>
+    where
+        RT: Clone,
+    {
         ActorFutureBuilder { rt: rt }
     }
 

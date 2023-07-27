@@ -264,11 +264,7 @@
 //!     let supervisor = NoSupervisor;
 //!     let new_actor = actor_fn(actor);
 //!     let arguments = (); // No arguments required.
-//!     // The runtime (`rt`) argument gives access to the runtime within the
-//!     // context of the actor. Note that not all runtimes need this, so you
-//!     // can use `()` if it's not required.
-//!     let rt = ();
-//!     let (actor, actor_ref) = ActorFuture::new(supervisor, new_actor, arguments, rt)?;
+//!     let (actor, actor_ref) = ActorFuture::new(supervisor, new_actor, arguments)?;
 //!
 //!     // Actor reference can be used as normal.
 //!     actor_ref.try_send("Hello!")?;

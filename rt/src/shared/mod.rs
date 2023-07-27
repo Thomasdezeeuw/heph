@@ -10,7 +10,7 @@ use std::{io, task};
 
 use heph::actor_ref::ActorRef;
 use heph::supervisor::Supervisor;
-use heph::{ActorFuture, NewActor};
+use heph::{ActorFutureBuilder, NewActor};
 use log::{as_debug, debug, trace};
 
 use crate::process::{FutureProcess, Process, ProcessId};
@@ -218,7 +218,9 @@ impl RuntimeInternals {
         NA::Message: Send,
     {
         let rt = ThreadSafe::new(self.clone());
-        let (process, actor_ref) = ActorFuture::new(supervisor, new_actor, arg, rt)?;
+        let (process, actor_ref) = ActorFutureBuilder::new()
+            .with_rt(rt)
+            .build(supervisor, new_actor, arg)?;
         let pid = self.scheduler.add_new_process(options.priority(), process);
         let name = NA::name();
         debug!(pid = pid.0, name = name; "spawning thread-safe actor");
