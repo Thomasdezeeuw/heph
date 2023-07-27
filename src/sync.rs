@@ -95,6 +95,8 @@ pub trait SyncActor {
     ///
     /// When using `my_actor as fn(..) -> _` the will most likely be useless,
     /// consider using [`ActorFn`] which does produce usable names.
+    ///
+    /// [`type_name`]: std::any::type_name
     fn name() -> &'static str {
         crate::actor::name::<Self>()
     }
@@ -474,7 +476,7 @@ where
 
 /// Synchronous actor runner.
 #[derive(Debug)]
-struct SyncActorRunner<S, A: SyncActor> {
+pub struct SyncActorRunner<S, A: SyncActor> {
     supervisor: S,
     actor: A,
     inbox: inbox::Manager<A::Message>,
@@ -490,7 +492,7 @@ where
     ///
     /// This handles errors and catches panics, and depending on the supervisor
     /// `S`, restarts the actor if required.
-    fn run(mut self, mut arg: A::Argument, rt: A::RuntimeAccess) {
+    pub fn run(mut self, mut arg: A::Argument, rt: A::RuntimeAccess) {
         let name = A::name();
         trace!(name = name; "running synchronous actor");
         loop {
