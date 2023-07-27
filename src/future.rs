@@ -50,28 +50,19 @@ where
     ///  * `rt: RT`: is used to get access to the runtime, it may be the unit
     ///    type (`()`) in case it's not needed. It needs to be `Clone` as it's
     ///    passed to the actor and after is needed for possible restarts.
+    ///
+    /// For creation of an [`ActorFuture`] with non-default options see
+    /// [`ActorFutureBuilder`].
     #[allow(clippy::type_complexity)]
     pub fn new(
         supervisor: S,
-        mut new_actor: NA,
+        new_actor: NA,
         argument: NA::Argument,
         rt: RT,
     ) -> Result<(ActorFuture<S, NA, RT>, ActorRef<NA::Message>), NA::Error> {
-        let (inbox, sender, receiver) = heph_inbox::Manager::new_small_channel();
-        let actor_ref = ActorRef::local(sender);
-        let ctx = actor::Context::new(receiver, rt.clone());
-        let actor = match new_actor.new(ctx, argument) {
-            Ok(actor) => actor,
-            Err(err) => return Err(err),
-        };
-        let future = ActorFuture {
-            supervisor,
-            new_actor,
-            inbox,
-            actor,
-            rt,
-        };
-        Ok((future, actor_ref))
+        ActorFutureBuilder::new()
+            .with_rt(rt)
+            .build(supervisor, new_actor, argument)
     }
 
     /// Returns the name of the actor.
@@ -221,4 +212,69 @@ fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
 #[cold]
 fn inbox_failure<T>(_: ReceiverConnected) -> T {
     panic!("failed to create new receiver for actor's inbox. Was the `actor::Context` leaked?");
+}
+
+/// Builder for [`ActorFuture`].
+///
+/// This allows setting various options.
+#[derive(Debug)]
+pub struct ActorFutureBuilder<RT = ()> {
+    rt: RT,
+}
+
+impl ActorFutureBuilder {
+    /// Create a new `ActorFutureBuilder`, which allows for the creation of
+    /// `ActorFuture` with more options.
+    pub const fn new() -> ActorFutureBuilder {
+        ActorFutureBuilder { rt: () }
+    }
+}
+
+impl<RT> ActorFutureBuilder<RT> {
+    /// Returns the runtime access used by the actor.
+    pub fn rt(&self) -> &RT {
+        &self.rt
+    }
+
+    /// Set the runtime access used by the actor.
+    pub fn with_rt<RT2>(self, rt: RT2) -> ActorFutureBuilder<RT2> {
+        ActorFutureBuilder { rt: rt }
+    }
+
+    /// Create a new `ActorFuture`.
+    ///
+    /// Arguments:
+    ///  * `supervisor: S`: is used to handle the actor's errors.
+    ///  * `new_actor: NA`: is used to start the actor the first time and
+    ///    restart it when it errors, for which the `argument` is used.
+    ///  * `argument`: passed to the actor on creation.
+    #[allow(clippy::type_complexity)]
+    pub fn build<S, NA>(
+        self,
+        supervisor: S,
+        mut new_actor: NA,
+        argument: NA::Argument,
+    ) -> Result<(ActorFuture<S, NA, RT>, ActorRef<NA::Message>), NA::Error>
+    where
+        S: Supervisor<NA>,
+        NA: NewActor<RuntimeAccess = RT>,
+        RT: Clone,
+    {
+        let rt = self.rt;
+        let (inbox, sender, receiver) = heph_inbox::Manager::new_small_channel();
+        let actor_ref = ActorRef::local(sender);
+        let ctx = actor::Context::new(receiver, rt.clone());
+        let actor = match new_actor.new(ctx, argument) {
+            Ok(actor) => actor,
+            Err(err) => return Err(err),
+        };
+        let future = ActorFuture {
+            supervisor,
+            new_actor,
+            inbox,
+            actor,
+            rt,
+        };
+        Ok((future, actor_ref))
+    }
 }
