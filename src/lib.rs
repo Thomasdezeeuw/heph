@@ -111,4 +111,4 @@ pub use future::{ActorFuture, ActorFutureBuilder};
 #[doc(no_inline)]
 pub use supervisor::{Supervisor, SupervisorStrategy};
 #[doc(no_inline)]
-pub use sync::SyncActor;
+pub use sync::{SyncActor, SyncActorRunner, SyncActorRunnerBuilder};
