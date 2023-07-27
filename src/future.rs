@@ -41,7 +41,8 @@ pub struct ActorFuture<S, NA: NewActor> {
 impl<S, NA> ActorFuture<S, NA>
 where
     S: Supervisor<NA>,
-    NA: NewActor<RuntimeAccess = ()>,
+    NA: NewActor,
+    NA::RuntimeAccess: Clone,
 {
     /// Create a new `ActorFuture`.
     ///
@@ -58,17 +59,13 @@ where
         supervisor: S,
         new_actor: NA,
         argument: NA::Argument,
-    ) -> Result<(ActorFuture<S, NA>, ActorRef<NA::Message>), NA::Error> {
+    ) -> Result<(ActorFuture<S, NA>, ActorRef<NA::Message>), NA::Error>
+    where
+        NA: NewActor<RuntimeAccess = ()>,
+    {
         ActorFutureBuilder::new().build(supervisor, new_actor, argument)
     }
-}
 
-impl<S, NA> ActorFuture<S, NA>
-where
-    S: Supervisor<NA>,
-    NA: NewActor,
-    NA::RuntimeAccess: Clone,
-{
     /// Returns the name of the actor.
     ///
     /// Based on the [`NewActor::name`] implementation.
