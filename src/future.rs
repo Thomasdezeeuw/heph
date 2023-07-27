@@ -220,6 +220,7 @@ fn inbox_failure<T>(_: ReceiverConnected) -> T {
 ///
 /// This allows setting various options.
 #[derive(Debug)]
+#[must_use = "call `build` to finish building the `ActorFuture`"]
 pub struct ActorFutureBuilder<RT = ()> {
     rt: RT,
     inbox_size: InboxSize,
