@@ -222,13 +222,17 @@ fn inbox_failure<T>(_: ReceiverConnected) -> T {
 #[derive(Debug)]
 pub struct ActorFutureBuilder<RT = ()> {
     rt: RT,
+    inbox_size: InboxSize,
 }
 
 impl ActorFutureBuilder {
     /// Create a new `ActorFutureBuilder`, which allows for the creation of
     /// `ActorFuture` with more options.
     pub const fn new() -> ActorFutureBuilder {
-        ActorFutureBuilder { rt: () }
+        ActorFutureBuilder {
+            rt: (),
+            inbox_size: InboxSize::DEFAULT,
+        }
     }
 }
 
@@ -247,7 +251,21 @@ impl<RT> ActorFutureBuilder<RT> {
     where
         RT: Clone,
     {
-        ActorFutureBuilder { rt }
+        ActorFutureBuilder {
+            rt,
+            inbox_size: self.inbox_size,
+        }
+    }
+
+    /// Returns the size of the actor's inbox.
+    pub fn inbox_size(&self) -> InboxSize {
+        self.inbox_size
+    }
+
+    /// Set the size of the actor's inbox.
+    pub fn with_inbox_size(mut self, size: InboxSize) -> Self {
+        self.inbox_size = size;
+        self
     }
 
     /// Create a new `ActorFuture`.
@@ -270,7 +288,8 @@ impl<RT> ActorFutureBuilder<RT> {
         RT: Clone,
     {
         let rt = self.rt;
-        let (inbox, sender, receiver) = heph_inbox::Manager::new_small_channel();
+        let (inbox, sender, receiver) =
+            heph_inbox::Manager::new_channel(self.inbox_size.0.get() as usize);
         let actor_ref = ActorRef::local(sender);
         let ctx = actor::Context::new(receiver, rt.clone());
         let actor = match new_actor.new(ctx, argument) {
@@ -313,6 +332,9 @@ impl InboxSize {
     /// Maximum inbox size, currently 29 messages.
     pub const MAX: InboxSize = InboxSize(NonZeroU8::new(heph_inbox::MAX_CAP as u8).unwrap());
 
+    /// Default inbox size.
+    const DEFAULT: InboxSize = InboxSize::SMALL;
+
     /// Use a fixed inbox size.
     ///
     /// Returns an error if the inbox size is either zero or too big.
@@ -327,7 +349,7 @@ impl InboxSize {
 
 impl Default for InboxSize {
     fn default() -> InboxSize {
-        InboxSize::SMALL
+        InboxSize::DEFAULT
     }
 }
 
