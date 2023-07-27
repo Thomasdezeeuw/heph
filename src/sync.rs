@@ -467,10 +467,11 @@ where
         supervisor,
         actor,
         inbox,
+        rt,
     };
     thread::Builder::new()
         .name("Sync actor".to_owned())
-        .spawn(move || sync_worker.run(arg, rt))
+        .spawn(move || sync_worker.run(arg))
         .map(|handle| (handle, actor_ref))
 }
 
@@ -480,6 +481,7 @@ pub struct SyncActorRunner<S, A: SyncActor> {
     supervisor: S,
     actor: A,
     inbox: inbox::Manager<A::Message>,
+    rt: A::RuntimeAccess,
 }
 
 impl<S, A> SyncActorRunner<S, A>
@@ -492,12 +494,12 @@ where
     ///
     /// This handles errors and catches panics, and depending on the supervisor
     /// `S`, restarts the actor if required.
-    pub fn run(mut self, mut arg: A::Argument, rt: A::RuntimeAccess) {
+    pub fn run(mut self, mut arg: A::Argument) {
         let name = A::name();
         trace!(name = name; "running synchronous actor");
         loop {
             let receiver = self.inbox.new_receiver().unwrap_or_else(inbox_failure);
-            let ctx = SyncContext::new(receiver, rt.clone());
+            let ctx = SyncContext::new(receiver, self.rt.clone());
             match panic::catch_unwind(AssertUnwindSafe(|| self.actor.run(ctx, arg))) {
                 Ok(Ok(())) => break,
                 Ok(Err(err)) => match self.supervisor.decide(err) {
