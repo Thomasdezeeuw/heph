@@ -491,8 +491,7 @@ where
     /// This handles errors and catches panics, and depending on the supervisor
     /// `S`, restarts the actor if required.
     fn run(mut self, mut arg: A::Argument, rt: A::RuntimeAccess) {
-        let thread = thread::current();
-        let name = thread.name().unwrap();
+        let name = A::name();
         trace!(name = name; "running synchronous actor");
         loop {
             let receiver = self.inbox.new_receiver().unwrap_or_else(inbox_failure);
