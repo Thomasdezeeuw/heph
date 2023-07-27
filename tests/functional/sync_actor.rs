@@ -172,3 +172,19 @@ impl<A: SyncActor> SyncSupervisor<A> for PanicSupervisor {
 fn panic_actor<RT>(_: SyncContext<!, RT>) {
     panic!("oops!");
 }
+
+#[test]
+fn sync_actor_name() {
+    #[track_caller]
+    fn assert_name<A: SyncActor>(_: A, expected: &str) {
+        let got = A::name();
+        assert_eq!(got, expected);
+    }
+
+    assert_name(actor_fn(panic_actor::<()>), "panic_actor");
+    assert_name(actor_fn(bad_actor::<()>), "bad_actor");
+    assert_name(
+        actor_fn(block_on_actor::<(), BlockFuture>),
+        "block_on_actor",
+    );
+}

@@ -81,6 +81,23 @@ pub trait SyncActor {
         ctx: SyncContext<Self::Message, Self::RuntimeAccess>,
         arg: Self::Argument,
     ) -> Result<(), Self::Error>;
+
+    /// Returns the name of the actor.
+    ///
+    /// The default implementation creates the name based on the name of type of
+    /// the actor.
+    ///
+    /// # Notes
+    ///
+    /// This uses [`type_name`] under the hood which does not have a stable
+    /// output. Like the `type_name` function the default implementation is
+    /// provided on a best effort basis.
+    ///
+    /// When using `my_actor as fn(..) -> _` the will most likely be useless,
+    /// consider using [`ActorFn`] which does produce usable names.
+    fn name() -> &'static str {
+        crate::actor::name::<Self>()
+    }
 }
 
 /// Macro to implement the [`SyncActor`] trait on function pointers.
@@ -120,6 +137,10 @@ macro_rules! impl_sync_actor {
                 fn run(&self, ctx: SyncContext<Self::Message, Self::RuntimeAccess>, arg: Self::Argument) -> Result<(), Self::Error> {
                     let ($( $arg ),*) = arg;
                     (self.inner)(ctx, $( $arg ),*).into()
+                }
+
+                fn name() -> &'static str {
+                    crate::actor::name::<F>()
                 }
             }
         )*
@@ -163,6 +184,10 @@ where
         arg: Self::Argument,
     ) -> Result<(), Self::Error> {
         ((self.inner)(ctx, arg)).into()
+    }
+
+    fn name() -> &'static str {
+        crate::actor::name::<F>()
     }
 }
 
