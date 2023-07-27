@@ -213,10 +213,9 @@ use std::task;
 use std::time::{Duration, Instant};
 
 use ::log::{as_debug, debug, warn};
-use heph::actor::{ActorFuture, NewActor};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::supervisor::{Supervisor, SyncSupervisor};
-use heph::sync::SyncActor;
+use heph::{ActorFuture, NewActor, SyncActor};
 
 pub mod access;
 mod channel;

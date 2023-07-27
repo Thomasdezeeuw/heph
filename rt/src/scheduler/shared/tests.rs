@@ -4,8 +4,9 @@ use std::future::pending;
 use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
 
-use heph::actor::{self, actor_fn, ActorFuture};
+use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
+use heph::ActorFuture;
 
 use crate::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Priority, ProcessData, Scheduler};

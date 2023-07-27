@@ -8,9 +8,9 @@ use std::sync::{Arc, Mutex, TryLockError};
 use std::time::{Duration, Instant};
 use std::{io, task};
 
-use heph::actor::{ActorFuture, NewActor};
 use heph::actor_ref::ActorRef;
 use heph::supervisor::Supervisor;
+use heph::{ActorFuture, NewActor};
 use log::{as_debug, debug, trace};
 
 use crate::process::{FutureProcess, Process, ProcessId};

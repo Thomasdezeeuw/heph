@@ -6,8 +6,9 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{self, Poll};
 
-use crate::actor::{self, actor_fn, Actor, ActorFuture, NewActor};
+use crate::actor::{self, actor_fn, Actor, NewActor};
 use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
+use crate::ActorFuture;
 
 #[test]
 fn actor_name() {

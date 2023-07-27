@@ -254,7 +254,8 @@
 //!
 //! ```
 //! # #![feature(never_type)]
-//! use heph::actor::{self, actor_fn, ActorFuture};
+//! use heph::ActorFuture;
+//! use heph::actor::{self, actor_fn};
 //! use heph::supervisor::NoSupervisor;
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {

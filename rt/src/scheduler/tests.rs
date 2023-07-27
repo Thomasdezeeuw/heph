@@ -7,8 +7,9 @@ use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{self, Poll};
 
-use heph::actor::{self, actor_fn, ActorFuture};
+use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
+use heph::ActorFuture;
 
 use crate::process::{FutureProcess, Process, ProcessId};
 use crate::scheduler::{ProcessData, Scheduler};

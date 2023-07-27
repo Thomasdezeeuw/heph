@@ -94,6 +94,7 @@
 
 pub mod actor;
 pub mod actor_ref;
+pub mod future;
 pub mod messages;
 pub mod quick_start;
 pub mod supervisor;
@@ -102,9 +103,11 @@ pub mod sync;
 pub mod test;
 
 #[doc(no_inline)]
-pub use actor::{Actor, NewActor, SyncActor};
+pub use actor::{Actor, NewActor};
 #[doc(no_inline)]
 pub use actor_ref::ActorRef;
+#[doc(no_inline)]
+pub use future::ActorFuture;
 #[doc(no_inline)]
 pub use supervisor::{Supervisor, SupervisorStrategy};
 #[doc(no_inline)]

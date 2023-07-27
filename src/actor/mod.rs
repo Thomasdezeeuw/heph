@@ -111,14 +111,11 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 
 mod context;
-mod future;
 #[cfg(test)]
 mod tests;
 
 #[doc(inline)]
 pub use context::{Context, NoMessages, ReceiveMessage, RecvError};
-#[doc(inline)]
-pub use future::ActorFuture;
 
 /// Creating asynchronous actors.
 ///
@@ -399,7 +396,8 @@ where
 /// # Examples
 ///
 /// ```
-/// use heph::actor::{self, actor_fn, ActorFuture, NewActor};
+/// use heph::ActorFuture;
+/// use heph::actor::{self, actor_fn, NewActor};
 /// use heph::supervisor::{Supervisor, NoSupervisor};
 ///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {

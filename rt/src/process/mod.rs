@@ -9,8 +9,8 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{fmt, ptr};
 
-use heph::actor::{ActorFuture, NewActor};
 use heph::supervisor::Supervisor;
+use heph::{ActorFuture, NewActor};
 use log::{as_debug, error, trace};
 
 use crate::panic_message;
