@@ -3,8 +3,9 @@
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::{self, actor_fn, SyncContext};
+use heph::actor::{self, actor_fn};
 use heph::restart_supervisor;
+use heph::sync::SyncContext;
 use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 

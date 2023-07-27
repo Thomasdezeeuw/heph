@@ -84,9 +84,9 @@
 //! ```
 //! # #![feature(never_type)]
 //! #
-//! use heph::actor::{self, SyncContext};
 //! use heph::actor_ref::{ActorRef, RpcMessage};
-//! use heph::from_message;
+//! use heph::sync::SyncContext;
+//! use heph::{actor, from_message};
 //! use heph_rt::{self as rt, ThreadLocal};
 //!
 //! /// Message type for [`counter`].

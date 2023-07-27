@@ -69,8 +69,9 @@
 //!
 //! ```
 //! # #![feature(never_type)]
-//! use heph::actor::{self, SyncContext, actor_fn};
+//! use heph::actor::{self, actor_fn};
 //! use heph::supervisor::NoSupervisor;
+//! use heph::sync::SyncContext;
 //! use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 //! use heph_rt::{self as rt, Runtime, RuntimeRef};
 //! use heph_rt::access::Sync;
@@ -212,9 +213,10 @@ use std::task;
 use std::time::{Duration, Instant};
 
 use ::log::{as_debug, debug, warn};
-use heph::actor::{ActorFuture, NewActor, SyncActor};
+use heph::actor::{ActorFuture, NewActor};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::supervisor::{Supervisor, SyncSupervisor};
+use heph::sync::SyncActor;
 
 pub mod access;
 mod channel;

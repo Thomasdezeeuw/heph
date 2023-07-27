@@ -1,4 +1,4 @@
-//! Module containing the types for synchronous actors.
+//! Synchronous actors.
 
 use std::future::Future;
 use std::io;
@@ -215,7 +215,7 @@ impl<M, RT> SyncContext<M, RT> {
     /// world.
     ///
     /// ```
-    /// use heph::actor::SyncContext;
+    /// use heph::sync::SyncContext;
     ///
     /// fn greeter_actor(mut ctx: SyncContext<String>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
@@ -225,7 +225,7 @@ impl<M, RT> SyncContext<M, RT> {
     ///     }
     /// }
     ///
-    /// # fn assert_sync_actor<A: heph::actor::SyncActor<RuntimeAccess = ()>>(_: A) { }
+    /// # fn assert_sync_actor<A: heph::SyncActor<RuntimeAccess = ()>>(_: A) { }
     /// # assert_sync_actor(heph::actor::actor_fn(greeter_actor));
     /// ```
     pub fn try_receive_next(&mut self) -> Result<M, RecvError> {
@@ -243,7 +243,7 @@ impl<M, RT> SyncContext<M, RT> {
     /// An actor that waits for a message and prints it.
     ///
     /// ```
-    /// use heph::actor::SyncContext;
+    /// use heph::sync::SyncContext;
     ///
     /// fn print_actor(mut ctx: SyncContext<String>) {
     ///     if let Ok(msg) = ctx.receive_next() {
@@ -253,7 +253,7 @@ impl<M, RT> SyncContext<M, RT> {
     ///     }
     /// }
     ///
-    /// # fn assert_sync_actor<A: heph::actor::SyncActor<RuntimeAccess = ()>>(_: A) { }
+    /// # fn assert_sync_actor<A: heph::SyncActor<RuntimeAccess = ()>>(_: A) { }
     /// # assert_sync_actor(heph::actor::actor_fn(print_actor));
     /// ```
     pub fn receive_next(&mut self) -> Result<M, NoMessages> {

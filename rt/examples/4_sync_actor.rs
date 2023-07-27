@@ -1,5 +1,6 @@
-use heph::actor::{actor_fn, SyncContext};
+use heph::actor::actor_fn;
 use heph::supervisor::NoSupervisor;
+use heph::sync::SyncContext;
 use heph_rt::spawn::SyncActorOptions;
 use heph_rt::{self as rt, Runtime};
 

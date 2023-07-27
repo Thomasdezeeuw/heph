@@ -70,8 +70,9 @@
 //! The example below shows how to run a synchronous actor.
 //!
 //! ```
-//! use heph::actor::{actor_fn, spawn_sync_actor, SyncContext};
+//! use heph::actor::{actor_fn};
 //! use heph::supervisor::NoSupervisor;
+//! use heph::sync::{SyncContext, spawn_sync_actor};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Same as we saw for the asynchronous actors, we have to use the `actor_fn`
@@ -107,7 +108,6 @@ use std::task::{self, Poll};
 
 mod context;
 mod future;
-mod sync;
 #[cfg(test)]
 mod tests;
 
@@ -115,11 +115,6 @@ mod tests;
 pub use context::{Context, NoMessages, ReceiveMessage, RecvError};
 #[doc(inline)]
 pub use future::ActorFuture;
-#[doc(inline)]
-pub use sync::{spawn_sync_actor, SyncActor, SyncContext};
-
-#[doc(hidden)] // Not part of the stable API.
-pub use sync::SyncWaker;
 
 /// Creating asynchronous actors.
 ///
@@ -439,7 +434,7 @@ pub const fn actor_fn<T, M, RT, Arg, A>(implementation: T) -> ActorFn<T, M, RT, 
 #[allow(clippy::type_complexity)]
 pub struct ActorFn<F, M, RT, Args, A> {
     /// The actual implementation.
-    inner: F,
+    pub(crate) inner: F,
     /// Required parameters to implement `NewActor` for this type.
     _phantom: PhantomData<fn(Context<M, RT>, Args) -> A>,
 }
@@ -637,7 +632,7 @@ where
     }
 }
 
-mod private {
+pub(crate) mod private {
     /// Trait to support [`Actor`] for `Result<(), E>` and `()`.
     ///
     /// [`Actor`]: crate::actor::Actor

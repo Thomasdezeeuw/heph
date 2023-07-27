@@ -35,9 +35,10 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, task};
 
-use heph::actor::{self, NewActor, SyncContext};
+use heph::actor::{self, NewActor};
 use heph::actor_ref::ActorRef;
 use heph::supervisor::Supervisor;
+use heph::sync::SyncContext;
 
 use crate::spawn::{ActorOptions, FutureOptions, Spawn};
 use crate::timers::TimerToken;

@@ -4,8 +4,9 @@ use std::process;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 
-use heph::actor::{self, actor_fn, SyncContext};
+use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
+use heph::sync::SyncContext;
 use heph_rt::spawn::options::{ActorOptions, SyncActorOptions};
 use heph_rt::{Runtime, Signal};
 

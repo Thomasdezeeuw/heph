@@ -111,8 +111,7 @@ use std::fmt;
 
 use log::warn;
 
-use crate::actor::SyncActor;
-use crate::actor::{Actor, NewActor};
+use crate::{Actor, NewActor, SyncActor};
 
 /// The supervisor of an [actor].
 ///
@@ -634,7 +633,7 @@ macro_rules! __heph_restart_supervisor_impl {
 
         impl<A> $crate::supervisor::SyncSupervisor<A> for $supervisor_name
         where
-            A: $crate::actor::SyncActor<Argument = ( $( $arg ),* )>,
+            A: $crate::sync::SyncActor<Argument = ( $( $arg ),* )>,
             A::Error: std::fmt::Display,
         {
             fn decide(&mut self, err: A::Error) -> $crate::SupervisorStrategy<A::Argument> {

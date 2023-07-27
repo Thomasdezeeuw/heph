@@ -14,9 +14,9 @@
 use std::sync::Arc;
 use std::{io, thread};
 
-use heph::actor::{SyncActor, SyncContext};
 use heph::actor_ref::ActorRef;
 use heph::supervisor::{SupervisorStrategy, SyncSupervisor};
+use heph::sync::{SyncActor, SyncContext};
 use heph_inbox::{self as inbox, ReceiverConnected};
 use log::trace;
 

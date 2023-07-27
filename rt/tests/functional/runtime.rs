@@ -9,8 +9,9 @@ use std::task::{self, Poll};
 use std::thread::{self, sleep};
 use std::time::Duration;
 
-use heph::actor::{self, actor_fn, Actor, NewActor, SyncContext};
+use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
+use heph::sync::SyncContext;
 use heph_rt::spawn::options::{ActorOptions, FutureOptions, Priority, SyncActorOptions};
 use heph_rt::{Runtime, ThreadLocal, ThreadSafe};
 

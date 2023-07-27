@@ -5,8 +5,10 @@ use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::{actor_fn, spawn_sync_actor, RecvError, SyncContext};
+use heph::actor::{actor_fn, RecvError};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
+use heph::sync::spawn_sync_actor;
+use heph::sync::SyncContext;
 
 #[derive(Clone, Debug)]
 struct BlockFuture {

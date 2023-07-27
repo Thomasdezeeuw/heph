@@ -62,9 +62,10 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{fmt, io, slice, thread};
 
-use heph::actor::{self, Actor, NewActor, SyncActor, SyncWaker};
+use heph::actor::{self, Actor, NewActor};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::supervisor::{Supervisor, SyncSupervisor};
+use heph::sync::{SyncActor, SyncWaker};
 use heph_inbox as inbox;
 use heph_inbox::oneshot::{self, new_oneshot};
 

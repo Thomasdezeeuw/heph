@@ -2,8 +2,9 @@
 
 use std::convert::TryFrom;
 
-use heph::actor::{self, actor_fn, SyncContext};
+use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
+use heph::sync::SyncContext;
 use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::{self as rt, Runtime, RuntimeRef, Signal, ThreadLocal, ThreadSafe};
 

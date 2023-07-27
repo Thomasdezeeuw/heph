@@ -21,8 +21,8 @@ use std::{fmt, slice};
 use getrandom::getrandom;
 use log::warn;
 
-use crate::actor::{self, Actor, NewActor, SyncActor};
 use crate::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
+use crate::{actor, Actor, NewActor, SyncActor};
 
 /// Percentage of messages lost on purpose.
 static MSG_LOSS: AtomicU8 = AtomicU8::new(0);

@@ -3,9 +3,10 @@
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::actor::{self, actor_fn, SyncContext};
+use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, SendError};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
+use heph::sync::SyncContext;
 use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::trace::Trace;
 use heph_rt::{self as rt, Runtime, RuntimeRef};
