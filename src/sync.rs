@@ -436,7 +436,7 @@ where
 {
     let (inbox, sender, ..) = heph_inbox::Manager::new_small_channel();
     let actor_ref = ActorRef::local(sender);
-    let sync_worker = SyncWorker {
+    let sync_worker = SyncActorRunner {
         supervisor,
         actor,
         inbox,
@@ -447,21 +447,24 @@ where
         .map(|handle| (handle, actor_ref))
 }
 
-/// Synchronous worker.
+/// Synchronous actor runner.
 #[derive(Debug)]
-struct SyncWorker<S, A: SyncActor> {
+struct SyncActorRunner<S, A: SyncActor> {
     supervisor: S,
     actor: A,
     inbox: inbox::Manager<A::Message>,
 }
 
-impl<S, A> SyncWorker<S, A>
+impl<S, A> SyncActorRunner<S, A>
 where
     S: SyncSupervisor<A>,
     A: SyncActor,
     A::RuntimeAccess: Clone,
 {
     /// Run the synchronous actor.
+    ///
+    /// This handles errors and catches panics, and depending on the supervisor
+    /// `S`, restarts the actor if required.
     fn run(mut self, mut arg: A::Argument, rt: A::RuntimeAccess) {
         let thread = thread::current();
         let name = thread.name().unwrap();
