@@ -62,6 +62,8 @@ use crate::actor::{ActorFn, NoMessages, RecvError};
 use crate::actor_ref::ActorRef;
 use crate::supervisor::{SupervisorStrategy, SyncSupervisor};
 
+pub use crate::future::InboxSize;
+
 /// Synchronous actor.
 ///
 /// Synchronous actors run on their own thread and therefore can perform
@@ -558,13 +560,17 @@ fn inbox_failure<T>(_: ReceiverConnected) -> T {
 #[derive(Debug)]
 pub struct SyncActorRunnerBuilder<RT = ()> {
     rt: RT,
+    inbox_size: InboxSize,
 }
 
 impl SyncActorRunnerBuilder {
     /// Create a new `SyncActorRunnerBuilder`, which allows for the creation of
     /// `SyncActorRunner` with more options.
     pub const fn new() -> SyncActorRunnerBuilder {
-        SyncActorRunnerBuilder { rt: () }
+        SyncActorRunnerBuilder {
+            rt: (),
+            inbox_size: InboxSize::DEFAULT,
+        }
     }
 }
 
@@ -583,7 +589,21 @@ impl<RT> SyncActorRunnerBuilder<RT> {
     where
         RT: Clone,
     {
-        SyncActorRunnerBuilder { rt }
+        SyncActorRunnerBuilder {
+            rt,
+            inbox_size: self.inbox_size,
+        }
+    }
+
+    /// Returns the size of the actor's inbox.
+    pub fn inbox_size(&self) -> InboxSize {
+        self.inbox_size
+    }
+
+    /// Set the size of the actor's inbox.
+    pub fn with_inbox_size(mut self, size: InboxSize) -> Self {
+        self.inbox_size = size;
+        self
     }
 
     /// Create a new `SyncActorRunner`.
@@ -601,7 +621,7 @@ impl<RT> SyncActorRunnerBuilder<RT> {
         A: SyncActor<RuntimeAccess = RT>,
         RT: Clone,
     {
-        let (inbox, sender, ..) = heph_inbox::Manager::new_small_channel();
+        let (inbox, sender, ..) = heph_inbox::Manager::new_channel(self.inbox_size.get());
         let actor_ref = ActorRef::local(sender);
         let sync_worker = SyncActorRunner {
             supervisor,

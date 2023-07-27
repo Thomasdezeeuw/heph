@@ -333,7 +333,7 @@ impl InboxSize {
     pub const MAX: InboxSize = InboxSize(NonZeroU8::new(heph_inbox::MAX_CAP as u8).unwrap());
 
     /// Default inbox size.
-    const DEFAULT: InboxSize = InboxSize::SMALL;
+    pub(crate) const DEFAULT: InboxSize = InboxSize::SMALL;
 
     /// Use a fixed inbox size.
     ///
