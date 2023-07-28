@@ -360,11 +360,8 @@ impl Runtime {
         A::Argument: Send + 'static,
     {
         let id = self.workers.len() + self.sync_actors.len() + 1;
-        if let Some(name) = options.name() {
-            debug!(sync_worker_id = id, name = name; "spawning synchronous actor");
-        } else {
-            debug!(sync_worker_id = id; "spawning synchronous actor");
-        }
+        let name = options.thread_name().unwrap_or_else(|| A::name());
+        debug!(sync_worker_id = id, name = name; "spawning synchronous actor");
 
         #[allow(clippy::cast_possible_truncation)]
         // SAFETY: I doubt we'll spawn 2 << 32 threads...

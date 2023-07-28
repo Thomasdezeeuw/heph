@@ -23,7 +23,7 @@ fn main() -> Result<(), rt::Error> {
     // Spawn our printing actor.
     // NOTE: to enable tracing for this sync actor it must be spawned after
     // enabling tracing.
-    let options = SyncActorOptions::default().with_name("Printer".to_owned());
+    let options = SyncActorOptions::default().with_thread_name("Printer".to_owned());
     let print_actor = actor_fn(print_actor);
     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, print_actor, (), options)?;
 

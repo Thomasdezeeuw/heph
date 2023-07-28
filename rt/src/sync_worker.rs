@@ -44,7 +44,7 @@ where
     let (inbox, sender, ..) = inbox::Manager::new_small_channel();
     let actor_ref = ActorRef::local(sender);
     let thread_name = options
-        .take_name()
+        .take_thread_name()
         .unwrap_or_else(|| format!("Sync actor {id}"));
     let handle = thread::Builder::new().name(thread_name).spawn(move || {
         #[rustfmt::skip]

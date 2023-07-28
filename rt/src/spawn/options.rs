@@ -184,7 +184,7 @@ fn priority_duration_multiplication() {
 /// ```
 /// use heph_rt::spawn::SyncActorOptions;
 ///
-/// let opts = SyncActorOptions::default().with_name("My sync actor".to_owned());
+/// let opts = SyncActorOptions::default().with_thread_name("My sync actor".to_owned());
 /// # _ = opts; // Silence unused variable warning.
 /// ```
 #[derive(Debug, Default)]
@@ -195,21 +195,22 @@ pub struct SyncActorOptions {
 }
 
 impl SyncActorOptions {
-    /// Returns the name of the synchronous actor, if any.
-    pub fn name(&self) -> Option<&str> {
+    /// Returns the thread name, if any.
+    pub fn thread_name(&self) -> Option<&str> {
         self.thread_name.as_deref()
     }
 
     /// Removes the name.
-    pub(crate) fn take_name(self) -> Option<String> {
+    pub(crate) fn take_thread_name(self) -> Option<String> {
         self.thread_name
     }
 
-    /// Set the name of the actor. This is used in the naming of the thread in
-    /// which the actor runs.
+    /// Set the name of the thread running the actor.
     ///
-    /// Defaults to "Sync actor *n*", where *n* is some number.
-    pub fn with_name(mut self, thread_name: String) -> Self {
+    /// Defaults to the name of the actor, this can be used if multiple
+    /// synchronous actors of the same kind are started and you want to give
+    /// them unique names.
+    pub fn with_thread_name(mut self, thread_name: String) -> Self {
         self.thread_name = Some(thread_name);
         self
     }

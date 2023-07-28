@@ -16,7 +16,7 @@ fn main() -> Result<(), rt::Error> {
     // Spawn a new synchronous actor, returning an actor reference to it.
     // Options used to spawn the synchronous actor. Here we'll set the name of
     // the thread that runs the actor.
-    let options = SyncActorOptions::default().with_name("My actor".to_owned());
+    let options = SyncActorOptions::default().with_thread_name("My actor".to_owned());
     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor_fn(actor), "Bye", options)?;
 
     // Just like with any actor reference we can send the actor a message.
