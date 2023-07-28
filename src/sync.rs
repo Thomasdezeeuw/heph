@@ -372,13 +372,6 @@ pub struct SyncWaker {
 }
 
 impl SyncWaker {
-    const VTABLE: RawWakerVTable = RawWakerVTable::new(
-        sync_waker_clone,
-        sync_waker_wake,
-        sync_waker_wake_by_ref,
-        sync_waker_drop,
-    );
-
     /// Create a new `SyncWaker`.
     #[doc(hidden)] // Not part of the stable API.
     pub fn new() -> SyncWaker {
@@ -424,7 +417,7 @@ impl SyncWaker {
                 // The waking implementation will `unpark` us.
                 Poll::Pending => {
                     let elapsed = start.elapsed();
-                    if elapsed > timeout {
+                    if elapsed >= timeout {
                         return None;
                     }
 
@@ -466,24 +459,31 @@ impl SyncWaker {
         // `from_data`.
         &*((data as *const *const ()).cast::<SyncWaker>())
     }
-}
 
-unsafe fn sync_waker_clone(data: *const ()) -> RawWaker {
-    let waker = SyncWaker::from_data_ref(&data);
-    let data = waker.clone().into_data();
-    RawWaker::new(data, &SyncWaker::VTABLE)
-}
+    const VTABLE: RawWakerVTable = RawWakerVTable::new(
+        SyncWaker::clone,
+        SyncWaker::wake,
+        SyncWaker::wake_by_ref,
+        SyncWaker::drop,
+    );
 
-unsafe fn sync_waker_wake(data: *const ()) {
-    SyncWaker::from_data(data).handle.unpark();
-}
+    unsafe fn clone(data: *const ()) -> RawWaker {
+        let waker = SyncWaker::from_data_ref(&data);
+        let data = waker.clone().into_data();
+        RawWaker::new(data, &SyncWaker::VTABLE)
+    }
 
-unsafe fn sync_waker_wake_by_ref(data: *const ()) {
-    SyncWaker::from_data_ref(&data).handle.unpark();
-}
+    unsafe fn wake(data: *const ()) {
+        SyncWaker::from_data(data).handle.unpark();
+    }
 
-unsafe fn sync_waker_drop(data: *const ()) {
-    drop(SyncWaker::from_data(data));
+    unsafe fn wake_by_ref(data: *const ()) {
+        SyncWaker::from_data_ref(&data).handle.unpark();
+    }
+
+    unsafe fn drop(data: *const ()) {
+        drop(SyncWaker::from_data(data));
+    }
 }
 
 /// Synchronous actor runner.
