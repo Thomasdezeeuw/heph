@@ -109,6 +109,6 @@ pub use actor_ref::ActorRef;
 #[doc(no_inline)]
 pub use future::{ActorFuture, ActorFutureBuilder};
 #[doc(no_inline)]
-pub use supervisor::{Supervisor, SupervisorStrategy};
+pub use supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
 #[doc(no_inline)]
 pub use sync::{SyncActor, SyncActorRunner, SyncActorRunnerBuilder};
