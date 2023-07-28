@@ -11,15 +11,12 @@
 //! [coordinator]: crate::coordinator
 //! [`sync_worker::Handle`]: Handle
 
-use std::panic::{self, AssertUnwindSafe};
 use std::sync::Arc;
 use std::{io, thread};
 
 use heph::actor_ref::ActorRef;
-use heph::supervisor::{SupervisorStrategy, SyncSupervisor};
-use heph::sync::{SyncActor, SyncContext};
-use heph_inbox::{self as inbox, ReceiverConnected};
-use log::trace;
+use heph::supervisor::SyncSupervisor;
+use heph::sync::{SyncActor, SyncActorRunnerBuilder};
 
 use crate::spawn::options::SyncActorOptions;
 use crate::trace;
@@ -41,17 +38,32 @@ where
     A::Message: Send + 'static,
     A::Argument: Send + 'static,
 {
-    let (inbox, sender, ..) = inbox::Manager::new_small_channel();
-    let actor_ref = ActorRef::local(sender);
+    let (runner, actor_ref) = SyncActorRunnerBuilder::new()
+        .with_rt(rt::Sync::new(shared.clone(), trace_log))
+        .with_inbox_size(options.inbox_size())
+        .build(supervisor, actor);
     let thread_name = options
         .take_thread_name()
-        .unwrap_or_else(|| format!("Sync actor {id}"));
+        .unwrap_or_else(|| A::name().to_owned());
+    let wake_coordinator_on_drop = WakeOnDrop(shared);
     let handle = thread::Builder::new().name(thread_name).spawn(move || {
-        #[rustfmt::skip]
-        let worker = SyncWorker { id, supervisor, actor, inbox, shared, trace_log };
-        worker.run(arg);
+        runner.run(arg);
+        // Wake the coordinator. Note that if it's dropped early it will also
+        // wake the coordinator, see the `Drop` implementation.
+        drop(wake_coordinator_on_drop);
     })?;
     Ok((Handle { id, handle }, actor_ref))
+}
+
+/// Calls [`shared::RuntimeInternals::wake_coordinator`] when the type is
+/// dropped.
+struct WakeOnDrop(Arc<shared::RuntimeInternals>);
+
+impl Drop for WakeOnDrop {
+    fn drop(&mut self) {
+        // Wake the coordinator forcing it check if the sync workers are still alive.
+        self.0.wake_coordinator();
+    }
 }
 
 /// Handle to a synchronous worker.
@@ -84,112 +96,4 @@ impl Handle {
     pub(crate) fn into_handle(self) -> thread::JoinHandle<()> {
         self.handle
     }
-}
-
-/// Worker that runs a single synchronous actor.
-struct SyncWorker<S: SyncSupervisor<A>, A: SyncActor<RuntimeAccess = rt::Sync>> {
-    id: usize,
-    supervisor: S,
-    actor: A,
-    inbox: inbox::Manager<A::Message>,
-    shared: Arc<shared::RuntimeInternals>,
-    trace_log: Option<trace::Log>,
-}
-
-impl<S: SyncSupervisor<A>, A: SyncActor<RuntimeAccess = rt::Sync>> SyncWorker<S, A> {
-    /// Run the synchronous actor.
-    fn run(mut self, mut arg: A::Argument) {
-        let thread = thread::current();
-        let name = thread.name().unwrap();
-        trace!(sync_worker_id = self.id, name = name; "running synchronous actor");
-        loop {
-            let timing = trace::start(&self.trace_log);
-            let receiver = self.inbox.new_receiver().unwrap_or_else(inbox_failure);
-            let rt = rt::Sync::new(self.shared.clone(), self.trace_log.clone());
-            let ctx = SyncContext::new(receiver, rt);
-            trace::finish_rt(
-                self.trace_log.as_mut(),
-                timing,
-                "setting up synchronous actor",
-                &[],
-            );
-
-            let timing = trace::start(&self.trace_log);
-            let res = panic::catch_unwind(AssertUnwindSafe(|| self.actor.run(ctx, arg)));
-            trace::finish_rt(
-                self.trace_log.as_mut(),
-                timing,
-                "running synchronous actor",
-                &[],
-            );
-
-            match res {
-                Ok(Ok(())) => break,
-                Ok(Err(err)) => {
-                    let timing = trace::start(&self.trace_log);
-                    match self.supervisor.decide(err) {
-                        SupervisorStrategy::Restart(new_arg) => {
-                            trace!(sync_worker_id = self.id, name = name; "restarting synchronous actor");
-                            arg = new_arg;
-                            trace::finish_rt(
-                                self.trace_log.as_mut(),
-                                timing,
-                                "restarting synchronous actor",
-                                &[],
-                            );
-                        }
-                        SupervisorStrategy::Stop => {
-                            trace::finish_rt(
-                                self.trace_log.as_mut(),
-                                timing,
-                                "stopping synchronous actor",
-                                &[],
-                            );
-                            break;
-                        }
-                        _ => unreachable!(),
-                    }
-                }
-                Err(panic) => {
-                    let timing = trace::start(&self.trace_log);
-                    match self.supervisor.decide_on_panic(panic) {
-                        SupervisorStrategy::Restart(new_arg) => {
-                            trace!(sync_worker_id = self.id, name = name; "restarting synchronous actor after panic");
-                            arg = new_arg;
-                            trace::finish_rt(
-                                self.trace_log.as_mut(),
-                                timing,
-                                "restarting synchronous actor after panic",
-                                &[],
-                            );
-                        }
-                        SupervisorStrategy::Stop => {
-                            trace::finish_rt(
-                                self.trace_log.as_mut(),
-                                timing,
-                                "stopping synchronous actor after panic",
-                                &[],
-                            );
-                            break;
-                        }
-                        _ => unreachable!(),
-                    }
-                }
-            }
-        }
-        trace!(sync_worker_id = self.id, name = name; "stopping synchronous actor");
-    }
-}
-
-impl<S: SyncSupervisor<A>, A: SyncActor<RuntimeAccess = rt::Sync>> Drop for SyncWorker<S, A> {
-    fn drop(&mut self) {
-        // Wake the coordinator forcing it check if the sync workers are still alive.
-        self.shared.wake_coordinator();
-    }
-}
-
-/// Called when we can't create a new receiver for the sync actor.
-#[cold]
-fn inbox_failure<T>(_: ReceiverConnected) -> T {
-    panic!("failed to create new receiver for synchronous actor's inbox. Was the `SyncContext` leaked?");
 }
