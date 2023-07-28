@@ -262,8 +262,7 @@ pub struct SyncContext<M, RT = ()> {
 
 impl<M, RT> SyncContext<M, RT> {
     /// Create a new `SyncContext`.
-    #[doc(hidden)] // Not part of the stable API.
-    pub const fn new(inbox: Receiver<M>, rt: RT) -> SyncContext<M, RT> {
+    const fn new(inbox: Receiver<M>, rt: RT) -> SyncContext<M, RT> {
         SyncContext {
             inbox,
             future_waker: None,

@@ -674,8 +674,7 @@ pub(crate) mod private {
 /// Returns the name for actors of type `A`.
 ///
 /// This is the default implementation of [`NewActor::name`].
-#[doc(hidden)] // Not part of the stable API.
-pub fn name<A: ?Sized>() -> &'static str {
+pub(crate) fn name<A: ?Sized>() -> &'static str {
     format_name(type_name::<A>())
 }
 
