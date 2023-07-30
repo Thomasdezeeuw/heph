@@ -71,7 +71,7 @@
 //! # #![feature(never_type)]
 //! use heph::actor::{self, actor_fn};
 //! use heph::supervisor::NoSupervisor;
-//! use heph::sync::SyncContext;
+//! use heph::sync;
 //! use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 //! use heph_rt::{self as rt, Runtime, RuntimeRef};
 //! use heph_rt::access::Sync;
@@ -120,7 +120,7 @@
 //! }
 //!
 //! /// Our synchronous actor.
-//! fn sync_actor(mut ctx: SyncContext<&'static str, Sync>) {
+//! fn sync_actor(mut ctx: sync::Context<&'static str, Sync>) {
 //!     if let Ok(name) = ctx.receive_next() {
 //!         println!("Hello {name} from sync actor");
 //!     }

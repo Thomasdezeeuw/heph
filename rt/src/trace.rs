@@ -18,7 +18,7 @@
 //! The runtime already add its own trace events, e.g. when running actors, but
 //! users can also log events. Actors can log trace event using the [`Trace`]
 //! implementation for their context, i.e. [`actor::Context`] or
-//! [`SyncContext`].
+//! [`sync::Context`].
 //!
 //! Calling [`start_trace`] will start timing an event by returning
 //! [`EventTiming`]. Next the actor should execute the action(s) it wants to
@@ -38,7 +38,7 @@
 //! events are created by the same actor.
 //!
 //! [`actor::Context`]: heph::actor::Context
-//! [`SyncContext`]: heph::sync::SyncContext
+//! [`sync::Context`]: heph::sync::Context
 //! [`start_trace`]: Trace::start_trace
 //! [`finish_trace`]: Trace::finish_trace
 //!

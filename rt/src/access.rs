@@ -8,7 +8,7 @@
 //! This is reflected in a number of places:
 //!  * In actors in the [`NewActor::RuntimeAccess`] and
 //!    [`SyncActor::RuntimeAccess`] types.
-//!  * In the `RT` type [`actor::Context`] and [`SyncContext`].
+//!  * In the `RT` type [`actor::Context`] and [`sync::Context`].
 //!  * In various types and function that require runtime access as an argument,
 //!    for example [`TcpStream::connect`].
 //!
@@ -35,10 +35,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, task};
 
-use heph::actor::{self, NewActor};
-use heph::actor_ref::ActorRef;
-use heph::supervisor::Supervisor;
-use heph::sync::SyncContext;
+use heph::{actor, sync, ActorRef, NewActor, Supervisor};
 
 use crate::spawn::{ActorOptions, FutureOptions, Spawn};
 use crate::timers::TimerToken;
@@ -344,11 +341,10 @@ where
 /// It implements [`Spawn`] to spawn new thread-safe actors and [`spawn_future`]
 /// to spawn thread-safe [`Future`]s.
 ///
-/// This is usually a part of the actor's [`SyncContext`], see it for more
+/// This is usually a part of the actor's [`sync::Context`], see it for more
 /// information.
 ///
 /// [`spawn_future`]: Sync::spawn_future
-/// [`SyncContext`]: heph::sync::SyncContext
 #[derive(Clone)]
 pub struct Sync {
     rt: Arc<shared::RuntimeInternals>,
@@ -402,7 +398,7 @@ impl fmt::Debug for Sync {
     }
 }
 
-impl<M> Trace for SyncContext<M, Sync> {
+impl<M> Trace for sync::Context<M, Sync> {
     fn start_trace(&self) -> Option<trace::EventTiming> {
         trace::start(&self.runtime_ref().trace_log)
     }

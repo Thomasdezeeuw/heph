@@ -4,7 +4,7 @@ use std::convert::TryFrom;
 
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
-use heph::sync::SyncContext;
+use heph::sync;
 use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::{self as rt, Runtime, RuntimeRef, Signal, ThreadLocal, ThreadSafe};
 
@@ -71,7 +71,7 @@ impl TryFrom<Signal> for Message {
     }
 }
 
-fn sync_actor<RT>(mut ctx: SyncContext<Message, RT>) {
+fn sync_actor<RT>(mut ctx: sync::Context<Message, RT>) {
     while let Ok(msg) = ctx.receive_next() {
         match msg {
             Message::Print(msg) => println!("Got a message: {msg}"),

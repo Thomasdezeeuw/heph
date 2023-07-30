@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
-use heph::sync::SyncContext;
+use heph::sync;
 use heph_rt::spawn::options::{ActorOptions, SyncActorOptions};
 use heph_rt::{Runtime, Signal};
 
@@ -93,7 +93,7 @@ async fn actor<RT>(mut ctx: actor::Context<Signal, RT>, got_signal: Arc<AtomicUs
     got_signal.fetch_add(1, Ordering::SeqCst);
 }
 
-fn sync_actor<RT>(mut ctx: SyncContext<Signal, RT>, got_signal: Arc<AtomicUsize>) {
+fn sync_actor<RT>(mut ctx: sync::Context<Signal, RT>, got_signal: Arc<AtomicUsize>) {
     let _msg = ctx.receive_next().unwrap();
     got_signal.fetch_add(1, Ordering::SeqCst);
 }

@@ -19,7 +19,7 @@
 //! ```
 //! use heph::actor::{actor_fn};
 //! use heph::supervisor::NoSupervisor;
-//! use heph::sync::{SyncContext, SyncActorRunnerBuilder};
+//! use heph::sync::{self, SyncActorRunnerBuilder};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create a `SyncActorRunner`.
@@ -36,7 +36,7 @@
 //! # Ok(())
 //! # }
 //!
-//! fn actor(mut ctx: SyncContext<String>) {
+//! fn actor(mut ctx: sync::Context<String>) {
 //!     if let Ok(msg) = ctx.receive_next() {
 //!         println!("Got a message: {msg}");
 //!     } else {
@@ -74,17 +74,17 @@ pub use crate::future::InboxSize;
 ///
 /// The easiest way to implement this trait by using functions, see the [module
 /// level] documentation for an example of this. All functions *pointers* that
-/// accept a [`SyncContext`] as argument and return `Result<(), Error>` or `()`
-/// implement the `SyncActor` trait. There is also the [`ActorFn`] helper type
-/// to implement the trait for any function.
-///
-/// [module level]: crate::actor
+/// accept a [`sync::Context`] as argument and return `Result<(), Error>` or
+/// `()` implement the `SyncActor` trait. There is also the [`ActorFn`] helper
+/// type to implement the trait for any function.
 ///
 /// Synchronous actor can be run using [`SyncActorRunner`].
 ///
 /// [actors]: crate::Actor
-/// [context]: SyncContext
+/// [context]: Context
 /// [actor references]: crate::ActorRef
+/// [module level]: crate::actor
+/// [`sync::Context`]: Context
 pub trait SyncActor {
     /// The type of messages the synchronous actor can receive.
     ///
@@ -113,14 +113,16 @@ pub trait SyncActor {
 
     /// The kind of runtime access needed by the actor.
     ///
-    /// The runtime is accessible via the actor's context. See
-    /// [`SyncContext`] for more information.
+    /// The runtime is accessible via the actor's context. See [`sync::Context`]
+    /// for more information.
+    ///
+    /// [`sync::Context`]: Context
     type RuntimeAccess;
 
     /// Run the synchronous actor.
     fn run(
         &self,
-        ctx: SyncContext<Self::Message, Self::RuntimeAccess>,
+        ctx: Context<Self::Message, Self::RuntimeAccess>,
         arg: Self::Argument,
     ) -> Result<(), Self::Error>;
 
@@ -151,7 +153,7 @@ macro_rules! impl_sync_actor {
         $(,)?
     ) => {
         $(
-            impl<M, RT, $( $arg, )* R> SyncActor for fn(ctx: SyncContext<M, RT>, $( $arg_name: $arg ),*) -> R
+            impl<M, RT, $( $arg, )* R> SyncActor for fn(ctx: Context<M, RT>, $( $arg_name: $arg ),*) -> R
             where
                 R: ActorResult,
             {
@@ -161,7 +163,7 @@ macro_rules! impl_sync_actor {
                 type RuntimeAccess = RT;
 
                 #[allow(non_snake_case)]
-                fn run(&self, ctx: SyncContext<Self::Message, Self::RuntimeAccess>, arg: Self::Argument) -> Result<(), Self::Error> {
+                fn run(&self, ctx: Context<Self::Message, Self::RuntimeAccess>, arg: Self::Argument) -> Result<(), Self::Error> {
                     let ($( $arg ),*) = arg;
                     (self)(ctx, $( $arg ),*).into()
                 }
@@ -169,7 +171,7 @@ macro_rules! impl_sync_actor {
 
             impl<F, M, RT, $( $arg, )* R> SyncActor for ActorFn<F, M, RT, ($( $arg, )*), R>
             where
-                F: Fn(SyncContext<M, RT>, $( $arg ),*) -> R,
+                F: Fn(Context<M, RT>, $( $arg ),*) -> R,
                 R: ActorResult,
             {
                 type Message = M;
@@ -178,7 +180,7 @@ macro_rules! impl_sync_actor {
                 type RuntimeAccess = RT;
 
                 #[allow(non_snake_case)]
-                fn run(&self, ctx: SyncContext<Self::Message, Self::RuntimeAccess>, arg: Self::Argument) -> Result<(), Self::Error> {
+                fn run(&self, ctx: Context<Self::Message, Self::RuntimeAccess>, arg: Self::Argument) -> Result<(), Self::Error> {
                     let ($( $arg ),*) = arg;
                     (self.inner)(ctx, $( $arg ),*).into()
                 }
@@ -193,7 +195,7 @@ macro_rules! impl_sync_actor {
 
 impl_sync_actor!(());
 
-impl<M, RT, Arg, R> SyncActor for fn(ctx: SyncContext<M, RT>, arg: Arg) -> R
+impl<M, RT, Arg, R> SyncActor for fn(ctx: Context<M, RT>, arg: Arg) -> R
 where
     R: ActorResult,
 {
@@ -204,7 +206,7 @@ where
 
     fn run(
         &self,
-        ctx: SyncContext<Self::Message, Self::RuntimeAccess>,
+        ctx: Context<Self::Message, Self::RuntimeAccess>,
         arg: Self::Argument,
     ) -> Result<(), Self::Error> {
         (self)(ctx, arg).into()
@@ -213,7 +215,7 @@ where
 
 impl<F, M, RT, Arg, R> SyncActor for ActorFn<F, M, RT, (Arg,), R>
 where
-    F: Fn(SyncContext<M, RT>, Arg) -> R,
+    F: Fn(Context<M, RT>, Arg) -> R,
     R: ActorResult,
 {
     type Message = M;
@@ -224,7 +226,7 @@ where
     #[allow(non_snake_case)]
     fn run(
         &self,
-        ctx: SyncContext<Self::Message, Self::RuntimeAccess>,
+        ctx: Context<Self::Message, Self::RuntimeAccess>,
         arg: Self::Argument,
     ) -> Result<(), Self::Error> {
         ((self.inner)(ctx, arg)).into()
@@ -253,17 +255,17 @@ impl_sync_actor!(
 ///
 /// [`actor::Context`]: crate::actor::Context
 #[derive(Debug)]
-pub struct SyncContext<M, RT = ()> {
+pub struct Context<M, RT = ()> {
     inbox: Receiver<M>,
     future_waker: Option<SyncWaker>,
     /// Runtime access.
     rt: RT,
 }
 
-impl<M, RT> SyncContext<M, RT> {
-    /// Create a new `SyncContext`.
-    const fn new(inbox: Receiver<M>, rt: RT) -> SyncContext<M, RT> {
-        SyncContext {
+impl<M, RT> Context<M, RT> {
+    /// Create a new `Context`.
+    const fn new(inbox: Receiver<M>, rt: RT) -> Context<M, RT> {
+        Context {
             inbox,
             future_waker: None,
             rt,
@@ -276,7 +278,7 @@ impl<M, RT> SyncContext<M, RT> {
     /// the actor wants to wait until a message is received [`receive_next`] can
     /// be used, which blocks until a message is ready.
     ///
-    /// [`receive_next`]: SyncContext::receive_next
+    /// [`receive_next`]: Context::receive_next
     ///
     /// # Examples
     ///
@@ -284,9 +286,9 @@ impl<M, RT> SyncContext<M, RT> {
     /// world.
     ///
     /// ```
-    /// use heph::sync::SyncContext;
+    /// use heph::sync;
     ///
-    /// fn greeter_actor(mut ctx: SyncContext<String>) {
+    /// fn greeter_actor(mut ctx: sync::Context<String>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
     ///         println!("Hello {name}");
     ///     } else {
@@ -312,9 +314,9 @@ impl<M, RT> SyncContext<M, RT> {
     /// An actor that waits for a message and prints it.
     ///
     /// ```
-    /// use heph::sync::SyncContext;
+    /// use heph::sync;
     ///
-    /// fn print_actor(mut ctx: SyncContext<String>) {
+    /// fn print_actor(mut ctx: sync::Context<String>) {
     ///     if let Ok(msg) = ctx.receive_next() {
     ///         println!("Got a message: {msg}");
     ///     } else {
@@ -493,8 +495,8 @@ pub struct SyncActorRunner<S, A: SyncActor> {
     /// The actor's supervisor used to determine what to do when the actor
     /// returns an error or panics.
     supervisor: S,
-    /// The inbox of the actor, used in creating a new [`SyncContext`] if the
-    /// actor is restarted.
+    /// The inbox of the actor, used in creating a new [`Context`] if the actor
+    /// is restarted.
     inbox: inbox::Manager<A::Message>,
     /// The running actor.
     actor: A,
@@ -530,7 +532,7 @@ where
         trace!(name = name; "running synchronous actor");
         loop {
             let receiver = self.inbox.new_receiver().unwrap_or_else(inbox_failure);
-            let ctx = SyncContext::new(receiver, self.rt.clone());
+            let ctx = Context::new(receiver, self.rt.clone());
             match panic::catch_unwind(AssertUnwindSafe(|| self.actor.run(ctx, arg))) {
                 Ok(Ok(())) => break,
                 Ok(Err(err)) => match self.supervisor.decide(err) {
@@ -563,7 +565,7 @@ where
 /// Called when we can't create a new receiver for the sync actor.
 #[cold]
 fn inbox_failure<T>(_: ReceiverConnected) -> T {
-    panic!("failed to create new receiver for synchronous actor's inbox. Was the `SyncContext` leaked?");
+    panic!("failed to create new receiver for synchronous actor's inbox. Was the `sync::Context` leaked?");
 }
 
 /// Builder for [`SyncActorRunner`].

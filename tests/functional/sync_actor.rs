@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use heph::actor::{actor_fn, RecvError};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy, SyncSupervisor};
-use heph::sync::{SyncActor, SyncActorRunnerBuilder, SyncContext};
+use heph::sync::{self, SyncActor, SyncActorRunnerBuilder};
 
 #[derive(Clone, Debug)]
 struct BlockFuture {
@@ -51,7 +51,7 @@ impl Future for BlockFuture {
     }
 }
 
-fn block_on_actor<RT, Fut>(mut ctx: SyncContext<String, RT>, fut: Fut)
+fn block_on_actor<RT, Fut>(mut ctx: sync::Context<String, RT>, fut: Fut)
 where
     Fut: Future,
 {
@@ -98,7 +98,7 @@ fn block_on_spurious_wake_up() {
     handle.join().unwrap();
 }
 
-fn try_receive_next_actor<RT>(mut ctx: SyncContext<String, RT>) {
+fn try_receive_next_actor<RT>(mut ctx: sync::Context<String, RT>) {
     loop {
         match ctx.try_receive_next() {
             Ok(msg) => {
@@ -138,7 +138,7 @@ fn bad_actor_supervisor(err_count: usize) -> SupervisorStrategy<usize> {
     }
 }
 
-fn bad_actor<RT>(_: SyncContext<!, RT>, count: usize) -> Result<(), usize> {
+fn bad_actor<RT>(_: sync::Context<!, RT>, count: usize) -> Result<(), usize> {
     Err(count + 1)
 }
 
@@ -175,7 +175,7 @@ impl<A: SyncActor> SyncSupervisor<A> for PanicSupervisor {
     }
 }
 
-fn panic_actor<RT>(_: SyncContext<!, RT>) {
+fn panic_actor<RT>(_: sync::Context<!, RT>) {
     panic!("oops!");
 }
 

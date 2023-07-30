@@ -6,7 +6,7 @@ use std::time::Duration;
 use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, SendError};
 use heph::supervisor::{NoSupervisor, SupervisorStrategy};
-use heph::sync::SyncContext;
+use heph::sync;
 use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::trace::Trace;
 use heph_rt::{self as rt, Runtime, RuntimeRef};
@@ -101,7 +101,7 @@ where
 }
 
 /// Sync actor that prints all messages it receives.
-fn print_actor(mut ctx: SyncContext<&'static str, rt::Sync>) {
+fn print_actor(mut ctx: sync::Context<&'static str, rt::Sync>) {
     loop {
         // Start timing of receiving a message.
         let timing = ctx.start_trace();

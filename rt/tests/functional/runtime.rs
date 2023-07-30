@@ -11,7 +11,7 @@ use std::time::Duration;
 
 use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use heph::sync::SyncContext;
+use heph::sync;
 use heph_rt::spawn::options::{ActorOptions, FutureOptions, Priority, SyncActorOptions};
 use heph_rt::{Runtime, ThreadLocal, ThreadSafe};
 
@@ -494,7 +494,7 @@ fn external_thread_wakes_thread_safe_actor() {
 
 #[test]
 fn external_thread_wakes_sync_actor() {
-    fn actor<RT>(mut ctx: SyncContext<!, RT>, future: WaitFuture) -> Result<(), !> {
+    fn actor<RT>(mut ctx: sync::Context<!, RT>, future: WaitFuture) -> Result<(), !> {
         ctx.block_on(future)
     }
 
