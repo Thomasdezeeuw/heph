@@ -5,7 +5,7 @@
 
 use heph::actor::actor_fn;
 use heph::supervisor::NoSupervisor;
-use heph::sync::SyncContext;
+use heph::sync;
 use heph_rt::spawn::SyncActorOptions;
 use heph_rt::Runtime;
 
@@ -28,6 +28,6 @@ fn issue_294() {
     runtime.start().unwrap();
 }
 
-fn actor<RT>(mut ctx: SyncContext<(), RT>) {
+fn actor<RT>(mut ctx: sync::Context<(), RT>) {
     while let Ok(()) = ctx.receive_next() {}
 }

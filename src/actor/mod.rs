@@ -59,7 +59,7 @@
 //!
 //! Synchronous actors run in their own thread and can use blocking operations,
 //! such as blocking I/O or heavy computation. Instead of an [`actor::Context`]
-//! they use a [`SyncContext`], which provides a similar API to
+//! they use a [`sync::Context`], which provides a similar API to
 //! `actor::Context`, but uses blocking operations. As each synchronous actor
 //! requires their own thread to run on, they are more expansive to run than
 //! asynchronous actors (by an order of a magnitude).
@@ -71,9 +71,9 @@
 //! The example below shows how to run a synchronous actor.
 //!
 //! ```
-//! use heph::actor::{actor_fn};
+//! use heph::actor::actor_fn;
 //! use heph::supervisor::NoSupervisor;
-//! use heph::sync::{SyncContext, SyncActorRunnerBuilder};
+//! use heph::sync::{self, SyncActorRunnerBuilder};
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Same as we saw for the asynchronous actors, we have to use the `actor_fn`
@@ -90,7 +90,7 @@
 //! # Ok(())
 //! # }
 //!
-//! fn actor(mut ctx: SyncContext<String>) {
+//! fn actor(mut ctx: sync::Context<String>) {
 //!     if let Ok(msg) = ctx.receive_next() {
 //!         println!("Got a message: {msg}");
 //!     } else {
@@ -101,7 +101,7 @@
 //!
 //! [`actor::Context`]: Context
 //! [`SyncActor`]: crate::sync::SyncActor
-//! [`SyncContext`]: crate::sync::SyncContext
+//! [`sync::Context`]: crate::sync::Context
 //! [`SyncActorRunner`]: crate::sync::SyncActorRunner
 
 use std::any::type_name;

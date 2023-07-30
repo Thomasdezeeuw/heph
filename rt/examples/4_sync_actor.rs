@@ -1,6 +1,6 @@
 use heph::actor::actor_fn;
 use heph::supervisor::NoSupervisor;
-use heph::sync::SyncContext;
+use heph::sync;
 use heph_rt::spawn::SyncActorOptions;
 use heph_rt::{self as rt, Runtime};
 
@@ -36,7 +36,7 @@ fn main() -> Result<(), rt::Error> {
     runtime.start()
 }
 
-fn actor<RT>(mut ctx: SyncContext<String, RT>, exit_msg: &'static str) {
+fn actor<RT>(mut ctx: sync::Context<String, RT>, exit_msg: &'static str) {
     while let Ok(msg) = ctx.receive_next() {
         println!("Got a message: {msg}");
     }

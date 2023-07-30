@@ -4,8 +4,7 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use heph::actor::{self, actor_fn};
-use heph::restart_supervisor;
-use heph::sync::SyncContext;
+use heph::{restart_supervisor, sync};
 use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
@@ -53,6 +52,6 @@ async fn print_actor(_: actor::Context<(), ThreadLocal>, msg: String) -> Result<
 }
 
 /// A very bad synchronous printing actor.
-fn sync_print_actor<RT>(_: SyncContext<String, RT>, msg: String) -> Result<(), String> {
+fn sync_print_actor<RT>(_: sync::Context<String, RT>, msg: String) -> Result<(), String> {
     Err(format!("can't print message synchronously '{msg}'"))
 }

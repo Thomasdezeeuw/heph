@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use heph::actor::actor_fn;
 use heph::supervisor::NoSupervisor;
-use heph::sync::SyncContext;
+use heph::sync;
 use heph_rt::spawn::SyncActorOptions;
 use heph_rt::Runtime;
 
@@ -28,4 +28,4 @@ fn issue_323() {
 }
 
 /// Short running synchronous actor.
-fn actor<RT>(_: SyncContext<(), RT>) {}
+fn actor<RT>(_: sync::Context<(), RT>) {}

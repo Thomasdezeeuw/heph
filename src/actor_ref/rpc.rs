@@ -85,8 +85,7 @@
 //! # #![feature(never_type)]
 //! #
 //! use heph::actor_ref::{ActorRef, RpcMessage};
-//! use heph::sync::SyncContext;
-//! use heph::{actor, from_message};
+//! use heph::{actor, from_message, sync};
 //! use heph_rt::{self as rt, ThreadLocal};
 //!
 //! /// Message type for [`counter`].
@@ -102,7 +101,7 @@
 //! from_message!(Message::Get(()) -> usize);
 //!
 //! /// Receiving synchronous actor of the RPC.
-//! fn counter<RT>(mut ctx: SyncContext<Message, RT>) {
+//! fn counter<RT>(mut ctx: sync::Context<Message, RT>) {
 //!     // State of the counter.
 //!     let mut count: usize = 0;
 //!
