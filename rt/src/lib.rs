@@ -147,7 +147,6 @@
     async_fn_in_trait,
     async_iterator,
     const_option,
-    const_weak_new,
     doc_auto_cfg,
     doc_cfg_hide,
     extract_if,
