@@ -149,7 +149,7 @@ impl RuntimeInternals {
             Ok(Ok(())) => {}
             Ok(Err(err)) => self.set_err(worker::Error::UserFunction(err.into())),
             Err(err) => {
-                let msg = format!("user function panicked: {}", panic_message(&err));
+                let msg = format!("user function panicked: {}", panic_message(&*err));
                 self.set_err(worker::Error::UserFunction(msg.into()));
             }
         }
