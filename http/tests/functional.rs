@@ -1,6 +1,6 @@
 //! Functional tests.
 
-#![feature(async_iterator, never_type, const_weak_new)]
+#![feature(async_iterator, never_type)]
 
 use std::mem::size_of;
 
