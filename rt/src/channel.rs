@@ -4,11 +4,11 @@
 // TODO: remove `rt::channel` entirely and replace it with an `ActorRef` to the
 // `worker::comm_actor`.
 
-use std::future::poll_fn;
+use std::future::Future;
 use std::io;
 use std::pin::Pin;
 use std::sync::mpsc;
-use std::task::Poll;
+use std::task::{self, Poll};
 
 use a10::msg::{MsgListener, MsgToken};
 
@@ -55,24 +55,36 @@ pub(crate) struct Receiver<T> {
 
 impl<T> Receiver<T> {
     /// Receive a message from the channel.
-    pub(crate) async fn recv(&mut self) -> Option<T> {
-        loop {
-            poll_fn(|ctx| {
-                no_ring_ctx!(ctx);
-                match Pin::new(&mut self.listener).poll_next(ctx) {
-                    Poll::Ready(data) => {
-                        debug_assert_eq!(data, Some(WAKE));
-                        Poll::Ready(())
-                    }
-                    Poll::Pending => Poll::Pending,
-                }
-            })
-            .await;
+    pub(crate) fn recv<'r>(&'r mut self) -> Receive<'r, T> {
+        Receive { receiver: self }
+    }
+}
 
-            match self.receiver.try_recv() {
-                Ok(msg) => return Some(msg),
-                Err(mpsc::TryRecvError::Empty) => continue,
-                Err(mpsc::TryRecvError::Disconnected) => return None,
+/// [`Future`] behind [`Receiver::recv`].
+pub(crate) struct Receive<'r, T> {
+    receiver: &'r mut Receiver<T>,
+}
+
+impl<'r, T> Future for Receive<'r, T> {
+    type Output = Option<T>;
+
+    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        let receiver = &mut *self.receiver;
+        loop {
+            // Check if we have a message first.
+            if let Ok(msg) = receiver.receiver.try_recv() {
+                return Poll::Ready(Some(msg));
+            }
+
+            // If not wait until we get a signal that another message is
+            // available.
+            no_ring_ctx!(ctx);
+            match Pin::new(&mut receiver.listener).poll_next(ctx) {
+                Poll::Ready(data) => {
+                    debug_assert_eq!(data, Some(WAKE));
+                    continue;
+                }
+                Poll::Pending => return Poll::Pending,
             }
         }
     }
