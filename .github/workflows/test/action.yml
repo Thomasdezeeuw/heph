@@ -6,3 +6,4 @@ runs:
   - uses: dtolnay/rust-toolchain@nightly
   - name: Run tests
     run: make test
+    shell: bash

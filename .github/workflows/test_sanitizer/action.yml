@@ -12,3 +12,4 @@ runs:
       components: rust-src
   - name: Run tests with sanitiser
     run: make test_sanitizer sanitizer="${INPUT_SANITIZER}"
+    shell: bash
