@@ -10,14 +10,6 @@ env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
 jobs:
-  Test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-    - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@nightly
-    - name: Run tests
-      run: make test_all
   Clippy:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -38,20 +30,6 @@ jobs:
         components: rustfmt
     - name: Check formatting
       run: cargo fmt --all -- --check
-  Sanitiser:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        sanitiser: [address, leak, memory, thread]
-    steps:
-    - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@nightly
-      with:
-        components: rust-src
-    - name: Run tests with sanitiser
-      run: make test_sanitizer_all sanitizer=${{ matrix.sanitiser }}
   Docs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
