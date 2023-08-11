@@ -11,5 +11,5 @@ runs:
     with:
       components: rust-src
   - name: Run tests with sanitiser
-    run: make test_sanitizer sanitizer="${INPUT_SANITIZER}"
+    run: make test_sanitizer sanitizer="${{ inputs.sanitizer }}"
     shell: bash
