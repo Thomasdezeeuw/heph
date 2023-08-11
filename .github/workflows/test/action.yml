@@ -1,9 +1,13 @@
 name: Test
 description: 'Run tests using `make test`.'
+inputs:
+  test-flags:
+    description: 'Additional flags to pass using TEST_FLAGS (see Makefile)'
+    required: false
 runs:
   using: 'composite'
   steps:
   - uses: dtolnay/rust-toolchain@nightly
   - name: Run tests
-    run: make test
+    run: TEST_FLAGS="--${{ inputs.test-flags }}" make test
     shell: bash
