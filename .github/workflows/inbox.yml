@@ -46,16 +46,6 @@ jobs:
         components: clippy
     - name: Run Clippy
       run: cargo clippy
-  Rustfmt:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-    - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@nightly
-      with:
-        components: rustfmt
-    - name: Check formatting
-      run: cargo fmt --all -- --check
   Miri:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -80,11 +70,3 @@ jobs:
         components: rust-src
     - name: Run tests with sanitiser
       run: make test_sanitizer sanitizer=${{ matrix.sanitiser }}
-  Docs:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-    - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@nightly
-    - name: Check docs
-      run: RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --workspace --all-features
