@@ -2,7 +2,7 @@ name: 'Test with sanitizer'
 description: 'Run tests using `make test`.'
 inputs:
   sanitizer:
-    description: 'Sanitizer to use'
+    description: 'Sanitizer to use.'
     required: true
 runs:
   using: 'composite'
