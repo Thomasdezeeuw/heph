@@ -12,7 +12,7 @@ env:
 jobs:
   Clippy:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 2
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@nightly
@@ -22,7 +22,7 @@ jobs:
       run: make clippy_all
   Rustfmt:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 2
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@nightly
@@ -32,7 +32,7 @@ jobs:
       run: cargo fmt --all -- --check
   Docs:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 2
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@nightly
