@@ -1,4 +1,4 @@
-name: Inbox
+name: Heph-inbox
 on:
   push:
     branches: [ main ]
