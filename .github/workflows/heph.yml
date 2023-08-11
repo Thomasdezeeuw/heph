@@ -29,6 +29,8 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: ./.github/workflows/test
+      with:
+        working-directory: ./
   Sanitiser:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -42,3 +44,4 @@ jobs:
     - uses: ./.github/workflows/test_sanitizer
       with:
         sanitizer: ${{ matrix.sanitiser }}
+        working-directory: ./
