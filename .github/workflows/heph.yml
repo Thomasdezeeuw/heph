@@ -31,6 +31,15 @@ jobs:
     - uses: ./.github/workflows/test
       with:
         working-directory: ./
+  Miri:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: false # FIXME.
+    steps:
+    - uses: actions/checkout@v3
+    - uses: ./.github/workflows/test_miri
+      with:
+        working-directory: ./
   Sanitiser:
     runs-on: ubuntu-latest
     timeout-minutes: 10
