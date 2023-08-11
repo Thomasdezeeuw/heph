@@ -31,6 +31,10 @@ test_sanitizer:
 	RUSTDOCFLAGS=-Zsanitizer=$(sanitizer) RUSTFLAGS=-Zsanitizer=$(sanitizer) \
 	cargo test -Zbuild-std --all-features --target x86_64-unknown-linux-gnu $(TEST_FLAGS) $(TEST_OPTS)
 
+# TODO: add TEST_OPTS to this, currently this doesn't work with miri.
+test_miri:
+	cargo miri test --all-features $(TEST_FLAGS)
+
 check:
 	cargo check --all-features --all-targets
 
