@@ -32,9 +32,6 @@ jobs:
       matrix:
         sanitiser: [address, leak, memory, thread]
     steps:
-    - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@nightly
+    - uses: ./.github/workflows/test_sanitizer
       with:
-        components: rust-src
-    - name: Run tests with sanitiser
-      run: make test_sanitizer sanitizer=${{ matrix.sanitiser }}
+        sanitizer: ${{ matrix.sanitiser }}
