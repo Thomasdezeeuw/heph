@@ -1,0 +1,44 @@
+name: Heph-remote
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "remote/**"
+      - ".github/workflows/remote.yml"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "remote/**"
+      - ".github/workflows/remote.yml"
+permissions:
+  contents: read
+defaults:
+  run:
+    working-directory: remote
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+jobs:
+  Test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@nightly
+    - name: Run tests
+      run: make test
+  Sanitiser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitiser: [address, leak, memory, thread]
+    steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: rust-src
+    - name: Run tests with sanitiser
+      run: make test_sanitizer sanitizer=${{ matrix.sanitiser }}
+
