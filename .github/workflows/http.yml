@@ -1,0 +1,43 @@
+name: Heph-HTTP
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "http/**"
+      - ".github/workflows/http.yml"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "http/**"
+      - ".github/workflows/http.yml"
+permissions:
+  contents: read
+defaults:
+  run:
+    working-directory: http
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+jobs:
+  Test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@nightly
+    - name: Run tests
+      run: make test
+  Sanitiser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        sanitiser: [address, leak, memory, thread]
+    steps:
+    - uses: actions/checkout@v3
+    - uses: dtolnay/rust-toolchain@nightly
+      with:
+        components: rust-src
+    - name: Run tests with sanitiser
+      run: make test_sanitizer sanitizer=${{ matrix.sanitiser }}
