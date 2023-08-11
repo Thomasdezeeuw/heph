@@ -4,10 +4,15 @@ inputs:
   test-flags:
     description: 'Additional flags to pass using TEST_FLAGS (see Makefile).'
     required: false
+  working-directory:
+    description: 'Working directory.'
+    required: true
 runs:
   using: 'composite'
   steps:
   - uses: dtolnay/rust-toolchain@nightly
   - name: Run tests
-    run: TEST_FLAGS="${{ inputs.test-flags }}" make test
     shell: bash
+    run: |
+      cd "${{ inputs.working-directory }}"
+      TEST_FLAGS="${{ inputs.test-flags }}" make test
