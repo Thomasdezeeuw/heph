@@ -1,0 +1,9 @@
+name: Test
+description: 'Run tests using `make test`.'
+runs:
+  using: 'composite'
+  steps:
+  - uses: actions/checkout@v3
+  - uses: dtolnay/rust-toolchain@nightly
+  - name: Run tests
+    run: make test
