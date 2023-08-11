@@ -22,7 +22,6 @@ jobs:
   Test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: false # FIXME.
     # This often run too many iterations on CI, which is not a real error.
     continue-on-error: ${{ matrix.release == 'release' }}
     strategy:
@@ -37,14 +36,12 @@ jobs:
   Miri:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: false # FIXME.
     steps:
     - uses: actions/checkout@v3
     - uses: ./.github/workflows/test_miri
   Sanitiser:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: false # FIXME.
     strategy:
       fail-fast: false
       matrix:
