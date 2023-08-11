@@ -27,6 +27,7 @@ jobs:
     timeout-minutes: 10
     if: false # FIXME.
     steps:
+    - uses: actions/checkout@v3
     - uses: ./.github/workflows/test
   Sanitiser:
     runs-on: ubuntu-latest
@@ -37,6 +38,7 @@ jobs:
       matrix:
         sanitiser: [address, leak, memory, thread]
     steps:
+    - uses: actions/checkout@v3
     - uses: ./.github/workflows/test_sanitizer
       with:
         sanitizer: ${{ matrix.sanitiser }}
