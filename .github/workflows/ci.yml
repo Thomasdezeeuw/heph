@@ -20,8 +20,6 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - uses: dtolnay/rust-toolchain@nightly
-    - name: Install Cargo-hack
-      run: cargo install --debug cargo-hack
     - name: Run tests
       run: make test_all
   Clippy:
