@@ -40,11 +40,7 @@ jobs:
     if: false # FIXME.
     steps:
     - uses: actions/checkout@v3
-    - uses: dtolnay/rust-toolchain@nightly
-      with:
-        components: miri
-    - name: Run tests in Miri
-      run: cargo miri test
+    - uses: ./.github/workflows/test_miri
   Sanitiser:
     runs-on: ubuntu-latest
     timeout-minutes: 10
