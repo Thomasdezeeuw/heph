@@ -202,7 +202,7 @@ pub trait NewActor {
 
     /// The type of the actor.
     ///
-    /// See [`Actor`](Actor) for more.
+    /// See [`Actor`] for more.
     type Actor: Actor;
 
     /// The type of error.
@@ -220,7 +220,7 @@ pub trait NewActor {
     /// [`actor::Context`]: crate::actor::Context
     type RuntimeAccess;
 
-    /// Create a new [`Actor`](Actor).
+    /// Create a new [`Actor`].
     #[allow(clippy::wrong_self_convention)]
     fn new(
         &mut self,

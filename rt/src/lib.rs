@@ -14,13 +14,13 @@
 //! ## Running Heph's runtime
 //!
 //! Building a runtime starts with calling [`setup`], which will create a new
-//! [`Setup`](Setup) builder type, which allows configuration of the
-//! [`Runtime`]. The [`new`] function can also be used, but is really only meant
-//! for quick prototyping or testing.
+//! [`Setup`] builder type, which allows configuration of the [`Runtime`]. The
+//! [`new`] function can also be used, but is really only meant for quick
+//! prototyping or testing.
 //!
-//! [`Setup`](Setup) has a number of configuration options. An example of one
-//! such option is the number of threads the runtime uses, this can configured
-//! with the [`num_threads`] and [`use_all_cores`] methods. When using
+//! [`Setup`] has a number of configuration options. An example of one such
+//! option is the number of threads the runtime uses, this can configured with
+//! the [`num_threads`] and [`use_all_cores`] methods. When using
 //! `use_all_cores` the CPU affinity can automatically be set using
 //! [`auto_cpu_affinity`].
 //!
