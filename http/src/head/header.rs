@@ -132,12 +132,13 @@ impl Headers {
         &'h self,
         name: &'n HeaderName<'n>,
     ) -> impl Iterator<Item = Header<'n, 'h>> {
-        self.parts.iter().filter_map(move |part| {
-            (part.name == *name).then(move || Header {
+        self.parts
+            .iter()
+            .filter(|part| (part.name == *name))
+            .map(move |part| Header {
                 name: name.borrow(),
                 value: &self.values[part.start..part.end],
             })
-        })
     }
 
     /// Get the header's value with `name`, if any.

@@ -22,7 +22,7 @@ impl UuidGenerator {
     pub(crate) fn new() -> UuidGenerator {
         let mut bytes = [0; 16];
         match getrandom(&mut bytes) {
-            Ok(_) => {
+            Ok(()) => {
                 let b0 = u64::from_be_bytes(TryInto::try_into(&bytes[0..8]).unwrap());
                 let b1 = u64::from_be_bytes(TryInto::try_into(&bytes[8..16]).unwrap());
                 UuidGenerator(b0, b1)

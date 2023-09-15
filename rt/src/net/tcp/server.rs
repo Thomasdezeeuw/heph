@@ -365,7 +365,7 @@ where
     fn new(
         &mut self,
         ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
-        _: Self::Argument,
+        (): Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         let this = &*self.inner;
         Ok(tcp_server(
