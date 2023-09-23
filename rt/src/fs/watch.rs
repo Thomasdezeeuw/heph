@@ -219,6 +219,7 @@ impl<'w> Events<'w> {
         }
     }
 
+    #[allow(clippy::trivially_copy_pass_by_ref)]
     fn watched_path<'a>(&'a self, wd: &RawFd) -> Option<&'a Path> {
         self.watching.get(wd).map(move |path| {
             // SAFETY: the path was passed to us as a valid `PathBuf`, so it
@@ -260,7 +261,7 @@ impl<'w> Iterator for Events<'w> {
         // it should be valid.
         debug_assert!(self.buf.len() >= self.processed);
         let event: &'w Event =
-            unsafe { &*ptr::from_raw_parts(event as *const _ as *const (), event.len as usize) };
+            unsafe { &*ptr::from_raw_parts(ptr::from_ref(event).cast(), event.len as usize) };
 
         Some(event)
     }
@@ -452,6 +453,7 @@ macro_rules! bit_checks {
 
 use bit_checks;
 
+#[allow(clippy::missing_fields_in_debug)] // `path` is included as `file_path`.
 impl fmt::Debug for Event {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_struct("Event");
@@ -539,6 +541,7 @@ impl Interest {
     pub const MOVE_SELF: Interest = Interest(libc::IN_MOVE_SELF);
 
     /// Add `other` interest to this interest.
+    #[must_use]
     pub const fn add(self, other: Interest) -> Interest {
         Interest(self.0 | other.0)
     }
