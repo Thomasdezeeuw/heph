@@ -196,8 +196,8 @@ impl Serialize for Uuid {
                 for idx in BYTE_POSITIONS[group]..BYTE_POSITIONS[group + 1] {
                     let byte = self.0[idx];
                     let out_idx = group + 2 * idx;
-                    buf[out_idx] = HEX_CHARS[(byte >> 4) as usize];
-                    buf[out_idx + 1] = HEX_CHARS[(byte & 0b1111) as usize];
+                    buf[out_idx] = HEX_CHARS[usize::from(byte >> 4)];
+                    buf[out_idx + 1] = HEX_CHARS[usize::from(byte & 0b1111)];
                 }
                 if group != 4 {
                     buf[HYPHEN_POSITIONS[group]] = b'-';

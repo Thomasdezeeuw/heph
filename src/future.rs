@@ -288,8 +288,7 @@ impl<RT> ActorFutureBuilder<RT> {
         RT: Clone,
     {
         let rt = self.rt;
-        let (inbox, sender, receiver) =
-            inbox::Manager::new_channel(self.inbox_size.0.get() as usize);
+        let (inbox, sender, receiver) = inbox::Manager::new_channel(self.inbox_size.get());
         let actor_ref = ActorRef::local(sender);
         let ctx = actor::Context::new(receiver, rt.clone());
         let actor = match new_actor.new(ctx, argument) {
@@ -351,6 +350,7 @@ impl InboxSize {
 
     /// Returns itself as `usize`.
     pub const fn get(self) -> usize {
+        // TODO: replace with `usize::from`, once const stable.
         self.0.get() as usize
     }
 }
