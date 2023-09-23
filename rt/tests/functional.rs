@@ -14,6 +14,7 @@ mod functional {
     mod actor_ref;
     mod from_message;
     mod fs;
+    mod fs_watch;
     mod future;
     mod io;
     mod pipe;

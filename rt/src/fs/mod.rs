@@ -15,6 +15,10 @@ use crate::io::futures::{
 use crate::io::{impl_read, impl_write, Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
 use crate::wakers::NoRing;
 
+pub mod watch;
+#[doc(no_inline)]
+pub use watch::Watch;
+
 /// Access to an open file on the filesystem.
 ///
 /// A`File` can be read and/or written depending on what options it was opened

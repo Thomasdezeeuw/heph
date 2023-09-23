@@ -1,7 +1,6 @@
 #![allow(dead_code, unused_macros)] // Not all tests use all functions/types.
 
 use std::async_iter::AsyncIterator;
-use std::env::temp_dir;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::future::Future;
 use std::mem::size_of;
@@ -62,12 +61,17 @@ pub fn temp_file(name: &str) -> PathBuf {
     dir
 }
 
+/// Returns a path to a non-existing temporary directory.
+pub fn temp_dir(name: &str) -> PathBuf {
+    temp_file(name)
+}
+
 /// Returns the path to root of our temporary directory, cleaned before each
 /// test run.
 pub fn temp_dir_root() -> PathBuf {
     static CLEANUP: Once = Once::new();
 
-    let mut dir = temp_dir();
+    let mut dir = std::env::temp_dir();
     dir.push("heph_rt.test/");
 
     CLEANUP.call_once(|| {
