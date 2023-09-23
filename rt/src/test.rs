@@ -664,7 +664,7 @@ where
 
     #[track_caller]
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        let place = &*self as *const Self;
+        let place = std::ptr::from_ref(&*self);
         if self.last_place.is_null() {
             unsafe { Pin::map_unchecked_mut(self.as_mut(), |s| &mut s.last_place).set(place) }
         } else {
