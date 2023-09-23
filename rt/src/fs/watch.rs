@@ -306,6 +306,12 @@ impl<'w> fmt::Debug for Events<'w> {
     }
 }
 
+impl<'w> Drop for Events<'w> {
+    fn drop(&mut self) {
+        while self.next().is_some() { /* Process `IN_IGNORED` events. */ }
+    }
+}
+
 /// Event that represent a file system change.
 pub struct Event {
     event: libc::inotify_event,
