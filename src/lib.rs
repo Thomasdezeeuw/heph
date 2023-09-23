@@ -66,7 +66,8 @@
     doc_auto_cfg,
     doc_cfg_hide,
     impl_trait_in_assoc_type,
-    never_type
+    never_type,
+    ptr_from_ref
 )]
 #![warn(
     anonymous_parameters,

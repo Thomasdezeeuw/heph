@@ -46,12 +46,12 @@
 //! ```
 
 use std::future::Future;
-use std::io;
 use std::panic::{self, AssertUnwindSafe};
 use std::pin::pin;
 use std::task::{self, Poll, RawWaker, RawWakerVTable};
 use std::thread::{self, Thread};
 use std::time::{Duration, Instant};
+use std::{io, ptr};
 
 use heph_inbox::Receiver;
 use heph_inbox::{self as inbox, ReceiverConnected};
@@ -458,7 +458,7 @@ impl SyncWaker {
     unsafe fn from_data_ref(data: &*const ()) -> &SyncWaker {
         // SAFETY: inverse of `into_data`, see that for more info, also see
         // `from_data`.
-        &*((data as *const *const ()).cast::<SyncWaker>())
+        &*(ptr::from_ref(data).cast())
     }
 
     const VTABLE: RawWakerVTable = RawWakerVTable::new(
