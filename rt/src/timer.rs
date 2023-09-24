@@ -120,6 +120,20 @@ impl<RT: Access> Timer<RT> {
         self.deadline <= Instant::now()
     }
 
+    /// Reset the timer using the new `deadline`.
+    pub fn reset(&mut self, deadline: Instant) {
+        if let Some(token) = self.timer_pending {
+            self.rt.remove_timer(self.deadline, token);
+        }
+        self.deadline = deadline;
+        self.timer_pending = None;
+    }
+
+    /// Reset the timer using the new `timeout`.
+    pub fn reset_after(&mut self, timeout: Duration) {
+        self.reset(Instant::now() + timeout)
+    }
+
     /// Wrap a future creating a new `Deadline`.
     pub const fn wrap<Fut>(self, future: Fut) -> Deadline<Fut, RT> {
         Deadline {
