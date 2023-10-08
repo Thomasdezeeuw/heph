@@ -160,6 +160,7 @@
     noop_waker,
     ptr_from_ref,
     ptr_metadata,
+    return_position_impl_trait_in_trait,
     stmt_expr_attributes,
     waker_getters
 )]
