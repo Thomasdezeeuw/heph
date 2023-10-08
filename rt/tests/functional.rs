@@ -20,6 +20,7 @@ mod functional {
     mod pipe;
     mod restart_supervisor;
     mod runtime;
+    mod signal;
     mod spawn;
     mod sync_actor;
     mod tcp;
