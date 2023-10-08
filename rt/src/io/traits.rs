@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::future::Future;
 use std::io::{self, Empty, Sink};
 use std::{mem, slice};
 
@@ -14,7 +15,7 @@ pub trait Read {
     /// zero bytes is an indication that no more bytes can be read (we've hit
     /// the end of the file, `EOF`). Failing to do so can result in an infinite
     /// loop.
-    async fn read<B: BufMut>(&mut self, buf: B) -> io::Result<B>;
+    fn read<B: BufMut>(&mut self, buf: B) -> impl Future<Output = io::Result<B>>;
 
     /// Read at least `n` bytes, writing them into `buf`.
     ///
@@ -22,7 +23,7 @@ pub trait Read {
     /// could be read.
     ///
     /// [`io::ErrorKind::UnexpectedEof`]: std::io::ErrorKind::UnexpectedEof
-    async fn read_n<B: BufMut>(&mut self, buf: B, n: usize) -> io::Result<B>;
+    fn read_n<B: BufMut>(&mut self, buf: B, n: usize) -> impl Future<Output = io::Result<B>>;
 
     /// Determines if this `Read`er has an efficient `read_vectored`
     /// implementation.
@@ -37,14 +38,17 @@ pub trait Read {
     }
 
     /// Read bytes, writing them into `bufs`.
-    async fn read_vectored<B: BufMutSlice<N>, const N: usize>(&mut self, bufs: B) -> io::Result<B>;
+    fn read_vectored<B: BufMutSlice<N>, const N: usize>(
+        &mut self,
+        bufs: B,
+    ) -> impl Future<Output = io::Result<B>>;
 
     /// Read at least `n` bytes, writing them into `bufs`.
-    async fn read_n_vectored<B: BufMutSlice<N>, const N: usize>(
+    fn read_n_vectored<B: BufMutSlice<N>, const N: usize>(
         &mut self,
         bufs: B,
         n: usize,
-    ) -> io::Result<B>;
+    ) -> impl Future<Output = io::Result<B>>;
 }
 
 impl<T: Read> Read for &mut T {
@@ -188,7 +192,7 @@ pub trait Write {
     ///
     /// Returns the number of bytes written. This may we fewer than the length
     /// of `buf`. To ensure that all bytes are written use [`Write::write_all`].
-    async fn write<B: Buf>(&mut self, buf: B) -> io::Result<(B, usize)>;
+    fn write<B: Buf>(&mut self, buf: B) -> impl Future<Output = io::Result<(B, usize)>>;
 
     /// Write all bytes in `buf`.
     ///
@@ -196,7 +200,7 @@ pub trait Write {
     /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
     ///
     /// [`io::ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
-    async fn write_all<B: Buf>(&mut self, buf: B) -> io::Result<B>;
+    fn write_all<B: Buf>(&mut self, buf: B) -> impl Future<Output = io::Result<B>>;
 
     /// Determines if this `Write`r has an efficient [`write_vectored`]
     /// implementation.
@@ -217,10 +221,10 @@ pub trait Write {
     /// Return the number of bytes written. This may we fewer than the length of
     /// `bufs`. To ensure that all bytes are written use
     /// [`Write::write_vectored_all`].
-    async fn write_vectored<B: BufSlice<N>, const N: usize>(
+    fn write_vectored<B: BufSlice<N>, const N: usize>(
         &mut self,
         bufs: B,
-    ) -> io::Result<(B, usize)>;
+    ) -> impl Future<Output = io::Result<(B, usize)>>;
 
     /// Write all bytes in `bufs`.
     ///
@@ -228,10 +232,10 @@ pub trait Write {
     /// `Ok(0)`) this will return [`io::ErrorKind::WriteZero`].
     ///
     /// [`io::ErrorKind::WriteZero`]: std::io::ErrorKind::WriteZero
-    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(
+    fn write_vectored_all<B: BufSlice<N>, const N: usize>(
         &mut self,
         bufs: B,
-    ) -> io::Result<B>;
+    ) -> impl Future<Output = io::Result<B>>;
 }
 
 impl<T: Write> Write for &mut T {
