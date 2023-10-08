@@ -278,6 +278,16 @@ impl<'v> Extend<Header<'static, 'v>> for Headers {
     }
 }
 
+impl<'a> IntoIterator for &'a Headers {
+    type Item = Header<'a, 'a>;
+
+    type IntoIter = Iter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
 impl fmt::Debug for Headers {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_map();

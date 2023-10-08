@@ -117,7 +117,7 @@ impl Client {
         let mut set_user_agent_header = false;
         let mut set_content_length_header = false;
         let mut set_transfer_encoding_header = false;
-        for header in headers.iter() {
+        for header in headers {
             let name = header.name();
             // Field-name.
             http_head.extend_from_slice(name.as_ref().as_bytes());
