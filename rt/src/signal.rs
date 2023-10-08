@@ -1,4 +1,7 @@
+use std::convert::TryFrom;
 use std::fmt;
+
+use heph::messages::Terminate;
 
 /// Process signal.
 ///
@@ -139,5 +142,18 @@ impl fmt::Display for Signal {
             f.write_str(")")?;
         }
         Ok(())
+    }
+}
+
+impl TryFrom<Signal> for Terminate {
+    type Error = ();
+
+    /// Converts [`Signal::Interrupt`], [`Signal::Terminate`] and
+    /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
+    fn try_from(signal: Signal) -> Result<Self, Self::Error> {
+        match signal {
+            Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(Terminate),
+            _ => Err(()),
+        }
     }
 }
