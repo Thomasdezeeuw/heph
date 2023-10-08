@@ -622,7 +622,7 @@ impl Connection {
         let mut set_content_length_header = false;
         let mut set_transfer_encoding_header = false;
         let mut set_date_header = false;
-        for header in headers.iter() {
+        for header in headers {
             let name = header.name();
             // Field-name:
             http_head.extend_from_slice(name.as_ref().as_bytes());
