@@ -1,5 +1,6 @@
 #![feature(async_iterator, never_type, write_all_vectored)]
 
+use std::future::pending;
 use std::process;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -7,7 +8,7 @@ use std::sync::Arc;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph::sync;
-use heph_rt::spawn::options::{ActorOptions, SyncActorOptions};
+use heph_rt::spawn::options::{ActorOptions, FutureOptions, SyncActorOptions};
 use heph_rt::{Runtime, Signal};
 
 #[path = "util/mod.rs"] // rustfmt can't find the file.
@@ -23,7 +24,10 @@ fn main() {
 
 /// Runtime without any actor to receive the signal should stop itself.
 fn no_signal_handlers() {
-    let runtime = Runtime::setup().build().unwrap();
+    let mut runtime = Runtime::setup().build().unwrap();
+    // We add a never ending process to make sure that the runtime doesn't
+    // shutdown because no processes are left to run.
+    runtime.spawn_future(pending(), FutureOptions::default());
     send_signal(process::id(), libc::SIGINT).expect("failed to send signal");
     let err_str = runtime.start().unwrap_err().to_string();
     assert!(
