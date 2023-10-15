@@ -45,6 +45,13 @@ pub(crate) const SYSTEM_ACTORS: usize = 1;
 // running processes.
 const RUN_POLL_RATIO: usize = 32;
 
+/// Target time for the duration of a single iteration of the event loop.
+///
+/// If the event loop iteration elapses this timeout no more processes are run,
+/// regardless of how many have run so far.
+// TODO: make this configurable.
+const MAX_EVENT_LOOP_DURATION: Duration = Duration::from_millis(5);
+
 /// Setup a new worker thread.
 ///
 /// Use [`WorkerSetup::start`] to spawn the worker thread.
@@ -257,17 +264,24 @@ impl Worker {
             // We first run the processes and only poll after to ensure that we
             // return if there are no processes to run.
             let mut n = 0;
-            while n < RUN_POLL_RATIO {
-                if !self.run_local_process() {
-                    break;
+            let mut elapsed = Duration::ZERO;
+            while n < RUN_POLL_RATIO && elapsed < MAX_EVENT_LOOP_DURATION {
+                match self.run_local_process() {
+                    Some(process_elapsed) => {
+                        n += 1;
+                        elapsed += process_elapsed;
+                    }
+                    None => break,
                 }
-                n += 1;
             }
-            while n < RUN_POLL_RATIO {
-                if !self.run_shared_process() {
-                    break;
+            while n < RUN_POLL_RATIO && elapsed < MAX_EVENT_LOOP_DURATION {
+                match self.run_shared_process() {
+                    Some(process_elapsed) => {
+                        n += 1;
+                        elapsed += process_elapsed;
+                    }
+                    None => break,
                 }
-                n += 1;
             }
 
             if let Some(err) = self.internals.take_err() {
@@ -283,9 +297,11 @@ impl Worker {
         }
     }
 
-    /// Attempts to run a single local process. Returns `true` if it ran a
-    /// process, `false` otherwise.
-    fn run_local_process(&mut self) -> bool {
+    /// Attempts to run a single local process.
+    ///
+    /// Returns the duration for which the process ran, `None` if no process was
+    /// ran.
+    fn run_local_process(&mut self) -> Option<Duration> {
         let process = self.internals.scheduler.borrow_mut().next_process();
         match process {
             Some(mut process) => {
@@ -296,7 +312,8 @@ impl Worker {
                 // TODO: reuse wakers, maybe by storing them in the processes?
                 let waker = self.internals.wakers.borrow_mut().new_task_waker(pid);
                 let mut ctx = task::Context::from_waker(&waker);
-                match process.as_mut().run(&mut ctx) {
+                let result = process.as_mut().run(&mut ctx);
+                match result.result {
                     task::Poll::Ready(()) => {
                         self.internals.scheduler.borrow_mut().complete(process);
                     }
@@ -313,15 +330,17 @@ impl Worker {
                     "Running thread-local process",
                     &[("id", &pid.0), ("name", &name)],
                 );
-                true
+                Some(result.elapsed)
             }
-            None => false,
+            None => None,
         }
     }
 
-    /// Attempts to run a single shared process. Returns `true` if it ran a
-    /// process, `false` otherwise.
-    fn run_shared_process(&mut self) -> bool {
+    /// Attempts to run a single shared process.
+    ///
+    /// Returns the duration for which the process ran, `None` if no process was
+    /// ran.
+    fn run_shared_process(&mut self) -> Option<Duration> {
         let process = self.internals.shared.remove_process();
         match process {
             Some(mut process) => {
@@ -331,7 +350,8 @@ impl Worker {
                 debug!(worker_id = self.internals.id.get(), pid = pid.0, name = name; "running shared process");
                 let waker = self.internals.shared.new_task_waker(pid);
                 let mut ctx = task::Context::from_waker(&waker);
-                match process.as_mut().run(&mut ctx) {
+                let result = process.as_mut().run(&mut ctx);
+                match result.result {
                     task::Poll::Ready(()) => {
                         self.internals.shared.complete(process);
                     }
@@ -345,9 +365,9 @@ impl Worker {
                     "Running thread-safe process",
                     &[("id", &pid.0), ("name", &name)],
                 );
-                true
+                Some(result.elapsed)
             }
-            None => false,
+            None => None,
         }
     }
 

@@ -11,7 +11,7 @@ use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph::ActorFutureBuilder;
 
-use crate::process::{FutureProcess, Process, ProcessId};
+use crate::process::{FutureProcess, Process, ProcessId, RunStats};
 use crate::scheduler::{ProcessData, Scheduler};
 use crate::spawn::options::Priority;
 use crate::test::{self, assert_size, AssertUnmoved, TestAssertUnmovedNewActor};
@@ -183,6 +183,14 @@ fn add_process_marked_ready() {
     assert!(scheduler.has_ready_process());
     let process = scheduler.next_process().unwrap();
     assert_eq!(process.as_ref().id(), pid);
+}
+
+// NOTE: This is here because we don't really care about the elapsed duration in
+// these tests, so this makes them easier to write.
+impl PartialEq<Poll<()>> for RunStats {
+    fn eq(&self, other: &Poll<()>) -> bool {
+        self.result.eq(other)
+    }
 }
 
 #[test]

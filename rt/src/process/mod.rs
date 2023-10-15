@@ -154,7 +154,7 @@ impl<P: Process + ?Sized> ProcessData<P> {
     /// Run the process.
     ///
     /// Returns the completion state of the process.
-    pub(crate) fn run(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<()> {
+    pub(crate) fn run(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> RunStats {
         let pid = self.as_ref().id();
         let name = self.process.name();
         trace!(pid = pid.0, name = name; "running process");
@@ -169,8 +169,18 @@ impl<P: Process + ?Sized> ProcessData<P> {
             pid = pid.0, name = name, elapsed = as_debug!(elapsed), result = as_debug!(result);
             "finished running process",
         );
-        result
+        RunStats { elapsed, result }
     }
+}
+
+/// Statistics about the process run.
+#[derive(Copy, Clone, Debug)]
+#[must_use = "Must check the process's `result`"]
+pub(crate) struct RunStats {
+    /// The duration for which the process ran.
+    pub(crate) elapsed: Duration,
+    /// The result of the process run.
+    pub(crate) result: Poll<()>,
 }
 
 impl<P: Process + ?Sized> Eq for ProcessData<P> {}
