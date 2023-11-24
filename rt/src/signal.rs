@@ -319,7 +319,7 @@ impl Signal {
     }
 
     /// Whether or not the `Signal` is considered a "stopping" signal.
-    pub(crate) const fn should_stop(self) -> bool {
+    pub const fn should_stop(self) -> bool {
         matches!(self, Signal::Interrupt | Signal::Terminate | Signal::Quit)
     }
 
@@ -401,12 +401,14 @@ impl fmt::Display for Signal {
 impl TryFrom<Signal> for Terminate {
     type Error = ();
 
-    /// Converts [`Signal::Interrupt`], [`Signal::Terminate`] and
-    /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
+    /// Converts the `signal` into a `Terminate` message if
+    /// [`signal.should_stop`] returns true, fails for all other signals (by
+    /// returning `Err(())`).
     fn try_from(signal: Signal) -> Result<Self, Self::Error> {
-        match signal {
-            Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(Terminate),
-            _ => Err(()),
+        if signal.should_stop() {
+            Ok(Terminate)
+        } else {
+            Err(())
         }
     }
 }
