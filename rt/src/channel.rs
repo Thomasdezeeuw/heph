@@ -30,6 +30,7 @@ pub(crate) fn new<T>(sq: a10::SubmissionQueue) -> io::Result<(Sender<T>, Receive
 /// Sending side of the communication channel.
 #[derive(Debug)]
 pub(crate) struct Sender<T> {
+    #[allow(clippy::struct_field_names)]
     sender: mpsc::Sender<T>,
     /// Receiver's submission queue and token used to wake it up.
     sq: a10::SubmissionQueue,

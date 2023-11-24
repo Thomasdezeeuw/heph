@@ -162,6 +162,7 @@ pub(crate) struct Handle {
     /// Two-way communication channel to share messages with the worker thread.
     channel: rt::channel::Sender<Control>,
     /// Handle for the actual thread.
+    #[allow(clippy::struct_field_names)]
     handle: thread::JoinHandle<Result<(), rt::Error>>,
 }
 
