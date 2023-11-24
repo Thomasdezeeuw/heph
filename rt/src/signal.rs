@@ -402,7 +402,7 @@ impl TryFrom<Signal> for Terminate {
     type Error = ();
 
     /// Converts the `signal` into a `Terminate` message if
-    /// [`signal.should_stop`] returns true, fails for all other signals (by
+    /// [`Signal::should_stop`] returns true, fails for all other signals (by
     /// returning `Err(())`).
     fn try_from(signal: Signal) -> Result<Self, Self::Error> {
         if signal.should_stop() {
