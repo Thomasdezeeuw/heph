@@ -144,7 +144,6 @@
 //! `test` module which adds testing facilities.
 
 #![feature(
-    async_fn_in_trait,
     async_iterator,
     const_option,
     doc_auto_cfg,
@@ -160,7 +159,6 @@
     noop_waker,
     ptr_from_ref,
     ptr_metadata,
-    return_position_impl_trait_in_trait,
     stmt_expr_attributes,
     waker_getters
 )]
