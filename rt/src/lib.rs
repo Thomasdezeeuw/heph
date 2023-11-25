@@ -60,8 +60,13 @@
 //!
 //! ## Examples
 //!
-//! This example shows how to setup and run a [`Runtime`], adding a thread-local
-//! actor on each thread. This should print four messages:
+//! This example shows how to:
+//!  1. setup and run a [`Runtime`],
+//!  2. spawn a synchronous actor,
+//!  3. spawn a thread-safe actor, and
+//!  4. spawn a thread-local actor.
+//!
+//! When run this should print four messages:
 //!  * One from the synchronous actor.
 //!  * One from the asynchronous thread-safe actor.
 //!  * One from the asynchronous thread-local actor on each worker thread, thus
@@ -90,7 +95,7 @@
 //!     // futures.
 //!
 //!     // We'll start with spawning a synchronous actor.
-//!     // For more information on spawning actors see the spawn module.
+//!     // For more information on spawning actors see the `spawn` module.
 //!     let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor_fn(sync_actor), (), SyncActorOptions::default())?;
 //!     // And sending it a message.
 //!     actor_ref.try_send("Alice").unwrap();
@@ -100,7 +105,7 @@
 //!     actor_ref.try_send("Bob").unwrap();
 //!
 //!     // To spawn thread-safe actors we need to run it on the worker thread,
-//!     // which we can do using the `run_on_workers` function.
+//!     // which we can do using the `run_on_workers` method.
 //!     // `run_on_workers` simply runs the provided function on each worker
 //!     // thread.
 //!     runtime.run_on_workers(setup)?;
@@ -110,8 +115,7 @@
 //!     runtime.start()
 //! }
 //!
-//! // This setup function will on run on each created thread. In the case of
-//! // this example we create two threads (see `main`).
+//! // This setup function will on run on each created thread.
 //! fn setup(mut runtime_ref: RuntimeRef) -> Result<(), !> {
 //!     // Spawn a thread-local actor.
 //!     let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), "thread-local", ActorOptions::default());
@@ -261,10 +265,16 @@ use timers::TimerToken;
 /// The runtime that runs all actors.
 ///
 /// The runtime will start workers threads that will run all actors, these
-/// threads will run until all actors have returned. See the [crate
+/// threads will run until all actors have finished. See the [crate
 /// documentation] for more information.
 ///
 /// [crate documentation]: crate
+///
+/// # Notes
+///
+/// Most methods on this type are also on the [`RuntimeRef`] type. `Runtime`
+/// only allows spawning of thread-safe actors and futures, `RuntimeRef` however
+/// can also spawn thread-local actors and futures.
 #[derive(Debug)]
 pub struct Runtime {
     /// Setup of the coordinator that oversee the worker threads.
@@ -413,6 +423,8 @@ impl Runtime {
     /// This adds the `actor_ref` to the list of actor references that will
     /// receive a process signal.
     ///
+    /// See [`RuntimeRef::receive_signals`] for more documentation.
+    ///
     /// [process signals]: Signal
     pub fn receive_signals(&mut self, actor_ref: ActorRef<Signal>) {
         self.signals.add(actor_ref);
@@ -468,7 +480,7 @@ where
 ///
 /// This reference refers to the thread-local runtime, and thus can't be shared
 /// across thread bounds. To share this reference (within the same thread) it
-/// can be cloned.
+/// can be cloned (cheaply).
 #[derive(Clone, Debug)]
 pub struct RuntimeRef {
     /// A shared reference to the runtime's internals.

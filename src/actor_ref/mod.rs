@@ -290,8 +290,8 @@ impl<M> ActorRef<M> {
 
     /// Change the message type of the actor reference.
     ///
-    /// Before sending the message this will first change the message into a
-    /// different type. This is useful when you need to send to different types
+    /// Before sending the message this will first change the message type from
+    /// `Msg` into `M`. This is useful when you need to send to different types
     /// of actors (using different message types) from a central location.
     ///
     /// # Notes
@@ -313,9 +313,9 @@ impl<M> ActorRef<M> {
 
     /// Much like [`map`], but uses the [`TryFrom`] trait.
     ///
-    /// This creates a new actor reference that attempts to map from one message
-    /// type to another before sending. This is useful when you need to send to
-    /// different types of actors from a central location.
+    /// This creates a new actor reference that attempts to map from message
+    /// type `Msg` to `M` before sending. This is useful when you need to send
+    /// to different types of actors from a central location.
     ///
     /// [`map`]: ActorRef::map
     ///

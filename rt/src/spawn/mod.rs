@@ -81,7 +81,7 @@ pub use options::{ActorOptions, FutureOptions, SyncActorOptions};
 /// [`ThreadLocal`]: crate::ThreadLocal
 /// [`ThreadSafe`]: crate::ThreadSafe
 pub trait Spawn<S, NA, RT> {
-    /// Attempts to spawn an actor.
+    /// Attempt to spawn an actor.
     ///
     /// Arguments:
     /// * `supervisor`: all actors need supervision, the `supervisor` is the

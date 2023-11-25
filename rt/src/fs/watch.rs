@@ -1,6 +1,7 @@
 //! Watch filesystem changes.
 //!
-//! Files and directories can be watched using [`Watch`], but the notes below!
+//! Files and directories can be watched using [`Watch`], but see the notes
+//! below!
 //!
 //! # Examples
 //!
@@ -40,7 +41,7 @@
 //!         assert_eq!(path, file_path);
 //!
 //!         // We can also check what happened to the directory, in this case we
-//!         // except a file creation event.
+//!         // expect a file creation event.
 //!         assert!(event.file_created());
 //!     }
 //!
@@ -64,9 +65,10 @@
 //! No events are generated for modifications made through `mmap(2)`,
 //! `msync(2)`, and `munmap(2)`.
 //!
-//! This API work with paths, however this means there is always a race
-//! condition between the time the event is generated and the time the event is
-//! processed, in which the file at the path can be deleted or renamed, etc.
+//! This API (and `inotify(7)`) work with paths, however this means there is
+//! always a race condition between the time the event is generated and the time
+//! the event is processed, in which the file at the path can be deleted or
+//! renamed, etc.
 //!
 //! The event queue can overflow. In this case, events are lost. See
 //! `/proc/sys/fs/inotify/max_queued_events` for the maximum queue length.
@@ -567,6 +569,7 @@ pub enum Recursive {
     /// which aren't.
     ///
     /// ```text
+    /// # While watching `src/`.
     /// src/main.rs   # Watched
     /// src/fs        # Watched.
     /// src/fs/mod.rs # Not watched.
