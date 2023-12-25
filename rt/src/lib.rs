@@ -161,7 +161,6 @@
     never_type,
     new_uninit,
     noop_waker,
-    ptr_from_ref,
     ptr_metadata,
     stmt_expr_attributes,
     waker_getters
