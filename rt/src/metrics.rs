@@ -57,11 +57,15 @@ impl AtomicCounter {
     pub(crate) fn add(&self, n: usize) {
         let _ = self.0.fetch_add(n, Ordering::AcqRel);
     }
+
+    pub(crate) fn get(&self) -> usize {
+        self.0.load(Ordering::Acquire)
+    }
 }
 
 impl From<&AtomicCounter> for Metric {
     fn from(counter: &AtomicCounter) -> Metric {
-        Metric::Counter(counter.0.load(Ordering::Acquire))
+        Metric::Counter(counter.get())
     }
 }
 
