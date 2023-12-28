@@ -98,7 +98,7 @@ use crate::wakers::NoRing;
 /// ```
 pub struct TcpListener {
     fd: AsyncFd,
-    metrics: Metrics,
+    pub(crate) metrics: Metrics,
 }
 
 impl TcpListener {
@@ -247,7 +247,7 @@ impl fmt::Debug for TcpListener {
 }
 
 create_metric! {
-    struct Metrics for TcpListener {
+    pub(crate) struct Metrics for TcpListener {
         /// Number of connections accepted.
         accepted: AtomicCounter -> Counter,
     }

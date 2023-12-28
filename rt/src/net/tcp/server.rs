@@ -230,10 +230,11 @@ use std::{fmt, io};
 use heph::actor::{self, NewActor, NoMessages};
 use heph::messages::Terminate;
 use heph::supervisor::Supervisor;
-use log::{debug, trace};
+use log::{debug, info, trace};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::access::Access;
+use crate::net::tcp::listener::Metrics;
 use crate::net::{TcpListener, TcpStream};
 use crate::spawn::{ActorOptions, Spawn};
 use crate::util::{either, next};
@@ -426,9 +427,21 @@ where
                 debug!("no more connections to accept in TCP server, stopping");
                 return Ok(());
             }
-            Err(Ok(_)) => {
+            Err(Ok(Message {
+                inner: MessageKind::Shutdown,
+            })) => {
                 debug!("TCP server received shutdown message, stopping");
                 return Ok(());
+            }
+            Err(Ok(Message {
+                inner: MessageKind::LogMetrics,
+            })) => {
+                let Metrics { accepted } = &listener.metrics;
+                info!(
+                    target: "metrics",
+                    connections_accepted = accepted.get();
+                    "TCP server metrics",
+                );
             }
             Err(Err(NoMessages)) => {
                 debug!("All actor references to TCP server dropped, stopping");
@@ -444,13 +457,20 @@ where
 /// [`TryFrom`]`<`[`Signal`]`>` for the message, allowing for graceful shutdown.
 #[derive(Debug)]
 pub struct Message {
-    // Allow for future expansion.
-    _inner: (),
+    inner: MessageKind,
+}
+
+#[derive(Debug)]
+enum MessageKind {
+    Shutdown,
+    LogMetrics,
 }
 
 impl From<Terminate> for Message {
     fn from(_: Terminate) -> Message {
-        Message { _inner: () }
+        Message {
+            inner: MessageKind::Shutdown,
+        }
     }
 }
 
@@ -461,7 +481,12 @@ impl TryFrom<Signal> for Message {
     /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
     fn try_from(signal: Signal) -> Result<Self, Self::Error> {
         match signal {
-            Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(Message { _inner: () }),
+            Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(Message {
+                inner: MessageKind::Shutdown,
+            }),
+            Signal::User2 => Ok(Message {
+                inner: MessageKind::LogMetrics,
+            }),
             _ => Err(()),
         }
     }
