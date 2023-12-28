@@ -4,13 +4,14 @@ use std::time::Duration;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph::ActorRef;
+use heph_rt::metrics::Metrics;
 use heph_rt::net::{TcpListener, TcpStream};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join, join_many, try_spawn_local};
 use heph_rt::util::next;
 use heph_rt::{self as rt, ThreadLocal};
 
-use crate::util::{any_local_address, any_local_ipv6_address};
+use crate::util::{any_local_address, any_local_ipv6_address, assert_counter_metric};
 
 #[test]
 fn local_addr() {
@@ -100,6 +101,7 @@ fn accept() {
 
         let (stream, remote_address) = listener.accept().await.unwrap();
         assert!(remote_address.ip().is_loopback());
+        assert_metrics(&listener, 1);
 
         let buf = Vec::with_capacity(DATA.len() + 1);
         let buf = stream.recv(buf).await.unwrap();
@@ -133,6 +135,7 @@ fn incoming() {
 
         let mut incoming = listener.incoming();
         let stream = next(&mut incoming).await.unwrap().unwrap();
+        assert_metrics(&listener, 1);
 
         let buf = Vec::with_capacity(DATA.len() + 1);
         let buf = stream.recv(buf).await.unwrap();
@@ -149,4 +152,14 @@ fn incoming() {
         try_spawn_local(NoSupervisor, listener_actor, s_ref, ActorOptions::default()).unwrap();
 
     join_many(&[stream_ref, listener_ref], Duration::from_secs(1)).unwrap();
+}
+
+#[track_caller]
+fn assert_metrics(stream: &TcpListener, expected_accepted: usize) {
+    for (name, value) in stream.metrics() {
+        match name {
+            "accepted" => assert_counter_metric(value, expected_accepted),
+            name => panic!("unknown metric: {:?}, value: {:?}", name, value),
+        }
+    }
 }
