@@ -72,7 +72,7 @@ impl From<&AtomicCounter> for Metric {
 /// Macro to create metrics structure for a given type.
 macro_rules! create_metric {
     (
-        struct $name: ident for $for_ty: ident $( < $( $generic: ident )+ > )? {
+        $vis: vis struct $name: ident for $for_ty: ident $( < $( $generic: ident )+ > )? {
             // `$field_doc` documents the metric as field doc and in the
             // structure docs, max ~1 line.
             // `$field` is used as name for `Metrics` implementation.
@@ -86,10 +86,10 @@ macro_rules! create_metric {
     ) => {
         #[doc = concat!("Metrics for [`", stringify!($for_ty), "`].")]
         #[derive(Debug)]
-        struct $name {
+        $vis struct $name {
             $(
             $(#[ $field_doc ])+
-            $field: crate::metrics::$field_ty,
+            $vis $field: crate::metrics::$field_ty,
             )*
         }
 
