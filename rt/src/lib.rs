@@ -227,6 +227,7 @@ pub mod fs;
 pub mod io;
 mod local;
 pub mod log;
+pub mod metrics;
 pub mod net;
 pub mod pipe;
 mod process;
