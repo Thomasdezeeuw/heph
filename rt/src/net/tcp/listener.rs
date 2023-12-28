@@ -181,7 +181,7 @@ impl TcpListener {
             .await
             .map(|(fd, addr)| {
                 self.metrics.accepted.add(1);
-                (TcpStream { fd }, addr.into())
+                (TcpStream::new(fd), addr.into())
             })
     }
 
@@ -235,7 +235,7 @@ impl<'a> AsyncIterator for Incoming<'a> {
         };
         fut.poll_next(ctx).map_ok(|fd| {
             metrics.accepted.add(1);
-            TcpStream { fd }
+            TcpStream::new(fd)
         })
     }
 }

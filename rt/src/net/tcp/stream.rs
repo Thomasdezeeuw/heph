@@ -42,7 +42,7 @@ use crate::wakers::NoRing;
 /// ```
 #[derive(Debug)]
 pub struct TcpStream {
-    pub(in crate::net) fd: AsyncFd,
+    fd: AsyncFd,
 }
 
 impl TcpStream {
@@ -60,10 +60,14 @@ impl TcpStream {
             0,
         ))
         .await?;
-        let socket = TcpStream { fd };
+        let socket = TcpStream::new(fd);
         socket.set_auto_cpu_affinity(rt);
         NoRing(socket.fd.connect(SockAddr::from(address))).await?;
         Ok(socket)
+    }
+
+    pub(crate) const fn new(fd: AsyncFd) -> TcpStream {
+        TcpStream { fd }
     }
 
     /// Automatically set the CPU affinity based on the runtime access `rt`.
