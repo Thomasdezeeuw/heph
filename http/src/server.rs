@@ -1147,9 +1147,9 @@ impl RequestError {
         }
     }
 
-
+    /// Returns a static error message for the error.
     #[rustfmt::skip]
-    fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> &'static str {
         use RequestError::*;
         match self {
             IncompleteRequest => "incomplete request",
