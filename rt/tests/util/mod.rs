@@ -14,6 +14,7 @@ use std::{fmt, io};
 
 use heph::actor;
 use heph_rt as rt;
+use heph_rt::metrics::Metric;
 use heph_rt::net::TcpStream;
 use heph_rt::timer::Timer;
 
@@ -227,5 +228,14 @@ pub(crate) fn send_signal(pid: u32, signal: libc::c_int) -> io::Result<()> {
     match unsafe { libc::kill(pid as libc::pid_t, signal) } {
         -1 => Err(io::Error::last_os_error()),
         _ => Ok(()),
+    }
+}
+
+/// Assert `got` a counter with `expected` value.
+#[track_caller]
+pub fn assert_counter_metric(got: Metric, expected: usize) {
+    match got {
+        Metric::Counter(got) => assert_eq!(got, expected),
+        _ => panic!("unexpected metric: {:?}", got),
     }
 }

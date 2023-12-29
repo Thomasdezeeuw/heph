@@ -10,6 +10,7 @@ use a10::AsyncFd;
 use socket2::{Domain, Protocol, SockRef, Socket, Type};
 
 use crate::access::Access;
+use crate::metrics::create_metric;
 use crate::net::{convert_address, SockAddr, TcpStream};
 use crate::wakers::NoRing;
 
@@ -97,6 +98,7 @@ use crate::wakers::NoRing;
 /// ```
 pub struct TcpListener {
     fd: AsyncFd,
+    pub(crate) metrics: Metrics,
 }
 
 impl TcpListener {
@@ -127,7 +129,10 @@ impl TcpListener {
         ))
         .await?;
 
-        let socket = TcpListener { fd };
+        let socket = TcpListener {
+            fd,
+            metrics: Metrics::empty(),
+        };
 
         socket.with_ref(|socket| {
             #[cfg(target_os = "linux")]
@@ -174,7 +179,10 @@ impl TcpListener {
     pub async fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
         NoRing(self.fd.accept::<SockAddr>())
             .await
-            .map(|(fd, addr)| (TcpStream { fd }, addr.into()))
+            .map(|(fd, addr)| {
+                self.metrics.accepted.add(1);
+                (TcpStream::new(fd), addr.into())
+            })
     }
 
     /// Returns a stream of incoming [`TcpStream`]s.
@@ -191,7 +199,7 @@ impl TcpListener {
     /// use [`TcpStream::set_auto_cpu_affinity`].
     #[allow(clippy::doc_markdown)] // For "io_uring".
     pub const fn incoming(&self) -> Incoming<'_> {
-        Incoming(self.fd.multishot_accept())
+        Incoming(self.fd.multishot_accept(), &self.metrics)
     }
 
     /// Get the value of the `SO_ERROR` option on this socket.
@@ -214,21 +222,33 @@ impl TcpListener {
 /// The [`AsyncIterator`] behind [`TcpListener::incoming`].
 #[derive(Debug)]
 #[must_use = "AsyncIterators do nothing unless polled"]
-pub struct Incoming<'a>(a10::net::MultishotAccept<'a>);
+pub struct Incoming<'a>(a10::net::MultishotAccept<'a>, &'a Metrics);
 
 impl<'a> AsyncIterator for Incoming<'a> {
     type Item = io::Result<TcpStream>;
 
     fn poll_next(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
         // SAFETY: not moving the `Future`.
-        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
-            .poll_next(ctx)
-            .map_ok(|fd| TcpStream { fd })
+        let (fut, metrics) = unsafe {
+            let this = Pin::into_inner_unchecked(self);
+            (Pin::new_unchecked(&mut this.0), this.1)
+        };
+        fut.poll_next(ctx).map_ok(|fd| {
+            metrics.accepted.add(1);
+            TcpStream::new(fd)
+        })
     }
 }
 
 impl fmt::Debug for TcpListener {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.fd.fmt(f)
+    }
+}
+
+create_metric! {
+    pub(crate) struct Metrics for TcpListener {
+        /// Number of connections accepted.
+        accepted: AtomicCounter -> Counter,
     }
 }
