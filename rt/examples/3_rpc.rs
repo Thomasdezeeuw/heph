@@ -42,11 +42,13 @@ async fn pong_actor(mut ctx: actor::Context<PongMessage, ThreadLocal>) {
     // Await a message, same as all other messages.
     while let Ok(msg) = ctx.receive_next().await {
         // Next we respond to the request.
-        let res = msg.handle(|request| {
-            println!("Got a RPC request: {request}");
-            // Return a response.
-            Pong
-        });
+        let res = msg
+            .handle(|request| async move {
+                println!("Got a RPC request: {request}");
+                // Return a response.
+                Pong
+            })
+            .await;
 
         if let Err(err) = res {
             eprintln!("failed to respond to RPC: {err}");

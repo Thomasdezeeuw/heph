@@ -2,6 +2,7 @@
 
 use std::convert::Infallible;
 use std::fmt;
+use std::future::ready;
 use std::num::NonZeroUsize;
 use std::pin::Pin;
 use std::task::Poll;
@@ -650,7 +651,7 @@ impl From<RpcMessage<Ping, Pong>> for RpcTestMessage {
 async fn pong(mut ctx: actor::Context<RpcTestMessage, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         match msg {
-            RpcTestMessage::Ping(msg) => msg.handle(|_| Pong).unwrap(),
+            RpcTestMessage::Ping(msg) => msg.handle(|_| ready(Pong)).await.unwrap(),
             RpcTestMessage::Check => {}
         }
     }
@@ -857,7 +858,7 @@ async fn wake_on_response(_: actor::Context<!, ThreadLocal>, relay_ref: ActorRef
 async fn wake_on_rpc_receive(mut ctx: actor::Context<RpcTestMessage, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         match msg {
-            RpcTestMessage::Ping(msg) => msg.handle(|_| Pong).unwrap(),
+            RpcTestMessage::Ping(msg) => msg.handle(|_| ready(Pong)).await.unwrap(),
             RpcTestMessage::Check => {}
         }
     }

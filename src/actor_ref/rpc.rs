@@ -263,9 +263,9 @@ pub struct RpcMessage<Req, Res> {
 impl<Req, Res> RpcMessage<Req, Res> {
     /// Convenience method to handle a `Req`uest and return a `Res`ponse.
     ///
-    /// The function `f` is called with [`self.request`], the response returned by
-    /// the function `f` is than returned to the request maker via
-    /// [`self.response.respond`].
+    /// The function `f` is called with [`self.request`] and the returned future
+    /// is awaited, the response returned by the future is than returned to the
+    /// requester via [`self.response.respond`].
     ///
     /// [`self.request`]: RpcMessage::request
     /// [`self.response.respond`]: RpcResponse::respond
@@ -276,12 +276,13 @@ impl<Req, Res> RpcMessage<Req, Res> {
     /// called and `Ok(())` is returned instead.
     ///
     /// [no longer connected]: RpcResponse::is_connected
-    pub fn handle<F>(self, f: F) -> Result<(), SendError>
+    pub async fn handle<F, Fut>(self, f: F) -> Result<(), SendError>
     where
-        F: FnOnce(Req) -> Res,
+        F: FnOnce(Req) -> Fut,
+        Fut: Future<Output = Res>,
     {
         if self.response.is_connected() {
-            let response = f(self.request);
+            let response = f(self.request).await;
             self.response.respond(response)
         } else {
             // If the receiving actor is no longer waiting we can skip the
