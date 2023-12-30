@@ -5,9 +5,9 @@ use std::net::SocketAddr;
 use std::time::Duration;
 
 use heph::actor::{self, actor_fn, Actor, NewActor};
-use heph_rt::net::udp::UdpSocket;
+use heph_rt::net::udp::{UdpSocket, Unconnected};
 use heph_rt::spawn::ActorOptions;
-use heph_rt::test::{join, try_spawn_local, PanicSupervisor};
+use heph_rt::test::{block_on_local_actor, join, try_spawn_local, PanicSupervisor};
 use heph_rt::ThreadLocal;
 
 use crate::util::{any_local_address, any_local_ipv6_address};
@@ -298,4 +298,29 @@ fn assert_read(mut got: &[u8], expected: &[&[u8]]) {
         let (_, g) = got.split_at(len);
         got = g;
     }
+}
+
+#[test]
+fn socket_from_std() {
+    async fn actor(ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
+        let socket = std::net::UdpSocket::bind(any_local_address())?;
+        let socket = UdpSocket::<Unconnected>::from_std(ctx.runtime_ref(), socket);
+        let local_address = socket.local_addr()?;
+
+        let peer = std::net::UdpSocket::bind(any_local_address())?;
+        let peer_address = peer.local_addr()?;
+
+        let (_, bytes_written) = socket.send_to(DATA, peer_address).await?;
+        assert_eq!(bytes_written, DATA.len());
+
+        let mut buf = vec![0; DATA.len() + 2];
+        let (n, address) = peer.recv_from(&mut buf)?;
+        assert_eq!(n, DATA.len());
+        assert_eq!(&buf[..n], DATA);
+        assert_eq!(address, local_address);
+
+        Ok(())
+    }
+
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
