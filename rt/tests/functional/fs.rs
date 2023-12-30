@@ -36,6 +36,27 @@ fn file_read_write() {
 }
 
 #[test]
+fn file_from_std() {
+    async fn actor(ctx: actor::Context<!, ThreadLocal>) {
+        let path = temp_file("file_from_std");
+        let file = std::fs::File::options()
+            .read(true)
+            .write(true)
+            .create_new(true)
+            .truncate(true)
+            .open(path)
+            .unwrap();
+        let mut file = File::from_std(ctx.runtime_ref(), file);
+
+        file.write_all(DATA1).await.unwrap();
+        let buf = file.read_at(Vec::with_capacity(128), 0).await.unwrap();
+        assert_eq!(buf, DATA1);
+    }
+
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
+}
+
+#[test]
 fn file_sync_all() {
     async fn actor(ctx: actor::Context<!, ThreadLocal>) {
         let path = temp_file("file_sync_all");

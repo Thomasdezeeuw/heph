@@ -59,6 +59,18 @@ impl File {
         OpenOptions::new()
     }
 
+    /// Converts a [`std::fs::File`] to a [`heph_rt::fs::File`].
+    ///
+    /// [`heph_rt::fs::File`]: File
+    pub fn from_std<RT>(rt: &RT, file: std::fs::File) -> File
+    where
+        RT: Access,
+    {
+        File {
+            fd: AsyncFd::new(file.into(), rt.submission_queue()),
+        }
+    }
+
     /// Read bytes from the file at `offset`, writing them into `buf`.
     ///
     /// The current file cursor is not affected by this function. This means
