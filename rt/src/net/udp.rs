@@ -141,6 +141,24 @@ impl<M> UdpSocket<M> {
         })
     }
 
+    /// Converts a [`std::net::UdpSocket`] to a [`heph_rt::net::UdpSocket`].
+    ///
+    /// [`heph_rt::net::UdpSocket`]: UdpSocket
+    ///
+    /// # Notes
+    ///
+    /// It's up to the caller to ensure that the socket's mode is correctly set
+    /// to [`Connected`] or [`Unconnected`].
+    pub fn from_std<RT>(rt: &RT, socket: std::net::UdpSocket) -> UdpSocket
+    where
+        RT: Access,
+    {
+        UdpSocket {
+            fd: AsyncFd::new(socket.into(), rt.submission_queue()),
+            mode: PhantomData,
+        }
+    }
+
     /// Returns the sockets peer address.
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.with_ref(|socket| socket.peer_addr().and_then(convert_address))
