@@ -5,6 +5,7 @@
 use std::async_iter::AsyncIterator;
 use std::future::Future;
 use std::io;
+use std::pin::pin;
 
 use heph_rt::io::Buf;
 use heph_rt::net::TcpStream;
@@ -138,7 +139,7 @@ pub struct StreamingBody<S> {
 
 impl<S, B> StreamingBody<S>
 where
-    S: AsyncIterator<Item = B> + Unpin + 'static,
+    S: AsyncIterator<Item = B> + 'static,
     B: Buf,
 {
     /// Use a [`AsyncIterator`] as HTTP body with a known length.
@@ -152,7 +153,7 @@ where
 
 impl<S, B> Body for StreamingBody<S>
 where
-    S: AsyncIterator<Item = B> + Unpin + 'static,
+    S: AsyncIterator<Item = B> + 'static,
     B: Buf,
 {
     fn length(&self) -> BodyLength {
@@ -162,7 +163,7 @@ where
 
 impl<S, B> PrivateBody for StreamingBody<S>
 where
-    S: AsyncIterator<Item = B> + Unpin + 'static,
+    S: AsyncIterator<Item = B> + 'static,
     B: Buf,
 {
     type WriteFuture<'stream> = impl Future<Output = io::Result<Vec<u8>>> + 'stream;
@@ -172,8 +173,8 @@ where
         stream: &'stream mut TcpStream,
         http_head: Vec<u8>,
     ) -> Self::WriteFuture<'stream> {
-        let mut body = self.body;
         async move {
+            let mut body = pin!(self.body);
             let http_head = stream.send_all(http_head).await?;
             while let Some(chunk) = next(&mut body).await {
                 _ = stream.send_all(chunk).await?;
@@ -191,7 +192,7 @@ pub struct ChunkedBody<S> {
 
 impl<S, B> ChunkedBody<S>
 where
-    S: AsyncIterator<Item = B> + Unpin + 'static,
+    S: AsyncIterator<Item = B> + 'static,
     B: Buf,
 {
     /// Use a [`AsyncIterator`] as HTTP body with a unknown length.
@@ -205,7 +206,7 @@ where
 
 impl<S, B> Body for ChunkedBody<S>
 where
-    S: AsyncIterator<Item = B> + Unpin + 'static,
+    S: AsyncIterator<Item = B> + 'static,
     B: Buf,
 {
     fn length(&self) -> BodyLength {
@@ -215,7 +216,7 @@ where
 
 impl<S, B> PrivateBody for ChunkedBody<S>
 where
-    S: AsyncIterator<Item = B> + Unpin + 'static,
+    S: AsyncIterator<Item = B> + 'static,
     B: Buf,
 {
     type WriteFuture<'stream> = impl Future<Output = io::Result<Vec<u8>>> + 'stream;
@@ -225,8 +226,8 @@ where
         stream: &'stream mut TcpStream,
         http_head: Vec<u8>,
     ) -> Self::WriteFuture<'stream> {
-        let mut body = self.body;
         async move {
+            let mut body = pin!(self.body);
             let http_head = stream.send_all(http_head).await?;
             while let Some(chunk) = next(&mut body).await {
                 _ = stream.send_all(chunk).await?;
