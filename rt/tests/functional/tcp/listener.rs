@@ -1,3 +1,4 @@
+use std::io;
 use std::net::SocketAddr;
 use std::time::Duration;
 
@@ -6,7 +7,7 @@ use heph::supervisor::NoSupervisor;
 use heph::ActorRef;
 use heph_rt::net::{TcpListener, TcpStream};
 use heph_rt::spawn::ActorOptions;
-use heph_rt::test::{join, join_many, try_spawn_local};
+use heph_rt::test::{block_on_local_actor, join, join_many, try_spawn_local};
 use heph_rt::util::next;
 use heph_rt::{self as rt, ThreadLocal};
 
@@ -68,6 +69,23 @@ fn ttl() {
     let actor = actor_fn(actor);
     let actor_ref = try_spawn_local(NoSupervisor, actor, (), ActorOptions::default()).unwrap();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
+}
+
+#[test]
+fn listener_from_std() {
+    async fn actor(ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
+        let listener = std::net::TcpListener::bind(any_local_address())?;
+        let listener = TcpListener::from_std(ctx.runtime_ref(), listener);
+
+        let initial = listener.ttl()?;
+        let expected = initial + 10;
+        listener.set_ttl(expected)?;
+        assert_eq!(listener.ttl()?, expected);
+
+        Ok(())
+    }
+
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
 const DATA: &[u8] = b"Hello world";
