@@ -6,8 +6,10 @@ use std::time::Duration;
 
 use heph::actor::{self, actor_fn};
 use heph_rt::net::uds::{UnixAddr, UnixDatagram};
+use heph_rt::net::Unconnected;
 use heph_rt::spawn::ActorOptions;
-use heph_rt::test::{join, try_spawn_local, PanicSupervisor};
+use heph_rt::test::{block_on_local_actor, join, try_spawn_local, PanicSupervisor};
+use heph_rt::ThreadLocal;
 use heph_rt::{self as rt};
 
 use crate::util::temp_file;
@@ -100,4 +102,31 @@ fn bound() {
     let actor = actor_fn(actor);
     let actor_ref = try_spawn_local(PanicSupervisor, actor, (), ActorOptions::default()).unwrap();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
+}
+
+#[test]
+fn socket_from_std() {
+    async fn actor(ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
+        let path1 = temp_file("uds.socket_from_std1");
+        let path2 = temp_file("uds.socket_from_std2");
+        let socket = std::os::unix::net::UnixDatagram::bind(path1)?;
+        let socket = UnixDatagram::<Unconnected>::from_std(ctx.runtime_ref(), socket);
+        let local_address = socket.local_addr()?;
+
+        let peer = std::os::unix::net::UnixDatagram::bind(path2)?;
+        let peer_address = UnixAddr::from_pathname(peer.local_addr()?.as_pathname().unwrap())?;
+
+        let (_, bytes_written) = socket.send_to(DATA, peer_address).await?;
+        assert_eq!(bytes_written, DATA.len());
+
+        let mut buf = vec![0; DATA.len() + 2];
+        let (n, address) = peer.recv_from(&mut buf)?;
+        assert_eq!(n, DATA.len());
+        assert_eq!(&buf[..n], DATA);
+        assert_eq!(address.as_pathname(), local_address.as_pathname());
+
+        Ok(())
+    }
+
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }

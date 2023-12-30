@@ -126,6 +126,25 @@ impl<M> UnixDatagram<M> {
         })
     }
 
+    /// Converts a [`std::os::unix::net::UnixDatagram`] to a
+    /// [`heph_rt::net::UnixDatagram`].
+    ///
+    /// [`heph_rt::net::UnixDatagram`]: UnixDatagram
+    ///
+    /// # Notes
+    ///
+    /// It's up to the caller to ensure that the socket's mode is correctly set
+    /// to [`Connected`] or [`Unconnected`].
+    pub fn from_std<RT>(rt: &RT, socket: std::os::unix::net::UnixDatagram) -> UnixDatagram
+    where
+        RT: Access,
+    {
+        UnixDatagram {
+            fd: AsyncFd::new(socket.into(), rt.submission_queue()),
+            mode: PhantomData,
+        }
+    }
+
     /// Returns the socket address of the remote peer of this socket.
     pub fn peer_addr(&self) -> io::Result<UnixAddr> {
         self.with_ref(|socket| socket.peer_addr().map(|a| UnixAddr { inner: a }))
