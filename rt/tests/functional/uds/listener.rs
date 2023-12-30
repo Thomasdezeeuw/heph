@@ -6,8 +6,9 @@ use std::time::Duration;
 use heph::actor::{self, actor_fn};
 use heph_rt::net::uds::{UnixAddr, UnixListener, UnixStream};
 use heph_rt::spawn::ActorOptions;
-use heph_rt::test::{join, try_spawn_local, PanicSupervisor};
+use heph_rt::test::{block_on_local_actor, join, try_spawn_local, PanicSupervisor};
 use heph_rt::util::next;
+use heph_rt::ThreadLocal;
 use heph_rt::{self as rt};
 
 use crate::util::temp_file;
@@ -80,4 +81,29 @@ fn incoming() {
     let actor = actor_fn(actor);
     let actor_ref = try_spawn_local(PanicSupervisor, actor, (), ActorOptions::default()).unwrap();
     join(&actor_ref, Duration::from_secs(1)).unwrap();
+}
+
+#[test]
+fn listener_from_std() {
+    async fn actor(ctx: actor::Context<!, ThreadLocal>) -> io::Result<()> {
+        let path = temp_file("uds.listener_from_std");
+
+        let listener = std::os::unix::net::UnixListener::bind(path)?;
+        let listener = UnixListener::from_std(ctx.runtime_ref(), listener);
+
+        let address = listener.local_addr()?;
+        let stream = UnixStream::connect(ctx.runtime_ref(), address).await?;
+
+        let (client, _) = listener.accept().await?;
+
+        let (_, n) = stream.send(DATA).await?;
+        assert_eq!(n, DATA.len());
+        let buf = client.recv(Vec::with_capacity(DATA.len() + 1)).await?;
+        assert_eq!(buf.len(), DATA.len());
+        assert_eq!(buf, DATA);
+
+        Ok(())
+    }
+
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
 }

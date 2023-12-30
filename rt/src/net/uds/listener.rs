@@ -132,6 +132,19 @@ impl UnixListener {
         Ok(socket)
     }
 
+    /// Converts a [`std::os::unix::net::UnixListener`] to a
+    /// [`heph_rt::net::UnixListener`].
+    ///
+    /// [`heph_rt::net::UnixListener`]: UnixListener
+    pub fn from_std<RT>(rt: &RT, listener: std::os::unix::net::UnixListener) -> UnixListener
+    where
+        RT: Access,
+    {
+        UnixListener {
+            fd: AsyncFd::new(listener.into(), rt.submission_queue()),
+        }
+    }
+
     /// Returns the socket address of the local half of this socket.
     pub fn local_addr(&self) -> io::Result<UnixAddr> {
         self.with_ref(|socket| socket.local_addr().map(|a| UnixAddr { inner: a }))
