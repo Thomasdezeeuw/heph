@@ -66,6 +66,18 @@ impl TcpStream {
         Ok(socket)
     }
 
+    /// Converts a [`std::net::TcpStream`] to a [`heph_rt::net::TcpStream`].
+    ///
+    /// [`heph_rt::net::TcpStream`]: TcpStream
+    pub fn from_std<RT>(rt: &RT, stream: std::net::TcpStream) -> TcpStream
+    where
+        RT: Access,
+    {
+        TcpStream {
+            fd: AsyncFd::new(stream.into(), rt.submission_queue()),
+        }
+    }
+
     /// Automatically set the CPU affinity based on the runtime access `rt`.
     ///
     /// For non-Linux OSs this is a no-op. If `rt` is not local this is also a

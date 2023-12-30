@@ -10,7 +10,7 @@ use heph::actor_ref::ActorRef;
 use heph::supervisor::NoSupervisor;
 use heph_rt::net::{TcpListener, TcpStream};
 use heph_rt::spawn::ActorOptions;
-use heph_rt::test::{join, join_many, try_spawn_local, PanicSupervisor};
+use heph_rt::test::{block_on_local_actor, join, join_many, try_spawn_local, PanicSupervisor};
 use heph_rt::ThreadLocal;
 
 use crate::util::{any_local_address, refused_address};
@@ -105,6 +105,25 @@ fn connect() {
     drop(stream);
 
     join(&actor_ref, Duration::from_secs(1)).unwrap();
+}
+
+#[test]
+fn stream_from_std() {
+    async fn actor(ctx: actor::Context<!, ThreadLocal>, address: SocketAddr) -> io::Result<()> {
+        let listener = std::net::TcpStream::connect(address)?;
+        let listener = TcpStream::from_std(ctx.runtime_ref(), listener);
+
+        let initial = listener.ttl()?;
+        let expected = initial + 10;
+        listener.set_ttl(expected)?;
+        assert_eq!(listener.ttl()?, expected);
+
+        Ok(())
+    }
+
+    let listener = net::TcpListener::bind(any_local_address()).unwrap();
+    let address = listener.local_addr().unwrap();
+    block_on_local_actor(actor_fn(actor), address).unwrap();
 }
 
 #[test]
