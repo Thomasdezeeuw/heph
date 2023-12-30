@@ -147,6 +147,18 @@ impl TcpListener {
         Ok(socket)
     }
 
+    /// Converts a [`std::net::TcpListener`] to a [`heph_rt::net::TcpListener`].
+    ///
+    /// [`heph_rt::net::TcpListener`]: TcpListener
+    pub fn from_std<RT>(rt: &RT, listener: std::net::TcpListener) -> TcpListener
+    where
+        RT: Access,
+    {
+        TcpListener {
+            fd: AsyncFd::new(listener.into(), rt.submission_queue()),
+        }
+    }
+
     /// Returns the local socket address of this listener.
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.with_ref(|socket| socket.local_addr().and_then(convert_address))
