@@ -90,6 +90,19 @@ impl UnixStream {
         socket
     }
 
+    /// Converts a [`std::os::unix::net::UnixStream`] to a
+    /// [`heph_rt::net::UnixStream`].
+    ///
+    /// [`heph_rt::net::UnixStream`]: UnixStream
+    pub fn from_std<RT>(rt: &RT, stream: std::os::unix::net::UnixStream) -> UnixStream
+    where
+        RT: Access,
+    {
+        UnixStream {
+            fd: AsyncFd::new(stream.into(), rt.submission_queue()),
+        }
+    }
+
     /// Automatically set the CPU affinity based on the runtime access `rt`.
     ///
     /// For non-Linux OSs this is a no-op. If `rt` is not local this is also a
