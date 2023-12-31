@@ -4,11 +4,12 @@ use std::convert::Infallible;
 use std::fmt;
 use std::future::ready;
 use std::num::NonZeroUsize;
-use std::pin::Pin;
+use std::pin::{pin, Pin};
 use std::task::Poll;
 
 use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, Join, RpcError, RpcMessage, SendError, SendValue};
+use heph::messages::from_message;
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::options::Priority;
 use heph_rt::spawn::ActorOptions;
@@ -944,4 +945,77 @@ fn join_before_actor_finished() {
     let mut future = Box::pin(future);
 
     assert_eq!(poll_future(Pin::new(&mut future)), Poll::Ready(()));
+}
+
+#[derive(Debug)]
+enum CalcMessage {
+    Get(RpcMessage<(), usize>),
+    Add(RpcMessage<usize, ()>),
+}
+
+from_message!(CalcMessage::Get(()) -> usize);
+from_message!(CalcMessage::Add(usize) -> ());
+
+#[derive(Debug, Eq, PartialEq)]
+struct Overflow;
+
+async fn calc_actor(mut ctx: actor::Context<CalcMessage, ThreadLocal>) -> Result<(), Overflow> {
+    let mut count: usize = 10;
+    while let Ok(msg) = ctx.receive_next().await {
+        match msg {
+            CalcMessage::Get(msg) => msg.handle(|()| async { count }).await.unwrap(),
+            CalcMessage::Add(msg) => {
+                let c = &mut count;
+                msg.handle(|amount| async move { *c += amount })
+                    .await
+                    .unwrap()
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn rpc_message_handle() {
+    let calc_actor = actor_fn(calc_actor);
+    let (actor, actor_ref) = init_local_actor(calc_actor, ()).unwrap();
+    let mut actor = pin!(actor);
+
+    let mut add_rpc = actor_ref.rpc(123);
+    assert_eq!(poll_future(Pin::new(&mut add_rpc)), Poll::Pending);
+    let mut get_rpc = actor_ref.rpc(());
+    assert_eq!(poll_future(Pin::new(&mut get_rpc)), Poll::Pending);
+
+    assert_eq!(poll_future(Pin::new(&mut actor)), Poll::Pending);
+
+    assert_eq!(poll_future(Pin::new(&mut add_rpc)), Poll::Ready(Ok(())));
+    drop(add_rpc);
+    assert_eq!(poll_future(Pin::new(&mut get_rpc)), Poll::Ready(Ok(133)));
+    drop(get_rpc);
+
+    drop(actor_ref);
+    assert_eq!(poll_future(Pin::new(&mut actor)), Poll::Ready(Ok(())));
+}
+
+#[test]
+fn rpc_message_handle_skip_if_no_receiver() {
+    let calc_actor = actor_fn(calc_actor);
+    let (actor, actor_ref) = init_local_actor(calc_actor, ()).unwrap();
+    let mut actor = pin!(actor);
+
+    let mut add_rpc = actor_ref.rpc(123);
+    // Make sure the value is send.
+    assert_eq!(poll_future(Pin::new(&mut add_rpc)), Poll::Pending);
+    drop(add_rpc);
+
+    let mut get_rpc = actor_ref.rpc(());
+    assert_eq!(poll_future(Pin::new(&mut get_rpc)), Poll::Pending);
+
+    assert_eq!(poll_future(Pin::new(&mut actor)), Poll::Pending);
+
+    assert_eq!(poll_future(Pin::new(&mut get_rpc)), Poll::Ready(Ok(10)));
+    drop(get_rpc);
+
+    drop(actor_ref);
+    assert_eq!(poll_future(Pin::new(&mut actor)), Poll::Ready(Ok(())));
 }
