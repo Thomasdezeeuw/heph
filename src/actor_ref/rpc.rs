@@ -290,6 +290,26 @@ impl<Req, Res> RpcMessage<Req, Res> {
             Ok(())
         }
     }
+
+    /// Convenience method to handle a `Req`uest and return a `Res`ponse.
+    ///
+    /// This is similar to [`handle`], but allows `f` to be failable.
+    ///
+    /// [`handle`]: RpcMessage::handle
+    pub async fn try_handle<F, Fut, E>(self, f: F) -> Result<Result<(), SendError>, E>
+    where
+        F: FnOnce(Req) -> Fut,
+        Fut: Future<Output = Result<Res, E>>,
+    {
+        if self.response.is_connected() {
+            let response = f(self.request).await?;
+            Ok(self.response.respond(response))
+        } else {
+            // If the receiving actor is no longer waiting we can skip the
+            // request.
+            Ok(Ok(()))
+        }
+    }
 }
 
 /// Structure to respond to an [`Rpc`] request.
