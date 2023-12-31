@@ -96,6 +96,40 @@ mod private {
 
 pub(crate) use private::PrivateAccess;
 
+impl<T: Access> Access for &mut T {}
+
+impl<T: PrivateAccess> PrivateAccess for &mut T {
+    fn submission_queue(&self) -> a10::SubmissionQueue {
+        (**self).submission_queue()
+    }
+
+    fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
+        (**self).add_timer(deadline, waker)
+    }
+
+    fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
+        (**self).remove_timer(deadline, token);
+    }
+
+    fn cpu(&self) -> Option<usize> {
+        (**self).cpu()
+    }
+
+    fn start_trace(&self) -> Option<trace::EventTiming> {
+        (**self).start_trace()
+    }
+
+    fn finish_trace(
+        &mut self,
+        timing: Option<trace::EventTiming>,
+        substream_id: u64,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    ) {
+        (**self).finish_trace(timing, substream_id, description, attributes);
+    }
+}
+
 /// Provides access to the thread-local parts of the runtime.
 ///
 /// This implements the [`Access`] trait, which is required by various APIs to
