@@ -51,6 +51,25 @@ fn timer() {
     block_on_local_actor(actor_fn(actor), ()).unwrap();
 }
 
+#[test]
+fn timer_ref_rt() {
+    async fn actor(mut ctx: actor::Context<!, ThreadLocal>) {
+        let start = Instant::now();
+        // Instead of cloning `ThreadLocal`, we can use a mutable reference to
+        // it.
+        let mut timer = Timer::after(ctx.runtime(), TIMEOUT);
+        assert!(timer.deadline() >= start + TIMEOUT);
+        assert!(!timer.has_passed());
+
+        let _ = (&mut timer).await;
+        assert!(timer.deadline() >= start + TIMEOUT);
+        assert!(timer.has_passed());
+        assert!(start.elapsed() >= TIMEOUT);
+    }
+
+    block_on_local_actor(actor_fn(actor), ()).unwrap();
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 struct AlwaysPending;
 
