@@ -149,7 +149,7 @@ impl<M> UdpSocket<M> {
     ///
     /// It's up to the caller to ensure that the socket's mode is correctly set
     /// to [`Connected`] or [`Unconnected`].
-    pub fn from_std<RT>(rt: &RT, socket: std::net::UdpSocket) -> UdpSocket
+    pub fn from_std<RT>(rt: &RT, socket: std::net::UdpSocket) -> UdpSocket<M>
     where
         RT: Access,
     {
