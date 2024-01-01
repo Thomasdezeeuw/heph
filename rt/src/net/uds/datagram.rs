@@ -145,6 +145,15 @@ impl<M> UnixDatagram<M> {
         }
     }
 
+    /// Creates a new independently owned `UnixDatagram` that shares the same
+    /// underlying file descriptor as the existing `UnixDatagram`.
+    pub fn try_clone(&self) -> io::Result<UnixDatagram<M>> {
+        Ok(UnixDatagram {
+            fd: self.fd.try_clone()?,
+            mode: PhantomData,
+        })
+    }
+
     /// Returns the socket address of the remote peer of this socket.
     pub fn peer_addr(&self) -> io::Result<UnixAddr> {
         self.with_ref(|socket| socket.peer_addr().map(|a| UnixAddr { inner: a }))

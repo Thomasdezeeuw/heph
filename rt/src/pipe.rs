@@ -136,6 +136,14 @@ impl Sender {
         let fd = unsafe { AsyncFd::from_raw_fd(stdin.into_raw_fd(), rt.submission_queue()) };
         Ok(Sender { fd })
     }
+
+    /// Creates a new independently owned `Sender` that shares the same
+    /// underlying file descriptor as the existing `Sender`.
+    pub fn try_clone(&self) -> io::Result<Sender> {
+        Ok(Sender {
+            fd: self.fd.try_clone()?,
+        })
+    }
 }
 
 impl_write!(Sender, &Sender);
@@ -174,6 +182,14 @@ impl Receiver {
         // SAFETY: `ChildStderr` is guaranteed to be a valid file descriptor.
         let fd = unsafe { AsyncFd::from_raw_fd(stderr.into_raw_fd(), rt.submission_queue()) };
         Ok(Receiver { fd })
+    }
+
+    /// Creates a new independently owned `Receiver` that shares the same
+    /// underlying file descriptor as the existing `Receiver`.
+    pub fn try_clone(&self) -> io::Result<Receiver> {
+        Ok(Receiver {
+            fd: self.fd.try_clone()?,
+        })
     }
 }
 

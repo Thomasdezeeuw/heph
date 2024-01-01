@@ -146,6 +146,14 @@ impl UnixListener {
         }
     }
 
+    /// Creates a new independently owned `UnixListener` that shares the same
+    /// underlying file descriptor as the existing `UnixListener`.
+    pub fn try_clone(&self) -> io::Result<UnixListener> {
+        Ok(UnixListener {
+            fd: self.fd.try_clone()?,
+        })
+    }
+
     /// Returns the socket address of the local half of this socket.
     pub fn local_addr(&self) -> io::Result<UnixAddr> {
         self.with_ref(|socket| socket.local_addr().map(|a| UnixAddr { inner: a }))

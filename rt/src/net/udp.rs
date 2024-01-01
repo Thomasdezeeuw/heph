@@ -160,6 +160,15 @@ impl<M> UdpSocket<M> {
         }
     }
 
+    /// Creates a new independently owned `UdpSocket` that shares the same
+    /// underlying file descriptor as the existing `UdpSocket`.
+    pub fn try_clone(&self) -> io::Result<UdpSocket<M>> {
+        Ok(UdpSocket {
+            fd: self.fd.try_clone()?,
+            mode: PhantomData,
+        })
+    }
+
     /// Returns the sockets peer address.
     pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.with_ref(|socket| socket.peer_addr().and_then(convert_address))
