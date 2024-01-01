@@ -159,6 +159,14 @@ impl TcpListener {
         }
     }
 
+    /// Creates a new independently owned `TcpListener` that shares the same
+    /// underlying file descriptor as the existing `TcpListener`.
+    pub fn try_clone(&self) -> io::Result<TcpListener> {
+        Ok(TcpListener {
+            fd: self.fd.try_clone()?,
+        })
+    }
+
     /// Returns the local socket address of this listener.
     pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.with_ref(|socket| socket.local_addr().and_then(convert_address))

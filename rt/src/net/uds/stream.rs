@@ -103,6 +103,14 @@ impl UnixStream {
         }
     }
 
+    /// Creates a new independently owned `UnixStream` that shares the same
+    /// underlying file descriptor as the existing `UnixStream`.
+    pub fn try_clone(&self) -> io::Result<UnixStream> {
+        Ok(UnixStream {
+            fd: self.fd.try_clone()?,
+        })
+    }
+
     /// Automatically set the CPU affinity based on the runtime access `rt`.
     ///
     /// For non-Linux OSs this is a no-op. If `rt` is not local this is also a

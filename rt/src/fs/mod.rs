@@ -71,6 +71,14 @@ impl File {
         }
     }
 
+    /// Creates a new independently owned `File` that shares the same
+    /// underlying file descriptor as the existing `File`.
+    pub fn try_clone(&self) -> io::Result<File> {
+        Ok(File {
+            fd: self.fd.try_clone()?,
+        })
+    }
+
     /// Read bytes from the file at `offset`, writing them into `buf`.
     ///
     /// The current file cursor is not affected by this function. This means
