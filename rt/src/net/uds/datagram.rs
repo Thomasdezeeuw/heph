@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 use std::net::Shutdown;
-use std::os::fd::IntoRawFd;
+use std::os::fd::{AsFd, BorrowedFd, IntoRawFd};
 use std::{fmt, io};
 
 use a10::{AsyncFd, Extract};
@@ -264,6 +264,12 @@ impl UnixDatagram<Connected> {
         bufs: B,
     ) -> io::Result<(B, usize)> {
         SendVectored(self.fd.send_vectored(BufWrapper(bufs), 0).extract()).await
+    }
+}
+
+impl<M> AsFd for UnixDatagram<M> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
     }
 }
 

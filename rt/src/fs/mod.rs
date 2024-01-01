@@ -2,6 +2,7 @@
 //!
 //! To open a [`File`] use [`File::open`] or [`OpenOptions`].
 
+use std::os::fd::{AsFd, BorrowedFd};
 use std::path::PathBuf;
 use std::time::SystemTime;
 use std::{fmt, io};
@@ -230,6 +231,12 @@ impl File {
 
 impl_read!(File, &File);
 impl_write!(File, &File);
+
+impl AsFd for File {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
+    }
+}
 
 impl fmt::Debug for File {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

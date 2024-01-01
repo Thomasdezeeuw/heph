@@ -2,7 +2,7 @@
 
 use std::io;
 use std::net::Shutdown;
-use std::os::fd::IntoRawFd;
+use std::os::fd::{AsFd, BorrowedFd, IntoRawFd};
 
 use a10::{AsyncFd, Extract};
 use socket2::{Domain, SockRef, Type};
@@ -310,3 +310,9 @@ impl UnixStream {
 
 impl_read!(UnixStream, &UnixStream);
 impl_write!(UnixStream, &UnixStream);
+
+impl AsFd for UnixStream {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
+    }
+}

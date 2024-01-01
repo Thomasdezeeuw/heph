@@ -2,6 +2,7 @@
 
 use std::io;
 use std::net::{Shutdown, SocketAddr};
+use std::os::fd::{AsFd, BorrowedFd};
 
 use a10::{AsyncFd, Extract};
 use socket2::{Domain, Protocol, SockRef, Type};
@@ -375,3 +376,9 @@ impl TcpStream {
 
 impl_read!(TcpStream, &TcpStream);
 impl_write!(TcpStream, &TcpStream);
+
+impl AsFd for TcpStream {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
+    }
+}
