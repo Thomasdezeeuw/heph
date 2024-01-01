@@ -135,7 +135,7 @@ impl<M> UnixDatagram<M> {
     ///
     /// It's up to the caller to ensure that the socket's mode is correctly set
     /// to [`Connected`] or [`Unconnected`].
-    pub fn from_std<RT>(rt: &RT, socket: std::os::unix::net::UnixDatagram) -> UnixDatagram
+    pub fn from_std<RT>(rt: &RT, socket: std::os::unix::net::UnixDatagram) -> UnixDatagram<M>
     where
         RT: Access,
     {
