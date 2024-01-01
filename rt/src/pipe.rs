@@ -86,7 +86,7 @@
 //! ```
 
 use std::io;
-use std::os::fd::{IntoRawFd, RawFd};
+use std::os::fd::{AsFd, BorrowedFd, IntoRawFd, RawFd};
 use std::process::{ChildStderr, ChildStdin, ChildStdout};
 
 use a10::AsyncFd;
@@ -140,6 +140,12 @@ impl Sender {
 
 impl_write!(Sender, &Sender);
 
+impl AsFd for Sender {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
+    }
+}
+
 /// Receiving end of an Unix pipe.
 ///
 /// Created by calling [`new`] or converted from [`ChildStdout`] or
@@ -172,3 +178,9 @@ impl Receiver {
 }
 
 impl_read!(Receiver, &Receiver);
+
+impl AsFd for Receiver {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
+    }
+}

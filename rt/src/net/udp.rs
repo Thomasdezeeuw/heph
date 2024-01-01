@@ -4,6 +4,7 @@
 
 use std::marker::PhantomData;
 use std::net::SocketAddr;
+use std::os::fd::{AsFd, BorrowedFd};
 use std::{fmt, io};
 
 use a10::{AsyncFd, Extract};
@@ -284,6 +285,12 @@ impl UdpSocket<Connected> {
         bufs: B,
     ) -> io::Result<(B, usize)> {
         SendVectored(self.fd.send_vectored(BufWrapper(bufs), 0).extract()).await
+    }
+}
+
+impl<M> AsFd for UdpSocket<M> {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
     }
 }
 

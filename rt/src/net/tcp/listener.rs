@@ -2,6 +2,7 @@
 
 use std::async_iter::AsyncIterator;
 use std::net::SocketAddr;
+use std::os::fd::{AsFd, BorrowedFd};
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::{fmt, io};
@@ -236,6 +237,12 @@ impl<'a> AsyncIterator for Incoming<'a> {
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll_next(ctx)
             .map_ok(|fd| TcpStream { fd })
+    }
+}
+
+impl AsFd for TcpListener {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
     }
 }
 

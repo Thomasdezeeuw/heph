@@ -84,7 +84,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::{CString, OsStr, OsString};
 use std::mem::{size_of, take};
-use std::os::fd::{AsFd, AsRawFd, RawFd};
+use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::{fmt, io, ptr};
 
@@ -188,6 +188,12 @@ impl Watch {
             buf: &self.buf,
             processed: 0,
         })
+    }
+}
+
+impl AsFd for Watch {
+    fn as_fd(&self) -> BorrowedFd<'_> {
+        self.fd.as_fd()
     }
 }
 
