@@ -301,7 +301,7 @@ impl Timers {
         // needs to be the last. So we reverse the order, which ensures the list
         // is sorted again.
         timers.reverse();
-        debug_assert!(timers.is_sorted_by(|t1, t2| Some(t1.deadline.cmp(&t2.deadline))));
+        debug_assert!(timers.is_sorted_by(|t1, t2| t1.deadline <= t2.deadline));
 
         true
     }
