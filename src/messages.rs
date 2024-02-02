@@ -102,7 +102,7 @@ pub struct Terminate;
 /// # Examples
 ///
 /// ```
-/// # #[allow(dead_code)]
+/// # #![allow(dead_code)]
 /// use heph::actor_ref::RpcMessage;
 /// use heph::from_message;
 ///
