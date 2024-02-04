@@ -407,7 +407,7 @@ impl TraceLog for Log {
 impl<'a> TraceLog for &'a SharedLog {
     fn append(&mut self, substream_id: u64, event: &Event<'_>) -> io::Result<()> {
         thread_local! {
-            static BUF: RefCell<Vec<u8>> = RefCell::new(Vec::new());
+            static BUF: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
         }
 
         BUF.with(|buf| {

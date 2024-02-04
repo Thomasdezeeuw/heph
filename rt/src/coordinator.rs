@@ -217,7 +217,7 @@ impl Coordinator {
     fn check_process_signals(&mut self, signal_received: &mut bool) -> Result<(), rt::Error> {
         let timing = trace::start(&self.trace_log);
         let waker = task::Waker::noop();
-        let mut ctx = task::Context::from_waker(&waker);
+        let mut ctx = task::Context::from_waker(waker);
         loop {
             match self.signals.poll_signal(&mut ctx) {
                 Poll::Ready(Some(Ok(info))) => {

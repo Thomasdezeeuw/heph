@@ -599,7 +599,7 @@ where
     Fut: Future + ?Sized,
 {
     let waker = task::Waker::noop();
-    let mut ctx = task::Context::from_waker(&waker);
+    let mut ctx = task::Context::from_waker(waker);
     Future::poll(future, &mut ctx)
 }
 
@@ -614,7 +614,7 @@ where
     I: AsyncIterator + ?Sized,
 {
     let waker = task::Waker::noop();
-    let mut ctx = task::Context::from_waker(&waker);
+    let mut ctx = task::Context::from_waker(waker);
     AsyncIterator::poll_next(iter, &mut ctx)
 }
 
@@ -632,7 +632,7 @@ where
     A: Actor + ?Sized,
 {
     let waker = task::Waker::noop();
-    let mut ctx = task::Context::from_waker(&waker);
+    let mut ctx = task::Context::from_waker(waker);
     Actor::try_poll(actor, &mut ctx)
 }
 
