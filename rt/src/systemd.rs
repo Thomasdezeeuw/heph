@@ -12,7 +12,6 @@
 //! [systemd]: https://systemd.io
 //! [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html#Type=
 
-use std::convert::TryFrom;
 use std::ffi::OsString;
 use std::path::Path;
 use std::str::FromStr;

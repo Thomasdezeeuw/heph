@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::marker::PhantomData;
 use std::net::SocketAddr;
 use std::pin::Pin;

@@ -1,7 +1,5 @@
 #![feature(never_type)]
 
-use std::convert::TryFrom;
-
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph::sync;

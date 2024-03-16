@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use heph::messages::Terminate;
 use heph_rt::Signal;
 

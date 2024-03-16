@@ -7,8 +7,7 @@
 //!
 //! A list of known (registered) headers in available in [`HeaderName`].
 
-use std::convert::AsRef;
-use std::iter::{FromIterator, FusedIterator};
+use std::iter::FusedIterator;
 use std::time::SystemTime;
 use std::{fmt, str};
 
@@ -293,7 +292,7 @@ impl fmt::Debug for Headers {
         let mut f = f.debug_map();
         for part in &self.parts {
             let value = &self.values[part.start..part.end];
-            if let Ok(str) = std::str::from_utf8(value) {
+            if let Ok(str) = str::from_utf8(value) {
                 let _ = f.entry(&part.name, &str);
             } else {
                 let _ = f.entry(&part.name, &value);
@@ -433,7 +432,7 @@ impl<'n, 'v> fmt::Debug for Header<'n, 'v> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let mut f = f.debug_struct("Header");
         let _ = f.field("name", &self.name);
-        if let Ok(str) = std::str::from_utf8(self.value) {
+        if let Ok(str) = str::from_utf8(self.value) {
             let _ = f.field("value", &str);
         } else {
             let _ = f.field("value", &self.value);

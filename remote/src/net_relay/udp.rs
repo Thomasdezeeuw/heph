@@ -1,6 +1,5 @@
 //! Module with the UDP implementation of the net relay.
 
-use std::convert::TryFrom;
 use std::io;
 use std::net::SocketAddr;
 use std::pin::pin;

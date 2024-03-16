@@ -1,5 +1,4 @@
 use std::fmt;
-use std::iter::FromIterator;
 
 use heph_http::head::header::{FromHeaderValue, Header, HeaderName, Headers};
 

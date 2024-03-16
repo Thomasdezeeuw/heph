@@ -14,7 +14,7 @@ use heph_http::server::{self, RequestError};
 use heph_http::{self as http, Header, HeaderName, Headers, Method, StatusCode, Version};
 use heph_rt::net::TcpStream;
 use heph_rt::spawn::options::{ActorOptions, Priority};
-use heph_rt::{self, Runtime, ThreadLocal};
+use heph_rt::{Runtime, ThreadLocal};
 use httpdate::fmt_http_date;
 
 /// Macro to run with a test server.

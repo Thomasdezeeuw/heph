@@ -415,7 +415,7 @@ impl StopSupervisor {
 impl<NA> Supervisor<NA> for StopSupervisor
 where
     NA: NewActor,
-    NA::Error: std::fmt::Display,
+    NA::Error: fmt::Display,
     <NA::Actor as Actor>::Error: fmt::Display,
 {
     fn decide(&mut self, err: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
@@ -441,7 +441,7 @@ where
 impl<A> SyncSupervisor<A> for StopSupervisor
 where
     A: SyncActor,
-    A::Error: std::fmt::Display,
+    A::Error: fmt::Display,
 {
     fn decide(&mut self, err: A::Error) -> SupervisorStrategy<A::Argument> {
         warn!("{} failed, stopping it: {err}", self.0);

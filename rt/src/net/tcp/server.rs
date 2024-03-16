@@ -221,7 +221,6 @@
 //! }
 //! ```
 
-use std::convert::TryFrom;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;

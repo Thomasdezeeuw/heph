@@ -22,7 +22,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{fmt, io, task, thread};
 
-use crossbeam_channel::{self, Receiver};
+use crossbeam_channel::Receiver;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use log::{as_debug, debug, trace};

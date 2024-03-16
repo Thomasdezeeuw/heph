@@ -2,7 +2,6 @@
 
 use std::future::pending;
 use std::future::poll_fn;
-use std::iter::FromIterator;
 use std::mem::size_of;
 use std::pin::Pin;
 use std::task::{self, Poll};

@@ -167,11 +167,9 @@
 //! [`supervisor`]: crate::supervisor
 
 use std::any::TypeId;
-use std::convert::TryFrom;
 use std::error::Error;
 use std::fmt;
 use std::future::Future;
-use std::iter::FromIterator;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
