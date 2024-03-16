@@ -65,7 +65,7 @@ struct WakersId(u8);
 /// more writes are allowed and the array element is read only.
 ///
 /// Following the rules above means that there are no data races. The array can
-/// only be indexed by [`WakersId`], which is only created by [`Waker::new`],
+/// only be indexed by [`WakersId`], which is only created by [`Wakers::new`],
 /// which ensures the waker is setup before returning the [`WakersId`]. This
 /// ensures that only a single write happens to each element of the array. And
 /// because after the initial write each element is read only there are no

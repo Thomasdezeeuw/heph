@@ -28,8 +28,8 @@ use crate::{trace, ThreadSafe};
 /// # Notes
 ///
 /// This type only exists because [`Arc::new_cyclic`] doesn't work when
-/// returning a result. And as [`RuntimeInternals`] needs to create a [`Poll`]
-/// instance, which can fail, creating a new `RuntimeInternals` inside
+/// returning a result. And as [`RuntimeInternals`] needs to create an
+/// [`a10::Ring`], which can fail, creating a new `RuntimeInternals` inside
 /// `Arc::new_cyclic` doesn't work. So it needs to be a two step process, where
 /// the second step (`RuntimeSetup::complete`) doesn't return an error and can
 /// be called inside `Arc::new_cyclic`.

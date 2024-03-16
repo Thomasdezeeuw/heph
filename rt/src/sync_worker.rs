@@ -5,8 +5,8 @@
 //! stopping the thread).
 //!
 //! The [`sync_worker::Handle`] type is a handle to the sync worker thread
-//! managed by the [coordinator]. The [`main`] function is the entry point for
-//! the sync worker thread.
+//! managed by the [coordinator]. The [`start`] function can be used to start a
+//! new synchronous actor.
 //!
 //! [coordinator]: crate::coordinator
 //! [`sync_worker::Handle`]: Handle
