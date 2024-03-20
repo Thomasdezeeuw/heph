@@ -11,7 +11,7 @@ use std::{fmt, ptr};
 
 use heph::supervisor::Supervisor;
 use heph::{ActorFuture, NewActor};
-use log::{as_debug, error, trace};
+use log::{error, trace};
 
 use crate::panic_message;
 use crate::spawn::options::Priority;
@@ -166,7 +166,7 @@ impl<P: Process + ?Sized> ProcessData<P> {
         self.fair_runtime += fair_elapsed;
 
         trace!(
-            pid = pid.0, name = name, elapsed = as_debug!(elapsed), result = as_debug!(result);
+            pid = pid.0, name = name, elapsed:? = elapsed, result:? = result;
             "finished running process",
         );
         RunStats { elapsed, result }

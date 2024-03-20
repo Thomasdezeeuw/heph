@@ -101,7 +101,7 @@ where
     RT: rt::Access + Clone,
 {
     let address = stream.peer_addr()?;
-    info!(address = log::as_display!(address); "accepted connection");
+    info!(address:% = address; "accepted connection");
     let mut buffer = Vec::with_capacity(1024);
 
     let err = loop {

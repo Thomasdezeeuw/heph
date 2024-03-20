@@ -25,7 +25,7 @@ use std::{fmt, io, process};
 
 use a10::signals::{ReceiveSignals, Signals};
 use heph::actor_ref::{ActorGroup, Delivery};
-use log::{as_debug, as_display, debug, error, info, trace};
+use log::{debug, error, info, trace};
 
 use crate::setup::{host_id, host_info, Uuid};
 use crate::{self as rt, cpu_usage, shared, sync_worker, trace, worker, Signal};
@@ -228,14 +228,14 @@ impl Coordinator {
                             sending_pid = info.ssi_pid, sending_uid = info.ssi_uid; "received unexpected signal, not relaying");
                         continue;
                     };
-                    debug!(signal = as_debug!(signal), signal_number = info.ssi_signo, signal_code = info.ssi_code,
+                    debug!(signal:? = signal, signal_number = info.ssi_signo, signal_code = info.ssi_code,
                         sending_pid = info.ssi_pid, sending_uid = info.ssi_uid; "received process signal");
 
                     if let Signal::User2 = signal {
                         self.log_metrics();
                     }
 
-                    trace!(signal = as_debug!(signal); "relaying process signal to worker threads");
+                    trace!(signal:? = signal; "relaying process signal to worker threads");
                     for worker in &mut self.workers {
                         if let Err(err) = worker.send_signal(signal) {
                             // NOTE: if the worker is unable to receive a
@@ -248,13 +248,13 @@ impl Coordinator {
                             // (i.e. it has the reason why the worker thread
                             // stopped).
                             error!(
-                                signal = as_debug!(signal), worker_id = worker.id();
+                                signal:? = signal, worker_id = worker.id();
                                 "failed to send process signal to worker: {err}",
                             );
                         }
                     }
 
-                    trace!(signal = as_debug!(signal); "relaying process signal to actors");
+                    trace!(signal:? = signal; "relaying process signal to actors");
                     self.signal_refs.remove_disconnected();
                     _ = self.signal_refs.try_send(signal, Delivery::ToAll);
                 }
@@ -281,26 +281,26 @@ impl Coordinator {
         let trace_metrics = self.trace_log.as_ref().map(trace::CoordinatorLog::metrics);
         info!(
             target: "metrics",
-            heph_version = as_display!(concat!("v", env!("CARGO_PKG_VERSION"))),
+            heph_version = concat!("v", env!("CARGO_PKG_VERSION")),
             host_os = self.host_os,
             host_arch = ARCH,
             host_name = self.host_name,
-            host_id = as_display!(self.host_id),
+            host_id:% = self.host_id,
             app_name = self.app_name,
             process_id = process::id(),
             parent_process_id = parent_id(),
-            uptime = as_debug!(self.start.elapsed()),
+            uptime:? = self.start.elapsed(),
             worker_threads = self.workers.len(),
             sync_actors = self.sync_workers.len(),
             shared_scheduler_ready = shared_metrics.scheduler_ready,
             shared_scheduler_inactive = shared_metrics.scheduler_inactive,
             shared_timers_total = shared_metrics.timers_total,
-            shared_timers_next = as_debug!(shared_metrics.timers_next),
-            process_signals = as_debug!(Signal::ALL),
+            shared_timers_next:? = shared_metrics.timers_next,
+            process_signals:? = Signal::ALL,
             process_signal_receivers = self.signal_refs.len(),
-            cpu_time = as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
-            total_cpu_time = as_debug!(cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID)),
-            trace_file = as_debug!(trace_metrics.as_ref().map(|m| m.file)),
+            cpu_time:? = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID),
+            total_cpu_time:? = cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID),
+            trace_file:? = trace_metrics.as_ref().map(|m| m.file),
             trace_counter = trace_metrics.map_or(0, |m| m.counter);
             "coordinator metrics",
         );

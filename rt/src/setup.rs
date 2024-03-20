@@ -417,11 +417,11 @@ pub(crate) fn set_cpu_affinity(worker_id: NonZeroUsize) -> Option<usize> {
         let cpu_set = cpu_set(cpu);
         match set_affinity(&cpu_set) {
             Ok(()) => {
-                debug!(worker_id = log::as_display!(worker_id); "worker thread CPU affinity set to {cpu}");
+                debug!(worker_id = worker_id; "worker thread CPU affinity set to {cpu}");
                 Some(cpu)
             }
             Err(err) => {
-                warn!(worker_id = log::as_display!(worker_id); "failed to set CPU affinity on thread: {err}");
+                warn!(worker_id = worker_id; "failed to set CPU affinity on thread: {err}");
                 None
             }
         }

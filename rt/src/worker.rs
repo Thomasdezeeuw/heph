@@ -25,7 +25,7 @@ use std::{fmt, io, task, thread};
 use crossbeam_channel::Receiver;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
-use log::{as_debug, debug, trace};
+use log::{debug, trace};
 
 use crate::error::StringError;
 use crate::local::RuntimeInternals;
@@ -499,7 +499,7 @@ impl Worker {
         self.internals.shared.try_poll_ring()?;
 
         let timeout = self.determine_timeout();
-        trace!(worker_id = self.internals.id.get(), timeout = as_debug!(timeout); "polling for OS events");
+        trace!(worker_id = self.internals.id.get(), timeout:? = timeout; "polling for OS events");
         self.internals.ring.borrow_mut().poll(timeout)?;
 
         // Since we could have been polling our own ring for a long time we poll
@@ -640,7 +640,7 @@ async fn comm_actor(
 ) {
     while let Some(msg) = receiver.recv().await {
         let internals = &ctx.runtime_ref().internals;
-        trace!(worker_id = internals.id.get(), message = as_debug!(msg); "processing coordinator message");
+        trace!(worker_id = internals.id.get(), message:? = msg; "processing coordinator message");
         let timing = trace::start(&*internals.trace_log.borrow());
         match msg {
             Control::Started => internals.start(),

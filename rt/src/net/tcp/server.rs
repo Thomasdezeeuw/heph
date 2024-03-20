@@ -400,7 +400,7 @@ where
     let listener = TcpListener::bind_setup(ctx.runtime_ref(), local, set_listener_options)
         .await
         .map_err(Error::Accept)?;
-    trace!(address = log::as_display!(local); "TCP server listening");
+    trace!(address:% = local; "TCP server listening");
 
     let mut accept = listener.incoming();
     let mut receive = ctx.receive_next();

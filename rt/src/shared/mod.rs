@@ -11,7 +11,7 @@ use std::{io, task};
 use heph::actor_ref::ActorRef;
 use heph::supervisor::Supervisor;
 use heph::{ActorFutureBuilder, NewActor};
-use log::{as_debug, debug, trace};
+use log::{debug, trace};
 
 use crate::process::{FutureProcess, Process, ProcessId};
 use crate::scheduler::shared::{ProcessData, Scheduler};
@@ -161,7 +161,7 @@ impl RuntimeInternals {
     ///
     /// See [`Timers::add`].
     pub(crate) fn add_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        trace!(deadline = as_debug!(deadline); "adding timer");
+        trace!(deadline:? = deadline; "adding timer");
         self.timers.add(deadline, waker)
     }
 
@@ -169,7 +169,7 @@ impl RuntimeInternals {
     ///
     /// See [`Timers::remove`].
     pub(crate) fn remove_timer(&self, deadline: Instant, token: TimerToken) {
-        trace!(deadline = as_debug!(deadline); "removing timer");
+        trace!(deadline:? = deadline; "removing timer");
         self.timers.remove(deadline, token);
     }
 

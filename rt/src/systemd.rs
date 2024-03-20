@@ -20,7 +20,7 @@ use std::{env, io, process};
 
 use heph::actor;
 use heph::messages::Terminate;
-use log::{as_debug, debug, warn};
+use log::{debug, warn};
 
 use crate::access::Access;
 use crate::net::uds::datagram::{Connected, UnixDatagram};
@@ -136,7 +136,7 @@ impl Notify {
     /// pass a human-readable error message. **Note that it must be limited to a
     /// single line.**
     pub async fn change_state(&self, state: State, status: Option<&str>) -> io::Result<()> {
-        debug!(state = log::as_debug!(state), status = log::as_debug!(status); "updating state with service manager");
+        debug!(state:? = state, status:? = status; "updating state with service manager");
         let state_line = match state {
             State::Ready => "READY=1\n",
             State::Reloading => "RELOADING=1\n",
@@ -170,7 +170,7 @@ impl Notify {
     /// If you also need to change the state of the application you can use
     /// [`Notify::change_state`].
     pub async fn change_status(&self, status: &str) -> io::Result<()> {
-        debug!(status = log::as_display!(status); "updating status with service manager");
+        debug!(status = status; "updating status with service manager");
         let mut state_update = String::with_capacity(7 + status.len() + 1);
         state_update.push_str("STATUS=");
         state_update.push_str(status);
@@ -290,7 +290,7 @@ where
     notify.change_state(State::Ready, None).await?;
 
     if let Some(timeout) = notify.watchdog_timeout() {
-        debug!(timeout = as_debug!(timeout); "started via systemd with watchdog");
+        debug!(timeout:? = timeout; "started via systemd with watchdog");
         let mut interval = Interval::every(ctx.runtime_ref().clone(), timeout);
         loop {
             match either(ctx.receive_next(), next(&mut interval)).await {

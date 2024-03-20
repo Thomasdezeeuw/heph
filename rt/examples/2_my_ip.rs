@@ -96,7 +96,7 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
 /// as message type.
 async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: TcpStream) -> io::Result<()> {
     let address = stream.peer_addr()?;
-    info!(address = log::as_display!(address); "accepted connection");
+    info!(address:% = address; "accepted connection");
 
     // This will allocate a new string which isn't the most efficient way to do
     // this, but it's the easiest so we'll keep this for sake of example.

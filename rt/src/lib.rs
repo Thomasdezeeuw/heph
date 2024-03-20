@@ -213,7 +213,7 @@ use std::sync::Arc;
 use std::task;
 use std::time::{Duration, Instant};
 
-use ::log::{as_debug, debug, warn};
+use ::log::{debug, warn};
 use heph::actor_ref::{ActorGroup, ActorRef};
 use heph::supervisor::{Supervisor, SyncSupervisor};
 use heph::{ActorFutureBuilder, NewActor, SyncActor};
@@ -607,13 +607,13 @@ impl RuntimeRef {
 
     /// Add a timer.
     pub(crate) fn add_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        ::log::trace!(deadline = as_debug!(deadline); "adding timer");
+        ::log::trace!(deadline:? = deadline; "adding timer");
         self.internals.timers.borrow_mut().add(deadline, waker)
     }
 
     /// Remove a previously set timer.
     pub(crate) fn remove_timer(&self, deadline: Instant, token: TimerToken) {
-        ::log::trace!(deadline = as_debug!(deadline); "removing timer");
+        ::log::trace!(deadline:? = deadline; "removing timer");
         self.internals.timers.borrow_mut().remove(deadline, token);
     }
 
