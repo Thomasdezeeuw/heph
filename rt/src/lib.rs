@@ -618,7 +618,6 @@ impl RuntimeRef {
     }
 
     /// Returns a copy of the shared internals.
-    #[cfg(any(test, feature = "test"))]
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
         self.internals.shared.clone()
     }
