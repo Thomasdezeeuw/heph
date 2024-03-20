@@ -40,7 +40,7 @@ use heph::{actor, sync, ActorRef, NewActor, Supervisor};
 use crate::spawn::{ActorOptions, FutureOptions, Spawn};
 use crate::timers::TimerToken;
 use crate::trace::{self, Trace};
-use crate::{shared, RuntimeRef};
+use crate::{shared, Runtime, RuntimeRef};
 
 /// Runtime Access Trait.
 ///
@@ -152,6 +152,12 @@ pub struct ThreadLocal {
 impl ThreadLocal {
     pub(crate) const fn new(rt: RuntimeRef) -> ThreadLocal {
         ThreadLocal { rt }
+    }
+}
+
+impl From<RuntimeRef> for ThreadLocal {
+    fn from(rt: RuntimeRef) -> ThreadLocal {
+        ThreadLocal::new(rt)
     }
 }
 
@@ -283,6 +289,18 @@ impl ThreadSafe {
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
     {
         self.rt.spawn_future(future, options);
+    }
+}
+
+impl From<&Runtime> for ThreadSafe {
+    fn from(rt: &Runtime) -> ThreadSafe {
+        ThreadSafe::new(rt.internals.clone())
+    }
+}
+
+impl From<&RuntimeRef> for ThreadSafe {
+    fn from(rt: &RuntimeRef) -> ThreadSafe {
+        ThreadSafe::new(rt.clone_shared())
     }
 }
 

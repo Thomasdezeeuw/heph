@@ -8,6 +8,7 @@ mod util;
 
 #[path = "functional"] // rustfmt can't find the files.
 mod functional {
+    mod access;
     mod actor;
     mod actor_context;
     mod actor_group;
