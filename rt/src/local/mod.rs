@@ -7,7 +7,7 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use heph::actor_ref::{ActorGroup, Delivery, SendError};
-use log::{as_debug, info, trace};
+use log::{info, trace};
 
 use crate::scheduler::Scheduler;
 use crate::timers::Timers;
@@ -78,7 +78,7 @@ impl RuntimeInternals {
     /// returns an error if no actors want to receive it.
     pub(crate) fn relay_signal(&self, signal: Signal) {
         let timing = trace::start(&*self.trace_log.borrow());
-        trace!(worker_id = self.id.get(), signal = as_debug!(signal); "received process signal");
+        trace!(worker_id = self.id.get(), signal:? = signal; "received process signal");
 
         if let Signal::User2 = signal {
             self.log_metrics();
@@ -115,9 +115,9 @@ impl RuntimeInternals {
             scheduler_ready = scheduler.ready(),
             scheduler_inactive = scheduler.inactive(),
             timers_total = timers.len(),
-            timers_next = as_debug!(timers.next_timer()),
+            timers_next:? = timers.next_timer(),
             process_signal_receivers = self.signal_receivers.borrow().len(),
-            cpu_time = as_debug!(cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID)),
+            cpu_time:? = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID),
             trace_counter = trace_metrics.map_or(0, |m| m.counter);
             "worker metrics",
         );

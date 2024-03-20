@@ -22,7 +22,7 @@ log      = { version = "0.4.17", default-features = false }
 itoa     = { version = "1.0.6", default-features = false }
 
 [dev-dependencies]
-std-logger = { version = "0.5.0", default-features = false, features = ["log-panic", "nightly"] }
+std-logger = { version = "0.5.3", default-features = false, features = ["log-panic", "nightly"] }
 
 [dev-dependencies.heph]
 path     = "../"
