@@ -225,16 +225,13 @@ where
 /// This requires the `NewActor` (`NA`) to be [`Send`] as they are send to
 /// another thread which runs the *test* runtime (and thus the actor). The actor
 /// (`NA::Actor`) itself doesn't have to be `Send`.
-pub fn block_on_local_actor<NA>(
-    mut new_actor: NA,
-    arg: NA::Argument,
-) -> Result<(), BlockOnError<NA>>
+pub fn block_on_local_actor<NA>(mut new_actor: NA, arg: NA::Argument)
 where
     NA: NewActor<RuntimeAccess = ThreadLocal> + Send + 'static,
     NA::Actor: 'static,
-    <NA::Actor as Actor>::Error: Send,
+    <NA::Actor as Actor>::Error: fmt::Display + Send,
     NA::Argument: Send,
-    NA::Error: Send,
+    NA::Error: fmt::Display + Send,
 {
     let (sender, mut receiver) = new_oneshot();
     let waker = SyncWaker::new();
@@ -258,9 +255,13 @@ where
         runtime_ref.spawn_local_future(future, FutureOptions::default());
         Ok(())
     });
-    waker
-        .block_on(receiver.recv_once())
-        .expect("failed to receive result from test runtime")
+    match waker.block_on(receiver.recv_once()) {
+        Some(Ok(())) => {}
+        Some(Err(BlockOnError::<NA>::Creating(err))) => panic!("failed to create actor: {err}"),
+        Some(Err(BlockOnError::<NA>::Running(err))) => panic!("actor hit an error: {err}"),
+        Some(Err(BlockOnError::<NA>::Panic(panic))) => resume_unwind(panic),
+        None => panic!("failed to wait on local actor"),
+    }
 }
 
 /// Spawn a thread-safe actor on the *test* runtime and wait for it to

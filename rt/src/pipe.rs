@@ -39,7 +39,7 @@
 //!     Ok(())
 //! }
 //! #
-//! # heph_rt::test::block_on_local_actor(heph::actor::actor_fn(actor), ()).unwrap();
+//! # heph_rt::test::block_on_local_actor(heph::actor::actor_fn(actor), ());
 //! ```
 //!
 //! Spawn a process using a pipe for standard in, out and error of the spawned
@@ -82,7 +82,7 @@
 //!     Ok(())
 //! }
 //! #
-//! # heph_rt::test::block_on_local_actor(heph::actor::actor_fn(process_handler), ()).unwrap();
+//! # heph_rt::test::block_on_local_actor(heph::actor::actor_fn(process_handler), ());
 //! ```
 
 use std::io;

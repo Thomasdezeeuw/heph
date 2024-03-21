@@ -34,8 +34,7 @@ fn watched_directory_file_created() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -61,8 +60,7 @@ fn watched_directory_dir_created() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -90,8 +88,7 @@ fn watched_directory_file_opened() {
             },
             drop, // Close file and drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -120,8 +117,7 @@ fn watched_directory_dir_opened() {
             },
             drop, // Close directory and drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -151,8 +147,7 @@ fn watched_directory_file_accessed() {
             },
             drop, // Close file and drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -187,8 +182,7 @@ fn watched_directory_dir_accessed() {
             },
             drop, // Close directory and drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -221,8 +215,7 @@ fn watched_directory_file_modified() {
             },
             drop, // Close file and drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 // NOTE: `IN_MODIFY` doesn't trigger for directory within a watched directory.
@@ -257,8 +250,7 @@ fn watched_directory_file_metadata_changed() {
             },
             drop, // Close file and drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -298,8 +290,7 @@ fn watched_directory_dir_metadata_changed() {
             },
             drop, // Close directory and drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -334,8 +325,7 @@ fn watched_directory_file_moved_from() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -371,8 +361,7 @@ fn watched_directory_dir_moved_from() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -405,8 +394,7 @@ fn watched_directory_file_moved_to() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -440,8 +428,7 @@ fn watched_directory_dir_moved_to() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -465,8 +452,7 @@ fn watched_directory_moved() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -496,8 +482,7 @@ fn watched_directory_file_closed_no_write() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -530,8 +515,7 @@ fn watched_directory_dir_closed_no_write() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -564,8 +548,7 @@ fn watched_directory_file_closed_write() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 // NOTE: no close_write event can be generated for directories.
@@ -596,8 +579,7 @@ fn watched_directory_dir_deleted() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -625,8 +607,7 @@ fn watched_directory_file_deleted() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -649,8 +630,7 @@ fn watched_directory_deleted() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -677,8 +657,7 @@ fn watched_file_opened() {
             },
             drop, // Close file and drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -707,8 +686,7 @@ fn watched_file_accessed() {
             },
             drop, // Close file and drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -739,8 +717,7 @@ fn watched_file_modified() {
             },
             drop, // Close file and drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -772,8 +749,7 @@ fn watched_file_metadata_changed() {
             },
             drop, // Close file and drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -801,8 +777,7 @@ fn watched_file_moved() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -831,8 +806,7 @@ fn watched_file_closed_nowrite() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -864,8 +838,7 @@ fn watched_file_closed_write() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -894,8 +867,7 @@ fn watched_file_closed_after_read() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -927,8 +899,7 @@ fn watched_file_closed_after_write() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -955,8 +926,7 @@ fn watched_file_deleted() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 #[test]
@@ -1023,8 +993,7 @@ fn watched_file_all() {
             },
             drop, // Drop path.
         ),
-    )
-    .unwrap();
+    );
 }
 
 /// Test actors.

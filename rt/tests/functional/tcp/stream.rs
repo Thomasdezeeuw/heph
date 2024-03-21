@@ -123,7 +123,7 @@ fn stream_from_std() {
 
     let listener = net::TcpListener::bind(any_local_address()).unwrap();
     let address = listener.local_addr().unwrap();
-    block_on_local_actor(actor_fn(actor), address).unwrap();
+    block_on_local_actor(actor_fn(actor), address);
 }
 
 #[test]
