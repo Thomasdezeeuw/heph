@@ -451,7 +451,6 @@ macro_rules! bit_checks {
     ) => {
         $(
         $( #[$meta] )*
-        #[doc(alias = $bit)]
         pub const fn $fn_name(&$self) -> bool {
             $self.$field.$field2 & libc::$bit != 0
         }
