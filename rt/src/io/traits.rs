@@ -405,6 +405,45 @@ impl Write for &mut [u8] {
     }
 }
 
+impl Write for Vec<u8> {
+    async fn write<B: Buf>(&mut self, buf: B) -> io::Result<(B, usize)> {
+        self.extend_from_slice(buf.as_slice());
+        let written = buf.len();
+        Ok((buf, written))
+    }
+
+    async fn write_all<B: Buf>(&mut self, buf: B) -> io::Result<B> {
+        self.extend_from_slice(buf.as_slice());
+        Ok(buf)
+    }
+
+    fn is_write_vectored(&self) -> bool {
+        false
+    }
+
+    async fn write_vectored<B: BufSlice<N>, const N: usize>(
+        &mut self,
+        bufs: B,
+    ) -> io::Result<(B, usize)> {
+        let mut written = 0;
+        for buf in bufs.as_io_slices() {
+            self.extend_from_slice(&buf);
+            written += buf.len();
+        }
+        Ok((bufs, written))
+    }
+
+    async fn write_vectored_all<B: BufSlice<N>, const N: usize>(
+        &mut self,
+        bufs: B,
+    ) -> io::Result<B> {
+        for buf in bufs.as_io_slices() {
+            self.extend_from_slice(&buf);
+        }
+        Ok(bufs)
+    }
+}
+
 impl Write for Sink {
     async fn write<B: Buf>(&mut self, buf: B) -> io::Result<(B, usize)> {
         let len = buf.len();
