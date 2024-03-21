@@ -20,13 +20,14 @@ use heph_rt::{self as rt, ThreadLocal};
 
 #[test]
 fn block_on_future() {
-    let result = test::block_on_future(async move { "All good" }).unwrap();
+    let result = test::block_on_future(async move { "All good" });
     assert_eq!(result, "All good");
 }
 
 #[test]
+#[should_panic = "Not good"]
 fn block_on_future_panic() {
-    assert!(test::block_on_future(async move { panic!("Not good") }).is_err());
+    test::block_on_future(async move { panic!("Not good") });
 }
 
 #[test]
