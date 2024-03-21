@@ -85,7 +85,7 @@ fn listener_from_std() {
         Ok(())
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 const DATA: &[u8] = b"Hello world";

@@ -48,7 +48,7 @@ fn timer() {
         assert!(start.elapsed() >= TIMEOUT);
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -67,7 +67,7 @@ fn timer_ref_rt() {
         assert!(start.elapsed() >= TIMEOUT);
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -97,7 +97,7 @@ fn timer_wrap() {
         assert!(start.elapsed() >= TIMEOUT);
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -121,7 +121,7 @@ fn deadline() {
         assert!(start.elapsed() >= TIMEOUT);
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -134,7 +134,7 @@ fn interval() {
         assert!(start.elapsed() >= TIMEOUT);
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]

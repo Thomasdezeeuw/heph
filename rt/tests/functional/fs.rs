@@ -32,7 +32,7 @@ fn file_read_write() {
         assert_eq!(buf, DATA2);
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -53,7 +53,7 @@ fn file_from_std() {
         assert_eq!(buf, DATA1);
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -66,7 +66,7 @@ fn file_sync_all() {
         file.sync_all().await.unwrap();
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn file_sync_data() {
         file.sync_all().await.unwrap();
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -110,7 +110,7 @@ fn file_metadata() {
         assert!(!permissions.owner_can_execute());
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -128,7 +128,7 @@ fn file_advise() {
         drop(file);
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -156,7 +156,7 @@ fn file_allocate() {
         assert_eq!(buf.len(), SIZE);
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -173,7 +173,7 @@ fn create_dir() {
         (&file).write(DATA1).await.unwrap();
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -197,7 +197,7 @@ fn rename() {
         assert_eq!(buf, DATA1);
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -216,7 +216,7 @@ fn remove_file() {
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
 
 #[test]
@@ -233,5 +233,5 @@ fn remove_dir() {
         assert_eq!(err.kind(), io::ErrorKind::NotFound);
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }

@@ -322,5 +322,5 @@ fn socket_from_std() {
         Ok(())
     }
 
-    block_on_local_actor(actor_fn(actor), ()).unwrap();
+    block_on_local_actor(actor_fn(actor), ());
 }
