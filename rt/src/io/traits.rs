@@ -160,6 +160,59 @@ impl Read for &[u8] {
     }
 }
 
+impl Read for Vec<u8> {
+    async fn read<B: BufMut>(&mut self, mut buf: B) -> io::Result<B> {
+        let read = buf.extend_from_slice(self);
+        drop(self.drain(read..));
+        Ok(buf)
+    }
+
+    async fn read_n<B: BufMut>(&mut self, mut buf: B, n: usize) -> io::Result<B> {
+        debug_assert!(
+            buf.spare_capacity() >= n,
+            "called `[u8]::read_n` with a buffer smaller than `n`",
+        );
+        if self.len() <= n {
+            Err(io::ErrorKind::UnexpectedEof.into())
+        } else {
+            let read = buf.extend_from_slice(self);
+            drop(self.drain(read..));
+            Ok(buf)
+        }
+    }
+
+    fn is_read_vectored(&self) -> bool {
+        false
+    }
+
+    async fn read_vectored<B: BufMutSlice<N>, const N: usize>(
+        &mut self,
+        mut bufs: B,
+    ) -> io::Result<B> {
+        let read = bufs.extend_from_slice(self);
+        drop(self.drain(read..));
+        Ok(bufs)
+    }
+
+    async fn read_n_vectored<B: BufMutSlice<N>, const N: usize>(
+        &mut self,
+        mut bufs: B,
+        n: usize,
+    ) -> io::Result<B> {
+        debug_assert!(
+            bufs.total_spare_capacity() >= n,
+            "called `[u8]::read_n_vectored` with buffers smaller than `n`",
+        );
+        if self.len() <= n {
+            Err(io::ErrorKind::UnexpectedEof.into())
+        } else {
+            let read = bufs.extend_from_slice(self);
+            drop(self.drain(read..));
+            Ok(bufs)
+        }
+    }
+}
+
 impl Read for Empty {
     async fn read<B: BufMut>(&mut self, buf: B) -> io::Result<B> {
         Ok(buf)
