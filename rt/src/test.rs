@@ -54,7 +54,7 @@
 use std::any::Any;
 use std::async_iter::AsyncIterator;
 use std::future::{poll_fn, Future};
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 use std::pin::{pin, Pin};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
@@ -175,7 +175,7 @@ where
 /// This is useful to test async functions and futures in synchronous tests.
 ///
 /// If the future panics it will be caught and returned as error.
-pub fn block_on_future<Fut>(future: Fut) -> Result<Fut::Output, Box<dyn Any + Send + 'static>>
+pub fn block_on_future<Fut>(future: Fut) -> Fut::Output
 where
     Fut: Future + Send + 'static,
     Fut::Output: Send,
@@ -200,9 +200,11 @@ where
         },
         FutureOptions::default(),
     );
-    waker
-        .block_on(receiver.recv_once())
-        .expect("failed to receive result from future")
+    match waker.block_on(receiver.recv_once()) {
+        Some(Ok(output)) => output,
+        Some(Err(panic)) => resume_unwind(panic),
+        None => panic!("failed to receive the result of the future"),
+    }
 }
 
 /// Spawn a thread-local actor on the *test* runtime and wait for it to
