@@ -163,7 +163,7 @@ impl Read for &[u8] {
 impl Read for Vec<u8> {
     async fn read<B: BufMut>(&mut self, mut buf: B) -> io::Result<B> {
         let read = buf.extend_from_slice(self);
-        drop(self.drain(read..));
+        drop(self.drain(..read));
         Ok(buf)
     }
 
@@ -176,7 +176,7 @@ impl Read for Vec<u8> {
             Err(io::ErrorKind::UnexpectedEof.into())
         } else {
             let read = buf.extend_from_slice(self);
-            drop(self.drain(read..));
+            drop(self.drain(..read));
             Ok(buf)
         }
     }
@@ -190,7 +190,7 @@ impl Read for Vec<u8> {
         mut bufs: B,
     ) -> io::Result<B> {
         let read = bufs.extend_from_slice(self);
-        drop(self.drain(read..));
+        drop(self.drain(..read));
         Ok(bufs)
     }
 
@@ -207,7 +207,7 @@ impl Read for Vec<u8> {
             Err(io::ErrorKind::UnexpectedEof.into())
         } else {
             let read = bufs.extend_from_slice(self);
-            drop(self.drain(read..));
+            drop(self.drain(..read));
             Ok(bufs)
         }
     }
