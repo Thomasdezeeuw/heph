@@ -747,15 +747,6 @@ pub struct ActorGroup<M> {
     send_next: AtomicUsize,
 }
 
-/// The kind of delivery to use in [`ActorGroup::try_send`].
-#[derive(Copy, Clone, Debug)]
-pub enum Delivery {
-    /// Delivery a copy of the message to all actors in the group.
-    ToAll,
-    /// Delivery the message to one of the actors.
-    ToOne,
-}
-
 impl<M> ActorGroup<M> {
     /// Creates an empty `ActorGroup`.
     pub const fn empty() -> ActorGroup<M> {
@@ -832,52 +823,6 @@ impl<M> ActorGroup<M> {
                 }
             }
             i += 1;
-        }
-    }
-
-    /// Attempts to send a message to all the actors in the group.
-    ///
-    /// This can either send the message to a single actor, by using
-    /// [`Delivery::ToOne`], or to all actors in the group by using
-    /// [`Delivery::ToAll`].
-    ///
-    /// When deliverying to all actors this will first `clone` the message and
-    /// then [`try_send`]ing it to each actor in the group. Note that this means
-    /// it will `clone` before calling [`Into::into`] on the message. If the
-    /// call to [`Into::into`] is expansive, or `M` is cheaper to clone than
-    /// `Msg` it might be worthwhile to call `msg.into()` before calling this
-    /// method.
-    ///
-    /// This only returns an error if the group is empty, otherwise this will
-    /// always return `Ok(())`.
-    ///
-    /// See [Sending messages] for more details.
-    ///
-    /// [`try_send`]: ActorRef::try_send
-    /// [Sending messages]: index.html#sending-messages
-    pub fn try_send<Msg>(&self, msg: Msg, delivery: Delivery) -> Result<(), SendError>
-    where
-        Msg: Into<M> + Clone,
-    {
-        if self.actor_refs.is_empty() {
-            return Err(SendError);
-        }
-
-        match delivery {
-            Delivery::ToAll => {
-                for actor_ref in &self.actor_refs {
-                    _ = actor_ref.try_send(msg.clone());
-                }
-                Ok(())
-            }
-            Delivery::ToOne => {
-                // Safety: this needs to sync itself.
-                // NOTE: this wraps around on overflow.
-                let idx = self.send_next.fetch_add(1, Ordering::AcqRel) % self.actor_refs.len();
-                let actor_ref = &self.actor_refs[idx];
-                // TODO: try to send it to another actor on send failure?
-                actor_ref.try_send(msg)
-            }
         }
     }
 
