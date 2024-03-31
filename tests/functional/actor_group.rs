@@ -72,6 +72,45 @@ fn try_send_to_one_empty() {
     assert_eq!(group.try_send_to_one(()), Err(SendError));
 }
 
+#[test]
+fn try_send_to_all() {
+    let (future1, actor_ref1) = ActorFuture::new(NoSupervisor, actor_fn(count_actor), 1).unwrap();
+    let (future2, actor_ref2) = ActorFuture::new(NoSupervisor, actor_fn(count_actor), 1).unwrap();
+
+    let group = ActorGroup::new([actor_ref1, actor_ref2]);
+    assert_eq!(group.try_send_to_all(()), Ok(()));
+    drop(group);
+
+    block_on(future1);
+    block_on(future2);
+}
+
+#[test]
+fn try_send_to_all_full_inbox() {
+    let (future1, actor_ref1) = ActorFutureBuilder::new()
+        .with_inbox_size(InboxSize::ONE)
+        .build(NoSupervisor, actor_fn(count_actor), 1)
+        .unwrap();
+    let (future2, actor_ref2) = ActorFutureBuilder::new()
+        .with_inbox_size(InboxSize::ONE)
+        .build(NoSupervisor, actor_fn(count_actor), 1)
+        .unwrap();
+
+    let group = ActorGroup::new([actor_ref1, actor_ref2]);
+    assert_eq!(group.try_send_to_all(()), Ok(()));
+    assert_eq!(group.try_send_to_all(()), Ok(()));
+    drop(group);
+
+    block_on(future1);
+    block_on(future2);
+}
+
+#[test]
+fn try_send_to_all_empty() {
+    let group = ActorGroup::<()>::empty();
+    assert_eq!(group.try_send_to_all(()), Err(SendError));
+}
+
 async fn count_actor(mut ctx: actor::Context<(), ()>, expected_amount: usize) {
     let mut amount = 0;
     while let Ok(()) = ctx.receive_next().await {
