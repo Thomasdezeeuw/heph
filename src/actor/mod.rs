@@ -391,7 +391,8 @@ where
 /// triggers rustc error `E0207` ("unconstrained type parameters").
 ///
 /// This is caused by the fact that `T` could implement the `Fn` trait multiple
-/// times, but the `NewActor` trait can (and should) only be implemented once.
+/// times, but the `NewActor` trait can (and should) only be implemented once
+/// for a given type.
 ///
 /// [`SyncActor`]: crate::sync::SyncActor
 ///
