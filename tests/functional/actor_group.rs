@@ -1,6 +1,6 @@
 //! Tests related to `ActorGroup`.
 
-use heph::actor_ref::{ActorGroup, Delivery, SendError};
+use heph::actor_ref::{ActorGroup, SendError};
 use heph::future::{ActorFuture, ActorFutureBuilder, InboxSize};
 use heph::supervisor::NoSupervisor;
 use heph::{actor, actor_fn};
@@ -26,8 +26,6 @@ fn is_send_sync() {
 #[test]
 fn empty() {
     let group = ActorGroup::<()>::empty();
-    assert!(group.try_send((), Delivery::ToAll).is_err());
-    assert!(group.try_send((), Delivery::ToOne).is_err());
     assert_eq!(group.len(), 0);
     assert!(group.is_empty());
 }

@@ -6,7 +6,7 @@ use std::panic::{self, AssertUnwindSafe};
 use std::rc::Rc;
 use std::sync::Arc;
 
-use heph::actor_ref::{ActorGroup, Delivery, SendError};
+use heph::actor_ref::{ActorGroup, SendError};
 use log::{info, trace};
 
 use crate::scheduler::Scheduler;
@@ -86,7 +86,7 @@ impl RuntimeInternals {
 
         let mut receivers = self.signal_receivers.borrow_mut();
         receivers.remove_disconnected();
-        match receivers.try_send(signal, Delivery::ToAll) {
+        match receivers.try_send_to_all(signal) {
             Err(SendError) if signal.should_stop() => {
                 self.set_err(worker::Error::ProcessInterrupted);
             }

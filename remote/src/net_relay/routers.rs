@@ -10,7 +10,7 @@ use std::future::Future;
 use std::future::{ready, Ready};
 use std::net::SocketAddr;
 
-use heph::actor_ref::{ActorGroup, ActorRef, Delivery, SendError, SendValue};
+use heph::actor_ref::{ActorGroup, ActorRef, SendError, SendValue};
 
 use crate::net_relay::Route;
 
@@ -72,6 +72,15 @@ pub struct RelayGroup<M> {
     delivery: Delivery,
 }
 
+/// The kind of delivery to use in [`ActorGroup::try_send`].
+#[derive(Copy, Clone, Debug)]
+pub enum Delivery {
+    /// Delivery a copy of the message to all actors in the group.
+    ToAll,
+    /// Delivery the message to one of the actors.
+    ToOne,
+}
+
 impl<M> RelayGroup<M> {
     /// Relay all remote messages to the `actor_group`.
     pub const fn to(actor_group: ActorGroup<M>, delivery: Delivery) -> RelayGroup<M> {
@@ -100,7 +109,10 @@ where
         where Self: 'a;
 
     fn route<'a>(&'a mut self, msg: M, _: SocketAddr) -> Self::Route<'a> {
-        _ = self.actor_group.try_send(msg, self.delivery);
+        _ = match self.delivery {
+            Delivery::ToAll => self.actor_group.try_send_to_all(msg),
+            Delivery::ToOne => self.actor_group.try_send_to_one(msg),
+        };
         ready(Ok(()))
     }
 }
