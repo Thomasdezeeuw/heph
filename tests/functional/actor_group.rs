@@ -1,11 +1,13 @@
 //! Tests related to `ActorGroup`.
 
+use std::pin::pin;
+
 use heph::actor_ref::{ActorGroup, SendError};
 use heph::future::{ActorFuture, ActorFutureBuilder, InboxSize};
 use heph::supervisor::NoSupervisor;
 use heph::{actor, actor_fn};
 
-use crate::util::{assert_send, assert_size, assert_sync, block_on};
+use crate::util::{assert_send, assert_size, assert_sync, block_on, poll_once};
 
 #[test]
 fn size() {
@@ -68,6 +70,47 @@ fn try_send_to_one_full_inbox() {
 fn try_send_to_one_empty() {
     let group = ActorGroup::<()>::empty();
     assert_eq!(group.try_send_to_one(()), Err(SendError));
+}
+
+#[test]
+fn send_to_one() {
+    let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(count_actor), 1).unwrap();
+
+    let group = ActorGroup::from(actor_ref);
+    assert_eq!(block_on(group.send_to_one(())), Ok(()));
+    drop(group);
+
+    block_on(future);
+}
+
+#[test]
+fn send_to_one_full_inbox() {
+    let (future, actor_ref) = ActorFutureBuilder::new()
+        .with_inbox_size(InboxSize::ONE)
+        .build(NoSupervisor, actor_fn(count_actor), 1)
+        .unwrap();
+    let mut future = pin!(future);
+
+    let group = ActorGroup::from(actor_ref);
+    assert_eq!(block_on(group.send_to_one(())), Ok(()));
+
+    {
+        let mut send_future = pin!(group.send_to_one(()));
+        poll_once(send_future.as_mut()); // Should return Poll::Pending.
+
+        // Emptying the actor's inbox should allow us to send the message.
+        poll_once(future.as_mut());
+        assert_eq!(block_on(send_future), Ok(()));
+    } // Drops `send_future`, to allow us to drop `group`.
+    drop(group);
+
+    block_on(future);
+}
+
+#[test]
+fn send_to_one_empty() {
+    let group = ActorGroup::<()>::empty();
+    assert_eq!(block_on(group.send_to_one(())), Err(SendError));
 }
 
 #[test]

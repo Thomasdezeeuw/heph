@@ -841,6 +841,23 @@ impl<M> ActorGroup<M> {
         self.actor_refs[idx].try_send(msg)
     }
 
+    /// Send a message to one of the actors in the group.
+    pub fn send_to_one<'r, Msg>(&'r self, msg: Msg) -> SendValue<'r, M>
+    where
+        Msg: Into<M>,
+    {
+        if self.actor_refs.is_empty() {
+            return SendValue {
+                kind: SendValueKind::Mapped(MappedSendValue::SendErr),
+            };
+        }
+
+        // SAFETY: this needs to sync with all other accesses to `send_next`.
+        // NOTE: this wraps around on overflow.
+        let idx = self.send_next.fetch_add(1, Ordering::AcqRel) % self.actor_refs.len();
+        self.actor_refs[idx].send(msg)
+    }
+
     /// Attempts to send a message to all of the actors in the group.
     ///
     /// This will first `clone` the message and then attempts to send it to each
