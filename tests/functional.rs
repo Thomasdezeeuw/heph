@@ -5,7 +5,7 @@
 mod util {
     use std::future::Future;
     use std::mem::size_of;
-    use std::pin::pin;
+    use std::pin::{pin, Pin};
     use std::task::{self, Poll};
 
     pub fn assert_send<T: Send>() {}
@@ -25,6 +25,14 @@ mod util {
                 Poll::Ready(output) => return output,
                 Poll::Pending => {}
             }
+        }
+    }
+
+    pub fn poll_once<Fut: Future>(fut: Pin<&mut Fut>) {
+        let mut ctx = task::Context::from_waker(task::Waker::noop());
+        match fut.poll(&mut ctx) {
+            Poll::Ready(_) => panic!("unexpected output"),
+            Poll::Pending => {}
         }
     }
 }
