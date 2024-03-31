@@ -901,6 +901,30 @@ impl<M> ActorGroup<M> {
         self.actor_refs[idx].try_send(msg)
     }
 
+    /// Attempts to send a message to all of the actors in the group.
+    ///
+    /// This will first `clone` the message and then attempts to send it to each
+    /// actor in the group. Note that this means it will `clone` before calling
+    /// [`Into::into`] on the message. If the call to [`Into::into`] is
+    /// expansive, or `M` is cheaper to clone than `Msg` it might be worthwhile
+    /// to call `msg.into()` before calling this method.
+    ///
+    /// This only returns an error if the group is empty, otherwise this will
+    /// always return `Ok(())`.
+    pub fn try_send_to_all<Msg>(&self, msg: Msg) -> Result<(), SendError>
+    where
+        Msg: Into<M> + Clone,
+    {
+        if self.actor_refs.is_empty() {
+            return Err(SendError);
+        }
+
+        for actor_ref in &self.actor_refs {
+            _ = actor_ref.try_send(msg.clone());
+        }
+        Ok(())
+    }
+
     /// Wait for all actors in this group to finish running.
     ///
     /// This works the same way as [`ActorRef::join`], but waits on a group of
