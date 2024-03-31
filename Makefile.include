@@ -98,4 +98,4 @@ doc_private:
 clean:
 	cargo clean
 
-.PHONY: dev test check check_all_targets clippy lint doc doc_private clean
+.PHONY: dev test test_sanitizers test_sanitizer test_miri check check_all_targets $(TARGETS) lint clippy doc doc_private clean
