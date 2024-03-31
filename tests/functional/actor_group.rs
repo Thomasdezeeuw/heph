@@ -1,8 +1,11 @@
 //! Tests related to `ActorGroup`.
 
-use heph::actor_ref::{ActorGroup, Delivery};
+use heph::actor_ref::{ActorGroup, Delivery, SendError};
+use heph::future::{ActorFuture, ActorFutureBuilder, InboxSize};
+use heph::supervisor::NoSupervisor;
+use heph::{actor, actor_fn};
 
-use crate::util::{assert_send, assert_size, assert_sync};
+use crate::util::{assert_send, assert_size, assert_sync, block_on};
 
 #[test]
 fn size() {
@@ -35,4 +38,44 @@ fn make_unique_empty() {
     assert_eq!(group.len(), 0);
     group.make_unique();
     assert_eq!(group.len(), 0);
+}
+
+#[test]
+fn try_send_to_one() {
+    let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(count_actor), 1).unwrap();
+
+    let group = ActorGroup::from(actor_ref);
+    assert_eq!(group.try_send_to_one(()), Ok(()));
+    drop(group);
+
+    block_on(future);
+}
+
+#[test]
+fn try_send_to_one_full_inbox() {
+    let (future, actor_ref) = ActorFutureBuilder::new()
+        .with_inbox_size(InboxSize::ONE)
+        .build(NoSupervisor, actor_fn(count_actor), 1)
+        .unwrap();
+
+    let group = ActorGroup::from(actor_ref);
+    assert_eq!(group.try_send_to_one(()), Ok(()));
+    assert_eq!(group.try_send_to_one(()), Err(SendError));
+    drop(group);
+
+    block_on(future);
+}
+
+#[test]
+fn try_send_to_one_empty() {
+    let group = ActorGroup::<()>::empty();
+    assert_eq!(group.try_send_to_one(()), Err(SendError));
+}
+
+async fn count_actor(mut ctx: actor::Context<(), ()>, expected_amount: usize) {
+    let mut amount = 0;
+    while let Ok(()) = ctx.receive_next().await {
+        amount += 1;
+    }
+    assert_eq!(amount, expected_amount);
 }

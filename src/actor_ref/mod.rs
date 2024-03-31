@@ -886,6 +886,21 @@ impl<M> ActorGroup<M> {
         }
     }
 
+    /// Attempts to send a message to one of the actors in the group.
+    pub fn try_send_to_one<Msg>(&self, msg: Msg) -> Result<(), SendError>
+    where
+        Msg: Into<M>,
+    {
+        if self.actor_refs.is_empty() {
+            return Err(SendError);
+        }
+
+        // SAFETY: this needs to sync with all other accesses to `send_next`.
+        // NOTE: this wraps around on overflow.
+        let idx = self.send_next.fetch_add(1, Ordering::AcqRel) % self.actor_refs.len();
+        self.actor_refs[idx].try_send(msg)
+    }
+
     /// Wait for all actors in this group to finish running.
     ///
     /// This works the same way as [`ActorRef::join`], but waits on a group of
