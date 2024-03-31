@@ -742,13 +742,8 @@ impl<'r, M> fmt::Debug for Join<'r, M> {
 /// of an internal vector.
 pub struct ActorGroup<M> {
     actor_refs: Vec<ActorRef<M>>,
-    /// Index of the actor reference to send the [single delivery] message to.
-    /// Using relaxed ordering on this field is fine because we make no
-    /// guarantees about to which actor the message will be delivered. E.g. we
-    /// could always send to the first actor in the group and still fulfill the
-    /// contract.
-    ///
-    /// [single delivery]: Delivery::ToOne
+    /// Index of the actor reference to send the next single delivery message
+    /// to, used as a simple round-robin load balancing.
     send_next: AtomicUsize,
 }
 
