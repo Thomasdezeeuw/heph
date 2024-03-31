@@ -868,6 +868,7 @@ impl<M> ActorGroup<M> {
     ///
     /// This only returns an error if the group is empty, otherwise this will
     /// always return `Ok(())`.
+    #[allow(clippy::needless_pass_by_value)] // Want to make the other send functions.
     pub fn try_send_to_all<Msg>(&self, msg: Msg) -> Result<(), SendError>
     where
         Msg: Into<M> + Clone,
