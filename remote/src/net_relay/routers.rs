@@ -72,7 +72,7 @@ pub struct RelayGroup<M> {
     delivery: Delivery,
 }
 
-/// The kind of delivery to use in [`ActorGroup::try_send`].
+/// The kind of delivery to use.
 #[derive(Copy, Clone, Debug)]
 pub enum Delivery {
     /// Delivery a copy of the message to all actors in the group.
