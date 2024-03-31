@@ -426,7 +426,7 @@ where
 ///     }
 /// }
 /// ```
-pub const fn actor_fn<T, M, RT, Arg, A>(implementation: T) -> ActorFn<T, M, RT, Arg, A> {
+pub const fn actor_fn<F, M, RT, Arg, A>(implementation: F) -> ActorFn<F, M, RT, Arg, A> {
     ActorFn {
         inner: implementation,
         _phantom: PhantomData,
@@ -447,9 +447,9 @@ pub struct ActorFn<F, M, RT, Args, A> {
     _phantom: PhantomData<fn(Context<M, RT>, Args) -> A>,
 }
 
-impl<T: Copy, M, RT, Args, A> Copy for ActorFn<T, M, RT, Args, A> {}
+impl<F: Copy, M, RT, Args, A> Copy for ActorFn<F, M, RT, Args, A> {}
 
-impl<T: Clone, M, RT, Args, A> Clone for ActorFn<T, M, RT, Args, A> {
+impl<F: Clone, M, RT, Args, A> Clone for ActorFn<F, M, RT, Args, A> {
     fn clone(&self) -> Self {
         ActorFn {
             inner: self.inner.clone(),
@@ -462,7 +462,7 @@ impl<T: Clone, M, RT, Args, A> Clone for ActorFn<T, M, RT, Args, A> {
     }
 }
 
-impl<T: fmt::Debug, M, RT, Args, A> fmt::Debug for ActorFn<T, M, RT, Args, A> {
+impl<F: fmt::Debug, M, RT, Args, A> fmt::Debug for ActorFn<F, M, RT, Args, A> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.inner.fmt(f)
     }
