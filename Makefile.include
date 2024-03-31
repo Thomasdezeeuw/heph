@@ -8,8 +8,8 @@
 # Test options.
 # You can also use `TEST_FLAGS` to set additonal flags, e.g. `--release`.
 TEST_OPTS = -- --quiet -Z unstable-options --shuffle
-# Support targets.
-TARGETS ?= x86_64-apple-darwin x86_64-unknown-linux-gnu x86_64-unknown-freebsd
+# Supported targets.
+TARGETS ?= x86_64-unknown-linux-gnu
 # Command to run in `dev` target, e.g. `make RUN=check dev`.
 RUN ?= test
 
