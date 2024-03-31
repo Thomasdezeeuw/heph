@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::task::Poll;
 
 use heph::actor::{self, actor_fn};
-use heph::actor_ref::{ActorGroup, Delivery};
+use heph::actor_ref::ActorGroup;
 use heph_rt::test::{init_local_actor, poll_actor, poll_future};
 use heph_rt::ThreadLocal;
 
@@ -31,8 +31,6 @@ fn is_send_sync() {
 #[test]
 fn empty() {
     let group = ActorGroup::<()>::empty();
-    assert!(group.try_send((), Delivery::ToAll).is_err());
-    assert!(group.try_send((), Delivery::ToOne).is_err());
     assert_eq!(group.len(), 0);
     assert!(group.is_empty());
 }
@@ -62,7 +60,7 @@ fn new() {
     assert_eq!(group.len(), 3);
     assert!(!group.is_empty());
 
-    assert!(group.try_send(123usize, Delivery::ToAll).is_ok());
+    assert!(group.try_send_to_all(123usize).is_ok());
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -77,7 +75,7 @@ fn from_actor_ref() {
     let group = ActorGroup::from(actor_ref);
     assert_eq!(group.len(), 1);
 
-    assert!(group.try_send((), Delivery::ToAll).is_ok());
+    assert!(group.try_send_to_all(()).is_ok());
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
 }
 
@@ -95,7 +93,7 @@ fn from_iter() {
         .collect();
     assert_eq!(group.len(), 3);
 
-    assert!(group.try_send((), Delivery::ToAll).is_ok());
+    assert!(group.try_send_to_all(()).is_ok());
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -110,7 +108,7 @@ fn add_to_empty_group() {
     let mut actor = Box::pin(actor);
     group.add(actor_ref);
 
-    group.try_send(1_usize, Delivery::ToAll).unwrap();
+    group.try_send_to_all(1_usize).unwrap();
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
 }
 
@@ -133,9 +131,9 @@ fn add_actor_to_group() {
     actors.push(Box::pin(actor));
     group.add(actor_ref);
 
-    group.try_send(123_usize, Delivery::ToAll).unwrap();
-    group.try_send(456_usize, Delivery::ToAll).unwrap();
-    group.try_send(789_usize, Delivery::ToAll).unwrap();
+    group.try_send_to_all(123_usize).unwrap();
+    group.try_send_to_all(456_usize).unwrap();
+    group.try_send_to_all(789_usize).unwrap();
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -161,7 +159,7 @@ fn add_unique() {
 
     assert_eq!(group.len(), N);
 
-    group.try_send(123usize, Delivery::ToAll).unwrap();
+    group.try_send_to_all(123usize).unwrap();
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -179,7 +177,7 @@ fn extend_empty_actor_group() {
         actor_ref
     }));
 
-    group.try_send(123usize, Delivery::ToAll).unwrap();
+    group.try_send_to_all(123usize).unwrap();
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -204,7 +202,7 @@ fn extend_actor_group() {
         actor_ref
     }));
 
-    group.try_send(123usize, Delivery::ToAll).unwrap();
+    group.try_send_to_all(123usize).unwrap();
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -282,7 +280,7 @@ fn make_unique() {
     group.make_unique();
     assert_eq!(group.len(), N);
 
-    group.try_send(123usize, Delivery::ToAll).unwrap();
+    group.try_send_to_all(123usize).unwrap();
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -309,7 +307,7 @@ fn make_unique_one() {
     group.make_unique();
     assert_eq!(group.len(), 1);
 
-    group.try_send(123usize, Delivery::ToAll).unwrap();
+    group.try_send_to_all(123usize).unwrap();
     assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
 }
 
@@ -324,7 +322,7 @@ fn send_delivery_to_all() {
         group.add(actor_ref);
     }
 
-    assert!(group.try_send(123usize, Delivery::ToAll).is_ok());
+    assert!(group.try_send_to_all(123usize).is_ok());
     for mut actor in actors {
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }
@@ -344,7 +342,7 @@ fn send_delivery_to_one() {
 
     // NOTE: sending order is not guaranteed so this test is too strict.
     for mut actor in actors {
-        assert!(group.try_send(123usize, Delivery::ToOne).is_ok());
+        assert!(group.try_send_to_one(123usize).is_ok());
 
         assert_eq!(poll_actor(Pin::as_mut(&mut actor)), Poll::Ready(Ok(())));
     }

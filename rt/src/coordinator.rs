@@ -24,7 +24,7 @@ use std::time::{Duration, Instant};
 use std::{fmt, io, process};
 
 use a10::signals::{ReceiveSignals, Signals};
-use heph::actor_ref::{ActorGroup, Delivery};
+use heph::actor_ref::ActorGroup;
 use log::{debug, error, info, trace};
 
 use crate::setup::{host_id, host_info, Uuid};
@@ -256,7 +256,7 @@ impl Coordinator {
 
                     trace!(signal:? = signal; "relaying process signal to actors");
                     self.signal_refs.remove_disconnected();
-                    _ = self.signal_refs.try_send(signal, Delivery::ToAll);
+                    _ = self.signal_refs.try_send_to_all(signal);
                 }
                 Poll::Ready(Some(Err(err))) => {
                     return Err(rt::Error::coordinator(Error::SignalHandling(err)))
