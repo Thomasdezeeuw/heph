@@ -32,7 +32,7 @@
 //! async fn actor(mut ctx: actor::Context<String>) {
 //!     // Messages can be received from the `actor::Context`. In this example we
 //!     // can receive messages of the type `String`.
-//!     if let Ok(msg) = ctx.receive_next().await {
+//!     while let Ok(msg) = ctx.receive_next().await {
 //!         // Process the message.
 //!         println!("got a message: {msg}");
 //!     }
@@ -64,7 +64,7 @@
 //!
 //! async fn filter(mut ctx: actor::Context<String>, actor_ref: ActorRef<String>) -> Result<(), SendError> {
 //!     // Same receive loop we've seen before.
-//!     if let Ok(msg) = ctx.receive_next().await {
+//!     while let Ok(msg) = ctx.receive_next().await {
 //!         if msg.ends_with("please") {
 //!             // We send nice messages along to the actor we reference with
 //!             // `actor_ref`.
@@ -92,13 +92,14 @@
 //!
 //! How to spawn an actor is different for the runtime used. In the example
 //! below we'll use the [Heph-rt] runtime, but it's possible to spawn actors as
-//! [`Future`], for that see [`ActorFuture`].
+//! [`Future`]s, for that see [`ActorFuture`].
 //!
-//! For the Heph-rt the spawning of actors is defined by the [`Spawn`] trait,
-//! which is implemented on most runtime types, such as `Runtime` and
-//! `RuntimeRef`, we'll see how get to those types in the next section.
+//! For Heph-rt the spawning of actors is defined by the [`Spawn`] trait, which
+//! is implemented on most runtime types, such as `Runtime` and `RuntimeRef`,
+//! we'll see how get to those types in the next section.
 //!
-//! To spawn an actor we need four things:
+//! To spawn an actor we need four things (this is true for both the `Spawn`
+//! trait and `ActorFuture`):
 //! * A [`Supervisor`]. Each actor needs supervision to determine what to do if
 //!   the actor hits an error. For more information see the [supervisor] module.
 //! * The actor to start, or more specifically the [`NewActor`] implementation.
@@ -122,7 +123,7 @@
 //!
 //! async fn spawn_actor(mut ctx: actor::Context<(String, bool), ThreadLocal>) -> Result<(), SendError> {
 //!     // The same receive loop we've twice before.
-//!     if let Ok((msg, on_mars)) = ctx.receive_next().await {
+//!     while let Ok((msg, on_mars)) = ctx.receive_next().await {
 //!         // Our supervisor for the error, see the function below.
 //!         let supervisor = greeter_supervisor;
 //!         // An unfortunate implementation detail requires us to convert our
@@ -133,8 +134,8 @@
 //!         // why this is required.
 //!         let actor = actor_fn(greeter_actor);
 //!         // The arguments passed to the actor, see the `actor` implementation
-//!         // below. Since we want to pass multiple arguments we must do so in
-//!         // the tuple notation.
+//!         // below. Since we want to pass multiple arguments we must do so
+//!         // using the tuple notation.
 //!         let arguments = (msg, on_mars);
 //!         // For this example we'll use the default options.
 //!         let options = ActorOptions::default();
@@ -281,7 +282,7 @@
 //! async fn actor(mut ctx: actor::Context<String>) {
 //!     // Messages can be received from the `actor::Context`. In this example we
 //!     // can receive messages of the type `String`.
-//!     if let Ok(msg) = ctx.receive_next().await {
+//!     while let Ok(msg) = ctx.receive_next().await {
 //!         // Process the message.
 //!         println!("got a message: {msg}");
 //!     }

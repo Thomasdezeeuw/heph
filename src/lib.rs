@@ -1,14 +1,14 @@
 //! Heph, derived from [Hephaestus], is the Greek god of blacksmiths,
 //! metalworking, carpenters, craftsmen, artisans, sculptors, metallurgy, fire,
-//! and volcanoes. Well this crate has very little to do with Greek gods, but I
+//! and volcanoes. Well, this crate has very little to do with Greek gods, but I
 //! needed a name.
 //!
 //! [Hephaestus]: https://en.wikipedia.org/wiki/Hephaestus
 //!
 //! ## About
 //!
-//! Heph is an [actor] framework based on asynchronous functions. Such an
-//! asynchronous function looks like this:
+//! Heph is an [actor] library based on asynchronous functions. Such
+//! asynchronous functions look like this:
 //!
 //! ```
 //! use heph::actor;
@@ -23,27 +23,11 @@
 //! # _ = actor; // Silence dead code warnings.
 //! ```
 //!
-//! Heph uses event-driven scheduling, non-blocking I/O (utiling io\_uring) and
-//! a share nothing design. But what do all those buzzwords actually mean?
-//!
-//!  - *Event-driven*: Heph does nothing by itself, it must first get an event
-//!    before it starts doing anything. For example an actor is only run when it
-//!    receives a message or I/O has been completed.
-//!  - *Non-blocking I/O*: normal I/O operations need to wait (block) until the
-//!    operation can complete. Using non-blocking, or asynchronous, I/O means
-//!    that rather then waiting for the operation to complete we'll do some
-//!    other, more useful, work and try the operation later. Furthermore using
-//!    io\_uring we don't even have to make system calls (to do I/O) anymore!
-//!  - *Share nothing*: a lot of application share data across multiple threads.
-//!    To do this safely we need to protect it from data races, via a [`Mutex`]
-//!    or by using [atomic] operations. Heph is designed to not share any data.
-//!    Each actor is responsible for its own memory and cannot access memory
-//!    owned by other actors. Instead communication is done via sending
-//!    messages, see the [actor model].
+//! This simple example shows two properties of Heph:
+//!  * it's asynchronous nature using `async fn`,
+//!  * communication between actors by sending messages, which follows the [actor model].
 //!
 //! [actor]: https://en.wikipedia.org/wiki/Actor_model
-//! [`Mutex`]: std::sync::Mutex
-//! [atomic]: std::sync::atomic
 //! [actor model]: https://en.wikipedia.org/wiki/Actor_model
 //!
 //! ## Getting started
@@ -53,13 +37,13 @@
 //! If you like to learn more about some of the core concepts of Heph start with
 //! the [Quick Start Guide].
 //!
-//! [examples]: https://github.com/Thomasdezeeuw/heph/blob/main/examples/README.md
+//! [examples]: https://github.com/Thomasdezeeuw/heph/blob/main/examples
 //! [Quick Start Guide]: crate::quick_start
 //!
 //! ## Features
 //!
 //! This crate has one optional feature: `test`. The `test` feature will enable
-//! the `test` module which adds testing facilities.
+//! the `test` module which contains testing facilities.
 
 #![feature(
     const_option,
