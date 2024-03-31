@@ -11,6 +11,32 @@
 //!
 //! [Heph crate]: heph
 //!
+//! ## About
+//!
+//! Heph-rt is a [`Future`] runtime/framework based on asynchronous functions.
+//! It uses event-driven scheduling, non-blocking I/O (utilising io\_uring) and
+//! a share nothing design. But what do all those buzzwords actually mean?
+//!
+//!  - *Event-driven*: Heph does nothing by itself, it must first get an event
+//!    before it starts doing anything. For example an actor is only run when it
+//!    receives a message or when I/O has been completed.
+//!  - *Non-blocking I/O*: normal I/O operations need to wait (block) until the
+//!    operation can complete. Using non-blocking, or asynchronous, I/O means
+//!    that rather then waiting for the operation to complete we'll do some
+//!    other, more useful, work and try the operation later. Furthermore using
+//!    io\_uring we don't even have to make system calls (to do I/O) anymore!
+//!  - *Share nothing*: a lot of application share data across multiple threads.
+//!    To do this safely we need to protect it from data races, via a [`Mutex`]
+//!    or by using [atomic] operations. Heph is designed to not share any data.
+//!    Each actor is responsible for its own memory and cannot access memory
+//!    owned by other actors. Instead communication is done via sending
+//!    messages, see the [actor model].
+//!
+//! [actor]: https://en.wikipedia.org/wiki/Actor_model
+//! [`Mutex`]: std::sync::Mutex
+//! [atomic]: std::sync::atomic
+//! [actor model]: https://en.wikipedia.org/wiki/Actor_model
+//!
 //! ## Running Heph's runtime
 //!
 //! Building a runtime starts with calling [`setup`], which will create a new
