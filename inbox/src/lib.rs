@@ -315,12 +315,12 @@ impl<T> Sender<T> {
 
     /// Returns `true` if senders send into the same channel.
     pub fn same_channel(&self, other: &Sender<T>) -> bool {
-        self.channel == other.channel
+        ptr::addr_eq(self.channel.as_ptr(), other.channel.as_ptr())
     }
 
     /// Returns `true` if this sender sends to the `receiver`.
     pub fn sends_to(&self, receiver: &Receiver<T>) -> bool {
-        self.channel == receiver.channel
+        ptr::addr_eq(self.channel.as_ptr(), receiver.channel.as_ptr())
     }
 
     /// Returns the id of this sender.
