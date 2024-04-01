@@ -101,7 +101,7 @@ use crate::wakers::NoRing;
 pub struct TcpListener {
     fd: AsyncFd,
     #[cfg(feature = "metrics")]
-    metrics: Metrics,
+    pub(crate) metrics: Metrics,
 }
 
 impl TcpListener {
