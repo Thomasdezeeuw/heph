@@ -9,6 +9,8 @@ use socket2::{Domain, Protocol, SockRef, Type};
 
 use crate::access::Access;
 use crate::io::{impl_read, impl_write, Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
+#[cfg(feature = "metrics")]
+use crate::metrics::create_metric;
 use crate::net::{
     convert_address, Recv, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored,
     SendVectored, SockAddr,
@@ -44,11 +46,17 @@ use crate::wakers::NoRing;
 #[derive(Debug)]
 pub struct TcpStream {
     fd: AsyncFd,
+    #[cfg(feature = "metrics")]
+    metrics: Metrics,
 }
 
 impl TcpStream {
     pub(crate) const fn new(fd: AsyncFd) -> TcpStream {
-        TcpStream { fd }
+        TcpStream {
+            fd,
+            #[cfg(feature = "metrics")]
+            metrics: Metrics::empty(),
+        }
     }
 
     /// Create a new TCP stream and issues a non-blocking connect to the
@@ -83,6 +91,10 @@ impl TcpStream {
 
     /// Creates a new independently owned `TcpStream` that shares the same
     /// underlying file descriptor as the existing `TcpStream`.
+    ///
+    /// # Notes
+    ///
+    /// The metrics are reset for the cloned stream and are **not** shared.
     pub fn try_clone(&self) -> io::Result<TcpStream> {
         Ok(TcpStream::new(self.fd.try_clone()?))
     }
@@ -388,5 +400,15 @@ impl_write!(TcpStream, &TcpStream);
 impl AsFd for TcpStream {
     fn as_fd(&self) -> BorrowedFd<'_> {
         self.fd.as_fd()
+    }
+}
+
+#[cfg(feature = "metrics")]
+create_metric! {
+    pub(crate) struct Metrics for TcpStream {
+        /// Number of bytes send.
+        send: AtomicCounter -> Counter,
+        /// Number of bytes received.
+        received: AtomicCounter -> Counter,
     }
 }
