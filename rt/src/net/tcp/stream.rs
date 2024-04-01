@@ -43,10 +43,14 @@ use crate::wakers::NoRing;
 /// ```
 #[derive(Debug)]
 pub struct TcpStream {
-    pub(in crate::net) fd: AsyncFd,
+    fd: AsyncFd,
 }
 
 impl TcpStream {
+    pub(crate) const fn new(fd: AsyncFd) -> TcpStream {
+        TcpStream { fd }
+    }
+
     /// Create a new TCP stream and issues a non-blocking connect to the
     /// specified `address`.
     pub async fn connect<RT>(rt: &RT, address: SocketAddr) -> io::Result<TcpStream>
@@ -61,7 +65,7 @@ impl TcpStream {
             0,
         ))
         .await?;
-        let socket = TcpStream { fd };
+        let socket = TcpStream::new(fd);
         socket.set_auto_cpu_affinity(rt);
         NoRing(socket.fd.connect(SockAddr::from(address))).await?;
         Ok(socket)
@@ -74,17 +78,13 @@ impl TcpStream {
     where
         RT: Access,
     {
-        TcpStream {
-            fd: AsyncFd::new(stream.into(), rt.submission_queue()),
-        }
+        TcpStream::new(AsyncFd::new(stream.into(), rt.submission_queue()))
     }
 
     /// Creates a new independently owned `TcpStream` that shares the same
     /// underlying file descriptor as the existing `TcpStream`.
     pub fn try_clone(&self) -> io::Result<TcpStream> {
-        Ok(TcpStream {
-            fd: self.fd.try_clone()?,
-        })
+        Ok(TcpStream::new(self.fd.try_clone()?))
     }
 
     /// Automatically set the CPU affinity based on the runtime access `rt`.

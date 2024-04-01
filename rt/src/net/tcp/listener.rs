@@ -195,7 +195,7 @@ impl TcpListener {
     pub async fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
         NoRing(self.fd.accept::<SockAddr>())
             .await
-            .map(|(fd, addr)| (TcpStream { fd }, addr.into()))
+            .map(|(fd, addr)| (TcpStream::new(fd), addr.into()))
     }
 
     /// Returns a stream of incoming [`TcpStream`]s.
@@ -244,7 +244,7 @@ impl<'a> AsyncIterator for Incoming<'a> {
         // SAFETY: not moving the `Future`.
         unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
             .poll_next(ctx)
-            .map_ok(|fd| TcpStream { fd })
+            .map_ok(|fd| TcpStream::new(fd))
     }
 }
 
