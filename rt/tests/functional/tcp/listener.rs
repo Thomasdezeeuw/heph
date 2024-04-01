@@ -118,6 +118,7 @@ fn accept() {
 
         let (stream, remote_address) = listener.accept().await.unwrap();
         assert!(remote_address.ip().is_loopback());
+        assert_metrics(&listener, 1);
 
         let buf = Vec::with_capacity(DATA.len() + 1);
         let buf = stream.recv(buf).await.unwrap();
@@ -151,6 +152,7 @@ fn incoming() {
 
         let mut incoming = listener.incoming();
         let stream = next(&mut incoming).await.unwrap().unwrap();
+        assert_metrics(&listener, 1);
 
         let buf = Vec::with_capacity(DATA.len() + 1);
         let buf = stream.recv(buf).await.unwrap();
@@ -167,4 +169,24 @@ fn incoming() {
         try_spawn_local(NoSupervisor, listener_actor, s_ref, ActorOptions::default()).unwrap();
 
     join_many(&[stream_ref, listener_ref], Duration::from_secs(1)).unwrap();
+}
+
+#[track_caller]
+#[cfg(feature = "metrics")]
+fn assert_metrics(stream: &TcpListener, expected_accepted: usize) {
+    use heph_rt::metrics::Metrics;
+    for (name, value) in stream.metrics() {
+        match (name, value) {
+            ("accepted", heph_rt::metrics::Metric::Counter(got)) => {
+                assert_eq!(got, expected_accepted)
+            }
+            (name, value) => panic!("unknown metric: {:?}, value: {:?}", name, value),
+        }
+    }
+}
+
+#[track_caller]
+#[cfg(not(feature = "metrics"))]
+fn assert_metrics(stream: &TcpListener, expected_accepted: usize) {
+    _ = (stream, expected_accepted);
 }
