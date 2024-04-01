@@ -373,6 +373,16 @@ unsafe impl Buf for String {
     }
 }
 
+// SAFETY: `Box<str>` manages the allocation of the bytes, so as long as it's
+// alive, so is the slice of bytes. When the `Box` is leaked the allocation will
+// also be leaked.
+unsafe impl Buf for Box<str> {
+    unsafe fn parts(&self) -> (*const u8, usize) {
+        let slice: &[u8] = self.as_bytes();
+        (slice.as_ptr().cast(), <[u8]>::len(slice))
+    }
+}
+
 // SAFETY: `Box<[u8]>` manages the allocation of the bytes, so as long as it's
 // alive, so is the slice of bytes. When the `Box` is leaked the allocation will
 // also be leaked.
