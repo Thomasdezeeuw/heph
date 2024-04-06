@@ -39,7 +39,11 @@ pub(crate) fn setup(app_name: Box<str>, threads: usize) -> Result<CoordinatorSet
     // a possibly an incoming signal.
     #[allow(clippy::cast_possible_truncation)]
     let entries = max((threads + 1).next_power_of_two() as u32, 8);
-    let ring = a10::Ring::new(entries).map_err(rt::Error::init_coordinator)?;
+    let ring = a10::Ring::config(entries)
+        .single_issuer()
+        .with_kernel_thread(true)
+        .build()
+        .map_err(rt::Error::init_coordinator)?;
     let sq = ring.submission_queue();
 
     // NOTE: signal handling MUST be setup before spawning the worker threads as

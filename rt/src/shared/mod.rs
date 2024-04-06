@@ -108,8 +108,10 @@ impl RuntimeInternals {
         ring_entries: u32,
     ) -> io::Result<RuntimeSetup> {
         let ring = a10::Ring::config(ring_entries)
+            .with_kernel_thread(true)
             .attach_queue(&coordinator_sq)
             .build()?;
+
         Ok(RuntimeSetup {
             ring,
             coordinator_sq,
