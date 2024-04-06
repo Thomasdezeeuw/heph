@@ -25,7 +25,7 @@ use std::{fmt, io, task, thread};
 use crossbeam_channel::Receiver;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
-use log::{debug, trace};
+use log::{debug, trace, warn};
 
 use crate::error::StringError;
 use crate::local::RuntimeInternals;
@@ -57,11 +57,20 @@ const MAX_EVENT_LOOP_DURATION: Duration = Duration::from_millis(5);
 /// Use [`WorkerSetup::start`] to spawn the worker thread.
 pub(crate) fn setup(
     id: NonZeroUsize,
+    auto_cpu_affinity: bool,
     coordinator_sq: &a10::SubmissionQueue,
 ) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let ring = a10::Ring::config(128)
-        .attach_queue(coordinator_sq)
-        .build()?;
+    let config = a10::Ring::config(128)
+        .disable() // Enabled on the worker thread.
+        .single_issuer()
+        .with_kernel_thread(true)
+        .attach_queue(coordinator_sq);
+    let config = if auto_cpu_affinity {
+        config.with_cpu_affinity((id.get() - 1) as u32)
+    } else {
+        config
+    };
+    let ring = config.build()?;
     Ok(setup2(id, ring))
 }
 
@@ -214,7 +223,7 @@ pub(crate) struct Worker {
 impl Worker {
     /// Setup the worker. Must be called on the worker thread.
     pub(crate) fn setup(
-        setup: WorkerSetup,
+        mut setup: WorkerSetup,
         receiver: rt::channel::Receiver<Control>,
         shared_internals: Arc<shared::RuntimeInternals>,
         auto_cpu_affinity: bool,
@@ -228,6 +237,10 @@ impl Worker {
         } else {
             None
         };
+
+        if let Err(err) = setup.ring.enable() {
+            warn!("failed to enable a10::Ring: {err}, continuing");
+        }
 
         let internals = Rc::new(RuntimeInternals::new(
             setup.id,
