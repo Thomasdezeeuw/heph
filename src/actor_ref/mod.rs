@@ -334,9 +334,9 @@ impl<M> ActorRef<M> {
         Msg: 'static,
     {
         if TypeId::of::<ActorRef<M>>() == TypeId::of::<ActorRef<Msg>>() {
-            // Safety: If `M` == `Msg`, then the following `transmute` is a
+            // SAFETY: If `M` == `Msg`, then the following `transmute` is a
             // no-op and thus safe.
-            unsafe { std::mem::transmute(self) }
+            unsafe { std::mem::transmute::<ActorRef<M>, ActorRef<Msg>>(self) }
         } else {
             ActorRef {
                 kind: ActorRefKind::Mapped(Arc::new(self)),
