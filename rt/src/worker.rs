@@ -77,7 +77,11 @@ pub(crate) fn setup(
 /// Test version of [`setup`].
 #[cfg(any(test, feature = "test"))]
 pub(crate) fn setup_test() -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let ring = a10::Ring::config(128).build()?;
+    let ring = a10::Ring::config(128)
+        .disable() // Enabled on the worker thread.
+        .single_issuer()
+        .with_kernel_thread(true)
+        .build()?;
     Ok(setup2(NonZeroUsize::MAX, ring))
 }
 

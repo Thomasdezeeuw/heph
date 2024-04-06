@@ -71,6 +71,20 @@ pub unsafe trait BufMut: 'static {
     /// [`TcpStream::recv_n`]: crate::net::TcpStream::recv_n
     unsafe fn update_length(&mut self, n: usize);
 
+    /// Not part of the stable API.
+    /// **Do not overwrite, things will go badly**.
+    #[doc(hidden)]
+    fn buffer_group(&self) -> Option<a10::io::BufGroupId> {
+        None
+    }
+
+    /// Not part of the stable API.
+    /// **Do not overwrite, things will go badly**.
+    #[doc(hidden)]
+    unsafe fn buffer_init(&mut self, _: a10::io::BufIdx, n: u32) {
+        self.update_length(n as usize);
+    }
+
     /// Extend the buffer with `bytes`, returns the number of bytes copied.
     fn extend_from_slice(&mut self, bytes: &[u8]) -> usize {
         let (ptr, capacity) = unsafe { self.parts_mut() };
@@ -652,6 +666,14 @@ unsafe impl<B: BufMut> a10::io::BufMut for BufWrapper<B> {
     unsafe fn set_init(&mut self, n: usize) {
         self.0.update_length(n);
     }
+
+    fn buffer_group(&self) -> Option<a10::io::BufGroupId> {
+        self.0.buffer_group()
+    }
+
+    unsafe fn buffer_init(&mut self, idx: a10::io::BufIdx, n: u32) {
+        self.0.buffer_init(idx, n);
+    }
 }
 
 unsafe impl<B: BufMut> BufMut for BufWrapper<B> {
@@ -669,6 +691,14 @@ unsafe impl<B: BufMut> BufMut for BufWrapper<B> {
 
     fn has_spare_capacity(&self) -> bool {
         self.0.has_spare_capacity()
+    }
+
+    fn buffer_group(&self) -> Option<a10::io::BufGroupId> {
+        self.0.buffer_group()
+    }
+
+    unsafe fn buffer_init(&mut self, idx: a10::io::BufIdx, n: u32) {
+        self.0.buffer_init(idx, n);
     }
 }
 

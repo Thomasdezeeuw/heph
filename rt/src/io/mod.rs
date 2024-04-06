@@ -39,6 +39,9 @@
 //! [`parts_mut`]: BufMut::parts_mut
 //! [`update_length`]: BufMut::update_length
 //!
+//! [`ReadBufPool`] is a specialised read buffer pool that can only be used in
+//! read operations done by the kernel, i.e. no in-memory operations.
+//!
 //! # Working with Standard I/O Streams
 //!
 //! The [`stdin`], [`stdout`] and [`stderr`] function provide handles to
@@ -55,6 +58,9 @@ use crate::access::Access;
 mod buf;
 pub(crate) use buf::BufWrapper;
 pub use buf::{Buf, BufMut, BufMutSlice, BufSlice, Limited};
+
+mod buf_pool;
+pub use buf_pool::{ReadBuf, ReadBufPool};
 
 pub(crate) mod futures;
 

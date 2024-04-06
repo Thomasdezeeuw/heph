@@ -121,7 +121,10 @@ impl RuntimeInternals {
     /// Same as [`RuntimeInternals::setup`], but doesn't attach to an existing [`a10::Ring`].
     #[cfg(any(test, feature = "test"))]
     pub(crate) fn test_setup(ring_entries: u32) -> io::Result<RuntimeSetup> {
-        let ring = a10::Ring::new(ring_entries)?;
+        let ring = a10::Ring::config(ring_entries)
+            .with_kernel_thread(true)
+            .build()?;
+
         // Don't have a coordinator so we use our own submission queue.
         let coordinator_sq = ring.submission_queue().clone();
         Ok(RuntimeSetup {
