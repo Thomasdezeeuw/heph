@@ -5,7 +5,9 @@ use std::cmp::min;
 use std::ptr;
 use std::sync::Arc;
 
-use heph_rt::io::{Buf, BufMut, BufMutSlice, BufSlice};
+use heph_rt::io::{Buf, BufMut, BufMutSlice, BufSlice, ReadBuf, ReadBufPool};
+
+use crate::util::assert_size;
 
 const DATA: &[u8] = b"Hello world!";
 const DATA2: &[u8] = b"Hello mars.";
@@ -281,4 +283,10 @@ fn test_buf_mut_slice<B: BufMutSlice<2>>(mut bufs: B, expected_limit: usize) {
     assert!(total_capacity <= n + m);
     assert!(!bufs.has_spare_capacity());
     assert!(bufs.total_spare_capacity() == 0);
+}
+
+#[test]
+fn read_buf_pool_size() {
+    assert_size::<ReadBufPool>(8);
+    assert_size::<ReadBuf>(24);
 }
