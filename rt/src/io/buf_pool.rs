@@ -17,7 +17,7 @@ use a10::io::{Buf as _, BufMut as _};
 /// This is a special buffer pool that can only be used in read operations done
 /// by the kernel, i.e. no in-memory operations. The buffer pool is actually
 /// managed by the kernel in `read(2)` and `recv(2)` like calls. Instead of user
-/// space having to select a buffer before issueing the read call, the kernel
+/// space having to select a buffer before issuing the read call, the kernel
 /// will select a buffer from the pool when it's ready for reading. This avoids
 /// the need to have as many buffers as concurrent read calls.
 ///
@@ -103,7 +103,7 @@ impl ReadBuf {
     ///
     /// If the buffer is shorter then `len` bytes this does nothing.
     pub fn truncate(&mut self, len: usize) {
-        self.inner.truncate(len)
+        self.inner.truncate(len);
     }
 
     /// Clear the buffer.
@@ -113,7 +113,7 @@ impl ReadBuf {
     /// This is not the same as returning the buffer to the buffer pool, for
     /// that use [`ReadBuf::release`].
     pub fn clear(&mut self) {
-        self.inner.clear()
+        self.inner.clear();
     }
 
     /// Remove the bytes in `range` from the buffer.
@@ -125,7 +125,7 @@ impl ReadBuf {
     where
         R: RangeBounds<usize>,
     {
-        self.inner.remove(range)
+        self.inner.remove(range);
     }
 
     /// Set the length of the buffer to `new_len`.
@@ -135,7 +135,7 @@ impl ReadBuf {
     /// The caller must ensure `new_len` bytes are initialised and that
     /// `new_len` is not larger than the buffer's capacity.
     pub unsafe fn set_len(&mut self, new_len: usize) {
-        self.inner.set_len(new_len)
+        self.inner.set_len(new_len);
     }
 
     /// Appends `other` to `self`.
@@ -163,7 +163,7 @@ impl ReadBuf {
     ///
     /// This is automatically called in the `Drop` implementation.
     pub fn release(&mut self) {
-        self.inner.release()
+        self.inner.release();
     }
 }
 
@@ -232,13 +232,13 @@ impl Deref for ReadBuf {
     type Target = [u8];
 
     fn deref(&self) -> &Self::Target {
-        self.inner.deref()
+        &self.inner
     }
 }
 
 impl DerefMut for ReadBuf {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.inner.deref_mut()
+        &mut self.inner
     }
 }
 

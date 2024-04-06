@@ -66,6 +66,7 @@ pub(crate) fn setup(
         .with_kernel_thread(true)
         .attach_queue(coordinator_sq);
     let config = if auto_cpu_affinity {
+        #[allow(clippy::cast_possible_truncation)]
         config.with_cpu_affinity((id.get() - 1) as u32)
     } else {
         config

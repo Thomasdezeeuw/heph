@@ -6,8 +6,8 @@ use std::path::PathBuf;
 use heph::actor::{self, actor_fn};
 use heph_rt::access::ThreadLocal;
 use heph_rt::fs::{self, Advice, AllocateMode, File};
-use heph_rt::io::{Read, Write};
-use heph_rt::test::block_on_local_actor;
+use heph_rt::io::{Read, ReadBufPool, Write};
+use heph_rt::test::{block_on_actor, block_on_local_actor};
 
 use crate::util::{temp_dir_root, temp_file};
 
@@ -33,6 +33,34 @@ fn file_read_write() {
     }
 
     block_on_local_actor(actor_fn(actor), ());
+}
+
+#[test]
+fn file_read_write_readbuf_threadlocal() {
+    block_on_local_actor(actor_fn(file_read_write_readbuf), ());
+}
+
+#[test]
+fn file_read_write_readbuf_threadsafe() {
+    block_on_actor(actor_fn(file_read_write_readbuf), ());
+}
+
+async fn file_read_write_readbuf<RT: heph_rt::Access>(ctx: actor::Context<!, RT>) {
+    let buf_pool = ReadBufPool::new(ctx.runtime_ref(), 2, 4096).unwrap();
+    let path = temp_file("file_read_write_readbuf_threadsafe");
+    let file = File::create(ctx.runtime_ref(), path).await.unwrap();
+    let mut buf = (&file).read(buf_pool.get()).await.unwrap();
+    assert!(buf.is_empty());
+    buf.release();
+
+    (&file).write_all(DATA1).await.unwrap();
+    let mut buf = file.read_at(buf, 0).await.unwrap();
+    assert_eq!(buf.as_slice(), DATA1);
+    buf.release();
+
+    (&file).write_all_at(&DATA2[7..], 7).await.unwrap();
+    let buf = file.read_at(buf, 0).await.unwrap();
+    assert_eq!(buf.as_slice(), DATA2);
 }
 
 #[test]
