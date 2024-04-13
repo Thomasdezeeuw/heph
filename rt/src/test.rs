@@ -12,10 +12,11 @@
 //!    * [`block_on_actor`]: spawns a thread-safe [actor] and waits for the
 //!      result.
 //!    * [`block_on_future`]: spawns a `Future` and waits for the result.
-//!  * Spawning:
+//!  * Spawning actors:
 //!    * [`try_spawn_local`] and [`spawn_local`]: attempt to spawn a thread-local [actor].
 //!    * [`try_spawn`] and [`spawn`]: attempt to spawn a thread-safe [actor].
 //!    * [`spawn_sync_actor`]: spawn a [synchronous actor].
+//!  * Spawning futures:
 //!    * [`spawn_local_future`]: spawn a thread-local [`Future`].
 //!    * [`spawn_future`]: spawn a thread-safe [`Future`].
 //!  * Waiting on spawned actors:
