@@ -65,7 +65,7 @@ use std::{fmt, io, slice, thread};
 
 use heph::actor::{self, Actor, NewActor};
 use heph::actor_ref::{ActorGroup, ActorRef};
-use heph::supervisor::{Supervisor, SyncSupervisor};
+use heph::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
 use heph::sync::{SyncActor, SyncWaker};
 use heph_inbox as inbox;
 use heph_inbox::oneshot::{self, new_oneshot};
@@ -384,6 +384,9 @@ impl<NA: NewActor> Future for ErrorCatcher<NA> {
 /// runtime. And see the [`Spawn`] trait for more information about spawning
 /// actors.
 ///
+/// Consider using the [`TestSupervisor`] to ensure any errors in the spawned
+/// actor will fail the test.
+///
 /// [module documentation]: crate::test
 /// [`Spawn`]: crate::spawn::Spawn
 ///
@@ -436,6 +439,9 @@ where
 /// See the [module documentation] for more information about the *test*
 /// runtime. And see the [`Spawn`] trait for more information about spawning
 /// actors.
+///
+/// Consider using the [`TestSupervisor`] to ensure any errors in the spawned
+/// actor will fail the test.
 ///
 /// [module documentation]: crate::test
 /// [`Spawn`]: crate::spawn::Spawn
@@ -761,4 +767,174 @@ impl<RT> NewActor for TestAssertUnmovedNewActor<RT> {
 #[track_caller]
 pub(crate) fn assert_size<T>(expected: usize) {
     assert_eq!(std::mem::size_of::<T>(), expected);
+}
+
+/// Supervisor to use in testing.
+///
+/// # Examples
+///
+/// Actor returning an error
+///
+/// ```should_panic
+/// use std::io;
+///
+/// use heph::{actor, actor_fn};
+/// use heph_rt::ThreadLocal;
+/// use heph_rt::spawn::options::ActorOptions;
+/// use heph_rt::test::{TestSupervisor, spawn_local};
+///
+/// // Create a new supervisor.
+/// // NOTE: we don't need to do anything witht the checker, just let it drop
+/// // out of scope and it will check the error of the spawned actor.
+/// let (supervisor, _checker) = TestSupervisor::new();
+///
+/// async fn error_actor(_: actor::Context<(), ThreadLocal>) -> Result<(), io::Error>{
+///   Err(io::Error::new(io::ErrorKind::Other, "oops!"))
+/// }
+/// spawn_local(supervisor, actor_fn(error_actor), (), ActorOptions::default());
+///
+/// // checker will drop out of scope here and panic due to the error in the
+/// // spawned actor.
+/// ```
+///
+/// Actor panicking.
+///
+/// ```should_panic
+/// use heph::{actor, actor_fn};
+/// use heph_rt::ThreadLocal;
+/// use heph_rt::spawn::options::ActorOptions;
+/// use heph_rt::test::{TestSupervisor, spawn_local};
+///
+/// // Create a new supervisor.
+/// // NOTE: we don't need to do anything witht the checker, just let it drop
+/// // out of scope and it will check the error of the spawned actor.
+/// let (supervisor, _checker) = TestSupervisor::new();
+///
+/// async fn panic_actor(_: actor::Context<(), ThreadLocal>) {
+///   panic!("oops!")
+/// }
+/// spawn_local(supervisor, actor_fn(panic_actor), (), ActorOptions::default());
+///
+/// // checker will drop out of scope here and panic due to the panic in the
+/// // spawned actor.
+/// ```
+///
+/// Actor running without issues.
+///
+/// ```
+/// # #![feature(never_type)]
+/// use heph::{actor, actor_fn};
+/// use heph_rt::ThreadLocal;
+/// use heph_rt::spawn::options::ActorOptions;
+/// use heph_rt::test::{TestSupervisor, spawn_local};
+///
+/// // Create a new supervisor.
+/// // NOTE: we don't need to do anything witht the checker, just let it drop
+/// // out of scope and it will check the error of the spawned actor.
+/// let (supervisor, _checker) = TestSupervisor::new();
+///
+/// async fn ok_actor(_: actor::Context<(), ThreadLocal>) -> Result<(), !> {
+///   Ok(())
+/// }
+/// spawn_local(supervisor, actor_fn(ok_actor), (), ActorOptions::default());
+///
+/// // checker will drop out of scope here do nothing as the actor ran without
+/// // issues.
+/// ```
+#[derive(Debug)]
+pub struct TestSupervisor<E> {
+    result: Option<oneshot::Sender<TestResult<E>>>,
+}
+
+/// Result used in [`TestSupervisor`].
+#[derive(Debug)]
+enum TestResult<E> {
+    Error(E),
+    Panic(Box<dyn Any + Send + 'static>),
+}
+
+impl<E: fmt::Display> TestSupervisor<E> {
+    /// Create a new `TestSupervisor` and accompanying `ResultCheck`
+    pub fn new() -> (TestSupervisor<E>, ResultCheck<E>) {
+        let (sender, receiver) = new_oneshot();
+        let supervisor = TestSupervisor {
+            result: Some(sender),
+        };
+        let checker = ResultCheck { result: receiver };
+        (supervisor, checker)
+    }
+}
+
+impl<NA> Supervisor<NA> for TestSupervisor<<NA::Actor as Actor>::Error>
+where
+    NA: NewActor,
+{
+    fn decide(&mut self, err: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
+        _ = self.result.take().unwrap().try_send(TestResult::Error(err));
+        SupervisorStrategy::Stop
+    }
+
+    fn decide_on_restart_error(&mut self, _: NA::Error) -> SupervisorStrategy<NA::Argument> {
+        panic!("Don't call TestSupervisor::decide_on_restart_error");
+    }
+
+    fn second_restart_error(&mut self, _: NA::Error) {
+        panic!("Don't call TestSupervisor::second_restart_error");
+    }
+
+    fn decide_on_panic(
+        &mut self,
+        panic: Box<dyn Any + Send + 'static>,
+    ) -> SupervisorStrategy<NA::Argument> {
+        _ = self
+            .result
+            .take()
+            .unwrap()
+            .try_send(TestResult::Panic(panic));
+        SupervisorStrategy::Stop
+    }
+}
+
+impl<A> SyncSupervisor<A> for TestSupervisor<A::Error>
+where
+    A: SyncActor,
+{
+    fn decide(&mut self, err: A::Error) -> SupervisorStrategy<A::Argument> {
+        _ = self.result.take().unwrap().try_send(TestResult::Error(err));
+        SupervisorStrategy::Stop
+    }
+
+    fn decide_on_panic(
+        &mut self,
+        panic: Box<dyn Any + Send + 'static>,
+    ) -> SupervisorStrategy<A::Argument> {
+        _ = self
+            .result
+            .take()
+            .unwrap()
+            .try_send(TestResult::Panic(panic));
+        SupervisorStrategy::Stop
+    }
+}
+
+/// Just let it drop.
+///
+/// See [`TestSupervisor`] for usage.
+#[derive(Debug)]
+pub struct ResultCheck<E: fmt::Display> {
+    result: oneshot::Receiver<TestResult<E>>,
+}
+
+impl<E: fmt::Display> Drop for ResultCheck<E> {
+    fn drop(&mut self) {
+        // NOTE: don't want to panic while panicking.
+        if !thread::panicking() {
+            let waker = SyncWaker::new();
+            match waker.block_on(self.result.recv()) {
+                Some(TestResult::Error(err)) => panic!("unexpected error: {err}"),
+                Some(TestResult::Panic(panic)) => resume_unwind(panic),
+                None => { /* Actor ran without issues. */ }
+            }
+        }
+    }
 }
