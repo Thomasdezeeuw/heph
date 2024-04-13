@@ -13,8 +13,8 @@
 //!      result.
 //!    * [`block_on_future`]: spawns a `Future` and waits for the result.
 //!  * Spawning:
-//!    * [`try_spawn_local`]: attempt to spawn a thread-local [actor].
-//!    * [`try_spawn`]: attempt to spawn a thread-safe [actor].
+//!    * [`try_spawn_local`] and [`spawn_local`]: attempt to spawn a thread-local [actor].
+//!    * [`try_spawn`] and [`spawn`]: attempt to spawn a thread-safe [actor].
 //!    * [`spawn_sync_actor`]: spawn a [synchronous actor].
 //!    * [`spawn_local_future`]: spawn a thread-local [`Future`].
 //!    * [`spawn_future`]: spawn a thread-safe [`Future`].
@@ -410,6 +410,26 @@ where
     })
 }
 
+/// Spawn a thread-local actor on the *test* runtime.
+///
+/// Same as [`try_spawn_local`], but this expects [`NewActor::Error`] to be `!`
+/// (the never type).
+pub fn spawn_local<S, NA>(
+    supervisor: S,
+    new_actor: NA,
+    arg: NA::Argument,
+    options: ActorOptions,
+) -> ActorRef<NA::Message>
+where
+    S: Supervisor<NA> + Send + 'static,
+    NA: NewActor<RuntimeAccess = ThreadLocal, Error = !> + Send + 'static,
+    NA::Actor: 'static,
+    NA::Message: Send,
+    NA::Argument: Send,
+{
+    try_spawn_local(supervisor, new_actor, arg, options).unwrap()
+}
+
 /// Attempt to spawn a thread-safe actor on the *test* runtime.
 ///
 /// See the [module documentation] for more information about the *test*
@@ -441,6 +461,26 @@ where
     run_on_test_runtime_wait(move |mut runtime_ref| {
         runtime_ref.try_spawn(supervisor, new_actor, arg, options)
     })
+}
+
+/// Attempt to spawn a thread-safe actor on the *test* runtime.
+///
+/// Same as [`try_spawn`], but this expects [`NewActor::Error`] to be `!` (the
+/// never type).
+pub fn spawn<S, NA>(
+    supervisor: S,
+    new_actor: NA,
+    arg: NA::Argument,
+    options: ActorOptions,
+) -> ActorRef<NA::Message>
+where
+    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
+    NA: NewActor<RuntimeAccess = ThreadSafe, Error = !> + Send + std::marker::Sync + 'static,
+    NA::Actor: Send + std::marker::Sync + 'static,
+    NA::Message: Send,
+    NA::Argument: Send,
+{
+    try_spawn(supervisor, new_actor, arg, options).unwrap()
 }
 
 /// Spawn a thread-local [`Future`] on the *test* runtime.
