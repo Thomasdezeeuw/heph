@@ -71,40 +71,31 @@ use heph_inbox as inbox;
 use heph_inbox::oneshot::{self, new_oneshot};
 
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
-use crate::wakers::shared::Wakers;
 use crate::worker::Worker;
 use crate::{
-    self as rt, panic_message, shared, sync_worker, worker, RuntimeRef, Sync, ThreadLocal,
-    ThreadSafe,
+    self as rt, panic_message, shared, sync_worker, worker, Runtime, RuntimeRef, Setup, Sync,
+    ThreadLocal, ThreadSafe,
 };
 
 #[doc(no_inline)]
 #[cfg(feature = "test")]
 pub use heph::test::*;
 
-pub(crate) fn noop_waker() -> a10::SubmissionQueue {
-    static NOOP_WAKER: OnceLock<a10::SubmissionQueue> = OnceLock::new();
-    NOOP_WAKER
-        .get_or_init(|| {
-            let ring = a10::Ring::new(2).expect("failed to create `a10::Ring` for test module");
-            ring.submission_queue().clone()
-        })
-        .clone()
+fn test_coordinator() -> &'static Runtime {
+    static RT: OnceLock<Runtime> = OnceLock::new();
+    RT.get_or_init(|| {
+        // NOTE: we do NOT signal the worker that the runtime has started, to
+        // ensure that it doesn't stop before another test can use it.
+        Setup::new()
+            .with_name("Heph Test Runtime".to_string())
+            .num_threads(1)
+            .build()
+            .expect("failed to build test runtime")
+    })
 }
 
 pub(crate) fn shared_internals() -> Arc<shared::RuntimeInternals> {
-    static SHARED_INTERNALS: OnceLock<Arc<shared::RuntimeInternals>> = OnceLock::new();
-    SHARED_INTERNALS
-        .get_or_init(|| {
-            let setup = shared::RuntimeInternals::test_setup(256)
-                .expect("failed to setup runtime internals for test module");
-            Arc::new_cyclic(|shared_internals| {
-                let wakers = Wakers::new(shared_internals.clone());
-                let worker_wakers = vec![noop_waker()].into_boxed_slice();
-                setup.complete(wakers, worker_wakers, None)
-            })
-        })
-        .clone()
+    test_coordinator().internals.clone()
 }
 
 /// Returns a reference to a fake local runtime.
@@ -126,29 +117,12 @@ pub(crate) fn runtime() -> RuntimeRef {
     TEST_RT.with(Worker::create_ref)
 }
 
-/// Lazily start the *test* runtime on a new thread, returning the control
-/// channel.
-fn test_runtime() -> &'static worker::Handle {
-    static TEST_RT: OnceLock<worker::Handle> = OnceLock::new();
-    TEST_RT.get_or_init(|| {
-        let (setup, _) = worker::setup_test().expect("failed to setup test runtime");
-        setup
-            .start_named(
-                shared_internals(),
-                false,
-                None,
-                "Heph Test Runtime".to_string(),
-            )
-            .expect("failed to start test worker thread")
-    })
-}
-
 /// Run function `f` on the *test* runtime.
 fn run_on_test_runtime<F>(f: F)
 where
     F: FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static,
 {
-    test_runtime()
+    test_coordinator().workers[0]
         .send_function(Box::new(f))
         .expect("failed to communicate with the test runtime");
 }

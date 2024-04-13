@@ -109,6 +109,7 @@ mod local {
 mod shared {
     use std::future::Future;
     use std::pin::Pin;
+    use std::sync::OnceLock;
     use std::sync::{Arc, Weak};
     use std::task::{self, Poll};
     use std::thread::{self, sleep};
@@ -117,7 +118,6 @@ mod shared {
     use crate::process::{FutureProcess, Process, ProcessId};
     use crate::shared::RuntimeInternals;
     use crate::spawn::options::Priority;
-    use crate::test;
     use crate::wakers::shared::Wakers;
 
     const PID1: ProcessId = ProcessId(1);
@@ -266,8 +266,18 @@ mod shared {
         let setup = RuntimeInternals::test_setup(2).unwrap();
         Arc::new_cyclic(|shared_internals| {
             let wakers = Wakers::new(shared_internals.clone());
-            let worker_wakers = vec![test::noop_waker()].into_boxed_slice();
+            let worker_wakers = vec![noop_waker()].into_boxed_slice();
             setup.complete(wakers, worker_wakers, None)
         })
+    }
+
+    fn noop_waker() -> a10::SubmissionQueue {
+        static NOOP_WAKER: OnceLock<a10::SubmissionQueue> = OnceLock::new();
+        NOOP_WAKER
+            .get_or_init(|| {
+                let ring = a10::Ring::new(2).expect("failed to create `a10::Ring` for test module");
+                ring.submission_queue().clone()
+            })
+            .clone()
     }
 }
