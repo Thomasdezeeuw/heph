@@ -72,8 +72,8 @@ pub use crate::future::InboxSize;
 /// which can be used for receiving messages. As with asynchronous actors
 /// communication is done via message sending, using [actor references].
 ///
-/// The easiest way to implement this trait by using functions, see the [module
-/// level] documentation for an example of this. All functions *pointers* that
+/// The easiest way to implement this trait by using functions, see the [actor
+/// module] documentation for an example of this. All functions *pointers* that
 /// accept a [`sync::Context`] as argument and return `Result<(), Error>` or
 /// `()` implement the `SyncActor` trait. There is also the [`ActorFn`] helper
 /// type to implement the trait for any function.
@@ -83,7 +83,7 @@ pub use crate::future::InboxSize;
 /// [actors]: crate::Actor
 /// [context]: Context
 /// [actor references]: crate::ActorRef
-/// [module level]: crate::actor
+/// [actor module]: crate::actor
 /// [`sync::Context`]: Context
 pub trait SyncActor {
     /// The type of messages the synchronous actor can receive.
