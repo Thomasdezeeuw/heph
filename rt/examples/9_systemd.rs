@@ -21,9 +21,8 @@ fn main() -> Result<(), rt::Error> {
         Err(err) => return Err(rt::Error::setup(format!("failed to parse port: {err}"))),
     };
     let address = (Ipv4Addr::LOCALHOST, port).into();
-    let supervisor = StopSupervisor::for_actor("connection actor");
     let actor = actor_fn(conn_actor);
-    let server = tcp::server::setup(address, supervisor, actor, ActorOptions::default())
+    let server = tcp::server::setup(address, StopSupervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;
 
     let mut runtime = Runtime::setup()
@@ -33,12 +32,11 @@ fn main() -> Result<(), rt::Error> {
 
     #[cfg(target_os = "linux")]
     {
-        let supervisor = StopSupervisor::for_actor("systemd actor");
         let actor = actor_fn(heph_rt::systemd::watchdog);
         // NOTE: this should do a proper health check of you application.
         let health_check = || -> Result<(), !> { Ok(()) };
         let options = ActorOptions::default().with_priority(Priority::HIGH);
-        let systemd_ref = runtime.spawn(supervisor, actor, health_check, options);
+        let systemd_ref = runtime.spawn(StopSupervisor, actor, health_check, options);
         runtime.receive_signals(systemd_ref.try_map());
     }
 
