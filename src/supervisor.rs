@@ -108,7 +108,7 @@ use std::fmt;
 
 use log::warn;
 
-use crate::{Actor, NewActor, SyncActor};
+use crate::{panic_message, Actor, NewActor, SyncActor};
 
 /// The supervisor of an [actor].
 ///
@@ -433,6 +433,15 @@ where
             self.0
         );
     }
+
+    fn decide_on_panic(
+        &mut self,
+        panic: Box<dyn Any + Send + 'static>,
+    ) -> SupervisorStrategy<NA::Argument> {
+        let msg = panic_message(&*panic);
+        warn!("{} panicked, stopping it: {msg}", self.0);
+        SupervisorStrategy::Stop
+    }
 }
 
 impl<A> SyncSupervisor<A> for StopSupervisor
@@ -442,6 +451,15 @@ where
 {
     fn decide(&mut self, err: A::Error) -> SupervisorStrategy<A::Argument> {
         warn!("{} failed, stopping it: {err}", self.0);
+        SupervisorStrategy::Stop
+    }
+
+    fn decide_on_panic(
+        &mut self,
+        panic: Box<dyn Any + Send + 'static>,
+    ) -> SupervisorStrategy<A::Argument> {
+        let msg = panic_message(&*panic);
+        warn!("{} panicked, stopping it: {msg}", self.0);
         SupervisorStrategy::Stop
     }
 }
