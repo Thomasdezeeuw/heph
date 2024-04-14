@@ -354,14 +354,7 @@ where
 /// This supervisor can be used for quick prototyping or for one off actors that
 /// shouldn't be restarted.
 #[derive(Copy, Clone, Debug)]
-pub struct StopSupervisor(&'static str);
-
-impl StopSupervisor {
-    /// Create a new `StopSupervisor` for the actor with `actor_name`.
-    pub const fn for_actor(actor_name: &'static str) -> StopSupervisor {
-        StopSupervisor(actor_name)
-    }
-}
+pub struct StopSupervisor;
 
 impl<NA> Supervisor<NA> for StopSupervisor
 where
@@ -370,22 +363,22 @@ where
     <NA::Actor as Actor>::Error: fmt::Display,
 {
     fn decide(&mut self, err: <NA::Actor as Actor>::Error) -> SupervisorStrategy<NA::Argument> {
-        warn!("{} failed, stopping it: {err}", self.0);
+        let name = NA::name();
+        warn!("{name} failed, stopping it: {err}");
         SupervisorStrategy::Stop
     }
 
     fn decide_on_restart_error(&mut self, err: NA::Error) -> SupervisorStrategy<NA::Argument> {
         // Shouldn't be called, but it should still have an implementation.
-        warn!("{} failed to restart, stopping it: {err}", self.0);
+        let name = NA::name();
+        warn!("{name} failed to restart, stopping it: {err}");
         SupervisorStrategy::Stop
     }
 
     fn second_restart_error(&mut self, err: NA::Error) {
         // Shouldn't be called, but it should still have an implementation.
-        warn!(
-            "{} failed to restart a second time, stopping it: {err}",
-            self.0
-        );
+        let name = NA::name();
+        warn!("{name} failed to restart a second time, stopping it: {err}");
     }
 
     fn decide_on_panic(
@@ -393,7 +386,8 @@ where
         panic: Box<dyn Any + Send + 'static>,
     ) -> SupervisorStrategy<NA::Argument> {
         let msg = panic_message(&*panic);
-        warn!("{} panicked, stopping it: {msg}", self.0);
+        let name = NA::name();
+        warn!("{name} panicked, stopping it: {msg}");
         SupervisorStrategy::Stop
     }
 }
@@ -404,7 +398,8 @@ where
     A::Error: fmt::Display,
 {
     fn decide(&mut self, err: A::Error) -> SupervisorStrategy<A::Argument> {
-        warn!("{} failed, stopping it: {err}", self.0);
+        let name = A::name();
+        warn!("{name} failed, stopping it: {err}");
         SupervisorStrategy::Stop
     }
 
@@ -412,8 +407,9 @@ where
         &mut self,
         panic: Box<dyn Any + Send + 'static>,
     ) -> SupervisorStrategy<A::Argument> {
+        let name = A::name();
         let msg = panic_message(&*panic);
-        warn!("{} panicked, stopping it: {msg}", self.0);
+        warn!("{name} panicked, stopping it: {msg}");
         SupervisorStrategy::Stop
     }
 }
