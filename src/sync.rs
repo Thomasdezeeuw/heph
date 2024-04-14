@@ -515,7 +515,7 @@ where
     /// Arguments:
     ///  * `supervisor: S`: is used to handle the actor's errors.
     ///  * `actor: A`: the actor we're running.
-    pub fn new(self, supervisor: S, actor: A) -> (SyncActorRunner<S, A>, ActorRef<A::Message>)
+    pub fn new(supervisor: S, actor: A) -> (SyncActorRunner<S, A>, ActorRef<A::Message>)
     where
         S: SyncSupervisor<A>,
         A: SyncActor<RuntimeAccess = ()>,
