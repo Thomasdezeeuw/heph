@@ -28,7 +28,7 @@ impl Wakers {
         /// Static used to determine unique indices into `RUNTIMES`.
         static IDS: AtomicU8 = AtomicU8::new(0);
 
-        let id = IDS.fetch_add(1, Ordering::SeqCst);
+        let id = IDS.fetch_add(1, Ordering::AcqRel);
         assert!(
             (id as usize) < MAX_RUNTIMES,
             "Created too many Heph `Runtime`s, maximum of {MAX_RUNTIMES}",

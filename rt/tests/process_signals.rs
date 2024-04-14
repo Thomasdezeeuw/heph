@@ -86,18 +86,18 @@ fn with_signal_handles() {
     runtime.start().unwrap();
 
     // Make sure that all the actor received the signal once.
-    assert_eq!(thread_local.load(Ordering::SeqCst), 1);
-    assert_eq!(thread_safe1.load(Ordering::SeqCst), 1);
-    assert_eq!(thread_safe2.load(Ordering::SeqCst), 1);
-    assert_eq!(sync.load(Ordering::SeqCst), 1);
+    assert_eq!(thread_local.load(Ordering::Acquire), 1);
+    assert_eq!(thread_safe1.load(Ordering::Acquire), 1);
+    assert_eq!(thread_safe2.load(Ordering::Acquire), 1);
+    assert_eq!(sync.load(Ordering::Acquire), 1);
 }
 
 async fn actor<RT>(mut ctx: actor::Context<Signal, RT>, got_signal: Arc<AtomicUsize>) {
     let _msg = ctx.receive_next().await.unwrap();
-    got_signal.fetch_add(1, Ordering::SeqCst);
+    got_signal.fetch_add(1, Ordering::AcqRel);
 }
 
 fn sync_actor<RT>(mut ctx: sync::Context<Signal, RT>, got_signal: Arc<AtomicUsize>) {
     let _msg = ctx.receive_next().unwrap();
-    got_signal.fetch_add(1, Ordering::SeqCst);
+    got_signal.fetch_add(1, Ordering::AcqRel);
 }
