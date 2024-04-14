@@ -28,7 +28,6 @@ log               = { version = "0.4.21", default-features = false, features = [
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
-getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
 heph-rt           = { version = "0.5.0", path = "./rt", default-features = false, features = ["test"] }
 std-logger        = { version = "0.5.3", default-features = false, features = ["log-panic", "nightly"] }
 
