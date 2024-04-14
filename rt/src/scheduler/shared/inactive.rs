@@ -825,7 +825,7 @@ mod tests {
 
     impl Drop for DropTest {
         fn drop(&mut self) {
-            let _ = self.0.fetch_add(1, Ordering::SeqCst);
+            let _ = self.0.fetch_add(1, Ordering::AcqRel);
         }
     }
 

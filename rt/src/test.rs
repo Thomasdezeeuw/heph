@@ -605,7 +605,7 @@ where
     M: Send + 'static,
 {
     static SYNC_WORKER_TEST_ID: AtomicUsize = AtomicUsize::new(10_000);
-    let id = SYNC_WORKER_TEST_ID.fetch_add(1, Ordering::SeqCst);
+    let id = SYNC_WORKER_TEST_ID.fetch_add(1, Ordering::AcqRel);
 
     let shared = shared_internals();
     sync_worker::start(id, supervisor, actor, arg, options, shared, None).map(

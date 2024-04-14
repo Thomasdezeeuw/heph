@@ -33,7 +33,7 @@ impl<const N: usize> WakerBuilder<N> {
     }
 
     fn is_awoken(&self, n: usize) -> bool {
-        self.awoken[n].load(Ordering::SeqCst)
+        self.awoken[n].load(Ordering::Acquire)
     }
 }
 
@@ -45,7 +45,7 @@ struct TaskWaker<const N: usize> {
 
 impl<const N: usize> Wake for TaskWaker<N> {
     fn wake(self: Arc<Self>) {
-        self.awoken[self.n].store(true, Ordering::SeqCst)
+        self.awoken[self.n].store(true, Ordering::Release)
     }
 }
 

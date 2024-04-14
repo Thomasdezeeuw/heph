@@ -325,11 +325,11 @@ fn running_actors() {
     }
 
     fn get(value: &AtomicUsize) -> usize {
-        value.load(Ordering::SeqCst)
+        value.load(Ordering::Acquire)
     }
 
     fn incr(value: &AtomicUsize) {
-        let _ = value.fetch_add(1, Ordering::SeqCst);
+        let _ = value.fetch_add(1, Ordering::AcqRel);
     }
 
     impl<NA> Supervisor<NA> for RunningSupervisor<NA::Argument>
@@ -513,12 +513,12 @@ fn external_thread_wakes_sync_actor() {
 }
 
 async fn panic_actor<RT>(_: actor::Context<!, RT>, mark: &'static AtomicBool) {
-    mark.store(true, Ordering::SeqCst);
+    mark.store(true, Ordering::Release);
     panic!("on purpose panic");
 }
 
 async fn ok_actor<RT>(_: actor::Context<!, RT>, mark: &'static AtomicBool) {
-    mark.store(true, Ordering::SeqCst);
+    mark.store(true, Ordering::Release);
 }
 
 fn actor_drop_panic<RT>(_: actor::Context<!, RT>, mark: &'static AtomicBool) -> PanicOnDropFuture {
@@ -531,7 +531,7 @@ impl Future for PanicOnDropFuture {
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
-        self.0.store(true, Ordering::SeqCst);
+        self.0.store(true, Ordering::Release);
         Poll::Ready(())
     }
 }
@@ -543,12 +543,12 @@ impl Drop for PanicOnDropFuture {
 }
 
 async fn panic_future(mark: &'static AtomicBool) {
-    mark.store(true, Ordering::SeqCst);
+    mark.store(true, Ordering::Release);
     panic!("on purpose panic");
 }
 
 async fn ok_future(mark: &'static AtomicBool) {
-    mark.store(true, Ordering::SeqCst);
+    mark.store(true, Ordering::Release);
 }
 
 #[test]
@@ -571,8 +571,8 @@ fn catches_actor_panics() {
     );
     runtime.start().unwrap();
 
-    assert!(PANIC_RAN.load(Ordering::SeqCst));
-    assert!(OK_RAN.load(Ordering::SeqCst));
+    assert!(PANIC_RAN.load(Ordering::Acquire));
+    assert!(OK_RAN.load(Ordering::Acquire));
 }
 
 #[test]
@@ -600,8 +600,8 @@ fn catches_local_actor_panics() {
         .unwrap();
     runtime.start().unwrap();
 
-    assert!(PANIC_RAN.load(Ordering::SeqCst));
-    assert!(OK_RAN.load(Ordering::SeqCst));
+    assert!(PANIC_RAN.load(Ordering::Acquire));
+    assert!(OK_RAN.load(Ordering::Acquire));
 }
 
 #[test]
@@ -624,8 +624,8 @@ fn catches_actor_panics_on_drop() {
     );
     runtime.start().unwrap();
 
-    assert!(PANIC_RAN.load(Ordering::SeqCst));
-    assert!(OK_RAN.load(Ordering::SeqCst));
+    assert!(PANIC_RAN.load(Ordering::Acquire));
+    assert!(OK_RAN.load(Ordering::Acquire));
 }
 
 #[test]
@@ -653,8 +653,8 @@ fn catches_local_actor_panics_on_drop() {
         .unwrap();
     runtime.start().unwrap();
 
-    assert!(PANIC_RAN.load(Ordering::SeqCst));
-    assert!(OK_RAN.load(Ordering::SeqCst));
+    assert!(PANIC_RAN.load(Ordering::Acquire));
+    assert!(OK_RAN.load(Ordering::Acquire));
 }
 
 #[test]
@@ -673,8 +673,8 @@ fn catches_future_panics() {
     );
     runtime.start().unwrap();
 
-    assert!(PANIC_RAN.load(Ordering::SeqCst));
-    assert!(OK_RAN.load(Ordering::SeqCst));
+    assert!(PANIC_RAN.load(Ordering::Acquire));
+    assert!(OK_RAN.load(Ordering::Acquire));
 }
 
 #[test]
@@ -698,8 +698,8 @@ fn catches_local_future_panics() {
         .unwrap();
     runtime.start().unwrap();
 
-    assert!(PANIC_RAN.load(Ordering::SeqCst));
-    assert!(OK_RAN.load(Ordering::SeqCst));
+    assert!(PANIC_RAN.load(Ordering::Acquire));
+    assert!(OK_RAN.load(Ordering::Acquire));
 }
 
 #[test]
@@ -718,8 +718,8 @@ fn catches_future_panics_on_drop() {
     );
     runtime.start().unwrap();
 
-    assert!(PANIC_RAN.load(Ordering::SeqCst));
-    assert!(OK_RAN.load(Ordering::SeqCst));
+    assert!(PANIC_RAN.load(Ordering::Acquire));
+    assert!(OK_RAN.load(Ordering::Acquire));
 }
 
 #[test]
@@ -743,6 +743,6 @@ fn catches_local_future_panics_on_drop() {
         .unwrap();
     runtime.start().unwrap();
 
-    assert!(PANIC_RAN.load(Ordering::SeqCst));
-    assert!(OK_RAN.load(Ordering::SeqCst));
+    assert!(PANIC_RAN.load(Ordering::Acquire));
+    assert!(OK_RAN.load(Ordering::Acquire));
 }
