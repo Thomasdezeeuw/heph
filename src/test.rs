@@ -42,12 +42,12 @@ pub fn set_message_loss(mut percent: u8) {
     if percent > 100 {
         percent = 100;
     }
-    MSG_LOSS.store(percent, Ordering::SeqCst);
+    MSG_LOSS.store(percent, Ordering::Release);
 }
 
 /// Returns `true` if the message should be lost.
 pub(crate) fn should_lose_msg() -> bool {
-    // Safety: `Relaxed` is fine here as we'll get the update, sending a message
+    // SAFETY: `Relaxed` is fine here as we'll get the update, sending a message
     // when we're not supposed to isn't too bad.
     let loss = MSG_LOSS.load(Ordering::Relaxed);
     loss != 0 || random_percentage() < loss
