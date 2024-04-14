@@ -26,7 +26,7 @@ jobs:
       matrix:
         release: ['', '--release'] # '' => debug.
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: ./.github/workflows/test
       with:
         test-flags: ${{ matrix.release }}
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: ./.github/workflows/test_miri
       with:
         working-directory: inbox
@@ -47,7 +47,7 @@ jobs:
       matrix:
         sanitiser: [address, leak, memory, thread]
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - uses: ./.github/workflows/test_sanitizer
       with:
         sanitizer: ${{ matrix.sanitiser }}
