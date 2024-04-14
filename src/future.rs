@@ -14,6 +14,7 @@ use log::error;
 
 use crate::actor::{self, Actor, NewActor};
 use crate::actor_ref::ActorRef;
+use crate::panic_message;
 use crate::supervisor::{Supervisor, SupervisorStrategy};
 
 /// A [`Future`] that represent an [`Actor`].
@@ -194,18 +195,6 @@ where
             .field("inbox", &self.inbox)
             .field("rt", &self.rt)
             .finish()
-    }
-}
-
-/// Attempts to extract a message from a panic, defaulting to `<unknown>`.
-/// NOTE: be sure to derefence the `Box`!
-fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
-    match panic.downcast_ref::<&'static str>() {
-        Some(s) => s,
-        None => match panic.downcast_ref::<String>() {
-            Some(s) => s,
-            None => "<unknown>",
-        },
     }
 }
 

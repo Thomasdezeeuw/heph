@@ -96,3 +96,15 @@ pub use future::{ActorFuture, ActorFutureBuilder};
 pub use supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
 #[doc(no_inline)]
 pub use sync::{SyncActor, SyncActorRunner, SyncActorRunnerBuilder};
+
+/// Attempts to extract a message from a panic, defaulting to `<unknown>`.
+/// NOTE: be sure to derefence the `Box`!
+fn panic_message<'a>(panic: &'a (dyn std::any::Any + Send + 'static)) -> &'a str {
+    match panic.downcast_ref::<&'static str>() {
+        Some(s) => s,
+        None => match panic.downcast_ref::<String>() {
+            Some(s) => s,
+            None => "<unknown>",
+        },
+    }
+}
