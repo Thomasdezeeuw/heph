@@ -22,7 +22,7 @@ struct AwokenCount {
 
 impl PartialEq<usize> for AwokenCount {
     fn eq(&self, other: &usize) -> bool {
-        self.inner.count.load(Ordering::SeqCst) == *other
+        self.inner.count.load(Ordering::Acquire) == *other
     }
 }
 
@@ -33,11 +33,11 @@ struct WakerInner {
 
 impl Wake for WakerInner {
     fn wake(self: Arc<Self>) {
-        let _ = self.count.fetch_add(1, Ordering::SeqCst);
+        let _ = self.count.fetch_add(1, Ordering::AcqRel);
     }
 
     fn wake_by_ref(self: &Arc<Self>) {
-        let _ = self.count.fetch_add(1, Ordering::SeqCst);
+        let _ = self.count.fetch_add(1, Ordering::AcqRel);
     }
 }
 

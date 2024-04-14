@@ -22,7 +22,7 @@ pub struct AwokenCount {
 impl AwokenCount {
     /// Get the current count.
     pub fn get(&self) -> usize {
-        self.inner.count.load(Ordering::SeqCst)
+        self.inner.count.load(Ordering::Acquire)
     }
 }
 
@@ -39,11 +39,11 @@ struct WakerInner {
 
 impl Wake for WakerInner {
     fn wake(self: Arc<Self>) {
-        let _ = self.count.fetch_add(1, Ordering::SeqCst);
+        let _ = self.count.fetch_add(1, Ordering::AcqRel);
     }
 
     fn wake_by_ref(self: &Arc<Self>) {
-        let _ = self.count.fetch_add(1, Ordering::SeqCst);
+        let _ = self.count.fetch_add(1, Ordering::AcqRel);
     }
 }
 

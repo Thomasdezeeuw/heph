@@ -401,7 +401,7 @@ fn try_send<T>(channel: &Channel<T>, value: T) -> Result<(), SendError<T>> {
 /// enough for most practical use cases.
 impl<T> Clone for Sender<T> {
     fn clone(&self) -> Sender<T> {
-        // For the reasoning behind this relaxed ordering see `Arc::clone`.
+        // SAFETY: for the reasoning behind this relaxed ordering see `Arc::clone`.
         let old_ref_count = self.channel().ref_count.fetch_add(1, Ordering::Relaxed);
         debug_assert!(old_ref_count & SENDER_ACCESS != 0);
         Sender {
@@ -452,7 +452,7 @@ impl<T> Drop for Sender<T> {
             return;
         }
 
-        // For the reasoning behind this ordering see `Arc::drop`.
+        // SAFETY: for the reasoning behind this ordering see `Arc::drop`.
         fence!(self.channel().ref_count, Ordering::Acquire);
 
         // Drop the memory.
