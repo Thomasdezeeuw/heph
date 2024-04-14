@@ -18,7 +18,7 @@ const DEFAULT_MAX_DURATION: Duration = Duration::from_secs(5);
 
 #[test]
 fn new_actor_unit_argument() {
-    restart_supervisor!(Supervisor, "my actor");
+    restart_supervisor!(Supervisor);
     // Should be able to create it without arguments passed to `new`.
     let _supervisor = Supervisor::new();
     assert_eq!(Supervisor::MAX_RESTARTS, DEFAULT_MAX_RESTARTS);
@@ -27,7 +27,7 @@ fn new_actor_unit_argument() {
 
 #[test]
 fn new_actor_unit_argument_explicit() {
-    restart_supervisor!(Supervisor, "my actor", ());
+    restart_supervisor!(Supervisor, ());
     // Should be able to create it without arguments passed to `new`.
     let _supervisor = Supervisor::new();
     assert_eq!(Supervisor::MAX_RESTARTS, DEFAULT_MAX_RESTARTS);
@@ -36,7 +36,7 @@ fn new_actor_unit_argument_explicit() {
 
 #[test]
 fn new_actor_single_argument() {
-    restart_supervisor!(Supervisor, "my actor", String);
+    restart_supervisor!(Supervisor, String);
     // Should be able to directly pass argument.
     let _supervisor = Supervisor::new("Hello World".to_owned());
     assert_eq!(Supervisor::MAX_RESTARTS, DEFAULT_MAX_RESTARTS);
@@ -45,7 +45,7 @@ fn new_actor_single_argument() {
 
 #[test]
 fn new_actor_tuple_argument() {
-    restart_supervisor!(Supervisor, "my actor", (String, usize));
+    restart_supervisor!(Supervisor, (String, usize));
     // Should be able to directly pass argument.
     let _supervisor = Supervisor::new("Hello World".to_owned(), 123);
     assert_eq!(Supervisor::MAX_RESTARTS, DEFAULT_MAX_RESTARTS);
@@ -54,7 +54,7 @@ fn new_actor_tuple_argument() {
 
 #[test]
 fn no_log_unit_argument() {
-    restart_supervisor!(Supervisor, "my actor", (), 2, Duration::from_secs(10));
+    restart_supervisor!(Supervisor, (), 2, Duration::from_secs(10));
     let _supervisor = Supervisor::new();
     assert_eq!(Supervisor::MAX_RESTARTS, 2);
     assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(10));
@@ -62,7 +62,7 @@ fn no_log_unit_argument() {
 
 #[test]
 fn no_log_single_argument() {
-    restart_supervisor!(Supervisor, "my actor", usize, 2, Duration::from_secs(10));
+    restart_supervisor!(Supervisor, usize, 2, Duration::from_secs(10));
     let _supervisor = Supervisor::new(123);
     assert_eq!(Supervisor::MAX_RESTARTS, 2);
     assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(10));
@@ -70,13 +70,7 @@ fn no_log_single_argument() {
 
 #[test]
 fn no_log_tuple_argument() {
-    restart_supervisor!(
-        Supervisor,
-        "my actor",
-        (u8, u16),
-        2,
-        Duration::from_secs(10)
-    );
+    restart_supervisor!(Supervisor, (u8, u16), 2, Duration::from_secs(10));
     let _supervisor = Supervisor::new(123, 456);
     assert_eq!(Supervisor::MAX_RESTARTS, 2);
     assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(10));
@@ -84,14 +78,7 @@ fn no_log_tuple_argument() {
 
 #[test]
 fn all_unit_argument() {
-    restart_supervisor!(
-        Supervisor,
-        "my actor",
-        (),
-        2,
-        Duration::from_secs(10),
-        ": log extra",
-    );
+    restart_supervisor!(Supervisor, (), 2, Duration::from_secs(10), ": log extra",);
     let _supervisor = Supervisor::new();
     assert_eq!(Supervisor::MAX_RESTARTS, 2);
     assert_eq!(Supervisor::MAX_DURATION, Duration::from_secs(10));
@@ -101,7 +88,6 @@ fn all_unit_argument() {
 fn all_single_argument() {
     restart_supervisor!(
         Supervisor,
-        "my actor",
         usize,
         2,
         Duration::from_secs(10),
@@ -117,7 +103,6 @@ fn all_single_argument() {
 fn all_tuple_argument() {
     restart_supervisor!(
         Supervisor,
-        "my actor",
         (u8, u16),
         2,
         Duration::from_secs(10),
@@ -132,46 +117,42 @@ fn all_tuple_argument() {
 
 #[test]
 fn tuple_2() {
-    restart_supervisor!(Supervisor, "my actor", (String, usize));
+    restart_supervisor!(Supervisor, (String, usize));
     // Should be able to directly pass argument.
     let _supervisor = Supervisor::new("Hello World".to_owned(), 123);
 }
 
 #[test]
 fn tuple_3() {
-    restart_supervisor!(Supervisor, "my actor", (String, usize, u8));
+    restart_supervisor!(Supervisor, (String, usize, u8));
     // Should be able to directly pass argument.
     let _supervisor = Supervisor::new("Hello World".to_owned(), 123, 1);
 }
 
 #[test]
 fn tuple_4() {
-    restart_supervisor!(Supervisor, "my actor", (String, usize, u8, &'static str));
+    restart_supervisor!(Supervisor, (String, usize, u8, &'static str));
     // Should be able to directly pass argument.
     let _supervisor = Supervisor::new("Hello World".to_owned(), 123, 1, "arg");
 }
 
 #[test]
 fn tuple_5() {
-    restart_supervisor!(
-        Supervisor,
-        "my actor",
-        (String, usize, u8, &'static str, u8)
-    );
+    restart_supervisor!(Supervisor, (String, usize, u8, &'static str, u8));
     // Should be able to directly pass argument.
     let _supervisor = Supervisor::new("Hello World".to_owned(), 123, 1, "arg", 1);
 }
 
 #[test]
 fn tuple_6() {
-    restart_supervisor!(Supervisor, "my actor", (String, usize, u8, u8, u8, u8));
+    restart_supervisor!(Supervisor, (String, usize, u8, u8, u8, u8));
     // Should be able to directly pass argument.
     let _supervisor = Supervisor::new("Hello World".to_owned(), 123, 1, 2, 3, 4);
 }
 
 #[test]
 fn tuple_7() {
-    restart_supervisor!(Supervisor, "my actor", (String, usize, u8, u8, u8, u8, u8));
+    restart_supervisor!(Supervisor, (String, usize, u8, u8, u8, u8, u8));
     // Need to use tuple format.
     let _supervisor = Supervisor::new(("Hello World".to_owned(), 123, 1, 2, 3, 4, 5));
 }
@@ -256,7 +237,7 @@ fn decide_for_restart_second<NA, S>(
 
 #[test]
 fn decide() {
-    restart_supervisor!(Supervisor, "my actor", bool, 1, Duration::from_secs(60));
+    restart_supervisor!(Supervisor, bool, 1, Duration::from_secs(60));
 
     let arg = true;
     let mut supervisor = Supervisor::new(arg);
@@ -273,7 +254,7 @@ fn decide() {
 
 #[test]
 fn decide_max_duration_elapsed() {
-    restart_supervisor!(Supervisor, "my actor", bool, 1, Duration::from_millis(100));
+    restart_supervisor!(Supervisor, bool, 1, Duration::from_millis(100));
 
     let arg = true;
     let mut supervisor = Supervisor::new(arg);
@@ -301,7 +282,7 @@ fn decide_max_duration_elapsed() {
 
 #[test]
 fn decide_on_restart_error() {
-    restart_supervisor!(Supervisor, "my actor", bool, 1, Duration::from_secs(60));
+    restart_supervisor!(Supervisor, bool, 1, Duration::from_secs(60));
 
     let arg = true;
     let mut supervisor = Supervisor::new(arg);
@@ -318,7 +299,7 @@ fn decide_on_restart_error() {
 
 #[test]
 fn decide_on_second_restart_error() {
-    restart_supervisor!(Supervisor, "my actor", bool, 1, Duration::from_secs(60));
+    restart_supervisor!(Supervisor, bool, 1, Duration::from_secs(60));
 
     let arg = true;
     let mut supervisor = Supervisor::new(arg);
