@@ -72,21 +72,9 @@
 //!
 //! ```
 //! # #![feature(never_type)]
-//! # use heph::actor::{self, actor_fn};
-//! # use heph_rt::spawn::ActorOptions;
-//! # use heph_rt::{self as rt, Runtime};
 //! use heph::supervisor::SupervisorStrategy;
-//! use heph_rt::ThreadLocal;
+//! use heph::actor;
 //!
-//! # fn main() -> Result<(), rt::Error> {
-//! #     let mut runtime = Runtime::new()?;
-//! #     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-//! #         runtime_ref.spawn_local(supervisor, actor_fn(bad_actor), (), ActorOptions::default());
-//! #         Ok(())
-//! #     })?;
-//! #     runtime.start()
-//! # }
-//! #
 //! /// Supervisor that gets called if the actor returns an error.
 //! fn supervisor(err: Error) -> SupervisorStrategy<()> {
 //! #   drop(err); // Silence dead code warnings.
@@ -95,12 +83,13 @@
 //! }
 //!
 //! /// Our badly behaving actor.
-//! async fn bad_actor(_: actor::Context<!, ThreadLocal>) -> Result<(), Error> {
+//! async fn bad_actor(_: actor::Context<!>) -> Result<(), Error> {
 //!     Err(Error)
 //! }
 //!
 //! /// The error returned by our actor.
 //! struct Error;
+//! # _ = (bad_actor, supervisor); // Silence dead code warnings.
 //! ```
 
 use std::any::Any;
@@ -313,22 +302,15 @@ where
 /// ```
 /// #![feature(never_type)]
 ///
+/// use heph::ActorFuture;
 /// use heph::actor::{self, actor_fn};
 /// use heph::supervisor::NoSupervisor;
-/// use heph_rt::spawn::ActorOptions;
-/// use heph_rt::{self as rt, ThreadLocal, Runtime};
 ///
-/// fn main() -> Result<(), rt::Error> {
-///     let mut runtime = Runtime::new()?;
-///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-///         runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), (), ActorOptions::default());
-///         Ok(())
-///     })?;
-///     runtime.start()
-/// }
+/// let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(actor), ()).unwrap();
+/// # _ = (future, actor_ref); // Silence dead code warnings.
 ///
 /// /// Our actor that never returns an error.
-/// async fn actor(ctx: actor::Context<&'static str, ThreadLocal>) {
+/// async fn actor(ctx: actor::Context<&'static str>) {
 ///     println!("Hello world!");
 /// #   drop(ctx); // Silence dead code warnings.
 /// }
@@ -371,34 +353,6 @@ where
 ///
 /// This supervisor can be used for quick prototyping or for one off actors that
 /// shouldn't be restarted.
-///
-/// # Example
-///
-/// ```
-/// #![feature(never_type)]
-///
-/// use heph::actor::{self, actor_fn};
-/// use heph::supervisor::StopSupervisor;
-/// use heph_rt::spawn::ActorOptions;
-/// use heph_rt::{self as rt, ThreadLocal, Runtime};
-///
-/// fn main() -> Result<(), rt::Error> {
-///     let mut runtime = Runtime::new()?;
-///     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-///         let supervisor = StopSupervisor::for_actor("print actor");
-///         runtime_ref.spawn_local(supervisor, actor_fn(print_actor), (), ActorOptions::default());
-///         Ok(())
-///     })?;
-///     runtime.start()
-/// }
-///
-/// /// Our actor that always returns an error.
-/// async fn print_actor(ctx: actor::Context<&'static str, ThreadLocal>) -> Result<(), String> {
-/// #   drop(ctx); // Silence dead code warnings.
-///     println!("Hello world!");
-///     Err("oh no! Hit an error".to_string())
-/// }
-/// ```
 #[derive(Copy, Clone, Debug)]
 pub struct StopSupervisor(&'static str);
 

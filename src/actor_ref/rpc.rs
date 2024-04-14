@@ -21,13 +21,11 @@
 //! Using RPC to communicate with another actor.
 //!
 //! ```
-//! # #![feature(never_type)]
-//! #
 //! use heph::actor;
 //! use heph::actor_ref::{ActorRef, RpcMessage};
-//! use heph_rt::{self as rt, ThreadLocal};
 //!
 //! /// Message type for [`counter`].
+//! # #[allow(dead_code)]
 //! struct Add(RpcMessage<usize, usize>);
 //!
 //! /// Required to support RPC.
@@ -38,7 +36,7 @@
 //! }
 //!
 //! /// Receiving actor of the RPC.
-//! async fn counter(mut ctx: actor::Context<Add, ThreadLocal>) {
+//! async fn counter(mut ctx: actor::Context<Add>) {
 //!     // State of the counter.
 //!     let mut count: usize = 0;
 //!     // Receive a message like normal.
@@ -50,10 +48,9 @@
 //! }
 //!
 //! /// Sending actor of the RPC.
-//! async fn requester(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<Add>) {
+//! async fn requester(_: actor::Context<()>, actor_ref: ActorRef<Add>) {
 //!     // Make the procedure call.
 //!     let response = actor_ref.rpc(10).await;
-//! #   assert!(response.is_ok());
 //!     match response {
 //!         // We got a response.
 //!         Ok(count) => println!("Current count: {count}"),
@@ -61,20 +58,7 @@
 //!         Err(err) => eprintln!("Counter didn't reply: {err}"),
 //!     }
 //! }
-//!
-//! # fn main() -> Result<(), rt::Error> {
-//! #    use heph::actor::actor_fn;
-//! #    use heph::supervisor::NoSupervisor;
-//! #    use heph_rt::Runtime;
-//! #    use heph_rt::spawn::ActorOptions;
-//! #    let mut runtime = Runtime::new()?;
-//! #    runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-//! #        let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor_fn(counter), (), ActorOptions::default());
-//! #        runtime_ref.spawn_local(NoSupervisor, actor_fn(requester), actor_ref, ActorOptions::default());
-//! #        Ok(())
-//! #    })?;
-//! #    runtime.start()
-//! # }
+//! # _ = (counter, requester);
 //! ```
 //!
 //! Supporting multiple procedures within the same actor is possible by making
@@ -82,13 +66,11 @@
 //! shows that synchronous actors are supported as well.
 //!
 //! ```
-//! # #![feature(never_type)]
-//! #
 //! use heph::actor_ref::{ActorRef, RpcMessage};
 //! use heph::{actor, from_message, sync};
-//! use heph_rt::{self as rt, ThreadLocal};
 //!
 //! /// Message type for [`counter`].
+//! # #[allow(dead_code)]
 //! enum Message {
 //!     /// Increase the counter, returning the current state.
 //!     Add(RpcMessage<usize, usize>),
@@ -101,7 +83,7 @@
 //! from_message!(Message::Get(()) -> usize);
 //!
 //! /// Receiving synchronous actor of the RPC.
-//! fn counter<RT>(mut ctx: sync::Context<Message, RT>) {
+//! fn counter(mut ctx: sync::Context<Message>) {
 //!     // State of the counter.
 //!     let mut count: usize = 0;
 //!
@@ -122,7 +104,7 @@
 //! }
 //!
 //! /// Sending actor of the RPC.
-//! async fn requester(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<Message>) {
+//! async fn requester(_: actor::Context<()>, actor_ref: ActorRef<Message>) {
 //!     // Increase the counter by ten.
 //!     // NOTE: do handle the errors correctly in practice, this is just an
 //!     // example.
@@ -131,25 +113,9 @@
 //!
 //!     // Retrieve the current count.
 //!     let count = actor_ref.rpc(()).await.unwrap();
-//! #   assert_eq!(count, 10);
 //!     println!("Current count {count}");
 //! }
-//!
-//! # fn main() -> Result<(), rt::Error> {
-//! #    use heph::actor::actor_fn;
-//! #    use heph::supervisor::NoSupervisor;
-//! #    use heph_rt::Runtime;
-//! #    use heph_rt::spawn::{ActorOptions, SyncActorOptions};
-//! #
-//! #    let mut runtime = Runtime::new()?;
-//! #    let options = SyncActorOptions::default();
-//! #    let actor_ref = runtime.spawn_sync_actor(NoSupervisor, actor_fn(counter), (), options)?;
-//! #    runtime.run_on_workers(move |mut runtime_ref| -> Result<(), !> {
-//! #        runtime_ref.spawn_local(NoSupervisor, actor_fn(requester), actor_ref, ActorOptions::default());
-//! #        Ok(())
-//! #    })?;
-//! #    runtime.start()
-//! # }
+//! # _ = (counter, requester);
 //! ```
 
 use std::error::Error;

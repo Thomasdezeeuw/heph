@@ -135,35 +135,13 @@ pub trait NewActor {
     /// Here is an example of using an enum as message type.
     ///
     /// ```
-    /// # #![feature(never_type)]
-    /// # use heph::actor::{self, actor_fn};
-    /// # use heph::from_message;
-    /// # use heph::supervisor::NoSupervisor;
-    /// # use heph_rt::spawn::ActorOptions;
-    /// # use heph_rt::{self as rt, Runtime, ThreadLocal};
-    /// #
-    /// # fn main() -> Result<(), rt::Error> {
-    /// #     // Create and run the runtime.
-    /// #     let mut runtime = Runtime::new()?;
-    /// #     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-    /// #         // Spawn the actor.
-    /// #         let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), (), ActorOptions::default());
-    /// #
-    /// #         // Now we can use the reference to send the actor a message. We
-    /// #         // don't have to use `Message` type we can just use `String`,
-    /// #         // because `Message` implements `From<String>`.
-    /// #         actor_ref.try_send("Hello world".to_owned()).unwrap();
-    /// #         Ok(())
-    /// #     })?;
-    /// #     runtime.start()
-    /// # }
-    /// #
+    /// use heph::{actor, from_message};
+    ///
     /// /// The message type for the actor.
     /// #[derive(Debug)]
-    /// # #[derive(Eq, PartialEq)]
+    /// # #[allow(dead_code)]
     /// enum Message {
     ///     String(String),
-    /// #   #[allow(dead_code)]
     ///     Number(usize),
     /// }
     ///
@@ -173,12 +151,12 @@ pub trait NewActor {
     /// from_message!(Message::Number(usize));
     ///
     /// /// Our actor implementation that prints all messages it receives.
-    /// async fn actor(mut ctx: actor::Context<Message, ThreadLocal>) {
+    /// async fn actor(mut ctx: actor::Context<Message>) {
     ///     if let Ok(msg) = ctx.receive_next().await {
-    /// #       assert_eq!(msg, Message::String("Hello world".to_owned()));
     ///         println!("received message: {msg:?}");
     ///     }
     /// }
+    /// # _ = actor;
     /// ```
     type Message;
 
