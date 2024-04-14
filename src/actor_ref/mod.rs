@@ -39,32 +39,14 @@
 //! This example shows a simple actor that prints all the messages it receives.
 //!
 //! ```
-//! # #![feature(never_type)]
-//! use heph::actor::{self, actor_fn};
-//! use heph::supervisor::NoSupervisor;
-//! use heph_rt::spawn::ActorOptions;
-//! use heph_rt::{self as rt, Runtime, ThreadLocal};
+//! use heph::actor;
 //!
-//! fn main() -> Result<(), rt::Error> {
-//!     let mut runtime = Runtime::new()?;
-//!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-//!         // Spawn the actor.
-//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), (), ActorOptions::default());
-//!
-//!         // Now we can use the actor reference to send the actor a message.
-//!         actor_ref.try_send("Hello world".to_owned()).unwrap();
-//!
-//!         Ok(())
-//!     })?;
-//!     runtime.start()
-//! }
-//!
-//! /// Our actor.
-//! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
+//! async fn actor(mut ctx: actor::Context<String>) {
 //!     if let Ok(msg) = ctx.receive_next().await {
 //!         println!("got message: {msg}");
 //!     }
 //! }
+//! # _ = actor;
 //! ```
 //!
 //! [`send`]: ActorRef::send
@@ -82,29 +64,19 @@
 //! # #![feature(never_type)]
 //! use heph::actor::{self, actor_fn};
 //! use heph::supervisor::NoSupervisor;
-//! use heph_rt::spawn::ActorOptions;
-//! use heph_rt::{self as rt, Runtime, ThreadLocal};
+//! use heph::future::ActorFuture;
 //!
-//! fn main() -> Result<(), rt::Error> {
-//!     let mut runtime = Runtime::new()?;
-//!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), (), ActorOptions::default());
+//! let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(actor), ()).unwrap();
 //!
-//!         // To create another actor reference we can simply clone the
-//!         // first one.
-//!         let second_actor_ref = actor_ref.clone();
+//! // To create another actor reference we can simply clone the first one.
+//! let second_actor_ref = actor_ref.clone();
 //!
-//!         // Now we can use both references to send a message.
-//!         actor_ref.try_send("Hello world".to_owned()).unwrap();
-//!         second_actor_ref.try_send("Hallo wereld".to_owned()).unwrap(); // Hah! You learned a little Dutch!
-//!
-//!         Ok(())
-//!     })?;
-//!     runtime.start()
-//! }
+//! // Now we can use both references to send a message.
+//! actor_ref.try_send("Hello world".to_owned()).unwrap();
+//! second_actor_ref.try_send("Hallo wereld".to_owned()).unwrap(); // Hah! You learned a little Dutch!
 //!
 //! /// Our actor.
-//! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
+//! async fn actor(mut ctx: actor::Context<String>) {
 //!     if let Ok(msg) = ctx.receive_next().await {
 //!         println!("First message: {msg}");
 //!     }
@@ -113,6 +85,7 @@
 //!         println!("Second message: {msg}");
 //!     }
 //! }
+//! # _ = future;
 //! ```
 //!
 //! # Joining an actor reference
@@ -126,42 +99,33 @@
 //! was restarted. For that see the [`supervisor`] module.
 //!
 //! ```
-//! # #![feature(never_type)]
 //! use heph::ActorRef;
 //! use heph::actor::{self, actor_fn};
+//! use heph::future::ActorFuture;
 //! use heph::supervisor::NoSupervisor;
-//! use heph_rt::spawn::ActorOptions;
-//! use heph_rt::{self as rt, Runtime, ThreadLocal};
 //!
-//! fn main() -> Result<(), rt::Error> {
-//!     let mut runtime = Runtime::new()?;
-//!     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
-//!         let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor_fn(actor), (), ActorOptions::default());
+//! let (actor_future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(actor), ()).unwrap();
 //!
-//!         // Send the actor a message to start.
-//!         actor_ref.try_send("Hello world".to_owned()).unwrap();
+//! // Send the actor a message to start.
+//! actor_ref.try_send("Hello world".to_owned()).unwrap();
 //!
-//!         // Spawn our watchdog actor that watches the actor we spawned above.
-//!         runtime_ref.spawn_local(NoSupervisor, actor_fn(watchdog), actor_ref, ActorOptions::default());
+//! // Create our watchdog actor that watches the actor we spawned above.
+//! let (watchdog_future, _) = ActorFuture::new(NoSupervisor, actor_fn(watchdog), actor_ref).unwrap();
 //!
-//!         Ok(())
-//!     })?;
-//!     runtime.start()
-//! }
-//!
-//! /// Our actor.
-//! async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
+//! /// The actor we'll be watching.
+//! async fn actor(mut ctx: actor::Context<String>) {
 //!     if let Ok(msg) = ctx.receive_next().await {
 //!         println!("First message: {msg}");
 //!     }
 //! }
 //!
-//! /// Actor that watches another actor.
-//! async fn watchdog<M>(_: actor::Context<!, ThreadLocal>, watch: ActorRef<M>) {
+//! /// Actor that watches the actor above.
+//! async fn watchdog<M>(_: actor::Context<()>, watch: ActorRef<M>) {
 //!     // Wait until the actor referenced by `watch` has completed.
 //!     watch.join().await;
 //!     println!("Actor has completed");
 //! }
+//! # _ = (actor_future, watchdog_future);
 //! ```
 //!
 //! [`supervisor`]: crate::supervisor

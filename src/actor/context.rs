@@ -43,9 +43,8 @@ impl<M, RT> Context<M, RT> {
     ///
     /// ```
     /// use heph::actor;
-    /// use heph_rt::ThreadLocal;
     ///
-    /// async fn greeter_actor(mut ctx: actor::Context<String, ThreadLocal>) {
+    /// async fn greeter_actor(mut ctx: actor::Context<String>) {
     ///     if let Ok(name) = ctx.try_receive_next() {
     ///         println!("Hello: {name}");
     ///     } else {
@@ -68,39 +67,10 @@ impl<M, RT> Context<M, RT> {
     ///
     /// ```
     /// use heph::actor;
-    /// use heph_rt::ThreadLocal;
     ///
-    /// async fn print_actor(mut ctx: actor::Context<String, ThreadLocal>) {
+    /// async fn print_actor(mut ctx: actor::Context<String>) {
     ///     if let Ok(msg) = ctx.receive_next().await {
     ///         println!("Got a message: {msg}");
-    ///     }
-    /// }
-    /// # _ = print_actor; // Silence dead code warnings.
-    /// ```
-    ///
-    /// Same as the example above, but this actor will only wait for a limited
-    /// amount of time.
-    ///
-    /// ```
-    /// use std::time::Duration;
-    ///
-    /// use heph::actor;
-    /// use heph_rt::util::either;
-    /// use heph_rt::ThreadLocal;
-    /// use heph_rt::timer::Timer;
-    ///
-    /// async fn print_actor(mut ctx: actor::Context<String, ThreadLocal>) {
-    ///     // Create a timer, this will be ready once the timeout has
-    ///     // passed.
-    ///     let timeout = Timer::after(ctx.runtime().clone(), Duration::from_millis(100));
-    ///     // Create a future to receive a message.
-    ///     let msg_future = ctx.receive_next();
-    ///
-    ///     // Now let them race!
-    ///     match either(msg_future, timeout).await {
-    ///         Ok(Ok(msg)) => println!("Got a message: {msg}"),
-    ///         Ok(Err(_)) => println!("No message"),
-    ///         Err(_) => println!("Timed out receiving message"),
     ///     }
     /// }
     /// # _ = print_actor; // Silence dead code warnings.

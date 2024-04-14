@@ -81,9 +81,8 @@ where
 /// ```
 /// use heph::actor::{self, actor_fn};
 /// use heph::test::size_of_actor_val;
-/// use heph_rt::ThreadLocal;
 ///
-/// async fn actor(mut ctx: actor::Context<String, ThreadLocal>) {
+/// async fn actor(mut ctx: actor::Context<String>) {
 ///     // Receive a message.
 ///     if let Ok(msg) = ctx.receive_next().await {
 ///         // Print the message.
@@ -91,7 +90,7 @@ where
 ///     }
 /// }
 ///
-/// assert_eq!(size_of_actor_val(&actor_fn(actor)), 72);
+/// assert_eq!(size_of_actor_val(&actor_fn(actor)), 56);
 /// ```
 pub const fn size_of_actor_val<NA>(_: &NA) -> usize
 where

@@ -28,9 +28,9 @@ log               = { version = "0.4.21", default-features = false, features = [
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
-# NOTE: these dependencies are only used for the examples.
-heph-rt           = { version = "0.5.0", path = "./rt", default-features = false, features = ["test"] }
-std-logger        = { version = "0.5.3", default-features = false, features = ["log-panic", "nightly"] }
+# NOTE: the following two dependencies may only used by a limited number of examples.
+heph-rt           = { version = "0.5.0", path = "./rt", default-features = false }
+std-logger        = { version = "0.5.3", default-features = false }
 
 [[test]]
 name    = "examples"
