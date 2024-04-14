@@ -1,7 +1,10 @@
 # Examples
 
-This directory contains a number of examples that highlight certain parts of the
-system.
+This directory contains a number of examples that highlight certain parts of
+Heph. Note that the Heph-rt crate has even more examples in its [examples
+directory].
+
+[examples directory]: ../rt/examples
 
 
 ## 1. Hello World
@@ -31,9 +34,3 @@ blocking I/O without stalling other actors.
 Example four shows how the `restart_supervisor!` macro can be used to easily
 create a new `Supervisor` implementation that attempts to restart the actor with
 cloned arguments.
-
-## More examples
-
-More examples are available in the `heph-rt` crate's [examples directory].
-
-[examples directory]: ../rt/examples
