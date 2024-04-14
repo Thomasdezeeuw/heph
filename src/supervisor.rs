@@ -658,32 +658,7 @@ macro_rules! __heph_restart_supervisor_impl {
         $( args $(. $log_arg_field: tt )* ),*
         $(,)?
     ) => {
-        let now = std::time::Instant::now();
-        let last_restart = $self.last_restart.replace(now);
-
-        // If enough time has passed between the last restart and now we
-        // reset the `restarts_left` left counter.
-        if let Some(last_restart) = last_restart {
-            let duration_since_last_crash = now - last_restart;
-            if duration_since_last_crash > Self::MAX_DURATION {
-                $self.restarts_left = Self::MAX_RESTARTS;
-            }
-        }
-
-        if $self.restarts_left >= 1 {
-            $self.restarts_left -= 1;
-            ::log::warn!(
-                std::concat!($actor_name, " failed, restarting it ({}/{} restarts left): {}", $log_extra),
-                $self.restarts_left, $max_restarts, $err, $( $self.args $(. $log_arg_field )* ),*
-            );
-            $crate::SupervisorStrategy::Restart($self.args.clone())
-        } else {
-            ::log::warn!(
-                std::concat!($actor_name, " failed, stopping it (no restarts left): {}", $log_extra),
-                $err, $( $self.args $(. $log_arg_field )* ),*
-            );
-            $crate::SupervisorStrategy::Stop
-        }
+        $crate::__heph_restart_supervisor_impl!{_decide_impl $self, "failed", $err, $actor_name, $max_restarts, $log_extra, $( args $(. $log_arg_field )* ),*}
     };
 
     // The `decide_on_panic` implementation of `Supervisor` and `SyncSupervisor`.
@@ -691,6 +666,22 @@ macro_rules! __heph_restart_supervisor_impl {
         decide_on_panic_impl
         $self: ident,
         $panic: ident,
+        $actor_name: expr,
+        $max_restarts: expr,
+        $log_extra: expr,
+        $( args $(. $log_arg_field: tt )* ),*
+        $(,)?
+    ) => {
+        let msg = $crate::panic_message(&*$panic);
+        $crate::__heph_restart_supervisor_impl!{_decide_impl $self, "panicked", msg, $actor_name, $max_restarts, $log_extra, $( args $(. $log_arg_field )* ),*}
+    };
+
+    // The `decide`/`decide_on_panic` implementation of `Supervisor` and `SyncSupervisor`.
+    (
+        _decide_impl
+        $self: ident,
+        $kind: expr,
+        $err: ident,
         $actor_name: expr,
         $max_restarts: expr,
         $log_extra: expr,
@@ -709,18 +700,17 @@ macro_rules! __heph_restart_supervisor_impl {
             }
         }
 
-        let msg = $crate::panic_message(&*$panic);
         if $self.restarts_left >= 1 {
             $self.restarts_left -= 1;
             ::log::warn!(
-                std::concat!($actor_name, " panicked, restarting it ({}/{} restarts left): {}", $log_extra),
-                $self.restarts_left, $max_restarts, msg, $( $self.args $(. $log_arg_field )* ),*
+                std::concat!($actor_name, " ", $kind, ", restarting it ({}/{} restarts left): {}", $log_extra),
+                $self.restarts_left, $max_restarts, $err, $( $self.args $(. $log_arg_field )* ),*
             );
             $crate::SupervisorStrategy::Restart($self.args.clone())
         } else {
             ::log::warn!(
-                std::concat!($actor_name, " panicked, stopping it (no restarts left): {}", $log_extra),
-                msg, $( $self.args $(. $log_arg_field )* ),*
+                std::concat!($actor_name, " ", $kind, ", stopping it (no restarts left): {}", $log_extra),
+                $err, $( $self.args $(. $log_arg_field )* ),*
             );
             $crate::SupervisorStrategy::Stop
         }
