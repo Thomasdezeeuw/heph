@@ -120,7 +120,7 @@ fn actor_future() {
 
     // Send a message and the actor should return Ok.
     actor_ref.try_send(()).unwrap();
-    assert_eq!(count.load(Ordering::SeqCst), 1);
+    assert_eq!(count.load(Ordering::Acquire), 1);
     let res = actor.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Ready(()));
 }
@@ -150,7 +150,7 @@ fn erroneous_actor_process() {
     let res = actor.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Ready(()));
     assert_eq!(supervisor_called_count, 1);
-    assert_eq!(count.load(Ordering::SeqCst), 0);
+    assert_eq!(count.load(Ordering::Acquire), 0);
 }
 
 #[test]
@@ -170,7 +170,7 @@ fn restarting_erroneous_actor_process() {
     assert_eq!(res, Poll::Pending);
     assert_eq!(supervisor_called_count.get(), 1);
     // The future to wake itself after a restart to ensure it gets run again.
-    assert_eq!(count.load(Ordering::SeqCst), 1);
+    assert_eq!(count.load(Ordering::Acquire), 1);
 
     // After a restart the actor should continue without issues.
     let res = actor.as_mut().poll(&mut ctx);
@@ -179,7 +179,7 @@ fn restarting_erroneous_actor_process() {
 
     // Finally after sending it a message it should complete.
     actor_ref.try_send(()).unwrap();
-    assert_eq!(count.load(Ordering::SeqCst), 2);
+    assert_eq!(count.load(Ordering::Acquire), 2);
     let res = actor.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Ready(()));
     assert_eq!(supervisor_called_count.get(), 1);
@@ -237,7 +237,7 @@ fn panicking_actor_process() {
     let res = actor.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Ready(()));
     assert_eq!(supervisor_called_count, 1);
-    assert_eq!(count.load(Ordering::SeqCst), 0);
+    assert_eq!(count.load(Ordering::Acquire), 0);
 }
 
 #[test]
@@ -284,7 +284,7 @@ fn restarting_panicking_actor_process() {
     assert_eq!(res, Poll::Pending);
     assert_eq!(supervisor_called_count.get(), 1);
     // The future to wake itself after a restart to ensure it gets run again.
-    assert_eq!(count.load(Ordering::SeqCst), 1);
+    assert_eq!(count.load(Ordering::Acquire), 1);
 
     // After a restart the actor should continue without issues.
     let res = actor.as_mut().poll(&mut ctx);
@@ -293,7 +293,7 @@ fn restarting_panicking_actor_process() {
 
     // Finally after sending it a message it should complete.
     actor_ref.try_send(()).unwrap();
-    assert_eq!(count.load(Ordering::SeqCst), 2);
+    assert_eq!(count.load(Ordering::Acquire), 2);
     let res = actor.as_mut().poll(&mut ctx);
     assert_eq!(res, Poll::Ready(()));
     assert_eq!(supervisor_called_count.get(), 1);
@@ -306,7 +306,7 @@ pub(crate) fn task_wake_counter() -> (task::Waker, Arc<AtomicUsize>) {
 
     impl task::Wake for WakeCounter {
         fn wake(self: Arc<Self>) {
-            _ = self.0.fetch_add(1, Ordering::SeqCst);
+            _ = self.0.fetch_add(1, Ordering::AcqRel);
         }
     }
 
