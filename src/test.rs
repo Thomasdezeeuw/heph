@@ -14,9 +14,10 @@
 //! features = ["test"]
 //! ```
 
+use std::any::Any;
 use std::mem::size_of;
 use std::sync::atomic::{AtomicU8, Ordering};
-use std::{fmt, slice};
+use std::{fmt, panic, slice};
 
 use getrandom::getrandom;
 use log::warn;
@@ -126,6 +127,13 @@ where
         let name = actor::name::<NA::Actor>();
         panic!("error restarting '{name}' actor a second time: {err}")
     }
+
+    fn decide_on_panic(
+        &mut self,
+        panic: Box<dyn Any + Send + 'static>,
+    ) -> SupervisorStrategy<NA::Argument> {
+        panic::resume_unwind(panic)
+    }
 }
 
 impl<A> SyncSupervisor<A> for PanicSupervisor
@@ -136,5 +144,12 @@ where
     fn decide(&mut self, err: A::Error) -> SupervisorStrategy<A::Argument> {
         // NOTE: can't use `actor::name` for sync actors.
         panic!("error running sync actor: {err}")
+    }
+
+    fn decide_on_panic(
+        &mut self,
+        panic: Box<dyn Any + Send + 'static>,
+    ) -> SupervisorStrategy<A::Argument> {
+        panic::resume_unwind(panic)
     }
 }
