@@ -79,9 +79,6 @@
 //! use heph_rt::ThreadLocal;
 //!
 //! # fn main() -> Result<(), rt::Error> {
-//! #     // Enable logging so we can see the error message.
-//! #     std_logger::Config::logfmt().init();
-//! #
 //! #     let mut runtime = Runtime::new()?;
 //! #     runtime.run_on_workers(|mut runtime_ref| -> Result<(), !> {
 //! #         runtime_ref.spawn_local(supervisor, actor_fn(bad_actor), (), ActorOptions::default());
