@@ -1,33 +1,22 @@
-#![feature(never_type)]
-
 use std::fmt;
 
 use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, RpcMessage};
+use heph::future::ActorFuture;
 use heph::supervisor::NoSupervisor;
-use heph_rt::spawn::ActorOptions;
-use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
-fn main() -> Result<(), rt::Error> {
-    // Setup is much like example 1, see that example for more information.
-    std_logger::Config::logfmt().init();
-    let mut runtime = Runtime::setup().build()?;
-    runtime.run_on_workers(add_rpc_actor)?;
-    runtime.start()
+mod runtime; // Replace this with your favourite `Future` runtime.
+
+fn main() {
+    // See example 1 for the creation of `ActorFuture`s.
+    let (pong_future, pong_ref) = ActorFuture::new(NoSupervisor, actor_fn(pong_actor), ()).unwrap();
+    let (ping_future, _) = ActorFuture::new(NoSupervisor, actor_fn(ping_actor), pong_ref).unwrap();
+
+    // We run ours futures on our runtime.
+    runtime::block_on2(ping_future, pong_future);
 }
 
-fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-    // See example 1 for information on how to spawn actors.
-    let pong_actor = actor_fn(pong_actor);
-    let actor_ref = runtime_ref.spawn_local(NoSupervisor, pong_actor, (), ActorOptions::default());
-
-    let ping_actor = actor_fn(ping_actor);
-    runtime_ref.spawn_local(NoSupervisor, ping_actor, actor_ref, ActorOptions::default());
-
-    Ok(())
-}
-
-async fn ping_actor(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<PongMessage>) {
+async fn ping_actor(_: actor::Context<()>, actor_ref: ActorRef<PongMessage>) {
     // Make a Remote Procedure Call (RPC) and await the response.
     match actor_ref.rpc(Ping).await {
         Ok(response) => println!("Got a RPC response: {response}"),
@@ -38,7 +27,7 @@ async fn ping_actor(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<PongM
 // Message type to support the ping-pong RPC.
 type PongMessage = RpcMessage<Ping, Pong>;
 
-async fn pong_actor(mut ctx: actor::Context<PongMessage, ThreadLocal>) {
+async fn pong_actor(mut ctx: actor::Context<PongMessage>) {
     // Await a message, same as all other messages.
     while let Ok(msg) = ctx.receive_next().await {
         // Next we respond to the request.
