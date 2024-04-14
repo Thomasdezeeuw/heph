@@ -24,7 +24,7 @@ impl WakerRegistration {
         let stored_waker = self.waker.read().unwrap();
         if let Some(stored_waker) = &*stored_waker {
             if stored_waker.will_wake(waker) {
-                self.needs_wakeup.store(true, Ordering::SeqCst);
+                self.needs_wakeup.store(true, Ordering::Release);
                 return false;
             }
         }
@@ -36,26 +36,26 @@ impl WakerRegistration {
         // again.
         if let Some(stored_waker) = &*stored_waker {
             if stored_waker.will_wake(waker) {
-                self.needs_wakeup.store(true, Ordering::SeqCst);
+                self.needs_wakeup.store(true, Ordering::Release);
                 return false;
             }
         }
         *stored_waker = Some(waker.clone());
         drop(stored_waker);
 
-        self.needs_wakeup.store(true, Ordering::SeqCst);
+        self.needs_wakeup.store(true, Ordering::Release);
         true
     }
 
     /// Wake the waker registered, if required.
     pub(crate) fn wake(&self) {
-        if !self.needs_wakeup.load(Ordering::SeqCst) {
+        if !self.needs_wakeup.load(Ordering::Acquire) {
             // Receiver doesn't need a wake-up.
             return;
         }
 
         // Mark that we've woken and after actually do the waking.
-        if self.needs_wakeup.swap(false, Ordering::SeqCst) {
+        if self.needs_wakeup.swap(false, Ordering::AcqRel) {
             if let Some(waker) = &*self.waker.read().unwrap() {
                 waker.wake_by_ref();
             }
