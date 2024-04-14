@@ -30,7 +30,6 @@ fn main() {
 // Create a restart supervisor for the actors below.
 restart_supervisor!(
     PrintSupervisor,         // Name of the supervisor type.
-    "print actor",           // Name of the actor.
     &'static str,            // Argument for the actor.
     5,                       // Maximum number of restarts.
     Duration::from_secs(30), // Time to reset the max. reset counter.

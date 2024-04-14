@@ -52,7 +52,7 @@ fn main() -> Result<(), rt::Error> {
     runtime.start()
 }
 
-restart_supervisor!(ServerSupervisor, "TCP server actor", ());
+restart_supervisor!(ServerSupervisor, ());
 
 async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: TcpStream) -> io::Result<()> {
     let address = stream.peer_addr()?;

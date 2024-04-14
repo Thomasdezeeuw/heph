@@ -57,7 +57,7 @@
 //!
 //! // Next we're going to spawn our net relay actor.
 //! // First it needs a supervisor.
-//! restart_supervisor!(RelaySupervisor, "relay actor", SocketAddr);
+//! restart_supervisor!(RelaySupervisor, SocketAddr);
 //! let supervisor = RelaySupervisor::new(local_address);
 //! // It needs a way to route all incoming messages, here we're direct them to
 //! // our local actor using the `local_actor_ref`.

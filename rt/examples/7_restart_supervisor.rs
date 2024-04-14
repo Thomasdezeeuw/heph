@@ -38,7 +38,6 @@ fn main() -> Result<(), rt::Error> {
 // Create a restart supervisor for the [`print_actor`].
 restart_supervisor!(
     PrintSupervisor,
-    "print actor",
     String,
     5,
     Duration::from_secs(5),

@@ -125,36 +125,37 @@ fn test_6_process_signals() {
 #[test]
 fn test_7_restart_supervisor() {
     // Index of the "?" in the string below.
-    const LEFT_INDEX: usize = 51;
+    const SYNC_LEFT_INDEX: usize = 56;
+    const ASYNC_LEFT_INDEX: usize = 51;
 
     let output = run_example_output("7_restart_supervisor");
     let mut lines = output.lines();
 
-    let mut expected = "lvl=\"WARN\" msg=\"print actor failed, restarting it (?/5 restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"".to_owned();
+    let mut expected = "lvl=\"WARN\" msg=\"sync_print_actor failed, restarting it (?/5 restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"".to_owned();
     for left in (0..5).rev() {
         let line = lines.next().unwrap();
 
         unsafe {
-            expected.as_bytes_mut()[LEFT_INDEX] = b'0' + left;
+            expected.as_bytes_mut()[SYNC_LEFT_INDEX] = b'0' + left;
         }
         assert_eq!(line, expected);
     }
 
-    let expected = "lvl=\"WARN\" msg=\"print actor failed, stopping it (no restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"";
+    let expected = "lvl=\"WARN\" msg=\"sync_print_actor failed, stopping it (no restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"";
     let last_line = lines.next().unwrap();
     assert_eq!(last_line, expected);
 
-    let mut expected = "lvl=\"WARN\" msg=\"print actor failed, restarting it (?/5 restarts left): can't print message 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"".to_owned();
+    let mut expected = "lvl=\"WARN\" msg=\"print_actor failed, restarting it (?/5 restarts left): can't print message 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"".to_owned();
     for left in (0..5).rev() {
         let line = lines.next().unwrap();
 
         unsafe {
-            expected.as_bytes_mut()[LEFT_INDEX] = b'0' + left;
+            expected.as_bytes_mut()[ASYNC_LEFT_INDEX] = b'0' + left;
         }
         assert_eq!(line, expected);
     }
 
-    let expected = "lvl=\"WARN\" msg=\"print actor failed, stopping it (no restarts left): can't print message 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"";
+    let expected = "lvl=\"WARN\" msg=\"print_actor failed, stopping it (no restarts left): can't print message 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"";
     let last_line = lines.next().unwrap();
     assert_eq!(last_line, expected);
 
