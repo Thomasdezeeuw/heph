@@ -626,6 +626,10 @@ macro_rules! __heph_restart_supervisor_impl {
                     err, $( self.args $(. $log_arg_field )* ),*
                 );
             }
+
+            fn decide_on_panic(&mut self, panic: Box<dyn std::any::Any + Send + 'static>) -> $crate::SupervisorStrategy<NA::Argument> {
+                $crate::__heph_restart_supervisor_impl!{decide_on_panic_impl self, panic, $actor_name, $max_restarts, $log_extra, $( args $(. $log_arg_field )* ),*}
+            }
         }
 
         impl<A> $crate::supervisor::SyncSupervisor<A> for $supervisor_name
@@ -635,6 +639,10 @@ macro_rules! __heph_restart_supervisor_impl {
         {
             fn decide(&mut self, err: A::Error) -> $crate::SupervisorStrategy<A::Argument> {
                 $crate::__heph_restart_supervisor_impl!{decide_impl self, err, $actor_name, $max_restarts, $log_extra, $( args $(. $log_arg_field )* ),*}
+            }
+
+            fn decide_on_panic(&mut self, panic: Box<dyn std::any::Any + Send + 'static>) -> $crate::SupervisorStrategy<A::Argument> {
+                $crate::__heph_restart_supervisor_impl!{decide_on_panic_impl self, panic, $actor_name, $max_restarts, $log_extra, $( args $(. $log_arg_field )* ),*}
             }
         }
     };
@@ -673,6 +681,46 @@ macro_rules! __heph_restart_supervisor_impl {
             ::log::warn!(
                 std::concat!($actor_name, " failed, stopping it (no restarts left): {}", $log_extra),
                 $err, $( $self.args $(. $log_arg_field )* ),*
+            );
+            $crate::SupervisorStrategy::Stop
+        }
+    };
+
+    // The `decide_on_panic` implementation of `Supervisor` and `SyncSupervisor`.
+    (
+        decide_on_panic_impl
+        $self: ident,
+        $panic: ident,
+        $actor_name: expr,
+        $max_restarts: expr,
+        $log_extra: expr,
+        $( args $(. $log_arg_field: tt )* ),*
+        $(,)?
+    ) => {
+        let now = std::time::Instant::now();
+        let last_restart = $self.last_restart.replace(now);
+
+        // If enough time has passed between the last restart and now we
+        // reset the `restarts_left` left counter.
+        if let Some(last_restart) = last_restart {
+            let duration_since_last_crash = now - last_restart;
+            if duration_since_last_crash > Self::MAX_DURATION {
+                $self.restarts_left = Self::MAX_RESTARTS;
+            }
+        }
+
+        let msg = $crate::panic_message(&*$panic);
+        if $self.restarts_left >= 1 {
+            $self.restarts_left -= 1;
+            ::log::warn!(
+                std::concat!($actor_name, " panicked, restarting it ({}/{} restarts left): {}", $log_extra),
+                $self.restarts_left, $max_restarts, msg, $( $self.args $(. $log_arg_field )* ),*
+            );
+            $crate::SupervisorStrategy::Restart($self.args.clone())
+        } else {
+            ::log::warn!(
+                std::concat!($actor_name, " panicked, stopping it (no restarts left): {}", $log_extra),
+                msg, $( $self.args $(. $log_arg_field )* ),*
             );
             $crate::SupervisorStrategy::Stop
         }

@@ -99,7 +99,8 @@ pub use sync::{SyncActor, SyncActorRunner, SyncActorRunnerBuilder};
 
 /// Attempts to extract a message from a panic, defaulting to `<unknown>`.
 /// NOTE: be sure to derefence the `Box`!
-fn panic_message<'a>(panic: &'a (dyn std::any::Any + Send + 'static)) -> &'a str {
+#[doc(hidden)] // Not part of the stable API.
+pub fn panic_message<'a>(panic: &'a (dyn std::any::Any + Send + 'static)) -> &'a str {
     match panic.downcast_ref::<&'static str>() {
         Some(s) => s,
         None => match panic.downcast_ref::<String>() {
