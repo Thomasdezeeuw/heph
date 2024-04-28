@@ -70,6 +70,16 @@ impl ActorOptions {
         self.inbox_size = inbox_size;
         self
     }
+
+    /// Returns itself as `FutureOptions`.
+    pub(crate) const fn as_future_options(self) -> FutureOptions {
+        let ActorOptions {
+            priority,
+            inbox_size: _,
+        } = self;
+
+        FutureOptions { priority }
+    }
 }
 
 /// Priority for an actor or future in the scheduler.
