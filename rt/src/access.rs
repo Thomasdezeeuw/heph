@@ -161,6 +161,12 @@ impl From<RuntimeRef> for ThreadLocal {
     }
 }
 
+impl From<&RuntimeRef> for ThreadLocal {
+    fn from(rt: &RuntimeRef) -> ThreadLocal {
+        ThreadLocal::new(rt.clone())
+    }
+}
+
 impl Deref for ThreadLocal {
     type Target = RuntimeRef;
 
