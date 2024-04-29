@@ -227,14 +227,15 @@ use std::sync::Arc;
 use std::{fmt, io};
 
 use heph::actor::{self, NewActor, NoMessages};
+use heph::actor_ref::ActorRef;
 use heph::messages::Terminate;
 use heph::supervisor::Supervisor;
 use log::{debug, trace};
 use socket2::{Domain, Protocol, Socket, Type};
 
-use crate::access::Access;
+use crate::access::{Access, ThreadLocal, ThreadSafe};
 use crate::net::{TcpListener, TcpStream};
-use crate::spawn::{ActorOptions, Spawn};
+use crate::spawn::{ActorOptions, Spawn, SpawnLocal};
 use crate::util::{either, next};
 use crate::Signal;
 
@@ -353,7 +354,7 @@ impl<S, NA> NewActor for Setup<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = TcpStream> + Clone + 'static,
-    NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
+    NA::RuntimeAccess: for<'a> From<&'a NA::RuntimeAccess> + Access + PrivateSpawn<S, NA> + Clone,
 {
     type Message = Message;
     type Argument = ();
@@ -395,7 +396,7 @@ async fn tcp_server<S, NA>(
 where
     S: Supervisor<NA> + Clone + 'static,
     NA: NewActor<Argument = TcpStream> + Clone + 'static,
-    NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
+    NA::RuntimeAccess: Access + PrivateSpawn<S, NA> + Clone,
 {
     let listener = TcpListener::bind_setup(ctx.runtime_ref(), local, set_listener_options)
         .await
@@ -411,6 +412,7 @@ where
                 drop(receive); // Can't double borrow `ctx`.
                 stream.set_auto_cpu_affinity(ctx.runtime_ref());
                 _ = ctx
+                    .runtime()
                     .try_spawn(
                         supervisor.clone(),
                         new_actor.clone(),
@@ -434,6 +436,61 @@ where
                 return Ok(());
             }
         }
+    }
+}
+
+// TODO: maybe expose this, in some form, in the spawn module?
+trait PrivateSpawn<S, NA> {
+    fn try_spawn(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
+    where
+        S: Supervisor<NA> + 'static,
+        NA: NewActor + 'static;
+}
+
+impl<S, NA> PrivateSpawn<S, NA> for ThreadLocal
+where
+    NA: NewActor<RuntimeAccess = ThreadLocal>,
+{
+    fn try_spawn(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
+    where
+        S: Supervisor<NA> + 'static,
+        NA: NewActor + 'static,
+    {
+        SpawnLocal::try_spawn_local(self, supervisor, new_actor, arg, options)
+    }
+}
+
+impl<S, NA> PrivateSpawn<S, NA> for ThreadSafe
+where
+    S: Send + Sync,
+    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync,
+    NA::Actor: Send + Sync,
+    NA::Message: Send,
+{
+    fn try_spawn(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
+    where
+        S: Supervisor<NA> + 'static,
+        NA: NewActor + 'static,
+    {
+        Spawn::try_spawn(self, supervisor, new_actor, arg, options)
     }
 }
 

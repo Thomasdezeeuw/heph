@@ -26,6 +26,7 @@
 //! block.
 //!
 //! [`rt::Access`]: crate::Access
+//! [`NewActor::RuntimeAccess`]: heph::actor::NewActor::RuntimeAccess
 //! [`SyncActor::RuntimeAccess`]: heph::sync::SyncActor::RuntimeAccess
 //! [`TcpStream::connect`]: crate::net::TcpStream::connect
 
@@ -35,9 +36,9 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, task};
 
-use heph::{actor, sync, ActorRef, NewActor, Supervisor};
+use heph::{actor, sync};
 
-use crate::spawn::{ActorOptions, FutureOptions, Spawn};
+use crate::spawn::{FutureOptions, Spawn, SpawnLocal};
 use crate::timers::TimerToken;
 use crate::trace::{self, Trace};
 use crate::{shared, Runtime, RuntimeRef};
@@ -50,6 +51,7 @@ use crate::{shared, Runtime, RuntimeRef};
 ///
 /// Also see [`NewActor::RuntimeAccess`] and [`SyncActor::RuntimeAccess`].
 ///
+/// [`NewActor::RuntimeAccess`]: heph::actor::NewActor::RuntimeAccess
 /// [`SyncActor::RuntimeAccess`]: heph::sync::SyncActor::RuntimeAccess
 ///
 /// # Notes
@@ -216,46 +218,21 @@ impl PrivateAccess for ThreadLocal {
     }
 }
 
-impl<S, NA> Spawn<S, NA, ThreadLocal> for ThreadLocal
-where
-    S: Supervisor<NA> + 'static,
-    NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
-    NA::Actor: 'static,
-{
-    fn try_spawn(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
+impl SpawnLocal for ThreadLocal {
+    fn spawn_local_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
-        S: Supervisor<NA>,
-        NA: NewActor<RuntimeAccess = ThreadLocal>,
+        Fut: Future<Output = ()> + 'static,
     {
-        Spawn::try_spawn(&mut self.rt, supervisor, new_actor, arg, options)
+        self.rt.spawn_local_future(future, options);
     }
 }
 
-impl<S, NA> Spawn<S, NA, ThreadSafe> for ThreadLocal
-where
-    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
-    NA::Actor: Send + std::marker::Sync + 'static,
-    NA::Message: Send,
-{
-    fn try_spawn(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
+impl Spawn for ThreadLocal {
+    fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
-        S: Supervisor<NA>,
-        NA: NewActor<RuntimeAccess = ThreadSafe>,
+        Fut: Future<Output = ()> + 'static + Send + std::marker::Sync,
     {
-        self.rt.try_spawn(supervisor, new_actor, arg, options)
+        self.rt.spawn_future(future, options);
     }
 }
 
@@ -345,25 +322,12 @@ impl PrivateAccess for ThreadSafe {
     }
 }
 
-impl<S, NA> Spawn<S, NA, ThreadSafe> for ThreadSafe
-where
-    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
-    NA::Actor: Send + std::marker::Sync + 'static,
-    NA::Message: Send,
-{
-    fn try_spawn(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
+impl Spawn for ThreadSafe {
+    fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
-        S: Supervisor<NA>,
-        NA: NewActor<RuntimeAccess = ThreadSafe>,
+        Fut: Future<Output = ()> + 'static + Send + std::marker::Sync,
     {
-        self.rt.try_spawn(supervisor, new_actor, arg, options)
+        self.rt.spawn_future(future, options);
     }
 }
 
@@ -428,25 +392,12 @@ impl Sync {
     }
 }
 
-impl<S, NA> Spawn<S, NA, ThreadSafe> for Sync
-where
-    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
-    NA::Actor: Send + std::marker::Sync + 'static,
-    NA::Message: Send,
-{
-    fn try_spawn(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
+impl Spawn for Sync {
+    fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
-        S: Supervisor<NA>,
-        NA: NewActor<RuntimeAccess = ThreadSafe>,
+        Fut: Future<Output = ()> + 'static + Send + std::marker::Sync,
     {
-        self.rt.try_spawn(supervisor, new_actor, arg, options)
+        self.rt.spawn_future(future, options);
     }
 }
 

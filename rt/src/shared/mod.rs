@@ -8,20 +8,17 @@ use std::sync::{Arc, Mutex, TryLockError};
 use std::time::{Duration, Instant};
 use std::{io, task};
 
-use heph::actor_ref::ActorRef;
-use heph::supervisor::Supervisor;
-use heph::{ActorFutureBuilder, NewActor};
 use log::{debug, trace};
 
 use crate::process::{FutureProcess, Process, ProcessId};
 use crate::scheduler::shared::{ProcessData, Scheduler};
 #[cfg(test)]
 use crate::spawn::options::Priority;
-use crate::spawn::{ActorOptions, FutureOptions};
+use crate::spawn::FutureOptions;
 use crate::timers::shared::Timers;
 use crate::timers::TimerToken;
+use crate::trace;
 use crate::wakers::shared::Wakers;
-use crate::{trace, ThreadSafe};
 
 /// Setup of [`RuntimeInternals`].
 ///
@@ -205,32 +202,6 @@ impl RuntimeInternals {
             },
             None => current,
         }
-    }
-
-    /// Spawn a thread-safe actor.
-    #[allow(clippy::needless_pass_by_value)] // For `ActorOptions`.
-    pub(crate) fn try_spawn<S, NA>(
-        self: &Arc<Self>,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
-    where
-        S: Supervisor<NA> + Send + Sync + 'static,
-        NA: NewActor<RuntimeAccess = ThreadSafe> + Sync + Send + 'static,
-        NA::Actor: Send + Sync + 'static,
-        NA::Message: Send,
-    {
-        let rt = ThreadSafe::new(self.clone());
-        let (process, actor_ref) = ActorFutureBuilder::new()
-            .with_rt(rt)
-            .with_inbox_size(options.inbox_size())
-            .build(supervisor, new_actor, arg)?;
-        let pid = self.scheduler.add_new_process(options.priority(), process);
-        let name = NA::name();
-        debug!(pid = pid.0, name = name; "spawning thread-safe actor");
-        Ok(actor_ref)
     }
 
     /// Spawn a thread-safe `future`.
