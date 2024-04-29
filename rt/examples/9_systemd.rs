@@ -8,6 +8,7 @@ use heph::restart_supervisor;
 use heph::supervisor::StopSupervisor;
 use heph_rt::net::{tcp, TcpStream};
 use heph_rt::spawn::options::{ActorOptions, Priority};
+use heph_rt::spawn::{Spawn, SpawnLocal};
 use heph_rt::{self as rt, Runtime, ThreadLocal};
 use log::info;
 

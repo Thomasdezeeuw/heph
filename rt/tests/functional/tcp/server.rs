@@ -9,7 +9,7 @@ use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::ActorRef;
 use heph_rt::net::{tcp, TcpStream};
-use heph_rt::spawn::ActorOptions;
+use heph_rt::spawn::{ActorOptions, Spawn, SpawnLocal};
 use heph_rt::test::{join_many, try_spawn_local, PanicSupervisor};
 use heph_rt::{self as rt, Runtime, Signal, ThreadLocal};
 

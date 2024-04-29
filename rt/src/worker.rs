@@ -31,7 +31,7 @@ use crate::error::StringError;
 use crate::local::RuntimeInternals;
 use crate::process::ProcessId;
 use crate::setup::set_cpu_affinity;
-use crate::spawn::options::ActorOptions;
+use crate::spawn::{ActorOptions, SpawnLocal};
 use crate::wakers::Wakers;
 use crate::{self as rt, shared, trace, RuntimeRef, Signal, ThreadLocal};
 

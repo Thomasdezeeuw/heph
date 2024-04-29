@@ -2,7 +2,7 @@
 
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
-use heph_rt::spawn::ActorOptions;
+use heph_rt::spawn::{ActorOptions, SpawnLocal};
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
 fn main() -> Result<(), rt::Error> {

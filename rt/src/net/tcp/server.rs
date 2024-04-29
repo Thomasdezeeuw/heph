@@ -32,7 +32,7 @@
 //! # use heph::messages::Terminate;
 //! use heph::supervisor::SupervisorStrategy;
 //! use heph_rt::net::{tcp, TcpStream};
-//! use heph_rt::spawn::ActorOptions;
+//! use heph_rt::spawn::{ActorOptions, SpawnLocal};
 //! use heph_rt::spawn::options::Priority;
 //! use heph_rt::{Runtime, RuntimeRef, ThreadLocal};
 //! use log::error;
@@ -103,6 +103,7 @@
 //! use heph::messages::Terminate;
 //! # use heph::supervisor::SupervisorStrategy;
 //! use heph_rt::net::{tcp, TcpStream};
+//! use heph_rt::spawn::SpawnLocal;
 //! use heph_rt::spawn::options::{ActorOptions, Priority};
 //! use heph_rt::RuntimeRef;
 //! # use heph_rt::{Runtime, ThreadLocal};
@@ -171,6 +172,7 @@
 //! # use heph::messages::Terminate;
 //! use heph::supervisor::{SupervisorStrategy};
 //! use heph_rt::net::{tcp, TcpStream};
+//! use heph_rt::spawn::Spawn;
 //! use heph_rt::spawn::options::{ActorOptions, Priority};
 //! use heph_rt::{self as rt, Runtime, ThreadSafe};
 //! use log::error;

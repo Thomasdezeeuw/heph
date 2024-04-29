@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
-use heph_rt::spawn::ActorOptions;
+use heph_rt::spawn::{ActorOptions, Spawn, SpawnLocal};
 use heph_rt::test::{block_on_local_actor, poll_future, poll_next};
 use heph_rt::timer::{Deadline, DeadlinePassed, Interval, Timer};
 use heph_rt::util::next;

@@ -13,6 +13,7 @@ use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::sync;
 use heph_rt::spawn::options::{ActorOptions, FutureOptions, Priority, SyncActorOptions};
+use heph_rt::spawn::{Spawn, SpawnLocal};
 use heph_rt::{Runtime, ThreadLocal, ThreadSafe};
 
 use crate::util::temp_file;
