@@ -2,7 +2,7 @@
 
 use heph::actor;
 use heph_rt::spawn::{Spawn, SpawnLocal};
-use heph_rt::{Runtime, RuntimeRef, ThreadLocal, ThreadSafe};
+use heph_rt::{Runtime, RuntimeRef, Sync, ThreadLocal, ThreadSafe};
 
 fn can_spawn_thread_local<T>()
 where
@@ -47,4 +47,9 @@ fn thread_local() {
 #[test]
 fn thread_safe() {
     can_spawn_thread_safe::<ThreadSafe>();
+}
+
+#[test]
+fn sync() {
+    can_spawn_thread_safe::<Sync>();
 }
