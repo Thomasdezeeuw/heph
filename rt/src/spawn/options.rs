@@ -72,7 +72,7 @@ impl ActorOptions {
     }
 
     /// Returns itself as `FutureOptions`.
-    pub(crate) const fn as_future_options(self) -> FutureOptions {
+    pub(crate) const fn into_future_options(self) -> FutureOptions {
         let ActorOptions {
             priority,
             inbox_size: _,

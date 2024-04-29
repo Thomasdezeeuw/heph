@@ -124,7 +124,7 @@ pub trait SpawnLocal {
             .with_rt(ThreadLocal::from(self))
             .with_inbox_size(options.inbox_size())
             .build(supervisor, new_actor, arg)?;
-        self.spawn_local_future(future, options.as_future_options());
+        self.spawn_local_future(future, options.into_future_options());
         Ok(actor_ref)
     }
 
@@ -181,7 +181,7 @@ pub trait Spawn {
             .with_rt(ThreadSafe::from(self))
             .with_inbox_size(options.inbox_size())
             .build(supervisor, new_actor, arg)?;
-        self.spawn_future(future, options.as_future_options());
+        self.spawn_future(future, options.into_future_options());
         Ok(actor_ref)
     }
 
