@@ -169,6 +169,22 @@ impl From<&RuntimeRef> for ThreadLocal {
     }
 }
 
+// NOTE: this is for the `ThreadLocal: for<'a> From<&'a Self>` bound on
+// `SpawnLocal::try_spawn`.
+impl From<&ThreadLocal> for ThreadLocal {
+    fn from(rt: &ThreadLocal) -> ThreadLocal {
+        rt.clone()
+    }
+}
+
+// NOTE: this is for the `ThreadLocal: for<'a> From<&'a Self>` bound on
+// `SpawnLocal::try_spawn`.
+impl<M> From<&actor::Context<M, ThreadLocal>> for ThreadLocal {
+    fn from(ctx: &actor::Context<M, ThreadLocal>) -> ThreadLocal {
+        ctx.runtime_ref().clone()
+    }
+}
+
 impl Deref for ThreadLocal {
     type Target = RuntimeRef;
 
@@ -284,6 +300,22 @@ impl From<&Runtime> for ThreadSafe {
 impl From<&RuntimeRef> for ThreadSafe {
     fn from(rt: &RuntimeRef) -> ThreadSafe {
         ThreadSafe::new(rt.clone_shared())
+    }
+}
+
+// NOTE: this is for the `ThreadLocal: for<'a> From<&'a Self>` bound on
+// `SpawnLocal::try_spawn`.
+impl From<&ThreadSafe> for ThreadSafe {
+    fn from(rt: &ThreadSafe) -> ThreadSafe {
+        rt.clone()
+    }
+}
+
+// NOTE: this is for the `ThreadSafe: for<'a> From<&'a Self>` bound on
+// `Spawn::try_spawn`.
+impl<M> From<&actor::Context<M, ThreadSafe>> for ThreadSafe {
+    fn from(ctx: &actor::Context<M, ThreadSafe>) -> ThreadSafe {
+        ctx.runtime_ref().clone()
     }
 }
 
