@@ -63,7 +63,7 @@
 //! A downside is that these actors are more expansive to run than thread-local
 //! actors.
 //!
-//! Thread-safe actors and futures are spawned using [`SpawnLocal`].
+//! Thread-safe actors and futures are spawned using [`Spawn`].
 //!
 //! [`RuntimeRef::try_spawn`]: crate::RuntimeRef::try_spawn
 //! [`ThreadSafe`]: crate::access::ThreadSafe

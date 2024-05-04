@@ -1,6 +1,6 @@
 //! Options for [spawning] an [`Actor`], [`SyncActor`] or [`Future`].
 //!
-//! [spawning]: crate::spawn::Spawn
+//! [spawning]: crate::spawn
 //! [`Actor`]: heph::actor::Actor
 //! [`SyncActor`]: heph::sync::SyncActor
 //! [`Future`]: std::future::Future
@@ -11,9 +11,8 @@ use std::time::Duration;
 
 pub use heph::future::InboxSize;
 
-/// Options for [spawning] an [`Actor`].
+/// Options for spawning an [`Actor`].
 ///
-/// [spawning]: crate::spawn::Spawn
 /// [`Actor`]: heph::actor::Actor
 ///
 /// # Examples
