@@ -70,7 +70,7 @@
 
 use std::future::Future;
 
-use heph::future::ActorFutureBuilder;
+use heph::future::{ActorFuture, ActorFutureBuilder};
 use heph::supervisor::Supervisor;
 use heph::{actor, ActorRef, NewActor};
 
@@ -120,10 +120,8 @@ pub trait SpawnLocal {
         NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
         ThreadLocal: for<'a> From<&'a Self> + 'static,
     {
-        let (future, actor_ref) = ActorFutureBuilder::new()
-            .with_rt(ThreadLocal::from(self))
-            .with_inbox_size(options.inbox_size())
-            .build(supervisor, new_actor, arg)?;
+        let (future, actor_ref) =
+            build_actor_future((&*self).into(), supervisor, new_actor, arg, &options)?;
         self.spawn_local_future(future, options.into_future_options());
         Ok(actor_ref)
     }
@@ -177,10 +175,8 @@ pub trait Spawn {
         NA::Actor: Send + Sync + 'static,
         NA::Message: Send,
     {
-        let (future, actor_ref) = ActorFutureBuilder::new()
-            .with_rt(ThreadSafe::from(self))
-            .with_inbox_size(options.inbox_size())
-            .build(supervisor, new_actor, arg)?;
+        let (future, actor_ref) =
+            build_actor_future((&*self).into(), supervisor, new_actor, arg, &options)?;
         self.spawn_future(future, options.into_future_options());
         Ok(actor_ref)
     }
@@ -210,6 +206,25 @@ pub trait Spawn {
             Err(err) => err,
         }
     }
+}
+
+/// Build a new `ActorFuture` with all actor `options` set.
+fn build_actor_future<S, NA>(
+    rt: NA::RuntimeAccess,
+    supervisor: S,
+    new_actor: NA,
+    arg: NA::Argument,
+    options: &ActorOptions,
+) -> Result<(ActorFuture<S, NA>, ActorRef<NA::Message>), NA::Error>
+where
+    S: Supervisor<NA>,
+    NA: NewActor,
+    NA::RuntimeAccess: Clone,
+{
+    ActorFutureBuilder::new()
+        .with_rt(rt)
+        .with_inbox_size(options.inbox_size())
+        .build(supervisor, new_actor, arg)
 }
 
 impl<M, RT> SpawnLocal for actor::Context<M, RT>
