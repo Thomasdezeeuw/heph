@@ -11,6 +11,8 @@ use a10::AsyncFd;
 use socket2::{Domain, Protocol, SockRef, Socket, Type};
 
 use crate::access::Access;
+#[cfg(feature = "metrics")]
+use crate::metrics::create_metric;
 use crate::net::{convert_address, SockAddr, TcpStream};
 use crate::wakers::NoRing;
 
@@ -98,9 +100,19 @@ use crate::wakers::NoRing;
 /// ```
 pub struct TcpListener {
     fd: AsyncFd,
+    #[cfg(feature = "metrics")]
+    pub(crate) metrics: Metrics,
 }
 
 impl TcpListener {
+    const fn new(fd: AsyncFd) -> TcpListener {
+        TcpListener {
+            fd,
+            #[cfg(feature = "metrics")]
+            metrics: Metrics::empty(),
+        }
+    }
+
     /// Creates a new `TcpListener` which will be bound to the specified
     /// `address`.
     pub async fn bind<RT>(rt: &RT, address: SocketAddr) -> io::Result<TcpListener>
@@ -128,7 +140,7 @@ impl TcpListener {
         ))
         .await?;
 
-        let socket = TcpListener { fd };
+        let socket = TcpListener::new(fd);
 
         socket.with_ref(|socket| {
             #[cfg(target_os = "linux")]
@@ -155,17 +167,17 @@ impl TcpListener {
     where
         RT: Access,
     {
-        TcpListener {
-            fd: AsyncFd::new(listener.into(), rt.submission_queue()),
-        }
+        TcpListener::new(AsyncFd::new(listener.into(), rt.submission_queue()))
     }
 
     /// Creates a new independently owned `TcpListener` that shares the same
     /// underlying file descriptor as the existing `TcpListener`.
+    ///
+    /// # Notes
+    ///
+    /// The metrics are reset for the cloned listener and are **not** shared.
     pub fn try_clone(&self) -> io::Result<TcpListener> {
-        Ok(TcpListener {
-            fd: self.fd.try_clone()?,
-        })
+        Ok(TcpListener::new(self.fd.try_clone()?))
     }
 
     /// Returns the local socket address of this listener.
@@ -195,7 +207,11 @@ impl TcpListener {
     pub async fn accept(&self) -> io::Result<(TcpStream, SocketAddr)> {
         NoRing(self.fd.accept::<SockAddr>())
             .await
-            .map(|(fd, addr)| (TcpStream { fd }, addr.into()))
+            .map(|(fd, addr)| {
+                #[cfg(feature = "metrics")]
+                self.metrics.accepted.add(1);
+                (TcpStream::new(fd), addr.into())
+            })
     }
 
     /// Returns a stream of incoming [`TcpStream`]s.
@@ -212,7 +228,11 @@ impl TcpListener {
     /// use [`TcpStream::set_auto_cpu_affinity`].
     #[allow(clippy::doc_markdown)] // For "io_uring".
     pub const fn incoming(&self) -> Incoming<'_> {
-        Incoming(self.fd.multishot_accept())
+        Incoming {
+            accept: self.fd.multishot_accept(),
+            #[cfg(feature = "metrics")]
+            metrics: &self.metrics,
+        }
     }
 
     /// Get the value of the `SO_ERROR` option on this socket.
@@ -235,16 +255,24 @@ impl TcpListener {
 /// The [`AsyncIterator`] behind [`TcpListener::incoming`].
 #[derive(Debug)]
 #[must_use = "AsyncIterators do nothing unless polled"]
-pub struct Incoming<'a>(a10::net::MultishotAccept<'a>);
+pub struct Incoming<'a> {
+    accept: a10::net::MultishotAccept<'a>,
+    #[cfg(feature = "metrics")]
+    metrics: &'a Metrics,
+}
 
 impl<'a> AsyncIterator for Incoming<'a> {
     type Item = io::Result<TcpStream>;
 
-    fn poll_next(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
-        // SAFETY: not moving the `Future`.
-        unsafe { Pin::map_unchecked_mut(self, |s| &mut s.0) }
-            .poll_next(ctx)
-            .map_ok(|fd| TcpStream { fd })
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        ctx: &mut task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.accept).poll_next(ctx).map_ok(|fd| {
+            #[cfg(feature = "metrics")]
+            self.metrics.accepted.add(1);
+            TcpStream::new(fd)
+        })
     }
 }
 
@@ -257,5 +285,13 @@ impl AsFd for TcpListener {
 impl fmt::Debug for TcpListener {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.fd.fmt(f)
+    }
+}
+
+#[cfg(feature = "metrics")]
+create_metric! {
+    pub(crate) struct Metrics for TcpListener {
+        /// Number of connections accepted.
+        accepted: AtomicCounter -> Counter,
     }
 }
