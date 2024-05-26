@@ -12,7 +12,7 @@ use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::{Actor, ActorRef, NewActor};
 use heph_rt::net::{tcp, TcpListener, TcpStream};
-use heph_rt::spawn::ActorOptions;
+use heph_rt::spawn::{ActorOptions, SpawnLocal};
 use heph_rt::{Runtime, RuntimeRef, ThreadLocal};
 
 const N: usize = 4;

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use heph::actor::{self, actor_fn};
 use heph::{restart_supervisor, sync};
-use heph_rt::spawn::{ActorOptions, SyncActorOptions};
+use heph_rt::spawn::{ActorOptions, SpawnLocal, SyncActorOptions};
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
 fn main() -> Result<(), rt::Error> {

@@ -3,7 +3,7 @@
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph::sync;
-use heph_rt::spawn::{ActorOptions, SyncActorOptions};
+use heph_rt::spawn::{ActorOptions, Spawn, SpawnLocal, SyncActorOptions};
 use heph_rt::{self as rt, Runtime, RuntimeRef, Signal, ThreadLocal, ThreadSafe};
 
 fn main() -> Result<(), rt::Error> {

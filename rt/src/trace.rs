@@ -617,7 +617,7 @@ mod private {
                 }
 
                 fn write_attribute(&self, buf: &mut Vec<u8>) {
-                    #[allow(trivial_numeric_casts)] // for `u64 as u64`, etc.
+                    #[allow(trivial_numeric_casts, clippy::cast_lossless)] // for `u64 as u64`, etc.
                     let value = self.get() as $f_ty;
                     buf.extend_from_slice(&value.to_be_bytes());
                 }
@@ -632,7 +632,7 @@ mod private {
                 }
 
                 fn write_attribute(&self, buf: &mut Vec<u8>) {
-                    #[allow(trivial_numeric_casts)] // for `u64 as u64`, etc.
+                    #[allow(trivial_numeric_casts, clippy::cast_lossless)] // for `u64 as u64`, etc.
                     let value = *self as $f_ty;
                     buf.extend_from_slice(&value.to_be_bytes());
                 }

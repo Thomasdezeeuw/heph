@@ -103,7 +103,7 @@
 //! use heph::actor::{self, actor_fn};
 //! use heph::supervisor::NoSupervisor;
 //! use heph::sync;
-//! use heph_rt::spawn::{ActorOptions, SyncActorOptions};
+//! use heph_rt::spawn::{ActorOptions, Spawn, SpawnLocal, SyncActorOptions};
 //! use heph_rt::{self as rt, Runtime, RuntimeRef};
 //! use heph_rt::access::Sync;
 //!
@@ -241,8 +241,8 @@ use std::time::{Duration, Instant};
 
 use ::log::{debug, warn};
 use heph::actor_ref::{ActorGroup, ActorRef};
-use heph::supervisor::{Supervisor, SyncSupervisor};
-use heph::{ActorFutureBuilder, NewActor, SyncActor};
+use heph::supervisor::SyncSupervisor;
+use heph::SyncActor;
 
 pub mod access;
 mod channel;
@@ -283,7 +283,7 @@ pub use signal::Signal;
 
 use crate::process::{FutureProcess, Process};
 use coordinator::CoordinatorSetup;
-use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
+use spawn::{FutureOptions, Spawn, SpawnLocal, SyncActorOptions};
 use timers::TimerToken;
 
 /// The runtime that runs all actors.
@@ -337,44 +337,6 @@ impl Runtime {
         Setup::new().build()
     }
 
-    /// Attempt to spawn a new thread-safe actor.
-    ///
-    /// See the [`Spawn`] trait for more information.
-    pub fn try_spawn<S, NA>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
-    where
-        S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-        NA: NewActor<RuntimeAccess = ThreadSafe> + std::marker::Sync + Send + 'static,
-        NA::Actor: Send + std::marker::Sync + 'static,
-        NA::Message: Send,
-    {
-        Spawn::try_spawn(self, supervisor, new_actor, arg, options)
-    }
-
-    /// Spawn a new thread-safe actor.
-    ///
-    /// See the [`Spawn`] trait for more information.
-    pub fn spawn<S, NA>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> ActorRef<NA::Message>
-    where
-        S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-        NA: NewActor<Error = !, RuntimeAccess = ThreadSafe> + std::marker::Sync + Send + 'static,
-        NA::Actor: Send + std::marker::Sync + 'static,
-        NA::Message: Send,
-    {
-        Spawn::spawn(self, supervisor, new_actor, arg, options)
-    }
-
     /// Spawn an synchronous actor that runs on its own thread.
     ///
     /// For more information and examples of synchronous actors see the
@@ -409,16 +371,6 @@ impl Runtime {
                 actor_ref
             })
             .map_err(Error::start_sync_actor)
-    }
-
-    /// Spawn a thread-safe [`Future`].
-    ///
-    /// See [`RuntimeRef::spawn_future`] for more documentation.
-    pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
-    where
-        Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
-    {
-        self.internals.spawn_future(future, options);
     }
 
     /// Run the function `f` on all worker threads.
@@ -477,26 +429,12 @@ impl Runtime {
     }
 }
 
-impl<S, NA> Spawn<S, NA, ThreadSafe> for Runtime
-where
-    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
-    NA::Actor: Send + std::marker::Sync + 'static,
-    NA::Message: Send,
-{
-    fn try_spawn(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
+impl Spawn for Runtime {
+    fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
-        S: Supervisor<NA>,
-        NA: NewActor<RuntimeAccess = ThreadSafe>,
+        Fut: Future<Output = ()> + 'static + Send + std::marker::Sync,
     {
-        self.internals
-            .try_spawn(supervisor, new_actor, arg, options)
+        self.internals.spawn_future(future, options);
     }
 }
 
@@ -505,6 +443,12 @@ where
 /// This reference refers to the thread-local runtime, and thus can't be shared
 /// across thread bounds. To share this reference (within the same thread) it
 /// can be cloned (cheaply).
+///
+/// To spawn new [`Actor`]s and [`Future`]s this type implements the
+/// [`SpawnLocal`] and [`Spawn`] traits. To learn more about spawning see the
+/// [`spawn`] module.
+///
+/// [`Actor`]: heph::actor::Actor
 #[derive(Clone, Debug)]
 pub struct RuntimeRef {
     /// A shared reference to the runtime's internals.
@@ -512,112 +456,6 @@ pub struct RuntimeRef {
 }
 
 impl RuntimeRef {
-    /// Attempt to spawn a new thread-local actor.
-    ///
-    /// See the [`Spawn`] trait for more information.
-    pub fn try_spawn_local<S, NA>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
-    where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
-        NA::Actor: 'static,
-    {
-        Spawn::try_spawn(self, supervisor, new_actor, arg, options)
-    }
-
-    /// Spawn a new thread-local actor.
-    ///
-    /// See the [`Spawn`] trait for more information.
-    pub fn spawn_local<S, NA>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> ActorRef<NA::Message>
-    where
-        S: Supervisor<NA> + 'static,
-        NA: NewActor<Error = !, RuntimeAccess = ThreadLocal> + 'static,
-        NA::Actor: 'static,
-    {
-        Spawn::spawn(self, supervisor, new_actor, arg, options)
-    }
-
-    /// Attempt to spawn a new thread-safe actor.
-    ///
-    /// See the [`Spawn`] trait for more information.
-    pub fn try_spawn<S, NA>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
-    where
-        S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-        NA: NewActor<RuntimeAccess = ThreadSafe> + std::marker::Sync + Send + 'static,
-        NA::Actor: Send + std::marker::Sync + 'static,
-        NA::Message: Send,
-    {
-        Spawn::try_spawn(self, supervisor, new_actor, arg, options)
-    }
-
-    /// Spawn a new thread-safe actor.
-    ///
-    /// See the [`Spawn`] trait for more information.
-    pub fn spawn<S, NA>(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> ActorRef<NA::Message>
-    where
-        S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-        NA: NewActor<Error = !, RuntimeAccess = ThreadSafe> + std::marker::Sync + Send + 'static,
-        NA::Actor: Send + std::marker::Sync + 'static,
-        NA::Message: Send,
-    {
-        Spawn::spawn(self, supervisor, new_actor, arg, options)
-    }
-
-    /// Spawn a thread-local [`Future`].
-    ///
-    /// Similar to thread-local actors this will only run on a single thread.
-    /// See the discussion of thread-local vs. thread-safe actors in the
-    /// [`spawn`] module for additional information.
-    #[allow(clippy::needless_pass_by_value)]
-    pub fn spawn_local_future<Fut>(&mut self, future: Fut, options: FutureOptions)
-    where
-        Fut: Future<Output = ()> + 'static,
-    {
-        let process = FutureProcess(future);
-        let name = process.name();
-        let pid = self
-            .internals
-            .scheduler
-            .borrow_mut()
-            .add_new_process(options.priority(), process);
-        debug!(pid = pid.0, name = name; "spawning thread-local future");
-    }
-
-    /// Spawn a thread-safe [`Future`].
-    ///
-    /// Similar to thread-safe actors this can run on any of the workers
-    /// threads. See the discussion of thread-local vs. thread-safe actors in
-    /// the [`spawn`] module for additional information.
-    pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
-    where
-        Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
-    {
-        self.internals.shared.spawn_future(future, options);
-    }
-
     /// Receive [process signals] as messages.
     ///
     /// This adds the `actor_ref` to the list of actor references that will
@@ -673,60 +511,28 @@ impl RuntimeRef {
     }
 }
 
-impl<S, NA> Spawn<S, NA, ThreadLocal> for RuntimeRef
-where
-    S: Supervisor<NA> + 'static,
-    NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
-    NA::Actor: 'static,
-{
-    fn try_spawn(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
+impl SpawnLocal for RuntimeRef {
+    fn spawn_local_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
-        S: Supervisor<NA>,
-        NA: NewActor<RuntimeAccess = ThreadLocal>,
+        Fut: Future<Output = ()> + 'static,
     {
-        let rt = ThreadLocal::new(self.clone());
-        let (process, actor_ref) = ActorFutureBuilder::new()
-            .with_rt(rt)
-            .with_inbox_size(options.inbox_size())
-            .build(supervisor, new_actor, arg)?;
+        let process = FutureProcess(future);
+        let name = process.name();
         let pid = self
             .internals
             .scheduler
             .borrow_mut()
             .add_new_process(options.priority(), process);
-        let name = NA::name();
-        debug!(pid = pid.0, name = name; "spawning thread-local actor");
-        Ok(actor_ref)
+        debug!(pid = pid.0, name = name; "spawning thread-local future");
     }
 }
 
-impl<S, NA> Spawn<S, NA, ThreadSafe> for RuntimeRef
-where
-    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
-    NA::Actor: Send + std::marker::Sync + 'static,
-    NA::Message: Send,
-{
-    fn try_spawn(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
+impl Spawn for RuntimeRef {
+    fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
-        S: Supervisor<NA>,
-        NA: NewActor<RuntimeAccess = ThreadSafe>,
+        Fut: Future<Output = ()> + 'static + Send + std::marker::Sync,
     {
-        self.internals
-            .shared
-            .try_spawn(supervisor, new_actor, arg, options)
+        self.internals.shared.spawn_future(future, options);
     }
 }
 

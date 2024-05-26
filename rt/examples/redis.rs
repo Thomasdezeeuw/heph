@@ -14,6 +14,7 @@ use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph_rt::net::{tcp, TcpStream};
 use heph_rt::spawn::options::{ActorOptions, Priority};
+use heph_rt::spawn::SpawnLocal;
 use heph_rt::timer::Deadline;
 use heph_rt::{self as rt, Runtime};
 use log::{error, info};

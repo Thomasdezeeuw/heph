@@ -70,7 +70,7 @@ use heph::sync::{SyncActor, SyncWaker};
 use heph_inbox as inbox;
 use heph_inbox::oneshot::{self, new_oneshot};
 
-use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
+use crate::spawn::{ActorOptions, FutureOptions, Spawn, SpawnLocal, SyncActorOptions};
 use crate::worker::Worker;
 use crate::{
     self as rt, panic_message, shared, sync_worker, worker, Runtime, RuntimeRef, Setup, Sync,

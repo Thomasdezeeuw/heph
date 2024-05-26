@@ -1,6 +1,6 @@
 //! Options for [spawning] an [`Actor`], [`SyncActor`] or [`Future`].
 //!
-//! [spawning]: crate::spawn::Spawn
+//! [spawning]: crate::spawn
 //! [`Actor`]: heph::actor::Actor
 //! [`SyncActor`]: heph::sync::SyncActor
 //! [`Future`]: std::future::Future
@@ -11,9 +11,8 @@ use std::time::Duration;
 
 pub use heph::future::InboxSize;
 
-/// Options for [spawning] an [`Actor`].
+/// Options for spawning an [`Actor`].
 ///
-/// [spawning]: crate::spawn::Spawn
 /// [`Actor`]: heph::actor::Actor
 ///
 /// # Examples
@@ -69,6 +68,16 @@ impl ActorOptions {
     pub const fn with_inbox_size(mut self, inbox_size: InboxSize) -> Self {
         self.inbox_size = inbox_size;
         self
+    }
+
+    /// Returns itself as `FutureOptions`.
+    pub(crate) const fn into_future_options(self) -> FutureOptions {
+        let ActorOptions {
+            priority,
+            inbox_size: _,
+        } = self;
+
+        FutureOptions { priority }
     }
 }
 

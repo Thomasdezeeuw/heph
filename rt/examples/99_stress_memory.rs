@@ -9,7 +9,7 @@ use std::future::pending;
 
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
-use heph_rt::spawn::ActorOptions;
+use heph_rt::spawn::{ActorOptions, SpawnLocal};
 use heph_rt::{self as rt, Runtime, ThreadLocal};
 use log::info;
 

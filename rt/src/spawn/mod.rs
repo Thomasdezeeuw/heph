@@ -16,6 +16,9 @@
 //! they will cause less damage as thread-safe actors/futures, but this only
 //! hides the issue, it doesn't solve it.
 //!
+//! The [`SpawnLocal`] trait defines how thread-local actors and futures are
+//! spawn, while [`Spawn`] defines it for thread-safe variants.
+//!
 //! [`Actor`]: heph::actor::Actor
 //! [`SyncActor`]: heph::sync::SyncActor
 //! [`Future`]: std::future::Future
@@ -39,6 +42,8 @@
 //! with actor/futures/tasks that transparently move between threads and hide
 //! blocking/bad actors, Heph does not (for thread-local actors).
 //!
+//! Thread-local actors and futures are spawned using [`SpawnLocal`].
+//!
 //! [`RuntimeRef::try_spawn_local`]: crate::RuntimeRef::try_spawn_local
 //! [`ThreadLocal`]: crate::access::ThreadLocal
 //!
@@ -58,34 +63,39 @@
 //! A downside is that these actors are more expansive to run than thread-local
 //! actors.
 //!
+//! Thread-safe actors and futures are spawned using [`Spawn`].
+//!
 //! [`RuntimeRef::try_spawn`]: crate::RuntimeRef::try_spawn
 //! [`ThreadSafe`]: crate::access::ThreadSafe
 
+use std::future::Future;
+
+use heph::future::{ActorFuture, ActorFutureBuilder};
 use heph::supervisor::Supervisor;
 use heph::{actor, ActorRef, NewActor};
+
+use crate::access::{ThreadLocal, ThreadSafe};
 
 pub mod options;
 
 #[doc(no_inline)]
 pub use options::{ActorOptions, FutureOptions, SyncActorOptions};
 
-/// The `Spawn` trait defines how new actors are added to the runtime.
+/// The `Spawn` trait defines how new thread-local [`Actor`]s and [`Future`]s
+/// are added to the runtime.
 ///
-/// This trait can be implemented using the two flavours of `RT`, either
-/// [`ThreadLocal`] or [`ThreadSafe`], because of this it's implemented twice
-/// for types that support spawning both thread-local and thread-safe actors.
-/// For information on the difference between thread-local and thread-safe
-/// actors see the [`spawn`] module.
-///
-/// [`spawn`]: crate::spawn
-/// [`ThreadLocal`]: crate::ThreadLocal
-/// [`ThreadSafe`]: crate::ThreadSafe
-pub trait Spawn<S, NA, RT> {
-    /// Attempt to spawn an actor.
+/// [`Actor`]: heph::actor::Actor
+pub trait SpawnLocal {
+    /// Spawn a thread-local [`Future`].
+    fn spawn_local_future<Fut>(&mut self, future: Fut, options: FutureOptions)
+    where
+        Fut: Future<Output = ()> + 'static;
+
+    /// Attempt to spawn a thread-local actor.
     ///
     /// Arguments:
     /// * `supervisor`: all actors need supervision, the `supervisor` is the
-    ///   supervisor for this actor, see the [`Supervisor`] trait for more
+    ///   supervisor for this actor, see the [`supervisor`] module for more
     ///   information.
     /// * `new_actor`: the [`NewActor`] implementation that defines how to start
     ///   the actor.
@@ -94,10 +104,11 @@ pub trait Spawn<S, NA, RT> {
     ///
     /// When using a [`NewActor`] implementation that never returns an error,
     /// such as the implementation provided by async functions, it's easier to
-    /// use the [`spawn`] method.
+    /// use the [`spawn_local`] method.
     ///
-    /// [`spawn`]: Spawn::spawn
-    fn try_spawn(
+    /// [`supervisor`]: heph::supervisor
+    /// [`spawn_local`]: SpawnLocal::spawn_local
+    fn try_spawn_local<S, NA>(
         &mut self,
         supervisor: S,
         new_actor: NA,
@@ -105,16 +116,23 @@ pub trait Spawn<S, NA, RT> {
         options: ActorOptions,
     ) -> Result<ActorRef<NA::Message>, NA::Error>
     where
-        S: Supervisor<NA>,
-        NA: NewActor<RuntimeAccess = RT>;
+        S: Supervisor<NA> + 'static,
+        NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
+        ThreadLocal: for<'a> From<&'a Self> + 'static,
+    {
+        let (future, actor_ref) =
+            build_actor_future((&*self).into(), supervisor, new_actor, arg, &options)?;
+        self.spawn_local_future(future, options.into_future_options());
+        Ok(actor_ref)
+    }
 
-    /// Spawn an actor.
+    /// Spawn a thread-local actor.
     ///
     /// This is a convenience method for `NewActor` implementations that never
     /// return an error, such as asynchronous functions.
     ///
-    /// See [`Spawn::try_spawn`] for more information.
-    fn spawn(
+    /// See [`SpawnLocal::try_spawn_local`] for more information.
+    fn spawn_local<S, NA>(
         &mut self,
         supervisor: S,
         new_actor: NA,
@@ -122,8 +140,66 @@ pub trait Spawn<S, NA, RT> {
         options: ActorOptions,
     ) -> ActorRef<NA::Message>
     where
-        S: Supervisor<NA>,
-        NA: NewActor<Error = !, RuntimeAccess = RT>,
+        S: Supervisor<NA> + 'static,
+        NA: NewActor<Error = !, RuntimeAccess = ThreadLocal> + 'static,
+        ThreadLocal: for<'a> From<&'a Self>,
+    {
+        match self.try_spawn_local(supervisor, new_actor, arg, options) {
+            Ok(actor_ref) => actor_ref,
+            Err(err) => err,
+        }
+    }
+}
+
+/// Thread-safe version of [`SpawnLocal`].
+pub trait Spawn {
+    /// Spawn a thread-safe [`Future`].
+    fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
+    where
+        Fut: Future<Output = ()> + Sync + Send + 'static;
+
+    /// Attempt to spawn a thread-safe actor.
+    ///
+    /// See [`SpawnLocal::try_spawn_local`] for more information.
+    fn try_spawn<S, NA>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> Result<ActorRef<NA::Message>, NA::Error>
+    where
+        S: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
+        ThreadSafe: for<'a> From<&'a Self>,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
+    {
+        let (future, actor_ref) =
+            build_actor_future((&*self).into(), supervisor, new_actor, arg, &options)?;
+        self.spawn_future(future, options.into_future_options());
+        Ok(actor_ref)
+    }
+
+    /// Spawn a thread-safe actor.
+    ///
+    /// This is a convenience method for `NewActor` implementations that never
+    /// return an error, such as asynchronous functions.
+    ///
+    /// See [`Spawn::try_spawn`] for more information.
+    fn spawn<S, NA>(
+        &mut self,
+        supervisor: S,
+        new_actor: NA,
+        arg: NA::Argument,
+        options: ActorOptions,
+    ) -> ActorRef<NA::Message>
+    where
+        S: Supervisor<NA> + Send + Sync + 'static,
+        NA: NewActor<Error = !, RuntimeAccess = ThreadSafe> + Send + Sync + 'static,
+        ThreadSafe: for<'a> From<&'a Self>,
+        NA::Actor: Send + Sync + 'static,
+        NA::Message: Send,
     {
         match self.try_spawn(supervisor, new_actor, arg, options) {
             Ok(actor_ref) => actor_ref,
@@ -132,22 +208,45 @@ pub trait Spawn<S, NA, RT> {
     }
 }
 
-impl<M, RT, S, NA, RT2> Spawn<S, NA, RT2> for actor::Context<M, RT>
+/// Build a new `ActorFuture` with all actor `options` set.
+fn build_actor_future<S, NA>(
+    rt: NA::RuntimeAccess,
+    supervisor: S,
+    new_actor: NA,
+    arg: NA::Argument,
+    options: &ActorOptions,
+) -> Result<(ActorFuture<S, NA>, ActorRef<NA::Message>), NA::Error>
 where
-    RT: Spawn<S, NA, RT2>,
+    S: Supervisor<NA>,
+    NA: NewActor,
+    NA::RuntimeAccess: Clone,
 {
-    fn try_spawn(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
+    ActorFutureBuilder::new()
+        .with_rt(rt)
+        .with_inbox_size(options.inbox_size())
+        .build(supervisor, new_actor, arg)
+}
+
+impl<M, RT> SpawnLocal for actor::Context<M, RT>
+where
+    RT: SpawnLocal,
+{
+    fn spawn_local_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
-        S: Supervisor<NA>,
-        NA: NewActor<RuntimeAccess = RT2>,
+        Fut: Future<Output = ()> + 'static,
     {
-        self.runtime()
-            .try_spawn(supervisor, new_actor, arg, options)
+        self.runtime().spawn_local_future(future, options);
+    }
+}
+
+impl<M, RT> Spawn for actor::Context<M, RT>
+where
+    RT: Spawn,
+{
+    fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
+    where
+        Fut: Future<Output = ()> + 'static + Send + Sync,
+    {
+        self.runtime().spawn_future(future, options);
     }
 }

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph::sync;
-use heph_rt::spawn::options::{ActorOptions, FutureOptions, SyncActorOptions};
+use heph_rt::spawn::{ActorOptions, FutureOptions, Spawn, SpawnLocal, SyncActorOptions};
 use heph_rt::{Runtime, Signal};
 
 #[path = "util/mod.rs"] // rustfmt can't find the file.
