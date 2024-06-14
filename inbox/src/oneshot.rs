@@ -223,6 +223,7 @@ impl<T> Receiver<T> {
     ///
     /// If it succeeds it returns the value and resets the channel, returning a
     /// new [`Sender`] (which can send a value to this `Receiver`).
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn try_recv(&mut self) -> Result<T, RecvError> {
         let shared = self.shared();
         // SAFETY: `AcqRel` is required here to ensure it syncs with
@@ -274,6 +275,7 @@ impl<T> Receiver<T> {
     /// # Notes
     ///
     /// If the channel contains a value it will be dropped.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn try_reset(&mut self) -> Option<Sender<T>> {
         let shared = self.shared();
         // SAFETY: `Acquire` is required here to ensure it syncs with
@@ -317,6 +319,7 @@ impl<T> Receiver<T> {
     ///
     /// This is useful if you can't call [`Receiver::recv`] but still want a
     /// wake-up notification once messages are added to the inbox.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn register_waker(&mut self, waker: &task::Waker) -> bool {
         let shared = self.shared();
         let mut receiver_waker = shared.receiver_waker.lock().unwrap();

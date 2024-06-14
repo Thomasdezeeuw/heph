@@ -650,6 +650,7 @@ impl Error for RecvError {}
 
 impl<T> Receiver<T> {
     /// Attempts to receive a value from this channel.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn try_recv(&mut self) -> Result<T, RecvError> {
         try_recv(self.channel())
     }
@@ -663,6 +664,7 @@ impl<T> Receiver<T> {
     /// [`Poll::Pending`] instead.
     ///
     /// [disconnected]: Receiver::is_connected
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn recv(&mut self) -> RecvValue<T> {
         RecvValue {
             channel: self.channel(),
@@ -670,6 +672,7 @@ impl<T> Receiver<T> {
     }
 
     /// Attempts to peek a value from this channel.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn try_peek(&mut self) -> Result<&T, RecvError> {
         try_peek(self.channel())
     }
@@ -683,6 +686,7 @@ impl<T> Receiver<T> {
     /// [`Poll::Pending`] instead.
     ///
     /// [disconnected]: Receiver::is_connected
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn peek(&mut self) -> PeekValue<T> {
         PeekValue {
             channel: self.channel(),
@@ -743,6 +747,7 @@ impl<T> Receiver<T> {
     ///
     /// This is useful if you can't call [`Receiver::recv`] but still want a
     /// wake-up notification once messages are added to the inbox.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn register_waker(&mut self, waker: &task::Waker) -> bool {
         self.channel().receiver_waker.register(waker)
     }
