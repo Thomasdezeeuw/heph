@@ -23,7 +23,7 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 use std::{fmt, io, process};
 
-use a10::signals::{ReceiveSignals, Signals};
+use a10::process::{ReceiveSignals, Signals};
 use heph::actor_ref::ActorGroup;
 use log::{debug, error, info, trace};
 
