@@ -10,7 +10,7 @@ use std::pin::Pin;
 use std::sync::mpsc;
 use std::task::{self, Poll};
 
-use a10::msg::{MsgListener, MsgToken};
+use a10::msg::{msg_listener, try_send_msg, MsgListener, MsgToken};
 
 use crate::wakers::no_ring_ctx;
 
@@ -20,7 +20,7 @@ const WAKE: u32 = u32::from_ne_bytes([b'W', b'A', b'K', b'E']); // 1162559831.
 ///
 /// The `sq` will be used to wake up the receiving end when sending.
 pub(crate) fn new<T>(sq: a10::SubmissionQueue) -> io::Result<(Sender<T>, Receiver<T>)> {
-    let (listener, token) = sq.clone().msg_listener()?;
+    let (listener, token) = msg_listener(sq.clone())?;
     let (sender, receiver) = mpsc::channel();
     let sender = Sender { sender, sq, token };
     let receiver = Receiver { receiver, listener };
@@ -43,7 +43,7 @@ impl<T> Sender<T> {
         self.sender
             .send(msg)
             .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "receiver closed channel"))?;
-        self.sq.try_send_msg(self.token, WAKE)
+        try_send_msg(&self.sq, self.token, WAKE)
     }
 }
 

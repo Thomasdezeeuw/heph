@@ -187,7 +187,7 @@ impl UnixListener {
     /// The CPU affinity is **not** set on the returned Unix stream. To set that
     /// use [`UnixStream::set_auto_cpu_affinity`].
     #[allow(clippy::doc_markdown)] // For "io_uring".
-    pub const fn incoming(&self) -> Incoming<'_> {
+    pub fn incoming(&self) -> Incoming<'_> {
         Incoming(self.fd.multishot_accept())
     }
 
