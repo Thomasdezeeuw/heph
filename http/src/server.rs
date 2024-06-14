@@ -696,22 +696,22 @@ impl Connection {
     }
 
     /// See [`TcpStream::peer_addr`].
-    pub fn peer_addr(&mut self) -> io::Result<SocketAddr> {
+    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
         self.stream.peer_addr()
     }
 
     /// See [`TcpStream::local_addr`].
-    pub fn local_addr(&mut self) -> io::Result<SocketAddr> {
+    pub fn local_addr(&self) -> io::Result<SocketAddr> {
         self.stream.local_addr()
     }
 
     /// See [`TcpStream::set_nodelay`].
-    pub fn set_nodelay(&mut self, nodelay: bool) -> io::Result<()> {
+    pub fn set_nodelay(&self, nodelay: bool) -> io::Result<()> {
         self.stream.set_nodelay(nodelay)
     }
 
     /// See [`TcpStream::nodelay`].
-    pub fn nodelay(&mut self) -> io::Result<bool> {
+    pub fn nodelay(&self) -> io::Result<bool> {
         self.stream.nodelay()
     }
 
