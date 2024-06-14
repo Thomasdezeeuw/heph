@@ -83,7 +83,7 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::{CString, OsStr, OsString};
-use std::mem::{size_of, take};
+use std::mem::take;
 use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::{fmt, io, ptr};
@@ -269,7 +269,7 @@ impl<'w> Iterator for Events<'w> {
         // it should be valid.
         debug_assert!(self.buf.len() >= self.processed);
         let event: &'w Event =
-            unsafe { &*ptr::from_raw_parts(ptr::from_ref(event).cast(), event.len as usize) };
+            unsafe { &*ptr::from_raw_parts(ptr::from_ref(event), event.len as usize) };
 
         Some(event)
     }

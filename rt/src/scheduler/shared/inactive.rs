@@ -694,7 +694,7 @@ unsafe fn drop_tagged_pointer(ptr: TaggedPointer) {
 #[cfg(test)]
 mod tests {
     use std::future::Future;
-    use std::mem::{align_of, size_of};
+    use std::mem::align_of;
     use std::pin::Pin;
     use std::ptr;
     use std::sync::atomic::{AtomicUsize, Ordering};

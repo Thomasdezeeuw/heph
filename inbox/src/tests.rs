@@ -1,7 +1,6 @@
 //! Tests for the internal API.
 
 use std::future::Future;
-use std::mem::{size_of, size_of_val};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{self, Poll, Wake};

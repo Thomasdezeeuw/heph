@@ -740,7 +740,7 @@ impl<RT> NewActor for TestAssertUnmovedNewActor<RT> {
 #[cfg(test)]
 #[track_caller]
 pub(crate) fn assert_size<T>(expected: usize) {
-    assert_eq!(std::mem::size_of::<T>(), expected);
+    assert_eq!(size_of::<T>(), expected);
 }
 
 /// Supervisor to use in testing.
