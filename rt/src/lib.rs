@@ -414,6 +414,7 @@ impl Runtime {
     /// Spawn a thread-safe [`Future`].
     ///
     /// See [`RuntimeRef::spawn_future`] for more documentation.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
@@ -591,7 +592,7 @@ impl RuntimeRef {
     /// Similar to thread-local actors this will only run on a single thread.
     /// See the discussion of thread-local vs. thread-safe actors in the
     /// [`spawn`] module for additional information.
-    #[allow(clippy::needless_pass_by_value)]
+    #[allow(clippy::needless_pass_by_value, clippy::needless_pass_by_ref_mut)]
     pub fn spawn_local_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
         Fut: Future<Output = ()> + 'static,
@@ -611,6 +612,7 @@ impl RuntimeRef {
     /// Similar to thread-safe actors this can run on any of the workers
     /// threads. See the discussion of thread-local vs. thread-safe actors in
     /// the [`spawn`] module for additional information.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
@@ -624,6 +626,7 @@ impl RuntimeRef {
     /// receive a process signal.
     ///
     /// [process signals]: Signal
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn receive_signals(&mut self, actor_ref: ActorRef<Signal>) {
         self.internals
             .signal_receivers
@@ -656,6 +659,7 @@ impl RuntimeRef {
         trace::start(&*self.internals.trace_log.borrow())
     }
 
+    #[allow(clippy::needless_pass_by_ref_mut)]
     fn finish_trace(
         &mut self,
         substream_id: u64,

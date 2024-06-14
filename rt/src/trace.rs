@@ -228,6 +228,7 @@ impl CoordinatorLog {
     }
 
     /// Returns the next stream counter.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     fn next_stream_count(&mut self) -> u32 {
         // SAFETY: needs to sync with itself.
         self.shared.counter.fetch_add(1, atomic::Ordering::AcqRel)
@@ -617,7 +618,7 @@ mod private {
                 }
 
                 fn write_attribute(&self, buf: &mut Vec<u8>) {
-                    #[allow(trivial_numeric_casts)] // for `u64 as u64`, etc.
+                    #[allow(trivial_numeric_casts, clippy::cast_lossless)] // for `u64 as u64`, etc.
                     let value = self.get() as $f_ty;
                     buf.extend_from_slice(&value.to_be_bytes());
                 }
@@ -632,7 +633,7 @@ mod private {
                 }
 
                 fn write_attribute(&self, buf: &mut Vec<u8>) {
-                    #[allow(trivial_numeric_casts)] // for `u64 as u64`, etc.
+                    #[allow(trivial_numeric_casts, clippy::cast_lossless)] // for `u64 as u64`, etc.
                     let value = *self as $f_ty;
                     buf.extend_from_slice(&value.to_be_bytes());
                 }
