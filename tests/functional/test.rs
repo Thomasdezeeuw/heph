@@ -1,6 +1,5 @@
 //! Tests for the `test` module.
 
-use std::mem::size_of;
 use std::pin::Pin;
 use std::task::{self, Poll};
 

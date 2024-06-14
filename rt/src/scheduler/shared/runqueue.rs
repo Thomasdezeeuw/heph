@@ -122,7 +122,6 @@ impl Node {
 #[cfg(test)]
 mod tests {
     use std::future::Future;
-    use std::mem::size_of;
     use std::pin::Pin;
     use std::task::{self, Poll};
     use std::time::Duration;

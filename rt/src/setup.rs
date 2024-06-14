@@ -441,8 +441,7 @@ fn cpu_set(cpu: usize) -> libc::cpu_set_t {
 #[cfg(target_os = "linux")]
 fn set_affinity(cpu_set: &libc::cpu_set_t) -> io::Result<()> {
     let thread = unsafe { libc::pthread_self() };
-    let res =
-        unsafe { libc::pthread_setaffinity_np(thread, std::mem::size_of_val(cpu_set), cpu_set) };
+    let res = unsafe { libc::pthread_setaffinity_np(thread, size_of_val(cpu_set), cpu_set) };
     if res == 0 {
         Ok(())
     } else {

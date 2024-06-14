@@ -304,7 +304,7 @@ const fn skip_bits(pid: ProcessId, depth: usize) -> usize {
 mod tests {
     use std::cmp::max;
     use std::future::Future;
-    use std::mem::{align_of, size_of};
+    use std::mem::align_of;
     use std::pin::Pin;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;

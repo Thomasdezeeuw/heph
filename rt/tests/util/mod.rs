@@ -3,7 +3,6 @@
 use std::async_iter::AsyncIterator;
 use std::fs::{create_dir_all, remove_dir_all};
 use std::future::Future;
-use std::mem::size_of;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::pin::Pin;

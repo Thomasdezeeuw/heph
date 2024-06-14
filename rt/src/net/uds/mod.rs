@@ -6,7 +6,7 @@
 //!  * [`UnixStream`] represents a Unix stream socket.
 //!  * [`UnixDatagram`] represents a Unix datagram socket.
 
-use std::mem::{size_of, MaybeUninit};
+use std::mem::MaybeUninit;
 use std::path::Path;
 use std::{io, ptr};
 

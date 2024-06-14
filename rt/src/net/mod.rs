@@ -23,7 +23,7 @@
 //! [Unix listening socket]: crate::net::UnixListener
 //! [Unix datagram socket]: crate::net::UnixDatagram
 
-use std::mem::{size_of, MaybeUninit};
+use std::mem::MaybeUninit;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::{fmt, io, ptr};
 

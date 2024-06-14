@@ -81,9 +81,8 @@ fn auto_cpu_affinity() {
         let mut cpu_set: libc::cpu_set_t = unsafe { mem::zeroed() };
         unsafe { libc::CPU_ZERO(&mut cpu_set) };
         let thread = unsafe { libc::pthread_self() };
-        let res = unsafe {
-            libc::pthread_getaffinity_np(thread, mem::size_of_val(&cpu_set), &mut cpu_set)
-        };
+        let res =
+            unsafe { libc::pthread_getaffinity_np(thread, size_of_val(&cpu_set), &mut cpu_set) };
         if res != 0 {
             return Err(io::Error::last_os_error());
         }

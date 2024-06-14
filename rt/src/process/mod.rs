@@ -2,7 +2,6 @@
 
 use std::cmp::Ordering;
 use std::future::Future;
-use std::mem::size_of_val;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::task::{self, Poll};

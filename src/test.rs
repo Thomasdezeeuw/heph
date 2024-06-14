@@ -15,7 +15,6 @@
 //! ```
 
 use std::any::Any;
-use std::mem::size_of;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::{fmt, panic, slice};
 
