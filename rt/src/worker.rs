@@ -320,6 +320,7 @@ impl Worker {
     ///
     /// Returns the duration for which the process ran, `None` if no process was
     /// ran.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     fn run_local_process(&mut self) -> Option<Duration> {
         let process = self.internals.scheduler.borrow_mut().next_process();
         match process {
@@ -359,6 +360,7 @@ impl Worker {
     ///
     /// Returns the duration for which the process ran, `None` if no process was
     /// ran.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     fn run_shared_process(&mut self) -> Option<Duration> {
         let process = self.internals.shared.remove_process();
         match process {
@@ -430,6 +432,7 @@ impl Worker {
 
     /// Schedule processes based on user space waker events, e.g. used by the
     /// `Future` task system.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     fn schedule_from_waker(&mut self) -> usize {
         trace!(worker_id = self.internals.id.get(); "polling wakup events");
         let timing = trace::start(&*self.internals.trace_log.borrow());
@@ -452,6 +455,7 @@ impl Worker {
     }
 
     /// Schedule processes based on local timers.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     fn schedule_from_local_timers(&mut self, now: Instant) -> usize {
         trace!(worker_id = self.internals.id.get(); "polling local timers");
         let timing = trace::start(&*self.internals.trace_log.borrow());
@@ -466,6 +470,7 @@ impl Worker {
     }
 
     /// Schedule processes based on shared timers.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     fn schedule_from_shared_timers(&mut self, now: Instant) -> usize {
         trace!(worker_id = self.internals.id.get(); "polling shared timers");
         let timing = trace::start(&*self.internals.trace_log.borrow());
@@ -482,6 +487,7 @@ impl Worker {
     /// Wake worker threads based on the amount of local scheduled processes
     /// (`local_amount`) and the amount of scheduled shared processes
     /// (`shared_amount`).
+    #[allow(clippy::needless_pass_by_ref_mut)]
     fn wake_workers(&mut self, local_amount: usize, shared_amount: usize) {
         let wake_n = if local_amount == 0 {
             // We don't have to run any local processes, so we can run a shared
@@ -507,6 +513,7 @@ impl Worker {
     /// Poll for OS events, filling `self.events`.
     ///
     /// Returns a boolean indicating if the shared timers should be checked.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     fn poll_os(&mut self) -> io::Result<()> {
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
@@ -567,6 +574,7 @@ impl Worker {
     }
 
     /// Returns the trace log, if any.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     fn trace_log(&mut self) -> RefMut<'_, Option<trace::Log>> {
         self.internals.trace_log.borrow_mut()
     }

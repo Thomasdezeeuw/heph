@@ -284,6 +284,7 @@ impl ThreadSafe {
     /// Spawn a thread-safe [`Future`].
     ///
     /// See [`RuntimeRef::spawn_future`] for more documentation.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
@@ -414,6 +415,7 @@ impl Sync {
     /// Spawn a thread-safe [`Future`].
     ///
     /// See [`RuntimeRef::spawn_future`] for more documentation.
+    #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn spawn_future<Fut>(&mut self, future: Fut, options: FutureOptions)
     where
         Fut: Future<Output = ()> + Send + std::marker::Sync + 'static,
