@@ -1018,8 +1018,7 @@ macro_rules! int_impl {
                             Some(v) => value = v,
                             None => return Err(ParseIntError),
                         }
-                        #[allow(trivial_numeric_casts)] // For `u8 as u8`.
-                        match value.checked_add((b - b'0') as $ty) {
+                        match value.checked_add(<$ty>::from(b - b'0')) {
                             Some(v) => value = v,
                             None => return Err(ParseIntError),
                         }
