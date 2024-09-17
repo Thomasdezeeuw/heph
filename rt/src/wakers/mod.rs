@@ -234,15 +234,15 @@ impl<Fut: Future> Future for NoRing<Fut> {
 /// `None` if the ctx doesn't use a Heph provided waker implementation.
 #[allow(clippy::needless_pass_by_ref_mut)] // Matching `Future::poll` signature.
 pub(crate) fn create_no_ring_waker(ctx: &mut task::Context<'_>) -> Option<task::Waker> {
-    let raw_waker = ctx.waker().as_raw();
-    let vtable = *raw_waker.vtable();
+    let waker = ctx.waker();
+    let vtable = waker.vtable();
     // SAFETY: the `data` comes from a waker and when check which waker
     // implementation is used.
     unsafe {
-        Some(task::Waker::from_raw(if vtable == WAKER_VTABLE {
-            waker_vtable_no_ring::clone_wake_data(raw_waker.data())
-        } else if vtable == shared::WAKER_VTABLE {
-            shared::waker_vtable_no_ring::clone_wake_data(raw_waker.data())
+        Some(task::Waker::from_raw(if vtable == &WAKER_VTABLE {
+            waker_vtable_no_ring::clone_wake_data(waker.data())
+        } else if vtable == &shared::WAKER_VTABLE {
+            shared::waker_vtable_no_ring::clone_wake_data(waker.data())
         } else {
             return None;
         }))

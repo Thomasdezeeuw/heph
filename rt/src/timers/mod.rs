@@ -325,7 +325,7 @@ fn add_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, waker: task::Waker
     let idx = match timers.binary_search_by(|timer| timer.deadline.cmp(&deadline)) {
         Ok(idx) | Err(idx) => idx,
     };
-    let token = TimerToken(waker.as_raw().data() as usize);
+    let token = TimerToken(waker.data() as usize);
     timers.insert(idx, Timer { deadline, waker });
     token
 }
@@ -334,7 +334,7 @@ fn add_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, waker: task::Waker
 #[allow(clippy::needless_pass_by_value)]
 fn remove_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, token: TimerToken) {
     if let Ok(idx) = timers.binary_search_by(|timer| timer.deadline.cmp(&deadline)) {
-        if timers[idx].waker.as_raw().data() as usize == token.0 {
+        if timers[idx].waker.data() as usize == token.0 {
             _ = timers.remove(idx);
         }
     }

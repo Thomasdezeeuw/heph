@@ -2,7 +2,6 @@
 
 #![feature(
     async_iterator,
-    const_mut_refs,
     extract_if,
     impl_trait_in_assoc_type,
     maybe_uninit_uninit_array,
