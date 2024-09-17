@@ -180,16 +180,12 @@
     doc_cfg_hide,
     extract_if,
     impl_trait_in_assoc_type,
-    io_slice_advance,
-    is_sorted,
     maybe_uninit_array_assume_init,
     maybe_uninit_uninit_array,
     never_type,
-    new_uninit,
     noop_waker,
     ptr_metadata,
-    stmt_expr_attributes,
-    waker_getters
+    stmt_expr_attributes
 )]
 #![warn(
     anonymous_parameters,
