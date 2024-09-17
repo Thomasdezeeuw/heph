@@ -81,11 +81,12 @@ impl Inactive {
     /// Removes the process with id `pid`, if any.
     pub(crate) fn remove(&mut self, pid: ProcessId) -> Option<Pin<Box<ProcessData>>> {
         debug_assert!(ok_pid(pid));
-        self.root.remove(pid, pid.0 >> SKIP_BITS).map(|process| {
-            debug_assert_eq!(process.as_ref().id(), pid);
-            self.length -= 1;
-            process
-        })
+        self.root
+            .remove(pid, pid.0 >> SKIP_BITS)
+            .inspect(|process| {
+                debug_assert_eq!(process.as_ref().id(), pid);
+                self.length -= 1;
+            })
     }
 }
 
