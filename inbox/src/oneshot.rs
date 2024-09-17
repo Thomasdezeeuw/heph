@@ -176,6 +176,7 @@ impl<T> Drop for Sender<T> {
 
         if has_receiver(old_status) {
             // Receiver is still alive, so we need to wake it.
+            #[allow(clippy::significant_drop_in_scrutinee)]
             if let Some(waker) = shared.receiver_waker.lock().unwrap().take() {
                 waker.wake();
             }
