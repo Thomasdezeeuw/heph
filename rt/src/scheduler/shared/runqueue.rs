@@ -53,24 +53,17 @@ impl RunQueue {
     /// Add `process` to the queue of running processes.
     pub(crate) fn add(&self, process: Pin<Box<ProcessData>>) {
         let mut next_node = &mut *self.root.lock().unwrap();
-        loop {
-            match next_node {
-                Some(node) => {
-                    // Select the next node in the branch to attempt to add
-                    // ourselves to.
-                    if node.process < process {
-                        next_node = &mut node.left;
-                    } else {
-                        next_node = &mut node.right;
-                    }
-                }
-                None => {
-                    // Last node in the branch add our process to it.
-                    *next_node = Some(Box::new(Node::new(process)));
-                    return;
-                }
-            }
+        while let Some(node) = next_node {
+            // Select the next node in the branch to attempt to add
+            // ourselves to.
+            next_node = if node.process < process {
+                &mut node.left
+            } else {
+                &mut node.right
+            };
         }
+        // Last node in the branch add our process to it.
+        *next_node = Some(Box::new(Node::new(process)));
     }
 
     /// Remove the next process to run from the queue.
