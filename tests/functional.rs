@@ -89,6 +89,7 @@ mod functional {
     mod actor_group;
     mod actor_ref;
     mod restart_supervisor;
+    mod stop_supervisor;
     mod sync_actor;
     mod test;
 }
