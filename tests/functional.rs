@@ -9,16 +9,16 @@ mod util {
 
     use heph::{actor, sync, Actor, NewActor, SyncActor};
 
-    pub fn assert_send<T: Send>() {}
+    pub(crate) fn assert_send<T: Send>() {}
 
-    pub fn assert_sync<T: Sync>() {}
+    pub(crate) fn assert_sync<T: Sync>() {}
 
     #[track_caller]
-    pub fn assert_size<T>(expected: usize) {
+    pub(crate) fn assert_size<T>(expected: usize) {
         assert_eq!(size_of::<T>(), expected);
     }
 
-    pub fn block_on<Fut: Future>(fut: Fut) -> Fut::Output {
+    pub(crate) fn block_on<Fut: Future>(fut: Fut) -> Fut::Output {
         let mut fut = pin!(fut);
         let mut ctx = task::Context::from_waker(task::Waker::noop());
         loop {
@@ -29,7 +29,7 @@ mod util {
         }
     }
 
-    pub fn poll_once<Fut: Future>(fut: Pin<&mut Fut>) {
+    pub(crate) fn poll_once<Fut: Future>(fut: Pin<&mut Fut>) {
         let mut ctx = task::Context::from_waker(task::Waker::noop());
         match fut.poll(&mut ctx) {
             Poll::Ready(_) => panic!("unexpected output"),
