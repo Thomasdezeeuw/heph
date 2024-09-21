@@ -7,6 +7,8 @@ mod util {
     use std::pin::{pin, Pin};
     use std::task::{self, Poll};
 
+    use heph::{actor, sync, Actor, NewActor, SyncActor};
+
     pub fn assert_send<T: Send>() {}
 
     pub fn assert_sync<T: Sync>() {}
@@ -32,6 +34,51 @@ mod util {
         match fut.poll(&mut ctx) {
             Poll::Ready(_) => panic!("unexpected output"),
             Poll::Pending => {}
+        }
+    }
+
+    pub(crate) struct EmptyNewActor;
+
+    impl NewActor for EmptyNewActor {
+        type Message = !;
+        type Argument = ();
+        type Actor = EmptyActor;
+        type Error = &'static str;
+        type RuntimeAccess = ();
+
+        fn new(
+            &mut self,
+            _: actor::Context<Self::Message, Self::RuntimeAccess>,
+            _: Self::Argument,
+        ) -> Result<Self::Actor, Self::Error> {
+            Ok(EmptyActor)
+        }
+    }
+
+    pub(crate) struct EmptyActor;
+
+    impl Actor for EmptyActor {
+        type Error = &'static str;
+        fn try_poll(
+            self: Pin<&mut Self>,
+            _: &mut task::Context<'_>,
+        ) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    impl SyncActor for EmptyActor {
+        type Message = !;
+        type Argument = ();
+        type Error = &'static str;
+        type RuntimeAccess = ();
+
+        fn run(
+            &self,
+            _: sync::Context<Self::Message, Self::RuntimeAccess>,
+            _: Self::Argument,
+        ) -> Result<(), Self::Error> {
+            Ok(())
         }
     }
 }
