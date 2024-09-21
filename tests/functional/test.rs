@@ -27,7 +27,16 @@ impl NewActor for Na {
     }
 }
 
-impl SyncActor for Na {
+struct A;
+
+impl Actor for A {
+    type Error = &'static str;
+    fn try_poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        Poll::Ready(Ok(()))
+    }
+}
+
+impl SyncActor for A {
     type Message = !;
     type Argument = ();
     type Error = &'static str;
@@ -39,15 +48,6 @@ impl SyncActor for Na {
         _: Self::Argument,
     ) -> Result<(), Self::Error> {
         Ok(())
-    }
-}
-
-struct A;
-
-impl Actor for A {
-    type Error = &'static str;
-    fn try_poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
     }
 }
 
@@ -90,14 +90,14 @@ fn panic_supervisor_decide_on_panic() {
 }
 
 #[test]
-#[should_panic = "error running sync actor: first error"]
+#[should_panic = "error running 'A' actor: first error"]
 fn panic_supervisor_sync_decide() {
-    SyncSupervisor::<Na>::decide(&mut PanicSupervisor, "first error");
+    SyncSupervisor::<A>::decide(&mut PanicSupervisor, "first error");
 }
 
 #[test]
 #[should_panic = "original panic"]
 fn panic_supervisor_sync_decide_on_panic() {
     let panic = panic::catch_unwind(|| panic!("original panic")).unwrap_err();
-    SyncSupervisor::<Na>::decide_on_panic(&mut PanicSupervisor, panic);
+    SyncSupervisor::<A>::decide_on_panic(&mut PanicSupervisor, panic);
 }
