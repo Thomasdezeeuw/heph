@@ -12,6 +12,10 @@ TEST_OPTS = -- --quiet -Z unstable-options --shuffle
 TARGETS ?= x86_64-unknown-linux-gnu
 # Command to run in `dev` target, e.g. `make RUN=check dev`.
 RUN ?= test
+# The location of LLVM tools, rustup doesn't make this easy on us.
+RUSTUP_TARGET=$(strip $(shell rustup show | head -n 1 | sed -e 's/^Default host: \(.*\)/\1/'))
+LLVM_TOOLS_BIN=$(shell rustc --print sysroot)/lib/rustlib/$(RUSTUP_TARGET)/bin
+TARGET_DIR=$(shell cargo metadata --format-version 1 | jq --raw-output '.target_directory')
 
 # Development loop, runs $RUN whenever a source file changes.
 dev:
@@ -34,6 +38,42 @@ test_sanitizer:
 # TODO: add TEST_OPTS to this, currently this doesn't work with miri.
 test_miri:
 	cargo miri test --all-features $(TEST_FLAGS)
+
+# Generate coverage report.
+#
+# Install tools using:
+# $ rustup component add llvm-tools
+coverage: export RUSTFLAGS=-C instrument-coverage
+coverage: export LLVM_PROFILE_FILE=$(TARGET_DIR)/coverage/data-%p-%9m.profraw
+coverage: test?=test
+coverage:
+	rm -rf '$(TARGET_DIR)/coverage/' &> /dev/null || true
+	mkdir -p '$(TARGET_DIR)/coverage/'
+	$(MAKE) $(test)
+	$(LLVM_TOOLS_BIN)/llvm-profdata merge --sparse '$(TARGET_DIR)/coverage/'*.profraw -o '$(TARGET_DIR)/coverage/merged.profdata'
+	$(LLVM_TOOLS_BIN)/llvm-cov show \
+		--instr-profile='$(TARGET_DIR)/coverage/merged.profdata' \
+		--show-branches=count \
+		--show-instantiations=false \
+		--show-regions \
+		--show-line-counts-or-regions \
+		--ignore-filename-regex='/rustc/' \
+		--ignore-filename-regex='/.cargo/' \
+		--ignore-filename-regex='/tests/' \
+		--ignore-filename-regex='tests.rs' \
+		--format=html \
+		--output-dir='$(TARGET_DIR)/coverage' \
+		$$( \
+			for file in \
+			$$( \
+				$(MAKE) $(test) --silent 'TEST_FLAGS=--quiet --no-run --message-format=json' \
+					| jq --raw-output 'select(.executable != null) | .filenames[]' \
+					| grep 'target' \
+			); do \
+				printf -- '--object %s ' $$file; \
+			done \
+		)
+	@echo 'See $(TARGET_DIR)/coverage/index.html'
 
 check:
 	cargo check --all-features --all-targets
@@ -98,4 +138,4 @@ doc_private:
 clean:
 	cargo clean
 
-.PHONY: dev test test_sanitizers test_sanitizer test_miri check check_all_targets $(TARGETS) lint clippy doc doc_private clean
+.PHONY: dev test test_sanitizers test_sanitizer test_miri coverage check check_all_targets $(TARGETS) lint clippy doc doc_private clean

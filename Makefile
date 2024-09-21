@@ -11,6 +11,9 @@ $(TARGETS): $(CRATES)
 $(CRATES):
 	@$(MAKE) -C $@ $(patsubst %_all,%,$(MAKECMDGOALS))
 
+coverage_all:
+	$(MAKE) coverage test=test_all
+
 lint_all: clippy_all
 
 doc_all:
