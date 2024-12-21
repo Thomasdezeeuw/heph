@@ -45,7 +45,7 @@
 //! This crate has one optional feature: `test`. The `test` feature will enable
 //! the `test` module which contains testing facilities.
 
-#![feature(const_option, doc_auto_cfg, doc_cfg_hide, never_type)]
+#![feature(doc_auto_cfg, doc_cfg_hide, never_type)]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,
