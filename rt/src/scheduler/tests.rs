@@ -1,7 +1,6 @@
 //! Tests for the scheduler.
 
 use std::cell::RefCell;
-use std::cmp::Ordering;
 use std::future::pending;
 use std::pin::Pin;
 use std::rc::Rc;
@@ -14,7 +13,7 @@ use heph::supervisor::NoSupervisor;
 use heph::ActorFutureBuilder;
 
 use crate::scheduler::process::{self, FutureProcess, RunStats};
-use crate::scheduler::{Process, ProcessId, Scheduler};
+use crate::scheduler::{Cfs, Process, ProcessId, Scheduler};
 use crate::spawn::options::Priority;
 use crate::test::{self, assert_size, AssertUnmoved, TestAssertUnmovedNewActor};
 use crate::worker::SYSTEM_ACTORS;
@@ -24,7 +23,7 @@ use crate::ThreadLocal;
 fn size_assertions() {
     assert_size::<ProcessId>(8);
     assert_size::<Priority>(1);
-    assert_size::<process::Process<Box<dyn process::Run>>>(32);
+    assert_size::<process::Process<Cfs, Box<dyn process::Run>>>(32);
     assert_size::<Process>(40);
 }
 
@@ -74,45 +73,6 @@ fn process_data_equality() {
     assert_eq!(process3, process3);
 }
 
-#[test]
-fn process_data_ordering() {
-    let mut process1 = Process::new(Priority::HIGH, Box::pin(NopTestProcess));
-    let mut process2 = Process::new(Priority::NORMAL, Box::pin(NopTestProcess));
-    let mut process3 = Process::new(Priority::LOW, Box::pin(NopTestProcess));
-
-    // Ordering only on runtime and priority.
-    assert_eq!(process1.cmp(&process1), Ordering::Equal);
-    assert_eq!(process1.cmp(&process2), Ordering::Greater);
-    assert_eq!(process1.cmp(&process3), Ordering::Greater);
-
-    assert_eq!(process2.cmp(&process1), Ordering::Less);
-    assert_eq!(process2.cmp(&process2), Ordering::Equal);
-    assert_eq!(process2.cmp(&process3), Ordering::Greater);
-
-    assert_eq!(process3.cmp(&process1), Ordering::Less);
-    assert_eq!(process3.cmp(&process2), Ordering::Less);
-    assert_eq!(process3.cmp(&process3), Ordering::Equal);
-
-    let duration = Duration::from_millis(0);
-    process1.set_fair_runtime(duration);
-    process2.set_fair_runtime(duration);
-    process3.set_fair_runtime(duration);
-
-    // If all the "fair runtimes" are equal we only compare based on the
-    // priority.
-    assert_eq!(process1.cmp(&process1), Ordering::Equal);
-    assert_eq!(process1.cmp(&process2), Ordering::Greater);
-    assert_eq!(process1.cmp(&process3), Ordering::Greater);
-
-    assert_eq!(process2.cmp(&process1), Ordering::Less);
-    assert_eq!(process2.cmp(&process2), Ordering::Equal);
-    assert_eq!(process2.cmp(&process3), Ordering::Greater);
-
-    assert_eq!(process3.cmp(&process1), Ordering::Less);
-    assert_eq!(process3.cmp(&process2), Ordering::Less);
-    assert_eq!(process3.cmp(&process3), Ordering::Equal);
-}
-
 #[derive(Debug)]
 struct SleepyProcess(Duration);
 
@@ -135,14 +95,16 @@ fn process_data_runtime_increase() {
         Priority::HIGH,
         Box::pin(SleepyProcess(SLEEP_TIME)),
     ));
-    process.set_fair_runtime(Duration::from_millis(10));
+    process
+        .scheduler_data()
+        .set_fair_runtime(Duration::from_millis(10));
 
     // Runtime must increase after running.
     let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
     let res = process.as_mut().run(&mut ctx);
     assert_eq!(res, Poll::Pending);
-    assert!(process.fair_runtime() >= SLEEP_TIME);
+    assert!(process.scheduler_data().fair_runtime() >= SLEEP_TIME);
 }
 
 #[test]

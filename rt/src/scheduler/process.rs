@@ -13,7 +13,7 @@ use heph::{ActorFuture, NewActor};
 use log::{error, trace};
 
 use crate::panic_message;
-use crate::spawn::options::Priority;
+use crate::scheduler::{Priority, Schedule};
 
 /// Process id, or pid for short, is an identifier for a process in the runtime.
 ///
@@ -100,43 +100,18 @@ where
 ///
 /// `PartialOrd` and `Ord` however are implemented based on runtime and
 /// priority.
-pub(crate) struct Process<P: ?Sized> {
-    priority: Priority,
-    /// Fair runtime of the process, which is `actual runtime * priority`.
-    fair_runtime: Duration,
+pub(crate) struct Process<S, P: ?Sized> {
+    scheduler_data: S,
     process: Pin<Box<P>>,
 }
 
-impl<P: ?Sized> Process<P> {
+impl<S: Schedule, P: Run + ?Sized> Process<S, P> {
     /// Create a new process container.
-    pub(crate) const fn new(priority: Priority, process: Pin<Box<P>>) -> Process<P> {
+    pub(crate) fn new(priority: Priority, process: Pin<Box<P>>) -> Process<S, P> {
         Process {
-            priority,
-            fair_runtime: Duration::ZERO,
+            scheduler_data: S::new(priority),
             process,
         }
-    }
-
-    /// Returns the process identifier, or pid for short.
-    pub(crate) fn id(&self) -> ProcessId {
-        ProcessId((&raw const *self).addr())
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_fair_runtime(&mut self, fair_runtime: Duration) {
-        self.fair_runtime = fair_runtime;
-    }
-
-    #[cfg(test)]
-    pub(crate) fn fair_runtime(&mut self) -> Duration {
-        self.fair_runtime
-    }
-}
-
-impl<P: Run + ?Sized> Process<P> {
-    /// Returns the name of the process.
-    pub(crate) fn name(&self) -> &'static str {
-        self.process.name()
     }
 
     /// Run the process.
@@ -149,15 +124,34 @@ impl<P: Run + ?Sized> Process<P> {
 
         let start = Instant::now();
         let result = self.process.as_mut().run(ctx);
-        let elapsed = start.elapsed();
-        let fair_elapsed = elapsed * self.priority;
-        self.fair_runtime += fair_elapsed;
+        let end = Instant::now();
+        let elapsed = end - start;
+        self.scheduler_data.update(start, end, elapsed);
 
         trace!(
             pid = pid.0, name = name, elapsed:? = elapsed, result:? = result;
             "finished running process",
         );
         RunStats { elapsed, result }
+    }
+}
+
+impl<S, P: ?Sized> Process<S, P> {
+    /// Returns the process identifier, or pid for short.
+    pub(crate) fn id(&self) -> ProcessId {
+        ProcessId((&raw const *self).addr())
+    }
+
+    #[cfg(test)]
+    pub(crate) fn scheduler_data(&mut self) -> &mut S {
+        &mut self.scheduler_data
+    }
+}
+
+impl<S, P: Run + ?Sized> Process<S, P> {
+    /// Returns the name of the process.
+    pub(crate) fn name(&self) -> &'static str {
+        self.process.name()
     }
 }
 
@@ -171,36 +165,33 @@ pub(crate) struct RunStats {
     pub(crate) result: Poll<()>,
 }
 
-impl<P: ?Sized> Eq for Process<P> {}
+impl<S, P: ?Sized> Eq for Process<S, P> {}
 
-impl<P: ?Sized> PartialEq for Process<P> {
+impl<S, P: ?Sized> PartialEq for Process<S, P> {
     fn eq(&self, other: &Self) -> bool {
-        Pin::new(self).id() == Pin::new(other).id()
+        self.id() == other.id()
     }
 }
 
-impl<P: ?Sized> Ord for Process<P> {
+impl<S: Schedule, P: ?Sized> Ord for Process<S, P> {
     fn cmp(&self, other: &Self) -> Ordering {
-        (other.fair_runtime)
-            .cmp(&(self.fair_runtime))
-            .then_with(|| self.priority.cmp(&other.priority))
+        S::order(&self.scheduler_data, &other.scheduler_data)
     }
 }
 
-impl<P: ?Sized> PartialOrd for Process<P> {
+impl<S: Schedule, P: ?Sized> PartialOrd for Process<S, P> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+        Some(S::order(&self.scheduler_data, &other.scheduler_data))
     }
 }
 
 #[allow(clippy::missing_fields_in_debug)]
-impl<P: Run + ?Sized> fmt::Debug for Process<P> {
+impl<S: fmt::Debug, P: Run + ?Sized> fmt::Debug for Process<S, P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Process")
             .field("id", &self.id())
+            .field("scheduler_data", &self.scheduler_data)
             .field("name", &self.name())
-            .field("priority", &self.priority)
-            .field("fair_runtime", &self.fair_runtime)
             .finish()
     }
 }

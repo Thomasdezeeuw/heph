@@ -10,16 +10,18 @@ use log::trace;
 
 use crate::spawn::options::Priority;
 
+mod cfs;
 mod inactive;
 pub(crate) mod process;
 pub(crate) mod shared;
 #[cfg(test)]
 mod tests;
 
+use cfs::Cfs;
 use inactive::Inactive;
 pub(crate) use process::ProcessId;
 
-type Process = process::Process<dyn process::Run>;
+type Process = process::Process<Cfs, dyn process::Run>;
 
 #[derive(Debug)]
 pub(crate) struct Scheduler {
