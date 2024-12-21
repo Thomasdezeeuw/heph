@@ -7,29 +7,18 @@
 use std::cmp::Ordering;
 use std::time::{Duration, Instant};
 
-use crate::scheduler::{Priority, ProcessData, Schedule};
+use crate::scheduler::{Priority, Schedule};
 
-pub(crate) enum Cfs {}
-
-impl Schedule for Cfs {
-    type ProcessData = Data;
-
-    fn order(lhs: &Self::ProcessData, rhs: &Self::ProcessData) -> Ordering {
-        (rhs.fair_runtime)
-            .cmp(&(lhs.fair_runtime))
-            .then_with(|| lhs.priority.cmp(&rhs.priority))
-    }
-}
-
-pub(crate) struct Data {
+#[derive(Debug)]
+pub(crate) struct Cfs {
     priority: Priority,
     /// Fair runtime of the process, which is `actual runtime * priority`.
     fair_runtime: Duration,
 }
 
-impl ProcessData for Data {
-    fn new(priority: Priority) -> Self {
-        Data {
+impl Schedule for Cfs {
+    fn new(priority: Priority) -> Cfs {
+        Cfs {
             priority,
             fair_runtime: Duration::ZERO,
         }
@@ -38,5 +27,11 @@ impl ProcessData for Data {
     fn update(&mut self, _: Instant, _: Instant, elapsed: Duration) {
         let fair_elapsed = elapsed * self.priority;
         self.fair_runtime += fair_elapsed;
+    }
+
+    fn order(lhs: &Self, rhs: &Self) -> Ordering {
+        (rhs.fair_runtime)
+            .cmp(&(lhs.fair_runtime))
+            .then_with(|| lhs.priority.cmp(&rhs.priority))
     }
 }
