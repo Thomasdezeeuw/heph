@@ -107,16 +107,9 @@ impl Scheduler {
 }
 
 /// Scheduling implementation.
-trait Schedule {
-    /// Data stored per process for scheduling.
-    type ProcessData: ProcessData;
-
-    /// Determine if the `lhs` or `rhs` should run first.
-    fn order(lhs: &Self::ProcessData, rhs: &Self::ProcessData) -> Ordering;
-}
-
-/// Scheduler data stored per process used for scheduling purposes.
-trait ProcessData {
+///
+/// The type itself holds the per process data needed for scheduling.
+pub(crate) trait Schedule {
     /// Create new data.
     fn new(priority: Priority) -> Self;
 
@@ -127,4 +120,7 @@ trait ProcessData {
     ///  * `end`: time at which the latest run ended.
     ///  * `elapsed`: `end - start`.
     fn update(&mut self, start: Instant, end: Instant, elapsed: Duration);
+
+    /// Determine if the `lhs` or `rhs` should run first.
+    fn order(lhs: &Self, rhs: &Self) -> Ordering;
 }
