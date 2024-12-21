@@ -29,7 +29,7 @@ use log::{debug, trace, warn};
 
 use crate::error::StringError;
 use crate::local::RuntimeInternals;
-use crate::process::ProcessId;
+use crate::scheduler::ProcessId;
 use crate::setup::set_cpu_affinity;
 use crate::spawn::options::ActorOptions;
 use crate::wakers::Wakers;

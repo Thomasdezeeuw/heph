@@ -15,9 +15,6 @@ use log::{error, trace};
 use crate::panic_message;
 use crate::spawn::options::Priority;
 
-#[cfg(test)]
-mod tests;
-
 /// Process id, or pid for short, is an identifier for a process in the runtime.
 ///
 /// This can only be created by one of the schedulers and should be seen as an
@@ -119,7 +116,8 @@ where
 pub(crate) struct ProcessData<P: ?Sized> {
     priority: Priority,
     /// Fair runtime of the process, which is `actual runtime * priority`.
-    fair_runtime: Duration,
+    // TODO: remove `pub(super)`, needed by tests.
+    pub(super) fair_runtime: Duration,
     process: Pin<Box<P>>,
 }
 

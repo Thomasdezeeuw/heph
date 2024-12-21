@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Weak;
 use std::task;
 
-use crate::process::ProcessId;
+use crate::scheduler::ProcessId;
 use crate::shared::RuntimeInternals;
 
 /// Maximum number of runtimes supported.

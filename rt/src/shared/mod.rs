@@ -13,7 +13,7 @@ use heph::supervisor::Supervisor;
 use heph::{ActorFutureBuilder, NewActor};
 use log::{debug, trace};
 
-use crate::process::{FutureProcess, Process, ProcessId};
+use crate::scheduler::process::{FutureProcess, Process, ProcessId};
 use crate::scheduler::shared::{ProcessData, Scheduler};
 #[cfg(test)]
 use crate::spawn::options::Priority;
