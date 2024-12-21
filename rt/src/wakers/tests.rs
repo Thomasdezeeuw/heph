@@ -1,6 +1,6 @@
 use std::task;
 
-use crate::process::{FutureProcess, ProcessId};
+use crate::scheduler::process::{FutureProcess, ProcessId};
 use crate::spawn::options::Priority;
 use crate::wakers::{self, create_no_ring_waker};
 
@@ -52,8 +52,8 @@ fn create_no_ring_waker_other() {
 mod local {
     use std::thread;
 
+    use crate::scheduler::ProcessId;
     use crate::wakers::Wakers;
-    use crate::ProcessId;
 
     const PID1: ProcessId = ProcessId(0);
     const PID2: ProcessId = ProcessId(usize::MAX);
@@ -115,7 +115,7 @@ mod shared {
     use std::thread::{self, sleep};
     use std::time::Duration;
 
-    use crate::process::{FutureProcess, Process, ProcessId};
+    use crate::scheduler::process::{FutureProcess, Process, ProcessId};
     use crate::shared::RuntimeInternals;
     use crate::spawn::options::Priority;
     use crate::wakers::shared::Wakers;

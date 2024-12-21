@@ -4,8 +4,7 @@ use std::mem::{forget, replace};
 use std::pin::Pin;
 use std::ptr::NonNull;
 
-use crate::process::ProcessId;
-use crate::scheduler::ProcessData;
+use crate::scheduler::{ProcessData, ProcessId};
 use crate::worker::SYSTEM_ACTORS;
 
 /// Number of bits to shift per level.
@@ -311,7 +310,7 @@ mod tests {
     use std::sync::Arc;
     use std::task::{self, Poll};
 
-    use crate::process::{Process, ProcessId};
+    use crate::scheduler::{Process, ProcessId};
     use crate::spawn::options::Priority;
 
     use super::{

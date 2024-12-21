@@ -4,7 +4,7 @@ use std::pin::Pin;
 
 use log::trace;
 
-use crate::process::{Process, ProcessId};
+use crate::scheduler::{Process, ProcessId};
 use crate::spawn::options::Priority;
 
 mod inactive;
@@ -15,7 +15,7 @@ mod tests;
 use inactive::Inactive;
 use runqueue::RunQueue;
 
-pub(crate) type ProcessData = crate::process::ProcessData<dyn Process + Send + Sync>;
+pub(crate) type ProcessData = crate::scheduler::process::ProcessData<dyn Process + Send + Sync>;
 
 /// The thread-safe scheduler, responsible for scheduling processes that can run
 /// one any of the worker threads, e.g. thread-safe actors.

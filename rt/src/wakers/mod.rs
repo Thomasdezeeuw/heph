@@ -10,7 +10,7 @@ use std::task::{self, Poll};
 use crossbeam_channel::Sender;
 use log::{error, trace};
 
-use crate::process::ProcessId;
+use crate::scheduler::ProcessId;
 
 pub(crate) mod shared;
 #[cfg(test)]

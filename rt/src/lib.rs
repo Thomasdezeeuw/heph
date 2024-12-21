@@ -249,7 +249,6 @@ mod local;
 pub mod log;
 pub mod net;
 pub mod pipe;
-mod process;
 mod scheduler;
 mod setup;
 mod shared;
@@ -268,15 +267,13 @@ pub mod util;
 mod wakers;
 mod worker;
 
-use process::ProcessId;
-
 #[doc(no_inline)]
 pub use access::{Access, Sync, ThreadLocal, ThreadSafe};
 pub use error::Error;
 pub use setup::Setup;
 pub use signal::Signal;
 
-use crate::process::{FutureProcess, Process};
+use crate::scheduler::process::{FutureProcess, Process};
 use coordinator::CoordinatorSetup;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 use timers::TimerToken;

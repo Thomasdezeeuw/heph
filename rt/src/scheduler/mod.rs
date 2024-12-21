@@ -6,15 +6,17 @@ use std::pin::Pin;
 
 use log::trace;
 
-use crate::process::{self, Process, ProcessId};
 use crate::spawn::options::Priority;
 
 mod inactive;
+pub(crate) mod process;
 pub(crate) mod shared;
 #[cfg(test)]
 mod tests;
 
 use inactive::Inactive;
+use process::Process;
+pub(crate) use process::ProcessId;
 
 type ProcessData = process::ProcessData<dyn Process>;
 
