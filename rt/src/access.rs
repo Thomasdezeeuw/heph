@@ -382,7 +382,8 @@ where
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
-        let substream_id = self.pid() as u64;
+        // FIXME: get the process id here.
+        let substream_id = 0;
         self.runtime()
             .finish_trace(timing, substream_id, description, attributes);
     }

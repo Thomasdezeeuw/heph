@@ -4,7 +4,7 @@ use std::pin::Pin;
 
 use log::trace;
 
-use crate::scheduler::{Process, ProcessId};
+use crate::scheduler::{process, ProcessId};
 use crate::spawn::options::Priority;
 
 mod inactive;
@@ -15,7 +15,7 @@ mod tests;
 use inactive::Inactive;
 use runqueue::RunQueue;
 
-pub(crate) type ProcessData = crate::scheduler::process::ProcessData<dyn Process + Send + Sync>;
+pub(crate) type Process = process::Process<dyn process::Run + Send + Sync>;
 
 /// The thread-safe scheduler, responsible for scheduling processes that can run
 /// one any of the worker threads, e.g. thread-safe actors.
@@ -129,10 +129,10 @@ impl Scheduler {
     /// Add a new proces to the scheduler.
     pub(crate) fn add_new_process<P>(&self, priority: Priority, process: P) -> ProcessId
     where
-        P: Process + Send + Sync + 'static,
+        P: process::Run + Send + Sync + 'static,
     {
-        let process = Box::pin(ProcessData::new(priority, Box::pin(process)));
-        let pid = process.as_ref().id();
+        let process = Box::pin(Process::new(priority, Box::pin(process)));
+        let pid = process.id();
         self.ready.add(process);
         pid
     }
@@ -154,21 +154,21 @@ impl Scheduler {
     ///
     /// Returns `Ok(Some(..))` if a process was successfully removed or
     /// `Ok(None)` if no processes are available to run.
-    pub(crate) fn remove(&self) -> Option<Pin<Box<ProcessData>>> {
+    pub(crate) fn remove(&self) -> Option<Pin<Box<Process>>> {
         self.ready.remove()
     }
 
     /// Add back a process that was previously removed via
     /// [`Scheduler::remove`] and add it to the inactive list.
-    pub(crate) fn add_back_process(&self, process: Pin<Box<ProcessData>>) {
-        let pid = process.as_ref().id();
+    pub(crate) fn add_back_process(&self, process: Pin<Box<Process>>) {
+        let pid = process.id();
         trace!(pid = pid.0; "adding back process");
         self.inactive.add(process, &self.ready);
     }
 
     /// Mark `process` as complete, removing it from the scheduler.
-    pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
-        let pid = process.as_ref().id();
+    pub(crate) fn complete(&self, process: Pin<Box<Process>>) {
+        let pid = process.id();
         trace!(pid = pid.0; "removing process");
         self.inactive.complete(process);
     }

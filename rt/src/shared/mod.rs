@@ -13,8 +13,8 @@ use heph::supervisor::Supervisor;
 use heph::{ActorFutureBuilder, NewActor};
 use log::{debug, trace};
 
-use crate::scheduler::process::{FutureProcess, Process, ProcessId};
-use crate::scheduler::shared::{ProcessData, Scheduler};
+use crate::scheduler::process::{FutureProcess, ProcessId};
+use crate::scheduler::shared::{Process, Scheduler};
 #[cfg(test)]
 use crate::spawn::options::Priority;
 use crate::spawn::{ActorOptions, FutureOptions};
@@ -240,16 +240,15 @@ impl RuntimeInternals {
         Fut: Future<Output = ()> + Send + Sync + 'static,
     {
         let process = FutureProcess(future);
-        let name = process.name();
         let pid = self.scheduler.add_new_process(options.priority(), process);
-        debug!(pid = pid.0, name = name; "spawning thread-safe future");
+        debug!(pid = pid.0; "spawning thread-safe future");
     }
 
     /// Add a new proces to the scheduler.
     #[cfg(test)]
     pub(crate) fn add_new_process<P>(&self, priority: Priority, process: P) -> ProcessId
     where
-        P: Process + Send + Sync + 'static,
+        P: crate::scheduler::process::Run + Send + Sync + 'static,
     {
         self.scheduler.add_new_process(priority, process)
     }
@@ -299,17 +298,17 @@ impl RuntimeInternals {
     }
 
     /// See [`Scheduler::remove`].
-    pub(crate) fn remove_process(&self) -> Option<Pin<Box<ProcessData>>> {
+    pub(crate) fn remove_process(&self) -> Option<Pin<Box<Process>>> {
         self.scheduler.remove()
     }
 
     /// See [`Scheduler::add_back_process`].
-    pub(crate) fn add_back_process(&self, process: Pin<Box<ProcessData>>) {
+    pub(crate) fn add_back_process(&self, process: Pin<Box<Process>>) {
         self.scheduler.add_back_process(process);
     }
 
     /// See [`Scheduler::complete`].
-    pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
+    pub(crate) fn complete(&self, process: Pin<Box<Process>>) {
         self.scheduler.complete(process);
     }
 

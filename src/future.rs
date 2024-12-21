@@ -74,11 +74,6 @@ where
         NA::name()
     }
 
-    #[doc(hidden)] // Not part of the stable API.
-    pub fn pid(&self) -> usize {
-        self.inbox.id().as_usize()
-    }
-
     /// Returns `Poll::Pending` if the actor was successfully restarted,
     /// `Poll::Ready` if the actor wasn't restarted (or failed to restart).
     fn handle_actor_error(

@@ -1,6 +1,6 @@
 use std::task;
 
-use crate::scheduler::process::{FutureProcess, ProcessId};
+use crate::scheduler::process::ProcessId;
 use crate::spawn::options::Priority;
 use crate::wakers::{self, create_no_ring_waker};
 
@@ -26,8 +26,7 @@ fn create_no_ring_waker_local() {
 fn create_no_ring_waker_shared() {
     let shared_internals = shared::new_internals();
 
-    let pid =
-        shared_internals.add_new_process(Priority::NORMAL, FutureProcess(shared::TestProcess));
+    let pid = shared_internals.add_new_process(Priority::NORMAL, shared::TestProcess);
 
     // Should be able to convert the waker.
     let waker = shared_internals.new_task_waker(pid);
@@ -39,7 +38,7 @@ fn create_no_ring_waker_shared() {
     assert!(shared_internals.has_process());
     assert!(shared_internals.has_ready_process());
     let process = shared_internals.remove_process().unwrap();
-    assert_eq!(process.as_ref().id(), pid);
+    assert_eq!(process.id(), pid);
 }
 
 #[test]
@@ -107,7 +106,6 @@ mod local {
 }
 
 mod shared {
-    use std::future::Future;
     use std::pin::Pin;
     use std::sync::OnceLock;
     use std::sync::{Arc, Weak};
@@ -115,7 +113,7 @@ mod shared {
     use std::thread::{self, sleep};
     use std::time::Duration;
 
-    use crate::scheduler::process::{FutureProcess, Process, ProcessId};
+    use crate::scheduler::process::{self, ProcessId};
     use crate::shared::RuntimeInternals;
     use crate::spawn::options::Priority;
     use crate::wakers::shared::Wakers;
@@ -125,17 +123,13 @@ mod shared {
 
     pub(super) struct TestProcess;
 
-    impl Future for TestProcess {
-        type Output = ();
-
-        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
-            unimplemented!();
-        }
-    }
-
-    impl Process for TestProcess {
+    impl process::Run for TestProcess {
         fn name(&self) -> &'static str {
             "TestProcess"
+        }
+
+        fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+            unimplemented!();
         }
     }
 
@@ -143,7 +137,7 @@ mod shared {
     fn waker() {
         let shared_internals = new_internals();
 
-        let pid = shared_internals.add_new_process(Priority::NORMAL, FutureProcess(TestProcess));
+        let pid = shared_internals.add_new_process(Priority::NORMAL, TestProcess);
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
@@ -159,7 +153,7 @@ mod shared {
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
-        assert_eq!(process.as_ref().id(), pid);
+        assert_eq!(process.id(), pid);
 
         // Waking a process that isn't in the scheduler should be fine.
         waker.wake();
@@ -175,7 +169,7 @@ mod shared {
         let shared_internals = new_internals();
 
         // Add a test process.
-        let pid = shared_internals.add_new_process(Priority::NORMAL, FutureProcess(TestProcess));
+        let pid = shared_internals.add_new_process(Priority::NORMAL, TestProcess);
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
@@ -193,14 +187,14 @@ mod shared {
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
-        assert_eq!(process.as_ref().id(), pid);
+        assert_eq!(process.id(), pid);
     }
 
     #[test]
     fn wake_from_different_thread() {
         let shared_internals = new_internals();
 
-        let pid = shared_internals.add_new_process(Priority::NORMAL, FutureProcess(TestProcess));
+        let pid = shared_internals.add_new_process(Priority::NORMAL, TestProcess);
         assert!(shared_internals.has_process());
         assert!(shared_internals.has_ready_process());
         let process = shared_internals.remove_process().unwrap();
@@ -217,7 +211,7 @@ mod shared {
 
         loop {
             if let Some(process) = shared_internals.remove_process() {
-                assert_eq!(process.as_ref().id(), pid);
+                assert_eq!(process.id(), pid);
                 shared_internals.complete(process);
                 break;
             }

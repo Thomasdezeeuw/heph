@@ -4,7 +4,7 @@ use std::pin::Pin;
 use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::{fmt, ptr};
 
-use crate::scheduler::shared::{ProcessData, RunQueue};
+use crate::scheduler::shared::{Process, RunQueue};
 use crate::scheduler::ProcessId;
 
 /// Number of bits to shift per level.
@@ -28,12 +28,12 @@ const fn ok_pid(pid: ProcessId) -> bool {
 /// Implemented as a tree with four pointers on each level. A pointer can be one
 /// of four things:
 ///  * a pointer to a `Branch`, which again contains four pointers,
-///  * a pointer to `ProcessData`, which hold the processes,
+///  * a pointer to `Process`, which hold the processes,
 ///  * a marker to indicate a process was marked as ready to run,
 ///  * or a null pointer to indicate the slot is empty.
 ///
 /// Indexing into the structure is done using the `ProcessId` of the process,
-/// however the pointer itself points to `ProcessData`.
+/// however the pointer itself points to `Process`.
 ///
 /// Because processes should have short ready state times (see process states),
 /// but longer total lifetime they quickly move into and out from this
@@ -92,8 +92,8 @@ impl Inactive {
     ///
     /// It will add `process` to `run_queue` if it was marked as ready-to-run
     /// while it was removed from the `Inactive` tree.
-    pub(crate) fn add(&self, process: Pin<Box<ProcessData>>, run_queue: &RunQueue) {
-        let pid = process.as_ref().id();
+    pub(crate) fn add(&self, process: Pin<Box<Process>>, run_queue: &RunQueue) {
+        let pid = process.id();
         debug_assert!(ok_pid(pid));
         let changed = self.root.add(process, pid.0 >> SKIP_BITS, 0, run_queue);
         self.update_length(changed);
@@ -109,8 +109,8 @@ impl Inactive {
     }
 
     /// Mark `process` as complete, removing a ready marker from the tree.
-    pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
-        let pid = process.as_ref().id();
+    pub(crate) fn complete(&self, process: Pin<Box<Process>>) {
+        let pid = process.id();
         debug_assert!(ok_pid(pid));
         let ready_marker = ready_to_run(pid);
 
@@ -189,7 +189,7 @@ struct Branch {
 /// An **owned**, tagged raw pointer.
 /// Can be:
 /// * `null`: empty.
-/// * tagged with `PROCESS_TAG`: `Pin<Box<ProcessData>>`.
+/// * tagged with `PROCESS_TAG`: `Pin<Box<Process>>`.
 /// * tagged with `BRANCH_TAG`: `Pin<Box<Branch>>`.
 /// * tagged with `READY_TO_RUN`: not a pointer, but a marker.
 type TaggedPointer = *mut ();
@@ -215,12 +215,12 @@ impl Branch {
     /// from the tree.
     fn add(
         &self,
-        process: Pin<Box<ProcessData>>,
+        process: Pin<Box<Process>>,
         w_pid: usize,
         depth: usize,
         run_queue: &RunQueue,
     ) -> isize {
-        let pid = process.as_ref().id();
+        let pid = process.id();
         let process = tag_process(process);
         self._add(process, pid, w_pid, depth, run_queue)
     }
@@ -579,7 +579,7 @@ fn diff_branch_depth(pid1: ProcessId, pid2: ProcessId) -> usize {
 }
 
 /// Converts `process` into a tagged pointer.
-fn tag_process(process: Pin<Box<ProcessData>>) -> TaggedPointer {
+fn tag_process(process: Pin<Box<Process>>) -> TaggedPointer {
     #[allow(trivial_casts)]
     let ptr = Box::into_raw(Pin::into_inner(process)).cast::<()>();
     (ptr as usize | PROCESS_TAG) as *mut ()
@@ -602,7 +602,7 @@ const fn ready_to_run(pid: ProcessId) -> TaggedPointer {
 /// # Safety
 ///
 /// Caller must ensure unique access to `ptr` and that it's a process.
-unsafe fn process_from_tagged(ptr: TaggedPointer) -> Pin<Box<ProcessData>> {
+unsafe fn process_from_tagged(ptr: TaggedPointer) -> Pin<Box<Process>> {
     debug_assert!(is_process(ptr));
     Pin::new(Box::from_raw(as_ptr(ptr).cast()))
 }
@@ -645,7 +645,7 @@ fn has_tag(ptr: TaggedPointer, tag: usize) -> bool {
 /// This is only valid for ready-to-run markers or **owned** processes.
 unsafe fn as_pid(ptr: TaggedPointer) -> ProcessId {
     if is_process(ptr) {
-        Pin::new(unsafe { &*(as_ptr(ptr).cast::<ProcessData>()) }).id()
+        Pin::new(unsafe { &*(as_ptr(ptr).cast::<Process>()) }).id()
     } else {
         debug_assert!(is_ready_marker(ptr));
         ProcessId(as_ptr(ptr) as usize)
@@ -693,7 +693,6 @@ unsafe fn drop_tagged_pointer(ptr: TaggedPointer) {
 
 #[cfg(test)]
 mod tests {
-    use std::future::Future;
     use std::mem::align_of;
     use std::pin::Pin;
     use std::ptr;
@@ -702,13 +701,13 @@ mod tests {
     use std::task::{self, Poll};
 
     use crate::scheduler::shared::RunQueue;
-    use crate::scheduler::{Process, ProcessId};
+    use crate::scheduler::{process, ProcessId};
     use crate::spawn::options::Priority;
 
     use super::{
         as_pid, branch_from_tagged, diff_branch_depth, drop_tagged_pointer, is_branch, is_process,
         is_ready_marker, process_from_tagged, ready_to_run, tag_branch, tag_process, Branch,
-        Inactive, ProcessData, TaggedPointer,
+        Inactive, Process, TaggedPointer,
     };
 
     #[test]
@@ -717,8 +716,8 @@ mod tests {
         fn assert_sync<T: Sync>() {}
 
         // Required for `Pointer` to be `Send` and `Sync`.
-        assert_send::<Pin<Box<ProcessData>>>();
-        assert_sync::<Pin<Box<ProcessData>>>();
+        assert_send::<Pin<Box<Process>>>();
+        assert_sync::<Pin<Box<Process>>>();
         assert_send::<Pin<Box<Branch>>>();
         assert_sync::<Pin<Box<Branch>>>();
         assert_send::<Inactive>();
@@ -727,22 +726,18 @@ mod tests {
 
     struct TestProcess;
 
-    impl Future for TestProcess {
-        type Output = ();
+    impl process::Run for TestProcess {
+        fn name(&self) -> &'static str {
+            "TestProcess"
+        }
 
-        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+        fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
             unimplemented!();
         }
     }
 
-    impl Process for TestProcess {
-        fn name(&self) -> &'static str {
-            "TestProcess"
-        }
-    }
-
-    fn test_process() -> Pin<Box<ProcessData>> {
-        Box::pin(ProcessData::new(Priority::default(), Box::pin(TestProcess)))
+    fn test_process() -> Pin<Box<Process>> {
+        Box::pin(Process::new(Priority::default(), Box::pin(TestProcess)))
     }
 
     #[test]
@@ -754,7 +749,7 @@ mod tests {
     #[test]
     fn process_data_alignment() {
         // Ensure that the pointer tag doesn't overwrite any pointer data.
-        assert!(align_of::<ProcessData>() >= 2);
+        assert!(align_of::<Process>() >= 2);
     }
 
     #[test]
@@ -829,17 +824,13 @@ mod tests {
         }
     }
 
-    impl Future for DropTest {
-        type Output = ();
-
-        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
-            unimplemented!();
-        }
-    }
-
-    impl Process for DropTest {
+    impl process::Run for DropTest {
         fn name(&self) -> &'static str {
             "DropTest"
+        }
+
+        fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+            unimplemented!();
         }
     }
 
@@ -847,7 +838,7 @@ mod tests {
     fn dropping_tagged_process() {
         let dropped = Arc::new(AtomicUsize::new(0));
         let process = Box::pin(DropTest(dropped.clone()));
-        let process = Box::pin(ProcessData::new(Priority::default(), process));
+        let process = Box::pin(Process::new(Priority::default(), process));
         let ptr = tag_process(process);
 
         assert_eq!(dropped.load(Ordering::Acquire), 0);
@@ -859,7 +850,7 @@ mod tests {
     fn dropping_tagged_branch() {
         let dropped = Arc::new(AtomicUsize::new(0));
         let process = Box::pin(DropTest(dropped.clone()));
-        let process = Box::pin(ProcessData::new(Priority::default(), process));
+        let process = Box::pin(Process::new(Priority::default(), process));
         let process_ptr = tag_process(process);
 
         let mut branch = Box::pin(Branch::empty());
@@ -892,7 +883,7 @@ mod tests {
             let processes = (0..*n)
                 .map(|_| {
                     let process = test_process();
-                    let pid = process.as_ref().id();
+                    let pid = process.id();
 
                     // Process not in the tree, shouldn't be added to the run
                     // queue.
@@ -904,12 +895,12 @@ mod tests {
                 .collect::<Vec<_>>();
 
             for process in processes {
-                let pid = process.as_ref().id();
+                let pid = process.id();
                 // Process should be marked as ready.
                 tree.add(process, &run_queue);
                 assert!(run_queue.has_process());
                 let process = run_queue.remove().unwrap();
-                assert_eq!(process.as_ref().id(), pid);
+                assert_eq!(process.id(), pid);
             }
         }
     }
@@ -917,7 +908,7 @@ mod tests {
     fn add_process(tree: &Inactive, run_queue: &RunQueue) -> ProcessId {
         assert!(!run_queue.has_process());
         let process = test_process();
-        let pid = process.as_ref().id();
+        let pid = process.id();
         tree.add(process, run_queue);
         assert!(!run_queue.has_process());
         pid
@@ -953,7 +944,7 @@ mod tests {
                     tree
                 );
             };
-            assert_eq!(process.as_ref().id(), pid);
+            assert_eq!(process.id(), pid);
             processes.push(process);
 
             // Can't add it to the run queue again.

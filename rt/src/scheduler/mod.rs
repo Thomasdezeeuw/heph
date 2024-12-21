@@ -15,15 +15,14 @@ pub(crate) mod shared;
 mod tests;
 
 use inactive::Inactive;
-use process::Process;
 pub(crate) use process::ProcessId;
 
-type ProcessData = process::ProcessData<dyn Process>;
+type Process = process::Process<dyn process::Run>;
 
 #[derive(Debug)]
 pub(crate) struct Scheduler {
     /// Processes that are ready to run.
-    ready: BinaryHeap<Pin<Box<ProcessData>>>,
+    ready: BinaryHeap<Pin<Box<Process>>>,
     /// Processes that are not ready to run.
     inactive: Inactive,
 }
@@ -62,10 +61,10 @@ impl Scheduler {
     /// Add a new proces to the scheduler.
     pub(crate) fn add_new_process<P>(&mut self, priority: Priority, process: P) -> ProcessId
     where
-        P: Process + 'static,
+        P: process::Run + 'static,
     {
-        let process = Box::pin(ProcessData::new(priority, Box::pin(process)));
-        let pid = process.as_ref().id();
+        let process = Box::pin(Process::new(priority, Box::pin(process)));
+        let pid = process.id();
         self.ready.push(process);
         pid
     }
@@ -83,21 +82,21 @@ impl Scheduler {
     }
 
     /// Returns the next ready process.
-    pub(crate) fn next_process(&mut self) -> Option<Pin<Box<ProcessData>>> {
+    pub(crate) fn next_process(&mut self) -> Option<Pin<Box<Process>>> {
         self.ready.pop()
     }
 
     /// Add back a process that was previously removed via
     /// [`Scheduler::next_process`].
-    pub(crate) fn add_back_process(&mut self, process: Pin<Box<ProcessData>>) {
-        let pid = process.as_ref().id();
+    pub(crate) fn add_back_process(&mut self, process: Pin<Box<Process>>) {
+        let pid = process.id();
         trace!(pid = pid.0; "adding back process");
         self.inactive.add(process);
     }
 
     /// Mark `process` as complete, removing it from the scheduler.
     #[allow(clippy::unused_self)]
-    pub(crate) fn complete(&self, process: Pin<Box<ProcessData>>) {
+    pub(crate) fn complete(&self, process: Pin<Box<Process>>) {
         let pid = process.as_ref().id();
         trace!(pid = pid.0; "removing process");
         // Don't want to panic when dropping the process.

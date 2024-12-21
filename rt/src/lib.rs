@@ -273,7 +273,7 @@ pub use error::Error;
 pub use setup::Setup;
 pub use signal::Signal;
 
-use crate::scheduler::process::{FutureProcess, Process};
+use crate::scheduler::process::FutureProcess;
 use coordinator::CoordinatorSetup;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 use timers::TimerToken;
@@ -590,13 +590,12 @@ impl RuntimeRef {
         Fut: Future<Output = ()> + 'static,
     {
         let process = FutureProcess(future);
-        let name = process.name();
         let pid = self
             .internals
             .scheduler
             .borrow_mut()
             .add_new_process(options.priority(), process);
-        debug!(pid = pid.0, name = name; "spawning thread-local future");
+        debug!(pid = pid.0; "spawning thread-local future");
     }
 
     /// Spawn a thread-safe [`Future`].

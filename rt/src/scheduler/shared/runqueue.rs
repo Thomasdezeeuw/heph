@@ -2,7 +2,7 @@ use std::mem::replace;
 use std::pin::Pin;
 use std::sync::Mutex;
 
-use crate::scheduler::shared::ProcessData;
+use crate::scheduler::shared::Process;
 
 // TODO: currently this creates and drops Node on almost every operation. Maybe
 // we can keep (some of) the structure in place, changing `Node.process` into an
@@ -20,7 +20,7 @@ type Branch = Option<Box<Node>>;
 
 #[derive(Debug)]
 struct Node {
-    process: Pin<Box<ProcessData>>,
+    process: Pin<Box<Process>>,
     left: Branch,
     right: Branch,
 }
@@ -51,7 +51,7 @@ impl RunQueue {
     }
 
     /// Add `process` to the queue of running processes.
-    pub(crate) fn add(&self, process: Pin<Box<ProcessData>>) {
+    pub(crate) fn add(&self, process: Pin<Box<Process>>) {
         let mut next_node = &mut *self.root.lock().unwrap();
         while let Some(node) = next_node {
             // Select the next node in the branch to attempt to add
@@ -67,7 +67,7 @@ impl RunQueue {
     }
 
     /// Remove the next process to run from the queue.
-    pub(crate) fn remove(&self) -> Option<Pin<Box<ProcessData>>> {
+    pub(crate) fn remove(&self) -> Option<Pin<Box<Process>>> {
         let mut next_node = &mut *self.root.lock().unwrap();
         loop {
             match next_node {
@@ -91,7 +91,7 @@ impl RunQueue {
 
 impl Node {
     /// Returns a new `Node`.
-    const fn new(process: Pin<Box<ProcessData>>) -> Node {
+    const fn new(process: Pin<Box<Process>>) -> Node {
         Node {
             process,
             left: None,
@@ -114,15 +114,14 @@ impl Node {
 
 #[cfg(test)]
 mod tests {
-    use std::future::Future;
     use std::pin::Pin;
     use std::task::{self, Poll};
     use std::time::Duration;
 
-    use crate::scheduler::{Process, ProcessId};
+    use crate::scheduler::{process, ProcessId};
     use crate::spawn::options::Priority;
 
-    use super::{Node, ProcessData, RunQueue};
+    use super::{Node, Process, RunQueue};
 
     // TODO: concurrent testing.
 
@@ -134,24 +133,20 @@ mod tests {
 
     struct TestProcess;
 
-    impl Future for TestProcess {
-        type Output = ();
+    impl process::Run for TestProcess {
+        fn name(&self) -> &'static str {
+            "TestProcess"
+        }
 
-        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+        fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
             unimplemented!();
         }
     }
 
-    impl Process for TestProcess {
-        fn name(&self) -> &'static str {
-            "TestProcess"
-        }
-    }
-
     fn add_process(run_queue: &RunQueue, fair_runtime: Duration) -> ProcessId {
-        let mut process = Box::pin(ProcessData::new(Priority::NORMAL, Box::pin(TestProcess)));
+        let mut process = Box::pin(Process::new(Priority::NORMAL, Box::pin(TestProcess)));
         process.set_fair_runtime(fair_runtime);
-        let pid = process.as_ref().id();
+        let pid = process.id();
         run_queue.add(process);
         pid
     }
@@ -178,7 +173,7 @@ mod tests {
                 assert!(run_queue.has_process());
                 $(
                     let process = run_queue.remove().expect("failed to remove process");
-                    assert_eq!(process.as_ref().id(), pids[$remove - 1]);
+                    assert_eq!(process.id(), pids[$remove - 1]);
                 )*
                 assert!(!run_queue.has_process());
                 assert!(run_queue.remove().is_none());
