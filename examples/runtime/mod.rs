@@ -6,7 +6,6 @@
 
 use std::future::{Future, IntoFuture};
 use std::pin::{pin, Pin};
-use std::ptr;
 use std::task::{self, Poll};
 
 /// Block on the `future`, expecting polling `ring` to drive it forward.
@@ -62,16 +61,7 @@ fn poll_future<Fut>(fut: Pin<&mut Fut>) -> Poll<Fut::Output>
 where
     Fut: Future,
 {
-    // TODO: replace this with `Waker::noop` once the `noop_waker` feature is
-    // stable. Don't want to add the feature to all examples.
-    use std::task::{RawWaker, RawWakerVTable};
-    static WAKER_VTABLE: RawWakerVTable = RawWakerVTable::new(
-        |_| RawWaker::new(ptr::null(), &WAKER_VTABLE),
-        |_| {},
-        |_| {},
-        |_| {},
-    );
-    let waker = unsafe { task::Waker::from_raw(RawWaker::new(ptr::null(), &WAKER_VTABLE)) };
+    let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
     fut.poll(&mut ctx)
 }

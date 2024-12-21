@@ -5,8 +5,6 @@
 //! This function needs to be in it's own binary since `set_message_loss` is set
 //! globally.
 
-#![feature(noop_waker)]
-
 use std::future::Future;
 use std::pin::{pin, Pin};
 use std::task::{self, Poll};

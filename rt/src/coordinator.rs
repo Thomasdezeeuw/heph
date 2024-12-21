@@ -319,7 +319,7 @@ impl Coordinator {
     /// Check if the (sync) workers are still alive, removing any that are not.
     fn check_workers(&mut self, worker_stopped: &mut bool) -> Result<(), rt::Error> {
         let timing = trace::start(&self.trace_log);
-        for worker in self.workers.extract_if(|w| w.is_finished()) {
+        for worker in self.workers.extract_if(.., |w| w.is_finished()) {
             *worker_stopped = true;
             debug!(worker_id = worker.id(); "worker thread stopped");
             worker
@@ -328,7 +328,7 @@ impl Coordinator {
                 .and_then(|res| res)?;
         }
 
-        for sync_worker in self.sync_workers.extract_if(|w| w.is_finished()) {
+        for sync_worker in self.sync_workers.extract_if(.., |w| w.is_finished()) {
             *worker_stopped = true;
             debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
             sync_worker.join().map_err(rt::Error::sync_actor_panic)?;

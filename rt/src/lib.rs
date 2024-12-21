@@ -182,7 +182,6 @@
     maybe_uninit_array_assume_init,
     maybe_uninit_uninit_array,
     never_type,
-    noop_waker,
     ptr_metadata,
     stmt_expr_attributes
 )]

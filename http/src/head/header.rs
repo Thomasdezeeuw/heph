@@ -174,7 +174,7 @@ impl Headers {
     /// Remove all headers with `name`.
     pub fn remove_all(&mut self, name: &HeaderName<'_>) {
         self.parts
-            .extract_if(move |part| part.name == *name)
+            .extract_if(.., move |part| part.name == *name)
             .for_each(drop);
     }
 

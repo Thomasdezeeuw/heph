@@ -1,6 +1,6 @@
 //! Functional tests.
 
-#![feature(never_type, noop_waker)]
+#![feature(never_type)]
 
 mod util {
     use std::future::Future;
