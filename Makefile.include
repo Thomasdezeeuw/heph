@@ -127,6 +127,7 @@ clippy:
 		--allow clippy::new-without-default \
 		--allow clippy::option-if-let-else \
 		--allow clippy::redundant-pub-crate \
+		--allow clippy::used-underscore-items \
 		--allow clippy::use-self \
 
 doc:

@@ -280,10 +280,7 @@ impl<RT> ActorFutureBuilder<RT> {
         let (inbox, sender, receiver) = inbox::Manager::new_channel(self.inbox_size.get());
         let actor_ref = ActorRef::local(sender);
         let ctx = actor::Context::new(receiver, rt.clone());
-        let actor = match new_actor.new(ctx, argument) {
-            Ok(actor) => actor,
-            Err(err) => return Err(err),
-        };
+        let actor = new_actor.new(ctx, argument)?;
         let future = ActorFuture {
             supervisor,
             new_actor,
