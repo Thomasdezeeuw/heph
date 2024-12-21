@@ -345,6 +345,7 @@ impl Clone for Log {
 
 /// Start timing an event (using [`EventTiming`]) if we're tracing, i.e. if
 /// `log` is `Some`.
+#[allow(clippy::ref_option)]
 pub(crate) fn start<L>(log: &Option<L>) -> Option<EventTiming>
 where
     L: TraceLog,
