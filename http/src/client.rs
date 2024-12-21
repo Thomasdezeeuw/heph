@@ -58,7 +58,7 @@ impl Client {
     /// # Notes
     ///
     /// This always uses HTTP/1.1 to make the requests.
-    pub async fn request<'c, 'b, B>(
+    pub async fn request<'c, B>(
         &'c mut self,
         method: Method,
         path: &str,
@@ -85,7 +85,7 @@ impl Client {
     /// Sets the following headers if not present in `Headers`:
     ///  * User-Agent and
     ///  * Content-Length and/or Transfer-Encoding based on the `body`.
-    pub async fn send_request<'b, B>(
+    pub async fn send_request<B>(
         &mut self,
         method: Method,
         path: &str,

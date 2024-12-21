@@ -181,7 +181,7 @@ impl<S: Schedule, P: ?Sized> Ord for Process<S, P> {
 
 impl<S: Schedule, P: ?Sized> PartialOrd for Process<S, P> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(S::order(&self.scheduler_data, &other.scheduler_data))
+        Some(self.cmp(other))
     }
 }
 
