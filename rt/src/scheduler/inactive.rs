@@ -4,7 +4,7 @@ use std::mem::{forget, replace};
 use std::pin::Pin;
 use std::ptr::NonNull;
 
-use crate::scheduler::{ProcessData, ProcessId};
+use crate::scheduler::{Process, ProcessId};
 use crate::worker::SYSTEM_ACTORS;
 
 /// Number of bits to shift per level.
@@ -13,9 +13,9 @@ const LEVEL_SHIFT: usize = 4;
 const N_BRANCHES: usize = 1 << LEVEL_SHIFT; // 16
 /// Number of bits to mask per level.
 const LEVEL_MASK: usize = (1 << LEVEL_SHIFT) - 1;
-/// For alignment reasons the two least significant bits of a boxed
-/// `ProcessData` are always 0, so we can safely skip them. Also see `ok_pid`
-/// and alignment tests below.
+/// For alignment reasons the two least significant bits of a boxed `Process`
+/// are always 0, so we can safely skip them. Also see `ok_pid` and alignment
+/// tests below.
 const SKIP_BITS: usize = 2;
 const SKIP_MASK: usize = (1 << SKIP_BITS) - 1;
 
@@ -27,11 +27,10 @@ fn ok_pid(pid: ProcessId) -> bool {
 /// Inactive processes.
 ///
 /// Implemented as a tree with four pointers on each level. A pointer can point
-/// to a `Branch`, which again contains four pointers, or point to
-/// `ProcessData`.
+/// to a `Branch`, which again contains four pointers, or point to `Process`.
 ///
 /// Indexing into the structure is done using the `ProcessId` of the process,
-/// however the pointer itself points to `ProcessData`.
+/// however the pointer itself points to `Process`.
 ///
 /// Because processes should have short ready state times (see process states),
 /// but longer total lifetime they quickly move into and out from the structure.
@@ -70,20 +69,20 @@ impl Inactive {
     }
 
     /// Add a `process`.
-    pub(crate) fn add(&mut self, process: Pin<Box<ProcessData>>) {
-        let pid = process.as_ref().id();
+    pub(crate) fn add(&mut self, process: Pin<Box<Process>>) {
+        let pid = process.id();
         debug_assert!(ok_pid(pid));
         self.root.add(process, pid.0 >> SKIP_BITS, 0);
         self.length += 1;
     }
 
     /// Removes the process with id `pid`, if any.
-    pub(crate) fn remove(&mut self, pid: ProcessId) -> Option<Pin<Box<ProcessData>>> {
+    pub(crate) fn remove(&mut self, pid: ProcessId) -> Option<Pin<Box<Process>>> {
         debug_assert!(ok_pid(pid));
         self.root
             .remove(pid, pid.0 >> SKIP_BITS)
             .inspect(|process| {
-                debug_assert_eq!(process.as_ref().id(), pid);
+                debug_assert_eq!(process.id(), pid);
                 self.length -= 1;
             })
     }
@@ -125,7 +124,7 @@ impl Branch {
         }
     }
 
-    fn add(&mut self, process: Pin<Box<ProcessData>>, w_pid: usize, depth: usize) {
+    fn add(&mut self, process: Pin<Box<Process>>, w_pid: usize, depth: usize) {
         match Pointer::take_process(&mut self.branches[w_pid & LEVEL_MASK]) {
             Some(Ok(other_process)) => self.add_both(process, other_process, w_pid, depth),
             Some(Err(mut branch)) => branch.add(process, w_pid >> LEVEL_SHIFT, depth + 1),
@@ -142,14 +141,14 @@ impl Branch {
     /// processes.
     fn add_both(
         &mut self,
-        process1: Pin<Box<ProcessData>>,
-        process2: Pin<Box<ProcessData>>,
+        process1: Pin<Box<Process>>,
+        process2: Pin<Box<Process>>,
         w_pid: usize,
         depth: usize,
     ) {
         debug_assert!(self.branches[w_pid & LEVEL_MASK].is_none());
-        let pid1 = process1.as_ref().id();
-        let pid2 = process2.as_ref().id();
+        let pid1 = process1.id();
+        let pid2 = process2.id();
 
         // Build the part of the branch in reverse, starting at the lowest
         // branch.
@@ -172,10 +171,10 @@ impl Branch {
         self.branches[w_pid & LEVEL_MASK] = Some(branch.into());
     }
 
-    fn remove(&mut self, pid: ProcessId, w_pid: usize) -> Option<Pin<Box<ProcessData>>> {
+    fn remove(&mut self, pid: ProcessId, w_pid: usize) -> Option<Pin<Box<Process>>> {
         let node = &mut self.branches[w_pid & LEVEL_MASK];
         match Pointer::take_process(node) {
-            Some(Ok(process)) if process.as_ref().id() == pid => Some(process),
+            Some(Ok(process)) if process.id() == pid => Some(process),
             Some(Ok(process)) => {
                 // Wrong process so put it back.
                 *node = Some(process.into());
@@ -187,9 +186,9 @@ impl Branch {
     }
 }
 
-/// Tagged pointer to either a `Branch` or `ProcessData`.
+/// Tagged pointer to either a `Branch` or `Process`.
 struct Pointer {
-    /// This is actually either a `Pin<Box<ProcessData>>` or `Pin<Box<Branch>>`.
+    /// This is actually either a `Pin<Box<Process>>` or `Pin<Box<Branch>>`.
     tagged_ptr: NonNull<()>,
 }
 
@@ -211,7 +210,7 @@ impl Pointer {
     ///    `this` is unchanged.
     fn take_process<'a>(
         this: &'a mut Option<Pointer>,
-    ) -> Option<Result<Pin<Box<ProcessData>>, Pin<&'a mut Branch>>> {
+    ) -> Option<Result<Pin<Box<Process>>, Pin<&'a mut Branch>>> {
         match this {
             Some(pointer) if pointer.is_process() => {
                 let p = unsafe { Box::from_raw(pointer.as_ptr().cast()) };
@@ -239,8 +238,8 @@ impl Pointer {
     }
 }
 
-impl From<Pin<Box<ProcessData>>> for Pointer {
-    fn from(process: Pin<Box<ProcessData>>) -> Pointer {
+impl From<Pin<Box<Process>>> for Pointer {
+    fn from(process: Pin<Box<Process>>) -> Pointer {
         #[allow(trivial_casts)]
         let ptr = Box::into_raw(Pin::into_inner(process));
         let ptr = (ptr as usize | PROCESS_TAG) as *mut ();
@@ -265,7 +264,7 @@ impl Drop for Pointer {
     fn drop(&mut self) {
         let ptr = self.as_ptr();
         if self.is_process() {
-            let p: Box<ProcessData> = unsafe { Box::from_raw(ptr.cast()) };
+            let p: Box<Process> = unsafe { Box::from_raw(ptr.cast()) };
             drop(p);
         } else {
             let p: Box<Branch> = unsafe { Box::from_raw(ptr.cast()) };
@@ -278,8 +277,8 @@ impl fmt::Debug for Pointer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ptr = self.as_ptr();
         if self.is_process() {
-            let p: &ProcessData = unsafe { &mut *(ptr.cast()) };
-            let p: Pin<&ProcessData> = unsafe { Pin::new_unchecked(p) };
+            let p: &Process = unsafe { &mut *(ptr.cast()) };
+            let p: Pin<&Process> = unsafe { Pin::new_unchecked(p) };
             p.fmt(f)
         } else {
             let p: &Branch = unsafe { &mut *(ptr.cast()) };
@@ -303,39 +302,34 @@ const fn skip_bits(pid: ProcessId, depth: usize) -> usize {
 #[cfg(test)]
 mod tests {
     use std::cmp::max;
-    use std::future::Future;
     use std::mem::align_of;
     use std::pin::Pin;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
     use std::task::{self, Poll};
 
-    use crate::scheduler::{Process, ProcessId};
+    use crate::scheduler::{process, ProcessId};
     use crate::spawn::options::Priority;
 
     use super::{
-        diff_branch_depth, Branch, Inactive, Pointer, ProcessData, LEVEL_SHIFT, N_BRANCHES,
+        diff_branch_depth, Branch, Inactive, Pointer, Process, LEVEL_SHIFT, N_BRANCHES,
         POINTER_TAG_BITS, SKIP_BITS,
     };
 
     struct TestProcess;
 
-    impl Future for TestProcess {
-        type Output = ();
+    impl process::Run for TestProcess {
+        fn name(&self) -> &'static str {
+            "TestProcess"
+        }
 
-        fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+        fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
             unimplemented!();
         }
     }
 
-    impl Process for TestProcess {
-        fn name(&self) -> &'static str {
-            "TestProcess"
-        }
-    }
-
-    fn test_process() -> Pin<Box<ProcessData>> {
-        Box::pin(ProcessData::new(Priority::default(), Box::pin(TestProcess)))
+    fn test_process() -> Pin<Box<Process>> {
+        Box::pin(Process::new(Priority::default(), Box::pin(TestProcess)))
     }
 
     fn pow2(exp: usize) -> usize {
@@ -349,7 +343,7 @@ mod tests {
 
     #[test]
     fn size_assertions() {
-        assert_eq!(size_of::<Pin<Box<ProcessData>>>(), size_of::<usize>());
+        assert_eq!(size_of::<Pin<Box<Process>>>(), size_of::<usize>());
         assert_eq!(size_of::<Pin<Box<Branch>>>(), size_of::<usize>());
         assert_eq!(size_of::<Pointer>(), size_of::<usize>());
         assert_eq!(size_of::<Branch>(), N_BRANCHES * size_of::<usize>());
@@ -359,7 +353,7 @@ mod tests {
     fn process_data_alignment() {
         // Ensure that we don't skip any used bites and that the pointer tag
         // doesn't overwrite any pointer data.
-        assert!(align_of::<ProcessData>() >= pow2(max(SKIP_BITS, POINTER_TAG_BITS)));
+        assert!(align_of::<Process>() >= pow2(max(SKIP_BITS, POINTER_TAG_BITS)));
     }
 
     #[test]
@@ -453,24 +447,20 @@ mod tests {
             }
         }
 
-        impl Future for DropTest {
-            type Output = ();
-
-            fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
-                unimplemented!();
-            }
-        }
-
-        impl Process for DropTest {
+        impl process::Run for DropTest {
             fn name(&self) -> &'static str {
                 "DropTest"
+            }
+
+            fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+                unimplemented!();
             }
         }
 
         let dropped = Arc::new(AtomicUsize::new(0));
 
         let process = Box::pin(DropTest(dropped.clone()));
-        let ptr: Pointer = Box::pin(ProcessData::new(Priority::default(), process)).into();
+        let ptr: Pointer = Box::pin(Process::new(Priority::default(), process)).into();
 
         assert_eq!(dropped.load(Ordering::Acquire), 0);
         drop(ptr);
@@ -479,7 +469,7 @@ mod tests {
 
     fn add_process(queue: &mut Inactive) -> ProcessId {
         let process = test_process();
-        let pid = process.as_ref().id();
+        let pid = process.id();
         queue.add(process);
         pid
     }
@@ -508,7 +498,7 @@ mod tests {
                     queue
                 );
             };
-            assert_eq!(process.as_ref().id(), pid);
+            assert_eq!(process.id(), pid);
             assert!(queue.remove(pid).is_none());
         }
         println!("Ok.");

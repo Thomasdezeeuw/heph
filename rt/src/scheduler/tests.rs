@@ -2,7 +2,7 @@
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
-use std::future::{pending, Future};
+use std::future::pending;
 use std::pin::Pin;
 use std::rc::Rc;
 use std::task::{self, Poll};
@@ -13,8 +13,8 @@ use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph::ActorFutureBuilder;
 
-use crate::scheduler::process::{self, FutureProcess, Process, RunStats};
-use crate::scheduler::{ProcessData, ProcessId, Scheduler};
+use crate::scheduler::process::{self, FutureProcess, RunStats};
+use crate::scheduler::{Process, ProcessId, Scheduler};
 use crate::spawn::options::Priority;
 use crate::test::{self, assert_size, AssertUnmoved, TestAssertUnmovedNewActor};
 use crate::worker::SYSTEM_ACTORS;
@@ -24,24 +24,20 @@ use crate::ThreadLocal;
 fn size_assertions() {
     assert_size::<ProcessId>(8);
     assert_size::<Priority>(1);
-    assert_size::<process::ProcessData<Box<dyn Process>>>(32);
-    assert_size::<ProcessData>(40);
+    assert_size::<process::Process<Box<dyn process::Run>>>(32);
+    assert_size::<Process>(40);
 }
 
 #[derive(Debug)]
 struct NopTestProcess;
 
-impl Future for NopTestProcess {
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
-        unimplemented!();
-    }
-}
-
-impl Process for NopTestProcess {
+impl process::Run for NopTestProcess {
     fn name(&self) -> &'static str {
         "NopTestProcess"
+    }
+
+    fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+        unimplemented!();
     }
 }
 
@@ -58,11 +54,11 @@ fn pid() {
 }
 
 #[test]
-#[allow(clippy::eq_op)] // Need to compare `ProcessData` to itself.
+#[allow(clippy::eq_op)] // Need to compare `Process` to itself.
 fn process_data_equality() {
-    let process1 = ProcessData::new(Priority::LOW, Box::pin(NopTestProcess));
-    let process2 = ProcessData::new(Priority::NORMAL, Box::pin(NopTestProcess));
-    let process3 = ProcessData::new(Priority::HIGH, Box::pin(NopTestProcess));
+    let process1 = Process::new(Priority::LOW, Box::pin(NopTestProcess));
+    let process2 = Process::new(Priority::NORMAL, Box::pin(NopTestProcess));
+    let process3 = Process::new(Priority::HIGH, Box::pin(NopTestProcess));
 
     // Equality is only based on id alone.
     assert_eq!(process1, process1);
@@ -80,9 +76,9 @@ fn process_data_equality() {
 
 #[test]
 fn process_data_ordering() {
-    let mut process1 = ProcessData::new(Priority::HIGH, Box::pin(NopTestProcess));
-    let mut process2 = ProcessData::new(Priority::NORMAL, Box::pin(NopTestProcess));
-    let mut process3 = ProcessData::new(Priority::LOW, Box::pin(NopTestProcess));
+    let mut process1 = Process::new(Priority::HIGH, Box::pin(NopTestProcess));
+    let mut process2 = Process::new(Priority::NORMAL, Box::pin(NopTestProcess));
+    let mut process3 = Process::new(Priority::LOW, Box::pin(NopTestProcess));
 
     // Ordering only on runtime and priority.
     assert_eq!(process1.cmp(&process1), Ordering::Equal);
@@ -98,9 +94,9 @@ fn process_data_ordering() {
     assert_eq!(process3.cmp(&process3), Ordering::Equal);
 
     let duration = Duration::from_millis(0);
-    process1.fair_runtime = duration;
-    process2.fair_runtime = duration;
-    process3.fair_runtime = duration;
+    process1.set_fair_runtime(duration);
+    process2.set_fair_runtime(duration);
+    process3.set_fair_runtime(duration);
 
     // If all the "fair runtimes" are equal we only compare based on the
     // priority.
@@ -120,18 +116,14 @@ fn process_data_ordering() {
 #[derive(Debug)]
 struct SleepyProcess(Duration);
 
-impl Future for SleepyProcess {
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
-        sleep(self.0);
-        Poll::Pending
-    }
-}
-
-impl Process for SleepyProcess {
+impl process::Run for SleepyProcess {
     fn name(&self) -> &'static str {
         "SleepyProcess"
+    }
+
+    fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
+        sleep(self.0);
+        Poll::Pending
     }
 }
 
@@ -139,34 +131,34 @@ impl Process for SleepyProcess {
 fn process_data_runtime_increase() {
     const SLEEP_TIME: Duration = Duration::from_millis(10);
 
-    let mut process = Box::pin(ProcessData::new(
+    let mut process = Box::pin(Process::new(
         Priority::HIGH,
         Box::pin(SleepyProcess(SLEEP_TIME)),
     ));
-    process.fair_runtime = Duration::from_millis(10);
+    process.set_fair_runtime(Duration::from_millis(10));
 
     // Runtime must increase after running.
     let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
     let res = process.as_mut().run(&mut ctx);
     assert_eq!(res, Poll::Pending);
-    assert!(process.fair_runtime >= SLEEP_TIME);
+    assert!(process.fair_runtime() >= SLEEP_TIME);
 }
 
 #[test]
 fn future_process_assert_future_unmoved() {
     let process = FutureProcess(AssertUnmoved::new(pending()));
-    let mut process: Pin<Box<dyn Process>> = Box::pin(process);
+    let mut process: Pin<Box<dyn process::Run>> = Box::pin(process);
 
     // All we do is run it a couple of times, it should panic if the actor is
     // moved.
     let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
-    let res = process.as_mut().poll(&mut ctx);
+    let res = process.as_mut().run(&mut ctx);
     assert_eq!(res, Poll::Pending);
-    let res = process.as_mut().poll(&mut ctx);
+    let res = process.as_mut().run(&mut ctx);
     assert_eq!(res, Poll::Pending);
-    let res = process.as_mut().poll(&mut ctx);
+    let res = process.as_mut().run(&mut ctx);
     assert_eq!(res, Poll::Pending);
 }
 
@@ -176,7 +168,7 @@ fn has_user_process() {
     assert!(!scheduler.has_user_process());
     assert!(!scheduler.has_ready_process());
 
-    let _ = scheduler.add_new_process(Priority::NORMAL, FutureProcess(NopTestProcess));
+    let _ = scheduler.add_new_process(Priority::NORMAL, NopTestProcess);
     assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 }
@@ -244,7 +236,7 @@ fn next_process() {
     let pid = add_test_actor(&mut scheduler, Priority::NORMAL);
 
     if let Some(process) = scheduler.next_process() {
-        assert_eq!(process.as_ref().id(), pid);
+        assert_eq!(process.id(), pid);
         assert!(!scheduler.has_user_process());
         assert!(!scheduler.has_ready_process());
     } else {
@@ -265,11 +257,11 @@ fn next_process_order() {
 
     // Process 2 has a higher priority, should be scheduled first.
     let process2 = scheduler.next_process().unwrap();
-    assert_eq!(process2.as_ref().id(), pid2);
+    assert_eq!(process2.id(), pid2);
     let process3 = scheduler.next_process().unwrap();
-    assert_eq!(process3.as_ref().id(), pid3);
+    assert_eq!(process3.id(), pid3);
     let process1 = scheduler.next_process().unwrap();
-    assert_eq!(process1.as_ref().id(), pid1);
+    assert_eq!(process1.id(), pid1);
 
     assert!(process1 < process2);
     assert!(process1 < process3);
@@ -294,7 +286,7 @@ fn add_process() {
     assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
     let process = scheduler.next_process().unwrap();
-    assert_eq!(process.as_ref().id(), pid);
+    assert_eq!(process.id(), pid);
 }
 
 #[test]
@@ -312,7 +304,7 @@ fn add_process_marked_ready() {
     assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
     let process = scheduler.next_process().unwrap();
-    assert_eq!(process.as_ref().id(), pid);
+    assert_eq!(process.id(), pid);
 }
 
 // NOTE: This is here because we don't really care about the elapsed duration in
@@ -406,7 +398,7 @@ fn assert_future_process_unmoved() {
 
     // Run the process multiple times, ensure it's not moved in the process.
     let mut process = scheduler.next_process().unwrap();
-    let pid = process.as_ref().id();
+    let pid = process.id();
     assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
     scheduler.add_back_process(process);
 
@@ -444,7 +436,7 @@ fn test_scheduler() -> Scheduler {
             .with_rt(rt.clone())
             .build(NoSupervisor, new_actor, ())
             .unwrap();
-        let process = Box::pin(ProcessData::new(Priority::SYSTEM, Box::pin(process)));
+        let process = Box::pin(Process::new(Priority::SYSTEM, Box::pin(process)));
         scheduler.inactive.add(process);
     }
     scheduler

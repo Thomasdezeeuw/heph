@@ -95,11 +95,6 @@ impl<M, RT> Context<M, RT> {
     pub const fn runtime_ref(&self) -> &RT {
         &self.rt
     }
-
-    #[doc(hidden)] // Not part of the stable API.
-    pub fn pid(&self) -> usize {
-        self.inbox.id().as_usize()
-    }
 }
 
 /// Error returned in case receiving a value from an actor's inbox fails.

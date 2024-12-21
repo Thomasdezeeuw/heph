@@ -1,12 +1,12 @@
-//! Module containing the `Process` trait, related types and implementations.
+//! Module containing the process related types and implementations.
 
 use std::cmp::Ordering;
+use std::fmt;
 use std::future::Future;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
-use std::{fmt, ptr};
 
 use heph::supervisor::Supervisor;
 use heph::{ActorFuture, NewActor};
@@ -25,7 +25,7 @@ pub(crate) struct ProcessId(pub(crate) usize);
 
 impl fmt::Debug for ProcessId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
+        self.0.fmt(f)
     }
 }
 
@@ -35,35 +35,30 @@ impl fmt::Display for ProcessId {
     }
 }
 
-/// The trait that represents a process.
-///
-/// # Panics
-///
-/// The implementation of the [`Future`] MUST catch panics.
-pub(crate) trait Process: Future<Output = ()> {
-    /// Return the id for the process.
-    fn id(self: Pin<&Self>, alternative: ProcessId) -> ProcessId {
-        if size_of_val(&*self) == 0 {
-            // For zero sized types Box doesn't make an actual allocation, which
-            // means that the pointer will be the same for all zero sized types,
-            // i.e. not unique.
-            alternative
-        } else {
-            ProcessId(ptr::addr_of!(*self).cast::<()>() as usize)
-        }
-    }
-
+/// A runnable process.
+pub(crate) trait Run {
     /// Return the name of this process, used in logging.
     fn name(&self) -> &'static str;
+
+    /// Run the process until it can't make any more progress without blocking.
+    ///
+    /// See [`Future::poll`].
+    ///
+    /// # Panics
+    ///
+    /// The implementation MUST catch panics.
+    fn run(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<()>;
 }
 
 /// Wrapper around a [`Future`] to implement [`Process`].
 pub(crate) struct FutureProcess<Fut>(pub(crate) Fut);
 
-impl<Fut: Future<Output = ()>> Future for FutureProcess<Fut> {
-    type Output = ();
+impl<Fut: Future<Output = ()>> Run for FutureProcess<Fut> {
+    fn name(&self) -> &'static str {
+        "FutureProcess"
+    }
 
-    fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn run(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<()> {
         // SAFETY: not moving the `Fut`ure.
         let future = unsafe { Pin::map_unchecked_mut(self.as_mut(), |s| &mut s.0) };
         match catch_unwind(AssertUnwindSafe(|| future.poll(ctx))) {
@@ -79,32 +74,24 @@ impl<Fut: Future<Output = ()>> Future for FutureProcess<Fut> {
     }
 }
 
-impl<Fut> Process for FutureProcess<Fut>
-where
-    Fut: Future<Output = ()>,
-{
-    fn name(&self) -> &'static str {
-        "FutureProcess"
-    }
-}
-
-// NOTE: `ActorFuture` already catches panics for us.
-impl<S, NA> Process for ActorFuture<S, NA>
+impl<S, NA> Run for ActorFuture<S, NA>
 where
     S: Supervisor<NA>,
     NA: NewActor,
     NA::RuntimeAccess: Clone,
 {
-    fn id(self: Pin<&Self>, _: ProcessId) -> ProcessId {
-        ProcessId(self.pid())
-    }
-
     fn name(&self) -> &'static str {
         NA::name()
     }
+
+    fn run(self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<()> {
+        // NOTE: `ActorFuture` already catches panics for us.
+        self.poll(ctx)
+    }
 }
 
-/// Data related to a process.
+/// Process container. Hold the process itself and all data needed to properly
+/// schedule and run it.
 ///
 /// # Notes
 ///
@@ -113,36 +100,40 @@ where
 ///
 /// `PartialOrd` and `Ord` however are implemented based on runtime and
 /// priority.
-pub(crate) struct ProcessData<P: ?Sized> {
+pub(crate) struct Process<P: ?Sized> {
     priority: Priority,
     /// Fair runtime of the process, which is `actual runtime * priority`.
-    // TODO: remove `pub(super)`, needed by tests.
-    pub(super) fair_runtime: Duration,
+    fair_runtime: Duration,
     process: Pin<Box<P>>,
 }
 
-impl<P: ?Sized> ProcessData<P> {
-    pub(crate) const fn new(priority: Priority, process: Pin<Box<P>>) -> ProcessData<P> {
-        ProcessData {
+impl<P: ?Sized> Process<P> {
+    /// Create a new process container.
+    pub(crate) const fn new(priority: Priority, process: Pin<Box<P>>) -> Process<P> {
+        Process {
             priority,
             fair_runtime: Duration::ZERO,
             process,
         }
     }
 
+    /// Returns the process identifier, or pid for short.
+    pub(crate) fn id(&self) -> ProcessId {
+        ProcessId((&raw const *self).addr())
+    }
+
     #[cfg(test)]
     pub(crate) fn set_fair_runtime(&mut self, fair_runtime: Duration) {
         self.fair_runtime = fair_runtime;
     }
+
+    #[cfg(test)]
+    pub(crate) fn fair_runtime(&mut self) -> Duration {
+        self.fair_runtime
+    }
 }
 
-impl<P: Process + ?Sized> ProcessData<P> {
-    /// Returns the process identifier, or pid for short.
-    pub(crate) fn id(&self) -> ProcessId {
-        let alternative = ProcessId(ptr::addr_of!(*self) as usize);
-        self.process.as_ref().id(alternative)
-    }
-
+impl<P: Run + ?Sized> Process<P> {
     /// Returns the name of the process.
     pub(crate) fn name(&self) -> &'static str {
         self.process.name()
@@ -151,13 +142,13 @@ impl<P: Process + ?Sized> ProcessData<P> {
     /// Run the process.
     ///
     /// Returns the completion state of the process.
-    pub(crate) fn run(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> RunStats {
-        let pid = self.as_ref().id();
+    pub(crate) fn run(&mut self, ctx: &mut task::Context<'_>) -> RunStats {
+        let pid = self.id();
         let name = self.process.name();
         trace!(pid = pid.0, name = name; "running process");
 
         let start = Instant::now();
-        let result = self.process.as_mut().poll(ctx);
+        let result = self.process.as_mut().run(ctx);
         let elapsed = start.elapsed();
         let fair_elapsed = elapsed * self.priority;
         self.fair_runtime += fair_elapsed;
@@ -180,15 +171,15 @@ pub(crate) struct RunStats {
     pub(crate) result: Poll<()>,
 }
 
-impl<P: Process + ?Sized> Eq for ProcessData<P> {}
+impl<P: ?Sized> Eq for Process<P> {}
 
-impl<P: Process + ?Sized> PartialEq for ProcessData<P> {
+impl<P: ?Sized> PartialEq for Process<P> {
     fn eq(&self, other: &Self) -> bool {
         Pin::new(self).id() == Pin::new(other).id()
     }
 }
 
-impl<P: Process + ?Sized> Ord for ProcessData<P> {
+impl<P: ?Sized> Ord for Process<P> {
     fn cmp(&self, other: &Self) -> Ordering {
         (other.fair_runtime)
             .cmp(&(self.fair_runtime))
@@ -196,14 +187,14 @@ impl<P: Process + ?Sized> Ord for ProcessData<P> {
     }
 }
 
-impl<P: Process + ?Sized> PartialOrd for ProcessData<P> {
+impl<P: ?Sized> PartialOrd for Process<P> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
 #[allow(clippy::missing_fields_in_debug)]
-impl<P: Process + ?Sized> fmt::Debug for ProcessData<P> {
+impl<P: Run + ?Sized> fmt::Debug for Process<P> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Process")
             .field("id", &self.id())

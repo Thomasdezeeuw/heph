@@ -9,13 +9,13 @@ use heph::supervisor::NoSupervisor;
 use heph::ActorFutureBuilder;
 
 use crate::scheduler::process::{FutureProcess, ProcessId};
-use crate::scheduler::shared::{Priority, ProcessData, Scheduler};
+use crate::scheduler::shared::{Priority, Process, Scheduler};
 use crate::test::{self, assert_size, AssertUnmoved, TestAssertUnmovedNewActor};
 use crate::ThreadSafe;
 
 #[test]
 fn size_assertions() {
-    assert_size::<ProcessData>(40);
+    assert_size::<Process>(40);
 }
 
 #[test]
@@ -48,7 +48,7 @@ fn adding_actor() {
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
     let process = scheduler.remove().unwrap();
-    assert_eq!(process.as_ref().id(), pid);
+    assert_eq!(process.id(), pid);
 
     // After the process is run, and returned `Poll::Ready(()`, it should be
     // removed.
@@ -69,7 +69,7 @@ fn adding_actor() {
     assert!(scheduler.has_process());
     assert!(scheduler.has_ready_process());
     let process = scheduler.remove().unwrap();
-    assert_eq!(process.as_ref().id(), pid);
+    assert_eq!(process.id(), pid);
 }
 
 #[test]
