@@ -46,12 +46,12 @@
 //! ```
 
 use std::future::Future;
+use std::io;
 use std::panic::{self, AssertUnwindSafe};
 use std::pin::pin;
 use std::task::{self, Poll, RawWaker, RawWakerVTable};
 use std::thread::{self, Thread};
 use std::time::{Duration, Instant};
-use std::{io, ptr};
 
 use heph_inbox::Receiver;
 use heph_inbox::{self as inbox, ReceiverConnected};
@@ -438,9 +438,7 @@ impl SyncWaker {
 
     /// Returns itself as `task::RawWaker` data.
     fn into_data(self) -> *const () {
-        // SAFETY: this is not safe. This only works because `Thread` uses
-        // `Pin<Arc<_>>`, which is a pointer underneath.
-        unsafe { std::mem::transmute(self) }
+        self.handle.into_raw()
     }
 
     /// Inverse of [`SyncWaker::into_data`].
@@ -449,16 +447,25 @@ impl SyncWaker {
     ///
     /// `data` MUST be created by [`SyncWaker::into_data`].
     unsafe fn from_data(data: *const ()) -> SyncWaker {
-        // SAFETY: inverse of `into_data`, see that for more info.
-        unsafe { std::mem::transmute(data) }
+        SyncWaker {
+            // SAFETY: caller must ensure that `data` is created by
+            // `SyncWaker::into_data`, which forfills all requirements for
+            // `Thread::from_raw`.
+            handle: unsafe { Thread::from_raw(data) },
+        }
     }
 
-    /// Same as [`SyncWaker::from_data`], but returns a reference instead of an
-    /// owned `SyncWaker`.
-    unsafe fn from_data_ref(data: &*const ()) -> &SyncWaker {
-        // SAFETY: inverse of `into_data`, see that for more info, also see
-        // `from_data`.
-        &*(ptr::from_ref(data).cast())
+    /// Same as [`SyncWaker::from_data`], but doesn't invalidates `data`.
+    unsafe fn from_data_ref(data: *const ()) -> SyncWaker {
+        // SAFETY: THIS IS INCORRECT.
+        //
+        // If anything between `SyncWaker::from_data` and `waker.into_waker`
+        // panics this will go badly.
+        let waker = unsafe { SyncWaker::from_data(data) };
+        let clone = waker.clone();
+        let out = waker.into_data();
+        assert!(out == data); // Need to ensure that `data` is valid.
+        clone
     }
 
     const VTABLE: RawWakerVTable = RawWakerVTable::new(
@@ -469,8 +476,8 @@ impl SyncWaker {
     );
 
     unsafe fn clone(data: *const ()) -> RawWaker {
-        let waker = SyncWaker::from_data_ref(&data);
-        let data = waker.clone().into_data();
+        let waker = SyncWaker::from_data_ref(data);
+        let data = waker.into_data();
         RawWaker::new(data, &SyncWaker::VTABLE)
     }
 
@@ -479,7 +486,7 @@ impl SyncWaker {
     }
 
     unsafe fn wake_by_ref(data: *const ()) {
-        SyncWaker::from_data_ref(&data).handle.unpark();
+        SyncWaker::from_data_ref(data).handle.unpark();
     }
 
     unsafe fn drop(data: *const ()) {
