@@ -378,6 +378,7 @@ mod private {
     }
 
     #[cfg(feature = "json")]
+    #[rustfmt::skip]
     impl Serde for Json {
         type Iter<'a, T> = serde_json::StreamDeserializer<'a, serde_json::de::SliceRead<'a>, T>
             where T: DeserializeOwned;

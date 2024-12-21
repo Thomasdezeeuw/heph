@@ -14,6 +14,7 @@ use heph::actor_ref::{ActorGroup, ActorRef, SendError, SendValue};
 
 use crate::net_relay::Route;
 
+#[rustfmt::skip]
 impl<F, M, Fut, E> Route<M> for F
 where
     F: FnMut(M, SocketAddr) -> Fut,
@@ -51,6 +52,7 @@ impl<M> Clone for Relay<M> {
     }
 }
 
+#[rustfmt::skip]
 impl<M> Route<M> for Relay<M>
 where
     M: 'static + Unpin,
@@ -100,6 +102,7 @@ impl<M> Clone for RelayGroup<M> {
     }
 }
 
+#[rustfmt::skip]
 impl<M> Route<M> for RelayGroup<M>
 where
     M: Clone + Unpin + 'static,
@@ -121,6 +124,7 @@ where
 #[derive(Copy, Clone, Debug)]
 pub struct Drop;
 
+#[rustfmt::skip]
 impl<M> Route<M> for Drop {
     type Error = !;
     type Route<'a> = Ready<Result<(), Self::Error>>
