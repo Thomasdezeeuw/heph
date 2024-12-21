@@ -1,8 +1,10 @@
 //! Scheduler implementations.
 
+use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::pin::Pin;
+use std::time::{Duration, Instant};
 
 use log::trace;
 
@@ -102,4 +104,27 @@ impl Scheduler {
         // Don't want to panic when dropping the process.
         drop(catch_unwind(AssertUnwindSafe(move || drop(process))));
     }
+}
+
+/// Scheduling implementation.
+trait Schedule {
+    /// Data stored per process for scheduling.
+    type ProcessData: ProcessData;
+
+    /// Determine if the `lhs` or `rhs` should run first.
+    fn order(lhs: &Self::ProcessData, rhs: &Self::ProcessData) -> Ordering;
+}
+
+/// Scheduler data stored per process used for scheduling purposes.
+trait ProcessData {
+    /// Create new data.
+    fn new(priority: Priority) -> Self;
+
+    /// Update the process data with the latest run information.
+    ///
+    /// Arguments:
+    ///  * `start`: time at which the latest run started.
+    ///  * `end`: time at which the latest run ended.
+    ///  * `elapsed`: `end - start`.
+    fn update(&mut self, start: Instant, end: Instant, elapsed: Duration);
 }
