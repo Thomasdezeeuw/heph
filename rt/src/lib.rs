@@ -175,7 +175,6 @@
 
 #![feature(
     async_iterator,
-    const_option,
     doc_auto_cfg,
     doc_cfg_hide,
     extract_if,
