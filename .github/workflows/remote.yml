@@ -19,16 +19,16 @@ jobs:
   Test:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    if: false # FIXME.
     steps:
     - uses: actions/checkout@v4
+    - name: Install Cargo-hack
+      run: cargo install --debug cargo-hack
     - uses: ./.github/workflows/test
       with:
         working-directory: remote
   Sanitiser:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    if: false # FIXME.
     strategy:
       fail-fast: false
       matrix:
