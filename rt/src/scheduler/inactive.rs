@@ -216,9 +216,11 @@ impl<S> Pointer<S> {
     ) -> Option<Result<Pin<Box<Process<S>>>, Pin<&'a mut Branch<S>>>> {
         match this {
             Some(pointer) if pointer.is_process() => {
-                let p = unsafe { Box::from_raw(pointer.as_ptr().cast()) };
-                // We just read the pointer so now we have to forget it.
+                let pointer = pointer.as_ptr();
+                // To avoid a double free we need forget about `this` as it's
+                // being converted into a `Box` below.
                 forget(this.take());
+                let p = unsafe { Box::from_raw(pointer.cast()) };
                 Some(Ok(Box::into_pin(p)))
             }
             Some(pointer) => {
