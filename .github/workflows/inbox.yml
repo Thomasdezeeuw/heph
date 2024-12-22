@@ -17,7 +17,7 @@ env:
   RUST_BACKTRACE: full
 jobs:
   Test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     # This often run too many iterations on CI, which is not a real error.
     continue-on-error: ${{ matrix.release == 'release' }}
@@ -32,7 +32,7 @@ jobs:
         test-flags: ${{ matrix.release }}
         working-directory: inbox
   Miri:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
     - uses: actions/checkout@v4
@@ -40,7 +40,7 @@ jobs:
       with:
         working-directory: inbox
   Sanitiser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     strategy:
       fail-fast: false
