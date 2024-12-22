@@ -34,7 +34,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        sanitiser: [address, leak, memory, thread]
+        # LeakSanitizer is broken, see
+        # <https://github.com/rust-lang/rust/issues/111073>.
+        sanitiser: [address, memory, thread] # leak
     steps:
     - uses: actions/checkout@v4
     - uses: ./.github/workflows/test_sanitizer
