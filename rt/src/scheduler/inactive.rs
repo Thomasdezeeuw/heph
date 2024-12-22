@@ -1,5 +1,6 @@
 use std::cmp::max;
 use std::fmt;
+use std::marker::PhantomData;
 use std::mem::{forget, replace};
 use std::pin::Pin;
 use std::ptr::NonNull;
@@ -44,14 +45,14 @@ fn ok_pid(pid: ProcessId) -> bool {
 /// * Ideal Hash Trees by Phil Bagwell
 /// * Fast And Space Efficient Trie Searches by Phil Bagwell
 #[derive(Debug)]
-pub(crate) struct Inactive {
-    root: Branch,
+pub(crate) struct Inactive<S> {
+    root: Branch<S>,
     length: usize,
 }
 
-impl Inactive {
+impl<S> Inactive<S> {
     /// Create an empty `Inactive` tree.
-    pub(crate) const fn empty() -> Inactive {
+    pub(crate) const fn empty() -> Inactive<S> {
         Inactive {
             root: Branch::empty(),
             length: 0,
@@ -69,7 +70,7 @@ impl Inactive {
     }
 
     /// Add a `process`.
-    pub(crate) fn add(&mut self, process: Pin<Box<Process>>) {
+    pub(crate) fn add(&mut self, process: Pin<Box<Process<S>>>) {
         let pid = process.id();
         debug_assert!(ok_pid(pid));
         self.root.add(process, pid.0 >> SKIP_BITS, 0);
@@ -77,7 +78,7 @@ impl Inactive {
     }
 
     /// Removes the process with id `pid`, if any.
-    pub(crate) fn remove(&mut self, pid: ProcessId) -> Option<Pin<Box<Process>>> {
+    pub(crate) fn remove(&mut self, pid: ProcessId) -> Option<Pin<Box<Process<S>>>> {
         debug_assert!(ok_pid(pid));
         self.root
             .remove(pid, pid.0 >> SKIP_BITS)
@@ -88,11 +89,11 @@ impl Inactive {
     }
 }
 
-struct Branch {
-    branches: [Option<Pointer>; N_BRANCHES],
+struct Branch<S> {
+    branches: [Option<Pointer<S>>; N_BRANCHES],
 }
 
-impl fmt::Debug for Branch {
+impl<S: fmt::Debug> fmt::Debug for Branch<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map()
             .entry(&"0000", &self.branches[0])
@@ -115,16 +116,17 @@ impl fmt::Debug for Branch {
     }
 }
 
-impl Branch {
+impl<S> Branch<S> {
+    const NONE: Option<Pointer<S>> = None;
+
     /// Create an empty `Branch`.
-    const fn empty() -> Branch {
-        const NONE: Option<Pointer> = None;
+    const fn empty() -> Branch<S> {
         Branch {
-            branches: [NONE; N_BRANCHES],
+            branches: [Branch::NONE; N_BRANCHES],
         }
     }
 
-    fn add(&mut self, process: Pin<Box<Process>>, w_pid: usize, depth: usize) {
+    fn add(&mut self, process: Pin<Box<Process<S>>>, w_pid: usize, depth: usize) {
         match Pointer::take_process(&mut self.branches[w_pid & LEVEL_MASK]) {
             Some(Ok(other_process)) => self.add_both(process, other_process, w_pid, depth),
             Some(Err(mut branch)) => branch.add(process, w_pid >> LEVEL_SHIFT, depth + 1),
@@ -141,8 +143,8 @@ impl Branch {
     /// processes.
     fn add_both(
         &mut self,
-        process1: Pin<Box<Process>>,
-        process2: Pin<Box<Process>>,
+        process1: Pin<Box<Process<S>>>,
+        process2: Pin<Box<Process<S>>>,
         w_pid: usize,
         depth: usize,
     ) {
@@ -171,7 +173,7 @@ impl Branch {
         self.branches[w_pid & LEVEL_MASK] = Some(branch.into());
     }
 
-    fn remove(&mut self, pid: ProcessId, w_pid: usize) -> Option<Pin<Box<Process>>> {
+    fn remove(&mut self, pid: ProcessId, w_pid: usize) -> Option<Pin<Box<Process<S>>>> {
         let node = &mut self.branches[w_pid & LEVEL_MASK];
         match Pointer::take_process(node) {
             Some(Ok(process)) if process.id() == pid => Some(process),
@@ -187,9 +189,10 @@ impl Branch {
 }
 
 /// Tagged pointer to either a `Branch` or `Process`.
-struct Pointer {
+struct Pointer<S> {
     /// This is actually either a `Pin<Box<Process>>` or `Pin<Box<Branch>>`.
     tagged_ptr: NonNull<()>,
+    _phantom_data: PhantomData<*const S>,
 }
 
 /// Number of bits used for the tag in `Pointer`.
@@ -198,7 +201,7 @@ const POINTER_TAG_BITS: usize = 1;
 const PROCESS_TAG: usize = 0b1;
 const BRANCH_TAG: usize = 0b0;
 
-impl Pointer {
+impl<S> Pointer<S> {
     /// Attempts to take a process pointer from `this`, or returns a mutable
     /// reference to the branch.
     ///
@@ -209,18 +212,18 @@ impl Pointer {
     /// * `Some(Err(..))` if the pointer is `Some` and points to a branch,
     ///    `this` is unchanged.
     fn take_process<'a>(
-        this: &'a mut Option<Pointer>,
-    ) -> Option<Result<Pin<Box<Process>>, Pin<&'a mut Branch>>> {
+        this: &'a mut Option<Pointer<S>>,
+    ) -> Option<Result<Pin<Box<Process<S>>>, Pin<&'a mut Branch<S>>>> {
         match this {
             Some(pointer) if pointer.is_process() => {
                 let p = unsafe { Box::from_raw(pointer.as_ptr().cast()) };
                 // We just read the pointer so now we have to forget it.
                 forget(this.take());
-                Some(Ok(Pin::new(p)))
+                Some(Ok(Box::into_pin(p)))
             }
             Some(pointer) => {
                 debug_assert!(!pointer.is_process());
-                let p: &mut Branch = unsafe { &mut *(pointer.as_ptr().cast()) };
+                let p: &mut Branch<S> = unsafe { &mut *(pointer.as_ptr().cast()) };
                 Some(Err(unsafe { Pin::new_unchecked(p) }))
             }
             None => None,
@@ -238,51 +241,54 @@ impl Pointer {
     }
 }
 
-impl From<Pin<Box<Process>>> for Pointer {
-    fn from(process: Pin<Box<Process>>) -> Pointer {
+impl<S> From<Pin<Box<Process<S>>>> for Pointer<S> {
+    fn from(process: Pin<Box<Process<S>>>) -> Pointer<S> {
+        // SAFETY: keeping `process` pinned within usage of `Pointer`.
         #[allow(trivial_casts)]
-        let ptr = Box::into_raw(Pin::into_inner(process));
+        let ptr = unsafe { Box::into_raw(Pin::into_inner_unchecked(process)) };
         let ptr = (ptr as usize | PROCESS_TAG) as *mut ();
         Pointer {
             tagged_ptr: unsafe { NonNull::new_unchecked(ptr) },
+            _phantom_data: PhantomData,
         }
     }
 }
 
-impl From<Pin<Box<Branch>>> for Pointer {
-    fn from(process: Pin<Box<Branch>>) -> Pointer {
+impl<S> From<Pin<Box<Branch<S>>>> for Pointer<S> {
+    fn from(process: Pin<Box<Branch<S>>>) -> Pointer<S> {
         #[allow(trivial_casts)]
         let ptr = Box::into_raw(Pin::into_inner(process));
         let ptr = (ptr as usize | BRANCH_TAG) as *mut ();
         Pointer {
             tagged_ptr: unsafe { NonNull::new_unchecked(ptr) },
+            _phantom_data: PhantomData,
         }
     }
 }
 
-impl Drop for Pointer {
+impl<S> Drop for Pointer<S> {
     fn drop(&mut self) {
         let ptr = self.as_ptr();
         if self.is_process() {
-            let p: Box<Process> = unsafe { Box::from_raw(ptr.cast()) };
+            let p: Box<Process<S>> = unsafe { Box::from_raw(ptr.cast()) };
             drop(p);
         } else {
-            let p: Box<Branch> = unsafe { Box::from_raw(ptr.cast()) };
+            let p: Box<Branch<S>> = unsafe { Box::from_raw(ptr.cast()) };
             drop(p);
         }
     }
 }
 
-impl fmt::Debug for Pointer {
+impl<S: fmt::Debug> fmt::Debug for Pointer<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ptr = self.as_ptr();
         if self.is_process() {
-            let p: &Process = unsafe { &mut *(ptr.cast()) };
-            let p: Pin<&Process> = unsafe { Pin::new_unchecked(p) };
+            let p: &Process<S> = unsafe { &mut *(ptr.cast()) };
+            let p: Pin<&Process<S>> = unsafe { Pin::new_unchecked(p) };
             p.fmt(f)
         } else {
-            let p: &Branch = unsafe { &mut *(ptr.cast()) };
-            let p: Pin<&Branch> = unsafe { Pin::new_unchecked(p) };
+            let p: &Branch<S> = unsafe { &mut *(ptr.cast()) };
+            let p: Pin<&Branch<S>> = unsafe { Pin::new_unchecked(p) };
             p.fmt(f)
         }
     }
@@ -308,12 +314,12 @@ mod tests {
     use std::sync::Arc;
     use std::task::{self, Poll};
 
-    use crate::scheduler::{process, ProcessId};
+    use crate::scheduler::{process, Cfs, Process, ProcessId};
     use crate::spawn::options::Priority;
 
     use super::{
-        diff_branch_depth, Branch, Inactive, Pointer, Process, LEVEL_SHIFT, N_BRANCHES,
-        POINTER_TAG_BITS, SKIP_BITS,
+        diff_branch_depth, Branch, Inactive, Pointer, LEVEL_SHIFT, N_BRANCHES, POINTER_TAG_BITS,
+        SKIP_BITS,
     };
 
     struct TestProcess;
@@ -328,8 +334,11 @@ mod tests {
         }
     }
 
-    fn test_process() -> Pin<Box<Process>> {
-        Box::pin(Process::new(Priority::default(), Box::pin(TestProcess)))
+    fn test_process() -> Pin<Box<Process<Cfs>>> {
+        Box::pin(Process::<Cfs>::new(
+            Priority::default(),
+            Box::pin(TestProcess),
+        ))
     }
 
     fn pow2(exp: usize) -> usize {
@@ -343,24 +352,24 @@ mod tests {
 
     #[test]
     fn size_assertions() {
-        assert_eq!(size_of::<Pin<Box<Process>>>(), size_of::<usize>());
-        assert_eq!(size_of::<Pin<Box<Branch>>>(), size_of::<usize>());
-        assert_eq!(size_of::<Pointer>(), size_of::<usize>());
-        assert_eq!(size_of::<Branch>(), N_BRANCHES * size_of::<usize>());
+        assert_eq!(size_of::<Pin<Box<Process<Cfs>>>>(), size_of::<usize>());
+        assert_eq!(size_of::<Pin<Box<Branch<Cfs>>>>(), size_of::<usize>());
+        assert_eq!(size_of::<Pointer<Cfs>>(), size_of::<usize>());
+        assert_eq!(size_of::<Branch<Cfs>>(), N_BRANCHES * size_of::<usize>());
     }
 
     #[test]
     fn process_data_alignment() {
         // Ensure that we don't skip any used bites and that the pointer tag
         // doesn't overwrite any pointer data.
-        assert!(align_of::<Process>() >= pow2(max(SKIP_BITS, POINTER_TAG_BITS)));
+        assert!(align_of::<Process<Cfs>>() >= pow2(max(SKIP_BITS, POINTER_TAG_BITS)));
     }
 
     #[test]
     fn branch_alignment() {
         // Ensure that we don't skip any used bites and that the pointer tag
         // doesn't overwrite any pointer data.
-        assert!(align_of::<Branch>() >= pow2(max(SKIP_BITS, POINTER_TAG_BITS)));
+        assert!(align_of::<Branch<Cfs>>() >= pow2(max(SKIP_BITS, POINTER_TAG_BITS)));
     }
 
     #[test]
@@ -406,13 +415,13 @@ mod tests {
     #[test]
     fn pointer_take_process() {
         // None.
-        let mut ptr: Option<Pointer> = None;
-        assert!(Pointer::take_process(&mut ptr).is_none());
+        let mut ptr: Option<Pointer<Cfs>> = None;
+        assert!(Pointer::<Cfs>::take_process(&mut ptr).is_none());
         assert!(ptr.is_none());
 
         // Process -> Some(Ok(..)).
-        let mut ptr: Option<Pointer> = Some(test_process().into());
-        match Pointer::take_process(&mut ptr) {
+        let mut ptr: Option<Pointer<Cfs>> = Some(test_process().into());
+        match Pointer::<Cfs>::take_process(&mut ptr) {
             Some(Ok(_)) => {}
             _ => panic!("unexpected result"),
         }
@@ -420,8 +429,8 @@ mod tests {
         assert!(ptr.is_none());
 
         // Branch -> Some(Err(..)).
-        let mut ptr: Option<Pointer> = Some(Box::pin(Branch::empty()).into());
-        match Pointer::take_process(&mut ptr) {
+        let mut ptr: Option<Pointer<Cfs>> = Some(Box::pin(Branch::<Cfs>::empty()).into());
+        match Pointer::<Cfs>::take_process(&mut ptr) {
             Some(Err(_)) => {}
             _ => panic!("unexpected result"),
         }
@@ -432,7 +441,7 @@ mod tests {
     #[test]
     fn drop_test_branch() {
         // This shouldn't panic or anything.
-        let ptr: Pointer = Box::pin(Branch::empty()).into();
+        let ptr: Pointer<Cfs> = Box::pin(Branch::<Cfs>::empty()).into();
         drop(ptr);
     }
 
@@ -460,14 +469,14 @@ mod tests {
         let dropped = Arc::new(AtomicUsize::new(0));
 
         let process = Box::pin(DropTest(dropped.clone()));
-        let ptr: Pointer = Box::pin(Process::new(Priority::default(), process)).into();
+        let ptr: Pointer<Cfs> = Box::pin(Process::<Cfs>::new(Priority::default(), process)).into();
 
         assert_eq!(dropped.load(Ordering::Acquire), 0);
         drop(ptr);
         assert_eq!(dropped.load(Ordering::Acquire), 1);
     }
 
-    fn add_process(queue: &mut Inactive) -> ProcessId {
+    fn add_process(queue: &mut Inactive<Cfs>) -> ProcessId {
         let process = test_process();
         let pid = process.id();
         queue.add(process);
@@ -475,7 +484,7 @@ mod tests {
     }
 
     fn test(remove_order: Vec<usize>) {
-        let mut queue = Inactive::empty();
+        let mut queue = Inactive::<Cfs>::empty();
         let pids: Vec<ProcessId> = (0..remove_order.len())
             .map(|_| add_process(&mut queue))
             .collect();

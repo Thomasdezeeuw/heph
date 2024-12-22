@@ -24,7 +24,7 @@ fn size_assertions() {
     assert_size::<ProcessId>(8);
     assert_size::<Priority>(1);
     assert_size::<process::Process<Cfs, Box<dyn process::Run>>>(32);
-    assert_size::<Process>(40);
+    assert_size::<Process<Cfs>>(40);
 }
 
 #[derive(Debug)]
@@ -55,9 +55,9 @@ fn pid() {
 #[test]
 #[allow(clippy::eq_op)] // Need to compare `Process` to itself.
 fn process_data_equality() {
-    let process1 = Process::new(Priority::LOW, Box::pin(NopTestProcess));
-    let process2 = Process::new(Priority::NORMAL, Box::pin(NopTestProcess));
-    let process3 = Process::new(Priority::HIGH, Box::pin(NopTestProcess));
+    let process1 = Process::<Cfs>::new(Priority::LOW, Box::pin(NopTestProcess));
+    let process2 = Process::<Cfs>::new(Priority::NORMAL, Box::pin(NopTestProcess));
+    let process3 = Process::<Cfs>::new(Priority::HIGH, Box::pin(NopTestProcess));
 
     // Equality is only based on id alone.
     assert_eq!(process1, process1);
@@ -91,7 +91,7 @@ impl process::Run for SleepyProcess {
 fn process_data_runtime_increase() {
     const SLEEP_TIME: Duration = Duration::from_millis(10);
 
-    let mut process = Box::pin(Process::new(
+    let mut process = Box::pin(Process::<Cfs>::new(
         Priority::HIGH,
         Box::pin(SleepyProcess(SLEEP_TIME)),
     ));
@@ -374,7 +374,7 @@ fn assert_future_process_unmoved() {
     assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
 }
 
-fn add_test_actor(scheduler: &mut Scheduler, priority: Priority) -> ProcessId {
+fn add_test_actor(scheduler: &mut Scheduler<Cfs>, priority: Priority) -> ProcessId {
     let new_actor = actor_fn(simple_actor);
     let rt = ThreadLocal::new(test::runtime());
     let (process, _) = ActorFutureBuilder::new()
@@ -385,7 +385,7 @@ fn add_test_actor(scheduler: &mut Scheduler, priority: Priority) -> ProcessId {
 }
 
 /// Creates a `Scheduler` with `SYSTEM_ACTORS` number of fake system actors.
-fn test_scheduler() -> Scheduler {
+fn test_scheduler() -> Scheduler<Cfs> {
     async fn fake_system_actor(_: actor::Context<!, ThreadLocal>) {
         pending().await
     }

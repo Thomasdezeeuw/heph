@@ -21,19 +21,19 @@ use cfs::Cfs;
 use inactive::Inactive;
 pub(crate) use process::ProcessId;
 
-type Process = process::Process<Cfs, dyn process::Run>;
+type Process<S> = process::Process<S, dyn process::Run>;
 
 #[derive(Debug)]
-pub(crate) struct Scheduler {
+pub(crate) struct Scheduler<S: Schedule = Cfs> {
     /// Processes that are ready to run.
-    ready: BinaryHeap<Pin<Box<Process>>>,
+    ready: BinaryHeap<Pin<Box<Process<S>>>>,
     /// Processes that are not ready to run.
-    inactive: Inactive,
+    inactive: Inactive<S>,
 }
 
-impl Scheduler {
+impl<S: Schedule> Scheduler<S> {
     /// Create a new `Scheduler`.
-    pub(crate) fn new() -> Scheduler {
+    pub(crate) fn new() -> Scheduler<S> {
         Scheduler {
             ready: BinaryHeap::new(),
             inactive: Inactive::empty(),
@@ -67,7 +67,7 @@ impl Scheduler {
     where
         P: process::Run + 'static,
     {
-        let process = Box::pin(Process::new(priority, Box::pin(process)));
+        let process = Box::pin(Process::<S>::new(priority, Box::pin(process)));
         let pid = process.id();
         self.ready.push(process);
         pid
@@ -86,13 +86,13 @@ impl Scheduler {
     }
 
     /// Returns the next ready process.
-    pub(crate) fn next_process(&mut self) -> Option<Pin<Box<Process>>> {
+    pub(crate) fn next_process(&mut self) -> Option<Pin<Box<Process<S>>>> {
         self.ready.pop()
     }
 
     /// Add back a process that was previously removed via
     /// [`Scheduler::next_process`].
-    pub(crate) fn add_back_process(&mut self, process: Pin<Box<Process>>) {
+    pub(crate) fn add_back_process(&mut self, process: Pin<Box<Process<S>>>) {
         let pid = process.id();
         trace!(pid = pid.0; "adding back process");
         self.inactive.add(process);
@@ -100,7 +100,7 @@ impl Scheduler {
 
     /// Mark `process` as complete, removing it from the scheduler.
     #[allow(clippy::unused_self)]
-    pub(crate) fn complete(&self, process: Pin<Box<Process>>) {
+    pub(crate) fn complete(&self, process: Pin<Box<Process<S>>>) {
         let pid = process.as_ref().id();
         trace!(pid = pid.0; "removing process");
         // Don't want to panic when dropping the process.
