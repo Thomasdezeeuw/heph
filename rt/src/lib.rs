@@ -175,6 +175,7 @@
 
 #![feature(
     async_iterator,
+    box_vec_non_null,
     doc_auto_cfg,
     doc_cfg_hide,
     extract_if,
