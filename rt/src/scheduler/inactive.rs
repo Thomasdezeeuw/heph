@@ -1,11 +1,10 @@
 use std::cmp::max;
 use std::fmt;
-use std::marker::PhantomData;
-use std::mem::{forget, replace};
+use std::mem::replace;
 use std::pin::Pin;
-use std::ptr::NonNull;
 
 use crate::scheduler::{Process, ProcessId};
+use crate::util::TaggedPointer;
 use crate::worker::SYSTEM_ACTORS;
 
 /// Number of bits to shift per level.
@@ -22,7 +21,7 @@ const SKIP_MASK: usize = (1 << SKIP_BITS) - 1;
 
 /// Returns `false` if `pid`'s `SKIP_BITS` aren't valid.
 fn ok_pid(pid: ProcessId) -> bool {
-    pid.0 & max(SKIP_MASK, POINTER_TAG_BITS) == 0
+    pid.0 & max(SKIP_MASK, TaggedPointer::TAG_BITS) == 0
 }
 
 /// Inactive processes.
@@ -90,7 +89,7 @@ impl<S> Inactive<S> {
 }
 
 struct Branch<S> {
-    branches: [Option<Pointer<S>>; N_BRANCHES],
+    branches: [Option<TaggedPointer<Process<S>, Branch<S>>>; N_BRANCHES],
 }
 
 impl<S: fmt::Debug> fmt::Debug for Branch<S> {
@@ -117,7 +116,7 @@ impl<S: fmt::Debug> fmt::Debug for Branch<S> {
 }
 
 impl<S> Branch<S> {
-    const NONE: Option<Pointer<S>> = None;
+    const NONE: Option<TaggedPointer<Process<S>, Branch<S>>> = None;
 
     /// Create an empty `Branch`.
     const fn empty() -> Branch<S> {
@@ -127,10 +126,10 @@ impl<S> Branch<S> {
     }
 
     fn add(&mut self, process: Pin<Box<Process<S>>>, w_pid: usize, depth: usize) {
-        match Pointer::take_process(&mut self.branches[w_pid & LEVEL_MASK]) {
+        match TaggedPointer::take_left(&mut self.branches[w_pid & LEVEL_MASK]) {
             Some(Ok(other_process)) => self.add_both(process, other_process, w_pid, depth),
             Some(Err(mut branch)) => branch.add(process, w_pid >> LEVEL_SHIFT, depth + 1),
-            None => self.branches[w_pid & LEVEL_MASK] = Some(process.into()),
+            None => self.branches[w_pid & LEVEL_MASK] = Some(TaggedPointer::left(process)),
         }
     }
 
@@ -160,138 +159,30 @@ impl<S> Branch<S> {
         debug_assert!(req_depth >= depth);
         // Add the two processes.
         let w_pid1 = skip_bits(pid1, req_depth);
-        branch.branches[w_pid1 & LEVEL_MASK] = Some(process1.into());
+        branch.branches[w_pid1 & LEVEL_MASK] = Some(TaggedPointer::left(process1));
         let w_pid2 = skip_bits(pid2, req_depth);
-        branch.branches[w_pid2 & LEVEL_MASK] = Some(process2.into());
+        branch.branches[w_pid2 & LEVEL_MASK] = Some(TaggedPointer::left(process2));
         debug_assert!(w_pid1 & LEVEL_MASK != w_pid2 & LEVEL_MASK);
         // Build up to route to the branch.
         for depth in depth + 1..req_depth {
             let index = (w_pid >> ((req_depth - depth) * LEVEL_SHIFT)) & LEVEL_MASK;
             let next_branch = replace(&mut branch, Box::pin(Branch::empty()));
-            branch.branches[index] = Some(next_branch.into());
+            branch.branches[index] = Some(TaggedPointer::right(next_branch));
         }
-        self.branches[w_pid & LEVEL_MASK] = Some(branch.into());
+        self.branches[w_pid & LEVEL_MASK] = Some(TaggedPointer::right(branch));
     }
 
     fn remove(&mut self, pid: ProcessId, w_pid: usize) -> Option<Pin<Box<Process<S>>>> {
         let node = &mut self.branches[w_pid & LEVEL_MASK];
-        match Pointer::take_process(node) {
+        match TaggedPointer::take_left(node) {
             Some(Ok(process)) if process.id() == pid => Some(process),
             Some(Ok(process)) => {
                 // Wrong process so put it back.
-                *node = Some(process.into());
+                *node = Some(TaggedPointer::left(process));
                 None
             }
             Some(Err(mut next_branch)) => next_branch.remove(pid, w_pid >> LEVEL_SHIFT),
             None => None,
-        }
-    }
-}
-
-/// Tagged pointer to either a `Branch` or `Process`.
-struct Pointer<S> {
-    /// This is actually either a `Pin<Box<Process>>` or `Pin<Box<Branch>>`.
-    tagged_ptr: NonNull<()>,
-    _phantom_data: PhantomData<*const S>,
-}
-
-/// Number of bits used for the tag in `Pointer`.
-const POINTER_TAG_BITS: usize = 1;
-/// Tags used for the `Pointer`.
-const PROCESS_TAG: usize = 0b1;
-const BRANCH_TAG: usize = 0b0;
-
-impl<S> Pointer<S> {
-    /// Attempts to take a process pointer from `this`, or returns a mutable
-    /// reference to the branch.
-    ///
-    /// Returns:
-    /// * `None` if `this` is `None`, `this` is unchanged.
-    /// * `Some(Ok(..))` if the pointer is `Some` and points to a process,
-    ///    `this` will be `None`.
-    /// * `Some(Err(..))` if the pointer is `Some` and points to a branch,
-    ///    `this` is unchanged.
-    fn take_process<'a>(
-        this: &'a mut Option<Pointer<S>>,
-    ) -> Option<Result<Pin<Box<Process<S>>>, Pin<&'a mut Branch<S>>>> {
-        match this {
-            Some(pointer) if pointer.is_process() => {
-                let pointer = pointer.as_ptr();
-                // To avoid a double free we need forget about `this` as it's
-                // being converted into a `Box` below.
-                forget(this.take());
-                let p = unsafe { Box::from_raw(pointer.cast()) };
-                Some(Ok(Box::into_pin(p)))
-            }
-            Some(pointer) => {
-                debug_assert!(!pointer.is_process());
-                let p: &mut Branch<S> = unsafe { &mut *(pointer.as_ptr().cast()) };
-                Some(Err(unsafe { Pin::new_unchecked(p) }))
-            }
-            None => None,
-        }
-    }
-
-    /// Returns the raw pointer without its tag.
-    fn as_ptr(&self) -> *mut () {
-        (self.tagged_ptr.as_ptr() as usize & !(PROCESS_TAG)) as *mut ()
-    }
-
-    /// Returns `true` is the tagged pointer points to a process.
-    fn is_process(&self) -> bool {
-        (self.tagged_ptr.as_ptr() as usize & PROCESS_TAG) != 0
-    }
-}
-
-impl<S> From<Pin<Box<Process<S>>>> for Pointer<S> {
-    fn from(process: Pin<Box<Process<S>>>) -> Pointer<S> {
-        // SAFETY: keeping `process` pinned within usage of `Pointer`.
-        #[allow(trivial_casts)]
-        let ptr = unsafe { Box::into_raw(Pin::into_inner_unchecked(process)) };
-        let ptr = (ptr as usize | PROCESS_TAG) as *mut ();
-        Pointer {
-            tagged_ptr: unsafe { NonNull::new_unchecked(ptr) },
-            _phantom_data: PhantomData,
-        }
-    }
-}
-
-impl<S> From<Pin<Box<Branch<S>>>> for Pointer<S> {
-    fn from(process: Pin<Box<Branch<S>>>) -> Pointer<S> {
-        #[allow(trivial_casts)]
-        let ptr = Box::into_raw(Pin::into_inner(process));
-        let ptr = (ptr as usize | BRANCH_TAG) as *mut ();
-        Pointer {
-            tagged_ptr: unsafe { NonNull::new_unchecked(ptr) },
-            _phantom_data: PhantomData,
-        }
-    }
-}
-
-impl<S> Drop for Pointer<S> {
-    fn drop(&mut self) {
-        let ptr = self.as_ptr();
-        if self.is_process() {
-            let p: Box<Process<S>> = unsafe { Box::from_raw(ptr.cast()) };
-            drop(p);
-        } else {
-            let p: Box<Branch<S>> = unsafe { Box::from_raw(ptr.cast()) };
-            drop(p);
-        }
-    }
-}
-
-impl<S: fmt::Debug> fmt::Debug for Pointer<S> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let ptr = self.as_ptr();
-        if self.is_process() {
-            let p: &Process<S> = unsafe { &mut *(ptr.cast()) };
-            let p: Pin<&Process<S>> = unsafe { Pin::new_unchecked(p) };
-            p.fmt(f)
-        } else {
-            let p: &Branch<S> = unsafe { &mut *(ptr.cast()) };
-            let p: Pin<&Branch<S>> = unsafe { Pin::new_unchecked(p) };
-            p.fmt(f)
         }
     }
 }
@@ -309,20 +200,13 @@ const fn skip_bits(pid: ProcessId, depth: usize) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use std::cmp::max;
-    use std::mem::align_of;
     use std::pin::Pin;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
     use std::task::{self, Poll};
 
     use crate::scheduler::{process, Cfs, Process, ProcessId};
     use crate::spawn::options::Priority;
 
-    use super::{
-        diff_branch_depth, Branch, Inactive, Pointer, LEVEL_SHIFT, N_BRANCHES, POINTER_TAG_BITS,
-        SKIP_BITS,
-    };
+    use super::{diff_branch_depth, Branch, Inactive, LEVEL_SHIFT, N_BRANCHES};
 
     struct TestProcess;
 
@@ -356,22 +240,7 @@ mod tests {
     fn size_assertions() {
         assert_eq!(size_of::<Pin<Box<Process<Cfs>>>>(), size_of::<usize>());
         assert_eq!(size_of::<Pin<Box<Branch<Cfs>>>>(), size_of::<usize>());
-        assert_eq!(size_of::<Pointer<Cfs>>(), size_of::<usize>());
         assert_eq!(size_of::<Branch<Cfs>>(), N_BRANCHES * size_of::<usize>());
-    }
-
-    #[test]
-    fn process_data_alignment() {
-        // Ensure that we don't skip any used bites and that the pointer tag
-        // doesn't overwrite any pointer data.
-        assert!(align_of::<Process<Cfs>>() >= pow2(max(SKIP_BITS, POINTER_TAG_BITS)));
-    }
-
-    #[test]
-    fn branch_alignment() {
-        // Ensure that we don't skip any used bites and that the pointer tag
-        // doesn't overwrite any pointer data.
-        assert!(align_of::<Branch<Cfs>>() >= pow2(max(SKIP_BITS, POINTER_TAG_BITS)));
     }
 
     #[test]
@@ -412,70 +281,6 @@ mod tests {
                 pid1.0, pid1, pid2.0, pid2
             );
         }
-    }
-
-    #[test]
-    fn pointer_take_process() {
-        // None.
-        let mut ptr: Option<Pointer<Cfs>> = None;
-        assert!(Pointer::<Cfs>::take_process(&mut ptr).is_none());
-        assert!(ptr.is_none());
-
-        // Process -> Some(Ok(..)).
-        let mut ptr: Option<Pointer<Cfs>> = Some(test_process().into());
-        match Pointer::<Cfs>::take_process(&mut ptr) {
-            Some(Ok(_)) => {}
-            _ => panic!("unexpected result"),
-        }
-        // Process is removed.
-        assert!(ptr.is_none());
-
-        // Branch -> Some(Err(..)).
-        let mut ptr: Option<Pointer<Cfs>> = Some(Box::pin(Branch::<Cfs>::empty()).into());
-        match Pointer::<Cfs>::take_process(&mut ptr) {
-            Some(Err(_)) => {}
-            _ => panic!("unexpected result"),
-        }
-        // Pointer unchanged.
-        assert!(ptr.is_some());
-    }
-
-    #[test]
-    fn drop_test_branch() {
-        // This shouldn't panic or anything.
-        let ptr: Pointer<Cfs> = Box::pin(Branch::<Cfs>::empty()).into();
-        drop(ptr);
-    }
-
-    #[test]
-    fn drop_test_process() {
-        // This shouldn't panic or anything.
-        struct DropTest(Arc<AtomicUsize>);
-
-        impl Drop for DropTest {
-            fn drop(&mut self) {
-                let _ = self.0.fetch_add(1, Ordering::AcqRel);
-            }
-        }
-
-        impl process::Run for DropTest {
-            fn name(&self) -> &'static str {
-                "DropTest"
-            }
-
-            fn run(self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<()> {
-                unimplemented!();
-            }
-        }
-
-        let dropped = Arc::new(AtomicUsize::new(0));
-
-        let process = Box::pin(DropTest(dropped.clone()));
-        let ptr: Pointer<Cfs> = Box::pin(Process::<Cfs>::new(Priority::default(), process)).into();
-
-        assert_eq!(dropped.load(Ordering::Acquire), 0);
-        drop(ptr);
-        assert_eq!(dropped.load(Ordering::Acquire), 1);
     }
 
     fn add_process(queue: &mut Inactive<Cfs>) -> ProcessId {
