@@ -17,7 +17,7 @@ env:
   RUST_BACKTRACE: full
 jobs:
   Test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     if: false # FIXME.
     steps:
@@ -26,7 +26,7 @@ jobs:
       with:
         working-directory: remote
   Sanitiser:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     if: false # FIXME.
     strategy:

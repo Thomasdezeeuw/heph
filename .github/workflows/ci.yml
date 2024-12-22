@@ -11,7 +11,7 @@ env:
   RUST_BACKTRACE: full
 jobs:
   Clippy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
     - uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
     - name: Run Clippy
       run: make clippy_all
   Rustfmt:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
     - uses: actions/checkout@v4
@@ -31,7 +31,7 @@ jobs:
     - name: Check formatting
       run: cargo fmt --all -- --check
   Docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
     - uses: actions/checkout@v4
