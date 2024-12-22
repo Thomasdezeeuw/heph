@@ -25,7 +25,6 @@ jobs:
   Test:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    if: false # FIXME.
     steps:
     - uses: actions/checkout@v4
     - uses: ./.github/workflows/test
@@ -34,7 +33,8 @@ jobs:
   Miri:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    if: false # FIXME.
+    # TODO: enable <https://github.com/Thomasdezeeuw/heph/issues/644>.
+    if: false
     steps:
     - uses: actions/checkout@v4
     - uses: ./.github/workflows/test_miri
@@ -43,7 +43,8 @@ jobs:
   Sanitiser:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    if: false # FIXME.
+    # TODO: enable <https://github.com/Thomasdezeeuw/heph/issues/645>.
+    if: false
     strategy:
       fail-fast: false
       matrix:
