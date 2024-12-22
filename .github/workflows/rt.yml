@@ -19,7 +19,6 @@ jobs:
   Test:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    if: false # FIXME.
     steps:
     - uses: actions/checkout@v4
     - uses: ./.github/workflows/test
@@ -28,7 +27,8 @@ jobs:
   Sanitiser:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    if: false # FIXME.
+    # TODO: enable <https://github.com/Thomasdezeeuw/heph/issues/646>.
+    if: false
     strategy:
       fail-fast: false
       matrix:
