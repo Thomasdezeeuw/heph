@@ -115,9 +115,9 @@ impl<L, R> TaggedPointer<L, R> {
     /// Returns:
     /// * `None` if `this` is `None`, `this` is unchanged.
     /// * `Some(Ok(..))` if the pointer is `Some` and points to a process,
-    ///    `this` will be `None`.
+    ///   `this` will be `None`.
     /// * `Some(Err(..))` if the pointer is `Some` and points to a branch,
-    ///    `this` is unchanged.
+    ///   `this` is unchanged.
     pub(crate) fn take_left<'a>(
         this: &'a mut Option<TaggedPointer<L, R>>,
     ) -> Option<Result<Pin<Box<L>>, Pin<&'a mut R>>> {

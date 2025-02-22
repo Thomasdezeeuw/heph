@@ -91,7 +91,7 @@ impl RuntimeInternals {
                 self.set_err(worker::Error::ProcessInterrupted);
             }
             Ok(()) | Err(SendError) => {}
-        };
+        }
 
         trace::finish_rt(
             self.trace_log.borrow_mut().as_mut(),

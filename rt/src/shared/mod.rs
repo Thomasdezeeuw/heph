@@ -47,7 +47,7 @@ impl RuntimeSetup {
         trace_log: Option<Arc<trace::SharedLog>>,
     ) -> RuntimeInternals {
         // Needed by `RuntimeInternals::wake_workers`.
-        debug_assert!(worker_sqs.len() >= 1);
+        debug_assert!(!worker_sqs.is_empty());
         let sq = self.ring.submission_queue().clone();
         RuntimeInternals {
             worker_sqs,
