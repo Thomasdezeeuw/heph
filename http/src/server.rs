@@ -306,7 +306,7 @@ impl Connection {
                 }
             }
 
-            let mut headers = MaybeUninit::uninit_array::<MAX_HEADERS>();
+            let mut headers = const { [MaybeUninit::uninit(); MAX_HEADERS] };
             let mut request = httparse::Request::new(&mut []);
             // SAFETY: because we received until at least `self.parsed_bytes >=
             // self.buf.len()` above, we can safely slice the buffer..

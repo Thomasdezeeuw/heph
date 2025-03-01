@@ -262,7 +262,7 @@ impl<B: BufMut, const N: usize> BufMutSlice<N> for [B; N] {
 // `B`.
 unsafe impl<B: BufMut, const N: usize> private::BufMutSlice<N> for [B; N] {
     unsafe fn as_iovecs_mut(&mut self) -> [libc::iovec; N] {
-        let mut iovecs = MaybeUninit::uninit_array();
+        let mut iovecs = const { [MaybeUninit::uninit(); N] };
         for (buf, iovec) in self.iter_mut().zip(iovecs.iter_mut()) {
             let (ptr, len) = buf.parts_mut();
             _ = iovec.write(libc::iovec {
@@ -503,7 +503,7 @@ impl<B: Buf, const N: usize> BufSlice<N> for [B; N] {}
 // implements `Buf` it's safe to implement `BufSlice` for an array of `B`.
 unsafe impl<B: Buf, const N: usize> private::BufSlice<N> for [B; N] {
     unsafe fn as_iovecs(&self) -> [libc::iovec; N] {
-        let mut iovecs = MaybeUninit::uninit_array();
+        let mut iovecs = const { [MaybeUninit::uninit(); N] };
         for (buf, iovec) in self.iter().zip(iovecs.iter_mut()) {
             let (ptr, len) = buf.parts();
             _ = iovec.write(libc::iovec {

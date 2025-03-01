@@ -1,12 +1,6 @@
 //! HTTP/1.1 implementation for Heph.
 
-#![feature(
-    async_iterator,
-    extract_if,
-    impl_trait_in_assoc_type,
-    maybe_uninit_uninit_array,
-    maybe_uninit_write_slice
-)]
+#![feature(async_iterator, impl_trait_in_assoc_type, maybe_uninit_write_slice)]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,

@@ -178,10 +178,8 @@
     box_vec_non_null,
     doc_auto_cfg,
     doc_cfg_hide,
-    extract_if,
     impl_trait_in_assoc_type,
     maybe_uninit_array_assume_init,
-    maybe_uninit_uninit_array,
     never_type,
     ptr_metadata,
     stmt_expr_attributes
