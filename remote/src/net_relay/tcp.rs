@@ -139,7 +139,7 @@ where
                 Ok(()) => continue,
                 Err(err) => {
                     let msg = format!("failed to route message: {err}");
-                    return Err(io::Error::new(io::ErrorKind::Other, msg));
+                    return Err(io::Error::other(msg));
                 }
             },
             Some(Err(err)) => {

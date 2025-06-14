@@ -178,7 +178,7 @@ where
             Ok(()) => Ok(()),
             Err(err) => {
                 let msg = format!("failed to route message (from {source}): {err}");
-                Err(io::Error::new(io::ErrorKind::Other, msg))
+                Err(io::Error::other(msg))
             }
         },
         Err(err) => {
