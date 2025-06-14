@@ -13,7 +13,7 @@ pub fn block_on<Fut>(future: Fut) -> Fut::Output
 where
     Fut: IntoFuture,
 {
-    let mut future = future.into_future();
+    let future = future.into_future();
     let mut future = pin!(future);
 
     loop {
