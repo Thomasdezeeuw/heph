@@ -90,7 +90,7 @@ pub struct Timer<RT: Access> {
     deadline: Instant,
     rt: RT,
     /// If `Some` it means we've added a timer that hasn't expired yet.
-    timer_pending: Option<TimerToken>,
+    pending: Option<TimerToken>,
 }
 
 impl<RT: Access> Timer<RT> {
@@ -99,7 +99,7 @@ impl<RT: Access> Timer<RT> {
         Timer {
             deadline,
             rt,
-            timer_pending: None,
+            pending: None,
         }
     }
 
@@ -134,12 +134,12 @@ impl<RT: Access> Future for Timer<RT> {
 
     fn poll(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<Self::Output> {
         if self.has_passed() {
-            self.timer_pending = None;
+            self.pending = None;
             return Poll::Ready(DeadlinePassed);
-        } else if self.timer_pending.is_none() {
+        } else if self.pending.is_none() {
             let deadline = self.deadline;
             let waker = create_no_ring_waker(ctx).unwrap_or_else(|| ctx.waker().clone());
-            self.timer_pending = Some(self.rt.add_timer(deadline, waker));
+            self.pending = Some(self.rt.add_timer(deadline, waker));
         }
         Poll::Pending
     }
@@ -149,7 +149,7 @@ impl<RT: Access> Unpin for Timer<RT> {}
 
 impl<RT: Access> Drop for Timer<RT> {
     fn drop(&mut self) {
-        if let Some(token) = self.timer_pending {
+        if let Some(token) = self.pending {
             self.rt.remove_timer(self.deadline, token);
         }
     }
@@ -388,7 +388,7 @@ impl<RT: Access> AsyncIterator for Interval<RT> {
         match Pin::new(&mut this.timer).poll(ctx) {
             Poll::Ready(deadline) => {
                 this.timer.deadline += this.interval;
-                this.timer.timer_pending = None;
+                this.timer.pending = None;
                 Poll::Ready(Some(deadline))
             }
             Poll::Pending => Poll::Pending,
