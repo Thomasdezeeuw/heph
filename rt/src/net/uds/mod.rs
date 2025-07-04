@@ -49,7 +49,7 @@ impl UnixAddr {
 #[doc(hidden)]
 impl a10::net::SocketAddress for UnixAddr {
     unsafe fn as_ptr(&self) -> (*const libc::sockaddr, libc::socklen_t) {
-        (self.inner.as_ptr(), self.inner.len())
+        (self.inner.as_ptr().cast(), self.inner.len())
     }
 
     #[allow(clippy::cast_possible_truncation)]

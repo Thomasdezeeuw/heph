@@ -131,22 +131,22 @@ impl TcpStream {
 
     /// Sets the value for the `IP_TTL` option on this socket.
     pub fn set_ttl(&self, ttl: u32) -> io::Result<()> {
-        self.with_ref(|socket| socket.set_ttl(ttl))
+        self.with_ref(|socket| socket.set_ttl_v4(ttl))
     }
 
     /// Gets the value of the `IP_TTL` option for this socket.
     pub fn ttl(&self) -> io::Result<u32> {
-        self.with_ref(|socket| socket.ttl())
+        self.with_ref(|socket| socket.ttl_v4())
     }
 
     /// Sets the value of the `TCP_NODELAY` option on this socket.
     pub fn set_nodelay(&self, nodelay: bool) -> io::Result<()> {
-        self.with_ref(|socket| socket.set_nodelay(nodelay))
+        self.with_ref(|socket| socket.set_tcp_nodelay(nodelay))
     }
 
     /// Gets the value of the `TCP_NODELAY` option on this socket.
     pub fn nodelay(&self) -> io::Result<bool> {
-        self.with_ref(|socket| socket.nodelay())
+        self.with_ref(|socket| socket.tcp_nodelay())
     }
 
     /// Returns `true` if `SO_KEEPALIVE` is set.

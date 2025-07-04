@@ -26,7 +26,7 @@ heph-inbox        = { version = "0.2.3", path = "../inbox", default-features = f
 log               = { version = "0.4.21", default-features = false, features = ["kv_std"] }
 crossbeam-channel = { version = "0.5.0", default-features = false, features = ["std"] }
 libc              = { version = "0.2.96", default-features = false }
-socket2           = { version = "0.5.2", default-features = false, features = ["all"] }
+socket2           = { version = "0.6.0", default-features = false, features = ["all"] }
 
 [dev-dependencies]
 getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
