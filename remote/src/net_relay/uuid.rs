@@ -2,7 +2,6 @@ use std::fmt;
 use std::hash::{Hash, Hasher};
 use std::ops::Range;
 
-use getrandom::getrandom;
 use log::warn;
 use serde::de::{self, Deserialize, Deserializer, Unexpected, Visitor};
 use serde::{Serialize, Serializer};
@@ -20,7 +19,7 @@ impl UuidGenerator {
     #[allow(clippy::unreadable_literal)]
     pub(crate) fn new() -> UuidGenerator {
         let mut bytes = [0; 16];
-        match getrandom(&mut bytes) {
+        match getrandom::fill(&mut bytes) {
             Ok(()) => {
                 let b0 = u64::from_be_bytes(TryInto::try_into(&bytes[0..8]).unwrap());
                 let b1 = u64::from_be_bytes(TryInto::try_into(&bytes[8..16]).unwrap());

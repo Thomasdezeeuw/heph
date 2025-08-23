@@ -18,7 +18,6 @@ use std::any::Any;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::{fmt, panic, slice};
 
-use getrandom::getrandom;
 use log::warn;
 
 use crate::supervisor::{Supervisor, SupervisorStrategy, SyncSupervisor};
@@ -56,7 +55,7 @@ pub(crate) fn should_lose_msg() -> bool {
 /// Returns a number between [0, 100].
 fn random_percentage() -> u8 {
     let mut p = 0;
-    if let Err(err) = getrandom(slice::from_mut(&mut p)) {
+    if let Err(err) = getrandom::fill(slice::from_mut(&mut p)) {
         warn!("error getting random bytes: {err}");
         100
     } else {

@@ -25,7 +25,7 @@ log               = { version = "0.4.21", default-features = false, features = [
 
 # Optional dependencies, enabled by features.
 # Required by the `test` feature.
-getrandom         = { version = "0.2.2", default-features = false, features = ["std"], optional = true }
+getrandom         = { version = "0.3.3", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
 # NOTE: the following two dependencies may only used by a limited number of examples.

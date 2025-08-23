@@ -29,7 +29,7 @@ libc              = { version = "0.2.96", default-features = false }
 socket2           = { version = "0.6.0", default-features = false, features = ["all"] }
 
 [dev-dependencies]
-getrandom         = { version = "0.2.2", default-features = false, features = ["std"] }
+getrandom         = { version = "0.3.3", default-features = false, features = ["std"] }
 std-logger        = { version = "0.5.3", default-features = false, features = ["nightly"] }
 
 [[test]]
