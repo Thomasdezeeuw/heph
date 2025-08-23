@@ -248,7 +248,7 @@ pub mod log;
 pub mod net;
 pub mod pipe;
 mod scheduler;
-mod setup;
+pub mod setup;
 mod shared;
 mod signal;
 pub mod spawn;
@@ -268,6 +268,7 @@ mod worker;
 #[doc(no_inline)]
 pub use access::{Access, Sync, ThreadLocal, ThreadSafe};
 pub use error::Error;
+#[doc(no_inline)]
 pub use setup::Setup;
 pub use signal::Signal;
 
