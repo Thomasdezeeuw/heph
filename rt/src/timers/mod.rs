@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 
 mod timing_wheel;
 
-pub(crate) use timing_wheel::{SharedTimers, TimingWheel};
+pub(crate) use timing_wheel::{SharedTimingWheel, TimingWheel};
 
 /// Timers implementation.
 #[allow(clippy::len_without_is_empty)]

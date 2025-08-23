@@ -287,7 +287,7 @@ impl TimingWheel {
 
 /// Thread-safe timing wheel implementation.
 #[derive(Debug)]
-pub(crate) struct SharedTimers {
+pub(crate) struct SharedTimingWheel {
     epoch: RwLock<Epoch>,
     /// The vectors are sorted.
     slots: [RwLock<Vec<Timer<TimeOffset>>>; SLOTS],
@@ -302,11 +302,11 @@ struct Epoch {
     index: u8,
 }
 
-impl SharedTimers {
+impl SharedTimingWheel {
     /// Create a new collection of timers.
-    pub(crate) fn new() -> SharedTimers {
+    pub(crate) fn new() -> SharedTimingWheel {
         #[allow(clippy::declare_interior_mutable_const)]
-        SharedTimers {
+        SharedTimingWheel {
             epoch: RwLock::new(Epoch {
                 time: Instant::now(),
                 index: 0,
@@ -355,7 +355,7 @@ impl SharedTimers {
     /// Same as [`next`], but returns a [`Duration`] instead. If the next
     /// deadline is already passed this returns a duration of zero.
     ///
-    /// [`next`]: SharedTimers::next
+    /// [`next`]: SharedTimingWheel::next
     pub(crate) fn next_timer(&self) -> Option<Duration> {
         self.next().map(|deadline| {
             Instant::now()
@@ -938,12 +938,12 @@ mod tests {
 
         use crate::timers::timing_wheel::tests::WakerBuilder;
         use crate::timers::timing_wheel::{
-            SharedTimers, TimerToken, DURATION_PER_SLOT, NS_PER_SLOT, SLOTS,
+            SharedTimingWheel, TimerToken, DURATION_PER_SLOT, NS_PER_SLOT, SLOTS,
         };
 
         #[test]
         fn add_deadline_first_slot() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let mut wakers = WakerBuilder::<1>::new();
             let epoch = timers.epoch().0;
             let deadline = epoch + Duration::from_millis(100);
@@ -966,7 +966,7 @@ mod tests {
 
         #[test]
         fn add_deadline_second_slot() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let mut wakers = WakerBuilder::<1>::new();
             let epoch = timers.epoch().0;
 
@@ -988,7 +988,7 @@ mod tests {
 
         #[test]
         fn add_deadline_overflow() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let mut wakers = WakerBuilder::<1>::new();
             let epoch = timers.epoch().0;
 
@@ -1011,7 +1011,7 @@ mod tests {
 
         #[test]
         fn add_deadline_to_all_slots() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let mut wakers = WakerBuilder::<{ SLOTS + 1 }>::new();
             let epoch = timers.epoch().0;
 
@@ -1047,7 +1047,7 @@ mod tests {
 
         #[test]
         fn add_deadline_in_the_past() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let mut wakers = WakerBuilder::<1>::new();
             let epoch = timers.epoch().0;
 
@@ -1061,7 +1061,7 @@ mod tests {
 
         #[test]
         fn adding_earlier_deadline() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let mut wakers = WakerBuilder::<2>::new();
             let epoch = timers.epoch().0;
 
@@ -1083,7 +1083,7 @@ mod tests {
 
         #[test]
         fn remove_deadline() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let mut wakers = WakerBuilder::<1>::new();
             let epoch = timers.epoch().0;
 
@@ -1099,7 +1099,7 @@ mod tests {
 
         #[test]
         fn remove_never_added_deadline() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let epoch = timers.epoch().0;
 
             assert_eq!(timers.next(), None);
@@ -1112,7 +1112,7 @@ mod tests {
 
         #[test]
         fn remove_expired_deadline() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let mut wakers = WakerBuilder::<1>::new();
             let epoch = timers.epoch().0;
 
@@ -1131,7 +1131,7 @@ mod tests {
 
         #[test]
         fn remove_deadline_from_all_slots() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let mut wakers = WakerBuilder::<{ SLOTS + 1 }>::new();
             let epoch = timers.epoch().0;
 
@@ -1167,7 +1167,7 @@ mod tests {
 
         #[test]
         fn remove_deadline_from_all_slots_interleaved() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let mut wakers = WakerBuilder::<{ SLOTS + 1 }>::new();
             let epoch = timers.epoch().0;
 
@@ -1187,7 +1187,7 @@ mod tests {
 
         #[test]
         fn remove_deadline_after_epoch_advance() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let mut wakers = WakerBuilder::<{ SLOTS + 1 }>::new();
             let epoch = timers.epoch().0;
 
@@ -1227,7 +1227,7 @@ mod tests {
 
         #[test]
         fn remove_deadline_in_the_past() {
-            let timers = SharedTimers::new();
+            let timers = SharedTimingWheel::new();
             let mut wakers = WakerBuilder::<1>::new();
             let epoch = timers.epoch().0;
 
