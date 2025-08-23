@@ -1,8 +1,10 @@
 //! Timers implementation.
 //!
-//! This module hold the timer**s** implementation, that is the collection of
-//! timers currently in the runtime. Also see the [`timer`] implementation,
-//! which exposes types to the user.
+//! This module holds the [`Timers`] implementations, that is the collection of
+//! timers currently in the runtime. Also see the [`timer`] module, which
+//! exposes timer related types to the user.
+//!
+//! The main implemention is the [`TimingWheel`].
 //!
 //! [`timer`]: crate::timer
 
@@ -11,7 +13,8 @@ use std::time::{Duration, Instant};
 
 mod timing_wheel;
 
-pub(crate) use timing_wheel::{SharedTimingWheel, TimingWheel};
+pub(crate) use timing_wheel::SharedTimingWheel;
+pub use timing_wheel::TimingWheel;
 
 /// Timers implementation.
 #[allow(clippy::len_without_is_empty)]

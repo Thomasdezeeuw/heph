@@ -258,7 +258,7 @@ pub mod systemd;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 pub mod timer;
-mod timers;
+pub mod timers;
 pub mod trace;
 #[doc(hidden)]
 pub mod util;

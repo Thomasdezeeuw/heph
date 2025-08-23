@@ -15,8 +15,6 @@ use crate::trace;
 use crate::wakers::shared::Wakers;
 use crate::{coordinator, shared, worker, Error, Runtime};
 
-pub use crate::timers::{TimerToken, Timers};
-
 /// Setup a [`Runtime`].
 ///
 /// This type implements a builder pattern to build a `Runtime`. It is created

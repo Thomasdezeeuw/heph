@@ -1,3 +1,5 @@
+//! [`Timers`] implementation based on timing wheels.
+//!
 //! This [`TimingWheel`] implementation is based on a Timing Wheel as discussed
 //! in the paper "Hashed and hierarchical timing wheels: efficient data
 //! structures for implementing a timer facility" by George Varghese and Anthony
@@ -65,8 +67,12 @@ const NS_SLOT_MASK: u128 = (1 << NS_PER_SLOT_BITS) - 1;
 type TimeOffset = u32;
 
 /// Thread-local timing wheel implementation.
+///
+/// This implementation is based on a Timing Wheel as discussed in the paper
+/// "Hashed and hierarchical timing wheels: efficient data structures for
+/// implementing a timer facility" by George Varghese and Anthony Lauck (1997).
 #[derive(Debug)]
-pub(crate) struct TimingWheel {
+pub struct TimingWheel {
     /// Current epoch.
     epoch: Instant,
     /// Current index into `slots`.
