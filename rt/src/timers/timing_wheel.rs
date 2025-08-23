@@ -182,7 +182,6 @@ impl TimingWheel {
     {
         let ns_since_epoch = deadline.saturating_duration_since(self.epoch).as_nanos();
         if ns_since_epoch < u128::from(NS_OVERFLOW) {
-            #[allow(clippy::cast_possible_truncation)] // Truncation is OK.
             let offset = (ns_since_epoch & NS_SLOT_MASK) as TimeOffset;
             let index = ((ns_since_epoch >> NS_PER_SLOT_BITS) & ((1 << SLOT_BITS) - 1)) as usize;
             #[rustfmt::skip]
@@ -211,8 +210,7 @@ impl TimingWheel {
             // NOTE: Each loop iteration needs to calculate the `epoch_offset`
             // as the epoch changes each iteration.
             let epoch_offset = now.duration_since(self.epoch).as_nanos();
-            #[allow(clippy::cast_possible_truncation)]
-            let epoch_offset = min(epoch_offset, u128::from(TimeOffset::MAX)) as TimeOffset;
+            let epoch_offset = TimeOffset::try_from(epoch_offset).unwrap_or(TimeOffset::MAX);
             let slot = self.current_slot();
             loop {
                 match remove_if_before(slot, epoch_offset) {
@@ -523,8 +521,7 @@ fn add_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, waker: task::Waker
 }
 
 /// Remove a previously added `deadline` from `timers`, ensuring it remains sorted.
-#[allow(clippy::needless_pass_by_value)]
-fn remove_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, token: TimerToken) {
+fn remove_timer<T: Copy + Ord>(timers: &mut Vec<Timer<T>>, deadline: T, token: TimerToken) {
     if let Ok(idx) = timers.binary_search_by(|timer| timer.deadline.cmp(&deadline)) {
         if token.is_for_waker(&timers[idx].waker) {
             _ = timers.remove(idx);
@@ -537,8 +534,7 @@ fn remove_timer<T: Ord>(timers: &mut Vec<Timer<T>>, deadline: T, token: TimerTok
 /// Returns `Ok(timer)` if there is a timer with a deadline before `time`.
 /// Otherwise this returns `Err(true)` if `timers` is empty or `Err(false)` if
 /// the are more timers in `timers`, but none with a deadline before `time`.
-#[allow(clippy::needless_pass_by_value)]
-fn remove_if_before<T: Ord>(timers: &mut Vec<Timer<T>>, time: T) -> Result<Timer<T>, bool> {
+fn remove_if_before<T: Copy + Ord>(timers: &mut Vec<Timer<T>>, time: T) -> Result<Timer<T>, bool> {
     match timers.last() {
         Some(timer) if timer.deadline <= time => Ok(timers.pop().unwrap()),
         Some(_) => Err(false),
