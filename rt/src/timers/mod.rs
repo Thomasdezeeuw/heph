@@ -36,6 +36,14 @@ pub trait Timers {
     /// Remove a previously added deadline.
     fn remove(&mut self, deadline: Instant, token: TimerToken);
 
+    /// Expire all timers that have elapsed based on `now`. Returns the amount
+    /// of expired timers (used for debugging & logging purposes).
+    ///
+    /// # Safety
+    ///
+    /// `now` may never go backwards between calls.
+    fn expire_timers(&mut self, now: Instant) -> usize;
+
     /// Returns the current total number of timers.
     ///
     /// # Notes
