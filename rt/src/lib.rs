@@ -227,7 +227,6 @@ macro_rules! syscall {
 
 use std::any::Any;
 use std::future::Future;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::task;
 use std::time::{Duration, Instant};
@@ -500,7 +499,7 @@ where
 #[derive(Clone, Debug)]
 pub struct RuntimeRef {
     /// A shared reference to the runtime's internals.
-    internals: Rc<local::RuntimeInternals>,
+    internals: local::RuntimeInternalsRef,
 }
 
 impl RuntimeRef {

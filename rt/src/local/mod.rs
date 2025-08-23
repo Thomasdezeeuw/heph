@@ -14,6 +14,8 @@ use crate::timers::{Timers, TimingWheel};
 use crate::wakers::Wakers;
 use crate::{cpu_usage, panic_message, shared, trace, worker, RuntimeRef, Signal};
 
+pub(crate) type RuntimeInternalsRef = Rc<RuntimeInternals>;
+
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
 pub(crate) struct RuntimeInternals {
@@ -58,8 +60,8 @@ impl RuntimeInternals {
         ring: a10::Ring,
         cpu: Option<usize>,
         trace_log: Option<trace::Log>,
-    ) -> RuntimeInternals {
-        RuntimeInternals {
+    ) -> RuntimeInternalsRef {
+        Rc::new(RuntimeInternals {
             id,
             shared: shared_internals,
             wakers: RefCell::new(wakers),
@@ -71,7 +73,7 @@ impl RuntimeInternals {
             trace_log: RefCell::new(trace_log),
             started: Cell::new(false),
             error: RefCell::new(None),
-        }
+        })
     }
 
     /// Relay a process `signal` to all actors that wanted to receive it, or
