@@ -133,7 +133,7 @@ impl Headers {
     ) -> impl Iterator<Item = Header<'n, 'h>> {
         self.parts
             .iter()
-            .filter(|part| (part.name == *name))
+            .filter(|part| part.name == *name)
             .map(move |part| Header {
                 name: name.borrow(),
                 value: &self.values[part.start..part.end],

@@ -269,7 +269,7 @@ impl<T> Sender<T> {
     /// [`Poll::Pending`] instead.
     ///
     /// [disconnected]: Sender::is_connected
-    pub fn send(&self, value: T) -> SendValue<T> {
+    pub fn send<'s>(&'s self, value: T) -> SendValue<'s, T> {
         SendValue {
             channel: self.channel(),
             value: Some(value),
@@ -281,7 +281,7 @@ impl<T> Sender<T> {
     /// [disconnected].
     ///
     /// [disconnected]: Sender::is_connected
-    pub fn join(&self) -> Join<T> {
+    pub fn join<'s>(&'s self) -> Join<'s, T> {
         Join {
             channel: self.channel(),
             registered_waker: None,
@@ -665,7 +665,7 @@ impl<T> Receiver<T> {
     ///
     /// [disconnected]: Receiver::is_connected
     #[allow(clippy::needless_pass_by_ref_mut)]
-    pub fn recv(&mut self) -> RecvValue<T> {
+    pub fn recv<'r>(&'r mut self) -> RecvValue<'r, T> {
         RecvValue {
             channel: self.channel(),
         }
@@ -687,7 +687,7 @@ impl<T> Receiver<T> {
     ///
     /// [disconnected]: Receiver::is_connected
     #[allow(clippy::needless_pass_by_ref_mut)]
-    pub fn peek(&mut self) -> PeekValue<T> {
+    pub fn peek<'r>(&'r mut self) -> PeekValue<'r, T> {
         PeekValue {
             channel: self.channel(),
         }

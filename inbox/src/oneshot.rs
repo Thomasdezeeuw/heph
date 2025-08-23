@@ -256,7 +256,7 @@ impl<T> Receiver<T> {
     /// returned, the `Future` will return [`Poll::Pending`] instead.
     ///
     /// [disconnected]: Receiver::is_connected
-    pub fn recv(&mut self) -> RecvValue<T> {
+    pub fn recv<'r>(&'r mut self) -> RecvValue<'r, T> {
         RecvValue { receiver: self }
     }
 
