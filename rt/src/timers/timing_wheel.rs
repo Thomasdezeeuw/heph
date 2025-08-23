@@ -92,11 +92,10 @@ struct Timer<T> {
 impl TimingWheel {
     /// Create a new collection of timers.
     pub(crate) fn new() -> TimingWheel {
-        const EMPTY: Vec<Timer<TimeOffset>> = Vec::new();
         TimingWheel {
             epoch: Instant::now(),
             index: 0,
-            slots: [EMPTY; SLOTS],
+            slots: [const { Vec::new() }; SLOTS],
             overflow: Vec::new(),
             cached_next_deadline: CachedInstant::Empty,
         }
@@ -309,13 +308,12 @@ impl SharedTimers {
     /// Create a new collection of timers.
     pub(crate) fn new() -> SharedTimers {
         #[allow(clippy::declare_interior_mutable_const)]
-        const EMPTY: RwLock<Vec<Timer<TimeOffset>>> = RwLock::new(Vec::new());
         SharedTimers {
             epoch: RwLock::new(Epoch {
                 time: Instant::now(),
                 index: 0,
             }),
-            slots: [EMPTY; SLOTS],
+            slots: [const { RwLock::new(Vec::new()) }; SLOTS],
             overflow: RwLock::new(Vec::new()),
         }
     }
@@ -617,9 +615,8 @@ mod tests {
 
     impl<const N: usize> WakerBuilder<N> {
         fn new() -> WakerBuilder<N> {
-            const FALSE: AtomicBool = AtomicBool::new(false);
             WakerBuilder {
-                awoken: Arc::new([FALSE; N]),
+                awoken: Arc::new([const { AtomicBool::new(false) }; N]),
                 n: 0,
             }
         }
