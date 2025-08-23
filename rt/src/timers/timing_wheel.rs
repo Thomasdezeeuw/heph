@@ -1,7 +1,7 @@
-//! This [`Timers`] implementation is based on a Timing Wheel as discussed in
-//! the paper "Hashed and hierarchical timing wheels: efficient data structures
-//! for implementing a timer facility" by George Varghese and Anthony Lauck
-//! (1997).
+//! This [`TimingWheel`] implementation is based on a Timing Wheel as discussed
+//! in the paper "Hashed and hierarchical timing wheels: efficient data
+//! structures for implementing a timer facility" by George Varghese and Anthony
+//! Lauck (1997).
 //!
 //! This uses a scheme that splits the timers based on when they're going to
 //! expire. It has 64 ([`SLOTS`]) slots each representing roughly a second of
@@ -43,7 +43,7 @@ use crate::timers::TimerToken;
 
 /// Bits needed for the number of slots.
 const SLOT_BITS: usize = 6;
-/// Number of slots in the [`Timers`] wheel, 64.
+/// Number of slots in the [`TimingWheel`] wheel, 64.
 const SLOTS: usize = 1 << SLOT_BITS;
 /// Bits needed for the nanoseconds per slot.
 const NS_PER_SLOT_BITS: usize = 30;
@@ -59,14 +59,14 @@ const OVERFLOW_DURATION: Duration = Duration::from_nanos(NS_OVERFLOW);
 /// Mask to get the nanoseconds for a slot.
 const NS_SLOT_MASK: u128 = (1 << NS_PER_SLOT_BITS) - 1;
 
-/// Time offset since the epoch of [`Timers::epoch`].
+/// Time offset since the epoch of [`TimingWheel::epoch`].
 ///
 /// Must fit [`NS_PER_SLOT`].
 type TimeOffset = u32;
 
 /// Thread-local timing wheel implementation.
 #[derive(Debug)]
-pub(crate) struct Timers {
+pub(crate) struct TimingWheel {
     /// Current epoch.
     epoch: Instant,
     /// Current index into `slots`.
@@ -77,23 +77,23 @@ pub(crate) struct Timers {
     overflow: Vec<Timer<Instant>>,
     /// Cache for the next deadline to expire.
     ///
-    /// If `Timers` is empty this prevents us from checking all `slots` and the
+    /// If `TimingWheel` is empty this prevents us from checking all `slots` and the
     /// `overflow` list.
     cached_next_deadline: CachedInstant,
 }
 
-/// A timer in [`Timers`].
+/// A timer in [`TimingWheel`].
 #[derive(Debug)]
 struct Timer<T> {
     deadline: T,
     waker: task::Waker,
 }
 
-impl Timers {
+impl TimingWheel {
     /// Create a new collection of timers.
-    pub(crate) fn new() -> Timers {
+    pub(crate) fn new() -> TimingWheel {
         const EMPTY: Vec<Timer<TimeOffset>> = Vec::new();
-        Timers {
+        TimingWheel {
             epoch: Instant::now(),
             index: 0,
             slots: [EMPTY; SLOTS],
@@ -143,7 +143,7 @@ impl Timers {
     /// Same as [`next`], but returns a [`Duration`] instead. If the next
     /// deadline is already passed this returns a duration of zero.
     ///
-    /// [`next`]: Timers::next
+    /// [`next`]: TimingWheel::next
     pub(crate) fn next_timer(&mut self) -> Option<Duration> {
         self.next().map(|deadline| {
             Instant::now()
@@ -557,15 +557,15 @@ fn as_offset(epoch: Instant, time: Instant) -> TimeOffset {
 }
 
 /// To avoid having to check all slots and the overflow for timers in an
-/// [`Timers`] this type caches the earliest deadline. This speeds up
-/// [`Timers::next`].
+/// [`TimingWheel`] this type caches the earliest deadline. This speeds up
+/// [`TimingWheel::next`].
 #[derive(Debug)]
 enum CachedInstant {
-    /// [`Timers`] is empty.
+    /// [`TimingWheel`] is empty.
     Empty,
     /// Was previously set, but has elapsed.
     /// This is different from `Empty` as it means there *might* be a timer in
-    /// [`Timers`].
+    /// [`TimingWheel`].
     Unset,
     /// The next deadline.
     Set(Instant),
@@ -581,7 +581,7 @@ impl CachedInstant {
                 *current = deadline;
             }
             // Can't set the instant as we don't know if there are earlier
-            // deadlines in the [`Timers`] struct.
+            // deadlines in the [`TimingWheel`] struct.
             CachedInstant::Unset |
             // Current deadline is earlier.
             CachedInstant::Set(_) => {},
@@ -606,7 +606,9 @@ mod tests {
     use std::task::{Wake, Waker};
     use std::time::Duration;
 
-    use crate::timers::timing_wheel::{TimerToken, Timers, DURATION_PER_SLOT, NS_PER_SLOT, SLOTS};
+    use crate::timers::timing_wheel::{
+        TimerToken, TimingWheel, DURATION_PER_SLOT, NS_PER_SLOT, SLOTS,
+    };
 
     struct WakerBuilder<const N: usize> {
         awoken: Arc<[AtomicBool; N]>,
@@ -654,7 +656,7 @@ mod tests {
 
     #[test]
     fn add_deadline_first_slot() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
         let mut wakers = WakerBuilder::<1>::new();
 
         let deadline = timers.epoch + Duration::from_millis(100);
@@ -675,7 +677,7 @@ mod tests {
 
     #[test]
     fn add_deadline_second_slot() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
         let mut wakers = WakerBuilder::<1>::new();
 
         let deadline = timers.epoch + Duration::from_nanos(NS_PER_SLOT as u64 + 10);
@@ -696,7 +698,7 @@ mod tests {
 
     #[test]
     fn add_deadline_overflow() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
         let mut wakers = WakerBuilder::<1>::new();
 
         let deadline = timers.epoch + Duration::from_nanos(SLOTS as u64 * NS_PER_SLOT as u64 + 10);
@@ -718,7 +720,7 @@ mod tests {
 
     #[test]
     fn add_deadline_to_all_slots() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
         let mut wakers = WakerBuilder::<{ SLOTS + 1 }>::new();
 
         // Add a deadline to all slots and the overflow list.
@@ -754,7 +756,7 @@ mod tests {
 
     #[test]
     fn add_deadline_in_the_past() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
         let mut wakers = WakerBuilder::<1>::new();
 
         let (n, waker) = wakers.task_waker();
@@ -767,7 +769,7 @@ mod tests {
 
     #[test]
     fn adding_earlier_deadline_updates_cache() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
         let mut wakers = WakerBuilder::<2>::new();
 
         let deadline1 = timers.epoch + Duration::from_secs(2);
@@ -786,7 +788,7 @@ mod tests {
 
     #[test]
     fn remove_deadline() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
         let mut wakers = WakerBuilder::<1>::new();
 
         let deadline = timers.epoch + Duration::from_millis(10);
@@ -800,7 +802,7 @@ mod tests {
 
     #[test]
     fn remove_never_added_deadline() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
 
         let deadline = timers.epoch + Duration::from_millis(10);
         assert_eq!(timers.next(), None);
@@ -812,7 +814,7 @@ mod tests {
 
     #[test]
     fn remove_expired_deadline() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
         let mut wakers = WakerBuilder::<1>::new();
 
         let deadline = timers.epoch + Duration::from_millis(10);
@@ -831,7 +833,7 @@ mod tests {
 
     #[test]
     fn remove_deadline_from_all_slots() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
         let mut wakers = WakerBuilder::<{ SLOTS + 1 }>::new();
 
         // Add a deadline to all slots and the overflow list.
@@ -866,7 +868,7 @@ mod tests {
 
     #[test]
     fn remove_deadline_from_all_slots_interleaved() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
         let mut wakers = WakerBuilder::<{ SLOTS + 1 }>::new();
 
         // Add a deadline to all slots and the overflow list.
@@ -886,7 +888,7 @@ mod tests {
 
     #[test]
     fn remove_deadline_after_epoch_advance() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
         let mut wakers = WakerBuilder::<{ SLOTS + 1 }>::new();
 
         // Add a deadline to all slots and the overflow list.
@@ -925,7 +927,7 @@ mod tests {
 
     #[test]
     fn remove_deadline_in_the_past() {
-        let mut timers = Timers::new();
+        let mut timers = TimingWheel::new();
         let mut wakers = WakerBuilder::<1>::new();
 
         let deadline = timers.epoch - Duration::from_secs(1);

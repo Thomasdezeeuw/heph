@@ -10,7 +10,7 @@ use std::task;
 
 mod timing_wheel;
 
-pub(crate) use timing_wheel::{SharedTimers, Timers};
+pub(crate) use timing_wheel::{SharedTimers, TimingWheel};
 
 /// Token used to expire a timer.
 #[derive(Copy, Clone, Debug)]
