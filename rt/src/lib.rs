@@ -272,10 +272,10 @@ pub use error::Error;
 pub use setup::Setup;
 pub use signal::Signal;
 
+use crate::coordinator::CoordinatorSetup;
 use crate::scheduler::process::FutureProcess;
-use coordinator::CoordinatorSetup;
-use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
-use timers::TimerToken;
+use crate::spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
+use crate::timers::{TimerToken, Timers};
 
 /// The runtime that runs all actors.
 ///

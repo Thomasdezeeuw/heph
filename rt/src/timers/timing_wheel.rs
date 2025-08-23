@@ -39,7 +39,7 @@ use std::sync::RwLock;
 use std::task;
 use std::time::{Duration, Instant};
 
-use crate::timers::TimerToken;
+use crate::timers::{TimerToken, Timers};
 
 /// Bits needed for the number of slots.
 const SLOT_BITS: usize = 6;
@@ -101,78 +101,6 @@ impl TimingWheel {
         }
     }
 
-    /// Returns the total number of timers.
-    pub(crate) fn len(&self) -> usize {
-        let mut timers = 0;
-        for slots in &self.slots {
-            timers += slots.len();
-        }
-        timers + self.overflow.len()
-    }
-
-    /// Returns the next deadline, if any.
-    pub(crate) fn next(&mut self) -> Option<Instant> {
-        match self.cached_next_deadline {
-            CachedInstant::Empty => None,
-            CachedInstant::Set(deadline) => Some(deadline),
-            CachedInstant::Unset => {
-                let (second, first) = self.slots.split_at(self.index as usize);
-                let iter = first.iter().chain(second.iter());
-                for (n, slot) in iter.enumerate() {
-                    if let Some(timer) = slot.last() {
-                        let ns_since_epoch =
-                            u64::from(timer.deadline) + (n as u64 * u64::from(NS_PER_SLOT));
-                        let deadline = self.epoch + Duration::from_nanos(ns_since_epoch);
-                        self.cached_next_deadline = CachedInstant::Set(deadline);
-                        return Some(deadline);
-                    }
-                }
-
-                if let Some(timer) = self.overflow.last() {
-                    self.cached_next_deadline = CachedInstant::Set(timer.deadline);
-                    Some(timer.deadline)
-                } else {
-                    self.cached_next_deadline = CachedInstant::Empty;
-                    None
-                }
-            }
-        }
-    }
-
-    /// Same as [`next`], but returns a [`Duration`] instead. If the next
-    /// deadline is already passed this returns a duration of zero.
-    ///
-    /// [`next`]: TimingWheel::next
-    pub(crate) fn next_timer(&mut self) -> Option<Duration> {
-        self.next().map(|deadline| {
-            Instant::now()
-                .checked_duration_since(deadline)
-                .unwrap_or(Duration::ZERO)
-        })
-    }
-
-    /// Add a new deadline.
-    pub(crate) fn add(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        // Can't have deadline before the epoch, so we'll add a deadline with
-        // same time as the epoch instead.
-        let deadline = max(deadline, self.epoch);
-        self.cached_next_deadline.update(deadline);
-        self.get_timers(deadline, |timers| match timers {
-            TimerLocation::InSlot((timers, deadline)) => add_timer(timers, deadline, waker),
-            TimerLocation::Overflow((timers, deadline)) => add_timer(timers, deadline, waker),
-        })
-    }
-
-    /// Remove a previously added deadline.
-    pub(crate) fn remove(&mut self, deadline: Instant, token: TimerToken) {
-        let deadline = max(deadline, self.epoch);
-        self.cached_next_deadline.invalidate(deadline);
-        self.get_timers(deadline, |timers| match timers {
-            TimerLocation::InSlot((timers, deadline)) => remove_timer(timers, deadline, token),
-            TimerLocation::Overflow((timers, deadline)) => remove_timer(timers, deadline, token),
-        });
-    }
-
     /// Determines in what list of timers a timer with `pid` and `deadline`
     /// would be/go into. Then calls the `slot_f` function for a timer list in
     /// the slots, or `overflow_f` with the overflow list.
@@ -194,47 +122,6 @@ impl TimingWheel {
         } else {
             // Too far into the future to fit in the slots.
             f(TimerLocation::Overflow((&mut self.overflow, deadline)))
-        }
-    }
-
-    /// Expire all timers that have elapsed based on `now`. Returns the amount
-    /// of expired timers.
-    ///
-    /// # Safety
-    ///
-    /// `now` may never go backwards between calls.
-    pub(crate) fn expire_timers(&mut self, now: Instant) -> usize {
-        let mut amount = 0;
-        self.cached_next_deadline = CachedInstant::Unset;
-        loop {
-            // NOTE: Each loop iteration needs to calculate the `epoch_offset`
-            // as the epoch changes each iteration.
-            let epoch_offset = now.duration_since(self.epoch).as_nanos();
-            let epoch_offset = TimeOffset::try_from(epoch_offset).unwrap_or(TimeOffset::MAX);
-            let slot = self.current_slot();
-            loop {
-                match remove_if_before(slot, epoch_offset) {
-                    Ok(timer) => {
-                        timer.waker.wake();
-                        amount += 1;
-                        // Try another timer in this slot.
-                        continue;
-                    }
-                    Err(true) => {
-                        // SAFETY: slot is empty, which makes calling
-                        // `maybe_update_epoch` OK.
-                        if !self.maybe_update_epoch(epoch_offset) {
-                            // Didn't update epoch, no more timers to process.
-                            return amount;
-                        }
-                        // Process the next slot.
-                        break;
-                    }
-                    // Slot has timers with a deadline past `now`, so no more
-                    // timers to process.
-                    Err(false) => return amount,
-                }
-            }
         }
     }
 
@@ -282,6 +169,99 @@ impl TimingWheel {
     fn current_slot(&mut self) -> &mut Vec<Timer<TimeOffset>> {
         // SAFETY: `self.index` is always valid.
         &mut self.slots[self.index as usize]
+    }
+}
+
+impl Timers for TimingWheel {
+    fn len(&self) -> usize {
+        let mut timers = 0;
+        for slots in &self.slots {
+            timers += slots.len();
+        }
+        timers + self.overflow.len()
+    }
+
+    fn next(&mut self) -> Option<Instant> {
+        match self.cached_next_deadline {
+            CachedInstant::Empty => None,
+            CachedInstant::Set(deadline) => Some(deadline),
+            CachedInstant::Unset => {
+                let (second, first) = self.slots.split_at(self.index as usize);
+                let iter = first.iter().chain(second.iter());
+                for (n, slot) in iter.enumerate() {
+                    if let Some(timer) = slot.last() {
+                        let ns_since_epoch =
+                            u64::from(timer.deadline) + (n as u64 * u64::from(NS_PER_SLOT));
+                        let deadline = self.epoch + Duration::from_nanos(ns_since_epoch);
+                        self.cached_next_deadline = CachedInstant::Set(deadline);
+                        return Some(deadline);
+                    }
+                }
+
+                if let Some(timer) = self.overflow.last() {
+                    self.cached_next_deadline = CachedInstant::Set(timer.deadline);
+                    Some(timer.deadline)
+                } else {
+                    self.cached_next_deadline = CachedInstant::Empty;
+                    None
+                }
+            }
+        }
+    }
+
+    fn add(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
+        // Can't have deadline before the epoch, so we'll add a deadline with
+        // same time as the epoch instead.
+        let deadline = max(deadline, self.epoch);
+        self.cached_next_deadline.update(deadline);
+        self.get_timers(deadline, |timers| match timers {
+            TimerLocation::InSlot((timers, deadline)) => add_timer(timers, deadline, waker),
+            TimerLocation::Overflow((timers, deadline)) => add_timer(timers, deadline, waker),
+        })
+    }
+
+    fn remove(&mut self, deadline: Instant, token: TimerToken) {
+        let deadline = max(deadline, self.epoch);
+        self.cached_next_deadline.invalidate(deadline);
+        self.get_timers(deadline, |timers| match timers {
+            TimerLocation::InSlot((timers, deadline)) => remove_timer(timers, deadline, token),
+            TimerLocation::Overflow((timers, deadline)) => remove_timer(timers, deadline, token),
+        });
+    }
+
+    fn expire_timers(&mut self, now: Instant) -> usize {
+        let mut amount = 0;
+        self.cached_next_deadline = CachedInstant::Unset;
+        loop {
+            // NOTE: Each loop iteration needs to calculate the `epoch_offset`
+            // as the epoch changes each iteration.
+            let epoch_offset = now.duration_since(self.epoch).as_nanos();
+            let epoch_offset = TimeOffset::try_from(epoch_offset).unwrap_or(TimeOffset::MAX);
+            let slot = self.current_slot();
+            loop {
+                match remove_if_before(slot, epoch_offset) {
+                    Ok(timer) => {
+                        timer.waker.wake();
+                        amount += 1;
+                        // Try another timer in this slot.
+                        continue;
+                    }
+                    Err(true) => {
+                        // SAFETY: slot is empty, which makes calling
+                        // `maybe_update_epoch` OK.
+                        if !self.maybe_update_epoch(epoch_offset) {
+                            // Didn't update epoch, no more timers to process.
+                            return amount;
+                        }
+                        // Process the next slot.
+                        break;
+                    }
+                    // Slot has timers with a deadline past `now`, so no more
+                    // timers to process.
+                    Err(false) => return amount,
+                }
+            }
+        }
     }
 }
 
@@ -601,7 +581,7 @@ mod tests {
     use std::time::Duration;
 
     use crate::timers::timing_wheel::{
-        TimerToken, TimingWheel, DURATION_PER_SLOT, NS_PER_SLOT, SLOTS,
+        TimerToken, Timers, TimingWheel, DURATION_PER_SLOT, NS_PER_SLOT, SLOTS,
     };
 
     struct WakerBuilder<const N: usize> {

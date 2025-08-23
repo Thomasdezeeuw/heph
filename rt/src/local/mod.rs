@@ -10,7 +10,7 @@ use heph::actor_ref::{ActorGroup, SendError};
 use log::{info, trace};
 
 use crate::scheduler::Scheduler;
-use crate::timers::TimingWheel;
+use crate::timers::{Timers, TimingWheel};
 use crate::wakers::Wakers;
 use crate::{cpu_usage, panic_message, shared, trace, worker, RuntimeRef, Signal};
 
