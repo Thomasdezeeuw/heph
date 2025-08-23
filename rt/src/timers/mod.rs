@@ -14,7 +14,15 @@ mod timing_wheel;
 pub(crate) use timing_wheel::{SharedTimers, TimingWheel};
 
 /// Timers implementation.
+#[allow(clippy::len_without_is_empty)]
 pub trait Timers {
+    /// Returns the current total number of timers.
+    ///
+    /// # Notes
+    ///
+    /// This is only used for debugging & logging purposes.
+    fn len(&self) -> usize;
+
     /// Returns the next deadline, if any.
     fn next(&mut self) -> Option<Instant>;
 
@@ -43,13 +51,6 @@ pub trait Timers {
     ///
     /// `now` may never go backwards between calls.
     fn expire_timers(&mut self, now: Instant) -> usize;
-
-    /// Returns the current total number of timers.
-    ///
-    /// # Notes
-    ///
-    /// This is only used for debugging & logging purposes.
-    fn debug_len(&self) -> usize;
 }
 
 /// Token used to expire a timer.
