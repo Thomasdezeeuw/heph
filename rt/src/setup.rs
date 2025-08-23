@@ -6,8 +6,7 @@ use std::mem::MaybeUninit;
 use std::num::NonZeroUsize;
 use std::path::{self, Path};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
-use std::{env, fmt, io, task, thread};
+use std::{env, fmt, io, thread};
 
 use heph::actor_ref::ActorGroup;
 use log::{debug, warn};
@@ -16,7 +15,7 @@ use crate::trace;
 use crate::wakers::shared::Wakers;
 use crate::{coordinator, shared, worker, Error, Runtime};
 
-pub use crate::timers::TimerToken;
+pub use crate::timers::{TimerToken, Timers};
 
 /// Setup a [`Runtime`].
 ///
@@ -214,37 +213,6 @@ impl Setup {
             trace_log,
         })
     }
-}
-
-/// Timers implementation.
-pub trait Timers {
-    /// Returns the next deadline, if any.
-    fn next(&mut self) -> Option<Instant>;
-
-    /// Same as [`next`], but returns a [`Duration`] instead. If the next
-    /// deadline is already passed this returns a duration of zero.
-    ///
-    /// [`next`]: Timers::next
-    fn next_timer(&mut self) -> Option<Duration> {
-        self.next().map(|deadline| {
-            Instant::now()
-                .checked_duration_since(deadline)
-                .unwrap_or(Duration::ZERO)
-        })
-    }
-
-    /// Add a new deadline.
-    fn add(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken;
-
-    /// Remove a previously added deadline.
-    fn remove(&mut self, deadline: Instant, token: TimerToken);
-
-    /// Returns the current total number of timers.
-    ///
-    /// # Notes
-    ///
-    /// This is only used for debugging & logging purposes.
-    fn debug_len(&self) -> usize;
 }
 
 /// Returns the name of the binary called (i.e. `arg[0]`) as name.
