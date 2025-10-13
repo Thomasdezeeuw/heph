@@ -17,7 +17,6 @@
 
 use std::cell::RefMut;
 use std::num::NonZeroUsize;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use std::{fmt, io, task, thread};
@@ -28,10 +27,11 @@ use heph::supervisor::NoSupervisor;
 use log::{debug, trace, warn};
 
 use crate::error::StringError;
-use crate::local::RuntimeInternals;
+use crate::local::{RuntimeInternals, RuntimeInternalsRef};
 use crate::scheduler::ProcessId;
 use crate::setup::set_cpu_affinity;
 use crate::spawn::options::ActorOptions;
+use crate::timers::Timers;
 use crate::wakers::Wakers;
 use crate::{self as rt, shared, trace, RuntimeRef, Signal, ThreadLocal};
 
@@ -219,7 +219,7 @@ impl Handle {
 /// holds and manages everything that is required to run them.
 pub(crate) struct Worker {
     /// Internals of the runtime, shared with zero or more [`RuntimeRef`]s.
-    internals: Rc<RuntimeInternals>,
+    internals: RuntimeInternalsRef,
     /// Receiving side of the channel for waker events, see the
     /// [`rt::local::waker`] module for the implementation.
     waker_events: Receiver<ProcessId>,
@@ -247,14 +247,14 @@ impl Worker {
             warn!("failed to enable a10::Ring: {err}, continuing");
         }
 
-        let internals = Rc::new(RuntimeInternals::new(
+        let internals = RuntimeInternals::new(
             setup.id,
             shared_internals,
             setup.wakers,
             setup.ring,
             cpu,
             trace_log,
-        ));
+        );
 
         trace!(worker_id = worker_id; "spawning system actors");
         let runtime_ref = RuntimeRef {

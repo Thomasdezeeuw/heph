@@ -227,7 +227,6 @@ macro_rules! syscall {
 
 use std::any::Any;
 use std::future::Future;
-use std::rc::Rc;
 use std::sync::Arc;
 use std::task;
 use std::time::{Duration, Instant};
@@ -248,7 +247,7 @@ pub mod log;
 pub mod net;
 pub mod pipe;
 mod scheduler;
-mod setup;
+pub mod setup;
 mod shared;
 mod signal;
 pub mod spawn;
@@ -258,7 +257,7 @@ pub mod systemd;
 #[cfg(any(test, feature = "test"))]
 pub mod test;
 pub mod timer;
-mod timers;
+pub mod timers;
 pub mod trace;
 #[doc(hidden)]
 pub mod util;
@@ -268,13 +267,14 @@ mod worker;
 #[doc(no_inline)]
 pub use access::{Access, Sync, ThreadLocal, ThreadSafe};
 pub use error::Error;
+#[doc(no_inline)]
 pub use setup::Setup;
 pub use signal::Signal;
 
+use crate::coordinator::CoordinatorSetup;
 use crate::scheduler::process::FutureProcess;
-use coordinator::CoordinatorSetup;
-use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
-use timers::TimerToken;
+use crate::spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
+use crate::timers::{TimerToken, Timers};
 
 /// The runtime that runs all actors.
 ///
@@ -499,7 +499,7 @@ where
 #[derive(Clone, Debug)]
 pub struct RuntimeRef {
     /// A shared reference to the runtime's internals.
-    internals: Rc<local::RuntimeInternals>,
+    internals: local::RuntimeInternalsRef,
 }
 
 impl RuntimeRef {

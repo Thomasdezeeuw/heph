@@ -10,9 +10,11 @@ use heph::actor_ref::{ActorGroup, SendError};
 use log::{info, trace};
 
 use crate::scheduler::Scheduler;
-use crate::timers::Timers;
+use crate::timers::{Timers, TimingWheel};
 use crate::wakers::Wakers;
 use crate::{cpu_usage, panic_message, shared, trace, worker, RuntimeRef, Signal};
+
+pub(crate) type RuntimeInternalsRef = Rc<RuntimeInternals>;
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
@@ -28,7 +30,7 @@ pub(crate) struct RuntimeInternals {
     /// io_uring completion ring.
     pub(crate) ring: RefCell<a10::Ring>,
     /// Timers, deadlines and timeouts.
-    pub(crate) timers: RefCell<Timers>,
+    pub(crate) timers: RefCell<TimingWheel>,
     /// Actor references to relay received `Signal`s to.
     pub(crate) signal_receivers: RefCell<ActorGroup<Signal>>,
     /// CPU affinity of the worker thread, or `None` if not set.
@@ -58,20 +60,20 @@ impl RuntimeInternals {
         ring: a10::Ring,
         cpu: Option<usize>,
         trace_log: Option<trace::Log>,
-    ) -> RuntimeInternals {
-        RuntimeInternals {
+    ) -> RuntimeInternalsRef {
+        Rc::new(RuntimeInternals {
             id,
             shared: shared_internals,
             wakers: RefCell::new(wakers),
             scheduler: RefCell::new(Scheduler::new()),
             ring: RefCell::new(ring),
-            timers: RefCell::new(Timers::new()),
+            timers: RefCell::new(TimingWheel::new()),
             signal_receivers: RefCell::new(ActorGroup::empty()),
             cpu,
             trace_log: RefCell::new(trace_log),
             started: Cell::new(false),
             error: RefCell::new(None),
-        }
+        })
     }
 
     /// Relay a process `signal` to all actors that wanted to receive it, or

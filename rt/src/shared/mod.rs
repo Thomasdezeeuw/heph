@@ -18,8 +18,7 @@ use crate::scheduler::shared::{Process, Scheduler};
 #[cfg(test)]
 use crate::spawn::options::Priority;
 use crate::spawn::{ActorOptions, FutureOptions};
-use crate::timers::shared::Timers;
-use crate::timers::TimerToken;
+use crate::timers::{SharedTimingWheel, TimerToken};
 use crate::wakers::shared::Wakers;
 use crate::{trace, ThreadSafe};
 
@@ -56,7 +55,7 @@ impl RuntimeSetup {
             sq,
             wakers,
             scheduler: Scheduler::new(),
-            timers: Timers::new(),
+            timers: SharedTimingWheel::new(),
             trace_log,
             coordinator_sq: self.coordinator_sq,
         }
@@ -80,7 +79,7 @@ pub(crate) struct RuntimeInternals {
     /// Scheduler for thread-safe actors.
     scheduler: Scheduler,
     /// Timers for thread-safe actors.
-    timers: Timers,
+    timers: SharedTimingWheel,
     /// Shared trace log.
     ///
     /// # Notes
@@ -164,7 +163,7 @@ impl RuntimeInternals {
 
     /// Add a timer.
     ///
-    /// See [`Timers::add`].
+    /// See [`SharedTimingWheel::add`].
     pub(crate) fn add_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
         trace!(deadline:? = deadline; "adding timer");
         self.timers.add(deadline, waker)
@@ -172,7 +171,7 @@ impl RuntimeInternals {
 
     /// Remove a previously set timer.
     ///
-    /// See [`Timers::remove`].
+    /// See [`SharedTimingWheel::remove`].
     pub(crate) fn remove_timer(&self, deadline: Instant, token: TimerToken) {
         trace!(deadline:? = deadline; "removing timer");
         self.timers.remove(deadline, token);
@@ -180,7 +179,7 @@ impl RuntimeInternals {
 
     /// Wake all futures who's timers has expired.
     ///
-    /// See [`Timers::expire_timers`].
+    /// See [`SharedTimingWheel::expire_timers`].
     pub(crate) fn expire_timers(&self, now: Instant) -> usize {
         self.timers.expire_timers(now)
     }
