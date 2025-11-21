@@ -29,13 +29,10 @@ use std::{fmt, io, ptr};
 
 mod futures;
 pub mod tcp;
-pub mod udp;
 pub mod uds;
 
 #[doc(no_inline)]
 pub use tcp::{TcpListener, TcpStream};
-#[doc(no_inline)]
-pub use udp::UdpSocket;
 #[doc(no_inline)]
 pub use uds::{UnixDatagram, UnixListener, UnixStream};
 
