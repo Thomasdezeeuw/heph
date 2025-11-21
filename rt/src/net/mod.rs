@@ -6,39 +6,23 @@
 //!   * A [TCP stream] between a local and a remote socket.
 //!   * A [TCP listening socket], a socket used to listen for connections.
 //!   * A [TCP server], listens for connections and starts a new actor for each.
-//! * [User Datagram Protocol] (UDP) only provides a single socket type:
-//!   * [`UdpSocket`].
-//! * [Unix Domain Socket] (UDS) module provides three types:
-//!   * A [Unix stream] between two socket.
-//!   * A [Unix listening socket], a socket used to listen for connections.
-//!   * A [Unix datagram socket].
 //!
 //! [Transmission Control Protocol]: crate::net::tcp
 //! [TCP stream]: crate::net::TcpStream
 //! [TCP listening socket]: crate::net::TcpListener
 //! [TCP server]: crate::net::tcp::server
-//! [User Datagram Protocol]: crate::net::udp
-//! [Unix Domain Socket]: crate::net::uds
-//! [Unix stream]: crate::net::UnixStream
-//! [Unix listening socket]: crate::net::UnixListener
-//! [Unix datagram socket]: crate::net::UnixDatagram
-
 use std::mem::MaybeUninit;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::{fmt, io, ptr};
 
 mod futures;
 pub mod tcp;
-pub mod uds;
 
 #[doc(no_inline)]
 pub use tcp::{TcpListener, TcpStream};
-#[doc(no_inline)]
-pub use uds::{UnixDatagram, UnixListener, UnixStream};
 
 pub(crate) use futures::{
-    Recv, RecvFrom, RecvFromVectored, RecvN, RecvNVectored, RecvVectored, Send, SendAll,
-    SendAllVectored, SendTo, SendToVectored, SendVectored,
+    Recv, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored, SendVectored,
 };
 
 #[doc(inline)]
