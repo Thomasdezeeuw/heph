@@ -51,7 +51,7 @@ impl UnixStream {
         RT: Access,
     {
         let fd = NoRing(a10::net::socket(
-            rt.submission_queue(),
+            rt.sq(),
             Domain::UNIX.into(),
             Type::STREAM.cloexec().into(),
             0,
@@ -72,11 +72,11 @@ impl UnixStream {
         let s1 = UnixStream::new(rt, unsafe {
             // SAFETY: the call to `pair` above ensures the file descriptors are
             // valid.
-            AsyncFd::from_raw_fd(s1.into_raw_fd(), rt.submission_queue())
+            AsyncFd::from_raw_fd(s1.into_raw_fd(), rt.sq())
         });
         let s2 = UnixStream::new(rt, unsafe {
             // SAFETY: Same as above.
-            AsyncFd::from_raw_fd(s2.into_raw_fd(), rt.submission_queue())
+            AsyncFd::from_raw_fd(s2.into_raw_fd(), rt.sq())
         });
         Ok((s1, s2))
     }
@@ -99,7 +99,7 @@ impl UnixStream {
         RT: Access,
     {
         UnixStream {
-            fd: AsyncFd::new(stream.into(), rt.submission_queue()),
+            fd: AsyncFd::new(stream.into(), rt.sq()),
         }
     }
 

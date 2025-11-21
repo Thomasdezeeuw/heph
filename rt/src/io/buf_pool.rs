@@ -39,8 +39,7 @@ impl ReadBufPool {
     where
         RT: Access,
     {
-        a10::io::ReadBufPool::new(rt.submission_queue(), pool_size, buf_size)
-            .map(|inner| ReadBufPool { inner })
+        a10::io::ReadBufPool::new(rt.sq(), pool_size, buf_size).map(|inner| ReadBufPool { inner })
     }
 
     /// Get a buffer reference to this pool.

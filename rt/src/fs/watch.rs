@@ -121,7 +121,7 @@ impl Watch {
     {
         let fd = syscall!(inotify_init1(libc::IN_CLOEXEC))?;
         // SAFETY: just created the fd, so it's valid.
-        let fd = unsafe { AsyncFd::from_raw_fd(fd, rt.submission_queue()) };
+        let fd = unsafe { AsyncFd::from_raw_fd(fd, rt.sq()) };
         let watching = HashMap::new();
         let buf = Vec::new();
         Ok(Watch { fd, watching, buf })

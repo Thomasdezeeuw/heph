@@ -101,7 +101,7 @@ impl UdpSocket {
         RT: Access,
     {
         let fd = NoRing(a10::net::socket(
-            rt.submission_queue(),
+            rt.sq(),
             Domain::for_address(local).into(),
             Type::DGRAM.cloexec().into(),
             Protocol::UDP.into(),
@@ -155,7 +155,7 @@ impl<M> UdpSocket<M> {
         RT: Access,
     {
         UdpSocket {
-            fd: AsyncFd::new(socket.into(), rt.submission_queue()),
+            fd: AsyncFd::new(socket.into(), rt.sq()),
             mode: PhantomData,
         }
     }

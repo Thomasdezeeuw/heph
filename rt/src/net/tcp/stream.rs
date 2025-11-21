@@ -54,7 +54,7 @@ impl TcpStream {
         RT: Access,
     {
         let fd = NoRing(a10::net::socket(
-            rt.submission_queue(),
+            rt.sq(),
             Domain::for_address(address).into(),
             Type::STREAM.cloexec().into(),
             Protocol::TCP.into(),
@@ -75,7 +75,7 @@ impl TcpStream {
         RT: Access,
     {
         TcpStream {
-            fd: AsyncFd::new(stream.into(), rt.submission_queue()),
+            fd: AsyncFd::new(stream.into(), rt.sq()),
         }
     }
 
