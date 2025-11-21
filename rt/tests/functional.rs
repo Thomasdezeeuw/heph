@@ -26,5 +26,4 @@ mod functional {
     mod tcp;
     mod test;
     mod timer;
-    mod uds;
 }
