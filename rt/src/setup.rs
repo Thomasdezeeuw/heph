@@ -99,13 +99,10 @@ impl Setup {
     /// This uses [`pthread_setaffinity_np(3)`] to set the CPU affinity for each
     /// worker thread to there own CPU core.
     ///
-    /// Thread-local workers creating sockets, such as [`UdpSocket`] or
-    /// [`TcpStream`], will use [`SO_INCOMING_CPU`] to set the CPU affinity to
-    /// the same value as the worker's affinity.
+    /// Thread-local workers creating sockets will use [`SO_INCOMING_CPU`] to
+    /// set the CPU affinity to the same value as the worker's affinity.
     ///
     /// [`pthread_setaffinity_np(3)`]: https://man7.org/linux/man-pages/man3/pthread_setaffinity_np.3.html
-    /// [`UdpSocket`]: crate::net::UdpSocket
-    /// [`TcpStream`]: crate::net::TcpStream
     /// [`SO_INCOMING_CPU`]: https://man7.org/linux/man-pages/man7/socket.7.html
     ///
     /// # Notes
