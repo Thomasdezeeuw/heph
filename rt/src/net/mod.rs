@@ -1,16 +1,10 @@
 //! Networking primitives.
 //!
-//! The network module support two types of protocols:
+//! To create a new socket ([`AsyncFd`]) use the [`socket`] function, which
+//! issues a non-blocking `socket(2)` call.
 //!
-//! * [Transmission Control Protocol] (TCP) module provides three main types:
-//!   * A [TCP stream] between a local and a remote socket.
-//!   * A [TCP listening socket], a socket used to listen for connections.
-//!   * A [TCP server], listens for connections and starts a new actor for each.
-//!
-//! [Transmission Control Protocol]: crate::net::tcp
-//! [TCP stream]: crate::net::TcpStream
-//! [TCP listening socket]: crate::net::TcpListener
-//! [TCP server]: crate::net::tcp::server
+//! [`AsyncFd`]: crate::fd::AsyncFd
+
 use std::mem::MaybeUninit;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6};
 use std::{fmt, io, ptr};
@@ -21,12 +15,12 @@ pub mod tcp;
 #[doc(no_inline)]
 pub use tcp::{TcpListener, TcpStream};
 
-pub(crate) use futures::{
-    Recv, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored, SendVectored,
-};
-
 #[doc(inline)]
-pub use a10::net::{socket, Socket};
+pub use a10::net::{
+    socket, Accept, Connect, MultishotAccept, MultishotRecv, NoAddress, Recv, RecvFrom,
+    RecvFromVectored, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored, SendMsg,
+    SendTo, SetSocketOption, Shutdown, Socket, SocketAddress, SocketOption,
+};
 
 /// The unconnected mode of an [`UdpSocket`] or [`UnixDatagram`].
 #[allow(missing_debug_implementations)]
@@ -126,7 +120,7 @@ impl From<SockAddr> for SocketAddr {
     }
 }
 
-impl a10::net::SocketAddress for SockAddr {
+impl SocketAddress for SockAddr {
     #[allow(clippy::cast_lossless)]
     unsafe fn as_ptr(&self) -> (*const libc::sockaddr, libc::socklen_t) {
         match unsafe { self.ip.sa_family as _ } {
