@@ -176,8 +176,7 @@
 #![feature(
     async_iterator,
     box_vec_non_null,
-    doc_auto_cfg,
-    doc_cfg_hide,
+    doc_cfg,
     impl_trait_in_assoc_type,
     maybe_uninit_array_assume_init,
     never_type,
@@ -201,12 +200,6 @@
 #![cfg_attr(test, deny(warnings))]
 // Disallow warnings in examples, we want to set a good example after all.
 #![doc(test(attr(deny(warnings))))]
-// The `cfg(any(test, feature = "test"))` attribute creates a doc element
-// staying that it's only supporting "using test or test", that is a bit
-// confusing. So we hide those parts and instead manually replace all of them
-// with: `doc(cfg(feature = "test"))`. That will stay it's only supported using
-// the test feature.
-#![doc(cfg_hide(any(test, feature = "test")))]
 
 #[cfg(not(target_os = "linux"))]
 compile_error!("Heph currently only supports Linux.");

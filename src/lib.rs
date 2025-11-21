@@ -45,7 +45,7 @@
 //! This crate has one optional feature: `test`. The `test` feature will enable
 //! the `test` module which contains testing facilities.
 
-#![feature(doc_auto_cfg, doc_cfg_hide, never_type, thread_raw)]
+#![feature(doc_cfg, never_type, thread_raw)]
 #![warn(
     anonymous_parameters,
     bare_trait_objects,
@@ -63,12 +63,6 @@
 #![cfg_attr(test, deny(warnings))]
 // Disallow warnings in examples, we want to set a good example after all.
 #![doc(test(attr(deny(warnings))))]
-// The `cfg(any(test, feature = "test"))` attribute creates a doc element
-// staying that it's only supporting "using test or test", that is a bit
-// confusing. So we hide those parts and instead manually replace all of them
-// with: `doc(cfg(feature = "test"))`. That will stay it's only supported using
-// the test feature.
-#![doc(cfg_hide(any(test, feature = "test")))]
 
 pub mod actor;
 pub mod actor_ref;
