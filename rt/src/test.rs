@@ -537,7 +537,10 @@ pub fn join_many<M>(actor_refs: &[ActorRef<M>], timeout: Duration) -> JoinResult
         if elapsed > timeout {
             return JoinResult::TimedOut;
         }
-        match waker.clone().block_for(actor_ref.join(), timeout - elapsed) {
+        match waker
+            .clone()
+            .block_for(actor_ref.join(), timeout.saturating_sub(elapsed))
+        {
             Some(()) => {}
             None => return JoinResult::TimedOut,
         }

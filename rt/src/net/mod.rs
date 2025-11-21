@@ -46,12 +46,12 @@ pub(crate) use futures::{
 
 /// The unconnected mode of an [`UdpSocket`] or [`UnixDatagram`].
 #[allow(missing_debug_implementations)]
-#[allow(clippy::empty_enum)]
+#[allow(clippy::empty_enums)]
 pub enum Unconnected {}
 
 /// The connected mode of an [`UdpSocket`] or [`UnixDatagram`].
 #[allow(missing_debug_implementations)]
-#[allow(clippy::empty_enum)]
+#[allow(clippy::empty_enums)]
 pub enum Connected {}
 
 /// Convert a `socket2:::SockAddr` into a `std::net::SocketAddr`.
