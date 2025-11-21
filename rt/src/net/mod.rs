@@ -41,6 +41,9 @@ pub(crate) use futures::{
     SendAllVectored, SendTo, SendToVectored, SendVectored,
 };
 
+#[doc(inline)]
+pub use a10::net::{socket, Socket};
+
 /// The unconnected mode of an [`UdpSocket`] or [`UnixDatagram`].
 #[allow(missing_debug_implementations)]
 #[allow(clippy::empty_enums)]
