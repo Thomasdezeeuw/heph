@@ -124,7 +124,7 @@ pub use udp::UdpRelayMessage;
 ///
 /// [TCP]: heph_rt::net::tcp
 #[allow(missing_debug_implementations)]
-#[allow(clippy::empty_enum)]
+#[allow(clippy::empty_enums)]
 pub enum Tcp {}
 
 /// Use a [UDP] connection.
@@ -151,13 +151,13 @@ pub enum Tcp {}
 ///
 /// [RPC]: heph::actor_ref::rpc
 #[allow(missing_debug_implementations)]
-#[allow(clippy::empty_enum)]
+#[allow(clippy::empty_enums)]
 pub enum Udp {}
 
 /// Use JSON serialisation.
 #[cfg(feature = "json")]
 #[allow(missing_debug_implementations)]
-#[allow(clippy::empty_enum)]
+#[allow(clippy::empty_enums)]
 pub enum Json {}
 
 /// Configuration for the net relay.
