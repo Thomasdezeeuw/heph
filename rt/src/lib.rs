@@ -234,6 +234,7 @@ pub mod access;
 mod channel;
 mod coordinator;
 mod error;
+pub mod fd;
 pub mod fs;
 pub mod io;
 mod local;
