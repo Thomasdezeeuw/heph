@@ -9,10 +9,10 @@ use socket2::{Domain, Protocol, SockRef, Type};
 
 use crate::access::Access;
 use crate::io::{impl_read, impl_write, Buf, BufMut, BufMutSlice, BufSlice, BufWrapper};
-use crate::net::{
-    convert_address, Recv, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored,
-    SendVectored, SockAddr,
+use crate::net::futures::{
+    Recv, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored, SendVectored,
 };
+use crate::net::{convert_address, SockAddr};
 use crate::wakers::NoRing;
 
 /// A non-blocking TCP stream between a local socket and a remote socket.
