@@ -372,6 +372,47 @@ impl fmt::Debug for ThreadSafe {
     }
 }
 
+impl<M, RT> Access for actor::Context<M, RT>
+where
+    RT: Access,
+{
+    fn sq(&self) -> a10::SubmissionQueue {
+        self.runtime_ref().sq()
+    }
+}
+
+impl<M, RT> PrivateAccess for actor::Context<M, RT>
+where
+    RT: PrivateAccess,
+{
+    fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
+        self.runtime().add_timer(deadline, waker)
+    }
+
+    fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
+        self.runtime().remove_timer(deadline, token);
+    }
+
+    fn cpu(&self) -> Option<usize> {
+        self.runtime_ref().cpu()
+    }
+
+    fn start_trace(&self) -> Option<trace::EventTiming> {
+        self.runtime_ref().start_trace()
+    }
+
+    fn finish_trace(
+        &mut self,
+        timing: Option<trace::EventTiming>,
+        substream_id: u64,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    ) {
+        self.runtime()
+            .finish_trace(timing, substream_id, description, attributes);
+    }
+}
+
 impl<M, RT> Trace for actor::Context<M, RT>
 where
     RT: Access,
