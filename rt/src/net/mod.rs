@@ -22,16 +22,6 @@ pub use a10::net::{
     SendTo, SetSocketOption, Shutdown, Socket, SocketAddress, SocketOption,
 };
 
-/// The unconnected mode of an [`UdpSocket`] or [`UnixDatagram`].
-#[allow(missing_debug_implementations)]
-#[allow(clippy::empty_enums)]
-pub enum Unconnected {}
-
-/// The connected mode of an [`UdpSocket`] or [`UnixDatagram`].
-#[allow(missing_debug_implementations)]
-#[allow(clippy::empty_enums)]
-pub enum Connected {}
-
 /// Convert a `socket2:::SockAddr` into a `std::net::SocketAddr`.
 #[allow(clippy::needless_pass_by_value)]
 fn convert_address(address: socket2::SockAddr) -> io::Result<SocketAddr> {
