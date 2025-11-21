@@ -68,7 +68,7 @@ impl File {
         RT: Access,
     {
         File {
-            fd: AsyncFd::new(file.into(), rt.submission_queue()),
+            fd: AsyncFd::new(file.into(), rt.sq()),
         }
     }
 
@@ -381,7 +381,7 @@ impl OpenOptions {
     where
         RT: Access,
     {
-        NoRing(self.inner.open_temp_file(rt.submission_queue(), dir))
+        NoRing(self.inner.open_temp_file(rt.sq(), dir))
             .await
             .map(|fd| File { fd })
     }
@@ -391,7 +391,7 @@ impl OpenOptions {
     where
         RT: Access,
     {
-        NoRing(self.inner.open(rt.submission_queue(), path))
+        NoRing(self.inner.open(rt.sq(), path))
             .await
             .map(|fd| File { fd })
     }
@@ -656,7 +656,7 @@ pub async fn create_dir<RT>(rt: &RT, path: PathBuf) -> io::Result<()>
 where
     RT: Access,
 {
-    NoRing(a10::fs::create_dir(rt.submission_queue(), path)).await
+    NoRing(a10::fs::create_dir(rt.sq(), path)).await
 }
 
 /// Rename a file or directory to a new name.
@@ -664,7 +664,7 @@ pub async fn rename<RT>(rt: &RT, from: PathBuf, to: PathBuf) -> io::Result<()>
 where
     RT: Access,
 {
-    NoRing(a10::fs::rename(rt.submission_queue(), from, to)).await
+    NoRing(a10::fs::rename(rt.sq(), from, to)).await
 }
 
 /// Remove a file.
@@ -672,7 +672,7 @@ pub async fn remove_file<RT>(rt: &RT, path: PathBuf) -> io::Result<()>
 where
     RT: Access,
 {
-    NoRing(a10::fs::remove_file(rt.submission_queue(), path)).await
+    NoRing(a10::fs::remove_file(rt.sq(), path)).await
 }
 
 /// Remove a directory.
@@ -680,5 +680,5 @@ pub async fn remove_dir<RT>(rt: &RT, path: PathBuf) -> io::Result<()>
 where
     RT: Access,
 {
-    NoRing(a10::fs::remove_dir(rt.submission_queue(), path)).await
+    NoRing(a10::fs::remove_dir(rt.sq(), path)).await
 }

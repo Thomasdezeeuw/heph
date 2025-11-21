@@ -120,7 +120,7 @@ impl TcpListener {
         F: FnOnce(&Socket) -> io::Result<()>,
     {
         let fd = NoRing(a10::net::socket(
-            rt.submission_queue(),
+            rt.sq(),
             Domain::for_address(address).into(),
             Type::STREAM.cloexec().into(),
             Protocol::TCP.into(),
@@ -156,7 +156,7 @@ impl TcpListener {
         RT: Access,
     {
         TcpListener {
-            fd: AsyncFd::new(listener.into(), rt.submission_queue()),
+            fd: AsyncFd::new(listener.into(), rt.sq()),
         }
     }
 

@@ -55,7 +55,14 @@ use crate::{shared, Runtime, RuntimeRef};
 /// # Notes
 ///
 /// This trait can't be implemented by types outside of the Heph crate.
-pub trait Access: PrivateAccess {}
+pub trait Access: PrivateAccess {
+    /// Get access to the `SubmissionQueue`.
+    ///
+    /// This can be used in [`AsyncFd`].
+    ///
+    /// [`AsyncFd`]: crate::fd::AsyncFd
+    fn sq(&self) -> a10::SubmissionQueue;
+}
 
 mod private {
     use std::task;
@@ -68,9 +75,6 @@ mod private {
     ///
     /// [`rt::Access`]: crate::Access
     pub trait PrivateAccess {
-        /// Get access to the `SubmissionQueue`.
-        fn submission_queue(&self) -> a10::SubmissionQueue;
-
         /// Add a new timer expiring at `deadline` waking `waker`.
         fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken;
 
@@ -96,13 +100,13 @@ mod private {
 
 pub(crate) use private::PrivateAccess;
 
-impl<T: Access> Access for &mut T {}
+impl<T: Access> Access for &mut T {
+    fn sq(&self) -> a10::SubmissionQueue {
+        (**self).sq()
+    }
+}
 
 impl<T: PrivateAccess> PrivateAccess for &mut T {
-    fn submission_queue(&self) -> a10::SubmissionQueue {
-        (**self).submission_queue()
-    }
-
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
         (**self).add_timer(deadline, waker)
     }
@@ -175,13 +179,13 @@ impl DerefMut for ThreadLocal {
     }
 }
 
-impl Access for ThreadLocal {}
-
-impl PrivateAccess for ThreadLocal {
-    fn submission_queue(&self) -> a10::SubmissionQueue {
+impl Access for ThreadLocal {
+    fn sq(&self) -> a10::SubmissionQueue {
         self.rt.internals.ring.borrow().submission_queue().clone()
     }
+}
 
+impl PrivateAccess for ThreadLocal {
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
         self.rt.add_timer(deadline, waker)
     }
@@ -305,13 +309,13 @@ impl From<&RuntimeRef> for ThreadSafe {
     }
 }
 
-impl Access for ThreadSafe {}
-
-impl PrivateAccess for ThreadSafe {
-    fn submission_queue(&self) -> a10::SubmissionQueue {
+impl Access for ThreadSafe {
+    fn sq(&self) -> a10::SubmissionQueue {
         self.rt.submission_queue().clone()
     }
+}
 
+impl PrivateAccess for ThreadSafe {
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
         self.rt.add_timer(deadline, waker)
     }

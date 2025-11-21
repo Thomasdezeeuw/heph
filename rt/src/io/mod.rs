@@ -73,7 +73,7 @@ macro_rules! stdio {
     ) => {
         #[doc = concat!("Create a new `", stringify!($name), "`.\n\n")]
         pub fn $fn<RT: Access>(rt: &RT) -> $name {
-            let fd = a10::io::$fn(rt.submission_queue());
+            let fd = a10::io::$fn(rt.sq());
             $name { fd }
         }
 

@@ -64,7 +64,7 @@ impl UnixDatagram {
         RT: Access,
     {
         let fd = NoRing(a10::net::socket(
-            rt.submission_queue(),
+            rt.sq(),
             Domain::UNIX.into(),
             Type::DGRAM.cloexec().into(),
             0,
@@ -83,11 +83,11 @@ impl UnixDatagram {
         let s1 = UnixDatagram::new(rt, unsafe {
             // SAFETY: the call to `pair` above ensures the file descriptors are
             // valid.
-            AsyncFd::from_raw_fd(s1.into_raw_fd(), rt.submission_queue())
+            AsyncFd::from_raw_fd(s1.into_raw_fd(), rt.sq())
         })?;
         let s2 = UnixDatagram::new(rt, unsafe {
             // SAFETY: Same as above.
-            AsyncFd::from_raw_fd(s2.into_raw_fd(), rt.submission_queue())
+            AsyncFd::from_raw_fd(s2.into_raw_fd(), rt.sq())
         })?;
         Ok((s1, s2))
     }
@@ -140,7 +140,7 @@ impl<M> UnixDatagram<M> {
         RT: Access,
     {
         UnixDatagram {
-            fd: AsyncFd::new(socket.into(), rt.submission_queue()),
+            fd: AsyncFd::new(socket.into(), rt.sq()),
             mode: PhantomData,
         }
     }
