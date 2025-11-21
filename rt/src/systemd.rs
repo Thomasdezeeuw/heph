@@ -23,8 +23,8 @@ use heph::messages::Terminate;
 use log::{debug, warn};
 
 use crate::access::Access;
-use crate::net::uds::datagram::{Connected, UnixDatagram};
-use crate::net::uds::UnixAddr;
+use crate::fd::AsyncFd;
+use crate::net::socket;
 use crate::timer::Interval;
 use crate::util::{either, next};
 use crate::Signal;
@@ -40,7 +40,7 @@ use crate::Signal;
 /// [`sd_notify(3)`]: https://www.freedesktop.org/software/systemd/man/sd_notify.html
 #[derive(Debug)]
 pub struct Notify {
-    socket: UnixDatagram<Connected>,
+    socket: AsyncFd,
     watch_dog: Option<Duration>,
 }
 
@@ -106,10 +106,16 @@ impl Notify {
         RT: Access,
         P: AsRef<Path>,
     {
-        let socket = UnixDatagram::unbound(rt).await?;
-        let socket = socket
-            .connect(UnixAddr::from_pathname(path.as_ref())?)
-            .await?;
+        let socket = socket(rt.sq(), libc::AF_UNIX, libc::SOCK_DGRAM, 0, 0).await?;
+        let path = path.as_ref().as_os_str().as_encoded_bytes();
+        let mut addr: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+        addr.sun_family = libc::AF_UNIX as libc::sa_family_t;
+        unsafe {
+            std::slice::from_raw_parts_mut(addr.sun_path.as_mut_ptr().cast(), path.len())
+                .copy_from_slice(path)
+        };
+        let len = (size_of::<libc::sa_family_t>() + path.len()) as libc::socklen_t;
+        socket.connect((addr, len)).await?;
         Ok(Notify {
             socket,
             watch_dog: None,
@@ -155,7 +161,7 @@ impl Notify {
             }
             None => String::from(state_line),
         };
-        _ = self.socket.send(state_update).await?;
+        _ = self.socket.send(state_update, 0).await?;
         Ok(())
     }
 
@@ -176,7 +182,7 @@ impl Notify {
         state_update.push_str(status);
         replace_newline(&mut state_update[7..]);
         state_update.push('\n');
-        _ = self.socket.send(state_update).await?;
+        _ = self.socket.send(state_update, 0).await?;
         Ok(())
     }
 
@@ -186,7 +192,7 @@ impl Notify {
     /// if `WatchdogSec=` is enabled for it.
     pub async fn ping_watchdog(&self) -> io::Result<()> {
         debug!("pinging service manager watchdog");
-        _ = self.socket.send("WATCHDOG=1").await?;
+        _ = self.socket.send("WATCHDOG=1", 0).await?;
         Ok(())
     }
 
@@ -203,7 +209,7 @@ impl Notify {
     /// [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html
     pub async fn trigger_watchdog(&self) -> io::Result<()> {
         debug!("triggering service manager watchdog");
-        _ = self.socket.send("WATCHDOG=trigger").await?;
+        _ = self.socket.send("WATCHDOG=trigger", 0).await?;
         Ok(())
     }
 }
