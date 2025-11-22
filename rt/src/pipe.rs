@@ -3,6 +3,8 @@
 //! To create a new pipe use the [`pipe`] function. It will return two
 //! [`AsyncFd`]s, the sending and receiving side.
 //!
+//! [`AsyncFd`]: crate::fd::AsyncFd
+//!
 //! # Examples
 //!
 //! Creating a new Unix pipe.
@@ -20,7 +22,7 @@
 //! async fn actor<RT>(ctx: actor::Context<!, RT>) -> io::Result<()>
 //!     where RT: rt::Access,
 //! {
-//!     let [receiver, sender] = pipe(ctx.runtime_ref())?;
+//!     let [receiver, sender] = pipe(ctx.runtime_ref().sq(), None).await?;
 //!
 //!     // Write some data.
 //!     sender.write_all(DATA).await?;
@@ -61,8 +63,8 @@
 //!         .spawn()?;
 //!
 //!     // Create our process standard in and out.
-//!     let stdin: AsyncFd = AsyncFd::new(process.stdin.take().unwrap().into(), ctx.runtime_ref().sq());
-//!     let stdout: AsyncFd = AsyncFd::new(process.stdout.take().unwrap().into(), ctx.runtime_ref().sq());
+//!     let stdin = AsyncFd::new(process.stdin.take().unwrap().into(), ctx.runtime_ref().sq());
+//!     let stdout = AsyncFd::new(process.stdout.take().unwrap().into(), ctx.runtime_ref().sq());
 //!
 //!     // Write some data.
 //!     stdin.write_all(DATA).await?;
@@ -79,33 +81,4 @@
 //! # heph_rt::test::block_on_local_actor(heph::actor::actor_fn(process_handler), ());
 //! ```
 
-use std::io;
-use std::os::fd::RawFd;
-
-use a10::AsyncFd;
-
-use crate::access::Access;
-
-/// Create a new Unix pipe.
-///
-/// This is a wrapper around Unix's [`pipe(2)`] system call and can be used as
-/// inter-process or thread communication channel.
-///
-/// This channel may be created before forking the process and then one end used
-/// in each process, e.g. the parent process has the sending end to send
-/// commands to the child process.
-///
-/// [`pipe(2)`]: https://pubs.opengroup.org/onlinepubs/9699919799/functions/pipe.html
-pub fn pipe<RT>(rt: &RT) -> io::Result<[AsyncFd; 2]>
-where
-    RT: Access,
-{
-    let mut fds: [RawFd; 2] = [-1, -1];
-    let _ = syscall!(pipe2(fds.as_mut_ptr(), libc::O_CLOEXEC))?;
-
-    let sq = rt.sq();
-    // SAFETY: we just initialised the `fds` above.
-    let r = unsafe { AsyncFd::from_raw_fd(fds[0], sq.clone()) };
-    let w = unsafe { AsyncFd::from_raw_fd(fds[1], sq) };
-    Ok([r, w])
-}
+pub use a10::pipe::*;
