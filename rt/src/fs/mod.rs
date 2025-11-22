@@ -9,7 +9,4 @@ pub mod watch;
 pub use watch::Watch;
 
 #[doc(inline)]
-pub use a10::fs::{
-    create_dir, open_file, remove_dir, remove_file, rename, Advise, Allocate, CreateDir, Delete,
-    FileType, Metadata, Open, OpenOptions, Permissions, Rename, Stat, SyncData, Truncate,
-};
+pub use a10::fs::*;
