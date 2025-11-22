@@ -235,6 +235,7 @@ pub mod cancel;
 mod channel;
 mod coordinator;
 mod error;
+pub mod extract;
 pub mod fd;
 pub mod fs;
 pub mod io;
