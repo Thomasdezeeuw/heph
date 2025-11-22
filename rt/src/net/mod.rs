@@ -1,9 +1,23 @@
 //! Networking primitives.
 //!
-//! To create a new socket ([`AsyncFd`]) use the [`socket`] function, which
-//! issues a non-blocking `socket(2)` call.
+//! # Create Sockets
+//!
+//! Unlike the standard library Heph doesn't use types for different kind of
+//! socket, we only use [`AsyncFd`]. To create a new socket use the [`socket`]
+//! function, followed by [`AsyncFd::bind`] & [`AsyncFd::listen`] (for a
+//! TCP/Unix listener) or [`AsyncFd::connect`] (for a TCP/Unix stream or
+//! UdpSocket).
+//!
+//! # Servers
+//!
+//! Alternatively Heph provides some easy to use servers, such as [`TcpServer`],
+//! which handle setting up the listeners and spawns a new actor for each
+//! incoming connection.
 //!
 //! [`AsyncFd`]: crate::fd::AsyncFd
+//! [`AsyncFd::bind`]: crate::fd::AsyncFd::bind
+//! [`AsyncFd::listen`]: crate::fd::AsyncFd::listen
+//! [`AsyncFd::connect`]: crate::fd::AsyncFd::connect
 
 use std::{fmt, io};
 
