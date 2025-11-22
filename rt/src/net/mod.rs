@@ -11,6 +11,7 @@ use std::{fmt, io, ptr};
 
 mod futures;
 pub mod tcp;
+mod tcp_server;
 
 #[doc(no_inline)]
 pub use tcp::{TcpListener, TcpStream};
@@ -21,6 +22,7 @@ pub use a10::net::{
     RecvFromVectored, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored, SendMsg,
     SendTo, SetSocketOption, Shutdown, Socket, SocketAddress, SocketOption,
 };
+pub use tcp_server::{ServerError, ServerMessage, TcpServer};
 
 /// Convert a `socket2:::SockAddr` into a `std::net::SocketAddr`.
 #[allow(clippy::needless_pass_by_value)]
