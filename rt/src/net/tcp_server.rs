@@ -1,19 +1,18 @@
 use std::future::Future;
+use std::io;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use std::{fmt, io};
 
 use heph::actor::{self, NewActor, NoMessages};
-use heph::messages::Terminate;
 use heph::supervisor::Supervisor;
 use log::{debug, trace};
 use socket2::{Domain, Protocol, Socket, Type};
 
 use crate::access::{Access, PrivateAccess};
 use crate::fd::AsyncFd;
+use crate::net::{ServerError, ServerMessage};
 use crate::spawn::{ActorOptions, Spawn};
 use crate::util::{either, next};
-use crate::Signal;
 
 /// TCP server actor.
 ///
@@ -36,6 +35,7 @@ use crate::Signal;
 /// using [`RuntimeRef::receive_signals`]. See "Example 2 my ip" (in the
 /// examples directory of the source code) for an example of that.
 ///
+/// [`Terminate`]: heph::messages::Terminate
 /// [`RuntimeRef::receive_signals`]: crate::RuntimeRef::receive_signals
 ///
 /// # Examples
@@ -449,55 +449,6 @@ where
                 debug!("All actor references to TCP server dropped, stopping");
                 return Ok(());
             }
-        }
-    }
-}
-
-/// The message type used by server actors.
-///
-/// The message implements [`From`]`<`[`Terminate`]`>` and
-/// [`TryFrom`]`<`[`Signal`]`>` for the message, allowing for graceful shutdown.
-#[derive(Debug)]
-pub struct ServerMessage {
-    // Allow for future expansion.
-    _inner: (),
-}
-
-impl From<Terminate> for ServerMessage {
-    fn from(_: Terminate) -> ServerMessage {
-        ServerMessage { _inner: () }
-    }
-}
-
-impl TryFrom<Signal> for ServerMessage {
-    type Error = ();
-
-    /// Converts [`Signal::Interrupt`], [`Signal::Terminate`] and
-    /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
-    fn try_from(signal: Signal) -> Result<Self, Self::Error> {
-        match signal {
-            Signal::Interrupt | Signal::Terminate | Signal::Quit => {
-                Ok(ServerMessage { _inner: () })
-            }
-            _ => Err(()),
-        }
-    }
-}
-
-/// Error returned by server actors.
-#[derive(Debug)]
-pub enum ServerError<E> {
-    /// Error accepting an incoming connection.
-    Accept(io::Error),
-    /// Error creating a new actor to handle the connection.
-    NewActor(E),
-}
-
-impl<E: fmt::Display> fmt::Display for ServerError<E> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ServerError::Accept(err) => write!(f, "error accepting connection: {err}"),
-            ServerError::NewActor(err) => write!(f, "error creating new actor: {err}"),
         }
     }
 }
