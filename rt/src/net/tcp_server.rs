@@ -1,16 +1,16 @@
 use std::future::Future;
-use std::io;
 use std::net::SocketAddr;
+use std::os::fd::{AsRawFd, FromRawFd};
 use std::sync::Arc;
+use std::{io, mem, ptr};
 
 use heph::actor::{self, NewActor, NoMessages};
 use heph::supervisor::Supervisor;
 use log::{debug, trace};
-use socket2::Socket;
 
 use crate::access::{Access, PrivateAccess};
 use crate::fd::AsyncFd;
-use crate::net::{Domain, Protocol, ServerError, ServerMessage, Type};
+use crate::net::{option, Domain, Protocol, ServerError, ServerMessage, Type};
 use crate::spawn::{ActorOptions, Spawn};
 use crate::util::{either, next};
 
@@ -254,7 +254,7 @@ pub struct TcpServer<S, NA> {
 struct Inner<S, NA> {
     /// Unused socket bound to the `address`, it is just used to return an error
     /// quickly if we can't create the socket or bind to the address.
-    _socket: Socket,
+    _socket: std::os::fd::OwnedFd,
     /// Address of the `listener`, used to create new sockets.
     address: SocketAddr,
     /// Supervisor for all actors created by `NewActor`.
@@ -293,9 +293,25 @@ where
             // we still consistently want to use the same port instead of
             // binding to a number of random ports.
             if address.port() == 0 {
+                let mut addr = unsafe { mem::zeroed::<libc::sockaddr_storage>() };
+                let mut size = size_of::<libc::sockaddr_storage>() as u32;
+                let _ = syscall!(getsockname(
+                    socket.as_raw_fd(),
+                    ptr::from_mut(&mut addr).cast(),
+                    &mut size,
+                ))?;
                 // NOTE: we just created the socket above so we know it's either
-                // IPv4 or IPv6, meaning this `unwrap` never fails.
-                address = socket.local_addr()?.as_socket().unwrap();
+                // IPv4 or IPv6, meaning this else case is ok.
+                let port = if addr.ss_family == (libc::AF_INET as libc::sa_family_t) {
+                    // SAFETY: `sockaddr_in` fits in `sockaddr_storage`.
+                    let addr = unsafe { &*ptr::from_ref(&addr).cast::<libc::sockaddr_in>() };
+                    u16::from_be(addr.sin_port)
+                } else {
+                    // SAFETY: `sockaddr_in6` fits in `sockaddr_storage`.
+                    let addr = unsafe { &*ptr::from_ref(&addr).cast::<libc::sockaddr_in6>() };
+                    u16::from_be(addr.sin6_port)
+                };
+                address.set_port(port);
             }
 
             Ok(TcpServer {
@@ -318,29 +334,66 @@ where
 
 /// Create a new TCP listener bound to `address`, but **not** listening using
 /// blocking I/O.
-fn bind_listener(address: SocketAddr) -> io::Result<Socket> {
-    let socket = Socket::new(
-        socket2::Domain::for_address(address),
-        socket2::Type::STREAM,
-        Some(socket2::Protocol::TCP),
-    )?;
+fn bind_listener(address: SocketAddr) -> io::Result<std::os::fd::OwnedFd> {
+    let domain = match address {
+        SocketAddr::V4(_) => libc::AF_INET,
+        SocketAddr::V6(_) => libc::AF_INET6,
+    };
+    let fd = syscall!(socket(domain, libc::SOCK_STREAM, libc::IPPROTO_TCP))?;
+    // SAFETY: just created the socket, so it's valid.
+    let socket = unsafe { std::os::fd::OwnedFd::from_raw_fd(fd) };
 
-    set_listener_options(&socket)?;
+    // Allow other worker threads and processes to reuse the address and port
+    // we're binding to. This allows for restarting the process without dropping
+    // clients.
+    let value: libc::c_int = true.into();
+    let ptr = ptr::from_ref(&value).cast();
+    let size = size_of::<libc::c_int>() as u32;
+    let _ = syscall!(setsockopt(
+        fd,
+        libc::SOL_SOCKET,
+        libc::SO_REUSEADDR,
+        ptr,
+        size,
+    ))?;
+    let _ = syscall!(setsockopt(
+        fd,
+        libc::SOL_SOCKET,
+        libc::SO_REUSEPORT,
+        ptr,
+        size,
+    ))?;
 
-    // Bind the socket and start listening if required.
-    socket.bind(&address.into())?;
+    // Bind the socket.
+    // SAFETY: all zeroes is valid for `sockaddr_in6`.
+    let mut addr = unsafe { mem::zeroed::<libc::sockaddr_storage>() };
+    let size = match address {
+        SocketAddr::V4(address) => {
+            // SAFETY: `sockaddr_in` fits in `sockaddr_storage`.
+            let addr = unsafe { &mut *ptr::from_mut(&mut addr).cast::<libc::sockaddr_in>() };
+            addr.sin_family = libc::AF_INET as libc::sa_family_t;
+            addr.sin_port = address.port().to_be();
+            addr.sin_addr = libc::in_addr {
+                s_addr: u32::from_ne_bytes(address.ip().octets()),
+            };
+            size_of::<libc::sockaddr_in>()
+        }
+        SocketAddr::V6(address) => {
+            // SAFETY: `sockaddr_in6` fits in `sockaddr_storage`.
+            let addr = unsafe { &mut *ptr::from_mut(&mut addr).cast::<libc::sockaddr_in6>() };
+            addr.sin6_family = libc::AF_INET6 as libc::sa_family_t;
+            addr.sin6_port = address.port().to_be();
+            addr.sin6_flowinfo = address.flowinfo();
+            addr.sin6_addr = libc::in6_addr {
+                s6_addr: address.ip().octets(),
+            };
+            addr.sin6_scope_id = address.scope_id();
+            size_of::<libc::sockaddr_in6>()
+        }
+    };
+    let _ = syscall!(bind(fd, ptr::from_ref(&addr).cast(), size as u32))?;
 
     Ok(socket)
-}
-
-/// Set the desired socket options on `socket`.
-fn set_listener_options(socket: &Socket) -> io::Result<()> {
-    // Allow the other worker threads and processes to reuse the address and
-    // port we're binding to. This allow reload the process without dropping
-    // clients.
-    socket.set_reuse_address(true)?;
-    socket.set_reuse_port(true)?;
-    Ok(())
 }
 
 impl<S, NA> NewActor for TcpServer<S, NA>
@@ -391,25 +444,8 @@ where
     NA: NewActor<Argument = AsyncFd> + Clone + 'static,
     NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
 {
-    let listener = a10::net::socket(
-        ctx.runtime_ref().sq(),
-        Domain::for_address(&local),
-        Type::STREAM,
-        Some(Protocol::TCP),
-    )
-    .await
-    .map_err(ServerError::Accept)?;
-    let l = listener.as_fd().unwrap(); // FIXME.
-    let socket = socket2::SockRef::from(&l);
-    if let Some(cpu) = ctx.runtime_ref().cpu() {
-        if let Err(err) = socket.set_cpu_affinity(cpu) {
-            log::warn!("failed to set CPU affinity on TCP server: {err}");
-        }
-    }
-    set_listener_options(&socket).map_err(ServerError::Accept)?;
-    socket.bind(&local.into()).map_err(ServerError::Accept)?;
-    socket
-        .listen(libc::SOMAXCONN)
+    let listener = setup_listener(ctx.runtime_ref(), local)
+        .await
         .map_err(ServerError::Accept)?;
     trace!(address:% = local; "TCP server listening");
 
@@ -421,9 +457,10 @@ where
                 trace!("TCP server accepted connection");
                 drop(receive); // Can't double borrow `ctx`.
                 if let Some(cpu) = ctx.runtime_ref().cpu() {
-                    let s = listener.as_fd().unwrap(); // FIXME.
-                    let socket = socket2::SockRef::from(&s);
-                    if let Err(err) = socket.set_cpu_affinity(cpu) {
+                    if let Err(err) = stream
+                        .set_socket_option2::<option::IncomingCpu>(cpu as u32)
+                        .await
+                    {
                         log::warn!("failed to set CPU affinity on accepted connection: {err}");
                     }
                 }
@@ -452,4 +489,31 @@ where
             }
         }
     }
+}
+
+async fn setup_listener<RT: Access>(rt: &RT, local: SocketAddr) -> io::Result<AsyncFd> {
+    let listener = a10::net::socket(
+        rt.sq(),
+        Domain::for_address(&local),
+        Type::STREAM,
+        Some(Protocol::TCP),
+    )
+    .await?;
+    listener
+        .set_socket_option2::<option::ReuseAddress>(true)
+        .await?;
+    listener
+        .set_socket_option2::<option::ReusePort>(true)
+        .await?;
+    if let Some(cpu) = rt.cpu() {
+        if let Err(err) = listener
+            .set_socket_option2::<option::IncomingCpu>(cpu as u32)
+            .await
+        {
+            log::warn!("failed to set CPU affinity on TCP server: {err}");
+        }
+    }
+    listener.bind(local).await?;
+    listener.listen(libc::SOMAXCONN).await?;
+    Ok(listener)
 }
