@@ -39,8 +39,4 @@
 //! flush the buffer used by the standard library, so it's not advised to use
 //! both the handle from standard library and Heph simultaneously.
 
-pub use a10::io::{
-    stderr, stdin, stdout, Buf, BufMut, BufMutSlice, BufSlice, Close, Read, ReadBuf, ReadBufPool,
-    ReadN, ReadNVectored, ReadVectored, Splice, Stderr, Stdin, Stdout, Write, WriteAll,
-    WriteAllVectored, WriteVectored,
-};
+pub use a10::io::*;
