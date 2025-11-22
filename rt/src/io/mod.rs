@@ -25,8 +25,15 @@
 //! [`parts_mut`]: BufMut::parts_mut
 //! [`set_init`]: BufMut::set_init
 //!
+//! ## Specialised Buffer Pool
+//!
 //! [`ReadBufPool`] is a specialised read buffer pool that can only be used in
-//! read operations done by the kernel, i.e. no in-memory operations.
+//! read operations done by the kernel, i.e. no in-memory operations. In return
+//! for this limited functionality we can do things such as [multishot reads],
+//! which can greatly improve the performance by batching multiple reads into a
+//! single system call.
+//!
+//! [multishot reads]: crate::fd::AsyncFd::multishot_read
 //!
 //! # Working with Standard I/O Streams
 //!
