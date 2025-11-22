@@ -4,7 +4,8 @@ use std::io;
 
 use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
-use heph_rt::net::{tcp, TcpStream};
+use heph_rt::fd::AsyncFd;
+use heph_rt::net::{ServerError, TcpServer};
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::{self as rt, Runtime, ThreadLocal};
 use log::{error, info};
@@ -24,7 +25,7 @@ fn main() -> Result<(), rt::Error> {
     // the defaults options here.
     let actor = actor_fn(conn_actor);
     let address = "127.0.0.1:7890".parse().unwrap();
-    let server = tcp::server::setup(address, conn_supervisor, actor, ActorOptions::default())
+    let server = TcpServer::new(address, conn_supervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;
 
     // Just like in examples 1 and 2 we'll create our runtime and run our setup
@@ -57,18 +58,18 @@ struct ServerSupervisor;
 impl<NA> Supervisor<NA> for ServerSupervisor
 where
     NA: NewActor<Argument = (), Error = !>,
-    NA::Actor: Actor<Error = tcp::server::Error<!>>,
+    NA::Actor: Actor<Error = ServerError<!>>,
 {
-    fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
+    fn decide(&mut self, err: ServerError<!>) -> SupervisorStrategy<()> {
         match err {
             // When we hit an error accepting a connection we'll drop the old
             // listener and create a new one.
-            tcp::server::Error::Accept(err) => {
+            ServerError::Accept(err) => {
                 error!("error accepting new connection: {err}");
                 SupervisorStrategy::Restart(())
             }
             // Async function never return an error creating a new actor.
-            tcp::server::Error::NewActor(err) => err,
+            ServerError::NewActor(err) => err,
         }
     }
 
@@ -85,7 +86,7 @@ where
 ///
 /// Since we can't create a new TCP connection all this supervisor does is log
 /// the error and signal to stop the actor.
-fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
+fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
     error!("error handling connection: {err}");
     SupervisorStrategy::Stop
 }
@@ -94,7 +95,7 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
 ///
 /// This actor will not receive any message and thus uses `!` (the never type)
 /// as message type.
-async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: TcpStream) -> io::Result<()> {
+async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: AsyncFd) -> io::Result<()> {
     let address = stream.peer_addr()?;
     info!(address:% = address; "accepted connection");
 

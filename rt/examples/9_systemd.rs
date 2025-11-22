@@ -6,7 +6,8 @@ use std::{env, io};
 use heph::actor::{self, actor_fn};
 use heph::restart_supervisor;
 use heph::supervisor::StopSupervisor;
-use heph_rt::net::{tcp, TcpStream};
+use heph_rt::fd::AsyncFd;
+use heph_rt::net::TcpServer;
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::{self as rt, Runtime, ThreadLocal};
 use log::info;
@@ -22,7 +23,7 @@ fn main() -> Result<(), rt::Error> {
     };
     let address = (Ipv4Addr::LOCALHOST, port).into();
     let actor = actor_fn(conn_actor);
-    let server = tcp::server::setup(address, StopSupervisor, actor, ActorOptions::default())
+    let server = TcpServer::new(address, StopSupervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;
 
     let mut runtime = Runtime::setup()
@@ -54,7 +55,7 @@ fn main() -> Result<(), rt::Error> {
 
 restart_supervisor!(ServerSupervisor, ());
 
-async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: TcpStream) -> io::Result<()> {
+async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: AsyncFd) -> io::Result<()> {
     let address = stream.peer_addr()?;
     info!("accepted connection: address={address}");
     let ip = address.ip().to_string();

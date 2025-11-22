@@ -12,7 +12,8 @@ use std::time::Duration;
 
 use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
-use heph_rt::net::{tcp, TcpStream};
+use heph_rt::fd::AsyncFd;
+use heph_rt::net::{ServerError, ServerMessage, TcpServer};
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::timer::Deadline;
 use heph_rt::{self as rt, Runtime};
@@ -44,7 +45,7 @@ fn main() -> Result<(), rt::Error> {
     let values = Arc::new(RwLock::new(HashMap::new()));
     let actor = actor_fn(conn_actor).map_arg(move |stream| (stream, values.clone()));
     let address = "127.0.0.1:6379".parse().unwrap();
-    let server = tcp::server::setup(address, conn_supervisor, actor, ActorOptions::default())
+    let server = TcpServer::new(address, conn_supervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;
 
     let mut runtime = Runtime::setup().use_all_cores().build()?;
@@ -65,16 +66,15 @@ struct ServerSupervisor;
 impl<NA> Supervisor<NA> for ServerSupervisor
 where
     NA: NewActor<Argument = (), Error = !>,
-    NA::Actor: Actor<Error = tcp::server::Error<!>>,
+    NA::Actor: Actor<Error = ServerError<!>>,
 {
-    fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
-        use tcp::server::Error::*;
+    fn decide(&mut self, err: ServerError<!>) -> SupervisorStrategy<()> {
         match err {
-            Accept(err) => {
+            ServerError::Accept(err) => {
                 error!("error accepting new connection: {err}");
                 SupervisorStrategy::Restart(())
             }
-            NewActor(_) => unreachable!(),
+            ServerError::NewActor(_) => unreachable!(),
         }
     }
 
@@ -87,14 +87,14 @@ where
     }
 }
 
-fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
+fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
     error!("error handling connection: {err}");
     SupervisorStrategy::Stop
 }
 
 async fn conn_actor<RT>(
     ctx: actor::Context<!, RT>,
-    stream: TcpStream,
+    stream: AsyncFd,
     values: Arc<RwLock<HashMap<Box<str>, Arc<[u8]>>>>,
 ) -> io::Result<()>
 where
@@ -106,7 +106,8 @@ where
 
     let err = loop {
         buffer.clear();
-        buffer = Deadline::after(ctx.runtime_ref().clone(), TIMEOUT, stream.recv(buffer)).await?;
+        buffer =
+            Deadline::after(ctx.runtime_ref().clone(), TIMEOUT, stream.recv(buffer, 0)).await?;
         if buffer.is_empty() {
             return Ok(());
         }
@@ -156,7 +157,7 @@ where
                         if let Some(value) = value {
                             write!(&mut buffer, "${}\r\n", value.len()).unwrap();
                             let bufs = (buffer, value, "\r\n");
-                            let bufs = stream.send_vectored_all(bufs).await?;
+                            let bufs = stream.send_all_vectored(bufs, 0).extract().await?;
                             buffer = bufs.0;
                         } else {
                             stream.send_all(NIL).await?;

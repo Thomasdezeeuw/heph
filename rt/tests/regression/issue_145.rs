@@ -11,7 +11,8 @@ use heph::actor::{self, actor_fn};
 use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::{Actor, ActorRef, NewActor};
-use heph_rt::net::{tcp, TcpListener, TcpStream};
+use heph_rt::fd::AsyncFd;
+use heph_rt::net::{ServerError, ServerMessage, TcpServer};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::{Runtime, RuntimeRef, ThreadLocal};
 
@@ -29,7 +30,7 @@ fn issue_145_tcp_server() {
         actor_fn(conn_actor).map_arg(move |stream| (stream, addr2.clone(), srv2.clone()));
     let address = "127.0.0.1:0".parse().unwrap();
     let server =
-        tcp::server::setup(address, NoSupervisor, conn_actor, ActorOptions::default()).unwrap();
+        TcpServer::new(address, NoSupervisor, conn_actor, ActorOptions::default()).unwrap();
     let expected_address = server.local_addr();
 
     runtime
@@ -71,10 +72,10 @@ struct ServerSupervisor;
 
 impl<L, A> Supervisor<L> for ServerSupervisor
 where
-    L: NewActor<Message = tcp::server::Message, Argument = (), Actor = A, Error = !>,
-    A: Actor<Error = tcp::server::Error<!>>,
+    L: NewActor<Message = ServerMessage, Argument = (), Actor = A, Error = !>,
+    A: Actor<Error = ServerError<!>>,
 {
-    fn decide(&mut self, _: tcp::server::Error<!>) -> SupervisorStrategy<()> {
+    fn decide(&mut self, _: ServerError<!>) -> SupervisorStrategy<()> {
         SupervisorStrategy::Stop
     }
 
@@ -90,9 +91,9 @@ where
 #[allow(clippy::type_complexity)] // `servers` is too complex.
 async fn conn_actor(
     mut ctx: actor::Context<!, ThreadLocal>,
-    stream: TcpStream,
+    stream: AsyncFd,
     addresses: Arc<Mutex<Vec<SocketAddr>>>,
-    servers: Arc<Mutex<Vec<(usize, ActorRef<tcp::server::Message>)>>>,
+    servers: Arc<Mutex<Vec<(usize, ActorRef<ServerMessage>)>>>,
 ) -> Result<(), !> {
     let mut addresses = addresses.lock().unwrap();
     addresses.push(stream.local_addr().unwrap());
