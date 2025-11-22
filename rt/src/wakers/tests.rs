@@ -10,7 +10,7 @@ fn create_no_ring_waker_local() {
 
     let ring = a10::Ring::new(2).unwrap();
     let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
-    let mut wakers = wakers::Wakers::new(wake_sender, ring.submission_queue().clone());
+    let mut wakers = wakers::Wakers::new(wake_sender, ring.sq().clone());
 
     // Should be able to convert the waker.
     let waker = wakers.new_task_waker(PID1);
@@ -63,7 +63,7 @@ mod local {
 
         // Create the wakers.
         let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
-        let mut wakers = Wakers::new(wake_sender, ring.submission_queue().clone());
+        let mut wakers = Wakers::new(wake_sender, ring.sq().clone());
 
         // Create a new waker.
         let waker = wakers.new_task_waker(PID1);
@@ -88,7 +88,7 @@ mod local {
 
         // Create the wakers.
         let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
-        let mut wakers = Wakers::new(wake_sender, ring.submission_queue().clone());
+        let mut wakers = Wakers::new(wake_sender, ring.sq().clone());
 
         // Create a new waker.
         let waker = wakers.new_task_waker(PID1);
@@ -270,7 +270,7 @@ mod shared {
         NOOP_WAKER
             .get_or_init(|| {
                 let ring = a10::Ring::new(2).expect("failed to create `a10::Ring` for test module");
-                ring.submission_queue().clone()
+                ring.sq().clone()
             })
             .clone()
     }

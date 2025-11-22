@@ -181,7 +181,7 @@ impl DerefMut for ThreadLocal {
 
 impl Access for ThreadLocal {
     fn sq(&self) -> a10::SubmissionQueue {
-        self.rt.internals.ring.borrow().submission_queue().clone()
+        self.rt.internals.ring.borrow().sq().clone()
     }
 }
 
@@ -311,7 +311,7 @@ impl From<&RuntimeRef> for ThreadSafe {
 
 impl Access for ThreadSafe {
     fn sq(&self) -> a10::SubmissionQueue {
-        self.rt.submission_queue().clone()
+        self.rt.sq().clone()
     }
 }
 

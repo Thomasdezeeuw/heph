@@ -10,19 +10,19 @@ use std::pin::Pin;
 use std::sync::mpsc;
 use std::task::{self, Poll};
 
-use a10::msg::{msg_listener, try_send_msg, MsgListener, MsgToken};
+use a10::msg;
 
 use crate::wakers::no_ring_ctx;
 
-const WAKE: u32 = u32::from_ne_bytes([b'W', b'A', b'K', b'E']); // 1162559831.
+const WAKE: msg::Message = u32::from_ne_bytes([b'W', b'A', b'K', b'E']); // 1162559831.
 
 /// Create a new communication channel.
 ///
 /// The `sq` will be used to wake up the receiving end when sending.
 pub(crate) fn new<T>(sq: a10::SubmissionQueue) -> io::Result<(Sender<T>, Receiver<T>)> {
-    let (listener, token) = msg_listener(sq.clone())?;
+    let (listener, waker) = msg::listener(sq.clone())?;
     let (sender, receiver) = mpsc::channel();
-    let sender = Sender { sender, sq, token };
+    let sender = Sender { sender, waker };
     let receiver = Receiver { receiver, listener };
     Ok((sender, receiver))
 }
@@ -32,9 +32,7 @@ pub(crate) fn new<T>(sq: a10::SubmissionQueue) -> io::Result<(Sender<T>, Receive
 pub(crate) struct Sender<T> {
     #[allow(clippy::struct_field_names)]
     sender: mpsc::Sender<T>,
-    /// Receiver's submission queue and token used to wake it up.
-    sq: a10::SubmissionQueue,
-    token: MsgToken,
+    waker: msg::Sender,
 }
 
 impl<T> Sender<T> {
@@ -43,7 +41,7 @@ impl<T> Sender<T> {
         self.sender
             .send(msg)
             .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "receiver closed channel"))?;
-        try_send_msg(&self.sq, self.token, WAKE)
+        self.waker.try_send(WAKE)
     }
 }
 
@@ -51,7 +49,7 @@ impl<T> Sender<T> {
 #[derive(Debug)]
 pub(crate) struct Receiver<T> {
     receiver: mpsc::Receiver<T>,
-    listener: MsgListener,
+    listener: msg::Listener,
 }
 
 impl<T> Receiver<T> {

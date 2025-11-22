@@ -84,7 +84,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::{CString, OsStr, OsString};
 use std::mem::take;
-use std::os::fd::{AsFd, AsRawFd, BorrowedFd, RawFd};
+use std::os::fd::{AsRawFd, RawFd};
 use std::path::{Path, PathBuf};
 use std::{fmt, io, ptr};
 
@@ -168,7 +168,7 @@ impl Watch {
             | libc::IN_EXCL_UNLINK
             // Instead of replacing a watch combine the watched events.
             | libc::IN_MASK_ADD;
-        let fd = self.fd.as_fd().as_raw_fd();
+        let fd = self.fd.as_fd().unwrap().as_raw_fd();
         let wd = syscall!(inotify_add_watch(fd, path.as_ptr(), mask))?;
         _ = self.watching.insert(wd, path);
         Ok(())
@@ -188,12 +188,6 @@ impl Watch {
             buf: &self.buf,
             processed: 0,
         })
-    }
-}
-
-impl AsFd for Watch {
-    fn as_fd(&self) -> BorrowedFd<'_> {
-        self.fd.as_fd()
     }
 }
 

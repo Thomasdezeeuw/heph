@@ -88,7 +88,7 @@ pub(crate) fn setup_test() -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
 
 /// Second part of the [`setup`].
 fn setup2(id: NonZeroUsize, ring: a10::Ring) -> (WorkerSetup, a10::SubmissionQueue) {
-    let sq = ring.submission_queue().clone();
+    let sq = ring.sq().clone();
 
     // Setup the waking mechanism.
     let (waker_sender, waker_events) = crossbeam_channel::unbounded();
@@ -139,7 +139,7 @@ impl WorkerSetup {
         trace_log: Option<trace::Log>,
         thread_name: String,
     ) -> io::Result<Handle> {
-        let sq = self.ring.submission_queue().clone();
+        let sq = self.ring.sq().clone();
         rt::channel::new(sq).and_then(move |(sender, receiver)| {
             let id = self.id;
             thread::Builder::new()

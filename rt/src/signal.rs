@@ -286,37 +286,6 @@ impl Signal {
         })
     }
 
-    /// Returns the signal as signal number.
-    pub(crate) const fn to_signo(self) -> libc::c_int {
-        match self {
-            Signal::Interrupt => libc::SIGINT,
-            Signal::Terminate => libc::SIGTERM,
-            Signal::Quit => libc::SIGQUIT,
-            Signal::User1 => libc::SIGUSR1,
-            Signal::User2 => libc::SIGUSR2,
-            Signal::Child => libc::SIGCHLD,
-            Signal::Alarm => libc::SIGALRM,
-            Signal::VirtualAlarm => libc::SIGVTALRM,
-            Signal::Profile => libc::SIGPROF,
-            Signal::Continue => libc::SIGCONT,
-            Signal::Hangup => libc::SIGHUP,
-            Signal::WindowChange => libc::SIGWINCH,
-            Signal::ExceededCpu => libc::SIGXCPU,
-            Signal::ExcessFileSize => libc::SIGXFSZ,
-            Signal::Pipe => libc::SIGPIPE,
-            Signal::Urgent => libc::SIGURG,
-            Signal::BadSystemCall => libc::SIGSYS,
-            Signal::Trap => libc::SIGTRAP,
-            Signal::Abort => libc::SIGABRT,
-            Signal::Illegal => libc::SIGILL,
-            Signal::SegmentationViolation => libc::SIGSEGV,
-            Signal::Bus => libc::SIGBUS,
-            Signal::FloatingPointError => libc::SIGFPE,
-            Signal::TerminalInputBackground => libc::SIGTTIN,
-            Signal::TerminalOutputBackground => libc::SIGTTOU,
-        }
-    }
-
     /// Whether or not the `Signal` is considered a "stopping" signal.
     pub const fn should_stop(self) -> bool {
         matches!(self, Signal::Interrupt | Signal::Terminate | Signal::Quit)

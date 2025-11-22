@@ -146,7 +146,7 @@ impl Setup {
         debug!(name = name, workers = threads; "building Heph runtime");
 
         let coordinator_setup = coordinator::setup(name, threads)?;
-        let coordinator_sq = coordinator_setup.submission_queue();
+        let coordinator_sq = coordinator_setup.sq();
 
         // Setup the worker threads, but don't spawn them yet.
         let mut worker_setups = Vec::with_capacity(threads);
@@ -162,7 +162,7 @@ impl Setup {
 
         // Create the internal data structure shared by all threads.
         #[allow(clippy::cast_possible_truncation)]
-        let entries = max((threads * 64) as u32, 8);
+        let entries = max(threads * 64, 8);
         let setup = shared::RuntimeInternals::setup(coordinator_sq.clone(), entries)
             .map_err(Error::init_coordinator)?;
         let worker_sqs = worker_sqs.into_boxed_slice();
