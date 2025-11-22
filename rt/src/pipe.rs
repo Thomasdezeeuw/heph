@@ -12,7 +12,7 @@
 //! use std::io;
 //!
 //! use heph::actor;
-//! use heph_rt::pipe;
+//! use heph_rt::pipe::pipe;
 //! use heph_rt::{self as rt};
 //!
 //! const DATA: &[u8] = b"Hello, world!";
@@ -20,18 +20,18 @@
 //! async fn actor<RT>(ctx: actor::Context<!, RT>) -> io::Result<()>
 //!     where RT: rt::Access,
 //! {
-//!     let (sender, receiver) = pipe(ctx.runtime_ref())?;
+//!     let [receiver, sender] = pipe(ctx.runtime_ref())?;
 //!
 //!     // Write some data.
-//!     (&sender).write_all(DATA).await?;
+//!     sender.write_all(DATA).await?;
 //!     drop(sender); // Close the sending side.
 //!
 //!     // And read the data back.
-//!     let buf = (&receiver).read_n(Vec::with_capacity(DATA.len() + 1), DATA.len()).await?;
+//!     let buf = receiver.read_n(Vec::with_capacity(DATA.len() + 1), DATA.len()).await?;
 //!     assert_eq!(buf, DATA);
 //!     Ok(())
 //! }
-//! #
+//! # #[cfg(any(test, feature = "test"))]
 //! # heph_rt::test::block_on_local_actor(heph::actor::actor_fn(actor), ());
 //! ```
 //!
@@ -45,6 +45,7 @@
 //!
 //! use heph::actor;
 //! use heph_rt::{self as rt};
+//! use heph_rt::fd::AsyncFd;
 //!
 //! const DATA: &[u8] = b"Hello, world!";
 //!
@@ -60,20 +61,21 @@
 //!         .spawn()?;
 //!
 //!     // Create our process standard in and out.
-//!     let stdin = AsyncFd::new(process.stdin.take().unwrap().into(), ctx.runtime_ref())?;
-//!     let stdout = AsyncFd::new(process.stdout.take().unwrap().into(), ctx.runtime_ref())?;
+//!     let stdin: AsyncFd = AsyncFd::new(process.stdin.take().unwrap().into(), ctx.runtime_ref().sq());
+//!     let stdout: AsyncFd = AsyncFd::new(process.stdout.take().unwrap().into(), ctx.runtime_ref().sq());
 //!
 //!     // Write some data.
-//!     (&stdin).write_all(DATA).await?;
+//!     stdin.write_all(DATA).await?;
 //!     drop(stdin); // Close standard in for the child process.
 //! #   process.wait()?; // Needed to pass the test on macOS.
 //!
 //!     // And read the data back.
-//!     let buf = (&stdout).read_n(Vec::with_capacity(DATA.len() + 1), DATA.len()).await?;
+//!     let buf = stdout.read_n(Vec::with_capacity(DATA.len() + 1), DATA.len()).await?;
 //!     assert_eq!(buf, DATA);
 //!     Ok(())
 //! }
 //! #
+//! # #[cfg(any(test, feature = "test"))]
 //! # heph_rt::test::block_on_local_actor(heph::actor::actor_fn(process_handler), ());
 //! ```
 
