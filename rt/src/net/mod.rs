@@ -14,13 +14,7 @@ use crate::Signal;
 mod tcp_server;
 
 #[doc(inline)]
-pub use a10::net::{
-    socket, Accept, AcceptFlag, Bind, Connect, Domain, IPv4Opt, IPv6Opt, Level, Listen,
-    MultishotAccept, MultishotRecv, NoAddress, Opt, Protocol, Recv, RecvFlag, RecvFrom,
-    RecvFromVectored, RecvN, RecvNVectored, RecvVectored, Send, SendAll, SendAllVectored, SendFlag,
-    SendMsg, SendTo, SetSocketOption, Shutdown, Socket, SocketAddress, SocketOpt, SocketOption,
-    TcpOpt, Type, UdpOpt, UnixOpt,
-};
+pub use a10::net::*;
 pub use tcp_server::TcpServer;
 
 /// The message type used by server actors.
