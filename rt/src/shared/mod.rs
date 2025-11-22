@@ -48,7 +48,7 @@ impl RuntimeSetup {
     ) -> RuntimeInternals {
         // Needed by `RuntimeInternals::wake_workers`.
         debug_assert!(!worker_sqs.is_empty());
-        let sq = self.ring.submission_queue().clone();
+        let sq = self.ring.sq().clone();
         RuntimeInternals {
             worker_sqs,
             wake_worker_idx: AtomicUsize::new(0),
@@ -105,7 +105,7 @@ impl RuntimeInternals {
     /// Setup new runtime internals.
     pub(crate) fn setup(
         coordinator_sq: a10::SubmissionQueue,
-        ring_entries: u32,
+        ring_entries: usize,
     ) -> io::Result<RuntimeSetup> {
         let ring = a10::Ring::config(ring_entries)
             .with_kernel_thread(true)
@@ -126,7 +126,7 @@ impl RuntimeInternals {
             .build()?;
 
         // Don't have a coordinator so we use our own submission queue.
-        let coordinator_sq = ring.submission_queue().clone();
+        let coordinator_sq = ring.sq().clone();
         Ok(RuntimeSetup {
             ring,
             coordinator_sq,
@@ -158,7 +158,7 @@ impl RuntimeInternals {
     }
 
     /// Returns the io_uring submission queue.
-    pub(crate) const fn submission_queue(&self) -> &a10::SubmissionQueue {
+    pub(crate) const fn sq(&self) -> &a10::SubmissionQueue {
         &self.sq
     }
 

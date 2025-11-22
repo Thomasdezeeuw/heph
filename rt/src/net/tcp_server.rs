@@ -6,11 +6,11 @@ use std::sync::Arc;
 use heph::actor::{self, NewActor, NoMessages};
 use heph::supervisor::Supervisor;
 use log::{debug, trace};
-use socket2::{Domain, Protocol, Socket, Type};
+use socket2::Socket;
 
 use crate::access::{Access, PrivateAccess};
 use crate::fd::AsyncFd;
-use crate::net::{ServerError, ServerMessage};
+use crate::net::{Domain, Protocol, ServerError, ServerMessage, Type};
 use crate::spawn::{ActorOptions, Spawn};
 use crate::util::{either, next};
 
@@ -320,9 +320,9 @@ where
 /// blocking I/O.
 fn bind_listener(address: SocketAddr) -> io::Result<Socket> {
     let socket = Socket::new(
-        Domain::for_address(address),
-        Type::STREAM,
-        Some(Protocol::TCP),
+        socket2::Domain::for_address(address),
+        socket2::Type::STREAM,
+        Some(socket2::Protocol::TCP),
     )?;
 
     set_listener_options(&socket)?;
@@ -393,14 +393,14 @@ where
 {
     let listener = a10::net::socket(
         ctx.runtime_ref().sq(),
-        Domain::for_address(local).into(),
-        Type::STREAM.cloexec().into(),
-        Protocol::TCP.into(),
-        0,
+        Domain::for_address(&local),
+        Type::STREAM,
+        Some(Protocol::TCP),
     )
     .await
     .map_err(ServerError::Accept)?;
-    let socket = socket2::SockRef::from(&listener);
+    let l = listener.as_fd().unwrap(); // FIXME.
+    let socket = socket2::SockRef::from(&l);
     if let Some(cpu) = ctx.runtime_ref().cpu() {
         if let Err(err) = socket.set_cpu_affinity(cpu) {
             log::warn!("failed to set CPU affinity on TCP server: {err}");
@@ -421,7 +421,8 @@ where
                 trace!("TCP server accepted connection");
                 drop(receive); // Can't double borrow `ctx`.
                 if let Some(cpu) = ctx.runtime_ref().cpu() {
-                    let socket = socket2::SockRef::from(&stream);
+                    let s = listener.as_fd().unwrap(); // FIXME.
+                    let socket = socket2::SockRef::from(&s);
                     if let Err(err) = socket.set_cpu_affinity(cpu) {
                         log::warn!("failed to set CPU affinity on accepted connection: {err}");
                     }
