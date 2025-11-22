@@ -10,7 +10,7 @@
 //!    [`SyncActor::RuntimeAccess`] types.
 //!  * In the `RT` type [`actor::Context`] and [`sync::Context`].
 //!  * In various types and function that require runtime access as an argument,
-//!    for example [`TcpStream::connect`].
+//!    for example [`AsyncFd`].
 //!
 //! This runtime access is defined by the [`Access`] trait, commonly referred to
 //! as the `rt::Access` (read runtime access) trait. It comes in the following
@@ -27,7 +27,7 @@
 //!
 //! [`rt::Access`]: crate::Access
 //! [`SyncActor::RuntimeAccess`]: heph::sync::SyncActor::RuntimeAccess
-//! [`TcpStream::connect`]: crate::net::TcpStream::connect
+//! [`AsyncFd`]: crate::fd::AsyncFd
 
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
