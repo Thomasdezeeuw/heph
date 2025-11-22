@@ -49,7 +49,7 @@ async fn stream_actor<RT>(
 {
     let stream = tcp_connect(&mut ctx, address).await.unwrap();
 
-    let (_, n) = stream.send(DATA).await.unwrap();
+    let n = stream.send(DATA, 0).await.unwrap();
     assert_eq!(n, DATA.len());
 
     // Send a message to stop the listener.

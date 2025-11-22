@@ -23,7 +23,6 @@ mod functional {
     mod signal;
     mod spawn;
     mod sync_actor;
-    mod tcp;
     mod tcp_server;
     mod test;
     mod timer;
