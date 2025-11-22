@@ -170,8 +170,6 @@ macro_rules! impl_write {
     };
 }
 
-pub(crate) use {impl_read, impl_write};
-
 impl_read!(Stdin, &Stdin);
 impl_write!(Stdout, &Stdout);
 impl_write!(Stderr, &Stderr);

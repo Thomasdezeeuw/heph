@@ -13,8 +13,9 @@ use std::{fmt, io};
 
 use heph::actor;
 use heph_rt as rt;
-use heph_rt::net::TcpStream;
+use heph_rt::fd::AsyncFd;
 use heph_rt::timer::Timer;
+use socket2::{Domain, Protocol, Type};
 
 macro_rules! limited_loop {
     ($($arg: tt)*) => {{
@@ -204,14 +205,40 @@ where
 pub async fn tcp_connect<M, RT>(
     ctx: &mut actor::Context<M, RT>,
     address: SocketAddr,
-) -> io::Result<TcpStream>
+) -> io::Result<AsyncFd>
 where
     RT: rt::Access + Clone,
 {
     let mut i = 10;
+
+    let stream = a10::net::socket(
+        ctx.runtime_ref().sq(),
+        Domain::for_address(address).into(),
+        Type::STREAM.cloexec().into(),
+        Protocol::TCP.into(),
+        0,
+    )
+    .await?;
+
+    let mut storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
+    let size = match address {
+        SocketAddr::V4(addr) => {
+            let storage =
+                unsafe { &mut *std::ptr::from_mut(&mut storage).cast::<libc::sockaddr_in>() };
+            storage.sin_family = libc::AF_INET as libc::sa_family_t;
+            storage.sin_port = addr.port().to_be();
+            storage.sin_addr = libc::in_addr {
+                s_addr: u32::from_ne_bytes(addr.ip().octets()),
+            };
+            size_of::<libc::sockaddr_in>() as libc::socklen_t
+        }
+        SocketAddr::V6(_) => {
+            todo!()
+        }
+    };
     loop {
-        match TcpStream::connect(ctx.runtime_ref(), address).await {
-            Ok(stream) => break Ok(stream),
+        match stream.connect((storage, size)).await {
+            Ok(()) => break Ok(stream),
             Err(_) if i >= 1 => {
                 Timer::after(ctx.runtime_ref().clone(), Duration::from_millis(1)).await;
                 i -= 1;

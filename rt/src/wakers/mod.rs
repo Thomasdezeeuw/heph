@@ -218,6 +218,7 @@ macro_rules! no_ring_ctx {
 pub(crate) use no_ring_ctx;
 
 /// [`Future`] that uses [`no_ring_ctx`] internally.
+#[allow(dead_code)] // TODO: figure out if we can still use this.
 pub(crate) struct NoRing<Fut>(pub(crate) Fut);
 
 impl<Fut: Future> Future for NoRing<Fut> {

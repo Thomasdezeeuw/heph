@@ -40,23 +40,22 @@ fn auto_cpu_affinity() {
     use heph::messages::Terminate;
     use heph::supervisor::{Supervisor, SupervisorStrategy};
     use heph::{actor, ActorRef, NewActor};
-    use heph_rt::net::{tcp, TcpStream};
+    use heph_rt::fd::AsyncFd;
+    use heph_rt::net::{ServerError, ServerMessage, TcpServer};
     use heph_rt::spawn::ActorOptions;
     use heph_rt::{RuntimeRef, ThreadLocal};
 
     use crate::util::tcp_connect;
 
-    fn cpu_affinity(stream: &TcpStream) -> io::Result<usize> {
-        // TODO: do this better.
-        let socket =
-            SockRef::from(unsafe { &*(stream as *const TcpStream as *const a10::AsyncFd) });
+    fn cpu_affinity(stream: &AsyncFd) -> io::Result<usize> {
+        let socket = SockRef::from(stream);
         socket.cpu_affinity()
     }
 
     async fn stream_actor(
         mut ctx: actor::Context<!, ThreadLocal>,
         address: SocketAddr,
-        server_ref: ActorRef<tcp::server::Message>,
+        server_ref: ActorRef<ServerMessage>,
     ) -> io::Result<()> {
         let stream = tcp_connect(&mut ctx, address).await?;
 
@@ -69,7 +68,7 @@ fn auto_cpu_affinity() {
 
     async fn accepted_stream_actor(
         _: actor::Context<!, ThreadLocal>,
-        stream: TcpStream,
+        stream: AsyncFd,
     ) -> io::Result<()> {
         let cpu = cpu_affinity(&stream)?;
         assert_eq!(cpu, 0);
@@ -94,14 +93,12 @@ fn auto_cpu_affinity() {
     #[derive(Copy, Clone, Debug)]
     struct ServerSupervisor;
 
-    impl<S, NA> Supervisor<tcp::server::Setup<S, NA>> for ServerSupervisor
+    impl<S, NA> Supervisor<TcpServer<S, NA>> for ServerSupervisor
     where
         S: Supervisor<NA> + Clone + 'static,
-        NA: NewActor<Argument = TcpStream, Error = !, RuntimeAccess = ThreadLocal>
-            + Clone
-            + 'static,
+        NA: NewActor<Argument = AsyncFd, Error = !, RuntimeAccess = ThreadLocal> + Clone + 'static,
     {
-        fn decide(&mut self, err: tcp::server::Error<!>) -> SupervisorStrategy<()> {
+        fn decide(&mut self, err: ServerError<!>) -> SupervisorStrategy<()> {
             panic!("unexpected error accept stream: {err}");
         }
 
@@ -120,7 +117,7 @@ fn auto_cpu_affinity() {
 
         let address = "127.0.0.1:0".parse().unwrap();
         let accepted_stream_actor = actor_fn(accepted_stream_actor);
-        let server = tcp::server::setup(
+        let server = TcpServer::new(
             address,
             |err: io::Error| panic!("unexpected error: {err}"),
             accepted_stream_actor,
