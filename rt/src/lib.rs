@@ -231,6 +231,7 @@ use heph::supervisor::{Supervisor, SyncSupervisor};
 use heph::{ActorFutureBuilder, NewActor, SyncActor};
 
 pub mod access;
+pub mod cancel;
 mod channel;
 mod coordinator;
 mod error;
