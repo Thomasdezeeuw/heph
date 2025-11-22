@@ -105,7 +105,7 @@ use crate::util::{either, next};
 ///
 /// /// The actor responsible for a single connection.
 /// async fn conn_actor(_: actor::Context<!, ThreadLocal>, conn: AsyncFd) -> io::Result<()> {
-///     conn.send_all("Hello World").await?;
+///     conn.send_all("Hello World", None).await?;
 ///     Ok(())
 /// }
 /// ```
@@ -173,7 +173,7 @@ use crate::util::{either, next};
 /// # }
 /// #
 /// # async fn conn_actor(_: actor::Context<!, ThreadLocal>, conn: AsyncFd) -> io::Result<()> {
-/// #     conn.send_all("Hello World").await?;
+/// #     conn.send_all("Hello World", None).await?;
 /// #     Ok(())
 /// # }
 /// ```
@@ -239,7 +239,7 @@ use crate::util::{either, next};
 /// #
 /// # /// The actor responsible for a single connection.
 /// # async fn conn_actor(_: actor::Context<!, ThreadSafe>, conn: AsyncFd) -> io::Result<()> {
-/// #     conn.send_all("Hello World").await?;
+/// #     conn.send_all("Hello World", None).await?;
 /// #     Ok(())
 /// # }
 /// ```
