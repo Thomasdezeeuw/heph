@@ -42,6 +42,19 @@ use crate::timers::TimerToken;
 use crate::trace::{self, Trace};
 use crate::{shared, Runtime, RuntimeRef};
 
+/// Queue to submit asynchronous operations to.
+///
+/// This type doesn't have many public methods, but is used by [`AsyncFd`].
+/// The queue can be acquired by using the [`Access`] trait.
+///
+/// The submission queue can be shared by cloning it, it's a cheap operation.
+///
+/// [`AsyncFd`]: crate::fd::AsyncFd
+///
+/// <span hidden>
+#[allow(rustdoc::invalid_html_tags)] // For the hidden span.
+pub use a10::SubmissionQueue;
+
 /// Runtime Access Trait.
 ///
 /// This trait is used to indicate an API needs access to the Heph runtime. It
@@ -61,7 +74,7 @@ pub trait Access: PrivateAccess {
     /// This can be used in [`AsyncFd`].
     ///
     /// [`AsyncFd`]: crate::fd::AsyncFd
-    fn sq(&self) -> a10::SubmissionQueue;
+    fn sq(&self) -> SubmissionQueue;
 }
 
 mod private {
@@ -101,7 +114,7 @@ mod private {
 pub(crate) use private::PrivateAccess;
 
 impl<T: Access> Access for &mut T {
-    fn sq(&self) -> a10::SubmissionQueue {
+    fn sq(&self) -> SubmissionQueue {
         (**self).sq()
     }
 }
@@ -180,7 +193,7 @@ impl DerefMut for ThreadLocal {
 }
 
 impl Access for ThreadLocal {
-    fn sq(&self) -> a10::SubmissionQueue {
+    fn sq(&self) -> SubmissionQueue {
         self.rt.internals.ring.borrow().sq().clone()
     }
 }
@@ -310,7 +323,7 @@ impl From<&RuntimeRef> for ThreadSafe {
 }
 
 impl Access for ThreadSafe {
-    fn sq(&self) -> a10::SubmissionQueue {
+    fn sq(&self) -> SubmissionQueue {
         self.rt.sq().clone()
     }
 }
@@ -376,7 +389,7 @@ impl<M, RT> Access for actor::Context<M, RT>
 where
     RT: Access,
 {
-    fn sq(&self) -> a10::SubmissionQueue {
+    fn sq(&self) -> SubmissionQueue {
         self.runtime_ref().sq()
     }
 }
