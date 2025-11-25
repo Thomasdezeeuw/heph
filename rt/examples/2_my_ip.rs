@@ -104,6 +104,6 @@ async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: AsyncFd) -> io::R
     let ip = address.ip().to_string();
 
     // Next we'll write the IP address to the connection.
-    stream.send_all(ip).await?;
+    stream.send_all(ip, None).await?;
     Ok(())
 }
