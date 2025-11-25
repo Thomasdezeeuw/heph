@@ -59,6 +59,6 @@ async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: AsyncFd) -> io::R
     let address = stream.peer_addr()?;
     info!("accepted connection: address={address}");
     let ip = address.ip().to_string();
-    stream.send_all(ip).await?;
+    stream.send_all(ip, None).await?;
     Ok(())
 }

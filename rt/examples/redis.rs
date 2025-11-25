@@ -12,8 +12,9 @@ use std::time::Duration;
 
 use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
+use heph_rt::extract::Extract;
 use heph_rt::fd::AsyncFd;
-use heph_rt::net::{ServerError, ServerMessage, TcpServer};
+use heph_rt::net::{ServerError, TcpServer};
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::timer::Deadline;
 use heph_rt::{self as rt, Runtime};
@@ -106,8 +107,12 @@ where
 
     let err = loop {
         buffer.clear();
-        buffer =
-            Deadline::after(ctx.runtime_ref().clone(), TIMEOUT, stream.recv(buffer, 0)).await?;
+        buffer = Deadline::after(
+            ctx.runtime_ref().clone(),
+            TIMEOUT,
+            stream.recv(buffer, None),
+        )
+        .await?;
         if buffer.is_empty() {
             return Ok(());
         }
@@ -157,10 +162,10 @@ where
                         if let Some(value) = value {
                             write!(&mut buffer, "${}\r\n", value.len()).unwrap();
                             let bufs = (buffer, value, "\r\n");
-                            let bufs = stream.send_all_vectored(bufs, 0).extract().await?;
+                            let bufs = stream.send_all_vectored(bufs).extract().await?;
                             buffer = bufs.0;
                         } else {
-                            stream.send_all(NIL).await?;
+                            stream.send_all(NIL, None).await?;
                         }
                     }
                     "SET" => {
@@ -190,10 +195,10 @@ where
                         {
                             values.write().unwrap().insert(key, value);
                         }
-                        stream.send_all(OK.as_bytes()).await?;
+                        stream.send_all(OK.as_bytes(), None).await?;
                     }
                     "COMMAND" => {
-                        stream.send_all(COMMANDS).await?;
+                        stream.send_all(COMMANDS, None).await?;
                     }
                     _ => break ERR_UNIMPLEMENTED,
                 }
@@ -201,7 +206,7 @@ where
             _ => break ERR_UNIMPLEMENTED,
         }
     };
-    stream.send_all(err).await?;
+    stream.send_all(err, None).await?;
     Ok(())
 }
 
