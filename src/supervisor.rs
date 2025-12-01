@@ -306,7 +306,7 @@ where
 /// use heph::actor::{self, actor_fn};
 /// use heph::supervisor::NoSupervisor;
 ///
-/// let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(actor), ()).unwrap();
+/// let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(actor), ());
 /// # _ = (future, actor_ref); // Silence dead code warnings.
 ///
 /// /// Our actor that never returns an error.

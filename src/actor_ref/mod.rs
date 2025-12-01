@@ -66,7 +66,7 @@
 //! use heph::supervisor::NoSupervisor;
 //! use heph::future::ActorFuture;
 //!
-//! let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(actor), ()).unwrap();
+//! let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(actor), ());
 //!
 //! // To create another actor reference we can simply clone the first one.
 //! let second_actor_ref = actor_ref.clone();
@@ -104,13 +104,13 @@
 //! use heph::future::ActorFuture;
 //! use heph::supervisor::NoSupervisor;
 //!
-//! let (actor_future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(actor), ()).unwrap();
+//! let (actor_future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(actor), ());
 //!
 //! // Send the actor a message to start.
 //! actor_ref.try_send("Hello world".to_owned()).unwrap();
 //!
 //! // Create our watchdog actor that watches the actor we spawned above.
-//! let (watchdog_future, _) = ActorFuture::new(NoSupervisor, actor_fn(watchdog), actor_ref).unwrap();
+//! let (watchdog_future, _) = ActorFuture::new(NoSupervisor, actor_fn(watchdog), actor_ref);
 //!
 //! /// The actor we'll be watching.
 //! async fn actor(mut ctx: actor::Context<String>) {

@@ -15,7 +15,7 @@ fn main() {
     // asynchronous actors.
     let arg = "Hello, World!";
     let supervisor = PrintSupervisor::new(arg);
-    let (future, _) = ActorFuture::new(supervisor, actor_fn(print_actor), arg).unwrap();
+    let (future, _) = ActorFuture::new(supervisor, actor_fn(print_actor), arg);
 
     // We run our `future` on our runtime.
     runtime::block_on(future);

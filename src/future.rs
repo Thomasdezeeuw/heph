@@ -60,9 +60,9 @@ where
         supervisor: S,
         new_actor: NA,
         argument: NA::Argument,
-    ) -> Result<(ActorFuture<S, NA>, ActorRef<NA::Message>), NA::Error>
+    ) -> (ActorFuture<S, NA>, ActorRef<NA::Message>)
     where
-        NA: NewActor<RuntimeAccess = ()>,
+        NA: NewActor<RuntimeAccess = (), Error = !>,
     {
         ActorFutureBuilder::new().build(supervisor, new_actor, argument)
     }
@@ -259,8 +259,32 @@ impl<RT> ActorFutureBuilder<RT> {
     ///  * `new_actor: NA`: is used to start the actor the first time and
     ///    restart it when it errors, for which the `argument` is used.
     ///  * `argument`: passed to the actor on creation.
+    ///
+    /// For `NewActor` implementations that can be fail see
+    /// [`ActorFutureBuilder::try_build`].
     #[allow(clippy::type_complexity)]
     pub fn build<S, NA>(
+        self,
+        supervisor: S,
+        new_actor: NA,
+        argument: NA::Argument,
+    ) -> (ActorFuture<S, NA>, ActorRef<NA::Message>)
+    where
+        S: Supervisor<NA>,
+        NA: NewActor<RuntimeAccess = RT, Error = !>,
+        RT: Clone,
+    {
+        match self.try_build(supervisor, new_actor, argument) {
+            Ok((fut, actor_ref)) => (fut, actor_ref),
+        }
+    }
+
+    /// Try to create a new `ActorFuture`.
+    ///
+    /// Same as [`ActorFutureBuilder::build`], but for actors that can fail to
+    /// be created.
+    #[allow(clippy::type_complexity)]
+    pub fn try_build<S, NA>(
         self,
         supervisor: S,
         mut new_actor: NA,

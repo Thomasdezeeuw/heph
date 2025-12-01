@@ -26,8 +26,7 @@ async fn expect_1_messages(mut ctx: actor::Context<usize>) {
 
 #[test]
 fn actor_ref_message_loss() {
-    let (future, actor_ref) =
-        ActorFuture::new(NoSupervisor, actor_fn(expect_1_messages), ()).unwrap();
+    let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(expect_1_messages), ());
     let mut future = pin!(future);
     assert_eq!(poll(future.as_mut()), None);
 
