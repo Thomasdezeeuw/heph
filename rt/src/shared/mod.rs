@@ -226,7 +226,7 @@ impl RuntimeInternals {
         let (process, actor_ref) = ActorFutureBuilder::new()
             .with_rt(rt)
             .with_inbox_size(options.inbox_size())
-            .build(supervisor, new_actor, arg)?;
+            .try_build(supervisor, new_actor, arg)?;
         let pid = self.scheduler.add_new_process(options.priority(), process);
         let name = NA::name();
         debug!(pid = pid.0, name = name; "spawning thread-safe actor");

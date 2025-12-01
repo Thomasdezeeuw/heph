@@ -9,8 +9,8 @@ mod runtime; // Replace this with your favourite `Future` runtime.
 
 fn main() {
     // See example 1 for the creation of `ActorFuture`s.
-    let (pong_future, pong_ref) = ActorFuture::new(NoSupervisor, actor_fn(pong_actor), ()).unwrap();
-    let (ping_future, _) = ActorFuture::new(NoSupervisor, actor_fn(ping_actor), pong_ref).unwrap();
+    let (pong_future, pong_ref) = ActorFuture::new(NoSupervisor, actor_fn(pong_actor), ());
+    let (ping_future, _) = ActorFuture::new(NoSupervisor, actor_fn(ping_actor), pong_ref);
 
     // We run ours futures on our runtime.
     runtime::block_on2(ping_future, pong_future);

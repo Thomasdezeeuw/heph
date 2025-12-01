@@ -27,7 +27,7 @@ fn main() {
 
     // Now that we have all the arguments prepare we can create out `Future`
     // that represents our actor.
-    let (future, actor_ref) = ActorFuture::new(supervisor, actor, args).unwrap();
+    let (future, actor_ref) = ActorFuture::new(supervisor, actor, args);
 
     // Now we can send our actor a message using its `actor_ref`.
     actor_ref.try_send("World").unwrap();

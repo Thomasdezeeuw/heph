@@ -42,7 +42,7 @@ fn make_unique_empty() {
 
 #[test]
 fn try_send_to_one() {
-    let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(count_actor), 1).unwrap();
+    let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(count_actor), 1);
 
     let group = ActorGroup::from(actor_ref);
     assert_eq!(group.try_send_to_one(()), Ok(()));
@@ -55,8 +55,7 @@ fn try_send_to_one() {
 fn try_send_to_one_full_inbox() {
     let (future, actor_ref) = ActorFutureBuilder::new()
         .with_inbox_size(InboxSize::ONE)
-        .build(NoSupervisor, actor_fn(count_actor), 1)
-        .unwrap();
+        .build(NoSupervisor, actor_fn(count_actor), 1);
 
     let group = ActorGroup::from(actor_ref);
     assert_eq!(group.try_send_to_one(()), Ok(()));
@@ -74,7 +73,7 @@ fn try_send_to_one_empty() {
 
 #[test]
 fn send_to_one() {
-    let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(count_actor), 1).unwrap();
+    let (future, actor_ref) = ActorFuture::new(NoSupervisor, actor_fn(count_actor), 1);
 
     let group = ActorGroup::from(actor_ref);
     assert_eq!(block_on(group.send_to_one(())), Ok(()));
@@ -87,8 +86,7 @@ fn send_to_one() {
 fn send_to_one_full_inbox() {
     let (future, actor_ref) = ActorFutureBuilder::new()
         .with_inbox_size(InboxSize::ONE)
-        .build(NoSupervisor, actor_fn(count_actor), 1)
-        .unwrap();
+        .build(NoSupervisor, actor_fn(count_actor), 1);
     let mut future = pin!(future);
 
     let group = ActorGroup::from(actor_ref);
@@ -115,8 +113,8 @@ fn send_to_one_empty() {
 
 #[test]
 fn try_send_to_all() {
-    let (future1, actor_ref1) = ActorFuture::new(NoSupervisor, actor_fn(count_actor), 1).unwrap();
-    let (future2, actor_ref2) = ActorFuture::new(NoSupervisor, actor_fn(count_actor), 1).unwrap();
+    let (future1, actor_ref1) = ActorFuture::new(NoSupervisor, actor_fn(count_actor), 1);
+    let (future2, actor_ref2) = ActorFuture::new(NoSupervisor, actor_fn(count_actor), 1);
 
     let group = ActorGroup::new([actor_ref1, actor_ref2]);
     assert_eq!(group.try_send_to_all(()), Ok(()));
@@ -130,12 +128,10 @@ fn try_send_to_all() {
 fn try_send_to_all_full_inbox() {
     let (future1, actor_ref1) = ActorFutureBuilder::new()
         .with_inbox_size(InboxSize::ONE)
-        .build(NoSupervisor, actor_fn(count_actor), 1)
-        .unwrap();
+        .build(NoSupervisor, actor_fn(count_actor), 1);
     let (future2, actor_ref2) = ActorFutureBuilder::new()
         .with_inbox_size(InboxSize::ONE)
-        .build(NoSupervisor, actor_fn(count_actor), 1)
-        .unwrap();
+        .build(NoSupervisor, actor_fn(count_actor), 1);
 
     let group = ActorGroup::new([actor_ref1, actor_ref2]);
     assert_eq!(group.try_send_to_all(()), Ok(()));

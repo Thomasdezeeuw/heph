@@ -265,7 +265,7 @@
 //!     let supervisor = NoSupervisor;
 //!     let new_actor = actor_fn(actor);
 //!     let arguments = (); // No arguments required.
-//!     let (actor, actor_ref) = ActorFuture::new(supervisor, new_actor, arguments)?;
+//!     let (actor, actor_ref) = ActorFuture::new(supervisor, new_actor, arguments);
 //!
 //!     // Actor reference can be used as normal.
 //!     actor_ref.try_send("Hello!")?;
