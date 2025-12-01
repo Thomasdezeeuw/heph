@@ -1,5 +1,3 @@
-#![feature(binary_heap_retain, result_into_ok_or_err, map_first_last)]
-
 use std::cmp::max;
 use std::time::{Duration, Instant};
 
@@ -232,7 +230,9 @@ mod sorted_vec {
                 || initial_vec.clone(),
                 |mut vec| {
                     let timer = Reverse(timers.next().unwrap());
-                    let idx = vec.binary_search(&timer).into_ok_or_err();
+                    let idx = match vec.binary_search(&timer) {
+                        Ok(idx) | Err(idx) => idx,
+                    };
                     vec.insert(idx, timer);
                 },
                 BatchSize::SmallInput,
