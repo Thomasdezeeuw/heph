@@ -13,6 +13,7 @@
 //! [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html#Type=
 
 use std::ffi::OsString;
+use std::os::unix;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
@@ -23,8 +24,8 @@ use heph::messages::Terminate;
 use log::{debug, warn};
 
 use crate::access::Access;
-use crate::net::uds::datagram::{Connected, UnixDatagram};
-use crate::net::uds::UnixAddr;
+use crate::fd::AsyncFd;
+use crate::net::{socket, Domain, Type};
 use crate::timer::Interval;
 use crate::util::{either, next};
 use crate::Signal;
@@ -40,7 +41,7 @@ use crate::Signal;
 /// [`sd_notify(3)`]: https://www.freedesktop.org/software/systemd/man/sd_notify.html
 #[derive(Debug)]
 pub struct Notify {
-    socket: UnixDatagram<Connected>,
+    socket: AsyncFd,
     watch_dog: Option<Duration>,
 }
 
@@ -106,10 +107,9 @@ impl Notify {
         RT: Access,
         P: AsRef<Path>,
     {
-        let socket = UnixDatagram::unbound(rt).await?;
-        let socket = socket
-            .connect(UnixAddr::from_pathname(path.as_ref())?)
-            .await?;
+        let socket = socket(rt.sq(), Domain::UNIX, Type::DGRAM, None).await?;
+        let address = unix::net::SocketAddr::from_pathname(path.as_ref())?;
+        socket.connect(address).await?;
         Ok(Notify {
             socket,
             watch_dog: None,
@@ -155,7 +155,7 @@ impl Notify {
             }
             None => String::from(state_line),
         };
-        _ = self.socket.send(state_update).await?;
+        _ = self.socket.send(state_update, None).await?;
         Ok(())
     }
 
@@ -176,7 +176,7 @@ impl Notify {
         state_update.push_str(status);
         replace_newline(&mut state_update[7..]);
         state_update.push('\n');
-        _ = self.socket.send(state_update).await?;
+        _ = self.socket.send(state_update, None).await?;
         Ok(())
     }
 
@@ -186,7 +186,7 @@ impl Notify {
     /// if `WatchdogSec=` is enabled for it.
     pub async fn ping_watchdog(&self) -> io::Result<()> {
         debug!("pinging service manager watchdog");
-        _ = self.socket.send("WATCHDOG=1").await?;
+        _ = self.socket.send("WATCHDOG=1", None).await?;
         Ok(())
     }
 
@@ -203,7 +203,7 @@ impl Notify {
     /// [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html
     pub async fn trigger_watchdog(&self) -> io::Result<()> {
         debug!("triggering service manager watchdog");
-        _ = self.socket.send("WATCHDOG=trigger").await?;
+        _ = self.socket.send("WATCHDOG=trigger", None).await?;
         Ok(())
     }
 }

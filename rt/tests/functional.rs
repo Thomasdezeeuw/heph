@@ -14,7 +14,6 @@ mod functional {
     mod actor_group;
     mod actor_ref;
     mod from_message;
-    mod fs;
     mod fs_watch;
     mod future;
     mod io;
@@ -24,9 +23,7 @@ mod functional {
     mod signal;
     mod spawn;
     mod sync_actor;
-    mod tcp;
+    mod tcp_server;
     mod test;
     mod timer;
-    mod udp;
-    mod uds;
 }

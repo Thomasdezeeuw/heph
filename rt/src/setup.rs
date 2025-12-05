@@ -99,13 +99,10 @@ impl Setup {
     /// This uses [`pthread_setaffinity_np(3)`] to set the CPU affinity for each
     /// worker thread to there own CPU core.
     ///
-    /// Thread-local workers creating sockets, such as [`UdpSocket`] or
-    /// [`TcpStream`], will use [`SO_INCOMING_CPU`] to set the CPU affinity to
-    /// the same value as the worker's affinity.
+    /// Thread-local workers creating sockets will use [`SO_INCOMING_CPU`] to
+    /// set the CPU affinity to the same value as the worker's affinity.
     ///
     /// [`pthread_setaffinity_np(3)`]: https://man7.org/linux/man-pages/man3/pthread_setaffinity_np.3.html
-    /// [`UdpSocket`]: crate::net::UdpSocket
-    /// [`TcpStream`]: crate::net::TcpStream
     /// [`SO_INCOMING_CPU`]: https://man7.org/linux/man-pages/man7/socket.7.html
     ///
     /// # Notes
@@ -149,7 +146,7 @@ impl Setup {
         debug!(name = name, workers = threads; "building Heph runtime");
 
         let coordinator_setup = coordinator::setup(name, threads)?;
-        let coordinator_sq = coordinator_setup.submission_queue();
+        let coordinator_sq = coordinator_setup.sq();
 
         // Setup the worker threads, but don't spawn them yet.
         let mut worker_setups = Vec::with_capacity(threads);
@@ -165,7 +162,7 @@ impl Setup {
 
         // Create the internal data structure shared by all threads.
         #[allow(clippy::cast_possible_truncation)]
-        let entries = max((threads * 64) as u32, 8);
+        let entries = max(threads * 64, 8);
         let setup = shared::RuntimeInternals::setup(coordinator_sq.clone(), entries)
             .map_err(Error::init_coordinator)?;
         let worker_sqs = worker_sqs.into_boxed_slice();

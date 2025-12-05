@@ -18,6 +18,7 @@
 use std::cmp::max;
 use std::env::consts::ARCH;
 use std::os::unix::process::parent_id;
+use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
@@ -38,18 +39,17 @@ pub(crate) fn setup(app_name: Box<str>, threads: usize) -> Result<CoordinatorSet
     // At most we expect each worker thread to generate a single completion and
     // a possibly an incoming signal.
     #[allow(clippy::cast_possible_truncation)]
-    let entries = max((threads + 1).next_power_of_two() as u32, 8);
+    let entries = max((threads + 1).next_power_of_two(), 8);
     let ring = a10::Ring::config(entries)
         .single_issuer()
         .with_kernel_thread(true)
         .build()
         .map_err(rt::Error::init_coordinator)?;
-    let sq = ring.submission_queue();
+    let sq = ring.sq();
 
     // NOTE: signal handling MUST be setup before spawning the worker threads as
     // they need to inherint the signal handling properties.
-    let signals = Signal::ALL.into_iter().map(Signal::to_signo);
-    let signals = match Signals::from_signals(sq.clone(), signals) {
+    let signals = match Signals::for_all_signals(sq.clone()) {
         Ok(signals) => signals.receive_signals(),
         Err(err) => {
             return Err(rt::Error::init_coordinator(io::Error::new(
@@ -87,8 +87,8 @@ pub(crate) struct CoordinatorSetup {
 
 impl CoordinatorSetup {
     /// Coordinator's submission queue.
-    pub(crate) fn submission_queue(&self) -> &a10::SubmissionQueue {
-        self.ring.submission_queue()
+    pub(crate) fn sq(&self) -> &a10::SubmissionQueue {
+        self.ring.sq()
     }
 
     /// Complete the coordinator setup.
@@ -223,17 +223,18 @@ impl Coordinator {
         let waker = task::Waker::noop();
         let mut ctx = task::Context::from_waker(waker);
         loop {
-            match self.signals.poll_signal(&mut ctx) {
+            match Pin::new(&mut self.signals).poll_next(&mut ctx) {
                 Poll::Ready(Some(Ok(info))) => {
                     *signal_received = true;
-                    #[allow(clippy::cast_possible_wrap)]
-                    let Some(signal) = Signal::from_signo(info.ssi_signo as _) else {
-                        debug!(signal_number = info.ssi_signo, signal_code = info.ssi_code,
-                            sending_pid = info.ssi_pid, sending_uid = info.ssi_uid; "received unexpected signal, not relaying");
+                    // SAFETY: this is not safe.
+                    let signo = unsafe { std::mem::transmute(info.signal()) };
+                    let Some(signal) = Signal::from_signo(signo) else {
+                        debug!(signal_number:? = info.signal(),
+                            sending_pid = info.pid(), sending_uid = info.real_user_id(); "received unexpected signal, not relaying");
                         continue;
                     };
-                    debug!(signal:? = signal, signal_number = info.ssi_signo, signal_code = info.ssi_code,
-                        sending_pid = info.ssi_pid, sending_uid = info.ssi_uid; "received process signal");
+                    debug!(signal:? = signal, signal_number:? = info.signal(),
+                        sending_pid = info.pid(), sending_uid = info.real_user_id(); "received process signal");
 
                     if let Signal::User2 = signal {
                         self.log_metrics();

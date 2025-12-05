@@ -10,7 +10,7 @@
 //!    [`SyncActor::RuntimeAccess`] types.
 //!  * In the `RT` type [`actor::Context`] and [`sync::Context`].
 //!  * In various types and function that require runtime access as an argument,
-//!    for example [`TcpStream::connect`].
+//!    for example [`AsyncFd`].
 //!
 //! This runtime access is defined by the [`Access`] trait, commonly referred to
 //! as the `rt::Access` (read runtime access) trait. It comes in the following
@@ -27,7 +27,7 @@
 //!
 //! [`rt::Access`]: crate::Access
 //! [`SyncActor::RuntimeAccess`]: heph::sync::SyncActor::RuntimeAccess
-//! [`TcpStream::connect`]: crate::net::TcpStream::connect
+//! [`AsyncFd`]: crate::fd::AsyncFd
 
 use std::future::Future;
 use std::ops::{Deref, DerefMut};
@@ -42,6 +42,19 @@ use crate::timers::TimerToken;
 use crate::trace::{self, Trace};
 use crate::{shared, Runtime, RuntimeRef};
 
+/// Queue to submit asynchronous operations to.
+///
+/// This type doesn't have many public methods, but is used by [`AsyncFd`].
+/// The queue can be acquired by using the [`Access`] trait.
+///
+/// The submission queue can be shared by cloning it, it's a cheap operation.
+///
+/// [`AsyncFd`]: crate::fd::AsyncFd
+///
+/// <span hidden>
+#[allow(rustdoc::invalid_html_tags)] // For the hidden span.
+pub use a10::SubmissionQueue;
+
 /// Runtime Access Trait.
 ///
 /// This trait is used to indicate an API needs access to the Heph runtime. It
@@ -55,7 +68,14 @@ use crate::{shared, Runtime, RuntimeRef};
 /// # Notes
 ///
 /// This trait can't be implemented by types outside of the Heph crate.
-pub trait Access: PrivateAccess {}
+pub trait Access: PrivateAccess {
+    /// Get access to the `SubmissionQueue`.
+    ///
+    /// This can be used in [`AsyncFd`].
+    ///
+    /// [`AsyncFd`]: crate::fd::AsyncFd
+    fn sq(&self) -> SubmissionQueue;
+}
 
 mod private {
     use std::task;
@@ -68,9 +88,6 @@ mod private {
     ///
     /// [`rt::Access`]: crate::Access
     pub trait PrivateAccess {
-        /// Get access to the `SubmissionQueue`.
-        fn submission_queue(&self) -> a10::SubmissionQueue;
-
         /// Add a new timer expiring at `deadline` waking `waker`.
         fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken;
 
@@ -96,13 +113,13 @@ mod private {
 
 pub(crate) use private::PrivateAccess;
 
-impl<T: Access> Access for &mut T {}
+impl<T: Access> Access for &mut T {
+    fn sq(&self) -> SubmissionQueue {
+        (**self).sq()
+    }
+}
 
 impl<T: PrivateAccess> PrivateAccess for &mut T {
-    fn submission_queue(&self) -> a10::SubmissionQueue {
-        (**self).submission_queue()
-    }
-
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
         (**self).add_timer(deadline, waker)
     }
@@ -175,13 +192,13 @@ impl DerefMut for ThreadLocal {
     }
 }
 
-impl Access for ThreadLocal {}
+impl Access for ThreadLocal {
+    fn sq(&self) -> SubmissionQueue {
+        self.rt.internals.ring.borrow().sq().clone()
+    }
+}
 
 impl PrivateAccess for ThreadLocal {
-    fn submission_queue(&self) -> a10::SubmissionQueue {
-        self.rt.internals.ring.borrow().submission_queue().clone()
-    }
-
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
         self.rt.add_timer(deadline, waker)
     }
@@ -305,13 +322,13 @@ impl From<&RuntimeRef> for ThreadSafe {
     }
 }
 
-impl Access for ThreadSafe {}
+impl Access for ThreadSafe {
+    fn sq(&self) -> SubmissionQueue {
+        self.rt.sq().clone()
+    }
+}
 
 impl PrivateAccess for ThreadSafe {
-    fn submission_queue(&self) -> a10::SubmissionQueue {
-        self.rt.submission_queue().clone()
-    }
-
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
         self.rt.add_timer(deadline, waker)
     }
@@ -365,6 +382,47 @@ where
 impl fmt::Debug for ThreadSafe {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str("ThreadSafe")
+    }
+}
+
+impl<M, RT> Access for actor::Context<M, RT>
+where
+    RT: Access,
+{
+    fn sq(&self) -> SubmissionQueue {
+        self.runtime_ref().sq()
+    }
+}
+
+impl<M, RT> PrivateAccess for actor::Context<M, RT>
+where
+    RT: PrivateAccess,
+{
+    fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
+        self.runtime().add_timer(deadline, waker)
+    }
+
+    fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
+        self.runtime().remove_timer(deadline, token);
+    }
+
+    fn cpu(&self) -> Option<usize> {
+        self.runtime_ref().cpu()
+    }
+
+    fn start_trace(&self) -> Option<trace::EventTiming> {
+        self.runtime_ref().start_trace()
+    }
+
+    fn finish_trace(
+        &mut self,
+        timing: Option<trace::EventTiming>,
+        substream_id: u64,
+        description: &str,
+        attributes: &[(&str, &dyn trace::AttributeValue)],
+    ) {
+        self.runtime()
+            .finish_trace(timing, substream_id, description, attributes);
     }
 }
 

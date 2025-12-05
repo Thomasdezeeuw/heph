@@ -8,7 +8,8 @@ use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::ActorRef;
-use heph_rt::net::{tcp, TcpStream};
+use heph_rt::fd::AsyncFd;
+use heph_rt::net::{ServerError, ServerMessage, TcpServer};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join_many, try_spawn_local, PanicSupervisor};
 use heph_rt::{self as rt, Runtime, Signal, ThreadLocal};
@@ -17,23 +18,23 @@ use crate::util::{any_local_address, tcp_connect};
 
 #[test]
 fn message_from_terminate() {
-    let _msg = tcp::server::Message::from(Terminate);
+    let _msg = ServerMessage::from(Terminate);
 }
 
 #[test]
 fn message_from_process_signal() {
     let signals = &[Signal::Interrupt, Signal::Terminate, Signal::Quit];
     for signal in signals {
-        assert!(tcp::server::Message::try_from(*signal).is_ok());
+        assert!(ServerMessage::try_from(*signal).is_ok());
     }
 }
 
-async fn actor<RT>(_: actor::Context<!, RT>, stream: TcpStream)
+async fn actor<RT>(_: actor::Context<!, RT>, stream: AsyncFd)
 where
     RT: rt::Access,
 {
     let buf = Vec::with_capacity(DATA.len() + 1);
-    let buf = stream.recv(buf).await.unwrap();
+    let buf = stream.recv(buf, 0).await.unwrap();
     assert_eq!(buf, DATA);
 }
 
@@ -42,13 +43,13 @@ const DATA: &[u8] = b"Hello world";
 async fn stream_actor<RT>(
     mut ctx: actor::Context<!, RT>,
     address: SocketAddr,
-    actor_ref: ActorRef<tcp::server::Message>,
+    actor_ref: ActorRef<ServerMessage>,
 ) where
     RT: rt::Access + Clone,
 {
     let stream = tcp_connect(&mut ctx, address).await.unwrap();
 
-    let (_, n) = stream.send(DATA).await.unwrap();
+    let n = stream.send(DATA, 0).await.unwrap();
     assert_eq!(n, DATA.len());
 
     // Send a message to stop the listener.
@@ -57,7 +58,7 @@ async fn stream_actor<RT>(
 
 #[test]
 fn smoke() {
-    let server = tcp::server::setup(
+    let server = TcpServer::new(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
         actor_fn(actor),
@@ -68,7 +69,7 @@ fn smoke() {
 
     // TCP server should be able to be created outside the setup function and
     // used in it.
-    let local_server = tcp::server::setup(
+    let local_server = TcpServer::new(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
         actor_fn(actor),
@@ -109,7 +110,7 @@ fn smoke() {
 
 #[test]
 fn zero_port() {
-    let server = tcp::server::setup(
+    let server = TcpServer::new(
         any_local_address(),
         |err| panic!("unexpect error: {err}"),
         actor_fn::<_, _, ThreadLocal, _, _>(actor),
@@ -147,7 +148,7 @@ fn new_actor_error() {
     // error here.
     impl<A> Actor for ServerWrapper<A>
     where
-        A: Actor<Error = tcp::server::Error<()>>,
+        A: Actor<Error = ServerError<()>>,
     {
         type Error = !;
 
@@ -162,10 +163,10 @@ fn new_actor_error() {
             );
             match res {
                 Poll::Ready(Ok(())) => Poll::Ready(Ok(())),
-                Poll::Ready(Err(tcp::server::Error::Accept(err))) => {
+                Poll::Ready(Err(ServerError::Accept(err))) => {
                     panic!("unexpected accept error: {err}")
                 }
-                Poll::Ready(Err(tcp::server::Error::NewActor(()))) => Poll::Ready(Ok(())),
+                Poll::Ready(Err(ServerError::NewActor(()))) => Poll::Ready(Ok(())),
                 Poll::Pending => Poll::Pending,
             }
         }
@@ -190,7 +191,7 @@ fn new_actor_error() {
         RT: rt::Access,
     {
         type Message = !;
-        type Argument = TcpStream;
+        type Argument = AsyncFd;
         type Actor = ActorErrorGenerator;
         type Error = ();
         type RuntimeAccess = RT;
@@ -235,7 +236,7 @@ fn new_actor_error() {
         fn second_restart_error(&mut self, _: NA::Error) {}
     }
 
-    let server = tcp::server::setup(
+    let server = TcpServer::new(
         any_local_address(),
         ErrorSupervisor,
         NewActorErrorGenerator(PhantomData),

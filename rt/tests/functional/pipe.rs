@@ -5,15 +5,14 @@ use std::time::Duration;
 
 use heph::actor::{self, actor_fn};
 use heph::ActorRef;
-use heph_rt::io::{Read, Write};
-use heph_rt::pipe::{self, Receiver};
+use heph_rt::fd::AsyncFd;
+use heph_rt::pipe::pipe;
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join, join_many, try_spawn_local, PanicSupervisor};
 use heph_rt::{self as rt};
 
 const DATA: &[u8] = b"Hello world";
 const DATAV: &[&[u8]] = &[b"Hello world!", b" ", b"From mars."];
-const DATAV_LEN: usize = DATAV[0].len() + DATAV[1].len() + DATAV[2].len();
 
 #[test]
 fn smoke() {
@@ -21,10 +20,9 @@ fn smoke() {
     where
         RT: rt::Access,
     {
-        let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
+        let [sender, receiver] = pipe(ctx.runtime_ref())?;
 
-        let (_, n) = (&sender).write(DATA).await?;
-        assert_eq!(n, DATA.len());
+        (&sender).write_all(DATA).await?;
         drop(sender);
 
         let buf = (&receiver).read(Vec::with_capacity(DATA.len() + 1)).await?;
@@ -44,13 +42,13 @@ fn write_all_read_n() {
     const DATA: &[u8] = &[213; 17 * 4096];
 
     async fn writer<RT>(
-        ctx: actor::Context<Receiver, RT>,
-        reader: ActorRef<Receiver>,
+        ctx: actor::Context<AsyncFd, RT>,
+        reader: ActorRef<AsyncFd>,
     ) -> io::Result<()>
     where
         RT: rt::Access,
     {
-        let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
+        let [sender, receiver] = pipe(ctx.runtime_ref())?;
 
         reader.send(receiver).await.unwrap();
 
@@ -59,7 +57,7 @@ fn write_all_read_n() {
         Ok(())
     }
 
-    async fn reader<RT>(mut ctx: actor::Context<Receiver, RT>) -> io::Result<()>
+    async fn reader<RT>(mut ctx: actor::Context<AsyncFd, RT>) -> io::Result<()>
     where
         RT: rt::Access,
     {
@@ -93,23 +91,23 @@ fn write_vectored_all_read_n_vectored() {
     const DATA_LEN: usize = DATA[0].len() + DATA[1].len() + DATA[2].len();
 
     async fn writer<RT>(
-        ctx: actor::Context<Receiver, RT>,
-        reader: ActorRef<Receiver>,
+        ctx: actor::Context<AsyncFd, RT>,
+        reader: ActorRef<AsyncFd>,
     ) -> io::Result<()>
     where
         RT: rt::Access,
     {
-        let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
+        let [sender, receiver] = pipe(ctx.runtime_ref())?;
 
         reader.send(receiver).await.unwrap();
 
         let bufs = [DATA[0], DATA[1], DATA[2]];
-        (&sender).write_vectored_all(bufs).await?;
+        (&sender).write_all_vectored(bufs).await?;
         drop(sender);
         Ok(())
     }
 
-    async fn reader<RT>(mut ctx: actor::Context<Receiver, RT>) -> io::Result<()>
+    async fn reader<RT>(mut ctx: actor::Context<AsyncFd, RT>) -> io::Result<()>
     where
         RT: rt::Access,
     {
@@ -148,11 +146,10 @@ fn vectored_io() {
     where
         RT: rt::Access,
     {
-        let (sender, receiver) = pipe::new(ctx.runtime_ref())?;
+        let [sender, receiver] = pipe(ctx.runtime_ref())?;
 
         let bufs = [DATAV[0], DATAV[1], DATAV[2]];
-        let (_, n) = (&sender).write_vectored(bufs).await?;
-        assert_eq!(n, DATAV_LEN);
+        (&sender).write_all_vectored(bufs).await?;
         drop(sender);
 
         let bufs = [
