@@ -239,7 +239,7 @@ use crate::util::{either, next};
 /// #
 /// # /// The actor responsible for a single connection.
 /// # async fn conn_actor(_: actor::Context<!, ThreadSafe>, conn: AsyncFd) -> io::Result<()> {
-/// #     conn.send_all("Hello World", None).await?;
+/// #     conn.send_all(a10::io::StaticBuf::from("Hello World"), None).await?;
 /// #     Ok(())
 /// # }
 /// ```
