@@ -120,7 +120,7 @@ impl RuntimeInternals {
 
     /// Same as [`RuntimeInternals::setup`], but doesn't attach to an existing [`a10::Ring`].
     #[cfg(test)]
-    pub(crate) fn test_setup(ring_entries: u32) -> io::Result<RuntimeSetup> {
+    pub(crate) fn test_setup(ring_entries: usize) -> io::Result<RuntimeSetup> {
         let ring = a10::Ring::config(ring_entries)
             .with_kernel_thread(true)
             .build()?;
