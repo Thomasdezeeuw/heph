@@ -1,6 +1,6 @@
 #![feature(never_type)]
 
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::{env, io};
 
 use heph::actor::{self, actor_fn};
@@ -56,9 +56,9 @@ fn main() -> Result<(), rt::Error> {
 restart_supervisor!(ServerSupervisor, ());
 
 async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: AsyncFd) -> io::Result<()> {
-    let address = stream.peer_addr()?;
-    info!("accepted connection: address={address}");
+    let address: SocketAddr = stream.peer_addr().await?;
+    info!(address:%; "accepted connection");
     let ip = address.ip().to_string();
-    stream.send_all(ip, None).await?;
+    stream.send_all(ip).await?;
     Ok(())
 }

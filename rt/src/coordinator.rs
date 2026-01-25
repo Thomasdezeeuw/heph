@@ -15,7 +15,6 @@
 //! [worker threads]: crate::worker
 //! [sync worker threads]: crate::sync_worker
 
-use std::cmp::max;
 use std::env::consts::ARCH;
 use std::os::unix::process::parent_id;
 use std::pin::Pin;
@@ -25,24 +24,22 @@ use std::time::{Duration, Instant};
 use std::{fmt, io, process};
 
 use a10::process::{ReceiveSignals, Signals};
-use heph::actor_ref::ActorGroup;
+use heph::actor_ref::{ActorGroup, SendError};
 use log::{debug, error, info, trace};
 
 use crate::setup::{host_id, host_info, Uuid};
 use crate::{self as rt, cpu_usage, shared, sync_worker, trace, worker, Signal};
 
 /// Setup the [`Coordinator`].
-pub(crate) fn setup(app_name: Box<str>, threads: usize) -> Result<CoordinatorSetup, rt::Error> {
+pub(crate) fn setup(app_name: Box<str>) -> Result<CoordinatorSetup, rt::Error> {
     let (host_os, host_name) = host_info().map_err(rt::Error::init_coordinator)?;
     let host_id = host_id().map_err(rt::Error::init_coordinator)?;
 
     // At most we expect each worker thread to generate a single completion and
     // a possibly an incoming signal.
-    #[allow(clippy::cast_possible_truncation)]
-    let entries = max((threads + 1).next_power_of_two(), 8);
-    let ring = a10::Ring::config(entries)
+    let ring = a10::Ring::config()
         .single_issuer()
-        .with_kernel_thread(true)
+        .with_kernel_thread()
         .build()
         .map_err(rt::Error::init_coordinator)?;
     let sq = ring.sq();
@@ -55,7 +52,7 @@ pub(crate) fn setup(app_name: Box<str>, threads: usize) -> Result<CoordinatorSet
             return Err(rt::Error::init_coordinator(io::Error::new(
                 err.kind(),
                 format!("failed to setup process signal handling: {err}"),
-            )))
+            )));
         }
     };
 
@@ -87,7 +84,7 @@ pub(crate) struct CoordinatorSetup {
 
 impl CoordinatorSetup {
     /// Coordinator's submission queue.
-    pub(crate) fn sq(&self) -> &a10::SubmissionQueue {
+    pub(crate) fn sq(&self) -> a10::SubmissionQueue {
         self.ring.sq()
     }
 
@@ -264,7 +261,7 @@ impl Coordinator {
                     _ = self.signal_refs.try_send_to_all(signal);
                 }
                 Poll::Ready(Some(Err(err))) => {
-                    return Err(rt::Error::coordinator(Error::SignalHandling(err)))
+                    return Err(rt::Error::coordinator(Error::SignalHandling(err)));
                 }
                 Poll::Ready(None) | Poll::Pending => break,
             }

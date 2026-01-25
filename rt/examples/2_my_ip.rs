@@ -1,6 +1,7 @@
 #![feature(never_type)]
 
 use std::io;
+use std::net::SocketAddr;
 
 use heph::actor::{self, actor_fn, Actor, NewActor};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
@@ -96,14 +97,14 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
 /// This actor will not receive any message and thus uses `!` (the never type)
 /// as message type.
 async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: AsyncFd) -> io::Result<()> {
-    let address = stream.peer_addr()?;
-    info!(address:% = address; "accepted connection");
+    let address: SocketAddr = stream.peer_addr().await?;
+    info!(address:%; "accepted connection");
 
     // This will allocate a new string which isn't the most efficient way to do
     // this, but it's the easiest so we'll keep this for sake of example.
     let ip = address.ip().to_string();
 
     // Next we'll write the IP address to the connection.
-    stream.send_all(ip, None).await?;
+    stream.send_all(ip).await?;
     Ok(())
 }

@@ -8,7 +8,7 @@ use crate::wakers::{self, create_no_ring_waker};
 fn create_no_ring_waker_local() {
     const PID1: ProcessId = ProcessId(0);
 
-    let ring = a10::Ring::new(2).unwrap();
+    let ring = a10::Ring::new().unwrap();
     let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
     let mut wakers = wakers::Wakers::new(wake_sender, ring.sq().clone());
 
@@ -59,7 +59,7 @@ mod local {
 
     #[test]
     fn waker() {
-        let mut ring = a10::Ring::new(2).unwrap();
+        let mut ring = a10::Ring::new().unwrap();
 
         // Create the wakers.
         let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
@@ -84,7 +84,7 @@ mod local {
 
     #[test]
     fn waker_different_thread() {
-        let mut ring = a10::Ring::new(2).unwrap();
+        let mut ring = a10::Ring::new().unwrap();
 
         // Create the wakers.
         let (wake_sender, wake_receiver) = crossbeam_channel::unbounded();
@@ -257,7 +257,7 @@ mod shared {
     }
 
     pub(super) fn new_internals() -> Arc<RuntimeInternals> {
-        let setup = RuntimeInternals::test_setup(2).unwrap();
+        let setup = RuntimeInternals::test_setup().unwrap();
         Arc::new_cyclic(|shared_internals| {
             let wakers = Wakers::new(shared_internals.clone());
             let worker_wakers = vec![noop_waker()].into_boxed_slice();
@@ -269,7 +269,7 @@ mod shared {
         static NOOP_WAKER: OnceLock<a10::SubmissionQueue> = OnceLock::new();
         NOOP_WAKER
             .get_or_init(|| {
-                let ring = a10::Ring::new(2).expect("failed to create `a10::Ring` for test module");
+                let ring = a10::Ring::new().expect("failed to create `a10::Ring` for test module");
                 ring.sq().clone()
             })
             .clone()

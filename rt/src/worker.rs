@@ -34,7 +34,7 @@ use crate::scheduler::ProcessId;
 use crate::setup::set_cpu_affinity;
 use crate::spawn::options::ActorOptions;
 use crate::wakers::Wakers;
-use crate::{self as rt, RuntimeRef, Signal, ThreadLocal, shared, trace};
+use crate::{self as rt, shared, trace, RuntimeRef, Signal, ThreadLocal};
 
 /// Number of system actors (spawned in the local scheduler).
 pub(crate) const SYSTEM_ACTORS: usize = 1;
@@ -61,10 +61,10 @@ pub(crate) fn setup(
     auto_cpu_affinity: bool,
     coordinator_sq: &a10::SubmissionQueue,
 ) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let config = a10::Ring::config(128)
+    let config = a10::Ring::config()
         .disable() // Enabled on the worker thread.
         .single_issuer()
-        .with_kernel_thread(true)
+        .with_kernel_thread()
         .attach_queue(coordinator_sq);
     let config = if auto_cpu_affinity {
         #[allow(clippy::cast_possible_truncation)]
@@ -79,17 +79,17 @@ pub(crate) fn setup(
 /// Test version of [`setup`].
 #[cfg(any(test, feature = "test"))]
 pub(crate) fn setup_test() -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let ring = a10::Ring::config(128)
+    let ring = a10::Ring::config()
         .disable() // Enabled on the worker thread.
         .single_issuer()
-        .with_kernel_thread(true)
+        .with_kernel_thread()
         .build()?;
     Ok(setup2(NonZeroUsize::MAX, ring))
 }
 
 /// Second part of the [`setup`].
 fn setup2(id: NonZeroUsize, ring: a10::Ring) -> (WorkerSetup, a10::SubmissionQueue) {
-    let sq = ring.sq().clone();
+    let sq = ring.sq();
 
     // Setup the waking mechanism.
     let (waker_sender, waker_events) = crossbeam_channel::unbounded();

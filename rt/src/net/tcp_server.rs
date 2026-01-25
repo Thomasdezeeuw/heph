@@ -458,7 +458,7 @@ where
                 drop(receive); // Can't double borrow `ctx`.
                 if let Some(cpu) = ctx.runtime_ref().cpu() {
                     if let Err(err) = stream
-                        .set_socket_option2::<option::IncomingCpu>(cpu as u32)
+                        .set_socket_option::<option::IncomingCpu>(cpu as u32)
                         .await
                     {
                         log::warn!("failed to set CPU affinity on accepted connection: {err}");
@@ -500,14 +500,14 @@ async fn setup_listener<RT: Access>(rt: &RT, local: SocketAddr) -> io::Result<As
     )
     .await?;
     listener
-        .set_socket_option2::<option::ReuseAddress>(true)
+        .set_socket_option::<option::ReuseAddress>(true)
         .await?;
     listener
-        .set_socket_option2::<option::ReusePort>(true)
+        .set_socket_option::<option::ReusePort>(true)
         .await?;
     if let Some(cpu) = rt.cpu() {
         if let Err(err) = listener
-            .set_socket_option2::<option::IncomingCpu>(cpu as u32)
+            .set_socket_option::<option::IncomingCpu>(cpu as u32)
             .await
         {
             log::warn!("failed to set CPU affinity on TCP server: {err}");

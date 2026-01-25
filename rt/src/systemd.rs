@@ -25,6 +25,7 @@ use log::{debug, warn};
 
 use crate::access::Access;
 use crate::fd::AsyncFd;
+use crate::io::StaticBuf;
 use crate::net::{socket, Domain, Type};
 use crate::timer::Interval;
 use crate::util::{either, next};
@@ -155,7 +156,7 @@ impl Notify {
             }
             None => String::from(state_line),
         };
-        _ = self.socket.send(state_update, None).await?;
+        _ = self.socket.send(state_update).await?;
         Ok(())
     }
 
@@ -176,7 +177,7 @@ impl Notify {
         state_update.push_str(status);
         replace_newline(&mut state_update[7..]);
         state_update.push('\n');
-        _ = self.socket.send(state_update, None).await?;
+        _ = self.socket.send(state_update).await?;
         Ok(())
     }
 
@@ -186,7 +187,7 @@ impl Notify {
     /// if `WatchdogSec=` is enabled for it.
     pub async fn ping_watchdog(&self) -> io::Result<()> {
         debug!("pinging service manager watchdog");
-        _ = self.socket.send("WATCHDOG=1", None).await?;
+        _ = self.socket.send(StaticBuf::from("WATCHDOG=1")).await?;
         Ok(())
     }
 
@@ -203,7 +204,10 @@ impl Notify {
     /// [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html
     pub async fn trigger_watchdog(&self) -> io::Result<()> {
         debug!("triggering service manager watchdog");
-        _ = self.socket.send("WATCHDOG=trigger", None).await?;
+        _ = self
+            .socket
+            .send(StaticBuf::from("WATCHDOG=trigger"))
+            .await?;
         Ok(())
     }
 }
@@ -284,13 +288,13 @@ where
     E: ToString,
 {
     let Some(notify) = Notify::new(ctx.runtime_ref()).await? else {
-        debug!("not started via systemd, not starting `systemd::watchdog`");
+        debug!("not started via systemd, not starting watchdog");
         return Ok(());
     };
     notify.change_state(State::Ready, None).await?;
 
     if let Some(timeout) = notify.watchdog_timeout() {
-        debug!(timeout:? = timeout; "started via systemd with watchdog");
+        debug!(timeout:?; "started via systemd with watchdog");
         let mut interval = Interval::every(ctx.runtime_ref().clone(), timeout);
         loop {
             match either(ctx.receive_next(), next(&mut interval)).await {
@@ -336,7 +340,7 @@ where
             }
         }
     }
-    debug!("all references to the systemd::watchdog are dropped, stopping it");
+    debug!("all references to the systemd watchdog are dropped, stopping it");
     notify.change_state(State::Stopping, None).await
 }
 

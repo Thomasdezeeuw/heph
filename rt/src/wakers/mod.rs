@@ -215,6 +215,7 @@ macro_rules! no_ring_ctx {
     };
 }
 
+#[allow(unused_imports)]
 pub(crate) use no_ring_ctx;
 
 /// [`Future`] that uses [`no_ring_ctx`] internally.

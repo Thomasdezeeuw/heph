@@ -1,6 +1,5 @@
 //! Module with [`Setup`].
 
-use std::cmp::max;
 use std::ffi::CStr;
 use std::mem::MaybeUninit;
 use std::num::NonZeroUsize;
@@ -145,7 +144,7 @@ impl Setup {
         let name = name.unwrap_or_else(default_app_name).into_boxed_str();
         debug!(name = name, workers = threads; "building Heph runtime");
 
-        let coordinator_setup = coordinator::setup(name, threads)?;
+        let coordinator_setup = coordinator::setup(name)?;
         let coordinator_sq = coordinator_setup.sq();
 
         // Setup the worker threads, but don't spawn them yet.
@@ -154,17 +153,15 @@ impl Setup {
         for id in 1..=threads {
             // Coordinator has id 0.
             let id = NonZeroUsize::new(id).unwrap();
-            let (worker_setup, worker_sq) = worker::setup(id, auto_cpu_affinity, coordinator_sq)
+            let (worker_setup, worker_sq) = worker::setup(id, auto_cpu_affinity, &coordinator_sq)
                 .map_err(Error::start_worker)?;
             worker_setups.push(worker_setup);
             worker_sqs.push(worker_sq);
         }
 
         // Create the internal data structure shared by all threads.
-        #[allow(clippy::cast_possible_truncation)]
-        let entries = max(threads * 64, 8);
-        let setup = shared::RuntimeInternals::setup(coordinator_sq.clone(), entries)
-            .map_err(Error::init_coordinator)?;
+        let setup =
+            shared::RuntimeInternals::setup(coordinator_sq).map_err(Error::init_coordinator)?;
         let worker_sqs = worker_sqs.into_boxed_slice();
         let shared_trace_log = trace_log.as_ref().map(trace::CoordinatorLog::clone_shared);
         let internals = Arc::new_cyclic(|shared_internals| {
@@ -324,7 +321,9 @@ pub(crate) fn host_id() -> io::Result<Uuid> {
     } else {
         Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            format!("failed to get host id: can't read '{PATH}', invalid format: only read {n} bytes (expected {EXPECTED_SIZE})"),
+            format!(
+                "failed to get host id: can't read '{PATH}', invalid format: only read {n} bytes (expected {EXPECTED_SIZE})"
+            ),
         ))
     }
 }

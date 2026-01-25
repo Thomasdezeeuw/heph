@@ -73,8 +73,8 @@ use heph_inbox::oneshot::{self, new_oneshot};
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::worker::Worker;
 use crate::{
-    self as rt, panic_message, shared, sync_worker, worker, Runtime, RuntimeRef, Setup, Sync,
-    ThreadLocal, ThreadSafe,
+    panic_message, shared, sync_worker, worker, Runtime, RuntimeRef, Setup, Sync, ThreadLocal,
+    ThreadSafe,
 };
 
 #[doc(no_inline)]
@@ -108,9 +108,9 @@ pub(crate) fn runtime() -> RuntimeRef {
     thread_local! {
         /// Per thread runtime.
         static TEST_RT: Worker = {
-            let (setup, sq) = worker::setup_test().expect("failed to setup test runtime");
-            let (_, receiver) = rt::channel::new(sq).expect("failed to test runtime channel");
-            Worker::setup(setup, receiver, shared_internals(), false, None)
+            let (setup, _) = worker::setup_test().expect("failed to setup test runtime");
+            let init = Arc::new(OnceLock::new());
+            Worker::setup(setup, shared_internals(), false, None, init)
         };
     }
 

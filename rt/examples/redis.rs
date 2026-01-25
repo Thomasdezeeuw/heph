@@ -7,6 +7,7 @@
 
 use std::collections::HashMap;
 use std::io::{self, Write};
+use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
@@ -101,18 +102,13 @@ async fn conn_actor<RT>(
 where
     RT: rt::Access + Clone,
 {
-    let address = stream.peer_addr()?;
-    info!(address:% = address; "accepted connection");
+    let address: SocketAddr = stream.peer_addr().await?;
+    info!(address:%; "accepted connection");
     let mut buffer = Vec::with_capacity(1024);
 
     let err = loop {
         buffer.clear();
-        buffer = Deadline::after(
-            ctx.runtime_ref().clone(),
-            TIMEOUT,
-            stream.recv(buffer, None),
-        )
-        .await?;
+        buffer = Deadline::after(ctx.runtime_ref().clone(), TIMEOUT, stream.recv(buffer)).await?;
         if buffer.is_empty() {
             return Ok(());
         }
@@ -165,7 +161,7 @@ where
                             let bufs = stream.send_all_vectored(bufs).extract().await?;
                             buffer = bufs.0;
                         } else {
-                            stream.send_all(NIL, None).await?;
+                            stream.send_all(NIL).await?;
                         }
                     }
                     "SET" => {
@@ -195,10 +191,10 @@ where
                         {
                             values.write().unwrap().insert(key, value);
                         }
-                        stream.send_all(OK.as_bytes(), None).await?;
+                        stream.send_all(OK.as_bytes()).await?;
                     }
                     "COMMAND" => {
-                        stream.send_all(COMMANDS, None).await?;
+                        stream.send_all(COMMANDS).await?;
                     }
                     _ => break ERR_UNIMPLEMENTED,
                 }
@@ -206,7 +202,7 @@ where
             _ => break ERR_UNIMPLEMENTED,
         }
     };
-    stream.send_all(err, None).await?;
+    stream.send_all(err).await?;
     Ok(())
 }
 
