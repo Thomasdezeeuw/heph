@@ -226,7 +226,7 @@ use std::task;
 use std::time::{Duration, Instant};
 
 use ::log::{debug, warn};
-use heph::actor_ref::{ActorGroup, ActorRef};
+use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 use heph::supervisor::{Supervisor, SyncSupervisor};
 use heph::{ActorFutureBuilder, NewActor, SyncActor};
 
@@ -424,7 +424,7 @@ impl Runtime {
             let f = Box::new(move |runtime_ref| f(runtime_ref).map_err(|err| err.to_string()));
             worker
                 .send_function(f)
-                .map_err(|err| Error::coordinator(coordinator::Error::SendingFunc(err)))?;
+                .map_err(|SendError| Error::coordinator(coordinator::Error::SendingFunc))?;
         }
         Ok(())
     }

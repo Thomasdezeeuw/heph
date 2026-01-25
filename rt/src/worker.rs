@@ -18,12 +18,13 @@
 use std::cell::RefMut;
 use std::num::NonZeroUsize;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use std::{fmt, io, task, thread};
 
 use crossbeam_channel::Receiver;
 use heph::actor::{self, actor_fn};
+use heph::actor_ref::{ActorRef, SendError};
 use heph::supervisor::NoSupervisor;
 use log::{debug, trace, warn};
 
@@ -33,7 +34,7 @@ use crate::scheduler::ProcessId;
 use crate::setup::set_cpu_affinity;
 use crate::spawn::options::ActorOptions;
 use crate::wakers::Wakers;
-use crate::{self as rt, shared, trace, RuntimeRef, Signal, ThreadLocal};
+use crate::{self as rt, RuntimeRef, Signal, ThreadLocal, shared, trace};
 
 /// Number of system actors (spawned in the local scheduler).
 pub(crate) const SYSTEM_ACTORS: usize = 1;
@@ -119,46 +120,24 @@ impl WorkerSetup {
     /// Start a new worker thread.
     pub(crate) fn start(
         self,
-        shared_internals: Arc<shared::RuntimeInternals>,
+        shared: Arc<shared::RuntimeInternals>,
         auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
     ) -> io::Result<Handle> {
         let id = self.id;
-        self.start_named(
-            shared_internals,
-            auto_cpu_affinity,
-            trace_log,
-            format!("Worker {id}"),
-        )
-    }
-
-    pub(crate) fn start_named(
-        self,
-        shared_internals: Arc<shared::RuntimeInternals>,
-        auto_cpu_affinity: bool,
-        trace_log: Option<trace::Log>,
-        thread_name: String,
-    ) -> io::Result<Handle> {
-        let sq = self.ring.sq().clone();
-        rt::channel::new(sq).and_then(move |(sender, receiver)| {
-            let id = self.id;
-            thread::Builder::new()
-                .name(thread_name)
-                .spawn(move || {
-                    let worker = Worker::setup(
-                        self,
-                        receiver,
-                        shared_internals,
-                        auto_cpu_affinity,
-                        trace_log,
-                    );
-                    worker.run().map_err(rt::Error::worker)
-                })
-                .map(|handle| Handle {
-                    id,
-                    channel: sender,
-                    handle,
-                })
+        let init = Arc::new(OnceLock::new());
+        let i = init.clone();
+        let handle = thread::Builder::new()
+            .name(format!("Worker {id}"))
+            .spawn(move || {
+                let worker = Worker::setup(self, shared, auto_cpu_affinity, trace_log, init);
+                worker.run().map_err(rt::Error::worker)
+            })?;
+        let sys_ref = i.wait().clone();
+        Ok(Handle {
+            id,
+            sys_ref,
+            handle,
         })
     }
 
@@ -173,9 +152,7 @@ impl WorkerSetup {
 pub(crate) struct Handle {
     /// Unique id (among all threads in the [`rt::Runtime`]).
     id: NonZeroUsize,
-    /// Two-way communication channel to share messages with the worker thread.
-    channel: rt::channel::Sender<Control>,
-    /// Handle for the actual thread.
+    sys_ref: ActorRef<Control>,
     #[allow(clippy::struct_field_names)]
     handle: thread::JoinHandle<Result<(), rt::Error>>,
 }
@@ -187,21 +164,21 @@ impl Handle {
     }
 
     /// Send the worker thread a signal that the runtime has started.
-    pub(crate) fn send_runtime_started(&self) -> io::Result<()> {
-        self.channel.send(Control::Started)
+    pub(crate) fn send_runtime_started(&self) -> Result<(), SendError> {
+        self.sys_ref.try_send(Control::Started)
     }
 
     /// Send the worker thread a `signal`.
-    pub(crate) fn send_signal(&self, signal: Signal) -> io::Result<()> {
-        self.channel.send(Control::Signal(signal))
+    pub(crate) fn send_signal(&self, signal: Signal) -> Result<(), SendError> {
+        self.sys_ref.try_send(Control::Signal(signal))
     }
 
     /// Send the worker thread the function `f` to run.
     pub(crate) fn send_function(
         &self,
         f: Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>,
-    ) -> io::Result<()> {
-        self.channel.send(Control::Run(f))
+    ) -> Result<(), SendError> {
+        self.sys_ref.try_send(Control::Run(f))
     }
 
     /// See [`thread::JoinHandle::is_finished`].
@@ -229,10 +206,10 @@ impl Worker {
     /// Setup the worker. Must be called on the worker thread.
     pub(crate) fn setup(
         mut setup: WorkerSetup,
-        receiver: rt::channel::Receiver<Control>,
         shared_internals: Arc<shared::RuntimeInternals>,
         auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
+        init: Arc<OnceLock<ActorRef<Control>>>,
     ) -> Worker {
         let worker_id = setup.id.get();
         let timing = trace::start(&trace_log);
@@ -260,7 +237,10 @@ impl Worker {
         let runtime_ref = RuntimeRef {
             internals: internals.clone(),
         };
-        spawn_system_actors(runtime_ref, receiver);
+        let sys_ref = spawn_system_actors(runtime_ref);
+        let res = init.set(sys_ref);
+        assert!(res.is_ok());
+        drop(init);
 
         let mut worker = Worker {
             internals,
@@ -624,15 +604,12 @@ impl std::error::Error for Error {
 
 /// Spawn all system actors.
 #[allow(clippy::assertions_on_constants)]
-fn spawn_system_actors(mut runtime_ref: RuntimeRef, receiver: rt::channel::Receiver<Control>) {
-    let _ = runtime_ref.spawn_local(
-        NoSupervisor,
-        actor_fn(comm_actor),
-        receiver,
-        ActorOptions::SYSTEM,
-    );
+fn spawn_system_actors(mut runtime_ref: RuntimeRef) -> ActorRef<Control> {
+    let sys_ref =
+        runtime_ref.spawn_local(NoSupervisor, actor_fn(comm_actor), (), ActorOptions::SYSTEM);
     // Keep this up to date, otherwise we'll exit early.
     assert!(SYSTEM_ACTORS == 1);
+    sys_ref
 }
 
 /// Control message send to the worker threads by the coordinator, handled by
@@ -660,11 +637,8 @@ impl fmt::Debug for Control {
 /// System actor that communicates with the coordinator.
 ///
 /// It receives the coordinator's messages and processes them.
-async fn comm_actor(
-    ctx: actor::Context<!, ThreadLocal>,
-    mut receiver: rt::channel::Receiver<Control>,
-) {
-    while let Some(msg) = receiver.recv().await {
+async fn comm_actor(mut ctx: actor::Context<Control, ThreadLocal>) {
+    while let Ok(msg) = ctx.receive_next().await {
         let internals = &ctx.runtime_ref().internals;
         trace!(worker_id = internals.id.get(), message:? = msg; "processing coordinator message");
         let timing = trace::start(&*internals.trace_log.borrow());

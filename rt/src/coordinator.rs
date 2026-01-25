@@ -160,7 +160,7 @@ impl Coordinator {
         for worker in &self.workers {
             worker
                 .send_runtime_started()
-                .map_err(|err| rt::Error::coordinator(Error::SendingStartSignal(err)))?;
+                .map_err(|SendError| rt::Error::coordinator(Error::SendingStartSignal))?;
         }
 
         // Start listening for process signals.
@@ -242,7 +242,7 @@ impl Coordinator {
 
                     trace!(signal:? = signal; "relaying process signal to worker threads");
                     for worker in &mut self.workers {
-                        if let Err(err) = worker.send_signal(signal) {
+                        if let Err(SendError) = worker.send_signal(signal) {
                             // NOTE: if the worker is unable to receive a
                             // message it's likely already shutdown or is
                             // shutting down. Rather than returning the error
@@ -254,7 +254,7 @@ impl Coordinator {
                             // stopped).
                             error!(
                                 signal:? = signal, worker_id = worker.id();
-                                "failed to send process signal to worker: {err}",
+                                "failed to send process signal to worker",
                             );
                         }
                     }
@@ -368,9 +368,9 @@ pub(crate) enum Error {
     /// Error handling a process signal.
     SignalHandling(io::Error),
     /// Error sending start signal to worker.
-    SendingStartSignal(io::Error),
+    SendingStartSignal,
     /// Error sending function to worker.
-    SendingFunc(io::Error),
+    SendingFunc,
 }
 
 impl fmt::Display for Error {
@@ -378,10 +378,8 @@ impl fmt::Display for Error {
         match self {
             Error::Polling(err) => write!(f, "error polling for OS events: {err}"),
             Error::SignalHandling(err) => write!(f, "error handling process signal: {err}"),
-            Error::SendingStartSignal(err) => {
-                write!(f, "error sending start signal to worker: {err}")
-            }
-            Error::SendingFunc(err) => write!(f, "error sending function to worker: {err}"),
+            Error::SendingStartSignal => f.write_str("error sending start signal to worker"),
+            Error::SendingFunc => f.write_str("error sending function to worker"),
         }
     }
 }
@@ -389,10 +387,8 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Error::Polling(ref err)
-            | Error::SignalHandling(ref err)
-            | Error::SendingStartSignal(ref err)
-            | Error::SendingFunc(ref err) => Some(err),
+            Error::Polling(ref err) | Error::SignalHandling(ref err) => Some(err),
+            Error::SendingStartSignal | Error::SendingFunc => None,
         }
     }
 }
