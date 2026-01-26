@@ -42,11 +42,10 @@ pub(crate) fn setup(app_name: Box<str>) -> Result<CoordinatorSetup, rt::Error> {
         .with_kernel_thread()
         .build()
         .map_err(rt::Error::init_coordinator)?;
-    let sq = ring.sq();
 
     // NOTE: signal handling MUST be setup before spawning the worker threads as
     // they need to inherint the signal handling properties.
-    let signals = match Signals::for_all_signals(sq.clone()) {
+    let signals = match Signals::for_all_signals(ring.sq()) {
         Ok(signals) => signals.receive_signals(),
         Err(err) => {
             return Err(rt::Error::init_coordinator(io::Error::new(

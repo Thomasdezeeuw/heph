@@ -48,7 +48,7 @@ impl RuntimeSetup {
     ) -> RuntimeInternals {
         // Needed by `RuntimeInternals::wake_workers`.
         debug_assert!(!worker_sqs.is_empty());
-        let sq = self.ring.sq().clone();
+        let sq = self.ring.sq();
         RuntimeInternals {
             worker_sqs,
             wake_worker_idx: AtomicUsize::new(0),
