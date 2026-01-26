@@ -241,6 +241,7 @@ mod local;
 pub mod log;
 pub mod net;
 pub mod pipe;
+pub mod process;
 mod scheduler;
 mod setup;
 mod shared;
