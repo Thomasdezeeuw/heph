@@ -222,8 +222,7 @@ use std::any::Any;
 use std::future::Future;
 use std::rc::Rc;
 use std::sync::Arc;
-use std::task;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use ::log::{debug, warn};
 use heph::actor_ref::{ActorGroup, ActorRef, SendError};
@@ -269,7 +268,6 @@ pub use signal::Signal;
 use crate::scheduler::process::FutureProcess;
 use coordinator::CoordinatorSetup;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
-use timers::TimerToken;
 
 /// The runtime that runs all actors.
 ///
@@ -618,46 +616,9 @@ impl RuntimeRef {
             .add_unique(actor_ref);
     }
 
-    /// Add a timer.
-    pub(crate) fn add_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        ::log::trace!(deadline:? = deadline; "adding timer");
-        self.internals.timers.borrow_mut().add(deadline, waker)
-    }
-
-    /// Remove a previously set timer.
-    pub(crate) fn remove_timer(&self, deadline: Instant, token: TimerToken) {
-        ::log::trace!(deadline:? = deadline; "removing timer");
-        self.internals.timers.borrow_mut().remove(deadline, token);
-    }
-
     /// Returns a copy of the shared internals.
     fn clone_shared(&self) -> Arc<shared::RuntimeInternals> {
         self.internals.shared.clone()
-    }
-
-    fn cpu(&self) -> Option<usize> {
-        self.internals.cpu
-    }
-
-    fn start_trace(&self) -> Option<trace::EventTiming> {
-        trace::start(&*self.internals.trace_log.borrow())
-    }
-
-    #[allow(clippy::needless_pass_by_ref_mut)]
-    fn finish_trace(
-        &mut self,
-        substream_id: u64,
-        timing: Option<trace::EventTiming>,
-        description: &str,
-        attributes: &[(&str, &dyn trace::AttributeValue)],
-    ) {
-        trace::finish(
-            (*self.internals.trace_log.borrow_mut()).as_mut(),
-            timing,
-            substream_id,
-            description,
-            attributes,
-        );
     }
 }
 
@@ -678,7 +639,7 @@ where
         S: Supervisor<NA>,
         NA: NewActor<RuntimeAccess = ThreadLocal>,
     {
-        let rt = ThreadLocal::new(self.clone());
+        let rt = self.clone();
         let (process, actor_ref) = ActorFutureBuilder::new()
             .with_rt(rt)
             .with_inbox_size(options.inbox_size())

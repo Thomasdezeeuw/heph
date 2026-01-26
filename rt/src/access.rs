@@ -30,7 +30,6 @@
 //! [`AsyncFd`]: crate::fd::AsyncFd
 
 use std::future::Future;
-use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, task};
@@ -161,58 +160,31 @@ impl<T: PrivateAccess> PrivateAccess for &mut T {
 /// to move between threads.
 ///
 /// [`actor::Context`]: heph::actor::Context
-#[derive(Clone)]
-pub struct ThreadLocal {
-    rt: RuntimeRef,
-}
-
-impl ThreadLocal {
-    pub(crate) const fn new(rt: RuntimeRef) -> ThreadLocal {
-        ThreadLocal { rt }
-    }
-}
-
-impl From<RuntimeRef> for ThreadLocal {
-    fn from(rt: RuntimeRef) -> ThreadLocal {
-        ThreadLocal::new(rt)
-    }
-}
-
-impl Deref for ThreadLocal {
-    type Target = RuntimeRef;
-
-    fn deref(&self) -> &Self::Target {
-        &self.rt
-    }
-}
-
-impl DerefMut for ThreadLocal {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.rt
-    }
-}
+pub type ThreadLocal = RuntimeRef;
 
 impl Access for ThreadLocal {
     fn sq(&self) -> SubmissionQueue {
-        self.rt.internals.ring.borrow().sq().clone()
+        self.internals.ring.borrow().sq()
     }
 }
 
 impl PrivateAccess for ThreadLocal {
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        self.rt.add_timer(deadline, waker)
+        log::trace!(deadline:? = deadline; "adding timer");
+        self.internals.timers.borrow_mut().add(deadline, waker)
     }
 
     fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
-        self.rt.remove_timer(deadline, token);
+        log::trace!(deadline:? = deadline; "removing timer");
+        self.internals.timers.borrow_mut().remove(deadline, token);
     }
 
     fn cpu(&self) -> Option<usize> {
-        self.rt.cpu()
+        self.internals.cpu
     }
 
     fn start_trace(&self) -> Option<trace::EventTiming> {
-        self.rt.start_trace()
+        trace::start(&*self.internals.trace_log.borrow())
     }
 
     fn finish_trace(
@@ -222,57 +194,13 @@ impl PrivateAccess for ThreadLocal {
         description: &str,
         attributes: &[(&str, &dyn trace::AttributeValue)],
     ) {
-        self.rt
-            .finish_trace(substream_id, timing, description, attributes);
-    }
-}
-
-impl<S, NA> Spawn<S, NA, ThreadLocal> for ThreadLocal
-where
-    S: Supervisor<NA> + 'static,
-    NA: NewActor<RuntimeAccess = ThreadLocal> + 'static,
-    NA::Actor: 'static,
-{
-    fn try_spawn(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
-    where
-        S: Supervisor<NA>,
-        NA: NewActor<RuntimeAccess = ThreadLocal>,
-    {
-        Spawn::try_spawn(&mut self.rt, supervisor, new_actor, arg, options)
-    }
-}
-
-impl<S, NA> Spawn<S, NA, ThreadSafe> for ThreadLocal
-where
-    S: Supervisor<NA> + Send + std::marker::Sync + 'static,
-    NA: NewActor<RuntimeAccess = ThreadSafe> + Send + std::marker::Sync + 'static,
-    NA::Actor: Send + std::marker::Sync + 'static,
-    NA::Message: Send,
-{
-    fn try_spawn(
-        &mut self,
-        supervisor: S,
-        new_actor: NA,
-        arg: NA::Argument,
-        options: ActorOptions,
-    ) -> Result<ActorRef<NA::Message>, NA::Error>
-    where
-        S: Supervisor<NA>,
-        NA: NewActor<RuntimeAccess = ThreadSafe>,
-    {
-        self.rt.try_spawn(supervisor, new_actor, arg, options)
-    }
-}
-
-impl fmt::Debug for ThreadLocal {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str("ThreadLocal")
+        trace::finish(
+            (*self.internals.trace_log.borrow_mut()).as_mut(),
+            timing,
+            substream_id,
+            description,
+            attributes,
+        );
     }
 }
 

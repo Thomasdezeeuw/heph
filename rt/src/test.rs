@@ -213,7 +213,7 @@ where
     _ = receiver.register_waker(&waker.clone().into_waker());
     run_on_test_runtime(move |mut runtime_ref| {
         let (_, receiver) = heph_inbox::new(heph_inbox::MIN_CAP);
-        let ctx = actor::Context::new(receiver, ThreadLocal::new(runtime_ref.clone()));
+        let ctx = actor::Context::new(receiver, runtime_ref.clone());
         let actor = match new_actor.new(ctx, arg) {
             Ok(actor) => actor,
             Err(err) => {
@@ -571,7 +571,7 @@ where
     NA: NewActor<RuntimeAccess = ThreadLocal>,
 {
     let (sender, receiver) = inbox::new_small();
-    let ctx = actor::Context::new(receiver, ThreadLocal::new(runtime()));
+    let ctx = actor::Context::new(receiver, runtime());
     let actor = new_actor.new(ctx, arg)?;
     Ok((actor, ActorRef::local(sender)))
 }
