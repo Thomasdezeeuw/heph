@@ -9,6 +9,7 @@ use heph::actor::{self, Actor, NewActor, actor_fn};
 use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph_rt::fd::AsyncFd;
+use heph_rt::io::StaticBuf;
 use heph_rt::net::{ServerError, ServerMessage, TcpServer};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{PanicSupervisor, join_many, try_spawn_local};
@@ -34,7 +35,7 @@ where
     RT: rt::Access,
 {
     let buf = Vec::with_capacity(DATA.len() + 1);
-    let buf = stream.recv(buf, 0).await.unwrap();
+    let buf = stream.recv(buf).await.unwrap();
     assert_eq!(buf, DATA);
 }
 
@@ -49,7 +50,7 @@ async fn stream_actor<RT>(
 {
     let stream = tcp_connect(&mut ctx, address).await.unwrap();
 
-    let n = stream.send(DATA, 0).await.unwrap();
+    let n = stream.send(StaticBuf::from(DATA)).await.unwrap();
     assert_eq!(n, DATA.len());
 
     // Send a message to stop the listener.

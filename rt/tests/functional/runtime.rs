@@ -35,21 +35,18 @@ fn priority() {
 fn auto_cpu_affinity() {
     use std::net::SocketAddr;
 
-    use socket2::SockRef;
-
     use heph::messages::Terminate;
     use heph::supervisor::{Supervisor, SupervisorStrategy};
     use heph::{ActorRef, NewActor, actor};
     use heph_rt::fd::AsyncFd;
-    use heph_rt::net::{ServerError, ServerMessage, TcpServer};
+    use heph_rt::net::{self, ServerError, ServerMessage, TcpServer};
     use heph_rt::spawn::ActorOptions;
     use heph_rt::{RuntimeRef, ThreadLocal};
 
     use crate::util::tcp_connect;
 
-    fn cpu_affinity(stream: &AsyncFd) -> io::Result<usize> {
-        let socket = SockRef::from(stream);
-        socket.cpu_affinity()
+    async fn cpu_affinity(stream: &AsyncFd) -> io::Result<Option<u32>> {
+        stream.socket_option::<net::option::IncomingCpu>().await
     }
 
     async fn stream_actor(
@@ -59,8 +56,8 @@ fn auto_cpu_affinity() {
     ) -> io::Result<()> {
         let stream = tcp_connect(&mut ctx, address).await?;
 
-        let cpu = cpu_affinity(&stream).unwrap();
-        assert_eq!(cpu, 0);
+        let cpu = cpu_affinity(&stream).await.unwrap();
+        assert_eq!(cpu, Some(0));
 
         server_ref.send(Terminate).await.unwrap();
         Ok(())
@@ -70,8 +67,8 @@ fn auto_cpu_affinity() {
         _: actor::Context<!, ThreadLocal>,
         stream: AsyncFd,
     ) -> io::Result<()> {
-        let cpu = cpu_affinity(&stream)?;
-        assert_eq!(cpu, 0);
+        let cpu = cpu_affinity(&stream).await?;
+        assert_eq!(cpu, Some(0));
         Ok(())
     }
 

@@ -16,7 +16,6 @@ mod functional {
     mod from_message;
     mod fs_watch;
     mod future;
-    mod io;
     mod pipe;
     mod restart_supervisor;
     mod runtime;

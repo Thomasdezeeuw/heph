@@ -14,8 +14,8 @@ use std::{fmt, io};
 use heph::actor;
 use heph_rt as rt;
 use heph_rt::fd::AsyncFd;
+use heph_rt::net::{Domain, Protocol, Type};
 use heph_rt::timer::Timer;
-use socket2::{Domain, Protocol, Type};
 
 macro_rules! limited_loop {
     ($($arg: tt)*) => {{
@@ -213,31 +213,14 @@ where
 
     let stream = a10::net::socket(
         ctx.runtime_ref().sq(),
-        Domain::for_address(address).into(),
-        Type::STREAM.cloexec().into(),
-        Protocol::TCP.into(),
-        0,
+        Domain::for_address(&address),
+        Type::STREAM,
+        Some(Protocol::TCP),
     )
     .await?;
 
-    let mut storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
-    let size = match address {
-        SocketAddr::V4(addr) => {
-            let storage =
-                unsafe { &mut *std::ptr::from_mut(&mut storage).cast::<libc::sockaddr_in>() };
-            storage.sin_family = libc::AF_INET as libc::sa_family_t;
-            storage.sin_port = addr.port().to_be();
-            storage.sin_addr = libc::in_addr {
-                s_addr: u32::from_ne_bytes(addr.ip().octets()),
-            };
-            size_of::<libc::sockaddr_in>() as libc::socklen_t
-        }
-        SocketAddr::V6(_) => {
-            todo!()
-        }
-    };
     loop {
-        match stream.connect((storage, size)).await {
+        match stream.connect(address).await {
             Ok(()) => break Ok(stream),
             Err(_) if i >= 1 => {
                 Timer::after(ctx.runtime_ref().clone(), Duration::from_millis(1)).await;

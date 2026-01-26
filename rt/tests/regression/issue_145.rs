@@ -12,9 +12,9 @@ use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::{Actor, ActorRef, NewActor};
 use heph_rt::fd::AsyncFd;
-use heph_rt::net::{ServerError, ServerMessage, TcpServer};
+use heph_rt::net::{Domain, ServerError, ServerMessage, TcpServer, Type, socket};
 use heph_rt::spawn::ActorOptions;
-use heph_rt::{Runtime, RuntimeRef, ThreadLocal};
+use heph_rt::{Access, Runtime, RuntimeRef, ThreadLocal};
 
 const N: usize = 4;
 
@@ -96,7 +96,7 @@ async fn conn_actor(
     servers: Arc<Mutex<Vec<(usize, ActorRef<ServerMessage>)>>>,
 ) -> Result<(), !> {
     let mut addresses = addresses.lock().unwrap();
-    addresses.push(stream.local_addr().unwrap());
+    addresses.push(stream.local_addr().await.unwrap());
 
     // Shutdown the TCP server that started us to ensure the next request goes
     // to a different server.
@@ -126,10 +126,14 @@ fn issue_145_tcp_listener() {
 }
 
 async fn listener_actor(ctx: actor::Context<!, ThreadLocal>) -> Result<(), !> {
-    let address = "127.0.0.1:0".parse().unwrap();
+    let address: SocketAddr = "127.0.0.1:0".parse().unwrap();
     // NOTE: this should not fail.
-    let listener = TcpListener::bind(ctx.runtime_ref(), address).await.unwrap();
-    let addr = listener.local_addr().unwrap();
+    let listener = socket(ctx.sq(), Domain::for_address(&address), Type::STREAM, None)
+        .await
+        .unwrap();
+    listener.bind(address).await.unwrap();
+    listener.listen(128).await.unwrap();
+    let addr: SocketAddr = listener.local_addr().await.unwrap();
     assert!(addr.port() != 0);
     Ok(())
 }

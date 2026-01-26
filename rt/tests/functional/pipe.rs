@@ -20,7 +20,7 @@ fn smoke() {
     where
         RT: rt::Access,
     {
-        let [sender, receiver] = pipe(ctx.runtime_ref())?;
+        let [sender, receiver] = pipe(ctx.runtime_ref().sq()).await?;
 
         (&sender).write_all(DATA).await?;
         drop(sender);
@@ -48,7 +48,7 @@ fn write_all_read_n() {
     where
         RT: rt::Access,
     {
-        let [sender, receiver] = pipe(ctx.runtime_ref())?;
+        let [sender, receiver] = pipe(ctx.runtime_ref().sq()).await?;
 
         reader.send(receiver).await.unwrap();
 
@@ -97,7 +97,7 @@ fn write_vectored_all_read_n_vectored() {
     where
         RT: rt::Access,
     {
-        let [sender, receiver] = pipe(ctx.runtime_ref())?;
+        let [sender, receiver] = pipe(ctx.runtime_ref().sq()).await?;
 
         reader.send(receiver).await.unwrap();
 
@@ -146,7 +146,7 @@ fn vectored_io() {
     where
         RT: rt::Access,
     {
-        let [sender, receiver] = pipe(ctx.runtime_ref())?;
+        let [sender, receiver] = pipe(ctx.runtime_ref().sq()).await?;
 
         let bufs = [DATAV[0], DATAV[1], DATAV[2]];
         (&sender).write_all_vectored(bufs).await?;

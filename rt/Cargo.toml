@@ -21,7 +21,7 @@ test = ["heph/test"]
 
 [dependencies]
 # TODO: use a release version.
-a10               = { version = "0.4.0", default-features = false, features = ["nightly"], git = "https://github.com/Thomasdezeeuw/a10", rev = "2262bbce689a5d1df8671cb2605059249c660ed8" }
+a10               = { version = "0.4.0", default-features = false, features = ["nightly"], git = "https://github.com/Thomasdezeeuw/a10", rev = "3c6e4987c21b5428e087209a681db1901bf7eaac" }
 heph              = { version = "0.5.0", path = "../", default-features = false }
 heph-inbox        = { version = "0.2.3", path = "../inbox", default-features = false }
 log               = { version = "0.4.21", default-features = false, features = ["kv_std"] }
@@ -30,7 +30,6 @@ libc              = { version = "0.2.96", default-features = false }
 
 [dev-dependencies]
 getrandom         = { version = "0.3.3", default-features = false, features = ["std"] }
-socket2           = { version = "0.6.0", default-features = false, features = ["all"] }
 std-logger        = { version = "0.5.3", default-features = false, features = ["nightly"] }
 
 [[test]]

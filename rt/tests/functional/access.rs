@@ -1,6 +1,6 @@
 //! Tests for the access module.
 
-use heph_rt::{Runtime, RuntimeRef, ThreadLocal, ThreadSafe};
+use heph_rt::{Runtime, ThreadLocal, ThreadSafe};
 
 use crate::util::{assert_send, assert_sync};
 
@@ -15,18 +15,6 @@ fn thread_local_from_runtime_ref() {
     let mut rt = Runtime::new().unwrap();
     rt.run_on_workers(|runtime_ref| {
         let thread_local = ThreadLocal::from(runtime_ref);
-        drop(thread_local);
-        Ok::<_, !>(())
-    })
-    .unwrap();
-}
-
-#[test]
-fn thread_local_deref_as_runtime_ref() {
-    let mut rt = Runtime::new().unwrap();
-    rt.run_on_workers(|runtime_ref| {
-        let mut thread_local = ThreadLocal::from(runtime_ref);
-        let _runtime_ref: &mut RuntimeRef = &mut *thread_local;
         drop(thread_local);
         Ok::<_, !>(())
     })

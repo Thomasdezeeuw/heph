@@ -141,7 +141,7 @@ async fn simple_actor(_: actor::Context<!, ThreadLocal>) {}
 fn add_actor() {
     let mut scheduler = test_scheduler();
     let new_actor = actor_fn(simple_actor);
-    let rt = ThreadLocal::new(test::runtime());
+    let rt = test::runtime();
     let (process, _) = ActorFutureBuilder::new()
         .with_rt(rt)
         .build(NoSupervisor, new_actor, ());
@@ -158,7 +158,7 @@ fn mark_ready() {
     scheduler.mark_ready(ProcessId(100));
 
     let new_actor = actor_fn(simple_actor);
-    let rt = ThreadLocal::new(test::runtime());
+    let rt = test::runtime();
     let (process, _) = ActorFutureBuilder::new()
         .with_rt(rt)
         .build(NoSupervisor, new_actor, ());
@@ -297,7 +297,7 @@ fn scheduler_run_order() {
     let priorities = [Priority::LOW, Priority::NORMAL, Priority::HIGH];
     let mut pids = vec![];
     for (id, priority) in priorities.iter().enumerate() {
-        let rt = ThreadLocal::new(test::runtime());
+        let rt = test::runtime();
         let (process, _) = ActorFutureBuilder::new().with_rt(rt).build(
             NoSupervisor,
             new_actor,
@@ -326,7 +326,7 @@ fn assert_actor_process_unmoved() {
     let waker = task::Waker::noop();
     let mut ctx = task::Context::from_waker(&waker);
 
-    let rt = ThreadLocal::new(test::runtime());
+    let rt = test::runtime();
     let (process, _) = ActorFutureBuilder::new().with_rt(rt).build(
         NoSupervisor,
         TestAssertUnmovedNewActor::new(),
@@ -376,7 +376,7 @@ fn assert_future_process_unmoved() {
 
 fn add_test_actor(scheduler: &mut Scheduler<Cfs>, priority: Priority) -> ProcessId {
     let new_actor = actor_fn(simple_actor);
-    let rt = ThreadLocal::new(test::runtime());
+    let rt = test::runtime();
     let (process, _) = ActorFutureBuilder::new()
         .with_rt(rt)
         .build(NoSupervisor, new_actor, ());
@@ -391,7 +391,7 @@ fn test_scheduler() -> Scheduler<Cfs> {
 
     let mut scheduler = Scheduler::new();
     let new_actor = actor_fn(fake_system_actor);
-    let rt = ThreadLocal::new(test::runtime());
+    let rt = test::runtime();
     for _ in 0..SYSTEM_ACTORS {
         let (process, _) =
             ActorFutureBuilder::new()
