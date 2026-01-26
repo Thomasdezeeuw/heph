@@ -62,7 +62,7 @@
 //! [`ThreadSafe`]: crate::access::ThreadSafe
 
 use heph::supervisor::Supervisor;
-use heph::{actor, ActorRef, NewActor};
+use heph::{ActorRef, NewActor, actor};
 
 pub mod options;
 

@@ -6,9 +6,9 @@ use std::task::Waker;
 use std::time::{Duration, Instant};
 
 use crate::timers::{
-    add_timer, remove_if_before, remove_timer, TimeOffset, Timer, TimerLocation, TimerToken,
     DURATION_PER_SLOT, NS_OVERFLOW, NS_PER_SLOT, NS_PER_SLOT_BITS, NS_SLOT_MASK, OVERFLOW_DURATION,
-    SLOTS, SLOT_BITS,
+    SLOT_BITS, SLOTS, TimeOffset, Timer, TimerLocation, TimerToken, add_timer, remove_if_before,
+    remove_timer,
 };
 
 /// Shared timers.

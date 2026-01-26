@@ -196,8 +196,8 @@ impl<L: fmt::Debug, R: fmt::Debug> fmt::Debug for TaggedPointer<L, R> {
 #[cfg(test)]
 mod tests {
     use std::mem::size_of;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::TaggedPointer;
 

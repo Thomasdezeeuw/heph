@@ -35,12 +35,12 @@ use std::sync::Arc;
 use std::time::Instant;
 use std::{fmt, task};
 
-use heph::{actor, sync, ActorRef, NewActor, Supervisor};
+use heph::{ActorRef, NewActor, Supervisor, actor, sync};
 
 use crate::spawn::{ActorOptions, FutureOptions, Spawn};
 use crate::timers::TimerToken;
 use crate::trace::{self, Trace};
-use crate::{shared, Runtime, RuntimeRef};
+use crate::{Runtime, RuntimeRef, shared};
 
 /// Queue to submit asynchronous operations to.
 ///

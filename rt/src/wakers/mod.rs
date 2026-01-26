@@ -1,10 +1,10 @@
 //! Wakers implementations.
 
 use std::future::Future;
-use std::mem::{replace, ManuallyDrop};
+use std::mem::{ManuallyDrop, replace};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{self, Poll};
 
 use crossbeam_channel::Sender;

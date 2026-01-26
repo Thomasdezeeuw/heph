@@ -12,7 +12,7 @@ use log::{debug, warn};
 
 use crate::trace;
 use crate::wakers::shared::Wakers;
-use crate::{coordinator, shared, worker, Error, Runtime};
+use crate::{Error, Runtime, coordinator, shared, worker};
 
 /// Setup a [`Runtime`].
 ///

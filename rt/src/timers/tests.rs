@@ -1,9 +1,9 @@
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Wake, Waker};
 use std::time::Duration;
 
-use crate::timers::{TimerToken, Timers, DURATION_PER_SLOT, NS_PER_SLOT, SLOTS};
+use crate::timers::{DURATION_PER_SLOT, NS_PER_SLOT, SLOTS, TimerToken, Timers};
 
 struct WakerBuilder<const N: usize> {
     awoken: Arc<[AtomicBool; N]>,
@@ -338,7 +338,7 @@ mod shared {
 
     use crate::timers::shared::Timers;
     use crate::timers::tests::WakerBuilder;
-    use crate::timers::{TimerToken, DURATION_PER_SLOT, NS_PER_SLOT, SLOTS};
+    use crate::timers::{DURATION_PER_SLOT, NS_PER_SLOT, SLOTS, TimerToken};
 
     #[test]
     fn add_deadline_first_slot() {

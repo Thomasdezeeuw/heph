@@ -72,8 +72,8 @@ use std::cell::RefCell;
 use std::fs::{File, OpenOptions};
 use std::io::{self, Write};
 use std::path::Path;
-use std::sync::atomic::{self, AtomicU32};
 use std::sync::Arc;
+use std::sync::atomic::{self, AtomicU32};
 use std::time::{Instant, SystemTime};
 
 use log::warn;
@@ -573,8 +573,8 @@ mod private {
     //! Module with private version of [`AttributeValue`].
 
     use std::num::{
-        NonZeroI16, NonZeroI32, NonZeroI64, NonZeroI8, NonZeroIsize, NonZeroU16, NonZeroU32,
-        NonZeroU64, NonZeroU8, NonZeroUsize,
+        NonZeroI8, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroIsize, NonZeroU8, NonZeroU16,
+        NonZeroU32, NonZeroU64, NonZeroUsize,
     };
 
     /// The [`AttributeValue::type_byte`] constants.

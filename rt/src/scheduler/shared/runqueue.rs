@@ -118,7 +118,7 @@ mod tests {
     use std::task::{self, Poll};
     use std::time::Duration;
 
-    use crate::scheduler::{process, ProcessId};
+    use crate::scheduler::{ProcessId, process};
     use crate::spawn::options::Priority;
 
     use super::{Node, Process, RunQueue};

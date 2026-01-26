@@ -6,9 +6,9 @@ use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, RpcMessage};
 use heph::from_message;
 use heph::supervisor::NoSupervisor;
+use heph_rt::ThreadLocal;
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{join, try_spawn_local};
-use heph_rt::ThreadLocal;
 
 #[derive(Debug)]
 enum Message {

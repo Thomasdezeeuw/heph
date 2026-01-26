@@ -1,11 +1,11 @@
 use std::mem::replace;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::sync::atomic::{AtomicPtr, AtomicUsize, Ordering};
 use std::{fmt, ptr};
 
-use crate::scheduler::shared::{Process, RunQueue};
 use crate::scheduler::ProcessId;
+use crate::scheduler::shared::{Process, RunQueue};
 
 /// Number of bits to shift per level.
 const LEVEL_SHIFT: usize = 2;
@@ -70,11 +70,7 @@ impl Inactive {
         let len = self.length.load(Ordering::Relaxed);
         // The `length` can actually underflow quite easily, to not report a
         // clearly incorrect value we'll report zero instead.
-        if len & (1 << 63) == 0 {
-            len
-        } else {
-            0
-        }
+        if len & (1 << 63) == 0 { len } else { 0 }
     }
 
     /// Returns `true` if the queue contains a process.
@@ -696,18 +692,18 @@ mod tests {
     use std::mem::align_of;
     use std::pin::Pin;
     use std::ptr;
-    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::sync::Arc;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::task::{self, Poll};
 
     use crate::scheduler::shared::RunQueue;
-    use crate::scheduler::{process, ProcessId};
+    use crate::scheduler::{ProcessId, process};
     use crate::spawn::options::Priority;
 
     use super::{
-        as_pid, branch_from_tagged, diff_branch_depth, drop_tagged_pointer, is_branch, is_process,
-        is_ready_marker, process_from_tagged, ready_to_run, tag_branch, tag_process, Branch,
-        Inactive, Process, TaggedPointer,
+        Branch, Inactive, Process, TaggedPointer, as_pid, branch_from_tagged, diff_branch_depth,
+        drop_tagged_pointer, is_branch, is_process, is_ready_marker, process_from_tagged,
+        ready_to_run, tag_branch, tag_process,
     };
 
     #[test]

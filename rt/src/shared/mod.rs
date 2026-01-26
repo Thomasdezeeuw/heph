@@ -18,10 +18,10 @@ use crate::scheduler::shared::{Process, Scheduler};
 #[cfg(test)]
 use crate::spawn::options::Priority;
 use crate::spawn::{ActorOptions, FutureOptions};
-use crate::timers::shared::Timers;
 use crate::timers::TimerToken;
+use crate::timers::shared::Timers;
 use crate::wakers::shared::Wakers;
-use crate::{trace, ThreadSafe};
+use crate::{ThreadSafe, trace};
 
 /// Setup of [`RuntimeInternals`].
 ///

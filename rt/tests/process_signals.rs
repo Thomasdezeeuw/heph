@@ -2,8 +2,8 @@
 
 use std::future::pending;
 use std::process;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;

@@ -4,7 +4,7 @@ use std::pin::Pin;
 
 use log::trace;
 
-use crate::scheduler::{process, Cfs, ProcessId};
+use crate::scheduler::{Cfs, ProcessId, process};
 use crate::spawn::options::Priority;
 
 mod inactive;

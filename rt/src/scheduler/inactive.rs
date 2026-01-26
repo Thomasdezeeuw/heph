@@ -203,10 +203,10 @@ mod tests {
     use std::pin::Pin;
     use std::task::{self, Poll};
 
-    use crate::scheduler::{process, Cfs, Process, ProcessId};
+    use crate::scheduler::{Cfs, Process, ProcessId, process};
     use crate::spawn::options::Priority;
 
-    use super::{diff_branch_depth, Branch, Inactive, LEVEL_SHIFT, N_BRANCHES};
+    use super::{Branch, Inactive, LEVEL_SHIFT, N_BRANCHES, diff_branch_depth};
 
     struct TestProcess;
 

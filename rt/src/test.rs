@@ -54,9 +54,9 @@
 
 use std::any::Any;
 use std::async_iter::AsyncIterator;
-use std::future::{poll_fn, Future};
-use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
-use std::pin::{pin, Pin};
+use std::future::{Future, poll_fn};
+use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
+use std::pin::{Pin, pin};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::task::{self, Poll};
@@ -73,8 +73,8 @@ use heph_inbox::oneshot::{self, new_oneshot};
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
 use crate::worker::Worker;
 use crate::{
-    panic_message, shared, sync_worker, worker, Runtime, RuntimeRef, Setup, Sync, ThreadLocal,
-    ThreadSafe,
+    Runtime, RuntimeRef, Setup, Sync, ThreadLocal, ThreadSafe, panic_message, shared, sync_worker,
+    worker,
 };
 
 #[doc(no_inline)]

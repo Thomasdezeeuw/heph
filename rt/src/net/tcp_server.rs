@@ -10,7 +10,7 @@ use log::{debug, trace};
 
 use crate::access::{Access, PrivateAccess};
 use crate::fd::AsyncFd;
-use crate::net::{option, Domain, Protocol, ServerError, ServerMessage, Type};
+use crate::net::{Domain, Protocol, ServerError, ServerMessage, Type, option};
 use crate::spawn::{ActorOptions, Spawn};
 use crate::util::{either, next};
 

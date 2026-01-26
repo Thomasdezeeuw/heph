@@ -4,14 +4,14 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::Duration;
 
-use heph::actor::{self, actor_fn, Actor, NewActor};
+use heph::ActorRef;
+use heph::actor::{self, Actor, NewActor, actor_fn};
 use heph::messages::Terminate;
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
-use heph::ActorRef;
 use heph_rt::fd::AsyncFd;
 use heph_rt::net::{ServerError, ServerMessage, TcpServer};
 use heph_rt::spawn::ActorOptions;
-use heph_rt::test::{join_many, try_spawn_local, PanicSupervisor};
+use heph_rt::test::{PanicSupervisor, join_many, try_spawn_local};
 use heph_rt::{self as rt, Runtime, Signal, ThreadLocal};
 
 use crate::util::{any_local_address, tcp_connect};

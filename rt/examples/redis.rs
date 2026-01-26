@@ -11,7 +11,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
-use heph::actor::{self, actor_fn, Actor, NewActor};
+use heph::actor::{self, Actor, NewActor, actor_fn};
 use heph::supervisor::{Supervisor, SupervisorStrategy};
 use heph_rt::extract::Extract;
 use heph_rt::fd::AsyncFd;

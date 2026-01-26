@@ -2,7 +2,7 @@
 
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::time::{Duration, Instant};
 

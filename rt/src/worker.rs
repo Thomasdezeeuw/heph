@@ -34,7 +34,7 @@ use crate::scheduler::ProcessId;
 use crate::setup::set_cpu_affinity;
 use crate::spawn::options::ActorOptions;
 use crate::wakers::Wakers;
-use crate::{self as rt, shared, trace, RuntimeRef, Signal, ThreadLocal};
+use crate::{self as rt, RuntimeRef, Signal, ThreadLocal, shared, trace};
 
 /// Number of system actors (spawned in the local scheduler).
 pub(crate) const SYSTEM_ACTORS: usize = 1;

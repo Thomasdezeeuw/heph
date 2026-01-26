@@ -6,13 +6,13 @@ use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
-use heph::actor::{self, actor_fn, Actor, NewActor};
+use heph::actor::{self, Actor, NewActor, actor_fn};
 use heph::actor_ref::ActorGroup;
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::{ActorOptions, FutureOptions};
 use heph_rt::test::{
-    self, join, join_all, join_many, size_of_actor, size_of_actor_val, spawn_future, try_spawn,
-    try_spawn_local, JoinResult,
+    self, JoinResult, join, join_all, join_many, size_of_actor, size_of_actor_val, spawn_future,
+    try_spawn, try_spawn_local,
 };
 use heph_rt::timer::Timer;
 use heph_rt::{self as rt, ThreadLocal};

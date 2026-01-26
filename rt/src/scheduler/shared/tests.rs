@@ -4,14 +4,14 @@ use std::future::pending;
 use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
 
+use heph::ActorFutureBuilder;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
-use heph::ActorFutureBuilder;
 
+use crate::ThreadSafe;
 use crate::scheduler::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Priority, Process, Scheduler};
-use crate::test::{self, assert_size, AssertUnmoved, TestAssertUnmovedNewActor};
-use crate::ThreadSafe;
+use crate::test::{self, AssertUnmoved, TestAssertUnmovedNewActor, assert_size};
 
 #[test]
 fn size_assertions() {

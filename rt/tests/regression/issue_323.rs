@@ -7,8 +7,8 @@ use std::time::Duration;
 use heph::actor::actor_fn;
 use heph::supervisor::NoSupervisor;
 use heph::sync;
-use heph_rt::spawn::SyncActorOptions;
 use heph_rt::Runtime;
+use heph_rt::spawn::SyncActorOptions;
 
 #[test]
 fn issue_323() {

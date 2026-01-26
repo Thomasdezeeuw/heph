@@ -1,8 +1,8 @@
 //! Module containing the `task::Waker` implementation for thread-safe actors
 //! and futures.
 
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Weak;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::task;
 
 use crate::scheduler::ProcessId;
@@ -147,7 +147,7 @@ const fn assert_copy<T: Copy>() {}
 mod waker_vtable {
     use std::task;
 
-    use crate::wakers::shared::{assert_copy, get, WakerData};
+    use crate::wakers::shared::{WakerData, assert_copy, get};
 
     /// Virtual table used by the `Waker` implementation.
     pub(crate) static WAKER_VTABLE: task::RawWakerVTable =
@@ -187,7 +187,7 @@ pub(super) mod waker_vtable_no_ring {
 
     use std::task;
 
-    use crate::wakers::shared::{assert_copy, get, WakerData};
+    use crate::wakers::shared::{WakerData, assert_copy, get};
 
     /// Virtual table used by the `Waker` implementation.
     pub(crate) static WAKER_VTABLE_NO_RING: task::RawWakerVTable =

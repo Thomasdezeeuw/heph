@@ -4,15 +4,15 @@ use std::convert::Infallible;
 use std::fmt;
 use std::future::ready;
 use std::num::NonZeroUsize;
-use std::pin::{pin, Pin};
+use std::pin::{Pin, pin};
 use std::task::Poll;
 
 use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, Join, RpcError, RpcMessage, SendError, SendValue};
 use heph::messages::from_message;
 use heph::supervisor::NoSupervisor;
-use heph_rt::spawn::options::Priority;
 use heph_rt::spawn::ActorOptions;
+use heph_rt::spawn::options::Priority;
 use heph_rt::test::{init_local_actor, poll_actor, poll_future};
 use heph_rt::{Runtime, ThreadLocal};
 

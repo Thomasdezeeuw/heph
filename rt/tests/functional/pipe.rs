@@ -3,12 +3,12 @@
 use std::io;
 use std::time::Duration;
 
-use heph::actor::{self, actor_fn};
 use heph::ActorRef;
+use heph::actor::{self, actor_fn};
 use heph_rt::fd::AsyncFd;
 use heph_rt::pipe::pipe;
 use heph_rt::spawn::ActorOptions;
-use heph_rt::test::{join, join_many, try_spawn_local, PanicSupervisor};
+use heph_rt::test::{PanicSupervisor, join, join_many, try_spawn_local};
 use heph_rt::{self as rt};
 
 const DATA: &[u8] = b"Hello world";

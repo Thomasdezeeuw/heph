@@ -3,7 +3,7 @@
 use std::pin::Pin;
 use std::task::Poll;
 
-use heph::actor::{self, actor_fn, NoMessages, RecvError};
+use heph::actor::{self, NoMessages, RecvError, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::{ActorOptions, Spawn};
 use heph_rt::test::{init_local_actor, poll_actor};

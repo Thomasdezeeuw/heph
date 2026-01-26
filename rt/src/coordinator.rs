@@ -27,8 +27,8 @@ use a10::process::{ReceiveSignals, Signals};
 use heph::actor_ref::{ActorGroup, SendError};
 use log::{debug, error, info, trace};
 
-use crate::setup::{host_id, host_info, Uuid};
-use crate::{self as rt, cpu_usage, shared, sync_worker, trace, worker, Signal};
+use crate::setup::{Uuid, host_id, host_info};
+use crate::{self as rt, Signal, cpu_usage, shared, sync_worker, trace, worker};
 
 /// Setup the [`Coordinator`].
 pub(crate) fn setup(app_name: Box<str>) -> Result<CoordinatorSetup, rt::Error> {

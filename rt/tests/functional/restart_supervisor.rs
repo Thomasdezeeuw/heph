@@ -10,7 +10,7 @@ use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::{actor, restart_supervisor, Actor, NewActor, Supervisor, SupervisorStrategy};
+use heph::{Actor, NewActor, Supervisor, SupervisorStrategy, actor, restart_supervisor};
 use heph_rt::ThreadSafe;
 
 // NOTE: keep in sync with the documentation.

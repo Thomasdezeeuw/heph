@@ -9,7 +9,7 @@ use std::task::{self, Poll};
 use std::thread::{self, sleep};
 use std::time::Duration;
 
-use heph::actor::{self, actor_fn, Actor, NewActor};
+use heph::actor::{self, Actor, NewActor, actor_fn};
 use heph::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use heph::sync;
 use heph_rt::spawn::options::{ActorOptions, FutureOptions, Priority, SyncActorOptions};
@@ -39,7 +39,7 @@ fn auto_cpu_affinity() {
 
     use heph::messages::Terminate;
     use heph::supervisor::{Supervisor, SupervisorStrategy};
-    use heph::{actor, ActorRef, NewActor};
+    use heph::{ActorRef, NewActor, actor};
     use heph_rt::fd::AsyncFd;
     use heph_rt::net::{ServerError, ServerMessage, TcpServer};
     use heph_rt::spawn::ActorOptions;

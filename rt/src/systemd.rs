@@ -23,13 +23,13 @@ use heph::actor;
 use heph::messages::Terminate;
 use log::{debug, warn};
 
+use crate::Signal;
 use crate::access::Access;
 use crate::fd::AsyncFd;
 use crate::io::StaticBuf;
-use crate::net::{socket, Domain, Type};
+use crate::net::{Domain, Type, socket};
 use crate::timer::Interval;
 use crate::util::{either, next};
-use crate::Signal;
 
 /// systemd notifier.
 ///

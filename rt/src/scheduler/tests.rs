@@ -8,16 +8,16 @@ use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
+use heph::ActorFutureBuilder;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
-use heph::ActorFutureBuilder;
 
+use crate::ThreadLocal;
 use crate::scheduler::process::{self, FutureProcess, RunStats};
 use crate::scheduler::{Cfs, Process, ProcessId, Scheduler};
 use crate::spawn::options::Priority;
-use crate::test::{self, assert_size, AssertUnmoved, TestAssertUnmovedNewActor};
+use crate::test::{self, AssertUnmoved, TestAssertUnmovedNewActor, assert_size};
 use crate::worker::SYSTEM_ACTORS;
-use crate::ThreadLocal;
 
 #[test]
 fn size_assertions() {

@@ -12,7 +12,7 @@ use log::{info, trace};
 use crate::scheduler::Scheduler;
 use crate::timers::Timers;
 use crate::wakers::Wakers;
-use crate::{cpu_usage, panic_message, shared, trace, worker, RuntimeRef, Signal};
+use crate::{RuntimeRef, Signal, cpu_usage, panic_message, shared, trace, worker};
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
