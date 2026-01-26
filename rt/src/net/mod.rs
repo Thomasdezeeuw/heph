@@ -1,9 +1,9 @@
 //! Networking primitives.
 //!
-//! # Create Sockets
+//! # Creating Sockets
 //!
-//! Unlike the standard library Heph doesn't use types for different kind of
-//! socket, we only use [`AsyncFd`]. To create a new socket use the [`socket`]
+//! Unlike the standard library Heph doesn't use types for different kinds of
+//! sockets, we only use [`AsyncFd`]. To create a new socket use the [`socket`]
 //! function, followed by [`AsyncFd::bind`] & [`AsyncFd::listen`] (for a
 //! TCP/Unix listener) or [`AsyncFd::connect`] (for a TCP/Unix stream or
 //! UdpSocket).
