@@ -130,7 +130,7 @@ impl WakerData {
     /// `data` MUST be created by [`WakerData::into_data_ptr`] and MUST be
     /// owned.
     unsafe fn from_data_ptr(data: *const ()) -> (Arc<WakerData>, ProcessId) {
-        let (ptr, pid) = WakerData::from_data_ptr_ref(data);
+        let (ptr, pid) = unsafe { WakerData::from_data_ptr_ref(data) };
         // SAFETY: this is safe because the caller must ensure that the `data`
         // was created by `WakerData::into_data_ptr`, which ensures that is
         // contains a valid pointer to `WakerData`. Furthermore the caller must
@@ -165,7 +165,7 @@ impl WakerData {
         // Since we don't want to drop the `Arc`, neither the one we crate from
         // `data` or the one we clone, we put both in a `ManuallyDrop` wrapper and
         // don't drop them. After the clone we can reuse `data`.
-        let waker_data = ManuallyDrop::new(WakerData::from_data_ptr(data).0);
+        let waker_data = unsafe { ManuallyDrop::new(WakerData::from_data_ptr(data).0) };
         let _: ManuallyDrop<Arc<WakerData>> = waker_data.clone();
         // `data` remains the same, so we can just return it. All we needed to
         // do was increment the `Arc`'s strong count.
@@ -178,7 +178,7 @@ impl WakerData {
     ///
     /// `data` MUST be created by [`WakerData::into_data_ptr`].
     unsafe fn drop_data(data: *const ()) {
-        drop(WakerData::from_data_ptr(data));
+        drop(unsafe { WakerData::from_data_ptr(data) });
     }
 
     /// Wake the process with `pid`.
@@ -268,17 +268,17 @@ mod waker_vtable {
         task::RawWakerVTable::new(clone_wake_data, wake, wake_by_ref, WakerData::drop_data);
 
     unsafe fn clone_wake_data(data: *const ()) -> task::RawWaker {
-        let data = WakerData::clone_data(data);
+        let data = unsafe { WakerData::clone_data(data) };
         task::RawWaker::new(data, &WAKER_VTABLE)
     }
 
     unsafe fn wake(data: *const ()) {
-        let (data, pid) = WakerData::from_data_ptr(data);
+        let (data, pid) = unsafe { WakerData::from_data_ptr(data) };
         data.wake(pid);
     }
 
     unsafe fn wake_by_ref(data: *const ()) {
-        let (data, pid) = WakerData::from_data_ptr_ref(data);
+        let (data, pid) = unsafe { WakerData::from_data_ptr_ref(data) };
         data.wake(pid);
     }
 }
@@ -295,17 +295,17 @@ mod waker_vtable_no_ring {
         task::RawWakerVTable::new(clone_wake_data, wake, wake_by_ref, WakerData::drop_data);
 
     pub(crate) unsafe fn clone_wake_data(data: *const ()) -> task::RawWaker {
-        let data = WakerData::clone_data(data);
+        let data = unsafe { WakerData::clone_data(data) };
         task::RawWaker::new(data, &WAKER_VTABLE_NO_RING)
     }
 
     unsafe fn wake(data: *const ()) {
-        let (data, pid) = WakerData::from_data_ptr(data);
+        let (data, pid) = unsafe { WakerData::from_data_ptr(data) };
         data.wake_no_ring(pid);
     }
 
     unsafe fn wake_by_ref(data: *const ()) {
-        let (data, pid) = WakerData::from_data_ptr_ref(data);
+        let (data, pid) = unsafe { WakerData::from_data_ptr_ref(data) };
         data.wake_no_ring(pid);
     }
 }

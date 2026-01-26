@@ -384,7 +384,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Error::Polling(ref err) | Error::SignalHandling(ref err) => Some(err),
+            Error::Polling(err) | Error::SignalHandling(err) => Some(err),
             Error::SendingStartSignal | Error::SendingFunc => None,
         }
     }

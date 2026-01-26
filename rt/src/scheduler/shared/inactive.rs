@@ -600,7 +600,7 @@ const fn ready_to_run(pid: ProcessId) -> TaggedPointer {
 /// Caller must ensure unique access to `ptr` and that it's a process.
 unsafe fn process_from_tagged(ptr: TaggedPointer) -> Pin<Box<Process>> {
     debug_assert!(is_process(ptr));
-    Pin::new(Box::from_raw(as_ptr(ptr).cast()))
+    Pin::new(unsafe { Box::from_raw(as_ptr(ptr).cast()) })
 }
 
 /// Convert a tagged pointer into a pointer to a branch.
@@ -610,7 +610,7 @@ unsafe fn process_from_tagged(ptr: TaggedPointer) -> Pin<Box<Process>> {
 /// Caller must ensure unique access to `ptr` and that it's a branch.
 unsafe fn branch_from_tagged(ptr: TaggedPointer) -> Pin<Box<Branch>> {
     debug_assert!(is_branch(ptr));
-    Pin::new(Box::from_raw(as_ptr(ptr).cast()))
+    Pin::new(unsafe { Box::from_raw(as_ptr(ptr).cast()) })
 }
 
 /// Returns `true` if the tagged pointer points to a branch.
@@ -679,9 +679,9 @@ unsafe fn drop_tagged_pointer(ptr: TaggedPointer) {
 
     match ptr as usize & TAG_MASK {
         // SAFETY: checked for non-null and that it's a branch.
-        BRANCH_TAG => drop(branch_from_tagged(ptr)),
+        BRANCH_TAG => drop(unsafe { branch_from_tagged(ptr) }),
         // SAFETY: checked for non-null and that it's a process.
-        PROCESS_TAG => drop(process_from_tagged(ptr)),
+        PROCESS_TAG => drop(unsafe { process_from_tagged(ptr) }),
         READY_TO_RUN => { /* Just a marker, nothing to drop. */ }
         _ => unreachable!(),
     }

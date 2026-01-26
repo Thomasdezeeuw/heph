@@ -11,7 +11,7 @@ readme        = "README.md"
 keywords      = ["actor", "runtime", "async", "functions"]
 categories    = ["asynchronous"]
 include       = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE"]
-edition       = "2021"
+edition       = "2024"
 
 [features]
 default = []

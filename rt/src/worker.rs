@@ -595,9 +595,9 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Error::Polling(ref err) => Some(err),
+            Error::Polling(err) => Some(err),
             Error::ProcessInterrupted => None,
-            Error::UserFunction(ref err) => Some(err),
+            Error::UserFunction(err) => Some(err),
         }
     }
 }
