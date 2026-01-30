@@ -20,8 +20,7 @@ default = []
 test = ["heph/test"]
 
 [dependencies]
-# TODO: use a release version.
-a10               = { version = "0.4.0", default-features = false, features = ["nightly"], git = "https://github.com/Thomasdezeeuw/a10", rev = "597369e3ae29f5b39382f8b1b31d928d0998ef8a" }
+a10               = { version = "0.4.0", default-features = false, features = ["nightly"] }
 heph              = { version = "0.5.0", path = "../", default-features = false }
 heph-inbox        = { version = "0.2.3", path = "../inbox", default-features = false }
 log               = { version = "0.4.21", default-features = false, features = ["kv_std"] }
