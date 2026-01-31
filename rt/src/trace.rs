@@ -565,6 +565,11 @@ pub(crate) struct Event<'e> {
 /// * Floating point numbers, i.e. `f32` and `f64`.
 /// * Strings, i.e. `&str` and `String`.
 /// * Array or slice of one of the types above.
+///
+/// An implementation also exists for [`fmt::Arguments`], but note that it will
+/// not handle formatting errors and instead use "fmt error" as value.
+///
+/// [`fmt::Arguments`]: std::fmt::Arguments
 pub trait AttributeValue: private::AttributeValue {}
 
 impl<'a, T> AttributeValue for &'a T where T: AttributeValue + ?Sized {}
@@ -572,6 +577,7 @@ impl<'a, T> AttributeValue for &'a T where T: AttributeValue + ?Sized {}
 mod private {
     //! Module with private version of [`AttributeValue`].
 
+    use std::fmt;
     use std::num::{
         NonZeroI8, NonZeroI16, NonZeroI32, NonZeroI64, NonZeroIsize, NonZeroU8, NonZeroU16,
         NonZeroU32, NonZeroU64, NonZeroUsize,
@@ -688,6 +694,41 @@ mod private {
     }
 
     impl super::AttributeValue for String {}
+
+    impl AttributeValue for fmt::Arguments<'_> {
+        fn type_byte(&self) -> u8 {
+            STRING_BYTE
+        }
+
+        fn write_attribute(&self, buf: &mut Vec<u8>) {
+            if let Some(value) = self.as_str() {
+                return value.write_attribute(buf);
+            }
+
+            let len_start = buf.len();
+            let mut length: u16 = 0;
+            buf.extend_from_slice(&length.to_be_bytes()); // Written below.
+            let value_start = buf.len();
+            if std::io::Write::write_fmt(buf, *self).is_err() {
+                // We can't handle a write error, however unlikely.
+                buf.truncate(value_start);
+                return "<fmt error>".write_attribute(buf);
+            }
+            let written = buf.len() - value_start;
+            length = match written.try_into() {
+                Ok(len) => len,
+                Err(_) => {
+                    buf.truncate(value_start + u16::MAX as usize);
+                    u16::MAX
+                }
+            };
+            let [b0, b1] = length.to_be_bytes();
+            buf[len_start] = b0;
+            buf[len_start + 1] = b1;
+        }
+    }
+
+    impl super::AttributeValue for fmt::Arguments<'_> {}
 
     impl<T> AttributeValue for [T]
     where
