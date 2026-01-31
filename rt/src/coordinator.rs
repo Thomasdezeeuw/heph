@@ -291,8 +291,7 @@ impl Coordinator {
             shared_scheduler_inactive = shared_metrics.scheduler_inactive,
             shared_timers_total = shared_metrics.timers_total,
             shared_timers_next:? = shared_metrics.timers_next,
-            // TODO: expose ALL_VALUES from a10::process::Signal?
-            //process_signals:? = Signal::ALL,
+            process_signals:? = self.signals.set(),
             process_signal_receivers = self.signal_refs.len(),
             cpu_time:? = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID),
             total_cpu_time:? = cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID),
