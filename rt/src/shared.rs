@@ -104,10 +104,10 @@ pub(crate) struct Metrics {
 impl RuntimeInternals {
     /// Setup new runtime internals.
     pub(crate) fn setup(coordinator_sq: a10::SubmissionQueue) -> io::Result<RuntimeSetup> {
-        let ring = a10::Ring::config()
-            .with_kernel_thread()
-            .attach_queue(&coordinator_sq)
-            .build()?;
+        let config = a10::Ring::config();
+        #[cfg(any(target_os = "android", target_os = "linux"))]
+        let config = config.with_kernel_thread().attach_queue(&coordinator_sq);
+        let ring = config.build()?;
 
         Ok(RuntimeSetup {
             ring,
@@ -118,7 +118,10 @@ impl RuntimeInternals {
     /// Same as [`RuntimeInternals::setup`], but doesn't attach to an existing [`a10::Ring`].
     #[cfg(test)]
     pub(crate) fn test_setup() -> io::Result<RuntimeSetup> {
-        let ring = a10::Ring::config().with_kernel_thread().build()?;
+        let config = a10::Ring::config();
+        #[cfg(any(target_os = "android", target_os = "linux"))]
+        let config = config.with_kernel_thread();
+        let ring = config.build()?;
 
         // Don't have a coordinator so we use our own submission queue.
         let coordinator_sq = ring.sq().clone();

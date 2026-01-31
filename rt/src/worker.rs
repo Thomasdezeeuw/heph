@@ -26,7 +26,7 @@ use crossbeam_channel::Receiver;
 use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, SendError};
 use heph::supervisor::NoSupervisor;
-use log::{debug, trace, warn};
+use log::{debug, trace};
 
 use crate::error::StringError;
 use crate::local::RuntimeInternals;
@@ -58,14 +58,17 @@ const MAX_EVENT_LOOP_DURATION: Duration = Duration::from_millis(5);
 /// Use [`WorkerSetup::start`] to spawn the worker thread.
 pub(crate) fn setup(
     id: NonZeroUsize,
-    auto_cpu_affinity: bool,
-    coordinator_sq: &a10::SubmissionQueue,
+    #[allow(unused_variables)] auto_cpu_affinity: bool,
+    #[allow(unused_variables)] coordinator_sq: &a10::SubmissionQueue,
 ) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let config = a10::Ring::config()
+    let config = a10::Ring::config();
+    #[cfg(any(target_os = "android", target_os = "linux"))]
+    let config = config
         .disable() // Enabled on the worker thread.
         .single_issuer()
         .with_kernel_thread()
         .attach_queue(coordinator_sq);
+    #[cfg(any(target_os = "android", target_os = "linux"))]
     let config = if auto_cpu_affinity {
         #[allow(clippy::cast_possible_truncation)]
         config.with_cpu_affinity((id.get() - 1) as u32)
@@ -79,11 +82,13 @@ pub(crate) fn setup(
 /// Test version of [`setup`].
 #[cfg(any(test, feature = "test"))]
 pub(crate) fn setup_test() -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let ring = a10::Ring::config()
+    let config = a10::Ring::config();
+    #[cfg(any(target_os = "android", target_os = "linux"))]
+    let config = config
         .disable() // Enabled on the worker thread.
         .single_issuer()
-        .with_kernel_thread()
-        .build()?;
+        .with_kernel_thread();
+    let ring = config.build()?;
     Ok(setup2(NonZeroUsize::MAX, ring))
 }
 
@@ -205,7 +210,7 @@ pub(crate) struct Worker {
 impl Worker {
     /// Setup the worker. Must be called on the worker thread.
     pub(crate) fn setup(
-        mut setup: WorkerSetup,
+        #[allow(unused_mut)] mut setup: WorkerSetup,
         shared_internals: Arc<shared::RuntimeInternals>,
         auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
@@ -220,8 +225,9 @@ impl Worker {
             None
         };
 
+        #[cfg(any(target_os = "android", target_os = "linux"))]
         if let Err(err) = setup.ring.enable() {
-            warn!("failed to enable a10::Ring: {err}, continuing");
+            log::warn!("failed to enable a10::Ring: {err}, continuing");
         }
 
         let internals = Rc::new(RuntimeInternals::new(

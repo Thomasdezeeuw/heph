@@ -201,10 +201,22 @@
 // Disallow warnings in examples, we want to set a good example after all.
 #![doc(test(attr(deny(warnings))))]
 
-#[cfg(not(target_os = "linux"))]
-compile_error!("Heph currently only supports Linux.");
+#[cfg(not(any(
+    target_os = "android",
+    target_os = "dragonfly",
+    target_os = "freebsd",
+    target_os = "ios",
+    target_os = "linux",
+    target_os = "macos",
+    target_os = "netbsd",
+    target_os = "openbsd",
+    target_os = "tvos",
+    target_os = "visionos",
+    target_os = "watchos",
+)))]
+compile_error!("OS not supported by Heph-rt.");
 #[cfg(not(target_pointer_width = "64"))]
-compile_error!("Heph currently only supports 64 bit architectures.");
+compile_error!("Heph-rt currently only supports 64 bit architectures.");
 
 /// Helper macro to execute a system call that returns an `io::Result`.
 macro_rules! syscall {

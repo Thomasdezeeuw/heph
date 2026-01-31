@@ -8,7 +8,9 @@ use heph::actor::{self, NewActor, NoMessages};
 use heph::supervisor::Supervisor;
 use log::{debug, trace};
 
-use crate::access::{Access, PrivateAccess};
+use crate::access::Access;
+#[cfg(any(target_os = "android", target_os = "linux"))]
+use crate::access::PrivateAccess;
 use crate::fd::AsyncFd;
 use crate::net::{Domain, Protocol, ServerError, ServerMessage, Type, option};
 use crate::spawn::{ActorOptions, Spawn};
@@ -456,6 +458,7 @@ where
             Ok(Some(Ok(stream))) => {
                 trace!("TCP server accepted connection");
                 drop(receive); // Can't double borrow `ctx`.
+                #[cfg(any(target_os = "android", target_os = "linux"))]
                 if let Some(cpu) = ctx.runtime_ref().cpu() {
                     if let Err(err) = stream
                         .set_socket_option::<option::IncomingCpu>(cpu as u32)
@@ -505,6 +508,7 @@ async fn setup_listener<RT: Access>(rt: &RT, local: SocketAddr) -> io::Result<As
     listener
         .set_socket_option::<option::ReusePort>(true)
         .await?;
+    #[cfg(any(target_os = "android", target_os = "linux"))]
     if let Some(cpu) = rt.cpu() {
         if let Err(err) = listener
             .set_socket_option::<option::IncomingCpu>(cpu as u32)

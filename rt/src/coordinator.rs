@@ -37,11 +37,10 @@ pub(crate) fn setup(app_name: Box<str>) -> Result<CoordinatorSetup, rt::Error> {
 
     // At most we expect each worker thread to generate a single completion and
     // a possibly an incoming signal.
-    let ring = a10::Ring::config()
-        .single_issuer()
-        .with_kernel_thread()
-        .build()
-        .map_err(rt::Error::init_coordinator)?;
+    let config = a10::Ring::config();
+    #[cfg(any(target_os = "android", target_os = "linux"))]
+    let config = config.single_issuer().with_kernel_thread();
+    let ring = config.build().map_err(rt::Error::init_coordinator)?;
 
     // NOTE: signal handling MUST be setup before spawning the worker threads as
     // they need to inherint the signal handling properties.
@@ -225,12 +224,11 @@ impl Coordinator {
                     // SAFETY: this is not safe.
                     let signo = unsafe { std::mem::transmute(info.signal()) };
                     let Some(signal) = Signal::from_signo(signo) else {
-                        debug!(signal_number:? = info.signal(),
-                            sending_pid = info.pid(), sending_uid = info.real_user_id(); "received unexpected signal, not relaying");
+                        debug!(signal_number:? = info.signal(); "received unexpected signal, not relaying");
                         continue;
                     };
-                    debug!(signal:? = signal, signal_number:? = info.signal(),
-                        sending_pid = info.pid(), sending_uid = info.real_user_id(); "received process signal");
+                    debug!(signal:? = signal, signal_number:? = info.signal()
+                        /* TODO: log on Linux sending_pid = info.pid(), sending_uid = info.real_user_id()*/; "received process signal");
 
                     if let Signal::User2 = signal {
                         self.log_metrics();
