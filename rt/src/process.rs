@@ -2,11 +2,21 @@
 //!
 //! # Signal Handling
 //!
-//! Signal handling is done via passing messages to actors. See
+//! All actors can receive process signals by calling one of the following
+//! functions using their actor reference. This causes all process signals to be
+//! relayed to the actor which should handle them accordingly.
 //!  * [`Runtime::receive_signals`]
 //!  * [`RuntimeRef::receive_signals`]
 //!
-//! A simple example:
+//! Using this method of message passing of the process signals it's easy(-er)
+//! to implement graceful shutdown. Any actor that "produces" work, e.g. actors
+//! that accept incoming connections, should also listen for incoming process
+//! signals. Once a signal arrives that indicate the process should exit, the
+//! actor should stop "producing" work. Once the existing work is finish, e.g.
+//! already accepted connection handled, the runtime will shut down cleanly as
+//! all actors should have stopped.
+//!
+//! A simple example of receiving a process signal:
 //!
 //! ```
 //! # #![feature(never_type)]
@@ -27,6 +37,21 @@
 //!
 //! [`Runtime::receive_signals`]: crate::Runtime::receive_signals
 //! [`RuntimeRef::receive_signals`]: crate::RuntimeRef::receive_signals
+//!
+//!
+//! ## Notes
+//!
+//! What happens to threads spawned outside of Heph's control, i.e. manually
+//! spawned, before calling [`rt::Setup::build`] is unspecified. They may still
+//! receive a process signal or they may not. This is due to OS limitations and
+//! differences. Any manually spawned threads spawned after calling build should
+//! not get a process signal.
+//!
+//! The runtime will only attempt to send the process signal to the actor once.
+//! If the message can't be send it's **not** retried. Ensure that the inbox of
+//! the actor has enough room to receive the message.
+//!
+//! [`rt::Setup::build`]: crate::Setup::build
 //!
 //! # Waiting on Spawned Processess
 //!

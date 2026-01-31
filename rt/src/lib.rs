@@ -438,14 +438,9 @@ impl Runtime {
         Ok(())
     }
 
-    /// Receive [process signals] as messages.
-    ///
-    /// This adds the `actor_ref` to the list of actor references that will
-    /// receive a process signal.
+    /// Receive process signals as messages.
     ///
     /// See [`RuntimeRef::receive_signals`] for more documentation.
-    ///
-    /// [process signals]: Signal
     pub fn receive_signals(&mut self, actor_ref: ActorRef<Signal>) {
         self.signals.add(actor_ref);
     }
@@ -614,12 +609,17 @@ impl RuntimeRef {
         self.internals.shared.spawn_future(future, options);
     }
 
-    /// Receive [process signals] as messages.
+    /// Receive process signals as messages.
     ///
     /// This adds the `actor_ref` to the list of actor references that will
-    /// receive a process signal.
+    /// receive all process signals. The actor should react to the signal
+    /// appropriatly, e.g. by shutting down if the signal signals that the
+    /// process should exit.
     ///
-    /// [process signals]: Signal
+    /// Also see the [process module] for examples and notes on the
+    /// implementation.
+    ///
+    /// [process module]: crate::process#signal-handling
     #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn receive_signals(&mut self, actor_ref: ActorRef<Signal>) {
         self.internals
