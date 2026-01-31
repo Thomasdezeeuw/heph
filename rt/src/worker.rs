@@ -34,7 +34,7 @@ use crate::scheduler::ProcessId;
 use crate::setup::set_cpu_affinity;
 use crate::spawn::options::ActorOptions;
 use crate::wakers::Wakers;
-use crate::{self as rt, RuntimeRef, Signal, ThreadLocal, shared, trace};
+use crate::{self as rt, RuntimeRef, ThreadLocal, process, shared, trace};
 
 /// Number of system actors (spawned in the local scheduler).
 pub(crate) const SYSTEM_ACTORS: usize = 1;
@@ -174,7 +174,7 @@ impl Handle {
     }
 
     /// Send the worker thread a `signal`.
-    pub(crate) fn send_signal(&self, signal: Signal) -> Result<(), SendError> {
+    pub(crate) fn send_signal(&self, signal: process::Signal) -> Result<(), SendError> {
         self.sys_ref.try_send(Control::Signal(signal))
     }
 
@@ -625,7 +625,7 @@ pub(crate) enum Control {
     /// Runtime has started, i.e. [`rt::Runtime::start`] was called.
     Started,
     /// Process received a signal.
-    Signal(Signal),
+    Signal(process::Signal),
     /// Run a user defined function.
     Run(Box<dyn FnOnce(RuntimeRef) -> Result<(), String> + Send + 'static>),
 }

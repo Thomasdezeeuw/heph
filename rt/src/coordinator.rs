@@ -21,14 +21,14 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
-use std::{fmt, io, process};
+use std::{fmt, io};
 
 use a10::process::{ReceiveSignals, Signals};
 use heph::actor_ref::{ActorGroup, SendError};
 use log::{debug, error, info, trace};
 
 use crate::setup::{Uuid, host_id, host_info};
-use crate::{self as rt, Signal, cpu_usage, shared, sync_worker, trace, worker};
+use crate::{self as rt, cpu_usage, process, shared, sync_worker, trace, worker};
 
 /// Setup the [`Coordinator`].
 pub(crate) fn setup(app_name: Box<str>) -> Result<CoordinatorSetup, rt::Error> {
@@ -92,7 +92,7 @@ impl CoordinatorSetup {
         internals: Arc<shared::RuntimeInternals>,
         workers: Vec<worker::Handle>,
         sync_workers: Vec<sync_worker::Handle>,
-        signal_refs: ActorGroup<Signal>,
+        signal_refs: ActorGroup<process::Signal>,
         trace_log: Option<trace::CoordinatorLog>,
     ) -> Coordinator {
         Coordinator {
@@ -125,7 +125,7 @@ pub(crate) struct Coordinator {
     /// Process signal receiver.
     signals: ReceiveSignals,
     /// Actor that want to receive a process signal.
-    signal_refs: ActorGroup<Signal>,
+    signal_refs: ActorGroup<process::Signal>,
     /// Trace log for the coordinator.
     trace_log: Option<trace::CoordinatorLog>,
     // Data used in [`Coordinator::log_metrics`].
@@ -221,16 +221,12 @@ impl Coordinator {
             match Pin::new(&mut self.signals).poll_next(&mut ctx) {
                 Poll::Ready(Some(Ok(info))) => {
                     *signal_received = true;
-                    // SAFETY: this is not safe.
-                    let signo = unsafe { std::mem::transmute(info.signal()) };
-                    let Some(signal) = Signal::from_signo(signo) else {
-                        debug!(signal_number:? = info.signal(); "received unexpected signal, not relaying");
-                        continue;
-                    };
-                    debug!(signal:? = signal, signal_number:? = info.signal()
-                        /* TODO: log on Linux sending_pid = info.pid(), sending_uid = info.real_user_id()*/; "received process signal");
-
-                    if let Signal::User2 = signal {
+                    let signal = info.signal();
+                    #[cfg(any(target_os = "android", target_os = "linux"))]
+                    debug!(signal:?, sending_pid = info.pid(), sending_uid = info.real_user_id(); "received process signal");
+                    #[cfg(not(any(target_os = "android", target_os = "linux")))]
+                    debug!(signal:?; "received process signal");
+                    if let process::Signal::USER2 = signal {
                         self.log_metrics();
                     }
 
@@ -286,7 +282,7 @@ impl Coordinator {
             host_name = self.host_name,
             host_id:% = self.host_id,
             app_name = self.app_name,
-            process_id = process::id(),
+            process_id = std::process::id(),
             parent_process_id = parent_id(),
             uptime:? = self.start.elapsed(),
             worker_threads = self.workers.len(),
@@ -295,7 +291,8 @@ impl Coordinator {
             shared_scheduler_inactive = shared_metrics.scheduler_inactive,
             shared_timers_total = shared_metrics.timers_total,
             shared_timers_next:? = shared_metrics.timers_next,
-            process_signals:? = Signal::ALL,
+            // TODO: expose ALL_VALUES from a10::process::Signal?
+            //process_signals:? = Signal::ALL,
             process_signal_receivers = self.signal_refs.len(),
             cpu_time:? = cpu_usage(libc::CLOCK_THREAD_CPUTIME_ID),
             total_cpu_time:? = cpu_usage(libc::CLOCK_PROCESS_CPUTIME_ID),

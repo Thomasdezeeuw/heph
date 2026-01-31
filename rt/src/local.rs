@@ -12,7 +12,7 @@ use log::{info, trace};
 use crate::scheduler::Scheduler;
 use crate::timers::Timers;
 use crate::wakers::Wakers;
-use crate::{RuntimeRef, Signal, cpu_usage, panic_message, shared, trace, worker};
+use crate::{RuntimeRef, cpu_usage, panic_message, process, shared, trace, worker};
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
 #[derive(Debug)]
@@ -29,8 +29,8 @@ pub(crate) struct RuntimeInternals {
     pub(crate) ring: RefCell<a10::Ring>,
     /// Timers, deadlines and timeouts.
     pub(crate) timers: RefCell<Timers>,
-    /// Actor references to relay received `Signal`s to.
-    pub(crate) signal_receivers: RefCell<ActorGroup<Signal>>,
+    /// Actor references to relay received process signals to.
+    pub(crate) signal_receivers: RefCell<ActorGroup<process::Signal>>,
     /// CPU affinity of the worker thread, or `None` if not set.
     pub(crate) cpu: Option<usize>,
     /// Log used for tracing, `None` is tracing is disabled.
@@ -76,18 +76,26 @@ impl RuntimeInternals {
 
     /// Relay a process `signal` to all actors that wanted to receive it, or
     /// returns an error if no actors want to receive it.
-    pub(crate) fn relay_signal(&self, signal: Signal) {
+    pub(crate) fn relay_signal(&self, signal: process::Signal) {
         let timing = trace::start(&*self.trace_log.borrow());
         trace!(worker_id = self.id.get(), signal:? = signal; "received process signal");
 
-        if let Signal::User2 = signal {
+        if let process::Signal::USER2 = signal {
             self.log_metrics();
         }
 
         let mut receivers = self.signal_receivers.borrow_mut();
         receivers.remove_disconnected();
         match receivers.try_send_to_all(signal) {
-            Err(SendError) if signal.should_stop() => {
+            // TODO: replace with Signal::should_exit.
+            Err(SendError)
+                if matches!(
+                    signal,
+                    process::Signal::INTERRUPT
+                        | process::Signal::TERMINATION
+                        | process::Signal::QUIT
+                ) =>
+            {
                 self.set_err(worker::Error::ProcessInterrupted);
             }
             Ok(()) | Err(SendError) => {}
@@ -97,7 +105,9 @@ impl RuntimeInternals {
             self.trace_log.borrow_mut().as_mut(),
             timing,
             "Relaying process signal to actors",
-            &[("signal", &signal.as_str())],
+            // TODO: add this to A10?
+            //&[("signal", &signal.as_str())],
+            &[],
         );
     }
 

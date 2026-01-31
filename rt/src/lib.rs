@@ -256,7 +256,6 @@ pub mod process;
 mod scheduler;
 mod setup;
 mod shared;
-mod signal;
 pub mod spawn;
 mod sync_worker;
 #[cfg(target_os = "linux")]
@@ -275,7 +274,6 @@ mod worker;
 pub use access::{Access, Sync, ThreadLocal, ThreadSafe};
 pub use error::Error;
 pub use setup::Setup;
-pub use signal::Signal;
 
 use crate::scheduler::process::FutureProcess;
 use coordinator::CoordinatorSetup;
@@ -305,7 +303,7 @@ pub struct Runtime {
     /// Synchronous actor threads.
     sync_actors: Vec<sync_worker::Handle>,
     /// List of actor references that want to receive process signals.
-    signals: ActorGroup<Signal>,
+    signals: ActorGroup<process::Signal>,
     /// Trace log.
     trace_log: Option<trace::CoordinatorLog>,
 }
@@ -441,17 +439,20 @@ impl Runtime {
     /// Receive process signals as messages.
     ///
     /// See [`RuntimeRef::receive_signals`] for more documentation.
-    pub fn receive_signals(&mut self, actor_ref: ActorRef<Signal>) {
+    pub fn receive_signals(&mut self, actor_ref: ActorRef<process::Signal>) {
         self.signals.add(actor_ref);
     }
 
     /// Run the runtime.
     ///
     /// This will wait until all spawned workers have finished, which happens
-    /// when all actors have finished. In addition to waiting for all worker
-    /// threads it will also watch for all process signals in [`Signal`] and
-    /// relay them to actors that want to handle them, see the [`Signal`] type
-    /// for more information.
+    /// when all spawned actors and futures  have finished.
+    ///
+    /// In addition to waiting for all worker threads it will also listen for
+    /// all process signals and relay them to actors that want to handle them,
+    /// see the [process module] for more information.
+    ///
+    /// [process module]: crate::process#signal-handling
     pub fn start(self) -> Result<(), Error> {
         debug!(
             workers = self.workers.len(), sync_actors = self.sync_actors.len();
@@ -621,7 +622,7 @@ impl RuntimeRef {
     ///
     /// [process module]: crate::process#signal-handling
     #[allow(clippy::needless_pass_by_ref_mut)]
-    pub fn receive_signals(&mut self, actor_ref: ActorRef<Signal>) {
+    pub fn receive_signals(&mut self, actor_ref: ActorRef<process::Signal>) {
         self.internals
             .signal_receivers
             .borrow_mut()

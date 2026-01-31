@@ -23,7 +23,7 @@ use std::{fmt, io};
 
 use heph::messages::Terminate;
 
-use crate::Signal;
+use crate::process;
 
 mod tcp_server;
 
@@ -34,7 +34,8 @@ pub use tcp_server::TcpServer;
 /// The message type used by server actors.
 ///
 /// The message implements [`From`]`<`[`Terminate`]`>` and
-/// [`TryFrom`]`<`[`Signal`]`>` for the message, allowing for graceful shutdown.
+/// [`TryFrom`]`<`[`process::Signal`]`>` for the message, allowing for graceful
+/// shutdown.
 #[derive(Debug)]
 pub struct ServerMessage {
     // Allow for future expansion.
@@ -47,17 +48,17 @@ impl From<Terminate> for ServerMessage {
     }
 }
 
-impl TryFrom<Signal> for ServerMessage {
+impl TryFrom<process::Signal> for ServerMessage {
     type Error = ();
 
-    /// Converts [`Signal::Interrupt`], [`Signal::Terminate`] and
-    /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
-    fn try_from(signal: Signal) -> Result<Self, Self::Error> {
-        match signal {
-            Signal::Interrupt | Signal::Terminate | Signal::Quit => {
-                Ok(ServerMessage { _inner: () })
-            }
-            _ => Err(()),
+    fn try_from(signal: process::Signal) -> Result<Self, Self::Error> {
+        if matches!(
+            signal,
+            process::Signal::INTERRUPT | process::Signal::TERMINATION | process::Signal::QUIT
+        ) {
+            Ok(ServerMessage { _inner: () })
+        } else {
+            Err(())
         }
     }
 }
