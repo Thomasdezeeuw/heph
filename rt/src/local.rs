@@ -105,9 +105,7 @@ impl RuntimeInternals {
             self.trace_log.borrow_mut().as_mut(),
             timing,
             "Relaying process signal to actors",
-            // TODO: add this to A10?
-            //&[("signal", &signal.as_str())],
-            &[],
+            &[("signal", &format_args!("{:?}", signal))],
         );
     }
 
