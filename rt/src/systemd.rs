@@ -17,17 +17,17 @@ use std::os::unix;
 use std::path::Path;
 use std::str::FromStr;
 use std::time::Duration;
-use std::{env, io, process};
+use std::{env, io};
 
 use heph::actor;
 use heph::messages::Terminate;
 use log::{debug, warn};
 
-use crate::Signal;
 use crate::access::Access;
 use crate::fd::AsyncFd;
 use crate::io::StaticBuf;
 use crate::net::{Domain, Type, socket};
+use crate::process;
 use crate::timer::Interval;
 use crate::util::{either, next};
 
@@ -73,7 +73,7 @@ impl Notify {
         if let Some(watchdog_pid) = watchdog_pid {
             match parse_os_string::<u32>(watchdog_pid) {
                 // All good.
-                Ok(pid) if pid == process::id() => {}
+                Ok(pid) if pid == std::process::id() => {}
                 // Either an invalid pid, or not meant for us.
                 _ => watchdog_timeout = None,
             }
@@ -348,8 +348,8 @@ where
 ///
 /// # Notes
 ///
-/// The implements [`TryFrom`]`<`[`Signal`]`>` so that the actor reference can
-/// handle process signal automatically by setting the state to
+/// The implements [`TryFrom`]`<`[`process::Signal`]`>` so that the actor
+/// reference can handle process signal automatically by setting the state to
 /// [`State::Stopping`].
 #[non_exhaustive]
 #[derive(Debug)]
@@ -378,20 +378,20 @@ impl From<Terminate> for ServiceMessage {
     }
 }
 
-impl TryFrom<Signal> for ServiceMessage {
+impl TryFrom<process::Signal> for ServiceMessage {
     type Error = ();
 
-    /// Converts [`Signal::Interrupt`], [`Signal::Terminate`] and
-    /// [`Signal::Quit`], fails for all other signals (by returning `Err(())`).
-    fn try_from(signal: Signal) -> Result<Self, Self::Error> {
-        match signal {
-            Signal::Interrupt | Signal::Terminate | Signal::Quit => {
-                Ok(ServiceMessage::ChangeState {
-                    state: State::Stopping,
-                    status: Some("stopping after process signal".into()),
-                })
-            }
-            _ => Err(()),
+    fn try_from(signal: process::Signal) -> Result<Self, Self::Error> {
+        if matches!(
+            signal,
+            process::Signal::INTERRUPT | process::Signal::TERMINATION | process::Signal::QUIT
+        ) {
+            Ok(ServiceMessage::ChangeState {
+                state: State::Stopping,
+                status: Some("stopping after process signal".into()),
+            })
+        } else {
+            Err(())
         }
     }
 }
