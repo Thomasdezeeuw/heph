@@ -165,7 +165,9 @@ mod waker_vtable {
         let data = unsafe { WakerData::from_raw_data(data) };
         if let Some(shared_internals) = get(data.waker_id()).upgrade() {
             shared_internals.mark_ready(data.pid());
+            /* TODO: needed?
             shared_internals.wake_workers(1);
+            */
         }
     }
 

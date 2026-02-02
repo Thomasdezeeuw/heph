@@ -3,7 +3,7 @@
 //! A worker thread manages part of the [`Runtime`]. It manages two parts; the
 //! local and shared (between workers) parts of the runtime. The local part
 //! include thread-local actors and futures, timers for those local actors, I/O
-//! state, etc. The can be found in [`Worker`]. The shared part is similar, but
+//! state, etc. This can be found in [`Worker`]. The shared part is similar, but
 //! not the sole responsibility of a single worker, all workers collectively are
 //! responsible for it. This shared part can be fore in
 //! [`shared::RuntimeInternals`].
@@ -15,7 +15,6 @@
 //! [`Runtime`]: crate::Runtime
 //! [started]: WorkerSetup::start
 
-use std::cell::RefMut;
 use std::num::NonZeroUsize;
 use std::rc::Rc;
 use std::sync::{Arc, OnceLock};
@@ -26,12 +25,10 @@ use crossbeam_channel::Receiver;
 use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, SendError};
 use heph::supervisor::NoSupervisor;
-use log::{debug, trace};
 
 use crate::error::StringError;
 use crate::local::RuntimeInternals;
 use crate::scheduler::ProcessId;
-use crate::setup::set_cpu_affinity;
 use crate::spawn::options::ActorOptions;
 use crate::wakers::Wakers;
 use crate::{self as rt, RuntimeRef, ThreadLocal, process, shared, trace};
@@ -53,102 +50,40 @@ const RUN_POLL_RATIO: usize = 32;
 // TODO: make this configurable.
 const MAX_EVENT_LOOP_DURATION: Duration = Duration::from_millis(5);
 
-/// Setup a new worker thread.
-///
-/// Use [`WorkerSetup::start`] to spawn the worker thread.
-pub(crate) fn setup(
+/// Spawn a new worker thread.
+pub(crate) fn spawn_thread(
     id: NonZeroUsize,
-    #[allow(unused_variables)] auto_cpu_affinity: bool,
-    #[allow(unused_variables)] coordinator_sq: &a10::SubmissionQueue,
-) -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let config = a10::Ring::config();
-    #[cfg(any(target_os = "android", target_os = "linux"))]
-    let config = config
-        .disable() // Enabled on the worker thread.
-        .single_issuer()
-        .with_kernel_thread()
-        .attach_queue(coordinator_sq);
-    #[cfg(any(target_os = "android", target_os = "linux"))]
-    let config = if auto_cpu_affinity {
-        #[allow(clippy::cast_possible_truncation)]
-        config.with_cpu_affinity((id.get() - 1) as u32)
-    } else {
-        config
-    };
-    let ring = config.build()?;
-    Ok(setup2(id, ring))
-}
-
-/// Test version of [`setup`].
-#[cfg(any(test, feature = "test"))]
-pub(crate) fn setup_test() -> io::Result<(WorkerSetup, a10::SubmissionQueue)> {
-    let config = a10::Ring::config();
-    #[cfg(any(target_os = "android", target_os = "linux"))]
-    let config = config
-        .disable() // Enabled on the worker thread.
-        .single_issuer()
-        .with_kernel_thread();
-    let ring = config.build()?;
-    Ok(setup2(NonZeroUsize::MAX, ring))
-}
-
-/// Second part of the [`setup`].
-fn setup2(id: NonZeroUsize, ring: a10::Ring) -> (WorkerSetup, a10::SubmissionQueue) {
-    let sq = ring.sq();
-
-    // Setup the waking mechanism.
-    let (waker_sender, waker_events) = crossbeam_channel::unbounded();
-    let wakers = Wakers::new(waker_sender, sq.clone());
-
-    let setup = WorkerSetup {
+    shared_internals: Arc<shared::RuntimeInternals>,
+    auto_cpu_affinity: bool,
+) -> io::Result<Spawned> {
+    let sys_ref = Arc::new(OnceLock::new());
+    let init = sys_ref.clone();
+    let handle = thread::Builder::new()
+        .name(format!("Worker {id}"))
+        .spawn(move || main(id, shared_internals, auto_cpu_affinity, init))?;
+    Ok(Spawned {
         id,
-        ring,
-        wakers,
-        waker_events,
-    };
-    (setup, sq)
+        sys_ref,
+        handle,
+    })
 }
 
-/// Setup work required before starting a worker thread, see [`setup`].
-pub(crate) struct WorkerSetup {
-    /// See [`WorkerSetup::id`].
+/// Worker thread that is spawned, but not fully running yet.
+pub(crate) struct Spawned {
     id: NonZeroUsize,
-    /// io_uring completion ring.
-    ring: a10::Ring,
-    /// Creation of `task::Waker`s for for thread-local actors.
-    wakers: Wakers,
-    /// Receiving side of the channel for `Waker` events.
-    waker_events: Receiver<ProcessId>,
+    sys_ref: Arc<OnceLock<ActorRef<Control>>>,
+    handle: thread::JoinHandle<Result<(), Error>>,
 }
 
-impl WorkerSetup {
-    /// Start a new worker thread.
-    pub(crate) fn start(
-        self,
-        shared: Arc<shared::RuntimeInternals>,
-        auto_cpu_affinity: bool,
-        trace_log: Option<trace::Log>,
-    ) -> io::Result<Handle> {
-        let id = self.id;
-        let init = Arc::new(OnceLock::new());
-        let i = init.clone();
-        let handle = thread::Builder::new()
-            .name(format!("Worker {id}"))
-            .spawn(move || {
-                let worker = Worker::setup(self, shared, auto_cpu_affinity, trace_log, init);
-                worker.run().map_err(rt::Error::worker)
-            })?;
-        let sys_ref = i.wait().clone();
-        Ok(Handle {
-            id,
+impl Spawned {
+    /// Wait until the worker is running.
+    pub(crate) fn wait_running(self) -> Handle {
+        let sys_ref = self.sys_ref.wait().clone();
+        Handle {
+            id: self.id,
             sys_ref,
-            handle,
-        })
-    }
-
-    /// Return the worker's id.
-    pub(crate) const fn id(&self) -> usize {
-        self.id.get()
+            handle: self.handle,
+        }
     }
 }
 
@@ -159,13 +94,13 @@ pub(crate) struct Handle {
     id: NonZeroUsize,
     sys_ref: ActorRef<Control>,
     #[allow(clippy::struct_field_names)]
-    handle: thread::JoinHandle<Result<(), rt::Error>>,
+    handle: thread::JoinHandle<Result<(), Error>>,
 }
 
 impl Handle {
     /// Return the worker's id.
-    pub(crate) const fn id(&self) -> usize {
-        self.id.get()
+    pub(crate) const fn id(&self) -> NonZeroUsize {
+        self.id
     }
 
     /// Send the worker thread a signal that the runtime has started.
@@ -192,9 +127,34 @@ impl Handle {
     }
 
     /// See [`thread::JoinHandle::join`].
-    pub(crate) fn join(self) -> thread::Result<Result<(), rt::Error>> {
-        self.handle.join()
+    pub(crate) fn join(self) -> Result<(), rt::Error> {
+        match self.handle.join() {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(err)) => Err(rt::Error::worker(err)),
+            Err(err) => Err(rt::Error::worker_panic(err)),
+        }
     }
+}
+
+/// Main function of a worker thread.
+fn main(
+    id: NonZeroUsize,
+    shared_internals: Arc<shared::RuntimeInternals>,
+    auto_cpu_affinity: bool,
+    init: Arc<OnceLock<ActorRef<Control>>>,
+) -> Result<(), Error> {
+    let trace_log = shared_internals.worker_trace_log(id);
+
+    let timing = trace::start(&trace_log);
+    let worker = Worker::setup(id, shared_internals, auto_cpu_affinity, trace_log, init)?;
+    trace::finish_rt(
+        worker.internals.trace_log.borrow_mut().as_mut(),
+        timing,
+        "Initialised the worker thread",
+        &[],
+    );
+
+    worker.run()
 }
 
 /// Worker that runs thread-local and thread-safe actors and futurers, and
@@ -208,63 +168,74 @@ pub(crate) struct Worker {
 }
 
 impl Worker {
-    /// Setup the worker. Must be called on the worker thread.
-    pub(crate) fn setup(
-        #[allow(unused_mut)] mut setup: WorkerSetup,
+    /// Set up a worker.
+    fn setup(
+        id: NonZeroUsize,
         shared_internals: Arc<shared::RuntimeInternals>,
-        auto_cpu_affinity: bool,
+        #[allow(unused_variables)] auto_cpu_affinity: bool,
         trace_log: Option<trace::Log>,
         init: Arc<OnceLock<ActorRef<Control>>>,
-    ) -> Worker {
-        let worker_id = setup.id.get();
-        let timing = trace::start(&trace_log);
-
-        let cpu = if auto_cpu_affinity {
-            set_cpu_affinity(setup.id)
-        } else {
-            None
-        };
-
+    ) -> Result<Worker, Error> {
+        let config = a10::Ring::config();
         #[cfg(any(target_os = "android", target_os = "linux"))]
-        if let Err(err) = setup.ring.enable() {
-            log::warn!("failed to enable a10::Ring: {err}, continuing");
-        }
+        let config = config
+            .single_issuer()
+            .defer_task_run()
+            .attach_queue(shared_internals.sq());
 
+        // Set CPU affinity on the thread itself and on the ring.
+        #[allow(unused_mut)]
+        let mut cpu_affinity: Option<usize> = None;
+        #[cfg(any(target_os = "android", target_os = "linux"))]
+        if auto_cpu_affinity {
+            let cpu_id = id.get() - 1; // Worker ids start at 1, cpus at 0.
+            let cpu_set = cpu_set(cpu_id);
+            match set_affinity(&cpu_set) {
+                Ok(()) => {
+                    log::debug!(worker_id = id; "worker thread CPU affinity set to {cpu_id}");
+                    cpu_affinity = Some(cpu_id);
+                }
+                Err(err) => {
+                    log::warn!(worker_id = id; "failed to set CPU affinity on thread: {err}")
+                }
+            }
+        }
+        let ring = config.build().map_err(Error::Setup)?;
+
+        // Setup the waking mechanism.
+        let (waker_sender, waker_events) = crossbeam_channel::unbounded();
+        let wakers = Wakers::new(waker_sender, ring.sq());
+
+        // Finally we can create the runtime internals.
         let internals = Rc::new(RuntimeInternals::new(
-            setup.id,
+            id,
             shared_internals,
-            setup.wakers,
-            setup.ring,
-            cpu,
+            wakers,
+            ring,
+            cpu_affinity,
             trace_log,
         ));
 
-        trace!(worker_id = worker_id; "spawning system actors");
+        // Spawn our system actors.
         let runtime_ref = RuntimeRef {
             internals: internals.clone(),
         };
         let sys_ref = spawn_system_actors(runtime_ref);
+
+        // Let the coordinator know we're ready to start.
         let res = init.set(sys_ref);
         assert!(res.is_ok());
         drop(init);
 
-        let mut worker = Worker {
+        Ok(Worker {
             internals,
-            waker_events: setup.waker_events,
-        };
-
-        trace::finish_rt(
-            worker.trace_log().as_mut(),
-            timing,
-            "Initialising the worker thread",
-            &[],
-        );
-        worker
+            waker_events,
+        })
     }
 
     /// Run the worker.
     pub(crate) fn run(mut self) -> Result<(), Error> {
-        debug!(worker_id = self.internals.id.get(); "starting worker");
+        log::debug!(worker_id = self.internals.id; "starting worker");
         loop {
             // We first run the processes and only poll after to ensure that we
             // return if there are no processes to run.
@@ -293,8 +264,10 @@ impl Worker {
                 return Err(err);
             }
             if self.internals.started() && !self.has_user_process() {
-                debug!(worker_id = self.internals.id.get(); "no processes to run, stopping worker");
+                log::debug!(worker_id = self.internals.id; "no processes to run, stopping worker");
+                /* TODO: needed?
                 self.internals.shared.wake_all_workers();
+                */
                 return Ok(());
             }
 
@@ -314,7 +287,7 @@ impl Worker {
                 let timing = trace::start(&*self.internals.trace_log.borrow());
                 let pid = process.id();
                 let name = process.name();
-                debug!(worker_id = self.internals.id.get(), pid = pid.0, name = name; "running local process");
+                log::debug!(worker_id = self.internals.id, pid = pid.0, name; "running local process");
                 // TODO: reuse wakers, maybe by storing them in the processes?
                 let waker = self.internals.wakers.borrow_mut().new_task_waker(pid);
                 let mut ctx = task::Context::from_waker(&waker);
@@ -354,7 +327,7 @@ impl Worker {
                 let timing = trace::start(&*self.internals.trace_log.borrow());
                 let pid = process.id();
                 let name = process.name();
-                debug!(worker_id = self.internals.id.get(), pid = pid.0, name = name; "running shared process");
+                log::debug!(worker_id = self.internals.id, pid = pid.0, name; "running shared process");
                 let waker = self.internals.shared.new_task_waker(pid);
                 let mut ctx = task::Context::from_waker(&waker);
                 let result = process.as_mut().run(&mut ctx);
@@ -388,7 +361,7 @@ impl Worker {
     ///
     /// This polls all event subsystems and schedules processes based on them.
     fn schedule_processes(&mut self) -> Result<(), Error> {
-        trace!(worker_id = self.internals.id.get(); "polling event sources to schedule processes");
+        log::trace!(worker_id = self.internals.id; "polling event sources to schedule processes");
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
         // Schedule local and shared processes based on various event sources.
@@ -409,9 +382,11 @@ impl Worker {
             ],
         );
 
+        /* TODO: needed?
         // Possibly wake other worker threads if we've scheduled any shared
         // processes (that we can't directly run).
         self.wake_workers(local_amount, shared_amount);
+        */
 
         Ok(())
     }
@@ -420,13 +395,13 @@ impl Worker {
     /// `Future` task system.
     #[allow(clippy::needless_pass_by_ref_mut)]
     fn schedule_from_waker(&mut self) -> usize {
-        trace!(worker_id = self.internals.id.get(); "polling wakup events");
+        log::trace!(worker_id = self.internals.id; "polling wakup events");
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
         let mut scheduler = self.internals.scheduler.borrow_mut();
         let mut amount: usize = 0;
         for pid in self.waker_events.try_iter() {
-            trace!(worker_id = self.internals.id.get(), pid = pid.0; "waking up local process");
+            log::trace!(worker_id = self.internals.id, pid = pid.0; "waking up local process");
             scheduler.mark_ready(pid);
             amount += 1;
         }
@@ -443,7 +418,7 @@ impl Worker {
     /// Schedule processes based on local timers.
     #[allow(clippy::needless_pass_by_ref_mut)]
     fn schedule_from_local_timers(&mut self, now: Instant) -> usize {
-        trace!(worker_id = self.internals.id.get(); "polling local timers");
+        log::trace!(worker_id = self.internals.id; "polling local timers");
         let timing = trace::start(&*self.internals.trace_log.borrow());
         let amount = self.internals.timers.borrow_mut().expire_timers(now);
         trace::finish_rt(
@@ -458,7 +433,7 @@ impl Worker {
     /// Schedule processes based on shared timers.
     #[allow(clippy::needless_pass_by_ref_mut)]
     fn schedule_from_shared_timers(&mut self, now: Instant) -> usize {
-        trace!(worker_id = self.internals.id.get(); "polling shared timers");
+        log::trace!(worker_id = self.internals.id; "polling shared timers");
         let timing = trace::start(&*self.internals.trace_log.borrow());
         let amount = self.internals.shared.expire_timers(now);
         trace::finish_rt(
@@ -470,6 +445,7 @@ impl Worker {
         amount
     }
 
+    /* TODO: needed?
     /// Wake worker threads based on the amount of local scheduled processes
     /// (`local_amount`) and the amount of scheduled shared processes
     /// (`shared_amount`).
@@ -484,7 +460,7 @@ impl Worker {
         };
 
         if wake_n != 0 {
-            trace!(worker_id = self.internals.id.get(); "waking {wake_n} worker threads");
+            log::trace!(worker_id = self.internals.id; "waking {wake_n} worker threads");
             let timing = trace::start(&*self.internals.trace_log.borrow());
             self.internals.shared.wake_workers(wake_n);
             trace::finish_rt(
@@ -495,6 +471,7 @@ impl Worker {
             );
         }
     }
+    */
 
     /// Poll for OS events, filling `self.events`.
     ///
@@ -506,16 +483,16 @@ impl Worker {
         // First process any shared completions, this influences
         // `determine_timeout` below as we might schedule shared processes etc.
         // Note that the call never blocks.
-        trace!(worker_id = self.internals.id.get(); "polling shared ring");
+        log::trace!(worker_id = self.internals.id; "polling shared ring");
         self.internals.shared.try_poll_ring()?;
 
         let timeout = self.determine_timeout();
-        trace!(worker_id = self.internals.id.get(), timeout:? = timeout; "polling for OS events");
+        log::trace!(worker_id = self.internals.id, timeout:?; "polling for OS events");
         self.internals.ring.borrow_mut().poll(timeout)?;
 
         // Since we could have been polling our own ring for a long time we poll
         // the shared ring again.
-        trace!(worker_id = self.internals.id.get(); "polling shared ring");
+        log::trace!(worker_id = self.internals.id; "polling shared ring");
         self.internals.shared.try_poll_ring()?;
 
         trace::finish_rt(
@@ -558,11 +535,26 @@ impl Worker {
             internals: self.internals.clone(),
         }
     }
+}
 
-    /// Returns the trace log, if any.
-    #[allow(clippy::needless_pass_by_ref_mut)]
-    fn trace_log(&mut self) -> RefMut<'_, Option<trace::Log>> {
-        self.internals.trace_log.borrow_mut()
+/// Create a cpu set that may only run on `cpu_id`.
+#[cfg(any(target_os = "android", target_os = "linux"))]
+fn cpu_set(cpu_id: usize) -> libc::cpu_set_t {
+    let mut cpu_set = unsafe { std::mem::zeroed() };
+    unsafe { libc::CPU_ZERO(&mut cpu_set) };
+    unsafe { libc::CPU_SET(cpu_id % libc::CPU_SETSIZE as usize, &mut cpu_set) };
+    cpu_set
+}
+
+/// Set the affinity of this thread to the `cpu_set`.
+#[cfg(any(target_os = "android", target_os = "linux"))]
+fn set_affinity(cpu_set: &libc::cpu_set_t) -> io::Result<()> {
+    let thread = unsafe { libc::pthread_self() };
+    let res = unsafe { libc::pthread_setaffinity_np(thread, size_of_val(cpu_set), cpu_set) };
+    if res == 0 {
+        Ok(())
+    } else {
+        Err(io::Error::last_os_error())
     }
 }
 
@@ -576,6 +568,7 @@ impl Drop for Worker {
 /// Error running a [`Worker`].
 #[derive(Debug)]
 pub(crate) enum Error {
+    Setup(io::Error),
     /// Error polling for OS events.
     Polling(io::Error),
     /// Process was interrupted (i.e. received process signal), but no actor can
@@ -588,6 +581,7 @@ pub(crate) enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Error::Setup(err) => write!(f, "error setting up worker thread: {err}"),
             Error::Polling(err) => write!(f, "error polling OS: {err}"),
             Error::ProcessInterrupted => write!(
                 f,
@@ -601,7 +595,7 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
-            Error::Polling(err) => Some(err),
+            Error::Setup(err) | Error::Polling(err) => Some(err),
             Error::ProcessInterrupted => None,
             Error::UserFunction(err) => Some(err),
         }
@@ -611,6 +605,7 @@ impl std::error::Error for Error {
 /// Spawn all system actors.
 #[allow(clippy::assertions_on_constants)]
 fn spawn_system_actors(mut runtime_ref: RuntimeRef) -> ActorRef<Control> {
+    log::trace!(worker_id = runtime_ref.internals.id; "spawning {SYSTEM_ACTORS} system actors");
     let sys_ref =
         runtime_ref.spawn_local(NoSupervisor, actor_fn(comm_actor), (), ActorOptions::SYSTEM);
     // Keep this up to date, otherwise we'll exit early.
@@ -646,7 +641,7 @@ impl fmt::Debug for Control {
 async fn comm_actor(mut ctx: actor::Context<Control, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         let internals = &ctx.runtime_ref().internals;
-        trace!(worker_id = internals.id.get(), message:? = msg; "processing coordinator message");
+        log::trace!(worker_id = internals.id, message:? = msg; "processing coordinator message");
         let timing = trace::start(&*internals.trace_log.borrow());
         match msg {
             Control::Started => internals.start(),
@@ -656,7 +651,7 @@ async fn comm_actor(mut ctx: actor::Context<Control, ThreadLocal>) {
         trace::finish_rt(
             internals.trace_log.borrow_mut().as_mut(),
             timing,
-            "Processing communication message(s)",
+            "Processing communication message",
             &[],
         );
     }

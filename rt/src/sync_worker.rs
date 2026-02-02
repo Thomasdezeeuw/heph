@@ -22,8 +22,8 @@ use crate::spawn::options::SyncActorOptions;
 use crate::trace;
 use crate::{self as rt, shared};
 
-/// Start a new thread that runs a synchronous actor.
-pub(crate) fn start<S, A>(
+/// Spawn a new thread to run the synchronous actor.
+pub(crate) fn spawn_thread<S, A>(
     id: usize,
     supervisor: S,
     actor: A,
@@ -45,12 +45,9 @@ where
     let thread_name = options
         .take_thread_name()
         .unwrap_or_else(|| A::name().to_owned());
-    let wake_coordinator_on_drop = WakeOnDrop(shared);
     let handle = thread::Builder::new().name(thread_name).spawn(move || {
+        let _wake_coordinator_on_drop = WakeOnDrop(shared); // Only needs to be dropped.
         runner.run(arg);
-        // Wake the coordinator. Note that if it's dropped early it will also
-        // wake the coordinator, see the `Drop` implementation.
-        drop(wake_coordinator_on_drop);
     })?;
     Ok((Handle { id, handle }, actor_ref))
 }
@@ -87,8 +84,8 @@ impl Handle {
     }
 
     /// See [`thread::JoinHandle::join`].
-    pub(crate) fn join(self) -> thread::Result<()> {
-        self.handle.join()
+    pub(crate) fn join(self) -> Result<(), rt::Error> {
+        self.handle.join().map_err(rt::Error::sync_actor_panic)
     }
 
     /// Returns the [`thread::JoinHandle`].

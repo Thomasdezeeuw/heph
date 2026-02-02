@@ -214,12 +214,7 @@ impl CoordinatorLog {
 
     /// Create a new stream with `stream_id`, writing to the same file.
     pub(crate) fn new_stream(&self, stream_id: u32) -> Log {
-        Log {
-            shared: self.shared.clone(),
-            stream_id,
-            stream_counter: 0,
-            buf: Vec::with_capacity(BUF_SIZE),
-        }
+        self.shared.new_stream(stream_id)
     }
 
     /// Clone the shared log.
@@ -249,6 +244,18 @@ pub(crate) struct SharedLog {
     counter: AtomicU32,
     /// Time which we use as zero, or epoch, time for all events.
     epoch: Instant,
+}
+
+impl SharedLog {
+    /// Create a new stream with `stream_id`, writing to the same file.
+    pub(crate) fn new_stream(self: &Arc<SharedLog>, stream_id: u32) -> Log {
+        Log {
+            shared: self.clone(),
+            stream_id,
+            stream_counter: 0,
+            buf: Vec::with_capacity(BUF_SIZE),
+        }
+    }
 }
 
 /// Trace log.

@@ -1,9 +1,8 @@
 //! Module with shared runtime internals.
 
-use std::cmp::min;
 use std::future::Future;
+use std::num::NonZeroUsize;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, TryLockError};
 use std::time::{Duration, Instant};
 use std::{io, task};
@@ -11,7 +10,6 @@ use std::{io, task};
 use heph::actor_ref::ActorRef;
 use heph::supervisor::Supervisor;
 use heph::{ActorFutureBuilder, NewActor};
-use log::{debug, trace};
 
 use crate::scheduler::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Process, Scheduler};
@@ -23,54 +21,16 @@ use crate::timers::shared::Timers;
 use crate::wakers::shared::Wakers;
 use crate::{ThreadSafe, trace};
 
-/// Setup of [`RuntimeInternals`].
-///
-/// # Notes
-///
-/// This type only exists because [`Arc::new_cyclic`] doesn't work when
-/// returning a result. And as [`RuntimeInternals`] needs to create an
-/// [`a10::Ring`], which can fail, creating a new `RuntimeInternals` inside
-/// `Arc::new_cyclic` doesn't work. So it needs to be a two step process, where
-/// the second step (`RuntimeSetup::complete`) doesn't return an error and can
-/// be called inside `Arc::new_cyclic`.
-pub(crate) struct RuntimeSetup {
-    ring: a10::Ring,
-    coordinator_sq: a10::SubmissionQueue,
-}
-
-impl RuntimeSetup {
-    /// Complete the runtime setup.
-    pub(crate) fn complete(
-        self,
-        wakers: Wakers,
-        worker_sqs: Box<[a10::SubmissionQueue]>,
-        trace_log: Option<Arc<trace::SharedLog>>,
-    ) -> RuntimeInternals {
-        // Needed by `RuntimeInternals::wake_workers`.
-        debug_assert!(!worker_sqs.is_empty());
-        let sq = self.ring.sq();
-        RuntimeInternals {
-            worker_sqs,
-            wake_worker_idx: AtomicUsize::new(0),
-            ring: Mutex::new(self.ring),
-            sq,
-            wakers,
-            scheduler: Scheduler::new(),
-            timers: Timers::new(),
-            trace_log,
-            coordinator_sq: self.coordinator_sq,
-        }
-    }
-}
-
 /// Shared internals of the runtime.
 #[derive(Debug)]
 pub(crate) struct RuntimeInternals {
+    /* TODO: needed?
     /// Submission queues for the workers, used to wake them.
     worker_sqs: Box<[a10::SubmissionQueue]>,
     /// Index into `worker_sqs` to wake next, see
     /// [`RuntimeInternals::wake_workers`].
     wake_worker_idx: AtomicUsize,
+    */
     /// io_uring completion ring.
     ring: Mutex<a10::Ring>,
     /// Submission queue for the `ring`.
@@ -102,33 +62,36 @@ pub(crate) struct Metrics {
 }
 
 impl RuntimeInternals {
-    /// Setup new runtime internals.
-    pub(crate) fn setup(coordinator_sq: a10::SubmissionQueue) -> io::Result<RuntimeSetup> {
+    /// Create new runtime internals.
+    pub(crate) fn new(
+        coordinator_sq: a10::SubmissionQueue,
+        trace_log: Option<Arc<trace::SharedLog>>,
+    ) -> io::Result<Arc<RuntimeInternals>> {
         let config = a10::Ring::config();
         #[cfg(any(target_os = "android", target_os = "linux"))]
-        let config = config.with_kernel_thread().attach_queue(&coordinator_sq);
+        let config = config
+            .single_issuer()
+            .defer_task_run()
+            .attach_queue(&coordinator_sq);
         let ring = config.build()?;
+        let sq = ring.sq();
 
-        Ok(RuntimeSetup {
-            ring,
-            coordinator_sq,
-        })
-    }
-
-    /// Same as [`RuntimeInternals::setup`], but doesn't attach to an existing [`a10::Ring`].
-    #[cfg(test)]
-    pub(crate) fn test_setup() -> io::Result<RuntimeSetup> {
-        let config = a10::Ring::config();
-        #[cfg(any(target_os = "android", target_os = "linux"))]
-        let config = config.with_kernel_thread();
-        let ring = config.build()?;
-
-        // Don't have a coordinator so we use our own submission queue.
-        let coordinator_sq = ring.sq().clone();
-        Ok(RuntimeSetup {
-            ring,
-            coordinator_sq,
-        })
+        Ok(Arc::new_cyclic(|shared_internals| {
+            let wakers = Wakers::new(shared_internals.clone());
+            RuntimeInternals {
+                /* TODO: needed?
+                worker_sqs,
+                wake_worker_idx: AtomicUsize::new(0),
+                */
+                ring: Mutex::new(ring),
+                sq,
+                wakers,
+                scheduler: Scheduler::new(),
+                timers: Timers::new(),
+                trace_log,
+                coordinator_sq,
+            }
+        }))
     }
 
     /// Returns metrics about the shared scheduler and timers.
@@ -164,7 +127,7 @@ impl RuntimeInternals {
     ///
     /// See [`Timers::add`].
     pub(crate) fn add_timer(&self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        trace!(deadline:? = deadline; "adding timer");
+        log::trace!(deadline:?; "adding timer");
         self.timers.add(deadline, waker)
     }
 
@@ -172,7 +135,7 @@ impl RuntimeInternals {
     ///
     /// See [`Timers::remove`].
     pub(crate) fn remove_timer(&self, deadline: Instant, token: TimerToken) {
-        trace!(deadline:? = deadline; "removing timer");
+        log::trace!(deadline:?; "removing timer");
         self.timers.remove(deadline, token);
     }
 
@@ -227,7 +190,7 @@ impl RuntimeInternals {
             .try_build(supervisor, new_actor, arg)?;
         let pid = self.scheduler.add_new_process(options.priority(), process);
         let name = NA::name();
-        debug!(pid = pid.0, name = name; "spawning thread-safe actor");
+        log::debug!(pid = pid.0, name; "spawning thread-safe actor");
         Ok(actor_ref)
     }
 
@@ -239,7 +202,7 @@ impl RuntimeInternals {
     {
         let process = FutureProcess(future);
         let pid = self.scheduler.add_new_process(options.priority(), process);
-        debug!(pid = pid.0; "spawning thread-safe future");
+        log::debug!(pid = pid.0; "spawning thread-safe future");
     }
 
     /// Add a new proces to the scheduler.
@@ -256,9 +219,13 @@ impl RuntimeInternals {
         self.scheduler.mark_ready(pid);
     }
 
+    /* TODO: current used in the following:
+     *  * shared waker to wake other workers to poll the futures.
+     *  * waking all workers once a single worker stops.
+     * But is it actually needed?
     /// Wake `n` worker threads.
     pub(crate) fn wake_workers(&self, n: usize) {
-        trace!("waking {n} worker thread(s)");
+        log::trace!("waking {n} worker thread(s)");
         // To prevent the Thundering herd problem [1] we don't wake all workers,
         // only enough worker threads to handle all events. To spread the
         // workload (somewhat more) evenly we wake the workers in a Round-Robin
@@ -279,11 +246,12 @@ impl RuntimeInternals {
 
     /// Wake all worker threads, ignoring errors.
     pub(crate) fn wake_all_workers(&self) {
-        trace!("waking all worker thread(s)");
+        log::trace!("waking all worker thread(s)");
         for worker in &*self.worker_sqs {
             worker.wake();
         }
     }
+    */
 
     /// See [`Scheduler::has_process`].
     pub(crate) fn has_process(&self) -> bool {
@@ -308,6 +276,12 @@ impl RuntimeInternals {
     /// See [`Scheduler::complete`].
     pub(crate) fn complete(&self, process: Pin<Box<Process>>) {
         self.scheduler.complete(process);
+    }
+
+    pub(crate) fn worker_trace_log(&self, worker_id: NonZeroUsize) -> Option<trace::Log> {
+        self.trace_log
+            .as_ref()
+            .map(|t| t.new_stream(worker_id.get() as u32))
     }
 
     pub(crate) fn start_trace(&self) -> Option<trace::EventTiming> {

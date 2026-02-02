@@ -176,6 +176,7 @@
 #![feature(
     async_iterator,
     box_vec_non_null,
+    cfg_select,
     doc_cfg,
     impl_trait_in_assoc_type,
     maybe_uninit_array_assume_init,
@@ -230,6 +231,8 @@ macro_rules! syscall {
     }};
 }
 
+use syscall;
+
 use std::any::Any;
 use std::future::Future;
 use std::rc::Rc;
@@ -247,6 +250,7 @@ mod error;
 pub mod extract;
 pub mod fd;
 pub mod fs;
+mod host;
 pub mod io;
 mod local;
 pub mod log;
@@ -276,7 +280,6 @@ pub use error::Error;
 pub use setup::Setup;
 
 use crate::scheduler::process::FutureProcess;
-use coordinator::CoordinatorSetup;
 use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 
 /// The runtime that runs all actors.
@@ -294,8 +297,8 @@ use spawn::{ActorOptions, FutureOptions, Spawn, SyncActorOptions};
 /// can also spawn thread-local actors and futures.
 #[derive(Debug)]
 pub struct Runtime {
-    /// Setup of the coordinator that oversee the worker threads.
-    coordinator_setup: CoordinatorSetup,
+    /// Setup for the coordinator that will oversee the worker threads.
+    coordinator_setup: coordinator::Setup,
     /// Internals shared between the coordinator and all (sync) workers.
     internals: Arc<shared::RuntimeInternals>,
     /// Worker threads.
@@ -396,7 +399,7 @@ impl Runtime {
             .as_ref()
             .map(|trace_log| trace_log.new_stream(id as u32));
         let shared = self.internals.clone();
-        sync_worker::start(id, supervisor, actor, arg, options, shared, trace_log)
+        sync_worker::spawn_thread(id, supervisor, actor, arg, options, shared, trace_log)
             .map(|(worker, actor_ref)| {
                 self.sync_actors.push(worker);
                 actor_ref

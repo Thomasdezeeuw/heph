@@ -25,36 +25,38 @@ use std::{fmt, io};
 
 use a10::process::{ReceiveSignals, Signals};
 use heph::actor_ref::{ActorGroup, SendError};
-use log::{debug, error, info, trace};
 
-use crate::setup::{Uuid, host_id, host_info};
+use crate::host::{self, Uuid};
 use crate::{self as rt, cpu_usage, process, shared, sync_worker, trace, worker};
 
 /// Setup the [`Coordinator`].
-pub(crate) fn setup(app_name: Box<str>) -> Result<CoordinatorSetup, rt::Error> {
-    let (host_os, host_name) = host_info().map_err(rt::Error::init_coordinator)?;
-    let host_id = host_id().map_err(rt::Error::init_coordinator)?;
-
-    // At most we expect each worker thread to generate a single completion and
-    // a possibly an incoming signal.
+///
+/// # Notes
+///
+/// This must be called before creating the worker threads to properly catch
+/// process signals.
+pub(crate) fn setup(app_name: Box<str>) -> io::Result<Setup> {
     let config = a10::Ring::config();
     #[cfg(any(target_os = "android", target_os = "linux"))]
-    let config = config.single_issuer().with_kernel_thread();
-    let ring = config.build().map_err(rt::Error::init_coordinator)?;
+    let config = config.single_issuer().defer_task_run();
+    let ring = config.build()?;
 
     // NOTE: signal handling MUST be setup before spawning the worker threads as
     // they need to inherint the signal handling properties.
     let signals = match Signals::for_all_signals(ring.sq()) {
         Ok(signals) => signals.receive_signals(),
         Err(err) => {
-            return Err(rt::Error::init_coordinator(io::Error::new(
+            return Err(io::Error::new(
                 err.kind(),
                 format!("failed to setup process signal handling: {err}"),
-            )));
+            ));
         }
     };
 
-    Ok(CoordinatorSetup {
+    let (host_os, host_name) = host::info()?;
+    let host_id = host::id()?;
+
+    Ok(Setup {
         ring,
         signals,
         app_name,
@@ -64,14 +66,9 @@ pub(crate) fn setup(app_name: Box<str>) -> Result<CoordinatorSetup, rt::Error> {
     })
 }
 
-/// Setup the [`Coordinator`].
-///
-/// # Notes
-///
-/// This must be called before creating the worker threads to properly catch
-/// process signals.
+/// Setup of a [`Coordinator`].
 #[derive(Debug)]
-pub(crate) struct CoordinatorSetup {
+pub(crate) struct Setup {
     ring: a10::Ring,
     signals: ReceiveSignals,
     app_name: Box<str>,
@@ -80,13 +77,17 @@ pub(crate) struct CoordinatorSetup {
     host_id: Uuid,
 }
 
-impl CoordinatorSetup {
+impl Setup {
     /// Coordinator's submission queue.
     pub(crate) fn sq(&self) -> a10::SubmissionQueue {
         self.ring.sq()
     }
 
     /// Complete the coordinator setup.
+    ///
+    /// # Notes
+    ///
+    /// `workers` and `sync_workers` must be sorted based on `id`.
     pub(crate) fn complete(
         self,
         internals: Arc<shared::RuntimeInternals>,
@@ -113,6 +114,7 @@ impl CoordinatorSetup {
 }
 
 /// Coordinator responsible for coordinating the Heph runtime.
+#[derive(Debug)]
 pub(crate) struct Coordinator {
     /// io_uring completion ring.
     ring: a10::Ring,
@@ -143,15 +145,11 @@ pub(crate) struct Coordinator {
 
 impl Coordinator {
     /// Run the coordinator.
-    ///
-    /// # Notes
-    ///
-    /// `workers` and `sync_workers` must be sorted based on `id`.
     pub(crate) fn run(mut self) -> Result<(), rt::Error> {
         self.start = Instant::now();
         // Signal to all worker threads the runtime was started. See
         // `local::RuntimeInternals::started` why this is needed.
-        debug!("signaling to workers the runtime started");
+        log::debug!("signaling to workers the runtime started");
         for worker in &self.workers {
             worker
                 .send_runtime_started()
@@ -165,20 +163,21 @@ impl Coordinator {
         loop {
             // Wait for something to happen.
             self.poll_os(timeout)?;
+
             // Normally we would get informed what "thing" happened, but to keep
             // the coordinator simple we don't. We simply wake the coordinator
             // and check everything.
-
-            // There is a race between 1) the waking of the coordinator by the
-            // (sync) workers when they are dropped (the call to
-            // `shared::RuntimeInternals::wake_coordinator` in their `Drop`
-            // implementation) and 2) the coordinator checking if the (sync)
-            // workers are finished.
-            // If the time between 1) and 2) is too short then the thread might
+            //
+            // There is a race between:
+            //  1. the waking of the coordinator by the (sync) workers when they
+            //     are dropped (the call to wake_coordinator in their Drop
+            //     implementation) and
+            //  2. the coordinator checking if the (sync) workers are finished.
+            //
+            // If the time between 1 and 2 is too short then the thread might
             // not yet be terminated. To prevent the coordinator from waiting
             // for ever on nothing (because all worker threads have finished) we
-            // poll in next loop with a small-ish timeout (see `timeout`
-            // below`).
+            // poll in next loop with a small-ish timeout (see timeout below).
             let mut wake_up_reason_found = false;
 
             // First check for process signals.
@@ -223,14 +222,14 @@ impl Coordinator {
                     *signal_received = true;
                     let signal = info.signal();
                     #[cfg(any(target_os = "android", target_os = "linux"))]
-                    debug!(signal:?, sending_pid = info.pid(), sending_uid = info.real_user_id(); "received process signal");
+                    log::debug!(signal:?, sending_pid = info.pid(), sending_uid = info.real_user_id(); "received process signal");
                     #[cfg(not(any(target_os = "android", target_os = "linux")))]
-                    debug!(signal:?; "received process signal");
+                    log::debug!(signal:?; "received process signal");
                     if let process::Signal::USER2 = signal {
                         self.log_metrics();
                     }
 
-                    trace!(signal:? = signal; "relaying process signal to worker threads");
+                    log::trace!(signal:?; "relaying process signal to worker threads");
                     for worker in &mut self.workers {
                         if let Err(SendError) = worker.send_signal(signal) {
                             // NOTE: if the worker is unable to receive a
@@ -242,14 +241,14 @@ impl Coordinator {
                             // that error instead, which is likely more useful
                             // (i.e. it has the reason why the worker thread
                             // stopped).
-                            error!(
-                                signal:? = signal, worker_id = worker.id();
+                            log::error!(
+                                signal:?, worker_id = worker.id();
                                 "failed to send process signal to worker",
                             );
                         }
                     }
 
-                    trace!(signal:? = signal; "relaying process signal to actors");
+                    log::trace!(signal:?; "relaying process signal to actors");
                     self.signal_refs.remove_disconnected();
                     _ = self.signal_refs.try_send_to_all(signal);
                 }
@@ -274,7 +273,7 @@ impl Coordinator {
         let timing = trace::start(&self.trace_log);
         let shared_metrics = self.internals.metrics();
         let trace_metrics = self.trace_log.as_ref().map(trace::CoordinatorLog::metrics);
-        info!(
+        log::info!(
             target: "metrics",
             heph_version = concat!("v", env!("CARGO_PKG_VERSION")),
             host_os = self.host_os,
@@ -312,17 +311,14 @@ impl Coordinator {
         let timing = trace::start(&self.trace_log);
         for worker in self.workers.extract_if(.., |w| w.is_finished()) {
             *worker_stopped = true;
-            debug!(worker_id = worker.id(); "worker thread stopped");
-            worker
-                .join()
-                .map_err(rt::Error::worker_panic)
-                .and_then(|res| res)?;
+            log::debug!(worker_id = worker.id(); "worker thread stopped");
+            worker.join()?;
         }
 
         for sync_worker in self.sync_workers.extract_if(.., |w| w.is_finished()) {
             *worker_stopped = true;
-            debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
-            sync_worker.join().map_err(rt::Error::sync_actor_panic)?;
+            log::debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
+            sync_worker.join()?;
         }
 
         trace::finish_rt(
@@ -332,21 +328,6 @@ impl Coordinator {
             &[],
         );
         Ok(())
-    }
-}
-
-#[allow(clippy::missing_fields_in_debug)]
-impl fmt::Debug for Coordinator {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Coordinator")
-            .field("ring", &self.ring)
-            .field("internals", &self.internals)
-            .field("start", &self.start)
-            .field("app_name", &self.app_name)
-            .field("host_os", &self.host_os)
-            .field("host_name", &self.host_name)
-            .field("host_id", &self.host_id)
-            .finish()
     }
 }
 
