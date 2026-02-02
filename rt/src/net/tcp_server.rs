@@ -14,6 +14,7 @@ use crate::access::PrivateAccess;
 use crate::fd::AsyncFd;
 use crate::net::{Domain, Protocol, ServerError, ServerMessage, Type, option};
 use crate::spawn::{ActorOptions, Spawn};
+use crate::syscall;
 use crate::util::{either, next};
 
 /// TCP server actor.

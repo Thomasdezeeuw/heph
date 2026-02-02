@@ -219,20 +219,6 @@ compile_error!("OS not supported by Heph-rt.");
 #[cfg(not(target_pointer_width = "64"))]
 compile_error!("Heph-rt currently only supports 64 bit architectures.");
 
-/// Helper macro to execute a system call that returns an `io::Result`.
-macro_rules! syscall {
-    ($fn: ident ( $($arg: expr),* $(,)? ) ) => {{
-        let res = unsafe { libc::$fn($( $arg, )*) };
-        if res == -1 {
-            Err(std::io::Error::last_os_error())
-        } else {
-            Ok(res)
-        }
-    }};
-}
-
-use syscall;
-
 use std::any::Any;
 use std::future::Future;
 use std::rc::Rc;
@@ -723,3 +709,17 @@ fn panic_message<'a>(panic: &'a (dyn Any + Send + 'static)) -> &'a str {
         },
     }
 }
+
+/// Helper macro to execute a system call that returns an `io::Result`.
+macro_rules! syscall {
+    ($fn: ident ( $($arg: expr),* $(,)? ) ) => {{
+        let res = unsafe { libc::$fn($( $arg, )*) };
+        if res == -1 {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(res)
+        }
+    }};
+}
+
+use syscall;
