@@ -191,9 +191,7 @@ impl WakerData {
     /// Wake the process with `pid`, but do **not** wake the thread.
     fn wake_no_ring(&self, pid: ProcessId) {
         trace!(pid; "waking process");
-        if let Err(err) = self.notifications.try_send(pid) {
-            log::error!("unable to send wake up notification: {err}");
-        }
+        _ = self.notifications.try_send(pid);
     }
 }
 
