@@ -76,8 +76,6 @@ use std::sync::Arc;
 use std::sync::atomic::{self, AtomicU32};
 use std::time::{Instant, SystemTime};
 
-use log::warn;
-
 /// Default buffer size, only needs to hold a single trace event.
 const BUF_SIZE: usize = 128;
 
@@ -508,7 +506,7 @@ pub(crate) fn finish<L>(
     if let (Some(mut log), Some(timing)) = (log, timing) {
         let event = timing.finish(description, attributes);
         if let Err(err) = log.append(substream_id, &event) {
-            warn!("error writing trace data: {err}");
+            log::warn!("error writing trace data: {err}");
         }
     }
 }

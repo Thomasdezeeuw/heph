@@ -18,7 +18,6 @@
 //! #![feature(never_type)]
 //!
 //! use heph_rt::Runtime;
-//! use log::info;
 //!
 //! fn main() -> Result<(), heph_rt::Error> {
 //!     // Enable logging.
@@ -26,7 +25,10 @@
 //!
 //!     let runtime = Runtime::new()?;
 //!     // Runtime setup etc.
-//!     info!("starting runtime");
+//!     log::info!("starting runtime");
 //!     runtime.start()
 //! }
 //! ```
+
+// So we don't have to worry about imports in other parts of the code.
+pub(crate) use log::*;

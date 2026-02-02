@@ -79,7 +79,7 @@ impl<S: Schedule> Scheduler<S> {
     ///
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub(crate) fn mark_ready(&mut self, pid: ProcessId) {
-        trace!(pid = pid.0; "marking process as ready");
+        trace!(pid; "marking process as ready");
         if let Some(process) = self.inactive.remove(pid) {
             self.ready.push(process);
         }
@@ -94,7 +94,7 @@ impl<S: Schedule> Scheduler<S> {
     /// [`Scheduler::next_process`].
     pub(crate) fn add_back_process(&mut self, process: Pin<Box<Process<S>>>) {
         let pid = process.id();
-        trace!(pid = pid.0; "adding back process");
+        trace!(pid; "adding back process");
         self.inactive.add(process);
     }
 
@@ -102,7 +102,7 @@ impl<S: Schedule> Scheduler<S> {
     #[allow(clippy::unused_self)]
     pub(crate) fn complete(&self, process: Pin<Box<Process<S>>>) {
         let pid = process.as_ref().id();
-        trace!(pid = pid.0; "removing process");
+        trace!(pid; "removing process");
         // Don't want to panic when dropping the process.
         drop(catch_unwind(AssertUnwindSafe(move || drop(process))));
     }

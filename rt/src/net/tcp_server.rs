@@ -6,7 +6,6 @@ use std::{io, mem, ptr};
 
 use heph::actor::{self, NewActor, NoMessages};
 use heph::supervisor::Supervisor;
-use log::{debug, trace};
 
 use crate::access::Access;
 #[cfg(any(target_os = "android", target_os = "linux"))]
@@ -58,7 +57,6 @@ use crate::util::{either, next};
 /// use heph_rt::spawn::ActorOptions;
 /// use heph_rt::spawn::options::Priority;
 /// use heph_rt::{Runtime, RuntimeRef, ThreadLocal};
-/// use log::error;
 ///
 /// fn main() -> Result<(), heph_rt::Error> {
 ///     // Create and start the Heph runtime.
@@ -92,7 +90,7 @@ use crate::util::{either, next};
 ///         // When we hit an error accepting a connection we'll drop the old
 ///         // server and create a new one.
 ///         ServerError::Accept(err) => {
-///             error!("error accepting new connection: {err}");
+///             log::error!("error accepting new connection: {err}");
 ///             SupervisorStrategy::Restart(())
 ///         }
 ///         // Async function never return an error creating a new actor.
@@ -102,7 +100,7 @@ use crate::util::{either, next};
 ///
 /// /// `conn_actor`'s supervisor.
 /// fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
-///     error!("error handling connection: {err}");
+///     log::error!("error handling connection: {err}");
 ///     SupervisorStrategy::Stop
 /// }
 ///
@@ -129,7 +127,6 @@ use crate::util::{either, next};
 /// use heph_rt::spawn::options::{ActorOptions, Priority};
 /// use heph_rt::RuntimeRef;
 /// # use heph_rt::{Runtime, ThreadLocal};
-/// use log::error;
 ///
 /// # fn main() -> Result<(), heph_rt::Error> {
 /// #     let mut runtime = Runtime::new()?;
@@ -162,7 +159,7 @@ use crate::util::{either, next};
 /// #         // When we hit an error accepting a connection we'll drop the old
 /// #         // server and create a new one.
 /// #         ServerError::Accept(err) => {
-/// #             error!("error accepting new connection: {err}");
+/// #             log::error!("error accepting new connection: {err}");
 /// #             SupervisorStrategy::Restart(())
 /// #         }
 /// #         // Async function never return an error creating a new actor.
@@ -171,7 +168,7 @@ use crate::util::{either, next};
 /// # }
 /// #
 /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
-/// #     error!("error handling connection: {err}");
+/// #     log::error!("error handling connection: {err}");
 /// #     SupervisorStrategy::Stop
 /// # }
 /// #
@@ -196,7 +193,6 @@ use crate::util::{either, next};
 /// use heph_rt::net::{TcpServer, ServerError};
 /// use heph_rt::spawn::options::{ActorOptions, Priority};
 /// use heph_rt::{self as rt, Runtime, ThreadSafe};
-/// use log::error;
 ///
 /// fn main() -> Result<(), rt::Error> {
 ///     let mut runtime = Runtime::new()?;
@@ -226,7 +222,7 @@ use crate::util::{either, next};
 /// #         // When we hit an error accepting a connection we'll drop the old
 /// #         // server and create a new one.
 /// #         ServerError::Accept(err) => {
-/// #             error!("error accepting new connection: {err}");
+/// #             log::error!("error accepting new connection: {err}");
 /// #             SupervisorStrategy::Restart(())
 /// #         }
 /// #         // Async function never return an error creating a new actor.
@@ -236,7 +232,7 @@ use crate::util::{either, next};
 /// #
 /// # /// `conn_actor`'s supervisor.
 /// # fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
-/// #     error!("error handling connection: {err}");
+/// #     log::error!("error handling connection: {err}");
 /// #     SupervisorStrategy::Stop
 /// # }
 /// #
@@ -450,14 +446,14 @@ where
     let listener = setup_listener(ctx.runtime_ref(), local)
         .await
         .map_err(ServerError::Accept)?;
-    trace!(address:% = local; "TCP server listening");
+    log::trace!(address:% = local; "TCP server listening");
 
     let mut accept = listener.multishot_accept();
     let mut receive = ctx.receive_next();
     loop {
         match either(next(&mut accept), &mut receive).await {
             Ok(Some(Ok(stream))) => {
-                trace!("TCP server accepted connection");
+                log::trace!("TCP server accepted connection");
                 drop(receive); // Can't double borrow `ctx`.
                 #[cfg(any(target_os = "android", target_os = "linux"))]
                 if let Some(cpu) = ctx.runtime_ref().cpu() {
@@ -480,15 +476,15 @@ where
             }
             Ok(Some(Err(err))) => return Err(ServerError::Accept(err)),
             Ok(None) => {
-                debug!("no more connections to accept in TCP server, stopping");
+                log::debug!("no more connections to accept in TCP server, stopping");
                 return Ok(());
             }
             Err(Ok(_)) => {
-                debug!("TCP server received shutdown message, stopping");
+                log::debug!("TCP server received shutdown message, stopping");
                 return Ok(());
             }
             Err(Err(NoMessages)) => {
-                debug!("All actor references to TCP server dropped, stopping");
+                log::debug!("All actor references to TCP server dropped, stopping");
                 return Ok(());
             }
         }

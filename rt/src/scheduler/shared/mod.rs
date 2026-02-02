@@ -143,7 +143,7 @@ impl Scheduler {
     ///
     /// Calling this with an invalid or outdated `pid` will be silently ignored.
     pub(crate) fn mark_ready(&self, pid: ProcessId) {
-        trace!(pid = pid.0; "marking process as ready");
+        trace!(pid; "marking process as ready");
         self.inactive.mark_ready(pid, &self.ready);
         // NOTE: if the process in currently not in the `Inactive` list it will
         // be marked as ready-to-run and `Scheduler::add_back_process` will add it to
@@ -162,14 +162,14 @@ impl Scheduler {
     /// [`Scheduler::remove`] and add it to the inactive list.
     pub(crate) fn add_back_process(&self, process: Pin<Box<Process>>) {
         let pid = process.id();
-        trace!(pid = pid.0; "adding back process");
+        trace!(pid; "adding back process");
         self.inactive.add(process, &self.ready);
     }
 
     /// Mark `process` as complete, removing it from the scheduler.
     pub(crate) fn complete(&self, process: Pin<Box<Process>>) {
         let pid = process.id();
-        trace!(pid = pid.0; "removing process");
+        trace!(pid; "removing process");
         self.inactive.complete(process);
     }
 }

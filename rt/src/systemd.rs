@@ -21,7 +21,6 @@ use std::{env, io};
 
 use heph::actor;
 use heph::messages::Terminate;
-use log::{debug, warn};
 
 use crate::access::Access;
 use crate::fd::AsyncFd;
@@ -91,7 +90,9 @@ impl Notify {
                     notifier.set_watchdog_timeout(Some(timeout));
                 }
                 Err(()) => {
-                    warn!("{WATCHDOG_USEC_ENV_VAR} environment variable is invalid, ignoring it");
+                    log::warn!(
+                        "{WATCHDOG_USEC_ENV_VAR} environment variable is invalid, ignoring it"
+                    );
                 }
             }
         }
@@ -137,7 +138,7 @@ impl Notify {
     /// pass a human-readable error message. **Note that it must be limited to a
     /// single line.**
     pub async fn change_state(&self, state: State, status: Option<&str>) -> io::Result<()> {
-        debug!(state:? = state, status:? = status; "updating state with service manager");
+        log::debug!(state:?, status:?; "updating state with service manager");
         let state_line = match state {
             State::Ready => "READY=1\n",
             State::Reloading => "RELOADING=1\n",
@@ -171,7 +172,7 @@ impl Notify {
     /// If you also need to change the state of the application you can use
     /// [`Notify::change_state`].
     pub async fn change_status(&self, status: &str) -> io::Result<()> {
-        debug!(status = status; "updating status with service manager");
+        log::debug!(status; "updating status with service manager");
         let mut state_update = String::with_capacity(7 + status.len() + 1);
         state_update.push_str("STATUS=");
         state_update.push_str(status);
@@ -186,7 +187,7 @@ impl Notify {
     /// Send a keep-alive ping that services need to issue in regular intervals
     /// if `WatchdogSec=` is enabled for it.
     pub async fn ping_watchdog(&self) -> io::Result<()> {
-        debug!("pinging service manager watchdog");
+        log::debug!("pinging service manager watchdog");
         _ = self.socket.send(StaticBuf::from("WATCHDOG=1")).await?;
         Ok(())
     }
@@ -203,7 +204,7 @@ impl Notify {
     ///
     /// [`systemd.service(5)`]: https://www.freedesktop.org/software/systemd/man/systemd.service.html
     pub async fn trigger_watchdog(&self) -> io::Result<()> {
-        debug!("triggering service manager watchdog");
+        log::debug!("triggering service manager watchdog");
         _ = self
             .socket
             .send(StaticBuf::from("WATCHDOG=trigger"))
@@ -288,13 +289,13 @@ where
     E: ToString,
 {
     let Some(notify) = Notify::new(ctx.runtime_ref()).await? else {
-        debug!("not started via systemd, not starting watchdog");
+        log::debug!("not started via systemd, not starting watchdog");
         return Ok(());
     };
     notify.change_state(State::Ready, None).await?;
 
     if let Some(timeout) = notify.watchdog_timeout() {
-        debug!(timeout:?; "started via systemd with watchdog");
+        log::debug!(timeout:?; "started via systemd with watchdog");
         let mut interval = Interval::every(ctx.runtime_ref().clone(), timeout);
         loop {
             match either(ctx.receive_next(), next(&mut interval)).await {
@@ -340,7 +341,7 @@ where
             }
         }
     }
-    debug!("all references to the systemd watchdog are dropped, stopping it");
+    log::debug!("all references to the systemd watchdog are dropped, stopping it");
     notify.change_state(State::Stopping, None).await
 }
 

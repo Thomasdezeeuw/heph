@@ -170,12 +170,12 @@ impl Access for ThreadLocal {
 
 impl PrivateAccess for ThreadLocal {
     fn add_timer(&mut self, deadline: Instant, waker: task::Waker) -> TimerToken {
-        log::trace!(deadline:? = deadline; "adding timer");
+        log::trace!(deadline:?; "adding timer");
         self.internals.timers.borrow_mut().add(deadline, waker)
     }
 
     fn remove_timer(&mut self, deadline: Instant, token: TimerToken) {
-        log::trace!(deadline:? = deadline; "removing timer");
+        log::trace!(deadline:?; "removing timer");
         self.internals.timers.borrow_mut().remove(deadline, token);
     }
 

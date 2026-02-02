@@ -190,7 +190,7 @@ impl RuntimeInternals {
             .try_build(supervisor, new_actor, arg)?;
         let pid = self.scheduler.add_new_process(options.priority(), process);
         let name = NA::name();
-        log::debug!(pid = pid.0, name; "spawning thread-safe actor");
+        log::debug!(pid, name; "spawning thread-safe actor");
         Ok(actor_ref)
     }
 
@@ -202,7 +202,7 @@ impl RuntimeInternals {
     {
         let process = FutureProcess(future);
         let pid = self.scheduler.add_new_process(options.priority(), process);
-        log::debug!(pid = pid.0; "spawning thread-safe future");
+        log::debug!(pid; "spawning thread-safe future");
     }
 
     /// Add a new proces to the scheduler.

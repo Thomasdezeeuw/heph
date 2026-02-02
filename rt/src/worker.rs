@@ -287,7 +287,7 @@ impl Worker {
                 let timing = trace::start(&*self.internals.trace_log.borrow());
                 let pid = process.id();
                 let name = process.name();
-                log::debug!(worker_id = self.internals.id, pid = pid.0, name; "running local process");
+                log::debug!(worker_id = self.internals.id, pid, name; "running local process");
                 // TODO: reuse wakers, maybe by storing them in the processes?
                 let waker = self.internals.wakers.borrow_mut().new_task_waker(pid);
                 let mut ctx = task::Context::from_waker(&waker);
@@ -327,7 +327,7 @@ impl Worker {
                 let timing = trace::start(&*self.internals.trace_log.borrow());
                 let pid = process.id();
                 let name = process.name();
-                log::debug!(worker_id = self.internals.id, pid = pid.0, name; "running shared process");
+                log::debug!(worker_id = self.internals.id, pid, name; "running shared process");
                 let waker = self.internals.shared.new_task_waker(pid);
                 let mut ctx = task::Context::from_waker(&waker);
                 let result = process.as_mut().run(&mut ctx);
@@ -401,7 +401,7 @@ impl Worker {
         let mut scheduler = self.internals.scheduler.borrow_mut();
         let mut amount: usize = 0;
         for pid in self.waker_events.try_iter() {
-            log::trace!(worker_id = self.internals.id, pid = pid.0; "waking up local process");
+            log::trace!(worker_id = self.internals.id, pid; "waking up local process");
             scheduler.mark_ready(pid);
             amount += 1;
         }

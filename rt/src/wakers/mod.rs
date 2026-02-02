@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{self, Poll};
 
 use crossbeam_channel::Sender;
-use log::{error, trace};
+use log::trace;
 
 use crate::scheduler::ProcessId;
 
@@ -184,15 +184,15 @@ impl WakerData {
     /// Wake the process with `pid`.
     fn wake(&self, pid: ProcessId) {
         self.wake_no_ring(pid);
-        trace!(pid = pid.0; "waking worker thread to run process");
+        trace!(pid; "waking worker thread to run process");
         self.sq.wake();
     }
 
     /// Wake the process with `pid`, but do **not** wake the thread.
     fn wake_no_ring(&self, pid: ProcessId) {
-        trace!(pid = pid.0; "waking process");
+        trace!(pid; "waking process");
         if let Err(err) = self.notifications.try_send(pid) {
-            error!("unable to send wake up notification: {err}");
+            log::error!("unable to send wake up notification: {err}");
         }
     }
 }

@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use heph::supervisor::Supervisor;
 use heph::{ActorFuture, NewActor};
-use log::{error, trace};
+use log::trace;
 
 use crate::panic_message;
 use crate::scheduler::{Priority, Schedule};
@@ -32,6 +32,12 @@ impl fmt::Debug for ProcessId {
 impl fmt::Display for ProcessId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.0.fmt(f)
+    }
+}
+
+impl log::kv::ToValue for ProcessId {
+    fn to_value(&self) -> log::kv::Value<'_> {
+        self.0.to_value()
     }
 }
 
@@ -67,7 +73,7 @@ impl<Fut: Future<Output = ()>> Run for FutureProcess<Fut> {
             Err(panic) => {
                 let msg = panic_message(&*panic);
                 let name = self.name();
-                error!("future '{name}' panicked at '{msg}'");
+                log::error!("future '{name}' panicked at '{msg}'");
                 Poll::Ready(())
             }
         }
@@ -120,7 +126,7 @@ impl<S: Schedule, P: Run + ?Sized> Process<S, P> {
     pub(crate) fn run(&mut self, ctx: &mut task::Context<'_>) -> RunStats {
         let pid = self.id();
         let name = self.process.name();
-        trace!(pid = pid.0, name = name; "running process");
+        trace!(pid, name; "running process");
 
         let start = Instant::now();
         let result = self.process.as_mut().run(ctx);
@@ -128,10 +134,7 @@ impl<S: Schedule, P: Run + ?Sized> Process<S, P> {
         let elapsed = end - start;
         self.scheduler_data.update(start, end, elapsed);
 
-        trace!(
-            pid = pid.0, name = name, elapsed:? = elapsed, result:? = result;
-            "finished running process",
-        );
+        trace!(pid, name, elapsed:?, result:?; "finished running process");
         RunStats { elapsed, result }
     }
 }

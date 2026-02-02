@@ -225,7 +225,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 
-use ::log::{debug, warn};
 use heph::actor_ref::{ActorGroup, ActorRef, SendError};
 use heph::supervisor::{Supervisor, SyncSupervisor};
 use heph::{ActorFutureBuilder, NewActor, SyncActor};
@@ -376,7 +375,7 @@ impl Runtime {
     {
         let id = self.workers.len() + self.sync_actors.len() + 1;
         let name = options.thread_name().unwrap_or_else(|| A::name());
-        debug!(sync_worker_id = id, name = name; "spawning synchronous actor");
+        log::debug!(sync_worker_id = id, name; "spawning synchronous actor");
 
         #[allow(clippy::cast_possible_truncation)]
         // SAFETY: I doubt we'll spawn 2 << 32 threads...
@@ -414,7 +413,7 @@ impl Runtime {
         F: FnOnce(RuntimeRef) -> Result<(), E> + Send + Clone + 'static,
         E: ToString,
     {
-        debug!("sending user function to workers");
+        log::debug!("sending user function to workers");
         for worker in &mut self.workers {
             let f = f.clone();
             let f = Box::new(move |runtime_ref| f(runtime_ref).map_err(|err| err.to_string()));
@@ -443,7 +442,7 @@ impl Runtime {
     ///
     /// [process module]: crate::process#signal-handling
     pub fn start(self) -> Result<(), Error> {
-        debug!(
+        log::debug!(
             workers = self.workers.len(), sync_actors = self.sync_actors.len();
             "starting Heph runtime"
         );
@@ -583,7 +582,7 @@ impl RuntimeRef {
             .scheduler
             .borrow_mut()
             .add_new_process(options.priority(), process);
-        debug!(pid = pid.0; "spawning thread-local future");
+        log::debug!(pid; "spawning thread-local future");
     }
 
     /// Spawn a thread-safe [`Future`].
@@ -652,7 +651,7 @@ where
             .borrow_mut()
             .add_new_process(options.priority(), process);
         let name = NA::name();
-        debug!(pid = pid.0, name = name; "spawning thread-local actor");
+        log::debug!(pid, name; "spawning thread-local actor");
         Ok(actor_ref)
     }
 }
@@ -688,7 +687,7 @@ fn cpu_usage(clock_id: libc::clockid_t) -> Duration {
     };
     if unsafe { libc::clock_gettime(clock_id, &raw mut duration) } == -1 {
         let err = std::io::Error::last_os_error();
-        warn!("error getting CPU time: {err}, using zero");
+        log::warn!("error getting CPU time: {err}, using zero");
         Duration::ZERO
     } else {
         Duration::new(

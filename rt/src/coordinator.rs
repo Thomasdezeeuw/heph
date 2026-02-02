@@ -241,7 +241,7 @@ impl Coordinator {
                             // that error instead, which is likely more useful
                             // (i.e. it has the reason why the worker thread
                             // stopped).
-                            log::error!(
+                            log::warn!(
                                 signal:?, worker_id = worker.id();
                                 "failed to send process signal to worker",
                             );
