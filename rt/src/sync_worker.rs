@@ -11,6 +11,7 @@
 //! [coordinator]: crate::coordinator
 //! [`sync_worker::Handle`]: Handle
 
+use std::num::NonZeroUsize;
 use std::sync::Arc;
 use std::{io, thread};
 
@@ -24,7 +25,7 @@ use crate::{self as rt, shared};
 
 /// Spawn a new thread to run the synchronous actor.
 pub(crate) fn spawn_thread<S, A>(
-    id: usize,
+    id: NonZeroUsize,
     supervisor: S,
     actor: A,
     arg: A::Argument,
@@ -67,14 +68,14 @@ impl Drop for WakeOnDrop {
 #[derive(Debug)]
 pub(crate) struct Handle {
     /// Unique id among all threads in the `Runtime`.
-    id: usize,
+    id: NonZeroUsize,
     /// Handle for the actual thread.
     handle: thread::JoinHandle<()>,
 }
 
 impl Handle {
     /// Return the worker's id.
-    pub(crate) const fn id(&self) -> usize {
+    pub(crate) const fn id(&self) -> NonZeroUsize {
         self.id
     }
 

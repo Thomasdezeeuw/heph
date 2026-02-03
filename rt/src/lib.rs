@@ -221,6 +221,7 @@ compile_error!("Heph-rt currently only supports 64 bit architectures.");
 
 use std::any::Any;
 use std::future::Future;
+use std::num::NonZeroUsize;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
@@ -374,7 +375,7 @@ impl Runtime {
         A::Message: Send + 'static,
         A::Argument: Send + 'static,
     {
-        let id = self.workers.len() + self.sync_actors.len() + 1;
+        let id = NonZeroUsize::new(self.workers.len() + self.sync_actors.len() + 1).unwrap();
         let name = options.thread_name().unwrap_or_else(|| A::name());
         log::debug!(sync_worker_id = id, name; "spawning synchronous actor");
 
@@ -383,7 +384,7 @@ impl Runtime {
         let trace_log = self
             .trace_log
             .as_ref()
-            .map(|trace_log| trace_log.new_stream(id as u32));
+            .map(|trace_log| trace_log.new_stream(id.get() as u32));
         let shared = self.internals.clone();
         sync_worker::spawn_thread(id, supervisor, actor, arg, options, shared, trace_log)
             .map(|(worker, actor_ref)| {
