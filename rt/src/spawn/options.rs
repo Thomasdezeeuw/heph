@@ -46,7 +46,7 @@ impl ActorOptions {
     /// Default options for system actors.
     pub(crate) const SYSTEM: ActorOptions = ActorOptions {
         priority: Priority::SYSTEM,
-        inbox_size: InboxSize::ONE,
+        inbox_size: InboxSize::SMALL,
     };
 
     /// Returns the priority set in the options.
