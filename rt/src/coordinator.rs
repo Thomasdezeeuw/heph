@@ -318,7 +318,8 @@ impl Coordinator {
     /// Wait on worker with id to stop.
     fn join_worker(&mut self, id: usize) -> Result<(), rt::Error> {
         let timing = trace::start(&self.trace_log);
-        if let Some(worker) = self.workers.get_mut(id - 1).and_then(|w| w.take()) {
+        let idx = id - 1;
+        if let Some(worker) = self.workers.get_mut(idx).and_then(|w| w.take()) {
             log::trace!(worker_id = worker.id(); "worker thread stopped, joining it");
             self.threads_left -= 1;
             worker.join()?;
@@ -335,7 +336,8 @@ impl Coordinator {
     /// Wait on sync worker with id to stop.
     fn join_sync_worker(&mut self, id: usize) -> Result<(), rt::Error> {
         let timing = trace::start(&self.trace_log);
-        if let Some(sync_worker) = self.sync_workers.get_mut(id - 1).and_then(|w| w.take()) {
+        let idx = id - 1 - self.workers.len();
+        if let Some(sync_worker) = self.sync_workers.get_mut(idx).and_then(|w| w.take()) {
             log::trace!(sync_worker_id = sync_worker.id(); "sync worker thread stopped, joining it");
             self.threads_left -= 1;
             sync_worker.join()?;
