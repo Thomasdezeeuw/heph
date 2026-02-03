@@ -2,9 +2,9 @@
 //!
 //! See [`AtomicBitMap`].
 
-use std::fmt;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::{fmt, ptr, task};
 
 /// Variable sized atomic bitmap.
 #[repr(transparent)]
@@ -84,6 +84,49 @@ impl fmt::Debug for AtomicBitMap {
         }
         Ok(())
     }
+}
+
+/// Create a new [`task::Waker`] implementation that sets the 0th bit on wake up.
+///
+/// # Safety
+///
+/// The caller must ensure that a `Arc<AtomicBitMap>` always outlives any
+/// created waker to ensure proper deallocation.
+pub(crate) fn new_waker_set_bit0(bitmap: Arc<AtomicBitMap>) -> task::Waker {
+    static VTABLE: task::RawWakerVTable = task::RawWakerVTable::new(
+        // clone.
+        |data| {
+            unsafe { Arc::increment_strong_count(data) };
+            task::RawWaker::new(data, &VTABLE)
+        },
+        // wake.
+        |data| {
+            // SAFETY: this is not correct as we don't know if the AtomicBitMap
+            // is only 1 AtomicUsize in length,
+            let data = ptr::slice_from_raw_parts(data, 1) as *const AtomicBitMap;
+            let bitmap = unsafe { Arc::<AtomicBitMap>::from_raw(data) };
+            bitmap.set(0);
+            // NOTE: when we return from the call to a10::Ring::poll the
+            // coordinator always checks this bitmap, so we don't have to do
+            // anything else than setting the bit.
+        },
+        // wake_by_ref.
+        |data| {
+            // SAFETY: see wake implementation.
+            let bitmap = unsafe { &*(ptr::slice_from_raw_parts(data, 1) as *const AtomicBitMap) };
+            bitmap.set(0);
+            // NOTE: see wake why we don't have to do anything else.
+        },
+        // drop.
+        |data| {
+            let data = ptr::slice_from_raw_parts(data, 1) as *const AtomicBitMap;
+            unsafe { drop(Arc::<AtomicBitMap>::from_raw(data)) };
+        },
+    );
+
+    let data = Arc::into_raw(bitmap);
+    let raw_waker = task::RawWaker::new(data.cast(), &VTABLE);
+    unsafe { task::Waker::from_raw(raw_waker) }
 }
 
 #[cfg(test)]
