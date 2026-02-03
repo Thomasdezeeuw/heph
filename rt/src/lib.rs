@@ -230,6 +230,7 @@ use heph::supervisor::{Supervisor, SyncSupervisor};
 use heph::{ActorFutureBuilder, NewActor, SyncActor};
 
 pub mod access;
+mod bitmap;
 mod coordinator;
 mod error;
 pub mod extract;
