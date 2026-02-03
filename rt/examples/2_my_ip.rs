@@ -29,7 +29,7 @@ fn main() -> Result<(), rt::Error> {
     let server = TcpServer::new(address, conn_supervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;
 
-    // Just like in examples 1 and 2 we'll create our runtime and run our setup
+    // Just like in example 1 we'll create our runtime and run our setup
     // function. But for this example we'll create a worker thread per available
     // CPU core using `use_all_cores`.
     let mut runtime = Runtime::setup().use_all_cores().build()?;
