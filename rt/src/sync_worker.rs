@@ -47,7 +47,11 @@ where
         .take_thread_name()
         .unwrap_or_else(|| A::name().to_owned());
     let handle = thread::Builder::new().name(thread_name).spawn(move || {
-        let _wake_coordinator_on_drop = WakeOnDrop(shared); // Only needs to be dropped.
+        // Only needs to be dropped.
+        let _wake_coordinator_on_drop = WakeOnDrop {
+            id,
+            internals: shared,
+        };
         runner.run(arg);
     })?;
     Ok((Handle { id, handle }, actor_ref))
@@ -55,12 +59,14 @@ where
 
 /// Calls [`shared::RuntimeInternals::wake_coordinator`] when the type is
 /// dropped.
-struct WakeOnDrop(Arc<shared::RuntimeInternals>);
+struct WakeOnDrop {
+    id: NonZeroUsize,
+    internals: Arc<shared::RuntimeInternals>,
+}
 
 impl Drop for WakeOnDrop {
     fn drop(&mut self) {
-        // Wake the coordinator forcing it check if the sync workers are still alive.
-        self.0.wake_coordinator();
+        self.internals.notify_worker_stop(self.id);
     }
 }
 
@@ -77,11 +83,6 @@ impl Handle {
     /// Return the worker's id.
     pub(crate) const fn id(&self) -> NonZeroUsize {
         self.id
-    }
-
-    /// See [`thread::JoinHandle::is_finished`].
-    pub(crate) fn is_finished(&self) -> bool {
-        self.handle.is_finished()
     }
 
     /// See [`thread::JoinHandle::join`].

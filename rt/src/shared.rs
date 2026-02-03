@@ -3,7 +3,7 @@
 use std::future::Future;
 use std::num::NonZeroUsize;
 use std::pin::Pin;
-use std::sync::{Arc, Mutex, TryLockError};
+use std::sync::{Arc, Mutex, OnceLock, TryLockError};
 use std::time::{Duration, Instant};
 use std::{io, task};
 
@@ -11,6 +11,7 @@ use heph::actor_ref::ActorRef;
 use heph::supervisor::Supervisor;
 use heph::{ActorFutureBuilder, NewActor};
 
+use crate::bitmap::AtomicBitMap;
 use crate::scheduler::process::{FutureProcess, ProcessId};
 use crate::scheduler::shared::{Process, Scheduler};
 #[cfg(test)]
@@ -50,6 +51,8 @@ pub(crate) struct RuntimeInternals {
     trace_log: Option<Arc<trace::SharedLog>>,
     /// Coordinator submission queue used to wake it.
     coordinator_sq: a10::SubmissionQueue,
+    /// Bitmap to indicate which (sync) worker threads have shutdown.
+    worker_shutdown: OnceLock<Arc<AtomicBitMap>>,
 }
 
 /// Metrics for [`RuntimeInternals`].
@@ -90,6 +93,7 @@ impl RuntimeInternals {
                 timers: Timers::new(),
                 trace_log,
                 coordinator_sq,
+                worker_shutdown: OnceLock::new(),
             }
         }))
     }
@@ -304,8 +308,15 @@ impl RuntimeInternals {
         );
     }
 
-    /// Wake the coordinator.
-    pub(crate) fn wake_coordinator(&self) {
+    /// MUST only be used by the coordinator.
+    pub(crate) fn set_shutdown_bitmap(&self, bitmap: Arc<AtomicBitMap>) {
+        let _ = self.worker_shutdown.set(bitmap);
+    }
+
+    /// Notify the coordinator that a (sync) worker stopped.
+    pub(crate) fn notify_worker_stop(&self, worker_id: NonZeroUsize) {
+        log::trace!(worker_id; "notifying worker thread stopped");
+        self.worker_shutdown.wait().set(worker_id.get());
         self.coordinator_sq.wake();
     }
 }

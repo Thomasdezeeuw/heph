@@ -121,11 +121,6 @@ impl Handle {
         self.sys_ref.try_send(Control::Run(f))
     }
 
-    /// See [`thread::JoinHandle::is_finished`].
-    pub(crate) fn is_finished(&self) -> bool {
-        self.handle.is_finished()
-    }
-
     /// See [`thread::JoinHandle::join`].
     pub(crate) fn join(self) -> Result<(), rt::Error> {
         match self.handle.join() {
@@ -560,8 +555,7 @@ fn set_affinity(cpu_set: &libc::cpu_set_t) -> io::Result<()> {
 
 impl Drop for Worker {
     fn drop(&mut self) {
-        // Wake the coordinator forcing it check if the workers are still alive.
-        self.internals.shared.wake_coordinator();
+        self.internals.shared.notify_worker_stop(self.internals.id);
     }
 }
 

@@ -26,6 +26,7 @@ use std::{fmt, io};
 use a10::process::{ReceiveSignals, Signals};
 use heph::actor_ref::{ActorGroup, SendError};
 
+use crate::bitmap::{self, AtomicBitMap};
 use crate::host::{self, Uuid};
 use crate::{self as rt, cpu_usage, process, shared, sync_worker, trace, worker};
 
@@ -96,13 +97,24 @@ impl Setup {
         signal_refs: ActorGroup<process::Signal>,
         trace_log: Option<trace::CoordinatorLog>,
     ) -> Coordinator {
+        let threads_left = workers.len() + sync_workers.len();
+        let workers = workers.into_iter().map(Some).collect();
+        let sync_workers = sync_workers.into_iter().map(Some).collect();
+
+        // Bitmap used to determine what (sync) worker or process signals status
+        // to check.
+        let check = AtomicBitMap::new(threads_left + 1 /* signals. */);
+        internals.set_shutdown_bitmap(check.clone());
+
         Coordinator {
             ring: self.ring,
             internals,
             workers,
             sync_workers,
+            threads_left,
             signals: self.signals,
             signal_refs,
+            check,
             trace_log,
             start: Instant::now(),
             app_name: self.app_name,
@@ -121,13 +133,20 @@ pub(crate) struct Coordinator {
     /// Internals shared between the coordinator and all (sync) workers.
     internals: Arc<shared::RuntimeInternals>,
     /// Handles to the worker threads.
-    workers: Vec<worker::Handle>,
+    workers: Vec<Option<worker::Handle>>,
     /// Handles to the sync worker threads.
-    sync_workers: Vec<sync_worker::Handle>,
+    sync_workers: Vec<Option<sync_worker::Handle>>,
+    /// Number of threads that are still running in workers and sync_workers.
+    threads_left: usize,
     /// Process signal receiver.
     signals: ReceiveSignals,
     /// Actor that want to receive a process signal.
     signal_refs: ActorGroup<process::Signal>,
+    /// Bitmap to indicate what to check:
+    /// 0                 => check process signals.
+    /// n < workers.len() => check workers.
+    /// otherwise         => check sync workers.
+    check: Arc<AtomicBitMap>,
     /// Trace log for the coordinator.
     trace_log: Option<trace::CoordinatorLog>,
     // Data used in [`Coordinator::log_metrics`].
@@ -151,53 +170,40 @@ impl Coordinator {
         // `local::RuntimeInternals::started` why this is needed.
         log::debug!("signaling to workers the runtime started");
         for worker in &self.workers {
+            let Some(worker) = worker else {
+                continue;
+            };
             worker
                 .send_runtime_started()
                 .map_err(|SendError| rt::Error::coordinator(Error::SendingStartSignal))?;
         }
 
         // Start listening for process signals.
-        self.check_process_signals(&mut false)?;
+        self.relay_process_signals()?;
 
-        let mut timeout = None;
         loop {
-            // Wait for something to happen.
-            self.poll_os(timeout)?;
-
-            // Normally we would get informed what "thing" happened, but to keep
-            // the coordinator simple we don't. We simply wake the coordinator
-            // and check everything.
-            //
-            // There is a race between:
-            //  1. the waking of the coordinator by the (sync) workers when they
-            //     are dropped (the call to wake_coordinator in their Drop
-            //     implementation) and
-            //  2. the coordinator checking if the (sync) workers are finished.
-            //
-            // If the time between 1 and 2 is too short then the thread might
-            // not yet be terminated. To prevent the coordinator from waiting
-            // for ever on nothing (because all worker threads have finished) we
-            // poll in next loop with a small-ish timeout (see timeout below).
-            let mut wake_up_reason_found = false;
-
-            // First check for process signals.
-            self.check_process_signals(&mut wake_up_reason_found)?;
-
-            // Next check the (sync) workers.
-            self.check_workers(&mut wake_up_reason_found)?;
+            while let Some(n) = self.check.next_set() {
+                match n {
+                    0 => self.relay_process_signals()?,
+                    n if n <= self.workers.len() => self.join_worker(n)?,
+                    n => self.join_sync_worker(n)?,
+                }
+            }
 
             // Once all (sync) workers are done running we can return.
-            if self.workers.is_empty() && self.sync_workers.is_empty() {
+            if self.threads_left == 0 {
                 return Ok(());
             }
 
-            timeout = (!wake_up_reason_found).then(|| Duration::from_millis(100));
+            // Wait for something to happen.
+            self.poll_os(None)?;
         }
     }
 
     /// Poll the [`a10::Ring`].
     fn poll_os(&mut self, timeout: Option<Duration>) -> Result<(), rt::Error> {
         let timing = trace::start(&self.trace_log);
+        log::trace!("coordinator polling");
         self.ring
             .poll(timeout)
             .map_err(|err| rt::Error::coordinator(Error::Polling(err)))?;
@@ -212,14 +218,14 @@ impl Coordinator {
 
     /// Check if a process signal was received, relaying it to the `workers` and
     /// actors in `signal_refs`.
-    fn check_process_signals(&mut self, signal_received: &mut bool) -> Result<(), rt::Error> {
+    fn relay_process_signals(&mut self) -> Result<(), rt::Error> {
+        log::trace!("checking for process signals");
         let timing = trace::start(&self.trace_log);
-        let waker = task::Waker::noop();
-        let mut ctx = task::Context::from_waker(waker);
+        let waker = bitmap::new_waker_set_bit0(self.check.clone());
+        let mut ctx = task::Context::from_waker(&waker);
         loop {
             match Pin::new(&mut self.signals).poll_next(&mut ctx) {
                 Poll::Ready(Some(Ok(info))) => {
-                    *signal_received = true;
                     let signal = info.signal();
                     #[cfg(any(target_os = "android", target_os = "linux"))]
                     log::debug!(signal:?, sending_pid = info.pid(), sending_uid = info.real_user_id(); "received process signal");
@@ -230,7 +236,10 @@ impl Coordinator {
                     }
 
                     log::trace!(signal:?; "relaying process signal to worker threads");
-                    for worker in &mut self.workers {
+                    for worker in self.workers.iter_mut() {
+                        let Some(worker) = worker else {
+                            continue;
+                        };
                         if let Err(SendError) = worker.send_signal(signal) {
                             // NOTE: if the worker is unable to receive a
                             // message it's likely already shutdown or is
@@ -262,7 +271,7 @@ impl Coordinator {
         trace::finish_rt(
             self.trace_log.as_mut(),
             timing,
-            "Checking process signals",
+            "Relaying process signals",
             &[],
         );
         Ok(())
@@ -301,31 +310,41 @@ impl Coordinator {
         trace::finish_rt(
             self.trace_log.as_mut(),
             timing,
-            "Printing runtime metrics",
+            "Logging runtime metrics",
             &[],
         );
     }
 
-    /// Check if the (sync) workers are still alive, removing any that are not.
-    fn check_workers(&mut self, worker_stopped: &mut bool) -> Result<(), rt::Error> {
+    /// Wait on worker with id to stop.
+    fn join_worker(&mut self, id: usize) -> Result<(), rt::Error> {
         let timing = trace::start(&self.trace_log);
-        for worker in self.workers.extract_if(.., |w| w.is_finished()) {
-            *worker_stopped = true;
-            log::debug!(worker_id = worker.id(); "worker thread stopped");
+        if let Some(worker) = self.workers.get_mut(id - 1).and_then(|w| w.take()) {
+            log::trace!(worker_id = worker.id(); "worker thread stopped, joining it");
+            self.threads_left -= 1;
             worker.join()?;
         }
-
-        for sync_worker in self.sync_workers.extract_if(.., |w| w.is_finished()) {
-            *worker_stopped = true;
-            log::debug!(sync_worker_id = sync_worker.id(); "sync actor worker thread stopped");
-            sync_worker.join()?;
-        }
-
         trace::finish_rt(
             self.trace_log.as_mut(),
             timing,
-            "Checking (sync) workers",
-            &[],
+            "Joining worker",
+            &[("id", &id)],
+        );
+        Ok(())
+    }
+
+    /// Wait on sync worker with id to stop.
+    fn join_sync_worker(&mut self, id: usize) -> Result<(), rt::Error> {
+        let timing = trace::start(&self.trace_log);
+        if let Some(sync_worker) = self.sync_workers.get_mut(id - 1).and_then(|w| w.take()) {
+            log::trace!(sync_worker_id = sync_worker.id(); "sync worker thread stopped, joining it");
+            self.threads_left -= 1;
+            sync_worker.join()?;
+        }
+        trace::finish_rt(
+            self.trace_log.as_mut(),
+            timing,
+            "Joining sync worker",
+            &[("id", &id)],
         );
         Ok(())
     }
