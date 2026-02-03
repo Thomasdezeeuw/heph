@@ -4,15 +4,15 @@ use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph::sync;
 use heph_rt::spawn::{ActorOptions, SyncActorOptions};
-use heph_rt::{self as rt, Runtime, RuntimeRef, Signal, ThreadLocal, ThreadSafe};
+use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal, ThreadSafe, process};
 
 fn main() -> Result<(), rt::Error> {
     // Enable logging.
     std_logger::Config::logfmt().init();
 
     // Signal handling is support for all actor and its as simple as receiving
-    // `Signal` messages from the runtime and handling them accordingly in the
-    // actors.
+    // `process::Signal` messages from the runtime and handling them accordingly
+    // in the actors.
 
     let mut runtime = Runtime::setup().build()?;
 
@@ -58,13 +58,14 @@ impl From<&'static str> for Message {
     }
 }
 
-impl TryFrom<Signal> for Message {
+impl TryFrom<process::Signal> for Message {
     type Error = ();
 
-    fn try_from(signal: Signal) -> Result<Self, Self::Error> {
-        match signal {
-            Signal::Interrupt | Signal::Terminate | Signal::Quit => Ok(Message::Terminate),
-            _ => Err(()),
+    fn try_from(signal: process::Signal) -> Result<Self, Self::Error> {
+        if signal.should_exit() {
+            Ok(Message::Terminate)
+        } else {
+            Err(())
         }
     }
 }

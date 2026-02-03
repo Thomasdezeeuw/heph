@@ -13,7 +13,7 @@ use heph_rt::io::StaticBuf;
 use heph_rt::net::{ServerError, ServerMessage, TcpServer};
 use heph_rt::spawn::ActorOptions;
 use heph_rt::test::{PanicSupervisor, join_many, try_spawn_local};
-use heph_rt::{self as rt, Runtime, Signal, ThreadLocal};
+use heph_rt::{self as rt, Runtime, ThreadLocal, process};
 
 use crate::util::{any_local_address, tcp_connect};
 
@@ -24,7 +24,11 @@ fn message_from_terminate() {
 
 #[test]
 fn message_from_process_signal() {
-    let signals = &[Signal::Interrupt, Signal::Terminate, Signal::Quit];
+    let signals = &[
+        process::Signal::INTERRUPT,
+        process::Signal::TERMINATION,
+        process::Signal::QUIT,
+    ];
     for signal in signals {
         assert!(ServerMessage::try_from(*signal).is_ok());
     }

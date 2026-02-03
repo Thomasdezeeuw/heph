@@ -52,10 +52,7 @@ impl TryFrom<process::Signal> for ServerMessage {
     type Error = ();
 
     fn try_from(signal: process::Signal) -> Result<Self, Self::Error> {
-        if matches!(
-            signal,
-            process::Signal::INTERRUPT | process::Signal::TERMINATION | process::Signal::QUIT
-        ) {
+        if signal.should_exit() {
             Ok(ServerMessage { _inner: () })
         } else {
             Err(())

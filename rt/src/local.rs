@@ -73,6 +73,21 @@ impl RuntimeInternals {
         }
     }
 
+    #[cfg(any(test, feature = "test"))]
+    pub(crate) fn new_test(shared_internals: Arc<shared::RuntimeInternals>) -> RuntimeInternals {
+        let ring = a10::Ring::new().unwrap();
+        let (waker_sender, _) = crossbeam_channel::unbounded();
+        let wakers = Wakers::new(waker_sender, ring.sq());
+        RuntimeInternals::new(
+            NonZeroUsize::new(1).unwrap(),
+            shared_internals,
+            wakers,
+            ring,
+            None,
+            None,
+        )
+    }
+
     /// Relay a process `signal` to all actors that wanted to receive it, or
     /// returns an error if no actors want to receive it.
     pub(crate) fn relay_signal(&self, signal: process::Signal) {
@@ -86,15 +101,7 @@ impl RuntimeInternals {
         let mut receivers = self.signal_receivers.borrow_mut();
         receivers.remove_disconnected();
         match receivers.try_send_to_all(signal) {
-            // TODO: replace with Signal::should_exit.
-            Err(SendError)
-                if matches!(
-                    signal,
-                    process::Signal::INTERRUPT
-                        | process::Signal::TERMINATION
-                        | process::Signal::QUIT
-                ) =>
-            {
+            Err(SendError) if signal.should_exit() => {
                 self.set_err(worker::Error::ProcessInterrupted);
             }
             Ok(()) | Err(SendError) => {}

@@ -55,8 +55,10 @@
 use std::any::Any;
 use std::async_iter::AsyncIterator;
 use std::future::{Future, poll_fn};
+use std::num::NonZeroUsize;
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use std::pin::{Pin, pin};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, OnceLock};
 use std::task::{self, Poll};
@@ -71,10 +73,9 @@ use heph_inbox as inbox;
 use heph_inbox::oneshot::{self, new_oneshot};
 
 use crate::spawn::{ActorOptions, FutureOptions, SyncActorOptions};
-use crate::worker::Worker;
 use crate::{
-    Runtime, RuntimeRef, Setup, Sync, ThreadLocal, ThreadSafe, panic_message, shared, sync_worker,
-    worker,
+    Runtime, RuntimeRef, Setup, Sync, ThreadLocal, ThreadSafe, local, panic_message, shared,
+    sync_worker,
 };
 
 #[doc(no_inline)]
@@ -107,14 +108,13 @@ pub(crate) fn shared_internals() -> Arc<shared::RuntimeInternals> {
 pub(crate) fn runtime() -> RuntimeRef {
     thread_local! {
         /// Per thread runtime.
-        static TEST_RT: Worker = {
-            let (setup, _) = worker::setup_test().expect("failed to setup test runtime");
-            let init = Arc::new(OnceLock::new());
-            Worker::setup(setup, shared_internals(), false, None, init)
+        static TEST_RT: RuntimeRef = {
+            let internals = Rc::new(local::RuntimeInternals::new_test(shared_internals()));
+            RuntimeRef { internals }
         };
     }
 
-    TEST_RT.with(Worker::create_ref)
+    TEST_RT.with(|rt| rt.clone())
 }
 
 /// Run function `f` on the *test* runtime.
@@ -608,10 +608,10 @@ where
     M: Send + 'static,
 {
     static SYNC_WORKER_TEST_ID: AtomicUsize = AtomicUsize::new(10_000);
-    let id = SYNC_WORKER_TEST_ID.fetch_add(1, Ordering::AcqRel);
+    let id = NonZeroUsize::new(SYNC_WORKER_TEST_ID.fetch_add(1, Ordering::AcqRel)).unwrap();
 
     let shared = shared_internals();
-    sync_worker::start(id, supervisor, actor, arg, options, shared, None).map(
+    sync_worker::spawn_thread(id, supervisor, actor, arg, options, shared, None).map(
         |(worker, actor_ref)| {
             let handle = worker.into_handle();
             (handle, actor_ref)

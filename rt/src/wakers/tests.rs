@@ -257,12 +257,7 @@ mod shared {
     }
 
     pub(super) fn new_internals() -> Arc<RuntimeInternals> {
-        let setup = RuntimeInternals::test_setup().unwrap();
-        Arc::new_cyclic(|shared_internals| {
-            let wakers = Wakers::new(shared_internals.clone());
-            let worker_wakers = vec![noop_waker()].into_boxed_slice();
-            setup.complete(wakers, worker_wakers, None)
-        })
+        RuntimeInternals::new(noop_waker(), None).unwrap()
     }
 
     fn noop_waker() -> a10::SubmissionQueue {

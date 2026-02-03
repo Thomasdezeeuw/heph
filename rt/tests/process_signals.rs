@@ -1,7 +1,6 @@
 #![feature(async_iterator, never_type, write_all_vectored)]
 
 use std::future::pending;
-use std::process;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -9,7 +8,7 @@ use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph::sync;
 use heph_rt::spawn::options::{ActorOptions, FutureOptions, SyncActorOptions};
-use heph_rt::{Runtime, Signal};
+use heph_rt::{Runtime, process};
 
 #[path = "util/mod.rs"] // rustfmt can't find the file.
 #[macro_use]
@@ -28,7 +27,7 @@ fn no_signal_handlers() {
     // We add a never ending process to make sure that the runtime doesn't
     // shutdown because no processes are left to run.
     runtime.spawn_future(pending(), FutureOptions::default());
-    send_signal(process::id(), libc::SIGINT).expect("failed to send signal");
+    send_signal(std::process::id(), libc::SIGINT).expect("failed to send signal");
     let err_str = runtime.start().unwrap_err().to_string();
     assert!(
         err_str.contains("received process signal, but no receivers for it: stopping runtime"),
@@ -82,7 +81,7 @@ fn with_signal_handles() {
 
     // Sending a signal now shouldn't cause the runtime to return an error (as
     // the signal is handled by one or more actors).
-    send_signal(process::id(), libc::SIGINT).expect("failed to send signal");
+    send_signal(std::process::id(), libc::SIGINT).expect("failed to send signal");
     runtime.start().unwrap();
 
     // Make sure that all the actor received the signal once.
@@ -92,12 +91,12 @@ fn with_signal_handles() {
     assert_eq!(sync.load(Ordering::Acquire), 1);
 }
 
-async fn actor<RT>(mut ctx: actor::Context<Signal, RT>, got_signal: Arc<AtomicUsize>) {
+async fn actor<RT>(mut ctx: actor::Context<process::Signal, RT>, got_signal: Arc<AtomicUsize>) {
     let _msg = ctx.receive_next().await.unwrap();
     got_signal.fetch_add(1, Ordering::AcqRel);
 }
 
-fn sync_actor<RT>(mut ctx: sync::Context<Signal, RT>, got_signal: Arc<AtomicUsize>) {
+fn sync_actor<RT>(mut ctx: sync::Context<process::Signal, RT>, got_signal: Arc<AtomicUsize>) {
     let _msg = ctx.receive_next().unwrap();
     got_signal.fetch_add(1, Ordering::AcqRel);
 }

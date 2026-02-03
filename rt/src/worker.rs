@@ -522,14 +522,6 @@ impl Worker {
             None => self.internals.shared.next_timeout(now, None),
         }
     }
-
-    /// Create a new reference to this runtime.
-    #[cfg(any(test, feature = "test"))]
-    pub(crate) fn create_ref(&self) -> RuntimeRef {
-        RuntimeRef {
-            internals: self.internals.clone(),
-        }
-    }
 }
 
 /// Create a cpu set that may only run on `cpu_id`.

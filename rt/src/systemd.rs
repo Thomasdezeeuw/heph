@@ -383,10 +383,7 @@ impl TryFrom<process::Signal> for ServiceMessage {
     type Error = ();
 
     fn try_from(signal: process::Signal) -> Result<Self, Self::Error> {
-        if matches!(
-            signal,
-            process::Signal::INTERRUPT | process::Signal::TERMINATION | process::Signal::QUIT
-        ) {
+        if signal.should_exit() {
             Ok(ServiceMessage::ChangeState {
                 state: State::Stopping,
                 status: Some("stopping after process signal".into()),

@@ -132,10 +132,8 @@ pub(crate) fn new_waker_set_bit0(bitmap: Arc<AtomicBitMap>) -> task::Waker {
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::Ordering;
-    use std::sync::{Arc, Barrier};
-    use std::thread;
 
-    use crate::AtomicBitMap;
+    use super::AtomicBitMap;
 
     #[test]
     fn setting_and_unsetting_one() {
@@ -180,7 +178,7 @@ mod tests {
 
         // Set all bits.
         for n in 0..entries {
-            data.set(n);
+            map.set(n);
         }
         for data in &map.data {
             assert!(data.load(Ordering::Relaxed) == usize::MAX);
@@ -188,7 +186,7 @@ mod tests {
 
         // Unset all bits again.
         for n in 0..entries {
-            assert_eq!(data.next_set(), Some(n));
+            assert_eq!(map.next_set(), Some(n));
         }
         // Now the map should be empty.
         assert_eq!(map.next_set(), None);
