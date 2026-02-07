@@ -166,8 +166,9 @@ pub trait NewActor {
     /// regular function. If more than one argument is needed the arguments can
     /// be in the form of a tuple, e.g. `(usize, String)`.
     ///
-    /// An empty tuple can be used for actors that don't accept any arguments
-    /// (except for the `actor::Context`, see [`new`] below).
+    /// An empty tuple `()`, or [`NoArgs`], can be used for actors that don't
+    /// accept any arguments (except for the `actor::Context`, see [`new`]
+    /// below).
     ///
     /// When using asynchronous functions arguments are passed regularly, i.e.
     /// not in the form of a tuple, see there [implementations] below. However
@@ -312,6 +313,12 @@ pub trait NewActor {
         name::<Self::Actor>()
     }
 }
+
+/// No arguments required for the actors.
+///
+/// Can be used for [`NewActor::Argument`] to indicate the actor doesn't need
+/// any arguments.
+pub type NoArgs = ();
 
 /// See [`NewActor::map_arg`].
 #[derive(Debug)]
