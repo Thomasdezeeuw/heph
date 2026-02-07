@@ -24,13 +24,22 @@ fn test_1_hello_world() {
 }
 
 #[test]
-fn test_2_my_ip() {
-    let mut child = run_example("2_my_ip");
+fn test_3_rpc() {
+    let output = run_example_output("3_rpc");
+    assert_eq!(
+        output,
+        "Got a RPC request: Ping\nGot a RPC response: Pong\n"
+    );
+}
+
+#[test]
+fn test_4_my_ip() {
+    let mut child = run_example("4_my_ip");
 
     // First read the startup message, ensuring the runtime has time to start
     // up.
     let expected =
-        "lvl=\"INFO\" msg=\"listening on 127.0.0.1:7890\" target=\"2_my_ip\" module=\"2_my_ip\"\n";
+        "lvl=\"INFO\" msg=\"listening on 127.0.0.1:7890\" target=\"4_my_ip\" module=\"4_my_ip\"\n";
     let mut output = vec![0; expected.len() + 1];
     #[rustfmt::skip]
     let n = child.inner.stderr.as_mut().unwrap().read(&mut output).unwrap();
@@ -50,15 +59,6 @@ fn test_2_my_ip() {
     if let Err(err) = send_signal(child.inner.id(), libc::SIGINT) {
         panic!("unexpected error sending signal to process: {err}");
     }
-}
-
-#[test]
-fn test_3_rpc() {
-    let output = run_example_output("3_rpc");
-    assert_eq!(
-        output,
-        "Got a RPC request: Ping\nGot a RPC response: Pong\n"
-    );
 }
 
 #[test]
