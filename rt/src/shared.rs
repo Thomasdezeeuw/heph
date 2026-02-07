@@ -72,10 +72,7 @@ impl RuntimeInternals {
     ) -> io::Result<Arc<RuntimeInternals>> {
         let config = a10::Ring::config();
         #[cfg(any(target_os = "android", target_os = "linux"))]
-        let config = config
-            .single_issuer()
-            .defer_task_run()
-            .attach_queue(&coordinator_sq);
+        let config = config.attach_queue(&coordinator_sq);
         let ring = config.build()?;
         let sq = ring.sq();
 
