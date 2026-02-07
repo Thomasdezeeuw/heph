@@ -18,16 +18,8 @@ fn main() -> Result<(), rt::Error> {
 
 /// The is the setup function used in the runtime.
 fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-    // Spawn our `greeter_actor` onto the runtime.
-    // All actors need supervision, however our actor doesn't return an error
-    // (it uses `!`, the never type, as error), because of this we'll use the
-    // `NoSupervisor`, which is a supervisor that does nothing and can't be
-    // called.
-    // Along with the supervisor we'll also supply the argument to start the
-    // actor, in our case this is `()` since our actor doesn't accept any
-    // arguments.
-    // We'll use the default actor options here, other examples expand on the
-    // options available.
+    // We spawn our actor here. For more information on spawning actors see
+    // example 2_spawning_actors.
     let actor = actor_fn(greeter_actor);
     let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
 

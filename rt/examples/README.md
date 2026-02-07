@@ -13,16 +13,16 @@ The code can be found in `1_hello_world.rs` and run with `cargo run --example
 1_hello_world`, and it should print "Hello World".
 
 
+## 2. Spawning Actors
+
+The second example takes a closer looking at spawning actors. The code can be
+found in `2_spawning_actor.rs` and run with `cargo run --example
+2_spawning_actor`.
+
+
 ## 3. RPC
 
 Example three shows how Heph makes Remote Procedure Calls (RPC) easy.
-
-
-## 4. Synchronous Actor
-
-The fourth example how to use synchronous actors. These are actors that have the
-thread all to themselves, which means that can do heavy computation and blocking
-I/O without stalling other actors.
 
 
 ## 4. IP Server

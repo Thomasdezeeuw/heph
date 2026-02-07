@@ -62,9 +62,12 @@ fn test_4_my_ip() {
 }
 
 #[test]
-fn test_4_sync_actor() {
-    let output = run_example_output("4_sync_actor");
-    assert_eq!(output, "Got a message: Hello world\nBye\n");
+fn test_4_spawning_actors() {
+    let output = run_example_output("4_spawning_actors");
+    assert_eq!(
+        output,
+        "Hello Alice from sync actor\nHello Bob from thread-safe actor\nHello Charlie from thread-local actor\n"
+    );
 }
 
 #[test]
