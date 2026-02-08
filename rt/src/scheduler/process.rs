@@ -1,12 +1,12 @@
 //! Module containing the process related types and implementations.
 
 use std::cmp::Ordering;
-use std::fmt;
 use std::future::Future;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::task::{self, Poll};
 use std::time::{Duration, Instant};
+use std::{fmt, ptr};
 
 use heph::supervisor::Supervisor;
 use heph::{ActorFuture, NewActor};
@@ -65,7 +65,7 @@ impl<Fut: Future<Output = ()>> Run for FutureProcess<Fut> {
     }
 
     fn run(mut self: Pin<&mut Self>, ctx: &mut task::Context<'_>) -> Poll<()> {
-        // SAFETY: not moving the `Fut`ure.
+        // SAFETY: not moving the future.
         let future = unsafe { Pin::map_unchecked_mut(self.as_mut(), |s| &mut s.0) };
         match catch_unwind(AssertUnwindSafe(|| future.poll(ctx))) {
             Ok(Poll::Ready(())) => Poll::Ready(()),
@@ -96,16 +96,17 @@ where
     }
 }
 
-/// Process container. Hold the process itself and all data needed to properly
-/// schedule and run it.
+/// Process container.
+///
+/// Holds the process itself and all data needed to properly schedule and run
+/// it.
 ///
 /// # Notes
 ///
 /// `PartialEq` and `Eq` are implemented based on the id of the process
 /// (`ProcessId`).
 ///
-/// `PartialOrd` and `Ord` however are implemented based on runtime and
-/// priority.
+/// `PartialOrd` and `Ord` however are implemented using `S::order`.
 pub(crate) struct Process<S, P: ?Sized> {
     scheduler_data: S,
     process: Pin<Box<P>>,
@@ -139,10 +140,20 @@ impl<S: Schedule, P: Run + ?Sized> Process<S, P> {
     }
 }
 
+/// Statistics about the run of a process.
+#[derive(Copy, Clone, Debug)]
+#[must_use = "Must check the process's result"]
+pub(crate) struct RunStats {
+    /// The duration for which the process ran.
+    pub(crate) elapsed: Duration,
+    /// The result of the process run.
+    pub(crate) result: Poll<()>,
+}
+
 impl<S, P: ?Sized> Process<S, P> {
     /// Returns the process identifier, or pid for short.
     pub(crate) fn id(&self) -> ProcessId {
-        ProcessId((&raw const *self).addr())
+        ProcessId(ptr::from_ref(self).addr())
     }
 
     #[cfg(test)]
@@ -156,16 +167,6 @@ impl<S, P: Run + ?Sized> Process<S, P> {
     pub(crate) fn name(&self) -> &'static str {
         self.process.name()
     }
-}
-
-/// Statistics about the process run.
-#[derive(Copy, Clone, Debug)]
-#[must_use = "Must check the process's `result`"]
-pub(crate) struct RunStats {
-    /// The duration for which the process ran.
-    pub(crate) elapsed: Duration,
-    /// The result of the process run.
-    pub(crate) result: Poll<()>,
 }
 
 impl<S, P: ?Sized> Eq for Process<S, P> {}
