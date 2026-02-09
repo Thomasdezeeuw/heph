@@ -4,15 +4,6 @@ This directory contains a number of examples that highlight certain parts of the
 system.
 
 
-## 1. Hello World
-
-Conforming to the tradition that is "Hello World", a simple program that prints
-"Hello World".
-
-The code can be found in `1_hello_world.rs` and run with `cargo run --example
-1_hello_world`, and it should print "Hello World".
-
-
 ## 2. Spawning Actors
 
 The second example takes a closer looking at spawning actors. The code can be

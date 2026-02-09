@@ -1,10 +1,13 @@
-#![feature(never_type)]
-
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::ActorOptions;
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
+// Conforming to the tradition that is "Hello, World!", a simple program that
+// prints "Hello, World!" from an actor.
+//
+// Run using:
+// $ cargo run --example 1_hello_world
 fn main() -> Result<(), rt::Error> {
     // Enable logging.
     std_logger::Config::logfmt().init();
@@ -17,24 +20,18 @@ fn main() -> Result<(), rt::Error> {
 }
 
 /// The is the setup function used in the runtime.
-fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
+fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), rt::Error> {
     // We spawn our actor here. For more information on spawning actors see
     // example 2_spawning_actors.
     let actor = actor_fn(greeter_actor);
-    let actor_ref = runtime_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
+    runtime_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
 
-    // Now we can send our actor a message using its `actor_ref`.
-    actor_ref.try_send("World").unwrap();
     Ok(())
 }
 
 /// Our greeter actor.
 ///
-/// We'll receive a single message and print it.
-async fn greeter_actor(mut ctx: actor::Context<&'static str, ThreadLocal>) {
-    // All actors have an actor context, which give the actor access to, among
-    // other things, its inbox from which it can receive a message.
-    while let Ok(name) = ctx.receive_next().await {
-        println!("Hello {name}");
-    }
+/// It will print a greeter and stop.
+async fn greeter_actor(_ctx: actor::Context<(), ThreadLocal>) {
+    println!("Hello, world!");
 }
