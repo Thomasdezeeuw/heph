@@ -9,26 +9,6 @@ system.
 TODO: reimplement this.
 
 
-## 8. Runtime Tracing
-
-Heph supports generating trace files in its own custom format, described in the
-[Trace Format design document]. This format can be converted into [Chrome's
-Trace Event Format] so it can be opened by [Catapult trace view].
-
-```bash
- $ cargo run --example 8_tracing       # Run the example, to generate the trace.
- $ cd ../tools                         # Got into the tools directory.
-                                       # Convert the trace to Chrome's format.
- $ cargo run --bin convert_trace ../rt/heph_tracing_example.bin.log
-                                       # Make the trace viewable in HTML.
- $ $(CATAPULT_REPO)/tracing/bin/trace2html ../heph_tracing_example.json
- $ open ../heph_tracing_example.html   # Finally open the trace in your browser.
-```
-
-[Trace Format design document]: ../doc/Trace%20Format.md
-[Chrome's Trace Event Format]: https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
-[Catapult trace view]: https://chromium.googlesource.com/catapult/+/refs/heads/master/tracing/README.md
-
 ## 9. Systemd support
 
 Heph also has various utilties to support [systemd]. You can use the following

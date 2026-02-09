@@ -1,5 +1,3 @@
-#![feature(never_type)]
-
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -12,11 +10,32 @@ use heph_rt::trace::Trace;
 use heph_rt::{self as rt, Runtime, RuntimeRef};
 use log::warn;
 
+// Heph supports generating trace files in its own custom format, described in
+// the [Trace Format design document]. This format can be converted into
+// [Chrome's Trace Event Format] so it can be opened by [Catapult trace view],
+// which is hosted at <https://chromium.googlesource.com/catapult>.
+//
+// Running this example is a little more complex than other examples:
+// 1. Run the example, to generate the trace.
+//    $ cargo run --example 8_tracing
+// 2. Got into the tools directory.
+//    $ cd ../tools
+// 3. Convert the trace to Chrome's format.
+//    $ cargo run --bin convert_trace ../rt/heph_tracing_example.bin.log
+// 4. Make the trace viewable in HTML.
+//    $ cd ../rt
+//    $ $(CATAPULT_REPO)/tracing/bin/trace2html heph_tracing_example.json
+// 5. Finally open the trace in your browser.
+//    $ open heph_tracing_example.html
+//
+// [Trace Format design document]: ../doc/Trace%20Format.md
+// [Chrome's Trace Event Format]: https://docs.google.com/document/d/1CvAClvFfyA5R-PhYUmn5OOQtYMH4h6I0nSsKchNAySU/preview
+// [Catapult trace view]: https://chromium.googlesource.com/catapult/+/refs/heads/master/tracing/README.md
 fn main() -> Result<(), rt::Error> {
-    // Enable logging.
     std_logger::Config::logfmt().init();
 
     let mut runtime_setup = Runtime::setup();
+    // We need to explicitly enabling tracing and write it to a given path.
     runtime_setup.enable_tracing("heph_tracing_example.bin.log")?;
     let mut runtime = runtime_setup.build()?;
 
@@ -36,7 +55,7 @@ const CHAIN_SIZE: usize = 5;
 
 /// Setup function will start a chain of `relay_actors`, just to create some
 /// activity for the trace.
-fn setup(mut runtime_ref: RuntimeRef, actor_ref: ActorRef<&'static str>) -> Result<(), !> {
+fn setup(mut runtime_ref: RuntimeRef, actor_ref: ActorRef<&'static str>) -> Result<(), rt::Error> {
     // Create a chain of relay actors that will relay messages to the next
     // actor.
     let mut next_actor_ref = actor_ref;
