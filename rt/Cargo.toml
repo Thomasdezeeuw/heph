@@ -27,7 +27,6 @@ log               = { version = "0.4.21", default-features = false, features = [
 libc              = { version = "0.2.96", default-features = false }
 
 [dev-dependencies]
-getrandom         = { version = "0.3.3", default-features = false, features = ["std"] }
 std-logger        = { version = "0.5.3", default-features = false, features = ["nightly"] }
 
 [[test]]
