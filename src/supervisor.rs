@@ -520,6 +520,19 @@ macro_rules! restart_supervisor {
         $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, ( $arg ), $max_restarts, $max_duration, "",);
     };
 
+    // No log extra or duration, unit `NewActor::Argument`.
+    ($vis: vis $supervisor_name: ident, (), $max_restarts: expr $(,)?) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, (), $max_restarts, std::time::Duration::from_secs(5), "",);
+    };
+    // No log extra or duration, tuple `NewActor::Argument`.
+    ($vis: vis $supervisor_name: ident, ( $( $arg: ty ),* ), $max_restarts: expr $(,)?) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, ( $( $arg ),* ), $max_restarts, std::time::Duration::from_secs(5), "",);
+    };
+    // No log extra or duration, single `NewActor::Argument`.
+    ($vis: vis $supervisor_name: ident, $arg: ty, $max_restarts: expr $(,)?) => {
+        $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, ( $arg ), $max_restarts, std::time::Duration::from_secs(5), "",);
+    };
+
     // All arguments, unit `NewActor::Argument`.
     ($vis: vis $supervisor_name: ident, (), $max_restarts: expr, $max_duration: expr, $log_extra: expr, $( args $(. $log_arg_field: tt )* ),* $(,)?) => {
         $crate::__heph_restart_supervisor_impl!($vis $supervisor_name, (), $max_restarts, $max_duration, $log_extra, $( args $(. $log_arg_field )* ),*);
