@@ -1,7 +1,7 @@
 //! Scheduler implementations.
 
 use std::collections::BinaryHeap;
-use std::mem::{self, size_of};
+use std::mem::{self, replace, size_of};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::ptr::NonNull;
@@ -257,8 +257,12 @@ struct ProcessSlot<S> {
 const _PROCESS_SLOT_SIZE: () = assert!(size_of::<ProcessSlot::<()>>() == size_of::<u64>());
 
 impl<S> ProcessSlot<S> {
-    const READY: *mut Process<S> = ptr::dangling_mut();
-    const EMPTY: *mut Process<S> = ptr::null_mut();
+    const EMPTY: *mut Process<S> = ptr::null_mut(); // Not used.
+    const READY: *mut Process<S> = 1 as *mut _; // In run queue.
+
+    const fn is_empty(&self) -> bool {
+        self.ptr.is_null()
+    }
 
     fn is_waiting(&self) -> bool {
         !self.is_empty() && !self.is_ready()
@@ -268,10 +272,6 @@ impl<S> ProcessSlot<S> {
         self.ptr == Self::READY
     }
 
-    const fn is_empty(&self) -> bool {
-        self.ptr.is_null()
-    }
-
     fn mark_empty_as_ready(&mut self) {
         debug_assert!(self.is_empty());
         self.ptr = Self::READY;
@@ -279,26 +279,21 @@ impl<S> ProcessSlot<S> {
 
     fn mark_ready(&mut self) -> Option<Pin<Box<Process<S>>>> {
         if self.is_waiting() {
-            // SAFETY: per the documentation on the ptr field, this point is
+            let ptr = replace(&mut self.ptr, Self::READY);
+            // SAFETY: per the documentation on the ptr field, the pointer is
             // valid.
-            let process = unsafe { Pin::new_unchecked(Box::from_raw(self.ptr)) };
-            self.ptr = Self::READY;
-            Some(process)
+            Some(unsafe { Pin::new_unchecked(Box::from_raw(ptr)) })
         } else {
             None
         }
     }
 
     fn add_back(&mut self, process: Pin<Box<Process<S>>>) -> Result<(), Pin<Box<Process<S>>>> {
-        if self.is_ready() {
-            Err(process)
-        } else {
-            debug_assert!(self.is_empty());
-            // SAFETY: we take care of the pointer and don't move the process,
-            // see the ptr field documentation.
-            self.ptr = unsafe { Box::into_raw(Pin::into_inner_unchecked(process)) };
-            Ok(())
-        }
+        debug_assert!(self.is_ready());
+        // SAFETY: we take care of the pointer and don't move the process, see
+        // the ptr field documentation.
+        self.ptr = unsafe { Box::into_raw(Pin::into_inner_unchecked(process)) };
+        Ok(())
     }
 
     fn mark_empty(&mut self) {
