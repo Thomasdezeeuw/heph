@@ -9,13 +9,6 @@ system.
 TODO: reimplement this.
 
 
-## 7. Restart Supervisor Macro
-
-Example seven shows how the `restart_supervisor!` macro can be used to easily
-create a new `Supervisor` implementation that attempts to restart the actor with
-cloned arguments.
-
-
 ## 8. Runtime Tracing
 
 Heph supports generating trace files in its own custom format, described in the

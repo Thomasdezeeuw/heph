@@ -1,29 +1,29 @@
-#![feature(never_type)]
-
-use std::thread::sleep;
-use std::time::Duration;
-
 use heph::actor::{self, actor_fn};
 use heph::{restart_supervisor, sync};
 use heph_rt::spawn::{ActorOptions, SyncActorOptions};
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
+// This example shows how to use the restart_supervisor! macro. Writing a
+// supervisor can be a bit repetitive and the macro helps speed up the creation
+// of a supervisor.
+//
+// Run using:
+// $ cargo run --example 6_restart_supervisor
 fn main() -> Result<(), rt::Error> {
     // Enable logging.
     std_logger::Config::logfmt().init();
 
     let mut runtime = Runtime::setup().build()?;
 
+    // Spawning here is the same as in the other examples, we're only interested
+    // here in using our PrintSupervisor as supervisor.
     let sync_actor = actor_fn(sync_print_actor);
     let arg = "Hello world!".to_owned();
     let supervisor = PrintSupervisor::new(arg.clone());
     let options = SyncActorOptions::default();
     runtime.spawn_sync_actor(supervisor, sync_actor, arg, options)?;
 
-    // NOTE: this is only here to make the test pass.
-    sleep(Duration::from_millis(100));
-
-    runtime.run_on_workers(|mut runtime_ref: RuntimeRef| -> Result<(), !> {
+    runtime.run_on_workers(|mut runtime_ref: RuntimeRef| -> Result<(), rt::Error> {
         let print_actor = actor_fn(print_actor);
         let options = ActorOptions::default();
         let arg = "Hello world!".to_owned();
@@ -35,14 +35,11 @@ fn main() -> Result<(), rt::Error> {
     runtime.start()
 }
 
-// Create a restart supervisor for the [`print_actor`].
+// Create a restart supervisor for the print_actor.
 restart_supervisor!(
-    PrintSupervisor,
-    String,
-    5,
-    Duration::from_secs(5),
-    ": actor message '{}'",
-    args
+    PrintSupervisor, // Name of the supervisor.
+    String,          // Argument for the actor.
+    2,               // Maximum number of restarts.
 );
 
 /// A very bad printing actor.
