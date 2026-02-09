@@ -4,16 +4,6 @@ This directory contains a number of examples that highlight certain parts of the
 system.
 
 
-## 4. IP Server
-
-The second example is a simple TCP server that writes the ip of the connection
-to the connection.
-
-The code can be found in `4_my_ip.rs` and run with `cargo run --example
-4_my_ip`, running something like `nc localhost 7890` should then print your ip
-address, e.g. "127.0.0.1".
-
-
 ## 5. Remote Actor References
 
 TODO: reimplement this.

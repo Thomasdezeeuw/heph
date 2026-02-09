@@ -11,32 +11,33 @@ use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::{self as rt, Runtime, ThreadLocal};
 use log::{error, info};
 
+// This example shows a simple TCP server that writes the IP address of the
+// connection to the connection.
+//
+// Run using:
+// $ cargo run --example 4_my_ip
+// To connect:
+// $ nc localhost 7890
+//
+// To stop the server use ctrl-c.
 fn main() -> Result<(), rt::Error> {
-    // For this example we'll enable logging, this give us a bit more insight
-    // into the runtime. By default it only logs informational or more severe
-    // messages, the environment variable `LOG_LEVEL` can be set to change this.
-    // For example enabling logging of trace severity message can be done by
-    // setting `LOG_LEVEL=trace`.
+    // Enable logging.
     std_logger::Config::logfmt().init();
 
     // Create our TCP server. This server will create a new actor for each
-    // incoming TCP connection. As always, actors needs supervision, this is
-    // done by `conn_supervisor` in this example. And as each actor will need to
-    // be added to the runtime it needs the `ActorOptions` to do that, we'll use
-    // the defaults options here.
+    // incoming TCP connection.
     let actor = actor_fn(conn_actor);
     let address = "127.0.0.1:7890".parse().unwrap();
     let server = TcpServer::new(address, conn_supervisor, actor, ActorOptions::default())
         .map_err(rt::Error::setup)?;
 
-    // Just like in example 1 we'll create our runtime and run our setup
-    // function. But for this example we'll create a worker thread per available
-    // CPU core using `use_all_cores`.
+    // Like in example 1 we'll create our runtime and run our setup function.
+    // But we'll create a worker thread per available CPU core using
+    // `use_all_cores`.
     let mut runtime = Runtime::setup().use_all_cores().build()?;
-    runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {
+    runtime.run_on_workers(move |mut runtime_ref| -> Result<(), rt::Error> {
         // As the TCP server is just another actor we need to spawn it like any
-        // other actor. And again actors needs supervision, thus we provide
-        // `ServerSupervisor` as supervisor.
+        // other actor.
         // We'll give our server a low priority to prioritise handling of
         // ongoing requests over accepting new requests possibly overloading the
         // system.
@@ -101,7 +102,7 @@ async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: AsyncFd) -> io::R
     info!(address:%; "accepted connection");
 
     // This will allocate a new string which isn't the most efficient way to do
-    // this, but it's the easiest so we'll keep this for sake of example.
+    // this, but it's the easiest so we'll keep this simple for sake of example.
     let ip = address.ip().to_string();
 
     // Next we'll write the IP address to the connection.
