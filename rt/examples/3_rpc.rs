@@ -1,5 +1,3 @@
-#![feature(never_type)]
-
 use std::fmt;
 
 use heph::actor::{self, actor_fn};
@@ -8,6 +6,10 @@ use heph::supervisor::NoSupervisor;
 use heph_rt::spawn::ActorOptions;
 use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
 
+// This example shows how to make Remote Procedure Calls (RPC).
+//
+// Run using:
+// $ cargo run --example 3_rpc
 fn main() -> Result<(), rt::Error> {
     // Setup is much like example 1, see that example for more information.
     std_logger::Config::logfmt().init();
@@ -16,8 +18,8 @@ fn main() -> Result<(), rt::Error> {
     runtime.start()
 }
 
-fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
-    // See example 1 for information on how to spawn actors.
+fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), rt::Error> {
+    // See example 2 for more information on spawning actors.
     let pong_actor = actor_fn(pong_actor);
     let actor_ref = runtime_ref.spawn_local(NoSupervisor, pong_actor, (), ActorOptions::default());
 
@@ -27,7 +29,7 @@ fn add_rpc_actor(mut runtime_ref: RuntimeRef) -> Result<(), !> {
     Ok(())
 }
 
-async fn ping_actor(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<PongMessage>) {
+async fn ping_actor(_ctx: actor::Context<(), ThreadLocal>, actor_ref: ActorRef<PongMessage>) {
     // Make a Remote Procedure Call (RPC) and await the response.
     match actor_ref.rpc(Ping).await {
         Ok(response) => println!("Got a RPC response: {response}"),
@@ -39,7 +41,7 @@ async fn ping_actor(_: actor::Context<!, ThreadLocal>, actor_ref: ActorRef<PongM
 type PongMessage = RpcMessage<Ping, Pong>;
 
 async fn pong_actor(mut ctx: actor::Context<PongMessage, ThreadLocal>) {
-    // Await a message, same as all other messages.
+    // Await a message, same as waiting for other messages.
     while let Ok(msg) = ctx.receive_next().await {
         // Next we respond to the request.
         let res = msg

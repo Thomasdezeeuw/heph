@@ -4,11 +4,6 @@ This directory contains a number of examples that highlight certain parts of the
 system.
 
 
-## 3. RPC
-
-Example three shows how Heph makes Remote Procedure Calls (RPC) easy.
-
-
 ## 4. IP Server
 
 The second example is a simple TCP server that writes the ip of the connection
