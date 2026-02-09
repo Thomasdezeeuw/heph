@@ -9,16 +9,6 @@ system.
 TODO: reimplement this.
 
 
-## 6. Process Signal Handling
-
-Heph has build-in support for handling process signals. This example shows this
-can be used to cleanly shutdown your application.
-
-The code can be found in `6_process_signals.rs` and run with `cargo run
---example 6_process_signals`, pressing ctrl-c (sending it an interrupt signal
-`SIGINT`) should shutdown the example cleanly.
-
-
 ## 7. Restart Supervisor Macro
 
 Example seven shows how the `restart_supervisor!` macro can be used to easily
