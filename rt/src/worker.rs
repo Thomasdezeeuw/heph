@@ -21,16 +21,14 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 use std::{fmt, io, task, thread};
 
-use crossbeam_channel::Receiver;
 use heph::actor::{self, actor_fn};
 use heph::actor_ref::{ActorRef, SendError};
+use heph::panic_message;
 use heph::supervisor::NoSupervisor;
 
 use crate::error::StringError;
 use crate::local::RuntimeInternals;
-use crate::scheduler::ProcessId;
 use crate::spawn::options::ActorOptions;
-use crate::wakers::Wakers;
 use crate::{self as rt, RuntimeRef, ThreadLocal, process, shared, trace};
 
 /// Number of system actors (spawned in the local scheduler).
@@ -157,9 +155,6 @@ fn main(
 pub(crate) struct Worker {
     /// Internals of the runtime, shared with zero or more [`RuntimeRef`]s.
     internals: Rc<RuntimeInternals>,
-    /// Receiving side of the channel for waker events, see the
-    /// [`rt::local::waker`] module for the implementation.
-    waker_events: Receiver<ProcessId>,
 }
 
 impl Worker {
@@ -197,15 +192,10 @@ impl Worker {
         }
         let ring = config.build().map_err(Error::Setup)?;
 
-        // Setup the waking mechanism.
-        let (waker_sender, waker_events) = crossbeam_channel::unbounded();
-        let wakers = Wakers::new(waker_sender, ring.sq());
-
         // Finally we can create the runtime internals.
         let internals = Rc::new(RuntimeInternals::new(
             id,
             shared_internals,
-            wakers,
             ring,
             cpu_affinity,
             trace_log,
@@ -222,10 +212,7 @@ impl Worker {
         assert!(res.is_ok());
         drop(init);
 
-        Ok(Worker {
-            internals,
-            waker_events,
-        })
+        Ok(Worker { internals })
     }
 
     /// Run the worker.
@@ -283,13 +270,19 @@ impl Worker {
                 let pid = process.id();
                 let name = process.name();
                 log::debug!(worker_id = self.internals.id, pid, name; "running local process");
-                // TODO: reuse wakers, maybe by storing them in the processes?
-                let waker = self.internals.wakers.borrow_mut().new_task_waker(pid);
+                let waker = self
+                    .internals
+                    .scheduler
+                    .borrow()
+                    .waker_for_process(process.as_ref());
                 let mut ctx = task::Context::from_waker(&waker);
                 let result = process.as_mut().run(&mut ctx);
                 match result.result {
                     task::Poll::Ready(()) => {
-                        self.internals.scheduler.borrow_mut().complete(process);
+                        if let Err(err) = self.internals.scheduler.borrow_mut().complete(process) {
+                            let msg = panic_message(&err);
+                            log::warn!("panicked while dropping process: {msg}");
+                        }
                     }
                     task::Poll::Pending => {
                         self.internals
@@ -393,13 +386,7 @@ impl Worker {
         log::trace!(worker_id = self.internals.id; "polling wakup events");
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
-        let mut scheduler = self.internals.scheduler.borrow_mut();
-        let mut amount: usize = 0;
-        for pid in self.waker_events.try_iter() {
-            log::trace!(worker_id = self.internals.id, pid; "waking up local process");
-            scheduler.mark_ready(pid);
-            amount += 1;
-        }
+        let amount = self.internals.scheduler.borrow_mut().ready_processes();
 
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
@@ -502,7 +489,6 @@ impl Worker {
     /// Determine the timeout to be used in polling.
     fn determine_timeout(&self) -> Option<Duration> {
         if self.internals.scheduler.borrow().has_ready_process()
-            || !self.waker_events.is_empty()
             || self.internals.shared.has_ready_process()
         {
             // If there are any processes ready to run (local or shared), or any

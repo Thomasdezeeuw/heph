@@ -10,7 +10,6 @@ use heph::actor_ref::{ActorGroup, SendError};
 
 use crate::scheduler::Scheduler;
 use crate::timers::Timers;
-use crate::wakers::Wakers;
 use crate::{RuntimeRef, cpu_usage, panic_message, process, shared, trace, worker};
 
 /// Internals of the runtime, to which `RuntimeRef`s have a reference.
@@ -20,8 +19,6 @@ pub(crate) struct RuntimeInternals {
     pub(crate) id: NonZeroUsize,
     /// Runtime internals shared between coordinator and worker threads.
     pub(crate) shared: Arc<shared::RuntimeInternals>,
-    /// Creation of `task::Waker`s for for thread-local actors.
-    pub(crate) wakers: RefCell<Wakers>,
     /// Scheduler for thread-local actors.
     pub(crate) scheduler: RefCell<Scheduler>,
     /// io_uring completion ring.
@@ -53,7 +50,6 @@ impl RuntimeInternals {
     pub(crate) fn new(
         id: NonZeroUsize,
         shared_internals: Arc<shared::RuntimeInternals>,
-        wakers: Wakers,
         ring: a10::Ring,
         cpu: Option<usize>,
         trace_log: Option<trace::Log>,
@@ -61,7 +57,6 @@ impl RuntimeInternals {
         RuntimeInternals {
             id,
             shared: shared_internals,
-            wakers: RefCell::new(wakers),
             scheduler: RefCell::new(Scheduler::new()),
             ring: RefCell::new(ring),
             timers: RefCell::new(Timers::new()),
@@ -76,12 +71,9 @@ impl RuntimeInternals {
     #[cfg(any(test, feature = "test"))]
     pub(crate) fn new_test(shared_internals: Arc<shared::RuntimeInternals>) -> RuntimeInternals {
         let ring = a10::Ring::new().unwrap();
-        let (waker_sender, _) = crossbeam_channel::unbounded();
-        let wakers = Wakers::new(waker_sender, ring.sq());
         RuntimeInternals::new(
             NonZeroUsize::new(1).unwrap(),
             shared_internals,
-            wakers,
             ring,
             None,
             None,

@@ -104,6 +104,7 @@
     maybe_uninit_array_assume_init,
     never_type,
     ptr_metadata,
+    push_mut,
     stmt_expr_attributes
 )]
 #![warn(
