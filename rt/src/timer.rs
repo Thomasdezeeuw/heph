@@ -18,7 +18,6 @@ use std::time::{Duration, Instant};
 
 use crate::access::Access;
 use crate::timers::TimerToken;
-use crate::wakers::create_no_ring_waker;
 
 /// Type returned when the deadline has passed.
 ///
@@ -138,8 +137,7 @@ impl<RT: Access> Future for Timer<RT> {
             return Poll::Ready(DeadlinePassed);
         } else if self.pending.is_none() {
             let deadline = self.deadline;
-            let waker = create_no_ring_waker(ctx).unwrap_or_else(|| ctx.waker().clone());
-            self.pending = Some(self.rt.add_timer(deadline, waker));
+            self.pending = Some(self.rt.add_timer(deadline, ctx.waker().clone()));
         }
         Poll::Pending
     }
