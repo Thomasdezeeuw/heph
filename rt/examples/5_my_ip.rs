@@ -15,7 +15,7 @@ use log::{error, info};
 // connection to the connection.
 //
 // Run using:
-// $ cargo run --example 4_my_ip
+// $ cargo run --example 5_my_ip
 // To connect:
 // $ nc localhost 7890
 //

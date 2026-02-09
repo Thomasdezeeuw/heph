@@ -8,7 +8,7 @@ use heph_rt::{self as rt, Runtime, RuntimeRef, Sync, ThreadLocal, ThreadSafe, pr
 // this can be used to cleanly shutdown your application.
 //
 // Run using:
-// $ cargo run --example 6_process_signals
+// $ cargo run --example 4_process_signals
 //
 // Then use ctrl-c (sending an interrupt signal) to stop all actors.
 fn main() -> Result<(), rt::Error> {
