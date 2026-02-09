@@ -193,7 +193,7 @@ fn pid(offset: usize, idx: u16) -> ProcessId {
 
 /// Reverse of [`pid`].
 fn offset_idx(pid: ProcessId) -> (usize, u16) {
-    let idx = (pid.0 & !((1 << GROUP_SHIFT) - 1)) as u16;
+    let idx = (pid.0 & ((1 << GROUP_SHIFT) - 1)) as u16;
     let offset = pid.0 >> GROUP_SHIFT;
     (offset, idx)
 }
