@@ -60,7 +60,7 @@ fn main() -> Result<(), rt::Error> {
     {
         let actor = actor_fn(heph_rt::systemd::watchdog);
         // NOTE: this should do a proper health check of you application.
-        let health_check = || -> Result<(), !> { Ok(()) };
+        let health_check = || -> Result<(), String> { Ok(()) };
         let options = ActorOptions::default().with_priority(Priority::HIGH);
         let systemd_ref = runtime.spawn(StopSupervisor, actor, health_check, options);
         runtime.receive_signals(systemd_ref.try_map());
