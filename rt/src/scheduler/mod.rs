@@ -15,7 +15,6 @@ use crate::spawn::options::Priority;
 use crate::worker::SYSTEM_ACTORS;
 
 mod cfs;
-mod inactive;
 pub(crate) mod process;
 pub(crate) mod shared;
 #[cfg(test)]
