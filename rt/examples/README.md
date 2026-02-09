@@ -4,13 +4,6 @@ This directory contains a number of examples that highlight certain parts of the
 system.
 
 
-## 2. Spawning Actors
-
-The second example takes a closer looking at spawning actors. The code can be
-found in `2_spawning_actor.rs` and run with `cargo run --example
-2_spawning_actor`.
-
-
 ## 3. RPC
 
 Example three shows how Heph makes Remote Procedure Calls (RPC) easy.

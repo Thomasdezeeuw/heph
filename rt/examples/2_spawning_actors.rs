@@ -1,5 +1,3 @@
-#![feature(never_type)]
-
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 use heph::sync;
@@ -18,6 +16,9 @@ use heph_rt::{self as rt, Runtime, RuntimeRef};
 //  * One from the asynchronous thread-safe actor.
 //  * One from the asynchronous thread-local actor on each worker thread, thus
 //    two in total.
+//
+// Run using:
+// $ cargo run --example 2_spawning_actors
 fn main() -> Result<(), rt::Error> {
     // Enable logging.
     std_logger::Config::logfmt().init();
