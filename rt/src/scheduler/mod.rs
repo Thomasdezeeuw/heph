@@ -67,7 +67,8 @@ impl<S: Schedule> Scheduler<S> {
     where
         P: process::Run + 'static,
     {
-        let process = Box::pin(Process::<S>::new(priority, Box::pin(process)));
+        let mut process = Box::pin(Process::<S>::new(ProcessId(0), priority, Box::pin(process)));
+        Process::set_id(&mut process);
         let pid = process.id();
         self.ready.push(process);
         pid

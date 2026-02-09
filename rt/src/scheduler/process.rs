@@ -108,17 +108,25 @@ where
 ///
 /// `PartialOrd` and `Ord` however are implemented using `S::order`.
 pub(crate) struct Process<S, P: ?Sized> {
+    id: ProcessId,
     scheduler_data: S,
     process: Pin<Box<P>>,
 }
 
 impl<S: Schedule, P: Run + ?Sized> Process<S, P> {
     /// Create a new process container.
-    pub(crate) fn new(priority: Priority, process: Pin<Box<P>>) -> Process<S, P> {
+    pub(crate) fn new(id: ProcessId, priority: Priority, process: Pin<Box<P>>) -> Process<S, P> {
         Process {
+            id,
             scheduler_data: S::new(priority),
             process,
         }
+    }
+
+    // TODO: remove
+    pub(crate) fn set_id(self: &mut Pin<Box<Self>>) {
+        let pid = ProcessId(ptr::from_ref(&**self).addr());
+        unsafe { self.as_mut().get_unchecked_mut().id = pid };
     }
 
     /// Run the process.
@@ -153,7 +161,7 @@ pub(crate) struct RunStats {
 impl<S, P: ?Sized> Process<S, P> {
     /// Returns the process identifier, or pid for short.
     pub(crate) fn id(&self) -> ProcessId {
-        ProcessId(ptr::from_ref(self).addr())
+        self.id
     }
 
     #[cfg(test)]

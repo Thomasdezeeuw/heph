@@ -131,7 +131,8 @@ impl Scheduler {
     where
         P: process::Run + Send + Sync + 'static,
     {
-        let process = Box::pin(Process::new(priority, Box::pin(process)));
+        let mut process = Box::pin(Process::new(ProcessId(0), priority, Box::pin(process)));
+        Process::set_id(&mut process);
         let pid = process.id();
         self.ready.add(process);
         pid
