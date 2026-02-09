@@ -1,5 +1,3 @@
-#![feature(never_type)]
-
 use std::net::{Ipv4Addr, SocketAddr};
 use std::{env, io};
 
@@ -12,6 +10,33 @@ use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::{self as rt, Runtime, ThreadLocal};
 use log::info;
 
+// Heph has various utilties to support [systemd], thsi example shows those can
+// be used. You can use the following [service] file:
+//
+// ```
+// [Unit]
+// Description=Heph Test service
+// Requires=network.target
+//
+// [Service]
+// # Required to setup communication between the service manager (systemd) and the
+// # service itself.
+// Type=notify
+// # Restart the service if it fails.
+// Restart=on-failure
+// # Require the service to send a keep-alive ping every minute.
+// WatchdogSec=1min
+//
+// # Path to the example.
+// ExecStart=/path/to/heph/target/debug/examples/8_systemd
+// # The port the service will listen on.
+// Environment=PORT=8000
+// # Enable some debug logging.
+// Environment=DEBUG=1
+// ```
+//
+// [systemd]: https://systemd.io
+// [service]: https://www.freedesktop.org/software/systemd/man/systemd.service.html
 fn main() -> Result<(), rt::Error> {
     // Enable logging.
     std_logger::Config::logfmt().init();
@@ -55,7 +80,7 @@ fn main() -> Result<(), rt::Error> {
 
 restart_supervisor!(ServerSupervisor, ());
 
-async fn conn_actor(_: actor::Context<!, ThreadLocal>, stream: AsyncFd) -> io::Result<()> {
+async fn conn_actor(_: actor::Context<(), ThreadLocal>, stream: AsyncFd) -> io::Result<()> {
     let address: SocketAddr = stream.peer_addr().await?;
     info!(address:%; "accepted connection");
     let ip = address.ip().to_string();
