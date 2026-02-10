@@ -12,7 +12,8 @@ use std::{fmt, iter, ptr, task, thread};
 use log::trace;
 
 use crate::spawn::options::Priority;
-use crate::worker::SYSTEM_ACTORS;
+
+const SYSTEM_ACTORS: u16 = crate::worker::SYSTEM_ACTORS as u16;
 
 mod cfs;
 pub(crate) mod process;
@@ -71,11 +72,7 @@ impl<S: Schedule> Scheduler<S> {
     /// Returns true if the scheduler has any user processes (in any state),
     /// false otherwise. This ignore system processes.
     pub(crate) fn has_user_process(&self) -> bool {
-        self.has_ready_process()
-            || self
-                .inactive
-                .iter()
-                .any(|p| usize::from(p.available) != (N_PROCESS_PER_GROUP - SYSTEM_ACTORS))
+        self.has_ready_process() || self.inactive.iter().any(|p| p.length > SYSTEM_ACTORS)
     }
 
     /// Returns the number of processes ready to run.
@@ -85,7 +82,7 @@ impl<S: Schedule> Scheduler<S> {
 
     /// Returns the number of inactive processes.
     pub(crate) fn inactive(&self) -> usize {
-        self.inactive.iter().map(|p| usize::from(p.available)).sum()
+        self.inactive.iter().map(|p| usize::from(p.length)).sum()
     }
 
     /// Mark all processes that are awoken as ready.
@@ -115,7 +112,7 @@ impl<S: Schedule> Scheduler<S> {
     /// Reserve a slot for a process, returning the process id.
     fn reserve_slot(&mut self) -> ProcessId {
         for (n, inactive) in self.inactive.iter_mut().enumerate() {
-            if inactive.available == 0 {
+            if usize::from(inactive.length) >= N_PROCESS_PER_GROUP {
                 continue;
             }
             for (idx, slot) in inactive
@@ -128,7 +125,7 @@ impl<S: Schedule> Scheduler<S> {
                     continue;
                 }
 
-                inactive.available -= 1;
+                inactive.length += 1;
                 inactive.next_empty = idx as u16 + 1;
                 slot.mark_empty_as_ready();
 
@@ -138,7 +135,7 @@ impl<S: Schedule> Scheduler<S> {
 
         let sq = self.inactive[0].bitmap.inner().sq.clone();
         let inactive = self.inactive.push_mut(Processes::new(sq));
-        inactive.available -= 1;
+        inactive.length += 1;
         inactive.next_empty = 1;
         inactive.processes[0].mark_empty_as_ready();
 
@@ -178,7 +175,7 @@ impl<S: Schedule> Scheduler<S> {
         let (offset, idx) = offset_idx(process.id());
         let inactive = &mut self.inactive[offset];
         inactive.processes[idx as usize].mark_empty();
-        inactive.available += 1;
+        inactive.length -= 1;
         if inactive.next_empty > idx {
             inactive.next_empty = idx;
         }
@@ -211,8 +208,8 @@ struct Processes<S> {
     bitmap: ReadyMap,
     /// Index of the next empty process slot.
     next_empty: u16,
-    /// Number of available slots.
-    available: u16,
+    /// Number of slots taken in `processes`.
+    length: u16,
 }
 
 impl<S> Processes<S> {
@@ -227,7 +224,7 @@ impl<S> Processes<S> {
             processes: unsafe { Box::new_zeroed().assume_init() },
             bitmap: ReadyMap::new(sq),
             next_empty: 0,
-            available: N_PROCESS_PER_GROUP as u16,
+            length: 0,
         }
     }
 }
