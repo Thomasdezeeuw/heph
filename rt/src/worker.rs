@@ -351,12 +351,12 @@ impl Worker {
     ///
     /// This polls all event subsystems and schedules processes based on them.
     fn schedule_processes(&mut self) -> Result<(), Error> {
-        log::trace!(worker_id = self.internals.id; "polling event sources to schedule processes");
+        log::trace!(worker_id = self.internals.id; "scheduling processes");
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
         // Schedule local and shared processes based on various event sources.
         self.poll_os().map_err(Error::Polling)?;
-        let mut local_amount = self.schedule_from_waker();
+        let mut local_amount = self.schedule_local_processes();
         let now = Instant::now();
         local_amount += self.schedule_from_local_timers(now);
         let shared_amount = self.schedule_from_shared_timers(now);
@@ -381,11 +381,11 @@ impl Worker {
         Ok(())
     }
 
-    /// Schedule processes based on user space waker events, e.g. used by the
-    /// `Future` task system.
+    /// Schedule local processes based on user space waker events, e.g. used by
+    /// the `Future` task system.
     #[allow(clippy::needless_pass_by_ref_mut)]
-    fn schedule_from_waker(&mut self) -> usize {
-        log::trace!(worker_id = self.internals.id; "polling wakup events");
+    fn schedule_local_processes(&mut self) -> usize {
+        log::trace!(worker_id = self.internals.id; "scheduling local processes");
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
         let amount = self.internals.scheduler.borrow_mut().ready_processes();
