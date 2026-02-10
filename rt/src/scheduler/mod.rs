@@ -111,7 +111,7 @@ impl<S: Schedule> Scheduler<S> {
 
     /// Reserve a slot for a process, returning the process id.
     fn reserve_slot(&mut self) -> ProcessId {
-        for (n, inactive) in self.inactive.iter_mut().enumerate() {
+        for (n, inactive) in self.inactive.iter_mut().enumerate().rev() {
             if usize::from(inactive.length) >= N_PROCESS_PER_GROUP {
                 continue;
             }

@@ -1,7 +1,7 @@
 //! This is just a memory stress test of the runtime.
 //!
-//! Currently using 10 million "actors" this test uses ~3 GB and takes ~3
-//! seconds to spawn the actors.
+//! Currently using 10 million "actors" this test uses ~2.8 GB and takes less
+//! then 2 seconds to spawn the actors.
 
 #![feature(never_type)]
 
