@@ -54,10 +54,12 @@ pub(crate) struct Scheduler<S: Schedule = Cfs> {
 
 impl<S: Schedule> Scheduler<S> {
     /// Create a new `Scheduler`.
-    pub(crate) fn new() -> Scheduler<S> {
+    pub(crate) fn new(sq: a10::SubmissionQueue) -> Scheduler<S> {
+        let mut inactive = Vec::with_capacity(8);
+        inactive.push(Processes::new(sq));
         Scheduler {
             ready: BinaryHeap::with_capacity(8),
-            inactive: Vec::with_capacity(8),
+            inactive,
         }
     }
 
@@ -90,7 +92,7 @@ impl<S: Schedule> Scheduler<S> {
     pub(crate) fn ready_processes(&mut self) -> usize {
         let mut amount = 0;
         for inactive in self.inactive.iter_mut() {
-            for index in inactive.bitmaps.set_iter() {
+            for index in inactive.bitmap.set_iter() {
                 if let Some(process) = inactive.processes[index as usize].mark_ready() {
                     self.ready.push(process);
                     amount += 1;
@@ -134,7 +136,8 @@ impl<S: Schedule> Scheduler<S> {
             }
         }
 
-        let inactive = self.inactive.push_mut(Processes::new());
+        let sq = self.inactive[0].bitmap.inner().sq.clone();
+        let inactive = self.inactive.push_mut(Processes::new(sq));
         inactive.available -= 1;
         inactive.next_empty = 1;
         inactive.processes[0].mark_empty_as_ready();
@@ -150,7 +153,7 @@ impl<S: Schedule> Scheduler<S> {
     /// Create a new waker for `process`.
     pub(crate) fn waker_for_process(&self, process: Pin<&Process<S>>) -> task::Waker {
         let (offset, idx) = offset_idx(process.id());
-        self.inactive[offset].bitmaps.new_waker(idx)
+        self.inactive[offset].bitmap.new_waker(idx)
     }
 
     /// Add back a `process` that was previously removed via
@@ -186,7 +189,7 @@ impl<S: Schedule> Scheduler<S> {
 }
 
 /// Create a pid from the `offset` in `Scheduler::inactive` and the `idx` into
-/// `Process:processes` (and `Processes:bitmaps`).
+/// `Process:processes` (and `Processes:bitmap`).
 fn pid(offset: usize, idx: u16) -> ProcessId {
     ProcessId(offset << GROUP_SHIFT | idx as usize)
 }
@@ -205,7 +208,7 @@ struct Processes<S> {
     processes: Box<[ProcessSlot<S>; N_PROCESS_PER_GROUP]>,
     /// Bitmaps indicate the processes are ready to run, but are not yet marked
     /// as such.
-    bitmaps: ReadyMap,
+    bitmap: ReadyMap,
     /// Index of the next empty process slot.
     next_empty: u16,
     /// Number of available slots.
@@ -213,7 +216,7 @@ struct Processes<S> {
 }
 
 impl<S> Processes<S> {
-    fn new() -> Processes<S> {
+    fn new(sq: a10::SubmissionQueue) -> Processes<S> {
         /* TODO: use a const assertion once that works.
         const _ZEROED_OK: () =
         */
@@ -222,7 +225,7 @@ impl<S> Processes<S> {
             // SAFETY: all zero bits is valid for ProcessSlot as it means the
             // slot is empty.
             processes: unsafe { Box::new_zeroed().assume_init() },
-            bitmaps: ReadyMap::new(),
+            bitmap: ReadyMap::new(sq),
             next_empty: 0,
             available: N_PROCESS_PER_GROUP as u16,
         }
@@ -335,15 +338,20 @@ const N_BITS_CONTAINERS: usize = N_PROCESS_PER_GROUP / u64::BITS as usize;
 const BITS_IN_MAP: usize = N_BITS_CONTAINERS * u64::BITS as usize;
 
 struct ReadyMapInner {
+    sq: a10::SubmissionQueue,
     ref_count: AtomicU64,
     bits: [AtomicU64; N_BITS_CONTAINERS],
 }
 
 impl ReadyMap {
-    fn new() -> ReadyMap {
-        // SAFETY: all zero bits is valid for AtomicU64 and thus for
-        // ReadyMapInner.
-        let mut inner: Box<ReadyMapInner> = unsafe { Box::new_zeroed().assume_init() };
+    fn new(sq: a10::SubmissionQueue) -> ReadyMap {
+        let mut inner = {
+            let mut alloc = Box::<ReadyMapInner>::new_zeroed();
+            unsafe { ptr::addr_of_mut!((*alloc.as_mut_ptr()).sq).write(sq) };
+            // SAFETY: all zero bits is valid for AtomicU64 and thus for
+            // ref_count and bits. The sq field we properly initialised.
+            unsafe { alloc.assume_init() }
+        };
         *inner.ref_count.get_mut() = 1;
         ReadyMap {
             ptr: Box::into_non_null(inner),
@@ -369,14 +377,14 @@ impl ReadyMap {
 
         unsafe fn wake(data: *const ()) {
             let (ptr, idx) = untag(data);
-            ReadyMap { ptr }.inner().set(idx);
+            ReadyMap { ptr }.inner().wake(idx);
         }
 
         unsafe fn wake_by_ref(data: *const ()) {
             let (ptr, idx) = untag(data);
             // SAFETY: in the creation of the task::Waker we've ensured the
             // pointer is valid.
-            unsafe { ptr.as_ref() }.set(idx);
+            unsafe { ptr.as_ref() }.wake(idx);
         }
 
         unsafe fn drop(data: *const ()) {
@@ -438,6 +446,12 @@ impl ReadyMap {
 }
 
 impl ReadyMapInner {
+    /// Wake process with `index`.
+    fn wake(&self, index: u16) {
+        self.set(index);
+        self.sq.wake();
+    }
+
     /// Set bit at `index`.
     fn set(&self, index: u16) {
         let index = usize::from(index);

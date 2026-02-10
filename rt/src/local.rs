@@ -57,7 +57,7 @@ impl RuntimeInternals {
         RuntimeInternals {
             id,
             shared: shared_internals,
-            scheduler: RefCell::new(Scheduler::new()),
+            scheduler: RefCell::new(Scheduler::new(ring.sq())),
             ring: RefCell::new(ring),
             timers: RefCell::new(Timers::new()),
             signal_receivers: RefCell::new(ActorGroup::empty()),
