@@ -1,7 +1,10 @@
+use std::io;
+
 use heph::actor::{self, actor_fn};
-use heph::supervisor::NoSupervisor;
+use heph::supervisor::StopSupervisor;
+use heph_rt::io::stdout;
 use heph_rt::spawn::ActorOptions;
-use heph_rt::{self as rt, Runtime, RuntimeRef, ThreadLocal};
+use heph_rt::{self as rt, Access, Runtime, RuntimeRef, ThreadLocal};
 
 // Conforming to the tradition that is "Hello, World!", a simple program that
 // prints "Hello, World!" from an actor.
@@ -24,7 +27,7 @@ fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), rt::Error> {
     // We spawn our actor here. For more information on spawning actors see
     // example 2_spawning_actors.
     let actor = actor_fn(greeter_actor);
-    runtime_ref.spawn_local(NoSupervisor, actor, (), ActorOptions::default());
+    runtime_ref.spawn_local(StopSupervisor, actor, (), ActorOptions::default());
 
     Ok(())
 }
@@ -32,6 +35,8 @@ fn add_greeter_actor(mut runtime_ref: RuntimeRef) -> Result<(), rt::Error> {
 /// Our greeter actor.
 ///
 /// It will print a greeter and stop.
-async fn greeter_actor(_ctx: actor::Context<(), ThreadLocal>) {
-    println!("Hello, world!");
+async fn greeter_actor(ctx: actor::Context<(), ThreadLocal>) -> io::Result<()> {
+    stdout(ctx.runtime_ref().sq())
+        .write_all("Hello, World!\n")
+        .await
 }
