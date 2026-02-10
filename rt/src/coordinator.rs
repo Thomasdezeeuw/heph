@@ -38,8 +38,10 @@ use crate::{self as rt, cpu_usage, process, shared, sync_worker, trace, worker};
 /// process signals.
 pub(crate) fn setup(app_name: Box<str>) -> io::Result<Setup> {
     let config = a10::Ring::config();
+    /* TODO: this breaks waking.
     #[cfg(any(target_os = "android", target_os = "linux"))]
     let config = config.single_issuer().defer_task_run();
+    */
     let ring = config.build()?;
 
     // NOTE: signal handling MUST be setup before spawning the worker threads as
