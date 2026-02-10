@@ -424,11 +424,10 @@ impl ReadyMap {
             let mut i = value.trailing_zeros();
             iter::from_fn(move || {
                 while i < u64::BITS {
+                    let idx = (n * usize::BITS as usize) as u16 + i as u16;
                     value &= !(1 << i);
-                    if ((value >> i) & 1) != 0 {
-                        return Some((n * usize::BITS as usize) as u16 + i as u16);
-                    }
                     i += (value >> i).trailing_zeros();
+                    return Some(idx);
                 }
                 None
             })
