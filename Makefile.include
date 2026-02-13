@@ -115,8 +115,10 @@ clippy:
 		--deny clippy::nursery \
 		--deny clippy::cargo \
 		--allow clippy::cargo-common-metadata \
+		--allow clippy::collapsible_if \
 		--allow clippy::doc-link-code \
 		--allow clippy::doc-markdown \
+		--allow clippy::elidable-lifetime-names \
 		--allow clippy::enum-glob-use \
 		--allow clippy::equatable-if-let \
 		--allow clippy::future-not-send \
@@ -131,9 +133,9 @@ clippy:
 		--allow clippy::new-without-default \
 		--allow clippy::option-if-let-else \
 		--allow clippy::redundant-pub-crate \
+		--allow clippy::single_match_else \
 		--allow clippy::use-self \
 		--allow clippy::used-underscore-items \
-		--allow clippy::elidable-lifetime-names \
 
 doc:
 	cargo doc --all-features
