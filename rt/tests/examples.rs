@@ -20,7 +20,20 @@ use util::send_signal;
 #[test]
 fn test_1_hello_world() {
     let output = run_example_output("1_hello_world");
-    assert_eq!(output, "Hello World\n");
+    assert_eq!(output, "Hello, World!\n");
+}
+
+#[test]
+fn test_2_spawning_actors() {
+    let output = run_example_output("2_spawning_actors");
+
+    let expected = &[
+        "Hello Alice from sync actor",
+        "Hello Bob from thread-safe actor",
+        "Hello Charlie from thread-local actor",
+        "Hello Charlie from thread-local actor",
+    ];
+    unordered_output(expected, output);
 }
 
 #[test]
@@ -33,46 +46,8 @@ fn test_3_rpc() {
 }
 
 #[test]
-fn test_4_my_ip() {
-    let mut child = run_example("4_my_ip");
-
-    // First read the startup message, ensuring the runtime has time to start
-    // up.
-    let expected =
-        "lvl=\"INFO\" msg=\"listening on 127.0.0.1:7890\" target=\"4_my_ip\" module=\"4_my_ip\"\n";
-    let mut output = vec![0; expected.len() + 1];
-    #[rustfmt::skip]
-    let n = child.inner.stderr.as_mut().unwrap().read(&mut output).unwrap();
-    let got = std::str::from_utf8(&output[..n]).unwrap();
-    assert_eq!(expected, got);
-    assert_eq!(n, expected.len());
-
-    // Connect to the running example.
-    let address = "127.0.0.1:7890".parse().unwrap();
-    let mut stream = tcp_retry_connect(address);
-    let mut output = String::new();
-    stream
-        .read_to_string(&mut output)
-        .expect("unable to to read from stream");
-    assert_eq!(output, "127.0.0.1");
-
-    if let Err(err) = send_signal(child.inner.id(), libc::SIGINT) {
-        panic!("unexpected error sending signal to process: {err}");
-    }
-}
-
-#[test]
-fn test_4_spawning_actors() {
-    let output = run_example_output("4_spawning_actors");
-    assert_eq!(
-        output,
-        "Hello Alice from sync actor\nHello Bob from thread-safe actor\nHello Charlie from thread-local actor\n"
-    );
-}
-
-#[test]
-fn test_6_process_signals() {
-    let mut child = run_example("6_process_signals");
+fn test_4_process_signals() {
+    let mut child = run_example("4_process_signals");
 
     let want_greetings = &[
         "Got a message: Hello sync actor",
@@ -99,12 +74,7 @@ fn test_6_process_signals() {
     output.truncate(n);
     let output = String::from_utf8(output).unwrap();
 
-    // Because the order in which the actors are run is unspecified we don't
-    // know the order of the output.
-    let mut lines = output.lines();
-    let mut got_greetings: Vec<&str> = (&mut lines).take(3).collect();
-    got_greetings.sort_unstable();
-    assert_eq!(got_greetings, want_greetings);
+    unordered_output(want_greetings, output);
 
     // After we know the runtime started we can send it a process signal to
     // start the actual test.
@@ -113,57 +83,56 @@ fn test_6_process_signals() {
     }
 
     // Read the remainder of the output, expecting the shutdown messages.
-    let output = read_output(child);
-    let lines = output.lines();
-    let mut got_shutdown: Vec<&str> = lines.collect();
-    got_shutdown.sort_unstable();
-    let want_shutdown = [
+    let want_shutdown = &[
         "shutting down the synchronous actor",
         "shutting down the thread local actor",
         "shutting down the thread safe actor",
     ];
-    assert_eq!(got_shutdown, want_shutdown);
+    let output = read_output(child);
+    unordered_output(want_shutdown, output);
 }
 
 #[test]
-fn test_7_restart_supervisor() {
-    // Index of the "?" in the string below.
-    const SYNC_LEFT_INDEX: usize = 56;
-    const ASYNC_LEFT_INDEX: usize = 51;
+fn test_5_my_ip() {
+    let mut child = run_example("5_my_ip");
 
-    let output = run_example_output("7_restart_supervisor");
-    let mut lines = output.lines();
+    // First read the startup message, ensuring the runtime has time to start
+    // up.
+    let expected =
+        "lvl=\"INFO\" msg=\"listening on 127.0.0.1:7890\" target=\"5_my_ip\" module=\"5_my_ip\"\n";
+    let mut output = vec![0; expected.len() + 1];
+    #[rustfmt::skip]
+    let n = child.inner.stderr.as_mut().unwrap().read(&mut output).unwrap();
+    let got = std::str::from_utf8(&output[..n]).unwrap();
+    assert_eq!(expected, got);
+    assert_eq!(n, expected.len());
 
-    let mut expected = "lvl=\"WARN\" msg=\"sync_print_actor failed, restarting it (?/5 restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"".to_owned();
-    for left in (0..5).rev() {
-        let line = lines.next().unwrap();
+    // Connect to the running example.
+    let address = "127.0.0.1:7890".parse().unwrap();
+    let mut stream = tcp_retry_connect(address);
+    let mut output = String::new();
+    stream
+        .read_to_string(&mut output)
+        .expect("unable to to read from stream");
+    assert_eq!(output, "127.0.0.1");
 
-        unsafe {
-            expected.as_bytes_mut()[SYNC_LEFT_INDEX] = b'0' + left;
-        }
-        assert_eq!(line, expected);
+    if let Err(err) = send_signal(child.inner.id(), libc::SIGINT) {
+        panic!("unexpected error sending signal to process: {err}");
     }
+}
 
-    let expected = "lvl=\"WARN\" msg=\"sync_print_actor failed, stopping it (no restarts left): can't print message synchronously 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"";
-    let last_line = lines.next().unwrap();
-    assert_eq!(last_line, expected);
-
-    let mut expected = "lvl=\"WARN\" msg=\"print_actor failed, restarting it (?/5 restarts left): can't print message 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"".to_owned();
-    for left in (0..5).rev() {
-        let line = lines.next().unwrap();
-
-        unsafe {
-            expected.as_bytes_mut()[ASYNC_LEFT_INDEX] = b'0' + left;
-        }
-        assert_eq!(line, expected);
-    }
-
-    let expected = "lvl=\"WARN\" msg=\"print_actor failed, stopping it (no restarts left): can't print message 'Hello world!': actor message 'Hello world!'\" target=\"7_restart_supervisor\" module=\"7_restart_supervisor\"";
-    let last_line = lines.next().unwrap();
-    assert_eq!(last_line, expected);
-
-    // Expect no more output.
-    assert_eq!(lines.next(), None);
+#[test]
+fn test_6_restart_supervisor() {
+    let output = run_example_output("6_restart_supervisor");
+    let expected = &[
+        "lvl=\"WARN\" msg=\"print_actor failed, restarting it (0/2 restarts left): can't print message 'Hello world!'\" target=\"6_restart_supervisor\" module=\"6_restart_supervisor\"",
+        "lvl=\"WARN\" msg=\"print_actor failed, restarting it (1/2 restarts left): can't print message 'Hello world!'\" target=\"6_restart_supervisor\" module=\"6_restart_supervisor\"",
+        "lvl=\"WARN\" msg=\"print_actor failed, stopping it (no restarts left): can't print message 'Hello world!'\" target=\"6_restart_supervisor\" module=\"6_restart_supervisor\"",
+        "lvl=\"WARN\" msg=\"sync_print_actor failed, restarting it (0/2 restarts left): can't print message synchronously 'Hello world!'\" target=\"6_restart_supervisor\" module=\"6_restart_supervisor\"",
+        "lvl=\"WARN\" msg=\"sync_print_actor failed, restarting it (1/2 restarts left): can't print message synchronously 'Hello world!'\" target=\"6_restart_supervisor\" module=\"6_restart_supervisor\"",
+        "lvl=\"WARN\" msg=\"sync_print_actor failed, stopping it (no restarts left): can't print message synchronously 'Hello world!'\" target=\"6_restart_supervisor\" module=\"6_restart_supervisor\"",
+    ];
+    unordered_output(expected, output);
 }
 
 /// Wrapper around a `command::Child` that kills the process when dropped, even
@@ -217,41 +186,35 @@ fn run_example(name: &'static str) -> ChildCommand {
     ];
 
     let mut errs = Vec::new();
-    let mut build = false;
-    loop {
-        for path in paths.iter() {
-            let res = Command::new(path)
-                .stdin(Stdio::null())
-                .stderr(Stdio::piped())
-                .stdout(Stdio::piped())
-                .spawn()
-                .map(|inner| ChildCommand { inner });
-            match res {
-                Ok(cmd) => return cmd,
-                Err(err) => errs.push(err),
-            }
+    let res = Command::new("cargo")
+        .args(["build", "--example", name])
+        .stdin(Stdio::null())
+        .output();
+    match res {
+        Ok(output) if output.status.success() => {}
+        Ok(output) => {
+            let out = String::from_utf8_lossy(&output.stdout).to_owned();
+            let err = String::from_utf8_lossy(&output.stdout).to_owned();
+            let msg = format!("failed to build example:\n{out}\n{err}");
+            errs.push(io::Error::new(io::ErrorKind::Other, msg));
         }
-
-        if !build {
-            let res = Command::new("cargo")
-                .args(["build", "--example", name])
-                .stdin(Stdio::null())
-                .output();
-            build = true;
-            match res {
-                Ok(output) if output.status.success() => continue,
-                Ok(output) => {
-                    let out = String::from_utf8_lossy(&output.stdout).to_owned();
-                    let err = String::from_utf8_lossy(&output.stdout).to_owned();
-                    let msg = format!("failed to build example:\n{out}\n{err}");
-                    errs.push(io::Error::new(io::ErrorKind::Other, msg));
-                }
-                Err(err) => errs.push(err),
-            }
-        } else {
-            panic!("failed to run example '{name}': errors: {errs:?}");
-        };
+        Err(err) => errs.push(err),
     }
+
+    for path in paths.iter() {
+        let res = Command::new(path)
+            .stdin(Stdio::null())
+            .stderr(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .map(|inner| ChildCommand { inner });
+        match res {
+            Ok(cmd) => return cmd,
+            Err(err) => errs.push(err),
+        }
+    }
+
+    panic!("failed to run example '{name}': errors: {errs:?}");
 }
 
 /// Read the standard output of the child command.
@@ -268,6 +231,17 @@ fn read_output(mut child: ChildCommand) -> String {
         .read_to_string(&mut output)
         .expect("error reading standard error of example");
     output
+}
+
+/// Expected all lines in `expected` to be in `output`.
+fn unordered_output(expected: &[&str], output: String) {
+    assert!(expected.is_sorted());
+
+    // Because the order in which the actors are run is unspecified we don't
+    // know the order of the output.
+    let mut got: Vec<&str> = output.lines().collect();
+    got.sort_unstable();
+    assert_eq!(got, expected);
 }
 
 fn tcp_retry_connect(address: SocketAddr) -> TcpStream {
