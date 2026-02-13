@@ -35,6 +35,15 @@
 //!
 //! [multishot reads]: crate::fd::AsyncFd::multishot_read
 //!
+//! ## Other Buffer types
+//!
+//! If you hit an error that complains that "`&'0 T` must implement `Buf`, for
+//! any lifetime `'0`, but `Buf` is actually implemented for the type `&'static
+//! T`", [`StaticBuf`] is buffer to use to work around this.
+//!
+//! [`LimitedBuf`] exist to limit the amount of bytes read from or written to a
+//! buffer.
+//!
 //! # Working with Standard I/O Streams
 //!
 //! The [`stdin`], [`stdout`] and [`stderr`] functions provide handles to
