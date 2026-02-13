@@ -1,16 +1,16 @@
 //! Testing facilities.
 //!
 //! This module will lazily create an single-threaded *test* runtime. Functions
-//! such as [`try_spawn_local`] will use this to spawn and run actors. The
+//! such as [`block_on_local_actor`] will use this to spawn and run actors. The
 //! *test* runtime will not stop and the thread's resources are not cleaned up
 //! (properly).
 //!
 //! Available utilities:
 //!  * Blocking:
 //!    * [`block_on_local_actor`]: spawns a thread-local [actor] and waits for
-//!      the result.
-//!    * [`block_on_actor`]: spawns a thread-safe [actor] and waits for the
-//!      result.
+//!      it to run until completion.
+//!    * [`block_on_actor`]: spawns a thread-safe [actor] and waits for it to
+//!      run until completion.
 //!    * [`block_on_future`]: spawns a `Future` and waits for the result.
 //!  * Spawning actors:
 //!    * [`try_spawn_local`] and [`spawn_local`]: attempt to spawn a thread-local [actor].
