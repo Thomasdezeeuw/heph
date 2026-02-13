@@ -356,9 +356,9 @@ impl Worker {
 
         // Schedule local and shared processes based on various event sources.
         self.poll_os().map_err(Error::Polling)?;
-        let mut local_amount = self.schedule_local_processes();
         let now = Instant::now();
-        local_amount += self.schedule_from_local_timers(now);
+        let mut local_amount = self.schedule_from_local_timers(now);
+        local_amount += self.schedule_local_processes();
         let shared_amount = self.schedule_from_shared_timers(now);
 
         trace::finish_rt(
