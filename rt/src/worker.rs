@@ -385,15 +385,15 @@ impl Worker {
     /// the `Future` task system.
     #[allow(clippy::needless_pass_by_ref_mut)]
     fn schedule_local_processes(&mut self) -> usize {
-        log::trace!(worker_id = self.internals.id; "scheduling local processes");
         let timing = trace::start(&*self.internals.trace_log.borrow());
+        log::trace!(worker_id = self.internals.id; "scheduling thread-local processes");
 
         let amount = self.internals.scheduler.borrow_mut().ready_processes();
 
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
             timing,
-            "Scheduling thread-local processes based on wake-up events",
+            "Scheduling thread-local processes",
             &[("amount", &amount)],
         );
         amount
@@ -402,8 +402,8 @@ impl Worker {
     /// Schedule processes based on local timers.
     #[allow(clippy::needless_pass_by_ref_mut)]
     fn schedule_from_local_timers(&mut self, now: Instant) -> usize {
-        log::trace!(worker_id = self.internals.id; "polling local timers");
         let timing = trace::start(&*self.internals.trace_log.borrow());
+        log::trace!(worker_id = self.internals.id; "polling local timers");
         let amount = self.internals.timers.borrow_mut().expire_timers(now);
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
@@ -417,8 +417,8 @@ impl Worker {
     /// Schedule processes based on shared timers.
     #[allow(clippy::needless_pass_by_ref_mut)]
     fn schedule_from_shared_timers(&mut self, now: Instant) -> usize {
-        log::trace!(worker_id = self.internals.id; "polling shared timers");
         let timing = trace::start(&*self.internals.trace_log.borrow());
+        log::trace!(worker_id = self.internals.id; "polling shared timers");
         let amount = self.internals.shared.expire_timers(now);
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
@@ -464,9 +464,11 @@ impl Worker {
     fn poll_os(&mut self) -> io::Result<()> {
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
-        // First process any shared completions, this influences
-        // `determine_timeout` below as we might schedule shared processes etc.
-        // Note that the call never blocks.
+        // First process any shared completions as this influences
+        // determine_timeout below as we might schedule shared processes etc.
+        // This also submits all submissions for I/O to ensure we're waiting on
+        // those as well.
+        // Note: this call never blocks.
         log::trace!(worker_id = self.internals.id; "polling shared ring");
         self.internals.shared.try_poll_ring()?;
 
@@ -493,8 +495,8 @@ impl Worker {
         if self.internals.scheduler.borrow().has_ready_process()
             || self.internals.shared.has_ready_process()
         {
-            // If there are any processes ready to run (local or shared), or any
-            // waker events we don't want to block.
+            // If there are any processes ready to run (local or shared) we
+            // don't want to block.
             return Some(Duration::ZERO);
         }
 
