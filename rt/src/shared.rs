@@ -110,6 +110,10 @@ impl RuntimeInternals {
         self.wakers.new_task_waker(pid)
     }
 
+    pub(crate) fn ring_pollable(&self, sq: a10::SubmissionQueue) -> a10::poll::Pollable {
+        self.ring.lock().unwrap().pollable(sq)
+    }
+
     /// Polls the io_uring completion ring if it's currently not being polled.
     pub(crate) fn try_poll_ring(&self) -> io::Result<()> {
         match self.ring.try_lock() {

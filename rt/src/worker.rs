@@ -29,10 +29,11 @@ use heph::supervisor::NoSupervisor;
 use crate::error::StringError;
 use crate::local::RuntimeInternals;
 use crate::spawn::options::ActorOptions;
-use crate::{self as rt, RuntimeRef, ThreadLocal, process, shared, trace};
+use crate::util::next;
+use crate::{self as rt, Access, RuntimeRef, ThreadLocal, process, shared, trace};
 
 /// Number of system actors (spawned in the local scheduler).
-pub(crate) const SYSTEM_ACTORS: usize = 1;
+pub(crate) const SYSTEM_ACTORS: usize = 2;
 
 /// Number of processes to run in between calls to poll.
 ///
@@ -462,22 +463,17 @@ impl Worker {
     fn poll_os(&mut self) -> io::Result<()> {
         let timing = trace::start(&*self.internals.trace_log.borrow());
 
-        // First process any shared completions as this influences
-        // determine_timeout below as we might schedule shared processes etc.
-        // This also submits all submissions for I/O to ensure we're waiting on
-        // those as well.
-        // Note: this call never blocks.
+        // First submit any outstanding shared submissions for I/O and process
+        // any shared completions as this influences determine_timeout below as
+        // we might schedule shared processes etc.
+        // Note: this call never blocks. poll_actor below will be awoken if the
+        // ring needs to be polled.
         log::trace!(worker_id = self.internals.id; "polling shared ring");
         self.internals.shared.try_poll_ring()?;
 
         let timeout = self.determine_timeout();
         log::trace!(worker_id = self.internals.id, timeout:?; "polling for OS events");
         self.internals.ring.borrow_mut().poll(timeout)?;
-
-        // Since we could have been polling our own ring for a long time we poll
-        // the shared ring again.
-        log::trace!(worker_id = self.internals.id; "polling shared ring");
-        self.internals.shared.try_poll_ring()?;
 
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
@@ -582,8 +578,9 @@ fn spawn_system_actors(mut runtime_ref: RuntimeRef) -> ActorRef<Control> {
     log::trace!(worker_id = runtime_ref.internals.id; "spawning {SYSTEM_ACTORS} system actors");
     let sys_ref =
         runtime_ref.spawn_local(NoSupervisor, actor_fn(comm_actor), (), ActorOptions::SYSTEM);
+    let _ = runtime_ref.spawn_local(NoSupervisor, actor_fn(poll_actor), (), ActorOptions::SYSTEM);
     // Keep this up to date, otherwise we'll exit early.
-    assert!(SYSTEM_ACTORS == 1);
+    assert!(SYSTEM_ACTORS == 2);
     sys_ref
 }
 
@@ -615,8 +612,8 @@ impl fmt::Debug for Control {
 async fn comm_actor(mut ctx: actor::Context<Control, ThreadLocal>) {
     while let Ok(msg) = ctx.receive_next().await {
         let internals = &ctx.runtime_ref().internals;
-        log::trace!(worker_id = internals.id, message:? = msg; "processing coordinator message");
         let timing = trace::start(&*internals.trace_log.borrow());
+        log::trace!(worker_id = internals.id, message:? = msg; "processing coordinator message");
         match msg {
             Control::Started => internals.start(),
             Control::Signal(signal) => internals.relay_signal(signal),
@@ -626,6 +623,33 @@ async fn comm_actor(mut ctx: actor::Context<Control, ThreadLocal>) {
             internals.trace_log.borrow_mut().as_mut(),
             timing,
             "Processing communication message",
+            &[],
+        );
+    }
+}
+
+/// System actor that polls the shared ring.
+async fn poll_actor(ctx: actor::Context<!, ThreadLocal>) {
+    let mut pollable = ctx
+        .runtime_ref()
+        .shared()
+        .ring_pollable(ctx.runtime_ref().sq());
+    while let Some(res) = next(&mut pollable).await {
+        if let Err(err) = res {
+            log::warn!("error checking if ring is pollable: {err}");
+            // NOTE: going to poll the shared ring below just in case.
+        }
+
+        let internals = &ctx.runtime_ref().internals;
+        let timing = trace::start(&*internals.trace_log.borrow());
+        log::trace!(worker_id = internals.id; "polling shared ring");
+        if let Err(err) = internals.shared.try_poll_ring() {
+            log::warn!("error polling shared ring: {err}");
+        }
+        trace::finish_rt(
+            internals.trace_log.borrow_mut().as_mut(),
+            timing,
+            "Polling shared ring",
             &[],
         );
     }
