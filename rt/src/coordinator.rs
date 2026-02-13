@@ -219,8 +219,8 @@ impl Coordinator {
     /// Check if a process signal was received, relaying it to the `workers` and
     /// actors in `signal_refs`.
     fn relay_process_signals(&mut self) -> Result<(), rt::Error> {
-        log::trace!("checking for process signals");
         let timing = trace::start(&self.trace_log);
+        log::trace!("checking for process signals");
         let waker = bitmap::new_waker_set_bit0(self.check.clone());
         let mut ctx = task::Context::from_waker(&waker);
         loop {

@@ -350,8 +350,8 @@ impl Worker {
     ///
     /// This polls all event subsystems and schedules processes based on them.
     fn schedule_processes(&mut self) -> Result<(), Error> {
-        log::trace!(worker_id = self.internals.id; "scheduling processes");
         let timing = trace::start(&*self.internals.trace_log.borrow());
+        log::trace!(worker_id = self.internals.id; "scheduling processes");
 
         // Schedule local and shared processes based on various event sources.
         self.poll_os().map_err(Error::Polling)?;
@@ -403,7 +403,9 @@ impl Worker {
     fn schedule_from_local_timers(&mut self, now: Instant) -> usize {
         let timing = trace::start(&*self.internals.trace_log.borrow());
         log::trace!(worker_id = self.internals.id; "polling local timers");
+
         let amount = self.internals.timers.borrow_mut().expire_timers(now);
+
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
             timing,
@@ -418,7 +420,9 @@ impl Worker {
     fn schedule_from_shared_timers(&mut self, now: Instant) -> usize {
         let timing = trace::start(&*self.internals.trace_log.borrow());
         log::trace!(worker_id = self.internals.id; "polling shared timers");
+
         let amount = self.internals.shared.expire_timers(now);
+
         trace::finish_rt(
             self.internals.trace_log.borrow_mut().as_mut(),
             timing,
