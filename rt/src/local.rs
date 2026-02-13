@@ -103,7 +103,7 @@ impl RuntimeInternals {
             self.trace_log.borrow_mut().as_mut(),
             timing,
             "Relaying process signal to actors",
-            &[("signal", &format_args!("{:?}", signal))],
+            &[("signal", &format_args!("{signal:?}"))],
         );
     }
 

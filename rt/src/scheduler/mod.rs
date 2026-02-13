@@ -88,7 +88,7 @@ impl<S: Schedule> Scheduler<S> {
     /// Mark all processes that are awoken as ready.
     pub(crate) fn ready_processes(&mut self) -> usize {
         let mut amount = 0;
-        for inactive in self.inactive.iter_mut() {
+        for inactive in &mut self.inactive {
             for index in inactive.bitmap.set_iter() {
                 if let Some(process) = inactive.processes[index as usize].mark_ready() {
                     self.ready.push(process);
@@ -100,13 +100,14 @@ impl<S: Schedule> Scheduler<S> {
     }
 
     /// Add a new proces to the scheduler.
-    pub(crate) fn add_new_process<P>(&mut self, priority: Priority, process: P)
+    pub(crate) fn add_new_process<P>(&mut self, priority: Priority, process: P) -> ProcessId
     where
         P: process::Run + 'static,
     {
         let pid = self.reserve_slot();
         let process = Box::pin(Process::<S>::new(pid, priority, Box::pin(process)));
         self.ready.push(process);
+        pid
     }
 
     /// Reserve a slot for a process, returning the process id.
@@ -139,7 +140,7 @@ impl<S: Schedule> Scheduler<S> {
         inactive.next_empty = 1;
         inactive.processes[0].mark_empty_as_ready();
 
-        return pid(self.inactive.len() - 1, 0);
+        pid(self.inactive.len() - 1, 0)
     }
 
     /// Returns the next ready process.
@@ -159,9 +160,7 @@ impl<S: Schedule> Scheduler<S> {
         let pid = process.id();
         trace!(pid; "adding back process");
         let (offset, idx) = offset_idx(process.id());
-        if let Err(process) = self.inactive[offset].processes[idx as usize].add_back(process) {
-            self.ready.push(process);
-        }
+        self.inactive[offset].processes[idx as usize].add_back(process);
     }
 
     /// Mark `process` as complete, removing it from the scheduler.
@@ -288,12 +287,11 @@ impl<S> ProcessSlot<S> {
         }
     }
 
-    fn add_back(&mut self, process: Pin<Box<Process<S>>>) -> Result<(), Pin<Box<Process<S>>>> {
+    fn add_back(&mut self, process: Pin<Box<Process<S>>>) {
         debug_assert!(self.is_ready());
         // SAFETY: we take care of the pointer and don't move the process, see
         // the ptr field documentation.
         self.ptr = unsafe { Box::into_raw(Pin::into_inner_unchecked(process)) };
-        Ok(())
     }
 
     fn mark_empty(&mut self) {
@@ -404,7 +402,7 @@ impl ReadyMap {
         }
 
         let data = tag(self.ptr, index);
-        let _ = self.inner().increase_ref_count(); // One for the new waker.
+        self.inner().increase_ref_count(); // One for the new waker.
         unsafe { task::Waker::new(data, &VTABLE) }
     }
 

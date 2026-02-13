@@ -92,6 +92,7 @@ impl fmt::Debug for AtomicBitMap {
 ///
 /// The caller must ensure that a `Arc<AtomicBitMap>` always outlives any
 /// created waker to ensure proper deallocation.
+#[allow(clippy::cast_ptr_alignment)] // Casting *const () to AtomicBitMap.
 pub(crate) fn new_waker_set_bit0(bitmap: Arc<AtomicBitMap>) -> task::Waker {
     static VTABLE: task::RawWakerVTable = task::RawWakerVTable::new(
         // clone.

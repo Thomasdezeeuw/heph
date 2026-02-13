@@ -187,7 +187,7 @@ impl Worker {
                     cpu_affinity = Some(cpu_id);
                 }
                 Err(err) => {
-                    log::warn!(worker_id = id; "failed to set CPU affinity on thread: {err}")
+                    log::warn!(worker_id = id; "failed to set CPU affinity on thread: {err}");
                 }
             }
         }
@@ -281,7 +281,7 @@ impl Worker {
                 match result.result {
                     task::Poll::Ready(()) => {
                         if let Err(err) = self.internals.scheduler.borrow_mut().complete(process) {
-                            let msg = panic_message(&err);
+                            let msg = panic_message(&*err);
                             log::warn!("panicked while dropping process: {msg}");
                         }
                     }

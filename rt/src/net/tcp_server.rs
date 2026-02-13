@@ -277,6 +277,7 @@ where
     ///  * `supervisor`: the [`Supervisor`] used to supervise each started actor,
     ///  * `new_actor`: the [`NewActor`] implementation to start each actor, and
     ///  * `options`: the actor options used to spawn the new actors.
+    #[allow(clippy::cast_possible_truncation)] // For all the libc constants.
     pub fn new(
         mut address: SocketAddr,
         supervisor: S,
@@ -297,7 +298,7 @@ where
                 let _ = syscall!(getsockname(
                     socket.as_raw_fd(),
                     ptr::from_mut(&mut addr).cast(),
-                    &mut size,
+                    &raw mut size,
                 ))?;
                 // NOTE: we just created the socket above so we know it's either
                 // IPv4 or IPv6, meaning this else case is ok.
@@ -333,6 +334,7 @@ where
 
 /// Create a new TCP listener bound to `address`, but **not** listening using
 /// blocking I/O.
+#[allow(clippy::cast_possible_truncation)] // For all the libc constants.
 fn bind_listener(address: SocketAddr) -> io::Result<std::os::fd::OwnedFd> {
     let domain = match address {
         SocketAddr::V4(_) => libc::AF_INET,
@@ -431,6 +433,7 @@ impl<S, NA> Clone for TcpServer<S, NA> {
     }
 }
 
+#[allow(clippy::cast_possible_truncation)] // For setting of IncomingCpu.
 async fn tcp_server<S, NA>(
     mut ctx: actor::Context<ServerMessage, NA::RuntimeAccess>,
     local: SocketAddr,

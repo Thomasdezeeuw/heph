@@ -236,7 +236,7 @@ impl Coordinator {
                     }
 
                     log::trace!(signal:?; "relaying process signal to worker threads");
-                    for worker in self.workers.iter_mut() {
+                    for worker in &mut self.workers {
                         let Some(worker) = worker else {
                             continue;
                         };
