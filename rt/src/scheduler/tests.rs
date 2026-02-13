@@ -12,19 +12,19 @@ use heph::ActorFutureBuilder;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::NoSupervisor;
 
-use crate::ThreadLocal;
 use crate::scheduler::process::{self, FutureProcess, RunStats};
 use crate::scheduler::{Cfs, Process, ProcessId, Scheduler};
 use crate::spawn::options::Priority;
 use crate::test::{self, AssertUnmoved, TestAssertUnmovedNewActor, assert_size};
 use crate::worker::SYSTEM_ACTORS;
+use crate::{Access, ThreadLocal};
 
 #[test]
 fn size_assertions() {
     assert_size::<ProcessId>(8);
     assert_size::<Priority>(1);
-    assert_size::<process::Process<Cfs, Box<dyn process::Run>>>(32);
-    assert_size::<Process<Cfs>>(40);
+    assert_size::<process::Process<Cfs, Box<dyn process::Run>>>(40);
+    assert_size::<Process<Cfs>>(48);
 }
 
 #[derive(Debug)]
@@ -55,22 +55,31 @@ fn pid() {
 #[test]
 #[allow(clippy::eq_op)] // Need to compare `Process` to itself.
 fn process_data_equality() {
-    let process1 = Process::<Cfs>::new(Priority::LOW, Box::pin(NopTestProcess));
-    let process2 = Process::<Cfs>::new(Priority::NORMAL, Box::pin(NopTestProcess));
-    let process3 = Process::<Cfs>::new(Priority::HIGH, Box::pin(NopTestProcess));
+    let process1 = Process::<Cfs>::new(ProcessId(0), Priority::LOW, Box::pin(NopTestProcess));
+    let process2 = Process::<Cfs>::new(ProcessId(1), Priority::NORMAL, Box::pin(NopTestProcess));
+    let process3 = Process::<Cfs>::new(ProcessId(2), Priority::HIGH, Box::pin(NopTestProcess));
+    let process4 = Process::<Cfs>::new(ProcessId(3), Priority::LOW, Box::pin(NopTestProcess));
 
     // Equality is only based on id alone.
     assert_eq!(process1, process1);
     assert_ne!(process1, process2);
     assert_ne!(process1, process3);
+    assert_ne!(process1, process4);
 
     assert_ne!(process2, process1);
     assert_eq!(process2, process2);
     assert_ne!(process2, process3);
+    assert_ne!(process2, process4);
 
     assert_ne!(process3, process1);
     assert_ne!(process3, process2);
     assert_eq!(process3, process3);
+    assert_ne!(process3, process4);
+
+    assert_ne!(process4, process1);
+    assert_ne!(process4, process2);
+    assert_ne!(process4, process3);
+    assert_eq!(process4, process4);
 }
 
 #[derive(Debug)]
@@ -92,6 +101,7 @@ fn process_data_runtime_increase() {
     const SLEEP_TIME: Duration = Duration::from_millis(10);
 
     let mut process = Box::pin(Process::<Cfs>::new(
+        ProcessId(0),
         Priority::HIGH,
         Box::pin(SleepyProcess(SLEEP_TIME)),
     ));
@@ -151,42 +161,49 @@ fn add_actor() {
 }
 
 #[test]
-fn mark_ready() {
+fn wake_process() {
     let mut scheduler = test_scheduler();
-
-    // Incorrect (outdated) pid should be ok.
-    scheduler.mark_ready(ProcessId(100));
 
     let new_actor = actor_fn(simple_actor);
     let rt = test::runtime();
     let (process, _) = ActorFutureBuilder::new()
         .with_rt(rt)
         .build(NoSupervisor, new_actor, ());
-    let pid = scheduler.add_new_process(Priority::NORMAL, process);
+    let _ = scheduler.add_new_process(Priority::NORMAL, process);
 
     assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 
     let process = scheduler.next_process().unwrap();
+    let waker = scheduler.waker_for_process(process.as_ref());
     scheduler.add_back_process(process);
-    scheduler.mark_ready(pid);
+
+    assert!(scheduler.next_process().is_none());
+    assert!(scheduler.has_user_process());
+    assert!(!scheduler.has_ready_process());
+
+    waker.wake();
+    let _ = scheduler.ready_processes();
+
+    assert!(scheduler.has_user_process());
+    assert!(scheduler.has_ready_process());
+    assert!(scheduler.next_process().is_some());
 }
 
 #[test]
-fn mark_ready_before_run() {
+fn wake_processafter_completion() {
     let mut scheduler = test_scheduler();
 
-    // Incorrect (outdated) pid should be ok.
-    scheduler.mark_ready(ProcessId(100));
-
-    let pid = add_test_actor(&mut scheduler, Priority::NORMAL);
+    let _ = add_test_actor(&mut scheduler, Priority::NORMAL);
 
     assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 
     let process = scheduler.next_process().unwrap();
-    scheduler.mark_ready(pid);
-    scheduler.add_back_process(process);
+    let waker = scheduler.waker_for_process(process.as_ref());
+    scheduler.complete(process).unwrap();
+
+    waker.wake(); // This should be fine.
 }
 
 #[test]
@@ -197,7 +214,7 @@ fn next_process() {
 
     if let Some(process) = scheduler.next_process() {
         assert_eq!(process.id(), pid);
-        assert!(!scheduler.has_user_process());
+        assert!(scheduler.has_user_process());
         assert!(!scheduler.has_ready_process());
     } else {
         panic!("expected a process");
@@ -234,7 +251,7 @@ fn next_process_order() {
 }
 
 #[test]
-fn add_process() {
+fn add_back_process() {
     let mut scheduler = test_scheduler();
 
     let pid = add_test_actor(&mut scheduler, Priority::NORMAL);
@@ -242,29 +259,45 @@ fn add_process() {
     assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
 
-    scheduler.mark_ready(pid);
+    let process = scheduler.next_process().unwrap();
+    let waker = scheduler.waker_for_process(process.as_ref());
+
+    // After adding the process back it's not ready.
+    scheduler.add_back_process(process);
+    assert!(scheduler.has_user_process());
+    assert!(!scheduler.has_ready_process());
+
+    // After waking it's still not ready.
+    waker.wake();
+    assert!(scheduler.has_user_process());
+    assert!(!scheduler.has_ready_process());
+
+    // Only when we mark all processes as ready is it ready.
+    let _ = scheduler.ready_processes();
     assert!(scheduler.has_user_process());
     assert!(scheduler.has_ready_process());
+
     let process = scheduler.next_process().unwrap();
     assert_eq!(process.id(), pid);
 }
 
 #[test]
-fn add_process_marked_ready() {
+fn add_back_process_awoken() {
     let mut scheduler = test_scheduler();
 
-    let pid = add_test_actor(&mut scheduler, Priority::NORMAL);
+    let _ = add_test_actor(&mut scheduler, Priority::NORMAL);
 
     let process = scheduler.next_process().unwrap();
+    let waker = scheduler.waker_for_process(process.as_ref());
+
+    // Waking it before it's ready
+    waker.wake();
+
+    // After adding the process back it's not ready, even though it got awoken
+    // above.
     scheduler.add_back_process(process);
     assert!(scheduler.has_user_process());
     assert!(!scheduler.has_ready_process());
-
-    scheduler.mark_ready(pid);
-    assert!(scheduler.has_user_process());
-    assert!(scheduler.has_ready_process());
-    let process = scheduler.next_process().unwrap();
-    assert_eq!(process.id(), pid);
 }
 
 // NOTE: This is here because we don't really care about the elapsed duration in
@@ -315,6 +348,7 @@ fn scheduler_run_order() {
     for _ in 0..3 {
         let mut process = scheduler.next_process().unwrap();
         assert_eq!(process.as_mut().run(&mut ctx), Poll::Ready(()));
+        scheduler.complete(process).unwrap();
     }
     assert!(!scheduler.has_user_process());
     assert_eq!(*run_order.borrow(), vec![2_usize, 1, 0]);
@@ -332,19 +366,23 @@ fn assert_actor_process_unmoved() {
         TestAssertUnmovedNewActor::new(),
         (),
     );
-    let pid = scheduler.add_new_process(Priority::NORMAL, process);
+    _ = scheduler.add_new_process(Priority::NORMAL, process);
 
     // Run the process multiple times, ensure it's not moved in the process.
     let mut process = scheduler.next_process().unwrap();
     assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
+    let waker = scheduler.waker_for_process(process.as_ref());
     scheduler.add_back_process(process);
 
-    scheduler.mark_ready(pid);
+    waker.wake();
+    let _ = scheduler.ready_processes();
     let mut process = scheduler.next_process().unwrap();
     assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
+    let waker = scheduler.waker_for_process(process.as_ref());
     scheduler.add_back_process(process);
 
-    scheduler.mark_ready(pid);
+    waker.wake();
+    let _ = scheduler.ready_processes();
     let mut process = scheduler.next_process().unwrap();
     assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
 }
@@ -360,16 +398,19 @@ fn assert_future_process_unmoved() {
 
     // Run the process multiple times, ensure it's not moved in the process.
     let mut process = scheduler.next_process().unwrap();
-    let pid = process.id();
     assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
+    let waker = scheduler.waker_for_process(process.as_ref());
     scheduler.add_back_process(process);
 
-    scheduler.mark_ready(pid);
+    waker.wake();
+    let _ = scheduler.ready_processes();
     let mut process = scheduler.next_process().unwrap();
     assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
+    let waker = scheduler.waker_for_process(process.as_ref());
     scheduler.add_back_process(process);
 
-    scheduler.mark_ready(pid);
+    waker.wake();
+    let _ = scheduler.ready_processes();
     let mut process = scheduler.next_process().unwrap();
     assert_eq!(process.as_mut().run(&mut ctx), Poll::Pending);
 }
@@ -389,16 +430,17 @@ fn test_scheduler() -> Scheduler<Cfs> {
         pending().await
     }
 
-    let mut scheduler = Scheduler::new();
-    let new_actor = actor_fn(fake_system_actor);
     let rt = test::runtime();
+    let mut scheduler = Scheduler::new(rt.sq());
+    let new_actor = actor_fn(fake_system_actor);
     for _ in 0..SYSTEM_ACTORS {
         let (process, _) =
             ActorFutureBuilder::new()
                 .with_rt(rt.clone())
                 .build(NoSupervisor, new_actor, ());
-        let process = Box::pin(Process::new(Priority::SYSTEM, Box::pin(process)));
-        scheduler.inactive.add(process);
+        _ = scheduler.add_new_process(Priority::SYSTEM, process);
+        let process = scheduler.next_process().unwrap();
+        scheduler.add_back_process(process);
     }
     scheduler
 }

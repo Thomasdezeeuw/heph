@@ -15,7 +15,7 @@ use crate::test::{self, AssertUnmoved, TestAssertUnmovedNewActor, assert_size};
 
 #[test]
 fn size_assertions() {
-    assert_size::<Process>(40);
+    assert_size::<Process>(48);
 }
 
 #[test]

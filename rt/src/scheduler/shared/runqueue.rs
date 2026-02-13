@@ -144,7 +144,12 @@ mod tests {
     }
 
     fn add_process(run_queue: &RunQueue, fair_runtime: Duration) -> ProcessId {
-        let mut process = Box::pin(Process::new(Priority::NORMAL, Box::pin(TestProcess)));
+        let mut process = Box::pin(Process::new(
+            ProcessId(0),
+            Priority::NORMAL,
+            Box::pin(TestProcess),
+        ));
+        process.set_id();
         process.scheduler_data().set_fair_runtime(fair_runtime);
         let pid = process.id();
         run_queue.add(process);
