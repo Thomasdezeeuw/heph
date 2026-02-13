@@ -81,4 +81,5 @@
 //! # heph_rt::test::block_on_local_actor(heph::actor::actor_fn(process_handler), ());
 //! ```
 
+#[doc(inline)]
 pub use a10::pipe::*;

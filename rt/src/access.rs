@@ -52,6 +52,7 @@ use crate::{Runtime, RuntimeRef, shared};
 ///
 /// <span hidden>
 #[allow(rustdoc::invalid_html_tags)] // For the hidden span.
+#[doc(inline)]
 pub use a10::SubmissionQueue;
 
 /// Runtime Access Trait.

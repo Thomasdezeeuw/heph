@@ -46,4 +46,5 @@
 //! flush the buffer used by the standard library, so it's not advised to use
 //! both the handle from standard library and Heph simultaneously.
 
+#[doc(inline)]
 pub use a10::io::*;
