@@ -248,9 +248,6 @@ impl Worker {
             }
             if self.internals.started() && !self.has_user_process() {
                 log::debug!(worker_id = self.internals.id; "no processes to run, stopping worker");
-                /* TODO: needed?
-                self.internals.shared.wake_all_workers();
-                */
                 return Ok(());
             }
 
@@ -371,12 +368,6 @@ impl Worker {
             ],
         );
 
-        /* TODO: needed?
-        // Possibly wake other worker threads if we've scheduled any shared
-        // processes (that we can't directly run).
-        self.wake_workers(local_amount, shared_amount);
-        */
-
         Ok(())
     }
 
@@ -431,34 +422,6 @@ impl Worker {
         );
         amount
     }
-
-    /* TODO: needed?
-    /// Wake worker threads based on the amount of local scheduled processes
-    /// (`local_amount`) and the amount of scheduled shared processes
-    /// (`shared_amount`).
-    #[allow(clippy::needless_pass_by_ref_mut)]
-    fn wake_workers(&mut self, local_amount: usize, shared_amount: usize) {
-        let wake_n = if local_amount == 0 {
-            // We don't have to run any local processes, so we can run a shared
-            // process ourselves.
-            shared_amount.saturating_sub(1)
-        } else {
-            shared_amount
-        };
-
-        if wake_n != 0 {
-            log::trace!(worker_id = self.internals.id; "waking {wake_n} worker threads");
-            let timing = trace::start(&*self.internals.trace_log.borrow());
-            self.internals.shared.wake_workers(wake_n);
-            trace::finish_rt(
-                self.internals.trace_log.borrow_mut().as_mut(),
-                timing,
-                "Waking worker threads",
-                &[("amount", &wake_n)],
-            );
-        }
-    }
-    */
 
     /// Poll for OS events, filling `self.events`.
     ///

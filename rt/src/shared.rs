@@ -25,13 +25,6 @@ use crate::{ThreadSafe, trace};
 /// Shared internals of the runtime.
 #[derive(Debug)]
 pub(crate) struct RuntimeInternals {
-    /* TODO: needed?
-    /// Submission queues for the workers, used to wake them.
-    worker_sqs: Box<[a10::SubmissionQueue]>,
-    /// Index into `worker_sqs` to wake next, see
-    /// [`RuntimeInternals::wake_workers`].
-    wake_worker_idx: AtomicUsize,
-    */
     /// io_uring completion ring.
     ring: Mutex<a10::Ring>,
     /// Submission queue for the `ring`.
@@ -79,10 +72,6 @@ impl RuntimeInternals {
         Ok(Arc::new_cyclic(|shared_internals| {
             let wakers = Wakers::new(shared_internals.clone());
             RuntimeInternals {
-                /* TODO: needed?
-                worker_sqs,
-                wake_worker_idx: AtomicUsize::new(0),
-                */
                 ring: Mutex::new(ring),
                 sq,
                 wakers,
@@ -223,40 +212,6 @@ impl RuntimeInternals {
     pub(crate) fn mark_ready(&self, pid: ProcessId) {
         self.scheduler.mark_ready(pid);
     }
-
-    /* TODO: current used in the following:
-     *  * shared waker to wake other workers to poll the futures.
-     *  * waking all workers once a single worker stops.
-     * But is it actually needed?
-    /// Wake `n` worker threads.
-    pub(crate) fn wake_workers(&self, n: usize) {
-        log::trace!("waking {n} worker thread(s)");
-        // To prevent the Thundering herd problem [1] we don't wake all workers,
-        // only enough worker threads to handle all events. To spread the
-        // workload (somewhat more) evenly we wake the workers in a Round-Robin
-        // [2] fashion.
-        //
-        // [1]: https://en.wikipedia.org/wiki/Thundering_herd_problem
-        // [2]: https://en.wikipedia.org/wiki/Round-robin_scheduling
-        let n = min(n, self.worker_sqs.len());
-        // SAFETY: needs to sync with itself.
-        let wake_worker_idx =
-            self.wake_worker_idx.fetch_add(n, Ordering::AcqRel) % self.worker_sqs.len();
-        let (wake_second, wake_first) = self.worker_sqs.split_at(wake_worker_idx);
-        let workers_to_wake = wake_first.iter().chain(wake_second.iter());
-        for worker in workers_to_wake {
-            worker.wake();
-        }
-    }
-
-    /// Wake all worker threads, ignoring errors.
-    pub(crate) fn wake_all_workers(&self) {
-        log::trace!("waking all worker thread(s)");
-        for worker in &*self.worker_sqs {
-            worker.wake();
-        }
-    }
-    */
 
     /// See [`Scheduler::has_process`].
     pub(crate) fn has_process(&self) -> bool {
