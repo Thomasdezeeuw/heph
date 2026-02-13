@@ -169,10 +169,8 @@ impl Worker {
         let config = a10::Ring::config();
         #[cfg(any(target_os = "android", target_os = "linux"))]
         let config = config
-            /* TODO: this breaks waking.
             .single_issuer()
             .defer_task_run()
-            */
             .attach_queue(shared_internals.sq());
 
         // Set CPU affinity on the thread itself and on the ring.
