@@ -19,10 +19,11 @@
 //!
 //! const DATA: &[u8] = b"Hello, world!";
 //!
+//! # #[allow(dead_code)]
 //! async fn actor<RT>(ctx: actor::Context<!, RT>) -> io::Result<()>
 //!     where RT: rt::Access,
 //! {
-//!     let [receiver, sender] = pipe(ctx.runtime_ref().sq(), None).await?;
+//!     let [receiver, sender] = pipe(ctx.runtime_ref().sq()).await?;
 //!
 //!     // Write some data.
 //!     sender.write_all(DATA).await?;
@@ -51,6 +52,7 @@
 //!
 //! const DATA: &[u8] = b"Hello, world!";
 //!
+//! # #[allow(dead_code)]
 //! async fn process_handler<RT>(ctx: actor::Context<!, RT>) -> io::Result<()>
 //!     where RT: rt::Access,
 //! {
@@ -69,7 +71,6 @@
 //!     // Write some data.
 //!     stdin.write_all(DATA).await?;
 //!     drop(stdin); // Close standard in for the child process.
-//! #   process.wait()?; // Needed to pass the test on macOS.
 //!
 //!     // And read the data back.
 //!     let buf = stdout.read_n(Vec::with_capacity(DATA.len() + 1), DATA.len()).await?;

@@ -21,15 +21,17 @@
 //! ```
 //! # #![feature(never_type)]
 //! use heph::actor;
-//! use heph_rt::process::Signal;
+//! use heph_rt::process;
+//! use heph_rt::access::ThreadLocal;
 //!
-//! async fn actor(mut ctx: actor::Context<Signal, ThreadLocal>) -> Result<(), !> {
+//! # #[allow(dead_code)]
+//! async fn actor(mut ctx: actor::Context<process::Signal, ThreadLocal>) {
 //!     // Setup receiving of signals send to this process.
 //!     let self_ref = ctx.actor_ref();
 //!     ctx.runtime().receive_signals(self_ref);
 //!
 //!     // Now process signals are send as messages.
-//!     if let Ok(signal) = ctx.receive_next() {
+//!     if let Ok(signal) = ctx.receive_next().await {
 //!         println!("got a signal: {signal:?}");
 //!     }
 //! }
@@ -63,15 +65,21 @@
 //! use std::process::Command;
 //!
 //! use heph::actor;
+//! use heph_rt::access::{Access, ThreadLocal};
 //! use heph_rt::process::{self, WaitOption};
 //!
-//! async fn actor(mut ctx: actor::Context<Signal, ThreadLocal>) -> io::Result<()> {
+//! # #[allow(dead_code)]
+//! async fn actor(mut ctx: actor::Context<process::Signal, ThreadLocal>) -> io::Result<()> {
 //!     // Spawn a new process using the standard library.
 //!     let child = Command::new("echo").arg("Hello world").spawn()?;
 //!     // Wait until it exited (stopped).
 //!     let info = process::wait_on(ctx.runtime().sq(), &child).flags(WaitOption::EXITED).await?;
 //!     println!("process exited: {info:?}");
+//!     Ok(())
 //! }
+//! #
+//! # #[cfg(any(test, feature = "test"))]
+//! # heph_rt::test::block_on_local_actor(heph::actor::actor_fn(actor), ());
 //! ```
 
 // NOTE: not exporting Signals and related types as we already set that up.
