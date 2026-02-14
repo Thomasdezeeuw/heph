@@ -18,8 +18,9 @@ heph     = { version = "0.5.0", default-features = false, path = "../" }
 heph-rt  = { version = "0.5.0", default-features = false, path = "../rt" }
 httparse = { version = "1.8.0", default-features = false }
 httpdate = { version = "1.0.2", default-features = false }
-log      = { version = "0.4.17", default-features = false }
 itoa     = { version = "1.0.6", default-features = false }
+libc     = { version = "0.2.96", default-features = false }
+log      = { version = "0.4.17", default-features = false }
 
 [dev-dependencies]
 std-logger = { version = "0.5.3", default-features = false, features = ["log-panic", "nightly"] }

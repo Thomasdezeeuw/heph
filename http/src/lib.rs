@@ -15,6 +15,9 @@
     variant_size_differences
 )]
 
+use std::os::fd::{AsRawFd, BorrowedFd};
+use std::{io, ptr};
+
 pub mod body;
 pub mod client;
 pub mod handler;
@@ -138,6 +141,32 @@ const fn is_lower_case(value: &str) -> bool {
     }
     true
 }
+
+fn set_nodelay(fd: BorrowedFd<'_>) -> io::Result<()> {
+    let set: libc::c_int = 1;
+    let _ = syscall!(setsockopt(
+        fd.as_raw_fd(),
+        libc::IPPROTO_TCP,
+        libc::TCP_NODELAY,
+        ptr::from_ref(&set).cast(),
+        size_of::<libc::c_int>() as libc::socklen_t,
+    ))?;
+    Ok(())
+}
+
+/// Helper macro to execute a system call that returns an `io::Result`.
+macro_rules! syscall {
+    ($fn: ident ( $($arg: expr),* $(,)? ) ) => {{
+        let res = unsafe { libc::$fn($( $arg, )*) };
+        if res == -1 {
+            Err(std::io::Error::last_os_error())
+        } else {
+            Ok(res)
+        }
+    }};
+}
+
+use syscall;
 
 #[cfg(test)]
 mod tests {

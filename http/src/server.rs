@@ -36,7 +36,7 @@
 //! use heph::supervisor::{Supervisor, SupervisorStrategy};
 //! use heph_http::body::OneshotBody;
 //! use heph_http::{self as http, server, Header, HeaderName, Headers, Method, StatusCode};
-//! use heph_rt::net::TcpStream;
+//! use heph_rt::fd::AsyncFd;
 //! use heph_rt::spawn::options::{ActorOptions, Priority};
 //! use heph_rt::timer::Deadline;
 //! use heph_rt::{Runtime, ThreadLocal};
@@ -79,7 +79,7 @@
 //!     }
 //! }
 //!
-//! fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
+//! fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
 //!     error!("error handling connection: {err}");
 //!     SupervisorStrategy::Stop
 //! }
@@ -89,9 +89,6 @@
 //!     mut ctx: actor::Context<!, ThreadLocal>,
 //!     mut connection: http::Connection,
 //! ) -> io::Result<()> {
-//!     // Set `TCP_NODELAY` on the underlying `TcpStream`.
-//!     connection.set_nodelay(true)?;
-//!
 //!     let mut headers = Headers::EMPTY;
 //!     loop {
 //!         // Read the next request.
@@ -149,20 +146,23 @@ use std::net::SocketAddr;
 use std::time::SystemTime;
 
 use heph::{actor, NewActor, Supervisor};
+use heph_rt::extract::Extract;
+use heph_rt::fd::AsyncFd;
 use heph_rt::io::{BufMut, BufMutSlice};
-use heph_rt::net::{tcp, TcpStream};
-use heph_rt::spawn::ActorOptions;
+use heph_rt::net::TcpServer;
+use heph_rt::spawn::{ActorOptions, Spawn};
 use heph_rt::timer::DeadlinePassed;
+use heph_rt::Access;
 use httpdate::HttpDate;
 
 use crate::body::{BodyLength, EmptyBody};
 use crate::head::header::{FromHeaderValue, Header, HeaderName, Headers};
 use crate::{
-    map_version_byte, trim_ws, Method, Request, Response, StatusCode, Version, BUF_SIZE,
-    INIT_HEAD_SIZE, MAX_HEADERS, MAX_HEAD_SIZE, MIN_READ_SIZE,
+    map_version_byte, set_nodelay, trim_ws, Method, Request, Response, StatusCode, Version,
+    BUF_SIZE, INIT_HEAD_SIZE, MAX_HEADERS, MAX_HEAD_SIZE, MIN_READ_SIZE,
 };
 
-/// Create a new [server setup].
+/// Create a new HTTP server.
 ///
 /// Arguments:
 ///  * `address`: the address to listen on.
@@ -172,31 +172,31 @@ use crate::{
 ///
 /// See the [module documentation] for examples.
 ///
-/// [server setup]: Setup
 /// [module documentation]: crate::server
-pub fn setup<S, NA>(
+pub fn new<S, NA>(
     address: SocketAddr,
     supervisor: S,
     new_actor: NA,
     options: ActorOptions,
-) -> io::Result<Setup<S, NA>>
+) -> io::Result<HttpServer<S, NA>>
 where
     S: Supervisor<HttpNewActor<NA>> + Clone + 'static,
     NA: NewActor<Argument = Connection> + Clone + 'static,
+    <HttpNewActor<NA> as NewActor>::RuntimeAccess:
+        Access + Spawn<S, HttpNewActor<NA>, NA::RuntimeAccess>,
 {
     let new_actor = HttpNewActor { new_actor };
-    tcp::server::setup(address, supervisor, new_actor, options)
+    TcpServer::new(address, supervisor, new_actor, options)
 }
 
-/// A intermediate structure that implements [`NewActor`], creating an actor
-/// that spawn a new actor for each incoming HTTP connection.
+/// HTTP server actor.
 ///
-/// See [`setup`] to create this and the [module documentation] for examples.
+/// See [`new`] to create this and the [module documentation] for examples.
 ///
 /// [module documentation]: crate::server
-pub type Setup<S, NA> = tcp::server::Setup<S, HttpNewActor<NA>>;
+pub type HttpServer<S, NA> = TcpServer<S, HttpNewActor<NA>>;
 
-/// Maps `NA` to accept `TcpStream` as argument, creating a [`Connection`].
+/// Maps `NA` to accept `AsyncFd` as argument, creating a [`Connection`].
 #[derive(Debug, Clone)]
 pub struct HttpNewActor<NA> {
     new_actor: NA,
@@ -207,7 +207,7 @@ where
     NA: NewActor<Argument = Connection>,
 {
     type Message = NA::Message;
-    type Argument = TcpStream;
+    type Argument = AsyncFd;
     type Actor = NA::Actor;
     type Error = NA::Error;
     type RuntimeAccess = NA::RuntimeAccess;
@@ -217,6 +217,12 @@ where
         ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
         stream: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
+        if let Some(fd) = stream.as_fd() {
+            if let Err(err) = set_nodelay(fd) {
+                log::warn!("failed to set TCP no delay on accepted connection: {err}");
+            }
+        }
+
         let conn = Connection::new(stream);
         self.new_actor.new(ctx, conn)
     }
@@ -231,15 +237,11 @@ where
 /// This wraps a TCP stream from which [HTTP requests] are read and [HTTP
 /// responses] are send to.
 ///
-/// It's advisable to set `TCP_NODELAY` using [`Connection::set_nodelay`] as the
-/// `Connection` uses internally buffering, meaning only bodies with small
-/// chunks would benefit from `TCP_NODELAY`.
-///
 /// [HTTP requests]: Request
 /// [HTTP responses]: crate::Response
 #[derive(Debug)]
 pub struct Connection {
-    stream: TcpStream,
+    stream: AsyncFd,
     buf: Vec<u8>,
     /// Number of bytes of `buf` that are already parsed.
     /// NOTE: this may be larger then `buf.len()`, in which case a `Body` was
@@ -253,7 +255,7 @@ pub struct Connection {
 
 impl Connection {
     /// Create a new `Connection`.
-    fn new(stream: TcpStream) -> Connection {
+    fn new(stream: AsyncFd) -> Connection {
         Connection {
             stream,
             buf: Vec::with_capacity(BUF_SIZE),
@@ -345,12 +347,12 @@ impl Connection {
                                         Some(BodyLength::Known(body_length))
                                             if *body_length == length => {}
                                         Some(BodyLength::Known(_)) => {
-                                            return Err(RequestError::DifferentContentLengths)
+                                            return Err(RequestError::DifferentContentLengths);
                                         }
                                         Some(BodyLength::Chunked) => {
                                             return Err(
                                                 RequestError::ContentLengthAndTransferEncoding,
-                                            )
+                                            );
                                         }
                                         // RFC 7230 section 3.3.3 point 5:
                                         // > If a valid Content-Length header field
@@ -683,7 +685,7 @@ impl Connection {
         let mut http_head = if send_body {
             body.write_message(&mut self.stream, http_head).await?
         } else {
-            self.stream.send_all(http_head).await?
+            self.stream.send_all(http_head).extract().await?
         };
 
         if self.buf.is_empty() {
@@ -695,24 +697,14 @@ impl Connection {
         Ok(())
     }
 
-    /// See [`TcpStream::peer_addr`].
-    pub fn peer_addr(&self) -> io::Result<SocketAddr> {
-        self.stream.peer_addr()
+    /// See [`AsyncFd::peer_addr`].
+    pub async fn peer_addr(&self) -> io::Result<SocketAddr> {
+        self.stream.peer_addr().await
     }
 
-    /// See [`TcpStream::local_addr`].
-    pub fn local_addr(&self) -> io::Result<SocketAddr> {
-        self.stream.local_addr()
-    }
-
-    /// See [`TcpStream::set_nodelay`].
-    pub fn set_nodelay(&self, nodelay: bool) -> io::Result<()> {
-        self.stream.set_nodelay(nodelay)
-    }
-
-    /// See [`TcpStream::nodelay`].
-    pub fn nodelay(&self) -> io::Result<bool> {
-        self.stream.nodelay()
+    /// See [`AsyncFd::local_addr`].
+    pub async fn local_addr(&self) -> io::Result<SocketAddr> {
+        self.stream.local_addr().await
     }
 
     async fn read_chunk(
@@ -895,7 +887,7 @@ impl<'a> Body<'a> {
             let len_before = buf.spare_capacity();
             let limited_buf = self.conn.stream.recv(buf.limit(limit)).await?;
             let buf = limited_buf.into_inner();
-            self.processed(buf.spare_capacity() - len_before);
+            self.processed((buf.spare_capacity() - len_before) as usize);
             return Ok(buf);
         }
     }
@@ -943,9 +935,9 @@ impl<'a> Body<'a> {
             };
 
             let len_before = bufs.total_spare_capacity();
-            let limited_bufs = self.conn.stream.recv_vectored(bufs.limit(limit)).await?;
+            let (limited_bufs, _) = self.conn.stream.recv_vectored(bufs.limit(limit)).await?;
             let bufs = limited_bufs.into_inner();
-            self.processed(bufs.total_spare_capacity() - len_before);
+            self.processed((bufs.total_spare_capacity() - len_before) as usize);
             return Ok(bufs);
         }
     }
@@ -1210,9 +1202,9 @@ impl fmt::Display for RequestError {
 /// The message type used by the HTTP server.
 ///
 #[doc(inline)]
-pub use heph_rt::net::tcp::server::Message;
+pub use heph_rt::net::ServerMessage;
 
 /// Error returned by the HTTP server.
 ///
 #[doc(inline)]
-pub use heph_rt::net::tcp::server::Error;
+pub use heph_rt::net::ServerError;

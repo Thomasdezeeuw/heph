@@ -9,10 +9,10 @@ use std::time::{Duration, SystemTime};
 use heph::actor::{self, actor_fn};
 use heph::messages::Terminate;
 use heph::{ActorRef, SupervisorStrategy};
-use heph_http::body::OneshotBody;
-use heph_http::server::{self, RequestError};
-use heph_http::{self as http, Header, HeaderName, Headers, Method, StatusCode, Version};
-use heph_rt::net::TcpStream;
+use heph_http::body::{BodyLength, OneshotBody};
+use heph_http::server::{self, RequestError, ServerError};
+use heph_http::{Connection, Header, HeaderName, Headers, Method, StatusCode, Version};
+use heph_rt::fd::AsyncFd;
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::{Runtime, ThreadLocal};
 use httpdate::fmt_http_date;
@@ -495,7 +495,7 @@ fn invalid_http_version() {
 fn too_many_header() {
     with_test_server!(|stream| {
         stream.write_all(b"GET / HTTP/1.1\r\n").unwrap();
-        for _ in 0..=http::MAX_HEADERS {
+        for _ in 0..=heph_http::MAX_HEADERS {
             stream.write_all(b"Some-Header: Abc\r\n").unwrap();
         }
         stream.write_all(b"\r\n").unwrap();
@@ -583,7 +583,7 @@ impl TestServer {
 
         let actor = actor_fn(http_actor);
         let address = "127.0.0.1:0".parse().unwrap();
-        let server = server::setup(address, conn_supervisor, actor, ActorOptions::default())
+        let server = server::new(address, conn_supervisor, actor, ActorOptions::default())
             .map_err(heph_rt::Error::setup)
             .unwrap();
         let address = server.local_addr();
@@ -628,15 +628,14 @@ impl TestServer {
     }
 }
 
-fn server_supervisor(err: http::server::Error<!>) -> SupervisorStrategy<()> {
-    use http::server::Error::*;
+fn server_supervisor(err: ServerError<!>) -> SupervisorStrategy<()> {
     match err {
-        Accept(err) => panic!("error accepting new connection: {err}"),
-        NewActor(_) => unreachable!(),
+        ServerError::Accept(err) => panic!("error accepting new connection: {err}"),
+        ServerError::NewActor(_) => unreachable!(),
     }
 }
 
-fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
+fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
     panic!("error handling connection: {err}")
 }
 
@@ -646,10 +645,8 @@ fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
 /// * => 404, Not found.
 async fn http_actor(
     _: actor::Context<!, ThreadLocal>,
-    mut connection: http::Connection,
+    mut connection: Connection,
 ) -> io::Result<()> {
-    connection.set_nodelay(true)?;
-
     let mut headers = Headers::EMPTY;
     loop {
         let mut got_version = None;
@@ -665,7 +662,7 @@ async fn http_actor(
                         let body_len = request.body().len();
                         let buf = request.body_mut().recv(Vec::with_capacity(1024)).await?;
                         assert!(request.body().is_empty());
-                        if let http::body::BodyLength::Known(length) = body_len {
+                        if let BodyLength::Known(length) = body_len {
                             assert_eq!(length, buf.len());
                         } else {
                             assert!(request.body().is_chunked());

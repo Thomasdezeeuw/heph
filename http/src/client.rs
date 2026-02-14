@@ -4,22 +4,23 @@ use std::mem::take;
 use std::net::SocketAddr;
 use std::{fmt, io};
 
+use heph_rt::fd::AsyncFd;
 use heph_rt::io::{BufMut, BufMutSlice};
-use heph_rt::net::TcpStream;
+use heph_rt::net::{socket, Domain, Protocol, Type};
 use heph_rt::timer::DeadlinePassed;
 use heph_rt::Access;
 
 use crate::body::{BodyLength, EmptyBody};
 use crate::head::header::{FromHeaderValue, HeaderName, Headers};
 use crate::{
-    map_version_byte, trim_ws, Method, Response, StatusCode, BUF_SIZE, INIT_HEAD_SIZE, MAX_HEADERS,
-    MAX_HEAD_SIZE, MIN_READ_SIZE,
+    map_version_byte, set_nodelay, trim_ws, Method, Response, StatusCode, BUF_SIZE, INIT_HEAD_SIZE,
+    MAX_HEADERS, MAX_HEAD_SIZE, MIN_READ_SIZE,
 };
 
 /// HTTP/1.1 client.
 #[derive(Debug)]
 pub struct Client {
-    stream: TcpStream,
+    stream: AsyncFd,
     buf: Vec<u8>,
     /// Number of bytes of `buf` that are already parsed.
     /// NOTE: this may be larger then `buf.len()`, in which case a `Body` was
@@ -33,8 +34,19 @@ impl Client {
     where
         RT: Access,
     {
-        let stream = TcpStream::connect(rt, address).await?;
-        stream.set_nodelay(true)?;
+        let stream = socket(
+            rt.sq(),
+            Domain::for_address(&address),
+            Type::STREAM,
+            Some(Protocol::TCP),
+        )
+        .await?;
+        if let Some(fd) = stream.as_fd() {
+            if let Err(err) = set_nodelay(fd) {
+                log::warn!("failed to set TCP no delay on connection: {err}");
+            }
+        }
+        stream.connect(address).await?;
         Ok(Client {
             stream,
             buf: Vec::with_capacity(BUF_SIZE),
@@ -253,7 +265,7 @@ impl Client {
                                         Some(ResponseBodyLength::Known(body_length))
                                             if *body_length == length => {}
                                         Some(ResponseBodyLength::Known(_)) => {
-                                            return Err(ResponseError::DifferentContentLengths)
+                                            return Err(ResponseError::DifferentContentLengths);
                                         }
                                         Some(
                                             ResponseBodyLength::Chunked
@@ -261,7 +273,7 @@ impl Client {
                                         ) => {
                                             return Err(
                                                 ResponseError::ContentLengthAndTransferEncoding,
-                                            )
+                                            );
                                         }
                                         // RFC 7230 section 3.3.3 point 5:
                                         // > If a valid Content-Length header field
@@ -315,7 +327,7 @@ impl Client {
                                         // TODO: support "compress", "deflate" and
                                         // "gzip".
                                         _ => {
-                                            return Err(ResponseError::UnsupportedTransferEncoding)
+                                            return Err(ResponseError::UnsupportedTransferEncoding);
                                         }
                                     }
                                 }
@@ -590,7 +602,7 @@ impl<'c> Body<'c> {
             let len_before = buf.spare_capacity();
             let limited_buf = self.client.stream.recv(buf.limit(limit)).await?;
             let buf = limited_buf.into_inner();
-            self.processed(buf.spare_capacity() - len_before);
+            self.processed((buf.spare_capacity() - len_before) as usize);
             return Ok(buf);
         }
     }
@@ -641,9 +653,9 @@ impl<'c> Body<'c> {
             };
 
             let len_before = bufs.total_spare_capacity();
-            let limited_bufs = self.client.stream.recv_vectored(bufs.limit(limit)).await?;
+            let (limited_bufs, _) = self.client.stream.recv_vectored(bufs.limit(limit)).await?;
             let bufs = limited_bufs.into_inner();
-            self.processed(bufs.total_spare_capacity() - len_before);
+            self.processed((bufs.total_spare_capacity() - len_before) as usize);
             return Ok(bufs);
         }
     }

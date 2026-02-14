@@ -7,8 +7,9 @@ use std::future::Future;
 use std::io;
 use std::pin::pin;
 
+use heph_rt::extract::Extract;
+use heph_rt::fd::AsyncFd;
 use heph_rt::io::Buf;
-use heph_rt::net::TcpStream;
 use heph_rt::util::next;
 
 /// Last chunk of a body in a chunked response.
@@ -44,7 +45,7 @@ mod private {
     use std::future::Future;
     use std::io;
 
-    use heph_rt::net::TcpStream;
+    use heph_rt::fd::AsyncFd;
 
     /// Private extention of [`Body`].
     ///
@@ -57,7 +58,7 @@ mod private {
         /// Expects the `http_head` buffer to be returned.
         fn write_message<'stream>(
             self,
-            stream: &'stream mut TcpStream,
+            stream: &'stream mut AsyncFd,
             http_head: Vec<u8>,
         ) -> Self::WriteFuture<'stream>;
     }
@@ -80,10 +81,10 @@ impl PrivateBody for EmptyBody {
 
     fn write_message<'stream>(
         self,
-        stream: &'stream mut TcpStream,
+        stream: &'stream mut AsyncFd,
         http_head: Vec<u8>,
     ) -> Self::WriteFuture<'stream> {
-        stream.send_all(http_head)
+        stream.send_all(http_head).extract()
     }
 }
 
@@ -109,7 +110,7 @@ impl<B> OneshotBody<B> {
 impl<B: Buf> Body for OneshotBody<B> {
     fn length(&self) -> BodyLength {
         // SAFETY: only using the length, nothing unsafe about that.
-        BodyLength::Known(unsafe { self.bytes.parts().1 })
+        BodyLength::Known(unsafe { self.bytes.parts().1 as usize })
     }
 }
 
@@ -118,12 +119,12 @@ impl<B: Buf> PrivateBody for OneshotBody<B> {
 
     fn write_message<'stream>(
         self,
-        stream: &'stream mut TcpStream,
+        stream: &'stream mut AsyncFd,
         http_head: Vec<u8>,
     ) -> Self::WriteFuture<'stream> {
         let bufs = (http_head, self.bytes);
         async move {
-            let (http_head, _) = stream.send_vectored_all(bufs).await?;
+            let (http_head, _) = stream.send_all_vectored(bufs).extract().await?;
             Ok(http_head)
         }
     }
@@ -170,12 +171,12 @@ where
 
     fn write_message<'stream>(
         self,
-        stream: &'stream mut TcpStream,
+        stream: &'stream mut AsyncFd,
         http_head: Vec<u8>,
     ) -> Self::WriteFuture<'stream> {
         async move {
             let mut body = pin!(self.body);
-            let http_head = stream.send_all(http_head).await?;
+            let http_head = stream.send_all(http_head).extract().await?;
             while let Some(chunk) = next(&mut body).await {
                 _ = stream.send_all(chunk).await?;
             }
@@ -223,12 +224,12 @@ where
 
     fn write_message<'stream>(
         self,
-        stream: &'stream mut TcpStream,
+        stream: &'stream mut AsyncFd,
         http_head: Vec<u8>,
     ) -> Self::WriteFuture<'stream> {
         async move {
             let mut body = pin!(self.body);
-            let http_head = stream.send_all(http_head).await?;
+            let http_head = stream.send_all(http_head).extract().await?;
             while let Some(chunk) = next(&mut body).await {
                 _ = stream.send_all(chunk).await?;
             }

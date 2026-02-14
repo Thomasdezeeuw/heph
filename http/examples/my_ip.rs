@@ -7,8 +7,9 @@ use std::time::Duration;
 use heph::actor::{self, actor_fn};
 use heph::supervisor::SupervisorStrategy;
 use heph_http::body::OneshotBody;
-use heph_http::{self as http, server, Header, HeaderName, Headers, Method, StatusCode};
-use heph_rt::net::TcpStream;
+use heph_http::server::{self, ServerError};
+use heph_http::{self as http, Header, HeaderName, Headers, Method, StatusCode};
+use heph_rt::fd::AsyncFd;
 use heph_rt::spawn::options::{ActorOptions, Priority};
 use heph_rt::timer::Deadline;
 use heph_rt::{Runtime, ThreadLocal};
@@ -20,7 +21,7 @@ fn main() -> Result<(), heph_rt::Error> {
 
     let actor = actor_fn(http_actor);
     let address = "127.0.0.1:7890".parse().unwrap();
-    let server = server::setup(address, conn_supervisor, actor, ActorOptions::default())
+    let server = server::new(address, conn_supervisor, actor, ActorOptions::default())
         .map_err(heph_rt::Error::setup)?;
 
     let mut runtime = Runtime::setup().use_all_cores().build()?;
@@ -35,20 +36,20 @@ fn main() -> Result<(), heph_rt::Error> {
     runtime.start()
 }
 
-fn server_supervisor(err: server::Error<!>) -> SupervisorStrategy<()> {
+fn server_supervisor(err: ServerError<!>) -> SupervisorStrategy<()> {
     match err {
         // When we hit an error accepting a connection we'll drop the old
         // server and create a new one.
-        server::Error::Accept(err) => {
+        ServerError::Accept(err) => {
             error!("error accepting new connection: {err}");
             SupervisorStrategy::Restart(())
         }
         // Async function never return an error creating a new actor.
-        server::Error::NewActor(_) => unreachable!(),
+        ServerError::NewActor(_) => unreachable!(),
     }
 }
 
-fn conn_supervisor(err: io::Error) -> SupervisorStrategy<TcpStream> {
+fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
     error!("error handling connection: {err}");
     SupervisorStrategy::Stop
 }
@@ -61,9 +62,8 @@ async fn http_actor(
     ctx: actor::Context<!, ThreadLocal>,
     mut connection: http::Connection,
 ) -> io::Result<()> {
-    let address = connection.peer_addr()?;
+    let address = connection.peer_addr().await?;
     info!("accepted connection: source={address}");
-    connection.set_nodelay(true)?;
 
     let mut read_timeout = READ_TIMEOUT;
     let mut headers = Headers::EMPTY;
