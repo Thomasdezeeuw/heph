@@ -84,4 +84,7 @@
 
 // NOTE: not exporting Signals and related types as we already set that up.
 #[doc(inline)]
-pub use a10::process::{ChildStatus, Signal, WaitId, WaitInfo, WaitOn, WaitOption, wait, wait_on};
+pub use a10::process::{
+    ChildStatus, Signal, To, WaitId, WaitInfo, WaitOn, WaitOption, send_signal, send_signal_check,
+    wait, wait_on,
+};
