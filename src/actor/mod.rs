@@ -116,7 +116,7 @@ mod context;
 mod tests;
 
 #[doc(inline)]
-pub use context::{Context, NoMessages, ReceiveMessage, RecvError};
+pub use context::{Context, NoMessages, ReceiveMessage, ReceiveMessages, RecvError};
 
 /// Creating asynchronous actors.
 ///

@@ -1,11 +1,12 @@
 //! Module containing the `Context` and related types.
 
+use std::async_iter::AsyncIterator;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{self, Poll};
 
-use heph_inbox::{self as inbox, Receiver, RecvValue};
+use heph_inbox::{self as inbox, Receiver, RecvValue, RecvValues};
 
 use crate::actor_ref::ActorRef;
 
@@ -81,6 +82,15 @@ impl<M, RT> Context<M, RT> {
         }
     }
 
+    /// Receive messages.
+    ///
+    /// This returns an [`AsyncIterator`] that will return messages once they come in.
+    pub fn receive_messages<'ctx>(&'ctx mut self) -> ReceiveMessages<'ctx, M> {
+        ReceiveMessages {
+            recv: self.inbox.recv_many(),
+        }
+    }
+
     /// Returns a reference to this actor.
     pub fn actor_ref(&self) -> ActorRef<M> {
         ActorRef::local(self.inbox.new_sender())
@@ -133,6 +143,28 @@ impl<'ctx, M> Future for ReceiveMessage<'ctx, M> {
         Pin::new(&mut self.recv)
             .poll(ctx)
             .map(|r| r.ok_or(NoMessages))
+    }
+}
+
+/// Async iterator to receive a single message.
+///
+/// The implementation behind and [`actor::Context::receive_messages`].
+///
+/// [`actor::Context::receive_messages`]: crate::actor::Context::receive_messages
+#[derive(Debug)]
+#[must_use = "async iterators do nothing unless you poll them"]
+pub struct ReceiveMessages<'ctx, M> {
+    recv: RecvValues<'ctx, M>,
+}
+
+impl<'ctx, M> AsyncIterator for ReceiveMessages<'ctx, M> {
+    type Item = M;
+
+    fn poll_next(
+        mut self: Pin<&mut Self>,
+        ctx: &mut task::Context<'_>,
+    ) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.recv).poll_next(ctx)
     }
 }
 
