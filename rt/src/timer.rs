@@ -119,6 +119,24 @@ impl<RT: Access> Timer<RT> {
         self.deadline <= Instant::now()
     }
 
+    /// Change the deadline.
+    ///
+    /// The previous timer will not trigger.
+    pub fn change_deadline(&mut self, deadline: Instant) {
+        if let Some(token) = self.pending {
+            self.rt.remove_timer(self.deadline, token);
+            self.pending = None;
+        }
+        self.deadline = deadline;
+    }
+
+    /// Change the timeout.
+    ///
+    /// Same as calling `timer.change_deadline(Instant::now() + timeout)`.
+    pub fn change_timeout(&mut self, timeout: Duration) {
+        self.change_deadline(Instant::now() + timeout)
+    }
+
     /// Wrap a future creating a new `Deadline`.
     pub const fn wrap<Fut>(self, future: Fut) -> Deadline<Fut, RT> {
         Deadline {
