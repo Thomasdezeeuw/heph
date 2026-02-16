@@ -2,20 +2,20 @@ use std::any::Any;
 use std::cell::Cell;
 use std::future::Future;
 use std::pin::pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{self, Poll};
 
-use crate::actor::{self, actor_fn, Actor, NewActor};
-use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 use crate::ActorFuture;
+use crate::actor::{self, Actor, NewActor, actor_fn};
+use crate::supervisor::{NoSupervisor, Supervisor, SupervisorStrategy};
 
 #[test]
 fn actor_name() {
     let tests = &[
         (
             "core::future::from_generator::GenFuture<1_hello_world::greeter_actor::{{closure}}>",
-            "greeter_actor"
+            "greeter_actor",
         ),
         (
             "core::future::from_generator::GenFuture<1_hello_world::some::nested::module::greeter::actor::{{closure}}>",
@@ -23,16 +23,13 @@ fn actor_name() {
         ),
         (
             "core::future::from_generator::GenFuture<3_rpc::ping_actor>",
-            "ping_actor"
+            "ping_actor",
         ),
         (
             "core::future::from_generator::GenFuture<2_my_ip::conn_actor::{{closure}}>",
-            "conn_actor"
-        ),
-        (
-            "2_my_ip::conn_actor::{{closure}}",
             "conn_actor",
         ),
+        ("2_my_ip::conn_actor::{{closure}}", "conn_actor"),
         // Generic parameter(s) wrapped in GenFuture.
         (
             "core::future::from_generator::GenFuture<functional::functional::timer::triggered_timers_run_actors::deadline_actor<heph::actor::context::ThreadLocal>::{{closure}}>",
@@ -40,7 +37,7 @@ fn actor_name() {
         ),
         (
             "core::future::from_generator::GenFuture<functional::functional::timer::triggered_timers_run_actors::timer_actor<heph::actor::context::ThreadSafe>::{{closure}}>",
-            "timer_actor"
+            "timer_actor",
         ),
         (
             "core::future::from_generator::GenFuture<my_actor<P1>::{{closure}}>",
@@ -75,7 +72,7 @@ fn actor_name() {
         // If the module path is removed from `std::any::type_name`.
         (
             "GenFuture<1_hello_world::greeter_actor::{{closure}}>",
-            "greeter_actor"
+            "greeter_actor",
         ),
         (
             "GenFuture<1_hello_world::some::nested::module::greeter::actor::{{closure}}>",

@@ -5,7 +5,7 @@ use std::error::Error;
 use std::fmt;
 use std::future::Future;
 use std::num::NonZeroU8;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::pin::Pin;
 use std::task::{self, Poll};
 

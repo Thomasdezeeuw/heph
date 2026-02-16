@@ -97,7 +97,7 @@ use std::fmt;
 
 use log::warn;
 
-use crate::{panic_message, Actor, NewActor, SyncActor};
+use crate::{Actor, NewActor, SyncActor, panic_message};
 
 /// The supervisor of an [actor].
 ///

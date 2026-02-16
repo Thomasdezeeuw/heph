@@ -476,21 +476,21 @@ impl SyncWaker {
     );
 
     unsafe fn clone(data: *const ()) -> RawWaker {
-        let waker = SyncWaker::from_data_ref(data);
+        let waker = unsafe { SyncWaker::from_data_ref(data) };
         let data = waker.into_data();
         RawWaker::new(data, &SyncWaker::VTABLE)
     }
 
     unsafe fn wake(data: *const ()) {
-        SyncWaker::from_data(data).handle.unpark();
+        unsafe { SyncWaker::from_data(data) }.handle.unpark();
     }
 
     unsafe fn wake_by_ref(data: *const ()) {
-        SyncWaker::from_data_ref(data).handle.unpark();
+        unsafe { SyncWaker::from_data_ref(data) }.handle.unpark();
     }
 
     unsafe fn drop(data: *const ()) {
-        drop(SyncWaker::from_data(data));
+        drop(unsafe { SyncWaker::from_data(data) });
     }
 }
 
@@ -572,7 +572,9 @@ where
 /// Called when we can't create a new receiver for the sync actor.
 #[cold]
 fn inbox_failure<T>(_: ReceiverConnected) -> T {
-    panic!("failed to create new receiver for synchronous actor's inbox. Was the `sync::Context` leaked?");
+    panic!(
+        "failed to create new receiver for synchronous actor's inbox. Was the `sync::Context` leaked?"
+    );
 }
 
 /// Builder for [`SyncActorRunner`].

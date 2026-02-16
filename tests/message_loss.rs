@@ -6,10 +6,10 @@
 //! globally.
 
 use std::future::Future;
-use std::pin::{pin, Pin};
+use std::pin::{Pin, pin};
 use std::task::{self, Poll};
 
-use heph::actor::{self, actor_fn, NoMessages};
+use heph::actor::{self, NoMessages, actor_fn};
 use heph::future::ActorFuture;
 use heph::supervisor::NoSupervisor;
 use heph::test::set_message_loss;

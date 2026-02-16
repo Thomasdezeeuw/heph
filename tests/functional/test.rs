@@ -3,7 +3,7 @@
 use std::panic;
 
 use heph::actor::{self, actor_fn};
-use heph::test::{size_of_actor, size_of_actor_val, PanicSupervisor};
+use heph::test::{PanicSupervisor, size_of_actor, size_of_actor_val};
 use heph::{Supervisor, SyncSupervisor};
 
 use crate::util::{EmptyActor, EmptyNewActor};

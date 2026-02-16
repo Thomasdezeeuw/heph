@@ -4,10 +4,10 @@
 
 mod util {
     use std::future::Future;
-    use std::pin::{pin, Pin};
+    use std::pin::{Pin, pin};
     use std::task::{self, Poll};
 
-    use heph::{actor, sync, Actor, NewActor, SyncActor};
+    use heph::{Actor, NewActor, SyncActor, actor, sync};
 
     pub(crate) fn assert_send<T: Send>() {}
 

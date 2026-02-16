@@ -10,7 +10,7 @@ use std::task::{self, Poll};
 use std::thread::sleep;
 use std::time::Duration;
 
-use heph::{actor, restart_supervisor, Actor, NewActor, Supervisor, SupervisorStrategy};
+use heph::{Actor, NewActor, Supervisor, SupervisorStrategy, actor, restart_supervisor};
 
 // NOTE: keep in sync with the documentation.
 const DEFAULT_MAX_RESTARTS: usize = 5;

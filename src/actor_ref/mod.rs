@@ -136,8 +136,8 @@ use std::fmt;
 use std::future::Future;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{self, Poll};
 
 use heph_inbox::{self as inbox, Sender};

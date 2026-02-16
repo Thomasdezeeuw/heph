@@ -605,7 +605,7 @@ pub trait Actor {
     /// Just like with [`Future`]s polling after it returned [`Poll::Ready`] may
     /// cause undefined behaviour, including but not limited to panicking.
     fn try_poll(self: Pin<&mut Self>, ctx: &mut task::Context<'_>)
-        -> Poll<Result<(), Self::Error>>;
+    -> Poll<Result<(), Self::Error>>;
 }
 
 /// Supported are [`Future`]s with `Result<(), E>` or `()` [`Output`].

@@ -5,7 +5,7 @@
 #![allow(dead_code)] // Not all examples use all functions.
 
 use std::future::{Future, IntoFuture};
-use std::pin::{pin, Pin};
+use std::pin::{Pin, pin};
 use std::task::{self, Poll};
 
 /// Block on the `future`, expecting polling `ring` to drive it forward.
