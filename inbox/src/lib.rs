@@ -52,7 +52,7 @@
 //! receiver_handle.join().unwrap();
 //! ```
 
-#![feature(cfg_sanitize)]
+#![feature(async_iterator, cfg_sanitize)]
 #![warn(
     missing_debug_implementations,
     missing_docs,
@@ -65,6 +65,7 @@
 #![doc(test(attr(deny(warnings))))]
 
 use std::alloc::{Layout, alloc, handle_alloc_error};
+use std::async_iter::AsyncIterator;
 use std::cell::UnsafeCell;
 use std::error::Error;
 use std::fmt;
@@ -671,6 +672,22 @@ impl<T> Receiver<T> {
         }
     }
 
+    /// Returns an async iterator that receives many values from the channel,
+    /// waiting if the channel is empty.
+    ///
+    /// If the returned [`AsyncIterator`] returns `None` it means all
+    /// [`Sender`]s are [disconnected]. This is the same error as
+    /// [`RecvError::Disconnected`]. [`RecvError::Empty`] will never be
+    /// returned, the `AsyncIterator` will return [`Poll::Pending`] instead.
+    ///
+    /// [disconnected]: Receiver::is_connected
+    #[allow(clippy::needless_pass_by_ref_mut)]
+    pub fn recv_many<'r>(&'r mut self) -> RecvValues<'r, T> {
+        RecvValues {
+            channel: self.channel(),
+        }
+    }
+
     /// Attempts to peek a value from this channel.
     #[allow(clippy::needless_pass_by_ref_mut)]
     pub fn try_peek(&mut self) -> Result<&T, RecvError> {
@@ -954,6 +971,28 @@ impl<'r, T> Future for RecvValue<'r, T> {
 }
 
 impl<'r, T> Unpin for RecvValue<'r, T> {}
+
+/// [`AsyncIterator`] implementation behind [`Receiver::recv_many`].
+#[derive(Debug)]
+#[must_use = "async iterators do nothing unless you poll them"]
+pub struct RecvValues<'r, T> {
+    channel: &'r Channel<T>,
+}
+
+impl<'r, T> AsyncIterator for RecvValues<'r, T> {
+    type Item = T;
+
+    fn poll_next(self: Pin<&mut Self>, ctx: &mut task::Context) -> Poll<Option<Self::Item>> {
+        // RecvValue has the exact semantics we need, so we just reuse that
+        // implementation.
+        Pin::new(&mut RecvValue {
+            channel: self.channel,
+        })
+        .poll(ctx)
+    }
+}
+
+impl<'r, T> Unpin for RecvValues<'r, T> {}
 
 /// [`Future`] implementation behind [`Receiver::peek`].
 #[derive(Debug)]

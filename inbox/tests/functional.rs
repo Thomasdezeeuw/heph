@@ -1,5 +1,7 @@
 //! Functional tests.
 
+#![feature(async_iterator, cfg_sanitize)]
+
 use heph_inbox::{
     self as inbox, MAX_CAP, Manager, Receiver, RecvError, SendError, SendValue, Sender, new,
 };
@@ -412,6 +414,7 @@ fn receiver_new_sender() {
 mod future {
     //! Tests for the `Future` implementations.
 
+    use std::async_iter::AsyncIterator;
     use std::cmp::min;
     use std::future::Future;
     use std::pin::Pin;
@@ -845,6 +848,34 @@ mod future {
             assert_eq!(count, 0);
 
             assert_eq!(future.as_mut().poll(&mut ctx), Poll::Ready(None));
+        });
+    }
+
+    #[test]
+    fn recv_many_values() {
+        with_all_capacities!(|capacity| {
+            let (waker, count) = new_count_waker();
+            let (sender, mut receiver) = new::<usize>(capacity);
+
+            let mut ctx = task::Context::from_waker(&waker);
+
+            let future = receiver.recv_many();
+            pin_stack!(future);
+
+            assert_eq!(future.as_mut().poll_next(&mut ctx), Poll::Pending);
+
+            for n in 0..capacity {
+                sender.try_send(n).unwrap();
+            }
+            assert_eq!(count, 1);
+
+            for n in 0..capacity {
+                assert_eq!(future.as_mut().poll_next(&mut ctx), Poll::Ready(Some(n)));
+            }
+            assert_eq!(future.as_mut().poll_next(&mut ctx), Poll::Pending);
+
+            drop(sender);
+            assert_eq!(future.as_mut().poll_next(&mut ctx), Poll::Ready(None));
         });
     }
 
