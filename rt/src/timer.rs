@@ -281,6 +281,20 @@ impl<Fut, RT: Access> Deadline<Fut, RT> {
         &mut self.future
     }
 
+    /// Change the deadline.
+    ///
+    /// The previous timer will not trigger.
+    pub fn change_deadline(&mut self, deadline: Instant) {
+        self.timer.change_deadline(deadline)
+    }
+
+    /// Change the timeout.
+    ///
+    /// Same as calling `timer.change_deadline(Instant::now() + timeout)`.
+    pub fn change_timeout(&mut self, timeout: Duration) {
+        self.timer.change_timeout(timeout)
+    }
+
     /// Returns the wrapped future.
     pub fn into_inner(self) -> Fut {
         self.future
