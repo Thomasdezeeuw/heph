@@ -1,6 +1,6 @@
 //! Tests for memory deallocation.
 
-use heph_inbox::{self as inbox, new, Manager};
+use heph_inbox::{self as inbox, Manager, new};
 
 #[macro_use]
 mod util;
@@ -250,7 +250,7 @@ mod threaded {
     use std::thread;
     use std::time::Duration;
 
-    use heph_inbox::{self as inbox, new, Manager};
+    use heph_inbox::{self as inbox, Manager, new};
 
     use crate::util::{DropTest, NeverDrop};
 

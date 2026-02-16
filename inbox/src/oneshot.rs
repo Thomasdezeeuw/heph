@@ -50,8 +50,8 @@ use std::mem::MaybeUninit;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::pin::Pin;
 use std::ptr::{self, NonNull};
-use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU8, Ordering};
 use std::task::{self, Poll};
 
 /// Create a new one-shot channel.

@@ -4,7 +4,7 @@
 mod util;
 
 mod functional {
-    use heph_inbox::oneshot::{new_oneshot, Receiver, RecvError, Sender};
+    use heph_inbox::oneshot::{Receiver, RecvError, Sender, new_oneshot};
 
     use crate::util::{assert_send, assert_sync, new_count_waker};
 
@@ -455,7 +455,7 @@ mod drop {
 }
 
 mod threaded {
-    use heph_inbox::oneshot::{new_oneshot, RecvError};
+    use heph_inbox::oneshot::{RecvError, new_oneshot};
 
     /// Loop until a value is received.
     macro_rules! expect_recv {

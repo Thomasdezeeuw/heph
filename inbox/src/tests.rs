@@ -1,14 +1,14 @@
 //! Tests for the internal API.
 
 use std::future::Future;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::task::{self, Poll, Wake};
 
 use crate::{
-    has_status, new_small, receiver_pos, slot_status, Channel, Join, Receiver, SendValue, Sender,
-    ALL_STATUSES_MASK, EMPTY, FILLED, MARK_EMPTIED, MARK_NEXT_POS, MARK_READING, READING,
-    SMALL_CAP, TAKEN,
+    ALL_STATUSES_MASK, Channel, EMPTY, FILLED, Join, MARK_EMPTIED, MARK_NEXT_POS, MARK_READING,
+    READING, Receiver, SMALL_CAP, SendValue, Sender, TAKEN, has_status, new_small, receiver_pos,
+    slot_status,
 };
 
 /// Number of times the waker was awoken.

@@ -64,18 +64,18 @@
 // Disallow warnings in examples, we want to set a good example after all.
 #![doc(test(attr(deny(warnings))))]
 
-use std::alloc::{alloc, handle_alloc_error, Layout};
+use std::alloc::{Layout, alloc, handle_alloc_error};
 use std::cell::UnsafeCell;
 use std::error::Error;
 use std::fmt;
 use std::future::Future;
-use std::mem::{drop as unlock, replace, take, MaybeUninit};
+use std::mem::{MaybeUninit, drop as unlock, replace, take};
 use std::ops::Deref;
 use std::panic::{RefUnwindSafe, UnwindSafe};
 use std::pin::Pin;
 use std::ptr::{self, NonNull};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::task::{self, Poll};
 
 #[cfg(test)]

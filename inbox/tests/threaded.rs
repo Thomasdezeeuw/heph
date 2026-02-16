@@ -3,7 +3,7 @@
 use std::thread;
 use std::time::Duration;
 
-use heph_inbox::{self as inbox, new, Manager, RecvError, SendError};
+use heph_inbox::{self as inbox, Manager, RecvError, SendError, new};
 
 #[macro_use]
 mod util;

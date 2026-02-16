@@ -1,7 +1,7 @@
 //! Functional tests.
 
 use heph_inbox::{
-    self as inbox, new, Manager, Receiver, RecvError, SendError, SendValue, Sender, MAX_CAP,
+    self as inbox, MAX_CAP, Manager, Receiver, RecvError, SendError, SendValue, Sender, new,
 };
 
 #[macro_use]
