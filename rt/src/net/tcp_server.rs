@@ -264,12 +264,7 @@ struct Inner<S, NA> {
     options: ActorOptions,
 }
 
-impl<S, NA> TcpServer<S, NA>
-where
-    S: Supervisor<NA> + Clone + 'static,
-    NA: NewActor<Argument = AsyncFd> + Clone + 'static,
-    NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
-{
+impl<S, NA> TcpServer<S, NA> {
     /// Create a new server.
     ///
     /// Arguments:
@@ -283,7 +278,12 @@ where
         supervisor: S,
         new_actor: NA,
         options: ActorOptions,
-    ) -> io::Result<TcpServer<S, NA>> {
+    ) -> io::Result<TcpServer<S, NA>>
+    where
+        S: Supervisor<NA> + Clone + 'static,
+        NA: NewActor<Argument = AsyncFd> + Clone + 'static,
+        NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
+    {
         // We create a listener which don't actually use. However it gives a
         // nicer user-experience to get an error up-front rather than $n errors
         // later, where $n is the number of cpu cores when spawning a new server
