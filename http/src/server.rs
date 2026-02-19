@@ -51,7 +51,7 @@ impl<S, NA> HttpServer<S, NA> {
     ///
     /// The actor needs to fully handle a single [`Connection`]. This allows the
     /// incoming requests in whatever way you see fit. Also see
-    /// [`HttpServer::new_with_handler`] for a HTTP server that only needs a
+    /// [`HttpServer::new_using_handler`] for a HTTP server that only needs a
     /// function to handle a single request at a time, which is easier to use.
     ///
     /// Arguments:
@@ -85,7 +85,7 @@ impl<S, NA> HttpServer<S, NA> {
     /// the [impl block] below.
     ///
     /// [impl block]: #impl-HttpServer<S,+Handler<H,+E,+RT>>
-    pub fn new_with_handler<H, RT>(
+    pub fn new_using_handler<H, RT>(
         address: SocketAddr,
         handler: H,
     ) -> io::Result<HttpServer<HandlerSupervisor, Handler<H, DefaultErrorHandler, RT>>>
