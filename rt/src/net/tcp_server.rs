@@ -372,6 +372,43 @@ impl<S, NA> TcpServer<S, NA> {
         })
     }
 
+    /// Change the supervisor for the the actor that handles the connections.
+    #[rustfmt::skip]
+    pub fn map_supervisor<F, S2>(self, map: F) -> TcpServer<S2, NA>
+    where
+        F: FnOnce(S) -> S2,
+        S2: Supervisor<NA> + Clone + 'static,
+        NA: NewActor,
+    {
+        let TcpServer { socket, address, supervisor, new_actor, options } = self;
+        let supervisor = map(supervisor);
+        TcpServer { socket, address, supervisor, new_actor, options }
+    }
+
+    /// Change the actor that handles the incoming connections.
+    #[rustfmt::skip]
+    pub fn map_actor<F, NA2>(self, map: F) -> TcpServer<S, NA2>
+    where
+        F: FnOnce(NA) -> NA2,
+        NA2: NewActor<Argument = AsyncFd> + Clone + 'static,
+        NA2::RuntimeAccess: Access + Spawn<S, NA2, NA2::RuntimeAccess>,
+    {
+        let TcpServer { socket, address, supervisor, new_actor, options } = self;
+        let new_actor = map(new_actor);
+        TcpServer { socket, address, supervisor, new_actor, options }
+    }
+
+    /// Change the actor options for the actor that handles incoming connections.
+    #[rustfmt::skip]
+    pub fn map_actor_options<F>(self, map: F) -> Self
+    where
+        F: FnOnce(ActorOptions) -> ActorOptions,
+    {
+        let TcpServer { socket, address, supervisor, new_actor, options } = self;
+        let options = map(options);
+        TcpServer { socket, address, supervisor, new_actor, options }
+    }
+
     /// Returns the address the server is bound to.
     pub fn local_addr(&self) -> SocketAddr {
         self.address
