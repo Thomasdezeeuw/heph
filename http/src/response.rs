@@ -13,6 +13,10 @@ pub struct Response<B> {
 
 impl<B> Response<B> {
     /// Create a new HTTP response.
+    ///
+    /// See the [builder pattern implementation] below for an easier to use API.
+    ///
+    /// [builder pattern implementation]: #impl-Response<EmptyBody>
     pub const fn new(
         version: Version,
         status: StatusCode,
