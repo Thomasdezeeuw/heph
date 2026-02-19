@@ -10,27 +10,27 @@
 use std::fmt;
 use std::future::Future;
 use std::io::{self, Write};
-use std::mem::{MaybeUninit, take};
+use std::mem::{take, MaybeUninit};
 use std::net::SocketAddr;
 use std::time::SystemTime;
 
 use heph::supervisor::Supervisor;
-use heph::{NewActor, actor};
-use heph_rt::Access;
+use heph::{actor, NewActor};
 use heph_rt::extract::Extract;
 use heph_rt::fd::AsyncFd;
 use heph_rt::io::{BufMut, BufMutSlice};
 use heph_rt::net::TcpServer;
-use heph_rt::spawn::Spawn;
 use heph_rt::spawn::options::{ActorOptions, InboxSize};
+use heph_rt::spawn::Spawn;
 use heph_rt::timer::DeadlinePassed;
+use heph_rt::Access;
 use httpdate::HttpDate;
 
 use crate::body::{BodyLength, EmptyBody};
 use crate::head::header::{FromHeaderValue, Header, HeaderName, Headers};
 use crate::{
-    BUF_SIZE, INIT_HEAD_SIZE, MAX_HEAD_SIZE, MAX_HEADERS, MIN_READ_SIZE, Method, Request, Response,
-    StatusCode, Version, map_version_byte, set_nodelay, trim_ws,
+    map_version_byte, set_nodelay, trim_ws, Method, Request, Response, StatusCode, Version,
+    BUF_SIZE, INIT_HEAD_SIZE, MAX_HEADERS, MAX_HEAD_SIZE, MIN_READ_SIZE,
 };
 
 pub mod handler;
@@ -43,7 +43,7 @@ use handler::{DefaultErrorHandler, Handler, HandlerSupervisor, HttpHandle, HttpH
 ///
 /// In additional to the usual design of spawning a single actor per incoming
 /// connection this also allows the use of request handlers.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct HttpServer<S, NA>(TcpServer<S, NA>);
 
 impl<S, NA> HttpServer<S, NA> {
@@ -107,6 +107,41 @@ impl<S, NA> HttpServer<S, NA> {
     }
 }
 
+/// Set optional configuration options when using the HTTP handler.
+///
+/// See [`HttpServer::new_using_handler`] for creation.
+impl<S, H, E, RT> HttpServer<S, Handler<H, E, RT>>
+where
+    H: HttpHandle + Clone + 'static,
+    E: HttpHandleError + Clone + 'static,
+{
+    /// Change the supervisor for the actor that handles the connections.
+    ///
+    /// Defaults to [`HandlerSupervisor`].
+    pub fn with_supervisor<S2>(self, supervisor: S2) -> HttpServer<S2, Handler<H, E, RT>>
+    where
+        S2: Supervisor<Handler<H, E, RT>> + Clone + 'static,
+    {
+        HttpServer(self.0.map_supervisor(|_| supervisor))
+    }
+
+    /// Change the error handler.
+    ///
+    /// Defaults to [`DefaultErrorHandler`].
+    pub fn with_error_handler<E2>(self, error_handler: E2) -> HttpServer<S, Handler<H, E2, RT>>
+    where
+        E2: HttpHandleError + Clone + 'static,
+        RT: Access + Spawn<S, Handler<H, E2, RT>, RT> + Clone + 'static,
+    {
+        HttpServer(self.0.map_actor(|h| h.with_error_handler(error_handler)))
+    }
+
+    /// Change the actor options for the actor that handles incoming connections.
+    pub fn with_actor_options<F>(self, options: ActorOptions) -> Self {
+        HttpServer(self.0.map_actor_options(|_| options))
+    }
+}
+
 impl<S, NA> NewActor for HttpServer<S, NA>
 where
     S: Supervisor<NA> + Clone + 'static,
@@ -116,7 +151,7 @@ where
     type Message = ServerMessage;
     type Argument = ();
     type Actor = impl Future<Output = Result<(), ServerError<NA::Error>>>;
-    type Error = !;
+    type Error = io::Error;
     type RuntimeAccess = NA::RuntimeAccess;
 
     fn new(
@@ -125,12 +160,6 @@ where
         (): Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
         self.0.new(ctx, ())
-    }
-}
-
-impl<S, NA> Clone for HttpServer<S, NA> {
-    fn clone(&self) -> HttpServer<S, NA> {
-        HttpServer(self.0.clone())
     }
 }
 

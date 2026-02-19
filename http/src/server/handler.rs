@@ -16,7 +16,7 @@ use heph_rt::fd::AsyncFd;
 
 use crate::body::OneshotBody;
 use crate::server::{Body, Connection, RequestError};
-use crate::{Header, HeaderName, Request, Response, set_nodelay};
+use crate::{set_nodelay, Header, HeaderName, Request, Response};
 
 /// [`Supervisor`] for [`Handler`].
 #[derive(Copy, Clone, Debug)]
@@ -62,6 +62,12 @@ impl<H, E, RT> Handler<H, E, RT> {
             error_handler,
             _phantom: PhantomData,
         }
+    }
+
+    #[rustfmt::skip]
+    pub(crate) fn with_error_handler<E2>(self, error_handler: E2) -> Handler<H, E2, RT> {
+        let Handler { handler, .. } = self;
+        Handler { handler, error_handler, _phantom: PhantomData }
     }
 }
 
