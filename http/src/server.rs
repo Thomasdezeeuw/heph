@@ -10,27 +10,27 @@
 use std::fmt;
 use std::future::Future;
 use std::io::{self, Write};
-use std::mem::{take, MaybeUninit};
+use std::mem::{MaybeUninit, take};
 use std::net::SocketAddr;
 use std::time::SystemTime;
 
 use heph::supervisor::Supervisor;
-use heph::{actor, NewActor};
+use heph::{NewActor, actor};
+use heph_rt::Access;
 use heph_rt::extract::Extract;
 use heph_rt::fd::AsyncFd;
 use heph_rt::io::{BufMut, BufMutSlice};
 use heph_rt::net::TcpServer;
-use heph_rt::spawn::options::{ActorOptions, InboxSize};
 use heph_rt::spawn::Spawn;
+use heph_rt::spawn::options::{ActorOptions, InboxSize};
 use heph_rt::timer::DeadlinePassed;
-use heph_rt::Access;
 use httpdate::HttpDate;
 
 use crate::body::{BodyLength, EmptyBody};
 use crate::head::header::{FromHeaderValue, Header, HeaderName, Headers};
 use crate::{
-    map_version_byte, set_nodelay, trim_ws, Method, Request, Response, StatusCode, Version,
-    BUF_SIZE, INIT_HEAD_SIZE, MAX_HEADERS, MAX_HEAD_SIZE, MIN_READ_SIZE,
+    BUF_SIZE, INIT_HEAD_SIZE, MAX_HEAD_SIZE, MAX_HEADERS, MIN_READ_SIZE, Method, Request, Response,
+    StatusCode, Version, map_version_byte, set_nodelay, trim_ws,
 };
 
 pub mod handler;

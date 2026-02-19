@@ -34,13 +34,13 @@ pub use body::Body;
 #[doc(no_inline)]
 pub use client::Client;
 #[doc(no_inline)]
+pub use head::StatusCode;
+#[doc(no_inline)]
 pub use head::header::{Header, HeaderName, Headers};
 #[doc(no_inline)]
 pub use head::method::Method;
 #[doc(no_inline)]
 pub use head::version::Version;
-#[doc(no_inline)]
-pub use head::StatusCode;
 pub use request::Request;
 pub use response::Response;
 #[doc(no_inline)]

@@ -4,17 +4,17 @@ use std::mem::take;
 use std::net::SocketAddr;
 use std::{fmt, io};
 
+use heph_rt::Access;
 use heph_rt::fd::AsyncFd;
 use heph_rt::io::{BufMut, BufMutSlice};
-use heph_rt::net::{socket, Domain, Protocol, Type};
+use heph_rt::net::{Domain, Protocol, Type, socket};
 use heph_rt::timer::DeadlinePassed;
-use heph_rt::Access;
 
 use crate::body::{BodyLength, EmptyBody};
 use crate::head::header::{FromHeaderValue, HeaderName, Headers};
 use crate::{
-    map_version_byte, set_nodelay, trim_ws, Method, Response, StatusCode, BUF_SIZE, INIT_HEAD_SIZE,
-    MAX_HEADERS, MAX_HEAD_SIZE, MIN_READ_SIZE,
+    BUF_SIZE, INIT_HEAD_SIZE, MAX_HEAD_SIZE, MAX_HEADERS, MIN_READ_SIZE, Method, Response,
+    StatusCode, map_version_byte, set_nodelay, trim_ws,
 };
 
 /// HTTP/1.1 client.

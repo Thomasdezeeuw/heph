@@ -16,7 +16,7 @@ use heph_rt::fd::AsyncFd;
 
 use crate::body::OneshotBody;
 use crate::server::{Body, Connection, RequestError};
-use crate::{set_nodelay, Header, HeaderName, Request, Response};
+use crate::{Header, HeaderName, Request, Response, set_nodelay};
 
 /// [`Supervisor`] for [`Handler`].
 #[derive(Copy, Clone, Debug)]
