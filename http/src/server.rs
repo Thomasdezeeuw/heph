@@ -1,3 +1,5 @@
+//! HTTP server.
+
 // TODO: Continue reading RFC 7230 section 4 Transfer Codings.
 //
 // TODO: RFC 7230 section 3.3.3 point 5:
@@ -5,207 +7,142 @@
 // > times out before the indicated number of octets are
 // > received, the recipient MUST consider the message to be
 // > incomplete and close the connection.
-
-//! HTTP server.
-//!
-//! The HTTP server is an actor that starts a new actor for each accepted HTTP
-//! connection. This actor can start as a thread-local or thread-safe actor.
-//! When using the thread-local variant one actor runs per worker thread which
-//! spawns thread-local actors to handle the [`Connection`]s, from which HTTP
-//! [`Request`]s can be read and HTTP [`Response`]s can be written.
-//!
-//! [`Response`]: crate::Response
-//!
-//! # Graceful shutdown
-//!
-//! Graceful shutdown is done by sending it a [`Terminate`] message. The HTTP
-//! server can also handle (shutdown) process signals, see below for an example.
-//!
-//! [`Terminate`]: heph::messages::Terminate
-//!
-//! # Examples
-//!
-//! ```rust
-//! # #![feature(never_type)]
-//! use std::borrow::Cow;
-//! use std::io;
-//! use std::net::SocketAddr;
-//! use std::time::Duration;
-//!
-//! use heph::actor::{self, Actor, NewActor, actor_fn};
-//! use heph::supervisor::{Supervisor, SupervisorStrategy};
-//! use heph_http::body::OneshotBody;
-//! use heph_http::{self as http, server, Header, HeaderName, Headers, Method, StatusCode};
-//! use heph_rt::fd::AsyncFd;
-//! use heph_rt::spawn::options::{ActorOptions, Priority};
-//! use heph_rt::timer::Deadline;
-//! use heph_rt::{Runtime, ThreadLocal};
-//! use log::error;
-//!
-//! fn main() -> Result<(), heph_rt::Error> {
-//!     // Setup the HTTP server.
-//!     let actor = actor_fn(http_actor);
-//!     let address = "127.0.0.1:7890".parse().unwrap();
-//!     let server = server::setup(address, conn_supervisor, actor, ActorOptions::default())
-//!         .map_err(heph_rt::Error::setup)?;
-//!
-//!     // Build the runtime.
-//!     let mut runtime = Runtime::setup().use_all_cores().build()?;
-//!     // On each worker thread start our HTTP server.
-//!     runtime.run_on_workers(move |mut runtime_ref| -> io::Result<()> {
-//!         let options = ActorOptions::default().with_priority(Priority::LOW);
-//!         let server_ref = runtime_ref.spawn_local(server_supervisor, server, (), options);
-//!
-//! #       server_ref.try_send(heph::messages::Terminate).unwrap();
-//!
-//!         // Allow graceful shutdown by responding to process signals.
-//!         runtime_ref.receive_signals(server_ref.try_map());
-//!         Ok(())
-//!     })?;
-//!     runtime.start()
-//! }
-//!
-//! /// Our supervisor for the HTTP server.
-//! fn server_supervisor(err: server::Error<!>) -> SupervisorStrategy<()> {
-//!     match err {
-//!         // When we hit an error accepting a connection we'll drop the old
-//!         // server and create a new one.
-//!         server::Error::Accept(err) => {
-//!             error!("error accepting new connection: {err}");
-//!             SupervisorStrategy::Restart(())
-//!         }
-//!         // Async function never return an error creating a new actor.
-//!         server::Error::NewActor(_) => unreachable!(),
-//!     }
-//! }
-//!
-//! fn conn_supervisor(err: io::Error) -> SupervisorStrategy<AsyncFd> {
-//!     error!("error handling connection: {err}");
-//!     SupervisorStrategy::Stop
-//! }
-//!
-//! /// Our actor that handles a single HTTP connection.
-//! async fn http_actor(
-//!     mut ctx: actor::Context<!, ThreadLocal>,
-//!     mut connection: http::Connection,
-//! ) -> io::Result<()> {
-//!     let mut headers = Headers::EMPTY;
-//!     loop {
-//!         // Read the next request.
-//!         let (code, body, should_close) = match connection.next_request().await {
-//!             Ok(Some(request)) => {
-//!                 // Only support GET/HEAD to "/", with an empty body.
-//!                 if request.path() != "/" {
-//!                     (StatusCode::NOT_FOUND, "Not found".into(), false)
-//!                 } else if !matches!(request.method(), Method::Get | Method::Head) {
-//!                     // Add the "Allow" header to show the HTTP methods we do
-//!                     // support.
-//!                     headers.append(Header::new(HeaderName::ALLOW, b"GET, HEAD"));
-//!                     (StatusCode::METHOD_NOT_ALLOWED, "Method not allowed".into(), false)
-//!                 } else if !request.body().is_empty() {
-//!                     (StatusCode::PAYLOAD_TOO_LARGE, "Not expecting a body".into(), true)
-//!                 } else {
-//!                     (StatusCode::OK, "Hello world".into(), false)
-//!                 }
-//!             }
-//!             // No more requests.
-//!             Ok(None) => return Ok(()),
-//!             // Error parsing request.
-//!             Err(err) => {
-//!                 // Determine the correct status code to return.
-//!                 let code = err.proper_status_code();
-//!                 // Create a useful error message as body.
-//!                 let body = Cow::from(format!("Bad request: {err}"));
-//!                 (code, body, err.should_close())
-//!             }
-//!         };
-//!
-//!         // If we want to close the connection add the "Connection: close"
-//!         // header.
-//!         if should_close {
-//!             headers.append(Header::new(HeaderName::CONNECTION, b"close"));
-//!         }
-//!
-//!         // Send the body as a single payload.
-//!         let body = OneshotBody::new(body);
-//!         // Respond to the request.
-//!         connection.respond(code, &headers, body).await?;
-//!
-//!         if should_close {
-//!             return Ok(());
-//!         }
-//!         headers.clear();
-//!     }
-//! }
-//! ```
-
 use std::fmt;
+use std::future::Future;
 use std::io::{self, Write};
-use std::mem::{take, MaybeUninit};
+use std::mem::{MaybeUninit, take};
 use std::net::SocketAddr;
 use std::time::SystemTime;
 
-use heph::{actor, NewActor, Supervisor};
+use heph::supervisor::Supervisor;
+use heph::{NewActor, actor};
+use heph_rt::Access;
 use heph_rt::extract::Extract;
 use heph_rt::fd::AsyncFd;
 use heph_rt::io::{BufMut, BufMutSlice};
 use heph_rt::net::TcpServer;
-use heph_rt::spawn::{ActorOptions, Spawn};
+use heph_rt::spawn::Spawn;
+use heph_rt::spawn::options::{ActorOptions, InboxSize};
 use heph_rt::timer::DeadlinePassed;
-use heph_rt::Access;
 use httpdate::HttpDate;
 
 use crate::body::{BodyLength, EmptyBody};
 use crate::head::header::{FromHeaderValue, Header, HeaderName, Headers};
 use crate::{
-    map_version_byte, set_nodelay, trim_ws, Method, Request, Response, StatusCode, Version,
-    BUF_SIZE, INIT_HEAD_SIZE, MAX_HEADERS, MAX_HEAD_SIZE, MIN_READ_SIZE,
+    BUF_SIZE, INIT_HEAD_SIZE, MAX_HEAD_SIZE, MAX_HEADERS, MIN_READ_SIZE, Method, Request, Response,
+    StatusCode, Version, map_version_byte, set_nodelay, trim_ws,
 };
 
-/// Create a new HTTP server.
+pub mod handler;
+use handler::{DefaultErrorHandler, Handler, HandlerSupervisor, HttpHandle, HttpHandleError};
+
+/// HTTP server.
 ///
-/// Arguments:
-///  * `address`: the address to listen on.
-///  * `supervisor`: the [`Supervisor`] used to supervise each started actor,
-///  * `new_actor`: the [`NewActor`] implementation to start each actor, and
-///  * `options`: the actor options used to spawn the new actors.
+/// The HTTP server uses the same design as [`TcpServer`], see that for how this
+/// type is supposed to work, including graceful shutdown.
 ///
-/// See the [module documentation] for examples.
-///
-/// [module documentation]: crate::server
-pub fn new<S, NA>(
-    address: SocketAddr,
-    supervisor: S,
-    new_actor: NA,
-    options: ActorOptions,
-) -> io::Result<HttpServer<S, NA>>
-where
-    S: Supervisor<HttpNewActor<NA>> + Clone + 'static,
-    NA: NewActor<Argument = Connection> + Clone + 'static,
-    <HttpNewActor<NA> as NewActor>::RuntimeAccess:
-        Access + Spawn<S, HttpNewActor<NA>, NA::RuntimeAccess>,
-{
-    let new_actor = HttpNewActor { new_actor };
-    TcpServer::new(address, supervisor, new_actor, options)
+/// In additional to the usual design of spawning a single actor per incoming
+/// connection this also allows the use of request handlers.
+#[derive(Debug)]
+pub struct HttpServer<S, NA>(TcpServer<S, NA>);
+
+impl<S, NA> HttpServer<S, NA> {
+    /// Create a new HTTP server.
+    ///
+    /// The actor needs to fully handle a single [`Connection`]. This allows the
+    /// incoming requests in whatever way you see fit. Also see
+    /// [`HttpServer::new_with_handler`] for a HTTP server that only needs a
+    /// function to handle a single request at a time, which is easier to use.
+    ///
+    /// Arguments:
+    ///  * `address`: the address to listen on,
+    ///  * `supervisor`: the [`Supervisor`] used to supervise each started actor,
+    ///  * `new_actor`: the [`NewActor`] implementation to start each actor, and
+    ///  * `options`: the actor options used to spawn the new actors.
+    pub fn new(
+        address: SocketAddr,
+        supervisor: S,
+        new_actor: NA,
+        options: ActorOptions,
+    ) -> io::Result<HttpServer<S, HttpNewActor<NA>>>
+    where
+        S: Supervisor<HttpNewActor<NA>> + Clone + 'static,
+        NA: NewActor<Argument = Connection> + Clone + 'static,
+        NA::RuntimeAccess: Access + Spawn<S, HttpNewActor<NA>, NA::RuntimeAccess>,
+    {
+        let new_actor = HttpNewActor(new_actor);
+        TcpServer::new(address, supervisor, new_actor, options).map(HttpServer)
+    }
+
+    /// Create a new HTTP server that uses a single `Future` to handle incoming
+    /// connection.
+    ///
+    /// Arguments:
+    ///  * `address`: the address to listen on,
+    ///  * `handler`: the future that is used to process a single request.
+    ///
+    /// Setting additional options, such as the error handler, can be done using
+    /// the [impl block] below.
+    ///
+    /// [impl block]: #impl-HttpServer<S,+Handler<H,+E,+RT>>
+    pub fn new_with_handler<H, RT>(
+        address: SocketAddr,
+        handler: H,
+    ) -> io::Result<HttpServer<HandlerSupervisor, Handler<H, DefaultErrorHandler, RT>>>
+    where
+        H: HttpHandle + Clone + 'static,
+        RT: Access
+            + Spawn<HandlerSupervisor, Handler<H, DefaultErrorHandler, RT>, RT>
+            + Clone
+            + 'static,
+    {
+        let new_actor = Handler::new(handler, DefaultErrorHandler);
+        let options = ActorOptions::default().with_inbox_size(InboxSize::ONE);
+        TcpServer::new(address, HandlerSupervisor, new_actor, options).map(HttpServer)
+    }
+
+    /// Returns the address the server is bound to.
+    pub fn local_addr(&self) -> SocketAddr {
+        self.0.local_addr()
+    }
 }
 
-/// HTTP server actor.
-///
-/// See [`new`] to create this and the [module documentation] for examples.
-///
-/// [module documentation]: crate::server
-pub type HttpServer<S, NA> = TcpServer<S, HttpNewActor<NA>>;
+impl<S, NA> NewActor for HttpServer<S, NA>
+where
+    S: Supervisor<NA> + Clone + 'static,
+    NA: NewActor<Argument = AsyncFd> + Clone + 'static,
+    NA::RuntimeAccess: Access + Spawn<S, NA, NA::RuntimeAccess>,
+{
+    type Message = ServerMessage;
+    type Argument = ();
+    type Actor = impl Future<Output = Result<(), ServerError<NA::Error>>>;
+    type Error = !;
+    type RuntimeAccess = NA::RuntimeAccess;
 
-/// Maps `NA` to accept `AsyncFd` as argument, creating a [`Connection`].
+    fn new(
+        &mut self,
+        ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
+        (): Self::Argument,
+    ) -> Result<Self::Actor, Self::Error> {
+        self.0.new(ctx, ())
+    }
+}
+
+impl<S, NA> Clone for HttpServer<S, NA> {
+    fn clone(&self) -> HttpServer<S, NA> {
+        HttpServer(self.0.clone())
+    }
+}
+
+/// `NewActor` mapper used by [`HttpServer::new`].
+///
+/// This accepts an [`AsyncFd`] as arguments, sets TCP no delay on it and
+/// converts it into a [`Connection`]. Then it passes that connection on to the
+/// provided `NewActor` in `NA`.
 #[derive(Debug, Clone)]
-pub struct HttpNewActor<NA> {
-    new_actor: NA,
-}
+pub struct HttpNewActor<NA>(NA);
 
-impl<NA> NewActor for HttpNewActor<NA>
-where
-    NA: NewActor<Argument = Connection>,
-{
+impl<NA: NewActor<Argument = Connection>> NewActor for HttpNewActor<NA> {
     type Message = NA::Message;
     type Argument = AsyncFd;
     type Actor = NA::Actor;
@@ -215,16 +152,16 @@ where
     fn new(
         &mut self,
         ctx: actor::Context<Self::Message, Self::RuntimeAccess>,
-        stream: Self::Argument,
+        fd: Self::Argument,
     ) -> Result<Self::Actor, Self::Error> {
-        if let Some(fd) = stream.as_fd() {
+        if let Some(fd) = fd.as_fd() {
             if let Err(err) = set_nodelay(fd) {
                 log::warn!("failed to set TCP no delay on accepted connection: {err}");
             }
         }
 
-        let conn = Connection::new(stream);
-        self.new_actor.new(ctx, conn)
+        let conn = Connection::new(fd);
+        self.0.new(ctx, conn)
     }
 
     fn name() -> &'static str {
@@ -990,7 +927,9 @@ impl<'a> Drop for Body<'a> {
                     // Read all chunks.
                     debug_assert_eq!(left_in_chunk, 0);
                 } else {
-                    // FIXME: don't panic here.
+                    // FIXME: add some sort of unprocessed field to Connection
+                    // that handles skipping over bytes when reading the next
+                    // request.
                     todo!("remove chunked body from connection");
                 }
             }
@@ -1051,60 +990,58 @@ pub enum RequestError {
 impl RequestError {
     /// Returns the proper status code for a given error.
     pub const fn proper_status_code(&self) -> StatusCode {
-        use RequestError::*;
         // See the parsing code for various references to the RFC(s) that
         // determine the values here.
         match self {
-            IncompleteRequest
-            | HeadTooLarge
-            | InvalidContentLength
-            | DifferentContentLengths
-            | InvalidHeaderName
-            | InvalidHeaderValue
-            | TooManyHeaders
-            | ChunkedNotLastTransferEncoding
-            | ContentLengthAndTransferEncoding
-            | InvalidToken
-            | InvalidNewLine
-            | InvalidVersion
-            | InvalidChunkSize => StatusCode::BAD_REQUEST,
+            RequestError::IncompleteRequest
+            | RequestError::HeadTooLarge
+            | RequestError::InvalidContentLength
+            | RequestError::DifferentContentLengths
+            | RequestError::InvalidHeaderName
+            | RequestError::InvalidHeaderValue
+            | RequestError::TooManyHeaders
+            | RequestError::ChunkedNotLastTransferEncoding
+            | RequestError::ContentLengthAndTransferEncoding
+            | RequestError::InvalidToken
+            | RequestError::InvalidNewLine
+            | RequestError::InvalidVersion
+            | RequestError::InvalidChunkSize => StatusCode::BAD_REQUEST,
             // RFC 7230 section 3.3.1:
             // > A server that receives a request message with a transfer coding
             // > it does not understand SHOULD respond with 501 (Not
             // > Implemented).
-            UnsupportedTransferEncoding
+            RequestError::UnsupportedTransferEncoding
             // RFC 7231 section 4.1:
             // > When a request method is received that is unrecognized or not
             // > implemented by an origin server, the origin server SHOULD
             // > respond with the 501 (Not Implemented) status code.
-            | UnknownMethod => StatusCode::NOT_IMPLEMENTED,
-            Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            | RequestError::UnknownMethod => StatusCode::NOT_IMPLEMENTED,
+            RequestError::Io(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
     /// Returns `true` if the connection should be closed based on the error
     /// (after sending a error response).
     pub const fn should_close(&self) -> bool {
-        use RequestError::*;
         // See the parsing code for various references to the RFC(s) that
         // determine the values here.
         match self {
-            IncompleteRequest
-            | HeadTooLarge
-            | InvalidContentLength
-            | DifferentContentLengths
-            | InvalidHeaderName
-            | InvalidHeaderValue
-            | UnsupportedTransferEncoding
-            | TooManyHeaders
-            | ChunkedNotLastTransferEncoding
-            | ContentLengthAndTransferEncoding
-            | InvalidToken
-            | InvalidNewLine
-            | InvalidVersion
-            | InvalidChunkSize
-            | Io(_) => true,
-            UnknownMethod => false,
+            RequestError::IncompleteRequest
+            | RequestError::HeadTooLarge
+            | RequestError::InvalidContentLength
+            | RequestError::DifferentContentLengths
+            | RequestError::InvalidHeaderName
+            | RequestError::InvalidHeaderValue
+            | RequestError::UnsupportedTransferEncoding
+            | RequestError::TooManyHeaders
+            | RequestError::ChunkedNotLastTransferEncoding
+            | RequestError::ContentLengthAndTransferEncoding
+            | RequestError::InvalidToken
+            | RequestError::InvalidNewLine
+            | RequestError::InvalidVersion
+            | RequestError::InvalidChunkSize
+            | RequestError::Io(_) => true,
+            RequestError::UnknownMethod => false,
         }
     }
 
@@ -1124,43 +1061,42 @@ impl RequestError {
         response
     }
 
+    // NOTE: not implemented using the From trait because it's not part of the
+    // public API.
     fn from_httparse(err: httparse::Error) -> RequestError {
-        use httparse::Error::*;
         match err {
-            HeaderName => RequestError::InvalidHeaderName,
-            HeaderValue => RequestError::InvalidHeaderValue,
-            Token => RequestError::InvalidToken,
-            NewLine => RequestError::InvalidNewLine,
-            Version => RequestError::InvalidVersion,
-            TooManyHeaders => RequestError::TooManyHeaders,
+            httparse::Error::HeaderName => RequestError::InvalidHeaderName,
+            httparse::Error::HeaderValue => RequestError::InvalidHeaderValue,
+            httparse::Error::Token => RequestError::InvalidToken,
+            httparse::Error::NewLine => RequestError::InvalidNewLine,
+            httparse::Error::Version => RequestError::InvalidVersion,
+            httparse::Error::TooManyHeaders => RequestError::TooManyHeaders,
             // Requests never contain a status, only responses do, but we don't
             // want a panic branch (from `unreachable!`) here.
-            Status => RequestError::IncompleteRequest,
+            httparse::Error::Status => RequestError::IncompleteRequest,
         }
     }
 
     /// Returns a static error message for the error.
-    #[rustfmt::skip]
     pub fn as_str(&self) -> &'static str {
-        use RequestError::*;
         match self {
-            IncompleteRequest => "incomplete request",
-            HeadTooLarge => "head too large",
-            InvalidContentLength => "invalid Content-Length header",
-            DifferentContentLengths => "different Content-Length headers",
-            InvalidHeaderName => "invalid header name",
-            InvalidHeaderValue => "invalid header value",
-            TooManyHeaders => "too many header",
-            UnsupportedTransferEncoding => "unsupported Transfer-Encoding",
-            ChunkedNotLastTransferEncoding => "invalid Transfer-Encoding header",
-            ContentLengthAndTransferEncoding => {
+            RequestError::IncompleteRequest => "incomplete request",
+            RequestError::HeadTooLarge => "head too large",
+            RequestError::InvalidContentLength => "invalid Content-Length header",
+            RequestError::DifferentContentLengths => "different Content-Length headers",
+            RequestError::InvalidHeaderName => "invalid header name",
+            RequestError::InvalidHeaderValue => "invalid header value",
+            RequestError::TooManyHeaders => "too many header",
+            RequestError::UnsupportedTransferEncoding => "unsupported Transfer-Encoding",
+            RequestError::ChunkedNotLastTransferEncoding => "invalid Transfer-Encoding header",
+            RequestError::ContentLengthAndTransferEncoding => {
                 "provided both Content-Length and Transfer-Encoding headers"
             }
-            InvalidToken | InvalidNewLine => "invalid request syntax",
-            InvalidVersion => "invalid version",
-            UnknownMethod => "unknown method",
-            InvalidChunkSize => "invalid chunk size",
-            Io(_) => "I/O error",
+            RequestError::InvalidToken | RequestError::InvalidNewLine => "invalid request syntax",
+            RequestError::InvalidVersion => "invalid version",
+            RequestError::UnknownMethod => "unknown method",
+            RequestError::InvalidChunkSize => "invalid chunk size",
+            RequestError::Io(_) => "I/O error",
         }
     }
 }
@@ -1199,12 +1135,5 @@ impl fmt::Display for RequestError {
     }
 }
 
-/// The message type used by the HTTP server.
-///
-#[doc(inline)]
-pub use heph_rt::net::ServerMessage;
-
-/// Error returned by the HTTP server.
-///
-#[doc(inline)]
-pub use heph_rt::net::ServerError;
+#[doc(no_inline)]
+pub use heph_rt::net::{ServerError, ServerMessage};
